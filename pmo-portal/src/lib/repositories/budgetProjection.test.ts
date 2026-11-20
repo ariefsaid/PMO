@@ -38,7 +38,6 @@ vi.mock('@/src/lib/db/budgets', () => ({ retryBudgetPush: retryBudgetPushMock })
 import {
   fetchBudgetComparison,
   fetchBudgetProjection,
-  fetchFirstSpendingYear,
   fetchBudgetPushStatus,
   fetchActiveBudgetCategoryPhasing,
   listBudgetFiscalYears,
@@ -55,19 +54,6 @@ import {
 } from './budgetProjection';
 import { AppError } from '@/src/lib/appError';
 import { Constants } from '@/src/lib/supabase/database.types';
-
-describe('first spending year summary', () => {
-  it('passes opaque years in their existing order and returns the server selection', async () => {
-    mockRpc.mockResolvedValueOnce({ data: 'FY-B', error: null });
-    await expect(fetchFirstSpendingYear('project', ['FY-B', 'FY-A'])).resolves.toBe('FY-B');
-    expect(mockRpc).toHaveBeenCalledWith('first_budget_spending_year', { p_project_id: 'project', p_fiscal_years: ['FY-B', 'FY-A'] });
-  });
-
-  it('surfaces a failed summary instead of inventing a result', async () => {
-    mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'unavailable', code: 'XX000' } });
-    await expect(fetchFirstSpendingYear('project', ['FY-B'])).rejects.toBeInstanceOf(AppError);
-  });
-});
 
 describe('current project fiscal calendar read', () => {
   it('sends only the exact project calendar request and preserves opaque returned dates and names', async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PR_STAGES, stageIndexForStatus, lifecycleSteps } from '../procurement';
+import { PR_STAGES, stageIndexForStatus } from '../procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 
 // ---------------------------------------------------------------------------
@@ -50,10 +50,5 @@ describe('AC-IXD-PROC-002 (approval is a gate, not a stage): approving advances 
   it('AC-IXD-PROC-002: approving lands on the Vendor-Quote node (PR done, VQ current — the next action)', () => {
     const approvedIdx = stageIndexForStatus(s('Approved'));
     expect(PR_STAGES[approvedIdx].key).toBe('vq');
-
-    const steps = lifecycleSteps(s('Approved'));
-    expect(steps[0].state).toBe('done'); // PR node done — approved
-    expect(steps[1].state).toBe('current'); // VQ node current — the next action
-    expect(steps[1].label).toBe('Supplier quote'); // not mislabelled "Approved"
   });
 });

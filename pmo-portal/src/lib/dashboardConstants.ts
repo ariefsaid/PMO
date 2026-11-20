@@ -19,9 +19,6 @@ export const STALE_BID_THRESHOLD_DAYS = 90;
 export const AT_RISK_THRESHOLD = 0.9;
 
 /** A risk result is meaningful only when every active-delivery project has a usable basis. */
-export function riskCheckableFor(activeDeliveryProjects: number, uncheckedProjects: number): boolean {
-  return activeDeliveryProjects > 0 && uncheckedProjects === 0;
-}
 
 export interface MoneyRiskInput {
   status: string;

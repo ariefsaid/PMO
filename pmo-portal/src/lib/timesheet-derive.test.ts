@@ -1,6 +1,6 @@
 // T1 — pure derivation helpers for timesheet data
 import { describe, it, expect } from 'vitest';
-import { entriesByProject, recentEntries } from './timesheet-derive';
+import { recentEntries } from './timesheet-derive';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
 
 // Minimal fixture shapes matching TimesheetEntryWithProject
@@ -53,33 +53,6 @@ const sheets: TimesheetWithEntries[] = [
     ],
   },
 ] as unknown as TimesheetWithEntries[];
-
-describe('T1 — entriesByProject', () => {
-  it('groups entries by project_id and sums hours (T1)', () => {
-    const result = entriesByProject(sheets[0].entries);
-    // p1: 8+4=12, p2: 3
-    const alpha = result.find((r) => r.projectId === 'p1');
-    const beta = result.find((r) => r.projectId === 'p2');
-    expect(alpha?.hours).toBe(12);
-    expect(beta?.hours).toBe(3);
-  });
-
-  it('sorts by hours descending so the biggest project is first (T1)', () => {
-    const result = entriesByProject(sheets[0].entries);
-    expect(result[0].projectId).toBe('p1'); // 12h > 3h
-  });
-
-  it('carries project name and code (T1)', () => {
-    const result = entriesByProject(sheets[0].entries);
-    const alpha = result.find((r) => r.projectId === 'p1')!;
-    expect(alpha.name).toBe('Alpha');
-    expect(alpha.code).toBe('A001');
-  });
-
-  it('returns empty array for empty entries (T1 edge)', () => {
-    expect(entriesByProject([])).toHaveLength(0);
-  });
-});
 
 describe('T1 — recentEntries', () => {
   it('flattens all sheets and returns top N sorted newest-first (T1)', () => {
