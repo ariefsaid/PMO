@@ -26,11 +26,11 @@ select lives_ok($$select create_rented_equipment_asset('RETRY','Crane','hours','
 select throws_ok($$select create_rented_equipment_asset('CROSS','Crane','hours','25300000-0000-0000-0000-000000000022',100,'day','IDR','2026-01-01',null)$$,'P0002',null,'other org vendor rejected');
 select is((select count(*)::int from equipment_assets where code='CROSS'),0,'cross org failure rolls back');
 select pg_temp.act_as('25300000-0000-0000-0000-000000000012');
-select lives_ok($$select create_rented_equipment_asset('PM','Crane','days','25300000-0000-0000-0000-000000000021',100,'month','IDR','2026-01-01',null)$$,'PM can create rental');
+select throws_ok($$select create_rented_equipment_asset('PM','Crane','days','25300000-0000-0000-0000-000000000021',100,'month','IDR','2026-01-01',null)$$,'42501',null,'PM cannot create rental (terms are Admin or Finance)');
 select pg_temp.act_as('25300000-0000-0000-0000-000000000013');
 select throws_ok($$select create_rented_equipment_asset('DENIED','Crane','hours','25300000-0000-0000-0000-000000000021',100,'day','IDR','2026-01-01',null)$$,'42501',null,'Engineer cannot create rental');
 reset role;
-select is((select count(*)::int from equipment_assets a join equipment_rental_terms t on t.asset_id=a.id and t.org_id=a.org_id where a.code in ('ADMIN','PM','RETRY') and a.ownership='rented'),3,'each success has rental terms in same org');
+select is((select count(*)::int from equipment_assets a join equipment_rental_terms t on t.asset_id=a.id and t.org_id=a.org_id where a.code in ('ADMIN','RETRY') and a.ownership='rented'),2,'each success has rental terms in same org');
 select is((select count(*)::int from equipment_assets where code='DENIED'),0,'denied call has no asset');
 select is(has_function_privilege('anon','public.create_rented_equipment_asset(text,text,text,uuid,numeric,text,text,date,date)','execute'),false,'anon cannot execute');
 select * from finish();

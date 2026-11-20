@@ -1,4 +1,5 @@
--- Create the asset and its initial rental period as one transaction.
+-- 1050: create a rented asset and its first rental term as one transaction (#2530 equipment import).
+-- Needs both writes: assets are Admin/PM, terms Admin/Finance (equipment_can_edit_terms), so only Admin holds both.
 create function public.create_rented_equipment_asset(
   p_code text, p_name text, p_unit text, p_vendor uuid, p_rate numeric,
   p_basis text, p_currency text, p_from date, p_to date default null
@@ -10,7 +11,7 @@ declare
   v_term uuid;
 begin
   perform public.assert_is_active_member();
-  if public.auth_role() not in ('Admin', 'Project Manager') then
+  if public.auth_role() not in ('Admin', 'Project Manager') or not public.equipment_can_edit_terms(public.auth_role()) then
     raise exception 'not authorized' using errcode = '42501';
   end if;
   if p_vendor is null or p_rate is null then raise exception 'a rented asset needs a vendor and a rate' using errcode = '22023'; end if;

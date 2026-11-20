@@ -192,7 +192,7 @@ const StockSetup: React.FC = () => {
     <ListPage
       title={t('setup.title')}
       count={state === undefined ? rows.length : undefined}
-      primaryAction={canCreate && (
+      primaryAction={canCreate && (tab !== 'items' || !tagsEnabled || itemTags.isSuccess) && (
         <>
           {tab === 'items' && <ImportButton entity="stockItem" descriptor={itemImport} onImported={() => void items.refetch()} />}
           {tab === 'warehouses' && <ImportButton entity="warehouse" descriptor={locationImport} onImported={() => void warehouses.refetch()} />}

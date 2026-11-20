@@ -386,6 +386,7 @@
     "record_bill_match_lines(uuid,jsonb)",
     "record_odoo_stock_cost_check(uuid,timestamp with time zone,jsonb,text,text,integer,integer)",
     "archive_stock_document_file(uuid,text)",
+    "create_rented_equipment_asset(text,text,text,uuid,numeric,text,text,date,date)",
     "apply_odoo_master_page(uuid,text,jsonb,text)",
     "apply_odoo_master_rows(uuid,text,jsonb)",
     "apply_odoo_purchase_page(uuid,text,jsonb,text)",
