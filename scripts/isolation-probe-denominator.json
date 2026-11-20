@@ -171,6 +171,10 @@
     {"table":"purchase_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"purchase_request_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"purchase_requests","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"rate_catalogue_items","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"rate_catalogue_rates","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"rate_catalogue_stage_weights","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"rate_catalogue_variants","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"record_changes","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"record_history_config","has_org":false,"pk":"entity_type","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
     {"table":"request_rate_counters","has_org":false,"pk":"bucket_key","columns":"*","b_read":"none","by_id":"n/a: no org_id; blind read covers the declared B visibility"},
@@ -211,6 +215,10 @@
     {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
   ],
   "definer_functions": [
+    "rate_catalogue_writer_check(uuid)",
+    "rate_catalogue_upsert_item(uuid,jsonb)",
+    "rate_catalogue_set_default_variant(uuid,uuid)",
+    "rate_catalogue_add_variants(uuid,text[])",
     "run_document_expiry_warnings(date)",
     "set_document_warning_days(integer[])",
     "_erp_ack_statement_dirty_dates(uuid,text,bigint)",
