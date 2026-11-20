@@ -1,6 +1,7 @@
 // Shared generic fixtures for the contractor job journeys (JOB-*.spec.ts). Service-role inserts into the seed org with a unique
 // per-run name; `cleanup` deletes only what this run created (children first). Used by self-isolated specs only.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { loadEnv } from 'vite';
 import { requireServiceRoleKey } from '../helpers';
@@ -91,3 +92,25 @@ export async function cleanupEquipment(admin: SupabaseClient, fx: EquipmentCostF
   if (fx.mapId) sqlAsOwner(`delete from public.budget_line_items where budget_version_id = '${fx.mapId}'; delete from public.budget_versions where id = '${fx.mapId}';`);
   if (fx.accountId) ok('account', await admin.from('erp_account_mirror').delete().eq('id', fx.accountId));
 }
+
+/** A project no other journey reads; delete it (and its children) in afterEach. */
+export async function ownProject(admin: SupabaseClient, name: string): Promise<string> {
+  const id = randomUUID();
+  ok('project', await admin.from('projects').insert({
+    id, org_id: ORG_ID, name, status: 'Ongoing Project', currency: 'USD', contract_value: 0, tax_treatment: 'exclusive', tax_amount: 0,
+  }));
+  return id;
+}
+
+export async function profileId(admin: SupabaseClient, email: string): Promise<string> {
+  const row = need('profile', await admin.from('profiles').select('id').eq('email', email).single());
+  return row.id as string;
+}
+
+export async function dropProject(admin: SupabaseClient, projectId: string, tables: string[] = ['tasks']): Promise<void> {
+  for (const table of tables) ok(`${table} cleanup`, await admin.from(table).delete().eq('project_id', projectId));
+  ok('record changes cleanup', await admin.from('record_changes').delete().eq('entity_id', projectId));
+  ok('project cleanup', await admin.from('projects').delete().eq('id', projectId));
+}
+
+export const uniq = () => randomUUID().slice(0, 8);
