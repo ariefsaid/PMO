@@ -3228,11 +3228,40 @@ receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `vendor-withh
 
 Warning and error toasts persist until dismissed because they carry remedies a user must be able to
 read or copy. Info and success toasts auto-dismiss after `max(4 seconds, 60 ms × displayed characters)`,
-capped at 10 seconds. Hovering or keyboard-focusing a toast pauses its timer. Every toast has a visible,
+capped at 10 seconds. Keyboard-focusing a toast (alt+T lifts and pins the stack; Escape releases it)
+pauses its timer; a pointer no longer does — see DD-TOAST-2. Every toast has a visible,
 keyboard-reachable dismiss control. The provider keeps one polite `role="status"` region and one
 assertive `role="alert"` region mounted empty, then inserts each message into the appropriate region;
 creating the live region and populated text together is not reliable for screen-reader announcements.
 Existing toast callers remain compatible; `error` is added as a kind alongside info/success/warning.
+
+## DD-TOAST-2 — a notice never takes the control it covers (Director, 2026-11-20, #2502)
+
+Notice placement is unchanged (bottom-right on desktop, top-center on phone, the safe top edge over a
+dialog or below a drawer header). The new rule is about the **pointer, not the pixel**: the notice
+stack and every notice card are pointer-transparent, so a click anywhere but a notice's own buttons
+hit-tests through to whatever is underneath — a table's last visible row, a row's actions menu, a
+docked action bar. Only the dismiss control (and any future action button) receives the pointer.
+
+Why: at 1280 × 720 the bottom-right notice landed on the last visible row's status control and, because
+a resting pointer paused its clock, kept it for as long as the person needed that control. Placement
+cannot settle this in general — on a list screen every free-looking corner is a control — so the notice
+stops competing for the pointer instead. The alternative (a reserved strip that reflows the page) was
+rejected: it moves the row the person just used and reshapes every screen's scroll height for a notice
+that carries no action.
+
+Consequences, accepted:
+- A resting pointer can no longer freeze a notice's lifetime; routine notices run their DD-TOAST-1
+  clock (`max(4s, 60ms × characters)`, capped at 10s). Reading time stays a keyboard affordance
+  (alt+T pins, Escape releases).
+- Swipe-to-dismiss is gone (the card is not a pointer target); the dismiss button remains on every
+  notice at every width.
+- Notice text is not mouse-selectable. Warnings and errors persist until dismissed, so a remedy stays
+  on screen to be read; it is copied from the screen that raised it, not from the notice.
+
+Covered by `pmo-portal/e2e/notice-never-blocks-the-control.spec.ts` — the task list, the purchases list
+and a budget line, each at 1280 × 720 and 390 × 844, hit-testing the raised control while the notice
+shows — and the pointer contract in `pmo-portal/src/components/ui/__tests__/Toast.pointer.test.tsx`.
 
 ## DD-VOCAB-1 — users see "Phase", the model keeps "milestone" (Director, 2026-10-14, UXS-034)
 

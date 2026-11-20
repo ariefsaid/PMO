@@ -1,5 +1,5 @@
 import { assert, assertEquals } from "@std/assert";
-import { makeScenarioRunner, newWorld, rpcBodies } from "./recordFolderTestKit.ts";
+import { APP_VALIDATED_AT, makeScenarioRunner, newWorld, rpcBodies } from "./recordFolderTestKit.ts";
 
 const { handler, setTestJwks } = await import("./index.ts");
 const run = makeScenarioRunner(handler, setTestJwks);
@@ -57,7 +57,7 @@ Deno.test("AC-M365SS-012 refresh and revoke use the organization's app", async (
   }
 });
 
-Deno.test("AC-M365SS-016 AC-M365SS-011 Admin validates before storing and info never reveals secret material or a timestamp", async () => {
+Deno.test("AC-M365SS-016 AC-M365AV-002 Admin validates before storing; info reports when the values were last checked and never the secret", async () => {
   const tenantId = "11111111-1111-4111-8111-111111111111";
   const clientId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const clientSecret = "synthetic-confidential";
@@ -77,8 +77,12 @@ Deno.test("AC-M365SS-016 AC-M365SS-011 Admin validates before storing and info n
     assertEquals(data.secretSet, true);
     assertEquals(data.tenantId, tenantId);
     assertEquals(data.clientId, clientId);
-    assertEquals(rpcBodies(calls, "m365_org_app_resolve").at(-1), { p_org_id: "org-b" });
-    assertEquals("validatedAt" in data, false);
+    // #2260 deliberately reverses AC-M365SS-011's "no timestamp": the Admin has to see how old the last
+    // check is, because a client secret expires. The secret itself is still never revealed, and the card
+    // read no longer decrypts it at all — it uses the non-secret status read.
+    assertEquals(data.validatedAt, APP_VALIDATED_AT);
+    assertEquals(rpcBodies(calls, "m365_org_app_status").at(-1), { p_org_id: "org-b" });
+    assertEquals(rpcBodies(calls, "m365_org_app_resolve"), []);
     assert(!text.includes(clientSecret));
     assert(!text.includes("secret_ref"));
     const clear = await call({ action: "clear_org_app", orgId: "org-a" });
@@ -160,6 +164,40 @@ Deno.test("AC-M365SS-009 Microsoft rejects unknown directories and unauthorized 
   }
 });
 
+Deno.test("AC-M365AV-002 organization app info reports the stored validation time without touching the secret", async () => {
+  const tenantId = "11111111-1111-4111-8111-111111111111";
+  const clientId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  await run(newWorld({ role: "Admin", orgId: "org-a", appRows: { "org-a": [{ tenant_id: tenantId, client_id: clientId, client_secret: "synthetic-confidential" }] } }), async ({ call, calls }) => {
+    const info = await call({ action: "org_app_info" });
+    assertEquals(info.status, 200);
+    const text = await info.text();
+    const data = JSON.parse(text);
+    assertEquals(data.configured, true);
+    assertEquals(data.source, "org");
+    assertEquals(data.validatedAt, APP_VALIDATED_AT);
+    assert(!text.includes("synthetic-confidential"));
+    assert(!text.includes("secret_ref"));
+    // The card read is the non-secret one: the secret is never decrypted just to render it.
+    assertEquals(rpcBodies(calls, "m365_org_app_status"), [{ p_org_id: "org-a" }]);
+    assertEquals(rpcBodies(calls, "m365_org_app_resolve"), []);
+  });
+});
+
+Deno.test("AC-M365AV-002 a stored app whose secret is gone reads as no secret, and the time still shows", async () => {
+  await run(newWorld({
+    role: "Admin", orgId: "org-a",
+    appRows: { "org-a": [{ tenant_id: "11111111-1111-4111-8111-111111111111", client_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", client_secret: "synthetic-confidential" }] },
+    appStatusRows: { "org-a": [{ tenant_id: "11111111-1111-4111-8111-111111111111", client_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", validated_at: APP_VALIDATED_AT, secret_set: false }] },
+  }), async ({ call }) => {
+    const info = await call({ action: "org_app_info" });
+    assertEquals(info.status, 200);
+    const data = await info.json();
+    assertEquals(data.configured, true);
+    assertEquals(data.secretSet, false);
+    assertEquals(data.validatedAt, APP_VALIDATED_AT);
+  });
+});
+
 Deno.test("organization app info reports only organization-owned values", async () => {
   await run(newWorld({ role: "Admin" }), async ({ call }) => {
     const response = await call({ action: "org_app_info" });
@@ -171,6 +209,7 @@ Deno.test("organization app info reports only organization-owned values", async 
     assertEquals(data.tenantId, null);
     assertEquals(data.clientId, null);
     assertEquals(data.secretSet, false);
+    assertEquals(data.validatedAt, null);
     assert(data.callbackUrls.connect);
     assert(data.callbackUrls.signIn);
     assert(!text.includes("synthetic-tenant"));

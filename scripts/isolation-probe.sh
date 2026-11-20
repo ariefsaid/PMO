@@ -252,6 +252,9 @@ c=$(rpc get_finance_hub_figures "{}")
 A_COMPANY=$(jq -r '.[]|select(.table=="companies")|.id' "$A_ROWS_JSON")
 A_SI=$(jq -r '.[]|select(.table=="sales_invoices")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
+  c=$(rpc set_project_billing_terms "{\"p_project\":\"$A_PROJECT\",\"p_stages\":[],\"p_day\":null,\"p_warn_days\":5,\"p_pct\":0}")
+else skip "set_project_billing_terms (projects)"; fi
+if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc get_projects_money_collection "{\"p_project_ids\":[\"$A_PROJECT\"]}")
 else skip "get_projects_money_collection (projects)"; fi
 if [ -n "$A_SI" ] && [ "$A_SI" != null ] && [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then

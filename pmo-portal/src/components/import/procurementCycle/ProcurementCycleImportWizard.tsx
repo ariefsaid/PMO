@@ -11,6 +11,7 @@
  * text-destructive, text-foreground. Controls 32px (h-8). Shadow + confirm-anim
  * copied verbatim from ImportWizard.
  */
+import { withEnglishOrgTerms } from '@/src/lib/i18n/orgTerms';
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog } from '@base-ui/react/dialog';
@@ -270,13 +271,14 @@ function CycleUploadStep({ wiz }: { wiz: Wiz }) {
 }
 
 function CycleMappingStep({ wiz }: { wiz: Wiz }) {
+  const { i18n } = useTranslation('import');
   const headers = wiz.parsed?.headers ?? [];
   return (
     <div className="flex flex-col gap-3">
       {CYCLE_FIELDS.map((field) => (
         <CycleMappingRow
           key={field.key}
-          label={field.label}
+          label={field.key === 'project' ? withEnglishOrgTerms(field.label, i18n.resolvedLanguage ?? i18n.language) : field.label}
           required={field.required}
           headers={headers}
           value={wiz.mapping[field.key as keyof CycleMapping] ?? null}

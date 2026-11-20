@@ -324,7 +324,7 @@ test('AC-TM-018 Finance rates a week, its manager assembles it, and a second use
   await expect(page.getByTestId('timesheets-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByLabel('Add a project')).toBeVisible({ timeout: 10_000 });
   await page.getByLabel('Add a project').selectOption(projectId);
-  await expect(page.getByText(projectName, { exact: true })).toBeVisible();
+  await expect(page.getByTestId(/^tsgrid-(table|mobile)$/).getByText(projectName, { exact: true })).toBeVisible();
   const hours = page.getByRole('textbox', { name: new RegExp(`${projectName}, ${workdayLabel} hours`, 'i') });
   await hours.fill(String(HOURS));
   await expect(page.getByTestId('tsgrid-grand-total')).toContainText(String(HOURS));

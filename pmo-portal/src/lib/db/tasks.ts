@@ -49,6 +49,10 @@ export interface TaskInput {
    * PMO-native (like milestone_id) — never forwarded on the external ClickUp dispatch.
    */
   meeting_id?: string | null;
+  /** #2531: optional work order of the task's own project (managers only; the DB refuses any other). */
+  work_order_id?: string | null;
+  /** #2531: when true the task cannot be set Done until a proof attachment exists (enforced in the DB). */
+  proof_required?: boolean;
 }
 
 /** The structure fields an edit (PM/Exec/Admin) supplies. project_id/org_id are never patched. */
@@ -66,6 +70,10 @@ export interface TaskPatch {
   description?: string | null;
   /** Priority edit (OD-INT-9). null explicitly clears the priority back to "unset". */
   priority?: TaskPriority | null;
+  /** #2531: link / clear (null) the work order. Clear it before moving a task to another project. */
+  work_order_id?: string | null;
+  /** #2531: require / stop requiring proof of completion. Never changes the task's status. */
+  proof_required?: boolean;
 }
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -101,13 +109,44 @@ type RawTask = TaskRow & {
  * this same query — no separate filter needed elsewhere). Throws an `AppError` (code preserved) on
  * failure.
  */
-export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
+export async function listTasks(
+  projectId: string,
+  opts: { workOrderId?: string | 'none' } = {},
+): Promise<TaskWithRefs[]> {
+  const rows = await fetchAllPages((from, to) => {
+    let q = supabase
+      .from('tasks')
+      .select(SELECT)
+      .eq('project_id', projectId)
+      .is('tombstoned_at', null);
+    // #2531 FR-TWOP-003: filter by work order; 'none' lists the tasks linked to no work order.
+    if (opts.workOrderId === 'none') q = q.is('work_order_id', null);
+    else if (opts.workOrderId) q = q.eq('work_order_id', opts.workOrderId);
+    return q
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
+  }) as unknown as RawTask[];
+  return rows.map((t) => ({
+    ...t,
+    assignee: t.assignee ?? null,
+    dependencies: t.dependencies ?? [],
+  }));
+}
+
+/**
+ * #2531 FR-TWOP-003: the open tasks (not Done, not archived, not tombstoned) of one work order, with the
+ * assignee, soonest due first. RLS scopes rows; org_id is never sent.
+ */
+export async function listOpenTasksByWorkOrder(workOrderId: string): Promise<TaskWithRefs[]> {
   const rows = await fetchAllPages((from, to) => supabase
     .from('tasks')
     .select(SELECT)
-    .eq('project_id', projectId)
+    .eq('work_order_id', workOrderId)
+    .neq('status', 'Done')
+    .is('archived_at', null)
     .is('tombstoned_at', null)
-    .order('created_at', { ascending: true })
+    .order('end_date', { ascending: true, nullsFirst: false })
     .order('id', { ascending: true })
     .range(from, to)) as unknown as RawTask[];
   return rows.map((t) => ({
@@ -312,6 +351,9 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       description: input.description || null, // OD-INT-9: "" normalises to null
       priority: input.priority ?? null,
       meeting_id: input.meeting_id ?? null, // 0206: the /action seam (PMO-native, like milestone_id)
+      // #2531: PMO-native structure fields, sent only when stated so every other creator's payload is unchanged.
+      ...(input.work_order_id ? { work_order_id: input.work_order_id } : {}),
+      ...(input.proof_required ? { proof_required: true } : {}),
     })
     .select()
     .single();
@@ -344,6 +386,8 @@ export async function updateTask(id: string, patch: TaskPatch, projectId?: strin
   if (patch.parent_task_id !== undefined) next.parent_task_id = patch.parent_task_id; // null promotes
   if (patch.description !== undefined) next.description = patch.description || null; // OD-INT-9: "" → null
   if (patch.priority !== undefined) next.priority = patch.priority; // null clears
+  if (patch.work_order_id !== undefined) next.work_order_id = patch.work_order_id; // null clears (#2531)
+  if (patch.proof_required !== undefined) next.proof_required = patch.proof_required; // #2531
   const { data, error } = await supabase.from('tasks').update(next).eq('id', id).select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Task not found or you do not have permission to edit it.');
@@ -449,6 +493,8 @@ export async function removeDependency(taskId: string, dependsOnId: string): Pro
  * migration". RLS already scopes to the org; the assignee filter is a client-side WHERE.
  */
 export interface MyTask {
+  work_order_id?: string | null;
+  work_order_name?: string | null;
   id: string;
   name: string;
   status: TaskStatus;
@@ -487,7 +533,7 @@ export interface MyTask {
 export async function listMyTasks(userId: string): Promise<MyTask[]> {
   const data = await fetchAllPages((from, to) => supabase
     .from('tasks')
-    .select('id, name, status, assignee_id, project_id, meeting_id, start_date, end_date, priority, archived_at, project:projects!tasks_project_id_fkey(name, short_name)')
+    .select('id, name, status, assignee_id, project_id, meeting_id, work_order_id, start_date, end_date, priority, archived_at, work_order:work_orders!tasks_work_order_id_fkey(wo_number,title), project:projects!tasks_project_id_fkey(name, short_name)')
     .eq('assignee_id', userId)
     .is('tombstoned_at', null)
     .order('created_at', { ascending: true })
@@ -501,6 +547,8 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     assignee_id: string | null;
     project_id: string | null;
     meeting_id: string | null;
+    work_order_id: string | null;
+    work_order: { wo_number: string | null; title: string } | null;
     start_date: string | null;
     end_date: string | null;
     priority: TaskPriority | null;
@@ -513,6 +561,8 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     assignee_id: t.assignee_id,
     project_id: t.project_id,
     meeting_id: t.meeting_id,
+    work_order_id: t.work_order_id,
+    work_order_name: t.work_order ? (t.work_order.wo_number ? `${t.work_order.wo_number} · ${t.work_order.title}` : t.work_order.title) : null,
     // ⚑ NOT `?? '—'`. A project-less task has no project NAME either, and collapsing that to a dash
     // would make it indistinguishable from a project whose name failed to load — the UI needs to
     // tell them apart to decide between a link and a plain heading (FR-FCT-041).

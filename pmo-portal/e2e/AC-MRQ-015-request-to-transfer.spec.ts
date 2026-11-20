@@ -12,10 +12,16 @@ async function fixture() {
   const admin = await userClient('admin@acme.test');
   const orgId = (await admin.from('projects').select('org_id').eq('id', SEED_PROJECT_ID).single()).data?.org_id as string;
   const item = await makeItem(admin, sfx, 'M');
-  const wo = await admin.from('work_orders').insert({
-    org_id: orgId, project_id: SEED_PROJECT_ID, title: `E2E MRQ ${sfx}`, wo_number: `E2E-MRQ-${sfx}`, status: 'Issued',
-    issued_at: new Date().toISOString(), order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0,
-  }).select('id, title, wo_number').single();
+  // The app's own path: insert the client-writable columns (a Draft), then issue through transition_work_order,
+  // which mints wo_number and stamps issued_at.
+  const draft = await admin.from('work_orders').insert({
+    org_id: orgId, project_id: SEED_PROJECT_ID, title: `E2E MRQ ${sfx}`, order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0,
+  }).select('id').single();
+  if (draft.error) throw new Error('work order: ' + draft.error.message);
+  let issue = await admin.rpc('transition_work_order', { p_id: draft.data.id, p_to: 'Issued' });
+  if (issue.error && /acknowledg/i.test(issue.error.message)) issue = await admin.rpc('transition_work_order', { p_id: draft.data.id, p_to: 'Issued', p_over_commit_ack: true });
+  if (issue.error) throw new Error('work order issue: ' + issue.error.message);
+  const wo = await admin.from('work_orders').select('id, title, wo_number').eq('id', draft.data.id).single();
   if (wo.error) throw new Error('work order: ' + wo.error.message);
   const chain = await admin.rpc('mrq_set_chain', { p_steps: [
     { role: 'Project Manager', label: 'Plan check', only_over_plan: false },

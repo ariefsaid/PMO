@@ -24,6 +24,8 @@ export const ROOT = "synthetic-root-id";
 export const PROJECT_ID = "10200000-0000-0000-0000-000000000201";
 export const CASE_ID = "10200000-0000-0000-0000-000000000401";
 export const SETTINGS_STAMP = "2026-10-21T09:00:00.123456+00:00";
+/** The moment the fixture app values were last accepted by Microsoft (#2260). */
+export const APP_VALIDATED_AT = "2026-11-18T02:15:00+00:00";
 export const FULL_SCOPES = ["Files.Read", "Files.Read.All", "Sites.Read.All", "Sites.Selected", "offline_access"];
 export const READ_SCOPES = ["Files.Read", "Files.Read.All", "Sites.Read.All", "offline_access"];
 
@@ -42,6 +44,8 @@ export interface World {
   connectionTenant?: string;
   noDeployment?: boolean;
   appRows?: Record<string, unknown[]>;
+  /** Rows for the service-only app status read (#2260). Defaults to the appRows of that org, without the secret. */
+  appStatusRows?: Record<string, unknown[]>;
   /** Rows returned for the caller-RLS parent read (projects / procurements). */
   parent: unknown[] | ((call: FetchCall) => unknown[] | Promise<unknown[]>);
   parentError?: unknown;
@@ -159,6 +163,18 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
     ...extraTables,
     { label: "membership", pathname: "/rest/v1/rpc/m365_membership_state", response: () => jsonResponse({ state: world.memberState ?? "active", org_id: world.orgId ?? ORG, role: world.role }) },
     { label: "app-resolve", pathname: "/rest/v1/rpc/m365_org_app_resolve", response: (call) => jsonResponse(world.appRows?.[String((call.bodyJson as Record<string, unknown>).p_org_id)] ?? []) },
+    {
+      label: "app-status",
+      pathname: "/rest/v1/rpc/m365_org_app_status",
+      response: (call) => {
+        const orgId = String((call.bodyJson as Record<string, unknown>).p_org_id);
+        if (world.appStatusRows) return jsonResponse(world.appStatusRows[orgId] ?? []);
+        const rows = (world.appRows?.[orgId] ?? []) as Record<string, unknown>[];
+        return jsonResponse(rows.map((r) => ({
+          tenant_id: r.tenant_id, client_id: r.client_id, validated_at: APP_VALIDATED_AT, secret_set: true,
+        })));
+      },
+    },
     { label: "app-set", pathname: "/rest/v1/rpc/m365_set_org_app", response: () => jsonResponse({ changed_app: false }) },
     { label: "app-clear", pathname: "/rest/v1/rpc/m365_clear_org_app", response: () => jsonResponse(null) },
     { label: "feature", pathname: "/rest/v1/rpc/service_feature_enabled", response: () => jsonResponse((world.featureEnabled ?? true) && (world.entitled ?? true)) },

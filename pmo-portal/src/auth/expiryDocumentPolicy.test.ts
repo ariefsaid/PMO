@@ -1,0 +1,23 @@
+import { describe, it, expect } from 'vitest';
+import { can } from './policy';
+import type { Role } from './AuthContext';
+
+const roles: Role[] = ['Admin', 'Project Manager', 'Finance', 'Executive', 'Engineer'];
+const ctx = (realRole: Role, kind: 'person' | 'equipment', viewOnly = false) => ({ realRole, record: { kind, viewOnly } });
+
+describe('AC-DEE-005 expiryDocument policy mirrors RLS (FR-DEX-006)', () => {
+  for (const action of ['create', 'edit', 'archive'] as const) {
+    it(`${action}: Admin on both kinds, PM on equipment only, nobody else`, () => {
+      for (const r of roles) {
+        expect(can(action, 'expiryDocument', ctx(r, 'equipment'))).toBe(r === 'Admin' || r === 'Project Manager');
+        expect(can(action, 'expiryDocument', ctx(r, 'person'))).toBe(r === 'Admin');
+      }
+    });
+    it(`${action}: refused while viewing as another role`, () => {
+      expect(can(action, 'expiryDocument', ctx('Admin', 'equipment', true))).toBe(false);
+    });
+    it(`${action}: refused without a subject kind`, () => {
+      expect(can(action, 'expiryDocument', { realRole: 'Admin' })).toBe(false);
+    });
+  }
+});

@@ -15,6 +15,10 @@ describe('parseStockError', () => {
     expect(parseStockError({ code: 'P0001', message: 'STK_INVALID: x', details: '{"a":{"b":1}}' })?.numbers).toEqual({});
   });
 
+  it.each(['STK_ZERO_COST', 'STK_TAG_LOCKED', 'STK_PAPER_REQUIRED', 'STK_FILE_LOCKED', 'STK_FILE_MISSING'])('recognizes %s for actionable copy', (code) => {
+    expect(parseStockError({ message: `${code}: refused` })?.code).toBe(code);
+  });
+
   it('returns null for a non-stock error so classifyMutationError handles it', () => {
     expect(parseStockError({ code: '42501', message: 'x' })).toBeNull();
     expect(parseStockError({ code: 'P0001', message: 'STK_UNKNOWN_CODE: x' })).toBeNull();

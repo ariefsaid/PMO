@@ -9,6 +9,7 @@ import { I18nextProvider } from 'react-i18next';
 import { axe } from 'jest-axe';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/documents';
 
 vi.mock('@/src/components/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/ui')>();
@@ -143,13 +144,13 @@ function page(lng: 'en' | 'id' = 'en', resources: Record<string, Record<string, 
   return instance;
 }
 
-function renderPanel(props: Partial<React.ComponentProps<typeof TimeAndMaterials>> = {}, lng: 'en' | 'id' = 'en') {
+function renderPanel(props: Partial<React.ComponentProps<typeof TimeAndMaterials>> = {}, lng: 'en' | 'id' = 'en', open?: DocumentViewerApi['open']) {
   const i18n = page(lng);
   const user = userEvent.setup();
   const result = render(
     <I18nextProvider i18n={i18n}>
       <MemoryRouter>
-        <ToastProvider><main><TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" onCreateInvoice={vi.fn()} canCreateInvoice={() => true} {...props} /></main></ToastProvider>
+        <ToastProvider>{open ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}><main><TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" onCreateInvoice={vi.fn()} canCreateInvoice={() => true} {...props} /></main></DocumentViewerContext.Provider> : <main><TimeAndMaterials projectId="p1" projectManagerId="u-pm" currency="IDR" onCreateInvoice={vi.fn()} canCreateInvoice={() => true} {...props} /></main>}</ToastProvider>
       </MemoryRouter>
     </I18nextProvider>,
   );
@@ -190,6 +191,27 @@ beforeEach(() => {
 });
 
 describe('TimeAndMaterials', () => {
+  it('document-preview AC-016 opens the T&M signed sign-off document from claim detail', async () => {
+    h.claims = { ...h.claims, data: { rows: [{ ...claim, signoff_prepared_by: 'u-pm', document_id: 'doc-1' }], truncated: false } };
+    const open = vi.fn<DocumentViewerApi['open']>();
+    const { user } = renderPanel({}, 'en', open);
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).getByText(/Signed sign-off:/)).toBeInTheDocument();
+    await user.click(within(drawer).getByRole('button', { name: 'Preview Approved timesheet summary' }));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][0].key).toBe('project-document:doc-1');
+  });
+
+  it('document-preview AC-017 omits the sign-off line when there is no linked document', async () => {
+    h.claims = { ...h.claims, data: { rows: [claim], truncated: false } };
+    const { user } = renderPanel();
+    await user.click(await screen.findByRole('button', { name: /Open claim/ }));
+    const drawer = await screen.findByRole('dialog', { name: /Time-and-materials claim/ });
+    expect(within(drawer).queryByText(/Signed sign-off:/)).toBeNull();
+    expect(within(drawer).queryByText('Document not available')).toBeNull();
+  });
+
   it('ships complete English and Indonesian catalogues for the screen', () => {
     const read = (locale: 'en' | 'id') => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/timeAndMaterials.json`), 'utf8')) as Record<string, unknown>;
     const flatten = (value: Record<string, unknown>, prefix = ''): string[] => Object.entries(value).flatMap(([key, child]) => {

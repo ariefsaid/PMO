@@ -308,6 +308,16 @@ jobs:
       - name: Supply-chain audit — full tree incl. dev tooling (visibility, non-blocking)
         run: npm audit --audit-level=high
         continue-on-error: true
+      # Edge-function `deno.json` pins are outside npm: no lock refresh, no Dependabot entry (#2320).
+      # Run the pin check on the RELEASE path only (PR to `main`): an upstream advisory must block a
+      # promote, not every unrelated PR to `dev`. The bump itself is a dev PR on the recorded cadence
+      # (docs/runbooks/edge-fn-pins.md); the release checklist runs this same command as step 0b.
+      # Each lookup is retried 3x with backoff (1s/3s/9s) inside the script, so a registry blip cannot
+      # red this run; a real outage still fails closed and names the lookup.
+      - name: Edge-function pins (latest + advisory) — release path
+        if: ${{ github.event_name == 'pull_request' && github.base_ref == 'main' }}
+        working-directory: .
+        run: node scripts/check-edge-fn-pins.mjs
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
@@ -780,7 +790,7 @@ jobs:
         working-directory: pmo-portal
         run: |
           npm run check:ux-proof
-          cd .. && node --test scripts/ux-proof.test.mjs
+          cd .. && node --test scripts/ux-proof.test.mjs scripts/ux-proof-settings.test.mjs
       - name: Capture full Chromium inventory
         if: matrix.shard == 1
         continue-on-error: true

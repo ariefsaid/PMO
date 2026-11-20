@@ -25,6 +25,10 @@ vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({
 vi.mock('@/src/components/integrations/M365DefaultLibraryCard', () => ({
   M365DefaultLibraryCard: () => createElement('div', { 'data-testid': 'm365-default-library-stub' }),
 }));
+// The org Microsoft app card (#1017) reads its own query; its suite un-mocks it.
+vi.mock('@/src/components/integrations/M365AppRegistrationCard', () => ({
+  M365AppRegistrationCard: () => createElement('div', { 'data-testid': 'm365-app-registration-stub' }),
+}));
 
 // #2517: the work-order / discipline pickers read their own queries (work orders, disciplines) and auth, which the
 // page suites (timesheets, procurement, stock, equipment) do not provide. CostAttributionFields.test.tsx unmocks and
