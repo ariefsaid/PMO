@@ -244,6 +244,22 @@ describe('buildFinancePosition', () => {
     expect(position.payablesUnknownCount).toBe(0);
   });
 
+  it('#2600 a voided bill is left out of both the Payables and Procurement list totals', () => {
+    const rows = [
+      procurement('mixed', 5, {
+        procurement_invoices: [
+          { amount: 900, invoice_date: '2026-10-20', voided_at: '2026-11-01T00:00:00Z' },
+          { amount: 300, invoice_date: '2026-10-22', voided_at: null },
+        ],
+      }),
+    ];
+    const position = calculate([], rows);
+    expect(position.payablesTotals).toEqual({ IDR: 30_000 });
+    expect(totalsByCurrency(rows, 'Finance', 'pay')).toEqual([
+      { currency: 'IDR', amount: 300, unknown: false, knownAmount: 300, unknownCount: 0 },
+    ]);
+  });
+
   it('SEC-RS-2: an unknown supplier balance stays unknown, never zero, and is left out of known totals', () => {
     const rows = [
       procurement('known', 5, { procurement_invoices: [{ amount: 300, invoice_date: '2026-10-22' }] }),
