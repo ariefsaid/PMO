@@ -33,6 +33,15 @@ describe('AC-TERM-002 applyOrgTerms', () => {
     const t = { en: { clientSuppliedStock: { singular: 'free-issue stock', plural: 'free-issue stock' } } };
     expect(applyOrgTerms('Client-supplied stock', 'en', t)).toBe('Free-issue stock');
   });
+  it('renames material request in English and Bahasa, singular and plural', () => {
+    const t = {
+      en: { materialRequest: { singular: 'site requisition', plural: 'site requisitions' } },
+      id: { materialRequest: { singular: 'permintaan barang', plural: 'permintaan barang' } },
+    };
+    expect(applyOrgTerms('Material requests', 'en', t)).toBe('Site requisitions');
+    expect(applyOrgTerms('Withdraw this material request', 'en', t)).toBe('Withdraw this site requisition');
+    expect(applyOrgTerms('Daftar permintaan material', 'id', t)).toBe('Daftar permintaan barang');
+  });
   it('matchCase', () => {
     expect(matchCase('Project', 'job')).toBe('Job');
     expect(matchCase('project', 'Job')).toBe('job');

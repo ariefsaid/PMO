@@ -2,7 +2,7 @@
 -- AC-TERM-001 [pgTAP]: org_terminology — every member reads their own org's overrides; only an
 -- Admin writes; a cross-org Admin cannot read or write another org's rows.
 begin;
-select plan(13);
+select plan(14);
 
 insert into organizations (id, name) values
   ('09750000-0000-0000-0000-000000000001','AC-TERM Org A'),
@@ -20,6 +20,9 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"09750000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$insert into org_terminology (term_key, locale, singular, plural) values ('workOrder','en','Job Card','Job Cards')$$,
   'AC-TERM-001 org-A Admin writes an override (org_id stamped, not sent)');
+select lives_ok($$insert into org_terminology (term_key, locale, singular, plural) values ('materialRequest','id','Permintaan barang','Permintaan barang')$$,
+  'AC-TERM-001 material request is a renameable term');
+delete from org_terminology where term_key = 'materialRequest';
 select is((select org_id from org_terminology limit 1), '09750000-0000-0000-0000-000000000001'::uuid,
   'AC-TERM-001 org_id is stamped to the caller''s org');
 select throws_ok($$insert into org_terminology (term_key, locale, singular, plural) values ('invoice','en','X','Xs')$$,
