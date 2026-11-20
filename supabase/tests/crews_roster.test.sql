@@ -1,5 +1,5 @@
 -- crews_roster.test.sql — #2528 Slice 1 (docs/specs/crews-roster-attendance.spec.md).
--- Migration under test: 0988_crews_roster.sql.
+-- Migration under test: 1035_crews_roster.sql.
 -- AC-CRW-001 duplicate crew code refused, archive frees it · AC-CRW-002 one crew per person per day ·
 -- AC-CRW-003 one work order per crew per day · AC-CRW-004 the roster for a date shows members and role shortfall ·
 -- AC-CRW-014 another organisation, or a role without permission, reads nothing and changes nothing.

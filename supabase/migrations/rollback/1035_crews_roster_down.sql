@@ -1,4 +1,4 @@
--- 0988_crews_roster_down.sql — reverse 0988. Reverse 0990 and 0989 first. btree_gist stays (shared extension).
+-- 1035_crews_roster_down.sql — reverse 0988. Reverse 0990 and 0989 first. btree_gist stays (shared extension).
 drop function if exists public.work_order_roster(uuid, date);
 drop function if exists public.create_crew_with_roles(jsonb, jsonb);
 drop function if exists public.place_new_crew_worker(jsonb, jsonb);

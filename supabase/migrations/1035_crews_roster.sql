@@ -1,4 +1,4 @@
--- 0988_crews_roster.sql — #2528 (map #2516): crews, the people in them, and which crews serve a work order.
+-- 1035_crews_roster.sql — #2528 (map #2516): crews, the people in them, and which crews serve a work order.
 -- Spec: docs/specs/crews-roster-attendance.spec.md (FR-CRW-001..007, FR-CRW-019/020, NFR-CRW-001/003).
 -- Plan: docs/plans/2026-11-20-crews-roster-attendance.md (Slice 1). Proven by supabase/tests/crews_roster.test.sql.
 --
@@ -6,7 +6,7 @@
 -- Basic workforce records are available to active members; Admin and Project Manager manage them.
 -- Expiry-document access policies are unchanged.
 --
--- ── REVERSE (also supabase/migrations/rollback/0988_crews_roster_down.sql) ──────────────────────────────────────
+-- ── REVERSE (also supabase/migrations/rollback/1035_crews_roster_down.sql) ──────────────────────────────────────
 --   reverse 0990 and 0989 first; then drop function work_order_roster, the tables (reverse order), the guard functions.
 
 create extension if not exists btree_gist with schema extensions;
