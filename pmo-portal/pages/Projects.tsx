@@ -77,6 +77,8 @@ const Projects: React.FC = () => {
     })
     : null;
   const displayFiltered = secondaryReadUnavailable && cachedFiltered ? cachedFiltered : filtered;
+  // Keep the table's controls and headings visible while the risk read decides which rows belong.
+  const tableShellLoading = riskScopeRead && moneyPending && cachedFiltered === null && view === 'table';
   const displayIsAtRiskActual = (project: ProjectWithRefs) => {
     const cachedRisk = lastAtRiskSnapshot.current;
     if ((moneyPending || moneyError) && cachedRisk && cachedRisk.viewerId === currentUser?.id && cachedRisk.byProjectId.has(project.id)) {
@@ -85,9 +87,9 @@ const Projects: React.FC = () => {
     return isAtRiskActual(project);
   };
   useEffect(() => {
-    if (secondaryReadUnavailable) return;
+    if (isPending || isError || !data || secondaryReadUnavailable) return;
     lastFilteredSnapshot.current = { key: filteredSnapshotKey, rows: filtered };
-  }, [filtered, filteredSnapshotKey, secondaryReadUnavailable]);
+  }, [data, filtered, filteredSnapshotKey, isError, isPending, secondaryReadUnavailable]);
   useEffect(() => {
     if (moneyPending || moneyError) return;
     lastAtRiskSnapshot.current = {
@@ -259,7 +261,7 @@ const Projects: React.FC = () => {
           onRetry={() => void refetchMoney()}
         />
       )}
-      {secondaryReadPending && cachedFiltered === null && (
+      {secondaryReadPending && cachedFiltered === null && !tableShellLoading && (
         <ListState
           variant="loading"
           shape={view === 'table' ? 'table' : view === 'calendar' ? 'chart' : 'cards'}
@@ -303,7 +305,7 @@ const Projects: React.FC = () => {
           {sharedBasis && canViewMoney && <p className="mb-2 text-control text-muted-foreground md:hidden">{t('projects:contractBasisNote', 'Contract amounts are {{basis}}.', { basis: sharedBasis })}</p>}
           {sharedManager && <p className="mb-2 text-control text-muted-foreground">{t('projects:sharedManagerNote', 'Project manager: {{name}}', { name: sharedManager })}</p>}
           <DataTable<ProjectWithRefs>
-            rows={displayFiltered}
+            rows={tableShellLoading ? [] : displayFiltered}
             columns={tableColumns}
             // A shared contract basis hangs under its header: the head row makes room for that second line.
             className={cn('[--table-row-min-height:40px]', sharedBasis && canViewMoney && '[--table-head-height:64px]')}
@@ -316,7 +318,7 @@ const Projects: React.FC = () => {
             tableId="projects-list"
             onActivate={onOpen}
             rowMenu={canRowWrite ? rowMenu : undefined}
-            state={displayFiltered.length === 0 && !secondaryReadUnavailable ? 'empty' : undefined}
+            state={tableShellLoading ? 'loading' : displayFiltered.length === 0 && !secondaryReadUnavailable ? 'empty' : undefined}
             emptyTitle={emptyState.title}
             emptySub={emptyState.sub}
             emptyAction={emptyState.action}
