@@ -1,4 +1,4 @@
--- 0983_stock_document_files.sql — #2523: attachments on stock documents (FR-SSW-020..022), spec docs/specs/stock-site-work.spec.md.
+-- 1030_stock_document_files.sql — #2523: attachments on stock documents (FR-SSW-020..022), spec docs/specs/stock-site-work.spec.md.
 -- Proven by supabase/tests/stock_site_work.test.sql (AC-SSW-007, AC-SSW-008).
 --   §1 stock_document_files + RLS: read = whoever reads the document; add = the document's author, its warehouses' keepers or an Admin,
 --      while the document is Draft or Posted; delete = Draft only (a trigger refuses it for a Posted document for every caller);
@@ -6,7 +6,7 @@
 --   §2 the private bucket stock-documents, path {org}/{document}/{file_id}/{filename}, with the same rules.
 --   §3 stock_post_core gains the paper-required check (a transfer of a zero-cost item whose tag requires paper).
 -- The posting itself stays immutable: the document row is never touched by an attachment.
--- ── REVERSE (rollback/0983_stock_document_files_down.sql): restore 0413's stock_post_core; drop policies, bucket policies, table.
+-- ── REVERSE (rollback/1030_stock_document_files_down.sql): restore 0413's stock_post_core; drop policies, bucket policies, table.
 
 -- §1 ---------------------------------------------------------------------------------------------------
 create table public.stock_document_files (

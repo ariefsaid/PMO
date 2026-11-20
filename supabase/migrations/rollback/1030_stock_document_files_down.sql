@@ -1,4 +1,4 @@
--- 0983_stock_document_files_down.sql — reverse 0983.
+-- 1030_stock_document_files_down.sql — reverse 0983.
 drop trigger if exists stock_storage_no_posted_delete on storage.objects;
 drop function if exists public.guard_stock_storage_delete();
 drop trigger if exists stock_document_files_zz_object on public.stock_document_files;
