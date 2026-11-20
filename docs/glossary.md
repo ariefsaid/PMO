@@ -999,7 +999,7 @@ which moves the organisation's own stock.
 **Direct-cost account** — an active posting account under an expense group in the connected company's chart, linked to a budget category for its costs. Admin or Finance may request a leaf account under an existing group from PMO; the group and the rest of the chart remain under the accountant's control.
 
 **Unresolved account reconciliation** — an account request awaiting an authoritative link or an audited administrator disposition after its outcome could not be settled. A disposition records the administrator's reason and attestation and is available only once the original outbox is terminal and unclaimable.
-=======
+
 ## Import templates (#2530)
 - **Import template** — a spreadsheet a person downloads from an import screen: the field labels as headers, one example row, dropdowns for closed lists and a Notes sheet saying what each column holds. It carries a version, and an upload of the current or the previous version is accepted.
 - **Failed-rows file** — the spreadsheet offered when an import ends with rows that did not go in: the original cells of those rows plus "Row in your file" and "Reason", so they can be fixed and uploaded again. Rows that already existed are on their own "Already there" sheet.
