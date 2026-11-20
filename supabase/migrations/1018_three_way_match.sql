@@ -85,30 +85,30 @@ create trigger bill_match_exceptions_immutable before update or delete on public
 alter table public.org_three_way_match_settings enable row level security;
 alter table public.org_three_way_match_settings force  row level security;
 create policy org_three_way_match_settings_select on public.org_three_way_match_settings for select
-  using (org_id = public.auth_org_id() and public.is_active_member());
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 
 alter table public.procurement_receipt_lines enable row level security;
 alter table public.procurement_receipt_lines force  row level security;
 create policy procurement_receipt_lines_select on public.procurement_receipt_lines for select
-  using (org_id = public.auth_org_id() and public.is_active_member()
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
          and exists (select 1 from public.procurement_receipts r where r.id = receipt_id));
 
 alter table public.procurement_bill_matches enable row level security;
 alter table public.procurement_bill_matches force  row level security;
 create policy procurement_bill_matches_select on public.procurement_bill_matches for select
-  using (org_id = public.auth_org_id() and public.is_active_member()
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
          and exists (select 1 from public.procurement_invoices i where i.id = invoice_id));
 
 alter table public.procurement_bill_match_lines enable row level security;
 alter table public.procurement_bill_match_lines force  row level security;
 create policy procurement_bill_match_lines_select on public.procurement_bill_match_lines for select
-  using (org_id = public.auth_org_id() and public.is_active_member()
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
          and exists (select 1 from public.procurement_invoices i where i.id = invoice_id));
 
 alter table public.bill_match_exceptions enable row level security;
 alter table public.bill_match_exceptions force  row level security;
 create policy bill_match_exceptions_select on public.bill_match_exceptions for select
-  using (org_id = public.auth_org_id() and public.is_active_member()
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
          and exists (select 1 from public.procurement_invoices i where i.id = invoice_id));
 
 revoke all on public.org_three_way_match_settings, public.procurement_receipt_lines, public.procurement_bill_matches,
