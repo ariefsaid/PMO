@@ -8,7 +8,7 @@
 -- without the action is refused, reads follow the material-request audience · FR-CSR-001/005 create + idempotency.
 begin;
 create extension if not exists pgtap;
-select plan(47);
+select plan(46);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25850000-0000-0000-0000-00000000020a', 'CSR Req Org', 'IDR', 'Asia/Jakarta'),
@@ -109,8 +109,10 @@ select throws_ok($$ select public.csr_create('{"work_order_id":"25850000-0000-00
   'P0001', 'CSR_INVALID: line 1 is counted in whole units', 'NFR-CSR-002 a fraction of a whole-unit item is refused');
 
 -- A draft takes no reservation; its lines can still be edited.
+select pg_temp._as('25850000-0000-0000-0000-0000000002a3');
 select throws_ok($$ select public.csr_record_reservation((select id from client_requisition_lines where requisition_id = (select v from t_ids where k = 'r1') and line_no = 1), 10, 'CL-1') $$,
   'P0001', 'CSR_NOT_OPEN: only an open requisition takes a reservation, release or pickup', 'FR-CSR-006 a draft requisition takes no reservation');
+select pg_temp._as('25850000-0000-0000-0000-0000000002a2');
 select lives_ok($$ select public.csr_update_draft((select v from t_ids where k = 'r1'), '{"client_reference":"CL-REQ-1b"}'::jsonb,
   '[{"stock_item_id":"25850000-0000-0000-0000-000000002311","takeoff_quantity":100,"requested_quantity":100,"work_order_line_id":"25850000-0000-0000-0000-000000002211"},
     {"stock_item_id":"25850000-0000-0000-0000-000000002311","takeoff_quantity":40,"requested_quantity":50}]'::jsonb) $$,

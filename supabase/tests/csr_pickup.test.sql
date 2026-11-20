@@ -11,7 +11,7 @@
 begin;
 create extension if not exists pgtap;
 create extension if not exists dblink;
-select plan(52);
+select plan(41);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25850000-0000-0000-0000-00000000030a', 'CSR Pickup Org', 'IDR', 'Asia/Jakarta'),
@@ -70,6 +70,11 @@ grant all on t_ids to authenticated;
 create or replace function pg_temp._ln(p_k text) returns uuid language sql as $$ select v from t_ids where k = p_k $$;
 grant execute on function pg_temp._ln(text) to authenticated;
 
+-- Reads of tables no client role can select (ledger, lines, balances) go through an owner-run helper.
+create or replace function pg_temp._q(p_sql text) returns text language plpgsql security definer as $$
+declare r text; begin execute p_sql into r; return r; end $$;
+grant execute on function pg_temp._q(text) to authenticated;
+
 set local role authenticated;
 select pg_temp._as('25850000-0000-0000-0000-0000000003a2');
 -- R1: L1 (CEM 100/100, the hand calculation), L2 (CEM2 100/100, release rule), L3 (CEM3 20/20, concurrency).
@@ -100,14 +105,14 @@ select is((select count(*)::int from client_requisition_pickups where line_id = 
 select is((select quantity from client_requisition_pickups where id = pg_temp._ln('p1')), 50.000::numeric, 'FR-CSR-010 with its quantity');
 
 -- AC-CSR-008: one receipt, unit cost 0, ledger value 0, work order named, on-hand up.
-select is((select d.kind || '/' || d.status || '/' || (d.work_order_id = '25850000-0000-0000-0000-000000003401')::text
-             from client_requisition_pickups p join stock_documents d on d.id = p.stock_document_id where p.id = pg_temp._ln('p1')),
+select is(pg_temp._q(format($q$select d.kind || '/' || d.status || '/' || (d.work_order_id = '25850000-0000-0000-0000-000000003401')::text
+             from client_requisition_pickups p join stock_documents d on d.id = p.stock_document_id where p.id = %L$q$, pg_temp._ln('p1'))),
   'receive/Posted/true', 'AC-CSR-008 the pickup posted one receive naming the work order');
-select is((select l.unit_cost from client_requisition_pickups p join stock_document_lines l on l.document_id = p.stock_document_id where p.id = pg_temp._ln('p1')),
-  0::numeric, 'AC-CSR-008 the receipt line is at unit cost 0');
-select is((select sum(g.value_delta)::text || '/' || sum(g.qty_delta)::text from client_requisition_pickups p join stock_ledger g on g.document_id = p.stock_document_id where p.id = pg_temp._ln('p1')),
+select is(pg_temp._q(format($q$select (l.unit_cost = 0)::text from client_requisition_pickups p join stock_document_lines l on l.document_id = p.stock_document_id where p.id = %L$q$, pg_temp._ln('p1'))),
+  'true', 'AC-CSR-008 the receipt line is at unit cost 0');
+select is(pg_temp._q(format($q$select sum(g.value_delta)::text || '/' || sum(g.qty_delta)::text from client_requisition_pickups p join stock_ledger g on g.document_id = p.stock_document_id where p.id = %L$q$, pg_temp._ln('p1'))),
   '0.00/50.000', 'AC-CSR-008 the ledger moved 50 at value 0');
-select is((select qty_on_hand::text || '/' || value_on_hand::text from stock_balances where item_id = '25850000-0000-0000-0000-000000003311' and warehouse_id = '25850000-0000-0000-0000-000000003802'),
+select is(pg_temp._q($q$select qty_on_hand::text || '/' || value_on_hand::text from stock_balances where item_id = '25850000-0000-0000-0000-000000003311' and warehouse_id = '25850000-0000-0000-0000-000000003802'$q$),
   '50.000/0.00', 'AC-CSR-008 quantity on hand at the location is up by 50, at value 0');
 select is((select count(*)::int from client_requisition_events where line_id = pg_temp._ln('l1') and kind = 'pickup'), 1, 'FR-CSR-023 the pickup is logged');
 
@@ -115,15 +120,15 @@ select is((select count(*)::int from client_requisition_events where line_id = p
 select is((select reserved::text || '/' || collected::text || '/' || still_to_collect::text || '/' || awaiting_reservation::text
              from public.csr_work_order_rollup('25850000-0000-0000-0000-000000003401') where line_id = pg_temp._ln('l1')),
   '70.000/50.000/20.000/30.000', 'AC-CSR-001 reserved 70, collected 50, still to collect 20, awaiting reservation 30');
-select is((select string_agg(e.kind || ':' || e.quantity::text, ',' order by e.created_at, e.id) from client_requisition_events e
+select is((select string_agg(e.kind || ':' || e.quantity::text, ',' order by e.seq) from client_requisition_events e
             where e.line_id = pg_temp._ln('l1') and e.kind in ('reserved','released','pickup')),
   'reserved:60.000,reserved:20.000,released:10.000,pickup:50.000', 'AC-CSR-001 the event list shows reservations 60 and 20, the release 10 and the pickup 50');
 
 -- AC-CSR-006: 21 against 20 still to collect is refused and writes nothing; 20 posts.
-select is((select count(*)::int from stock_documents where kind = 'receive'), 1, 'baseline: one receive exists');
+select is(pg_temp._q($q$select count(*)::text from stock_documents where kind = 'receive' and org_id = '25850000-0000-0000-0000-00000000030a'$q$), '1', 'baseline: one receive exists');
 select throws_ok($$ select public.csr_record_pickup(pg_temp._ln('l1'), 21, '25850000-0000-0000-0000-000000003802') $$, 'P0001',
   'CSR_OVER_COLLECT: only 20 is still to collect', 'AC-CSR-006 a pickup of 21 against 20 still to collect is refused, naming the remainder');
-select is((select count(*)::int from stock_documents where kind = 'receive'), 1, 'AC-CSR-006 and no stock document was written');
+select is(pg_temp._q($q$select count(*)::text from stock_documents where kind = 'receive' and org_id = '25850000-0000-0000-0000-00000000030a'$q$), '1', 'AC-CSR-006 and no stock document was written');
 select is((select count(*)::int from client_requisition_pickups where line_id = pg_temp._ln('l1')), 1, 'AC-CSR-006 nor a pickup row');
 select lives_ok($$ select public.csr_record_pickup(pg_temp._ln('l1'), 20, '25850000-0000-0000-0000-000000003802') $$, 'AC-CSR-006 a pickup of exactly 20 posts');
 
@@ -140,16 +145,21 @@ select lives_ok($$ select public.csr_record_pickup(pg_temp._ln('l3'), 15, '25850
 select throws_ok($$ select public.csr_record_pickup(pg_temp._ln('l3'), 15, '25850000-0000-0000-0000-000000003802') $$, 'P0001',
   'CSR_OVER_COLLECT: only 5 is still to collect', 'AC-CSR-007 the second pickup of 15 is refused');
 reset role;
+insert into client_requisition_lines (id, org_id, requisition_id, line_no, stock_item_id, takeoff_quantity, requested_quantity, unit_code)
+values ('25850000-0000-0000-0000-000000003e02', '25850000-0000-0000-0000-00000000030a', (select v from t_ids where k = 'r1'), 5,
+        '25850000-0000-0000-0000-000000003311', 10, 10, 'BAG');
+insert into client_requisition_events (org_id, requisition_id, line_id, kind, quantity, client_reference) values
+  ('25850000-0000-0000-0000-00000000030a', (select v from t_ids where k = 'r1'), '25850000-0000-0000-0000-000000003e02', 'reserved', 10, 'CL-L');
 select dblink_connect('csr_line_lock', format('dbname=%s user=%s password=postgres host=%s port=%s',
   current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(), 5432)));
 select dblink_exec('csr_line_lock', 'begin');
 select ok((select count(*) from dblink('csr_line_lock',
-  format($q$select pg_advisory_xact_lock(%s)$q$, hashtextextended('csr-line:' || (select v from t_ids where k = 'l3'), 0))) as t(x text)) = 1,
+  format($q$select pg_advisory_xact_lock(%s)$q$, hashtextextended('csr-line:25850000-0000-0000-0000-000000003e02', 0))) as t(x text)) = 1,
   'AC-CSR-007 another transaction holds the line lock');
 set local lock_timeout = '300ms';
 set local role authenticated;
 select pg_temp._as('25850000-0000-0000-0000-0000000003a4');
-select throws_ok($$ select public.csr_record_pickup(pg_temp._ln('l3'), 1, '25850000-0000-0000-0000-000000003802') $$, '55P03', null,
+select throws_ok($$ select public.csr_record_pickup('25850000-0000-0000-0000-000000003e02', 1, '25850000-0000-0000-0000-000000003802') $$, '55P03', null,
   'AC-CSR-007 a pickup waits for the line lock before reading what is still to collect');
 reset role;
 select dblink_exec('csr_line_lock', 'rollback');
@@ -167,35 +177,35 @@ insert into client_requisition_events (org_id, requisition_id, line_id, kind, qu
   ('25850000-0000-0000-0000-00000000030a', (select v from t_ids where k = 'r1'), '25850000-0000-0000-0000-000000003e01', 'reserved', 10, 'CL-9');
 set local role authenticated;
 select pg_temp._as('25850000-0000-0000-0000-0000000003a4');
-select is((select count(*)::int from stock_documents where kind = 'receive'), 4, 'baseline: four receives (50, 20, 50, 15)');
+select is(pg_temp._q($q$select count(*)::text from stock_documents where kind = 'receive' and org_id = '25850000-0000-0000-0000-00000000030a'$q$), '4', 'baseline: four receives (50, 20, 50, 15)');
 select throws_ok($$ select public.csr_record_pickup('25850000-0000-0000-0000-000000003e01', 10, '25850000-0000-0000-0000-000000003802') $$, 'P0001',
   'CSR_NOT_CLIENT_SUPPLIED: This item is not client-supplied', 'AC-CSR-009 a pickup of an item whose tag is not zero-cost is refused');
-select is((select count(*)::int from stock_documents where kind = 'receive'), 4, 'AC-CSR-009 and writes no receipt');
+select is(pg_temp._q($q$select count(*)::text from stock_documents where kind = 'receive' and org_id = '25850000-0000-0000-0000-00000000030a'$q$), '4', 'AC-CSR-009 and writes no receipt');
 select is((select count(*)::int from information_schema.parameters where specific_schema = 'public' and specific_name like 'csr_record_pickup%' and parameter_name ilike '%cost%'), 0,
   'AC-CSR-009 the pickup RPC takes no cost parameter');
-select is((select count(*)::int from stock_ledger g join stock_documents d on d.id = g.document_id
-            where d.work_order_id = '25850000-0000-0000-0000-000000003401' and d.kind = 'receive' and g.value_delta <> 0), 0,
+select is(pg_temp._q($q$select count(*)::text from stock_ledger g join stock_documents d on d.id = g.document_id
+            where d.work_order_id = '25850000-0000-0000-0000-000000003401' and d.kind = 'receive' and g.value_delta <> 0$q$), '0',
   'AC-CSR-009 every receipt written by a pickup has ledger value 0');
 
 -- AC-CSR-010: a replayed pickup is one receipt and one pickup row.
 select is(public.csr_record_pickup(pg_temp._ln('l1'), 50, '25850000-0000-0000-0000-000000003802', current_date, 'Driver Budi', 'DN-77', '25850000-0000-0000-0000-00000000c301'),
   pg_temp._ln('p1'), 'AC-CSR-010 a replay returns the original pickup');
 select is((select count(*)::int from client_requisition_pickups where client_request_id = '25850000-0000-0000-0000-00000000c301'), 1, 'AC-CSR-010 one pickup row');
-select is((select count(*)::int from stock_documents where kind = 'receive'), 4, 'AC-CSR-010 and no new receipt');
+select is(pg_temp._q($q$select count(*)::text from stock_documents where kind = 'receive' and org_id = '25850000-0000-0000-0000-00000000030a'$q$), '4', 'AC-CSR-010 and no new receipt');
 
 -- Wrong receiving locations: another project's site, a central location. Atomic: nothing written.
 select throws_ok($$ select public.csr_record_pickup(pg_temp._ln('l3'), 1, '25850000-0000-0000-0000-000000003803') $$, '23514',
   'COST_WO_PROJECT: the work order belongs to another project', 'FR-CSR-014 a site of another project is refused');
 select throws_ok($$ select public.csr_record_pickup(pg_temp._ln('l3'), 1, '25850000-0000-0000-0000-000000003801') $$, '23514',
   'COST_WO_NO_PROJECT: this record has no project, so it cannot name a work order', 'FR-CSR-014 a central location is refused');
-select is((select count(*)::int from stock_documents where kind = 'receive'), 4, 'FR-CSR-014 neither left a receipt behind');
+select is(pg_temp._q($q$select count(*)::text from stock_documents where kind = 'receive' and org_id = '25850000-0000-0000-0000-00000000030a'$q$), '4', 'FR-CSR-014 neither left a receipt behind');
 
 -- AC-CSR-011: a user who does not keep the location and is not Admin.
 select pg_temp._as('25850000-0000-0000-0000-0000000003a5');
 select throws_ok($$ select public.csr_record_pickup(pg_temp._ln('l3'), 1, '25850000-0000-0000-0000-000000003802') $$, 'P0001',
   'STK_NOT_KEEPER: you do not keep this warehouse', 'AC-CSR-011 a non-keeper who is not Admin is refused');
 
--- AC-CSR-018: stock per work order includes the pickups (50 + 20 + 50 + 15 = 135 of cement-type items).
+-- AC-CSR-018: stock per work order includes the pickups (50 + 20 = 70 of CEM at the site).
 select pg_temp._as('25850000-0000-0000-0000-0000000003a1');
 select is((select (r->>'received_qty') || '/' || (r->>'received_value') from jsonb_array_elements(public.get_work_order_stock_balance('25850000-0000-0000-0000-000000003401')) r
             where r->>'item_code' = 'CEM' and r->>'warehouse_code' = 'P-S1'),
@@ -237,8 +247,8 @@ set local role authenticated;
 select pg_temp._as('25850000-0000-0000-0000-0000000003b1');
 select throws_ok($$ select public.csr_record_pickup('25850000-0000-0000-0000-000000003f11', 5, '25850000-0000-0000-0000-000000003809') $$, 'P0001',
   'STK_OWNED_BY_ERP: inventory is run in your connected ERP, so PMO does not post stock', 'AC-CSR-012 an ERP-owned inventory refuses the pickup');
-select is((select count(*)::int from client_requisition_pickups where line_id = '25850000-0000-0000-0000-000000003f11')
-          + (select count(*)::int from stock_documents where org_id = '25850000-0000-0000-0000-00000000030b'), 0, 'AC-CSR-012 and nothing is written');
+select is((select count(*)::int from client_requisition_pickups where line_id = '25850000-0000-0000-0000-000000003f11')::text
+          || pg_temp._q($q$select count(*)::text from stock_documents where org_id = '25850000-0000-0000-0000-00000000030b'$q$), '00', 'AC-CSR-012 and nothing is written');
 
 select * from finish();
 rollback;
