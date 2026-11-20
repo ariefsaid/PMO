@@ -87,7 +87,7 @@ begin
                     where r.crew_id = new.id and coalesce(r.valid_to, 'infinity'::date) >= current_date)
            or exists (select 1 from public.crew_tool_lines t
                     where t.crew_id = new.id and t.archived_at is null)) then
-        raise exception 'CRW_ARCHIVE_IN_USE: end this crew''s current and future members and roster placements, and archive or move its tool lines, first'
+        raise exception 'CRW_ARCHIVE_IN_USE: end this crew''s current and future members and roster placements first'
           using errcode = '23514';
       end if;
     when 'crew_standard_roles' then

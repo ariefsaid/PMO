@@ -22,7 +22,7 @@ export function crewErrorMessage(t: TFunction, err: unknown): string {
   }
   if (code === '23P01') return t('crews:errors.overlap', 'These dates overlap another placement. End that one first.');
   switch (prefix) {
-    case 'CRW_ARCHIVE_IN_USE': return t('crews:errors.archiveInUse', 'End this crew\'s current and future members and roster placements first.');
+    case 'CRW_ARCHIVE_IN_USE': return t('crews:errors.archiveInUse', 'End this crew\'s current and future members and roster placements, and archive or move its tool lines, first.');
     case 'ATT_LOCKED': return t('crews:errors.locked', 'This day is approved. Re-open the timesheet to correct it.');
     case 'ATT_SUBMITTED': return t('crews:errors.submitted', 'This week is sent for approval. Return it to change a day.');
     case 'ATT_NOT_ROSTERED': return t('crews:errors.notRostered', 'This person is not in a crew rostered on this work order that day.');
