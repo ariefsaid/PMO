@@ -111,6 +111,8 @@ const PersonDetailPage = lazyWithPreload(() => import('./pages/equipment/PersonD
 const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssetDetail'));
 const SiteReportsPage = lazyWithPreload(() => import('./pages/siteReports/SiteReports'));
 const SiteReportDetailPage = lazyWithPreload(() => import('./pages/siteReports/SiteReportDetail'));
+const QuantityChangesPage = lazyWithPreload(() => import('./pages/quantityChanges/QuantityChanges'));
+const QuantityChangeDetailPage = lazyWithPreload(() => import('./pages/quantityChanges/QuantityChangeDetail'));
 const CrewsPage = lazyWithPreload(() => import('./pages/crews/Crews'));
 const ApprovalsPage = lazyWithPreload(() => import('./pages/Approvals'));
 const CompaniesPage = lazyWithPreload(() => import('./pages/Companies'));
@@ -259,6 +261,8 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage], namespaces: ['equipment'] },
   { path: '/site-reports', chunks: [SiteReportsPage], namespaces: ['siteReport'] },
   { path: '/site-reports/:reportId', chunks: [SiteReportDetailPage], namespaces: ['siteReport'] },
+  { path: '/quantity-changes', chunks: [QuantityChangesPage], namespaces: ['quantityChanges', 'status'] },
+  { path: '/quantity-changes/:requestId', chunks: [QuantityChangeDetailPage], namespaces: ['quantityChanges', 'status'] },
   { path: '/crews', chunks: [CrewsPage], namespaces: ['crews'] },
   { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
@@ -479,6 +483,8 @@ export const appRouteConfig: RouteObject[] = [
   // #1522: daily site reports per work order and the QS validation queue.
   { path: '/site-reports', element: <SiteReportsPage /> },
   { path: '/site-reports/:reportId', element: <SiteReportDetailPage /> },
+  { path: '/quantity-changes', element: <QuantityChangesPage /> },
+  { path: '/quantity-changes/:requestId', element: <QuantityChangeDetailPage /> },
   // #2528: crews, the roster per work order and the daily attendance tick.
   { path: '/crews', element: <CrewsPage /> },
   { path: '/equipment/people/:personId', element: <PersonDetailPage /> },

@@ -76,6 +76,8 @@ export const ALL_ITEMS: NavItem[] = [
   { to: '/equipment', text: 'Equipment', icon: 'equipment', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1522: every member reads site reports; entry and validation gate by role inside the pages.
   { to: '/site-reports', text: 'Site reports', icon: 'reports', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // #2578: quantity change requests — author and approver roles (the Engineer reads nothing here); actions gate inside the pages.
+  { to: '/quantity-changes', text: 'Quantity changes', icon: 'reports', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // #2528: crews, roster and attendance — every member reads; writes gate by role (and field controller) inside the page.
   { to: '/crews', text: 'Crews', icon: 'user', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // Without CRM, PM and Finance keep their supplier doorway in the Delivery group.
@@ -347,6 +349,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     '/material-requests': t('materialRequests:nav.materialRequests', 'Material requests'),
     '/equipment': t('equipment:nav.equipment', 'Equipment'),
     '/site-reports': t('siteReport:nav', 'Site reports'),
+    '/quantity-changes': t('quantityChanges:nav', 'Quantity changes'),
     '/crews': t('crews:nav.crews', 'Crews'),
     '/finance': t('financeHub:nav.finance', 'Finance'),
     '/finance/receivables': t('financeHub:hub.receivables', 'Receivables'),

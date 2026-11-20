@@ -257,7 +257,14 @@
     {"table":"work_order_crews","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_lines","has_org":true,"pk":"id","columns":"id,org_id,work_order_id,boq_item_id,quantity,created_at","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_plan_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+    {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"boq_quantity_versions","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"quantity_change_request_events","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"quantity_change_request_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"quantity_change_request_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"quantity_change_requests","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"quantity_forecasts","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"quantity_overrun_notices","has_org":true,"pk":"boq_item_id","columns":"*","b_read":"own-org-only","by_id":"n/a: the primary key is the contract line id with a kind column, not a row uuid; the blind read covers the declared B visibility"}
   ],
   "definer_functions": [
     "add_equipment_downtime_proof(uuid,date,text,text)",
@@ -858,7 +865,28 @@
     "work_order_validated_revenue(uuid)",
     "worker_off_rotation(uuid,date)",
     "write_connect_census(uuid,text,jsonb)",
-    "write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,text,numeric,numeric,text,timestamp with time zone,timestamp with time zone,text)"
+    "write_stock_erp_mirror(uuid,uuid,integer,integer,text,text,text,text,numeric,numeric,text,timestamp with time zone,timestamp with time zone,text)",
+    "boq_item_quantity_locked(uuid)",
+    "can_add_qcr_file(uuid,text)",
+    "qcr_approval_state(uuid)",
+    "qcr_approve(uuid)",
+    "qcr_assert_approver(quantity_change_requests)",
+    "qcr_evaluate_items(uuid[])",
+    "qcr_figures(uuid[])",
+    "qcr_log(uuid,text,text,text,text)",
+    "qcr_org_today(uuid)",
+    "qcr_over_contract(uuid,boolean)",
+    "qcr_prepare_lines(uuid,uuid,uuid,jsonb)",
+    "qcr_raise(uuid,uuid,jsonb,text)",
+    "qcr_record_decision(uuid,text,date,text)",
+    "qcr_record_sent(uuid,date,text)",
+    "qcr_request_count(uuid)",
+    "qcr_return(uuid,text)",
+    "qcr_submit(uuid)",
+    "qcr_update_draft(uuid,jsonb,text)",
+    "qcr_withdraw(uuid,text)",
+    "qcr_work_order_budget(uuid)",
+    "record_quantity_forecast(uuid,numeric,text)"
   ],
   "edge_functions": [
     "adapter-dispatch",
@@ -902,7 +930,8 @@
     "project-documents",
     "site-report-photos",
     "stock-documents",
-    "task-proofs"
+    "task-proofs",
+    "quantity-change-files"
   ],
   "rpcs": [
     {"class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"name":"set_project_billing_terms","source":["supabase/migrations/1022_retention.sql:62","supabase/migrations/1022_retention.sql:65"]},

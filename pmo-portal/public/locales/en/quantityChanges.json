@@ -1,0 +1,210 @@
+{
+  "actions": {
+    "accepted": "Client accepted",
+    "approve": "Approve",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "declined": "Client declined",
+    "edit": "Edit",
+    "label": "Request actions",
+    "recordSent": "Record sent to client",
+    "return": "Return",
+    "submit": "Submit for approval",
+    "withdraw": "Withdraw"
+  },
+  "approval": {
+    "approvedBy": "Approved by {{name}}",
+    "block": {
+      "author": "You raised this request, so someone else must approve it.",
+      "editor": "You edited this request, so someone else must approve it.",
+      "role": "Your role cannot approve quantity change requests.",
+      "status": "This request is not waiting for approval.",
+      "submitter": "You submitted this request, so someone else must approve it."
+    },
+    "nobody": "Nobody else can approve this request: it waits until another approver exists.",
+    "returnedBy": "Returned: {{reason}}",
+    "title": "Internal approval",
+    "waiting": "Waiting for approval"
+  },
+  "billing": {
+    "draftNote": "This work order is still a draft: accepting this request raises its value by the value change.",
+    "issuedNote": "This work order is issued: its value is fixed, so the extra quantity can be billed only after the work order is cancelled and re-issued with the new value.",
+    "title": "Billing"
+  },
+  "client": {
+    "decidedOn": "Decision on {{date}}",
+    "decisionDate": "Decision date",
+    "decisionNote": "Note",
+    "notSent": "Not sent yet",
+    "reference": "Client reference {{ref}}",
+    "referenceLabel": "Client reference",
+    "sentDate": "Date sent",
+    "sentOn": "Sent on {{date}}",
+    "title": "Client"
+  },
+  "detail": {
+    "acceptedNote": "The client accepted. The contract quantities and allocations below now hold the new figures.",
+    "authoredBy": "Raised by {{name}}",
+    "declinedNote": "The client declined. No quantity changed.",
+    "error": "Couldn't load this request",
+    "notFound": "Request not found",
+    "note": "Note",
+    "project": "Project",
+    "returned": "Returned",
+    "subject": "quantity change request",
+    "title": "Quantity change request",
+    "withdrawn": "Withdrawn",
+    "withdrawnFrom": "Withdrawn from {{status}}",
+    "workOrder": "Work order"
+  },
+  "dialog": {
+    "decisionTitle": "Record the client's decision",
+    "returnSubject": "request",
+    "sentTitle": "Record sent to the client",
+    "withdrawLabel": "Reason for withdrawing",
+    "withdrawTitle": "Withdraw this request"
+  },
+  "files": {
+    "add": "Attach file",
+    "kind": {
+      "client_response": "Client's reply",
+      "sent_letter": "Sent to the client",
+      "supporting": "Supporting"
+    },
+    "needResponse": "Attach the client's acceptance before recording it",
+    "needSent": "Attach the letter or form sent to the client before recording the send",
+    "none": "No files",
+    "open": "Open",
+    "remove": "Remove",
+    "title": "Files",
+    "uploaded": "File attached"
+  },
+  "history": {
+    "approved": "Approved",
+    "client_accepted": "Client accepted",
+    "client_declined": "Client declined",
+    "edited": "Edited",
+    "raised": "Raised",
+    "returned": "Returned",
+    "sent_to_client": "Sent to the client",
+    "submitted": "Submitted for approval",
+    "title": "History",
+    "withdrawn": "Withdrawn"
+  },
+  "limit": {
+    "help": "The most quantity change requests one work order may raise. Leave empty for no limit.",
+    "invalid": "A whole number of 1 or more",
+    "label": "Limit per work order",
+    "save": "Save limit",
+    "saved": "Limit saved",
+    "title": "Request limit"
+  },
+  "lines": {
+    "cancelEdit": "Cancel",
+    "change": "Change",
+    "contract": "Contract quantity",
+    "edit": "Edit lines",
+    "history": "Version history",
+    "noHistory": "No versions",
+    "reason": "Reason",
+    "requested": "Requested",
+    "saveEdit": "Save changes",
+    "source": {
+      "baseline": "Baseline",
+      "change_request": "Change request",
+      "setup_edit": "Setup edit"
+    },
+    "title": "Lines",
+    "trigger": "Trigger",
+    "value": "Value change",
+    "valueAt": "Value",
+    "version": "Version {{n}}"
+  },
+  "list": {
+    "allProjects": "All projects",
+    "allStatuses": "All statuses",
+    "empty": "No quantity change requests yet",
+    "error": "Couldn't load requests",
+    "line_one": "{{count}} line",
+    "line_other": "{{count}} lines",
+    "lines": "{{count}} lines",
+    "next": "Next",
+    "pages": "Pages",
+    "previous": "Previous",
+    "project": "Project",
+    "status": "Status",
+    "title": "Requests"
+  },
+  "nav": "Quantity changes",
+  "newRequest": "New request",
+  "over": {
+    "contract": "Contract",
+    "error": "Couldn't load contract lines",
+    "flag": "Over contract",
+    "forecast": "Forecast",
+    "forecastLabel": "Expected final quantity ({{unit}})",
+    "forecastNote": "Note",
+    "forecastSave": "Save forecast",
+    "forecastSaved": "Forecast recorded",
+    "forecastTitle": "Forecast quantity at completion",
+    "kind": {
+      "forecast": "Forecast",
+      "progress": "Reported progress"
+    },
+    "none": "No contract line is over its contract quantity",
+    "openRequest": "Open request",
+    "overBy": "Over by {{quantity}} {{unit}}",
+    "pickProject": "Choose a project to see its contract lines",
+    "progress": "Reported",
+    "project": "Project",
+    "recordForecast": "Record forecast",
+    "source": {
+      "acceptance": "Acceptance",
+      "assessment": "Assessment",
+      "claim": "Claim",
+      "daily_report": "Daily report"
+    },
+    "title": "Over contract"
+  },
+  "raise": {
+    "created": "Draft created",
+    "errors": {
+      "below_trigger": "Cannot be below {{figure}}",
+      "invalid": "A positive number with at most 3 decimals",
+      "not_above_contract": "Must be above the contract quantity of {{contract}}",
+      "required": "Required"
+    },
+    "limit": "{{count}} of {{limit}} requests used on this work order",
+    "limitNone": "{{count}} requests on this work order",
+    "limitReached": "This work order has reached its request limit",
+    "lineHelp": "{{kind}} {{figure}} against a contract quantity of {{contract}} {{unit}}",
+    "noLines": "No allocated contract line on this work order is over its contract quantity",
+    "note": "Note for the approver",
+    "pickProject": "Choose a project",
+    "pickWorkOrder": "Choose a work order",
+    "project": "Project",
+    "reason": "Reason",
+    "requested": "Requested total quantity ({{unit}})",
+    "submit": "Create draft",
+    "title": "New quantity change request",
+    "workOrder": "Work order"
+  },
+  "title": "Quantity change requests",
+  "toast": {
+    "accepted": "Client acceptance recorded",
+    "approved": "Approved",
+    "declined": "Client decline recorded",
+    "returned": "Returned",
+    "saved": "Saved",
+    "sent": "Recorded as sent",
+    "submitted": "Submitted for approval",
+    "withdrawn": "Withdrawn"
+  },
+  "workOrder": {
+    "count": "Requests",
+    "empty": "No quantity change requests on this work order",
+    "overLines": "{{count}} contract lines over their quantity",
+    "raise": "Request a quantity change",
+    "title": "Quantity changes"
+  }
+}

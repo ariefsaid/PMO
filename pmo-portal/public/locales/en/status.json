@@ -240,5 +240,15 @@
     "submitted": "Waiting to validate",
     "returned": "Returned",
     "validated": "Validated"
+  },
+  "quantityChange": {
+    "draft": "Draft",
+    "pending_approval": "Waiting for approval",
+    "returned": "Returned",
+    "approved": "Approved",
+    "sent_to_client": "With the client",
+    "client_accepted": "Client accepted",
+    "client_declined": "Client declined",
+    "withdrawn": "Withdrawn"
   }
 }

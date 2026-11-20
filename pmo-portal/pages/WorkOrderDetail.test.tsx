@@ -22,6 +22,8 @@ vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
 }));
 vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: () => h.pva }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
+// #2578: the quantity-changes section has its own test (QuantityChangesSection.test.tsx); this file pins the existing sections.
+vi.mock('./work-order-detail/QuantityChangesSection', () => ({ QuantityChangesSection: () => null }));
 
 import WorkOrderDetail from './WorkOrderDetail';
 

@@ -1,0 +1,210 @@
+{
+  "actions": {
+    "accepted": "Klien menyetujui",
+    "approve": "Setujui",
+    "cancel": "Batal",
+    "confirm": "Konfirmasi",
+    "declined": "Klien menolak",
+    "edit": "Ubah",
+    "label": "Tindakan permintaan",
+    "recordSent": "Catat terkirim ke klien",
+    "return": "Kembalikan",
+    "submit": "Kirim untuk persetujuan",
+    "withdraw": "Tarik"
+  },
+  "approval": {
+    "approvedBy": "Disetujui oleh {{name}}",
+    "block": {
+      "author": "Anda mengajukan permintaan ini, jadi orang lain harus menyetujuinya.",
+      "editor": "Anda mengubah permintaan ini, jadi orang lain harus menyetujuinya.",
+      "role": "Peran Anda tidak dapat menyetujui permintaan perubahan kuantitas.",
+      "status": "Permintaan ini tidak sedang menunggu persetujuan.",
+      "submitter": "Anda mengirim permintaan ini, jadi orang lain harus menyetujuinya."
+    },
+    "nobody": "Tidak ada orang lain yang dapat menyetujui permintaan ini: permintaan menunggu sampai ada penyetuju lain.",
+    "returnedBy": "Dikembalikan: {{reason}}",
+    "title": "Persetujuan internal",
+    "waiting": "Menunggu persetujuan"
+  },
+  "billing": {
+    "draftNote": "Perintah kerja ini masih draf: menerima permintaan ini menaikkan nilainya sebesar perubahan nilai.",
+    "issuedNote": "Perintah kerja ini sudah diterbitkan: nilainya tetap, sehingga kuantitas tambahan baru dapat ditagih setelah perintah kerja dibatalkan dan diterbitkan ulang dengan nilai baru.",
+    "title": "Penagihan"
+  },
+  "client": {
+    "decidedOn": "Keputusan pada {{date}}",
+    "decisionDate": "Tanggal keputusan",
+    "decisionNote": "Catatan",
+    "notSent": "Belum dikirim",
+    "reference": "Referensi klien {{ref}}",
+    "referenceLabel": "Referensi klien",
+    "sentDate": "Tanggal dikirim",
+    "sentOn": "Dikirim pada {{date}}",
+    "title": "Klien"
+  },
+  "detail": {
+    "acceptedNote": "Klien menyetujui. Kuantitas kontrak dan alokasi di bawah kini memuat angka baru.",
+    "authoredBy": "Diajukan oleh {{name}}",
+    "declinedNote": "Klien menolak. Tidak ada kuantitas yang berubah.",
+    "error": "Permintaan ini tidak dapat dimuat",
+    "notFound": "Permintaan tidak ditemukan",
+    "note": "Catatan",
+    "project": "Proyek",
+    "returned": "Dikembalikan",
+    "subject": "permintaan perubahan kuantitas",
+    "title": "Permintaan perubahan kuantitas",
+    "withdrawn": "Ditarik",
+    "withdrawnFrom": "Ditarik dari status {{status}}",
+    "workOrder": "Perintah kerja"
+  },
+  "dialog": {
+    "decisionTitle": "Catat keputusan klien",
+    "returnSubject": "permintaan",
+    "sentTitle": "Catat pengiriman ke klien",
+    "withdrawLabel": "Alasan penarikan",
+    "withdrawTitle": "Tarik permintaan ini"
+  },
+  "files": {
+    "add": "Lampirkan berkas",
+    "kind": {
+      "client_response": "Jawaban klien",
+      "sent_letter": "Dikirim ke klien",
+      "supporting": "Pendukung"
+    },
+    "needResponse": "Lampirkan persetujuan klien sebelum mencatatnya",
+    "needSent": "Lampirkan surat atau formulir yang dikirim ke klien sebelum mencatat pengiriman",
+    "none": "Tidak ada berkas",
+    "open": "Buka",
+    "remove": "Hapus",
+    "title": "Berkas",
+    "uploaded": "Berkas dilampirkan"
+  },
+  "history": {
+    "approved": "Disetujui",
+    "client_accepted": "Klien menyetujui",
+    "client_declined": "Klien menolak",
+    "edited": "Diubah",
+    "raised": "Diajukan",
+    "returned": "Dikembalikan",
+    "sent_to_client": "Dikirim ke klien",
+    "submitted": "Dikirim untuk persetujuan",
+    "title": "Riwayat",
+    "withdrawn": "Ditarik"
+  },
+  "limit": {
+    "help": "Jumlah maksimum permintaan perubahan kuantitas per perintah kerja. Kosongkan jika tanpa batas.",
+    "invalid": "Bilangan bulat 1 atau lebih",
+    "label": "Batas per perintah kerja",
+    "save": "Simpan batas",
+    "saved": "Batas tersimpan",
+    "title": "Batas permintaan"
+  },
+  "lines": {
+    "cancelEdit": "Batal",
+    "change": "Perubahan",
+    "contract": "Kuantitas kontrak",
+    "edit": "Ubah baris",
+    "history": "Riwayat versi",
+    "noHistory": "Tidak ada versi",
+    "reason": "Alasan",
+    "requested": "Diminta",
+    "saveEdit": "Simpan perubahan",
+    "source": {
+      "baseline": "Dasar",
+      "change_request": "Permintaan perubahan",
+      "setup_edit": "Ubah awal"
+    },
+    "title": "Baris",
+    "trigger": "Pemicu",
+    "value": "Perubahan nilai",
+    "valueAt": "Nilai",
+    "version": "Versi {{n}}"
+  },
+  "list": {
+    "allProjects": "Semua proyek",
+    "allStatuses": "Semua status",
+    "empty": "Belum ada permintaan perubahan kuantitas",
+    "error": "Permintaan tidak dapat dimuat",
+    "line_one": "{{count}} baris",
+    "line_other": "{{count}} baris",
+    "lines": "{{count}} baris",
+    "next": "Berikutnya",
+    "pages": "Halaman",
+    "previous": "Sebelumnya",
+    "project": "Proyek",
+    "status": "Status",
+    "title": "Permintaan"
+  },
+  "nav": "Perubahan kuantitas",
+  "newRequest": "Permintaan baru",
+  "over": {
+    "contract": "Kontrak",
+    "error": "Baris kontrak tidak dapat dimuat",
+    "flag": "Melebihi kontrak",
+    "forecast": "Perkiraan",
+    "forecastLabel": "Kuantitas akhir yang diharapkan ({{unit}})",
+    "forecastNote": "Catatan",
+    "forecastSave": "Simpan perkiraan",
+    "forecastSaved": "Perkiraan dicatat",
+    "forecastTitle": "Perkiraan kuantitas akhir",
+    "kind": {
+      "forecast": "Perkiraan",
+      "progress": "Progres dilaporkan"
+    },
+    "none": "Tidak ada baris kontrak yang melebihi kuantitas kontraknya",
+    "openRequest": "Permintaan terbuka",
+    "overBy": "Lebih {{quantity}} {{unit}}",
+    "pickProject": "Pilih proyek untuk melihat baris kontraknya",
+    "progress": "Dilaporkan",
+    "project": "Proyek",
+    "recordForecast": "Catat perkiraan",
+    "source": {
+      "acceptance": "Serah terima",
+      "assessment": "Penilaian",
+      "claim": "Klaim",
+      "daily_report": "Laporan harian"
+    },
+    "title": "Melebihi kontrak"
+  },
+  "raise": {
+    "created": "Draf dibuat",
+    "errors": {
+      "below_trigger": "Tidak boleh di bawah {{figure}}",
+      "invalid": "Angka positif dengan maksimal 3 desimal",
+      "not_above_contract": "Harus di atas kuantitas kontrak {{contract}}",
+      "required": "Wajib diisi"
+    },
+    "limit": "{{count}} dari {{limit}} permintaan terpakai pada perintah kerja ini",
+    "limitNone": "{{count}} permintaan pada perintah kerja ini",
+    "limitReached": "Perintah kerja ini telah mencapai batas permintaan",
+    "lineHelp": "{{kind}} {{figure}} terhadap kuantitas kontrak {{contract}} {{unit}}",
+    "noLines": "Tidak ada baris kontrak pada perintah kerja ini yang melebihi kuantitas kontraknya",
+    "note": "Catatan untuk penyetuju",
+    "pickProject": "Pilih proyek",
+    "pickWorkOrder": "Pilih perintah kerja",
+    "project": "Proyek",
+    "reason": "Alasan",
+    "requested": "Total kuantitas yang diminta ({{unit}})",
+    "submit": "Buat draf",
+    "title": "Permintaan perubahan kuantitas baru",
+    "workOrder": "Perintah kerja"
+  },
+  "title": "Permintaan perubahan kuantitas",
+  "toast": {
+    "accepted": "Persetujuan klien dicatat",
+    "approved": "Disetujui",
+    "declined": "Penolakan klien dicatat",
+    "returned": "Dikembalikan",
+    "saved": "Tersimpan",
+    "sent": "Dicatat sebagai terkirim",
+    "submitted": "Dikirim untuk persetujuan",
+    "withdrawn": "Ditarik"
+  },
+  "workOrder": {
+    "count": "Permintaan",
+    "empty": "Belum ada permintaan perubahan kuantitas pada perintah kerja ini",
+    "overLines": "{{count}} baris kontrak melebihi kuantitasnya",
+    "raise": "Minta perubahan kuantitas",
+    "title": "Perubahan kuantitas"
+  }
+}

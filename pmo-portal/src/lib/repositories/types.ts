@@ -25,6 +25,7 @@ import type { RecordHistoryRepository } from './contracts/recordHistory';
 import type { ProjectStageRepository } from './contracts/projectStages';
 import type { RateCatalogueRepository } from './contracts/rateCatalogue';
 import type { DailySiteReportRepository } from './contracts/dailySiteReports';
+import type { QuantityChangeRepository } from './contracts/quantityChanges';
 import type { SubcontractRepository } from './contracts/subcontracts';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
 import type { ProjectOverviewRepository } from './contracts/projectOverview';
@@ -129,6 +130,7 @@ export interface Repositories {
   projectStage: ProjectStageRepository;
   rateCatalogue: RateCatalogueRepository;
   dailySiteReport: DailySiteReportRepository;
+  quantityChange: QuantityChangeRepository;
   company: CompanyRepository;
   document: DocumentRepository;
   agentAttachment: AgentAttachmentRepository;

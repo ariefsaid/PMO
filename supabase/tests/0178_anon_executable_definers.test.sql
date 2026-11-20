@@ -302,9 +302,23 @@ select plan(7);
 -- ⚑ AMENDED BY 1030 (#2523): `archive_stock_document_file` joins the retained set (+1, count 224 = 217 + 7, counted from the list).
 -- SECURITY DEFINER writer under a member's JWT (stockSiteWork.ts); re-asserts active membership, the caller's org and
 -- stock_can_attach; proven by the 1030 stock document files pgTAP.
+-- ⚑ AMENDED BY 1126..1128 (#2578): `record_quantity_forecast`, `qcr_raise`, `qcr_update_draft`, `qcr_submit`, `qcr_withdraw`, `qcr_approve`,
+-- `qcr_return`, `qcr_record_sent` and `qcr_record_decision` join the retained set (+9, count 233 = 224 + 9, counted from the list). SECURITY DEFINER
+-- writers called through PostgREST under a member's JWT; each re-asserts active membership, the caller's org and a role gate in its body, and the
+-- approve and return pair enforces separation of duties against the whole editor set; proven by supabase/tests/1127_quantity_change_raise.test.sql and
+-- 1128_quantity_change_approval.test.sql (mutation-checked). `qcr_over_contract`, `qcr_work_order_budget` and `qcr_approval_state` are read-only definers.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 -- Retained names: union of every merged branch's inventory; the AC-ACL-002/003 counts are counted from this list.
 insert into client_callable_rpc_names (proname) values
+  ('record_quantity_forecast'),  -- ⚑ AMENDED BY 1126 (#2578)
+  ('qcr_raise'),  -- ⚑ AMENDED BY 1127 (#2578)
+  ('qcr_update_draft'),  -- ⚑ AMENDED BY 1127 (#2578)
+  ('qcr_submit'),  -- ⚑ AMENDED BY 1127 (#2578)
+  ('qcr_withdraw'),  -- ⚑ AMENDED BY 1127 (#2578)
+  ('qcr_approve'),  -- ⚑ AMENDED BY 1128 (#2578)
+  ('qcr_return'),  -- ⚑ AMENDED BY 1128 (#2578)
+  ('qcr_record_sent'),  -- ⚑ AMENDED BY 1128 (#2578)
+  ('qcr_record_decision'),  -- ⚑ AMENDED BY 1128 (#2578)
   ('set_equipment_ownership'),  -- ⚑ AMENDED BY 1032 (#2526)
   ('save_equipment_rental_term'),  -- ⚑ AMENDED BY 1032 (#2526)
   ('change_equipment_rental_rate'),  -- ⚑ AMENDED BY 1032 (#2526)
@@ -550,8 +564,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  224,
-  'AC-ACL-002 all 224 retained client-callable RPC names still have a public function');
+  233,
+  'AC-ACL-002 all 233 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -560,8 +574,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  224,
-  'AC-ACL-003 all 224 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  233,
+  'AC-ACL-003 all 233 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
