@@ -40,7 +40,7 @@ test('JOB-E1 a crane registered as rented from a vendor shows its terms and is o
   await expect(visibleToast(page, 'Asset created')).toBeVisible({ timeout: 15_000 });
 
   await page.goto(`/equipment/assets?q=${code}`);
-  await page.getByRole('button', { name: 'Open Mobile crane' }).first().click();
+  await page.getByRole('link', { name: 'Open Mobile crane' }).first().click();
   await expect(page).toHaveURL(/\/equipment\/assets\/[0-9a-f-]{36}$/);
   await page.getByLabel('Vendor', { exact: true }).selectOption({ label: vendorName });
   await page.getByLabel('Rate', { exact: true }).fill('1500000');

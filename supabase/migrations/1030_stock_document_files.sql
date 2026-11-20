@@ -204,4 +204,3 @@ begin
     perform public.log_audit('stock.admin_post', d.org_id, v_uid, d.id, jsonb_build_object('kind', d.kind, 'warehouse_id', d.warehouse_id, 'number', d.number));
   end if;
 end $$;
-

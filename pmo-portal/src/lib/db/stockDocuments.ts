@@ -3,7 +3,7 @@ import { fetchAllPages } from '@/src/lib/pagedRead';
 import { toAppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
-export type StockDocumentKind = 'receive' | 'transfer' | 'issue' | 'return' | 'adjustment' | 'count';
+export type StockDocumentKind = 'receive' | 'transfer' | 'issue' | 'return' | 'adjustment' | 'count' | 'opening';
 export type StockDocumentStatus = 'Draft' | 'Posted' | 'Cancelled';
 export type StockDocumentRow = Tables<'stock_documents'>;
 
@@ -201,13 +201,13 @@ export interface IssueLineRow {
   id: string; item_id: string; quantity: string; boq_item_id: string | null;
   item: { code: string; name: string; unit: { code: string } } | null;
   boq: { item_code: string; description: string } | null;
-  document: { id: string; number: string; occurred_on: string; warehouse_id: string };
+  document: { id: string; number: string; occurred_on: string; warehouse_id: string; work_order_id: string | null };
 }
 /** Posted issue lines of one project: what a Return may cite. Explicit columns only (no `unit_cost`). */
 export async function listProjectIssueLines(projectId: string): Promise<IssueLineRow[]> {
   const { data, error } = await supabase
     .from('stock_document_lines')
-    .select('id, item_id, quantity, boq_item_id, item:stock_items(code,name,unit:stock_units(code)), boq:boq_items(item_code,description), document:stock_documents!inner(id,number,occurred_on,warehouse_id,kind,status,project_id)')
+    .select('id, item_id, quantity, boq_item_id, item:stock_items(code,name,unit:stock_units(code)), boq:boq_items(item_code,description), document:stock_documents!inner(id,number,occurred_on,warehouse_id,work_order_id,kind,status,project_id)')
     .eq('document.kind', 'issue').eq('document.status', 'Posted').eq('document.project_id', projectId)
     .order('id', { ascending: false }).limit(100);
   if (error) throw toAppError(error);

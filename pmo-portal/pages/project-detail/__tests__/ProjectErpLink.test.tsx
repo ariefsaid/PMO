@@ -7,6 +7,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 const h = vi.hoisted(() => ({
   getBinding: vi.fn(),
@@ -66,7 +67,7 @@ function mount(role: 'Admin' | 'Engineer' = 'Admin') {
       })}
     >
       <ImpersonationProvider realRole={role}>
-        <ProjectErpLink projectId='project-1' />
+        <MemoryRouter><ProjectErpLink projectId='project-1' /></MemoryRouter>
       </ImpersonationProvider>
     </QueryClientProvider>,
   );

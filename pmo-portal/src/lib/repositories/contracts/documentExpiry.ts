@@ -12,4 +12,10 @@ export interface DocumentExpiryRepository {
   uploadAttachment: typeof dal.uploadExpiryAttachment;
   removeAttachment: typeof dal.removeExpiryAttachment;
   attachmentUrl: typeof dal.getExpiryAttachmentUrl;
+  listAdminTypes: typeof dal.listAdminDocumentTypes;
+  createType: typeof dal.createDocumentType;
+  updateType: typeof dal.updateDocumentType;
+  archiveType: typeof dal.archiveDocumentType;
+  getWarningDays: typeof dal.getDocumentWarningDays;
+  setWarningDays: typeof dal.setDocumentWarningDays;
 }

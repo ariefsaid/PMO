@@ -24,21 +24,6 @@ export function useDocuments(projectId: string) {
   });
 }
 
-/**
- * Fetch the child (successor) document for lineage display.
- * Returns null when no child exists or the parent has no children.
- * Key is org-scoped to prevent cross-org cache bleed.
- */
-export function useChildDocument(parentId: string | null) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<ProjectDocumentRow | null>({
-    queryKey: ['project-document-child', orgId, parentId],
-    queryFn: () => parentId ? repositories.document.getChild(parentId) : Promise.resolve(null),
-    enabled: Boolean(orgId && parentId),
-  });
-}
-
 export interface UpdateDocumentArgs {
   id: string;
   input: ProjectDocumentInput;

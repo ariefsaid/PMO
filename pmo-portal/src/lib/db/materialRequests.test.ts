@@ -171,9 +171,10 @@ describe('AC-MRQ-003 refusal keys', () => {
     ['MRQ_SOD_TWICE: x', 'sodTwice'], ['MRQ_OUT_OF_ORDER: x', 'outOfOrder'], ['MRQ_NOT_APPROVER: x', 'notApprover'],
     ['MRQ_REASON_REQUIRED: x', 'reasonRequired'], ['MRQ_OVER_PLAN_REASON: x', 'overPlanReason'], ['MRQ_CUTOFF: x', 'cutoff'],
     ['MRQ_NEEDED_BY: x', 'neededBy'], ['MRQ_NO_CHAIN: x', 'noChain'], ['MRQ_SOURCE_REQUIRED: x', 'sourceRequired'],
-    ['MRQ_NO_DESTINATION: x', 'noDestination'], ['STK_NOT_KEEPER: x', 'notKeeper'], ['MRQ_NOT_PENDING: x', 'notPending'],
+    ['MRQ_NO_DESTINATION: x', 'noDestination'], ['MRQ_MANY_DESTINATIONS: x', 'manyDestinations'], ['STK_NOT_KEEPER: x', 'notKeeper'], ['MRQ_NOT_PENDING: x', 'notPending'],
     ['MRQ_NOT_DRAFT: x', 'notDraft'], ['MRQ_NOT_AUTHOR: x', 'notAuthor'], ['MRQ_WORK_ORDER: x', 'workOrder'],
-    ['MRQ_STAND_IN: x', 'standIn'], ['MRQ_ADMIN_ONLY: x', 'adminOnly'], ['something else', 'unknown'],
+    ['MRQ_STAND_IN: x', 'standIn'], ['MRQ_ADMIN_ONLY: x', 'adminOnly'], ['MRQ_INVALID: x', 'invalid'],
+    ['MRQ_NOT_FOUND: x', 'notFound'], ['MRQ_DESTINATION: x', 'destination'], ['something else', 'unknown'],
   ])('%s maps to %s', (message, key) => {
     expect(dal.materialRequestRefusal(new Error(message))).toBe(key);
   });
@@ -241,5 +242,26 @@ describe('material request reads and the rest of the writes', () => {
     h.result.value = { data: [], error: null };
     await dal.listMaterialRequests({ cursor: { createdAt: '2026-11-10T00:00:00Z', id: 'r9' } });
     expect(h.calls.or).toEqual(['created_at.lt.2026-11-10T00:00:00Z,and(created_at.eq.2026-11-10T00:00:00Z,id.lt.r9)']);
+  });
+});
+
+describe('#2598 step pins', () => {
+  it('AC-MRQ-016 reads one project\'s pins and sets or clears one through the RPC', async () => {
+    h.result.value = { data: [{ position: 3, role: 'Finance', approver_id: 'u6' }], error: null };
+    expect(await dal.listStepPins('p1')).toEqual([{ position: 3, role: 'Finance', approverId: 'u6' }]);
+    expect(h.calls.from).toEqual(['approval_step_pins']);
+    expect(h.calls.eq).toEqual([['project_id', 'p1']]);
+    h.result.value = { data: null, error: null };
+    await dal.setStepPin('p1', 3, 'u6');
+    await dal.setStepPin('p1', 3, null);
+    expect(h.calls.rpc).toEqual([
+      ['mrq_set_step_pin', { p_project_id: 'p1', p_position: 3, p_approver_id: 'u6' }],
+      ['mrq_set_step_pin', { p_project_id: 'p1', p_position: 3, p_approver_id: null }],
+    ]);
+  });
+  it('AC-MRQ-018 the three new refusals map to stable keys', () => {
+    expect(dal.materialRequestRefusal({ message: 'MRQ_NOT_PINNED: this step is pinned' })).toBe('notPinned');
+    expect(dal.materialRequestRefusal({ message: 'MRQ_PIN_FORBIDDEN: only' })).toBe('pinForbidden');
+    expect(dal.materialRequestRefusal({ message: 'MRQ_PIN_INVALID: the approver' })).toBe('pinInvalid');
   });
 });

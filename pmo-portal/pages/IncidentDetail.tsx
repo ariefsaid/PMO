@@ -1,6 +1,6 @@
 import { IncidentTaskLink } from '@/components/IncidentTaskLink';
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router';
+import { Link, useParams, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   RecordHeader,
@@ -251,7 +251,7 @@ const IncidentDetail: React.FC = () => {
             />
             <Field label={t('form.assignee', 'Person in charge')} value={assigneeName ?? '—'} />
             <Field label={t('form.due', 'Fix by')} value={incident.due_at ? formatDay(incident.due_at) : '—'} />
-            <Field label={t('form.workOrder', 'Work order')} value={workOrder ? (workOrder.wo_number ?? workOrder.title) : incident.work_order_id ? '…' : '—'} />
+            <Field label={t('form.workOrder', 'Work order')} value={workOrder ? <Link className="underline" to={`/work-orders/${workOrder.id}`}>{workOrder.wo_number ?? workOrder.title}</Link> : incident.work_order_id ? '…' : '—'} />
             <Field label={t('form.action', 'What must be done')} value={incident.action || '—'} />
             {incident.closed_at && <Field label={t('detail.closedOn', 'Closed on')} value={formatDay(incident.closed_at)} />}
             {incident.close_note && <Field label={t('close.note', 'Close note')} value={incident.close_note} />}
