@@ -1,5 +1,12 @@
 {
   "tables": [
+    {"table":"equipment_downtime_proofs","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"equipment_escalation_log","has_org":true,"pk":"asset_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"equipment_rental_checks","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"equipment_rental_terms","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"equipment_status_days","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"equipment_status_history","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"org_terminology","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"n/a: pk is the org id with term and locale, not a row uuid; the blind read covers the declared B visibility"},
     {"table":"billing_stage_templates","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"billing_stage_template_documents","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"claim_billing_stages","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
@@ -253,6 +260,22 @@
     {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
   ],
   "definer_functions": [
+    "add_equipment_downtime_proof(uuid,date,text,text)",
+    "change_equipment_rental_rate(uuid,date,numeric)",
+    "dsr_photo_stored(text)",
+    "end_equipment_rental_term(uuid,date)",
+    "equipment_charge_project_actuals_between(uuid,date,date)",
+    "equipment_metrics(uuid[],date,date,text)",
+    "equipment_rental_check(uuid,date,date,numeric,text)",
+    "list_equipment_downtime_flags()",
+    "list_equipment_proofs(uuid[],date)",
+    "run_equipment_downtime_escalations(date)",
+    "save_equipment_rental_term(jsonb)",
+    "set_equipment_ownership(uuid,text,date)",
+    "set_equipment_status_bulk(date,jsonb)",
+    "set_equipment_status(uuid,date,text,text)",
+    "set_equipment_working_hours(numeric)",
+    "set_org_fiscal_year_start_month(integer)",
     "set_billing_stage_template(uuid,jsonb)",
     "set_project_invoice_deadline(uuid,integer,integer)",
     "lock_billing_stage_claim(uuid)",
@@ -869,6 +892,8 @@
     "telegram-notify"
   ],
   "buckets": [
+    "equipment-proof",
+    "expiry-documents",
     "agent-attachments",
     "attendance-photos",
     "expense-receipts",
