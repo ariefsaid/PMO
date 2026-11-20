@@ -116,7 +116,11 @@ export function useIncidentMutations() {
 
   const transition = useMutation({
     mutationFn: ({ id, status, closeNote }: TransitionIncidentArgs) =>
-      withTimeout(repositories.incident.transition(id, status, closeNote)),
+      withTimeout(
+        closeNote === undefined
+          ? repositories.incident.transition(id, status)
+          : repositories.incident.transition(id, status, closeNote),
+      ),
     onSettled: invalidate,
   });
 
