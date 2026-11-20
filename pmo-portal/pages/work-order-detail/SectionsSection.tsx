@@ -18,6 +18,8 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { SectionFormModal } from './SectionFormModal';
 import { SectionReadinessModal } from './SectionReadinessModal';
 import { SectionPlanModal } from './SectionPlanModal';
+import { SectionMaterialModal } from './SectionMaterialModal';
+import { SectionMaterialCheck } from './SectionMaterialCheck';
 
 interface Props {
   workOrder: { id: string; project_id: string; status: string; currency: string };
@@ -48,6 +50,7 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
   const [showArchived, setShowArchived] = useState(false);
   const [editing, setEditing] = useState<SectionRollupRow | 'new' | null>(null);
   const [planning, setPlanning] = useState<SectionRollupRow | null>(null);
+  const [materialFor, setMaterialFor] = useState<SectionRollupRow | null>(null);
   const [readinessFor, setReadinessFor] = useState<SectionRollupRow | null>(null);
   const [archiving, setArchiving] = useState<SectionRollupRow | null>(null);
   const [deleting, setDeleting] = useState<SectionRollupRow | null>(null);
@@ -133,6 +136,7 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
               { label: t('menu.readiness', 'Readiness and history'), onClick: () => setReadinessFor(r) },
               may('edit', 'workOrderSection', rowCtx) ? { label: t('menu.edit', 'Edit'), onClick: () => setEditing(r) } : null,
               may('set_plan', 'workOrderSection', rowCtx) ? { label: t('menu.plan', 'Plan'), onClick: () => setPlanning(r) } : null,
+              may('set_plan', 'workOrderSection', rowCtx) && r.archivedAt === null ? { label: t('menu.material', 'Material'), onClick: () => setMaterialFor(r) } : null,
               may('archive', 'workOrderSection', rowCtx) ? (r.archivedAt === null
                 ? { label: t('menu.archive', 'Archive'), onClick: () => setArchiving(r) }
                 : { label: t('menu.restore', 'Restore'), onClick: () => void doArchive(r, false) }) : null,
@@ -182,6 +186,8 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
         <SectionFormModal workOrderId={workOrder.id} section={editing === 'new' ? null : editing}
           nextOrder={sections.reduce((n, r) => Math.max(n, r.sortOrder ?? 0), 0) + 1} foremanNames={names} onClose={() => setEditing(null)} />
       )}
+      {sections.length > 0 && <SectionMaterialCheck workOrderId={workOrder.id} sections={sections.map((x) => ({ id: x.sectionId as string, code: x.code as string }))} />}
+      {materialFor && <SectionMaterialModal workOrderId={workOrder.id} section={materialFor} onClose={() => setMaterialFor(null)} />}
       {planning && <SectionPlanModal projectId={workOrder.project_id} workOrderId={workOrder.id} currency={workOrder.currency} section={planning} onClose={() => setPlanning(null)} />}
       {readinessFor && (
         <SectionReadinessModal workOrderId={workOrder.id} section={readinessFor} names={names} onClose={() => setReadinessFor(null)}

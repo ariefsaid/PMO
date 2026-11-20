@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useTerms } from '@/src/lib/i18n/terms';
 import { formatDay } from '@/src/lib/format';
 import { useUsers } from '@/src/hooks/useUsers';
 import { materialRequestRefusal, type MaterialRequestRefusal, type MaterialRequestStatus, type StepStatus } from '@/src/lib/repositories/materialRequests';
@@ -39,6 +40,7 @@ export function useUserNames(): (id: string | null | undefined) => string {
 /** A refusal from the database as one plain sentence. The server states the rule; this only translates it. */
 export function useRefusalText(): (err: unknown) => string {
   const { t } = useTranslation('materialRequests');
+  const section = useTerms().section.toLowerCase();
   const copy: Record<MaterialRequestRefusal, string> = {
     sodAuthor: t('refusal.sodAuthor', 'You raised this request, so you cannot approve it.'),
     sodTwice: t('refusal.sodTwice', 'You already decided another step of this request.'),
@@ -58,6 +60,8 @@ export function useRefusalText(): (err: unknown) => string {
     workOrder: t('refusal.workOrder', 'Choose a work order you can see.'),
     standIn: t('refusal.standIn', 'This stand-in is not allowed: choose an active colleague and a valid date range.'),
     adminOnly: t('refusal.adminOnly', 'Only an administrator can do this.'),
+    section: t('refusal.section', 'Choose a {{section}} that is open on this work order.', { section }),
+    sectionLocked: t('refusal.sectionLocked', 'The {{section}} can change only while the request is a draft.', { section }),
     unknown: t('refusal.unknown', 'That did not work. Try again.'),
   };
   return (err) => {

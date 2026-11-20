@@ -16,6 +16,12 @@ export function sectionRefusal(err: unknown, t: TFunction<'workOrderSections'>, 
   if (code === '23505' && /work_order_sections_code_uniq/.test(message)) {
     return { headline: t('errors.duplicateCode', 'That code is already used on this work order'), detail: t('errors.duplicateCodeSub', 'Codes stay reserved, even for archived {{sections}}. Choose another.', vars) };
   }
+  if (message.includes('WOS_ALLOCATION_CAP')) {
+    const m = /would be ([\d.]+) against a work-order plan of ([\d.]+)/.exec(message);
+    return { headline: t('errors.allocationCap', 'Above the work-order plan'),
+      detail: m ? t('errors.allocationCapSub', 'The planned quantities would add up to {{total}} against a work-order plan of {{plan}}.', { total: m[1], plan: m[2] }) : undefined };
+  }
+  if (message.includes('WOS_ITEM')) return { headline: t('errors.item', 'That item cannot be planned'), detail: t('errors.itemSub', 'Choose a live stock item of this organisation.') };
   if (message.includes('WOS_FOREMAN_COLUMNS')) return { headline: t('errors.foremanColumns', 'A foreman can only set readiness') };
   if (message.includes('WOS_FOREMAN')) return { headline: t('errors.foreman', 'The foreman must be an active user'), detail: t('errors.foremanSub', 'Choose someone who can sign in to this organisation.') };
   if (message.includes('WOS_ARCHIVE_BLOCKED')) return { headline: t('errors.archiveBlocked', "Can't archive yet"), detail: message.replace(/^.*WOS_ARCHIVE_BLOCKED:\s*/, '') };

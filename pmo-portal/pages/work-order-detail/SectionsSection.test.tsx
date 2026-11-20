@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   role: 'Project Manager' as string, userId: 'u-pm',
   roll: { data: undefined, isPending: false, isError: false, isSuccess: true, refetch: vi.fn() } as Record<string, unknown>,
   counts: { data: null } as Record<string, unknown>,
+  check: { data: [] as unknown[], isPending: false, isError: false } as Record<string, unknown>,
   setReadiness: vi.fn(), archive: vi.fn().mockResolvedValue(undefined), remove: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
@@ -31,6 +32,17 @@ vi.mock('@/src/hooks/useWorkOrderSections', () => ({
   useSaveSectionPlan: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSectionReadinessEvents: () => ({ data: [], isPending: false }),
 }));
+
+vi.mock('@/src/hooks/useWorkOrderSectionMaterials', () => ({
+  useSectionMaterialCheck: () => h.check,
+  useSectionAllocations: () => ({ data: [], isPending: false }),
+  useSetAllocation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+vi.mock('@/src/hooks/useStock', () => ({
+  useStockItems: () => ({ data: [{ id: 'i1', code: 'CBL', name: 'Cable', unit_id: 'u1', archived_at: null }] }),
+  useStockUnits: () => ({ data: [{ id: 'u1', code: 'm' }] }),
+}));
+vi.mock('@/src/hooks/useMaterialRequests', () => ({ useLinePlans: () => ({ data: [], isPending: false }) }));
 
 import { SectionsSection } from './SectionsSection';
 
@@ -52,7 +64,7 @@ const ok = (rows: SectionRollupRow[]) => ({ data: rows, isPending: false, isErro
 beforeEach(() => {
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   h.role = 'Project Manager'; h.userId = 'u-pm';
-  h.roll = ok([]); h.counts = { data: null };
+  h.roll = ok([]); h.counts = { data: null }; h.check = { data: [], isPending: false, isError: false };
   h.setReadiness.mockReset();
 });
 
@@ -141,6 +153,47 @@ describe('SectionsSection (#2576)', () => {
     expect(screen.queryByTestId('wo-section-Z')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Show archived' }));
     expect(screen.getByTestId('wo-section-Z').textContent).toContain('Archived');
+  });
+
+  it('FR-WOS-014 shows plan, requested and remaining per section and item, and for the unsectioned remainder', async () => {
+    h.roll = ok([row({}), row({ sectionId: 's2', code: 'B', name: 'South' }), remainder]);
+    h.check = { isPending: false, isError: false, data: [
+      { sectionId: 's1', itemId: 'i1', planQty: 60, requestedQty: 40, remainingQty: 20, workOrderPlanQty: 100, overAllocated: false },
+      { sectionId: 's2', itemId: 'i1', planQty: 30, requestedQty: 10, remainingQty: 20, workOrderPlanQty: 100, overAllocated: false },
+      { sectionId: null, itemId: 'i1', planQty: 10, requestedQty: 20, remainingQty: -10, workOrderPlanQty: 100, overAllocated: false },
+    ] };
+    await mount();
+    const a = screen.getByTestId('wo-material-A-i1');
+    expect(a.textContent).toContain('60');
+    expect(a.textContent).toContain('40');
+    expect(a.textContent).toContain('20');
+    expect(screen.getByTestId('wo-material-remainder-i1').textContent).toContain('-10');
+    expect(screen.getByTestId('wo-material-remainder-i1').textContent).toContain('Not in a section');
+    expect(screen.queryByTestId('wo-material-over-allocated')).toBeNull();
+  });
+
+  it('AC-WOS-008 flags an over-allocated item without rewriting anything', async () => {
+    h.roll = ok([row({})]);
+    h.check = { isPending: false, isError: false, data: [
+      { sectionId: 's1', itemId: 'i1', planQty: 60, requestedQty: 0, remainingQty: 60, workOrderPlanQty: 50, overAllocated: true },
+    ] };
+    await mount();
+    expect(screen.getByTestId('wo-material-over-allocated').textContent).toBe('Cable is allocated above the work-order plan.');
+  });
+
+  it('a failed material read never breaks the sections block', async () => {
+    h.roll = ok([row({})]);
+    h.check = { isPending: false, isError: true, data: undefined };
+    await mount();
+    expect(screen.getByTestId('wo-section-A')).toBeTruthy();
+    expect(screen.queryByTestId('wo-sections-material')).toBeNull();
+  });
+
+  it('only a role that writes plans is offered the Material action', async () => {
+    h.roll = ok([row({})]);
+    await mount();
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for A' }));
+    expect(await screen.findByRole('menuitem', { name: 'Material' })).toBeTruthy();
   });
 
   it('NFR-WOS-004 the word comes from the terms: Bahasa shows "Bagian", not an English literal', async () => {

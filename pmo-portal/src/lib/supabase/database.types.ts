@@ -2601,6 +2601,30 @@ export type Database = {
         }
         Relationships: []
       }
+      work_order_section_material_plan: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          item_id: string
+          org_id: string
+          quantity: number
+          section_id: string
+          updated_at: string
+          updated_by: string | null
+          work_order_id: string
+        }
+        Insert: {
+          item_id: string
+          quantity: number
+          section_id: string
+          work_order_id: string
+        }
+        Update: {
+          quantity?: number
+        }
+        Relationships: []
+      }
       work_order_section_readiness_events: {
         Row: {
           id: string
@@ -6432,6 +6456,8 @@ export type Database = {
           prior_qty: number | null
           quantity: number
           request_id: string
+          section_plan_qty: number | null
+          section_prior_qty: number | null
         }
         Insert: {
           id?: string
@@ -6536,6 +6562,7 @@ export type Database = {
           org_id: string
           project_id: string
           round: number
+          section_id: string | null
           status: string
           submit_request_id: string | null
           submitted_at: string | null
@@ -6557,6 +6584,7 @@ export type Database = {
           org_id?: string
           project_id: string
           round?: number
+          section_id?: string | null
           status?: string
           submit_request_id?: string | null
           submitted_at?: string | null
@@ -6578,6 +6606,7 @@ export type Database = {
           org_id?: string
           project_id?: string
           round?: number
+          section_id?: string | null
           status?: string
           submit_request_id?: string | null
           submitted_at?: string | null
@@ -13519,6 +13548,17 @@ export type Database = {
       }
     }
     Functions: {
+      mrq_section_plan_for: {
+        Args: { p_work_order_id: string; p_section_id: string; p_item_ids: string[]; p_exclude_request?: string }
+        Returns: { item_id: string; section_plan_qty: number | null; section_prior_qty: number | null }[]
+      }
+      work_order_section_material_check: {
+        Args: { p_work_order_id: string }
+        Returns: {
+          section_id: string | null; item_id: string; plan_qty: number | null; requested_qty: number; remaining_qty: number | null
+          work_order_plan_qty: number; over_allocated: boolean
+        }[]
+      }
       work_order_section_rollup: {
         Args: { p_work_order_id: string }
         Returns: {
