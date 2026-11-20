@@ -152,14 +152,14 @@ const DocumentTypes: React.FC = () => {
   return (
     <section id="document-types" tabIndex={-1} className="mt-8 scroll-mt-4" aria-labelledby="document-types-heading">
       <h2 id="document-types-heading" className="text-group font-semibold tracking-[-0.01em]">{t('documentTypes.title', 'Document types')}</h2>
-      <div className="mt-3 mb-[var(--space-group)] flex justify-end">
+      {rows.length > 0 && <div className="mt-3 mb-[var(--space-group)] flex justify-end">
         {canManage && <Button variant="primary" onClick={() => setEditing('new')}><Icon name="plus" />{t('documentTypes.add', 'Add document type')}</Button>}
-      </div>
+      </div>}
       {q.isPending && <ListState variant="loading" shape="table" rows={3} />}
       {!q.isPending && q.isError && <ListState variant="error" title={t('documentTypes.error', "Couldn't load document types")}
         sub={t('documentTypes.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void q.refetch()} retryLabel={t('documentTypes.retry', 'Retry')} />}
       {!q.isPending && !q.isError && (rows.length === 0
-        ? <ListState variant="empty" title={t('documentTypes.empty', 'No document types yet. Add one so documents can be recorded for people and equipment.')}
+        ? <ListState variant="empty" quiet title={t('documentTypes.empty', 'No document types yet. Add one so documents can be recorded for people and equipment.')}
             action={canManage ? { label: t('documentTypes.add', 'Add document type'), onClick: () => setEditing('new') } : undefined} />
         : <DataTable<AdminDocumentTypeRow> rows={rows} columns={columns} rowKey={(r) => r.id} tableId="document-types" />)}
       <h3 className="mt-6 mb-2 text-control font-semibold">{t('documentTypes.daysTitle', 'Expiry warning days')}</h3>

@@ -44,6 +44,7 @@ describe('Document types screen (#2614)', () => {
     h.types = { data: [], isPending: false, isError: false, refetch: vi.fn() };
     renderIt();
     expect(screen.getByText(/No document types yet/)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Add document type' })).toHaveLength(1);
   });
 
   it('loading and error-with-retry states', async () => {
