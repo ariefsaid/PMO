@@ -1,6 +1,6 @@
 # Spec: Client material requisitions tracked per work order (#2585)
 
-**Status:** proposed; owner decisions below need sign-off before build. IDs `FR-CSR-###`, `NFR-CSR-###`, `AC-CSR-###`. Plan: `docs/plans/2026-11-20-client-material-requisitions.md`. Executor: the rollup and screens are Orca slices; the pickup that posts to the stock ledger is a stock-value path and is Director-dispatched, shipping alone. Map #2516; blocked by #2517 (work order on stock documents) and #2523 (zero-cost client-supplied tag, yard/staging locations, document paper); reads `docs/specs/stock-site-work.spec.md` and `docs/specs/material-requests.spec.md` first. Extends the shipped stock posting engine (0413) and `work_order_lines` (0337); does not replace material requests (#2524), which move the organisation's own stock.
+**Status:** proposed; owner decisions below need sign-off before build. IDs `FR-CSR-###`, `NFR-CSR-###`, `AC-CSR-###`. Plan: `docs/plans/2026-11-20-client-material-requisitions.md`. Executor: the rollup and screens are Orca slices; the pickup that posts to the stock ledger is a stock-value path and is Director-dispatched, shipping alone. Map #2516; blocked by #2523, which is built on branch `feat/2523-stock-site-work` and must land on `dev` first (migrations 0982 to 0984: `stock_tags` with `zero_cost` and `paper_required`, `stock_items.tag_id`, `stock_warehouses.kind` also `yard` and `staging`, the receive-line zero-cost guard, `get_work_order_stock_balance`). The work order column on stock documents (`stock_documents.work_order_id`, 0951) is already on `dev` (#2517); reads `docs/specs/stock-site-work.spec.md` and `docs/specs/material-requests.spec.md` first. Extends the shipped stock posting engine (0413) and `work_order_lines` (0337); does not replace material requests (#2524), which move the organisation's own stock.
 
 ## Job story
 
@@ -11,7 +11,7 @@ When a work order needs material that the client supplies, I want to record each
 - A **client-supplied requisition** asks the client to release material for one work order. It is a different thing from a material request (#2524): that moves the organisation's own purchased stock under an approval chain; this tracks material the organisation does not own until pickup.
 - The **take-off** is the quantity worked out for the work order's contract items. It is typed or imported per line; this spec does not compute take-offs from drawings.
 - The **reservation** is the client's confirmation that a quantity is set aside. The organisation records it with the client's own reference; PMO does not talk to the client's system.
-- The **pickup** is the physical collection. It posts a stock receipt through the existing posting engine into a location the organisation chooses, for an item carrying the zero-cost client-supplied tag (#2523), so the ledger value is 0.
+- The **pickup** is the physical collection. It posts a stock receipt through the existing posting engine into a location the organisation chooses, for an item whose tag has `stock_tags.zero_cost` true (#2523, via `stock_items.tag_id`), so the ledger value is 0.
 - Out of scope (per map): the client's own system integration, and close-out reconciliation of what was never collected or was returned. Extra material cost, returns to the client and cost-plus billing of supplied material are not handled.
 - Only quantities are tracked here. No requisition field holds an amount of money.
 
@@ -28,9 +28,9 @@ For one requisition line:
 ## Requirements (EARS)
 
 **Requisition and take-off**
-- FR-CSR-001 The system shall let an authorized user create a requisition for one work order, in `draft`, with a number from the existing document-number sequence, an optional client reference and one or more lines, each naming a stock item (carrying a zero-cost tag, #2523), a take-off quantity and a requested quantity, and optionally the contract item (`work_order_lines`) it serves.
+- FR-CSR-001 The system shall let an authorized user create a requisition for one work order, in `draft`, with a number from the existing document-number sequence, an optional client reference and one or more lines, each naming a stock item (whose tag is `zero_cost`, #2523), a take-off quantity and a requested quantity, and optionally the contract item (`work_order_lines`) it serves.
 - FR-CSR-002 A line's contract item, when named, shall belong to the same work order; the work order shall not be Closed or Cancelled.
-- FR-CSR-003 Where the organisation bulk-loads take-off lines, the system shall accept them through the existing import template path with the same validation as manual entry.
+- FR-CSR-003 Where the organisation bulk-loads take-off lines, the system shall accept them through a take-off import descriptor (`pmo-portal/src/lib/import/clientTakeoffDescriptor.ts`, ADR-0027, modelled on `contractLineDescriptor.ts`; template download and failed-rows file come from #2530) with the same validation as manual entry.
 - FR-CSR-004 When a user sends a requisition, the system shall move it from `draft` to `open`, freeze its lines, and record who sent it and when. A requisition can be cancelled while no pickup is posted; a cancelled requisition keeps its history.
 - FR-CSR-005 Create and send shall be idempotent on a client-generated `client_request_id`.
 
@@ -43,9 +43,9 @@ For one requisition line:
 **Pickup**
 - FR-CSR-010 When goods are collected, a stock keeper of the receiving location shall record a pickup against a line: quantity, date, collector name or reference (free text), receiving location and optional delivery paper; the system shall post it as one stock receipt in the same transaction.
 - FR-CSR-011 The receipt shall be created through the existing stock document creation and posting path, so the ledger single-writer rule (ADR-0097) still holds; no requisition code writes `stock_ledger` or `stock_balances`.
-- FR-CSR-012 The receipt line shall have unit cost 0 and its ledger value 0. The server refuses a pickup for an item that is not zero-cost tagged (OD-CSR-2) and never accepts a cost from the client.
+- FR-CSR-012 The receipt line shall have unit cost 0 and its ledger value 0. The pickup RPC takes no cost parameter and writes unit cost 0 itself, so any cost in the client payload is ignored; it refuses a pickup for an item whose tag is not `zero_cost` (OD-CSR-2). As a second layer, #2523's line guard (`guard_stock_line_zero_cost`, `STK_ZERO_COST`) refuses a non-zero unit cost on a zero-cost item's line whatever the caller.
 - FR-CSR-013 A pickup shall not exceed still-to-collect for its line, checked in the database under a row lock so two concurrent pickups cannot both succeed past the limit.
-- FR-CSR-014 The receipt shall carry the requisition's work order (#2517) so the stock on hand per work order (#2523) includes collected client-supplied material.
+- FR-CSR-014 The receipt shall carry the requisition's work order (`stock_documents.work_order_id`, 0951) so `get_work_order_stock_balance` (#2523, 0984) includes collected client-supplied material. `create_stock_document` takes no work-order field, so the pickup RPC creates the receipt unposted, sets `work_order_id` on it in the same transaction (as `1001_material_request_rpcs.sql` does for transfers), then posts it. The cost-attribution trigger `check_cost_attribution` (0951, rewritten by 0982) has no branch for `receive` documents and would refuse a work order on one, so Migration B adds one: a `receive` document takes the project of its receiving warehouse (kind `site`, `yard` or `staging`) and must match the work order's project (OD-CSR-6).
 - FR-CSR-015 Pickup and its receipt are idempotent on a client-generated `client_request_id`; a replay returns the original.
 - FR-CSR-016 When the receiving location's domain is owned by a connected ERP, the system shall refuse the pickup with the existing ownership refusal (`STK_OWNED_BY_ERP`) before writing anything (OQ-CSR-2).
 - FR-CSR-017 A posted pickup is not edited or deleted. A mistaken pickup is reversed by a stock adjustment on the stock side (existing correction rule), and the requisition shows the pickup as reversed through the link (OQ-CSR-3).
@@ -58,7 +58,7 @@ For one requisition line:
 **Access and audit**
 - FR-CSR-021 Actions (create, send, cancel, record reservation, record release, record pickup, view) shall be registered in the role matrix (#902) and gated by `can()`; RLS and the RPCs enforce. Recording a pickup requires keeping the receiving location (or Admin), as `create_stock_document` already does.
 - FR-CSR-022 Requisition, line, reservation and pickup rows carry `org_id` by default with RLS (and FORCE RLS) on every new table; no client role holds insert, update or delete; every write goes through a security-definer RPC.
-- FR-CSR-023 Each transition and event is written to record history with actor, time and reason.
+- FR-CSR-023 Each transition (created, sent, cancelled) and each reservation, release and pickup shall be written to an append-only `client_requisition_events` table with actor, time and reason, written by the RPCs and protected by an append-only trigger, as `material_request_events` does (1000, 1001). The requisition tables are not registered in `record_history_config` (0260): material requests are not either, and the registry is code-owned.
 
 ## Non-functional requirements
 - NFR-CSR-001 The work order view reads per-line figures in one indexed query per page; indexes on (work_order_id, status) and (line_id).
@@ -79,14 +79,14 @@ Hand calculation for one line: take-off 100, requested 100. Reservations 60 and 
 | AC-CSR-006 | Given still to collect 20, when a pickup of 21 is recorded, then refused and no stock document exists; a pickup of 20 posts. | pgTAP |
 | AC-CSR-007 | Given two concurrent pickups of 15 against still to collect 20, then exactly one succeeds. | pgTAP |
 | AC-CSR-008 | Given a posted pickup of 50 for a zero-cost item, when read, then one receipt exists with unit cost 0, ledger `value_delta` 0, the work order named, and quantity on hand at the location up by 50. | pgTAP |
-| AC-CSR-009 | Given a client-supplied cost in the pickup payload or an item without the zero-cost tag, when recorded, then refused and nothing is written. Mutation check: remove the zero-cost rule; the test must go red. | pgTAP |
+| AC-CSR-009 | Given a pickup payload carrying a unit cost, or an item whose tag is not `zero_cost`, when recorded, then for a zero-cost item the receipt line has unit cost 0 and `value_delta` 0 whatever the payload said, and for a non-zero-cost item it is refused and nothing is written. Mutation checks: remove the RPC's zero cost and the tag refusal; each must turn the test red (the #2523 line guard stays, so also prove the RPC layer with that guard disabled in the mutation run). | pgTAP |
 | AC-CSR-010 | Given a replayed pickup `client_request_id`, when sent twice, then one receipt and one pickup row exist. | pgTAP |
 | AC-CSR-011 | Given a user who does not keep the receiving location and is not Admin, when they record a pickup, then refused. | pgTAP |
 | AC-CSR-012 | Given a connected-ERP-owned inventory domain, when a pickup is recorded, then refused with the ownership refusal and nothing is written. | pgTAP |
 | AC-CSR-013 | Given a Draft requisition, when sent, then it is `open` and its lines are frozen; a send replay is a no-op. Given a pickup already posted, when cancel is attempted, then refused. | pgTAP |
 | AC-CSR-014 | Given a line naming a contract item of another work order, or a Closed work order, when saved, then refused. | pgTAP |
 | AC-CSR-015 | Given a reservation recorded, when it saves, then the creator gets one notification. | pgTAP |
-| AC-CSR-016 | Given an event or pickup row, when any client role attempts a direct write, update or delete, then refused (mutation check on the grant). | pgTAP |
+| AC-CSR-016 | Given an event or pickup row, when any client role attempts a direct write, update or delete, then refused (mutation check on the grant). Transition events (created, sent, cancelled) are likewise append-only. | pgTAP |
 | AC-CSR-017 | Given a user in another organisation or without permission, when they read or write, then refused. | pgTAP |
 | AC-CSR-018 | Given a pickup, when stock on hand per work order (#2523) is read, then it includes the 50 collected. | pgTAP |
 | AC-CSR-019 | Given a keeper on a phone, when they raise a requisition from the take-off, record the client's reservation and a pickup, then the work order shows reserved, collected and still to collect matching AC-CSR-001 and stock holds the material at zero value. | E2E (one journey) |
@@ -111,6 +111,7 @@ Hand calculation for one line: take-off 100, requested 100. Reservations 60 and 
 | OD-CSR-3 | Reserved may not exceed requested. | If the client routinely reserves more than asked, staff cannot record it and fall back to a side note. |
 | OD-CSR-4 | The pickup records and posts the receipt in one step by the receiving location's keeper; no separate Draft receipt. | If a second person must confirm receipt, stock goes up on one person's word. |
 | OD-CSR-5 | Take-off is typed or imported; no calculation from drawings. | If the take-off must tie to contract quantities, over-requesting is not caught. |
+| OD-CSR-6 | The pickup RPC extends `check_cost_attribution` so a `receive` document may carry a work order. | If not, a receipt cannot name the work order and collected material sits in the project's unassigned bucket on the work order stock view. |
 | OQ-CSR-1 | Should requested be capped at the contract item's remaining quantity on the work order? Default no cap, warn only. | Over-requests slip through, or legitimate buffer is blocked. |
 | OQ-CSR-2 | When inventory is owned by a connected ERP, should pickup create the receipt in the ERP instead of refusing? Default refuse; out of scope until the inventory connector ships. | Connected organisations cannot use pickups. |
 | OQ-CSR-3 | How is a wrong pickup undone: stock adjustment only (default), or a reverse pickup event? | The requisition keeps counting material that was written off. |
@@ -118,6 +119,6 @@ Hand calculation for one line: take-off 100, requested 100. Reservations 60 and 
 
 ## Delivery checklist
 - [ ] Owner signs OD-CSR-1..5, answers OQ-CSR-1..4.
-- [ ] #2523 (zero-cost tag, work-order receipt) has shipped or is built first.
+- [ ] #2523 (branch `feat/2523-stock-site-work`, migrations 0982 to 0984) has landed on `dev`.
 - [ ] Rollup/screens slices and the pickup-posting slice ship separately; the latter alone (stock value).
 - [ ] Glossary: client material requisition, take-off, reservation, pickup.
