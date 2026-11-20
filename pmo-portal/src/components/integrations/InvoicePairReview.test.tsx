@@ -2,6 +2,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { createInstance } from 'i18next';
+import { I18nextProvider, initReactI18next } from 'react-i18next';
+import en from '../../../public/locales/en/administration.json';
+import id from '../../../public/locales/id/administration.json';
 import { AppError } from '@/src/lib/appError';
 
 const h = vi.hoisted(() => ({
@@ -296,7 +300,7 @@ it('AC-ECA-033 a pair whose ERP invoice was cancelled is flagged without claimin
   mount();
 
   const flagged = await screen.findByRole('region', { name: 'ERP invoice cancelled' });
-  expect(flagged).toHaveTextContent('Review the pair and decide whether to undo it.');
+  expect(flagged).toHaveTextContent('excluded from the project invoice total');
   expect(within(flagged).getByText('PMO-1')).toBeInTheDocument();
   expect(flagged).toHaveTextContent('ERP invoice SI-1 was cancelled');
   expect(flagged).not.toHaveTextContent('SI-1-1');
@@ -353,7 +357,7 @@ it('a role without pairing permission cannot read or undo a cancelled pair', () 
   expect(screen.queryByRole('button', { name: 'Undo PMO-1' })).not.toBeInTheDocument();
 });
 
-it('does not report cached pairs as confirmed when refreshing their lifecycle fails', async () => {
+it('does not offer stale identities when the accepted-pair refresh itself fails', async () => {
   h.proposeInvoicePairs.mockResolvedValue([]);
   h.listAcceptedInvoicePairs.mockResolvedValueOnce([pair(1)]).mockRejectedValue(new Error('read failed'));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -362,6 +366,8 @@ it('does not report cached pairs as confirmed when refreshing their lifecycle fa
   await client.invalidateQueries({ queryKey: ['invoicePairs', 'accepted', 'org-1'] });
   expect(await screen.findByText('Could not load the invoices that already count once.')).toBeInTheDocument();
   expect(screen.queryByText('1 invoice already counts once')).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'ERP invoice status unknown' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Undo PMO-1' })).not.toBeInTheDocument();
 });
 
 
@@ -375,7 +381,7 @@ it('an unknown ERP lifecycle is not counted as confirmed and remains undoable', 
   expect(h.unpairInvoice).not.toHaveBeenCalled();
   fireEvent.click(within(unknown).getByRole('button', { name: 'Undo PMO-1' }));
   const dialog = await screen.findByRole('dialog');
-  expect(dialog).toHaveTextContent('The ERP invoice status is unknown. Undo the pair to count PMO-1 on its own again.');
+  expect(dialog).toHaveTextContent('The ERP invoice status could not be confirmed. Undo may restore PMO-1 while the ERP copy is still counted, so the sale may be counted twice.');
   expect(h.unpairInvoice).not.toHaveBeenCalled();
   fireEvent.click(within(dialog).getByRole('button', { name: 'Undo' }));
   await waitFor(() => expect(h.unpairInvoice).toHaveBeenCalledWith('n1'));
@@ -387,4 +393,63 @@ it('does not confirm coverage when lifecycle information is missing', async () =
   mount();
   expect(await screen.findByRole('region', { name: 'ERP invoice status unknown' })).toHaveTextContent('PMO-1');
   expect(screen.queryByText('1 invoice already counts once')).not.toBeInTheDocument();
+});
+
+
+it('shows a lifecycle read failure with fresh unknown pairs and lets Finance undo the correct one after refresh', async () => {
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValueOnce([pair(1)]).mockResolvedValue([pair(2, { erpCancelled: null, erpNumber: null, lifecycleReadFailed: true })]);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><ImpersonationProvider realRole='Finance'><InvoicePairReview orgId='org-1' /></ImpersonationProvider></QueryClientProvider>);
+  expect(await screen.findByText('1 invoice already counts once')).toBeInTheDocument();
+  await client.invalidateQueries({ queryKey: ['invoicePairs', 'accepted', 'org-1'] });
+  const unknown = await screen.findByRole('region', { name: 'ERP invoice status unknown' });
+  expect(unknown).toHaveTextContent('PMO-2');
+  expect(screen.getByRole('alert')).toHaveTextContent('Could not load ERP invoice status');
+  expect(screen.queryByText('1 invoice already counts once')).not.toBeInTheDocument();
+  fireEvent.click(within(unknown).getByRole('button', { name: 'Undo PMO-2' }));
+  expect(await screen.findByRole('dialog')).toHaveTextContent('may be counted twice');
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Undo' }));
+  await waitFor(() => expect(h.unpairInvoice).toHaveBeenCalledWith('n2'));
+});
+
+it('shows an initial lifecycle read failure with the fresh pair available for review', async () => {
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValue([pair(1, { erpCancelled: null, lifecycleReadFailed: true })]);
+  mount();
+  expect(await screen.findByRole('region', { name: 'ERP invoice status unknown' })).toHaveTextContent('PMO-1');
+  expect(screen.getByRole('alert')).toHaveTextContent('Could not load ERP invoice status');
+});
+
+it('updates an open undo confirmation when the lifecycle refresh fails', async () => {
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValueOnce([pair(1)]).mockResolvedValue([pair(1, { erpCancelled: null, erpNumber: null, lifecycleReadFailed: true })]);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><ImpersonationProvider realRole='Finance'><InvoicePairReview orgId='org-1' /></ImpersonationProvider></QueryClientProvider>);
+  fireEvent.click(await screen.findByText('1 invoice already counts once'));
+  fireEvent.click(screen.getByRole('button', { name: 'Undo PMO-1' }));
+  expect(await screen.findByRole('dialog')).toHaveTextContent('ERP invoice SI-1 stays');
+  await client.invalidateQueries({ queryKey: ['invoicePairs', 'accepted', 'org-1'] });
+  await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('ERP invoice status could not be confirmed'));
+  expect(screen.getByRole('dialog')).toHaveTextContent('may be counted twice');
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Undo' }));
+  await waitFor(() => expect(h.unpairInvoice).toHaveBeenCalledWith('n1'));
+});
+
+
+it.each([
+  ['en', en, 'ERP invoice cancelled', 'Undo PMO-1', 'The cancelled ERP copy and the paired PMO copy are excluded from the project invoice total.', 'If the sale still stands, undo the pair. If the sale was cancelled, leave it paired.', 'ERP invoice status unknown', 'The ERP invoice status could not be confirmed. Undo may restore PMO-1 while the ERP copy is still counted, so the sale may be counted twice.'],
+  ['id', id, 'Faktur ERP dibatalkan', 'Batalkan PMO-1', 'Salinan ERP yang dibatalkan dan salinan PMO yang dipasangkan tidak termasuk dalam total faktur proyek.', 'Jika penjualan masih berlaku, batalkan pasangan. Jika penjualan dibatalkan, biarkan tetap berpasangan.', 'Status faktur ERP tidak diketahui', 'Status faktur ERP tidak dapat dipastikan. Pembatalan pasangan dapat mengembalikan PMO-1 sementara salinan ERP masih terhitung, sehingga penjualan dapat terhitung dua kali.'],
+])('explains cancellation and uncertain undo in %s', async (language, catalogue, cancelledTitle, undoLabel, impact, choice, unknownTitle, warning) => {
+  const i18n = createInstance();
+  await i18n.use(initReactI18next).init({ lng: language, resources: { [language]: { administration: catalogue } }, interpolation: { escapeValue: false } });
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValue([pair(1, { erpCancelled: true }), pair(2, { pmoNumber: 'PMO-1', erpCancelled: null })]);
+  render(<I18nextProvider i18n={i18n}><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ImpersonationProvider realRole='Finance'><InvoicePairReview orgId='org-1' /></ImpersonationProvider></QueryClientProvider></I18nextProvider>);
+  const cancelled = await screen.findByRole('region', { name: cancelledTitle });
+  expect(cancelled).toHaveTextContent(impact);
+  expect(cancelled).toHaveTextContent(choice);
+  const unknown = screen.getByRole('region', { name: unknownTitle });
+  fireEvent.click(within(unknown).getByRole('button', { name: undoLabel }));
+  expect(await screen.findByRole('dialog')).toHaveTextContent(warning);
 });

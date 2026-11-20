@@ -9,6 +9,7 @@ const h = vi.hoisted(() => ({
   pages: [] as Array<Array<Record<string, unknown>>>,
   isCalls: [] as Array<[string, unknown]>,
   pageError: null as null | { message: string; code: string },
+  errors: [] as Array<null | { message: string; code: string }>,
   reads: [] as Array<{ order: string[]; from: number; to: number }>,
   notCalls: [] as Array<[string, string, unknown]>,
   single: null as Record<string, unknown> | null,
@@ -55,7 +56,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
         not: (c: string, op: string, v: unknown) => { h.notCalls.push([c, op, v]); return b; },
         order: (column: string) => { order.push(column); return b; },
         range: (from: number, to: number) => { h.reads.push({ order: [...order], from, to }); return b; },
-        then: (resolve: (v: { data: unknown; error: unknown }) => unknown) => resolve({ data: h.pages.shift() ?? [], error: h.pageError }),
+        then: (resolve: (v: { data: unknown; error: unknown }) => unknown) => resolve({ data: h.pages.shift() ?? [], error: h.errors.shift() ?? h.pageError }),
       });
       return b;
     },
@@ -64,7 +65,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 
 import { proposeInvoicePairs, acceptInvoicePairs, unpairInvoice, getSalesInvoice, listUnpairedNativeInvoices, listAcceptedInvoicePairs } from './revenue';
 
-beforeEach(() => { h.rpc.mockReset(); h.pages = []; h.notCalls = []; h.single = null; h.inCalls = []; h.rpcPageQueries = []; h.reads = []; h.pageError = null; });
+beforeEach(() => { h.rpc.mockReset(); h.pages = []; h.notCalls = []; h.single = null; h.inCalls = []; h.rpcPageQueries = []; h.reads = []; h.pageError = null; h.errors = []; });
 
 describe('invoice pairing DAL (ECA-5)', () => {
   it('AC-ECA-030 proposeInvoicePairs maps the proposal rows and keeps the ambiguous flag', async () => {
@@ -198,12 +199,6 @@ describe('invoice pairing DAL (ECA-5)', () => {
         { id: 'e2', si_number: 'SI-2', erp_docstatus: 2, erp_cancelled_at: null },
         { id: 'e3', si_number: 'SI-3', erp_docstatus: 1, erp_cancelled_at: null },
       ],
-      [
-        { si_number: 'SI-1-1', erp_amended_from: 'SI-1', erp_docstatus: 1, erp_cancelled_at: null },
-        { si_number: 'SI-2-1', erp_amended_from: 'SI-2', erp_docstatus: 2, erp_cancelled_at: null },
-        { si_number: 'SI-2-2', erp_amended_from: 'SI-2', erp_docstatus: 1, erp_cancelled_at: '2026-11-11T03:00:00Z' },
-        { si_number: 'SI-2-3', erp_amended_from: 'SI-2', erp_docstatus: 0, erp_cancelled_at: null },
-      ],
     ];
 
     const rows = await listAcceptedInvoicePairs();
@@ -211,7 +206,7 @@ describe('invoice pairing DAL (ECA-5)', () => {
     expect(h.inCalls).not.toContainEqual(['erp_amended_from', expect.anything()]);
     expect(rows.map((r) => [r.pmoNumber, r.erpNumber, r.erpCancelled, r.erpReplacedBy])).toEqual([
       ['PMO-1', 'SI-1', true, null],
-      ['PMO-2', 'SI-2', true, null],   // docstatus 2 alone is a cancel; a cancelled amendment is no replacement
+      ['PMO-2', 'SI-2', true, null],   // docstatus 2 alone is a cancel
       ['PMO-3', 'SI-3', false, null],
     ]);
   });
@@ -219,16 +214,14 @@ describe('invoice pairing DAL (ECA-5)', () => {
     h.pages = [
       [{ id: 'n1', pmo_number: 'PMO-1', amount: 100, currency: 'IDR', paired_at: '2026-11-02', paired_erp_invoice_id: 'e1' }],
       [{ id: 'e1', si_number: 'SI-1', erp_docstatus: 2, erp_cancelled_at: null }],
-      [{ id: 'a1', si_number: 'SI-1-1', erp_amended_from: 'SI-1', erp_docstatus: 1, erp_cancelled_at: null }],
     ];
     expect((await listAcceptedInvoicePairs())[0]).toMatchObject({ erpCancelled: true, erpReplacedBy: null });
   });
 
-  it('does not suggest a same-number decoy when no amendment link is established', async () => {
+  it('does not query amendment candidates without verified identity', async () => {
     h.pages = [
       [{ id: 'n1', pmo_number: 'PMO-1', amount: 100, currency: 'IDR', paired_at: '2026-11-02', paired_erp_invoice_id: 'e1' }],
       [{ id: 'e1', si_number: 'SI-1', erp_docstatus: 2, erp_cancelled_at: null }],
-      [{ id: 'decoy', si_number: 'SI-1', erp_amended_from: null, erp_docstatus: 1, erp_cancelled_at: null }],
     ];
     expect((await listAcceptedInvoicePairs())[0]).toMatchObject({ erpCancelled: true, erpReplacedBy: null });
     expect(h.inCalls).not.toContainEqual(['erp_amended_from', expect.anything()]);
@@ -239,14 +232,18 @@ describe('invoice pairing DAL (ECA-5)', () => {
     expect((await listAcceptedInvoicePairs())[0]).toMatchObject({ erpCancelled: null });
   });
 
-  it('does not name an ambiguous replacement when multiple live amendments match', async () => {
+  it('does not name a replacement without verified identity', async () => {
     h.pages = [
       [{ id: 'n1', pmo_number: 'PMO-1', amount: 100, currency: 'IDR', paired_at: '2026-11-02', paired_erp_invoice_id: 'e1' }],
       [{ id: 'e1', si_number: 'SI-1', erp_docstatus: 2, erp_cancelled_at: null }],
-      [{ id: 'a1', si_number: 'SI-A', erp_amended_from: 'SI-1', erp_docstatus: 1, erp_cancelled_at: null },
-       { id: 'a2', si_number: 'SI-B', erp_amended_from: 'SI-1', erp_docstatus: 1, erp_cancelled_at: null }],
     ];
     expect((await listAcceptedInvoicePairs())[0]).toMatchObject({ erpCancelled: true, erpReplacedBy: null });
+  });
+
+  it('retains fresh pair identity as unknown and marks a failed lifecycle read', async () => {
+    h.pages = [[{ id: 'fresh', pmo_number: 'PMO-FRESH', amount: 100, currency: 'IDR', paired_at: '2026-11-02', paired_erp_invoice_id: 'e1' }], []];
+    h.errors = [null, { message: 'lifecycle unavailable', code: '500' }];
+    expect(await listAcceptedInvoicePairs()).toMatchObject([{ pmoInvoiceId: 'fresh', pmoNumber: 'PMO-FRESH', erpCancelled: null, lifecycleReadFailed: true }]);
   });
 
   it('surfaces failed reads including a conflict instead of confirming coverage', async () => {
@@ -257,9 +254,7 @@ describe('invoice pairing DAL (ECA-5)', () => {
   it('pages accepted invoices in stable order and chunks ERP ids', async () => {
     const pairs = Array.from({ length: 1001 }, (_, i) => ({ id: `n${i}`, pmo_number: `PMO-${i}`, amount: 100, currency: 'IDR', paired_at: '2026-11-02', paired_erp_invoice_id: `e${i}` }));
     const erps = pairs.map((_, i) => ({ id: `e${i}`, si_number: `SI-${i}`, erp_docstatus: i === 0 ? 2 : 1, erp_cancelled_at: null }));
-    h.pages = [pairs.slice(0, 1000), pairs.slice(1000), ...Array.from({ length: 11 }, (_, i) => erps.slice(i * 100, (i + 1) * 100)),
-      Array.from({ length: 1000 }, (_, i) => ({ id: `a${i}`, si_number: `A-${i}`, erp_amended_from: 'SI-0', erp_docstatus: 2, erp_cancelled_at: null })),
-      [{ id: 'z', si_number: 'LIVE', erp_amended_from: 'SI-0', erp_docstatus: 1, erp_cancelled_at: null }]];
+    h.pages = [pairs.slice(0, 1000), pairs.slice(1000), ...Array.from({ length: 11 }, (_, i) => erps.slice(i * 100, (i + 1) * 100))];
     const result = await listAcceptedInvoicePairs();
     expect(result).toHaveLength(1001);
     expect(result[0].erpReplacedBy).toBeNull();
@@ -281,22 +276,18 @@ describe('invoice pairing DAL (ECA-5)', () => {
     expect((await listAcceptedInvoicePairs())[0]).toMatchObject({ erpCancelled: null });
   });
 
-  it('does not claim a unique amendment when another amendment has unknown lifecycle', async () => {
+  it('leaves replacement blank without a verified identity', async () => {
     h.pages = [
       [{ id: 'n1', pmo_number: 'PMO-1', amount: 100, currency: 'IDR', paired_at: '2026-11-02', paired_erp_invoice_id: 'e1' }],
       [{ id: 'e1', si_number: 'SI-1', erp_docstatus: 2, erp_cancelled_at: null }],
-      [{ id: 'a1', si_number: 'SI-A', erp_amended_from: 'SI-1', erp_docstatus: 1, erp_cancelled_at: null },
-       { id: 'a2', si_number: 'SI-B', erp_amended_from: 'SI-1', erp_docstatus: null, erp_cancelled_at: null }],
     ];
     expect((await listAcceptedInvoicePairs())[0].erpReplacedBy).toBeNull();
   });
 
-  it('does not claim a unique amendment when an active amendment has no number', async () => {
+  it('leaves replacement blank without an amendment lookup', async () => {
     h.pages = [
       [{ id: 'n1', pmo_number: 'PMO-1', amount: 100, currency: 'IDR', paired_at: '2026-11-02', paired_erp_invoice_id: 'e1' }],
       [{ id: 'e1', si_number: 'SI-1', erp_docstatus: 2, erp_cancelled_at: null }],
-      [{ id: 'a1', si_number: 'SI-A', erp_amended_from: 'SI-1', erp_docstatus: 1, erp_cancelled_at: null },
-       { id: 'a2', si_number: null, erp_amended_from: 'SI-1', erp_docstatus: 1, erp_cancelled_at: null }],
     ];
     expect((await listAcceptedInvoicePairs())[0].erpReplacedBy).toBeNull();
   });

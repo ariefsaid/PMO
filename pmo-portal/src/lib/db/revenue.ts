@@ -756,6 +756,8 @@ export interface AcceptedInvoicePair {
   erpCancelled: boolean | null;
   /** Always null until the source identity can be verified. */
   erpReplacedBy: string | null;
+  /** A separate lifecycle lookup failed; pair identities came from the fresh accepted read. */
+  lifecycleReadFailed?: boolean;
 }
 
 /** Read in stable pages: PostgREST caps one response at 1,000 rows, and an org can hold more. */
@@ -839,7 +841,13 @@ export async function listAcceptedInvoicePairs(): Promise<AcceptedInvoicePair[]>
       .order('id', { ascending: true })
       .range(from, to) as unknown as PromiseLike<PageResult<Row>>,
   );
-  const states = await erpInvoiceStates([...new Set(rows.map((r) => r.paired_erp_invoice_id))]);
+  let states = new Map<string, ErpLifecycle>();
+  let lifecycleReadFailed = false;
+  try {
+    states = await erpInvoiceStates([...new Set(rows.map((r) => r.paired_erp_invoice_id))]);
+  } catch {
+    lifecycleReadFailed = true;
+  }
   return rows.map((r) => {
     const erp = states.get(r.paired_erp_invoice_id);
     const cancelled = !erp ? null : erpIsCancelled(erp) ? true : erp.erp_docstatus === 1 ? false : null;
@@ -848,6 +856,7 @@ export async function listAcceptedInvoicePairs(): Promise<AcceptedInvoicePair[]>
       pairedAt: r.paired_at, erpNumber: erp?.si_number ?? null, erpCancelled: cancelled,
       // The mirror does not carry enough source identity to verify an amendment.
       erpReplacedBy: null,
+      ...(lifecycleReadFailed ? { lifecycleReadFailed: true } : {}),
     };
   });
 }
