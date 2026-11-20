@@ -184,7 +184,11 @@ select set_eq(
             -- 0997 (#2519): work_order_plan_lines carries created_by AND updated_by -> profiles. CHECKED BEFORE ADDING:
             -- the only DAL read (workOrderFinance.ts) selects plain columns, no profiles embed. Whatever ships first
             -- MUST qualify it with !constraint_name.
-            ('work_order_plan_lines -> profiles') $$,
+            ('work_order_plan_lines -> profiles'),
+            -- 0961 (#1572): retention_releases carries created_by AND released_by -> auth.users. CHECKED BEFORE ADDING:
+            -- the only DAL read (src/lib/db/billingStages.ts listRetentionReleases) embeds nothing; whatever embeds users
+            -- from it MUST qualify with !constraint_name.
+            ('retention_releases -> users') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

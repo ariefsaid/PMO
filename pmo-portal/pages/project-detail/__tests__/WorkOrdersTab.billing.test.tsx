@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -10,6 +10,7 @@ import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
 
 const h = vi.hoisted(() => ({
+  reconciliation: vi.fn(() => ({ data: [], isPending: false, isError: false, refetch: vi.fn() })),
   list: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   billing: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   age: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
@@ -54,6 +55,12 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderAcceptanceMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.documents }));
+// #2522: the claim drawer's billing stages; a claim with no stage plan renders nothing.
+vi.mock('@/src/hooks/useBillingStages', () => ({
+  useBillingReconciliation: h.reconciliation,
+  useClaimBillingTrace: () => ({ data: { stages: [], retention: null, deadline: null }, isPending: false, isError: false, refetch: vi.fn() }),
+  useBillingStageMutations: () => ({ attachDocument: { mutateAsync: vi.fn(), isPending: false }, completeStage: { mutateAsync: vi.fn(), isPending: false } }),
+}));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderAcceptanceAge: () => h.age }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.erpConnected }) }));
@@ -161,12 +168,17 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   });
 
   it('AC-1402 opens the customer-order drawer from its order number', async () => {
+    h.reconciliation.mockClear();
     const user = userEvent.setup();
     renderTab();
 
+    expect(screen.getByRole('region', { name: 'Billing reconciliation' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'View details for WO-1' }));
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('region', { name: 'Billing reconciliation' })).toBeInTheDocument();
+    expect(h.reconciliation).toHaveBeenCalledWith('p1', null);
+    expect(h.reconciliation).toHaveBeenCalledWith('p1', 'wo-1');
     expect(within(screen.getByRole('dialog')).getByText('Customer PO')).toBeInTheDocument();
     expect(screen.getByTestId('route-search')).toHaveTextContent('open=wo-1');
     expect(screen.getByTestId('route-search')).toHaveTextContent('openType=workOrder');
@@ -687,6 +699,16 @@ describe('WorkOrdersTab — a claim is billed in PMO when no ERP owns revenue (#
     return screen.findByRole('dialog', { name: 'Progress' });
   };
   const RAISED = { id: 'claim-1', status: 'Unpaid', si_number: 'INV-1', amount: 8000 };
+
+  it('opens the claim after its route is set and closes it without reopening', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    const panel = await openPanel(user);
+    expect(screen.getByTestId('route-search')).toHaveTextContent('openType=workOrderClaim');
+    await user.click(within(panel).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress' })).not.toBeInTheDocument());
+    expect(screen.getByTestId('route-search')).toBeEmptyDOMElement();
+  });
 
   it('puts Raise invoice first in the row menu, and in the side panel, when the claim has evidence and is open', async () => {
     const user = userEvent.setup();

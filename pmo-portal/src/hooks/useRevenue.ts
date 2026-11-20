@@ -207,6 +207,7 @@ export function useRevenueMutations() {
     qc.invalidateQueries({ queryKey: ['overdue-invoice-count', orgId] });
     // OD-BILL-1: an invoice moves its work order's billing and the dashboard's still-to-invoice.
     qc.invalidateQueries({ queryKey: ['work-order-billing'] });
+    qc.invalidateQueries({ queryKey: ['billing-reconciliation', orgId] });
     qc.invalidateQueries({ queryKey: ['unbilled-work-orders'] });
     qc.invalidateQueries({ queryKey: ['project-finances', orgId] });
   };
@@ -257,6 +258,9 @@ export function useRevenueMutations() {
     },
     onError: (err) => {
       if (isExternal) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+    },
+    onSettled: (_result, error) => {
+      if (error) void qc.invalidateQueries({ queryKey: ['billing-reconciliation', orgId] });
     },
   });
 

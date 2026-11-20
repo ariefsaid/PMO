@@ -94,6 +94,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1', role: realRole }, role: realRole }),
 }));
 
+vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 import { formatDay } from '@/src/lib/format';
 

@@ -103,6 +103,249 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_stage_template_documents: {
+        Row: {
+          id: string
+          name: string
+          org_id: string
+          position: number
+          required: boolean
+          template_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          id?: string
+          name: string
+          org_id: string
+          position: number
+          required?: boolean
+          template_id: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          org_id?: string
+          position?: number
+          required?: boolean
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_stage_template_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_stage_template_documents_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "billing_stage_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_stage_templates: {
+        Row: {
+          client_side: boolean
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+          position: number
+          project_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          client_side?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          org_id: string
+          position: number
+          project_id: string
+        }
+        Update: {
+          client_side?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+          position?: number
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_stage_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_stage_templates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      claim_billing_stage_documents: {
+        Row: {
+          attached_at: string | null
+          attached_by: string | null
+          claim_id: string
+          document_id: string | null
+          id: string
+          name: string
+          org_id: string
+          position: number
+          required: boolean
+          stage_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          attached_at?: string | null
+          attached_by?: string | null
+          claim_id: string
+          document_id?: string | null
+          id?: string
+          name: string
+          org_id: string
+          position: number
+          required: boolean
+          stage_id: string
+        }
+        Update: {
+          attached_at?: string | null
+          attached_by?: string | null
+          claim_id?: string
+          document_id?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          position?: number
+          required?: boolean
+          stage_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "claim_billing_stage_documents_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claim_retention"
+            referencedColumns: ["claim_id"]
+          },
+          {
+            foreignKeyName: "claim_billing_stage_documents_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "progress_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_billing_stage_documents_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_billing_stage_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_billing_stage_documents_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "claim_billing_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      claim_billing_stages: {
+        Row: {
+          claim_id: string
+          client_reference: string | null
+          client_side: boolean
+          completed_at: string | null
+          completed_by: string | null
+          completed_on: string | null
+          id: string
+          name: string
+          note: string | null
+          org_id: string
+          position: number
+          project_id: string
+          started_on: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          claim_id: string
+          client_reference?: string | null
+          client_side: boolean
+          completed_at?: string | null
+          completed_by?: string | null
+          completed_on?: string | null
+          id?: string
+          name: string
+          note?: string | null
+          org_id: string
+          position: number
+          project_id: string
+          started_on?: string | null
+        }
+        Update: {
+          claim_id?: string
+          client_reference?: string | null
+          client_side?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
+          completed_on?: string | null
+          id?: string
+          name?: string
+          note?: string | null
+          org_id?: string
+          position?: number
+          project_id?: string
+          started_on?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "claim_billing_stages_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claim_retention"
+            referencedColumns: ["claim_id"]
+          },
+          {
+            foreignKeyName: "claim_billing_stages_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "progress_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_billing_stages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "claim_billing_stages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contract_rate_assignees: {
         Row: {
           created_at: string
@@ -8241,6 +8484,8 @@ export type Database = {
           org_id: string
           project_id: string
           recovery_pct: number | null
+          retention_amount: number
+          retention_pct: number
           withdrawn_at: string | null
           withdrawn_by: string | null
           work_order_id: string | null
@@ -8258,6 +8503,8 @@ export type Database = {
           org_id: string
           project_id: string
           recovery_pct?: number | null
+          retention_amount?: number
+          retention_pct?: number
           withdrawn_at?: string | null
           withdrawn_by?: string | null
           work_order_id?: string | null
@@ -8275,6 +8522,8 @@ export type Database = {
           org_id?: string
           project_id?: string
           recovery_pct?: number | null
+          retention_amount?: number
+          retention_pct?: number
           withdrawn_at?: string | null
           withdrawn_by?: string | null
           work_order_id?: string | null
@@ -8670,12 +8919,15 @@ export type Database = {
           import_batch_id: string | null
           import_key: string | null
           imported_at: string | null
+          invoice_deadline_day: number | null
+          invoice_deadline_warn_days: number
           last_update: string
           location: string | null
           lost_note: string | null
           lost_reason: string | null
           name: string
           receipt_withholding_article: string | null
+          retention_pct: number
           short_name: string | null
           org_id: string
           pmo_project_number: string
@@ -8716,12 +8968,15 @@ export type Database = {
           import_batch_id?: string | null
           import_key?: string | null
           imported_at?: string | null
+          invoice_deadline_day?: number | null
+          invoice_deadline_warn_days?: number
           last_update?: string
           location?: string | null
           lost_note?: string | null
           lost_reason?: string | null
           name: string
           receipt_withholding_article?: string | null
+          retention_pct?: number
           short_name?: string | null
           org_id?: string
           pmo_project_number?: string
@@ -8762,12 +9017,15 @@ export type Database = {
           import_batch_id?: string | null
           import_key?: string | null
           imported_at?: string | null
+          invoice_deadline_day?: number | null
+          invoice_deadline_warn_days?: number
           last_update?: string
           location?: string | null
           lost_note?: string | null
           lost_reason?: string | null
           name?: string
           receipt_withholding_article?: string | null
+          retention_pct?: number
           short_name?: string | null
           org_id?: string
           pmo_project_number?: string
@@ -9443,6 +9701,94 @@ export type Database = {
           window_start?: string
         }
         Relationships: []
+      }
+      retention_releases: {
+        Row: {
+          amount: number
+          claim_id: string
+          created_at: string
+          created_by: string
+          document_id: string | null
+          due_on: string
+          id: string
+          note: string | null
+          org_id: string
+          project_id: string
+          reference_no: string | null
+          released_at: string | null
+          released_by: string | null
+          released_on: string | null
+        }
+        ComputedFields: never
+        Insert: {
+          amount: number
+          claim_id: string
+          created_at?: string
+          created_by: string
+          document_id?: string | null
+          due_on: string
+          id?: string
+          note?: string | null
+          org_id: string
+          project_id: string
+          reference_no?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          released_on?: string | null
+        }
+        Update: {
+          amount?: number
+          claim_id?: string
+          created_at?: string
+          created_by?: string
+          document_id?: string | null
+          due_on?: string
+          id?: string
+          note?: string | null
+          org_id?: string
+          project_id?: string
+          reference_no?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          released_on?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retention_releases_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "claim_retention"
+            referencedColumns: ["claim_id"]
+          },
+          {
+            foreignKeyName: "retention_releases_claim_id_fkey"
+            columns: ["claim_id"]
+            isOneToOne: false
+            referencedRelation: "progress_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retention_releases_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retention_releases_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retention_releases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rfq_files: {
         Row: {
@@ -12049,6 +12395,57 @@ export type Database = {
         }
         Relationships: []
       }
+      claim_retention: {
+        Row: {
+          claim_id: string
+          held: number | null
+          org_id: string
+          project_id: string
+          released: number | null
+          retention_amount: number
+          retention_pct: number
+          scheduled: number | null
+          work_order_id: string | null
+        }
+        ComputedFields: never
+        Relationships: [
+          {
+            foreignKeyName: "progress_claims_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claims_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progress_claims_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "progress_claims_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "progress_claims_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_financial_statement_availability: {
         Row: {
           calendar: Json | null
@@ -12435,12 +12832,53 @@ export type Database = {
         }
         Returns: string[]
       }
+      attach_billing_stage_document: {
+        Args: { p_document: string; p_item: string }
+        Returns: undefined
+      }
       attach_erp_journal_lines: {
         Args: { p_dry_run?: boolean; p_rows: Json }
         Returns: Json
       }
+      billing_reconciliation: {
+        Args: { p_project: string; p_work_order?: string }
+        Returns: {
+          billed_amount: number
+          billed_qty: number
+          boq_item_id: string
+          description: string
+          item_code: string
+          line_no: number
+          measured_qty: number
+          progress_qty: number
+          rate: number
+          scope_qty: number
+          status: string
+          surplus_qty: number
+          unbilled_qty: number
+          unit: string
+        }[]
+      }
+      billing_stages_open: { Args: { p_claim: string }; Returns: boolean }
+      cancel_retention_release: {
+        Args: { p_release: string }
+        Returns: undefined
+      }
+      complete_billing_stage: {
+        Args: {
+          p_client_reference?: string
+          p_completed_on: string
+          p_note?: string
+          p_stage: string
+        }
+        Returns: undefined
+      }
       detach_erp_journal_line: {
         Args: { p_link_id: string }
+        Returns: undefined
+      }
+      note_billing_stage: {
+        Args: { p_note: string; p_stage: string }
         Returns: undefined
       }
       project_erp_journal_lines: {
@@ -12475,6 +12913,37 @@ export type Database = {
           p_withholding_slip_number?: string
         }
         Returns: string
+      }
+      release_retention: {
+        Args: {
+          p_document?: string
+          p_reference?: string
+          p_release: string
+          p_released_on: string
+        }
+        Returns: undefined
+      }
+      schedule_retention_release: {
+        Args: {
+          p_amount: number
+          p_claim: string
+          p_due_on: string
+          p_note?: string
+        }
+        Returns: string
+      }
+      set_billing_stage_template: {
+        Args: { p_project: string; p_stages: Json }
+        Returns: number
+      }
+      set_project_invoice_deadline: {
+        Args: { p_day: number; p_project: string; p_warn_days?: number }
+        Returns: undefined
+      }
+      set_project_billing_terms: { Args: { p_project: string; p_stages: Json; p_day: number; p_warn_days: number; p_pct: number }; Returns: undefined }
+      set_project_retention: {
+        Args: { p_pct: number; p_project: string }
+        Returns: undefined
       }
       unapply_native_allocation: {
         Args: { p_allocation_id: string }

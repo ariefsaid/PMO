@@ -64,6 +64,7 @@ vi.mock('@/src/hooks/useSubcontract', () => ({ useWorkOrderCostVariations: () =>
 vi.mock('../TimeAndMaterials', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useTimeAndMaterials', () => ({ useInvoiceTmClaimNative: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 import BillingTab from '../tabs/BillingTab';
+vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 
 // C5/C6: in-page billing figures are whole and bare; the currency sits once in the summary heading.
