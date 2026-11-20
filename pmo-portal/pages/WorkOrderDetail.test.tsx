@@ -10,7 +10,7 @@ const q = (data: unknown, over: Record<string, unknown> = {}) => ({ data, isPend
 const viewerOpen = vi.hoisted(() => vi.fn());
 vi.mock('@/src/components/documents/viewerContext', () => ({ useViewerOnDemand: () => ({ open: viewerOpen }) }));
 const h = vi.hoisted(() => ({ wo: null as unknown, alloc: null as unknown, boq: null as unknown, basts: null as unknown, billing: null as unknown,
-  docs: null as unknown, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true }));
+  docs: null as unknown, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown }));
 vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: () => h.alloc, useWorkOrderClaimDocuments: () => h.claimDocs }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
@@ -20,6 +20,7 @@ vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.docs }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
   useWorkOrderCostLines: () => h.lines, useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: () => h.discs, useWorkOrderTimesheetLabels: () => h.labels,
 }));
+vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: () => h.pva }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
 
 import WorkOrderDetail from './WorkOrderDetail';
@@ -31,6 +32,7 @@ const renderPage = () => render(<MemoryRouter initialEntries={['/work-orders/w1'
 beforeEach(async () => {
   await i18n.changeLanguage('en');
   h.canBilling = true;
+  h.pva = { data: undefined, isPending: true, isError: false, refetch: () => undefined };
   h.wo = q(WO); h.project = q({ name: 'Plant A', client: { name: 'Acme' } });
   h.alloc = q([{ id: 'l1', boq_item_id: 'b1', quantity: 10 }]);
   h.boq = q([{ id: 'b1', rate: 100, item_code: 'A1', unit: 'm', earning_basis: 'measured', description: 'Pipe' }]);
@@ -47,6 +49,19 @@ beforeEach(async () => {
 });
 
 describe('WorkOrderDetail', () => {
+  it('AC-WPVA-016 shows the plan-vs-actual panel for this work order, and hides it from a role that may not view plans', async () => {
+    const { rollupProject } = await import('@/src/lib/workOrderPlanVsActual');
+    const workOrders = [{ id: 'w1', woNumber: 'WO-0007', title: 'Pump install', status: 'Issued', currency: 'IDR', revenue: '1000.00', revenueComplete: true }];
+    const line = { source: 'vendor_bill', recordId: 'r1', projectId: 'p1', workOrderId: 'w1', disciplineId: null, occurredOn: null, reference: null, currency: 'IDR', amount: '300.00', reason: 'counted', quantity: null, quantityUnit: null, personId: null };
+    h.pva = { isPending: false, isError: false, refetch: () => undefined,
+      data: { workOrders, plans: [], split: null, rollup: rollupProject({ workOrders, lines: [line], plans: [], split: null, restricted: false } as never) } };
+    const { unmount } = renderPage();
+    expect(screen.getByTestId('wo-page-pva-direct').textContent).toMatch(/300/);
+    unmount();
+    h.canBilling = false;
+    renderPage();
+    expect(screen.queryByTestId('wo-page-pva')).toBeNull();
+  });
   it('AC-WORP-001 shows number, title, status, project and order value', () => {
     renderPage();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('WO-0007');

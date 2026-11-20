@@ -39,9 +39,11 @@
   "noPlan": "No plan",
   "notAssigned": "Not assigned",
   "notComparable": "Not comparable (other currency)",
+  "orderValue": "Order value (ceiling)",
   "otherCurrency": "Cost in {{currency}}, listed apart",
   "overPlan": "Over plan by {{amount}}",
   "overPlanHours": "Over plan by {{hours}} h",
+  "pageEmpty": "No plan or actuals for this work order yet.",
   "plan": {
     "crewHours": "Crew hours",
     "direct": "Direct budget ({{currency}})",
@@ -51,9 +53,8 @@
     "save": "Save plan",
     "title": "Plan for {{number}}"
   },
-  "orderValue": "Order value (ceiling)",
-  "projectHours": "Project and contract hours",
   "planLabel": "Plan",
+  "projectHours": "Project and contract hours",
   "projectTotal": "Project and contract total",
   "reason": {
     "commitment": "Commitment, not summed (its bill carries the cost)",
