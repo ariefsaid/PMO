@@ -62,7 +62,7 @@
 -- ⚑ AMENDED BY 1067 (#2583): `set_vendor_supply_status` joins the retained set (+1). A SECURITY DEFINER writer called
 -- through PostgREST under a member's JWT; its body re-asserts active membership, the Admin/Finance role, the caller's org,
 -- the vendor type and the reason rule, and is audited; anon/PUBLIC are revoked. Paired in
--- supabase/tests/vendor_supply_risk.test.sql (AC-VSR-006..009). THE COUNT IS RE-DERIVED BY HAND from the list below.
+-- supabase/tests/vendor_supply_risk.test.sql (AC-VSR-006..009). Count 225 = 224 + 1, counted from the list.
 --
 -- ⚑ AMENDED BY 0290 (#1042): `assign_sales_invoice_project` joins the retained set (+1, count 70).
 -- It is a SECURITY DEFINER PMO-attribution writer called under authenticated JWT and asserts active
@@ -556,8 +556,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  224,
-  'AC-ACL-002 all 224 retained client-callable RPC names still have a public function');
+  225,
+  'AC-ACL-002 all 225 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -566,8 +566,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  224,
-  'AC-ACL-003 all 224 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  225,
+  'AC-ACL-003 all 225 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
