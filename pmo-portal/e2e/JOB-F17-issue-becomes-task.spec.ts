@@ -41,5 +41,5 @@ test('JOB-F17 an open issue made into a task links back and lands in the owner\'
 
   await signIn(page, 'engineer@acme.test');
   await page.goto('/my-tasks');
-  await expect(page.getByText(`${run} replace the guard rail`)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('link', { name: `${run} replace the guard rail` })).toBeVisible({ timeout: 20_000 });
 });

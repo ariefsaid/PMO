@@ -42,5 +42,5 @@ test('JOB-A2 a renamed work order term shows on the work order page for any user
   await signIn(page, 'pm@acme.test');
   await page.goto(`/work-orders/${wo.workOrderId}`);
   await expect(page.getByText(wo.title).first()).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/task order/i).first()).toBeVisible();
+  await expect(page.getByText(/task order/i).filter({ visible: true }).first()).toBeVisible();
 });

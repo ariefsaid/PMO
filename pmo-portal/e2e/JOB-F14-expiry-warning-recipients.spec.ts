@@ -39,6 +39,6 @@ test('JOB-F14 a badge 14 days from expiry warns the manager and not the worker',
   await signIn(page, 'engineer@acme.test');
   await page.goto('/');
   await page.getByRole('button', { name: /^notifications/i }).click();
-  await expect(page.getByRole('list', { name: 'Notifications' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Notifications inbox' })).toBeVisible();
   await expect(page.getByText(new RegExp(`${run} badge expires`))).toHaveCount(0);
 });
