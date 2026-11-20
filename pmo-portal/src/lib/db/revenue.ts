@@ -300,8 +300,8 @@ export async function getSalesInvoice(id: string): Promise<SalesInvoiceRow | nul
   if (!data) return null;
   const row = toSalesInvoiceRow(data as Record<string, unknown>);
   if (!row.paired_erp_invoice_id) return row;
-  const numbers = await erpInvoiceNumbers([row.paired_erp_invoice_id]);
-  return { ...row, paired_erp_number: numbers.get(row.paired_erp_invoice_id) ?? null };
+  const states = await erpInvoiceStates([row.paired_erp_invoice_id]);
+  return { ...row, paired_erp_number: states.get(row.paired_erp_invoice_id)?.si_number ?? null };
 }
 
 /**
@@ -752,6 +752,10 @@ export interface AcceptedInvoicePair {
   currency: string;
   pairedAt: string;
   erpNumber: string | null;
+  /** The ERP invoice this PMO copy is paired with was cancelled in the ERP (#1696). */
+  erpCancelled: boolean | null;
+  /** Always null until the source identity can be verified. */
+  erpReplacedBy: string | null;
 }
 
 /** Read in stable pages: PostgREST caps one response at 1,000 rows, and an org can hold more. */
@@ -770,20 +774,28 @@ export async function proposeInvoicePairs(): Promise<InvoicePairProposal[]> {
   }));
 }
 
+type ErpLifecycle = { si_number: string | null; erp_docstatus: number | null; erp_cancelled_at: string | null };
+/** Either lifecycle signal marks an ERP invoice as cancelled. */
+const erpIsCancelled = (r: Pick<ErpLifecycle, 'erp_docstatus' | 'erp_cancelled_at'>) =>
+  r.erp_docstatus === 2 || r.erp_cancelled_at != null;
+
 /**
- * The ERP invoice numbers behind a set of paired PMO copies. Two reads, not an embed: PostgREST cannot resolve the
- * self-referencing paired_erp_invoice_id relationship (a hint by constraint name finds nothing, one by column name walks the
- * wrong direction). RLS scopes the rows to the caller's org.
+ * The ERP invoices behind a set of paired PMO copies: number and lifecycle. Two reads, not an embed: PostgREST cannot
+ * resolve the self-referencing paired_erp_invoice_id relationship (a hint by constraint name finds nothing, one by column
+ * name walks the wrong direction). RLS scopes the rows to the caller's org.
  */
-async function erpInvoiceNumbers(ids: string[]): Promise<Map<string, string | null>> {
-  const numbers = new Map<string, string | null>();
+async function erpInvoiceStates(ids: string[]): Promise<Map<string, ErpLifecycle>> {
+  const states = new Map<string, ErpLifecycle>();
   for (let i = 0; i < ids.length; i += 100) {
-    const { data, error } = await supabase.from('sales_invoices').select('id, si_number').in('id', ids.slice(i, i + 100));
+    const { data, error } = await supabase.from('sales_invoices')
+      .select('id, si_number, erp_docstatus, erp_cancelled_at').in('id', ids.slice(i, i + 100));
     if (error) throwWrite(error);
-    for (const r of (data ?? []) as Array<{ id: string; si_number: string | null }>) numbers.set(r.id, r.si_number);
+    for (const r of (data ?? []) as Array<ErpLifecycle & { id: string }>) states.set(r.id, r);
   }
-  return numbers;
+  return states;
 }
+
+
 
 /** Accepts the given pairs in one transaction; the server re-checks every pair. Returns how many were applied. */
 export async function acceptInvoicePairs(pairs: Array<{ pmoInvoiceId: string; erpInvoiceId: string }>): Promise<number> {
@@ -815,7 +827,7 @@ export async function listUnpairedNativeInvoices(): Promise<UnpairedNativeInvoic
   }));
 }
 
-/** PMO invoices that now count as an ERP invoice, newest first (the "already done" list of the pairing screen). */
+/** PMO invoices paired with an ERP invoice, newest first, with whether that ERP invoice was since cancelled (#1696). */
 export async function listAcceptedInvoicePairs(): Promise<AcceptedInvoicePair[]> {
   type Row = { id: string; pmo_number: string | null; amount: number | null; currency: string; paired_at: string; paired_erp_invoice_id: string };
   const rows = await fetchAllPages<Row>((from, to) =>
@@ -827,9 +839,15 @@ export async function listAcceptedInvoicePairs(): Promise<AcceptedInvoicePair[]>
       .order('id', { ascending: true })
       .range(from, to) as unknown as PromiseLike<PageResult<Row>>,
   );
-  const numbers = await erpInvoiceNumbers([...new Set(rows.map((r) => r.paired_erp_invoice_id))]);
-  return rows.map((r) => ({
-    pmoInvoiceId: r.id, pmoNumber: r.pmo_number, amount: Number(r.amount ?? 0), currency: r.currency,
-    pairedAt: r.paired_at, erpNumber: numbers.get(r.paired_erp_invoice_id) ?? null,
-  }));
+  const states = await erpInvoiceStates([...new Set(rows.map((r) => r.paired_erp_invoice_id))]);
+  return rows.map((r) => {
+    const erp = states.get(r.paired_erp_invoice_id);
+    const cancelled = !erp ? null : erpIsCancelled(erp) ? true : erp.erp_docstatus === 1 ? false : null;
+    return {
+      pmoInvoiceId: r.id, pmoNumber: r.pmo_number, amount: Number(r.amount ?? 0), currency: r.currency,
+      pairedAt: r.paired_at, erpNumber: erp?.si_number ?? null, erpCancelled: cancelled,
+      // The mirror does not carry enough source identity to verify an amendment.
+      erpReplacedBy: null,
+    };
+  });
 }

@@ -102,7 +102,7 @@ it('AC-ECA-030 PMO invoices without a pair keep counting and say why', async () 
 it('lists the invoices that already count once, with the ERP invoice they point to', async () => {
   h.proposeInvoicePairs.mockResolvedValue([]);
   h.listAcceptedInvoicePairs.mockResolvedValue([
-    { pmoInvoiceId: 'n9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-9' },
+    { pmoInvoiceId: 'n9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-9', erpCancelled: false, erpReplacedBy: null },
   ]);
   mount();
 
@@ -130,7 +130,7 @@ it('shows nothing, and reads nothing, for a role that cannot pair invoices', () 
   expect(h.proposeInvoicePairs).not.toHaveBeenCalled();
 });
 
-const paired9 = { pmoInvoiceId: 'n9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-9' };
+const paired9 = { pmoInvoiceId: 'n9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-9', erpCancelled: false, erpReplacedBy: null };
 const released = () => h.listOwn.mockResolvedValue([{ domain: 'procurement', externalTier: 'erp' }]);
 
 it('PERF-FIN-1 reads no proposals or unpaired invoices, and shows nothing, while no ERP owns revenue', async () => {
@@ -202,7 +202,7 @@ it.each([
 it('I3 an accepted pair can be undone after a confirmation, and the lists reload', async () => {
   h.proposeInvoicePairs.mockResolvedValue([]);
   h.listAcceptedInvoicePairs.mockResolvedValue([
-    { pmoInvoiceId: 'n9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-9' },
+    { pmoInvoiceId: 'n9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-9', erpCancelled: false, erpReplacedBy: null },
   ]);
   mount();
 
@@ -220,7 +220,7 @@ it('I3 an accepted pair can be undone after a confirmation, and the lists reload
 it('I3 a refused undo says nothing changed', async () => {
   h.proposeInvoicePairs.mockResolvedValue([]);
   h.listAcceptedInvoicePairs.mockResolvedValue([
-    { pmoInvoiceId: 'n9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-9' },
+    { pmoInvoiceId: 'n9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-9', erpCancelled: false, erpReplacedBy: null },
   ]);
   h.unpairInvoice.mockRejectedValue(new AppError('this invoice is not paired', '23514', 'not-paired'));
   mount();
@@ -279,4 +279,112 @@ it('every failed read says so, even when nothing else loaded', async () => {
   expect(screen.getByText('Could not load the matching invoices.')).toBeInTheDocument();
   expect(screen.getByText('Could not load the invoices still counted as PMO invoices.')).toBeInTheDocument();
   expect(screen.getByText('Could not load the invoices that already count once.')).toBeInTheDocument();
+});
+
+const pair = (n: number, extra: Record<string, unknown> = {}) => ({
+  pmoInvoiceId: `n${n}`, pmoNumber: `PMO-${n}`, amount: 1000 * n, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z',
+  erpNumber: `SI-${n}`, erpCancelled: false, erpReplacedBy: null, ...extra,
+});
+
+it('AC-ECA-033 a pair whose ERP invoice was cancelled is flagged without claiming an unverified replacement', async () => {
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValue([
+    pair(1, { erpCancelled: true, erpReplacedBy: 'SI-1-1' }),
+    pair(2, { erpCancelled: true }),
+    pair(3),
+  ]);
+  mount();
+
+  const flagged = await screen.findByRole('region', { name: 'ERP invoice cancelled' });
+  expect(flagged).toHaveTextContent('Review the pair and decide whether to undo it.');
+  expect(within(flagged).getByText('PMO-1')).toBeInTheDocument();
+  expect(flagged).toHaveTextContent('ERP invoice SI-1 was cancelled');
+  expect(flagged).not.toHaveTextContent('SI-1-1');
+  expect(flagged).toHaveTextContent('ERP invoice SI-2 was cancelled');
+  expect(within(flagged).queryByText('PMO-3')).not.toBeInTheDocument();
+  expect(within(flagged).getByRole('button', { name: 'Undo PMO-2' })).toBeVisible();
+  // the done list counts only the pair that really counts once
+  expect(screen.getByText('1 invoice already counts once')).toBeInTheDocument();
+});
+
+it('AC-ECA-033 undoing a cancelled pair says the sale will count as the PMO invoice, then unpairs it', async () => {
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValue([pair(1, { erpCancelled: true })]);
+  mount();
+
+  const flagged = await screen.findByRole('region', { name: 'ERP invoice cancelled' });
+  fireEvent.click(within(flagged).getByRole('button', { name: 'Undo PMO-1' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Count PMO-1 on its own again?' });
+  expect(dialog).toHaveTextContent('ERP invoice SI-1 is cancelled. Undo the pair to count PMO-1 on its own again.');
+  expect(h.unpairInvoice).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Undo' }));
+
+  await waitFor(() => expect(h.unpairInvoice).toHaveBeenCalledWith('n1'));
+  expect(await screen.findByRole('status')).toHaveTextContent('PMO-1 counts on its own again.');
+});
+
+it('AC-ECA-033 the cancelled section stays hidden while no pair points at a cancelled ERP invoice', async () => {
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValue([pair(3)]);
+  mount();
+
+  expect(await screen.findByText('1 invoice already counts once')).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'ERP invoice cancelled' })).not.toBeInTheDocument();
+});
+
+
+it('a cancelled pair stays reviewable and undoable after ERP ownership is released', async () => {
+  released();
+  h.listAcceptedInvoicePairs.mockResolvedValue([pair(1, { erpCancelled: true })]);
+  mount();
+  const section = await screen.findByRole('region', { name: 'ERP invoice cancelled' });
+  expect(h.unpairInvoice).not.toHaveBeenCalled();
+  fireEvent.click(within(section).getByRole('button', { name: 'Undo PMO-1' }));
+  expect(h.unpairInvoice).not.toHaveBeenCalled();
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Undo' }));
+  await waitFor(() => expect(h.unpairInvoice).toHaveBeenCalledWith('n1'));
+  expect(h.proposeInvoicePairs).not.toHaveBeenCalled();
+});
+
+it('a role without pairing permission cannot read or undo a cancelled pair', () => {
+  h.listAcceptedInvoicePairs.mockResolvedValue([pair(1, { erpCancelled: true })]);
+  mount('Engineer');
+  expect(h.listAcceptedInvoicePairs).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: 'Undo PMO-1' })).not.toBeInTheDocument();
+});
+
+it('does not report cached pairs as confirmed when refreshing their lifecycle fails', async () => {
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValueOnce([pair(1)]).mockRejectedValue(new Error('read failed'));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={client}><ImpersonationProvider realRole='Finance'><InvoicePairReview orgId='org-1' /></ImpersonationProvider></QueryClientProvider>);
+  expect(await screen.findByText('1 invoice already counts once')).toBeInTheDocument();
+  await client.invalidateQueries({ queryKey: ['invoicePairs', 'accepted', 'org-1'] });
+  expect(await screen.findByText('Could not load the invoices that already count once.')).toBeInTheDocument();
+  expect(screen.queryByText('1 invoice already counts once')).not.toBeInTheDocument();
+});
+
+
+it('an unknown ERP lifecycle is not counted as confirmed and remains undoable', async () => {
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValue([pair(1, { erpCancelled: null })]);
+  mount();
+  const unknown = await screen.findByRole('region', { name: 'ERP invoice status unknown' });
+  expect(unknown).toHaveTextContent('PMO-1');
+  expect(screen.queryByText('1 invoice already counts once')).not.toBeInTheDocument();
+  expect(h.unpairInvoice).not.toHaveBeenCalled();
+  fireEvent.click(within(unknown).getByRole('button', { name: 'Undo PMO-1' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog).toHaveTextContent('The ERP invoice status is unknown. Undo the pair to count PMO-1 on its own again.');
+  expect(h.unpairInvoice).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Undo' }));
+  await waitFor(() => expect(h.unpairInvoice).toHaveBeenCalledWith('n1'));
+});
+
+it('does not confirm coverage when lifecycle information is missing', async () => {
+  h.proposeInvoicePairs.mockResolvedValue([]);
+  h.listAcceptedInvoicePairs.mockResolvedValue([pair(1, { erpCancelled: undefined })]);
+  mount();
+  expect(await screen.findByRole('region', { name: 'ERP invoice status unknown' })).toHaveTextContent('PMO-1');
+  expect(screen.queryByText('1 invoice already counts once')).not.toBeInTheDocument();
 });

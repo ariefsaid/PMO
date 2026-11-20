@@ -506,6 +506,17 @@
     "undoFor": "Undo {{number}}",
     "undoTitle": "Count {{number}} on its own again?",
     "undoBody": "The PMO invoice goes back into revenue and receivables. The ERP invoice {{erp}} stays, so if both count, the sale shows twice until you pair them again.",
+    "erpCancelled": {
+      "title": "ERP invoice cancelled",
+      "help": "The paired ERP invoice was cancelled. Review the pair and decide whether to undo it.",
+      "row": "ERP invoice {{number}} was cancelled"
+    },
+    "erpUnknown": {
+      "title": "ERP invoice status unknown",
+      "help": "The ERP invoice status could not be confirmed. Review the pair before deciding whether to undo it."
+    },
+    "undoBodyUnknown": "The ERP invoice status is unknown. Undo the pair to count {{number}} on its own again.",
+    "undoBodyCancelled": "ERP invoice {{erp}} is cancelled. Undo the pair to count {{number}} on its own again.",
     "undoDone": "{{number}} counts on its own again.",
     "undoFailed": "Nothing was changed. The pair may already be undone; the list has been reloaded.",
     "loadFailed": {

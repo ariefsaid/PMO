@@ -60,7 +60,7 @@ describe('invoice pair review floor controls', () => {
   it('floor: Undo removes the accepted pair after confirmation', async () => {
     h.proposeInvoicePairs.mockResolvedValue([]);
     h.listAcceptedInvoicePairs
-      .mockResolvedValueOnce([{ pmoInvoiceId: 'pmo-9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-9' }])
+      .mockResolvedValueOnce([{ pmoInvoiceId: 'pmo-9', pmoNumber: 'PMO-9', amount: 9000, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-9', erpCancelled: false, erpReplacedBy: null }])
       .mockResolvedValue([]);
     mount();
     fireEvent.click(await screen.findByText('1 invoice already counts once'));

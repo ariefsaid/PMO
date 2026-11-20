@@ -506,6 +506,17 @@
     "undoFor": "Batalkan {{number}}",
     "undoTitle": "Hitung {{number}} secara terpisah lagi?",
     "undoBody": "Invoice PMO kembali masuk ke pendapatan dan piutang. Invoice ERP {{erp}} tetap ada, jadi jika keduanya dihitung, penjualan tampil dua kali sampai Anda memasangkannya lagi.",
+    "erpCancelled": {
+      "title": "Faktur ERP dibatalkan",
+      "help": "Faktur ERP yang dipasangkan telah dibatalkan. Tinjau pasangan dan putuskan apakah akan membatalkannya.",
+      "row": "Faktur ERP {{number}} dibatalkan"
+    },
+    "erpUnknown": {
+      "title": "Status faktur ERP tidak diketahui",
+      "help": "Status faktur ERP belum dapat dipastikan. Tinjau pasangan sebelum memutuskan apakah akan membatalkannya."
+    },
+    "undoBodyUnknown": "Status faktur ERP tidak diketahui. Batalkan pasangan agar {{number}} dihitung secara terpisah lagi.",
+    "undoBodyCancelled": "Faktur ERP {{erp}} dibatalkan. Batalkan pasangan agar {{number}} dihitung secara terpisah lagi.",
     "undoDone": "{{number}} kini dihitung secara terpisah lagi.",
     "undoFailed": "Tidak ada yang diubah. Pasangan mungkin sudah dibatalkan; daftar telah dimuat ulang.",
     "loadFailed": {
