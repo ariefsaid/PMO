@@ -313,6 +313,7 @@
     "/@1440@admin@acme.test": 0,
     "/administration/accounting@1440@admin@acme.test": 0,
     "/administration/cost-attribution@1440@admin@acme.test": 0,
+    "/administration/integrations@390@admin@acme.test": 0,
     "/administration/integrations@1440@admin@acme.test": 0,
     "/finance/reports@390@exec@acme.test": 0,
     "/finance/reports@1440@exec@acme.test": 0,

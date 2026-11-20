@@ -12,6 +12,7 @@ import { COMMAND_IN_FLIGHT_FOR_RECORD } from '../../../pmo-portal/src/lib/adapte
 import { EMPLOYEE_SEND_UNAVAILABLE_REASON } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/workflowDeclarations.ts';
 import { createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { openPurchaseStatuses } from './connectPmoMasters.ts';
+import { recordErrorEvent, type ErrorEventSupabaseLike } from './errorEvent.ts';
 
 /** Sends one drain claims per tick, per tier.
  * ERPNext: #2250 — two keeps a tick's synchronous work (outbox digests, JSON churn, ERP dispatches) inside the edge runtime's
@@ -19,7 +20,7 @@ import { openPurchaseStatuses } from './connectPmoMasters.ts';
  * Odoo: ten — its sweep ticks every five minutes and each send already reserves its calls from the tick's own Odoo call budget, and no
  * CPU overrun was observed there, so the shared two would only stretch a large backlog out for no gain. */
 export const CONNECT_SENDS_PER_TICK = { erpnext: 2, odoo: 10 } as const;
-const NOUN: Record<string, string> = { party: 'company', project: 'project', item: 'item', employee: 'person' };
+const NOUN: Record<string, string> = { party: 'company', project: 'project', item: 'item', employee: 'person', account: 'account' };
 /** One tick's wall-clock allowance for sends: the sweep's other passes (and later orgs) still need the invocation after it. */
 export const CONNECT_SENDS_BUDGET_MS = 40_000;
 
@@ -28,13 +29,19 @@ export const CONNECT_SEND_REJECTION_TEXT = {
   gone: 'This record is no longer in PMO, or (an item) no longer on an open purchase.',
   person: `${EMPLOYEE_SEND_UNAVAILABLE_REASON} Add this person in the ERP.`,
   actor: 'The Admin who accepted this is no longer an Admin. Accept it again.',
+  accountActor: 'The person who asked for this account can no longer set up accounts. Ask again.',
+  accountIncomplete: 'Give the account a name and choose the expense group it goes under, then ask again.',
+  unsendable: (kind: string) => { const noun = NOUN[kind] ?? 'record'; return `This ERP cannot be sent ${/^[aeiou]/.test(noun) ? 'an' : 'a'} ${noun} from PMO yet.`; },
+  /** #1599: clients never work in the ERP, so an account send PMO cannot finish is the Operator's task, and Finance is told so. */
+  accountMismatch: 'The ERP account with this name cannot be used for direct costs. Ask again with a different account name.',
+  accountAdminTold: 'PMO could not create the account; your administrator has been told.',
   ambiguous: (kind: string) => `Two ERP records match this ${NOUN[kind] ?? 'record'}. Link the right one by hand.`,
   linked: 'This record is already linked to another ERP record.',
   stuck: 'We could not finish sending this record. Check it in the ERP, then try again.',
   refused: (kind: string, reason: string | null) => `The ERP refused this ${NOUN[kind] ?? 'record'}${reason ? `: ${reason}` : '. Check it in the ERP, then try again.'}`,
 };
 
-interface Claimed { id: string; kind: string; pmo_ids: string[]; decided_by: string | null; snapshot: { auto?: boolean } | null }
+interface Claimed { id: string; kind: string; pmo_ids: string[]; decided_by: string | null; snapshot: { auto?: boolean; accountName?: unknown; parentAccount?: unknown } | null }
 export interface DrainResult { sent: number; rejected: number; held: number; pending: number; error?: string }
 
 async function check<T>(q: PromiseLike<{ data: T; error: { code?: string } | null }>, what: string): Promise<T> {
@@ -72,10 +79,43 @@ export async function actorIsAdmin(sc: SupabaseClient, orgId: string, userId: st
   return r !== null;
 }
 
+/** #1599 ECX-4 (OQ-ECX-1): an account send needs its requester to still be an active Admin or Finance member of the org. */
+export async function actorSetsUpAccounts(sc: SupabaseClient, orgId: string, userId: string | null): Promise<boolean> {
+  if (!userId) return false;
+  const r = await check(sc.from('profiles').select('id').eq('org_id', orgId).eq('id', userId).in('role', ['Admin', 'Finance']).eq('status', 'active').maybeSingle(), 'actor read');
+  return r !== null;
+}
+
+/** The Operator's tasks an account send can leave (#1599): each is one operator alert (error_events, grouped per org and code). */
+export const ACCOUNT_OPERATOR_TASK = {
+  /** the ERP answered 403: the integration user cannot create (or read) accounts */
+  forbidden: 'ERP_INTEGRATION_USER_CANNOT_CREATE_ACCOUNTS',
+  /** the ERP refused it in words PMO cannot show */
+  refused: 'ERP_ACCOUNT_SEND_REFUSED',
+  /** it failed on every try and has ended */
+  stuck: 'ERP_ACCOUNT_SEND_STUCK',
+  /** the outbox could not decide whether the account was created */
+  unconfirmed: 'ERP_ACCOUNT_SEND_UNCONFIRMED',
+} as const;
+
+/** The account a request asks for (#1599 ECX-4): its PMO budget category, and the name and expense group the requester chose. The
+ *  request is the PMO record here; the adapter refuses a blank name or group before any ERP call. */
+function accountMasterOf(c: Claimed): PmoMaster {
+  const text = (v: unknown) => (typeof v === 'string' ? v : '');
+  return { id: c.pmo_ids[0], name: text(c.snapshot?.accountName), parentAccount: text(c.snapshot?.parentAccount) };
+}
+
 /** What a tier plugs into the loop. `open` resolves the connection only when something was claimed; a refusal keeps every claimed row pending. */
 export interface SendTier {
   tier: string;
-  open(): Promise<{ connect: ConnectAdapter; probe(kind: SendKind, master: PmoMaster): Promise<{ externalRecordId: string } | null> } | { refusal: string }>;
+  open(): Promise<{
+    connect: ConnectAdapter;
+    probe(kind: SendKind, master: PmoMaster): Promise<{ externalRecordId: string } | null>;
+    /** #1599: the group an ERP account sits under, as the ERP reads it now (null when unknown). */
+    accountGroup?(externalId: string): Promise<string | null>;
+    /** #1599: true when the ERP account is usable (enabled, a leaf, the bound company) and carries the requested name; an answer replayed from the outbox is only linked when it is. */
+    accountReadBack?(externalId: string, requestedName: string): Promise<boolean>;
+  } | { refusal: string }>;
   /** True when a probe miss proves the create never landed, so the send may be issued again. */
   reissueOnInconclusiveAbsence(kind: SendKind): boolean;
   /** Short plain-words reason from a refusal, or null. */
@@ -115,56 +155,101 @@ export async function drainSends(sc: SupabaseClient, org: { orgId: string; bindi
     if (text === null) out.sent += 1; else out.rejected += 1;
   };
   const reject = (c: Claimed, text: string) => record(c, null, text);
+  // #1599: best effort, like every operator alert: a failed alert never changes the send's own outcome
+  const operatorTask = (c: Claimed, code: string) =>
+    recordErrorEvent(sc as unknown as ErrorEventSupabaseLike, { fn: `${t.tier}-sweep`, errorCode: code, contextId: c.id, orgId: org.orgId });
+  const rejectAccount = async (c: Claimed, code: string) => {
+    await reject(c, CONNECT_SEND_REJECTION_TEXT.accountAdminTold);
+    await operatorTask(c, code);
+  };
   // Anything unknown is counted and ends as a review row after five ticks (I1 of 0494); until then a later tick looks again
   const countFailure = async (c: Claimed) => {
     try {
-      if (await check(sc.rpc('record_connect_send_failure', { p_org_id: org.orgId, p_id: c.id }), 'send failure') === true) out.rejected += 1;
-      else out.pending += 1;
+      if (await check(sc.rpc('record_connect_send_failure', { p_org_id: org.orgId, p_id: c.id }), 'send failure') === true) {
+        out.rejected += 1;
+        if (c.kind === 'account') await operatorTask(c, ACCOUNT_OPERATOR_TASK.stuck);
+      } else out.pending += 1;
     } catch {
       out.pending += 1;
     }
+  };
+  /** An account refusal (#1599). A 403 is the integration user's missing permission and a reason PMO cannot read is unknown: both are
+   *  the Operator's, never a step in the ERP for the client. PMO's own refusals (no status: the adapter's words) stand alone. */
+  const rejectAccountSend = (c: Claimed, err: unknown) => {
+    if (err === null) return rejectAccount(c, ACCOUNT_OPERATOR_TASK.refused);   // refused by the outbox itself, not the ERP or the adapter
+    const status = (err as { status?: unknown }).status;
+    if (status === 403) return rejectAccount(c, ACCOUNT_OPERATOR_TASK.forbidden);
+    if (typeof status !== 'number') return reject(c, (err as Error).message);
+    const reason = t.reasonOf(err);
+    return reason ? reject(c, CONNECT_SEND_REJECTION_TEXT.refused('account', reason)) : rejectAccount(c, ACCOUNT_OPERATOR_TASK.refused);
   };
   let stopped = false;   // a dead ERP or a spent budget ends the tick: what is left keeps its lease and a later tick looks again
   for (const c of claimed) {
     if (stopped || clock.nowMs() >= deadline) { stopped = true; out.pending += 1; continue; }
     try {
       if (c.kind === 'employee') { await reject(c, t.personText ?? CONNECT_SEND_REJECTION_TEXT.person); continue; }   // ERPNext requires personal details PMO does not hold
-      if (c.kind !== 'party' && c.kind !== 'project' && c.kind !== 'item') { await reject(c, CONNECT_SEND_REJECTION_TEXT.refused(c.kind, null)); continue; }
+      if (c.kind !== 'party' && c.kind !== 'project' && c.kind !== 'item' && c.kind !== 'account') { await reject(c, CONNECT_SEND_REJECTION_TEXT.refused(c.kind, null)); continue; }
       const kind: SendKind = c.kind;
+      if (adapter.canSend?.(kind) === false) { await reject(c, CONNECT_SEND_REJECTION_TEXT.unsendable(kind)); continue; }
       // C1: a record that already has its link is never sent again (a second send makes a second ERP record); the result writer treats the same id as reconciled
       const linked = await check(sc.rpc('connect_send_existing_link', { p_org_id: org.orgId, p_tier: t.tier, p_kind: kind, p_pmo: c.pmo_ids[0] }), 'link read') as string | null;
       if (linked) { await record(c, linked, null); continue; }
-      const master = await pmoMasterOf(sc, org.orgId, kind, c.pmo_ids[0], statuses, adapter.projectCodeField);
+      const master = kind === 'account' ? accountMasterOf(c) : await pmoMasterOf(sc, org.orgId, kind, c.pmo_ids[0], statuses, adapter.projectCodeField);
       if (!master) { await reject(c, CONNECT_SEND_REJECTION_TEXT.gone); continue; }
-      // a send the sweep queued itself (T12) has no accepting Admin; every other send still needs the Admin to hold the role
-      const queuedBySweep = c.kind === 'item' && c.decided_by === null && c.snapshot?.auto === true;
-      if (!queuedBySweep && !(await actorIsAdmin(sc, org.orgId, c.decided_by))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.actor); continue; }
+      if (kind === 'account') {
+        if (!master.name.trim() || !master.parentAccount?.trim()) { await reject(c, CONNECT_SEND_REJECTION_TEXT.accountIncomplete); continue; }
+        if (!(await actorSetsUpAccounts(sc, org.orgId, c.decided_by))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.accountActor); continue; }
+      } else {
+        // a send the sweep queued itself (T12) has no accepting Admin; every other send still needs the Admin to hold the role
+        const queuedBySweep = c.kind === 'item' && c.decided_by === null && c.snapshot?.auto === true;
+        if (!queuedBySweep && !(await actorIsAdmin(sc, org.orgId, c.decided_by))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.actor); continue; }
+      }
       const refusal = t.refuse?.(kind, master) ?? null;
       if (refusal) { await reject(c, refusal); continue; }
       let ambiguous = false;
+      // #1599: the outbox hands back a plain error (no ERP status), so an account send keeps the adapter's own error to tell a 403 apart
+      let raw: unknown = null;
+      const sender: ConnectAdapter = kind !== 'account' ? adapter : {
+        ...adapter,
+        sendMaster: async (...a) => { try { return await adapter.sendMaster(...a); } catch (err) { raw = err; throw err; } },
+      };
       const money = createDbMoneyOutboxDeps({
         serviceClient: sc as never, orgId: org.orgId, externalTier: t.tier, operation: 'create',
         probeByRemarksKey: async () => {
           try { return await conn.probe(kind, master); }
-          catch (err) { ambiguous = (err as { code?: string }).code === 'commit-rejected'; throw err; }   // two ERP records answer: a fact, not an unknown
+          catch (err) { raw = err; ambiguous = (err as { code?: string }).code === 'commit-rejected'; throw err; }   // two ERP records answer: a fact, not an unknown
         },
         reissueOnInconclusiveAbsence: t.reissueOnInconclusiveAbsence(kind),
         actorUserId: c.decided_by ?? undefined,
       });
       try {
-        const done = await sendMasterOnce({ money }, adapter, kind, master);
+        const done = await sendMasterOnce({ money }, sender, kind, master);
+        let accountParent: string | undefined;
+        if (kind === 'account') {
+          if (!conn.accountReadBack || !conn.accountGroup || !(await conn.accountReadBack(done.externalRecordId, master.name))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.accountMismatch); continue; }
+          const parent = await conn.accountGroup(done.externalRecordId);
+          if (!parent) throw new Error('Account parent unavailable');
+          accountParent = parent;
+        }
         if (t.afterSent) {
           try { await t.afterSent(kind, master, done.externalRecordId); }
           catch { await countFailure(c); continue; }   // the ERP record is confirmed, so a later try adopts it; the mirror must not retry for ever
         }
-        await record(c, done.externalRecordId, null);
+        if (accountParent !== undefined) {
+          const applied = await check(sc.rpc('record_connect_send_result', { p_org_id: org.orgId, p_id: c.id, p_external_id: done.externalRecordId, p_rejection: null, p_parent: accountParent }), 'account send result');
+          if (applied === true) out.sent += 1;
+          else if (applied === false) out.rejected += 1;
+          else throw new Error('Account result status unavailable');
+        } else await record(c, done.externalRecordId, null);
       } catch (err) {
         const code = (err as { code?: string }).code;
-        if (code === 'commit-rejected') await reject(c, CONNECT_SEND_REJECTION_TEXT.refused(kind, t.reasonOf(err)));
+        if (code === 'commit-rejected' && kind === 'account') await rejectAccountSend(c, raw);
+        else if (code === 'commit-rejected') await reject(c, CONNECT_SEND_REJECTION_TEXT.refused(kind, t.reasonOf(err)));
         else if (code === 'command-held' && ambiguous) await reject(c, CONNECT_SEND_REJECTION_TEXT.ambiguous(kind));
         else if (code === 'command-held') {
           await check(sc.rpc('record_connect_send_held', { p_org_id: org.orgId, p_id: c.id }), 'send hold');
           out.held += 1;
+          if (kind === 'account') await operatorTask(c, ACCOUNT_OPERATOR_TASK.unconfirmed);
         } else if (code === 'external-unreachable') { out.pending += 1; stopped = true; }
         else if (code === COMMAND_IN_FLIGHT_FOR_RECORD) out.pending += 1;
         else throw err;

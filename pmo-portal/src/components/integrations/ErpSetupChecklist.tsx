@@ -16,10 +16,11 @@ import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
 import { COMPANY_DEFAULTS, getErpSetupIncompleteness, missingAccountCategories, requiredBudgetCategories } from './erpSetupIncompleteness';
-import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { ErpSendStates } from './ErpSendStates';
 import { ProjectMatchReview } from './ProjectMatchReview';
 import { ConnectProposalReview } from './ConnectProposalReview';
+import { AccountLinkNotes, DirectCostAccounts } from './DirectCostAccounts';
+import { useAccountLinkNotes } from './useAccountLinkNotes';
 import { AppError } from '@/src/lib/appError';
 import type { CompanyDefaultSlot } from '@/src/lib/repositories/types';
 import { matchCompanyDefaultsRefusal } from '@/src/lib/i18n/companyDefaultsRefusal';
@@ -201,6 +202,7 @@ export function ErpSetupChecklist(
     expenses: t('integrations.erpSetup.domainNames.expenses', 'Expenses'),
   };
   const domainText = (value: string) => domainNames[value] ?? domainLabel(value);
+  const accountLinkNotes = useAccountLinkNotes();
   const incomplete = setup.data ? getErpSetupIncompleteness(setup.data) : null;
   const hasOutstandingSetup = incomplete ? Object.values(incomplete).some(Boolean) : false;
   const actionLink =
@@ -303,13 +305,6 @@ export function ErpSetupChecklist(
                       },
                     )}
                   </p>
-                  {((missing) => missing.length > 0 && (
-                    <p className='mt-1 break-words text-muted-foreground'>
-                      {t('administration:integrations.send.accountantTask', 'Ask your accountant to add a direct-cost account for: {{categories}}', {
-                        categories: missing.map((category) => budgetCategoryLabel(category, t)).join(', '),
-                      })}
-                    </p>
-                  ))(missingAccountCategories(setup.data))}
                 </div>
                 <div className='grid gap-2 sm:flex sm:flex-wrap sm:justify-end'>
                   <Button variant='outline' size='sm' onClick={onRefreshCompany}>
@@ -352,7 +347,7 @@ export function ErpSetupChecklist(
                   )}
                 </Button>
               </li>
-              <li id='erp-setup-budget-map' hidden={!incomplete?.budget} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-budget-map' hidden={!incomplete?.budget && accountLinkNotes.length === 0} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t('uxs08.budgetLabel', 'Budget account setup')}
@@ -367,6 +362,8 @@ export function ErpSetupChecklist(
                       },
                     )}
                   </p>
+                  {((missing) => missing.length > 0 && <DirectCostAccounts categories={missing} />)(missingAccountCategories(setup.data))}
+                  <AccountLinkNotes />
                 </div>
                 <a
                   className={actionLink}

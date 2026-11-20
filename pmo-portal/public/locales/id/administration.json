@@ -390,6 +390,21 @@
         "itemLinked": "Item ini sudah terhubung."
       }
     },
+    "accounts": {
+      "missing": "Belum ada akun biaya langsung untuk: {{categories}}",
+      "create": "Buat akun",
+      "dialog": "Buat akun biaya langsung",
+      "help": "PMO membuat satu akun untuk setiap kategori di bawah grup yang Anda pilih, lalu menautkannya ke kategori tersebut.",
+      "noGroups": "PMO belum membaca grup beban. Coba lagi setelah pembaruan berikutnya.",
+      "group": "Grup beban",
+      "groupPlaceholder": "Pilih grup",
+      "name": "Nama akun untuk {{category}}",
+      "failed": "PMO tidak dapat meminta akun ini. Coba lagi.",
+      "linkedElsewhere": "{{name}} sudah ada di ERP pada grup {{group}}, jadi PMO menautkannya ke sana.",
+      "held": "PMO belum dapat memastikan akun telah dibuat; administrator Anda telah diberi tahu.",
+      "failedDetails": "PMO tidak dapat menyelesaikan permintaan akun ini. Periksa detailnya atau hubungi administrator Anda.",
+      "unusable": "Akun ERP dengan nama ini tidak dapat dipakai untuk biaya langsung. Ajukan lagi dengan nama akun yang berbeda."
+    },
     "connect": {
       "title": "Cocokkan data",
       "subtitle": "Tinjau dan hubungkan data antara PMO dan sistem yang terhubung.",

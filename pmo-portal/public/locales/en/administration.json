@@ -390,6 +390,21 @@
         "itemLinked": "This item is already linked."
       }
     },
+    "accounts": {
+      "missing": "No direct-cost account for: {{categories}}",
+      "create": "Create accounts",
+      "dialog": "Create direct-cost accounts",
+      "help": "PMO creates one account for each category under the group you choose, then links it to the category.",
+      "noGroups": "PMO has not read the expense groups yet. Try again after the next update.",
+      "group": "Expense group",
+      "groupPlaceholder": "Choose a group",
+      "name": "Account name for {{category}}",
+      "failed": "PMO could not ask for this account. Try again.",
+      "linkedElsewhere": "{{name}} was already in the ERP under {{group}}, so PMO linked it there.",
+      "held": "PMO could not confirm whether the account was created; your administrator has been told.",
+      "failedDetails": "PMO could not complete this account request. Check the details or contact your administrator.",
+      "unusable": "The ERP account with this name cannot be used for direct costs. Ask again with a different account name."
+    },
     "connect": {
       "title": "Match records",
       "subtitle": "Review and connect records between PMO and your connected system.",

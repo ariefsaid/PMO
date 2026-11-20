@@ -273,6 +273,11 @@ select plan(7);
 -- hand from the list). SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, the Admin/Finance
 -- role, the caller's org, no ERP, and author ≠ voider unless the sole active member. Proven by
 -- supabase/tests/subcontract_bill_void.test.sql.
+-- ⚑ AMENDED BY 0975 (#1599 ECX-4): `request_account_send` joins the retained set (+1, count 195 on dev's 194, re-derived by hand from the
+-- list). SECURITY DEFINER writer called through external-set-company under the member's own JWT; it re-asserts active
+-- membership, the Admin/Finance role, the caller's org, an activated ERPNext binding with a company, the budget category and a
+-- mirrored expense group of that company before it queues one send (audited). Proven by supabase/tests/erp_account_send.test.sql
+-- (AC-ECX-031). `account_send_groups` writes nothing, so the sweep does not name it.
 -- ⚑ AMENDED BY 0907 (#564): `admin_move_credit_allocation` joins the retained set (+1). SECURITY DEFINER writer under a
 -- member's JWT that re-asserts active membership, the Admin role and that both users belong to the caller's org before
 -- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
@@ -431,6 +436,7 @@ insert into client_callable_rpc_names (proname) values
   ('request_po_variation'),
   ('reserve_credits'),
   ('retry_connect_send'),
+  ('request_account_send'),  -- ⚑ AMENDED BY 0975 (#1599)
   ('save_timesheet_week'),
   ('send_task_reminders'),
   ('select_procurement_quote'),
@@ -501,8 +507,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  194,
-  'AC-ACL-002 all 194 retained client-callable RPC names still have a public function');
+  195,
+  'AC-ACL-002 all 195 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -511,8 +517,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  194,
-  'AC-ACL-003 all 194 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  195,
+  'AC-ACL-003 all 195 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

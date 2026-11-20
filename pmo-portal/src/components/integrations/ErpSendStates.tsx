@@ -1,9 +1,13 @@
+import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { repositories } from '@/src/lib/repositories';
 import { parseErpSendRefusal } from '@/src/lib/integrations/erpSendRefusal';
 import { Button, StatusPill } from '@/src/components/ui';
 import type { ConnectTier } from '@/src/lib/repositories/types';
+
+/** The sentence the send drain stores when the ERP account answering a request cannot hold direct costs (`accountMismatch` in connectSendsCore.ts). */
+const ACCOUNT_UNUSABLE_TEXT = 'The ERP account with this name cannot be used for direct costs. Ask again with a different account name.';
 
 const POLL_MS = 10_000;
 
@@ -34,6 +38,13 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
     enabled: enabled && status.isSuccess,
     retry: false,
   });
+  // Finance can list account proposals but cannot list all kinds. Read that set separately so account holds remain visible.
+  const accountReviews = useQuery({
+    queryKey: ['integrations', 'account-send-reviews', tier, status.data?.waitingForSend ?? 0],
+    queryFn: () => repositories.integrations.listConnectProposals(tier, 'account', 'review', null),
+    enabled: enabled && status.isSuccess,
+    retry: false,
+  });
   const people = useQuery({
     queryKey: ['integrations', 'send-people', tier],
     queryFn: () => repositories.integrations.listConnectProposals(tier, 'employee', 'send', null),
@@ -41,6 +52,14 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
     retry: false,
   });
   const waiting = status.data?.waitingForSend ?? 0;
+  const previousWaiting = useRef(0);
+  useEffect(() => {
+    if (previousWaiting.current > waiting) {
+      void qc.invalidateQueries({ queryKey: ['integrations', 'account-link-notes', tier] });
+      void qc.invalidateQueries({ queryKey: ['integrations', 'setup'] });
+    }
+    previousWaiting.current = waiting;
+  }, [waiting, qc, tier]);
   // Indexed by tier, never branched on (AC-ECA-043); literal t() calls so the i18n gate sees every key.
   const words = {
     erpnext: {
@@ -101,7 +120,13 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
     const r = parseErpSendRefusal(text);
     return r?.id === 'refused' ? r.reason : null;
   };
-  const refused = (reviews.data?.proposals ?? []).filter((p) => (p.reason === 'rejected' || p.reason === 'held') && p.reason_text);
+  const accountMessage = (text: string, held: boolean) => held
+    ? t('administration:integrations.accounts.held', 'PMO could not confirm whether the account was created; your administrator has been told.')
+    : text === ACCOUNT_UNUSABLE_TEXT ? t('administration:integrations.accounts.unusable', ACCOUNT_UNUSABLE_TEXT)
+      : english ? text : t('administration:integrations.accounts.failedDetails', 'PMO could not complete this account request. Check the details or contact your administrator.');
+  const refused = [...new Map([...(reviews.data?.proposals ?? []), ...(accountReviews.data?.proposals ?? [])]
+    .filter((p) => (p.reason === 'rejected' || p.reason === 'held') && p.reason_text)
+    .map((p) => [p.id, p])).values()];
   const toAdd = people.data?.proposals ?? [];
   if (waiting === 0 && refused.length === 0 && toAdd.length === 0) return null;
   return (
@@ -119,11 +144,11 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
             <li key={p.id} className='min-w-0'>
               <span className='break-words font-medium'>{p.snapshot.name ?? t('administration:integrations.send.unnamed', 'A record')}</span>{' '}
               <StatusPill variant='warn'>{t('administration:integrations.send.needsDecision', 'Needs a decision')}</StatusPill>
-              <p className='mt-1 break-words text-muted-foreground'>{refusalText(p.reason_text ?? '')}</p>
-              {!english && erpWords(p.reason_text ?? '') && (
+              <p className='mt-1 break-words text-muted-foreground'>{p.kind === 'account' ? accountMessage(p.reason_text ?? '', p.reason === 'held') : refusalText(p.reason_text ?? '')}</p>
+              {p.kind !== 'account' && !english && erpWords(p.reason_text ?? '') && (
                 <p lang='en' data-erp-reason className='mt-1 break-words text-muted-foreground'>{t('administration:integrations.send.refusal.erpReason', 'ERP: {{reason}}', { reason: erpWords(p.reason_text ?? ''), interpolation: { escapeValue: false } })}</p>
               )}
-              {p.reason === 'held' && (
+              {p.reason === 'held' && p.kind !== 'account' && (
                 <div className='mt-2'>
                   <Button variant='outline' size='sm' disabled={retry.isPending} onClick={() => retry.mutate(p.id)}>
                     {t('administration:integrations.send.retry', 'It is not there: send it again')}

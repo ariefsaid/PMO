@@ -247,6 +247,13 @@ export interface IntegrationsRepository {
   unlinkConnectMatch(tier: ConnectTier, id: string): Promise<void>;
   /** Send a held record again (Admin): the hold is released and the drain looks the record up before it creates anything. */
   retryConnectSend(tier: ConnectTier, id: string): Promise<void>;
+  /** #1599 ECX-4: the expense groups of the bound ERP company a new direct-cost account may go under (Admin/Finance). */
+  listAccountSendGroups(tier: ConnectTier): Promise<AccountSendGroup[]>;
+  /** #1599 ECX-4: ask PMO to create a leaf direct-cost account for a budget category under the chosen group (Admin/Finance). */
+  requestAccountSend(tier: ConnectTier, input: { category: string; parentAccount: string; accountName: string }): Promise<{ id: string }>;
   /** Set ERPNext company on org binding (calls external-set-company edge fn). */
   setCompany(orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }>;
 }
+
+/** An expense group of the bound ERP company, from the mirrored chart (#1599 ECX-4). */
+export interface AccountSendGroup { erpName: string; accountName: string; parentAccount: string | null }
