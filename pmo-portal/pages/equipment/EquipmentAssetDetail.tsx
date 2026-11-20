@@ -18,6 +18,7 @@ import { formatCurrency, formatDay, formatNumberMax2, formatMonthYear } from '@/
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { EquipmentRentalTerms } from './EquipmentRentalTerms';
 import { EquipmentCostingForm } from './EquipmentCostingForm';
 import { basisLabel, driverLabel, unitLabel } from './equipmentLabels';
 import { fromIso, monthStart } from './equipmentWeek';
@@ -237,6 +238,7 @@ const UsageCard: React.FC<{ assetId: string; today: string; projectName: (id: st
 /** Equipment → asset detail: usage, the costing setting with history and preview, and the allocation table with its drill-down (FR-EQU-071). */
 const EquipmentAssetDetail: React.FC = () => {
   const { t } = useTranslation();
+  const { realRole, effectiveRole } = useEffectiveRole();
   const { assetId } = useParams<{ assetId: string }>();
   const navigate = useNavigate();
   const may = usePermission();
@@ -279,6 +281,7 @@ const EquipmentAssetDetail: React.FC = () => {
           <span>{t('equipment:assets.unitLine', 'Logged in {{unit}}', { unit: unitLabel(t, asset.default_unit) })}</span>
           {asset.external_ref && <span>{t('equipment:assets.refLine', 'ERP reference {{ref}}', { ref: asset.external_ref })}</span>}
         </span>} />
+      {may('manage', 'equipmentAvailability', { record: { viewOnly: realRole !== effectiveRole } }) && <EquipmentRentalTerms key={asset.id} asset={asset} />}
       <UsageCard assetId={asset.id} today={today} projectName={projectName} />
       {may('view', 'equipmentCosting') && <CostingCard asset={asset} assetRow={asset} projectName={projectName} money={money} />}
       {may('view', 'equipmentUsage') && <AllocationsCard assetId={asset.id} today={today} projectName={projectName} money={money} />}

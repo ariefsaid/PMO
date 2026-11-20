@@ -67,6 +67,7 @@ export const CORE_ROUTES = {
   '/equipment': 'equipment — not a catalogue module',
   '/equipment/assets': 'equipment — not a catalogue module',
   '/equipment/expiring': 'equipment — not a catalogue module',
+  '/equipment/availability': 'equipment — not a catalogue module',
   '/equipment/assets/:assetId': 'equipment — not a catalogue module',
   '/site-reports': 'site reports (#1522) — not a catalogue module',
   '/site-reports/:reportId': 'site reports (#1522) — not a catalogue module',
