@@ -83,6 +83,32 @@ describe('attendance tick screen (#2528)', () => {
     expect(h.record.mock.calls[0][0].rows.map((r: { hours: number | null }) => r.hours)).toEqual([10, 10, 10, 10, null, 10]);
   });
 
+  it('#2620 FR-CRW-008 overtime typed for a present person travels with the record; blank means none', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await user.type(within(screen.getByRole('row', { name: /Ana/ })).getByRole('textbox', { name: /Overtime for Ana/ }), '2');
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
+    await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
+    const rows = h.record.mock.calls[0][0].rows as Array<{ worker_id: string; hours: number; overtime_hours: number | null }>;
+    expect(rows[0]).toMatchObject({ worker_id: 'w1', hours: 8, overtime_hours: 2 });
+    expect(rows.slice(1).every((r) => r.overtime_hours === null)).toBe(true);
+  });
+
+  it('#2620 overtime already held on a record shows and is kept on save; it is not offered for an absent person', async () => {
+    const user = userEvent.setup();
+    h.day = { data: [
+      { id: 'd1', worker_id: 'w2', status: 'present', hours: 8, overtime_hours: 1.5, reason: null },
+      { id: 'd2', worker_id: 'w3', status: 'absent', hours: null, overtime_hours: null, reason: null },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    renderAt();
+    expect(screen.getByRole('textbox', { name: /Overtime for Budi/ })).toHaveValue('1.5');
+    expect(screen.queryByRole('textbox', { name: /Overtime for Citra/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
+    await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
+    const rows = h.record.mock.calls[0][0].rows as Array<{ worker_id: string; overtime_hours: number | null }>;
+    expect(rows.find((r) => r.worker_id === 'w2')?.overtime_hours).toBe(1.5);
+  });
+
   it('AC-CRW-006 an off-rotation person defaults to off rotation', () => {
     (h.roster.data as Array<{ members: Array<{ off_rotation: boolean }> }>)[0].members[0].off_rotation = true;
     renderAt();

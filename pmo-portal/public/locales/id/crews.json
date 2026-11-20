@@ -53,6 +53,8 @@
   "from": "Dari",
   "headcount": "Jumlah orang",
   "hours": "Jam",
+  "overtime": "Lembur",
+  "overtimeFor": "Lembur untuk {{name}}",
   "hoursFor": "Jam untuk {{name}}",
   "hoursTotal": "{{hours}} jam",
   "importCrews": "Impor kru",

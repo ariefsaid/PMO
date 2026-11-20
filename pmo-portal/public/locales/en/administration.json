@@ -573,6 +573,25 @@
       "whoNow": "Who can approve now",
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
     },
+    "siteReportLists": {
+          "title": "Site report lists",
+          "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",
+          "idle": "Idle reasons",
+          "weather": "Weather conditions",
+          "add": "Add",
+          "addLabel": "New {{list}} entry",
+          "rename": "Rename",
+          "renameFor": "Name for {{name}}",
+          "save": "Save",
+          "cancel": "Cancel",
+          "archive": "Archive",
+          "restore": "Restore",
+          "archived": "Archived",
+          "empty": "Nothing listed yet",
+          "loadError": "Couldn't load the list",
+          "saved": "List saved",
+          "duplicate": "That name is already in the list"
+    },
     "fiscalYear": {
       "title": "Fiscal year",
       "label": "Fiscal year starts in",
