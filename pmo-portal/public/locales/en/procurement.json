@@ -470,6 +470,7 @@
       "loadError": "Could not load the acceptances.",
       "empty": "No acceptances recorded",
       "document": "Signed document: {{title}}",
+      "documentLabel": "Signed document:",
       "noDocument": "No signed document linked",
       "soleOperator": "Confirmed by the only active member",
       "review": "Review draft",
@@ -846,5 +847,10 @@
     "confirmTitle": "Select this quote?",
     "confirmBody": "The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval.",
     "confirmLabel": "Select quote"
+  },
+  "routeWhy": {
+    "exceedsProject": "it would take the project's budget over its limit, counting what is already spent.",
+    "spendingUnknown": "what is already spent on the project's {{category}} budget is not known yet.",
+    "spendingNotVisible": "whether it fits the project's {{category}} budget is checked when it is decided."
   }
 }

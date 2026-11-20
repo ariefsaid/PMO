@@ -396,6 +396,24 @@ mechanically. Unit tests for its pure classification logic:
 Telegram webhook alert this paragraph used to flag as not-yet-built now exists (observability floor,
 `docs/specs/observability-floor.spec.md` + `observability-floor plan (2026-07-04, in git history)`).
 
+### Edge-function dependency pins (`deno.json`)
+
+Each function's `deno.json` pins its packages to exact versions, and nothing bumps them: Dependabot is scoped
+to `github-actions`, and `scripts/audit-prod.mjs` audits the npm trees the app ships. One command reports
+every pin with its latest published version and advisory status, and the release checklist runs it
+(step 0b of "The standard promote"):
+
+```bash
+node scripts/check-edge-fn-pins.mjs   # exit 1 on an advisory, drift, or a pin it cannot verify
+```
+
+Being behind latest is reported, not failed; an advisory is a release blocker. Every registry and advisory
+lookup is retried 3× with backoff (1s, 3s, 9s) inside the check, so a registry blip cannot red the release run;
+a real outage still fails closed and names the lookup. How to bump them (all pins in one PR, locks
+regenerated, edge lane proved) and the cadence are in
+[`docs/runbooks/edge-fn-pins.md`](runbooks/edge-fn-pins.md). CI runs the same command on a pull request to
+`main`.
+
 ## ERPNext integration API-user setup — statement metadata
 
 Before enabling saved financial statements, the integration API user needs access to ERPNext's
@@ -756,6 +774,8 @@ The standard promote (owner-gated). Per ADR-0042 a promote also **cuts a version
 `CHANGELOG.md`/`package.json`, then tag `vX.Y.Z` on the promoted commit with the deploy manifest:
 ```bash
 # 0. RELEASE: pick the bump (ADR-0042 §2), update CHANGELOG.md + pmo-portal/package.json
+node scripts/check-edge-fn-pins.mjs   # 0b. EDGE-FN PINS: must report 0 advisory (a pin behind latest is
+                                      #     a report; an advisory is a blocker). Cadence: docs/runbooks/edge-fn-pins.md
 scripts/db-push-prod.sh            # 1. DB: apply pending migrations (typed 'prod')
 scripts/stamp-edge-fns.sh --project-ref <ref>   # 1b. ALL edge functions, SHA-stamped (secrets set once)
 scripts/db-seed-prod.sh            # 2. demo data (typed 'prod-seed') — demo-deploy only

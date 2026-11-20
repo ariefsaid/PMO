@@ -46,6 +46,7 @@ export async function surfaceActionRequired(
         severity: 'warning',
         title: 'Action required',
         body: describeActionRequired(actionRequired, detail),
+        ...structuredActionMessage(actionRequired, detail),
         metadata: dedupeKey, // the SAME shape the dedupe probe matches on (`metadata @> dedupeKey`)
       })),
     );
@@ -65,6 +66,16 @@ export async function surfaceExpenseDeskCancelUnlessOurs(serviceClient: Supabase
     if (data) return;
   }
   await surfaceActionRequired(serviceClient, orgId, 'expense-posting-desk-cancelled', { postingIdentity });
+}
+
+/** The app-authored part is identified independently of any ERP-supplied text. */
+function structuredActionMessage(action: string, detail: Record<string, unknown>): { message_key?: string; message_params?: Record<string, string> } {
+  switch (action) {
+    case 'budget-archive-cancellation-held': return { message_key: 'budgetCancellationHeld', message_params: {} };
+    case 'budget-archive-resume-actor-unauthorized': return { message_key: 'budgetRetryAuthorization', message_params: {} };
+    case 'budget-push-failed': return { message_key: 'budgetPushFailed', message_params: { reason: String(detail.reason ?? 'unknown error') } };
+    default: return {};
+  }
 }
 
 /** Human-readable body text per action-required reason — kept out of the caller sites so a new reason
@@ -156,6 +167,8 @@ export async function notifyFinanceUnassignedInvoice(
         severity: 'warning',
         title: 'Invoice needs a project',
         body: `Sales Invoice ${invoice.siNumber}${invoice.amount != null ? ` (${invoice.amount})` : ''} arrived from ERPNext without a project and is in the Unassigned bucket. Assign it to a project.`,
+        message_key: 'unassignedInvoice',
+        message_params: { invoice: invoice.siNumber, amount: invoice.amount != null ? ` (${invoice.amount})` : '' },
         metadata: { sales_invoice_id: invoice.salesInvoiceId, si_number: invoice.siNumber, action_required: 'assign-project' },
       })),
     );

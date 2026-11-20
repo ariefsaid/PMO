@@ -1,3 +1,5 @@
+import { withEnglishOrgTerms } from '@/src/lib/i18n/orgTerms';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { encodeBudgetImportIdentity } from '../../../../scripts/lib/budget-import-identity.mjs';
 import { repositories } from '@/src/lib/repositories';
 import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
@@ -64,7 +66,7 @@ export function makeBudgetImportDescriptor(
   projects: readonly { id: string; name: string }[],
   importBatchId: string,
 ): ImportDescriptor<BudgetImportInput> {
-  const project = makeRefLookup(projects, 'Project');
+  const project = makeRefLookup(projects, 'Project', true);
   const importedAt = new Date().toISOString();
   /** projectId → the version this run attaches that project's lines to. The wizard commits rows
    *  sequentially (`useImportWizard`), so one resolution per project is enough and a later row
@@ -95,7 +97,7 @@ export function makeBudgetImportDescriptor(
   return {
     entity: 'Budget lines',
     fields: [
-      { key: 'projectId', label: 'Project', required: true, validate: refValidate(project, true) },
+      { key: 'projectId', label: 'Project', labelIsAppCopy: true, required: true, validate: refValidate(project, true) },
       {
         key: 'category',
         label: 'Category',
@@ -143,7 +145,7 @@ export function makeBudgetImportDescriptor(
         legacyKey: input.importKey, hasReference: input.hasReference,
       });
       if (result.outcome === 'skipped') return IMPORT_SKIPPED;
-      if (result.outcome === 'conflict') throw new Error(`Import identity for project ${input.projectLabel} is ambiguous with line ${result.line_id}. Inspect the draft and source and reconcile before retrying.`);
+      if (result.outcome === 'conflict') throw new Error(`${withEnglishOrgTerms('Import identity for project', getActiveLocale().locale)} ${input.projectLabel} is ambiguous with line ${result.line_id}. Inspect the draft and source and reconcile before retrying.`);
       return result;
     },
   };

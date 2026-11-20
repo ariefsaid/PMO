@@ -1,3 +1,4 @@
+import { IncidentTaskLink } from '@/components/IncidentTaskLink';
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -17,7 +18,9 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
-import { useIncident, useIncidentMutations } from '@/src/hooks/useIncidents';
+import { useIncident, useIncidentMutations, useIncidentFiles, useIncidentEvidenceMutations, useAssigneeOptions } from '@/src/hooks/useIncidents';
+import { useAuth } from '@/src/auth/useAuth';
+import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { severityVariant } from '@/src/lib/status/statusVariants';
@@ -25,7 +28,10 @@ import { statusLabel } from '@/src/lib/status/statusMap';
 import { NEXT_STATUS, transitionCopy as getTransitionCopy, severityLabel, type AdvanceStatus } from '@/src/lib/incidents/transitions';
 import type { IncidentInput } from '@/src/lib/db/incidents';
 import { formatDay } from '@/src/lib/format';
+import { isIncidentOverdue } from '@/src/lib/incidents/overdue';
 import { IncidentFormModal } from '@/components/IncidentFormModal';
+import { IncidentCloseDialog } from '@/components/IncidentCloseDialog';
+import { IncidentEvidence } from '@/components/IncidentEvidence';
 
 /**
  * IncidentDetail — the routable `/incidents/:id` record page (CW-4a).
@@ -47,6 +53,11 @@ const IncidentDetail: React.FC = () => {
 
   const query = useIncident(incidentId);
   const { update, transition } = useIncidentMutations();
+  const { makeTask } = useIncidentEvidenceMutations();
+  const { currentUser } = useAuth();
+  const files = useIncidentFiles(incidentId);
+  const { data: assigneeOptions } = useAssigneeOptions();
+  const workOrders = useProjectWorkOrders(query.data?.project_id ?? '');
   // Project FK options (cached, org-scoped) resolve the linked project's display name for the
   // click-to-open link (ADR-0028). org_id is never threaded — RLS scopes the list.
   const { data: projectOptions } = useProjectOptions();
@@ -58,6 +69,10 @@ const IncidentDetail: React.FC = () => {
   // role gate is the real authority — a non-manager attempt is rejected/hidden server-side).
   const canEdit = may('edit', 'incident');
   const canTransition = may('transition', 'incidentClose');
+
+  // The person in charge may move their own issue forward (status, note, photos) — the database limits them to that.
+  const isAssignee = Boolean(currentUser?.id && query.data?.assignee_id === currentUser.id);
+  const canMakeTask = canEdit;
 
   const goBack = () => navigate('/incidents');
 
@@ -107,6 +122,10 @@ const IncidentDetail: React.FC = () => {
   }
 
   const next = NEXT_STATUS[incident.status];
+  const overdue = isIncidentOverdue(incident);
+  const assigneeName = incident.assignee_id ? assigneeOptions?.find((o) => o.value === incident.assignee_id)?.label ?? '…' : null;
+  const workOrder = incident.work_order_id ? workOrders.data?.find((w) => w.id === incident.work_order_id) : null;
+  const canAddEvidence = canEdit || isAssignee || Boolean(currentUser?.id && incident.reported_by === currentUser.id);
   const transitionCopy = transitionTo ? getTransitionCopy(t, transitionTo) : null;
 
   // Resolve the linked project's name from the cached FK options (falls back to a generic
@@ -135,6 +154,21 @@ const IncidentDetail: React.FC = () => {
     }
   };
 
+  const onCloseWithProof = async (note: string) => {
+    await transition.mutateAsync({ id: incident.id, status: 'Closed', ...(note.trim() ? { closeNote: note.trim() } : {}) });
+    toast(t('toast.closed', 'Incident closed'), incident.type, 'success');
+    setTransitionTo(null);
+  };
+
+  const onMakeTask = async () => {
+    try {
+      await makeTask.mutateAsync(incident.id);
+      toast(t('toast.taskMade', 'Task created'), incident.type, 'success');
+    } catch (err) {
+      onMutationError(err);
+    }
+  };
+
   return (
     <div>
       {/* Mobile escape route — the top-bar breadcrumb owns desktop wayfinding, the rail
@@ -153,6 +187,7 @@ const IncidentDetail: React.FC = () => {
           <span className="flex items-center gap-2" data-testid="incident-pills" data-status={incident.status}>
             <StatusPill variant={severityVariant(incident.severity)}>{severityLabel(t, incident.severity)}</StatusPill>
             <StatusPill record="incident" state={incident.status} />
+            {overdue && <StatusPill variant="lost">{t('overdue', 'Overdue')}</StatusPill>}
           </span>
         }
         meta={<span className="tabular">{t('reported', 'Reported {{date}}', { date: formatDay(incident.incident_date) })}</span>}
@@ -168,7 +203,7 @@ const IncidentDetail: React.FC = () => {
       {/* RecordActionZone — advance/decide verb (DESIGN.md §7: advance verbs live here, not in the header).
           Sticky on desktop so the action is never below the fold. Only rendered when the user can transition
           AND a next state exists for this incident. */}
-      {canTransition && next && (
+      {(canTransition || isAssignee) && next && (
         <RecordActionZone>
           <div className="flex flex-col gap-2 py-3">
             {/* Consistent zone chrome: a "Next action" label leads the verb, matching the
@@ -184,6 +219,13 @@ const IncidentDetail: React.FC = () => {
             </Button>
           </div>
         </RecordActionZone>
+      )}
+
+      {incident.escalated_at && incident.status !== 'Closed' && (
+        <div role="status" data-testid="incident-escalated" className="mb-4 rounded-lg border border-border bg-card p-3 text-control">
+          <span className="font-semibold">{t('detail.escalated', 'Escalated')}</span>{' '}
+          {t('detail.escalatedBody', 'This issue passed its due time on {{date}}; the person in charge and the project manager were told.', { date: formatDay(incident.due_at ?? incident.escalated_at) })}
+        </div>
       )}
 
       {/* Body — the incident's fields (read-only; edit-in-modal). Shared Card primitives,
@@ -207,7 +249,34 @@ const IncidentDetail: React.FC = () => {
                 )
               }
             />
+            <Field label={t('form.assignee', 'Person in charge')} value={assigneeName ?? '—'} />
+            <Field label={t('form.due', 'Fix by')} value={incident.due_at ? formatDay(incident.due_at) : '—'} />
+            <Field label={t('form.workOrder', 'Work order')} value={workOrder ? (workOrder.wo_number ?? workOrder.title) : incident.work_order_id ? '…' : '—'} />
+            <Field label={t('form.action', 'What must be done')} value={incident.action || '—'} />
+            {incident.closed_at && <Field label={t('detail.closedOn', 'Closed on')} value={formatDay(incident.closed_at)} />}
+            {incident.close_note && <Field label={t('close.note', 'Close note')} value={incident.close_note} />}
+            <Field
+              label={t('detail.task', 'Task')}
+              value={
+                incident.task_id ? (
+                  <IncidentTaskLink taskId={incident.task_id} />
+                ) : canMakeTask && incident.project_id ? (
+                  <Button variant="outline" size="sm" data-testid="incident-make-task" loading={makeTask.isPending} onClick={() => void onMakeTask()}>
+                    {t('detail.makeTask', 'Make a task')}
+                  </Button>
+                ) : (
+                  '—'
+                )
+              }
+            />
           </dl>
+        </CardPad>
+      </Card>
+
+      <Card variant="bare" className="mb-4">
+        <CardHead>{t('detail.photos', 'Photos')}</CardHead>
+        <CardPad>
+          <IncidentEvidence incident={incident} files={files.data ?? []} canAdd={canAddEvidence && incident.status !== 'Closed'} />
         </CardPad>
       </Card>
 
@@ -229,7 +298,7 @@ const IncidentDetail: React.FC = () => {
           onClose={() => setEditOpen(false)}
           // Create is unreachable from the detail page (incident is non-null); kept for the shared
           // contract.
-          onCreate={async () => {}}
+          onCreate={() => Promise.reject(new Error('create is not available from the detail page'))}
           onUpdate={async (id, input: IncidentInput) => {
             await update.mutateAsync({ id, input });
             toast(t('toast.updated', 'Incident updated'), input.type, 'success');
@@ -240,8 +309,11 @@ const IncidentDetail: React.FC = () => {
       )}
 
       {/* Status transition confirm (default tone — a state-machine move, not destructive). */}
+      {transitionTo === 'Closed' && (
+        <IncidentCloseDialog incident={incident} closeProofCount={(files.data ?? []).filter((f) => f.kind === 'at_close').length} onClose={onCloseWithProof} onCancel={() => setTransitionTo(null)} onError={onMutationError} />
+      )}
       <ConfirmDialog
-        open={transitionTo !== null}
+        open={transitionTo === 'Investigating'}
         tone="default"
         title={transitionCopy ? transitionCopy.title(incident.type) : t('transition.advance', 'Advance incident?')}
         description={transitionCopy?.body ?? ''}

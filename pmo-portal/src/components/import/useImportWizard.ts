@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { checkTemplateMarker } from '@/src/lib/import/templateVersion';
 import {
   autoMap,
   parseWorkbook,
@@ -122,8 +123,11 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
       try {
         const buf = await file.arrayBuffer();
         if (generation !== parseGeneration.current) return;
-        const sheet = await parseWorkbook(buf);
+        const sheet = await parseWorkbook(buf, descriptor.maxRows);
         if (generation !== parseGeneration.current) return;
+        if (checkTemplateMarker(descriptor, sheet.templateMarker) === 'outOfDate') {
+          throw new ImportParseError('not_xlsx', 'This template is out of date. Download a new template and copy your rows into it.');
+        }
         setParsed(sheet);
         setFileName(file.name);
         setMapping(autoMap(sheet.headers, descriptor.fields));
@@ -141,7 +145,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
         if (generation === parseGeneration.current) setParsing(false);
       }
     },
-    [descriptor.fields],
+    [descriptor],
   );
 
   const selectPaste = useCallback(
@@ -149,7 +153,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
       parseGeneration.current++;
       setParseError(null);
       try {
-        const sheet = parsePastedRows(text);
+        const sheet = parsePastedRows(text, descriptor.maxRows);
         setParsed(sheet);
         setFileName(null);
         setMapping(autoMap(sheet.headers, descriptor.fields));
@@ -159,7 +163,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
         setParseError(err instanceof ImportParseError ? err.message : 'Could not read the pasted rows.');
       }
     },
-    [descriptor.fields],
+    [descriptor.fields, descriptor.maxRows],
   );
 
   const setFieldMapping = useCallback((fieldKey: string, headerIndex: number | null) => {

@@ -52,6 +52,12 @@ export const STATUS_MAP = {
     Rejected: e('waiting', (t) => t('status:procurement.rejected', 'Returned')),
     Cancelled: e('neutral', (t) => t('status:procurement.cancelled', 'Cancelled')),
   },
+  siteReport: {
+    draft: e('neutral', (t) => t('status:siteReport.draft', 'Draft')),
+    submitted: e('waiting', (t) => t('status:siteReport.submitted', 'Waiting to validate')),
+    returned: e('waiting', (t) => t('status:siteReport.returned', 'Returned')),
+    validated: e('done', (t) => t('status:siteReport.validated', 'Validated')),
+  },
   expense: {
     Draft: e('neutral', (t) => t('status:expense.draft', 'Draft')),
     Submitted: e('waiting', (t) => t('status:expense.submitted', 'Submitted')),

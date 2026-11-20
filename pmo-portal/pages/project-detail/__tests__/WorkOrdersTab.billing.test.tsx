@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/documents';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { Role } from '@/src/auth/AuthContext';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
 
 const h = vi.hoisted(() => ({
+  reconciliation: vi.fn(() => ({ data: [], isPending: false, isError: false, refetch: vi.fn() })),
   list: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   billing: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   age: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
@@ -27,6 +29,7 @@ const h = vi.hoisted(() => ({
   role: 'Finance' as string,
 }));
 // #1457: the invoice-overdue figure is bounded by the org's business day (fixed here per test file).
+vi.mock('@/src/components/tasks/WorkOrderOpenTasks', () => ({ WorkOrderOpenTasks: () => null }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
   useFxOrgDay: () => ({ day: '2026-06-01', isPending: false, isError: false, retry: vi.fn() }),
 }));
@@ -54,6 +57,12 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderAcceptanceMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.documents }));
+// #2522: the claim drawer's billing stages; a claim with no stage plan renders nothing.
+vi.mock('@/src/hooks/useBillingStages', () => ({
+  useBillingReconciliation: h.reconciliation,
+  useClaimBillingTrace: () => ({ data: { stages: [], retention: null, deadline: null }, isPending: false, isError: false, refetch: vi.fn() }),
+  useBillingStageMutations: () => ({ attachDocument: { mutateAsync: vi.fn(), isPending: false }, completeStage: { mutateAsync: vi.fn(), isPending: false } }),
+}));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderAcceptanceAge: () => h.age }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.erpConnected }) }));
@@ -92,10 +101,11 @@ const bill = (over: Partial<WorkOrderBillingRow> = {}): WorkOrderBillingRow => (
   workOrderId: 'wo-1', projectId: 'p1', status: 'Issued', currency: 'USD', orderNet: 500_000, invoiced: 330_000,
   pending: 90_000, paid: 100_000, remaining: 80_000, figuresComplete: true, lineCount: 6, unpaidCount: 3, ...over,
 });
-const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null, initialEntry = '/', autoInvoiceWorkOrderId: string | null = null) => {
+const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null, initialEntry = '/', autoInvoiceWorkOrderId: string | null = null, open?: DocumentViewerApi['open']) => {
   h.role = role;
+  const content = <><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} autoInvoiceWorkOrderId={autoInvoiceWorkOrderId} /><RouteSearch /></>;
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} autoInvoiceWorkOrderId={autoInvoiceWorkOrderId} /><RouteSearch /></ToastProvider></MemoryRouter>,
+    <MemoryRouter initialEntries={[initialEntry]}><ToastProvider>{open ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>{content}</DocumentViewerContext.Provider> : content}</ToastProvider></MemoryRouter>,
   );
 };
 
@@ -161,12 +171,17 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   });
 
   it('AC-1402 opens the customer-order drawer from its order number', async () => {
+    h.reconciliation.mockClear();
     const user = userEvent.setup();
     renderTab();
 
+    expect(screen.getByRole('region', { name: 'Billing reconciliation' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'View details for WO-1' }));
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('region', { name: 'Billing reconciliation' })).toBeInTheDocument();
+    expect(h.reconciliation).toHaveBeenCalledWith('p1', null);
+    expect(h.reconciliation).toHaveBeenCalledWith('p1', 'wo-1');
     expect(within(screen.getByRole('dialog')).getByText('Customer PO')).toBeInTheDocument();
     expect(screen.getByTestId('route-search')).toHaveTextContent('open=wo-1');
     expect(screen.getByTestId('route-search')).toHaveTextContent('openType=workOrder');
@@ -605,6 +620,31 @@ describe('WorkOrdersTab — a claim is billed in PMO when no ERP owns revenue (#
     await user.click(within(claims).getByRole('button', { name: 'Row actions' }));
   };
 
+  describe('document evidence in the claim drawer', () => {
+    const evidenceClaim = () => [{ id: 'cl-1', work_order_id: 'wo-1', kind: 'progress', withdrawn_at: null, created_at: '2026-10-01T00:00:00Z',
+      down_payment_amount: null, gross_amount: 100_000, dp_recovery_amount: 0, invoice: null,
+      evidence: [{ id: 'ev-1', document_id: 'doc-9', document_status: 'active', document_revision: 'A' }] }];
+
+    it('document-preview AC-016 opens work-order claim evidence by its readable document title', async () => {
+      h.claims = evidenceClaim();
+      h.documents = { data: [{ id: 'doc-9', title: 'Site report', status: 'Issued', file_path: 'org/p/doc-9/r.pdf', source: 'upload' }], isPending: false, isError: false, refetch: vi.fn() };
+      const open = vi.fn<DocumentViewerApi['open']>();
+      renderTab('Finance', 'c-1', null, '/?open=cl-1&openType=workOrderClaim', null, open);
+      expect(screen.queryByText('doc-9')).toBeNull();
+      await userEvent.click(await screen.findByRole('button', { name: 'Preview Site report' }));
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(open.mock.calls[0][0].key).toBe('project-document:doc-9');
+    });
+
+    it('document-preview AC-017 reports unavailable work-order evidence without a raw id', async () => {
+      h.claims = evidenceClaim();
+      renderTab('Finance', 'c-1', null, '/?open=cl-1&openType=workOrderClaim');
+      expect(await screen.findByText('Document not available')).toBeInTheDocument();
+      expect(screen.queryByText('doc-9')).toBeNull();
+      expect(screen.queryByRole('button', { name: /Preview/ })).toBeNull();
+    });
+  });
+
   it('offers New claim, Attach evidence, Raise invoice and Withdraw to Finance with no ERP', async () => {
     const user = userEvent.setup();
     renderTab();
@@ -687,6 +727,16 @@ describe('WorkOrdersTab — a claim is billed in PMO when no ERP owns revenue (#
     return screen.findByRole('dialog', { name: 'Progress' });
   };
   const RAISED = { id: 'claim-1', status: 'Unpaid', si_number: 'INV-1', amount: 8000 };
+
+  it('opens the claim after its route is set and closes it without reopening', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    const panel = await openPanel(user);
+    expect(screen.getByTestId('route-search')).toHaveTextContent('openType=workOrderClaim');
+    await user.click(within(panel).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress' })).not.toBeInTheDocument());
+    expect(screen.getByTestId('route-search')).toBeEmptyDOMElement();
+  });
 
   it('puts Raise invoice first in the row menu, and in the side panel, when the claim has evidence and is open', async () => {
     const user = userEvent.setup();

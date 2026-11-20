@@ -10,22 +10,26 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 import stockEn from '@/public/locales/en/stock.json';
 
-const { documents, reports, master, consumption } = vi.hoisted(() => ({
+const { documents, reports, master, consumption, files } = vi.hoisted(() => ({
   documents: { get: vi.fn(), cancel: vi.fn(), post: vi.fn(), costs: vi.fn() },
   reports: { ledgerAll: vi.fn(), onHand: vi.fn() },
   master: { listKeepers: vi.fn() },
   consumption: { report: vi.fn() },
+  files: { list: vi.fn(), upload: vi.fn(), download: vi.fn(), remove: vi.fn(), archive: vi.fn() },
 }));
+vi.mock('@/src/lib/repositories/stockSiteWork', () => ({ stockSiteWorkRepository: { files } }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { documents, reports, master, consumption } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 let role: Role = 'Engineer';
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: role, effectiveRole: role }) }));
+vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => ({ data: { id: 'wo1', wo_number: 'WO-1', title: 'Install' } }) }));
+vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [{ id: 'me', full_name: 'Eka Engineer' }], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 
 import StockDocumentDetail from './StockDocumentDetail';
 
 const detail = (over: Record<string, unknown> = {}) => ({
-  id: 'd1', number: 'ISS-1', kind: 'issue', status: 'Posted', revision: 4, warehouse_id: 'w1', to_warehouse_id: null, project_id: 'p1', procurement_id: null, reason: null, note: 'for slab', occurred_on: '2026-10-30',
+  id: 'd1', org_id: 'org-1', number: 'ISS-1', kind: 'issue', status: 'Posted', revision: 4, warehouse_id: 'w1', to_warehouse_id: null, project_id: 'p1', procurement_id: null, reason: null, note: 'for slab', occurred_on: '2026-10-30',
   created_by: 'me', created_at: '2026-10-30T03:00:00Z', posted_by: 'me', posted_at: '2026-10-30T03:00:00Z', cancelled_at: null,
   warehouse: { code: 'SITE-A', name: 'Site A' }, to_warehouse: null, project: { name: 'Tower A' }, author: { full_name: 'Eka Engineer' },
   lines: [{ id: 'l1', line_no: 1, item_id: 'i1', quantity: '30', counted_quantity: null, expected_quantity: null, direction: null, boq_item_id: 'b1', source_line_id: null, item: { code: 'CEM', name: 'Cement 50kg', unit: { code: 'bag', whole_only: true } } }],
@@ -62,6 +66,8 @@ const renderPage = (r: Role = 'Engineer') => {
 beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
 beforeEach(() => {
   vi.clearAllMocks();
+  files.list.mockResolvedValue([]);
+  files.upload.mockResolvedValue(undefined);
   documents.get.mockResolvedValue(detail());
   documents.cancel.mockResolvedValue(undefined);
   documents.post.mockResolvedValue(undefined);
@@ -73,6 +79,11 @@ beforeEach(() => {
 });
 
 describe('StockDocumentDetail (AC-STK-032)', () => {
+  it('AC-WORP-004 opens the readable work order named by the stock document', async () => {
+    documents.get.mockResolvedValue(detail({ work_order_id: 'wo1' }));
+    renderPage();
+    expect(await screen.findByRole('link', { name: 'WO-1' })).toHaveAttribute('href', '/work-orders/wo1');
+  });
   it('AC-STK-032 loading, then the header, the lines and the ledger entries it posted', async () => {
     renderPage();
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
@@ -327,4 +338,50 @@ describe('AC-STK-032 floor: every control on the document record still works', (
     await userEvent.click(await screen.findByRole('button', { name: 'Back to documents' }));
     expect(await screen.findByText('list page')).toBeInTheDocument();
   });
+});
+
+it('lets the document author add an attachment', async () => {
+  renderPage();
+  await screen.findByText('ISS-1');
+  await userEvent.click(screen.getByRole('button', { name: 'Attachments' }));
+  const input = screen.getByLabelText('Choose file');
+  const file = new File(['paper'], 'slip.pdf', { type: 'application/pdf' });
+  await userEvent.upload(input, file);
+  await userEvent.click(screen.getByRole('button', { name: 'Upload attachment' }));
+  await waitFor(() => expect(files.upload).toHaveBeenCalledWith('org-1', 'd1', file, null));
+});
+
+it('requires a reason to archive a posted attachment', async () => {
+  files.list.mockResolvedValue([{ id: 'f1', file_path: 'org-1/d1/f1/slip.pdf', label: 'Slip', uploaded_by: 'me', created_at: '2026-10-30T03:00:00Z', archived_at: null }]);
+  files.archive.mockResolvedValue(undefined);
+  renderPage();
+  await screen.findByText('ISS-1');
+  await userEvent.click(screen.getByRole('button', { name: 'Attachments' }));
+  await screen.findByRole('button', { name: 'Slip' });
+  await userEvent.click(screen.getByRole('button', { name: 'Archive' }));
+  expect(screen.getByRole('button', { name: 'Archive' })).toBeDisabled();
+  await userEvent.type(screen.getByLabelText(/Reason for archiving/), 'Wrong document');
+  await userEvent.click(screen.getByRole('button', { name: 'Archive' }));
+  await waitFor(() => expect(files.archive).toHaveBeenCalledWith('f1', 'Wrong document'));
+});
+
+it('shows who uploaded the file and when', async () => {
+  files.list.mockResolvedValue([{ id: 'f1', file_path: 'org-1/d1/f1/slip.pdf', label: 'Slip', uploaded_by: 'me', created_at: '2026-10-30T03:00:00Z', archived_at: null }]);
+  renderPage();
+  await screen.findByText('ISS-1');
+  await userEvent.click(screen.getByRole('button', { name: 'Attachments' }));
+  await screen.findByRole('button', { name: 'Slip' });
+  const entry = screen.getByRole('button', { name: 'Slip' }).closest('li')!;
+  expect(within(entry).getByText(/Eka Engineer/)).toBeInTheDocument();
+  expect(within(entry).getByText(/2026/)).toBeInTheDocument();
+});
+
+it('lets other readers see attachments without giving them upload controls', async () => {
+  documents.get.mockResolvedValue(detail({ created_by: 'another-user' }));
+  files.list.mockResolvedValue([{ id: 'f1', file_path: 'org-1/d1/f1/slip.pdf', label: 'Slip', uploaded_by: 'me', created_at: '2026-10-30T03:00:00Z', archived_at: null }]);
+  renderPage('Engineer');
+  await screen.findByText('ISS-1');
+  await userEvent.click(screen.getByRole('button', { name: 'Attachments' }));
+  expect(await screen.findByRole('button', { name: 'Slip' })).toBeInTheDocument();
+  expect(screen.queryByLabelText('Choose file')).not.toBeInTheDocument();
 });

@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   createBrowserRouter,
@@ -96,11 +97,21 @@ const ProcurementDetails = lazyWithPreload(() => import('./pages/ProcurementDeta
 const ProcurementCreate = lazyWithPreload(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = lazyWithPreload(() => import('./pages/Timesheets'));
 const ImprestFloatsPage = lazyWithPreload(() => import('./pages/ImprestFloats'));
+const WorkOrderDetailPage = lazyWithPreload(() => import('./pages/WorkOrderDetail'));
 const ImprestFloatDetailPage = lazyWithPreload(() => import('./pages/ImprestFloatDetail'));
+const MaterialRequestsPage = lazyWithPreload(() => import('./pages/MaterialRequests'));
+const MaterialRequestNewPage = lazyWithPreload(() => import('./pages/MaterialRequestNew'));
+const MaterialRequestDetailPage = lazyWithPreload(() => import('./pages/MaterialRequestDetail'));
+const MaterialRequestSettingsPage = lazyWithPreload(() => import('./pages/MaterialRequestSettings'));
 const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
+const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAvailability'));
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
 const ExpiringDocumentsPage = lazyWithPreload(() => import('./pages/equipment/ExpiringDocuments'));
+const PersonDetailPage = lazyWithPreload(() => import('./pages/equipment/PersonDetail'));
 const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssetDetail'));
+const SiteReportsPage = lazyWithPreload(() => import('./pages/siteReports/SiteReports'));
+const SiteReportDetailPage = lazyWithPreload(() => import('./pages/siteReports/SiteReportDetail'));
+const CrewsPage = lazyWithPreload(() => import('./pages/crews/Crews'));
 const ApprovalsPage = lazyWithPreload(() => import('./pages/Approvals'));
 const CompaniesPage = lazyWithPreload(() => import('./pages/Companies'));
 const MasterDataPage = lazyWithPreload(() => import('./pages/MasterData'));
@@ -232,13 +243,24 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/meetings/:meetingId', chunks: [MeetingDetailPage, { preload: preloadMinutesEditor }], namespaces: ['meetings'] },
   { path: '/expenses', chunks: [ExpenseClaimsPage], namespaces: ['expenseClaims'] },
   { path: '/expenses/new', chunks: [ExpenseClaimNewPage], namespaces: ['expenseClaims', 'imprest'] },
-  { path: '/expenses/:claimId', chunks: [ExpenseClaimDetailPage], namespaces: ['imprest'] },
+  { path: '/expenses/:claimId', chunks: [ExpenseClaimDetailPage], namespaces: ['imprest', 'procurement'] },
+  { path: '/material-requests/settings', chunks: [MaterialRequestSettingsPage], namespaces: ['materialRequests'] },
+  { path: '/material-requests/new', chunks: [MaterialRequestNewPage], namespaces: ['materialRequests'] },
+  { path: '/material-requests/:requestId/edit', chunks: [MaterialRequestNewPage], namespaces: ['materialRequests'] },
+  { path: '/material-requests/:requestId', chunks: [MaterialRequestDetailPage], namespaces: ['materialRequests', 'stock'] },
+  { path: '/material-requests', chunks: [MaterialRequestsPage], namespaces: ['materialRequests'] },
+  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'status'] },
   { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
   { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage], namespaces: ['imprest'] },
   { path: '/equipment', chunks: [EquipmentUsagePage], namespaces: ['equipment'] },
   { path: '/equipment/assets', chunks: [EquipmentAssetsPage], namespaces: ['equipment'] },
   { path: '/equipment/expiring', chunks: [ExpiringDocumentsPage], namespaces: ['equipment'] },
+  { path: '/equipment/availability', chunks: [EquipmentAvailabilityPage], namespaces: ['equipment'] },
   { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage], namespaces: ['equipment'] },
+  { path: '/site-reports', chunks: [SiteReportsPage], namespaces: ['siteReport'] },
+  { path: '/site-reports/:reportId', chunks: [SiteReportDetailPage], namespaces: ['siteReport'] },
+  { path: '/crews', chunks: [CrewsPage], namespaces: ['crews'] },
+  { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
   { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
@@ -440,16 +462,30 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/expenses', element: <ExpenseClaimsPage /> },
   { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
+  { path: '/material-requests', element: <MaterialRequestsPage /> },
+  { path: '/material-requests/new', element: <MaterialRequestNewPage /> },
+  { path: '/material-requests/settings', element: <MaterialRequestSettingsPage /> },
+  { path: '/material-requests/:requestId/edit', element: <MaterialRequestNewPage /> },
+  { path: '/material-requests/:requestId', element: <MaterialRequestDetailPage /> },
+  { path: '/work-orders/:id', element: <WorkOrderDetailPage /> },
   { path: '/imprest', element: gated('imprest', <ImprestFloatsPage />) },
   { path: '/imprest/:floatId', element: gated('imprest', <ImprestFloatDetailPage />) },
   // #1519: equipment usage grid, asset reference and per-asset costing.
   { path: '/equipment', element: <EquipmentUsagePage /> },
   { path: '/equipment/assets', element: <EquipmentAssetsPage /> },
   { path: '/equipment/expiring', element: <ExpiringDocumentsPage /> },
+  { path: '/equipment/availability', element: <EquipmentAvailabilityPage /> },
   { path: '/equipment/assets/:assetId', element: <EquipmentAssetDetailPage /> },
+  // #1522: daily site reports per work order and the QS validation queue.
+  { path: '/site-reports', element: <SiteReportsPage /> },
+  { path: '/site-reports/:reportId', element: <SiteReportDetailPage /> },
+  // #2528: crews, the roster per work order and the daily attendance tick.
+  { path: '/crews', element: <CrewsPage /> },
+  { path: '/equipment/people/:personId', element: <PersonDetailPage /> },
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
+  { path: '/administration/people', element: <AdministrationPage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },
   { path: '/administration/accounting', element: <AdministrationPage /> },
   { path: '/administration/projects', element: <AdministrationPage /> },
@@ -458,6 +494,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/administration/cost-attribution', element: <AdministrationPage /> },
   { path: '/administration/usage', element: <AdministrationPage /> },
   { path: '/administration/features', element: <AdministrationPage /> },
+  { path: '/administration/terminology', element: <AdministrationPage /> },
   // Keep malformed/deprecated Administration section links inside the Administration shell so
   // they can be replaced with Users instead of falling through to the global 404 route.
   { path: '/administration/:section', element: <AdministrationPage /> },
@@ -685,6 +722,9 @@ export const ShellChrome: React.FC = () => {
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
     // unioned in here or its crumb resolves to "Projects > Not found".
     const recordLabel = recordLabelForPath(pathname, cachedLists);
+    const orderId = /^\/work-orders\/([^/]+)$/.exec(pathname)?.[1];
+    const order = orderId ? cachedLists.workOrders?.find((item) => item.id === orderId) : undefined;
+    const parentProject = order?.project_id ? cachedLists.projects?.find((item) => item.id === order.project_id) : undefined;
     const parts = breadcrumbForPath(
       pathname,
       recordLabel,
@@ -695,6 +735,7 @@ export const ShellChrome: React.FC = () => {
       // vocabulary in the route-derived parts; the Breadcrumb component keeps a
       // render-level fallback for direct mounts without the router location.
       location.search,
+      parentProject ? { id: parentProject.id, name: projectDisplayName(parentProject) } : undefined,
     );
     const contractualName = recordContractualNameForPath(pathname, cachedLists);
     if (!contractualName || parts.length === 0) return parts;
@@ -818,7 +859,8 @@ export const ShellChrome: React.FC = () => {
         items={paletteItems}
         onClose={() => setPaletteOpen(false)}
         returnFocusTo={paletteTriggerRef.current}
-        loading={recordSearch.isPending}
+        loading={recordSearch.nothingAnswered}
+        loadingMore={recordSearch.isPending && !recordSearch.nothingAnswered}
         error={recordSearch.isError}
         onRetry={recordSearch.refetch}
         onAskAi={

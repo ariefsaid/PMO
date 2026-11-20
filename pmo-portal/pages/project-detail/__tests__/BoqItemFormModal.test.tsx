@@ -4,6 +4,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
+const catalogue = vi.hoisted(() => ({ listItems: vi.fn(), listRates: vi.fn(), listVariants: vi.fn() }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { rateCatalogue: catalogue } }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false, loadOptions: vi.fn() }) }));
 import BoqItemFormModal from '../BoqItemFormModal';
 
@@ -22,6 +24,20 @@ async function fill(user: ReturnType<typeof userEvent.setup>, quantity: string, 
 }
 
 describe('BoqItemFormModal', () => {
+  it('explains an unpriced rate beside the rate field and retries the lookup', async () => {
+    catalogue.listItems.mockResolvedValue([{ id: 'i', item_code: 'W1', description: 'Weld' }]);
+    catalogue.listVariants.mockResolvedValue([{ id: 'v', name: 'Remote', is_default: true }]);
+    catalogue.listRates.mockResolvedValueOnce([]).mockResolvedValue([{ item_id: 'i', variant_id: 'v', rate: 120, effective_from: '2026-01-01' }]);
+    render(<ToastProvider><BoqItemFormModal item={null} currencySymbolPrefix="$" projectId="p" today="2026-02-01" currency="USD" onClose={vi.fn()} onSave={vi.fn()} onError={vi.fn()} /></ToastProvider>);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('combobox', { name: 'Catalogue item' }));
+    await user.click(await screen.findByText(/W1/));
+    const status = await screen.findByText(/No rate for this location on this date/);
+    expect(status.parentElement?.parentElement).toContainElement(screen.getByLabelText(/Rate \(excl/));
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByLabelText(/Rate \(excl/)).toHaveValue('120');
+  });
+
   it('AC-PB-015 a valid line sends the exact input', async () => {
     const { onSave, user } = renderForm();
     await fill(user, '10', '50000');

@@ -4,6 +4,7 @@ const { create, importHistory } = vi.hoisted(() => ({ create: vi.fn().mockResolv
 vi.mock('@/src/lib/repositories', () => ({ repositories: { project: { create }, projectStage: { importHistory } } }));
 
 import { makeProjectImportDescriptor } from '../projectDescriptor';
+import { setOrgTerms } from '@/src/lib/i18n/orgTerms';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
@@ -17,9 +18,20 @@ describe('makeProjectImportDescriptor', () => {
     create.mockClear();
     setActiveLocale(EN_LOCALE);
   });
-  afterEach(() => resetActiveLocale());
+  afterEach(() => { resetActiveLocale(); setOrgTerms({}); });
   const d = makeProjectImportDescriptor(companies, managers);
   const field = (k: string) => d.fields.find((f) => f.key === k)!;
+
+  it('uses organisation wording for an app validation label', () => {
+    setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
+    expect(field('name').validate('')).toBe('Job name is required.');
+  });
+
+  it('uses organisation wording in the status help while retaining the stored input value', () => {
+    setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
+    expect(field('status').validate('Internal Project')).toBeNull();
+    expect(field('status').validate('bad')).toContain('Internal Job (Internal Project)');
+  });
 
   it('constrains status to origination statuses', () => {
     expect(field('status').validate('Leads')).toBeNull();

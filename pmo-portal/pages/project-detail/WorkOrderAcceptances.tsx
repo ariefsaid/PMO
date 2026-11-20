@@ -1,10 +1,12 @@
 import React from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, StatusPill } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatDay, formatNumberExact } from '@/src/lib/format';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
+import { ProjectDocumentLink } from '@/src/components/documents/targets/ProjectDocumentLink';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 
 /**
@@ -66,7 +68,6 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
       ) : (
         <ul className="flex flex-col gap-2">
           {sorted.map((a) => {
-            const document = documents.find((d) => d.id === a.document_id);
             const draft = a.status === 'Draft';
             const preparedByMe = Boolean(currentUserId) && a.prepared_by === currentUserId;
             const canEdit = draft && workOrder.status === 'Issued'
@@ -77,6 +78,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
               <li key={a.id} data-testid={`bast-${a.id}`} className="flex flex-col gap-1 rounded-md border border-border p-2.5">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="tabular font-semibold">{formatDay(a.acceptance_date)}</span>
+                  <Link className="underline" to={`/work-orders/${workOrder.id}`}>{t('projectTabs:contractQuantities.workOrders.acceptances.openWorkOrder', 'Open work order')}</Link>
                   <StatusPill variant="neutral">
                     {a.is_final ? t('projectTabs:contractQuantities.workOrders.acceptances.final', 'Final') : t('projectTabs:contractQuantities.workOrders.acceptances.stage', 'Stage')}
                   </StatusPill>
@@ -84,8 +86,8 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
                 </div>
                 {a.lines.length > 0 && <p className="text-sm tabular text-muted-foreground">{linesText(a)}</p>}
                 <p className="text-sm text-muted-foreground">
-                  {document
-                    ? t('projectTabs:contractQuantities.workOrders.acceptances.document', 'Signed BAST: {{title}}', { title: document.title })
+                  {a.document_id
+                    ? <>{t('projectTabs:contractQuantities.workOrders.acceptances.documentLabel', 'Signed BAST:')} <ProjectDocumentLink documentId={a.document_id} documents={documents} /></>
                     : t('projectTabs:contractQuantities.workOrders.acceptances.noDocument', 'No signed BAST document linked')}
                 </p>
                 {a.status === 'Confirmed' && a.confirm_basis === 'sole_operator' && (

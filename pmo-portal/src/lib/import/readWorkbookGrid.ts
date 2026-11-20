@@ -2,7 +2,7 @@ import { SaxesParser } from 'saxes';
 import { ImportParseError } from './types';
 
 export type WorkbookCell = { text: string; value: string | number | Date | null; formula: boolean };
-export type WorkbookGrid = { rows: WorkbookCell[][]; date1904: boolean };
+export type WorkbookGrid = { rows: WorkbookCell[][]; date1904: boolean; marker?: string | null };
 
 const MAX_EXPANDED_BYTES = 20 * 1024 * 1024;
 const DEFAULT_LIMITS = { maxRows: 2000, maxColumns: 100 };
@@ -237,5 +237,5 @@ export async function readWorkbookGrid(
     }
     rows.push(cells);
   }
-  return { rows, date1904: Boolean(wb.properties.date1904) };
+  return { rows, date1904: Boolean(wb.properties.date1904), marker: typeof wb.keywords === 'string' && wb.keywords !== '' ? wb.keywords : null };
 }

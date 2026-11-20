@@ -3228,11 +3228,40 @@ receipt, and a negative sales tax row is refused (DD-VWH-9). Plan: `vendor-withh
 
 Warning and error toasts persist until dismissed because they carry remedies a user must be able to
 read or copy. Info and success toasts auto-dismiss after `max(4 seconds, 60 ms × displayed characters)`,
-capped at 10 seconds. Hovering or keyboard-focusing a toast pauses its timer. Every toast has a visible,
+capped at 10 seconds. Keyboard-focusing a toast (alt+T lifts and pins the stack; Escape releases it)
+pauses its timer; a pointer no longer does — see DD-TOAST-2. Every toast has a visible,
 keyboard-reachable dismiss control. The provider keeps one polite `role="status"` region and one
 assertive `role="alert"` region mounted empty, then inserts each message into the appropriate region;
 creating the live region and populated text together is not reliable for screen-reader announcements.
 Existing toast callers remain compatible; `error` is added as a kind alongside info/success/warning.
+
+## DD-TOAST-2 — a notice never takes the control it covers (Director, 2026-11-20, #2502)
+
+Notice placement is unchanged (bottom-right on desktop, top-center on phone, the safe top edge over a
+dialog or below a drawer header). The new rule is about the **pointer, not the pixel**: the notice
+stack and every notice card are pointer-transparent, so a click anywhere but a notice's own buttons
+hit-tests through to whatever is underneath — a table's last visible row, a row's actions menu, a
+docked action bar. Only the dismiss control (and any future action button) receives the pointer.
+
+Why: at 1280 × 720 the bottom-right notice landed on the last visible row's status control and, because
+a resting pointer paused its clock, kept it for as long as the person needed that control. Placement
+cannot settle this in general — on a list screen every free-looking corner is a control — so the notice
+stops competing for the pointer instead. The alternative (a reserved strip that reflows the page) was
+rejected: it moves the row the person just used and reshapes every screen's scroll height for a notice
+that carries no action.
+
+Consequences, accepted:
+- A resting pointer can no longer freeze a notice's lifetime; routine notices run their DD-TOAST-1
+  clock (`max(4s, 60ms × characters)`, capped at 10s). Reading time stays a keyboard affordance
+  (alt+T pins, Escape releases).
+- Swipe-to-dismiss is gone (the card is not a pointer target); the dismiss button remains on every
+  notice at every width.
+- Notice text is not mouse-selectable. Warnings and errors persist until dismissed, so a remedy stays
+  on screen to be read; it is copied from the screen that raised it, not from the notice.
+
+Covered by `pmo-portal/e2e/notice-never-blocks-the-control.spec.ts` — the task list, the purchases list
+and a budget line, each at 1280 × 720 and 390 × 844, hit-testing the raised control while the notice
+shows — and the pointer contract in `pmo-portal/src/components/ui/__tests__/Toast.pointer.test.tsx`.
 
 ## DD-VOCAB-1 — users see "Phase", the model keeps "milestone" (Director, 2026-10-14, UXS-034)
 
@@ -3778,5 +3807,20 @@ Amends OD-W5-4 and ADR-0034 §5. The panel's figure was budget − open orders �
 - The old purchasing-only tile ("Not yet committed to purchases") is gone: two "left" figures on different bases is the confusion this removes. The record header line for an ordered purchase uses the same helper ("Left in budget X") and no longer counts the order twice.
 - Holding the panel until the reading and the purchasing ownership have loaded is accepted (the decision figure needs both, so it never flashes "not known").
 - A payment now refreshes the budget positions as well as committed and reserved spend, so spending cannot lag behind open orders.
-- **Approval routing is untouched.** Who approves is decided in SQL from its own sums; it never reads this figure, which stays advisory (OD-W5-4). No migration, no routing code.
+- **Approval routing** is decided in SQL (OD-APPROVER-BASIS), which reads this same project reading; the figure itself stays advisory (OD-W5-4).
 - **Known ceiling (ERP, same as the project Budget tab):** a ledger cost not linked to its order is counted as both actual and open order: conservative. A held cost posted to an account not mapped to the project is in neither. Both come from ADR-0093's mapping; this slice adds no new double count or omission.
+
+### OD-APPROVER-BASIS — who approves a spend is judged on recorded spending, open orders and reserved, then on the whole project budget (owner, 2026-11-16)
+Amends DD-APR-2 and ADR-0075 §3 (migration 1016). `spend_approval_route` judges a request on two tests, in this order, and both send it to the senior set:
+- **Line:** recorded spending on the line + open orders + reserved + approved claims not yet in recorded spending, plus the request, against the line budget (`exceeds_line`). Recorded spending is the Budget tab's by-category Actual (`project_finance_actuals`: the ledger actual with an accounting system, otherwise paid purchases before tax plus internal hire charges). Open orders are the order total less what recorded spending holds (`procurement_open_commitment`). Purchasing kept outside PMO does not change this: PMO's own order rows are counted. Each cost is counted once.
+- **Project:** project budget − recorded spending − open orders − reserved − the request, below zero (`exceeds_project`), read from `project_budget_positions` (the approval panel's reading; nothing derived twice).
+- **Reason order:** the role-free reasons, `spending_not_visible`, the unknowns (`spending_unknown`, `currency_mismatch`), `exceeds_line`, `exceeds_project`, `budget_changed`, `within_budget`.
+- **Below approval rank** (an Engineer submitting, a requester reading): spending is not read; the reason is `spending_not_visible`, no figures are returned, and the route names the project's approvers and the senior set together, so a submit notifies the person who will decide.
+- **Unknown spending** (no ledger reading, an unmapped category, an unusable amount) routes to the senior set.
+- **No senior set:** the senior outcome (any reason) falls to the project's named approvers, never to everyone; the flat matrix applies only when the project has none either; nobody eligible among them leaves it to an Admin.
+- **Shape:** the figures are read once per list by the two list RPCs and per call by `spend_approval_route`; one display-only logic function takes them and decides who may see them from the caller's real rank. All SECURITY INVOKER. Every decision, notification and eligibility check calls `spend_approval_route`.
+- Known ceiling (ERP): a bill posted after the last ledger snapshot leaves open orders at once and reaches recorded spending at the next snapshot. Spending with no budget category counts in the project test only.
+
+## DD-WPVA-1 — Work-order financial attribution (2026-11-20)
+
+For #2519, project and contract totals use the existing project-finance basis; work orders divide that total without guessing document attribution. Shared costs use positive direct-cost weights, or a valid custom split; if neither exists they remain unassigned. Allocate cents by largest remainder, preserving the sign of a negative pool. Discipline figures cover planned and actual costs, with revenue and profit at work-order, project and contract levels. The detailed attribution, billing and rounding rules are in [the plan-versus-actual spec](specs/work-order-plan-vs-actual.spec.md); the discipline plan editor and work-order page integration follow separately.

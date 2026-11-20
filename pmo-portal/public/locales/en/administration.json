@@ -624,6 +624,17 @@
     "spendApprovers": {
       "whoNow": "Who can approve now",
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
+    },
+    "fiscalYear": {
+      "title": "Fiscal year",
+      "label": "Fiscal year starts in",
+      "notSet": "Not set",
+      "helper": "PMO places each payment in a fiscal year by its date, and the Budget tab shows spending per year. Changing the month re-sorts every past payment.",
+      "save": "Save fiscal year",
+      "saved": "Fiscal year saved",
+      "loadError": "Couldn't load the fiscal year",
+      "accountingSystem": "Your accounting system sets the fiscal year.",
+      "adminOnly": "Only an Admin can change this."
     }
   },
   "exchangeRates": {
@@ -689,5 +700,49 @@
     "noIdentity": "the ERP record carries no name, employee number or work email, so there is nothing to confirm it against.",
     "noMatch": "no PMO user is matched to it yet.",
     "confirm": "Confirm"
+  },
+  "people": {
+    "errName": "Enter the name",
+    "errCode": "Enter a person code",
+    "saved": "Person saved",
+    "dupCode": "That person code is already in use",
+    "dupCodeSub": "Choose another code, or leave it blank to have one assigned.",
+    "dupProfile": "That user is already linked to another person",
+    "dupProfileSub": "Choose a different user, or clear the link.",
+    "editTitle": "Edit person",
+    "addTitle": "Add person",
+    "save": "Save person",
+    "name": "Name",
+    "code": "Person code",
+    "codeAuto": "Assigned if left blank",
+    "jobTitle": "Job title",
+    "user": "App user (optional)",
+    "userPlaceholder": "Not an app user",
+    "userSearch": "Search users",
+    "archived": "Person archived",
+    "actions": "Actions",
+    "editLabel": "Edit {{name}}",
+    "edit": "Edit",
+    "archiveLabel": "Archive {{name}}",
+    "archive": "Archive",
+    "add": "Add person",
+    "error": "Couldn't load people",
+    "errorSub": "The request failed. Check your connection and try again.",
+    "retry": "Retry",
+    "empty": "No people yet. Add the first person to record their documents.",
+    "archiveTitle": "Archive person",
+    "archiveBody": "They leave the register and the expiry list, and no more warnings are sent for their documents.",
+    "navLabel": "People"
+  },
+  "terminology": {
+    "default": "Default",
+    "intro": "Rename these terms to match how your organisation talks. The new wording replaces the default everywhere it is shown, in each language.",
+    "plural": "Plural",
+    "reset": "Reset",
+    "resetDone": "Back to the default wording",
+    "save": "Save",
+    "saved": "Terminology saved",
+    "singular": "Singular",
+    "nav": "Terminology"
   }
 }

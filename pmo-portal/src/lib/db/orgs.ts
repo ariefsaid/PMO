@@ -364,3 +364,28 @@ export async function setOrgProcurementGates(patch: Partial<ProcurementGates>): 
   if (error) throw new AppError(error.message, error.code);
   return data as unknown as ProcurementGates;
 }
+
+/** #2329 (migration 1018): who keeps the fiscal calendar, and PMO's start month (1-12, null = not set) when PMO does. */
+export interface OrgFiscalYearSetting {
+  source: 'pmo' | 'accounting_system';
+  startMonth: number | null;
+}
+
+export async function getOrgFiscalYearSetting(): Promise<OrgFiscalYearSetting> {
+  const { data, error } = await supabase.rpc('get_org_fiscal_year_setting');
+  if (error) throw new AppError(error.message, error.code);
+  const row = data?.[0];
+  if (!row || (row.source !== 'pmo' && row.source !== 'accounting_system')) {
+    throw new AppError('The fiscal year setting could not be read.');
+  }
+  return { source: row.source, startMonth: row.start_month ?? null };
+}
+
+/** Admin-only (the server enforces it, and refuses where an accounting system keeps the calendar). null clears it. */
+export async function setOrgFiscalYearStartMonth(month: number | null): Promise<void> {
+  if (month !== null && !(Number.isInteger(month) && month >= 1 && month <= 12)) {
+    throw new AppError('The fiscal year start month must be 1 to 12.', '22023');
+  }
+  const { error } = await supabase.rpc('set_org_fiscal_year_start_month', { p_month: month });
+  if (error) throw new AppError(error.message, error.code);
+}

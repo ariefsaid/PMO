@@ -1,3 +1,4 @@
+import { BillingReconciliation } from './BillingReconciliation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
@@ -56,6 +57,7 @@ import {
   WorkOrderPoDrawer,
 } from './WorkOrdersDrawers';
 import WorkOrdersModals from './WorkOrdersModals';
+import WorkOrderPlanVsActual from '../WorkOrderPlanVsActual';
 
 /**
  * The work-order surface for one project (#566) — the client's inbound POs and the drawdown they
@@ -147,7 +149,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const openPoDrawer = (row: WorkOrderRow) => { setPoDrawerFor(row); updateOpenRecord(row.id, 'workOrder'); };
   const openLineDrawer = (line: OrderLineView) => { setLineDrawerFor(line); updateOpenRecord(line.key, 'workOrderLine'); };
   const openInvoiceDrawer = (invoice: InvoiceWithWorkOrder) => { setInvoiceDrawerFor(invoice); updateOpenRecord(invoice.id, 'workOrderInvoice'); };
-  const openClaimDrawer = (claim: ProgressClaimWithInvoice) => { setClaimDrawerFor(claim); updateOpenRecord(claim.id, 'workOrderClaim'); };
+  const openClaimDrawer = (claim: ProgressClaimWithInvoice) => { updateOpenRecord(claim.id, 'workOrderClaim'); };
 
   const rows = useMemo(() => data ?? [], [data]);
   const canIssue = (id: string) => !isPending && !isFetching && !isError && rows.some((row) => row.id === id && row.status === 'Draft' && row.issue_eligibility === 'allowed');
@@ -748,6 +750,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         openInvoiceDrawer={openInvoiceDrawer}
       />}
 
+      {canViewBilling && <BillingReconciliation projectId={projectId} workOrderId={null} currency={currency} />}
+
       {deliverySelectorOpen && <DeliverySelectorDrawer
         open
         candidates={deliveryCandidates}
@@ -790,6 +794,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         canRaise={!(nativeRaise && claimDrawerFor.kind === 'time_materials')}
         currency={currency}
         projectId={projectId}
+        today={orgDay ?? undefined}
         documents={documents.data ?? []}
         onClose={() => closeOpenRecord(claimDrawerFor.id, 'workOrderClaim')}
         onRaise={(claim) => { closeOpenRecord(claim.id, 'workOrderClaim'); setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() }); }}
@@ -887,6 +892,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         onAcknowledgedIssue={runAcknowledgedIssue}
         onCloseOverCommit={() => setOverCommit(null)}
       />
+
+      {/* #2519: plan vs actual and profit per work order — renders nothing for a role that cannot read work-order money. */}
+      <WorkOrderPlanVsActual projectId={projectId} />
     </div>
   );
 };

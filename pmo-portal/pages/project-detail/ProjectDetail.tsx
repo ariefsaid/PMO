@@ -24,6 +24,7 @@ import { HeaderFact } from './HeaderFact';
 import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
 import ProjectDetailRail from './ProjectDetailRail';
+import { ProjectIssuesLink } from './ProjectIssuesLink';
 import ProjectFormModal from '../../components/ProjectFormModal';
 import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
 import { areaFromParam, type Area } from './projectDetailAreas';
@@ -247,6 +248,7 @@ const ProjectDetail: React.FC = () => {
             {pipelineGroup === 'onHand' && <SalesHistoryDisclosure projectId={project.id} className="px-1 pt-3" />}
           </>
         )} />
+      {!isPipelineRecord && <ProjectIssuesLink projectId={project.id} />}
       {isPipelineRecord && <div className="mb-6"><DealBand project={project} /></div>}
     </>
   );

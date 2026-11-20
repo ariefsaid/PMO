@@ -3,12 +3,13 @@ import { validateGroups } from '../validate';
 import { groupRows } from '../group';
 import { makeRefLookup } from '@/src/lib/import/refLookup';
 import type { CycleRow, CaseGroup } from '../types';
+import { setOrgTerms } from '@/src/lib/i18n/orgTerms';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
-afterEach(() => resetActiveLocale());
+afterEach(() => { resetActiveLocale(); setOrgTerms({}); });
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -294,6 +295,12 @@ describe('validateGroups — AC-CYCLE-VAL-008: negative amount → error', () =>
 // ─── AC-CYCLE-VAL-009: Group-level: no title AND no project → group error ────
 
 describe('validateGroups — AC-CYCLE-VAL-009: group must have title or project', () => {
+  it('uses organisation wording in the app-owned error', () => {
+    setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
+    const [result] = validateGroups([makeGroup([row({ caseRef: 'CASE-EMPTY', type: 'PR', rowNumber: 1 })])], { projectLookup, vendorLookup: vendorLookupOk });
+    expect(result.groupErrors).toContain('Case must have at least a title or a job set.');
+  });
+
   it('a group with no title and no project produces a group error', () => {
     const rows: CycleRow[] = [
       row({ caseRef: 'CASE-EMPTY', type: 'PR', rowNumber: 1 }),

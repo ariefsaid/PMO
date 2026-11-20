@@ -37,6 +37,12 @@ vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({
   CostAttributionFields: ({ idPrefix }: { idPrefix?: string }) => createElement('div', { 'data-testid': 'cost-attribution-stub', 'data-prefix': idPrefix }),
 }));
 
+// #2519: the plan-vs-actual card reads its own queries (work-order money, disciplines) and auth, which the contract-area
+// suites (WorkOrdersTab.*) do not provide. WorkOrderPlanVsActual.test.tsx unmocks and proves it.
+vi.mock('@/pages/project-detail/WorkOrderPlanVsActual', () => ({
+  default: ({ projectId }: { projectId: string }) => createElement('div', { 'data-testid': 'wo-plan-vs-actual-stub', 'data-project': projectId }),
+}));
+
 // The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not
 // provide. Its parts have their own suites; the view suites need only know it is mounted.
 vi.mock('@/src/components/integrations/odoo/OdooIntegrationSection', () => ({
