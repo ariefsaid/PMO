@@ -108,6 +108,8 @@ export type Entity =
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
   | 'siteReportLists'
+  | 'costDiscipline'
+  | 'billMatch'
   | 'employeeLink'
   | 'pushHold'
   | 'odooHeldCommand'
@@ -830,6 +832,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   orgProjectClassification: { manage: allow(ADMIN) },
   // #2621: the site report idle-reason and weather lists. Mirrors the Admin-only insert/update policies of 1040. UX ONLY.
   siteReportLists: { manage: allow(ADMIN) },
+  // #2623 (FR-WCA-011): the organisation's cost disciplines. Mirrors 0950's RLS (insert/update/delete: active Admin). UX ONLY.
+  costDiscipline: { create: allow(ADMIN), edit: allow(ADMIN), archive: allow(ADMIN) },
+  // #2622 (1018): a bill's three-way match. get_bill_match reads for Admin/Executive/PM/Finance; approve_bill_match_exception
+  // is Admin/Finance, never the bill's author nor its lines' recorder (SoD in the RPC). UX ONLY.
+  billMatch: { view: allow(WORK_ORDER_MONEY), approve: allow(['Admin', 'Finance']) },
   orgAccounting: {
     manage: allow(ADMIN),
   },

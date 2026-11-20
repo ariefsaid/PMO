@@ -171,8 +171,11 @@ export interface WorkOrderFigures {
   result: Margin;
   equipmentHours: number;
   equipmentDays: number;
+  /** Hours of Approved timesheet weeks only (FR-WPVA-012); a Draft, Submitted or Rejected week is never actual. */
   crewHours: number;
   crewSize: number;
+  /** Timesheet hours on weeks not yet approved (Draft, Submitted or Rejected): named apart, never counted. */
+  pendingCrewHours: number;
   /** Hours on the work order with no rate set: carried as hours, never in the money. */
   uncostedHours: number;
   plan: { direct_budget: ExactMoney | null; indirect_budget: ExactMoney | null; equipment_hours: number | null; crew_hours: number | null };
@@ -183,7 +186,7 @@ export interface CurrencyTotals { currency: string; planDirect: ExactMoney | nul
 
 export interface ProjectRollup {
   restricted: boolean;
-  hours: { equipmentHours: number; equipmentDays: number; crewHours: number; crewSize: number; planEquipmentHours: number | null; planCrewHours: number | null } | null;
+  hours: { equipmentHours: number; equipmentDays: number; crewHours: number; crewSize: number; pendingCrewHours: number; planEquipmentHours: number | null; planCrewHours: number | null } | null;
   allocation: { basis: AllocationResult['basis']; stale: boolean; mixedCurrency: boolean; byCurrency: Array<{ currency: string; basis: AllocationResult['basis'] }> };
   workOrders: WorkOrderFigures[];
   /** Project-level discipline roll-up (FR-WPVA-031): direct + allocated per discipline, in the shared currency. */
@@ -254,14 +257,16 @@ export function rollupProject(input: RollupInput): ProjectRollup {
   };
 
   const hourFigures = (woLines: CostAmountLine[]) => {
-    // The read marks Draft and Submitted equipment rows as `not-posted`; only Approved usage counts as actual hours.
+    // Draft/Submitted equipment usage and non-Approved timesheet weeks are not actual hours.
     const equip = woLines.filter((l) => l.source === 'equipment_usage' && l.reason !== 'not-posted');
-    const crew = woLines.filter((l) => l.source === 'timesheet_entry');
+    const timesheet = woLines.filter((l) => l.source === 'timesheet_entry');
+    const crew = timesheet.filter((l) => l.reason !== 'not-posted');
     return {
       equipmentHours: sumHours(equip.filter((l) => l.quantityUnit === 'hours').map((l) => l.quantity ?? 0)),
       equipmentDays: sumHours(equip.filter((l) => l.quantityUnit === 'days').map((l) => l.quantity ?? 0)),
       crewHours: sumHours(crew.map((l) => l.quantity ?? 0)),
       crewSize: new Set(crew.filter((l) => (l.quantity ?? 0) > 0).map((l) => l.personId).filter(Boolean)).size,
+      pendingCrewHours: sumHours(timesheet.filter((l) => l.reason === 'not-posted').map((l) => l.quantity ?? 0)),
       uncostedHours: sumHours(woLines.filter((l) => l.reason === 'no-rate' && l.quantityUnit === 'hours').map((l) => l.quantity ?? 0)),
     };
   };

@@ -421,6 +421,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Remaining work** — signed contract value less recognised revenue to date in the management pack; it follows the recognition basis (progress, earned value or invoiced) and is distinct from Left to bill. Formerly named "backlog" in the pack (DD-MMP-3).
 
+**Cancelled invoice pair** — an invoice pair whose linked ERP invoice was later cancelled; Finance can review the pair and decide whether to undo it.
+
 **Incoming payment** — a customer payment record, optionally linked to a sales invoice, carrying amount, currency, status and receipt/withholding details.
 
 ---
@@ -607,6 +609,9 @@ unbilled, partly billed, fully billed or surplus.
 **Retention** (*retensi*) — the share of a progress claim the client holds back until a later event; stamped on the claim
 at creation from the project's percentage and held on the receivable, never as an invoice line (ADR-0103).
 **Retention release** — a scheduled, then recorded, payment-due event for part or all of a claim's retention.
+**Due now** (*jatuh tempo sekarang*) — what is outstanding on a client invoice less the retention still held on it
+(never below zero). Ageing and overdue count only this; the retention held stays in what is owed, as its own figure,
+until a release is recorded (#2625, ADR-0105 §4).
 
 ### Site issues and task proof (#2521, #2531)
 

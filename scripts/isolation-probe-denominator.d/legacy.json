@@ -848,6 +848,7 @@
     "unlink_external_integration_audited(uuid,text,uuid,uuid)",
     "unlink_odoo_cost_account(uuid,uuid,uuid)",
     "unpair_invoice(uuid)",
+    "compare_and_unpair_invoice(uuid,uuid,timestamp with time zone,integer,timestamp with time zone)",
     "update_procurement_header(uuid,jsonb)",
     "upsert_erp_purchase_documents(uuid,jsonb,boolean)",
     "void_subcontract_bill(uuid,text)",

@@ -244,6 +244,7 @@
         },
         "errors": {
           "claimWithdrawn": "Tagihan ini telah ditarik. Invoice-nya tidak dapat diterbitkan.",
+          "stagesIncomplete": "Selesaikan semua tahap penagihan klaim ini sebelum menerbitkan invoice-nya.",
           "alreadyInvoiced": "Tagihan ini sudah memiliki invoice.",
           "erpRaiseInFlight": "Invoice untuk tagihan ini masih diterbitkan di ERP. Tunggu sampai selesai.",
           "noClient": "Proyek ini belum punya klien untuk ditagih. Atur klien proyek terlebih dahulu.",

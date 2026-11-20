@@ -1,4 +1,5 @@
 import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
+import CostDisciplines from './admin/CostDisciplines';
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -288,6 +289,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
             <SiteReportLists />
+            <CostDisciplines />
           </div>
         </div>
       );
