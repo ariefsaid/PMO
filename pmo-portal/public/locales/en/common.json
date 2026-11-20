@@ -1351,16 +1351,10 @@
     "bva": {
       "atRisk": "At risk"
     },
-    "projectedMargin": {
-      "group": "Weighted pipeline value by stage",
-      "barLabel": "{{stage}}: {{value}} weighted"
-    },
     "procurementStatus": {
       "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}."
     },
-    "delivery": {
-      "percent": "Delivery {{rounded}}%"
-    },
+    "delivery": {},
     "engineer": {
       "noHours": "No hours logged this week",
       "entriesEmptySub": "Hours you log will show up here.",
@@ -1369,10 +1363,6 @@
       "hoursShort": "{{hours}}h",
       "hoursSpoken": "{{hours}} {{unit}}",
       "hoursUnit": "hours"
-    },
-    "atRisk": {
-      "reviewSingle": "Review {{count}} at-risk project",
-      "reviewMany": "Review {{count}} at-risk projects"
     },
     "budgetReviewLink": "Review {{project}} budget",
     "snapshots": {
@@ -1418,17 +1408,6 @@
         "linkMany": "{{label}}: {{count}} items awaiting"
       },
       "helpLabel": "Help: {{label}}"
-    },
-    "stillToInvoice": {
-      "daysSinceAcceptance": "Days since acceptance, not invoiced: {{days}}",
-      "count": "Work orders: {{n}}",
-      "daysSinceClosed": "Days since closed: {{days}}",
-      "empty": "Nothing left to invoice on issued work orders",
-      "error": "Couldn't load what is still to invoice",
-      "incomplete": "Work orders not totalled (an invoice on them has no amount or is in another currency): {{n}}",
-      "title": "Still to invoice on work orders",
-      "incompleteMore": "and {{n}} more",
-      "clientPo": "Client PO {{po}}"
     }
   },
   "decisionContext": {

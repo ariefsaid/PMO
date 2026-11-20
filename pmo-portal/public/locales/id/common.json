@@ -1351,16 +1351,10 @@
     "bva": {
       "atRisk": "Berisiko"
     },
-    "projectedMargin": {
-      "group": "Nilai pipeline tertimbang per tahap",
-      "barLabel": "{{stage}}: {{value}} tertimbang"
-    },
     "procurementStatus": {
       "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}."
     },
-    "delivery": {
-      "percent": "Progres {{rounded}}%"
-    },
+    "delivery": {},
     "engineer": {
       "noHours": "Belum ada jam kerja minggu ini",
       "entriesEmptySub": "Jam yang Anda catat akan muncul di sini.",
@@ -1369,10 +1363,6 @@
       "hoursShort": "{{hours}} jam",
       "hoursSpoken": "{{hours}} {{unit}}",
       "hoursUnit": "jam"
-    },
-    "atRisk": {
-      "reviewSingle": "Tinjau {{count}} proyek berisiko",
-      "reviewMany": "Tinjau {{count}} proyek berisiko"
     },
     "budgetReviewLink": "Tinjau anggaran {{project}}",
     "snapshots": {
@@ -1418,17 +1408,6 @@
         "linkMany": "{{label}}: {{count}} item menunggu"
       },
       "helpLabel": "Bantuan: {{label}}"
-    },
-    "stillToInvoice": {
-      "daysSinceAcceptance": "Hari sejak BAST, belum ditagih: {{days}}",
-      "count": "$t(common:terms.clientWorkOrder): {{n}}",
-      "daysSinceClosed": "Hari sejak ditutup: {{days}}",
-      "empty": "Tidak ada lagi yang perlu ditagih pada $t(common:terms.clientWorkOrder) yang diterbitkan",
-      "error": "Gagal memuat yang belum ditagih",
-      "incomplete": "$t(common:terms.clientWorkOrder) yang tidak dijumlahkan (invoice-nya tanpa jumlah atau bermata uang lain): {{n}}",
-      "title": "Belum ditagih per $t(common:terms.clientWorkOrder)",
-      "incompleteMore": "dan {{n}} lainnya",
-      "clientPo": "PO klien {{po}}"
     }
   },
   "decisionContext": {
