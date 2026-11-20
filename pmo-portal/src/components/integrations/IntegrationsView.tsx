@@ -151,7 +151,7 @@ export const IntegrationsView: React.FC = () => {
     if (refusal?.kind === 'missing-reads') {
       return t(
         'integrations.organization.readiness.erpActivation.missingReads',
-        'The ERPNext integration user cannot read: {{doctypes}}. Grant it read access to these in ERPNext, then activate again. Your selection was kept.',
+        'The ERPNext integration user cannot read: {{doctypes}}. Your operator will fix its role; then activate again. Your selection was kept.',
         { doctypes: refusal.doctypes.join(', ') },
       );
     }

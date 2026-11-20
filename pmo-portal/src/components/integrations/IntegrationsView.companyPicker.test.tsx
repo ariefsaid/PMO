@@ -243,7 +243,7 @@ describe('AC-IRUX-005 ERPNext Company picker states', () => {
     ));
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent(/cannot read: Timesheet, GL Entry/i));
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent(/grant it read access/i);
+    expect(dialog).toHaveTextContent(/operator will fix its role/i);
     expect(dialog).not.toHaveTextContent(/Activation failed/i);
     // The selection survives so the Admin can retry once access is granted.
     expect(screen.getByRole('button', { name: /^Activate$/i })).not.toBeDisabled();
@@ -282,6 +282,6 @@ describe('AC-IRUX-005 ERPNext Company picker states', () => {
       withErpActivationRefusal(new AppError('server text', 'CONFIG_REJECTED'), { kind: 'missing-reads', doctypes: ['Timesheet'] }),
       () => wrapWithRoleAndLocale('Admin', 'id', <IntegrationsView />),
     );
-    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent(/tidak dapat membaca: Timesheet/i));
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent(/tidak dapat membaca: Timesheet.*Operator akan memperbaiki/i));
   });
 })
