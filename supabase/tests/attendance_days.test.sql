@@ -1,5 +1,5 @@
 -- attendance_days.test.sql — #2528 Slice 2 (docs/specs/crews-roster-attendance.spec.md).
--- Migration under test: 0989_attendance_days.sql.
+-- Migration under test: 1036_attendance_days.sql.
 -- AC-CRW-005 (server half) one tick writes one record per person with the crew default and overrides ·
 -- AC-CRW-006 off rotation needs a reason to be present · AC-CRW-007 at most 24 hours a day across work orders ·
 -- AC-CRW-008 phone and roster on one day keep one record, flagged when they disagree · AC-CRW-013 back-date window ·

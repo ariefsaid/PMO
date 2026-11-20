@@ -1,4 +1,4 @@
--- 0989_attendance_days.sql — #2528: one daily attendance record per person, day and work order, whatever the
+-- 1036_attendance_days.sql — #2528: one daily attendance record per person, day and work order, whatever the
 -- capture method. Spec: docs/specs/crews-roster-attendance.spec.md (FR-CRW-008..013, FR-CRW-017, OD-CRW-3..5).
 -- Plan: Slice 2. Proven by supabase/tests/attendance_days.test.sql.
 --
@@ -7,7 +7,7 @@
 -- (`manual_correction`); `phone_check_in` is accepted from the person's own login so #1517 can write here later. No
 -- location data is stored (NFR-CRW-003).
 --
--- ── REVERSE (also supabase/migrations/rollback/0989_attendance_days_down.sql) ──────────────────────────────────
+-- ── REVERSE (also supabase/migrations/rollback/1036_attendance_days_down.sql) ──────────────────────────────────
 --   reverse 0990 first; drop function attendance_record, attendance_can_record, worker_off_rotation; the storage
 --   policies and (once empty) the bucket; tables attendance_photos, attendance_days, crew_worker_rotation_off; the
 --   guard function; the two organizations columns; restore the 0988 work_order_roster.

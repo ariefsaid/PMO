@@ -1,4 +1,4 @@
--- 0989_attendance_days_down.sql — reverse 0989. Reverse 0990 first.
+-- 1036_attendance_days_down.sql — reverse 0989. Reverse 0990 first.
 drop function if exists public.attendance_record(uuid, date, text, jsonb);
 drop policy if exists storage_objects_attendance_photo_write on storage.objects;
 drop policy if exists storage_objects_attendance_photo_read on storage.objects;
