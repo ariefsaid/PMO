@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap;
 -- #2588 opening balances at go-live (docs/specs/opening-balances.spec.md, AC-OPB-001..009).
-select plan(80);
+select plan(83);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25880000-0000-0000-0000-000000000001', 'OPB Org',   'USD', 'UTC'),
@@ -11,12 +11,14 @@ insert into auth.users (id, email) values
   ('25880000-0000-0000-0000-0000000000a2', 'opb-fin@example.invalid'),
   ('25880000-0000-0000-0000-0000000000a3', 'opb-pm@example.invalid'),
   ('25880000-0000-0000-0000-0000000000a4', 'opb-eng@example.invalid'),
+  ('25880000-0000-0000-0000-0000000000a9', 'opb-dis@example.invalid'),
   ('25880000-0000-0000-0000-0000000000b1', 'opb-xadmin@example.invalid');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('25880000-0000-0000-0000-0000000000a1', '25880000-0000-0000-0000-000000000001', 'OPB Admin', 'opb-admin@example.invalid', 'Admin', 'active'),
   ('25880000-0000-0000-0000-0000000000a2', '25880000-0000-0000-0000-000000000001', 'OPB Fin',   'opb-fin@example.invalid',   'Finance', 'active'),
   ('25880000-0000-0000-0000-0000000000a3', '25880000-0000-0000-0000-000000000001', 'OPB PM',    'opb-pm@example.invalid',    'Project Manager', 'active'),
   ('25880000-0000-0000-0000-0000000000a4', '25880000-0000-0000-0000-000000000001', 'OPB Eng',   'opb-eng@example.invalid',   'Engineer', 'active'),
+  ('25880000-0000-0000-0000-0000000000a9', '25880000-0000-0000-0000-000000000001', 'OPB Dis',   'opb-dis@example.invalid',   'Admin', 'disabled'),
   ('25880000-0000-0000-0000-0000000000b1', '25880000-0000-0000-0000-000000000002', 'OPB XAdm',  'opb-xadmin@example.invalid', 'Admin', 'active');
 insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, currency, project_manager_id) values
   ('25880000-0000-0000-0000-0000000000c1', '25880000-0000-0000-0000-000000000001', 'OPB Project', 'Ongoing Project', 100000, 'exclusive', 0, 'USD', '25880000-0000-0000-0000-0000000000a3');
@@ -84,6 +86,13 @@ select throws_ok($$select public.load_work_order_opening('25880000-0000-0000-000
   '42501', null, 'AC-OPB-001 Finance cannot load a work-order opening');
 select throws_ok($$select public.load_stock_opening('25880000-0000-0000-0000-000000002001', current_setting('opb.golive')::date, '[{"item_id":"25880000-0000-0000-0000-000000001001","counted_quantity":1,"unit_cost":1}]')$$,
   '42501', null, 'AC-OPB-001 Finance cannot load a stock opening');
+select pg_temp.as_user('25880000-0000-0000-0000-0000000000a9');
+select throws_ok($$select public.load_work_order_opening('25880000-0000-0000-0000-000000000031', current_setting('opb.golive')::date, current_setting('opb.wo_a_lines')::jsonb)$$,
+  '42501', 'account is disabled or unconfirmed', 'AC-OPB-001 disabled Admin cannot load a work-order opening');
+select throws_ok($$select public.load_stock_opening('25880000-0000-0000-0000-000000002001', current_setting('opb.golive')::date, '[{"item_id":"25880000-0000-0000-0000-000000001001","counted_quantity":1,"unit_cost":1}]')$$,
+  '42501', 'account is disabled or unconfirmed', 'AC-OPB-001 disabled Admin cannot load a stock opening');
+select throws_ok($$select public.reverse_opening_balance('25880000-0000-0000-0000-000000000001')$$,
+  '42501', 'account is disabled or unconfirmed', 'AC-OPB-001 disabled Admin cannot reverse an opening');
 reset role;
 select pg_temp.as_user('25880000-0000-0000-0000-0000000000a1');
 select throws_ok($$select public.load_work_order_opening('25880000-0000-0000-0000-000000000033', current_setting('opb.golive')::date, '[]')$$,

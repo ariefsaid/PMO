@@ -145,6 +145,7 @@ create or replace function public.load_work_order_opening(p_work_order_id uuid, 
 declare v_org uuid := public.auth_org_id(); v_uid uuid := auth.uid(); v_project uuid; v_status public.work_order_status;
         v_currency text; v_id uuid := gen_random_uuid(); v_acc uuid; v_claimed numeric;
 begin
+  perform public.assert_is_active_member();
   perform public.opening_assert_load(v_org, p_as_of);
   perform public.lock_work_order_billing(p_work_order_id);                    -- the billing writers' order (DD-BWO-5)
   select w.project_id, w.status into v_project, v_status from public.work_orders w where w.id = p_work_order_id and w.org_id = v_org for update;
@@ -192,6 +193,7 @@ create or replace function public.load_stock_opening(p_warehouse_id uuid, p_as_o
   returns uuid language plpgsql volatile security definer set search_path = public as $$
 declare v_org uuid := public.auth_org_id(); v_uid uuid := auth.uid(); v_doc public.stock_documents; v_id uuid := gen_random_uuid(); l record;
 begin
+  perform public.assert_is_active_member();
   perform public.opening_assert_load(v_org, p_as_of);
   perform public.assert_feature_on(v_org, 'stock');
   perform public.stock_assert_standalone(v_org);

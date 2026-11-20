@@ -146,7 +146,7 @@
     "return": "Pengembalian dari proyek",
     "adjustment": "Penyesuaian",
     "count": "Stok opname",
-    "opening": "Saldo awal"
+    "opening": "Stok awal"
   },
   "empty": {
     "noStock": "Belum ada stok",
