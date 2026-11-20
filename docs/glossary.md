@@ -736,6 +736,12 @@ behind them; distinct from instructions or an explanation of the page.
 **Waits on you** — work requiring the current person's action, such as a decision or a returned
 submission; distinct from general project risk or everything assigned to them.
 
+**Import key** — the stable id a row of `purchases import-history` carries; it makes a rerun safe (same row: skip) and names the row
+for `purchases undo-import`. Undoing an import frees its key.
+
+**Undo of an imported purchase** — a preview-first, Admin-only removal of one import's rows, refused once anything outside the import
+exists against the purchase; audited with a reason.
+
 UI vocabulary keeps **Supplier** rather than vendor, **Purchase** for a procurement case,
 and **Phase** for a milestone. **Actual** and **Recorded spending** name the same spending position;
 **Cash received** and **Settlement** name different quantities and must stay distinct.

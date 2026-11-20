@@ -742,6 +742,7 @@
     "unapply_native_allocation(uuid)",
     "undo_captured_journal_purchase(uuid,text,boolean)",
     "undo_captured_purchase(uuid,text,boolean,uuid)",
+    "undo_imported_purchase(text,text,boolean)",
     "unlink_connect_match(uuid)",
     "unlink_erp_purchase_document(uuid)",
     "unlink_erp_purchase_document_unchecked(uuid)",
