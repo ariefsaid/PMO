@@ -29,6 +29,14 @@
     "addLineItem": "Tambah item",
     "addRowLabel": "Baris baru",
     "add": "Tambah",
+    "validation": {
+      "itemRequired": "Nama item wajib diisi.",
+      "required": "{{label}} wajib diisi.",
+      "positive": "{{label}} harus lebih besar dari 0 dengan maksimal 2 angka desimal.",
+      "format": "{{label}} harus menggunakan \"{{group}}\" untuk pemisah ribuan dan \"{{decimal}}\" untuk desimal — misalnya {{example}}.",
+      "quantityLabel": "Jumlah",
+      "unitPriceLabel": "Harga satuan"
+    },
     "removeDescription": "Item ini akan dihapus dari pengadaan. Anda dapat menambahkannya kembali selama pengadaan masih berupa draf.",
     "removeItem": "Hapus item",
     "searchItem": "Cari kode atau nama item…",
@@ -838,5 +846,10 @@
     "confirmTitle": "Pilih penawaran ini?",
     "confirmBody": "Penawaran terpilih menentukan nilai dan supplier pengadaan. Jika di atas jumlah yang disetujui, pengadaan kembali untuk persetujuan.",
     "confirmLabel": "Pilih penawaran"
+  },
+  "routeWhy": {
+    "exceedsProject": "pengadaan ini akan melampaui batas anggaran proyek, termasuk yang sudah dibelanjakan.",
+    "spendingUnknown": "pengeluaran pada anggaran {{category}} proyek belum diketahui.",
+    "spendingNotVisible": "kesesuaiannya dengan anggaran {{category}} proyek diperiksa saat diputuskan."
   }
 }
