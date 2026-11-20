@@ -1,4 +1,4 @@
--- 0979_site_issue_log_columns.sql — #2521: an incident can be raised as a site ISSUE. Spec
+-- 1026_site_issue_log_columns.sql — #2521: an incident can be raised as a site ISSUE. Spec
 -- docs/specs/site-issue-log.spec.md; plan docs/plans/2026-11-20-site-issue-log.md. Proven by
 -- supabase/tests/0979_site_issue_log.test.sql. Not a money path.
 --
@@ -10,7 +10,7 @@
 --      cleared when the due time moves forward; a person who is not a manager and edits only status / note (the assignee).
 --   §3 a second UPDATE policy so the assignee can reach the row (the manager policy of 0002 is untouched).
 --
--- ── REVERSE (also rollback/0979_site_issue_log_columns_down.sql) ──────────────────────────────────────
+-- ── REVERSE (also rollback/1026_site_issue_log_columns_down.sql) ──────────────────────────────────────
 --   drop policy if exists incident_reports_update_assignee on public.incident_reports;
 --   drop trigger if exists incident_reports_zz_issue_guard on public.incident_reports;
 --   drop function if exists public.guard_incident_issue_fields();
