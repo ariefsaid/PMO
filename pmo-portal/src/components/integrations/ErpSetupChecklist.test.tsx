@@ -370,4 +370,3 @@ describe('Next fiscal year operator task notice (#1599 ECX-5)', () => {
     expect(within(itemId).getByText('Tugas Operator: PMO tidak dapat membuat tahun fiskal berikutnya. Kami akan menyelesaikannya; Anda tidak perlu melakukan apa pun.')).toBeInTheDocument();
   });
 });
-
