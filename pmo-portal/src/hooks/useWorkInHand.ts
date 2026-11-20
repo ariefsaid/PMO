@@ -6,12 +6,12 @@ import { deriveWorkInHand, type WipRow } from '@/src/lib/workInHand';
 import type { WorkInHand } from '@/src/lib/db/workInHand';
 
 /** Work in hand (#2575): the database inputs, with the one derivation applied. Keys carry org_id (ADR-0017). */
-export function useWorkInHand() {
+export function useWorkInHand(enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
   const query = useQuery({
     queryKey: ['work-in-hand', orgId],
     queryFn: () => repositories.workInHand.get(),
-    enabled: Boolean(orgId),
+    enabled: enabled && Boolean(orgId),
     staleTime: 60_000,
   });
   const rows: WipRow[] = useMemo(

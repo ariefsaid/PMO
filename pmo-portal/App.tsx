@@ -143,6 +143,7 @@ const ManagementPackPage = lazyWithPreload(() => import('./pages/ManagementPack'
 const FinanceHubPage = lazyWithPreload(() => import('./pages/finance/FinanceHub'));
 const ReceivablesPage = lazyWithPreload(() => import('./pages/finance/ReceivablesPage'));
 const PayablesPage = lazyWithPreload(() => import('./pages/finance/PayablesPage'));
+const WorkInHandPage = lazyWithPreload(() => import('./pages/finance/WorkInHand'));
 const ProfileSettingsPage = lazyWithPreload(() => import('./pages/ProfileSettings'));
 const StockSetupPage = lazyWithPreload(() => import('./pages/stock/StockSetup'));
 const StockOnHandPage = lazyWithPreload(() => import('./pages/stock/StockOnHand'));
@@ -268,6 +269,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/finance/receivables', chunks: [ReceivablesPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/payables', chunks: [PayablesPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/finance/work-in-hand', chunks: [WorkInHandPage], namespaces: ['workInHand', 'financeHub'] },
   { path: '/finance/statements', chunks: [FinancialStatementsPage], namespaces: ['finance'] },
   { path: '/journals', chunks: [JournalsPage], namespaces: ['journals'] },
   { path: '/sales-invoices/:invoiceId', chunks: [SalesInvoicesPage], namespaces: ['finance'] },
@@ -503,6 +505,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/finance/receivables', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<ReceivablesPage />} /></FinanceAccessRoute> },
   { path: '/finance/payables', element: <FinanceAccessRoute><FeatureRoute feature="procurement" element={<PayablesPage />} /></FinanceAccessRoute> },
   { path: '/finance/reports', element: <FinanceAccessRoute><FeatureRoute feature="management_pack" element={<ManagementPackPage />} /></FinanceAccessRoute> },
+  { path: '/finance/work-in-hand', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<WorkInHandPage />} /></FinanceAccessRoute> },
   { path: '/finance/statements', element: <FinanceAccessRoute>{gated('financial_statements', <FinancialStatementsPage />)}</FinanceAccessRoute> },
   // #895 manual journals: role-gated like the Finance hub (Finance·Executive·Admin); the RPCs re-check the role.
   { path: '/journals', element: <FinanceAccessRoute><JournalsPage /></FinanceAccessRoute> },
