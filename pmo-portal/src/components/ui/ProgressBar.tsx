@@ -23,7 +23,8 @@ export interface ProgressBarProps {
   /**
    * Widthless mode — omits the outer min-width entirely so the caller's flex/grid
    * layout controls the bar's width. Use when the host already provides a flex-1 or
-   * min-w-0 context (e.g. BvACard rows on narrow/390px screens) where the default
+   * min-w-0 context (e.g. the company finance table's % used rows on narrow/390px
+   * screens) where the default
    * min-w-[120px] would compound overflow. The track still gets flex-1 from the host.
    */
   widthless?: boolean;

@@ -1348,9 +1348,6 @@
       "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
       "declined": "{{n}} tidak ikut tender, tidak dihitung dalam win rate"
     },
-    "bva": {
-      "atRisk": "Berisiko"
-    },
     "procurementStatus": {
       "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}."
     },
@@ -1364,7 +1361,6 @@
       "hoursSpoken": "{{hours}} {{unit}}",
       "hoursUnit": "jam"
     },
-    "budgetReviewLink": "Tinjau anggaran {{project}}",
     "snapshots": {
       "unavailable": "Belum ada snapshot akuntansi yang disinkronkan.",
       "guidance": "Minta administrator menyinkronkan data akuntansi."
@@ -1390,23 +1386,7 @@
       "label": "Paket dewan",
       "tooltip": "Ekspor paket dewan tersedia di Laporan"
     },
-    "chart": {
-      "procStatus": {
-        "chartLabel": "Pengadaan menurut status",
-        "empty": "Belum ada aktivitas pengadaan",
-        "noun": "kasus pengadaan"
-      }
-    },
     "kpi": {
-      "awaitingApproval": {
-        "label": "Menunggu persetujuan Anda",
-        "unavailable": "tidak tersedia: periksa koneksi",
-        "one": "{{count}} item menunggu",
-        "many": "{{count}} item menunggu",
-        "linkUnavailable": "{{label}}: tidak tersedia",
-        "linkOne": "{{label}}: {{count}} item menunggu",
-        "linkMany": "{{label}}: {{count}} item menunggu"
-      },
       "helpLabel": "Bantuan: {{label}}"
     }
   },
@@ -4425,33 +4405,6 @@
       "previewNote": "Sekadar ilustrasi; nomor sebenarnya ditetapkan saat proyek dibuat."
     },
     "accounting": {}
-  },
-  "uxs03": {
-    "spendingContract": "Pengeluaran dibanding kontrak",
-    "spendingContractBar": "{{name}}: {{percent}}% dari kontrak",
-    "notAvailableYet": "Belum tersedia",
-    "attentionAndApprovals": "Perhatian dan persetujuan",
-    "realizedMargin": "Margin atas pekerjaan yang ditagihkan",
-    "realizedMarginKnown": "Margin yang diketahui atas pekerjaan yang ditagihkan",
-    "contractRemaining": "Sisa kontrak setelah Aktual yang diketahui",
-    "coverage": "Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan",
-    "coverageCategories": "Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan",
-    "pmoPurchasing": "Permintaan pembelian PMO",
-    "pmoPurchasingScope": "Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",
-    "activeBudget": "Anggaran aktif",
-    "actual": "Aktual",
-    "variance": "Selisih",
-    "utilization": "Pemakaian",
-    "atRisk": "Berisiko",
-    "activeBudgetReviewEmpty": "Belum ada anggaran aktif yang siap ditinjau",
-    "activeBudgetReviewEmptySub": "Anggaran aktif bernilai positif ditampilkan di sini.",
-    "actualSourceCurrency": "Mata uang sumber: {{currency}}",
-    "actualAsOf": "Per {{date}}",
-    "financeDashboardTitle": "Dasbor Keuangan",
-    "financeDashboardSubtitle": "Pendapatan, pengeluaran, margin, dan pemakaian anggaran portofolio.",
-    "financeBudgetReviewTitle": "Tinjauan anggaran: 5 teratas berdasarkan selisih (seluruh portofolio)",
-    "financeProjectColumn": "Proyek",
-    "financeReadyToPay": "Siap dibayar"
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} atau {{fourth}}",
