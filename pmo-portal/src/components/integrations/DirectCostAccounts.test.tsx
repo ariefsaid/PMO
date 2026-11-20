@@ -20,6 +20,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: repo } 
 
 import { wrapWithRole } from './IntegrationsView.test-helpers';
 import { AccountLinkNotes, DirectCostAccounts } from './DirectCostAccounts';
+import { ErpSendStates } from './ErpSendStates';
 
 const show = (role: string, categories = ['Labor', 'Equipment']) => wrapWithRole(role, <DirectCostAccounts categories={categories} />);
 function ReconciliationProbe() {
@@ -33,7 +34,8 @@ const openDialog = async () => {
 
 beforeEach(() => {
   repo.listAccountSendGroups.mockClear();
-  repo.requestAccountSend.mockClear();
+  repo.requestAccountSend.mockReset().mockResolvedValue({ id: 'send-1' });
+  repo.getConnectStatus.mockReset().mockResolvedValue({ waitingForSend: 1 });
   repo.listConnectProposals.mockReset().mockResolvedValue({ proposals: [], nextAfterId: null });
 });
 
@@ -101,7 +103,7 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalled());
-    repo.listConnectProposals.mockImplementation(async () => ({ proposals: [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'rejected', pmo_ids: ['Labor'], snapshot: { accountName: 'Unsuitable account' } }], nextAfterId: null }));
+    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => ({ proposals: (args[4] ?? 'open') === 'open' ? [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'rejected', pmo_ids: ['Labor'], snapshot: { accountName: 'Unsuitable account' } }] : [], nextAfterId: null }));
     fireEvent.click(screen.getByRole('button', { name: 'Sweep finished' }));
     dialog = await openDialog();
     const name = within(dialog).getByLabelText(/^Account name for Labor/);
@@ -114,9 +116,10 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
   });
 
   it('AC-ECX-030 finds a rejection on a later page of account reviews', async () => {
-    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => args[3] === null
-      ? { proposals: [], nextAfterId: 'next-page' }
-      : { proposals: [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'rejected', pmo_ids: ['Labor'], snapshot: {} }], nextAfterId: null });
+    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => (args[4] ?? 'open') !== 'open'
+      ? { proposals: [], nextAfterId: null }
+      : args[3] === null ? { proposals: [], nextAfterId: 'next-page' }
+        : { proposals: [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'rejected', pmo_ids: ['Labor'], snapshot: {} }], nextAfterId: null });
     show('Finance', ['Labor']);
     let dialog = await openDialog();
     fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
@@ -142,7 +145,7 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
   });
 
   it('AC-ECX-030 keeps an unconfirmed held request locked to prevent another request', async () => {
-    repo.listConnectProposals.mockImplementation(async () => ({ proposals: [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'held', pmo_ids: ['Labor'], snapshot: {} }], nextAfterId: null }));
+    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => ({ proposals: (args[4] ?? 'open') === 'open' ? [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'held', pmo_ids: ['Labor'], snapshot: {} }] : [], nextAfterId: null }));
     show('Finance', ['Labor']);
     let dialog = await openDialog();
     fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
@@ -175,7 +178,8 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
     const second = wrapWithRole('Admin', <DirectCostAccounts categories={['Labor']} />);
     fireEvent.click(within(second.container).getByRole('button', { name: 'Create accounts' }));
     const otherDialog = await screen.findByRole('dialog');
-    fireEvent.change(await within(otherDialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    await waitFor(() => expect(otherDialog.querySelector('select option[value="Direct Expenses - EC"]')).toBeInTheDocument());
+    fireEvent.change(otherDialog.querySelector('select')!, { target: { value: 'Direct Expenses - EC' } });
     fireEvent.change(within(otherDialog).getByLabelText(/^Account name for Labor/), { target: { value: 'Corrected by another administrator' } });
     fireEvent.click(within(otherDialog).getByRole('button', { name: 'Create accounts' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -237,6 +241,83 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
     await act(async () => { releasePage(); });
     await waitFor(() => expect(screen.getByTestId('reconciliation')).toHaveTextContent('settled'));
     expect(within(dialog).getByLabelText(/^Account name for Labor/)).toBeDisabled();
+  });
+
+  it.each(['sending', 'held'] as const)('AC-ECX-030 refreshes an open correction when another session has a %s request', async (otherState) => {
+    let phase: 'sending-a' | 'rejected-a' | 'sending-b' = 'sending-a';
+    repo.getConnectStatus.mockImplementation(async () => ({ waitingForSend: phase === 'rejected-a' || (phase === 'sending-b' && otherState === 'held') ? 0 : 1 }));
+    repo.requestAccountSend.mockImplementation(async () => {
+      if (phase === 'rejected-a') { phase = 'sending-b'; return { id: 'send-2' }; }
+      return { id: 'send-1' };
+    });
+    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => {
+      const state = args[4] ?? 'open';
+      const outcome = args[2];
+      const rejected = { id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'rejected', reason_text: 'Rejected', pmo_ids: ['Labor'], snapshot: {} };
+      const outstanding = { id: 'send-2', kind: 'account', outcome: otherState === 'sending' ? 'send' : 'review', state: otherState === 'sending' ? 'sending' : 'open', reason: otherState === 'sending' ? null : 'held', pmo_ids: ['Labor'], snapshot: {} };
+      return { proposals: [
+        ...(outcome === 'review' && state === 'open' && phase !== 'sending-a' ? [rejected] : []),
+        ...(phase === 'sending-b' && state === outstanding.state && outcome === outstanding.outcome ? [outstanding] : []),
+      ], nextAfterId: null };
+    });
+    wrapWithRole('Finance', <><DirectCostAccounts categories={['Labor']} /><ErpSendStates enabled /></>);
+    let dialog = await openDialog();
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    phase = 'rejected-a';
+    dialog = await openDialog();
+    const name = within(dialog).getByLabelText(/^Account name for Labor/);
+    await waitFor(() => expect(name).toBeEnabled());
+    const second = wrapWithRole('Admin', <DirectCostAccounts categories={['Labor']} />);
+    fireEvent.click(within(second.container).getByRole('button', { name: 'Create accounts' }));
+    const otherDialog = await screen.findByRole('dialog');
+    await waitFor(() => expect(otherDialog.querySelector('select option[value="Direct Expenses - EC"]')).toBeInTheDocument());
+    fireEvent.change(otherDialog.querySelector('select')!, { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.click(within(otherDialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(otherDialog).not.toBeInTheDocument());
+    expect(dialog).toBeInTheDocument();
+    await waitFor(() => expect(name).toBeDisabled(), { timeout: 15000 });
+    expect(within(dialog).getByRole('button', { name: 'Create accounts' })).toBeDisabled();
+    repo.getConnectStatus.mockReset().mockResolvedValue({ waitingForSend: 1 });
+    repo.requestAccountSend.mockReset().mockResolvedValue({ id: 'send-1' });
+  }, 20000);
+
+  it.each([
+    { page: 'sending', state: 'open', outcome: 'send', reason: null },
+    { page: 'open', state: 'open', outcome: 'send', reason: null },
+    { page: 'sending', state: 'sending', outcome: 'review', reason: null },
+    { page: 'open', state: 'open', outcome: 'review', reason: 'unknown' },
+  ])('AC-ECX-030 fails closed for inconsistent later request pages: $state / $outcome / $reason', async (bad) => {
+    function RefreshStatus() {
+      const qc = useQueryClient();
+      return <button onClick={() => qc.setQueryData(['integrations', 'connect-status', 'erpnext'], { waitingForSend: 0 })}>Refresh status</button>;
+    }
+    let malformed = false;
+    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => {
+      const state = args[4] ?? 'open';
+      const rejected = { id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'rejected', pmo_ids: ['Labor'], snapshot: {} };
+      if (state === bad.page && malformed) return args[3]
+        ? { proposals: [{ id: 'send-2', kind: 'account', state: bad.state, outcome: bad.outcome, reason: bad.reason, pmo_ids: ['Labor'], snapshot: {} }], nextAfterId: null }
+        : { proposals: state === 'open' ? [rejected] : [], nextAfterId: 'page-2' };
+      return { proposals: state === 'open' ? [rejected] : [], nextAfterId: null };
+    });
+    wrapWithRole('Finance', <><DirectCostAccounts categories={['Labor']} /><RefreshStatus /><ReconciliationProbe /></>);
+    let dialog = await openDialog();
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    dialog = await openDialog();
+    const name = within(dialog).getByLabelText(/^Account name for Labor/);
+    await waitFor(() => expect(name).toBeEnabled());
+    malformed = true;
+    await act(async () => { fireEvent.click(screen.getByText('Refresh status')); });
+    await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalledWith(...(bad.page === 'open' ? ['erpnext', 'account', 'review', 'page-2'] : ['erpnext', 'account', 'send', 'page-2', 'sending'])));
+    await waitFor(() => expect(screen.getByTestId('reconciliation')).toHaveTextContent('settled'));
+    expect(name).toBeDisabled();
+    malformed = false;
+    await act(async () => { fireEvent.click(screen.getByText('Refresh status')); });
+    await waitFor(() => expect(name).toBeEnabled());
   });
 
   it('AC-ECX-030 group read failure offers a retry that loads groups', async () => {

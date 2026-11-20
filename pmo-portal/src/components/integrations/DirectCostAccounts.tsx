@@ -35,6 +35,8 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
     queryFn: () => repositories.integrations.getConnectStatus(tier),
     enabled: Object.keys(acceptedRequests).length > 0,
     retry: false,
+    // Keep an open correction current across sessions, even after the last send settled.
+    refetchInterval: open && Object.keys(acceptedRequests).length > 0 ? 10_000 : false,
   });
   const reviews = useQuery({
     queryKey: ['integrations', 'account-request-reviews', tier, status.dataUpdatedAt],
@@ -49,11 +51,12 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
             ? await repositories.integrations.listConnectProposals(tier, 'account', outcome, afterId)
             : await repositories.integrations.listConnectProposals(tier, 'account', outcome, afterId, state);
           if (!Array.isArray(page.proposals)
-            || page.proposals.some((p) => !p || typeof p.id !== 'string' || p.kind !== 'account'
-              || !['open', 'dismissed', 'sending'].includes(p.state)
-              || (p.reason !== null && typeof p.reason !== 'string')
-              || !Array.isArray(p.pmo_ids) || p.pmo_ids.some((id) => typeof id !== 'string')
-              || ((p.state === 'sending' || p.reason === 'held') && p.pmo_ids.length === 0))
+            || page.proposals.some((p) => !p || (typeof p.id !== 'string' || !p.id) || p.kind !== 'account'
+              || p.state !== state || p.outcome !== outcome
+              || (state === 'sending' && p.reason !== null)
+              || (p.reason !== null && !['ambiguous', 'tax-conflict', 'rejected', 'held'].includes(p.reason))
+              || !Array.isArray(p.pmo_ids) || p.pmo_ids.some((id) => typeof id !== 'string' || !id)
+              || ((p.state === 'sending' || p.reason === 'held' || p.reason === 'rejected') && p.pmo_ids.length === 0))
             || (page.nextAfterId !== null && (typeof page.nextAfterId !== 'string' || !page.nextAfterId || seen.has(page.nextAfterId)))) {
             throw new Error('Incomplete account request list');
           }
