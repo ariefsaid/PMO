@@ -2,7 +2,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
@@ -41,9 +41,13 @@ vi.mock('@/src/components/ui', async (original) => {
 import ExpenseAccountMap from './ExpenseAccountMap';
 
 function renderMap() {
-  return render(<FinanceI18nTestProvider><MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+  return render(<FinanceI18nTestProvider><MemoryRouter><LocationProbe /><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <ToastProvider><ExpenseAccountMap /></ToastProvider>
   </QueryClientProvider></MemoryRouter></FinanceI18nTestProvider>);
+}
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.search}{location.hash}</output>;
 }
 
 beforeEach(async () => {
@@ -72,9 +76,12 @@ describe('expense account readiness (AD-2, S-12)', () => {
   it('names connecting ERPNext only when the org is actually not connected', async () => {
     renderMap();
     expect(await screen.findByText('Connect ERPNext before mapping expense accounts.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open integrations' })).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: 'Open integrations' });
+    expect(link).toHaveAttribute('href', '/administration/integrations');
     expect(screen.getAllByText('Not mapped').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Map Travel' })).toBeNull();
+    await userEvent.click(link);
+    expect(screen.getByTestId('location')).toHaveTextContent('/administration/integrations');
   });
 
   it('UX-080: an org that is connected but has expense posting switched off is told the missing step, never to connect again', async () => {
@@ -85,7 +92,7 @@ describe('expense account readiness (AD-2, S-12)', () => {
     )).toBeInTheDocument();
     // The contradictory reconnect instruction is gone, the recovery doorway stays.
     expect(screen.queryByText('Connect ERPNext before mapping expense accounts.')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Open integrations' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open integrations' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Map Travel' })).toBeNull();
     expect(screen.getAllByText('Not mapped').length).toBeGreaterThan(0);
   });

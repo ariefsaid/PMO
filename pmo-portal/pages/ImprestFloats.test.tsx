@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -40,7 +40,11 @@ const float = (id: string, project: string, custodian: string) => ({
   id, project_id: 'p1', custodian_id: 'u-fin', currency: 'IDR', float_amount: 5000000, archived_at: null,
   project: { name: project }, custodian: { full_name: custodian },
 });
-const renderPage = () => render(<MemoryRouter><ToastProvider><ImprestFloatsPage /></ToastProvider></MemoryRouter>);
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}</output>;
+}
+const renderPage = () => render(<MemoryRouter initialEntries={['/imprest']}><LocationProbe /><ToastProvider><ImprestFloatsPage /></ToastProvider></MemoryRouter>);
 
 describe('/imprest list (AC-IMP-082)', () => {
   beforeEach(() => {
@@ -63,6 +67,14 @@ describe('/imprest list (AC-IMP-082)', () => {
     expect(within(row).getByText(/300,000/)).toBeInTheDocument(); // advances out
     expect(within(row).getByText(/3,500,000/)).toBeInTheDocument(); // receipts waiting
     expect(screen.getByRole('row', { name: /Site Beta/ })).toBeInTheDocument();
+  });
+
+  it('AC-2077 opens a float record from its native row link in the current tab', async () => {
+    renderPage();
+    const link = screen.getByRole('link', { name: 'Open Site Alpha' });
+    expect(link).toHaveAttribute('href', '/imprest/f1');
+    await userEvent.click(link);
+    expect(screen.getByTestId('location')).toHaveTextContent('/imprest/f1');
   });
 
   it('AC-IMP-082 a non-zero gap is flagged in text', () => {

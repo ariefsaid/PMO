@@ -1,7 +1,8 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { Button, Card, DataTable, Icon, ListPage, ListState, SelectField, StatusPill, parsePageParam, useClampPage, useToast, useUrlFilters, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectChoices } from './expenses/useProjectChoices';
@@ -107,10 +108,10 @@ const ExpenseClaims: React.FC = () => {
         canCreate && (
           <span className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setFormKind('advance')}>{t('expenses.actions.requestAdvance', 'Request advance')}</Button>
-            <Button variant="primary" onClick={() => navigate('/expenses/new')}>
+            <Link to="/expenses/new" className={buttonClasses('primary')}>
               <Icon name="plus" />
               {t('expenses.actions.newClaim', 'New claim')}
-            </Button>
+            </Link>
           </span>
         )
       }
@@ -161,6 +162,7 @@ const ExpenseClaims: React.FC = () => {
               columns={columns}
               rowKey={(r) => r.id}
               onActivate={(r) => navigate(`/expenses/${r.id}`)}
+              rowHref={(r) => `/expenses/${r.id}`}
               rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
               tableId="expenseclaims-table"
               mobileCardTitle={(r) => (
