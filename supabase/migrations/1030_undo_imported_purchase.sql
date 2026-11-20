@@ -4,7 +4,7 @@
 -- the key for a corrected row) and writes an audit event that keeps the payload and the reason.
 -- Hard delete, not archive (ADR-0018 exception, recorded in the spec): the import wrote only PMO-native rows, nothing was sent to an
 -- accounting system, and the key and the document numbers must be free again; the audit event is the permanent record.
--- Refused (nothing deleted) once anything outside the import exists: any row in a table that references the purchase other than the
+-- Refused (nothing deleted) once anything outside the import exists: any row in a table that references the purchase or one of its documents (even one that would cascade) other than the
 -- import's own tables (found from the catalog, so a table added later refuses by default), a document count or status that differs from
 -- what the import created, a status change made after the import, or a queued ERP command for the purchase.
 -- Rollback: rollback/1030_undo_imported_purchase_down.sql
@@ -61,23 +61,32 @@ begin
   if exists (select 1 from public.procurement_status_events e where e.procurement_id = v_proc.id and coalesce(e.notes, '') not like 'Derived: %') then
     v_blockers := v_blockers || jsonb_build_array('procurement_status_events'); end if;
 
-  -- 2. Any other table that references the purchase (found from the catalog, including composite keys): a row there is later work.
+  -- 2. Any other table that references the purchase or one of the import's own documents (found from the catalog, including composite
+  --    keys, whatever the on-delete action): a row there is later work. Cascading children (receipt lines, bill matches and their lines)
+  --    would otherwise be deleted silently, so they are counted here rather than left to the 23503 catch below.
   for v_fk in
-    select distinct c.conrelid::regclass::text as tbl, a.attname::text as col
+    select distinct c.conrelid::regclass::text as tbl, a.attname::text as col, c.confrelid::regclass::text as ptbl,
+           (c.confrelid = 'public.procurements'::regclass) as is_head
       from pg_constraint c
       cross join lateral unnest(c.conkey, c.confkey) as k(child_attnum, parent_attnum)
       join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.child_attnum
       join pg_attribute pa on pa.attrelid = c.confrelid and pa.attnum = k.parent_attnum and pa.attname = 'id'
-     where c.contype = 'f' and c.confrelid = 'public.procurements'::regclass
+     where c.contype = 'f'
+       and c.confrelid in ('public.procurements'::regclass, 'public.procurement_items'::regclass, 'public.purchase_orders'::regclass,
+                           'public.procurement_receipts'::regclass, 'public.procurement_invoices'::regclass, 'public.payments'::regclass)
        and c.conrelid not in ('public.procurement_items'::regclass, 'public.purchase_orders'::regclass, 'public.procurement_receipts'::regclass,
                               'public.procurement_invoices'::regclass, 'public.payments'::regclass, 'public.procurement_status_events'::regclass,
                               'public.purchase_history_imports'::regclass)
   loop
-    execute format('select count(*) from %s where %I = $1', v_fk.tbl, v_fk.col) into v_n using v_proc.id;
+    if v_fk.is_head then
+      execute format('select count(*) from %s where %I = $1', v_fk.tbl, v_fk.col) into v_n using v_proc.id;
+    else
+      execute format('select count(*) from %s where %I in (select id from %s where procurement_id = $1)', v_fk.tbl, v_fk.col, v_fk.ptbl)
+        into v_n using v_proc.id;
+    end if;
     if v_n > 0 then v_blockers := v_blockers || jsonb_build_array(regexp_replace(v_fk.tbl, '^public\.', '')); end if;
   end loop;
-  -- A row that references one of the import's own documents (a withholding slip on its invoice, a match line, a payment allocation, ...)
-  -- stops the delete itself (23503); that is caught below and reported as later work.
+  -- The 23503 catch below stays as the last line, for any reference the scan cannot see.
 
   -- 3. A command queued for an accounting system for this purchase.
   if exists (select 1 from public.external_command_outbox o where o.org_id = v_org and o.domain = 'procurement'

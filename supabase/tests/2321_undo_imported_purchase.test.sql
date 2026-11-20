@@ -13,7 +13,7 @@
 --   delete without the org filter on the import lookup -> AC-CLUI-008 (other organisation); remove the payments count check -> the
 --   later-payment refusal; remove the catalog scan -> the purchase_requests refusal; remove the log_audit call -> AC-CLUI-009.
 begin;
-select plan(39);
+select plan(43);
 insert into organizations (id, name, default_currency) values
   ('23210000-0000-0000-0000-00000000000a','UI A','IDR'), ('23210000-0000-0000-0000-00000000000b','UI B','IDR');
 insert into auth.users (id, email) values
@@ -47,7 +47,9 @@ from (values
   ('U-5', '{"invoice":{"number":"INV-5","date":"2025-02-20","amount":500,"tax_treatment":"exclusive","tax_amount":0}}'::jsonb),
   ('U-6', '{"order":{"number":"PO-6","date":"2025-02-01","amount":60}}'::jsonb),
   ('U-7', '{"order":{"number":"PO-7","date":"2025-02-01","amount":70}}'::jsonb),
-  ('U-8', '{"order":{"number":"PO-8","date":"2025-02-01","amount":80}}'::jsonb)
+  ('U-8', '{"order":{"number":"PO-8","date":"2025-02-01","amount":80}}'::jsonb),
+  ('U-9', '{"lines":[{"name":"Valve","quantity":3,"rate":10}],"receipt":{"number":"GR-9","date":"2025-02-10","status":"Complete"}}'::jsonb),
+  ('U-10', '{"lines":[{"name":"Gasket","quantity":2,"rate":5}],"invoice":{"number":"INV-10","date":"2025-02-20","amount":10,"tax_treatment":"exclusive","tax_amount":0}}'::jsonb)
 ) v(k, extra);
 create temp table out_t(label text primary key, j jsonb);
 grant all on out_t to authenticated;
@@ -119,8 +121,8 @@ select is((select (select count(*) from public.procurement_items where procureme
                + (select count(*) from public.purchase_orders where procurement_id=(select id from ids_t where k='U-1'))
                + (select count(*) from public.procurement_invoices where procurement_id=(select id from ids_t where k='U-1'))
                + (select count(*) from public.procurement_status_events where procurement_id=(select id from ids_t where k='U-1')))::int, 0, 'AC-CLUI-007 its items, order, invoice and status events are gone');
-select is((select count(*)::int from public.purchase_history_imports where org_id='23210000-0000-0000-0000-00000000000a'), 7, 'AC-CLUI-007 the other seven imports of the organisation remain');
-select is((select count(*)::int from public.procurements where org_id='23210000-0000-0000-0000-00000000000a'), 8, 'AC-CLUI-007 the other imported purchases and the hand-entered one remain');
+select is((select count(*)::int from public.purchase_history_imports where org_id='23210000-0000-0000-0000-00000000000a'), 9, 'AC-CLUI-007 the other nine imports of the organisation remain');
+select is((select count(*)::int from public.procurements where org_id='23210000-0000-0000-0000-00000000000a'), 10, 'AC-CLUI-007 the other imported purchases and the hand-entered one remain');
 select ok(exists (select 1 from public.procurements where id='23210000-0000-0000-0000-0000000000f1')
           and (select count(*) from public.procurement_items where procurement_id='23210000-0000-0000-0000-0000000000f1') = 1
           and (select count(*) from public.purchase_orders where procurement_id='23210000-0000-0000-0000-0000000000f1') = 1, 'AC-CLUI-007 the purchase entered by hand is unchanged');
@@ -160,6 +162,13 @@ insert into procurement_items (org_id, procurement_id, name, quantity, rate) val
   ('23210000-0000-0000-0000-00000000000a', (select id from ids_t where k='U-7'), 'Added later', 1, 5);
 insert into purchase_requests (org_id, procurement_id, pr_number, status) values
   ('23210000-0000-0000-0000-00000000000a', (select id from ids_t where k='U-8'), 'PR-LATE', 'Draft');
+insert into procurement_receipt_lines (receipt_id, item_id, org_id, quantity, recorded_by) values
+  ((select id from procurement_receipts where procurement_id=(select id from ids_t where k='U-9')),
+   (select id from procurement_items where procurement_id=(select id from ids_t where k='U-9')),
+   '23210000-0000-0000-0000-00000000000a', 3, '23210000-0000-0000-0000-0000000000a1');
+insert into procurement_bill_matches (invoice_id, org_id, recorded_by) values
+  ((select id from procurement_invoices where procurement_id=(select id from ids_t where k='U-10')),
+   '23210000-0000-0000-0000-00000000000a', '23210000-0000-0000-0000-0000000000a1');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"23210000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is(public.undo_imported_purchase('U-5','Wrong project',true)->>'reason', 'has_later_records', 'AC-CLUI-010 a later payment refuses the undo (preview)');
@@ -171,9 +180,18 @@ select is((public.undo_imported_purchase('U-3','Wrong vendor',false)->'blocked_b
 select is((public.undo_imported_purchase('U-6','Wrong vendor',false)->'blocked_by')::text, '["procurement_status_events"]', 'AC-CLUI-010 a later status change refuses the undo');
 select is((public.undo_imported_purchase('U-7','Wrong vendor',false)->'blocked_by')::text, '["procurement_items"]', 'AC-CLUI-010 an item added later refuses the undo');
 select is((public.undo_imported_purchase('U-8','Wrong vendor',false)->'blocked_by')::text, '["purchase_requests"]', 'AC-CLUI-010 a row in another table that references the purchase refuses the undo');
+select ok((public.undo_imported_purchase('U-9','Wrong vendor',false)->'blocked_by') @> '["procurement_receipt_lines"]'::jsonb, 'AC-CLUI-010 a receipt line recorded on the imported receipt refuses the undo (a cascading child)');
+select ok((public.undo_imported_purchase('U-10','Wrong vendor',false)->'blocked_by') @> '["procurement_bill_matches"]'::jsonb, 'AC-CLUI-010 a bill match recorded on the imported invoice refuses the undo (a cascading child)');
 reset role;
+select ok(exists (select 1 from public.procurement_receipt_lines where receipt_id=(select id from procurement_receipts where procurement_id=(select id from ids_t where k='U-9')))
+          and exists (select 1 from public.procurement_receipts where procurement_id=(select id from ids_t where k='U-9'))
+          and exists (select 1 from public.procurement_items where procurement_id=(select id from ids_t where k='U-9'))
+          and exists (select 1 from public.purchase_history_imports where import_key='U-9' and org_id='23210000-0000-0000-0000-00000000000a'), 'AC-CLUI-010 the refused receipt-line case deleted nothing');
+select ok(exists (select 1 from public.procurement_bill_matches where invoice_id=(select id from procurement_invoices where procurement_id=(select id from ids_t where k='U-10')))
+          and exists (select 1 from public.procurement_invoices where procurement_id=(select id from ids_t where k='U-10'))
+          and exists (select 1 from public.purchase_history_imports where import_key='U-10' and org_id='23210000-0000-0000-0000-00000000000a'), 'AC-CLUI-010 the refused bill-match case deleted nothing');
 select is((select count(*)::int from public.audit_events where action='procurement.history_import_undo'), 2, 'AC-CLUI-010 refusals write no audit event (only the two undone imports are audited)');
-select is((select count(*)::int from public.purchase_history_imports where org_id='23210000-0000-0000-0000-00000000000a' and import_key in ('U-3','U-4','U-5','U-6','U-7','U-8')), 6, 'AC-CLUI-010 the refused imports keep their records');
+select is((select count(*)::int from public.purchase_history_imports where org_id='23210000-0000-0000-0000-00000000000a' and import_key in ('U-3','U-4','U-5','U-6','U-7','U-8','U-9','U-10')), 8, 'AC-CLUI-010 the refused imports keep their records');
 
 select * from finish();
 rollback;
