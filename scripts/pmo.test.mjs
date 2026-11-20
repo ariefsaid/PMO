@@ -1148,10 +1148,31 @@ test('AC-DOC-CLI-019: the CLI document-register write tier matches the guard tie
 
 test('AC-TVC-007: the CLI active-Admin rpc tier matches the guard tier', () => {
   assert.deepEqual(guardList('admin_cli_rpcs'), [...ADMIN_RPCS].sort());
-  assert.deepEqual([...ADMIN_RPCS], ['recategorise_budget_lines']);
+  assert.deepEqual([...ADMIN_RPCS], ['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation']);
   for (const name of ADMIN_RPCS) {
     assert.equal(ALLOWED_RPCS.includes(name), false, `${name} is Admin-only, not in the ordinary tier`);
     assert.equal(LOAD_RPCS.includes(name), false, `${name} is not a load-only RPC`);
+  }
+});
+
+test('account recovery RPCs send exact arguments', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    for (const [name, args] of [
+      ['list_account_reconciliation', {}],
+      ['dispose_account_reconciliation', { p_id: '12345678-1234-1234-1234-123456789abc', p_reason: 'Verified absent in ERP', p_absent: true }],
+    ]) {
+      const result = await runCli(['rpc', name, JSON.stringify(args), '--url', fake.url], { configDir });
+      assert.equal(result.code, 0, result.err);
+      const call = fake.requests.find((q) => q.path === `/rest/v1/rpc/${name}`);
+      assert.equal(call.method, 'POST');
+      assert.deepEqual(JSON.parse(call.body), args);
+    }
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
   }
 });
 

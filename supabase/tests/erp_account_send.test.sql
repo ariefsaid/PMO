@@ -3,7 +3,7 @@
 -- expense group of the bound company; the queued send and the resulting map row are org-scoped. Also the DB half of AC-ECX-030: the
 -- drain's result links the category to the created account once, and a category that has its account is never sent again.
 begin;
-select plan(99);
+select plan(113);
 
 insert into organizations (id, name) values
  ('a9110000-0000-0000-0000-000000000001','Accounts A'),
@@ -13,13 +13,15 @@ insert into auth.users (id, email) values
  ('a9110000-0000-0000-0000-0000000000f1','a911-finance@example.com'),
  ('a9110000-0000-0000-0000-0000000000c1','a911-pm@example.com'),
  ('a9110000-0000-0000-0000-0000000000f2','a911-finance-b@example.com'),
- ('a9110000-0000-0000-0000-0000000000f3','a911-finance-off@example.com');
+ ('a9110000-0000-0000-0000-0000000000f3','a911-finance-off@example.com'),
+ ('a9110000-0000-0000-0000-0000000000a3','a911-admin-off@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
  ('a9110000-0000-0000-0000-0000000000a1','a9110000-0000-0000-0000-000000000001','Admin A','a911-admin@example.com','Admin','active'),
  ('a9110000-0000-0000-0000-0000000000f1','a9110000-0000-0000-0000-000000000001','Finance A','a911-finance@example.com','Finance','active'),
  ('a9110000-0000-0000-0000-0000000000c1','a9110000-0000-0000-0000-000000000001','PM A','a911-pm@example.com','Project Manager','active'),
  ('a9110000-0000-0000-0000-0000000000f2','a9110000-0000-0000-0000-000000000002','Finance B','a911-finance-b@example.com','Finance','active'),
- ('a9110000-0000-0000-0000-0000000000f3','a9110000-0000-0000-0000-000000000001','Finance off','a911-finance-off@example.com','Finance','disabled');
+ ('a9110000-0000-0000-0000-0000000000f3','a9110000-0000-0000-0000-000000000001','Finance off','a911-finance-off@example.com','Finance','disabled'),
+ ('a9110000-0000-0000-0000-0000000000a3','a9110000-0000-0000-0000-000000000001','Admin off','a911-admin-off@example.com','Admin','disabled');
 insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, status, config, activated_at) values
  ('a9110000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','a911_a','active','{"company":"Example Co"}', now()),
  ('a9110000-0000-0000-0000-000000000002','erpnext','https://erp-b.example.test','a911_b','active','{"company":"Example Co"}', now());
@@ -290,10 +292,16 @@ select public.record_connect_account_unresolved('a9110000-0000-0000-0000-0000000
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f2","role":"authenticated"}';
+select throws_ok($$select * from public.list_account_reconciliation()$$, '42501', null, 'Finance cannot list account requests');
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, '42501', null, 'Finance cannot release an unresolved account');
 set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select count(*)::int from public.list_account_reconciliation() where id = current_setting('a911.disposition')::uuid), 0, 'another organisation cannot list the request');
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', true)$$, 'P0002', null, 'an Admin from another organisation cannot release the request');
 set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select results_eq($$select id, category, account_name, state from public.list_account_reconciliation() where id = current_setting('a911.disposition')::uuid$$,
+ $$select current_setting('a911.disposition')::uuid, 'Equipment'::text, 'Equipment original'::text, 'open'::text$$, 'the owning Admin sees the identifying fields');
+select is((select array_agg(k order by k) from (select jsonb_object_keys(to_jsonb(r)) k from public.list_account_reconciliation() r where id = current_setting('a911.disposition')::uuid) x), array['account_name','category','id','state']::text[], 'the list returns only selection fields');
+select is((select count(*)::int from public.list_account_reconciliation() where id = current_setting('a911.unresolved')::uuid), 0, 'resolved requests are excluded');
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, ' ', true)$$, '22023', null, 'a meaningful reason is required');
 select throws_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence', false)$$, '22023', null, 'an explicit absence attestation is required');
 reset role;
@@ -339,6 +347,7 @@ set local role authenticated;
 select throws_ok($$select public.release_outbox_hold(current_setting('a911.outbox')::uuid, 'Generic retry', 'accounts')$$,
  'P0001', null, 'generic outbox retry cannot release an unresolved account');
 select lives_ok($$select public.dispose_account_reconciliation(current_setting('a911.disposition')::uuid, 'Verified absence in the connected company', true)$$, 'an Admin may dispose of a terminal and unclaimable request with an attestation');
+select is((select count(*)::int from public.list_account_reconciliation() where id = current_setting('a911.disposition')::uuid), 0, 'disposed requests are excluded');
 select throws_ok($$select public.release_outbox_hold(current_setting('a911.outbox')::uuid, 'Generic retry', 'accounts')$$,
  'P0001', null, 'generic outbox retry cannot revive a disposed request');
 select lives_ok($$select public.request_account_send('erpnext','Equipment','Direct Expenses - EB','Corrected equipment')$$, 'only the disposed category is released');
@@ -346,6 +355,27 @@ set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f1","r
 select throws_ok($$select public.request_account_send('erpnext','Overheads','Direct Expenses - EC','Different account')$$, 'P0001', null, 'another unresolved category remains fenced after disposition');
 reset role;
 select is((select count(*)::int from audit_events where action = 'integration.account_reconciliation_disposition' and entity_id = current_setting('a911.disposition')::uuid), 1, 'the disposition is audited');
+
+-- The request guard admits only the two recovery RPCs to active Admin CLI clients.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"a9110000-0000-0000-0000-0000000000a2","role":"authenticated","client_id":"pmo-cli"}', true);
+select set_config('request.method', 'POST', true), set_config('request.path', '/rpc/list_account_reconciliation', true), set_config('request.headers', '{}', true);
+select lives_ok('select public.api_client_request_guard()', 'active Admin CLI can list requests');
+select set_config('request.path', '/rpc/dispose_account_reconciliation', true);
+select lives_ok('select public.api_client_request_guard()', 'active Admin CLI can dispose requests');
+select set_config('request.jwt.claims', '{"sub":"a9110000-0000-0000-0000-0000000000f2","role":"authenticated","client_id":"pmo-cli"}', true);
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'Finance CLI cannot dispose requests');
+select set_config('request.path', '/rpc/list_account_reconciliation', true);
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'Finance CLI cannot list requests');
+select set_config('request.jwt.claims', '{"sub":"a9110000-0000-0000-0000-0000000000a3","role":"authenticated","client_id":"pmo-cli"}', true);
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'inactive Admin CLI cannot list requests');
+select throws_ok('select * from public.list_account_reconciliation()', '42501', null, 'inactive Admin cannot list requests');
+select set_config('request.jwt.claims', '{"sub":"a9110000-0000-0000-0000-0000000000a2","role":"authenticated","client_id":"pmo-cli"}', true);
+select set_config('request.path', '/erp_connect_proposals', true), set_config('request.method', 'GET', true);
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'Admin CLI cannot read proposals directly');
+select set_config('request.path', '/rpc/record_connect_account_unresolved', true), set_config('request.method', 'POST', true);
+select throws_ok('select public.api_client_request_guard()', '42501', null, 'Admin CLI cannot call the internal writer');
+reset role;
 
 select * from finish();
 rollback;
