@@ -46,6 +46,8 @@ vi.mock('@/src/hooks/useTasks', async (orig) => ({
   useAssignableProfiles: () => ({ data: [] }),
 }));
 
+vi.mock('@/src/hooks/useTaskLinkedRecords', () => ({ useTaskLinkedRecords: () => ({ data: undefined }) }));
+
 import MyTasks from '../MyTasks';
 
 const renderMyTasks = () =>

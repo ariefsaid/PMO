@@ -38,6 +38,14 @@
     "paid": "Paid",
     "cancelled": "Cancelled"
   },
+  "materialRequest": {
+    "draft": "Draft",
+    "pending": "Waiting for approval",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "cancelled": "Withdrawn",
+    "fulfilled": "Delivered"
+  },
   "imprest": {
     "draft": "Draft",
     "submitted": "Submitted",

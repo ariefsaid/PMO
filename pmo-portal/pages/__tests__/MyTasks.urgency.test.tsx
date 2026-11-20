@@ -81,6 +81,8 @@ const renderMyTasks = () =>
   );
 
 // Import after mock declaration
+vi.mock('@/src/hooks/useTaskLinkedRecords', () => ({ useTaskLinkedRecords: () => ({ data: undefined }) }));
+
 import MyTasksComponent from '../MyTasks';
 
 beforeEach(() => {

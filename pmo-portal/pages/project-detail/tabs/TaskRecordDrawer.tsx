@@ -9,7 +9,8 @@ import {
   StatusPill,
 } from '@/src/components/ui';
 import { formatDay } from '@/src/lib/format';
-import type { TaskWithRefs } from '@/src/lib/db/tasks';
+import { recordLinkOf, type TaskWithRefs } from '@/src/lib/db/tasks';
+import { TaskLinkedRecord } from '@/src/components/tasks/TaskLinkedRecord';
 import { CommentsSection } from '@/src/components/comments/CommentsSection';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
@@ -55,6 +56,7 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
   proof,
 }) => {
   const { t } = useTranslation('project');
+  const { t: tTasks } = useTranslation('tasks');
   if (!task) return null;
   const subtasks = allTasks.filter((candidate) => candidate.parent_task_id === task.id && candidate.tombstoned_at == null);
   return <Drawer
@@ -89,6 +91,10 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
           <dt className="text-muted-foreground">{t('projectDetail.tasks.column.assignee', 'Assignee')}</dt><dd className="min-w-0 break-words">{task.assignee?.full_name ?? t('projectDetail.tasks.unassigned', 'Unassigned')}</dd>
           <dt className="text-muted-foreground">{t('projectDetail.tasks.column.due', 'Due')}</dt><dd>{task.end_date ? formatDay(task.end_date) : '—'}</dd>
           <dt className="text-muted-foreground">{t('projectDetail.tasks.form.priority', 'Priority')}</dt><dd>{task.priority ?? t('projectDetail.tasks.noPriority', 'No priority')}</dd>
+          {recordLinkOf(task) && <>
+            <dt className="text-muted-foreground">{tTasks('linkedRecord.region', 'Linked record')}</dt>
+            <dd className="min-w-0 break-words"><TaskLinkedRecord task={task} /></dd>
+          </>}
           <dt className="text-muted-foreground">{t('projectDetail.tasks.form.dependsOnLegend', 'Depends on')}</dt><dd className="min-w-0 break-words">{task.dependencies.length ? task.dependencies.map((dependency) => allTasks.find((candidate) => candidate.id === dependency.depends_on_id)?.name ?? dependency.depends_on_id).join(', ') : t('projectDetail.tasks.drawer.noDependencies', 'No dependencies are linked.')}</dd>
         </dl>
       </section>

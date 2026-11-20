@@ -535,6 +535,12 @@ export interface MyTask {
    * the row must SAY it is archived instead of looking like ordinary open work. null = live.
    */
   archived_at: string | null;
+  /** #2587: the one record this task follows, and why the system closed it (both null for an ordinary task). */
+  procurement_id?: string | null;
+  expense_claim_id?: string | null;
+  material_request_id?: string | null;
+  closed_by_record_type?: string | null;
+  closed_by_record_status?: string | null;
 }
 
 /**
@@ -548,7 +554,7 @@ export interface MyTask {
 export async function listMyTasks(userId: string): Promise<MyTask[]> {
   const data = await fetchAllPages((from, to) => supabase
     .from('tasks')
-    .select('id, name, status, assignee_id, project_id, meeting_id, work_order_id, start_date, end_date, priority, archived_at, work_order:work_orders!tasks_work_order_id_fkey(wo_number,title), project:projects!tasks_project_id_fkey(name, short_name)')
+    .select('id, name, status, assignee_id, project_id, meeting_id, work_order_id, start_date, end_date, priority, archived_at, procurement_id, expense_claim_id, material_request_id, closed_by_record_type, closed_by_record_status, work_order:work_orders!tasks_work_order_id_fkey(wo_number,title), project:projects!tasks_project_id_fkey(name, short_name)')
     .eq('assignee_id', userId)
     .is('tombstoned_at', null)
     .order('created_at', { ascending: true })
@@ -568,6 +574,11 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     end_date: string | null;
     priority: TaskPriority | null;
     archived_at: string | null;
+    procurement_id?: string | null;
+    expense_claim_id?: string | null;
+    material_request_id?: string | null;
+    closed_by_record_type?: string | null;
+    closed_by_record_status?: string | null;
     project: { name: string; short_name?: string | null } | null;
   }>).map((t) => ({
     id: t.id,
@@ -587,6 +598,11 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     end_date: t.end_date,
     priority: t.priority ?? null,
     archived_at: t.archived_at ?? null,
+    procurement_id: t.procurement_id ?? null,
+    expense_claim_id: t.expense_claim_id ?? null,
+    material_request_id: t.material_request_id ?? null,
+    closed_by_record_type: t.closed_by_record_type ?? null,
+    closed_by_record_status: t.closed_by_record_status ?? null,
   }));
 }
 

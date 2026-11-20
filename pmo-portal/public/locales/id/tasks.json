@@ -52,5 +52,40 @@
     "label": "Filter berdasarkan perintah kerja",
     "all": "Semua perintah kerja",
     "none": "Tanpa perintah kerja"
+  },
+  "linkedRecord": {
+    "type": {
+      "procurement": "Pembelian",
+      "expense_claim": "Klaim biaya",
+      "material_request": "Permintaan material"
+    },
+    "typeLower": {
+      "procurement": "pembelian",
+      "expense_claim": "klaim biaya",
+      "material_request": "permintaan material"
+    },
+    "region": "Catatan terkait",
+    "unreadable": "{{type}} · catatan terkait yang tidak dapat Anda lihat",
+    "open": "Buka {{type}} {{label}}",
+    "closedBy": "Ditutup otomatis: {{type}} berstatus {{status}}.",
+    "followUp": {
+      "create": "Buat tugas tindak lanjut",
+      "open": "Buka tugas tindak lanjut",
+      "dialogTitle": "Tugas tindak lanjut",
+      "nameLabel": "Apa yang perlu ditindaklanjuti?",
+      "namePlaceholder": "Misalnya: tagih pemasok",
+      "assigneeLabel": "Ditugaskan kepada",
+      "unassigned": "Belum ditugaskan",
+      "save": "Buat tugas",
+      "cancel": "Batal",
+      "created": "Tugas tindak lanjut dibuat.",
+      "alreadyOpen": "Catatan ini sudah punya tugas yang masih terbuka. Membukanya."
+    },
+    "field": {
+      "label": "Mengikuti sebuah catatan",
+      "none": "Tidak ada catatan terkait",
+      "hint": "Tugas menampilkan status catatan ini dan menutup sendiri saat catatan selesai.",
+      "locked": "Tugas yang memerlukan bukti penyelesaian tidak dapat mengikuti catatan."
+    }
   }
 }
