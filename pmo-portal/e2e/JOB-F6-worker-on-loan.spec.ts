@@ -37,7 +37,7 @@ test('JOB-F6 a worker moved to the host crew serves its work order today and lea
   await page.getByRole('button', { name: `Show the people in ${run} crew A` }).click();
   await page.getByRole('row', { name: new RegExp(workerName) }).getByRole('button', { name: /actions|more/i }).click();
   await page.getByRole('menuitem', { name: 'End placement' }).click();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'End placement' }).click();
+  await page.getByRole('dialog', { name: 'End this placement?' }).getByRole('button', { name: 'End placement' }).click();
   await expect(visibleToast(page, 'Placement ended')).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole('button', { name: `Show the people in ${run} crew B` }).click();

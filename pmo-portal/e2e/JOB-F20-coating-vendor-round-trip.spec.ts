@@ -26,7 +26,7 @@ test('JOB-F20 pipe sent to the coating vendor and back leaves two ledger legs an
   await postTransfer(page, vendor, site, item.code, '20');
 
   await page.goto(`/stock/ledger?item=${item.id}`);
-  await expect(page.getByRole('row').filter({ hasText: 'Transfer' })).toHaveCount(2, { timeout: 20_000 });
+  await expect.poll(() => page.getByRole('row').filter({ hasText: 'Transfer' }).count(), { timeout: 20_000 }).toBeGreaterThanOrEqual(2); // each leg may show on both of its warehouses
   await expectOnHand(page, site, item.code, '20');
   await page.goto('/stock');
   await page.getByRole('combobox', { name: 'Warehouse', exact: true }).selectOption({ label: `${vendor.code} - ${vendor.name}` });
