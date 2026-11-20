@@ -1,9 +1,9 @@
 -- invoice_pairs_erp_cancelled.test.sql — #1696 (AC-ECA-032): an accepted pair whose ERP invoice is later cancelled in the
 -- ERP. Pins the project invoice bucket, the retained pair and the manual undo. The post-undo candidate
 -- is an ordinary match, not proof of authoritative amendment identity.
--- Functions exercised (unchanged): accept_invoice_pairs, unpair_invoice, propose_invoice_pairs, get_project_finances.
+-- Functions exercised: accept_invoice_pairs, unpair_invoice, compare_and_unpair_invoice, propose_invoice_pairs, get_project_finances.
 begin;
-select plan(12);
+select plan(24);
 
 -- ── fixture (a server load: no JWT) ──────────────────────────────────────────────────────────────
 insert into public.organizations (id, name) values ('16960000-0000-0000-0000-000000000001', 'Cancelled pair org');
@@ -92,6 +92,12 @@ select is((select count(*)::int from public.propose_invoice_pairs()
             where pmo_invoice_id = '16960000-0000-0000-0000-0000000005a1'), 0,
           'AC-ECA-032 a paired PMO invoice is not proposed again while it is paired');
 
+-- Remember the reviewed pair and lifecycle before its replacement.
+create temporary table reviewed_pair as
+select n.paired_erp_invoice_id, n.paired_at, e.erp_docstatus, e.erp_cancelled_at
+from public.sales_invoices n join public.sales_invoices e on e.id = n.paired_erp_invoice_id
+where n.id = '16960000-0000-0000-0000-0000000005a1';
+
 -- ── undo, then re-pair with the amendment ────────────────────────────────────────────────────────
 select lives_ok($$select public.unpair_invoice('16960000-0000-0000-0000-0000000005a1')$$,
                 'AC-ECA-032 Finance can undo a pair whose ERP invoice is cancelled');
@@ -103,6 +109,64 @@ select is((select count(*)::int from public.propose_invoice_pairs()
           'AC-ECA-032 after undo ordinary matching proposes the live invoice');
 select is(public.accept_invoice_pairs('[{"pmo":"16960000-0000-0000-0000-0000000005a1","erp":"16960000-0000-0000-0000-0000000005e2"}]'::jsonb), 1,
           'AC-ECA-032 Finance accepts the ordinary match');
+
+
+-- The old confirmation cannot change the replacement or its attribution. Give the new pair a
+-- distinct witness because now() is transaction-stable in this fixture.
+reset role;
+set local request.jwt.claims = '{"role":"service_role"}';
+set local pmo.invoice_pairing = 'on';
+update public.sales_invoices set paired_at = paired_at + interval '1 second'
+where id = '16960000-0000-0000-0000-0000000005a1';
+set local pmo.invoice_pairing = 'off';
+create temporary table replacement_snapshot as
+select n.paired_erp_invoice_id, n.paired_at, n.paired_by, n.paired_filled, e.project_id, e.work_order_id, e.billing_kind
+from public.sales_invoices n join public.sales_invoices e on e.id = n.paired_erp_invoice_id
+where n.id = '16960000-0000-0000-0000-0000000005a1';
+insert into public.organizations (id, name) values ('16960000-0000-0000-0000-000000000002', 'Other pair org');
+insert into auth.users (id, email) values
+ ('16960000-0000-0000-0000-0000000000a2', 'cpair-engineer@example.test'),
+ ('16960000-0000-0000-0000-0000000000a3', 'cpair-inactive@example.test'),
+ ('16960000-0000-0000-0000-0000000000b1', 'cpair-other@example.test');
+insert into public.profiles (id, org_id, full_name, email, role, status) values
+ ('16960000-0000-0000-0000-0000000000a2', '16960000-0000-0000-0000-000000000001', 'Engineer', 'cpair-engineer@example.test', 'Engineer', 'active'),
+ ('16960000-0000-0000-0000-0000000000a3', '16960000-0000-0000-0000-000000000001', 'Inactive', 'cpair-inactive@example.test', 'Finance', 'disabled'),
+ ('16960000-0000-0000-0000-0000000000b1', '16960000-0000-0000-0000-000000000002', 'Other', 'cpair-other@example.test', 'Finance', 'active');
+grant select on reviewed_pair, replacement_snapshot to authenticated;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"16960000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select public.compare_and_unpair_invoice('16960000-0000-0000-0000-0000000005a1', paired_erp_invoice_id, paired_at, erp_docstatus, erp_cancelled_at) from reviewed_pair$$,
+ '23514', 'pair changed; review it again', 'stale replacement confirmation is refused');
+select ok((select row(n.paired_erp_invoice_id,n.paired_at,n.paired_by,n.paired_filled,e.project_id,e.work_order_id,e.billing_kind)
+ is not distinct from row(s.paired_erp_invoice_id,s.paired_at,s.paired_by,s.paired_filled,s.project_id,s.work_order_id,s.billing_kind)
+ from public.sales_invoices n join public.sales_invoices e on e.id=n.paired_erp_invoice_id cross join replacement_snapshot s
+ where n.id='16960000-0000-0000-0000-0000000005a1'), 'replacement pair and attribution stay intact');
+-- Isolate the identity comparison with the current generation and lifecycle.
+select throws_ok($$select public.compare_and_unpair_invoice('16960000-0000-0000-0000-0000000005a1', '16960000-0000-0000-0000-0000000005e1', s.paired_at, 1, null) from replacement_snapshot s$$,
+ '23514', 'pair changed; review it again', 'different ERP identity is refused');
+-- Same identity, old generation must also refuse.
+select throws_ok($$select public.compare_and_unpair_invoice('16960000-0000-0000-0000-0000000005a1', s.paired_erp_invoice_id, s.paired_at - interval '1 second', 1, null) from replacement_snapshot s$$,
+ '23514', 'pair changed; review it again', 'stale generation is refused');
+-- The reviewed lifecycle was cancelled; the current ERP row is active.
+select throws_ok($$select public.compare_and_unpair_invoice('16960000-0000-0000-0000-0000000005a1', s.paired_erp_invoice_id, s.paired_at, 2, null) from replacement_snapshot s$$,
+ '23514', 'pair changed; review it again', 'changed lifecycle is refused');
+select throws_ok($$select public.compare_and_unpair_invoice('16960000-0000-0000-0000-0000000005a1', s.paired_erp_invoice_id, s.paired_at, 1, '2026-01-01T00:00:00Z') from replacement_snapshot s$$,
+ '23514', 'pair changed; review it again', 'changed lifecycle timestamp is refused');
+select ok((select row(n.paired_erp_invoice_id,n.paired_at,n.paired_by,n.paired_filled,e.project_id,e.work_order_id,e.billing_kind)
+ is not distinct from row(s.paired_erp_invoice_id,s.paired_at,s.paired_by,s.paired_filled,s.project_id,s.work_order_id,s.billing_kind)
+ from public.sales_invoices n join public.sales_invoices e on e.id=n.paired_erp_invoice_id cross join replacement_snapshot s
+ where n.id='16960000-0000-0000-0000-0000000005a1'), 'lifecycle refusal preserves pair and attribution');
+set local request.jwt.claims = '{"sub":"16960000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok($$select public.compare_and_unpair_invoice('16960000-0000-0000-0000-0000000005a1', paired_erp_invoice_id, paired_at, 1, null) from replacement_snapshot$$, '42501', null, 'Engineer cannot confirm undo');
+set local request.jwt.claims = '{"sub":"16960000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select throws_ok($$select public.compare_and_unpair_invoice('16960000-0000-0000-0000-0000000005a1', paired_erp_invoice_id, paired_at, 1, null) from replacement_snapshot$$, '23514', null, 'foreign Finance cannot confirm undo');
+set local request.jwt.claims = '{"sub":"16960000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select throws_ok($$select public.compare_and_unpair_invoice('16960000-0000-0000-0000-0000000005a1', paired_erp_invoice_id, paired_at, 1, null) from replacement_snapshot$$, '42501', null, 'inactive Finance cannot confirm undo');
+reset role;
+select ok(not has_function_privilege('anon', 'public.compare_and_unpair_invoice(uuid,uuid,timestamptz,integer,timestamptz)', 'execute'), 'anonymous callers cannot confirm undo');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"16960000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok($$select public.compare_and_unpair_invoice('16960000-0000-0000-0000-0000000005a1', paired_erp_invoice_id, paired_at, 1, null) from replacement_snapshot$$, 'same-org Finance can confirm the reviewed pair');
 
 select * from finish();
 rollback;

@@ -515,6 +515,8 @@
       "title": "Status faktur ERP tidak diketahui",
       "help": "Status faktur ERP belum dapat dipastikan. Tinjau pasangan sebelum memutuskan apakah akan membatalkannya."
     },
+    "undoChanged": "Pasangan atau status ERP berubah. Tinjau informasi terbaru dan coba lagi.",
+    "undoNeedsLifecycle": "Coba muat ulang status faktur ERP sebelum membatalkan pasangan ini.",
     "undoBodyUnknown": "Status faktur ERP tidak dapat dipastikan. Pembatalan pasangan dapat mengembalikan {{number}} sementara salinan ERP masih terhitung, sehingga penjualan dapat terhitung dua kali.",
     "undoBodyCancelled": "Faktur ERP {{erp}} dibatalkan. Batalkan pasangan agar {{number}} dihitung secara terpisah lagi.",
     "undoDone": "{{number}} kini dihitung secara terpisah lagi.",

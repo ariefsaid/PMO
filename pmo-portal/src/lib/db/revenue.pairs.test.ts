@@ -63,7 +63,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
   },
 }));
 
-import { proposeInvoicePairs, acceptInvoicePairs, unpairInvoice, getSalesInvoice, listUnpairedNativeInvoices, listAcceptedInvoicePairs } from './revenue';
+import { proposeInvoicePairs, acceptInvoicePairs, unpairInvoice, compareAndUnpairInvoice, getSalesInvoice, listUnpairedNativeInvoices, listAcceptedInvoicePairs } from './revenue';
 
 beforeEach(() => { h.rpc.mockReset(); h.pages = []; h.notCalls = []; h.single = null; h.inCalls = []; h.rpcPageQueries = []; h.reads = []; h.pageError = null; h.errors = []; });
 
@@ -126,6 +126,15 @@ describe('invoice pairing DAL (ECA-5)', () => {
     await expect(unpairInvoice('n1')).rejects.toMatchObject({ code: '23514', details: 'not-paired' });
   });
 
+  it('sends the reviewed pair and lifecycle to the guarded undo', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: null });
+    await compareAndUnpairInvoice({ pmoInvoiceId: 'n1', erpInvoiceId: 'e1', pairedAt: '2026-11-02T01:00:00Z', erpLifecycle: { docstatus: 2, cancelledAt: null } });
+    expect(h.rpc).toHaveBeenCalledWith('compare_and_unpair_invoice', {
+      p_pmo_id: 'n1', p_expected_erp_id: 'e1', p_expected_paired_at: '2026-11-02T01:00:00Z',
+      p_expected_docstatus: 2, p_expected_cancelled_at: null,
+    });
+  });
+
   it('M10 getSalesInvoice carries the ERP invoice number a paired copy counts as', async () => {
     h.single = { id: 'n1', paired_erp_invoice_id: 'e1', companies: null, sales_invoice_authors: [] };
     h.pages = [[{ id: 'e1', si_number: 'SI-9' }]];
@@ -180,9 +189,11 @@ describe('invoice pairing DAL (ECA-5)', () => {
 
     const rows = await listAcceptedInvoicePairs();
 
+    expect(rows[0]).toMatchObject({ erpInvoiceId: 'e1', erpLifecycle: { docstatus: 1, cancelledAt: null } });
     expect(h.notCalls).toContainEqual(['paired_erp_invoice_id', 'is', null]);
     expect(h.inCalls).toContainEqual(['id', ['e1']]);
     expect(rows).toEqual([{ pmoInvoiceId: 'n1', pmoNumber: 'PMO-1', amount: 11100, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z',
+      erpInvoiceId: 'e1', erpLifecycle: { docstatus: 1, cancelledAt: null },
       erpNumber: 'SI-1', erpCancelled: false, erpReplacedBy: null }]);
     expect(h.inCalls).not.toContainEqual(['erp_amended_from', expect.anything()]);
   });
@@ -229,7 +240,7 @@ describe('invoice pairing DAL (ECA-5)', () => {
 
   it('does not treat a missing ERP invoice as verified active', async () => {
     h.pages = [[{ id: 'n1', pmo_number: 'PMO-1', amount: 100, currency: 'IDR', paired_at: '2026-11-02', paired_erp_invoice_id: 'e1' }], []];
-    expect((await listAcceptedInvoicePairs())[0]).toMatchObject({ erpCancelled: null });
+    expect((await listAcceptedInvoicePairs())[0]).toMatchObject({ erpCancelled: null, erpLifecycle: null, lifecycleReadFailed: true });
   });
 
   it('does not name a replacement without verified identity', async () => {

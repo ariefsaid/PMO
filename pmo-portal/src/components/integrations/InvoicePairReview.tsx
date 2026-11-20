@@ -117,15 +117,18 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
   };
 
   const undo = async () => {
-    if (!undoing) return;
+    if (!currentUndoing?.erpLifecycle) return;
+    const reviewed = { ...currentUndoing, erpLifecycle: currentUndoing.erpLifecycle };
     setSaving(true);
     setError(null);
     setNotice(null);
     try {
-      await repositories.revenue.unpairInvoice(undoing.pmoInvoiceId);
-      setNotice(t('invoicePairs.undoDone', '{{number}} counts on its own again.', { number: undoing.pmoNumber ?? '-' }));
-    } catch {
-      setError(t('invoicePairs.undoFailed', 'Nothing was changed. The pair may already be undone; the list has been reloaded.'));
+      await repositories.revenue.compareAndUnpairInvoice(reviewed);
+      setNotice(t('invoicePairs.undoDone', '{{number}} counts on its own again.', { number: reviewed.pmoNumber ?? '-' }));
+    } catch (e) {
+      setError(e instanceof AppError && e.details === 'pair-changed'
+        ? t('invoicePairs.undoChanged', 'The pair or ERP status changed. Review the refreshed information and try again.')
+        : t('invoicePairs.undoFailed', 'Nothing was changed. The pair may already be undone; the list has been reloaded.'));
     } finally {
       setSaving(false);
       setUndoing(null);
@@ -284,12 +287,15 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
       <ConfirmDialog
         open={currentUndoing !== null}
         title={t('invoicePairs.undoTitle', 'Count {{number}} on its own again?', { number: currentUndoing?.pmoNumber ?? '-' })}
-        description={currentUndoing != null && currentUndoing.erpCancelled == null
+        description={currentUndoing != null && !currentUndoing.erpLifecycle
+          ? t('invoicePairs.undoNeedsLifecycle', 'Retry loading the ERP invoice status before undoing this pair.')
+          : currentUndoing != null && currentUndoing.erpCancelled == null
           ? t('invoicePairs.undoBodyUnknown', 'The ERP invoice status could not be confirmed. Undo may restore {{number}} while the ERP copy is still counted, so the sale may be counted twice.', { number: currentUndoing.pmoNumber ?? '-' })
           : currentUndoing?.erpCancelled
           ? t('invoicePairs.undoBodyCancelled', 'ERP invoice {{erp}} is cancelled. Undo the pair to count {{number}} on its own again.', { number: currentUndoing.pmoNumber ?? '-', erp: currentUndoing.erpNumber ?? '-' })
           : t('invoicePairs.undoBody', 'The PMO invoice goes back into revenue and receivables. The ERP invoice {{erp}} stays, so if both count, the sale shows twice until you pair them again.', { erp: currentUndoing?.erpNumber ?? '-' })}
         confirmLabel={t('invoicePairs.undo', 'Undo')}
+        confirmDisabled={!currentUndoing?.erpLifecycle}
         loading={saving}
         onConfirm={() => void undo()}
         onCancel={() => setUndoing(null)}

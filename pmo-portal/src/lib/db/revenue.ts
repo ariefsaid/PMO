@@ -751,6 +751,8 @@ export interface AcceptedInvoicePair {
   amount: number;
   currency: string;
   pairedAt: string;
+  erpInvoiceId: string;
+  erpLifecycle: { docstatus: number | null; cancelledAt: string | null } | null;
   erpNumber: string | null;
   /** The ERP invoice this PMO copy is paired with was cancelled in the ERP (#1696). */
   erpCancelled: boolean | null;
@@ -815,6 +817,18 @@ export async function unpairInvoice(pmoInvoiceId: string): Promise<void> {
   if (error) throwWrite(error);
 }
 
+export async function compareAndUnpairInvoice(pair: {
+  pmoInvoiceId: string; erpInvoiceId: string; pairedAt: string;
+  erpLifecycle: { docstatus: number | null; cancelledAt: string | null };
+}): Promise<void> {
+  const { error } = await supabase.rpc('compare_and_unpair_invoice', {
+    p_pmo_id: pair.pmoInvoiceId, p_expected_erp_id: pair.erpInvoiceId,
+    p_expected_paired_at: pair.pairedAt, p_expected_docstatus: pair.erpLifecycle.docstatus,
+    p_expected_cancelled_at: pair.erpLifecycle.cancelledAt,
+  });
+  if (error) throwWrite(error);
+}
+
 export async function listUnpairedNativeInvoices(): Promise<UnpairedNativeInvoice[]> {
   type Row = { invoice_id: string; pmo_number: string | null; customer_name: string | null; invoice_date: string | null;
     amount: number; currency: string; reason: string };
@@ -853,10 +867,11 @@ export async function listAcceptedInvoicePairs(): Promise<AcceptedInvoicePair[]>
     const cancelled = !erp ? null : erpIsCancelled(erp) ? true : erp.erp_docstatus === 1 ? false : null;
     return {
       pmoInvoiceId: r.id, pmoNumber: r.pmo_number, amount: Number(r.amount ?? 0), currency: r.currency,
-      pairedAt: r.paired_at, erpNumber: erp?.si_number ?? null, erpCancelled: cancelled,
+      pairedAt: r.paired_at, erpInvoiceId: r.paired_erp_invoice_id,
+      erpLifecycle: erp ? { docstatus: erp.erp_docstatus, cancelledAt: erp.erp_cancelled_at } : null, erpNumber: erp?.si_number ?? null, erpCancelled: cancelled,
       // The mirror does not carry enough source identity to verify an amendment.
       erpReplacedBy: null,
-      ...(lifecycleReadFailed ? { lifecycleReadFailed: true } : {}),
+      ...(lifecycleReadFailed || !erp ? { lifecycleReadFailed: true } : {}),
     };
   });
 }

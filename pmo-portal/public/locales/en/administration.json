@@ -515,6 +515,8 @@
       "title": "ERP invoice status unknown",
       "help": "The ERP invoice status could not be confirmed. Review the pair before deciding whether to undo it."
     },
+    "undoChanged": "The pair or ERP status changed. Review the refreshed information and try again.",
+    "undoNeedsLifecycle": "Retry loading the ERP invoice status before undoing this pair.",
     "undoBodyUnknown": "The ERP invoice status could not be confirmed. Undo may restore {{number}} while the ERP copy is still counted, so the sale may be counted twice.",
     "undoBodyCancelled": "ERP invoice {{erp}} is cancelled. Undo the pair to count {{number}} on its own again.",
     "undoDone": "{{number}} counts on its own again.",
