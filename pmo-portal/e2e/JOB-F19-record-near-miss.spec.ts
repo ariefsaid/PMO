@@ -35,7 +35,7 @@ test('JOB-F19 a near miss recorded on a work order is in the register with the w
   await dialog.getByRole('button', { name: /^file incident$/i }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
 
-  await page.getByRole('button', { name: new RegExp(`open ${run} near miss`, 'i') }).click();
+  await page.getByRole('link', { name: new RegExp(`open ${run} near miss`, 'i') }).click();
   await expect(page.getByText(wo.title).first()).toBeVisible({ timeout: 20_000 });
   const now = new Date();
   const today = `${now.getDate()} ${now.toLocaleDateString('en-GB', { month: 'short' })}`; // the year is dropped within the current year

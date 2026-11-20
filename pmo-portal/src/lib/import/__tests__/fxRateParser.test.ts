@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseFxDate, parseFxRate, parseFxRows } from '../fxRateParser';
+import { parseFxRate, parseFxRows } from '../fxRateParser';
 import type { WorkbookCell, WorkbookGrid } from '../readWorkbookGrid';
 
 const cell = (value: string | number | Date | null, formula = false): WorkbookCell => ({
@@ -10,8 +10,9 @@ const cell = (value: string | number | Date | null, formula = false): WorkbookCe
 const grid = (
   rows: (string | number | Date | null)[][],
   formulas: [number, number][] = [],
+  date1904 = false,
 ): WorkbookGrid => ({
-  date1904: false,
+  date1904,
   rows: rows.map((row, r) =>
     row.map((value, c) =>
       cell(
@@ -60,32 +61,46 @@ describe('JISDOR input normalization', () => {
     ['9 October 2026', '2026-10-09'],
     ['9 Okt 2026', '2026-10-09'],
     ['29 Februari 2024', '2024-02-29'],
-  ])('parses calendar date %s', (input, expected) =>
-    expect(parseFxDate(input, false, '2026-10-14')).toBe(expected),
-  );
+  ])('AC-FX-005: normalizes calendar date %s to %s', (input, expected) => {
+    const parsed = parseFxRows(grid([['date', 'rate'], [input, 16234]]), '2026-10-14');
+    expect(parsed.rows).toEqual([{ rate_date: expected, rate: 16234 }]);
+    expect(parsed.rejected).toEqual([]);
+  });
 
-  it.each(['29 February 2026', '09/10', '2026-02-30', '2026-10-15'])(
-    'rejects invalid or future date %s',
-    (input) => expect(parseFxDate(input, false, '2026-10-14')).toBeNull(),
-  );
+  it.each([
+    ['29 February 2026', 'invalidDate'],
+    ['09/10', 'invalidDate'],
+    ['2026-02-30', 'invalidDate'],
+    ['2026-10-15', 'futureDate'],
+  ])('AC-FX-005: rejects invalid or future date %s', (input, reason) => {
+    const parsed = parseFxRows(grid([['date', 'rate'], [input, 16234]]), '2026-10-14');
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.rejected).toEqual([{ row: 2, value: String(input), reason }]);
+  });
 
-  it('keeps organization calendar day independent of process timezone', () => {
+  it('AC-FX-005: keeps the organization calendar day independent of process timezone', () => {
     const previous = process.env.TZ;
     try {
       for (const timezone of ['UTC', 'Asia/Jakarta', 'America/New_York']) {
         process.env.TZ = timezone;
-        expect(parseFxDate('09/10/2026', false, '2026-10-14')).toBe('2026-10-09');
+        expect(parseFxRows(grid([['date', 'rate'], ['09/10/2026', 16234]]), '2026-10-14').rows)
+          .toEqual([{ rate_date: '2026-10-09', rate: 16234 }]);
       }
     } finally {
       process.env.TZ = previous;
     }
   });
 
-  it('maps 1900 and 1904 serial epochs consistently and rejects the fictitious leap day', () => {
-    expect(parseFxDate(46304, false, '2026-10-14')).toBe('2026-10-09');
-    expect(parseFxDate(44842, true, '2026-10-14')).toBe('2026-10-09');
-    expect(parseFxDate(60, false, '2026-10-14')).toBeNull();
-    expect(parseFxDate(1.5, false, '2026-10-14')).toBeNull();
+  it('AC-FX-005: maps 1900 and 1904 serial epochs and rejects the fictitious leap day', () => {
+    expect(parseFxRows(grid([['date', 'rate'], [46304, 16234]]), '2026-10-14').rows)
+      .toEqual([{ rate_date: '2026-10-09', rate: 16234 }]);
+    expect(parseFxRows(grid([['date', 'rate'], [44842, 16234]], [], true), '2026-10-14').rows)
+      .toEqual([{ rate_date: '2026-10-09', rate: 16234 }]);
+    for (const serial of [60, 1.5]) {
+      const parsed = parseFxRows(grid([['date', 'rate'], [serial, 16234]]), '2026-10-14');
+      expect(parsed.rows).toEqual([]);
+      expect(parsed.rejected).toEqual([{ row: 2, value: String(serial), reason: 'invalidDate' }]);
+    }
   });
 
   it('AC-FX-005: finds the one BI header, preserves physical rows and ignores blank lines', () => {

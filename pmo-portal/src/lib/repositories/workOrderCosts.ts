@@ -5,6 +5,10 @@
  */
 import {
   listCostDisciplines,
+  createCostDiscipline,
+  updateCostDiscipline,
+  archiveCostDiscipline,
+  type CostDisciplineInput,
   setCostAttribution,
   listWorkOrderCostLines,
   groupCostLinesBySource,
@@ -17,7 +21,8 @@ import {
 import { listWorkOrderCostMoney, listWorkOrderCostLinks, listWorkOrderTimesheetLabels } from '@/src/lib/db/workOrderCostMoney';
 import { wrap } from './repositoryErrors';
 
-export type { CostAttribution, CostDiscipline, CostSource, WorkOrderCostLine };
+export type { CostAttribution, CostDiscipline, CostDisciplineInput, CostSource, WorkOrderCostLine };
+export { DISCIPLINE_CODE_MAX, DISCIPLINE_NAME_MAX } from '@/src/lib/db/workOrderCosts';
 export { NO_ATTRIBUTION, hasAttribution, COST_SOURCES } from '@/src/lib/db/workOrderCosts';
 
 /**
@@ -37,6 +42,10 @@ export class AttributionRefusedError extends Error {
 
 export const workOrderCostRepository = {
   disciplines: (): Promise<CostDiscipline[]> => wrap(() => listCostDisciplines()),
+  /** #2623: the Admin-kept list (RLS is the authority: Admin only, 0950). */
+  createDiscipline: (input: CostDisciplineInput): Promise<string> => wrap(() => createCostDiscipline(input)),
+  updateDiscipline: (id: string, input: CostDisciplineInput): Promise<void> => wrap(() => updateCostDiscipline(id, input)),
+  archiveDiscipline: (id: string): Promise<void> => wrap(() => archiveCostDiscipline(id)),
   setAttribution: (source: CostSource, ids: string[], attribution: CostAttribution): Promise<number> =>
     wrap(() => setCostAttribution(source, ids, attribution)),
   /**

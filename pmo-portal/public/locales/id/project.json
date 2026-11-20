@@ -244,6 +244,7 @@
         },
         "errors": {
           "claimWithdrawn": "Tagihan ini telah ditarik. Invoice-nya tidak dapat diterbitkan.",
+          "stagesIncomplete": "Selesaikan semua tahap penagihan klaim ini sebelum menerbitkan invoice-nya.",
           "alreadyInvoiced": "Tagihan ini sudah memiliki invoice.",
           "erpRaiseInFlight": "Invoice untuk tagihan ini masih diterbitkan di ERP. Tunggu sampai selesai.",
           "noClient": "Proyek ini belum punya klien untuk ditagih. Atur klien proyek terlebih dahulu.",
@@ -1132,7 +1133,8 @@
         "noDependencies": "Tidak ada dependensi yang ditautkan.",
         "subtasks": "Subtugas",
         "noSubtasks": "Belum ada subtugas.",
-        "history": "Riwayat"
+        "history": "Riwayat",
+        "workOrder": "Perintah kerja"
       },
       "noMilestone": "Tanpa fase",
       "drawerMoreActions": "Tindakan tugas lainnya",
@@ -1239,6 +1241,20 @@
       "ungrouped": "Tanpa fase",
       "zoomIn": "Perbesar",
       "zoomOut": "Perkecil"
+    },
+    "approvalPins": {
+      "title": "Penyetuju per langkah",
+      "intro": "Tetapkan satu orang untuk sebuah langkah di proyek ini. Tanpa penetapan, siapa pun dengan peran langkah itu dapat memutuskannya.",
+      "anyone": "Siapa pun dengan peran ini",
+      "pinnedTo": "Ditetapkan ke {{name}}",
+      "unpinned": "Setiap {{role}}",
+      "save": "Simpan",
+      "cleared": "Penetapan dihapus",
+      "saved": "Penetapan disimpan",
+      "step": "Langkah {{n}}: {{label}}",
+      "loadFailed": "Langkah persetujuan tidak dapat dimuat",
+      "stuck": "{{name}} tidak dapat lagi memutuskan langkah ini. Siapa pun dengan peran ini dapat memutuskannya sampai Anda memilih orang lain.",
+      "retry": "Coba lagi"
     },
     "projectIncidents": "Insiden proyek"
   },

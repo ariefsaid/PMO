@@ -35,7 +35,7 @@ test('JOB-F17 an open issue made into a task links back and lands in the owner\'
   await dialog.getByRole('button', { name: /^file incident$/i }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
 
-  await page.getByRole('button', { name: new RegExp(`open ${run} issue`, 'i') }).click();
+  await page.getByRole('link', { name: new RegExp(`open ${run} issue`, 'i') }).click();
   await page.getByTestId('incident-make-task').click();
   await expect(page.getByTestId('incident-task-linked')).toBeVisible({ timeout: 20_000 });
 

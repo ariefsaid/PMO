@@ -399,7 +399,7 @@ describe('CompanyDetail — primary contact + related opportunities (AC-CRM-CD-0
     // The first contact (alphabetically or by order) should appear as primary contact
     expect(screen.getByText(/primary contact/i)).toBeInTheDocument();
     // Should be a link navigating to the contact's page
-    const link = screen.getByRole('link', { name: /jane doe/i });
+    const link = screen.getByRole('link', { name: /^jane doe$/i });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute('href', '/contacts/ct1');
     expect(link.className).toContain('text-primary-text');

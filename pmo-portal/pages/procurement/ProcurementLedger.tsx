@@ -25,6 +25,7 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Button,
   DataTable,
   ReasonDialog,
   RecordSection,
@@ -58,6 +59,8 @@ import { useVendorWithholdingCoverage } from '@/src/hooks/useVendorWithholdingSl
 import { VendorWithholdingSlipCell } from './VendorWithholdingSlipCell';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
 import { voidBillErrorText } from './subcontractBillError';
+import { BillMatchDrawer } from './BillMatchDrawer';
+import { useBillMatches, useThreeWayMatchOn } from '@/src/hooks/useThreeWayMatch';
 import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
 
@@ -411,6 +414,15 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   // The slip coverage IS the coverage query: the ledger consumes the hook directly and derives
   // the map and retry from it (the hook keeps its query disabled while there are no invoices).
   const coverageQuery = useVendorWithholdingCoverage(invoices.map((invoice) => invoice.id));
+  // #2622: with the organisation's three-way match on, each live bill's match is read (the database decides scope and
+  // reports a bill outside it as not_applicable); a held bill is named in the ledger foot and its match opens a drawer.
+  const canViewMatch = may('view', 'billMatch');
+  const matchOn = useThreeWayMatchOn(canViewMatch).on;
+  const matchedBills = useMemo(() => invoices.filter((invoice) => !invoice.voided_at), [invoices]);
+  const billMatches = useBillMatches(matchedBills.map((invoice) => invoice.id), canViewMatch && matchOn);
+  const heldBills = matchedBills.filter((_, i) => billMatches[i]?.data?.status === 'held');
+  const [matchFor, setMatchFor] = useState<{ id: string; label: string } | null>(null);
+  const billLabel = (invoice: Pick<ProcurementInvoiceRow, 'vi_number' | 'reference_number'>) => invoice.vi_number ?? invoice.reference_number ?? t('procurement:threeWayMatch.menu', 'Three-way match');
   const withholdingCoverage = useMemo(
     () => Object.fromEntries((coverageQuery.data ?? []).map((row) => [row.invoice_id, row])),
     [coverageQuery.data],
@@ -606,6 +618,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           else if (coverage?.coverage_state === 'not-recorded' && invoice && vendorMissing && onSetVendor) items.push({ label: t('bupot.setVendor', 'Set supplier'), onClick: onSetVendor });
           else if (canWriteWithholdingSlip && coverage?.coverage_state === 'not-recorded' && invoice && !vendorMissing) items.push({ label: t('bupot.record', 'Record bukti potong'), onClick: () => onRecordWithholdingSlip?.(invoice) });
           items.push({ label: t('bupot.history', 'Bukti potong history'), onClick: () => onWithholdingHistory?.(row.recordId) });
+          if (canViewMatch && matchOn && invoice && !invoice.voided_at) items.push({ label: t('procurement:threeWayMatch.menu', 'Three-way match'), onClick: () => setMatchFor({ id: invoice.id, label: billLabel(invoice) }) });
           return items.length ? items : undefined;
         }}
         state={tableState}
@@ -634,6 +647,8 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           }}
         />
       )}
+
+      {matchFor && <BillMatchDrawer invoiceId={matchFor.id} billLabel={matchFor.label} onClose={() => setMatchFor(null)} />}
 
       {canVoidBill && voidTarget && (
         <VoidBillDialog
@@ -679,6 +694,12 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           busy={captureBusy}
           onCreate={handleCreate}
         />
+        {heldBills.map((invoice) => (
+          <div key={invoice.id} role="status" data-testid={`bill-match-held-${invoice.id}`} className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-destructive-text">{t('procurement:threeWayMatch.heldNotice', '{{bill}} is held by the three-way match, so payments wait.', { bill: billLabel(invoice) })}</span>
+            <Button variant="outline" size="sm" onClick={() => setMatchFor({ id: invoice.id, label: billLabel(invoice) })}>{t('procurement:threeWayMatch.review', 'Review match')}</Button>
+          </div>
+        ))}
         {billsHiddenForRole && (
           <p className="mt-3 text-sm text-muted-foreground" data-testid="ledger-bills-hidden-note">
             {t('procurement:ledger.billsHiddenForRole', 'Supplier invoices and payments are not shown for your role.')}

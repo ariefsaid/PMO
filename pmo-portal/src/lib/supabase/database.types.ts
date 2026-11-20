@@ -346,6 +346,39 @@ export type Database = {
         }
         Relationships: []
       }
+      approval_step_pins: {
+        Row: {
+          approver_id: string
+          created_at: string
+          created_by: string
+          id: string
+          org_id: string
+          position: number
+          project_id: string
+          role: Database["public"]["Enums"]["user_role"]
+        }
+        Insert: {
+          approver_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          org_id?: string
+          position: number
+          project_id: string
+          role: Database["public"]["Enums"]["user_role"]
+        }
+        Update: {
+          approver_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          org_id?: string
+          position?: number
+          project_id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+        }
+        Relationships: []
+      }
       contract_rate_assignees: {
         Row: {
           created_at: string
@@ -10927,6 +10960,7 @@ export type Database = {
           project_id: string | null
           received_date: string | null
           reference_number: string | null
+          retention_held: number | null
           si_number: string | null
           status: string
           tax_amount: number
@@ -13720,6 +13754,7 @@ export type Database = {
       }
     }
     Functions: {
+      retention_held: { Args: { "": Database["public"]["Tables"]["sales_invoices"]["Row"] }; Returns: number }
       set_work_order_plan: { Args: { p_project_id: string; p_work_order_id: string; p_changes: Json }; Returns: number }
       set_shared_cost_split: { Args: { p_project_id: string; p_split: Json }; Returns: number }
       clear_shared_cost_split: { Args: { p_project_id: string }; Returns: number }
@@ -13821,6 +13856,7 @@ export type Database = {
         Args: { p_delegator_id: string; p_ends_on: string; p_stand_in_id: string; p_starts_on: string }
         Returns: string
       }
+      mrq_set_step_pin: { Args: { p_approver_id: string; p_position: number; p_project_id: string }; Returns: undefined }
       mrq_submit: { Args: { p_client_request_id?: string; p_request_id: string }; Returns: undefined }
       mrq_waiting_for_me: {
         Args: never
@@ -13960,6 +13996,7 @@ export type Database = {
         Args: { p_allocation_id: string }
         Returns: undefined
       }
+      compare_and_unpair_invoice: { Args: { p_pmo_id: string; p_expected_erp_id: string; p_expected_paired_at: string; p_expected_docstatus: number | null; p_expected_cancelled_at: string | null }; Returns: undefined }
       unpair_invoice: { Args: { p_pmo_id: string }; Returns: undefined }
       assemble_tm_claim: {
         Args: {

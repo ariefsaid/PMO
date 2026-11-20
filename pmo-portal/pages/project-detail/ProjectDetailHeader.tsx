@@ -53,6 +53,7 @@ import { projectIconColor } from '../../components/projects';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
+import { ProjectApprovalPins } from './ProjectApprovalPins';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { projectLateDays } from '@/src/lib/projects/projectHealth';
 
@@ -623,6 +624,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
             </div>}
             <div className="border-b border-border px-3 py-3">
               <ProjectErpLink projectId={project.id} managerId={project.project_manager_id ?? null} />
+            </div>
+            <div className="border-b border-border px-3 py-3 empty:hidden">
+              <ProjectApprovalPins projectId={project.id} managerId={project.project_manager_id ?? null} />
             </div>
           </>
         )}

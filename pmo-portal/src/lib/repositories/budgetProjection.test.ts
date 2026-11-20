@@ -38,7 +38,6 @@ vi.mock('@/src/lib/db/budgets', () => ({ retryBudgetPush: retryBudgetPushMock })
 import {
   fetchBudgetComparison,
   fetchBudgetProjection,
-  fetchFirstSpendingYear,
   fetchBudgetPushStatus,
   fetchActiveBudgetCategoryPhasing,
   listBudgetFiscalYears,
@@ -83,19 +82,6 @@ describe('PMO fiscal calendar (#2329)', () => {
 
     mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'boom', code: '42501' } });
     await expect(fetchPmoFiscalCalendar('project-1')).rejects.toBeInstanceOf(AppError);
-  });
-});
-
-describe('first spending year summary', () => {
-  it('passes opaque years in their existing order and returns the server selection', async () => {
-    mockRpc.mockResolvedValueOnce({ data: 'FY-B', error: null });
-    await expect(fetchFirstSpendingYear('project', ['FY-B', 'FY-A'])).resolves.toBe('FY-B');
-    expect(mockRpc).toHaveBeenCalledWith('first_budget_spending_year', { p_project_id: 'project', p_fiscal_years: ['FY-B', 'FY-A'] });
-  });
-
-  it('surfaces a failed summary instead of inventing a result', async () => {
-    mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'unavailable', code: 'XX000' } });
-    await expect(fetchFirstSpendingYear('project', ['FY-B'])).rejects.toBeInstanceOf(AppError);
   });
 });
 
