@@ -152,15 +152,15 @@ const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
  * Rail unit harnesses can render without an AuthProvider; in the application the provider is
  * always present. Keep the data query behind that boundary so such shell-only renders stay pure.
  */
-const FinanceOverdueCount: React.FC = () => {
+const FinanceOverdueCount: React.FC<{ enabled: boolean }> = ({ enabled }) => {
   const auth = useContext(AuthContext);
   if (!auth) return null;
-  return <FinanceOverdueCountValue />;
+  return <FinanceOverdueCountValue enabled={enabled} />;
 };
 
-const FinanceOverdueCountValue: React.FC = () => {
+const FinanceOverdueCountValue: React.FC<{ enabled: boolean }> = ({ enabled }) => {
   const { t } = useTranslation();
-  const { data: count, isPending, isError } = useOverdueInvoiceCount();
+  const { data: count, isPending, isError } = useOverdueInvoiceCount(enabled);
   // Unknown is not zero: while the read is pending or failed there is no badge at all, and a
   // genuine zero prints nothing rather than a "0" that would read like work waiting.
   if (isPending || isError || count === undefined || count <= 0) return null;
@@ -244,6 +244,9 @@ const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
 const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false, hasEligibleTimesheets = false, onPreloadHref }) => {
   const { t } = useTranslation();
   const location = useLocation();
+  const [financeHovered, setFinanceHovered] = useState(false);
+  const [financeFocused, setFinanceFocused] = useState(false);
+  const financeCountEnabled = location.pathname.startsWith('/finance') || financeHovered || financeFocused;
   const inDrawer = useContext(RailDrawerContext);
   const { effectiveRole, realRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
@@ -388,7 +391,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         </>
       );
     }
-    if (item.to === '/finance') return <><span>{label}</span><FinanceOverdueCount /></>;
+    if (item.to === '/finance') return <><span>{label}</span><FinanceOverdueCount enabled={financeCountEnabled} /></>;
     return <span>{label}</span>;
   };
 
@@ -397,6 +400,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     // the override instead of NavLink's built-in URL-prefix matching.
     const isStageAware = railActiveOverride != null && STAGE_AWARE_PATHS.has(item.to);
     const isCompanyDirectoryLink = item.to === '/companies';
+    const onFinanceHover = item.to === '/finance' ? () => setFinanceHovered(true) : undefined;
+    const onFinanceLeave = item.to === '/finance' ? () => setFinanceHovered(false) : undefined;
+    const onFinanceFocus = item.to === '/finance' ? () => setFinanceFocused(true) : undefined;
+    const onFinanceBlur = item.to === '/finance' ? () => setFinanceFocused(false) : undefined;
 
     if (isCompanyDirectoryLink) {
       // A company record lives under Companies, so its page keeps Companies lit like its breadcrumb.
@@ -449,6 +456,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
           key={item.to}
           to={item.to}
           onClick={onNavigate}
+          onMouseEnter={onFinanceHover}
+          onMouseLeave={onFinanceLeave}
+          onFocus={onFinanceFocus}
+          onBlur={onFinanceBlur}
           aria-current="page"
           className={cn(NAV_LINK_BASE, 'bg-nav-selected-surface font-semibold text-nav-active-text')}
         >
@@ -464,6 +475,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         to={item.to}
         end={item.to === '/' || item.to.includes('?') || item.to.startsWith('/finance')}
         onClick={onNavigate}
+        onMouseEnter={onFinanceHover}
+        onMouseLeave={onFinanceLeave}
+        onFocus={onFinanceFocus}
+        onBlur={onFinanceBlur}
         className={({ isActive }: { isActive: boolean }) => {
           // A child page outside the module's URL (e.g. /erp-purchases under Procurement) lights its parent.
           const active = isActive || railParentForPath(location.pathname) === item.to;

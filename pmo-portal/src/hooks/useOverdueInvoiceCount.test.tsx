@@ -94,6 +94,31 @@ describe('useOverdueInvoiceCount', () => {
     expect(options?.refetchOnWindowFocus).toBe(false);
   });
 
+  it('does not read while disabled and starts the existing count query when enabled', async () => {
+    h.countOverdueInvoices.mockResolvedValue(3);
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useOverdueInvoiceCount(enabled),
+      { initialProps: { enabled: false }, wrapper: makeWrapper(makeClient()) },
+    );
+
+    expect(h.countOverdueInvoices).not.toHaveBeenCalled();
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.data).toBe(3));
+
+    expect(h.countOverdueInvoices).toHaveBeenCalledTimes(1);
+    expect(h.countOverdueInvoices).toHaveBeenCalledWith('2026-11-05');
+  });
+
+  it('returns a cached count while disabled without starting another read', () => {
+    const client = makeClient();
+    client.setQueryData(['overdue-invoice-count', 'org-1', '2026-11-05'], 4);
+    const { result } = renderHook(() => useOverdueInvoiceCount(false), { wrapper: makeWrapper(client) });
+
+    expect(result.current.data).toBe(4);
+    expect(result.current.isPending).toBe(false);
+    expect(h.countOverdueInvoices).not.toHaveBeenCalled();
+  });
+
   // Review finding 4: `staleTime` only marks a query stale — it schedules nothing, and focus
   // refetch is off for money reads. An invoice/payment write MUST invalidate the rail's key, or a
   // mounted rail keeps yesterday's overdue badge for the rest of the session.
