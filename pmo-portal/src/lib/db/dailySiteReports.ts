@@ -57,7 +57,7 @@ export interface DsrReportDetail {
 export interface DsrListOption { id: string; label: string }
 export interface DsrContractItem { id: string; boq_item_id: string; item_code: string; description: string; unit: string }
 export interface DsrEquipmentHours { id: string; asset_name: string; quantity: number; unit: string; kind: string; status: string }
-export interface DsrPeopleHours { id: string; hours: number }
+export interface DsrReportHours { peopleHours: string; equipment: DsrEquipmentHours[] }
 
 export interface DsrDraftInput {
   id?: string | null;
@@ -150,19 +150,19 @@ export async function listContractItems(workOrderId: string): Promise<DsrContrac
     .sort((a, b) => a.item_code.localeCompare(b.item_code) || (a.id < b.id ? -1 : 1));
 }
 
-/** FR-DSR-006: equipment usage already entered against this work order and date (read, never copied). */
-export async function listEquipmentHours(workOrderId: string, workDate: string): Promise<DsrEquipmentHours[]> {
-  const data = await fetchAllPages<{ id: string; quantity: number; unit: string; kind: string; status: string; equipment_assets: { name: string } | null }>((f, t) =>
-    db.from('equipment_usage_entries').select('id, quantity, unit, kind, status, equipment_assets(name)')
-      .eq('work_order_id', workOrderId).eq('work_date', workDate).is('archived_at', null).order('id').range(f, t));
-  return data.map((r) => ({ id: r.id, asset_name: r.equipment_assets?.name ?? '', quantity: Number(r.quantity), unit: r.unit, kind: r.kind, status: r.status }));
-}
-
-/** FR-DSR-007: people hours from timesheets on this work order and date, read-only (RLS decides what is visible). */
-export async function listPeopleHours(workOrderId: string, workDate: string): Promise<DsrPeopleHours[]> {
-  const data = await fetchAllPages<{ id: string; hours: number }>((f, t) =>
-    db.from('timesheet_entries').select('id, hours').eq('work_order_id', workOrderId).eq('entry_date', workDate).order('id').range(f, t));
-  return data.map((r) => ({ id: r.id, hours: Number(r.hours) }));
+/**
+ * FR-DSR-006/007: the hours for the report's work order and date, read through one org-scoped RPC (#2619) so an
+ * Engineer sees the whole crew, not only their own rows. Timesheet lines, attendance not yet on a timesheet and
+ * equipment usage; read-only, it never creates hours. `peopleHours` stays an exact decimal string.
+ */
+export async function reportHours(reportId: string): Promise<DsrReportHours> {
+  const { data, error } = await db.rpc('dsr_report_hours', { p_report: reportId });
+  if (error) fail(error);
+  const r = (data ?? {}) as { people_hours?: number | string | null; equipment?: Array<{ id: string; asset_name: string; quantity: number | string; unit: string; kind: string; status: string }> | null };
+  return {
+    peopleHours: String(r.people_hours ?? '0'),
+    equipment: (r.equipment ?? []).map((e) => ({ id: e.id, asset_name: e.asset_name ?? '', quantity: Number(e.quantity), unit: e.unit, kind: e.kind, status: e.status })),
+  };
 }
 
 export async function saveDraft(input: DsrDraftInput): Promise<string> {

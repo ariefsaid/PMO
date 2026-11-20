@@ -1,5 +1,5 @@
 import type {
-  DsrContractItem, DsrDraftInput, DsrEquipmentHours, DsrListFilter, DsrListOption, DsrPeopleHours, DsrPhoto,
+  DsrContractItem, DsrDraftInput, DsrListFilter, DsrListOption, DsrReportHours, DsrPhoto,
   DsrQueueRow, DsrReport, DsrReportDetail, DsrReportListRow, DsrRevenueLineRow,
 } from '@/src/lib/db/dailySiteReports';
 
@@ -10,8 +10,7 @@ export interface DailySiteReportRepository {
   listIdleReasons(): Promise<DsrListOption[]>;
   listWeatherConditions(): Promise<DsrListOption[]>;
   listContractItems(workOrderId: string): Promise<DsrContractItem[]>;
-  listEquipmentHours(workOrderId: string, workDate: string): Promise<DsrEquipmentHours[]>;
-  listPeopleHours(workOrderId: string, workDate: string): Promise<DsrPeopleHours[]>;
+  reportHours(reportId: string): Promise<DsrReportHours>;
   saveDraft(input: DsrDraftInput): Promise<string>;
   submit(id: string): Promise<void>;
   validate(id: string): Promise<void>;

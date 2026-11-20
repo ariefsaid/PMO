@@ -88,3 +88,16 @@ describe('writes', () => {
     expect(h.storage.remove).toHaveBeenCalledWith([path]);
   });
 });
+
+describe('#2619 report hours', () => {
+  it('reads the work order\'s hours through one RPC keyed on the report, keeping people hours exact', async () => {
+    h.result.value = { data: { people_hours: '12.50', equipment: [{ id: 'u1', asset_name: 'Excavator', quantity: '6.50', unit: 'hours', kind: 'work', status: 'Approved' }] }, error: null };
+    const out = await dal.reportHours('r1');
+    expect(h.rpcCalls).toEqual([['dsr_report_hours', { p_report: 'r1' }]]);
+    expect(out).toEqual({ peopleHours: '12.50', equipment: [{ id: 'u1', asset_name: 'Excavator', quantity: 6.5, unit: 'hours', kind: 'work', status: 'Approved' }] });
+  });
+  it('an RPC refusal is raised, not shown as zero hours', async () => {
+    h.result.value = { data: null, error: { message: 'report not found', code: 'P0002' } };
+    await expect(dal.reportHours('r1')).rejects.toBeInstanceOf(AppError);
+  });
+});
