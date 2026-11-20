@@ -777,6 +777,13 @@ readiness view.
 
 **Section allocation** — the planned quantity of one material assigned to a section, capped by the work order's plan for
 that material.
+## Supplier supply risk (#2583)
+
+**Supply-risk status** — a supplier's state as a source of supply: Active, At risk or Inactive, set by a person (Admin or Finance) with a reason and audited; it never changes by itself and blocks nothing.
+
+**Payables age** — whole calendar days from a supplier invoice's date to the organisation's today, for an unpaid invoice; with an ERP connected, the ERP's own aging buckets are used instead. It only suggests a supply-risk status.
+
+**Exposed work order** — a Draft or Issued work order that has at least one open purchase order (Issued or Acknowledged) from a given supplier; it is warned when that supplier is At risk or Inactive.
 
 ## Purchase history & figure language
 
