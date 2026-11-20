@@ -40,7 +40,7 @@ test('JOB-M1 the director sees plan, actual and the difference per work order, a
   const pva = page.getByTestId('wo-plan-vs-actual');
   const rowA = pva.getByTestId(`wo-pva-row-${a.id}`);
   const rowB = pva.getByTestId(`wo-pva-row-${b.id}`);
-  await expect(rowA).toBeVisible({ timeout: 30_000 }).catch(async (e) => { throw new Error('card text: ' + await page.getByTestId('wo-plan-vs-actual').innerText().catch(() => 'no pva card') + ' | ' + e); });
+  await expect(rowA).toBeVisible({ timeout: 30_000 });
   await expect(rowA).toContainText('400.00');          // plan
   await expect(rowA.getByTestId('wo-pva-direct')).toContainText('300.00');   // actual
   await expect(rowA.getByTestId('wo-pva-direct')).toContainText('100.00 left'); // difference

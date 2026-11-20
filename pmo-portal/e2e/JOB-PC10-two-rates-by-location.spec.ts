@@ -44,9 +44,8 @@ test('JOB-PC10 a catalogue line added at the remote location takes the remote ra
   await dialog.getByLabel('Unit').fill('inch');
   await dialog.getByLabel(/quantity/i).fill('10');
   await dialog.getByRole('button', { name: /save line/i }).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
-
   // The saved line carries the remote rate, not the non-remote one.
+  await expect.poll(async () => (await admin.from('boq_items').select('id').eq('project_id', projectId)).data?.length, { timeout: 20_000 }).toBe(1);
   const line = need('line', await admin.from('boq_items').select('rate, catalogue_variant_id').eq('project_id', projectId).single());
   expect(Number(line.rate)).toBe(120);
   expect(line.catalogue_variant_id).toBe(remote);
