@@ -561,4 +561,92 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
       assertEquals(calls.length, before);
     });
   });
+
+  it('AC-ECX-040 given the year ends >45 days away (not-due), the sweep records not-due observation and creates no next year', async () => {
+    const JUNE_1 = Date.parse('2026-06-01T09:00:00Z');
+    const w = world([CAL_2026]);
+    await withFetchMock(w.routes, async ({ calls }) => {
+      const res = await w.tick(JUNE_1);
+      assertEquals(res.perOrg[0].errors, []);
+      assertEquals(w.fake.writes().length, 0);
+      const obsRpc = rpcCall(calls, 'record_fiscal_year_observation');
+      assertEquals(obsRpc.length, 1);
+      assertEquals(
+        (obsRpc[0].bodyJson as { p_status: Record<string, unknown> }).p_status,
+        {
+          state: 'not-due',
+          checked_on: '2026-06-01',
+          company: COMPANY,
+          current: '2026',
+        },
+      );
+    });
+    assertEquals(w.binding.config.fiscal_year, {
+      state: 'not-due',
+      checked_on: '2026-06-01',
+      company: COMPANY,
+      current: '2026',
+    });
+  });
+
+  it('AC-ECX-040 a non-unreachable reservation error records needs-operator held state and alerts the operator', async () => {
+    const w = world([CAL_2026]);
+    const routes = [
+      supabaseRpc('begin_fiscal_year_post', () => jsonResponse(false)),
+      ...w.routes,
+    ];
+    await withFetchMock(routes, async ({ calls }) => {
+      const res = await w.tick(DEC_1);
+      assertEquals(res.perOrg[0].errors.length, 1);
+      assert(res.perOrg[0].errors[0].includes('fiscal year intent reservation refused or already attempted'));
+      assertEquals(w.fake.writes().length, 0);
+      const obsRpc = rpcCall(calls, 'record_fiscal_year_observation');
+      assert(obsRpc.length >= 1);
+      const lastObs = obsRpc[obsRpc.length - 1].bodyJson as { p_status: Record<string, unknown> };
+      assertEquals(lastObs.p_status.state, 'needs-operator');
+      assertEquals(lastObs.p_status.reason, 'held');
+      assert(typeof lastObs.p_status.intentId === 'string' && lastObs.p_status.intentId.length > 0);
+    });
+    const status = w.binding.config.fiscal_year as { state: string; reason: string; intentId: string };
+    assertEquals(status.state, 'needs-operator');
+    assertEquals(status.reason, 'held');
+    assert(typeof status.intentId === 'string' && status.intentId.length > 0);
+  });
+
+  it('AC-ECX-040 returns error when org company is not set', async () => {
+    const w = world([CAL_2026]);
+    await withFetchMock(w.routes, async () => {
+      const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const client = {
+        fetchImpl: (...a: Parameters<typeof fetch>) => fetch(...a),
+        apiKey: 'k',
+        apiSecret: 's',
+        baseUrl: `https://${HOST}`,
+        maxRetries: 0,
+      };
+      const res = await ensureOrgFiscalYearLive(
+        sc,
+        { orgId: 'org-a', company: '', config: {} },
+        () => Promise.resolve(client),
+        '2026-12-01',
+      );
+      assertEquals(res, { error: 'company-not-set' });
+    });
+  });
+
+  it('AC-ECX-040 prepare_fiscal_year_intent failure reports error and does not post', async () => {
+    const w = world([CAL_2026]);
+    const routes = [
+      supabaseRpc('prepare_fiscal_year_intent', () => jsonResponse({ message: 'db error' }, { status: 500 })),
+      ...w.routes,
+    ];
+    await withFetchMock(routes, async () => {
+      const res = await w.tick(DEC_1);
+      assertEquals(res.perOrg[0].errors.length, 1);
+      assert(res.perOrg[0].errors[0].includes('intent-prepare-failed'));
+      assertEquals(w.fake.writes().length, 0);
+    });
+  });
 });

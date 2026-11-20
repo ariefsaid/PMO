@@ -219,7 +219,7 @@ export function fiscalYearReadiness(stored: unknown, company: string):
   if (s.state === "needs-operator") {
     if (s.reason === "missing-role" || s.reason === "no-current-year") return { state: "needs-operator", reason: s.reason };
     if (s.reason === "disabled-year" && typeof s.year === "string") return { state: "needs-operator", reason: "disabled-year", year: s.year };
-    if (s.reason === "held" && typeof s.intentId === "string") return { state: "needs-operator", reason: "held", intentId: s.intentId };
+    if (s.reason === "held") return { state: "needs-operator", reason: "held", intentId: typeof s.intentId === "string" ? s.intentId : "" };
     return { state: "needs-operator", reason: "missing-role" };
   }
   if (s.state === "refused") {
