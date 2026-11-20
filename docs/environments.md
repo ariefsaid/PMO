@@ -407,8 +407,10 @@ every pin with its latest published version and advisory status, and the release
 node scripts/check-edge-fn-pins.mjs   # exit 1 on an advisory, drift, or a pin it cannot verify
 ```
 
-Being behind latest is reported, not failed; an advisory is a release blocker. How to bump them (all pins in
-one PR, locks regenerated, edge lane proved) and the cadence are in
+Being behind latest is reported, not failed; an advisory is a release blocker. Every registry and advisory
+lookup is retried 3× with backoff (1s, 3s, 9s) inside the check, so a registry blip cannot red the release run;
+a real outage still fails closed and names the lookup. How to bump them (all pins in one PR, locks
+regenerated, edge lane proved) and the cadence are in
 [`docs/runbooks/edge-fn-pins.md`](runbooks/edge-fn-pins.md). CI runs the same command on a pull request to
 `main`.
 

@@ -20,19 +20,37 @@ import {
   parseImportSpecifier,
   readImportMaps,
   renderReport,
+  RETRY_DELAYS_MS,
   runCheck,
 } from './check-edge-fn-pins.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** A fake `fetch` that answers registry lookups from a map, recording every call. */
-function fakeFetch({ npmLatest = {}, jsrLatest = {}, advisories = {}, fail = [] } = {}) {
+/** No real sleeping in tests: record the backoff delays instead. */
+function recordingWait() {
+  const delays = [];
+  const wait = async (ms) => {
+    delays.push(ms);
+  };
+  wait.delays = delays;
+  return wait;
+}
+
+/** A fake `fetch` that answers registry lookups from a map, recording every call.
+ *  `flaky` maps a URL fragment to the number of attempts that fail before one succeeds. */
+function fakeFetch({ npmLatest = {}, jsrLatest = {}, advisories = {}, fail = [], flaky = {} } = {}) {
   const calls = [];
+  const remainingFlaky = { ...flaky };
   const impl = async (url, init) => {
     calls.push({ url, init });
     const blocked = fail.find((needle) => url.includes(needle));
     if (blocked) {
       throw new Error(`fetch failed: ${blocked}`);
+    }
+    const flakyNeedle = Object.keys(remainingFlaky).find((needle) => url.includes(needle));
+    if (flakyNeedle && remainingFlaky[flakyNeedle] > 0) {
+      remainingFlaky[flakyNeedle] -= 1;
+      throw new Error(`fetch failed: ${flakyNeedle}`);
     }
     if (url === 'https://registry.npmjs.org/-/npm/v1/security/advisories/bulk') {
       const asked = JSON.parse(init.body);
@@ -233,6 +251,7 @@ test('runCheck reports every pin with latest and advisory status, and passes a c
       { path: '_shared/deno.json', imports: { '@std/assert': 'jsr:@std/assert@1.0.0' } },
     ],
     fetchImpl,
+    wait: async () => {},
   });
   assert.equal(result.ok, true);
   assert.deepEqual(result.rows.map((r) => r.name).sort(), ['@std/assert', 'jose', 'zod']);
@@ -259,6 +278,7 @@ test('runCheck fails on an advisory and names it in the report', async () => {
   const result = await runCheck({
     files: [{ path: 'agent-chat/deno.json', imports: { jose: 'npm:jose@6.2.3' } }],
     fetchImpl,
+    wait: async () => {},
   });
   assert.equal(result.ok, false);
   assert.equal(result.exitCode, 1);
@@ -271,6 +291,7 @@ test('runCheck passes a behind pin with a visible warning (outdated is a report,
   const result = await runCheck({
     files: [{ path: 'agent-chat/deno.json', imports: { jose: 'npm:jose@6.2.3' } }],
     fetchImpl,
+    wait: async () => {},
   });
   assert.equal(result.ok, true);
   assert.equal(result.rows[0].status, 'behind');
@@ -282,6 +303,7 @@ test('runCheck never reports a pass when a registry lookup fails', async () => {
   const result = await runCheck({
     files: [{ path: 'agent-chat/deno.json', imports: { jose: 'npm:jose@6.2.3' } }],
     fetchImpl,
+    wait: async () => {},
   });
   assert.equal(result.ok, false);
   assert.equal(result.rows[0].status, 'unverified');
@@ -293,9 +315,67 @@ test('runCheck never reports a pass when the npm advisory feed itself is unreach
   const result = await runCheck({
     files: [{ path: 'agent-chat/deno.json', imports: { jose: 'npm:jose@6.2.3' } }],
     fetchImpl,
+    wait: async () => {},
   });
   assert.equal(result.ok, false);
   assert.equal(result.rows[0].status, 'unverified');
+});
+
+test('runCheck retries a failed registry lookup and succeeds on a later attempt', async () => {
+  const fetchImpl = fakeFetch({
+    npmLatest: { jose: '6.2.18' },
+    flaky: { 'registry.npmjs.org/jose/latest': 2 },
+  });
+  const wait = recordingWait();
+  const result = await runCheck({
+    files: [{ path: 'agent-chat/deno.json', imports: { jose: 'npm:jose@6.2.3' } }],
+    fetchImpl,
+    wait,
+  });
+  assert.equal(result.ok, true, result.report);
+  assert.equal(result.rows[0].status, 'behind');
+  assert.equal(result.rows[0].latest, '6.2.18');
+  // Two failures means two backoff waits, and no third: the lookup succeeded.
+  assert.deepEqual(wait.delays, RETRY_DELAYS_MS.slice(0, 2));
+  const attempts = fetchImpl.calls.filter((c) => c.url.includes('/jose/latest'));
+  assert.equal(attempts.length, 3);
+});
+
+test('runCheck retries the advisory feed too, so one blip does not fail the release', async () => {
+  const fetchImpl = fakeFetch({
+    npmLatest: { jose: '6.2.18' },
+    flaky: { 'advisories/bulk': 1 },
+  });
+  const wait = recordingWait();
+  const result = await runCheck({
+    files: [{ path: 'agent-chat/deno.json', imports: { jose: 'npm:jose@6.2.3' } }],
+    fetchImpl,
+    wait,
+  });
+  assert.equal(result.ok, true, result.report);
+  assert.deepEqual(wait.delays, RETRY_DELAYS_MS.slice(0, 1));
+  assert.equal(fetchImpl.calls.filter((c) => c.url.includes('advisories/bulk')).length, 2);
+});
+
+test('runCheck gives up after three retries, names the lookup that failed, and fails closed', async () => {
+  const fetchImpl = fakeFetch({
+    npmLatest: { jose: '6.2.18' },
+    fail: ['registry.npmjs.org/jose/latest'],
+  });
+  const wait = recordingWait();
+  const result = await runCheck({
+    files: [{ path: 'agent-chat/deno.json', imports: { jose: 'npm:jose@6.2.3' } }],
+    fetchImpl,
+    wait,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.rows[0].status, 'unverified');
+  // Initial attempt + three retries, with the recorded backoff between them.
+  assert.deepEqual(wait.delays, RETRY_DELAYS_MS);
+  assert.equal(fetchImpl.calls.filter((c) => c.url.includes('/jose/latest')).length, 4);
+  assert.match(result.report, /registry\.npmjs\.org\/jose\/latest/);
+  assert.match(result.report, /after 4 attempts/);
+  assert.match(result.report, /FAILED/);
 });
 
 test('runCheck blocks on drift between import maps (pins must move together)', async () => {
@@ -306,6 +386,7 @@ test('runCheck blocks on drift between import maps (pins must move together)', a
       { path: 'b/deno.json', imports: { jose: 'npm:jose@6.1.0' } },
     ],
     fetchImpl,
+    wait: async () => {},
   });
   assert.equal(result.ok, false);
   assert.match(result.report, /drift/i);
@@ -316,6 +397,7 @@ test('runCheck blocks on an import map entry it cannot classify', async () => {
   const result = await runCheck({
     files: [{ path: 'a/deno.json', imports: { lodash: 'https://deno.land/x/lodash/mod.ts' } }],
     fetchImpl,
+    wait: async () => {},
   });
   assert.equal(result.ok, false);
   assert.match(result.report, /https:\/\/deno\.land/);

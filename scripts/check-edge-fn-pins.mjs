@@ -25,6 +25,11 @@
  * and the cadence (not a per-PR gate) is what moves them. An advisory is different — it is a
  * known defect in code that runs — so it fails.
  *
+ * Every lookup is retried 3 times with backoff (1s, 3s, 9s) before it counts as unverifiable: this
+ * gate runs on the release PR, where one registry blip would otherwise red the whole run and spend
+ * a CI cycle. A real outage still fails closed — after ~13s, naming the URL that failed and how
+ * many attempts it survived.
+ *
  * JSR: no advisory feed covers JSR packages (the GitHub Advisory DB / npm feed are npm-only). JSR
  * pins are reported as "not covered", which is not the same as clean, and the report says so.
  *
@@ -58,6 +63,17 @@ export const ADVISORY_COVERAGE = {
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const SAFE_PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/i;
 const REQUEST_TIMEOUT_MS = 15000;
+
+/**
+ * Backoff between attempts, per lookup. Three retries after the first attempt, so a single
+ * registry/CDN blip cannot red the release run (this check runs on the release PR, where a flake
+ * costs the whole run) — but a genuine outage still fails closed, naming the URL, after ~13s.
+ * Every registry and advisory lookup goes through this.
+ */
+export const RETRY_DELAYS_MS = [1000, 3000, 9000];
+
+/** The real backoff. Injected away in the tests so they never sleep. */
+export const defaultWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * parseImportSpecifier — classify one import-map VALUE.
@@ -432,19 +448,32 @@ export function readImportMaps(root) {
   return files;
 }
 
-async function requestJson(fetchImpl, url, init = {}) {
-  try {
-    const response = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-    if (!response.ok) return { error: `HTTP ${response.status} from ${url}` };
-    return { json: await response.json() };
-  } catch (err) {
-    return { error: `${err instanceof Error ? err.message : String(err)} (${url})` };
+/**
+ * requestJson — one lookup with the shared retry policy. A network error, a non-2xx status and an
+ * unreadable body are all retried; only after the retries are spent does it return an error, and
+ * that error names the URL and the attempt count so the operator can tell a blip from an outage.
+ */
+async function requestJson(fetchImpl, url, init = {}, wait = defaultWait) {
+  let reason = '';
+  const attempts = RETRY_DELAYS_MS.length + 1;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+      if (response.ok) return { json: await response.json() };
+      reason = `HTTP ${response.status} from ${url}`;
+    } catch (err) {
+      reason = `${err instanceof Error ? err.message : String(err)} (${url})`;
+    }
+    const delay = RETRY_DELAYS_MS[attempt - 1];
+    if (delay == null) break;
+    await wait(delay);
   }
+  return { error: `${reason} — gave up after ${attempts} attempts` };
 }
 
-async function fetchLatest(pin, fetchImpl) {
+async function fetchLatest(pin, fetchImpl, wait) {
   const url = LATEST_URL[pin.registry](pin.name);
-  const { json, error } = await requestJson(fetchImpl, url);
+  const { json, error } = await requestJson(fetchImpl, url, {}, wait);
   if (error) return { error };
   const latest = pin.registry === 'npm' ? json?.version : json?.latest;
   if (typeof latest !== 'string' || latest === '') return { error: `no version in the answer from ${url}` };
@@ -452,10 +481,15 @@ async function fetchLatest(pin, fetchImpl) {
 }
 
 /**
- * runCheck — resolve every pin, classify it, and render. `files` and `fetchImpl` are injected so
- * the tests never touch the network; `main` feeds it the real tree and `fetch`.
+ * runCheck — resolve every pin, classify it, and render. `files`, `fetchImpl` and `wait` are
+ * injected so the tests never touch the network and never sleep; `main` supplies the real ones.
  */
-export async function runCheck({ files, fetchImpl = fetch, scannedRoot = 'supabase/functions' }) {
+export async function runCheck({
+  files,
+  fetchImpl = fetch,
+  wait = defaultWait,
+  scannedRoot = 'supabase/functions',
+}) {
   const pins = collectPins(files);
 
   const queried = pins.filter(
@@ -465,7 +499,7 @@ export async function runCheck({ files, fetchImpl = fetch, scannedRoot = 'supaba
   const latestByKey = new Map();
   await Promise.all(
     queried.map(async (pin) => {
-      latestByKey.set(pin.key, await fetchLatest(pin, fetchImpl));
+      latestByKey.set(pin.key, await fetchLatest(pin, fetchImpl, wait));
     }),
   );
 
@@ -475,11 +509,16 @@ export async function runCheck({ files, fetchImpl = fetch, scannedRoot = 'supaba
   let advisoryError = null;
   if (npmQueried.length > 0) {
     const body = Object.fromEntries(npmQueried.map((pin) => [pin.name, pin.specs]));
-    const { json, error } = await requestJson(fetchImpl, NPM_ADVISORY_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const { json, error } = await requestJson(
+      fetchImpl,
+      NPM_ADVISORY_URL,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      wait,
+    );
     if (error) {
       advisoryError = error;
     } else {

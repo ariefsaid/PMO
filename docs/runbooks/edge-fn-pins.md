@@ -30,6 +30,12 @@ A JSR pin shows `advisory: not covered`. No advisory feed covers JSR packages, s
 | 0 | No blocking finding. A pin *behind* latest is reported but does not fail. |
 | 1 | At least one blocking finding: a published **advisory** on a pinned version, **drift** (the same package pinned at two versions), or an **unverified** pin — a registry/advisory lookup that failed, a non-exact spec (`^1.2.3`), an unversioned `npm:foo`, or an import the check cannot classify. |
 
+Each lookup is retried **3 times with backoff (1s, 3s, 9s)** before it counts as unverifiable. This
+runs on the release pull request, so one registry blip must not red the whole release run and spend a
+CI cycle; a real outage still fails closed after about 13 seconds, and the report names the URL that
+failed plus how many attempts it survived (`gave up after 4 attempts`). Everything else — an
+advisory, drift, a range spec — is never retried away.
+
 Outdated is a report, not a gate: being a release or two behind is ordinary, and a gate on it would red every
 change that is not itself a bump. An advisory is different — it is a known defect in code that runs — so it
 fails, at the release gate (see below), not on every branch.
