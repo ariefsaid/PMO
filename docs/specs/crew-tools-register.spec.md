@@ -50,7 +50,7 @@ When a crew's hand tool breaks or goes missing, I want the field controller to r
   - `view`: all roles (narrowing per OQ-CTR-4).
   - `manage` (add, edit, move, archive lines): Admin, Executive, Project Manager (the `crew_can_manage()` set; `allowUnlessViewOnly`).
   - `report`: those roles, or the user whose id equals `record.field_controller_id` of that crew.
-  - `close`: those roles, or the user who is the task assignee (`record.assignee_id`).
+  - `close`: those roles, or the user who is the task assignee (`tasks.assignee_id`, 0001, passed to `can()` as `record.assignee_id`).
   - `configure` (coordinator and due days): Admin and Project Manager (the register-write set).
   A field controller may report for their own crews only and may not edit lines or close reports unless also in a role above.
 - FR-CTR-017 `crew_tool_lines`, `crew_tool_reports`, `crew_tool_report_files` and `org_crew_tool_settings` carry `org_id` with the `stamp_org_id` trigger and enable plus force RLS; photos follow OD-CTR-5.
