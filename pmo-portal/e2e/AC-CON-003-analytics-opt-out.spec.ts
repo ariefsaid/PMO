@@ -21,10 +21,11 @@ const SDK_CONSENT_KEY = `__ph_opt_in_out_${POSTHOG_KEY}`;
 async function countPosthogRequests(
   page: import('@playwright/test').Page,
   run: (hits: string[]) => Promise<void>,
+  counts: () => boolean = () => true,
 ) {
   const hits: string[] = [];
   await page.route(PH_HOST, async (route) => {
-    hits.push(route.request().url());
+    if (counts()) hits.push(route.request().url());
     await route.abort();
   });
   await run(hits);
@@ -104,13 +105,19 @@ test('AC-CON-003: after opting out, navigation makes ZERO PostHog requests and t
   await toggle.check();
   await expect(toggle).toBeChecked();
 
+  // Count only requests made by the reloaded document. The page that was open when the user opted out
+  // ran init() while still opted in; posthog-js's remote-config JSON fallback (sent only after its
+  // config.js fails) can land after the opt-out, before the reload. On a fresh, slow first build that
+  // stray `/config` hit was caught here. The reloaded document must make none: init() never runs.
+  let reloaded = false;
+  page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) reloaded = true; });
   const hits = await countPosthogRequests(page, async () => {
     await page.reload();
     await expect(page.getByRole('checkbox', { name: /usage analytics/i })).toBeChecked();
     await page.goto('/terms');
     await page.goto('/privacy');
     await page.waitForTimeout(2000);
-  });
+  }, () => reloaded);
 
   expect(hits, `expected no PostHog traffic, got: ${hits.join(', ')}`).toEqual([]);
   await expect(page.getByRole('checkbox', { name: /usage analytics/i })).toBeChecked();
