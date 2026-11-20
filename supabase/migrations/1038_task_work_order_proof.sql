@@ -217,12 +217,12 @@ create policy storage_objects_task_proof_read on storage.objects for select
     and split_part(name, '/', 1) = (select public.auth_org_id())::text
     and array_length(string_to_array(name, '/'), 1) = 4
     and exists (select 1 from public.tasks t
-      where t.id::text = split_part(name, '/', 2) and t.org_id = (select public.auth_org_id())));
+      where t.id::text = split_part(objects.name, '/', 2) and t.org_id = (select public.auth_org_id())));
 create policy storage_objects_task_proof_write on storage.objects for insert
   with check (bucket_id = 'task-proofs' and (select auth.uid()) is not null and (select public.is_active_member())
     and split_part(name, '/', 1) = (select public.auth_org_id())::text
     and array_length(string_to_array(name, '/'), 1) = 4
     and exists (select 1 from public.tasks t
-      where t.id::text = split_part(name, '/', 2) and t.org_id = (select public.auth_org_id())
+      where t.id::text = split_part(objects.name, '/', 2) and t.org_id = (select public.auth_org_id())
         and ((select public.auth_role()) in ('Admin','Executive','Project Manager') or t.assignee_id = (select auth.uid()))
         and not public.task_domain_externally_owned(t.project_id)));

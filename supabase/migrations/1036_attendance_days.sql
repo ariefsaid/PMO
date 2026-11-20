@@ -276,7 +276,7 @@ create policy storage_objects_attendance_photo_write on storage.objects for inse
          and split_part(name, '/', 1) = (select public.auth_org_id())::text
          and array_length(string_to_array(name, '/'), 1) = 4
          and exists (select 1 from public.work_order_crews r join public.crews c on c.id = r.crew_id
-                      where r.work_order_id::text = split_part(name, '/', 2) and c.org_id = (select public.auth_org_id())
+                      where r.work_order_id::text = split_part(objects.name, '/', 2) and c.org_id = (select public.auth_org_id())
                         and public.attendance_can_record(c.id)));
 
 -- ── §6 recording (FR-CRW-008..013, AC-CRW-005..008, 013) ─────────────────────────────────────────────────────
