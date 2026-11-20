@@ -111,7 +111,7 @@ create table public.quantity_change_request_events (
   to_status   text,
   actor_id    uuid references public.profiles(id) default auth.uid(),
   reason      text,
-  created_at  timestamptz not null default now()
+  created_at  timestamptz not null default clock_timestamp()
 );
 create index quantity_change_request_events_request_idx on public.quantity_change_request_events (request_id, created_at, id);
 create index quantity_change_request_events_org_idx on public.quantity_change_request_events (org_id);
