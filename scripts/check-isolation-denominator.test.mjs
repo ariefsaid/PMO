@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { compareDenominators, formatEntry, preserveTableExpectations, readDenominator, validateDenominator, validateProbeInputs } from './check-isolation-denominator.mjs';
+import { compareDenominators, formatEntry, INTEGER_PK_TABLES, preserveTableExpectations, readDenominator, validateDenominator, validateProbeInputs } from './check-isolation-denominator.mjs';
 
 test('site report isolation probe selects only authenticated progress columns', () => {
   const denominator = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
@@ -270,7 +270,10 @@ function probeFixture(mode, { full = false, override, runner = false, missingAcc
   try {
     const denominator = JSON.parse(fs.readFileSync(new URL('./isolation-probe-denominator.json', import.meta.url)));
     const rows = denominator.tables.filter(t => t.has_org && t.by_id === 'applicable' && !(missingAcceptance && t.table === 'work_order_acceptances')).map(t => {
-      const row = { table: t.table, pk: t.pk, id: randomUUID() };
+      // An A-row id must match the table's real pk type (#2636): a positive integer where the
+      // validator's integer map says so, a uuid everywhere else — or the probe's preflight
+      // refuses the manifest (exit 2) before the guard under test (exit 4) can run.
+      const row = { table: t.table, pk: t.pk, id: INTEGER_PK_TABLES.has(t.table) ? 42 : randomUUID() };
       if (t.table === 'work_order_acceptances') Object.assign(row, {
         work_order_id: randomUUID(), lines: [{ boq_item_id: randomUUID(), quantity: 1.25 }],
       });

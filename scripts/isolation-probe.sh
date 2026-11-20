@@ -128,7 +128,9 @@ rpc(){
         if [ "$shape" = must-deny ]; then flag "rpc $fn unexpectedly returned cross-tenant read data"; return; fi
         if [ "$shape" = own-org-no-foreign-ids ]; then
           # Own-org read: B legitimately gets a body, but it must hold no id or org id of tenant A.
-          jq -e --arg a_org "$A_ORG" --slurpfile rows "$A_ROWS_JSON" 'tojson as $t | ($rows[0] | map(.id)) + [$a_org] | all(.[]; . as $id | ($t | contains($id)) | not)' "$BODY" >/dev/null || { flag "rpc $fn returned other-tenant ids"; return; }
+          # Ids are stringified before containment so integer pks (stock_ledger.seq, #2636) compare
+          # by their decimal form; uuid ids are unchanged.
+          jq -e --arg a_org "$A_ORG" --slurpfile rows "$A_ROWS_JSON" 'tojson as $t | ($rows[0] | map(.id | tostring)) + [$a_org] | all(.[]; . as $id | ($t | contains($id)) | not)' "$BODY" >/dev/null || { flag "rpc $fn returned other-tenant ids"; return; }
           say "  PASS  rpc $fn (own-org read, no other-tenant ids)" >&2; return
         fi
         if [ "$shape" = null ]; then
