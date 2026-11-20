@@ -8,7 +8,7 @@
 -- Every denial asserts the errcode AND the message.
 begin;
 create extension if not exists pgtap;
-select plan(77);
+select plan(79);
 
 -- ── Fixtures: org A (several roles), org B (another tenant). Written as the table owner. ─────────────────
 insert into organizations (id, name, default_currency) values
@@ -186,6 +186,9 @@ select throws_ok($$ select * from public.work_order_cost_amounts('25190000-0000-
 reset role;
 select is((select count(*)::int from information_schema.routine_privileges
             where routine_name = 'work_order_cost_amounts' and grantee in ('anon', 'PUBLIC')), 0, 'anon cannot execute the money read');
+select ok(not has_function_privilege('anon', 'public.work_order_cost_amounts_unrounded(uuid)'::regprocedure, 'execute')
+          and not has_function_privilege('authenticated', 'public.work_order_cost_amounts_unrounded(uuid)'::regprocedure, 'execute'),
+  'AC-WPVA-009 the precision-preserving source read is internal only');
 
 -- ── AC-WPVA-001 / 002: plan figures ───────────────────────────────────────────────────────────────────
 set local role authenticated;
@@ -411,6 +414,9 @@ select is((select sum(amount::numeric) from public.work_order_cost_amounts('2519
 select is((select amount::numeric from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
             where source = 'equipment_usage' and record_id = '25190000-0000-0000-0000-000000000911'), 0.01::numeric,
   'the first equipment entry retains its rounded cent');
+select is((select amount from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+            where source = 'equipment_usage' and record_id = '25190000-0000-0000-0000-000000000911'), '0.01',
+  'equipment hire cost is returned as an exact two-decimal amount string');
 select is((select amount::numeric from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
             where source = 'equipment_usage' and record_id = '25190000-0000-0000-0000-000000000913'), 0::numeric,
   'zero-rate usage never receives a negative rounding remainder');
@@ -472,7 +478,7 @@ reset role;
 do $$
 declare original text; mutant text;
 begin
-  select pg_get_functiondef('public.work_order_cost_amounts(uuid)'::regprocedure) into original;
+  select pg_get_functiondef('public.work_order_cost_amounts_unrounded(uuid)'::regprocedure) into original;
   mutant := replace(original, 'v_actual := (v_fin->>''total'')::numeric;',
                     'v_actual := (v_fin->>''total'')::numeric + 1;');
   if mutant = original then raise exception 'mutation did not apply'; end if;
