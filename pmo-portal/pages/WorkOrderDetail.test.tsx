@@ -22,6 +22,8 @@ vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
 }));
 vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: () => h.pva }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
+// the inspections panel is proven by its own test (InspectionsSection.test.tsx); here only that the page carries it for THIS work order
+vi.mock('./work-order-detail/InspectionsSection', () => ({ InspectionsSection: ({ workOrderId }: { workOrderId: string }) => <div data-testid="inspections-section">{workOrderId}</div> }));
 
 import WorkOrderDetail from './WorkOrderDetail';
 
@@ -49,6 +51,10 @@ beforeEach(async () => {
 });
 
 describe('WorkOrderDetail', () => {
+  it('FR-TPI-017 carries the third-party inspections section for this work order', () => {
+    renderPage();
+    expect(screen.getByTestId('inspections-section').textContent).toBe('w1');
+  });
   it('AC-WPVA-016 shows the plan-vs-actual panel for this work order, and hides it from a role that may not view plans', async () => {
     const { rollupProject } = await import('@/src/lib/workOrderPlanVsActual');
     const workOrders = [{ id: 'w1', woNumber: 'WO-0007', title: 'Pump install', status: 'Issued', currency: 'IDR', revenue: '1000.00', revenueComplete: true }];

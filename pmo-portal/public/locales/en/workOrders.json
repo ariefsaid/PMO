@@ -135,6 +135,7 @@
       "count": "An inspection holds at most 10 report files.",
       "size": "That file is larger than 15 MB.",
       "type": "That file type cannot be attached."
-    }
+    },
+    "historyKind": "Third-party inspection"
   }
 }

@@ -135,6 +135,7 @@
       "count": "Satu inspeksi menampung paling banyak 10 berkas laporan.",
       "size": "Berkas itu lebih besar dari 15 MB.",
       "type": "Jenis berkas itu tidak dapat dilampirkan."
-    }
+    },
+    "historyKind": "Inspeksi pihak ketiga"
   }
 }
