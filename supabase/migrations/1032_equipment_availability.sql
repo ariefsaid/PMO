@@ -355,8 +355,9 @@ revoke all on function public.set_equipment_ownership(uuid, text, date), public.
   public.change_equipment_rental_rate(uuid, date, numeric), public.end_equipment_rental_term(uuid, date),
   public.set_equipment_status(uuid, date, text, text), public.set_equipment_status_bulk(date, jsonb),
   public.add_equipment_downtime_proof(uuid, date, text, text), public.set_equipment_working_hours(numeric) from public, anon, authenticated;
+-- end_equipment_rental_term has no client caller (a rate change or the term's own end date covers it): no client grant.
 grant execute on function public.set_equipment_ownership(uuid, text, date), public.save_equipment_rental_term(jsonb),
-  public.change_equipment_rental_rate(uuid, date, numeric), public.end_equipment_rental_term(uuid, date),
+  public.change_equipment_rental_rate(uuid, date, numeric),
   public.set_equipment_status(uuid, date, text, text), public.set_equipment_status_bulk(date, jsonb),
   public.add_equipment_downtime_proof(uuid, date, text, text), public.set_equipment_working_hours(numeric) to authenticated;
 

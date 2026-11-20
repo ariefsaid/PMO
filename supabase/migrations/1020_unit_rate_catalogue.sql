@@ -122,7 +122,7 @@ begin
   end if;
   return new;
 end $$;
-create trigger boq_items_catalogue_project before insert or update of project_id, org_id, rate, catalogue_item_id, catalogue_variant_id
+create trigger boq_items_zz_catalogue_project before insert or update of project_id, org_id, rate, catalogue_item_id, catalogue_variant_id
   on public.boq_items for each row execute function public.check_boq_catalogue_project();
 
 -- Rate in force for (item, variant) on a date: the latest effective_from not after it.
@@ -155,6 +155,7 @@ create function public.rate_catalogue_set_default_variant(p_project uuid, p_vari
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid;
 begin
+  perform public.assert_is_active_member();
   v_org := public.rate_catalogue_writer_check(p_project);
   perform 1 from public.projects where id = p_project for update;
   if p_variant is not null and not exists (select 1 from public.rate_catalogue_variants where id = p_variant and project_id = p_project and org_id = v_org) then
@@ -171,6 +172,7 @@ create function public.rate_catalogue_add_variants(p_project uuid, p_names text[
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid; n text; v_added integer := 0; v_rows integer;
 begin
+  perform public.assert_is_active_member();
   v_org := public.rate_catalogue_writer_check(p_project);
   foreach n in array coalesce(p_names, '{}') loop
     n := btrim(n);
@@ -191,6 +193,7 @@ declare
   v_variant uuid; r record; v_latest date; v_cur numeric; v_new integer := 0; v_stage_sum numeric;
   v_stage jsonb; v_pos integer; v_latest_w date; v_item_created boolean := false;
 begin
+  perform public.assert_is_active_member();
   v_org := public.rate_catalogue_writer_check(p_project);
   if p_item is null or jsonb_typeof(p_item) <> 'object' then raise exception 'item must be an object' using errcode = '22023'; end if;
   v_code := btrim(coalesce(p_item->>'item_code', ''));

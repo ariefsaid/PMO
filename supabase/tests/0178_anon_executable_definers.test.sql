@@ -293,9 +293,25 @@ select plan(7);
 -- enforces approver ≠ the bill's author and ≠ the person who recorded its match lines, failing closed when the author is
 -- not recorded. Proven by supabase/tests/three_way_match.test.sql and three_way_match_mutation.test.sql. `get_bill_match`
 -- is a read-only definer and is not listed.
+-- ⚑ AMENDED BY 1032/1034 (#2526): `set_equipment_ownership`, `save_equipment_rental_term`, `change_equipment_rental_rate`,
+-- `add_equipment_downtime_proof`, `set_equipment_working_hours` and `equipment_rental_check` join the retained set (+6).
+-- SECURITY DEFINER writers called through PostgREST under a member's JWT (pmo-portal/src/lib/db/equipmentAvailability.ts); each
+-- re-asserts the caller's org, active membership and a role gate (Admin/PM/Finance, Admin/Finance, status roles or Admin) in its
+-- body; proven by supabase/tests/equipment_availability*.test.sql and equipment_rental_check.test.sql. `end_equipment_rental_term`
+-- has no client caller, so 1032 revokes its authenticated grant and it is deliberately NOT listed.
+-- ⚑ AMENDED BY 1030 (#2523): `archive_stock_document_file` joins the retained set (+1, count 224 = 217 + 7, counted from the list).
+-- SECURITY DEFINER writer under a member's JWT (stockSiteWork.ts); re-asserts active membership, the caller's org and
+-- stock_can_attach; proven by the 1030 stock document files pgTAP.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 -- Retained names: union of every merged branch's inventory; the AC-ACL-002/003 counts are counted from this list.
 insert into client_callable_rpc_names (proname) values
+  ('set_equipment_ownership'),  -- ⚑ AMENDED BY 1032 (#2526)
+  ('save_equipment_rental_term'),  -- ⚑ AMENDED BY 1032 (#2526)
+  ('change_equipment_rental_rate'),  -- ⚑ AMENDED BY 1032 (#2526)
+  ('add_equipment_downtime_proof'),  -- ⚑ AMENDED BY 1032 (#2526)
+  ('set_equipment_working_hours'),  -- ⚑ AMENDED BY 1032 (#2526)
+  ('equipment_rental_check'),  -- ⚑ AMENDED BY 1034 (#2526)
+  ('archive_stock_document_file'),  -- ⚑ AMENDED BY 1030 (#2523)
   ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
   ('accept_connect_proposals'),
   ('accept_equipment_asset_matches'),  -- ⚑ AMENDED BY 0854 (#1511)
@@ -534,8 +550,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  217,
-  'AC-ACL-002 all 217 retained client-callable RPC names still have a public function');
+  224,
+  'AC-ACL-002 all 224 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -544,8 +560,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  217,
-  'AC-ACL-003 all 217 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  224,
+  'AC-ACL-003 all 224 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
