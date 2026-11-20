@@ -166,6 +166,9 @@ export const MODULES: ModuleDef[] = [
   // #1522: daily site reports — every role reads; entry and validation gate inside the pages.
   { module: 'site-reports', icon: 'reports', label: 'Site reports', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'siteReport:nav', path: '/site-reports', detail: { pattern: '/site-reports/:reportId', param: 'reportId' } },
+  // #2528: Crews — every role reads; the tick and the manage actions gate inside the page.
+  { module: 'crews', icon: 'user', label: 'Crews', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'crews:nav.crews', path: '/crews' },
   // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Finance, Engineers and Admins
   // (Finance works assigned tasks like an Engineer, owner 2026-10-23).
   // Project-level Tasks remain available for oversight; Executive navigation is unchanged.

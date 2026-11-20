@@ -269,6 +269,50 @@ insert into public.rate_catalogue_rates (id, org_id, item_id, variant_id, rate, 
 values ('a6120000-0000-4000-8000-0000000000e3', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000e2', 'a6120000-0000-4000-8000-0000000000e1', 1, current_date);
 insert into public.rate_catalogue_stage_weights (id, org_id, item_id, effective_from, position, stage, weight_pct)
 values ('a6120000-0000-4000-8000-0000000000e4', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000e2', current_date, 1, 'iso', 100);
+-- Crew and attendance rows make each new tenant-scoped relation probeable.
+insert into public.crews (id, org_id, code, name) values
+ ('a6120000-0000-4000-8000-000000000101', 'a6120000-0000-4000-8000-00000000000a', 'iso-crew', 'Isolation crew');
+insert into public.crew_standard_roles (id, org_id, crew_id, name, headcount) values
+ ('a6120000-0000-4000-8000-000000000102', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000101', 'Worker', 1);
+insert into public.crew_members (id, org_id, crew_id, worker_id, standard_role_id, valid_from) values
+ ('a6120000-0000-4000-8000-000000000103', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000101', 'a6120000-0000-4000-8000-0000000000f1', 'a6120000-0000-4000-8000-000000000102', current_date);
+insert into public.work_order_crews (id, org_id, crew_id, work_order_id, valid_from) values
+ ('a6120000-0000-4000-8000-000000000104', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000101', 'a6120000-0000-4000-8000-0000000000d2', current_date);
+insert into public.crew_worker_rotation_off (id, org_id, worker_id, off_from, off_to) values
+ ('a6120000-0000-4000-8000-000000000105', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000f1', current_date - 1, current_date - 1);
+insert into public.attendance_days (id, org_id, crew_id, worker_id, work_order_id, project_id, work_date, status, hours, source)
+select 'a6120000-0000-4000-8000-000000000106', w.org_id, 'a6120000-0000-4000-8000-000000000101', 'a6120000-0000-4000-8000-0000000000f1', w.id, w.project_id, current_date, 'present', 8, 'roster_tick'
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.attendance_photos (id, org_id, crew_id, work_order_id, work_date, file_path) values
+ ('a6120000-0000-4000-8000-000000000107', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000101', 'a6120000-0000-4000-8000-0000000000d2', current_date, 'isolation-fixture');
+-- Supplement the second-org probe with otherwise empty, org-scoped rows.
+insert into public.user_views (id, org_id, user_id, name, scope)
+select 'a6120000-0000-4000-8000-000000000111', p.org_id, p.id, 'Isolation view', 'private'
+from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.comments (id, org_id, entity_type, entity_id, author_id, body)
+select 'a6120000-0000-4000-8000-000000000112', p.org_id, 'project', p.id, u.id, 'Isolation comment'
+from public.projects p join public.profiles u on u.org_id = p.org_id
+where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id, u.id limit 1;
+insert into public.agent_threads (id, org_id, owner_id, title)
+select 'a6120000-0000-4000-8000-000000000113', p.org_id, p.id, 'Isolation thread'
+from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.agent_runs (id, org_id, owner_id, thread_id, title)
+select 'a6120000-0000-4000-8000-000000000114', t.org_id, t.owner_id, t.id, 'Isolation run'
+from public.agent_threads t where t.id = 'a6120000-0000-4000-8000-000000000113';
+insert into public.agent_events (id, org_id, owner_id, run_id, seq, type)
+select 'a6120000-0000-4000-8000-000000000115', r.org_id, r.owner_id, r.id, 1, 'user'
+from public.agent_runs r where r.id = 'a6120000-0000-4000-8000-000000000114';
+insert into public.agent_usage (id, org_id, owner_id, run_id, model)
+select 'a6120000-0000-4000-8000-000000000116', r.org_id, r.owner_id, r.id, 'fixture'
+from public.agent_runs r where r.id = 'a6120000-0000-4000-8000-000000000114';
+insert into public.agent_attachments (id, org_id, owner_id, thread_id, storage_path, mime_type, size_bytes, original_filename)
+select 'a6120000-0000-4000-8000-000000000117', t.org_id, t.owner_id, t.id,
+  'org/a6120000-0000-4000-8000-00000000000a/agent-attachments/a6120000-0000-4000-8000-000000000117',
+  'application/pdf', 1, 'fixture.pdf'
+from public.agent_threads t where t.id = 'a6120000-0000-4000-8000-000000000113';
+insert into public.agent_automations (id, org_id, owner_id, kind, prompt, schedule)
+select 'a6120000-0000-4000-8000-000000000118', p.org_id, p.id, 'schedule', 'Isolation automation', '0 0 * * *'
+from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 

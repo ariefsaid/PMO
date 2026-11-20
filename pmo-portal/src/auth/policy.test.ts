@@ -1180,3 +1180,22 @@ describe('can() — daily site report (#1522; dsr_save_draft / dsr_validate / ds
     expect(allowedRoles('view', 'dailySiteReport')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer']);
   });
 });
+
+describe('#2528 crews, roster and attendance (UX gate; RLS + attendance RPCs are the authority)', () => {
+  it('AC-CRW-014 every role reads crews; only delivery roles manage them, never in view-as', () => {
+    expect(allowedRoles('view', 'crew')).toEqual(ALL_ROLES);
+    expect(allowedRoles('manage', 'crew')).toEqual(['Admin', 'Executive', 'Project Manager']);
+    expect(can('manage', 'crew', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+  it('AC-CRW-014 a delivery role, or the crew\'s own field controller, records attendance', () => {
+    expect(allowedRoles('create', 'attendance')).toEqual(['Admin', 'Executive', 'Project Manager']);
+    expect(can('create', 'attendance', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u1' } })).toBe(true);
+    expect(can('create', 'attendance', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u2' } })).toBe(false);
+    expect(can('create', 'attendance', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u1', viewOnly: true } })).toBe(false);
+  });
+  it('AC-CRW-010 a supervisor approves a no-login week, never one they recorded', () => {
+    expect(allowedRoles('approve', 'attendance')).toEqual(['Admin', 'Executive', 'Project Manager']);
+    expect(can('approve', 'attendance', { realRole: 'Admin', currentUserId: 'u1', record: { recorder_ids: ['u1'] } })).toBe(false);
+    expect(can('approve', 'attendance', { realRole: 'Project Manager', currentUserId: 'u1', record: { recorder_ids: ['u2'] } })).toBe(true);
+  });
+});
