@@ -32,6 +32,9 @@ vi.mock('@/src/hooks/useProjects', () => ({
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: (h.viewAs ?? h.role) as Role }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
+// The expiring-documents card (#2542) and the rental terms card (#2526) have their own tests; this floor file covers the asset record and costing only.
+vi.mock('./ExpiryDocumentsCard', () => ({ ExpiryDocumentsCard: () => null }));
+vi.mock('./EquipmentRentalTerms', () => ({ EquipmentRentalTerms: () => null }));
 
 import EquipmentAssetDetail from './EquipmentAssetDetail';
 
