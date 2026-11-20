@@ -87,6 +87,11 @@ export const CORE_ROUTES = {
   '/integrations': 'personal M365 connect — the token-custody callback surface; stays routable (S3)',
   '/settings/profile': 'personal settings',
   '/master-data/:kind': 'Odoo master-data mirror — no switch key of its own (S3 inventory)',
+  '/material-requests': 'material requests (#2524) — every member raises one; no catalogue switch yet',
+  '/material-requests/new': 'material requests (#2524) — every member raises one; no catalogue switch yet',
+  '/material-requests/settings': 'material requests (#2524) — every member raises one; no catalogue switch yet',
+  '/material-requests/:requestId/edit': 'material requests (#2524) — every member raises one; no catalogue switch yet',
+  '/material-requests/:requestId': 'material requests (#2524) — every member raises one; no catalogue switch yet',
 };
 
 /** Rail items with no entitlement (mirrors CORE_ROUTES for the same modules). */
@@ -94,6 +99,7 @@ export const CORE_NAV = {
   '/': 'dashboard — core',
   '/projects': 'projects — core',
   '/equipment': 'equipment — not a catalogue module',
+  '/material-requests': 'material requests (#2524) — every member raises one; no catalogue switch yet',
   '/expenses': 'expense_claims — core',
   '/approvals': 'approvals — core',
   '/my-tasks': 'tasks — core',
@@ -110,6 +116,7 @@ export const CORE_PALETTE = {
   '/meetings': 'meetings — not a catalogue module',
   '/expenses': 'expense_claims — core',
   '/equipment': 'equipment — not a catalogue module',
+  '/material-requests': 'material requests (#2524) — every member raises one; no catalogue switch yet',
   '/my-tasks': 'tasks — core',
   '/calendar': 'calendar — a view of core tasks and milestones',
   '/approvals': 'approvals — core',

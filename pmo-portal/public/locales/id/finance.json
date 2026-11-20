@@ -124,6 +124,7 @@
     "client": "Klien",
     "invoiceColumn": "Invoice",
     "delivery": "Pengiriman",
+    "projectManager": "Manajer proyek",
     "deliveryReceived": "Terkirim {{date}}",
     "deliveryNotReceived": "Belum dikirim",
     "deliveryDraft": "Draf oleh {{name}}",
