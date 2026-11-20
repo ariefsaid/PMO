@@ -20,8 +20,8 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Site Alpha', short_name: null }] }) }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'w1', title: 'Slab', wo_number: 'WO-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useStock', () => ({
-  useStockItems: () => ({ data: [{ id: 'i1', code: 'CEM', name: 'Cement', unit_id: 'u1', archived_at: null }], isPending: false, isError: false, refetch: vi.fn() }),
-  useStockUnits: () => ({ data: [{ id: 'u1', code: 'BAG' }] }),
+  useStockItems: () => ({ data: [{ id: 'i1', code: 'CEM', name: 'Cement', unit_id: 'u1', archived_at: null }, { id: 'i2', code: 'BRK', name: 'Brick', unit_id: 'u2', archived_at: null }], isPending: false, isError: false, refetch: vi.fn() }),
+  useStockUnits: () => ({ data: [{ id: 'u1', code: 'BAG', whole_only: false }, { id: 'u2', code: 'PCS', whole_only: true }] }),
 }));
 vi.mock('@/src/hooks/useOrgFxContext', () => ({ useOrgFxContext: () => ({ data: { currency: 'IDR', timezone: h.tz }, isPending: false }) }));
 vi.mock('@/src/components/shell', () => ({ BackBar: () => null }));
@@ -82,6 +82,40 @@ describe('raise a material request', () => {
     await userEvent.type(screen.getByLabelText(/^quantity/i), '2,5');
     await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(h.saveDraft.mutateAsync.mock.calls[0][0].lines[0].quantity).toBe(2.5);
+  });
+
+  describe('#2613 the form says why before the server has to', () => {
+    const fill = async (itemId: string, qty: string) => {
+      render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+      await pick(/^project/i, 'Site Alpha');
+      await pick(/^work order/i, 'WO-1 · Slab');
+      await userEvent.selectOptions(screen.getByLabelText(/^item/i), itemId);
+      await userEvent.type(screen.getByLabelText(/^quantity/i), qty);
+    };
+    it('a fraction for an item counted in whole units is refused with a reason', async () => {
+      h.saveDraft.mutateAsync.mockClear();
+      await fill('i2', '2,5');
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(await screen.findByText(/counted in whole units/)).toBeInTheDocument();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+    });
+    it('more than three decimals is refused with a reason', async () => {
+      h.saveDraft.mutateAsync.mockClear();
+      await fill('i1', '1.2345');
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(await screen.findByText(/at most three decimals/)).toBeInTheDocument();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+    });
+    it('the same item on two lines is refused with a reason', async () => {
+      h.saveDraft.mutateAsync.mockClear();
+      await fill('i1', '1');
+      await userEvent.click(screen.getByRole('button', { name: 'Add item' }));
+      await userEvent.selectOptions(screen.getAllByLabelText(/^item/i)[1], 'i1');
+      await userEvent.type(screen.getAllByLabelText(/^quantity/i)[1], '1');
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(await screen.findByText(/already on another line/)).toBeInTheDocument();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+    });
   });
 
   describe('AC-MRQ-021 default needed-by is tomorrow in the organisation calendar', () => {

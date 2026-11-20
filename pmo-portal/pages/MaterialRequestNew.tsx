@@ -12,7 +12,7 @@ import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useStockItems, useStockUnits } from '@/src/hooks/useStock';
 import { useLinePlans, useMaterialRequest, useMaterialRequestMutations } from '@/src/hooks/useMaterialRequests';
 import { draftLineErrors, linePlanStatus } from '@/src/lib/repositories/materialRequests';
-import { isPositiveDecimal, normalizeDecimal } from '@/src/lib/stockFormat';
+import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useRefusalText } from './materialRequests/useMaterialRequestText';
 
@@ -35,6 +35,7 @@ const MaterialRequestNewPage: React.FC = () => {
   const { data: projects } = useProjectPickerOptions();
   const { data: items, isPending: itemsPending, isError: itemsError, refetch: refetchItems } = useStockItems();
   const { data: units } = useStockUnits();
+  const wholeByUnit = useMemo(() => new Map((units ?? []).map((u) => [u.id, u.whole_only])), [units]);
   const m = useMaterialRequestMutations();
 
   const [projectId, setProjectId] = useState('');
@@ -75,7 +76,16 @@ const MaterialRequestNewPage: React.FC = () => {
     const p = planOf(l.itemId);
     return { itemId: l.itemId, quantity: quantityOf(l.quantity), overPlanReason: l.reason, planQty: p?.planQty ?? 0, priorQty: p?.priorQty ?? 0 };
   }));
-  const complete = Boolean(workOrderId) && Boolean(neededBy) && lines.every((l) => l.itemId) && planReady && Object.keys(errors).length === 0;
+  // Checks the server also makes (MRQ_INVALID), caught here so the person sees which line and why.
+  const extraErrors = lines.map((l, i): 'duplicateItem' | 'quantityDecimals' | 'wholeOnly' | undefined => {
+    const v = normalizeDecimal(l.quantity);
+    if (l.itemId && lines.findIndex((x) => x.itemId === l.itemId) !== i) return 'duplicateItem';
+    if (/^\d+\.\d{4,}$/.test(v)) return 'quantityDecimals';
+    const unitId = items?.find((x) => x.id === l.itemId)?.unit_id;
+    if (isPositiveDecimal(v) && unitId && wholeByUnit.get(unitId) && !isWholeQuantity(v)) return 'wholeOnly';
+    return undefined;
+  });
+  const complete = extraErrors.every((e) => !e) && Boolean(workOrderId) && Boolean(neededBy) && lines.every((l) => l.itemId) && planReady && Object.keys(errors).length === 0;
 
   const patch = (key: string, p: Partial<FormLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...p } : l)));
 
@@ -131,10 +141,13 @@ const MaterialRequestNewPage: React.FC = () => {
             return (
               <div key={l.key} className="space-y-2 rounded-md border border-border p-3" data-testid="mrq-line">
                 <SelectField label={t('form.item', 'Item')} required value={l.itemId} onChange={(v) => patch(l.key, { itemId: v })}
+                  error={touched && extraErrors[i] === 'duplicateItem' ? t('form.duplicateItem', 'This item is already on another line. Put it on one line.') : undefined}
                   options={[{ value: '', label: t('form.chooseItem', 'Choose an item') }, ...itemOptions]} fullWidth />
                 <TextField label={t('form.quantity', 'Quantity{{unit}}', { unit: item ? ` (${unitName(item.unit_id)})` : '' })} required inputMode="decimal"
                   value={l.quantity} onChange={(v) => patch(l.key, { quantity: v })}
-                  error={err === 'quantityRequired' ? t('form.quantityRequired', 'Enter a quantity above zero.') : undefined} />
+                  error={touched && extraErrors[i] === 'quantityDecimals' ? t('form.quantityDecimals', 'Use at most three decimals.')
+                    : touched && extraErrors[i] === 'wholeOnly' ? t('form.wholeOnly', 'This item is counted in whole units. Enter a whole number.')
+                    : err === 'quantityRequired' ? t('form.quantityRequired', 'Enter a quantity above zero.') : undefined} />
                 {l.itemId && (
                   <p className="text-control text-muted-foreground" data-testid="mrq-plan">
                     {plans.isPending ? '…' : p

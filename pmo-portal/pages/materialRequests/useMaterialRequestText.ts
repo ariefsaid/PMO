@@ -58,6 +58,9 @@ export function useRefusalText(): (err: unknown) => string {
     workOrder: t('refusal.workOrder', 'Choose a work order you can see.'),
     standIn: t('refusal.standIn', 'This stand-in is not allowed: choose an active colleague and a valid date range.'),
     adminOnly: t('refusal.adminOnly', 'Only an administrator can do this.'),
+    invalid: t('refusal.invalid', 'The request could not be saved. Check that each item appears once, that items counted in whole units have no fraction, and that quantities have at most three decimals.'),
+    notFound: t('refusal.notFound', 'That request or person was not found. Reload the page and try again.'),
+    destination: t('refusal.destination', 'Choose a delivery location that belongs to the work order’s project.'),
     unknown: t('refusal.unknown', 'That did not work. Try again.'),
   };
   return (err) => {

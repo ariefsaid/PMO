@@ -153,7 +153,7 @@ export function draftLineErrors(
 export type MaterialRequestRefusal =
   | 'sodAuthor' | 'sodTwice' | 'outOfOrder' | 'notApprover' | 'reasonRequired' | 'overPlanReason' | 'cutoff'
   | 'neededBy' | 'noChain' | 'sourceRequired' | 'noDestination' | 'notKeeper' | 'notPending' | 'notDraft'
-  | 'notAuthor' | 'workOrder' | 'standIn' | 'adminOnly' | 'unknown';
+  | 'notAuthor' | 'workOrder' | 'standIn' | 'adminOnly' | 'invalid' | 'notFound' | 'destination' | 'unknown';
 
 const REFUSALS: Array<[string, MaterialRequestRefusal]> = [
   ['MRQ_SOD_AUTHOR', 'sodAuthor'], ['MRQ_SOD_TWICE', 'sodTwice'], ['MRQ_OUT_OF_ORDER', 'outOfOrder'],
@@ -161,7 +161,7 @@ const REFUSALS: Array<[string, MaterialRequestRefusal]> = [
   ['MRQ_CUTOFF', 'cutoff'], ['MRQ_NEEDED_BY', 'neededBy'], ['MRQ_NO_CHAIN', 'noChain'], ['MRQ_SOURCE_REQUIRED', 'sourceRequired'],
   ['MRQ_NO_DESTINATION', 'noDestination'], ['STK_NOT_KEEPER', 'notKeeper'], ['MRQ_NOT_PENDING', 'notPending'],
   ['MRQ_NOT_DRAFT', 'notDraft'], ['MRQ_NOT_AUTHOR', 'notAuthor'], ['MRQ_WORK_ORDER', 'workOrder'], ['MRQ_STAND_IN', 'standIn'],
-  ['MRQ_ADMIN_ONLY', 'adminOnly'],
+  ['MRQ_ADMIN_ONLY', 'adminOnly'], ['MRQ_INVALID', 'invalid'], ['MRQ_NOT_FOUND', 'notFound'], ['MRQ_DESTINATION', 'destination'],
 ];
 
 /** Maps a database refusal to a stable key the screen translates. The message prefix is the contract. */

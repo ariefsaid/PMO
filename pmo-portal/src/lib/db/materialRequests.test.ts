@@ -173,7 +173,8 @@ describe('AC-MRQ-003 refusal keys', () => {
     ['MRQ_NEEDED_BY: x', 'neededBy'], ['MRQ_NO_CHAIN: x', 'noChain'], ['MRQ_SOURCE_REQUIRED: x', 'sourceRequired'],
     ['MRQ_NO_DESTINATION: x', 'noDestination'], ['STK_NOT_KEEPER: x', 'notKeeper'], ['MRQ_NOT_PENDING: x', 'notPending'],
     ['MRQ_NOT_DRAFT: x', 'notDraft'], ['MRQ_NOT_AUTHOR: x', 'notAuthor'], ['MRQ_WORK_ORDER: x', 'workOrder'],
-    ['MRQ_STAND_IN: x', 'standIn'], ['MRQ_ADMIN_ONLY: x', 'adminOnly'], ['something else', 'unknown'],
+    ['MRQ_STAND_IN: x', 'standIn'], ['MRQ_ADMIN_ONLY: x', 'adminOnly'], ['MRQ_INVALID: x', 'invalid'],
+    ['MRQ_NOT_FOUND: x', 'notFound'], ['MRQ_DESTINATION: x', 'destination'], ['something else', 'unknown'],
   ])('%s maps to %s', (message, key) => {
     expect(dal.materialRequestRefusal(new Error(message))).toBe(key);
   });
