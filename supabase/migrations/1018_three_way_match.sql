@@ -504,10 +504,10 @@ begin
      or has_function_privilege('anon', 'public.record_receipt_match_lines(uuid,jsonb)', 'EXECUTE')
      or has_function_privilege('anon', 'public.set_three_way_match_settings(boolean,numeric,numeric)', 'EXECUTE')
      or has_function_privilege('anon', 'public.get_bill_match(uuid)', 'EXECUTE') then
-    raise exception '0965: a three-way match RPC is anon-executable'; end if;
+    raise exception '1018: a three-way match RPC is anon-executable'; end if;
   if has_function_privilege('authenticated', 'public.bill_match_evaluate(uuid)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.purchase_has_held_bill(uuid)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.purchase_match_on(uuid)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.guard_payment_three_way_hold()', 'EXECUTE') then
-    raise exception '0965: an internal three-way match function is client-executable'; end if;
+    raise exception '1018: an internal three-way match function is client-executable'; end if;
 end $$;

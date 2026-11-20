@@ -102,7 +102,7 @@ values ('a6120000-0000-4000-8000-0000000000e2', 'a6120000-0000-4000-8000-0000000
 insert into public.journal_entry_authors (journal_id, profile_id, org_id)
 select 'a6120000-0000-4000-8000-0000000000e1', p.id, 'a6120000-0000-4000-8000-00000000000a'
   from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
--- 0965 (#2525): the seed org carries no three-way match rows either. Give A one of each so their by-id probes run. The
+-- 1018 (#2525): the seed org carries no three-way match rows either. Give A one of each so their by-id probes run. The
 -- match stays off for A (enabled = false), so none of A's purchases is gated. Each child has a real parent in A,
 -- so an authenticated A member can see it through the parent-visible policies.
 insert into public.procurement_items (id, org_id, procurement_id, name, quantity, rate)
