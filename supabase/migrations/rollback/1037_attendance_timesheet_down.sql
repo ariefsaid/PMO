@@ -1,4 +1,4 @@
--- 0990_attendance_timesheet_down.sql — reverse 0990: restore the 0951 cost read seam, drop the approval triggers and RPCs.
+-- 1037_attendance_timesheet_down.sql — reverse 0990: restore the 0951 cost read seam, drop the approval triggers and RPCs.
 create or replace view public.work_order_cost_lines with (security_invoker = true) as
   select 'purchase_request'::text as source, r.id as record_id, r.org_id, p.project_id, r.work_order_id, r.discipline_id,
          r.date as occurred_on, coalesce(r.pr_number, r.reference_number) as reference,

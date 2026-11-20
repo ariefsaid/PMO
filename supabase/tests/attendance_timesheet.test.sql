@@ -1,5 +1,5 @@
 -- attendance_timesheet.test.sql — #2528 Slice 3 (docs/specs/crews-roster-attendance.spec.md). Money path + SoD.
--- Migration under test: 0990_attendance_timesheet.sql (with 0988/0989).
+-- Migration under test: 1037_attendance_timesheet.sql (with 0988/0989).
 -- AC-CRW-009 a week's attendance becomes a submitted timesheet, once · AC-CRW-010 the recorder cannot approve, another
 -- supervisor can and the attendance locks · AC-CRW-011 locked attendance cannot be edited; re-opening is the correction
 -- path · AC-CRW-012 a person with no login gets approved hours on the attendance, read by cost attribution.

@@ -1,4 +1,4 @@
--- 0990_attendance_timesheet.sql — #2528: attendance becomes the timesheet with no retyping, approved by someone other
+-- 1037_attendance_timesheet.sql — #2528: attendance becomes the timesheet with no retyping, approved by someone other
 -- than whoever recorded it. Spec: docs/specs/crews-roster-attendance.spec.md (FR-CRW-014..018, OQ-CRW-3).
 -- Plan: Slice 3 (money path: hours feed work-order cost; SoD). Proven by supabase/tests/attendance_timesheet.test.sql.
 --
@@ -8,7 +8,7 @@
 --                                  path) unlocks it.
 -- A trigger holds for every path to Approved, so a later approval writer cannot skip the rule.
 --
--- ── REVERSE (also supabase/migrations/rollback/0990_attendance_timesheet_down.sql) ─────────────────────────────
+-- ── REVERSE (also supabase/migrations/rollback/1037_attendance_timesheet_down.sql) ─────────────────────────────
 --   restore the 0951 work_order_cost_lines view; drop the two timesheets triggers and their functions; drop functions
 --   attendance_decide_week, attendance_generate_timesheet.
 
