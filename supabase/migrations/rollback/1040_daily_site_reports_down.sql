@@ -1,4 +1,4 @@
--- Reverses 1004_daily_site_reports.sql. Run 1005's rollback first.
+-- Reverses 1040_daily_site_reports.sql. Run 1005's rollback first.
 -- The 'site-report-photos' bucket stays: storage refuses direct deletes. Empty and remove it through the
 -- Storage API (as for 0247's expense-receipts bucket); its policies are dropped by 1005's rollback.
 drop table if exists public.dsr_events;

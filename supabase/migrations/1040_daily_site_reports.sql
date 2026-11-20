@@ -1,10 +1,10 @@
--- 1004_daily_site_reports.sql — #1522: daily site report per work order (tables, RLS, photo bucket).
+-- 1040_daily_site_reports.sql — #1522: daily site report per work order (tables, RLS, photo bucket).
 -- Spec: docs/specs/daily-site-report.spec.md. Plan: docs/plans/2026-11-20-daily-site-report.md.
 -- Every write goes through the security-definer RPCs in 1005: these tables grant authenticated SELECT only
 -- (plus the photo rows, written under RLS while the report is still editable). org_id is stamped by
 -- stamp_org_id / the RPCs, never sent by the client.
 -- Proven by supabase/tests/dsr_report.test.sql.
--- Reversal: rollback/1004_daily_site_reports_down.sql.
+-- Reversal: rollback/1040_daily_site_reports_down.sql.
 
 -- ── organisation lists (FR-DSR-003/004): Admin-maintained, archivable ─────────────────────────────────
 create table public.dsr_idle_reasons (
