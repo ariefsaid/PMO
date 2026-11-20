@@ -59,9 +59,14 @@ begin
 end $$;
 revoke all on function public.check_task_work_order() from public;
 
-create trigger tasks_check_work_order
+create trigger tasks_zz_check_work_order
   before insert or update of work_order_id, project_id on public.tasks
   for each row execute function public.check_task_work_order();
+
+-- Change-history registry (record_changes_catalog_gate): both new columns are captured row history.
+update public.record_history_config
+   set captured = captured || '{"work_order_id":"ref","proof_required":"bool"}'::jsonb
+ where entity_type = 'task';
 
 -- ── §3 task_proofs ────────────────────────────────────────────────────────────────────────────────────────
 create table public.task_proofs (
@@ -127,7 +132,9 @@ begin
   return new;
 end $$;
 revoke all on function public.task_proofs_before_insert() from public;
-create trigger task_proofs_before_insert before insert on public.task_proofs
+create trigger task_proofs_stamp_org_id before insert on public.task_proofs
+  for each row execute function public.stamp_org_id();
+create trigger task_proofs_zz_before_insert before insert on public.task_proofs
   for each row execute function public.task_proofs_before_insert();
 
 -- FR-TWOP-013: the proof of a Done proof-required task is append-only.

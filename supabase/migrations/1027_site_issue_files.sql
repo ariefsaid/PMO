@@ -48,7 +48,8 @@ create policy incident_files_select on public.incident_files for select
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 create policy incident_files_insert on public.incident_files for insert
   with check (
-    org_id = (select public.auth_org_id()) and (select public.can_add_incident_evidence(incident_id))
+    org_id = (select public.auth_org_id()) and (select public.is_active_member())
+    and (select public.can_add_incident_evidence(incident_id))
     and (select public.org_feature_enabled((select public.auth_org_id()), 'incidents')));
 -- archive (soft delete): the uploader or a manager
 create policy incident_files_update on public.incident_files for update
@@ -113,7 +114,9 @@ begin
   return new;
 end; $$;
 revoke all on function public.guard_incident_file() from public, anon, authenticated;
-create trigger incident_files_guard before insert or update on public.incident_files
+create trigger incident_files_stamp_org_id before insert on public.incident_files
+  for each row execute function public.stamp_org_id();
+create trigger incident_files_zz_guard before insert or update on public.incident_files
   for each row execute function public.guard_incident_file();
 
 -- ── §2 bucket + storage RLS ───────────────────────────────────────────────────────────────────────
