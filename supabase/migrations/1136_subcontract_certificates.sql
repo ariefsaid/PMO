@@ -435,7 +435,7 @@ begin
   if c.id is null or not public.spc_may_read(c.project_id) then
     raise exception 'certificate not found' using errcode = 'P0002'; end if;
   if c.status in ('draft', 'returned') then
-    v := public.spc_derive(c.id) - 'tuples';
+    v := public.spc_derive(c.id);                       -- the tuples are the measured days the preparer may set aside
   else
     v := jsonb_build_object(
       'lines', coalesce((select jsonb_agg(jsonb_build_object('boq_item_id', l.boq_item_id, 'item_code', l.item_code, 'unit', l.unit,

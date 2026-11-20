@@ -7998,8 +7998,10 @@ export type Database = {
       procurement_invoices: {
         Row: {
           amount: number | null
+          certificate_id: string | null
           created_at: string
           currency: string
+          deduction_amount: number
           discipline_id: string | null
           efaktur_date: string | null
           efaktur_number: string | null
@@ -8041,8 +8043,10 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          certificate_id?: string | null
           created_at?: string
           currency?: string
+          deduction_amount?: number
           discipline_id?: string | null
           efaktur_date?: string | null
           efaktur_number?: string | null
@@ -8084,8 +8088,10 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          certificate_id?: string | null
           created_at?: string
           currency?: string
+          deduction_amount?: number
           discipline_id?: string | null
           efaktur_date?: string | null
           efaktur_number?: string | null
@@ -11740,6 +11746,333 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      subcontract_backcharges: {
+        Row: {
+          amount: number
+          archived_at: string | null
+          claimed_by_certificate_id: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          id: string
+          org_id: string
+          project_id: string
+          proof_document_id: string | null
+          reason_code: string
+          reason_text: string | null
+          vendor_company_id: string
+          work_order_id: string | null
+        }
+        Insert: {
+          amount: number
+          archived_at?: string | null
+          claimed_by_certificate_id?: string | null
+          created_at?: string
+          created_by: string
+          currency: string
+          id?: string
+          org_id: string
+          project_id: string
+          proof_document_id?: string | null
+          reason_code: string
+          reason_text?: string | null
+          vendor_company_id: string
+          work_order_id?: string | null
+        }
+        Update: {
+          amount?: number
+          archived_at?: string | null
+          claimed_by_certificate_id?: string | null
+          created_at?: string
+          created_by?: string
+          currency?: string
+          id?: string
+          org_id?: string
+          project_id?: string
+          proof_document_id?: string | null
+          reason_code?: string
+          reason_text?: string | null
+          vendor_company_id?: string
+          work_order_id?: string | null
+        }
+        Relationships: []
+      }
+      subcontract_certificate_backcharges: {
+        Row: {
+          amount: number | null
+          backcharge_id: string
+          certificate_id: string
+          org_id: string
+        }
+        Insert: {
+          amount?: number | null
+          backcharge_id: string
+          certificate_id: string
+          org_id?: string
+        }
+        Update: {
+          amount?: number | null
+          backcharge_id?: string
+          certificate_id?: string
+          org_id?: string
+        }
+        Relationships: []
+      }
+      subcontract_certificate_claims: {
+        Row: {
+          boq_item_id: string
+          certificate_id: string
+          crew_id: string
+          id: string
+          org_id: string
+          quantity: number
+          work_date: string
+          work_order_id: string
+          work_order_line_id: string
+        }
+        Insert: {
+          boq_item_id: string
+          certificate_id: string
+          crew_id: string
+          id?: string
+          org_id?: string
+          quantity: number
+          work_date: string
+          work_order_id: string
+          work_order_line_id: string
+        }
+        Update: {
+          boq_item_id?: string
+          certificate_id?: string
+          crew_id?: string
+          id?: string
+          org_id?: string
+          quantity?: number
+          work_date?: string
+          work_order_id?: string
+          work_order_line_id?: string
+        }
+        Relationships: []
+      }
+      subcontract_certificate_deselections: {
+        Row: {
+          certificate_id: string
+          created_at: string
+          created_by: string | null
+          crew_id: string
+          org_id: string
+          reason: string
+          work_date: string
+          work_order_line_id: string
+        }
+        Insert: {
+          certificate_id: string
+          created_at?: string
+          created_by?: string | null
+          crew_id: string
+          org_id?: string
+          reason: string
+          work_date: string
+          work_order_line_id: string
+        }
+        Update: {
+          certificate_id?: string
+          created_at?: string
+          created_by?: string | null
+          crew_id?: string
+          org_id?: string
+          reason?: string
+          work_date?: string
+          work_order_line_id?: string
+        }
+        Relationships: []
+      }
+      subcontract_certificate_lines: {
+        Row: {
+          amount: number
+          boq_item_id: string
+          certificate_id: string
+          id: string
+          item_code: string
+          measured_quantity: number
+          org_id: string
+          po_rate: number
+          rate: number
+          unit: string
+        }
+        Insert: {
+          amount?: number
+          boq_item_id: string
+          certificate_id: string
+          id?: string
+          item_code: string
+          measured_quantity: number
+          org_id?: string
+          po_rate: number
+          rate: number
+          unit: string
+        }
+        Update: {
+          amount?: number
+          boq_item_id?: string
+          certificate_id?: string
+          id?: string
+          item_code?: string
+          measured_quantity?: number
+          org_id?: string
+          po_rate?: number
+          rate?: number
+          unit?: string
+        }
+        Relationships: []
+      }
+      subcontract_certificates: {
+        Row: {
+          acceptance_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          backcharge_total: number | null
+          bill_refusal: string | null
+          bill_refusal_at: string | null
+          billed_at: string | null
+          cancel_reason: string | null
+          cancelled_by: string | null
+          created_at: string
+          currency: string
+          excluded: Json | null
+          gross: number | null
+          id: string
+          invoice_id: string | null
+          net: number | null
+          org_id: string
+          period_end: string
+          period_start: string
+          po_id: string
+          prepared_by: string
+          procurement_id: string
+          project_id: string
+          returned_reason: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          unrated: Json | null
+          updated_at: string
+          vendor_company_id: string
+          work_order_id: string
+        }
+        Insert: {
+          acceptance_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          backcharge_total?: number | null
+          bill_refusal?: string | null
+          bill_refusal_at?: string | null
+          billed_at?: string | null
+          cancel_reason?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          currency: string
+          excluded?: Json | null
+          gross?: number | null
+          id?: string
+          invoice_id?: string | null
+          net?: number | null
+          org_id: string
+          period_end: string
+          period_start: string
+          po_id: string
+          prepared_by: string
+          procurement_id: string
+          project_id: string
+          returned_reason?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          unrated?: Json | null
+          updated_at?: string
+          vendor_company_id: string
+          work_order_id: string
+        }
+        Update: {
+          acceptance_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          backcharge_total?: number | null
+          bill_refusal?: string | null
+          bill_refusal_at?: string | null
+          billed_at?: string | null
+          cancel_reason?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          currency?: string
+          excluded?: Json | null
+          gross?: number | null
+          id?: string
+          invoice_id?: string | null
+          net?: number | null
+          org_id?: string
+          period_end?: string
+          period_start?: string
+          po_id?: string
+          prepared_by?: string
+          procurement_id?: string
+          project_id?: string
+          returned_reason?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          unrated?: Json | null
+          updated_at?: string
+          vendor_company_id?: string
+          work_order_id?: string
+        }
+        Relationships: []
+      }
+      subcontractor_rate_lines: {
+        Row: {
+          boq_item_id: string
+          created_at: string
+          created_by: string | null
+          currency: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          org_id: string
+          rate: number
+          unit: string
+          vendor_company_id: string
+          version: number
+        }
+        Insert: {
+          boq_item_id: string
+          created_at?: string
+          created_by?: string | null
+          currency: string
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          org_id: string
+          rate: number
+          unit: string
+          vendor_company_id: string
+          version: number
+        }
+        Update: {
+          boq_item_id?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          org_id?: string
+          rate?: number
+          unit?: string
+          vendor_company_id?: string
+          version?: number
+        }
+        Relationships: []
       }
       task_dependencies: {
         Row: {
@@ -17247,6 +17580,70 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      approve_subcontract_certificate: {
+        Args: { p_certificate: string }
+        Returns: undefined
+      }
+      archive_subcontract_backcharge: {
+        Args: { p_backcharge: string }
+        Returns: undefined
+      }
+      bill_subcontract_certificate: {
+        Args: { p_certificate: string; p_invoice_date: string; p_notes?: string; p_reference_number?: string; p_tax_amount?: number; p_tax_rate?: number; p_tax_template?: string; p_tax_treatment?: string }
+        Returns: Json
+      }
+      cancel_subcontract_certificate: {
+        Args: { p_certificate: string; p_reason: string }
+        Returns: undefined
+      }
+      prepare_certificate_acceptance: {
+        Args: { p_certificate: string; p_note?: string }
+        Returns: string
+      }
+      prepare_subcontract_certificate: {
+        Args: { p_period_start: string; p_po_id: string }
+        Returns: string
+      }
+      record_subcontract_backcharge: {
+        Args: { p_amount: number; p_currency: string; p_project: string; p_reason_code: string; p_vendor: string; p_proof_document?: string; p_reason_text?: string; p_work_order?: string }
+        Returns: string
+      }
+      return_subcontract_certificate: {
+        Args: { p_certificate: string; p_reason: string }
+        Returns: undefined
+      }
+      set_certificate_backcharge: {
+        Args: { p_backcharge: string; p_certificate: string; p_include: boolean }
+        Returns: undefined
+      }
+      set_certificate_deselection: {
+        Args: { p_certificate: string; p_crew: string; p_deselect: boolean; p_work_date: string; p_work_order_line: string; p_reason?: string }
+        Returns: undefined
+      }
+      set_subcontractor_rate: {
+        Args: { p_boq_item: string; p_currency: string; p_effective_from: string; p_rate: number; p_unit: string; p_vendor: string; p_effective_to?: string }
+        Returns: string
+      }
+      submit_subcontract_certificate: {
+        Args: { p_certificate: string }
+        Returns: undefined
+      }
+      subcontract_certificate_view: {
+        Args: { p_certificate: string }
+        Returns: Json
+      }
+      work_order_certified_cost: {
+        Args: { p_work_order: string }
+        Returns: {
+          backcharge_total: number | null
+          certificate_id: string
+          gross: number | null
+          invoice_id: string | null
+          net: number | null
+          period_start: string
+          status: string
+        }[]
       }
       void_vendor_withholding_slip: {
         Args: {

@@ -112,6 +112,8 @@ const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment
 const SiteReportsPage = lazyWithPreload(() => import('./pages/siteReports/SiteReports'));
 const SiteReportDetailPage = lazyWithPreload(() => import('./pages/siteReports/SiteReportDetail'));
 const CrewsPage = lazyWithPreload(() => import('./pages/crews/Crews'));
+const SubcontractCertificatesPage = lazyWithPreload(() => import('./pages/subcontractCertificates/SubcontractCertificates'));
+const SubcontractCertificateDetailPage = lazyWithPreload(() => import('./pages/subcontractCertificates/SubcontractCertificateDetail'));
 const ApprovalsPage = lazyWithPreload(() => import('./pages/Approvals'));
 const CompaniesPage = lazyWithPreload(() => import('./pages/Companies'));
 const MasterDataPage = lazyWithPreload(() => import('./pages/MasterData'));
@@ -260,6 +262,8 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/site-reports', chunks: [SiteReportsPage], namespaces: ['siteReport'] },
   { path: '/site-reports/:reportId', chunks: [SiteReportDetailPage], namespaces: ['siteReport'] },
   { path: '/crews', chunks: [CrewsPage], namespaces: ['crews'] },
+  { path: '/subcontract-certificates', chunks: [SubcontractCertificatesPage], namespaces: ['subcontractCertificates'] },
+  { path: '/subcontract-certificates/:certificateId', chunks: [SubcontractCertificateDetailPage], namespaces: ['subcontractCertificates'] },
   { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
@@ -481,6 +485,9 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/site-reports/:reportId', element: <SiteReportDetailPage /> },
   // #2528: crews, the roster per work order and the daily attendance tick.
   { path: '/crews', element: <CrewsPage /> },
+  // #2584: subcontractor progress certificates and the subcontractor rate card (gated by the procurement plan switch).
+  { path: '/subcontract-certificates', element: gated('procurement', <SubcontractCertificatesPage />) },
+  { path: '/subcontract-certificates/:certificateId', element: gated('procurement', <SubcontractCertificateDetailPage />) },
   { path: '/equipment/people/:personId', element: <PersonDetailPage /> },
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },

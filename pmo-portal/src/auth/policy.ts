@@ -53,7 +53,8 @@ export type Action =
   | 'revise'
   | 'link'
   | 'void'
-  | 'approve';
+  | 'approve'
+  | 'bill';
 
 export type Entity =
   | 'project'
@@ -131,6 +132,8 @@ export type Entity =
   | 'reorderLevel'
   | 'subcontractLines'
   | 'subcontractAcceptance'
+  | 'subcontractCertificate'
+  | 'subcontractRate'
   | 'poVariation'
   | 'equipmentAsset'
   | 'equipmentUsage'
@@ -165,6 +168,9 @@ export interface PolicyContext {
     user_id?: string | null;
     /** Author id — for equipment usage visibility and the document-edit author rule (A-7). */
     author_id?: string | null;
+    /** #2584 progress certificate: who prepared and who submitted it (the approver is neither). */
+    prepared_by?: string | null;
+    submitted_by?: string | null;
     /** Task creator — DD-TASK-8. Trigger-stamped server-side (`0204`), never client-set, so it is
      *  safe to read as an edit right here. Distinct from `assignee_id`: a task you created and
      *  assigned to someone else is still yours to edit. */
@@ -1018,6 +1024,28 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
           !!ctx.currentUserId &&
           ctx.record?.project_manager_id === ctx.currentUserId)),
     confirm: allowUnlessViewOnly(['Admin', 'Finance']),
+  },
+  // #2584 subcontractor progress certificate. UX ONLY — the database RPCs and RLS are the authority:
+  // prepare (also submit, cancel and backcharges): Finance and Admin, or the project's own PM (spc_may_prepare);
+  // approve (also return): Finance and Admin only, never the preparer or submitter (approve_subcontract_certificate);
+  // bill: Finance and Admin; read: Admin, Executive, Finance, or the project's PM (spc_may_read).
+  subcontractCertificate: {
+    view: (role, ctx) =>
+      has(MONEY_AUTHORITY, role) ||
+      (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId),
+    prepare: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (has(['Admin', 'Finance'], role) ||
+        (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
+    approve: (role, ctx) =>
+      ctx.record?.viewOnly !== true && has(['Admin', 'Finance'], role) &&
+      !(ctx.currentUserId && (ctx.record?.prepared_by === ctx.currentUserId || ctx.record?.submitted_by === ctx.currentUserId)),
+    bill: allowUnlessViewOnly(['Admin', 'Finance']),
+  },
+  // The subcontractor rate card is cost data (FR-SPC-003): Admin and Finance write, Executive reads.
+  subcontractRate: {
+    manage: allowUnlessViewOnly(['Admin', 'Finance']),
+    view: (role) => has(['Admin', 'Executive', 'Finance', 'Project Manager'], role),
   },
   poVariation: {
     request: (role, ctx) =>

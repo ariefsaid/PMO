@@ -621,6 +621,9 @@
       "rejectBody": "Variasi ini akan ditolak atau disengketakan dan tidak meningkatkan PO.",
       "reviseTitle": "Terbitkan revisi PO baru?",
       "reviseBody": "Ini menerapkan perubahan kuantitas yang disetujui ke pesanan pembelian."
+    },
+    "certificates": {
+      "link": "Sertifikat kemajuan pekerjaan"
     }
   },
   "procurementBulk": {
