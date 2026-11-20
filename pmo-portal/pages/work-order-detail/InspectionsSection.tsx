@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, DateField, ListState, ReasonDialog, RecordSection, SelectField, TextField } from '@/src/components/ui';
+import { Button, Checkbox, DateField, ListState, ReasonDialog, RecordSection, SelectField, TextField } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import {
@@ -112,7 +112,7 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
 
       {/* the next step, by status */}
       {i.status === 'requested' && mayRaise && (
-        <div><Button type="button" size="sm" disabled={m.raisePurchase.isPending}
+        <div><Button variant="primary" type="button" size="sm" disabled={m.raisePurchase.isPending}
           onClick={() => run(m.raisePurchase.mutateAsync({ id: i.id }))}>{t('inspections.raisePurchase', 'Raise purchase')}</Button></div>
       )}
       {i.status === 'purchase_raised' && mayAdvance && (
@@ -120,14 +120,14 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
           <DateField label={t('inspections.invitedOn', 'Invitation date')} value={on} onChange={setOn} />
           <TextField label={t('inspections.invitedWho', 'Who was invited')} value={who} onChange={setWho} />
           <TextField label={t('inspections.invitedHow', 'How')} value={how} onChange={setHow} />
-          <Button type="button" size="sm" disabled={!on || m.invite.isPending}
+          <Button variant="primary" type="button" size="sm" disabled={!on || m.invite.isPending}
             onClick={() => run(m.invite.mutateAsync({ id: i.id, on, who: who || null, how: how || null }))}>{t('inspections.recordInvitation', 'Record invitation')}</Button>
         </div>
       )}
       {i.status === 'invited' && mayAdvance && (
         <div className="flex flex-wrap items-end gap-2">
           <DateField label={t('inspections.executedOn', 'Execution date')} value={on} onChange={setOn} />
-          <Button type="button" size="sm" disabled={!on || m.execute.isPending}
+          <Button variant="primary" type="button" size="sm" disabled={!on || m.execute.isPending}
             onClick={() => run(m.execute.mutateAsync({ id: i.id, on }))}>{t('inspections.recordExecution', 'Record execution')}</Button>
         </div>
       )}
@@ -144,7 +144,7 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
         <div className="flex flex-wrap items-end gap-2">
           <SelectField label={t('inspections.resultLabel', 'Result')} value={result} onChange={(v) => setResult(v as InspectionResult | '')}
             options={[{ value: '', label: t('inspections.chooseResult', 'Choose a result') }, ...RESULTS.map((r) => ({ value: r, label: t(`inspections.result.${r}`, r) }))]} />
-          <Button type="button" size="sm" disabled={!result || liveFiles.length === 0 || m.report.isPending}
+          <Button variant="primary" type="button" size="sm" disabled={!result || liveFiles.length === 0 || m.report.isPending}
             onClick={() => result && run(m.report.mutateAsync({ id: i.id, result }))}>{t('inspections.markReported', 'Mark reported')}</Button>
         </div>
       )}
@@ -227,10 +227,10 @@ export const InspectionsSection: React.FC<Props> = ({ workOrderId }) => {
           <fieldset className="flex flex-wrap gap-3">
             <legend className="text-control font-semibold">{t('inspections.requiredLegend', 'Required before')}</legend>
             {(['readiness', 'billing'] as InspectionGate[]).map((g) => (
-              <label key={g} className="flex items-center gap-1.5 text-control">
-                <input type="checkbox" checked={gates.includes(g)} onChange={() => toggle(g)} />
+              <span key={g} className="flex items-center gap-1.5 text-control">
+                <Checkbox checked={gates.includes(g)} onChange={() => toggle(g)} label={t(`inspections.gate.${g}`, g)} />
                 {t(`inspections.gate.${g}`, g)}
-              </label>
+              </span>
             ))}
           </fieldset>
           {mayEstimate && (
@@ -241,7 +241,7 @@ export const InspectionsSection: React.FC<Props> = ({ workOrderId }) => {
           )}
           {err && <p role="alert" className="text-control text-destructive-text">{err}</p>}
           <div className="flex gap-2">
-            <Button type="submit" size="sm" disabled={!title.trim() || !planned || m.create.isPending}>{t('inspections.create', 'Request')}</Button>
+            <Button variant="primary" type="submit" size="sm" disabled={!title.trim() || !planned || m.create.isPending}>{t('inspections.create', 'Request')}</Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>{t('inspections.dismiss', 'Close')}</Button>
           </div>
         </form>

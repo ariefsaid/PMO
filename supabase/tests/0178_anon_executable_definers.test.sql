@@ -299,6 +299,7 @@ select plan(7);
 -- re-asserts the caller's org, active membership and a role gate (Admin/PM/Finance, Admin/Finance, status roles or Admin) in its
 -- body; proven by supabase/tests/equipment_availability*.test.sql and equipment_rental_check.test.sql. `end_equipment_rental_term`
 -- has no client caller, so 1032 revokes its authenticated grant and it is deliberately NOT listed.
+-- ⚑ AMENDED BY 1131/1133 (#2580): the seven `tpi_*` writers join the retained set (count 231 = 224 + 7, counted from the list).
 -- ⚑ AMENDED BY 1030 (#2523): `archive_stock_document_file` joins the retained set (+1, count 224 = 217 + 7, counted from the list).
 -- SECURITY DEFINER writer under a member's JWT (stockSiteWork.ts); re-asserts active membership, the caller's org and
 -- stock_can_attach; proven by the 1030 stock document files pgTAP.
@@ -557,8 +558,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  224,
-  'AC-ACL-002 all 224 retained client-callable RPC names still have a public function');
+  231,
+  'AC-ACL-002 all 231 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -567,8 +568,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  224,
-  'AC-ACL-003 all 224 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  231,
+  'AC-ACL-003 all 231 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
