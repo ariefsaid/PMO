@@ -1,4 +1,4 @@
-// @e2e-isolation: serial — rebinds the shared org's ERP binding to v16 and adds a ledger generation (org-global state); restored in afterAll.
+// @e2e-isolation: serial — rebinds the shared org's ERP binding to v16 and adds a ledger generation (org-global state); snapshotted COMPLETELY before any mutation and restored verbatim in afterAll, on finish and failure.
 /**
  * AC-018 — a whole-project budget goes from Draft to the client's ERP v16 ledger, and Forecast reads it back
  * (budget-whole-project.spec.md FR-005/-008/-013/-017/-018).
@@ -80,6 +80,7 @@ const fx = {
   wholeName: '',
   predecessorErp: [] as string[],
   snapshotId: '',
+  mapRowIds: [] as string[],
   prior: undefined as unknown as { binding: Record<string, unknown> | null; map: Array<Record<string, unknown>>; features: Array<Record<string, unknown>> },
 };
 
@@ -110,6 +111,22 @@ async function removeFixture(admin: SupabaseClient): Promise<void> {
   await admin.from('notifications').delete().eq('org_id', ORG_ID).contains('metadata', { action_required: 'budget-push-failed' });
 }
 
+/** The sweep is invoked by this journey only under its fixture-only preconditions: the bed-wide passes
+ *  this journey does not exercise must still be proven OFF (their switches present and disabled — a
+ *  MISSING row resolves to the plan default and would read the whole bed), and the settle decision's
+ *  read/counts must be complete. Missing or incomplete evidence stops BEFORE the sweep — the journey
+ *  never asks for a tick it cannot vouch for (isolation header + #2554). */
+async function assertSweepPreflight(admin: SupabaseClient): Promise<void> {
+  const { data: features, error } = await admin.from('org_features')
+    .select('feature_key, enabled').eq('org_id', ORG_ID).in('feature_key', SWEEP_PASSES_OFF);
+  if (error) throw new Error(`AC-018 sweep preflight: org_features read failed (${error.message}) — the sweep is not invoked`);
+  const switches = new Map((features ?? []).map((row) => [row.feature_key, row.enabled as boolean]));
+  const notProvenOff = SWEEP_PASSES_OFF.filter((key) => switches.get(key) !== false);
+  if (notProvenOff.length) {
+    throw new Error(`AC-018 sweep preflight: fixture-only pass switches missing or not disabled (${notProvenOff.join(', ')}) — the sweep is not invoked`);
+  }
+}
+
 test.beforeAll(async () => {
   test.setTimeout(180_000);
   const admin = createClient(AUTH_URL, SERVICE_KEY);
@@ -124,8 +141,19 @@ test.beforeAll(async () => {
   });
   if (projErr) throw new Error(`seed project failed: ${projErr.message}`);
 
-  // Org-global state is snapshotted and put back in afterAll; only this run's own rows are deleted.
-  const { data: binding } = await admin.from('external_org_bindings').select('*').eq('org_id', ORG_ID).eq('external_tier', 'erpnext').maybeSingle();
+  // Org-global state is snapshotted COMPLETELY (every column — identity and audit fields included)
+  // BEFORE anything is mutated, and put back verbatim in afterAll — which runs on finish AND on
+  // failure. Only this run's own rows are ever deleted. A capture that errored must not stand in
+  // for the org's real state, so every read asserts its error before the journey touches anything.
+  const { data: binding, error: bindingReadErr } = await admin.from('external_org_bindings').select('*').eq('org_id', ORG_ID).eq('external_tier', 'erpnext').maybeSingle();
+  if (bindingReadErr) throw new Error(`AC-018 fixture: binding read failed: ${bindingReadErr.message}`);
+  const { data: priorMap, error: mapReadErr } = await admin.from('budget_category_account_map').select('*')
+    .eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
+  if (mapReadErr) throw new Error(`AC-018 fixture: category-map read failed: ${mapReadErr.message}`);
+  const { data: priorFeatures, error: featuresReadErr } = await admin.from('org_features').select('*').eq('org_id', ORG_ID).in('feature_key', SWEEP_PASSES_OFF);
+  if (featuresReadErr) throw new Error(`AC-018 fixture: feature read failed: ${featuresReadErr.message}`);
+  fx.prior = { binding: (binding ?? null) as Record<string, unknown> | null, map: (priorMap ?? []) as Array<Record<string, unknown>>, features: (priorFeatures ?? []) as Array<Record<string, unknown>> };
+
   const priorConfig = ((binding?.config as Record<string, unknown> | undefined) ?? {});
   const { error: bindErr } = await admin.from('external_org_bindings').upsert({
     org_id: ORG_ID, external_tier: 'erpnext', site_url: ERPNEXT_SITE_URL, secret_ref: 'local-bench',
@@ -135,18 +163,16 @@ test.beforeAll(async () => {
   }, { onConflict: 'org_id,external_tier' });
   if (bindErr) throw new Error(`seed binding failed: ${bindErr.message}`);
 
-  const { data: priorMap } = await admin.from('budget_category_account_map').select('org_id, category, erp_account, is_push_target')
-    .eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
-  const { data: priorFeatures } = await admin.from('org_features').select('org_id, feature_key, enabled').eq('org_id', ORG_ID).in('feature_key', SWEEP_PASSES_OFF);
-  fx.prior = { binding: binding as Record<string, unknown> | null, map: (priorMap ?? []) as Array<Record<string, unknown>>, features: (priorFeatures ?? []) as Array<Record<string, unknown>> };
   await admin.from('org_features').upsert(SWEEP_PASSES_OFF.map((feature_key) => ({ org_id: ORG_ID, feature_key, enabled: false })), { onConflict: 'org_id,feature_key' });
   await admin.from('erp_sweep_lock').delete().eq('org_id', ORG_ID);
   await admin.from('budget_category_account_map').delete().eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
-  const { error: mapErr } = await admin.from('budget_category_account_map').insert([
+  const inserted = await admin.from('budget_category_account_map').insert([
     { org_id: ORG_ID, category: 'Labor', erp_account: LABOR_ACCOUNT, is_push_target: true },
     { org_id: ORG_ID, category: 'Materials', erp_account: MATERIALS_ACCOUNT, is_push_target: true },
-  ]);
-  if (mapErr) throw new Error(`seed account map failed: ${mapErr.message}`);
+  ]).select('id');
+  if (inserted.error) throw new Error(`seed account map failed: ${inserted.error.message}`);
+  // The journey's OWN map rows, by id: cleanup deletes exactly these, never the org's other rows.
+  fx.mapRowIds = (inserted.data ?? []).map((row) => row.id as string);
 
   const { data: finance } = await admin.from('profiles').select('id').eq('email', ACTIVATOR_EMAIL).single();
   const drafter = (finance as { id: string }).id;
@@ -187,24 +213,44 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   test.setTimeout(120_000);
   const admin = fx.admin ?? createClient(AUTH_URL, SERVICE_KEY);
-  // Cancel what this run created on the bed (its Project is fresh, so nothing else is touched).
-  if (fx.erpProject) {
-    for (const b of await listErpBudgets(fx.erpProject, true).catch(() => [])) {
-      await fetch(`${process.env.ERPNEXT_BENCH_URL}/api/resource/Budget/${encodeURIComponent(b.name)}`, {
-        method: 'PUT',
-        headers: { Authorization: `token ${process.env.ERPNEXT_BENCH_API_KEY}:${process.env.ERPNEXT_BENCH_API_SECRET}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ docstatus: 2 }),
-      }).catch(() => undefined);
+  try {
+    // Cancel what this run created on the bed (its Project is fresh, so nothing else is touched).
+    if (fx.erpProject) {
+      for (const b of await listErpBudgets(fx.erpProject, true).catch(() => [])) {
+        await fetch(`${process.env.ERPNEXT_BENCH_URL}/api/resource/Budget/${encodeURIComponent(b.name)}`, {
+          method: 'PUT',
+          headers: { Authorization: `token ${process.env.ERPNEXT_BENCH_API_KEY}:${process.env.ERPNEXT_BENCH_API_SECRET}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ docstatus: 2 }),
+        }).catch(() => undefined);
+      }
+    }
+    await removeFixture(admin);
+  } finally {
+    // Restore org-global state on finish AND on failure — afterAll runs even when beforeAll or a
+    // test failed midway, so the restore must not sit behind earlier work that can throw. The
+    // category map is restored VERBATIM (complete rows: identity, is_push_target, updated_by,
+    // updated_at), cleanup deletes only the rows this journey created (fx.mapRowIds), and the
+    // binding is restored only when its prior state was actually captured — a failure before the
+    // snapshot must not read as "there was no binding" and delete the org's real one.
+    await admin.from('erp_sweep_lock').delete().eq('org_id', ORG_ID);
+    await admin.from('org_features').delete().eq('org_id', ORG_ID).in('feature_key', SWEEP_PASSES_OFF);
+    if (fx.prior?.features.length) {
+      const { error } = await admin.from('org_features').upsert(fx.prior.features, { onConflict: 'org_id,feature_key' });
+      expect(error, `feature restore: ${error?.message}`).toBeNull();
+    }
+    if (fx.mapRowIds.length) {
+      const { error } = await admin.from('budget_category_account_map').delete().in('id', fx.mapRowIds);
+      expect(error, `category-map cleanup: ${error?.message}`).toBeNull();
+    }
+    if (fx.prior?.map.length) {
+      const { error } = await admin.from('budget_category_account_map').insert(fx.prior.map);
+      expect(error, `category-map restore: ${error?.message}`).toBeNull();
+    }
+    if (fx.prior) {
+      if (fx.prior.binding) await admin.from('external_org_bindings').upsert(fx.prior.binding, { onConflict: 'org_id,external_tier' });
+      else await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
     }
   }
-  await removeFixture(admin);
-  await admin.from('budget_category_account_map').delete().eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
-  await admin.from('erp_sweep_lock').delete().eq('org_id', ORG_ID);
-  await admin.from('org_features').delete().eq('org_id', ORG_ID).in('feature_key', SWEEP_PASSES_OFF);
-  if (fx.prior?.features.length) await admin.from('org_features').insert(fx.prior.features);
-  if (fx.prior?.map.length) await admin.from('budget_category_account_map').insert(fx.prior.map);
-  if (fx.prior?.binding) await admin.from('external_org_bindings').upsert(fx.prior.binding, { onConflict: 'org_id,external_tier' });
-  else await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
 });
 
 async function openBudget(page: Page, email: string): Promise<void> {
@@ -261,10 +307,16 @@ test.describe('AC-018: a whole-project budget reaches the client ERP and Forecas
 
     // The cancellation intents settle through the real sweep; poll the bed, not PMO's opinion of it.
     const settled = async (): Promise<boolean> => {
+      // BEFORE every tick: the fixture-only preconditions must still prove the bed-wide passes are
+      // off, and the bed read must be complete — missing or incomplete evidence stops BEFORE the
+      // sweep (a thrown preflight error fails the poll immediately, never after a tick).
+      await assertSweepPreflight(fx.admin);
+      const live: unknown = await listErpBudgets(fx.erpProject, true);
+      if (!Array.isArray(live)) throw new Error(`AC-018 sweep preflight: the bed read was incomplete (${JSON.stringify(live)}) — the sweep is not invoked`);
+      if (live.length === 2 && live.every((b) => b.to_fiscal_year === FY2)) return true;
       // A tick the app's own background sweep overlaps reports lock-held; the next poll simply retries.
       await runSweepBud(FUNCTIONS_URL).catch(() => undefined);
-      const live = await listErpBudgets(fx.erpProject, true);
-      return live.length === 2 && live.every((b) => b.to_fiscal_year === FY2);
+      return false;
     };
     try {
       await expect.poll(settled, { timeout: 90_000, intervals: [3_000] }).toBe(true);
