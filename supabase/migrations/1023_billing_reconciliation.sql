@@ -1,4 +1,4 @@
--- 0962_billing_reconciliation.sql — per bill-of-quantities item: scope, progress, measured and billed quantities (#2522).
+-- 1023_billing_reconciliation.sql — per bill-of-quantities item: scope, progress, measured and billed quantities (#2522).
 -- FR-BST-040..042, AC-BST-020 (docs/specs/billing-stages.spec.md). One derivation; the screen renders it (NFR-BST-003).
 --
 -- billing_reconciliation(project, work_order default null), SECURITY INVOKER: RLS on every table it reads scopes it to the

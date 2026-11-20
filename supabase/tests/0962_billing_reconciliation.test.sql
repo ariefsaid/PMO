@@ -1,4 +1,4 @@
--- 0962_billing_reconciliation.test.sql — per-item reconciliation of progress, measured and billed quantities, and the full trace
+-- 1023_billing_reconciliation.test.sql — per-item reconciliation of progress, measured and billed quantities, and the full trace
 -- of one work order from progress to invoice with every document attached and retention held.
 -- AC-BST-020, AC-TRACE-001 (docs/specs/billing-stages.spec.md). Ids: 09620000-… (synthetic).
 begin;

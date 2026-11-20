@@ -32,7 +32,7 @@ Money path: ships alone. Every gate is in the database with a pgTAP proof and a 
    `npx supabase@2.122.1 test db supabase/tests/1021_billing_stages.test.sql`.
 2. pgTAP `1022_retention.test.sql` → `1022_retention.sql` → mutate the stamp, the release-total guard and the
    submitted-invoice check: each goes red.
-3. pgTAP `0962_billing_reconciliation.test.sql` (with the full work-order trace) → `0962_billing_reconciliation.sql` →
+3. pgTAP `1023_billing_reconciliation.test.sql` (with the full work-order trace) → `1023_billing_reconciliation.sql` →
    mutate billed-includes-cancelled and shared-item progress: red.
 4. Rollbacks `supabase/migrations/rollback/096{0,1,2}_*_down.sql`; round-trip down/up in one transaction.
 5. `src/lib/billingStages.test.ts` → `src/lib/billingStages.ts` (age, current stage, next deadline).
@@ -53,9 +53,9 @@ Money path: ships alone. Every gate is in the database with a pgTAP proof and a 
 | AC-BST-006 | pgTAP | same |
 | AC-BST-010 | unit | `pmo-portal/src/lib/billingStages.test.ts` |
 | AC-BST-011 | unit | same |
-| AC-BST-020 | pgTAP | `supabase/tests/0962_billing_reconciliation.test.sql` (DAL paging: `src/lib/db/billingStages.test.ts`) |
+| AC-BST-020 | pgTAP | `supabase/tests/1023_billing_reconciliation.test.sql` (DAL paging: `src/lib/db/billingStages.test.ts`) |
 | AC-RET-001..003 | pgTAP | `supabase/tests/1022_retention.test.sql` |
-| AC-TRACE-001 | pgTAP | `supabase/tests/0962_billing_reconciliation.test.sql` (render: `ClaimBillingStages.test.tsx`) |
+| AC-TRACE-001 | pgTAP | `supabase/tests/1023_billing_reconciliation.test.sql` (render: `ClaimBillingStages.test.tsx`) |
 
 ## Not in this slice (follow-ups)
 
