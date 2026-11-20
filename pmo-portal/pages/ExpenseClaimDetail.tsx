@@ -172,7 +172,7 @@ const ExpenseClaimDetail: React.FC = () => {
         )}
         {claim.purpose && <p className="text-foreground">{claim.purpose}</p>}
         {showRouteNote && route && (
-          <p data-testid="approval-route-note">{approvalRouteNote(route, claim.budget_category, t, realRole)}</p>
+          <p data-testid="approval-route-note">{approvalRouteNote(route, claim.budget_category, t)}</p>
         )}
         {((claim.is_plan_exception && claim.status !== 'Draft') || route?.isException) && (
           <p data-testid="imprest-exception-note" role="note">
