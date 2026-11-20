@@ -670,5 +670,16 @@
     "archiveTitle": "Archive person",
     "archiveBody": "They leave the register and the expiry list, and no more warnings are sent for their documents.",
     "navLabel": "People"
+  },
+  "terminology": {
+    "default": "Default",
+    "intro": "Rename these terms to match how your organisation talks. The new wording replaces the default everywhere it is shown, in each language.",
+    "plural": "Plural",
+    "reset": "Reset",
+    "resetDone": "Back to the default wording",
+    "save": "Save",
+    "saved": "Terminology saved",
+    "singular": "Singular",
+    "nav": "Terminology"
   }
 }

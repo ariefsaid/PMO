@@ -1,3 +1,4 @@
+import { withOrgTerms } from '@/src/lib/i18n/orgTerms';
 import { formatExactCents } from '@/src/lib/exactDecimal';
 import { UNCATEGORIZED } from '@/src/lib/budget/budgetProjection';
 import type { BudgetComparisonRow, BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
@@ -7,6 +8,8 @@ export type BudgetProjectionExport =
   | { scope: { kind: 'year'; year: string }; rows: BudgetProjectionCellRow[] };
 
 interface BudgetProjectionExportOptions {
+  locale?: string;
+  allYearsLabel?: string;
   budgetCurrency: string;
   projectCurrency: string;
   categoryLabel: (category: string) => string;
@@ -26,7 +29,7 @@ const quoteCsvCell = (value: string | number) => `"${String(value).replaceAll('"
 
 export function buildBudgetProjectionCsv(
   payload: BudgetProjectionExport,
-  { budgetCurrency, projectCurrency, categoryLabel, pmoBasis = false }: BudgetProjectionExportOptions,
+  { budgetCurrency, projectCurrency, categoryLabel, pmoBasis = false, locale = 'en', allYearsLabel }: BudgetProjectionExportOptions,
 ): string {
   const compatibleCurrencyBasis = budgetCurrency === projectCurrency;
   const annualFiscalYear = payload.scope.kind === 'year' ? payload.scope.year : '';
@@ -45,7 +48,7 @@ export function buildBudgetProjectionCsv(
   const headers = payload.scope.kind === 'all' ? comparisonHeaders : annualHeaders;
   const rows = payload.scope.kind === 'all'
     ? (payload.rows as BudgetComparisonRow[]).map((row) => [
-      'All years (project to date)', '', categoryLabel(row.category ?? UNCATEGORIZED), row.budgetTotal ?? '', 'Active budget version',
+      allYearsLabel ?? withOrgTerms('All years (project to date)', locale), '', categoryLabel(row.category ?? UNCATEGORIZED), row.budgetTotal ?? '', 'Active budget version',
       row.recorded ?? '', row.recorded === null
         ? pmoBasis ? 'Paid purchases unavailable' : !row.mapped ? 'No ledger account mapped' : !row.hasLedger ? 'No ledger reading' : 'ERP ledger amount unavailable'
         : pmoBasis ? 'Paid purchases before tax' : 'ERP ledger',

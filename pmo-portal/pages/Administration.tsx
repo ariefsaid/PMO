@@ -18,6 +18,7 @@ import AdministrationFeatures from './AdministrationFeatures';
 import YourPlan from './YourPlan';
 import { FeedbackSurveysSetting } from '@/src/components/feedback/FeedbackSurveysSetting';
 import AdministrationExchangeRates from './AdministrationExchangeRates';
+import AdministrationTerminology from './AdministrationTerminology';
 import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 import { AccountingHelp } from './admin/AccountingHelp';
@@ -42,12 +43,13 @@ export type AdministrationSection =
   | 'plan'
   | 'credits'
   | 'exchange-rates'
+  | 'terminology'
   | 'cost-attribution'
   | 'usage'
   | 'features';
 
 /** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
-const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'integrations', 'accounting', 'projects', 'plan', 'credits', 'exchange-rates'];
+const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'integrations', 'accounting', 'projects', 'plan', 'credits', 'terminology', 'exchange-rates'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
 /** #1271: Finance's second destination, beside Exchange rates. Admin/Executive reach cost attribution inside Accounting setup, so it is not in their nav. */
 const FINANCE_SECTIONS: AdministrationSection[] = ['people', 'exchange-rates', 'cost-attribution'];
@@ -63,6 +65,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   plan: 'Your plan',
   credits: 'Credits',
   'exchange-rates': 'Exchange rates',
+  terminology: 'Terminology',
   'cost-attribution': 'Cost attribution',
   usage: 'Usage',
   features: 'Features',
@@ -82,6 +85,7 @@ const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string>
   plan: t('plans:yourPlan.navLabel', SECTION_LABEL_DEFAULTS.plan),
   credits: t('admin.nav.credits', SECTION_LABEL_DEFAULTS.credits),
   'exchange-rates': t('admin.nav.exchangeRates', SECTION_LABEL_DEFAULTS['exchange-rates']),
+  terminology: t('administration:terminology.nav', SECTION_LABEL_DEFAULTS.terminology),
   'cost-attribution': t('costAttribution:title', SECTION_LABEL_DEFAULTS['cost-attribution']),
   usage: t('admin.nav.usage', SECTION_LABEL_DEFAULTS.usage),
   features: t('admin.nav.features', SECTION_LABEL_DEFAULTS.features),
@@ -300,6 +304,13 @@ const SelectedAdministrationPanel: React.FC<{
       return (
         <div data-testid="administration-panel-exchange-rates" className="min-w-0">
           <AdministrationExchangeRates />
+        </div>
+      );
+    case 'terminology':
+      return (
+        <div data-testid="administration-panel-terminology" className="min-w-0">
+          <SectionName name={label('terminology')} />
+          <AdministrationTerminology />
         </div>
       );
     case 'usage':

@@ -6,7 +6,9 @@
  * push surfaces, and Retry offered for failures retry can never fix. Both are properties of the CODE,
  * so both belong in one tested function rather than two hand-written ladders in two components.
  */
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
+import i18next from 'i18next';
+import { setOrgTerms } from '@/src/lib/i18n/orgTerms';
 import { describePushError, describePushMutationError } from './pushErrorCopy';
 import { AppError } from '../appError';
 import { RAW_ADAPTER_TOKEN } from '../testing/rawAdapterToken';
@@ -351,5 +353,26 @@ describe('describePushError — the register and maintenance refusals (#1511 F4)
     for (const word of ['in progress', 'changes requested', 'approved', 'done', 'cancelled']) {
       expect(remedy).toContain(word);
     }
+  });
+});
+
+describe('organisation wording in push messages', () => {
+  afterEach(() => setOrgTerms({}));
+  it('uses the Indonesian term for untranslated English app copy', async () => {
+    await i18next.changeLanguage('id');
+    try {
+      setOrgTerms({ id: { project: { singular: 'pekerjaan', plural: 'pekerjaan-pekerjaan' } } });
+      expect(describePushError('analytic-plan-unset').message).toContain('pekerjaan-pekerjaan');
+      expect(describePushError('analytic-plan-unset').message).toContain('this pekerjaan');
+    } finally {
+      await i18next.changeLanguage('en');
+    }
+  });
+  it('renames app copy without changing the supplied account', () => {
+    setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
+    const copy = describePushError('budget-project-start-date-missing: account=Project Phoenix');
+    expect(copy.message).toContain('The job has no start date');
+    expect(copy.message).toContain('Account: Project Phoenix');
+    expect(copy.remedy).toContain('job start');
   });
 });

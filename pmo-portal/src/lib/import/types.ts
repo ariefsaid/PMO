@@ -18,6 +18,8 @@ export interface ImportField<Input> {
   key: keyof Input & string;
   /** Expected header label (auto-mapped by case/whitespace-insensitive match). */
   label: string;
+  /** The label is fixed app copy and may use organisation terminology. */
+  labelIsAppCopy?: boolean;
   required: boolean;
   /** Required / type / enum-membership check on the raw cell string. */
   validate: FieldValidate;
@@ -48,6 +50,8 @@ export interface ImportField<Input> {
 export interface ImportDescriptor<Input> {
   /** Display name + sheet-name match ("Companies"). */
   entity: string;
+  /** The entity is fixed app copy, separate from the stable import identifier. */
+  entityIsAppCopy?: boolean;
   /**
    * OPTIONAL entity word for the wizard's title and Import button, in the reader's language, already
    * lowercased the way the title reads it ("contract lines" → "Impor baris kontrak", #1278 round A item 4).

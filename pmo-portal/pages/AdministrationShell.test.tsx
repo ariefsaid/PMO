@@ -276,7 +276,7 @@ describe('Administration route-backed shell', () => {
     // navigation under a loaded machine needs more than the 1s default.
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'), { timeout: 5000 });
     expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page');
-    // Eight organisation sections (People included) + Your plan (S3) for an Admin viewer.
+    // Nine organisation sections (People and Terminology included) + Your plan (S3) for an Admin viewer.
     expect(screen.getAllByRole('link')).toHaveLength(9);
     expect(screen.getByTestId('administration-panel-users')).toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-integrations')).not.toBeInTheDocument();
@@ -562,6 +562,7 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
       '/administration/projects',
       '/administration/plan',
       '/administration/credits',
+      '/administration/terminology',
       '/administration/exchange-rates',
       '/administration/cost-attribution',
     ]);

@@ -670,5 +670,16 @@
     "retry": "Coba lagi",
     "empty": "Belum ada personel. Tambahkan personel pertama untuk mencatat dokumennya.",
     "navLabel": "Personel"
+  },
+  "terminology": {
+    "default": "Bawaan",
+    "intro": "Ganti istilah ini sesuai bahasa organisasi Anda. Kata baru menggantikan kata bawaan di semua tempat, untuk setiap bahasa.",
+    "plural": "Jamak",
+    "reset": "Atur ulang",
+    "resetDone": "Kembali ke kata bawaan",
+    "save": "Simpan",
+    "saved": "Istilah tersimpan",
+    "singular": "Tunggal",
+    "nav": "Istilah"
   }
 }

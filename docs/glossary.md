@@ -615,3 +615,8 @@ A certificate, permit or similar record with an expiry date that belongs to a pe
 
 ## People register
 The workforce register: anyone who holds expiring documents, whether or not they use the app (a person may optionally link to an app user profile). Kept under Administration › People by Admin (HR maps to Admin); app users are never added automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, … per organisation when left blank, editable, unique among live people. Archiving hides a person and their warnings (soft, ADR-0018).
+
+## Organisation terminology
+**Term override** — an org Admin's replacement display name (singular and plural, per language) for one of
+five fixed terms: work order, project, client-supplied stock, purchase request, discipline. It changes the
+wording shown, never the data or the code identifier. Generic terms are not overridable.
