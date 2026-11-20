@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — adds one uniquely named location and uniquely coded catalogue items to the first live project and deletes them afterwards; reads the seeded Admin only.
+// @e2e-isolation: self-isolated — adds one uniquely named location and uniquely coded catalogue items to the seeded delivery project and deletes them afterwards; reads the seeded Admin only.
 /**
  * AC-IMT-014 — the unit-rate template, filled and imported through the real screen (#2530).
  * Goal oracle: a bad row is not imported and comes back in a downloadable file with its reason; fixing it in that file and
@@ -8,6 +8,7 @@ import { test, expect } from '@playwright/test';
 import ExcelJS from 'exceljs';
 import { signIn } from './helpers';
 import { ORG_ID, serviceClient } from './support/jobJourney';
+import { SEED_PROJECT_ID } from './support/stockFixture';
 
 test.setTimeout(180_000);
 const db = serviceClient('AC-IMT-014');
@@ -42,9 +43,9 @@ const fileOf = async (rows: string[][]) => {
 };
 
 test('AC-IMT-014 a rate file with one bad row imports the good row, returns the bad one with its reason, and imports once fixed', async ({ page }) => {
-  const project = await db.from('projects').select('id').eq('org_id', ORG_ID).is('archived_at', null).order('created_at').limit(1).single();
+  // The seeded delivery project: seed rows share one created_at, so "the oldest project" could be a pipeline deal with no billing.
   await signIn(page, 'admin@acme.test');
-  await page.goto(`/projects/${project.data?.id}/billing`);
+  await page.goto(`/projects/${SEED_PROJECT_ID}/billing`);
   await page.getByRole('button', { name: /^rate catalogue$/i }).click();
   const drawer = page.getByRole('dialog', { name: /rate catalogue/i });
   await drawer.getByLabel(/new location/i).fill(variant);

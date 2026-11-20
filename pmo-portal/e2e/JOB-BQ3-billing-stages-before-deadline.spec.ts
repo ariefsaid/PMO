@@ -5,6 +5,7 @@ import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { signIn } from './helpers';
 import { runId, serviceClient } from './support/jobFixtures';
+import { orgToday } from './support/jobJourney';
 import { cleanupBilling, createBillingFixture, raiseClaimAndOpen, setStageTemplate, type BillingFixture } from './support/billingFixture';
 
 test.setTimeout(180_000);
@@ -22,9 +23,9 @@ test('JOB-BQ3 a claim shows its current stage and the deadline warning, and fini
     { name: 'Client approval', clientSide: true },
   ]);
   // The invoice deadline falls three days from today (or today, late in the month), with the default five-day warning window.
-  const today = new Date();
-  const day = today.getDate() + 3 <= 28 ? today.getDate() + 3 : today.getDate();
-  const daysLeft = day - today.getDate();
+  const today = Number(orgToday().slice(8));
+  const day = today + 3 <= 28 ? today + 3 : today;
+  const daysLeft = day - today;
   await admin.from('projects').update({ invoice_deadline_day: day, invoice_deadline_warn_days: 5 }).eq('id', fx.projectId).throwOnError();
 
   await signIn(page, 'finance@acme.test');
