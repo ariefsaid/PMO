@@ -1133,7 +1133,8 @@
         "noDependencies": "Tidak ada dependensi yang ditautkan.",
         "subtasks": "Subtugas",
         "noSubtasks": "Belum ada subtugas.",
-        "history": "Riwayat"
+        "history": "Riwayat",
+        "workOrder": "Perintah kerja"
       },
       "noMilestone": "Tanpa fase",
       "drawerMoreActions": "Tindakan tugas lainnya",

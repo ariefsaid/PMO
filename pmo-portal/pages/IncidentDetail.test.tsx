@@ -36,7 +36,8 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidentFiles: () => evidenceState,
 }));
 vi.mock('@/src/hooks/useIncidentLinkedTask', () => ({ useIncidentLinkedTask: () => linkedTaskState }));
-vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
+const workOrdersState = vi.hoisted(() => ({ data: [] as unknown[] }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: workOrdersState.data }) }));
 
 
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-self', org_id: 'org-1' } }) }));
@@ -262,6 +263,14 @@ describe('IncidentDetail', () => {
     detailState.data = { ...incident, status: 'Open', due_at: '2020-01-01T00:00:00Z' };
     renderPage('Admin');
     expect(screen.getByTestId('incident-pills')).toHaveTextContent(/overdue/i);
+  });
+
+  it('FR-WORP-011: the work order an issue names links to its page', () => {
+    workOrdersState.data = [{ id: 'w1', wo_number: 'WO-0007', title: 'Pump install' }];
+    detailState.data = { ...incident, work_order_id: 'w1' };
+    renderPage('Admin');
+    expect(screen.getByRole('link', { name: 'WO-0007' })).toHaveAttribute('href', '/work-orders/w1');
+    workOrdersState.data = [];
   });
 
   it('AC-SIL-013: a legacy issue with every new column empty renders without an Overdue badge', () => {
