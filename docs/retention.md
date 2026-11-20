@@ -29,6 +29,8 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `agent_automation_fires` | keep: owner decision pending (#1755); automation fire claims |
 | `procurement_import_runs` | keep: owner decision pending (#1755); import run history |
 | `erp_connect_runs` | keep: owner decision pending (#1755); ERP connect run history |
+| `equipment_status_history` | keep: who set each machine's daily status and when; it backs a rental-bill deduction (0985) |
+| `equipment_escalation_log` | keep: one row per machine per day it was escalated, so a rerun sends nothing twice (0985) |
 | `org_ai_allowance_grants` | keep: one row per org per month; the idempotency key for the AI allowance grant (0535), and the pointer from a month to its `credits` row — a grant history, not log noise |
 
 ## Cron jobs
@@ -49,4 +51,5 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `odoo-sweep-tick` | keep: trigger only, stores no rows |
 | `m365-pkce-sweep` | keep: trigger only, stores no rows |
 | `incident-escalation` | keep: trigger only; each escalation writes one audit event, which the audit retention rule already governs |
+| `equipment-downtime-escalation` | keep: trigger only; its rows are the escalation log, listed above (0986) |
 | `plan-monthly-ai-allowance` | keep: trigger only, stores no rows (it writes one grant row per org per month, listed above) |

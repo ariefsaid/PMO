@@ -278,18 +278,18 @@ select plan(7);
 -- hand from the list). SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, the Admin/Finance
 -- role, the caller's org, no ERP, and author ≠ voider unless the sole active member. Proven by
 -- supabase/tests/subcontract_bill_void.test.sql.
--- Union of dev (179) and the retained writers of the merged feature branches (+26, counted from the list below): 205 retained names.
+-- ⚑ AMENDED BY 0907 (#564): `admin_move_credit_allocation` joins the retained set (+1). SECURITY DEFINER writer under a
 -- member's JWT that re-asserts active membership, the Admin role and that both users belong to the caller's org before
 -- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
 -- scripts/credit-allocation-race.test.mjs (AC-ALLOC-001..013).
 -- ⚑ AMENDED BY 0965 (#2525): `approve_bill_match_exception`, `record_bill_match_lines`, `record_receipt_match_lines` and
--- Union of dev (179) and the retained writers of the merged feature branches (+16, counted from the list below): 205 retained names.
+-- `set_three_way_match_settings` join the retained set (+4, count 181 on dev's 177). SECURITY DEFINER writers under a
 -- member's JWT: each re-asserts active membership, a role threshold and the caller's org; the exception approval also
 -- enforces approver ≠ the bill's author and ≠ the person who recorded its match lines, failing closed when the author is
 -- not recorded. Proven by supabase/tests/three_way_match.test.sql and three_way_match_mutation.test.sql. `get_bill_match`
 -- is a read-only definer and is not listed.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
--- Union of dev, work-order finance (182), the #2521 task hand-off writer (+1) and the eight #2524 material-request writers (+8): 191 retained names.
+-- Integration union (#2516 rehearsal): dev's 179 names plus the retained writers of the merged feature branches (+26, counted from the list below) = 205.
 insert into client_callable_rpc_names (proname) values
   ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
   ('accept_connect_proposals'),

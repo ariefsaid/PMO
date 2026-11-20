@@ -411,7 +411,9 @@
     "/equipment@390@exec@acme.test": 0,
     "/equipment@1440@exec@acme.test": 0,
     "/equipment/expiring@390@exec@acme.test": 0,
-    "/equipment/expiring@1440@exec@acme.test": 0
+    "/equipment/expiring@1440@exec@acme.test": 0,
+    "/equipment/availability@390@admin@acme.test": 0,
+    "/equipment/availability@1440@admin@acme.test": 0
   },
   "/procurement/00000000-0000-0000-0000-000000000002@390@exec@acme.test": 32,
   "/procurement/00000000-0000-0000-0000-000000000002@390@pm@acme.test": 32,
@@ -433,5 +435,7 @@
   "/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all@390@pm@acme.test": 70,
   "/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all@1440@pm@acme.test": 74,
   "/equipment/expiring@390@exec@acme.test": 21,
-  "/equipment/expiring@1440@exec@acme.test": 21
+  "/equipment/expiring@1440@exec@acme.test": 21,
+  "/equipment/availability@390@admin@acme.test": 40,
+  "/equipment/availability@1440@admin@acme.test": 40
 }

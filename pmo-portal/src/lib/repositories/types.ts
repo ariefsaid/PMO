@@ -19,6 +19,7 @@
  * by domain. This module keeps the `Repositories` aggregate plus TYPE-ONLY re-exports of
  * every contract, so the external import surface of the seam is unchanged.
  */
+import type { EquipmentAvailabilityRepository } from './equipmentAvailability';
 import type { RecordHistoryRepository } from './contracts/recordHistory';
 import type { ProjectStageRepository } from './contracts/projectStages';
 import type { RateCatalogueRepository } from './contracts/rateCatalogue';
@@ -148,6 +149,7 @@ export interface Repositories {
   journal: JournalRepository;
   equipment: EquipmentRepository;
   documentExpiry: DocumentExpiryRepository;
+  equipmentAvailability: EquipmentAvailabilityRepository;
   timeAndMaterials: TimeAndMaterialsRepository;
   expenseReceipts: ExpenseReceiptRepository;
   expensePostings: ExpensePostingRepository;
