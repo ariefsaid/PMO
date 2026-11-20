@@ -1,5 +1,6 @@
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { supplyRiskLabel, supplyRiskPillVariant } from '@/src/lib/supplyRiskLabels';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListPage,
@@ -141,7 +142,15 @@ const Companies: React.FC = () => {
       // The pill reads the localised LABEL; `exportValue` keeps the raw enum so a spreadsheet
       // round-trips back into the same filter/import values regardless of the viewer's language.
       header: t('companies.columns.type', 'Type'),
-      cell: (c) => <StatusPill variant={companyTypeVariant(c.type)}>{typeLabel[c.type]}</StatusPill>,
+      cell: (c) => (
+        <span className="inline-flex flex-wrap items-center gap-1">
+          <StatusPill variant={companyTypeVariant(c.type)}>{typeLabel[c.type]}</StatusPill>
+          {/* #2583: a supplier flagged at risk or inactive shows it in the directory (status only, no computation). */}
+          {c.type === 'Vendor' && (c.supply_risk_status === 'at_risk' || c.supply_risk_status === 'inactive') && (
+            <StatusPill variant={supplyRiskPillVariant(c.supply_risk_status)}>{supplyRiskLabel(t as never, c.supply_risk_status)}</StatusPill>
+          )}
+        </span>
+      ),
       exportValue: (c) => c.type,
     },
   ], [t, typeLabel]);

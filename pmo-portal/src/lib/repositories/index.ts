@@ -21,6 +21,7 @@ import { projectStageRepository } from './projectStages';
 import { rateCatalogueRepository } from './rateCatalogue';
 import { dailySiteReportRepository } from './dailySiteReports';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
+import { supplyRiskRepository } from './supplyRisk';
 import { fxRatesRepository } from './fxRates';
 import { financialStatementsRepository } from './financialStatements';
 import { expensePostingsRepository } from './expensePostings';
@@ -104,6 +105,7 @@ export const repositories: Repositories = {
   m365RecordFolders: m365RecordFoldersRepository,
   recordHistory: recordHistoryRepository,
   vendorWithholdingSlips: vendorWithholdingSlipsRepository,
+  supplyRisk: supplyRiskRepository,
   project: projectRepository,
   projectStage: projectStageRepository,
   projectMoney: projectMoneyRepository,

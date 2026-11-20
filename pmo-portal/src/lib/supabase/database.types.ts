@@ -2261,6 +2261,10 @@ export type Database = {
           name: string
           org_id: string
           short_name: string | null
+          supply_risk_reason: string | null
+          supply_risk_set_at: string | null
+          supply_risk_set_by: string | null
+          supply_risk_status: string
           type: Database["public"]["Enums"]["company_type"]
         }
         Insert: {
@@ -2283,6 +2287,10 @@ export type Database = {
           name: string
           org_id?: string
           short_name?: string | null
+          supply_risk_reason?: string | null
+          supply_risk_set_at?: string | null
+          supply_risk_set_by?: string | null
+          supply_risk_status?: string
           type: Database["public"]["Enums"]["company_type"]
         }
         Update: {
@@ -2305,6 +2313,10 @@ export type Database = {
           name?: string
           org_id?: string
           short_name?: string | null
+          supply_risk_reason?: string | null
+          supply_risk_set_at?: string | null
+          supply_risk_set_by?: string | null
+          supply_risk_status?: string
           type?: Database["public"]["Enums"]["company_type"]
         }
         Relationships: [
@@ -17010,6 +17022,41 @@ export type Database = {
         Args: { p_assigned: boolean; p_user_id: string; p_warehouse_id: string }
         Returns: undefined
       }
+      set_vendor_supply_status: {
+        Args: { p_company_id: string; p_reason?: string; p_status: string }
+        Returns: {
+          archived_at: string | null
+          client_number_segment: string | null
+          created_at: string
+          default_pph_rate: number | null
+          default_pph_type: string | null
+          default_vat_rate: number | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_customer_name: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          erp_party_type: string | null
+          erp_payment_terms_days: number | null
+          erp_supplier_name: string | null
+          erp_tax_id: string | null
+          id: string
+          name: string
+          org_id: string
+          short_name: string | null
+          supply_risk_reason: string | null
+          supply_risk_set_at: string | null
+          supply_risk_set_by: string | null
+          supply_risk_status: string
+          type: Database["public"]["Enums"]["company_type"]
+        }
+        SetofOptions: {
+          from: "*"
+          to: "companies"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_vendor_tax_defaults: {
         Args: {
           p_company_id: string
@@ -17037,6 +17084,10 @@ export type Database = {
           name: string
           org_id: string
           short_name: string | null
+          supply_risk_reason: string | null
+          supply_risk_set_at: string | null
+          supply_risk_set_by: string | null
+          supply_risk_status: string
           type: Database["public"]["Enums"]["company_type"]
         }
         SetofOptions: {
@@ -17247,6 +17298,26 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      vendor_exposed_work_orders: {
+        Args: { p_company_id: string }
+        Returns: {
+          currency: string
+          kind: string
+          open_order_count: number
+          order_total: number
+          project_id: string
+          project_manager_id: string
+          project_name: string
+          title: string
+          wo_number: string
+          wo_status: string
+          work_order_id: string
+        }[]
+      }
+      vendor_supply_risk_suggestion: {
+        Args: { p_company_id: string }
+        Returns: Json
       }
       void_vendor_withholding_slip: {
         Args: {

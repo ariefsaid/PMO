@@ -116,6 +116,7 @@ import type {
   WorkOrderRepository,
 } from './contracts/workOrders';
 import type { BillingStagesRepository } from './contracts/billingStages';
+import type { SupplyRiskRepository } from './contracts/supplyRisk';
 
 import type { OdooRepository } from './contracts/odoo';
 
@@ -125,6 +126,7 @@ export interface Repositories {
   m365RecordFolders: M365RecordFoldersRepository;
   recordHistory: RecordHistoryRepository;
   vendorWithholdingSlips: VendorWithholdingSlipsRepository;
+  supplyRisk: SupplyRiskRepository;
   project: ProjectRepository;
   projectStage: ProjectStageRepository;
   rateCatalogue: RateCatalogueRepository;
@@ -219,6 +221,7 @@ export type { ErpPurchaseRepository } from './contracts/erpPurchases';
 export type { ErpJournalLineRepository } from './contracts/erpJournalLines';
 export type { OdooLedgerRepository } from './contracts/odooLedger';
 export type { VendorWithholdingSlipsRepository } from './contracts/vendorWithholdingSlips';
+export type { SupplyRiskRepository } from './contracts/supplyRisk';
 export type { CreditsRepository, ExternalDomainOwnershipRepository, OperatorRepository, OrgFeatureRepository, OrgSettingsRepository, ProfileRepository, UsageRepository, UserViewRepository } from './contracts/admin';
 export type { ErpSnapshotsRepository, FinancialStatementsRepository, FxCommitCounts, FxRateInput, FxRateMatch, FxRatePage, FxRateRow, FxRatesRepository, ReportsRepository } from './contracts/reporting';
 export type { CompanyDefaultOptions, CompanyDefaultSlot, CompanyDefaultsSetResponse, ClickUpListItem, ConnectCredential, ConnectCensusRow, ConnectCounts, ConnectDomain, ConnectKind, ConnectProposal, ConnectReviewChoice, ConnectStatus, ConnectStagedRecord, ConnectTier, ConnectAcceptResult, ConnectResponse, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationStatus, IntegrationsRepository, LinkClickUpProjectInput, LinkDirection, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
