@@ -1,0 +1,267 @@
+-- 0999_work_order_cost_amounts.sql — #2519: one read for work-order plan versus actual.
+-- The existing project-finances actual is the authoritative cost basis. Paid bill amounts follow their
+-- document attribution; unlinked amounts stay unassigned, and unlinked ERP actuals use a valid custom split only.
+-- Equipment hire charges use the project-finances asset/month rounding, then distribute it across usage entries.
+-- Proven by supabase/tests/0997_work_order_plan_vs_actual.test.sql.
+-- Reverse: supabase/migrations/rollback/0999_work_order_cost_amounts_down.sql.
+
+create function public.work_order_cost_amounts_unpriced(p_project_id uuid)
+returns table(source text, record_id uuid, project_id uuid, work_order_id uuid, discipline_id uuid, occurred_on date,
+              reference text, currency text, amount text, reason text, quantity numeric, quantity_unit text, person_id uuid)
+language plpgsql stable security invoker set search_path = public, pg_temp as $$
+declare
+  v_org uuid := public.auth_org_id();
+  v_base text;
+begin
+  if not public.is_active_member() then
+    raise exception 'your account is not an active member of this organisation' using errcode = '42501';
+  end if;
+  if public.auth_role() is null or public.auth_role() not in ('Admin', 'Executive', 'Finance', 'Project Manager') then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = v_org) then
+    raise exception 'project not found' using errcode = 'P0002';   -- SECURITY: another org's project reads as absent
+  end if;
+  select o.default_currency into v_base from public.organizations o where o.id = v_org;
+
+  return query
+  with rates as (
+    select v.asset_id, v.rate_unit, v.window_from, v.window_to, v.version, v.work_rate, v.standby_rate
+      from public.equipment_settings_effective(v_org, null) v where v.basis = 'hire_rate'
+  ), purchase as (
+    select pr.id, pr.org_id from public.procurements pr where pr.project_id = p_project_id and pr.org_id = v_org
+  ), stocked as (
+    select distinct d.procurement_id from public.stock_documents d
+     where d.org_id = v_org and d.kind = 'receive' and d.status = 'Posted' and d.procurement_id in (select id from purchase)
+  )
+  select 'purchase_request'::text, r.id, p_project_id, r.work_order_id, r.discipline_id, r.date,
+         coalesce(r.pr_number, r.reference_number), r.currency, null::text, 'commitment'::text, null::numeric, null::text, null::uuid
+    from public.purchase_requests r join purchase p on p.id = r.procurement_id where r.org_id = v_org
+  union all
+  select 'purchase_order', r.id, p_project_id, r.work_order_id, r.discipline_id, r.date,
+         coalesce(r.po_number, r.reference_number), r.currency, null, 'commitment', null, null, null
+    from public.purchase_orders r join purchase p on p.id = r.procurement_id where r.org_id = v_org
+  union all
+  select 'goods_receipt', r.id, p_project_id, r.work_order_id, r.discipline_id, r.receipt_date,
+         r.gr_number, null, null, 'commitment', null, null, null
+    from public.procurement_receipts r join purchase p on p.id = r.procurement_id where r.org_id = v_org
+  union all
+  select 'vendor_bill', i.id, p_project_id, i.work_order_id, i.discipline_id, i.invoice_date, i.vi_number, i.currency,
+         case when i.amount is null or i.amount::text in ('NaN', 'Infinity', '-Infinity') then null
+              else round(case when i.tax_treatment = 'inclusive' then i.amount - coalesce(i.tax_amount, 0) else i.amount end, 2)::text end,
+         case when i.procurement_id in (select procurement_id from stocked) then 'stocked' else 'counted' end,
+         null, null, null
+    from public.procurement_invoices i join purchase p on p.id = i.procurement_id
+   where i.org_id = v_org and i.voided_at is null and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
+  union all
+  select 'stock_document', d.id, p_project_id, d.work_order_id, d.discipline_id, d.occurred_on, d.number,
+         case when d.kind = 'transfer' then null else v_base end,
+         case when d.kind in ('issue', 'return') and d.status = 'Posted'
+              then round(-coalesce((select sum(l.value_delta) from public.stock_ledger l where l.document_id = d.id and l.org_id = v_org), 0), 2)::text end,
+         case when d.kind = 'transfer' then 'transfer' when d.status = 'Posted' then 'counted' else 'not-posted' end,
+         null, null, null
+    from public.stock_documents d left join public.stock_warehouses w on w.id = d.to_warehouse_id and w.org_id = d.org_id
+   where d.org_id = v_org
+     and ((d.kind in ('issue', 'return') and d.project_id = p_project_id)
+          or (d.kind = 'transfer' and w.kind = 'site' and w.project_id = p_project_id))
+  union all
+  select 'timesheet_entry', e.id, p_project_id, e.work_order_id, e.discipline_id, e.entry_date, null, null, null,
+         'no-rate', e.hours, 'hours', t.user_id
+    from public.timesheet_entries e join public.timesheets t on t.id = e.timesheet_id
+   where e.org_id = v_org and e.project_id = p_project_id
+  union all
+  select 'equipment_usage', u.id, p_project_id, u.work_order_id, u.discipline_id, u.work_date, null,
+         case when rate.work_rate is not null and u.status = 'Approved' then v_base end,
+         case when rate.work_rate is not null and u.status = 'Approved'
+              then round(u.quantity * case when u.kind = 'standby' then coalesce(rate.standby_rate, 0) else rate.work_rate end, 2)::text end,
+         case when u.status <> 'Approved' then 'not-posted' when rate.work_rate is null then 'no-rate' else 'counted' end,
+         u.quantity, u.unit, null
+    from public.equipment_usage_entries u
+    left join lateral (
+      select v.work_rate, v.standby_rate from rates v
+       where v.asset_id = u.asset_id and v.rate_unit = u.unit
+         and u.work_date between v.window_from and v.window_to
+       order by v.version desc limit 1
+    ) rate on true
+   where u.org_id = v_org and u.project_id = p_project_id and u.archived_at is null;
+end $$;
+revoke all on function public.work_order_cost_amounts_unpriced(uuid) from public, anon, authenticated;
+
+-- Project actuals are authoritative. A bill-linked payment is attributed to the document it actually names;
+-- any remaining paid purchase value follows an unambiguous purchase document, otherwise it stays unassigned.
+create function public.work_order_cost_amounts(p_project_id uuid)
+returns table(source text, record_id uuid, project_id uuid, work_order_id uuid, discipline_id uuid, occurred_on date,
+              reference text, currency text, amount text, reason text, quantity numeric, quantity_unit text, person_id uuid)
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare
+  v_org uuid := public.auth_org_id();
+  v_fin jsonb;
+  v_actual numeric;
+  v_currency text;
+  v_erp boolean;
+begin
+  if not public.is_active_member() or public.auth_role() is null
+     or public.auth_role() not in ('Admin', 'Executive', 'Finance', 'Project Manager') then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = v_org) then
+    raise exception 'project not found' using errcode = 'P0002';
+  end if;
+  v_fin := public.get_project_finances(p_project_id)->'actuals';
+  v_actual := (v_fin->>'total')::numeric;
+  v_currency := v_fin->>'currency';
+  v_erp := public.org_reads_erp_ledger();
+
+  return query
+  with purchase as (
+    select p.*, public.procurement_paid_pre_tax(p) as paid
+      from public.procurements p
+     where p.project_id = p_project_id and p.org_id = v_org and p.origin is distinct from 'erp_link'
+       and exists (select 1 from public.payments x where x.org_id = v_org and x.procurement_id = p.id
+                    and x.status = 'Paid' and coalesce(x.erp_docstatus, 1) <> 2 and x.erp_cancelled_at is null)
+  ), linked as (
+    select pay.procurement_id, pay.invoice_id, sum(pay.amount) as paid,
+           bool_or(pay.amount is null or pay.amount::text in ('NaN', 'Infinity', '-Infinity')
+                   or pay.currency is distinct from pr.currency) as unreadable
+      from public.payments pay join purchase pr on pr.id = pay.procurement_id and pr.org_id = pay.org_id
+     where pay.invoice_id is not null and pay.status = 'Paid' and coalesce(pay.erp_docstatus, 1) <> 2
+       and pay.erp_cancelled_at is null
+     group by pay.procurement_id, pay.invoice_id
+  ), bill_amounts as (
+    select i.id, i.procurement_id,
+           coalesce(i.work_order_id, po.work_order_id, gr.work_order_id, rq.work_order_id) as work_order_id,
+           case when i.work_order_id is not null then i.discipline_id
+                when po.work_order_id is not null then po.discipline_id
+                when gr.work_order_id is not null then gr.discipline_id else rq.discipline_id end as discipline_id,
+           i.invoice_date, i.vi_number, i.currency as bill_currency,
+           case when l.unreadable or pr.paid is null
+                  or i.currency is distinct from pr.currency or i.amount is null
+                  or i.amount::text in ('NaN', 'Infinity', '-Infinity') then null::numeric
+                when (i.amount + case when i.tax_treatment = 'exclusive' then coalesce(i.tax_amount, 0) else 0 end
+                      - coalesce(i.withheld_amount, 0)) > 0
+                then round(l.paid * (case when i.tax_treatment = 'inclusive' then i.amount - coalesce(i.tax_amount, 0) else i.amount end)
+                     / (i.amount + case when i.tax_treatment = 'exclusive' then coalesce(i.tax_amount, 0) else 0 end
+                         - coalesce(i.withheld_amount, 0)), 2)
+                else l.paid end as cost
+      from linked l join purchase pr on pr.id = l.procurement_id
+      join public.procurement_invoices i on i.id = l.invoice_id and i.procurement_id = pr.id and i.org_id = v_org
+      left join public.purchase_orders po on po.id = i.po_id and po.procurement_id = pr.id and po.org_id = v_org
+      left join lateral (
+        select case when bool_and(x.work_order_id is not null) and count(distinct x.work_order_id) = 1 then min(x.work_order_id::text)::uuid end as work_order_id,
+               case when count(distinct x.discipline_id) = 1 then min(x.discipline_id::text)::uuid end as discipline_id
+          from public.procurement_receipts x where x.org_id = v_org and x.procurement_id = pr.id and i.po_id is not null and x.po_id = i.po_id
+      ) gr on true
+      left join lateral (
+        select case when bool_and(x.work_order_id is not null) and count(distinct x.work_order_id) = 1 then min(x.work_order_id::text)::uuid end as work_order_id,
+               case when count(distinct x.discipline_id) = 1 then min(x.discipline_id::text)::uuid end as discipline_id
+          from public.purchase_requests x where x.org_id = v_org and x.procurement_id = pr.id
+      ) rq on true
+  ), bill_totals as (
+    select b.procurement_id, case when count(*) filter (where b.cost is null) > 0 then null else sum(b.cost) end as cost
+      from bill_amounts b group by b.procurement_id
+  ), remainders as (
+    select pr.id, pr.paid, pr.currency, coalesce(pr.code, pr.title) as reference,
+           case when pr.paid is null then null when bt.procurement_id is not null and bt.cost is null then pr.paid
+                else pr.paid - coalesce(bt.cost, 0) end as cost,
+           case when bt.procurement_id is not null and bt.cost is null then null else docs.work_order_id end as work_order_id,
+           case when bt.procurement_id is not null and bt.cost is null then null else docs.discipline_id end as discipline_id
+      from purchase pr left join bill_totals bt on bt.procurement_id = pr.id
+      left join lateral (
+        select case when bool_and(d.work_order_id is not null) and count(distinct d.work_order_id) = 1 then min(d.work_order_id::text)::uuid end as work_order_id,
+               case when count(distinct d.discipline_id) = 1 then min(d.discipline_id::text)::uuid end as discipline_id
+          from (
+            select po.work_order_id, po.discipline_id from public.purchase_orders po
+             where po.org_id = v_org and po.procurement_id = pr.id
+            union all
+            select gr.work_order_id, gr.discipline_id from public.procurement_receipts gr
+             where gr.org_id = v_org and gr.procurement_id = pr.id
+            union all
+            select rq.work_order_id, rq.discipline_id from public.purchase_requests rq
+             where rq.org_id = v_org and rq.procurement_id = pr.id
+               and not exists (select 1 from public.purchase_orders po where po.org_id = v_org and po.procurement_id = pr.id)
+               and not exists (select 1 from public.procurement_receipts gr where gr.org_id = v_org and gr.procurement_id = pr.id)
+          ) d
+      ) docs on true
+  ), rate_entries as (
+    select e.id, e.work_order_id, e.discipline_id, e.work_date, e.quantity, e.unit,
+           v.id as setting_id, date_trunc('month', e.work_date)::date as month,
+           e.quantity * case when e.kind = 'standby' then coalesce(v.standby_rate, 0) else v.work_rate end as raw_cost
+      from public.equipment_settings_effective(v_org, null) v
+      join public.equipment_usage_entries e on e.org_id = v_org and e.asset_id = v.asset_id
+        and e.project_id = p_project_id and e.status = 'Approved' and e.archived_at is null
+        and e.work_date between v.window_from and v.window_to and e.unit = v.rate_unit
+     where v.basis = 'hire_rate'
+       and v_currency = (select default_currency from public.organizations where id = v_org)
+       and exists (select 1 from jsonb_array_elements(v_fin->'categories') c
+                    where c->>'category' = v.charge_category::text and (c->>'mapped')::boolean)
+  ), rate_grouped as (
+    select e.*, sum(e.raw_cost) over (partition by e.setting_id, e.month) as group_raw,
+           round(sum(e.raw_cost) over (partition by e.setting_id, e.month), 2) as group_total
+      from rate_entries e
+  ), rate_shares as (
+    select e.*, case when e.raw_cost is null then null when e.group_raw > 0 then e.group_total * 100 * e.raw_cost / e.group_raw else 0 end as exact_cents
+      from rate_grouped e
+  ), rate_ranked as (
+    select e.*, floor(e.exact_cents) as whole_cents,
+           row_number() over (partition by e.setting_id, e.month order by e.exact_cents - floor(e.exact_cents) desc, e.id) as remainder_rank,
+           sum(floor(e.exact_cents)) over (partition by e.setting_id, e.month) as floor_total
+      from rate_shares e
+  ), rate_allocated as (
+    select e.*, (e.whole_cents + case when e.remainder_rank <= e.group_total * 100 - e.floor_total then 1 else 0 end) / 100 as cost
+      from rate_ranked e
+  ), equipment as (
+    select e.id, e.work_order_id, e.discipline_id, e.work_date, e.quantity, e.unit,
+           case when v_currency = (select default_currency from public.organizations where id = v_org)
+                then sum(e.cost) end as cost
+      from rate_allocated e
+     group by e.id, e.work_order_id, e.discipline_id, e.work_date, e.quantity, e.unit
+  ), allocated as (
+    select 'vendor_bill'::text as source, b.id as record_id, p_project_id as project_id, b.work_order_id, b.discipline_id,
+           b.invoice_date as occurred_on, b.vi_number as reference, b.bill_currency as currency, b.cost,
+           case when b.cost is null and b.work_order_id is not null then 'unresolved-direct'
+                when b.cost is null then 'outside-basis' when b.work_order_id is null then 'unassigned' else 'counted' end::text as reason,
+           null::numeric as quantity, null::text as quantity_unit
+      from bill_amounts b where not v_erp
+    union all
+    select 'purchase_balance', r.id, p_project_id, r.work_order_id, r.discipline_id, null::date, r.reference, r.currency, r.cost,
+           case when r.work_order_id is null then 'unassigned' else 'counted' end, null::numeric, null::text
+      from remainders r where not v_erp and (r.cost is null or r.cost <> 0)
+    union all
+    select 'equipment_usage', e.id, p_project_id, e.work_order_id, e.discipline_id, e.work_date, null::text, v_currency, e.cost,
+           'counted'::text, e.quantity, e.unit
+      from equipment e
+  ), allocated_sum as (
+    select case when count(*) filter (where cost is null) > 0 then null else coalesce(sum(cost), 0) end as cost from allocated a where a.reason not in ('unresolved-direct', 'outside-basis')
+  )
+  select x.source, x.record_id, x.project_id, x.work_order_id, x.discipline_id, x.occurred_on,
+         x.reference, x.currency, x.cost::text, x.reason, x.quantity, x.quantity_unit, null::uuid from allocated x
+  union all
+  select 'project_actuals', p_project_id, p_project_id, null::uuid, null::uuid, null::date, null::text, v_currency,
+         case when v_actual is null or a.cost is null then null else (v_actual - a.cost)::text end,
+         case when v_erp then 'split-when-custom' else 'unassigned' end, null::numeric, null::text, null::uuid
+    from allocated_sum a
+   where v_actual is null or a.cost is null or v_actual <> a.cost
+  union all
+  select u.source, u.record_id, u.project_id, u.work_order_id, u.discipline_id, u.occurred_on, u.reference,
+         u.currency, null::text,
+         case when u.reason = 'counted' then 'outside-basis' else u.reason end,
+         u.quantity, u.quantity_unit, u.person_id
+    from public.work_order_cost_amounts_unpriced(p_project_id) u
+   where not exists (select 1 from allocated a where a.source = u.source and a.record_id = u.record_id)
+  union all
+  select 'other_revenue', md5(p_project_id::text || ':' || coalesce(w.currency, '?'))::uuid,
+         p_project_id, null::uuid, null::uuid, null::date, null::text, w.currency,
+         case when count(*) filter (where w.net is null or w.recovery is null
+                   or w.net::text in ('NaN', 'Infinity', '-Infinity')
+                   or w.recovery::text in ('NaN', 'Infinity', '-Infinity')) > 0 then null
+              else sum(w.net + w.recovery)::text end,
+         'other-revenue', null::numeric, null::text, null::uuid
+    from public.sales_invoice_work_billed w
+    join public.sales_invoices i on i.id = w.id and i.org_id = w.org_id
+   where i.org_id = v_org and i.project_id = p_project_id and i.billing_kind = 'other'
+     and i.status in ('Submitted', 'Unpaid', 'Paid') and coalesce(i.erp_docstatus, 1) <> 2
+     and i.erp_cancelled_at is null and i.paired_erp_invoice_id is null and not w.is_down_payment
+   group by w.currency;
+end $$;
+revoke all on function public.work_order_cost_amounts(uuid) from public, anon;
+grant execute on function public.work_order_cost_amounts(uuid) to authenticated;
