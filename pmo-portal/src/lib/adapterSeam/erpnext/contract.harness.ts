@@ -6,8 +6,10 @@ import { AppError } from '../../appError.ts';
 import type {
   ConnectHarness,
   BudgetPushResult, BudgetPushScenario, ErpHarness, ErpPartyInput, InboundInvoiceDoc, PartyMatchResult, PmoPartyCandidate,
-  JournalHarness, ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
+  JournalHarness, ProjectLinkResult, PushBeforeConnectionResult, TransferHarness, FiscalYearHarness,
 } from '../contractSuite/harness.ts';
+import { fakeFiscalYearErp } from './fakeFiscalYearErp.ts';
+import { discoverFiscalYear } from './fiscalYear.ts';
 import { AdapterError } from '../contract.ts';
 import type { LedgerJournal } from '../ledgerJournal.ts';
 import { manualJournalFromDoc } from './bodies/manualJournal.ts';
@@ -196,12 +198,26 @@ function createJournalHarness(): JournalHarness {
   };
 }
 
+function createFiscalYearHarness(): FiscalYearHarness {
+  const company = 'Test Co';
+  const erp = fakeFiscalYearErp([], { companies: [company, 'Other Co'], version: 16 });
+  return {
+    company,
+    seed(y) { erp.seed(y); },
+    discover: (today) => discoverFiscalYear(erp.client, company, today),
+    years: () => erp.years(),
+    writes: () => erp.writes(),
+    denyRead: () => { erp.denyRead(); },
+  };
+}
+
 export function createErpnextHarness(): ErpHarness {
   return {
     tier: 'erpnext',
     transfer: createTransferHarness,
     journal: createJournalHarness,
     companyDefaults: createCompanyDefaultsHarness,
+    fiscalYear: createFiscalYearHarness,
     connect: createConnectHarness,
     ...createPushAndReadHarness(),
 

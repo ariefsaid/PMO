@@ -245,6 +245,18 @@ export interface ErpHarness {
   revise?: () => ReviseHarness;
   /** company-defaults.set: each call starts a fresh fake ERP company with every default empty. Absent until the tier sets them (#1504). */
   companyDefaults?: () => CompanyDefaultsHarness;
+  /** fiscal-year.ensure: each call starts a fake ERP bound to one company. Absent until the tier discovers years. */
+  fiscalYear?: () => FiscalYearHarness;
+}
+
+/** fiscal-year.ensure: a fake ERP holding fiscal years, bound to one PMO company. Dates are ISO (YYYY-MM-DD). */
+export interface FiscalYearHarness {
+  readonly company: string;
+  seed(year: { name: string; start: string; end: string; companies: string[]; disabled?: boolean }): void;
+  discover(today: string): Promise<import('../fiscalYearEnsure.ts').FiscalYearDiscovery>;
+  years(): Array<{ name: string; start: string; end: string; companies: string[]; disabled?: boolean }>;
+  writes(): Array<Record<string, unknown>>;
+  denyRead(): void;
 }
 
 export interface ReviseHarness {
