@@ -61,6 +61,8 @@ export const NATIVE_REVENUE_REFUSALS = [
   'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
   'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',
   'request-id-reused',
+  // FR-BST-020 (1021): a progress claim with an open billing stage mints no invoice (55000 carries this detail; bare 55000 is the withdrawn fence).
+  'billing-stages-incomplete',
 ] as const;
 export type NativeRevenueRefusal = (typeof NATIVE_REVENUE_REFUSALS)[number];
 const REFUSALS: ReadonlySet<string> = new Set(NATIVE_REVENUE_REFUSALS);

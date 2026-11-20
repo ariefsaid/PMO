@@ -1,7 +1,7 @@
 -- 0210: service-only SECURITY DEFINER functions are executable by service_role and NOT by
 -- anon/authenticated; client RPCs keep their authenticated grant (no over-revoke).
 begin;
-select plan(38);
+select plan(41);
 
 select ok(not has_function_privilege('anon', 'public.read_vault_secret(text)', 'EXECUTE'), 'AC-GRANT-0210-1 anon cannot execute read_vault_secret');
 select ok(not has_function_privilege('authenticated', 'public.read_vault_secret(text)', 'EXECUTE'), 'AC-GRANT-0210-2 authenticated cannot execute read_vault_secret');
@@ -49,6 +49,11 @@ select ok(has_function_privilege('service_role', 'public.m365_org_app_resolve(uu
 select ok(not has_function_privilege('anon', 'public.m365_clear_org_app(uuid, uuid)', 'EXECUTE'), 'AC-GRANT-0210-36 anon cannot execute m365_clear_org_app');
 select ok(not has_function_privilege('authenticated', 'public.m365_clear_org_app(uuid, uuid)', 'EXECUTE'), 'AC-GRANT-0210-37 authenticated cannot execute m365_clear_org_app');
 select ok(has_function_privilege('service_role', 'public.m365_clear_org_app(uuid, uuid)', 'EXECUTE'), 'AC-GRANT-0210-38 service_role can execute m365_clear_org_app');
+
+-- 1026 (#2260) the organization app status read: service-only, like the three 0817 definers.
+select ok(not has_function_privilege('anon', 'public.m365_org_app_status(uuid)', 'EXECUTE'), 'AC-GRANT-0210-39 anon cannot execute m365_org_app_status');
+select ok(not has_function_privilege('authenticated', 'public.m365_org_app_status(uuid)', 'EXECUTE'), 'AC-GRANT-0210-40 authenticated cannot execute m365_org_app_status');
+select ok(has_function_privilege('service_role', 'public.m365_org_app_status(uuid)', 'EXECUTE'), 'AC-GRANT-0210-41 service_role can execute m365_org_app_status');
 
 select * from finish();
 rollback;

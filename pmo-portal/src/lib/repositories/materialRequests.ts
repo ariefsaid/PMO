@@ -9,7 +9,7 @@ import { wrap } from './repositoryErrors';
 export type {
   MaterialRequestStatus, StepStatus, StepDecision, MaterialRequestHeader, MaterialRequestLineInput, MaterialRequestRow,
   MaterialRequestLine, MaterialRequestStep, MaterialRequestEvent, MaterialRequestDetail, WaitingStep, ChainStep,
-  ChainStepInput, StandIn, LinePlan, PlanSource, MaterialRequestFilter, MaterialRequestRefusal, DraftLineError,
+  ChainStepInput, StandIn, StepPin, LinePlan, PlanSource, MaterialRequestFilter, MaterialRequestRefusal, DraftLineError,
 } from '@/src/lib/db/materialRequests';
 export { linePlanStatus, draftLineErrors, materialRequestRefusal, MATERIAL_REQUEST_PAGE_SIZE } from '@/src/lib/db/materialRequests';
 
@@ -32,5 +32,7 @@ export const materialRequestRepository = {
   setCutoff: (cutoff: string | null) => wrap(() => dal.setMaterialRequestCutoff(cutoff)),
   standIns: () => wrap(() => dal.listStandIns()),
   setStandIn: (s: { delegatorId: string; standInId: string; startsOn: string; endsOn: string }) => wrap(() => dal.setStandIn(s)),
+  stepPins: (projectId: string) => wrap(() => dal.listStepPins(projectId)),
+  setStepPin: (projectId: string, position: number, approverId: string | null) => wrap(() => dal.setStepPin(projectId, position, approverId)),
   revokeStandIn: (id: string) => wrap(() => dal.revokeStandIn(id)),
 };

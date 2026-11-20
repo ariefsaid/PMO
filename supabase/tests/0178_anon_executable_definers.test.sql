@@ -233,6 +233,9 @@
 -- under a member's JWT: re-assert active membership, org and Admin/Finance (accept also the ERP-owns-revenue gate
 -- and re-checks every pair on locked rows); proven by supabase/tests/invoice_pairs.test.sql. The proposal and candidate
 -- functions are INVOKER and not listed.
+-- ⚑ AMENDED BY 1056 (#1696): `compare_and_unpair_invoice` joins the retained set (+1, count 225).
+-- The authenticated writer checks active membership, org and Admin/Finance before comparing
+-- the pair and lifecycle and calling the existing undo; proven by invoice_pairs_erp_cancelled.test.sql.
 --
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
@@ -263,7 +266,7 @@
 --
 begin;
 create extension if not exists pgtap;
-select plan(7);
+select plan(8);
 
 -- This is duplicated from 0185 as a visible proof contract. A future client RPC must retain its
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
@@ -305,6 +308,7 @@ select plan(7);
 -- ⚑ AMENDED BY 1076 (#2577): `cus_generate_plan` and `cus_adjust_plan_line` join the retained set (+2, count 226).
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 -- Retained names: union of every merged branch's inventory; the AC-ACL-002/003 counts are counted from this list.
+-- ⚑ AMENDED BY 1045 (#2598): `mrq_set_step_pin` joins the retained set.
 insert into client_callable_rpc_names (proname) values
   ('set_equipment_ownership'),  -- ⚑ AMENDED BY 1032 (#2526)
   ('save_equipment_rental_term'),  -- ⚑ AMENDED BY 1032 (#2526)
@@ -385,6 +389,7 @@ insert into client_callable_rpc_names (proname) values
   ('record_vendor_withholding_slip'),
   ('correct_vendor_withholding_slip'),
   ('unpair_invoice'),
+  ('compare_and_unpair_invoice'),
   ('void_vendor_withholding_slip'),
   ('create_procurement_quotation'),
   ('create_procurement_receipt'),
@@ -425,6 +430,9 @@ insert into client_callable_rpc_names (proname) values
   ('admin_change_domain_ownership'),
   ('admin_set_feedback_surveys'),
   ('list_budget_fiscal_years'),
+  ('load_stock_opening'),  -- ⚑ AMENDED BY 1046 (#2588): the three opening-balance writers; each is Admin-only and org-scoped (opening_balances.test.sql)
+  ('load_work_order_opening'),
+  ('reverse_opening_balance'),
   ('list_tm_claim_source_details'),  -- ⚑ AMENDED BY 0588 (#1514 D1)
   ('operator_agent_run_stats'),
   ('operator_create_org'),
@@ -493,6 +501,7 @@ insert into client_callable_rpc_names (proname) values
   ('mrq_submit'),
   ('mrq_decide_step'),
   ('mrq_cancel'),
+  ('mrq_set_step_pin'),  -- ⚑ AMENDED BY 1045 (#2598): Admin or the project's manager pins a step to a named approver (mrq_step_pin.test.sql)
   ('cus_generate_plan'),  -- 1076 (#2577): planner of the work order's project (may_record_project_progress), set-based, org-checked; cus_plan.test.sql
   ('cus_adjust_plan_line'),  -- 1076 (#2577): same project rule, reason required, active same-org item; cus_plan.test.sql
   ('dsr_save_draft'),
@@ -553,8 +562,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  226,
-  'AC-ACL-002 all 226 retained client-callable RPC names still have a public function');
+  231,
+  'AC-ACL-002 all 231 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -563,8 +572,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  226,
-  'AC-ACL-003 all 226 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  231,
+  'AC-ACL-003 all 231 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
@@ -625,6 +634,13 @@ select ok(not has_function_privilege('anon','public.record_erp_statement_nightly
   and not has_function_privilege('anon','public._erp_statement_nightly_due_at(date,text)','EXECUTE')
   and not has_function_privilege('authenticated','public._erp_statement_nightly_due_at(date,text)','EXECUTE'),
   'AC-NS-004 nightly surfaces add no anonymous or authenticated execute');
+
+-- 1026 (#2260) adds one service-only read: the organization's Microsoft app values minus the secret.
+-- It is not a client-callable RPC, so it stays out of the retained set; pinned explicitly here so a
+-- future accidental grant to a client role is named by this file (AC-M365AV-001).
+select ok(not has_function_privilege('anon','public.m365_org_app_status(uuid)','EXECUTE')
+  and not has_function_privilege('authenticated','public.m365_org_app_status(uuid)','EXECUTE'),
+  'AC-M365AV-001 the organization app status read adds no anonymous or authenticated execute');
 
 select * from finish();
 rollback;

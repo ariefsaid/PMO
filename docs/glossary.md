@@ -389,6 +389,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Work order acceptance line** — the quantity accepted for one contract line on a work order acceptance; the latest confirmed quantity, not a sum, is what has been accepted to date.
 
+**Opening balance** — where a running work order or a stock location stood at go-live, loaded once by an Admin and dated at the organisation's one go-live date (#2588). A work order's opening is a confirmed acceptance marked `opening` (certified quantity) plus the quantity and value claimed before go-live, which counts as already invoiced; a location's opening is a posted stock document of kind `opening` (counted quantity at unit cost). It is not new activity, it counts once, and an Admin can reverse it only before the first real transaction. Finished work orders carry none.
+
 **Progress assessment quantity** — the quantity completed to date for a bill-of-quantities item in a project progress entry.
 
 **Progress claim** — a project billing claim, optionally associated with a work order, for progress or a down payment, recording gross value and any down-payment recovery.
@@ -420,6 +422,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **Left to bill** — signed contract value (net of tax) less invoiced to date (also read per issued work order, #2575), per held contract (on-hand status, not archived: the Contract on hand set, whatever the selected period) and currency at a month; it does not depend on the revenue recognition basis. The management pack derives it once and every report tile, row, total, export and the home dashboard read that one figure (#2203). A held contract with no contract value is not in it; the total stays a number and the count of such contracts is said beside it ("N contracts with no value, not in the total").
 
 **Remaining work** — signed contract value less recognised revenue to date in the management pack; it follows the recognition basis (progress, earned value or invoiced) and is distinct from Left to bill. Formerly named "backlog" in the pack (DD-MMP-3).
+
+**Cancelled invoice pair** — an invoice pair whose linked ERP invoice was later cancelled; Finance can review the pair and decide whether to undo it.
 
 **Incoming payment** — a customer payment record, optionally linked to a sales invoice, carrying amount, currency, status and receipt/withholding details.
 
@@ -619,6 +623,9 @@ unbilled, partly billed, fully billed or surplus.
 **Retention** (*retensi*) — the share of a progress claim the client holds back until a later event; stamped on the claim
 at creation from the project's percentage and held on the receivable, never as an invoice line (ADR-0103).
 **Retention release** — a scheduled, then recorded, payment-due event for part or all of a claim's retention.
+**Due now** (*jatuh tempo sekarang*) — what is outstanding on a client invoice less the retention still held on it
+(never below zero). Ageing and overdue count only this; the retention held stays in what is owed, as its own figure,
+until a release is recorded (#2625, ADR-0105 §4).
 
 ### Site issues and task proof (#2521, #2531)
 

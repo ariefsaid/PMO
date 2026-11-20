@@ -270,29 +270,6 @@ export function summarizeBudgetComparison(
   };
 }
 
-/** One category as the Forecast panel holds it (numbers off the repository seam). */
-export interface SummaryRow {
-  category: string;
-  pmoBudgetAmount: number | null;
-  /** `true` when a null budget is a KNOWN absence ("the Active version has no line here") = budgeted 0. */
-  budgetKnownAbsent: boolean;
-  actualsToDate: number | null;
-  pmoEtc: number;
-}
-
-export interface ProjectionSummary {
-  /** Each figure is `null` (never 0) while any category it depends on is unknown. */
-  budget: number | null;
-  recorded: number | null;
-  costToFinish: number;
-  finalCost: number | null;
-  /** Budget − forecast final cost; negative = forecast overrun. */
-  remaining: number | null;
-  /** Categories whose budget / recorded spending is unknown — the visible reason for a `null` above. */
-  unknownBudget: string[];
-  unknownRecorded: string[];
-}
-
 export interface BudgetProjectionYearOption {
   fiscalYear: string;
   /** The Active version has an approved amount recorded for this client-defined year. */
@@ -347,20 +324,6 @@ export function chooseDefaultBudgetProjectionScope(
   return fiscalYear ? { kind: 'year', year: fiscalYear } : { kind: 'all' };
 }
 
-/** Preserve explicit scope through a refetch; a project change or a vanished year uses the new default. */
-export function resolveBudgetProjectionScope(
-  projectId: string,
-  selection: BudgetProjectionScopeSelection | null,
-  years: readonly BudgetProjectionYearOption[],
-  yearsWithSpending: ReadonlySet<string>,
-): BudgetProjectionScope {
-  const fallback = chooseDefaultBudgetProjectionScope(years, yearsWithSpending);
-  if (!selection || selection.projectId !== projectId) return fallback;
-  if (selection.scope.kind === 'all') return selection.scope;
-  const selectedYear = selection.scope.year;
-  return years.some((year) => year.fiscalYear === selectedYear) ? selection.scope : fallback;
-}
-
 /**
  * Choose the initial year for the budget projection. The repository returns fiscal years in
  * client-defined newest-first order; labels are opaque and are never parsed to infer dates.
@@ -375,25 +338,4 @@ export function chooseDefaultBudgetFiscalYear(
     ?? null;
 }
 
-const toC = (n: number) => Math.round(n * 100); // numeric(14,2) in, so exact at 2 dp
-const fromC = (c: number) => c / 100;
-
 /** Project-level totals across categories. One basis: the same rows the grid shows (no second formula). */
-export function summarizeProjection(rows: readonly SummaryRow[]): ProjectionSummary {
-  const unknownBudget = rows.filter((r) => r.pmoBudgetAmount === null && !r.budgetKnownAbsent).map((r) => r.category);
-  const unknownRecorded = rows.filter((r) => r.actualsToDate === null).map((r) => r.category);
-  const sum = (f: (r: SummaryRow) => number) => rows.reduce((s, r) => s + toC(f(r)), 0);
-  const etcC = sum((r) => r.pmoEtc);
-  const budgetC = unknownBudget.length ? null : sum((r) => r.pmoBudgetAmount ?? 0);
-  const recordedC = unknownRecorded.length ? null : sum((r) => r.actualsToDate ?? 0);
-  const finalC = recordedC === null ? null : recordedC + etcC;
-  return {
-    budget: budgetC === null ? null : fromC(budgetC),
-    recorded: recordedC === null ? null : fromC(recordedC),
-    costToFinish: fromC(etcC),
-    finalCost: finalC === null ? null : fromC(finalC),
-    remaining: budgetC === null || finalC === null ? null : fromC(budgetC - finalC),
-    unknownBudget,
-    unknownRecorded,
-  };
-}

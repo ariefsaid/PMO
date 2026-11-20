@@ -21,7 +21,7 @@ function adminClient() {
 }
 
 function projectButton(page: Page, name: string) {
-  return page.getByRole('button', { name, exact: true });
+  return page.getByRole('link', { name, exact: true });
 }
 
 async function waitProjectsReady(page: Page) {

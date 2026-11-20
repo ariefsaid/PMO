@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -10,8 +10,9 @@ const q = (data: unknown, over: Record<string, unknown> = {}) => ({ data, isPend
 const viewerOpen = vi.hoisted(() => vi.fn());
 vi.mock('@/src/components/documents/viewerContext', () => ({ useViewerOnDemand: () => ({ open: viewerOpen }) }));
 const h = vi.hoisted(() => ({ wo: null as unknown, alloc: null as unknown, boq: null as unknown, basts: null as unknown, billing: null as unknown,
-  docs: null as unknown, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, stock: false, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown }));
-vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: () => h.alloc, useWorkOrderClaimDocuments: () => h.claimDocs }));
+  docs: null as unknown, issues: null as unknown, tasks: null as unknown, issuesOn: true, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, stock: false, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown }));
+vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: () => h.alloc, useWorkOrderClaimDocuments: () => h.claimDocs, useWorkOrderIssues: () => h.issues, useWorkOrderOpenTasks: () => h.tasks }));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: (f: string) => f === 'stock' ? h.stock : f === 'incidents' ? h.issuesOn : false }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts }));
@@ -22,13 +23,17 @@ vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
 }));
 vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: () => h.pva }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
-vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: { stock: h.stock } }) }));
 vi.mock('./work-order-detail/ConsumablePlanSection', () => ({
   ConsumablePlanSection: (p: { workOrderId: string; workOrderStatus: string; project: { project_manager_id: string | null } | null }) =>
     <section data-testid="consumable-plan-stub">{`${p.workOrderId}|${p.workOrderStatus}|${p.project?.project_manager_id ?? 'none'}`}</section>,
 }));
 
 import WorkOrderDetail from './WorkOrderDetail';
+
+const CurrentLocation: React.FC = () => {
+  const { pathname, search } = useLocation();
+  return <output data-testid="current-location">{pathname}{search}</output>;
+};
 
 const WO = { id: 'w1', project_id: 'p1', wo_number: 'WO-0007', title: 'Pump install', status: 'Issued', currency: 'IDR', order_value: 1500000, client_po_number: 'PO-9' };
 const ln = (source: string, id: string, disciplineId: string | null) => ({ source, recordId: id, projectId: 'p1', workOrderId: 'w1', disciplineId, occurredOn: '2026-02-01', reference: id, quantity: null, quantityUnit: null });
@@ -46,6 +51,7 @@ beforeEach(async () => {
     { id: 'a2', work_order_id: 'other', status: 'Confirmed', is_final: false, acceptance_date: '2026-03-02', document_id: null, lines: [{ boq_item_id: 'b1', quantity: 9 }] }]);
   h.billing = q([{ workOrderId: 'w1', currency: 'IDR', invoiced: 10, pending: 20, paid: 30, remaining: 40, figuresComplete: true }]);
   h.claimDocs = q([]);
+  h.issues = q([]); h.tasks = q([]); h.issuesOn = true;
   h.docs = q([{ id: 'd1', title: 'BAST scan' }, { id: 'd2', title: 'Unrelated' }]);
   h.lines = q({ purchase_order: [ln('purchase_order', 'po1', 'd1'), ln('purchase_order', 'po2', null)], vendor_bill: [], timesheet_entry: [] });
   h.money = q({ purchase_order: { po1: { amount: 100, currency: 'IDR' }, po2: { amount: 50, currency: 'IDR' } } });
@@ -230,5 +236,70 @@ describe('WorkOrderDetail', () => {
     expect(Object.entries(id).filter(([, v]) => v.trim() === '')).toEqual([]);
     // Every page string is translated: no key whose Bahasa text is still the English sentence (placeholders-only strings excepted).
     expect(Object.keys(en).filter((k) => /[a-z]{4,}/i.test(en[k].replace(/\{\{.*?\}\}/g, '')) && en[k] === id[k])).toEqual([]);
+  });
+  // #2615 FR-WORP-025: issues and open tasks that name the work order.
+  it('lists the issues naming the work order with status and due time, each linking to the issue', () => {
+    h.issues = q([{ id: 'i1', type: 'Leaking flange', status: 'Open', due_at: '2999-01-01T00:00:00Z' }]);
+    renderPage();
+    const list = within(screen.getByTestId('wo-issues'));
+    expect(list.getByRole('link', { name: 'Leaking flange' })).toHaveAttribute('href', '/incidents/i1');
+    expect(list.getByText(/Fix by/)).toBeInTheDocument();
+  });
+
+  it('lists the open tasks with assignee and due date', () => {
+    h.tasks = q([{ id: 't1', name: 'Torque the bolts', assignee: { full_name: 'Sari Dewi' }, end_date: '2999-01-01' }, { id: 't2', name: 'Paint', assignee: null, end_date: null }]);
+    renderPage();
+    const list = within(screen.getByTestId('wo-open-tasks'));
+    expect(list.getByText('Torque the bolts')).toBeInTheDocument();
+    expect(list.getByText('Sari Dewi')).toBeInTheDocument();
+    expect(list.getByText('Unassigned')).toBeInTheDocument();
+    expect(list.getByText('No due date')).toBeInTheDocument();
+  });
+
+  it('FR-WORP-025 lets the user open a task from the work order', async () => {
+    h.tasks = q([{ id: 't1', project_id: 'p1', name: 'Torque the bolts', assignee: null, end_date: null }]);
+    render(<MemoryRouter initialEntries={['/work-orders/w1']}><Routes>
+      <Route path="/work-orders/:id" element={<WorkOrderDetail />} />
+      <Route path="/projects/:projectId/tasks" element={<><p>Project tasks route</p><CurrentLocation /></>} />
+    </Routes></MemoryRouter>);
+
+    await userEvent.setup().click(screen.getByRole('link', { name: 'Torque the bolts' }));
+
+    expect(await screen.findByText('Project tasks route')).toBeInTheDocument();
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/projects/p1/tasks?open=t1');
+  });
+
+  it('shows an empty state for each section', () => {
+    renderPage();
+    expect(screen.getByText('No issues name this work order.')).toBeInTheDocument();
+    expect(screen.getByText('No open tasks name this work order.')).toBeInTheDocument();
+  });
+
+  it('a failing issues read shows its own error with retry; the tasks section still renders', async () => {
+    const refetch = vi.fn();
+    h.issues = q(undefined, { isError: true, refetch });
+    h.tasks = q([{ id: 't1', name: 'Torque the bolts', assignee: null, end_date: null }]);
+    renderPage();
+    await userEvent.setup().click(within(screen.getByText("Couldn't load the issues").closest('section') as HTMLElement).getByRole('button', { name: /retry/i }));
+    expect(refetch).toHaveBeenCalled();
+    expect(screen.getByText('Torque the bolts')).toBeInTheDocument();
+  });
+
+  it('a failing open-tasks read shows its own error with retry', async () => {
+    const refetch = vi.fn();
+    h.tasks = q(undefined, { isError: true, refetch });
+    renderPage();
+    await userEvent.setup().click(within(screen.getByText("Couldn't load the open tasks").closest('section') as HTMLElement).getByRole('button', { name: /retry/i }));
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it('both sections show loading, and the issues section is absent while the incidents module is off', () => {
+    h.issues = q(undefined, { isPending: true }); h.tasks = q(undefined, { isPending: true });
+    const { unmount } = renderPage();
+    expect(screen.queryByTestId('wo-issues')).toBeNull();
+    unmount();
+    h.issuesOn = false;
+    renderPage();
+    expect(screen.queryByText('Issues')).toBeNull();
   });
 });

@@ -1,12 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { UseQueryResult, UseMutationResult } from '@tanstack/react-query';
+import type { UseMutationResult } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useState } from 'react';
 import { invalidateProjectProjections } from './projectQueryKeys';
 import { repositories } from '@/src/lib/repositories';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 import {
-  type PipelineStageConfig,
   type ProjectStatus,
   type TransitionProjectOpts,
 } from '@/src/lib/db/projectTransitions';
@@ -14,22 +13,6 @@ import {
 // ---------------------------------------------------------------------------
 // Read hook — pipeline stage config (C1, supports AC-1003)
 // ---------------------------------------------------------------------------
-
-/**
- * Fetches the org's pipeline stage win-probability config.
- * Cache key: ['pipeline-stage-config', orgId] — org-scoped (FR-PR-013).
- * Disabled when orgId is absent.
- */
-export function usePipelineStageConfig(): UseQueryResult<PipelineStageConfig[]> {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-
-  return useQuery<PipelineStageConfig[]>({
-    queryKey: ['pipeline-stage-config', orgId],
-    queryFn: () => repositories.project.listPipelineStageConfig(),
-    enabled: Boolean(orgId),
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Mutation hook — project transition (C2, supports AC-1011)

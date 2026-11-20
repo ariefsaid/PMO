@@ -64,11 +64,11 @@ test('AC-MTG-303: an author can restore an archived meeting and keep its minutes
   await expect(archiveDialog).toBeVisible();
   await archiveDialog.getByRole('button', { name: 'Archive meeting' }).click();
   await expect(page).toHaveURL(/\/meetings$/);
-  const openMeeting = page.getByRole('button', { name: `Open ${meetingTitle}` });
+  const openMeeting = page.getByRole('link', { name: `Open ${meetingTitle}` });
   await expect(openMeeting).toHaveCount(0);
 
   await page.getByRole('switch', { name: 'Show archived' }).click();
-  const archivedRow = page.getByRole('row').filter({ has: page.getByRole('button', { name: `Open ${meetingTitle}` }) });
+  const archivedRow = page.getByRole('row').filter({ has: page.getByRole('link', { name: `Open ${meetingTitle}` }) });
   await expect(archivedRow.getByText('Archived')).toBeVisible({ timeout: 15_000 });
   await archivedRow.getByRole('button', { name: 'Row actions' }).click();
   await page.getByRole('menuitem', { name: 'Restore' }).click();
@@ -76,7 +76,7 @@ test('AC-MTG-303: an author can restore an archived meeting and keep its minutes
 
   await page.getByRole('switch', { name: 'Show archived' }).click();
   await expect(page).toHaveURL(/\/meetings$/);
-  await page.getByRole('button', { name: `Open ${meetingTitle}` }).click();
+  await page.getByRole('link', { name: `Open ${meetingTitle}` }).click();
   await expect(page.getByTestId('record-header')).toContainText(meetingTitle);
   await expect(page.getByTestId('minutes-blocknote')).toContainText(minutesText, { timeout: 15_000 });
   await expect(page.getByTestId('attendees-list')).toContainText(guestName, { timeout: 15_000 });

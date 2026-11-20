@@ -145,7 +145,8 @@
     "issue": "Pengeluaran ke proyek",
     "return": "Pengembalian dari proyek",
     "adjustment": "Penyesuaian",
-    "count": "Stok opname"
+    "count": "Stok opname",
+    "opening": "Stok awal"
   },
   "empty": {
     "noStock": "Belum ada stok",

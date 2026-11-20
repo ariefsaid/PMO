@@ -59,9 +59,18 @@ lines freeze afterwards.
 
 ## Where to find it
 
-This build ships the match as a rule enforced by the database. There is no dedicated screen
-for it in the app yet: the match runs in the background on purchases it covers, and its
-refusals surface when a payment is saved. The refusal names the hold (*three-way-match-held*).
+- Open the purchase. With the match on, a held bill is named under its records — *⟨bill⟩ is
+  held by the three-way match, so payments wait.* — with **Review match**.
+- Any bill's row menu (**⋯**) also offers **Three-way match**.
+- The **Three-way match** panel shows the bill's status (*Matched*, *Held*, *Exception
+  approved*), why it is held, and per item what was **Ordered**, **Received** and **Billed to
+  date**, with the **Order rate** and **Bill rate** and the organisation's tolerances.
+- An eligible Admin or Finance user chooses **Approve exception**, writes a **Reason** and
+  confirms. Someone who recorded the bill or its lines is refused with the reason.
+- A payment refused for the hold reads *Payment held by the three-way match*.
+
+Switching the match on and recording receipt lines and bill match lines still have no screen in
+this build; an Admin sets them up through the database functions.
 
 ## Common problems
 
@@ -138,10 +147,20 @@ bersifat permanen dan hanya dapat disetujui sekali; baris tagihan membeku setela
 
 ## Di mana menemukannya
 
-Pada versi ini, pencocokan dikirim sebagai aturan yang ditegakkan basis data. Belum ada
-layar khusus untuknya di aplikasi: pencocokan berjalan di latar belakang pada pembelian yang
-dicakupnya, dan penolakannya muncul saat pembayaran disimpan. Pesan penolakan menyebut
-penahanannya (*three-way-match-held*).
+- Buka pembelian. Saat pencocokan aktif, tagihan yang ditahan disebut di bawah catatannya —
+  *⟨tagihan⟩ ditahan oleh pencocokan tiga arah, sehingga pembayaran menunggu.* — dengan
+  **Tinjau pencocokan**.
+- Menu baris (**⋯**) setiap tagihan juga menawarkan **Pencocokan tiga arah**.
+- Panel **Pencocokan tiga arah** menampilkan status tagihan (*Cocok*, *Ditahan*, *Pengecualian
+  disetujui*), alasan ditahan, dan per item yang **Dipesan**, **Diterima**, dan **Ditagih s.d.
+  kini**, dengan **Tarif pesanan** dan **Tarif tagihan** serta toleransi organisasi.
+- Admin atau pengguna Keuangan yang berhak memilih **Setujui pengecualian**, menulis **Alasan**,
+  lalu mengonfirmasi. Orang yang mencatat tagihan atau barisnya ditolak dengan alasannya.
+- Pembayaran yang ditolak karena penahanan bertuliskan *Pembayaran ditahan oleh pencocokan tiga
+  arah*.
+
+Menyalakan pencocokan serta mencatat baris penerimaan dan baris pencocokan tagihan belum memiliki
+layar pada versi ini; Admin menyiapkannya melalui fungsi basis data.
 
 ## Masalah umum
 

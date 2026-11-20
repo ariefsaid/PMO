@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   req: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   waiting: { data: [] as unknown[] },
   userId: 'u-approver',
+  keepers: [{ warehouse_id: 'w1', user_id: 'u-approver' }] as unknown[],
   decide: { mutateAsync: vi.fn(), isPending: false },
 }));
 
@@ -21,7 +22,10 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
 vi.mock('@/src/hooks/useStock', () => ({
   useStockItems: () => ({ data: [{ id: 'i1', code: 'CEM', name: 'Cement' }] }),
   useStockWarehouses: () => ({ data: [{ id: 'w1', code: 'MAIN', name: 'Main store', kind: 'central', archived_at: null }] }),
+  useStockKeepers: () => ({ data: h.keepers }),
 }));
+vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => ({ data: { id: 'w', wo_number: 'WO-0042', title: 'Slab pour' } }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p', name: 'Harbour Road', short_name: null, code: null }] }) }));
 vi.mock('@/src/hooks/useUsers', () => ({
   useUsers: () => ({ data: [{ id: 'u-author', full_name: 'Eli Engineer' }, { id: 'u-approver', full_name: 'Pia Manager' }, { id: 'u-away', full_name: 'Finn Away' }] }),
 }));
@@ -50,6 +54,7 @@ const renderPage = () => render(
 describe('material request detail', () => {
   beforeEach(() => {
     h.userId = 'u-approver';
+    h.keepers = [{ warehouse_id: 'w1', user_id: 'u-approver' }];
     h.waiting = { data: [{ requestId: 'r1', stepPosition: 2, role: 'Project Manager', label: 'Check 2', actingFor: null, submittedAt: '2026-11-19T08:05:00Z' }] };
     h.req = { data: request(), isPending: false, isError: false, refetch: vi.fn() };
     h.decide.mutateAsync = vi.fn().mockResolvedValue(undefined);
@@ -72,6 +77,12 @@ describe('material request detail', () => {
     expect(screen.getByTestId('mrq-chain')).toHaveTextContent('Finn Away');
     expect(screen.getByText(/Over plan: Extra slab/)).toBeInTheDocument();
     expect(screen.getByText(/Plan 10 · already requested 0 · new total 12/)).toBeInTheDocument();
+  });
+
+  it('#2609 header names the work order (linked) and its project', () => {
+    renderPage();
+    expect(screen.getByRole('link', { name: 'WO-0042 · Slab pour' })).toHaveAttribute('href', '/work-orders/w');
+    expect(screen.getByText(/Harbour Road/)).toBeInTheDocument();
   });
 
   it('AC-MRQ-013 offers Approve only for the step in my queue', () => {
@@ -130,5 +141,26 @@ describe('material request detail', () => {
     h.waiting = { data: [] };
     renderPage();
     expect(screen.getByText(/No approver is available/)).toBeInTheDocument();
+  });
+
+  it('#2607 shows transfer retry to a source-warehouse keeper after cancellation', () => {
+    const approved = { status: 'approved', transferDocumentId: 'doc-9', transferCancelled: true, steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] };
+    h.req = { data: request(approved), isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Create the transfer again' })).toBeInTheDocument();
+  });
+
+  it('#2614 hides transfer retry from a non-keeper', () => {
+    h.userId = 'u-away';
+    h.req = { data: request({ status: 'approved', transferDocumentId: 'doc-9', transferCancelled: true, steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] }), isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Create the transfer again' })).not.toBeInTheDocument();
+  });
+
+  it('#2607 hides the transfer retry from the author', () => {
+    h.userId = 'u-author';
+    h.req = { data: request({ status: 'approved', transferDocumentId: 'doc-9', transferCancelled: true, steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] }), isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Create the transfer again' })).not.toBeInTheDocument();
   });
 });

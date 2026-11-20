@@ -1,3 +1,4 @@
+import { likeAny } from '@/src/lib/postgrestLike';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
@@ -41,10 +42,6 @@ export interface ContactDirectoryPage {
  * metacharacters, `\\` is the escape character they are escaped with, and `"` would terminate the
  * quoted value. Without this, a search for `100%` would match every row.
  */
-function likeAny(value: string): string {
-  return `"%${value.replace(/[\\%_"]/g, '\\$&')}%"`;
-}
-
 /**
  * ONE server page of the Contacts directory (issue #1989, the Master-data pattern): the company
  * filter and the name/email search are applied on the SERVER *before* the range (so a match on

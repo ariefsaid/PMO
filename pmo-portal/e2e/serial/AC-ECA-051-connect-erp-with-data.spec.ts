@@ -22,7 +22,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import {
-  AUTH_URL, SERVICE_KEY, FUNCTIONS_URL, READY, activateBinding, benchCount, benchCreate, benchDoc, benchList,
+  AUTH_URL, SERVICE_KEY, FUNCTIONS_URL, READY, activateBinding, bench, benchCount, benchCreate, benchDoc, benchList,
   benchPartyCount, createBenchCompany, createOrg, dropBenchRun, dropOrg, loginAs, openMatchRecords, signInAs, untilWithSweep,
 } from './_ecaHelpers';
 
@@ -136,6 +136,29 @@ test('AC-ECA-051 on a PMO org connected to an ERP that holds some of the same re
     const rows = (finances as { invoices: Array<{ invoice_count: number; invoiced: string }> }).invoices;
     expect(rows.reduce((n, r) => n + r.invoice_count, 0), 'one invoice counts').toBe(1);
     expect(rows.reduce((n, r) => n + Number(r.invoiced), 0)).toBe(erpTotal);
+
+    // Cancel the actual ERP document, wait for its normal sweep, and let Finance decide to undo.
+    const erpName = String(erpInvoice.name);
+    await bench('PUT', `/api/resource/${encodeURIComponent('Sales Invoice')}/${encodeURIComponent(erpName)}`, { docstatus: 2 });
+    expect(Number((await benchDoc('Sales Invoice', erpName)).docstatus)).toBe(2);
+    const cancelled = page.getByRole('region', { name: 'ERP invoice cancelled' });
+    await untilWithSweep(org.orgId, async () => {
+      await page.reload();
+      await expect(cancelled.getByText(`ERP invoice ${erpName} was cancelled`)).toBeVisible({ timeout: 5_000 });
+    }, 120_000, 'the ERP cancellation did not appear on the pair');
+    await expect(pairs.getByText('1 invoice already counts once')).not.toBeVisible();
+    const afterCancel = await user.rpc('get_project_finances', { p_project_id: p[0].id });
+    expect(afterCancel.error).toBeNull();
+    expect((afterCancel.data as { invoices: unknown[] }).invoices).toHaveLength(0);
+    await cancelled.getByRole('button', { name: `Undo PMO-ECA051-${suffix}` }).click();
+    const confirmation = page.getByRole('dialog');
+    await expect(confirmation).toContainText(erpName);
+    await confirmation.getByRole('button', { name: 'Undo' }).click();
+    await expect(pairs.getByRole('status')).toHaveText(`PMO-ECA051-${suffix} counts on its own again.`);
+    await expect(cancelled).not.toBeVisible();
+    const afterUndo = await user.rpc('get_project_finances', { p_project_id: p[0].id });
+    expect(afterUndo.error).toBeNull();
+    expect((afterUndo.data as { invoices: Array<{ invoiced: string }> }).invoices.reduce((n, r) => n + Number(r.invoiced), 0)).toBe(erpTotal);
   } finally {
     // Disconnect first (the sweep stops ticking the org), then remove the org and everything the run put on the bed.
     await dropOrg(admin, org);
