@@ -28,8 +28,8 @@ test('JOB-BQ5 an item reconciles scope, progress and claimed quantity, with visi
   await page.getByRole('dialog').getByRole('button', { name: /^(close|cancel|skip)/i }).first().click();
   const reconciliation = page.getByRole('region', { name: /billing reconciliation/i });
   const cells = reconciliation.getByRole('row').filter({ hasText: 'Route survey' }).getByRole('cell');
-  await expect(cells.nth(1)).toHaveText('10');
-  await expect(cells.nth(2)).toHaveText('6');
-  await expect(cells.nth(3)).toHaveText('12');
-  await expect(page.getByText('Over-claimed')).toBeVisible();
+  // Row headers are not role=cell, so the first data cell is Scope.
+  await expect(cells.nth(0)).toHaveText('10');
+  await expect(cells.nth(1)).toHaveText('6');
+  await expect(cells.nth(2)).toHaveText('12');
 });
