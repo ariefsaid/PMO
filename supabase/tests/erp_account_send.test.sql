@@ -3,7 +3,7 @@
 -- expense group of the bound company; the queued send and the resulting map row are org-scoped. Also the DB half of AC-ECX-030: the
 -- drain's result links the category to the created account once, and a category that has its account is never sent again.
 begin;
-select plan(65);
+select plan(71);
 
 insert into organizations (id, name) values
  ('a9110000-0000-0000-0000-000000000001','Accounts A'),
@@ -161,6 +161,26 @@ select results_eq($$select reason, reason_text from erp_connect_proposals where 
   $$values ('held'::text, 'PMO could not confirm whether the account was created. Contact your administrator.'::text)$$, 'AC-ECX-030 an undecided account send directs Finance to contact the administrator');
 select is((select reason_text from erp_connect_proposals where pmo_ids[1] = 'a911-party'),
   'We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.', 'a held party send keeps its own wording');
+-- A dismissed unresolved account must still fence a different-name request and its distinct outbox key.
+insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+values ('a9110000-0000-0000-0000-000000000001', 'accounts', 'Overheads', 'seed:account:Overheads:["original account","direct expenses - ec"]', 'erpnext', 'create', 'held');
+select set_config('a911.held', (select id::text from erp_connect_proposals where pmo_ids[1] = 'Overheads'), true);
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a9110000-0000-0000-0000-0000000000f1","role":"authenticated"}';
+select lives_ok($$select public.decide_connect_review(current_setting('a911.held')::uuid, '{"action":"dismiss"}'::jsonb)$$, 'Finance can dismiss the held review');
+select throws_ok($$select public.request_account_send('erpnext','Overheads','Direct Expenses - EC','A different account name')$$,
+ 'P0001', 'An account for this category is already on its way to the ERP', 'AC-ECX-030 a dismissed unresolved hold fences a different-name request');
+reset role;
+select is((select state from erp_connect_proposals where id = current_setting('a911.held')::uuid), 'dismissed', 'the held proposal remains dismissed');
+select is((select count(*)::int from erp_connect_proposals where pmo_ids[1] = 'Overheads' and state = 'sending'), 0, 'no new account send is queued for the drain');
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is((select count(*)::int from public.claim_connect_sends('a9110000-0000-0000-0000-000000000001','erpnext',100) where pmo_ids[1] = 'Overheads'), 0, 'the drain cannot claim a different-name send');
+select is((select count(*)::int from external_command_outbox where org_id = 'a9110000-0000-0000-0000-000000000001' and domain = 'accounts' and pmo_record_id = 'Overheads'), 1, 'the unresolved original remains the only account outbox row');
+reset role;
+delete from erp_connect_proposals where pmo_ids[1] = 'Overheads' and id <> current_setting('a911.held')::uuid;
+set local role service_role;
 -- the last try: five failures end an account send with the same sentence; a party keeps its own
 update erp_connect_proposals set outcome = 'send', reason = null, reason_text = null, state = 'sending', send_failures = 4 where pmo_ids[1] in ('Overheads', 'a911-party-2');
 select is(public.record_connect_send_failure('a9110000-0000-0000-0000-000000000001', (select id from erp_connect_proposals where pmo_ids[1] = 'Overheads')), true, 'the fifth failure ends the account send');

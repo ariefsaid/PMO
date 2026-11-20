@@ -40,14 +40,26 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
     queryKey: ['integrations', 'account-request-reviews', tier, status.dataUpdatedAt],
     queryFn: async () => {
       const rows: ConnectProposal[] = [];
-      for (const state of ['open', 'dismissed'] as const) {
+      for (const state of ['open', 'dismissed', 'sending'] as const) {
         let afterId: string | null = null;
+        const seen = new Set<string>();
         do {
+          const outcome = state === 'sending' ? 'send' : 'review';
           const page: { proposals: ConnectProposal[]; nextAfterId: string | null } = state === 'open'
-            ? await repositories.integrations.listConnectProposals(tier, 'account', 'review', afterId)
-            : await repositories.integrations.listConnectProposals(tier, 'account', 'review', afterId, state);
+            ? await repositories.integrations.listConnectProposals(tier, 'account', outcome, afterId)
+            : await repositories.integrations.listConnectProposals(tier, 'account', outcome, afterId, state);
+          if (!Array.isArray(page.proposals)
+            || page.proposals.some((p) => !p || typeof p.id !== 'string' || p.kind !== 'account'
+              || !['open', 'dismissed', 'sending'].includes(p.state)
+              || (p.reason !== null && typeof p.reason !== 'string')
+              || !Array.isArray(p.pmo_ids) || p.pmo_ids.some((id) => typeof id !== 'string')
+              || ((p.state === 'sending' || p.reason === 'held') && p.pmo_ids.length === 0))
+            || (page.nextAfterId !== null && (typeof page.nextAfterId !== 'string' || !page.nextAfterId || seen.has(page.nextAfterId)))) {
+            throw new Error('Incomplete account request list');
+          }
           rows.push(...page.proposals);
           afterId = page.nextAfterId;
+          if (afterId) seen.add(afterId);
         } while (afterId);
       }
       return rows;
@@ -56,8 +68,11 @@ export function DirectCostAccounts({ categories, tier = 'erpnext' }: { categorie
     placeholderData: (previous) => previous,
     retry: false,
   });
-  const rejected = new Set((reviews.data ?? []).filter((p) => p.reason === 'rejected').map((p) => p.id));
-  const accepted = Object.keys(acceptedRequests).filter((category) => !rejected.has(acceptedRequests[category]));
+  const completeReviews = status.isSuccess && !status.isFetching && reviews.isSuccess && !reviews.isFetching && !reviews.isPlaceholderData;
+  const rows = completeReviews ? reviews.data : [];
+  const rejected = rows.filter((p) => p.reason === 'rejected');
+  const outstanding = new Set(rows.filter((p) => p.state === 'sending' || (p.reason === 'held' && (p.state === 'open' || p.state === 'dismissed'))).flatMap((p) => p.pmo_ids));
+  const accepted = Object.keys(acceptedRequests).filter((category) => !completeReviews || outstanding.has(category) || !rejected.some((p) => p.id === acceptedRequests[category] && p.pmo_ids.includes(category)));
   const labels = categories.map((category) => [category, budgetCategoryLabel(category, t)] as const);
   const start = () => {
     if (Object.keys(acceptedRequests).length > 0) void qc.invalidateQueries({ queryKey: ['integrations', 'connect-status', tier] });

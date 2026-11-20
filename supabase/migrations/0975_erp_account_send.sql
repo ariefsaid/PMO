@@ -58,7 +58,7 @@ begin
     raise exception 'This category already has an account' using errcode = 'P0001';
   end if;
   if exists (select 1 from public.erp_connect_proposals where org_id = v_org and external_tier = p_tier and kind = 'account'
-               and pmo_ids[1] = v_category::text and (state = 'sending' or (state = 'open' and reason = 'held'))) then
+               and pmo_ids[1] = v_category::text and (state = 'sending' or (state in ('open', 'dismissed') and reason = 'held'))) then
     raise exception 'An account for this category is already on its way to the ERP' using errcode = 'P0001';
   end if;
   -- an earlier refusal for this category is settled by asking again

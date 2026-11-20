@@ -3,9 +3,9 @@
  * Admin or Finance user picks. Nobody is sent into the ERP to do it.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { AppError } from '@/src/lib/appError';
-import { useQueryClient } from '@tanstack/react-query';
+import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 
 const repo = vi.hoisted(() => ({
   listAccountSendGroups: vi.fn(async () => [
@@ -22,6 +22,10 @@ import { wrapWithRole } from './IntegrationsView.test-helpers';
 import { AccountLinkNotes, DirectCostAccounts } from './DirectCostAccounts';
 
 const show = (role: string, categories = ['Labor', 'Equipment']) => wrapWithRole(role, <DirectCostAccounts categories={categories} />);
+function ReconciliationProbe() {
+  const pending = useIsFetching({ queryKey: ['integrations', 'account-request-reviews'] });
+  return <span data-testid='reconciliation'>{pending ? 'fetching' : 'settled'}</span>;
+}
 const openDialog = async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Create accounts' }));
   return screen.findByRole('dialog');
@@ -149,6 +153,90 @@ describe('AC-ECX-030 DirectCostAccounts', () => {
     expect(within(dialog).getByLabelText(/^Account name for Labor/)).toBeDisabled();
     expect(within(dialog).getByRole('button', { name: 'Create accounts' })).toBeDisabled();
     expect(repo.requestAccountSend).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['sending', 'held', 'dismissed-held'] as const)('AC-ECX-030 keeps a category locked when another session has an outstanding %s request', async (otherState) => {
+    function RefreshStatus() {
+      const qc = useQueryClient();
+      return <button onClick={() => qc.setQueryData(['integrations', 'connect-status', 'erpnext'], { waitingForSend: otherState === 'sending' ? 1 : 0 })}>Refresh status</button>;
+    }
+    const first = wrapWithRole('Finance', <><DirectCostAccounts categories={['Labor']} /><RefreshStatus /><ReconciliationProbe /></>);
+    let dialog = await openDialog();
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalled());
+    // The shared source now reports A rejected, and a separate Admin session submits the correction.
+    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => ({
+      proposals: (args[4] ?? 'open') === 'open' ? [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'open', reason: 'rejected', pmo_ids: ['Labor'], snapshot: {} }] : [],
+      nextAfterId: null,
+    }));
+    repo.requestAccountSend.mockResolvedValueOnce({ id: 'send-2' });
+    const second = wrapWithRole('Admin', <DirectCostAccounts categories={['Labor']} />);
+    fireEvent.click(within(second.container).getByRole('button', { name: 'Create accounts' }));
+    const otherDialog = await screen.findByRole('dialog');
+    fireEvent.change(await within(otherDialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.change(within(otherDialog).getByLabelText(/^Account name for Labor/), { target: { value: 'Corrected by another administrator' } });
+    fireEvent.click(within(otherDialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(repo.requestAccountSend).toHaveBeenCalledTimes(2);
+    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => {
+      const state = args[4] ?? 'open';
+      const rejected = { id: 'send-1', kind: 'account', outcome: 'review', state: 'dismissed', reason: 'rejected', pmo_ids: ['Labor'], snapshot: {} };
+      const outstanding = { id: 'send-2', kind: 'account', outcome: otherState === 'sending' ? 'send' : 'review', state: otherState === 'sending' ? 'sending' : otherState === 'held' ? 'open' : 'dismissed', reason: otherState === 'sending' ? null : 'held', pmo_ids: ['Labor'], snapshot: {} };
+      if (state === 'sending' && otherState === 'sending' && !args[3]) return { proposals: [], nextAfterId: 'next-page' };
+      return { proposals: state === 'dismissed' ? [rejected, ...(outstanding.state === 'dismissed' ? [outstanding] : [])] : state === outstanding.state ? [outstanding] : [], nextAfterId: null };
+    });
+    repo.listConnectProposals.mockClear();
+    await act(async () => { fireEvent.click(within(first.container).getByText('Refresh status')); });
+    fireEvent.click(within(first.container).getByRole('button', { name: 'Create accounts' }));
+    dialog = await screen.findByRole('dialog');
+    if (otherState === 'sending') await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalledWith('erpnext', 'account', 'send', 'next-page', 'sending'));
+    else await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalledWith('erpnext', 'account', 'send', null, 'sending'));
+    await waitFor(() => expect(within(first.container).getByTestId('reconciliation')).toHaveTextContent('settled'));
+    expect(within(dialog).getByLabelText(/^Account name for Labor/)).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Create accounts' })).toBeDisabled();
+  });
+
+  it.each(['unavailable', 'incomplete', 'incomplete-row'] as const)('AC-ECX-030 keeps the accepted category locked when the outstanding list is %s', async (failure) => {
+    function RefreshStatus() {
+      const qc = useQueryClient();
+      return <button onClick={() => qc.setQueryData(['integrations', 'connect-status', 'erpnext'], { waitingForSend: 1 })}>Refresh status</button>;
+    }
+    wrapWithRole('Finance', <><DirectCostAccounts categories={['Labor']} /><RefreshStatus /><ReconciliationProbe /></>);
+    let dialog = await openDialog();
+    fireEvent.change(await within(dialog).findByLabelText(/^Expense group/), { target: { value: 'Direct Expenses - EC' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalled());
+    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => ({
+      proposals: args[4] === 'dismissed' ? [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'dismissed', reason: 'rejected', pmo_ids: ['Labor'], snapshot: {} }] : [],
+      nextAfterId: null,
+    }));
+    await act(async () => { fireEvent.click(screen.getByText('Refresh status')); });
+    dialog = await openDialog();
+    await waitFor(() => expect(within(dialog).getByLabelText(/^Account name for Labor/)).toBeEnabled());
+    repo.listConnectProposals.mockClear();
+    let releasePage!: () => void;
+    const pagePending = new Promise<void>((resolve) => { releasePage = resolve; });
+    repo.listConnectProposals.mockImplementation(async (...args: unknown[]) => {
+      if (args[4] === 'sending') {
+        if (args[3]) {
+          await pagePending;
+          if (failure === 'unavailable') throw new Error('page unavailable');
+          if (failure === 'incomplete-row') return { proposals: [{ id: 'send-2', kind: 'account', state: 'sending', outcome: 'send' }], nextAfterId: null };
+          return { proposals: [] } as unknown as { proposals: Array<Record<string, unknown>>; nextAfterId: string | null };
+        }
+        return { proposals: [], nextAfterId: 'next-page' };
+      }
+      return { proposals: args[4] === 'dismissed' ? [{ id: 'send-1', kind: 'account', outcome: 'review', state: 'dismissed', reason: 'rejected', pmo_ids: ['Labor'], snapshot: {} }] : [], nextAfterId: null };
+    });
+    await act(async () => { fireEvent.click(screen.getByText('Refresh status')); });
+    await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalledWith('erpnext', 'account', 'send', 'next-page', 'sending'));
+    expect(within(dialog).getByLabelText(/^Account name for Labor/)).toBeDisabled();
+    await act(async () => { releasePage(); });
+    await waitFor(() => expect(screen.getByTestId('reconciliation')).toHaveTextContent('settled'));
+    expect(within(dialog).getByLabelText(/^Account name for Labor/)).toBeDisabled();
   });
 
   it('AC-ECX-030 group read failure offers a retry that loads groups', async () => {
