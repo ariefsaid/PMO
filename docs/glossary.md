@@ -503,3 +503,9 @@ submission; distinct from general project risk or everything assigned to them.
 UI vocabulary keeps **Supplier** rather than vendor, **Purchase** for a procurement case,
 and **Phase** for a milestone. **Actual** and **Recorded spending** name the same spending position;
 **Cash received** and **Settlement** name different quantities and must stay distinct.
+
+## Unit-rate catalogue (#2520)
+- **Rate catalogue** — a contract's list of priced work items (category → class → item), each with a rate per location variant. Distinct from a contract line (what is being billed) and from contract labour rates (hour/day).
+- **Location variant** — a per-contract name (e.g. Remote, Non-remote) that selects which rate of a catalogue item applies. Names are added, never renamed or removed.
+- **Effective-dated rate** — a rate that applies from a date until a later rate replaces it. An amendment adds a row; it never edits an earlier one, and a contract line already priced keeps the rate it was priced at.
+- **Stage weights** — optional split of an item's progress credit across named stages (e.g. 10 / 80 / 10), adding to 100, effective-dated.
