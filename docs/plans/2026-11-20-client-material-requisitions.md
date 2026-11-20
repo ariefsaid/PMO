@@ -17,6 +17,12 @@ Built on the spec's recommended defaults; none was signed by the owner at build 
 - Cancel and reservation authority: who may create, send, cancel, reserve and release = Project Manager and above (rank >= 20) plus the requisition's creator for send and cancel; pickup = keeper of the receiving location or Admin (as `create_stock_document`).
 - Migration numbers used: 1085 (C, cost attribution), 1086 (A, tables), 1087 (B, RPCs and rollup read function).
 
+## As built (20 Nov)
+- Migrations: `1085_receive_work_order_attribution.sql` (Migration C, also extends `guard_warehouse_move_with_work_orders` so a location holding a receive that names a work order cannot leave its project), `1086_client_requisitions.sql` (tables, append-only triggers on events and pickups, RLS + FORCE RLS, select-only grants), `1087_client_requisition_rpcs.sql` (the seven writers, internals, and `csr_work_order_rollup`). Rollbacks in `supabase/migrations/rollback/`.
+- The pickup serialises per line with `pg_advisory_xact_lock('csr-line:' || line_id)` plus a shared row lock on the requisition (cancel takes it exclusive). Collected is summed from the pickup rows; reserved from the event log. The Slice 2a trigger-column mutation is proved by a direct `update ... set warehouse_id` test because `save_stock_draft` also sets other watched columns.
+- Screens: the "Client material" section is `pages/work-order-detail/ClientMaterialSection.tsx` (#2518 is on `dev`); the take-off import button sits in the section header (a sheet's rows become the lines of one new draft requisition).
+- Not built: proof attachment on a reservation (OQ-CSR-4), the delivery paper is a free-text reference.
+
 ## Design summary
 Four tables and a read function. A requisition (header, `draft|open|cancelled`) has lines (item, take-off, requested, optional allocation row). Reservations and releases are append-only events. A pickup row links a line to the stock receipt that `create_stock_document` made (unposted, `p_post = false`) and the RPC then posted in the same transaction; the cost is hard-coded 0 by the RPC. Reserved, collected, still to collect and awaiting reservation are computed, never stored. The ledger stays single-writer: the RPC only calls the existing creation path. The same hand-worked month of numbers lives in a pure TypeScript function and the SQL read function so both are tested against AC-CSR-001.
 
@@ -60,8 +66,8 @@ Four tables and a read function. A requisition (header, `draft|open|cancelled`) 
 |---|---|
 | AC-CSR-001 | Vitest `clientRequisitionRollup.test.ts` + pgTAP `csr_pickup.test.sql` |
 | AC-CSR-002, 003 | Vitest `clientRequisitionRollup.test.ts` |
-| AC-CSR-004, 005, 013, 014, 015, 016, 017 | pgTAP `csr_requisition.test.sql` |
-| AC-CSR-006..012, 018 | pgTAP `csr_pickup.test.sql` |
+| AC-CSR-004, 013, 014, 015, 016, 017 | pgTAP `csr_requisition.test.sql` |
+| AC-CSR-005, 006..012, 018 | pgTAP `csr_pickup.test.sql` (AC-CSR-005 needs a posted pickup to make collected non-zero, so it lives with the pickup proof) |
 | AC-CSR-020, 021, 023 | pgTAP `csr_cost_attribution.test.sql` |
 | AC-CSR-022 | pgTAP `0950_work_order_cost_attribution.test.sql` (unchanged) + the mutation runs on `csr_cost_attribution.test.sql` |
 | FR-CSR-003 (no AC; unit) | Vitest `clientTakeoffDescriptor.test.ts` |
