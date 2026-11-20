@@ -124,6 +124,7 @@
     "client": "Client",
     "invoiceColumn": "Invoice",
     "delivery": "Delivery",
+    "projectManager": "Project manager",
     "deliveryReceived": "Delivered {{date}}",
     "deliveryNotReceived": "Not delivered yet",
     "deliveryDraft": "Draft by {{name}}",
