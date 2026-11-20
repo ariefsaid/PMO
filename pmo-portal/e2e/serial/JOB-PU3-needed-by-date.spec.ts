@@ -35,5 +35,6 @@ test('JOB-PU3 a request without a needed-by date is refused; with one it is save
   // The approver sees the date on the request.
   await signIn(page, 'pm@acme.test');
   await page.goto(requestUrl);
-  await expect(page.getByText(/needed by/i).first()).toContainText(String(new Date(needed).getUTCFullYear()), { timeout: 15_000 });
+  const shown = new Date(needed).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  await expect(page.getByText(/needed by/i).first()).toContainText(shown, { timeout: 15_000 });
 });
