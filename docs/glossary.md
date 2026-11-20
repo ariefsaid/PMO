@@ -749,6 +749,23 @@ purchase). Reaching it closes the linked task.
 **System close** — the database setting a linked task to Done when its record reaches an end state, with no person acting.
 
 **Open task** — a task that is not Done, archived or tombstoned.
+### Work-order sections (#2576)
+
+**Section** (child of a work order; the organisation's own word comes from the terminology dictionary) — an optional part
+of one work order with its own crew, foreman, planned amounts, material check and readiness. Money, billing, acceptance
+and status stay on the work order.
+
+**Unsectioned remainder** — the part of a work order's plan not assigned to any section: the work-order total less the
+sections' figures. It makes sections add up to the work order exactly.
+
+**Roll-up invariant** — a work order's total equals its sections plus the unsectioned remainder, exactly; moving a figure
+between sections never changes the total.
+
+**Section readiness** — a per-section status (for example material and crew ready) that rolls up to a work-order
+readiness view.
+
+**Section allocation** — the planned quantity of one material assigned to a section, capped by the work order's plan for
+that material.
 
 ## Purchase history & figure language
 
