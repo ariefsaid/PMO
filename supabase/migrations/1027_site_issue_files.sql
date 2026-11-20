@@ -1,4 +1,4 @@
--- 0980_site_issue_files.sql — #2521: photo / document evidence on an issue, and the close-proof rule.
+-- 1027_site_issue_files.sql — #2521: photo / document evidence on an issue, and the close-proof rule.
 -- Spec docs/specs/site-issue-log.spec.md (FR-SIL-010, FR-SIL-012); proven by supabase/tests/0979_site_issue_log.test.sql.
 --   §1 incident_files: child table, soft-archive (ADR-0018), org stamped from the parent, at most 10 raise and 5 close live files per issue,
 --      kind `at_raise` / `at_close`. Read = anyone who reads the issue; add = reporter, assignee, manager roles.
@@ -6,7 +6,7 @@
 --   §3 close-proof guard: an issue of severity High or Critical cannot become Closed without a live `at_close` file.
 --      Enforced here in the database; there is no bypass (job and fixture paths included).
 --
--- ── REVERSE (also rollback/0980_site_issue_files_down.sql) ───────────────────────────────────────────
+-- ── REVERSE (also rollback/1027_site_issue_files_down.sql) ───────────────────────────────────────────
 --   drop trigger if exists incident_reports_zz_close_proof on public.incident_reports; drop function if exists public.guard_incident_close_proof();
 --   drop policy if exists storage_objects_incident_file_read / _write on storage.objects;
 --   delete from storage.buckets where id = 'incident-files';  drop table if exists public.incident_files; drop its two functions.

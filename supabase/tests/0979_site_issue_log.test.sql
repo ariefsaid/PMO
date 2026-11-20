@@ -1,5 +1,5 @@
 -- 0979_site_issue_log.test.sql — #2521 (docs/specs/site-issue-log.spec.md; plan docs/plans/2026-11-20-site-issue-log.md).
--- Migrations under test: 1026_site_issue_log_columns.sql, 0980_site_issue_files.sql, 0981_site_issue_escalation_and_task.sql.
+-- Migrations under test: 1026_site_issue_log_columns.sql, 1027_site_issue_files.sql, 0981_site_issue_escalation_and_task.sql.
 -- AC-SIL-001 work order on the issue's project · AC-SIL-002 close stamps are the database's · AC-SIL-003 reporter vs assignee vs manager ·
 -- AC-SIL-004 close proof for High/Critical · AC-SIL-005 another org reads and adds nothing (row and storage object) ·
 -- AC-SIL-006 the overdue job escalates once · AC-SIL-007 moving the due time clears the escalation · AC-SIL-008 switch off = no-op ·

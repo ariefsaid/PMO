@@ -1,4 +1,4 @@
--- 0980_site_issue_files_down.sql — reverse 0980 (#2521). Drops the evidence table and bucket row; issues stay.
+-- 1027_site_issue_files_down.sql — reverse 0980 (#2521). Drops the evidence table and bucket row; issues stay.
 drop trigger if exists incident_reports_zz_close_proof on public.incident_reports;
 drop function if exists public.guard_incident_close_proof();
 drop policy if exists storage_objects_incident_orphan_delete on storage.objects;
