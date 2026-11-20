@@ -358,7 +358,7 @@ const ProcurementDetails: React.FC = () => {
   const routeAllows = mayDecideRoutedApproval(p.approvalRoute, currentUser?.id, realRole === 'Admin');
   const routeNote =
     p.approvalRoute && !routeAllows && !isRequester
-      ? approvalRouteNote(p.approvalRoute, p.budget_category, t, realRole)
+      ? approvalRouteNote(p.approvalRoute, p.budget_category, t)
       : null;
   const hasValue = purchaseHasValue(p);
   const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue));

@@ -232,7 +232,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/meetings/:meetingId', chunks: [MeetingDetailPage, { preload: preloadMinutesEditor }], namespaces: ['meetings'] },
   { path: '/expenses', chunks: [ExpenseClaimsPage], namespaces: ['expenseClaims'] },
   { path: '/expenses/new', chunks: [ExpenseClaimNewPage], namespaces: ['expenseClaims', 'imprest'] },
-  { path: '/expenses/:claimId', chunks: [ExpenseClaimDetailPage], namespaces: ['imprest'] },
+  { path: '/expenses/:claimId', chunks: [ExpenseClaimDetailPage], namespaces: ['imprest', 'procurement'] },
   { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
   { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage], namespaces: ['imprest'] },
   { path: '/equipment', chunks: [EquipmentUsagePage], namespaces: ['equipment'] },

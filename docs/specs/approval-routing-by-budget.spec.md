@@ -35,14 +35,25 @@ Applies to procurement requests now. Expense claims (#775) reuse the same rule (
   definitions rather than inventing one:
   - *line budget* = Σ `budgeted_amount` of the project's **Active** budget version line items in the request's
     budget category, across all fiscal years (OD-BUDGET-1; project-lifetime grain, same as OD-BUDGET-2).
-  - *line used* = Σ request amount of the **other** procurements on the same project + category whose status is
-    Reserved (`Approved`, `Vendor Quoted`, `Quote Selected` — ADR-0034) or Committed (`Ordered`, `Received`,
-    `Vendor Invoiced`, `Paid` — OD-BUDGET-2). The request being decided is `Requested`, so it is never in its own sum.
+  - *line used* = the line's **recorded spending** (the ledger actual for an organisation connected to an accounting
+    system, otherwise paid purchases before tax plus internal hire charges: `project_finance_actuals`) + **open
+    orders** (`Ordered`, `Received`, `Vendor Invoiced`, `Paid` purchases: order total less what recorded spending
+    already holds) + **reserved** (`Approved`, `Vendor Quoted`, `Quote Selected` — ADR-0034) + approved and paid
+    claims not yet in recorded spending. The request being decided is `Requested`, so it is never in its own sum.
   - *request amount* = the greater of the header `total_value` and the sum of its line-item amounts. Header-only
     is unsafe: a request raised in the app carries its value on its line items while `total_value` stays 0 until a
     quote is selected, so header-only would route a large request as "within budget". Taking the greater can only
     route **up** to the senior set, never down.
-  - *within* ⇔ `line used + request amount ≤ line budget`.
+  - *within the line* ⇔ `line used + request amount ≤ line budget`. When the line fits, the project test follows:
+    the request is `exceeds_project` when project budget − recorded spending − open orders − reserved − request
+    amount < 0, read from `project_budget_positions` (the approval panel's figures). Both reasons route to the
+    senior set. *within* ⇔ both tests pass.
+  - Spending is read only for a caller of approval rank. Below it the reason is `spending_not_visible`: no figure,
+    and the route names the project's approvers and the senior set together. When spending is not known (no ledger
+    reading, an account-unmapped category, an unusable amount) the reason is `spending_unknown` and the senior set
+    decides. When the outcome is the senior set (any reason) and the organisation has no senior set, the project's
+    named approvers decide, never the flat matrix; flat applies only when the project has none either, and nobody
+    eligible among them leaves it to an Admin.
   - It **cannot** be within (routes to the senior set) when: the request has no budget category; the project has
     no Active budget version; the request's currency, or the currency of any spend already on the line, differs
     from the Active version's currency.
@@ -96,8 +107,11 @@ proposal numbers): the inputs that decide a route cannot be steered by the perso
 ### Routing (server — `transition_procurement`)
 - **FR-APR-010** When a procurement moves `Requested → Approved` or `Requested → Rejected`, the system shall
   classify it with exactly one reason: `no_project`, `no_category`, `amount_invalid`, `no_active_budget`,
-  `currency_mismatch`, `exceeds_line`, `budget_changed` or `within_budget`, per DD-APR-2 and the ruled refinements.
-- **FR-APR-011** The system shall compute line budget, line used and request amount exactly as DD-APR-2 states.
+  `currency_mismatch`, `spending_not_visible`, `spending_unknown`, `exceeds_line`, `exceeds_project`,
+  `budget_changed` or `within_budget`, per DD-APR-2 and the ruled refinements (OD-APPROVER-BASIS).
+- **FR-APR-011** The system shall compute line budget, line used and request amount exactly as DD-APR-2 states:
+  line used is the line's recorded spending plus open orders plus reserved plus approved claims not yet in recorded
+  spending, each cost counted once; when the line fits, the project's whole budget is tested the same way.
 - **FR-APR-012** When the reason is `within_budget`, the system shall route to the project's eligible approvers;
   otherwise it shall route to the org's eligible senior set (eligibility per DD-APR-3).
 - **FR-APR-013** While the project has no `spend_approvers` row and the reason is `within_budget`, the system shall
@@ -114,7 +128,7 @@ proposal numbers): the inputs that decide a route cannot be steered by the perso
   unchanged and in their current order.
 - **FR-APR-017** Where the caller is an Admin, the system shall allow the decision regardless of route (DD-APR-5).
 - **FR-APR-018** When two approvals on the same project + category line run concurrently, the system shall
-  serialize their classification (a transaction-scoped lock keyed on the line) so both cannot fit the same headroom.
+  serialize their classification (a transaction-scoped lock keyed on the line, taken after one keyed on the project, because the project test reads every line) so both cannot fit the same headroom.
 - **FR-APR-019** When a `Requested → Approved|Rejected` transition succeeds, the system shall write an
   `audit_events` row `procurement.approval_route` with `to`, `route`, `reason`, `request_amount`, `line_budget`,
   `line_used`, `budget_category`, `break_glass`.
@@ -199,6 +213,29 @@ pgTAP files live in `supabase/tests/`; unit tests in `pmo-portal/`.
   with a named approver, *then* route `project`, reason `within_budget`, line budget 1500, approvers = that person;
   an overhead request routes `org` with both senior-set names; an `Approved` id returns no row; an org-B caller
   passing org-A ids gets no rows. (FR-APR-011/012/021)
+
+**Recorded spending — `spend_approval_route_spending.test.sql`** (OD-APPROVER-BASIS)
+- **AC-APR-050** *Given* a 400 Labor line with 200 recorded (ledger actual, or paid purchases) and a 200 request,
+  *then* reason `within_budget`; *given* 200.01 recorded, *then* `exceeds_line`, route `org`, and the project
+  approver's approval is refused while a senior member's succeeds. A half-paid 300 order counts 300, not 400; a claim
+  posted to the ledger is not counted again. With nothing recorded the line used is the reserved and open amounts.
+- **AC-APR-051** *Given* a line that fits but a project whose recorded spending (including uncategorized) plus the
+  request is over the project budget by one cent, *then* reason `exceeds_project`, route `org`; at the budget exactly
+  it is `within_budget`.
+- **AC-APR-052** *Given* an unmapped category, a project with no ledger reading, or a ledger in another currency than
+  the budget, *then* `spending_unknown` / `currency_mismatch`, route `org`.
+- **AC-APR-053** *Given* a caller below approval rank, *then* `spending_not_visible`, no line figures, approvers = the
+  project's and the senior set together, and a submit notifies both; figures supplied to the display function
+  cannot change it.
+- **AC-APR-055** *Given* an organisation with a project approver and no senior set, *then* over-line, over-project and
+  unknown-spending requests on that project route to that approver (`project`), with the true reason; with no named
+  approver they stay `flat`; a named approver nobody can act as routes to an Admin.
+- **AC-APR-056** *Given* two approvals on different budget lines of one project, *then* the second waits for the first
+  (a project lock taken before the line lock by all four approving functions) and is judged against the first's
+  reserved figures, so both cannot pass the project test.
+- **AC-APR-054** *Given* every Requested purchase and Submitted claim and every kind of caller, *then*
+  `get_procurement_approval_routes` and `get_expense_claim_approval_routes` return the route `spend_approval_route`
+  returns; only those three read the figures.
 
 **Enforcement — `spend_approval_enforce.test.sql`** (via `transition_procurement`)
 - **AC-APR-001** *Given* a within-budget request on a project whose named approver is PM-A, *when* PM-A approves,
