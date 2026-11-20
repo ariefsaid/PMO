@@ -10,7 +10,9 @@ cut-off.
 
 **Retention** is the share of a progress claim the client holds back until a later event
 (handover, end of the defects period). PMO holds it on the receivable: the invoice and its VAT
-stay at full value; the amount due now is the invoice less the retention still held. A
+stay at full value; the amount **due now** is what is still outstanding on the invoice less the
+retention still held. The retention is its own figure until a release is recorded: it counts in
+what the client owes you, but it is never aged or overdue. A
 **retention release** is a scheduled, then recorded, payment-due event for part or all of a
 claim's retention.
 
@@ -76,6 +78,10 @@ measured and billed, and what is left.
   *Current*, or *Waiting* — its age, and its documents as links.
 - *Retention held: ⟨amount⟩ (⟨pct⟩%)* and *Scheduled total (including released): ⟨scheduled⟩ ·
   Released: ⟨released⟩* sit above the release list.
+- On **Receivables**, *Owed to you* still includes retention; *Retention held, not due until
+  released: ⟨amount⟩* sits under the balances by age, which (with **Overdue**) count only what is
+  due now. An invoice whose remaining balance is only its retention is not overdue. The invoice's
+  detail shows **Retention held** and **Due now** beside **Outstanding**.
 - The **Billing reconciliation** table lists, per contract item: **Scope**, **Progress**,
   **Measured**, **Billed**, **Billed amount**, **Unbilled**, **Surplus**, and a **Status** of
   *Unbilled*, *Partly billed*, *Fully billed* or *Surplus*. Items shared by several work
@@ -92,7 +98,7 @@ measured and billed, and what is left.
 | *Enter the client's document number.* | A client-side stage needs the client's own reference. |
 | *This stage is already completed.* | Completed stages are locked, as is a withdrawn claim's whole stage plan. |
 | *Only an issued or approved document can be attached.* / *The document has no file.* / *The document must be one of this project's documents.* | Pick a different document: issued or approved, with a file, belonging to this project. |
-| Raising the invoice is refused with *billing-stages-incomplete* | Every stage must be complete first. The stages section shows which one is open. |
+| *Complete every billing stage of this claim before raising its invoice.* (shown in place of **Raise invoice**) | Every stage must be complete first. The stages section shows which one is open. |
 | *The scheduled releases exceed the retention held.* | Schedule a smaller amount; the total of scheduled and released cannot pass the claim's retention. |
 | *Approve the claim invoice before recording a release.* | The claim's invoice must be submitted (not a draft, not cancelled) before a release can be recorded. |
 | *Use a release date from the invoice date through today.* | Correct the release date. |
@@ -111,8 +117,10 @@ tiap langkah menunggu — agar faktur keluar lengkap dan sebelum batas waktu bul
 
 **Retensi** adalah porsi klaim progres yang ditahan klien sampai peristiwa berikutnya
 (serah terima, akhir masa pemeliharaan). PMO menahannya pada piutang: faktur dan PPN-nya tetap
-bernilai penuh; jumlah yang jatuh tempo sekarang adalah faktur dikurangi retensi yang masih
-ditahan. **Pelepasan retensi** adalah peristiwa jatuh tempo pembayaran yang dijadwalkan, lalu
+bernilai penuh; jumlah yang **jatuh tempo sekarang** adalah sisa tagihan faktur dikurangi retensi
+yang masih ditahan. Retensi menjadi angkanya sendiri sampai pelepasan dicatat: ia termasuk dalam
+yang terutang kepada Anda, tetapi tidak pernah diumurkan atau dianggap lewat jatuh tempo.
+**Pelepasan retensi** adalah peristiwa jatuh tempo pembayaran yang dijadwalkan, lalu
 dicatat, untuk sebagian atau seluruh retensi klaim.
 
 Tabel **rekonsiliasi penagihan** melengkapinya: per item bill of quantities, apa yang
@@ -179,6 +187,11 @@ dikerjakan, diukur, dan ditagih, serta sisanya.
   *Berjalan*, atau *Menunggu* — usianya, dan dokumennya sebagai tautan.
 - *Retensi ditahan: ⟨jumlah⟩ (⟨pct⟩%)* dan *Total terjadwal (termasuk yang dilepas):
   ⟨terjadwal⟩ · Dilepas: ⟨terlepas⟩* berada di atas daftar pelepasan.
+- Di **Piutang**, *Piutang kepada Anda* tetap termasuk retensi; *Retensi ditahan, belum jatuh
+  tempo sampai dilepas: ⟨jumlah⟩* berada di bawah saldo menurut umur, yang (bersama **Terlambat**)
+  hanya menghitung yang jatuh tempo sekarang. Faktur yang sisa tagihannya hanya
+  retensinya tidak terlambat. Detail faktur menampilkan **Retensi ditahan** dan **Jatuh
+  tempo sekarang** di samping **Terutang**.
 - Tabel **Rekonsiliasi penagihan** memuat, per item kontrak: **Lingkup**, **Progres**,
   **Terukur**, **Ditagih**, **Jumlah ditagih**, **Belum ditagih**, **Kelebihan**, dan
   **Status** berupa *Belum ditagih*, *Ditagih sebagian*, *Ditagih penuh*, atau *Kelebihan*.
@@ -197,7 +210,7 @@ dikerjakan, diukur, dan ditagih, serta sisanya.
 | *Masukkan nomor dokumen klien.* | Tahap di sistem klien membutuhkan referensi milik klien. |
 | *Tahap ini sudah selesai.* | Tahap yang selesai terkunci, demikian juga seluruh rencana tahap klaim yang ditarik. |
 | *Hanya dokumen yang diterbitkan atau disetujui yang dapat dilampirkan.* / *Dokumen ini belum memiliki berkas.* / *Dokumen harus milik proyek ini.* | Pilih dokumen lain: diterbitkan atau disetujui, punya berkas, milik proyek ini. |
-| Penerbitan faktur ditolak dengan *billing-stages-incomplete* | Semua tahap harus selesai dulu. Bagian tahap menunjukkan mana yang masih terbuka. |
+| *Selesaikan semua tahap penagihan klaim ini sebelum menerbitkan invoice-nya.* (tampil menggantikan **Terbitkan invoice**) | Semua tahap harus selesai dulu. Bagian tahap menunjukkan mana yang masih terbuka. |
 | *Pelepasan terjadwal melebihi retensi yang ditahan.* | Jadwalkan jumlah lebih kecil; total terjadwal dan terlepas tidak boleh melewati retensi klaim. |
 | *Setujui faktur tagihan sebelum mencatat pelepasan.* | Faktur klaim harus sudah diajukan (bukan draf, bukan dibatalkan) sebelum pelepasan dapat dicatat. |
 | *Gunakan tanggal pelepasan dari tanggal faktur hingga hari ini.* | Perbaiki tanggal pelepasan. |

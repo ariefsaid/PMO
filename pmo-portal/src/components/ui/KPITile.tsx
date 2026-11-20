@@ -191,7 +191,7 @@ export function KPITile({
     // Hover-lift is an interaction affordance — only a drillable (link) tile gets it,
     // so a plain tile reads as a static surface and never promises a click it can't honor
     // (design-review I1: shared hover lift was a false affordance on plain tiles).
-    isLink && (inRow ? 'transition-colors duration-150 hover:bg-accent/60' : 'transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]'),
+    isLink && (inRow ? 'transition-colors hover:bg-accent/60' : 'transition-shadow hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]'),
     className
   );
 

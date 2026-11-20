@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currencyEntries, currencyLead, currencyLines } from './currencyFigures';
+import { currencyEntries, currencyLines } from './currencyFigures';
 
 describe('currency entries (#1459: one lead/other-currency helper)', () => {
   it('puts the preferred (org) currency first, then sorts the rest by code', () => {
@@ -12,18 +12,7 @@ describe('currency entries (#1459: one lead/other-currency helper)', () => {
     expect(currencyEntries({}, 'IDR')).toEqual([]);
   });
 
-  it('leads with a figure and keeps other currencies short, with the exact amount beside it', () => {
-    const { lead, others } = currencyLead({ IDR: 12_345_600, USD: 500_000 }, 'IDR');
-    expect(lead).not.toBeNull();
-    expect(lead?.value).not.toContain('USD');
-    expect(others).toHaveLength(1);
-    expect(others[0].exactValue).toContain('USD');
-  });
 
-  it('never renders a zero other-currency line', () => {
-    expect(currencyLead({ IDR: 1000, USD: 0 }, 'IDR').others).toEqual([]);
-    expect(currencyLead({}, 'IDR')).toEqual({ lead: null, others: [] });
-  });
 
   it('reads a currency list as one exact lead line and coded other lines', () => {
     const lines = currencyLines({ IDR: 100_000, USD: 250 }, 'IDR');

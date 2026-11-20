@@ -59,3 +59,11 @@ export function parseErpSendRefusal(text: string | null | undefined): ErpSendRef
   }
   return null;
 }
+
+/** The sentence the ERP adapter stores when the ERP already holds an account of this name that cannot hold direct costs.
+ *  The adapter builds it and the screens read it back here, so the two cannot drift apart. */
+export const accountUnusableText = (name: string): string =>
+  `The ERP already has an account named ${name} that cannot hold direct costs. Choose another name.`;
+
+export const isAccountUnusableText = (text: string | null | undefined): boolean =>
+  !!text && /^The ERP already has an account named [\s\S]+ that cannot hold direct costs\. Choose another name\.$/.test(text);

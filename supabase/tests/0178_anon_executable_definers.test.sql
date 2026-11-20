@@ -246,8 +246,8 @@
 -- exactly what happened rebasing #484 onto #489. If you add a name, re-derive the count by hand
 -- after any rebase; a clean `git rebase` is NOT evidence the number is right.
 --
--- The count is deliberately HARDCODED and must stay so. Deriving it from the list would make any
--- addition self-approving and the guard toothless — catching an UNDECLARED definer is its whole job.
+-- Retained names are a reviewed declaration in per-feature fragments. AC-ACL-002/003 compare live
+-- function and grant counts to that declaration; AC-ACL-004 still catches any undeclared writer.
 -- This is a DECLARATION, not a relaxation — the sweep's polarity is unchanged, and an UNDECLARED
 -- SECURITY DEFINER writer granted to a client role still fails AC-ACL-004 by name. (It caught
 -- operator_create_org on its first run, which is what the guard is for.) The function belongs in the
@@ -263,7 +263,7 @@
 --
 begin;
 create extension if not exists pgtap;
-select plan(7);
+select plan(9);
 
 -- This is duplicated from 0185 as a visible proof contract. A future client RPC must retain its
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
@@ -283,6 +283,11 @@ select plan(7);
 -- hand from the list). SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, the Admin/Finance
 -- role, the caller's org, no ERP, and author ≠ voider unless the sole active member. Proven by
 -- supabase/tests/subcontract_bill_void.test.sql.
+-- ⚑ AMENDED BY 0975 (#1599 ECX-4): `request_account_send` joins the retained set (+1, count 195 on dev's 194, re-derived by hand from the
+-- list). SECURITY DEFINER writer called through external-set-company under the member's own JWT; it re-asserts active
+-- membership, the Admin/Finance role, the caller's org, an activated ERPNext binding with a company, the budget category and a
+-- mirrored expense group of that company before it queues one send (audited). Proven by supabase/tests/erp_account_send.test.sql
+-- (AC-ECX-031). `account_send_groups` writes nothing, so the sweep does not name it.
 -- ⚑ AMENDED BY 0907 (#564): `admin_move_credit_allocation` joins the retained set (+1). SECURITY DEFINER writer under a
 -- member's JWT that re-asserts active membership, the Admin role and that both users belong to the caller's org before
 -- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
@@ -302,233 +307,16 @@ select plan(7);
 -- ⚑ AMENDED BY 1030 (#2523): `archive_stock_document_file` joins the retained set (+1, count 224 = 217 + 7, counted from the list).
 -- SECURITY DEFINER writer under a member's JWT (stockSiteWork.ts); re-asserts active membership, the caller's org and
 -- stock_can_attach; proven by the 1030 stock document files pgTAP.
+-- #2589: client-callable definer names live in per-feature fragments under
+-- supabase/tests/inventory/anon-executable-definers/. The generator unions them into a
+-- gitignored psql include; this avoids parallel branches editing one shared list.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
--- Retained names: union of every merged branch's inventory; the AC-ACL-002/003 counts are counted from this list.
-insert into client_callable_rpc_names (proname) values
-  ('set_equipment_ownership'),  -- ⚑ AMENDED BY 1032 (#2526)
-  ('save_equipment_rental_term'),  -- ⚑ AMENDED BY 1032 (#2526)
-  ('change_equipment_rental_rate'),  -- ⚑ AMENDED BY 1032 (#2526)
-  ('add_equipment_downtime_proof'),  -- ⚑ AMENDED BY 1032 (#2526)
-  ('set_equipment_working_hours'),  -- ⚑ AMENDED BY 1032 (#2526)
-  ('equipment_rental_check'),  -- ⚑ AMENDED BY 1034 (#2526)
-  ('archive_stock_document_file'),  -- ⚑ AMENDED BY 1030 (#2523)
-  ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
-  ('accept_connect_proposals'),
-  ('accept_equipment_asset_matches'),  -- ⚑ AMENDED BY 0854 (#1511)
-  ('activate_budget_version'),
-  ('return_budget_version'),
-  ('resubmit_budget_version'),
-  ('add_skipped_stage_entry'),
-  ('assign_sales_invoice_project'),
-  ('admin_set_user_status'),
-  ('admin_move_credit_allocation'),  -- ⚑ AMENDED BY 0907 (#564)
-  ('approve_bill_match_exception'),  -- ⚑ AMENDED BY 1018 (#2525)
-  ('record_bill_match_lines'),  -- ⚑ AMENDED BY 1018 (#2525)
-  ('record_receipt_match_lines'),  -- ⚑ AMENDED BY 1018 (#2525)
-  ('set_three_way_match_settings'),  -- ⚑ AMENDED BY 1018 (#2525)
-  ('approve_procurement_amount'),
-  ('archive_budget_version_with_cancel_intent'),
-  ('get_budget_archive_targets'),
-  ('approved_timesheet_for_push'),
-  ('approve_equipment_usage_week'),
-  ('archive_equipment_usage'),
-  ('attach_claim_evidence'),
-  ('attach_billing_stage_document'),  -- ⚑ AMENDED BY 1021 (#2522)
-  ('note_billing_stage'),  -- ⚑ AMENDED BY 1021
-  ('complete_billing_stage'),  -- ⚑ AMENDED BY 1021
-  ('set_billing_stage_template'),  -- ⚑ AMENDED BY 1021
-  ('set_project_invoice_deadline'),  -- ⚑ AMENDED BY 1021
-  ('set_project_retention'),  -- ⚑ AMENDED BY 1022 (#1572)
-  ('set_project_billing_terms'),  -- Atomic project terms (#2522)
-  ('schedule_retention_release'),  -- ⚑ AMENDED BY 1022
-  ('release_retention'),  -- ⚑ AMENDED BY 1022
-  ('cancel_retention_release'),  -- ⚑ AMENDED BY 1022
-  ('create_record_only_journal_purchase'), -- 0858: active Admin and org scoped; 2195 pgTAP
-  ('undo_captured_purchase'), -- 0858: active Admin and org scoped; 2195 pgTAP
-  ('attach_erp_journal_lines'),  -- 0687: Admin/Exec/PM/Finance, org from the session; 0687 pgTAP
-  ('detach_erp_journal_line'),  -- 0687: Admin/Finance, org-scoped; 0687 pgTAP
-  ('attribute_subcontract_bill_lines'),
-  ('void_subcontract_bill'),  -- ⚑ AMENDED BY 0885 (#1671)
-  ('attest_timesheet_no_erp_document'),
-  ('cancel_native_receipt'),
-  ('cancel_stock_document'),
-  ('capture_subcontract_vendor_invoice'),
-  ('capture_vendor_invoice'),
-  ('claim_sales_invoice_author'),
-  ('clone_budget_version'),
-  ('budget_distribution_gaps'),
-  ('save_budget_distribution'),
-  ('confirm_erp_employee_link'),
-  ('confirm_subcontract_acceptance'),
-  ('confirm_work_order_acceptance'),
-  ('consent_budget_occupant_replace'),
-  ('create_task_from_incident'), -- #2521: manager and organization gated; 1026 pgTAP
-  ('create_native_sales_invoice'),
-  ('create_native_tm_invoice'),  -- ⚑ AMENDED BY 0704 (#1817)
-  ('create_native_progress_claim_invoice'),  -- ⚑ AMENDED BY 0924
-  ('decide_connect_review'),
-  ('create_payment'),
-  ('create_procurement_invoice'),
-  ('create_procurement_with_items'),
-  ('create_stock_document'),
-  ('decide_imprest_float_change'),
-  ('decide_po_variation'),
-  ('end_contract_rate_line'),  -- ⚑ AMENDED BY 0515 (#1514)
-  ('assemble_tm_claim'),  -- ⚑ AMENDED BY 0516 (#1514)
-  ('deselect_tm_source'),  -- ⚑ AMENDED BY 0516 (#1514)
-  ('prepare_tm_signoff'),  -- ⚑ AMENDED BY 0517 (#1514)
-  ('withdraw_tm_signoff'),  -- ⚑ AMENDED BY 0517 (#1514)
-  ('confirm_tm_signoff'),  -- ⚑ AMENDED BY 0517 (#1514)
-  ('establish_imprest_float'),
-  ('propose_imprest_float_amount'),
-  ('record_vendor_withholding_slip'),
-  ('correct_vendor_withholding_slip'),
-  ('unpair_invoice'),
-  ('void_vendor_withholding_slip'),
-  ('create_procurement_quotation'),
-  ('create_procurement_receipt'),
-  ('create_progress_claim'),
-  ('prepare_subcontract_acceptance'),
-  ('prepare_work_order_acceptance'),
-  ('create_purchase_order'),
-  ('create_purchase_request'),
-  ('create_rfq'),
-  ('end_contract_rate_assignee'),  -- ⚑ AMENDED BY 0515 (#1514)
-  ('get_budget_projection'),
-  ('get_budget_push_status'),
-  ('get_executive_dashboard'),
-  ('get_finance_budget_review'),
-  ('get_project_budget'),
-  ('get_project_milestones'),
-  ('get_projects_delivery'),
-  ('get_projects_milestone_dates'),
-  ('get_sales_pipeline'),
-  ('get_win_rate'),
-  ('import_budget_line_v2'),
-  ('import_project_stage_history'),
-  ('is_operator'),
-  ('issue_po_revision'),
-  ('issue_subcontract_po_lines'),
-  ('link_erp_purchase_documents'),
-  ('link_po_variation'),
-  ('link_procurement_sharepoint_item'),
-  ('mark_erp_purchase_documents'),
-  ('link_m365_documents_batch'),
-  ('save_cost_attribution_rule'),
-  ('save_contract_rate_line'),  -- ⚑ AMENDED BY 0515 (#1514)
-  ('save_equipment_usage'),
-  ('save_equipment_costing'),
-  ('save_stock_draft'),
-  ('end_cost_attribution_rule'),
-  ('end_equipment_costing'),
-  ('admin_change_domain_ownership'),
-  ('admin_set_feedback_surveys'),
-  ('list_budget_fiscal_years'),
-  ('list_tm_claim_source_details'),  -- ⚑ AMENDED BY 0588 (#1514 D1)
-  ('operator_agent_run_stats'),
-  ('operator_create_org'),
-  ('operator_grant_credits'),
-  ('operator_set_domain_ownership'),
-  ('operator_set_org_plan'),
-  ('operator_set_global_feature'),
-  ('operator_clear_feature_override'),
-  ('operator_set_plan_feature'),
-  ('operator_set_plan_limits'),
-  ('operator_set_org_lifecycle_state'),
-  ('operator_list_orgs'),
-  ('post_stock_document'),
-  ('preview_task_reminders'),
-  ('operator_toggle_feature'),
-  ('operator_usage_summary'),
-  ('org_agent_run_stats'),
-  ('org_credit_balance'),
-  ('org_usage_summary'),
-  ('resolved_org_features'),
-  ('operator_resolved_org_features'),
-  ('record_expense_advance_return'),
-  ('record_imprest_count'),
-  ('record_native_receipt'),
-  ('record_native_on_account_receipt'),  -- 0731 (#1415)
-  ('apply_native_receipt'),              -- 0731 (#1415)
-  ('save_journal_draft'),         -- 0887 (#895)
-  ('submit_journal'),             -- 0887 (#895)
-  ('approve_journal'),            -- 0887 (#895)
-  ('return_journal'),             -- 0887 (#895)
-  ('request_journal_reversal'),   -- 0887 (#895)
-  ('set_desk_journal'),           -- 0887 (#895)
-  ('unapply_native_allocation'),         -- 0731 (#1415)
-  ('rate_catalogue_add_variants'),          -- 1020 (#2520)
-  ('rate_catalogue_set_default_variant'),  -- 1020 (#2520)
-  ('rate_catalogue_upsert_item'),          -- 1020 (#2520)
-  ('recategorise_budget_lines'),
-  ('redate_stage_entry'),
-  ('release_credits'),
-  ('release_outbox_hold'),
-  ('request_company_defaults'),  -- ⚑ AMENDED BY 0910 (#1599 ECX-3)
-  ('request_financial_statement_refresh'),  -- 0685: Refresh now (Admin/Finance/Executive, org from the session)
-  ('request_imprest_replenishment'),
-  ('resolve_held_outbox_command'),  -- ⚑ AMENDED BY 0508, 0512, 0513 (#1505 P6, #1506 C5/C6)
-  ('request_po_variation'),
-  ('reserve_credits'),
-  ('retry_connect_send'),
-  ('save_timesheet_week'),
-  ('send_task_reminders'),
-  ('select_procurement_quote'),
-  ('set_procurement_invoice_efaktur'),
-  ('set_contract_rate_assignee'),  -- ⚑ AMENDED BY 0515 (#1514)
-  ('set_procurement_gates'),
-  ('set_org_fiscal_year_start_month'), -- 1018 (#2329): active Admin, caller org, refused where a ledger is read; 1018_fiscal_calendar pgTAP
-  ('set_project_contract_value'),
-  ('set_sales_invoice_billing_kind'),
-  ('accept_invoice_pairs'),
-  ('set_sales_invoice_efaktur'),
-  ('set_sales_invoice_received_date'),
-  ('set_cost_attribution'),
-  ('mrq_set_chain'),  -- ⚑ AMENDED BY 1001 (#2524): the eight material-request writers; mrq_decide_step locks the request row and enforces SoD (mrq_approval.test.sql)
-  ('mrq_set_cutoff'),
-  ('mrq_set_stand_in'),
-  ('mrq_revoke_stand_in'),
-  ('mrq_save_draft'),
-  ('mrq_submit'),
-  ('mrq_decide_step'),
-  ('mrq_cancel'),
-  ('dsr_save_draft'),
-  ('dsr_submit'),
-  ('dsr_validate'),
-  ('dsr_return'),
-  ('dsr_correct'),
-  ('set_shared_cost_split'),
-  ('set_work_order_plan'),
-  ('clear_shared_cost_split'),
-  ('attendance_record'),
-  ('attendance_generate_timesheet'),
-  ('attendance_decide_week'),
-  ('set_stock_reorder_level'),
-  ('set_stock_warehouse_keeper'),
-  ('set_subcontract_po_lines'),
-  ('set_imprest_procurement_limit'),
-  ('set_vendor_tax_defaults'),
-  ('set_work_order_value'),
-  ('start_procurement_import_run'),
-  ('submit_sales_invoice'),
-  ('switch_budget_draft_mode'),
-  ('switch_odoo_ledger_basis'),
-  ('transition_document_status'),
-  ('transition_equipment_usage'),
-  ('transition_expense_claim'),
-  ('transition_imprest_plan'),
-  ('transition_imprest_replenishment'),
-  ('transition_native_sales_invoice'),
-  ('transition_procurement'),
-  ('transition_project'),
-  ('transition_timesheet'),
-  ('transition_work_order'),
-  ('unlink_connect_match'),
-  ('unlink_erp_purchase_document'),
-  ('update_procurement_header'),
-  ('withdraw_progress_claim'),
-  ('withdraw_subcontract_acceptance'),
-  ('withdraw_work_order_acceptance');
+-- Retained names: union of the reviewed per-feature fragments.
+-- Populated from the per-feature fragments; regenerate with node scripts/anon-definer-inventory.mjs.
+\ir 0178_anon_executable_definers.generated.inc
+
+select cmp_ok((select count(*)::int from client_callable_rpc_names), '>', 0,
+  'AC-ACL-000 the client-callable RPC inventory loaded from its fragments (run node scripts/anon-definer-inventory.mjs first)');
 
 select ok(
   not exists (
@@ -550,8 +338,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  224,
-  'AC-ACL-002 all 224 retained client-callable RPC names still have a public function');
+  (select count(*)::int from client_callable_rpc_names),
+  'AC-ACL-002 every retained client-callable RPC name still has exactly one public function (a stale entry fails)');
 
 select is(
   (select count(*)::int
@@ -560,8 +348,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  224,
-  'AC-ACL-003 all 224 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  (select count(*)::int from client_callable_rpc_names),
+  'AC-ACL-003 every retained client-callable RPC retains authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
@@ -622,6 +410,13 @@ select ok(not has_function_privilege('anon','public.record_erp_statement_nightly
   and not has_function_privilege('anon','public._erp_statement_nightly_due_at(date,text)','EXECUTE')
   and not has_function_privilege('authenticated','public._erp_statement_nightly_due_at(date,text)','EXECUTE'),
   'AC-NS-004 nightly surfaces add no anonymous or authenticated execute');
+
+-- 1026 (#2260) adds one service-only read: the organization's Microsoft app values minus the secret.
+-- It is not a client-callable RPC, so it stays out of the retained set; pinned explicitly here so a
+-- future accidental grant to a client role is named by this file (AC-M365AV-001).
+select ok(not has_function_privilege('anon','public.m365_org_app_status(uuid)','EXECUTE')
+  and not has_function_privilege('authenticated','public.m365_org_app_status(uuid)','EXECUTE'),
+  'AC-M365AV-001 the organization app status read adds no anonymous or authenticated execute');
 
 select * from finish();
 rollback;

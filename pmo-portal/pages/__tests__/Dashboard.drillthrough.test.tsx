@@ -205,54 +205,6 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard drills', () => {
   });
 });
 
-// ── Finance dashboard ────────────────────────────────────────────────────────
-
-import { FinanceDashboard } from '@/src/components/dashboard/FinanceDashboard';
-
-const renderFinance = () =>
-  render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter>
-        <FinanceDashboard />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-
-describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
-  it('AC-IXD-DASH-W5-C2A-FIN-1: "Contracted revenue" drills to exactly its counted set (Ongoing Project only, #1461)', () => {
-    renderFinance();
-    const tile = screen.getByTestId('kpi-revenue');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=ongoing-project');
-  });
-
-  it('AC-IXD-DASH-W5-C2A-FIN-2: "Recorded spending" drills to exactly its counted set (on-hand projects, #1461)', () => {
-    renderFinance();
-    const tile = screen.getByTestId('kpi-spend');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=on-hand');
-  });
-
-  it('AC-IXD-DASH-W5-C2A-FIN-3: "Outstanding invoices" tile drills to /procurement?status=Vendor+Invoiced', () => {
-    renderFinance();
-    const tile = screen.getByTestId('kpi-outstanding');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/procurement?status=Vendor+Invoiced');
-  });
-
-  it('AC-IXD-DASH-W5-C2A-FIN-3: "Outstanding invoices" tile has a descriptive linkLabel', () => {
-    renderFinance();
-    const tile = screen.getByTestId('kpi-outstanding');
-    const label = within(tile).getByRole('link').getAttribute('aria-label');
-    expect(label).toBeTruthy();
-    expect(label!.toLowerCase()).toContain('supplier');
-  });
-
-  it('AC-UX-017: the margin-to-date tile is not a link that implies cash or profit finality', () => {
-    renderFinance();
-    const tile = screen.getByTestId('kpi-margin');
-    expect(tile.tagName).toBe('DIV');
-    expect(tile).not.toHaveAttribute('href');
-  });
-});
-
 // ── PM dashboard ─────────────────────────────────────────────────────────────
 
 const mine = [

@@ -1,0 +1,2 @@
+# 1045: the work-order project manager or Admin may pin an approver on a material request step.
+mrq_set_step_pin

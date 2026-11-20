@@ -150,7 +150,7 @@ describe('/equipment/assets list (S6.4)', () => {
   it('AC-EQU-017 activating a row opens that asset record', async () => {
     const user = userEvent.setup();
     renderAtRoutes();
-    await user.click(screen.getByRole('button', { name: 'Open Loader 1' }));
+    await user.click(screen.getByRole('link', { name: 'Open Loader 1' }));
     expect(await screen.findByText('Asset record a1')).toBeInTheDocument();
   });
 

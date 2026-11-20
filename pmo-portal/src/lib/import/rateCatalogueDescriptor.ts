@@ -54,6 +54,10 @@ export function makeRateCatalogueImportDescriptor(projectId: string, variants: s
     rowTitle: (c) => [c.itemCode, c.description].map((v) => (v ?? '').trim()).filter(Boolean).join(' · '),
     wide: true,
     maxRows: RATE_CATALOGUE_MAX_ROWS,
+    template: {
+      version: 1,
+      example: { itemCode: 'PIPE-001', description: 'Pipe spool, 6 inch', unit: 'm', effectiveFrom: '2026-01-01', ...Object.fromEntries(variants.map((v) => [rateColumnKey(v), '120.00'])) },
+    },
     fields: [
       text('category', 'Category', 'Kategori', false, 90),
       text('class', 'Class', 'Kelas', false, 80),

@@ -141,7 +141,11 @@ describe('document-preview AC-013 accessibility', () => {
       const image = await within(dialog).findByRole('img');
       const follows = (el: HTMLElement) => Boolean(image.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
       expect(follows(within(dialog).getByRole('button', { name: 'Download' }))).toBe(true);
-      expect(follows(within(dialog).getByRole('button', { name: 'Open in SharePoint' }))).toBe(true);
+      const sourceLink = within(dialog).getByRole('link', { name: 'Open in SharePoint' });
+      expect(sourceLink).toHaveAttribute('href', 'https://tenant.sharepoint.com/sites/x/a.docx');
+      expect(sourceLink).toHaveAttribute('target', '_blank');
+      expect(sourceLink).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(follows(sourceLink)).toBe(true);
       expect(follows(within(dialog).getByRole('button', { name: 'Close' }))).toBe(false);
     });
   });
@@ -152,8 +156,13 @@ describe('document-preview AC-013 accessibility', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Preview Image.png' }));
     const dialog = await screen.findByRole('dialog', { name: 'Image.png' });
     const image = await within(dialog).findByRole('img');
-    for (const name of ['Download', 'Open in SharePoint', 'Close']) {
+    for (const name of ['Download', 'Close']) {
       expect(Boolean(image.compareDocumentPosition(within(dialog).getByRole('button', { name })) & Node.DOCUMENT_POSITION_PRECEDING)).toBe(true);
     }
+    const sourceLink = within(dialog).getByRole('link', { name: 'Open in SharePoint' });
+    expect(sourceLink).toHaveAttribute('href', 'https://tenant.sharepoint.com/sites/x/a.docx');
+    expect(sourceLink).toHaveAttribute('target', '_blank');
+    expect(sourceLink).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(Boolean(image.compareDocumentPosition(sourceLink) & Node.DOCUMENT_POSITION_PRECEDING)).toBe(true);
   });
 });

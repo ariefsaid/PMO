@@ -2,6 +2,3 @@
 export const BILLING_KINDS = ['contract', 'other'] as const;
 export type BillingKind = (typeof BILLING_KINDS)[number];
 export const DEFAULT_BILLING_KIND: BillingKind = 'contract';
-export function isBillingKind(value: unknown): value is BillingKind {
-  return value === 'contract' || value === 'other';
-}

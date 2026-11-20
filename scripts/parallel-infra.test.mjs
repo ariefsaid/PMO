@@ -292,6 +292,107 @@ test('AC-822-002: e2e-local reuses an inherited DB lock without re-acquiring it'
   });
 });
 
+// ── #2638: the seed-state preflight must not straddle lock holds ──────────────
+// A no-reset run's preflight reads seed state that any SIBLING hold (another worktree's reset or an
+// E2E_SECOND_ORG move) can invalidate between the caller's own reset hold and this hold — so a clean
+// reset could be followed by "seed org missing" with nothing wrong in the app. The script must
+// recover with a reset INSIDE its own hold (one ACQUIRED), and when the seed still fails, the error
+// must name the org it looked for and the DB it queried.
+/**
+ * Copy e2e-local.sh + the lock scripts into a temp checkout and stub docker/supabase/npx, like the
+ * AC-822-002 test above. `seedQuery` prints the preflight count ("1" = seed org present);
+ * `onDbReset` runs when the script invokes `supabase db reset` (the in-hold recovery).
+ */
+const spawnE2EUnderDbLock = (dir, { seedQuery, onDbReset }) => {
+  const scriptsDir = path.join(dir, 'scripts');
+  const fakeBin = path.join(dir, 'fake-bin');
+  fs.mkdirSync(path.join(scriptsDir, 'lib'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'pmo-portal'), { recursive: true });
+  fs.mkdirSync(fakeBin);
+  for (const [source, destination] of [
+    [E2E_LOCAL, path.join(scriptsDir, 'e2e-local.sh')],
+    [DB_LOCK, path.join(scriptsDir, 'with-db-lock.sh')],
+    [FLOCK_RUN, path.join(scriptsDir, 'lib/flock-run.sh')],
+  ]) {
+    fs.copyFileSync(source, destination);
+    fs.chmodSync(destination, 0o755);
+  }
+  const writeCommand = (name, content) => {
+    const command = path.join(fakeBin, name);
+    fs.writeFileSync(command, `#!/usr/bin/env bash\n${content}\n`);
+    fs.chmodSync(command, 0o755);
+  };
+  writeCommand('docker', seedQuery);
+  writeCommand('supabase', [
+    `if [ "$1" = db ] && [ "$2" = reset ]; then\n${onDbReset}\nexit 0\nfi`,
+    "printf \"API_URL='http://127.0.0.1:54321'\\n\"",
+    "printf \"ANON_KEY='stub-anon'\\n\"",
+    "printf \"SERVICE_ROLE_KEY='stub-service'\\n\"",
+  ].join('\n'));
+  const log = path.join(dir, 'npx.log');
+  writeCommand('npx', `printf '%s\\n' "$*" >> "\${E2E_NPX_LOG:-${log}}"`);
+  // The COPIED script (like AC-822-002), so $REPO resolves to the temp checkout: the real script
+  // would find the real repo's affected-e2e.mjs and import the app's node_modules.
+  return spawnSync('bash', [path.join(scriptsDir, 'with-db-lock.sh'), path.join(scriptsDir, 'e2e-local.sh')], {
+    cwd: dir,
+    env: {
+      ...process.env,
+      HOME: dir,
+      PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`,
+      PMO_DB_LOCK: path.join(dir, 'db.lock'),
+      PMO_DB_LOCK_TIMEOUT: '1',
+      E2E_NPX_LOG: log,
+    },
+    encoding: 'utf8',
+    timeout: 15_000,
+  });
+};
+
+// #2638: a sibling's reset/move between the caller's reset hold and the preflight made a clean
+// reset's run report "seed org missing" and never start Playwright. The preflight must recover
+// inside its own hold — same lock, no second acquisition — and reach both Playwright lanes.
+test('#2638: a seed-state miss recovers with a reset inside the SAME lock hold and reaches Playwright', () => {
+  withTemp('pmo-e2e-seed-recover-', (dir) => {
+    const state = path.join(dir, 'seed.state');
+    fs.writeFileSync(state, 'missing\n'); // preflight count: seed org absent until a reset seeds it
+    const result = spawnE2EUnderDbLock(dir, {
+      seedQuery: `grep -q seeded ${state} && echo 1 || echo 0`,
+      onDbReset: `echo seeded > ${state}`,
+    });
+    assert.equal(result.status, 0,
+      `a missing seed org must recover in-hold, not fail the run: exit=${result.status}, stderr=${result.stderr}`);
+    assert.match(result.stderr, /seed org .* not found in .*supabase_db_pmo-portal/,
+      `the recovery should be announced loudly: stderr=${result.stderr}`);
+    assert.equal((result.stderr.match(/ACQUIRED/g) ?? []).length, 1,
+      `the recovery reset must run inside the SAME hold — exactly one acquisition: stderr=${result.stderr}`);
+    const lanes = fs.readFileSync(path.join(dir, 'npx.log'), 'utf8').trim().split('\n')
+      .map((line) => (line.match(/--project=(\S+)/) ?? [])[1]);
+    assert.deepEqual(lanes, ['chromium', 'serial'],
+      `after recovery both Playwright lanes must run: ${JSON.stringify(lanes)}`);
+  });
+});
+
+// #2638: when the seed still fails after the in-hold reset, the error must say which org was
+// wanted and which DB was queried (and name the run holding the DB), so the failure names its
+// evidence instead of a vague "seed org missing".
+test('#2638: a seed the in-hold reset cannot fix fails with the org, the DB and the query named', () => {
+  withTemp('pmo-e2e-seed-error-', (dir) => {
+    const result = spawnE2EUnderDbLock(dir, {
+      seedQuery: 'echo 0', // the seed never produces the org, not even after the recovery reset
+      onDbReset: ':',
+    });
+    assert.notEqual(result.status, 0, 'a seed that stays broken must fail the run');
+    for (const [what, pattern] of [
+      ['the org it looked for', /00000000-0000-0000-0000-000000000001/],
+      ['the DB it queried', /supabase_db_pmo-portal/],
+      ['the query it ran', /select count\(\*\) from public\.organizations/],
+      ['the run holding the DB', /pid=\d+/],
+    ]) {
+      assert.match(result.stderr, pattern, `the preflight error must name ${what}: stderr=${result.stderr}`);
+    }
+  });
+});
+
 test('the test lock is a SEPARATE lock from the db lock (they must not block each other)', async () => {
   await withTempAsync('pmo-lock-sep-', async (dir) => {
     const dbLock = path.join(dir, 'db.lock');

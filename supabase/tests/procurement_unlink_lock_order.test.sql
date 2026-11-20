@@ -14,7 +14,7 @@
 begin;
 select plan(5);
 
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 
 create function pg_temp.attempt(p_sql text) returns text language plpgsql as $$
 begin

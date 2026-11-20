@@ -711,7 +711,7 @@ catalog is the claim. 2026-09-07: the sweep found 37 vs 4 and a vault reader ans
 closed by an emergency revoke + `0210`. Expected steady state: exactly the RLS helpers (`auth_org_id`,
 `auth_role`, `is_active_member`, `org_feature_enabled`).
 
-⚑ **The probe's table list comes from the checked-in denominator** (`scripts/isolation-probe-denominator.json`, #612 item 1): `scripts/isolation-probe.sh` reads its `tables` array itself when `TABLES_JSON` is unset; an explicit `TABLES_JSON` must exactly match that array, including its reviewed expectations. `node scripts/check-isolation-denominator.mjs` (CI `pgtap` lane) keeps that file equal to the catalog; `--write` regenerates it.
+⚑ **The probe's table list comes from the checked-in denominator** (the fragment directory `scripts/isolation-probe-denominator.d/*.json`, unioned by `check-isolation-denominator.mjs --emit`; #612 item 1, #2589): `scripts/isolation-probe.sh` reads the `tables` of that union itself when `TABLES_JSON` is unset; an explicit `TABLES_JSON` must exactly match that array, including its reviewed expectations. `node scripts/check-isolation-denominator.mjs` (CI `pgtap` lane) keeps the union equal to the catalog; `--write` redistributes it across the fragments.
 
 ⚑ **After each deploy, run `scripts/post-deploy-probes.sh`**. It runs `scripts/second-org-smoke.sh`,
 then `scripts/second-org-roles-smoke.sh`, then `scripts/isolation-probe.sh`, and prints one combined

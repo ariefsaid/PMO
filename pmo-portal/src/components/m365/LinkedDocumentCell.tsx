@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon } from '@/src/components/ui';
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
+import { cn } from '@/src/components/ui/cn';
 import { APPROVED_STATUSES, microsoftProvenance, validMicrosoftBrowserUrl, type MicrosoftReference, type ReferenceOwner } from '@/src/lib/m365/reference';
 import { useOptionalDocumentViewer } from '@/src/components/documents/viewerContext';
 import { referenceTarget } from '@/src/components/documents/targets/reference';
@@ -28,7 +30,7 @@ export interface LinkedDocumentCellProps {
 
 /**
  * Read-only display of a Microsoft file/folder reference on any parent (AC-M365DOC-058/065/064).
- * Opening the stored URL is a plain `window.open` of an already-validated https URL: it needs no
+ * Opening the stored URL is an anchor to an already-validated https URL: it needs no
  * connection, no permission and no Graph call, so a viewer without a PMO connection can open it.
  * Everything that DOES read Microsoft (versions, approved history) is a separate, explicit action
  * and never replaces or disables "open".
@@ -59,12 +61,9 @@ export function LinkedDocumentCell({ reference, title, owner, compact = false, v
       ? t('m365Documents.cell.openLatest', 'Open latest in {{place}}', { place })
       : t('m365Documents.cell.open', 'Open in {{place}}', { place });
 
-  function openReference() {
-    // Re-validated at the moment of navigation, not trusted from storage.
-    if (!validMicrosoftBrowserUrl(reference.web_url)) { setOpenRefused(true); return; }
-    setOpenRefused(false);
-    window.open(reference.web_url, '_blank', 'noopener,noreferrer');
-  }
+  // Re-validated at render, not trusted from storage: only a valid https Microsoft URL becomes a
+  // real anchor (new-tab gestures work); anything else gets a button that refuses and says so.
+  const openable = validMicrosoftBrowserUrl(reference.web_url);
 
   return (
     <div className="flex min-w-0 flex-col gap-1">
@@ -76,10 +75,23 @@ export function LinkedDocumentCell({ reference, title, owner, compact = false, v
       {project && isFolder && <span data-folder-reference className="break-words text-control text-muted-foreground">{t('m365Documents.referenceOnly', 'Folder reference: contents are not issued or approved')}</span>}
       {controlled && compact && <DocumentDriftBadge compact status={project.status} driftState={project.drift_state} lastVerifiedAt={project.last_verified_at} checking={verification?.checking} checkFailed={verification?.failed} onRetry={verification?.retry} />}
       <div className="flex min-w-0 flex-wrap items-center gap-1">
-        <Button variant="ghost" size="sm" className="min-w-0 whitespace-normal! text-left" aria-label={`${openText}: ${label}`} onClick={openReference}>
-          <Icon name="eye" />
-          {compact ? t('m365Documents.cell.openShort', 'Open') : openText}
-        </Button>
+        {openable ? (
+          <a
+            href={reference.web_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(buttonClasses('ghost', 'sm'), 'min-w-0 whitespace-normal! text-left')}
+            aria-label={`${openText}: ${label}`}
+          >
+            <Icon name="eye" />
+            {compact ? t('m365Documents.cell.openShort', 'Open') : openText}
+          </a>
+        ) : (
+          <Button variant="ghost" size="sm" className="min-w-0 whitespace-normal! text-left" aria-label={`${openText}: ${label}`} onClick={() => setOpenRefused(true)}>
+            <Icon name="eye" />
+            {compact ? t('m365Documents.cell.openShort', 'Open') : openText}
+          </Button>
+        )}
         {!compact && !isFolder && viewer && (
           <Button variant="ghost" size="sm" aria-label={tv('viewer.previewNamed', 'Preview {{name}}', { name: label })} onClick={(event) => viewer.open(referenceTarget({ reference, owner, title }), event.currentTarget)}>
             <Icon name="doc" />

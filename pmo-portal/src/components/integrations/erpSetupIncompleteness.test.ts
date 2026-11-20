@@ -31,7 +31,7 @@ describe('getErpSetupIncompleteness — budget (#1326)', () => {
 });
 
 describe('FR-ECA-020 missingAccountCategories', () => {
-  it('FR-ECA-020 a category with no direct-cost account is a setup task for the accountant', () => {
+  it('FR-ECA-020 a category with no direct-cost account is a setup task for the operator', () => {
     expect(missingAccountCategories(setup({ budgetMappedCategories: ORIGINAL_EIGHT.filter((c) => c !== 'Labor' && c !== 'Equipment') }))).toEqual(['Labor', 'Equipment']);
   });
   it('every required category linked: no task', () => {

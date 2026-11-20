@@ -39,6 +39,13 @@ describe('StockDocuments (AC-STK-032)', () => {
     expect(screen.getByText('Eka Engineer')).toBeInTheDocument();
   });
 
+  it('AC-OPB-006 a go-live opening lists as an opening balance, not a count', async () => {
+    documents.list.mockResolvedValue([doc(1, { number: 'OPN-1', kind: 'opening', project_id: null, project: null })]);
+    renderPage();
+    const row = (await screen.findByText('OPN-1')).closest('tr') ?? document.body;
+    expect(within(row as HTMLElement).getByText('Opening balance')).toBeInTheDocument();
+  });
+
   it('AC-STK-032 empty and error-with-retry', async () => {
     documents.list.mockResolvedValueOnce([]);
     const { unmount } = renderPage();

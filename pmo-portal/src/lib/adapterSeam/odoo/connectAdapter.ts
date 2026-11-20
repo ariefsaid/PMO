@@ -216,7 +216,8 @@ export function createOdooSetupAdapter(call: OdooCall, ctx: OdooConnectCtx): Con
   const unserved = (kind: string) => kind === 'employee' || (kind === 'project' && ctx.analyticPlanId === null);
   // #1508: stock kinds are served for listing (their candidates feed the matcher) but PMO never sends them —
   // setup proposes links only.
-  const unsendable = (kind: string) => kind === 'stock_item' || kind === 'stock_warehouse';
+  // #1599 ECX-4: accounts are created from PMO on ERPNext only for now (account.send pending #1504 here).
+  const unsendable = (kind: string) => kind === 'stock_item' || kind === 'stock_warehouse' || kind === 'account';
   return {
     ...inner,
     listMasters: async (kind, cursor) => (unserved(kind) ? { rows: [], nextCursor: null } : await inner.listMasters(kind, cursor)),
