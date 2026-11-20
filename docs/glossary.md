@@ -407,7 +407,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Stage age** — days a billing stage has been current: from its start (the previous stage's completion) to its completion, or to today while open.
 
-**Invoice deadline** — the project's monthly day (1–31, clamped to the month's end) by which its invoice must reach the client, with a warning window in days.
+**Invoice deadline** — the project's monthly day (1–31, clamped to the month's end) by which its invoice must reach the client, with a warning window in days. A claim shows it while its stages are still open or it has no stage plan; it is hidden once every planned stage is complete (#2522).
 
 **Measured quantity** — quantity on progress claims that are not withdrawn and whose invoice, if any, is not cancelled. **Billed quantity** — quantity on progress claims with an invoice that is not cancelled. Per bill-of-quantities item the reconciliation reads unbilled, partly billed, fully billed or surplus.
 
@@ -597,7 +597,8 @@ document with a file before the stage completes, and that document becomes the c
 completion, or to today while open.
 
 **Invoice deadline** — the project's monthly day (1-31, clamped to the month's end) by which its invoice must reach the
-client, with a warning window in days.
+client, with a warning window in days. A claim shows it while its stages remain open or it has no stage plan; it is
+hidden when every planned stage is complete (#2522).
 
 **Measured quantity** — per bill-of-quantities item, the quantity on progress claims that are not withdrawn.
 **Billed quantity** — the quantity on progress claims whose invoice exists and is not cancelled. The reconciliation reads

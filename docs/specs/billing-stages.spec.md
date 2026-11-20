@@ -66,9 +66,11 @@ how much of each invoice the client is still holding back as retention.
 - **FR-BST-030** (ubiquitous) Each stage shall show its age in days (Terms).
 - **FR-BST-031** (ubiquitous) Finance or an Admin shall set the project's invoice deadline day (1–31, or none) and
   warning window (0–27 days, default 5).
-- **FR-BST-032** (state-driven) While a claim's invoice is not raised and the project has a deadline, the screen
-  shall show the next deadline date (this month's, or next month's once this month's day has passed) and the days
-  left, and shall warn when the days left are within the warning window.
+- **FR-BST-032** (state-driven) While a claim's invoice is not raised, the project has a deadline, and either the
+  claim has no stage plan or at least one stage remains incomplete, the screen shall show the next deadline date
+  (this month's, or next month's once this month's day has passed) and the days left, and shall warn when the days
+  left are within the warning window. Once every planned stage is complete, the deadline no longer describes open
+  work and shall be hidden until an invoice is raised or the claim is withdrawn.
 
 ### Per-item reconciliation
 - **FR-BST-040** (ubiquitous) The database shall return, per bill-of-quantities item of a project (or of one work
