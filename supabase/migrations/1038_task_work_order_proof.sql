@@ -119,6 +119,10 @@ begin
   if new.org_id is null or new.org_id = '00000000-0000-0000-0000-000000000001'::uuid then
     new.org_id := v_org;
   end if;
+  -- task_proofs_stamp_org_id runs first and stamps the caller's org: a task in another org is refused here, as RLS would.
+  if new.org_id <> v_org then
+    raise exception 'task is not in your organisation' using errcode = '42501';
+  end if;
   -- The file must exist. Only for the caller's own org, so a probe of another org's paths falls through to RLS (42501).
   if new.org_id = auth_org_id()
      and not exists (select 1 from storage.objects o where o.bucket_id = 'task-proofs' and o.name = new.file_path) then
