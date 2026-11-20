@@ -13651,6 +13651,7 @@ export type Database = {
         Args: { p_allocation_id: string }
         Returns: undefined
       }
+      compare_and_unpair_invoice: { Args: { p_pmo_id: string; p_expected_erp_id: string; p_expected_paired_at: string; p_expected_docstatus: number | null; p_expected_cancelled_at: string | null }; Returns: undefined }
       unpair_invoice: { Args: { p_pmo_id: string }; Returns: undefined }
       assemble_tm_claim: {
         Args: {

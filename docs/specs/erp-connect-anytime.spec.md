@@ -156,6 +156,7 @@ there is no workflow registry and no test suite that a second ERP adapter must p
   treatment; date within the invoice's month). Finance SHALL accept pairs in bulk. An accepted pair SHALL count once,
   as the ERP document (OQ-ECA-3); the PMO copy SHALL link to it and stop counting. Unpaired PMO invoices SHALL be
   listed until resolved.
+- **FR-ECA-043** — While an accepted pair's ERP invoice is cancelled (docstatus 2 or a cancellation time), the system SHALL show it separately to Admin and Finance and offer the existing undo. The system SHALL NOT name a replacement without a verified source identity. The system SHALL NOT unpair or re-pair automatically.
 - **FR-ECA-041** — When a budget push meets an ERP budget PMO does not own, the system SHALL keep refusing to amend it
   (shipped) and SHALL offer the two OQ-ECA-4 actions to an Admin or Finance user. *Replace* SHALL require an
   explicit confirm naming the ERP budget, and SHALL go through the shipped push path.
@@ -329,6 +330,10 @@ Layers: **U** Vitest · **D** Deno edge-function test (shipped handler, `fetch` 
 - **AC-ECA-031 (FR-041; D, `adapter-dispatch`)** — Given an ERP budget PMO does not own, when an Admin chooses
   *use as draft*, then a PMO Draft version holds the ERP figures and the ERP is unchanged; when the Admin chooses
   *replace* and confirms, then the ERP holds PMO's active version through the push path and one audit row exists.
+
+- **AC-ECA-032 (FR-043; P)** — Given an accepted pair, when its ERP invoice is cancelled, then the pair remains, the project finance invoice buckets exclude the pair, and Finance can undo it.
+- **AC-ECA-033 (FR-043; U)** — Given accepted pairs, when a linked ERP invoice is cancelled, then the review lists it separately with an undo confirmation and does not list it as counting once.
+- **AC-ECA-034 (FR-043; U)** — Given accepted pairs, when their lifecycle is read, then either cancellation signal is recognized, unverified replacements are not named, and an incomplete read is not shown as confirmed coverage.
 
 **Parity**
 - **AC-ECA-040 (FR-050; U, typecheck)** — Given a new workflow id added to `WORKFLOWS`, when typecheck runs without an
