@@ -9713,6 +9713,53 @@ export type Database = {
           },
         ]
       }
+      stock_document_files: {
+        Row: {
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          document_id: string
+          file_path: string
+          id: string
+          label: string | null
+          org_id: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          document_id: string
+          file_path: string
+          id?: string
+          label?: string | null
+          org_id?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          document_id?: string
+          file_path?: string
+          id?: string
+          label?: string | null
+          org_id?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_document_files_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "stock_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_document_lines: {
         Row: {
           boq_item_id: string | null
@@ -9950,6 +9997,7 @@ export type Database = {
           lead_time_days: number | null
           name: string
           org_id: string
+          tag_id: string | null
           unit_id: string
         }
         Insert: {
@@ -9961,6 +10009,7 @@ export type Database = {
           lead_time_days?: number | null
           name: string
           org_id?: string
+          tag_id?: string | null
           unit_id: string
         }
         Update: {
@@ -9972,6 +10021,7 @@ export type Database = {
           lead_time_days?: number | null
           name?: string
           org_id?: string
+          tag_id?: string | null
           unit_id?: string
         }
         Relationships: [
@@ -10173,6 +10223,44 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "stock_warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_tags: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+          paper_required: boolean
+          zero_cost: boolean
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          org_id?: string
+          paper_required?: boolean
+          zero_cost?: boolean
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+          paper_required?: boolean
+          zero_cost?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_tags_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -12003,6 +12091,10 @@ export type Database = {
         Args: { p_incident: string }
         Returns: string
       }
+      archive_stock_document_file: {
+        Args: { p_file_id: string; p_reason: string }
+        Returns: undefined
+      }
       set_cost_attribution: {
         Args: {
           p_discipline_id: string | null
@@ -13771,6 +13863,10 @@ export type Database = {
         Returns: Json
       }
       get_unbilled_work_orders: { Args: { p_limit?: number }; Returns: Json }
+      get_work_order_stock_balance: {
+        Args: { p_project_id?: string; p_work_order_id?: string }
+        Returns: Json
+      }
       get_vendor_withholding_slip: {
         Args: { p_slip_id: string }
         Returns: Json

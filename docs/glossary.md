@@ -529,3 +529,10 @@ and **Phase** for a milestone. **Actual** and **Recorded spending** name the sam
 - **Location variant** — a per-contract name (e.g. Remote, Non-remote) that selects which rate of a catalogue item applies. Names are added, never renamed or removed.
 - **Effective-dated rate** — a rate that applies from a date until a later rate replaces it. An amendment adds a row; it never edits an earlier one, and a contract line already priced keeps the rate it was priced at.
 - **Stage weights** — optional split of an item's progress credit across named stages (e.g. 10 / 80 / 10), adding to 100, effective-dated.
+
+## Stock for site work (#2523)
+- **Yard** — a stock location on or near a project's site where deliveries wait before use. Behaves as any location for every posting rule.
+- **Staging** — a stock location where materials are made ready for a work order, between the yard and the point of use.
+- **Stock tag** — a label an organisation names itself and puts on stock items (zero or one per item). A tag may be flagged zero cost; the app never hardcodes the organisation's own word for it.
+- **Client-supplied (free-issue) stock** — items the client provides for the job; carried under a zero-cost tag, so they add quantity and no value.
+- **Zero-cost item** — an item whose tag is zero cost: received only at cost 0, so its ledger value is 0 at every step.
