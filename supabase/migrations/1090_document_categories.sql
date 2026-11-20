@@ -9,7 +9,7 @@
 
 create table public.document_categories (
   id          uuid primary key default gen_random_uuid(),
-  org_id      uuid not null default '00000000-0000-0000-0000-000000000001' references public.organizations(id),
+  org_id      uuid not null default '00000000-0000-0000-0000-000000000001' references public.organizations(id) on delete cascade,
   name        text not null check (btrim(name) <> '' and length(name) <= 120),
   sort_order  integer not null default 0,
   is_system   boolean not null default false,
@@ -22,7 +22,7 @@ create unique index document_categories_live_name_uniq on public.document_catego
 
 create table public.document_category_roles (
   category_id uuid not null,
-  org_id      uuid not null default '00000000-0000-0000-0000-000000000001' references public.organizations(id),
+  org_id      uuid not null default '00000000-0000-0000-0000-000000000001' references public.organizations(id) on delete cascade,
   role        public.user_role not null,
   primary key (category_id, role),
   foreign key (category_id, org_id) references public.document_categories (id, org_id) on delete cascade

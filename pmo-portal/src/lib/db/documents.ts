@@ -26,7 +26,10 @@ export type DocStatus = ProjectDocumentRow['status'];
 /** The metadata fields a create/edit form supplies. org_id / author_id / status are NOT here. */
 export interface ProjectDocumentInput {
   code: string;
+  /** The category's name. Sent only when `category_id` is absent (a caller that knows no id); the server resolves the name. */
   category: string;
+  /** The category the caller picked from the categories they may see (#2579). Wins over the name; org_id is never sent. */
+  category_id?: string;
   title: string;
   revision: string;
   doc_date: string;
@@ -54,6 +57,10 @@ const nullable = (v: string): string | null => {
   const t = v.trim();
   return t === '' ? null : t;
 };
+
+/** The category columns of a write: the reference when the caller has one, else the name for the server to resolve (FR-DCV-007/008). */
+const categoryColumns = (input: Pick<ProjectDocumentInput, 'category' | 'category_id'>) =>
+  input.category_id ? { category_id: input.category_id } : { category: input.category.trim() };
 
 /**
  * List the document register for a project (AC-DOC-001). org_id is NEVER sent — RLS
@@ -129,7 +136,7 @@ export async function createProjectDocument(
     .insert({
       project_id: projectId,
       code: nullable(input.code),
-      category: input.category.trim(),
+      ...categoryColumns(input),
       title: input.title.trim(),
       revision: nullable(input.revision),
       doc_date: nullable(input.doc_date),
@@ -204,7 +211,7 @@ export async function updateProjectDocument(id: string, input: ProjectDocumentIn
     .from('project_documents')
     .update({
       code: nullable(input.code),
-      category: input.category.trim(),
+      ...categoryColumns(input),
       title: input.title.trim(),
       revision: nullable(input.revision),
       doc_date: nullable(input.doc_date),
@@ -392,7 +399,8 @@ export async function createDocumentRevision(
     .insert({
       project_id: parent.project_id,
       code: nullable(input.code),
-      category: input.category.trim(),
+      // a revision keeps its parent's category (OD-DCV-8); the server refuses any other
+      category_id: parent.category_id,
       title: input.title.trim(),
       revision: nullable(input.revision),
       doc_date: nullable(input.doc_date),

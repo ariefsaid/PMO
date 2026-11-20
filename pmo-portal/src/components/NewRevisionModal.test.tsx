@@ -11,6 +11,7 @@ const baseDoc: ProjectDocumentRow = {
   title: 'Foundation general arrangement',
   code: 'DWG-001',
   category: 'Drawing',
+  category_id: 'cat-drawing',
   revision: 'A',
   status: 'Approved',
   author_id: 'user-1',
@@ -95,6 +96,12 @@ describe('NewRevisionModal', () => {
     expect(createButton).toBeEnabled();
   });
 
+  it('AC-DCV-013 the revision form shows the parent\'s category locked, with the reason', () => {
+    render(<NewRevisionModal parent={baseDoc} onSubmit={vi.fn()} onClose={vi.fn()} loading={false} />);
+    expect(screen.getByRole('combobox', { name: 'Category' })).toBeDisabled();
+    expect(screen.getByText('A revision stays in the category of the document it revises.')).toBeInTheDocument();
+  });
+
   it('C1: submits edited revision fields, including document date', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
@@ -106,7 +113,8 @@ describe('NewRevisionModal', () => {
     await user.type(screen.getByRole('textbox', { name: 'Title' }), 'Edited title');
     await user.clear(screen.getByRole('textbox', { name: 'Code' }));
     await user.type(screen.getByRole('textbox', { name: 'Code' }), 'DWG-009');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'Specification');
+    // FR-DCV-009: a revision keeps its parent's category; the control is shown, locked.
+    expect(screen.getByRole('combobox', { name: 'Category' })).toBeDisabled();
     await user.clear(screen.getByRole('textbox', { name: 'Revision' }));
     await user.type(screen.getByRole('textbox', { name: 'Revision' }), 'C');
     await user.type(screen.getByLabelText('Document date'), '2026-06-12');
@@ -115,7 +123,7 @@ describe('NewRevisionModal', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       title: 'Edited title',
       code: 'DWG-009',
-      category: 'Specification',
+      category: 'Drawing',
       revision: 'C',
       doc_date: '2026-06-12',
     });

@@ -1,14 +1,19 @@
 import { isMicrosoftFolder } from './documentUtils';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { EntityFormModal, TextField, SelectField, FormSection, FormGrid, useEntityForm, Button, Icon, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { categoryOptions } from '@/src/lib/documentCategories';
+import { categoryDisplay } from '@/src/lib/documentCategories';
+import { useViewableCategories } from '@/src/hooks/useDocumentCategories';
 import type { ProjectDocumentRow, ProjectDocumentInput } from '@/src/lib/db/documents';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { DateField } from '@/src/components/ui/DateField';
 
+
+/** The starting category of a new document: Drawing when the caller may see it, else the first they may. */
+const defaultCategoryName = (viewable: { name: string; is_system: boolean }[]): string =>
+  (viewable.find((c) => c.is_system && c.name === 'Drawing') ?? viewable[0])?.name ?? '';
 
 interface FormValues {
   title: string;
@@ -60,6 +65,10 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   const { t } = useTranslation('project');
   const { t: tf } = useTranslation('recordFolders');
   const isEdit = !!doc;
+  // Only the categories the caller's role may see (FR-DCV-017); the register's policy is what decides (FR-DCV-008).
+  const allViewable = useViewableCategories(doc?.category_id);
+  // `Reference` labels a Microsoft folder entry made by the link routine; it is not typed into the ordinary form (OD-DCV-11).
+  const viewable = allViewable.filter((c) => !(c.is_system && c.name === 'Reference'));
   // A folder is a reference, not a register document: it has no category, revision, code or date.
   const isFolder = reference ? reference.item_kind === 'folder' : !!doc && isMicrosoftFolder(doc);
   // Memoised on `t` so the validator identity is stable between renders.
@@ -68,7 +77,7 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
     initialValues: {
       title: doc?.title ?? (reference ? seedTitle(reference) : ''),
       code: doc?.code ?? '',
-      category: doc?.category ?? (isFolder ? 'Reference' : 'Drawing'),
+      category: doc?.category ?? (isFolder ? 'Reference' : defaultCategoryName(viewable)),
       revision: doc?.revision ?? '',
       doc_date: doc?.doc_date ?? '',
     },
@@ -80,6 +89,14 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
     requiredFields: isFolder ? ['title'] : ['title', 'category'],
   });
 
+  // The list can arrive after the form opens: pick the starting category then, without marking the form edited.
+  const { reset: resetForm, values: formValues } = form;
+  const startingCategory = defaultCategoryName(viewable);
+  useEffect(() => {
+    if (!isEdit && !isFolder && !formValues.category && startingCategory) resetForm({ ...formValues, category: startingCategory });
+  }, [isEdit, isFolder, formValues, startingCategory, resetForm]);
+
+  const categoryOptions = viewable.map((c) => ({ value: c.name, label: categoryDisplay(t, c) }));
   const titleField = form.fieldProps('title');
   const codeField = form.fieldProps('code');
   const categoryField = form.fieldProps('category');
@@ -99,10 +116,13 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
+      const picked = allViewable.find((c) => c.name === values.category);
       const input: ProjectDocumentInput = {
         title: values.title.trim(),
         code: values.code.trim(),
         category: values.category,
+        // the pick is a category the caller may see; its id is what the register stores (a folder reference has none)
+        ...(picked ? { category_id: picked.id } : {}),
         revision: values.revision.trim(),
         doc_date: values.doc_date,
       };
@@ -187,7 +207,7 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
               onChange={categoryField.onChange}
               onBlur={categoryField.onBlur}
               error={categoryField.error}
-              options={categoryOptions(t)}
+              options={categoryOptions}
             />
             <TextField
               id={revisionField.id}

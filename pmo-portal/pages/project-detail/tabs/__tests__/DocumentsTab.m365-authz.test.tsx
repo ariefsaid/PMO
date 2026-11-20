@@ -19,6 +19,10 @@ const h = vi.hoisted(() => ({
 }));
 
 // The register mounts RecordFolderAction (own coverage: DocumentsTab.record-folder.test).
+vi.mock('@/src/hooks/useDocumentCategories', async () => {
+  const { SYSTEM_CATEGORIES } = await import('./categoryFixtures');
+  return { useViewableCategories: () => SYSTEM_CATEGORIES };
+});
 vi.mock('@/src/components/m365/useRecordFolderAction', () => ({
   useRecordFolderAction: () => ({ allowed: false, hasNotice: false, canStart: false, pending: false, start: () => {}, label: '', outcome: null, remedies: null, reconnectError: null }),
 }));

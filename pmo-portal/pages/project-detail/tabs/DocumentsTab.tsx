@@ -683,7 +683,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           setFormTarget(null);
         }}
         onUpdateDocument={async (id, input) => {
-          await update.mutateAsync({ id, input });
+          // A category change moves the whole revision lineage together (FR-DCV-009), so it goes through the re-file step.
+          const current = all.find((d) => d.id === id);
+          const refileTo = input.category_id && current && input.category_id !== current.category_id ? input.category_id : undefined;
+          await update.mutateAsync(refileTo ? { id, input: { ...input, category: current?.category ?? input.category, category_id: undefined }, refileTo } : { id, input });
           toast(t('projectDetail.documents.toast.updated', 'Document updated'), input.title, 'success');
           setFormTarget(null);
         }}

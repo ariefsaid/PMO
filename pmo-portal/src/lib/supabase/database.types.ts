@@ -9166,6 +9166,7 @@ export type Database = {
         Row: {
           author_id: string | null
           category: string
+          category_id: string
           code: string | null
           created_at: string
           doc_date: string | null
@@ -9194,7 +9195,8 @@ export type Database = {
         }
         Insert: {
           author_id?: string | null
-          category: string
+          category?: string
+          category_id?: string
           code?: string | null
           created_at?: string
           doc_date?: string | null
@@ -9224,6 +9226,7 @@ export type Database = {
         Update: {
           author_id?: string | null
           category?: string
+          category_id?: string
           code?: string | null
           created_at?: string
           doc_date?: string | null
@@ -9257,6 +9260,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_documents_category_fkey"
+            columns: ["category_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "document_categories"
+            referencedColumns: ["id", "org_id"]
           },
           {
             foreignKeyName: "project_documents_ms_linked_by_fkey"
