@@ -387,6 +387,7 @@ const Companies: React.FC = () => {
             // + scroll position as return context (AC-LRC-006) instead of a bare navigate.
             onActivate={(c) => openRecord(`/companies/${c.id}`)}
             // ⚑ Not extracted — embeds a value; see the interpolation note above.
+            rowHref={(c) => `/companies/${c.id}`}
             rowLabel={(c) => `Open ${companyDisplayName(c)}`}
             rowMenu={canRowWrite ? rowMenu : undefined}
             state={pageRows.length === 0 ? 'empty' : undefined}

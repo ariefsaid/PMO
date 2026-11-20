@@ -156,15 +156,15 @@ function Actions({ target, hideDownload, downloading, onDownload, mobile, t }: {
         </Button>
       )}
       {target.openInSource && (
-        <Button
-          variant="outline"
-          size={size}
-          className={touch}
-          onClick={() => window.open(target.openInSource!.url, '_blank', 'noopener,noreferrer')}
+        <a
+          href={target.openInSource.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonClasses('outline', size ?? 'default', touch)}
         >
           <Icon name="eye" />
           {t('viewer.openInSource', 'Open in {{place}}', { place })}
-        </Button>
+        </a>
       )}
     </>
   );

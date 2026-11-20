@@ -85,7 +85,7 @@ describe('DocumentsTab — Microsoft reference rendering', () => {
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
     const preview = screen.getByRole('dialog');
     expect(within(preview).getByText('SharePoint file')).toBeInTheDocument();
-    expect(within(preview).getByRole('button', { name: /Open in SharePoint: Foundation GA/ })).toBeEnabled();
+    expect(within(preview).getByRole('link', { name: /Open in SharePoint: Foundation GA/ })).toBeEnabled();
     expect(screen.queryByRole('button', { name: /upload/i })).not.toBeInTheDocument();
   });
 
@@ -93,8 +93,9 @@ describe('DocumentsTab — Microsoft reference rendering', () => {
     h.docs.data = [makeLinkedDoc()];
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Open in SharePoint: Foundation GA/ }));
-    expect(window.open).toHaveBeenCalledWith(REFERENCE.web_url, '_blank', 'noopener,noreferrer');
+    const link = within(screen.getByRole('dialog')).getByRole('link', { name: /Open in SharePoint: Foundation GA/ });
+    expect(link).toHaveAttribute('href', REFERENCE.web_url);
+    expect(link).toHaveAttribute('target', '_blank');
     expect(h.connectionReads).not.toHaveBeenCalled();
     for (const spy of Object.values(h.graph)) expect(spy).not.toHaveBeenCalled();
   });
@@ -108,7 +109,7 @@ describe('DocumentsTab — Microsoft reference rendering', () => {
     })];
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Open latest in SharePoint/ })).toBeEnabled();
+    expect(within(screen.getByRole('dialog')).getByRole('link', { name: /Open latest in SharePoint/ })).toBeEnabled();
     expect(h.connectionReads).not.toHaveBeenCalled();
   });
 

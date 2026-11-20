@@ -11,7 +11,7 @@ import {
   type StatusVariant,
 } from '@/src/components/ui';
 import { formatCurrency, formatDay } from '@/src/lib/format';
-import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
+import { clientInvoiceDueNowCents, deriveArDueDate, retentionHeldCents } from '@/src/lib/repositories/revenueDisplay';
 import { invoiceNumber } from '@/src/lib/revenue/nativeInvoice';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProfileRow } from '@/src/lib/db/profiles';
@@ -82,6 +82,9 @@ const SalesInvoicePanelDrawer: React.FC<{
             <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
               {panelInvoice.amount != null && field('amount', t('finance:receivables.amount', 'Amount'), <span className="flex flex-wrap items-baseline gap-x-1.5"><span className="tabular font-semibold">{formatCurrency(panelInvoice.amount, panelInvoice.currency, { precision: 'minor' })}</span><TaxBasisLabel treatment={panelInvoice.tax_treatment} showDetails taxRate={panelInvoice.tax_rate} taxBaseNumerator={panelInvoice.tax_base_numerator} taxBaseDenominator={panelInvoice.tax_base_denominator} /></span>)}
               {panelInvoice.erp_outstanding_amount != null && field('outstanding', t('finance:receivables.outstanding', 'Outstanding · tax included'), <span className="tabular">{formatCurrency(panelInvoice.erp_outstanding_amount, panelInvoice.currency, { precision: 'minor' })}</span>)}
+              {/* #2625 (ADR-0105): the retention still held is owed but not due until released; due now is the rest. */}
+              {(retentionHeldCents(panelInvoice) ?? 0) > 0 && field('retentionHeld', t('finance:receivables.retentionHeldField', 'Retention held'), <span className="tabular">{formatCurrency((retentionHeldCents(panelInvoice) ?? 0) / 100, panelInvoice.currency, { precision: 'minor' })}</span>)}
+              {(retentionHeldCents(panelInvoice) ?? 0) > 0 && field('dueNow', t('finance:receivables.dueNow', 'Due now'), <span className="tabular">{formatCurrency((clientInvoiceDueNowCents(panelInvoice) ?? 0) / 100, panelInvoice.currency, { precision: 'minor' })}</span>)}
               {due && field('due', t('finance:receivables.dueDate', 'Due date'), formatDay(due))}
               {panelInvoice.invoice_date && field('invoiceDate', t('finance:receivables.invoiceDate', 'Invoice date'), formatDay(panelInvoice.invoice_date))}
               {panelInvoice.erp_payment_terms_days != null && field('terms', t('finance:receivables.paymentTerms', 'Terms'), t('finance:receivables.paymentTermsDays', '{{count}} days', { count: panelInvoice.erp_payment_terms_days }))}

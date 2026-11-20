@@ -18,7 +18,7 @@ let org: string | undefined = 'org-1';
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: org } }) }));
 
 import {
-  IMPREST_QUERY_ROOTS, useImprestFloats, useImprestFloatPages, useImprestPosition, useImprestPlanUsage, useImprestPlans, useImprestReplenishments,
+  IMPREST_QUERY_ROOTS, useImprestFloats, useImprestFloatPages, useImprestPosition, useImprestPlans, useImprestReplenishments,
   useImprestCounts, useImprestFloatChoices, useImprestFloat, useRequestReplenishment, useTransitionPlan, useRecordCount, useEstablishFloat,
   useImprestPostingStates, useSetCashAccount,
 } from './useImprest';
@@ -56,14 +56,14 @@ describe('AC-IMP-083 imprest hooks', () => {
   it('AC-IMP-083 every query key carries the org id', async () => {
     const client = fresh();
     renderHook(() => {
-      useImprestFloats(); useImprestPosition('f1'); useImprestPlanUsage('f1', '2026-11-01'); useImprestPlans('f1');
+      useImprestFloats(); useImprestPosition('f1'); useImprestPlans('f1');
       useImprestReplenishments('f1'); useImprestCounts('f1'); useImprestFloatChoices('p1', 'Vehicle'); useImprestFloat('f1'); useImprestPostingStates('f1');
     }, { wrapper: wrap(client) });
     await waitFor(() => expect(client.isFetching()).toBe(0));
     const keys = client.getQueryCache().getAll().map((q) => JSON.stringify(q.queryKey)).sort();
     expect(keys).toEqual([
       ['imprest-counts', 'org-1', 'f1'], ['imprest-float-choices', 'org-1', 'p1', 'Vehicle'], ['imprest-floats', 'org-1'], ['imprest-float', 'org-1', 'f1'],
-      ['imprest-plan-usage', 'org-1', 'f1', '2026-11-01'], ['imprest-plans', 'org-1', 'f1'],
+      ['imprest-plans', 'org-1', 'f1'],
       ['imprest-position', 'org-1', 'f1'], ['imprest-replenishments', 'org-1', 'f1'], ['imprest-posting-states', 'org-1', 'f1'],
     ].map((k) => JSON.stringify(k)).sort());
   });
@@ -74,12 +74,11 @@ describe('AC-IMP-083 imprest hooks', () => {
     renderHook(() => { useImprestFloats(); useImprestPosition('f1'); }, { wrapper: wrap(c1) });
     org = 'org-1';
     const c2 = fresh();
-    renderHook(() => { useImprestPosition(undefined); useImprestPlanUsage('f1', undefined); useImprestFloatChoices(undefined, null); },
+    renderHook(() => { useImprestPosition(undefined); useImprestFloatChoices(undefined, null); },
       { wrapper: wrap(c2) });
     await new Promise((r) => setTimeout(r, 20));
     expect(imprest.listFloats).not.toHaveBeenCalled();
     expect(imprest.getPosition).not.toHaveBeenCalled();
-    expect(imprest.getPlanUsage).not.toHaveBeenCalled();
     expect(imprest.floatChoices).not.toHaveBeenCalled();
   });
 

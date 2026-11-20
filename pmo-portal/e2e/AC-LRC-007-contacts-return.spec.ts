@@ -58,12 +58,12 @@ test(
     await expect(main).toBeVisible();
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
     // Read the offset where the user IS when opening: the click scrolls an off-screen row into view first.
-    await page.getByRole('button', OPEN_JAMES).scrollIntoViewIfNeeded();
+    await page.getByRole('link', OPEN_JAMES).scrollIntoViewIfNeeded();
     const scrolledTop = await main.evaluate((el) => el.scrollTop);
     expect(scrolledTop).toBeGreaterThan(0);
 
     // ── Open a record; capture its canonical URL for the direct-visit check below ───────────
-    await page.getByRole('button', OPEN_JAMES).click();
+    await page.getByRole('link', OPEN_JAMES).click();
     await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/i, { timeout: 15_000 });
     const recordUrl = page.url();
     await expect(page.getByTestId('record-header')).toContainText('James Harlow');
@@ -79,7 +79,7 @@ test(
     await expect(page.getByRole('combobox', { name: /Filter by company/i })).toContainText('Meridian Steelworks');
     await expect(search).toHaveValue('h');
     // The narrowed SET came back, not just the URL: the searched-out and filtered-out rows stay out.
-    await expect(page.getByRole('button', OPEN_JAMES)).toBeVisible();
+    await expect(page.getByRole('link', OPEN_JAMES)).toBeVisible();
     await expect(page.getByText('Sandra Reyes')).not.toBeVisible();
     await expect(page.getByText('Lena Bauer')).not.toBeVisible();
     await expectScrollRestored(main, scrolledTop);
@@ -90,16 +90,16 @@ test(
     await page.setViewportSize({ width: 390, height: 420 });
     await waitReady(page);
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
-    await page.getByRole('button', OPEN_JAMES).scrollIntoViewIfNeeded();
+    await page.getByRole('link', OPEN_JAMES).scrollIntoViewIfNeeded();
     const mobileScrolledTop = await main.evaluate((el) => el.scrollTop);
     expect(mobileScrolledTop).toBeGreaterThan(0);
-    await page.getByRole('button', OPEN_JAMES).click();
+    await page.getByRole('link', OPEN_JAMES).click();
     await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/i, { timeout: 15_000 });
     await page.getByRole('button', { name: 'Back to Contacts', exact: true }).click();
     await expect(page).toHaveURL(/[?&]company=[0-9a-f-]+/i, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=h(&|$)/);
     await waitReady(page);
-    await expect(page.getByRole('button', OPEN_JAMES)).toBeVisible();
+    await expect(page.getByRole('link', OPEN_JAMES)).toBeVisible();
     await expect(page.getByText('Sandra Reyes')).not.toBeVisible();
     await expectScrollRestored(main, mobileScrolledTop);
 

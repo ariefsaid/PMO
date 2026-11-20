@@ -3,7 +3,7 @@ import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocal
 import {
   PLATFORM_CURRENCY, completionPct, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime, formatDayRange,
   formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2, formatPercent,
-  formatDateTime, formatDayMonth, formatExactMoney, formatFullDate, formatMonthDay,
+  formatDateTime, formatDayMonth, formatExactMoney, formatMonthDay,
   formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatUtcMonthYearFull, formatWeekday, formatWeekdayMonthDay,
 } from './format';
 
@@ -245,9 +245,6 @@ describe('#477 date variants — all deterministic, TZ-stable (local or UTC-pinn
   });
   it('formatWeekday: "Sun" (2026-06-14 is a Sunday)', () => {
     expect(formatWeekday(new Date(2026, 5, 14))).toBe('Sun');
-  });
-  it('formatFullDate: "Jun 14, 2026" — same parts as formatDate(iso)', () => {
-    expect(formatFullDate(new Date(2026, 5, 14))).toBe('Jun 14, 2026');
   });
   it('formatDateTime follows the explicitly selected timezone (hour is 2-digit)', () => {
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });

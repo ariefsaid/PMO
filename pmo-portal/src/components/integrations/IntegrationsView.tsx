@@ -11,6 +11,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { formatList } from '@/src/lib/format';
 import type { ExternalTier } from '@/src/lib/repositories/types';
 import { repositories } from '@/src/lib/repositories';
+import { M365AppRegistrationCard } from './M365AppRegistrationCard';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
 import { M365DefaultLibraryCard } from './M365DefaultLibraryCard';
 import { OdooIntegrationSection } from './odoo/OdooIntegrationSection';
@@ -23,6 +24,7 @@ import { ConnectCredentialsModal, type ConnectFormValues } from './ConnectCreden
 import { ErpCompanyModal } from './ErpCompanyModal';
 import { ClickUpBindingMap } from './ClickUpBindingMap';
 import type { LinkClickUpProjectInput } from '@/src/lib/repositories/types';
+import { Link } from 'react-router';
 
 // Odoo has its own card (OdooIntegrationSection), so this list stays the two generic tiers.
 const TIERS: Array<Exclude<ExternalTier, 'odoo'>> = ['clickup', 'erpnext'];
@@ -237,9 +239,9 @@ export const IntegrationsView: React.FC = () => {
           organization integration is ready. The panel also names its next permitted action. */}
       <p className="mb-4 flex justify-end gap-1 text-control text-muted-foreground" data-testid="integrations-owner-scope">
         {t('uxs07.organizationScope', 'Personal connections: ')}
-        <a className="font-medium text-foreground underline underline-offset-4" href="/integrations">
+        <Link className="font-medium text-foreground underline underline-offset-4" to="/integrations">
           {t('uxs07.personalConnections', 'My integrations')}
-        </a>
+        </Link>
       </p>
       {/* A failed status load must NOT hide the Connect affordance — surface it as a scoped banner and
           still render the tier cards. Each card additionally labels its own connection state as
@@ -261,7 +263,9 @@ export const IntegrationsView: React.FC = () => {
             entry (⚠️ do NOT add 'm365' to TIERS). M365 has no external_org_bindings row, no health
             probe, and no source-of-truth domains; forcing it into that array would hand it a
             credential-and-health model it does not have. The card self-gates Admin-only on the FE;
-            the edge fn re-enforces Admin-of-org OR Operator (FR-M365SEP-004/009). */}
+            the edge fn re-enforces Admin-of-org OR Operator (FR-M365SEP-004/009).
+            Step order: the org's own app registration (#1017) → org approval → each user connects. */}
+        <M365AppRegistrationCard />
         <M365OrgApprovalCard />
         {/* Org default document library — an org setting, deliberately separate from the personal
             connection and from the org approval above (it grants no access to anything). */}

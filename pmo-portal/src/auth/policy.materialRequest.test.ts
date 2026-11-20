@@ -49,3 +49,18 @@ describe('approval chain and stand-in policy', () => {
     expect(can('manage', 'standIn', { realRole: role, currentUserId: 'u1', record: { delegator_id: 'u1', viewOnly: true } })).toBe(false);
   });
 });
+
+describe('approval step pin policy (#2598)', () => {
+  const ctx = (realRole: (typeof roles)[number], project_manager_id: string | null, viewOnly = false) =>
+    ({ realRole, currentUserId: 'u1', record: { project_manager_id, viewOnly } });
+  it('AC-MRQ-016 an Admin or the project\'s own manager manages pins; nobody else', () => {
+    expect(can('manage', 'approvalStepPin', ctx('Admin', 'u9'))).toBe(true);
+    expect(can('manage', 'approvalStepPin', ctx('Project Manager', 'u1'))).toBe(true);
+    expect(can('manage', 'approvalStepPin', ctx('Project Manager', 'u9'))).toBe(false);
+    expect(can('manage', 'approvalStepPin', ctx('Engineer', null))).toBe(false);
+  });
+  it('AC-MRQ-016 a view-as session and a signed-out user manage nothing', () => {
+    expect(can('manage', 'approvalStepPin', ctx('Admin', 'u1', true))).toBe(false);
+    expect(can('manage', 'approvalStepPin', { realRole: null, currentUserId: 'u1', record: { project_manager_id: 'u1' } })).toBe(false);
+  });
+});

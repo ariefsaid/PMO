@@ -37,4 +37,23 @@ describe('notification wording', () => {
     expect(notificationBody({ body: 'Project Phoenix', message_key: null, message_params: null }, inst.t.bind(inst))).toBe('Project Phoenix');
     expect(notificationBody({ body: 'Project Phoenix', message_key: 'unknown', message_params: {} }, inst.t.bind(inst))).toBe('Project Phoenix');
   });
+  it('#2616 renders a document-expiry warning in each language, keeping user text literal', async () => {
+    const row = { title: 'stored title', body: 'stored body', message_key: 'documentExpiry',
+      message_params: { type: 'Permit {{x}}', subject: 'Budi 50%', days: 7, expires_on: '2026-11-28' } };
+    const english = i18next.createInstance();
+    await english.init({ lng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en } }, interpolation: { escapeValue: false } });
+    expect(notificationTitle(row, english.t.bind(english))).toBe('Permit {{x}} expires in 7 days');
+    expect(notificationBody(row, english.t.bind(english))).toMatch(/^Budi 50% — Permit \{\{x\}\} expires on .*2026, in 7 days\.$/);
+    expect(notificationTitle({ ...row, message_params: { ...row.message_params, days: 1 } }, english.t.bind(english))).toBe('Permit {{x}} expires in 1 day');
+    const bahasa = i18next.createInstance();
+    await bahasa.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } }, interpolation: { escapeValue: false } });
+    expect(notificationTitle(row, bahasa.t.bind(bahasa))).toBe('Permit {{x}} kedaluwarsa dalam 7 hari');
+    expect(notificationBody(row, bahasa.t.bind(bahasa))).toMatch(/^Budi 50% — Permit \{\{x\}\} kedaluwarsa pada .*2026, dalam 7 hari\.$/);
+  });
+  it('#2616 a stored warning without parameters keeps its stored text', async () => {
+    const inst = i18next.createInstance();
+    await inst.init({ lng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en } } });
+    expect(notificationBody({ body: 'Crane — Certificate expires 28 Nov 2026.', message_key: null, message_params: null }, inst.t.bind(inst))).toBe('Crane — Certificate expires 28 Nov 2026.');
+    expect(notificationTitle({ title: 'Certificate expires in 7 days', message_key: null }, inst.t.bind(inst))).toBe('Certificate expires in 7 days');
+  });
 });
