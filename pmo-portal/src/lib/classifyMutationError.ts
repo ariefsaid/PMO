@@ -274,6 +274,10 @@ const TASK_RULE_MESSAGES = [
 ];
 const isTaskRule = (code: string | undefined, message: string): boolean =>
   code === '23514' && TASK_RULE_MESSAGES.includes(message);
+/** #2581 FR-CTR-014: a damaged or lost tool's task is set Done only by closing its report (migration 1081's guard). */
+const TOOL_TASK_DETAIL = 'This task is a tool report. Open Crews, Tools, and close the report there to finish it.';
+const isToolTaskRefusal = (code: string | undefined, message: string): boolean =>
+  code === '23514' && message.startsWith('CTR_RESOLVE_REQUIRED');
 
 export interface ClassifiedMutationError {
   /** The primary, human headline. */
@@ -319,7 +323,8 @@ export function classifyMutationError(
       : POSTGRES_GENERATED_DETAIL['23514']
     : undefined;
   const taskRule = isTaskRule(code, rawDetail);
-  const detail = detailOverride ?? (taskRule ? rawDetail : undefined) ?? safeCheckDetail ?? generated ?? rawDetail;
+  const toolTask = isToolTaskRefusal(code, rawDetail) ? TOOL_TASK_DETAIL : undefined;
+  const detail = detailOverride ?? toolTask ?? (taskRule ? rawDetail : undefined) ?? safeCheckDetail ?? generated ?? rawDetail;
 
   if (import.meta.env.DEV) {
     // The dev-only affordance for the raw text (AC-ERR-002): table/constraint names and RLS
