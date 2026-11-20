@@ -39,7 +39,7 @@ test('AC-SPC-020 validated vendor-crew work is certified at the agreed rate, app
   await admin.from('projects').insert({ id: projectId, org_id: orgId, name: `Certificate project ${suffix}`, status: 'Ongoing Project', currency: 'IDR', project_manager_id: pm.data.id }).throwOnError();
   const item = await admin.from('boq_items').insert({ org_id: orgId, project_id: projectId, item_code: `A-${suffix}`, description: `Concrete ${suffix}`, unit: 'm3', quantity: 100, rate: 12 }).select('id').single().throwOnError();
   const boqItemId = item.data.id as string;
-  await admin.from('work_orders').insert({ id: workOrderId, org_id: orgId, project_id: projectId, title: `Certificate WO ${suffix}`, order_value: 0, tax_treatment: 'exclusive', tax_amount: 0 }).throwOnError();
+  await admin.from('work_orders').insert({ id: workOrderId, org_id: orgId, project_id: projectId, title: `Certificate WO ${suffix}`, order_value: 0, currency: 'IDR', tax_treatment: 'exclusive', tax_amount: 0 }).throwOnError();
   await admin.from('work_order_lines').insert({ id: woLineId, org_id: orgId, work_order_id: workOrderId, boq_item_id: boqItemId, quantity: 100 }).throwOnError();
   await admin.from('crews').insert({ id: crewId, org_id: orgId, code: `C-${suffix.slice(-8)}`, name: `Vendor crew ${suffix}`, kind: 'vendor', vendor_company_id: vendorId }).throwOnError();
   await admin.from('procurements').insert({
@@ -68,7 +68,7 @@ test('AC-SPC-020 validated vendor-crew work is certified at the agreed rate, app
   await rateDialog.getByLabel('Subcontract purchase order').selectOption({ value: poId });
   await expect(rateDialog.getByLabel('Contract item')).toContainText(`A-${suffix}`, { timeout: 15_000 });
   await rateDialog.getByLabel('Contract item').selectOption({ value: boqItemId });
-  await rateDialog.getByLabel('Rate', { exact: true }).fill('10');
+  await rateDialog.getByLabel(/^Rate/).fill('10');
   await rateDialog.getByLabel('From month').fill('2026-03');
   await rateDialog.getByRole('button', { name: 'Save rate' }).click();
   await expect(rateDialog).toBeHidden({ timeout: 15_000 });
