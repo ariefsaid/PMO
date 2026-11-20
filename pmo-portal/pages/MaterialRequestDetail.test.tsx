@@ -22,6 +22,8 @@ vi.mock('@/src/hooks/useStock', () => ({
   useStockItems: () => ({ data: [{ id: 'i1', code: 'CEM', name: 'Cement' }] }),
   useStockWarehouses: () => ({ data: [{ id: 'w1', code: 'MAIN', name: 'Main store', kind: 'central', archived_at: null }] }),
 }));
+vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => ({ data: { id: 'w', wo_number: 'WO-0042', title: 'Slab pour' } }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p', name: 'Harbour Road', short_name: null, code: null }] }) }));
 vi.mock('@/src/hooks/useUsers', () => ({
   useUsers: () => ({ data: [{ id: 'u-author', full_name: 'Eli Engineer' }, { id: 'u-approver', full_name: 'Pia Manager' }, { id: 'u-away', full_name: 'Finn Away' }] }),
 }));
@@ -60,6 +62,12 @@ describe('material request detail', () => {
     expect(screen.getByTestId('mrq-chain')).toHaveTextContent('Finn Away');
     expect(screen.getByText(/Over plan: Extra slab/)).toBeInTheDocument();
     expect(screen.getByText(/Plan 10 · already requested 0 · new total 12/)).toBeInTheDocument();
+  });
+
+  it('#2609 header names the work order (linked) and its project', () => {
+    renderPage();
+    expect(screen.getByRole('link', { name: 'WO-0042 · Slab pour' })).toHaveAttribute('href', '/work-orders/w');
+    expect(screen.getByText(/Harbour Road/)).toBeInTheDocument();
   });
 
   it('AC-MRQ-013 offers Approve only for the step in my queue', () => {

@@ -91,7 +91,8 @@
       "raised": "Raised",
       "status": "Status",
       "step": "Your step",
-      "submitted": "Sent"
+      "submitted": "Sent",
+      "workOrder": "Work order"
     },
     "empty": "No material requests yet",
     "error": "Couldn't load material requests",
@@ -114,8 +115,8 @@
   },
   "refusal": {
     "adminOnly": "Only an administrator can do this.",
-    "cutoffDated": "Requests for tomorrow closed at {{time}}. The earliest date you can request is {{date}}.",
     "cutoff": "The daily cut-off has passed for tomorrow. Choose a later needed-by date.",
+    "cutoffDated": "Requests for tomorrow closed at {{time}}. The earliest date you can request is {{date}}.",
     "neededBy": "Choose a needed-by date that is not in the past.",
     "noChain": "No approval chain is set up yet. Ask an administrator.",
     "noDestination": "The work order’s project has no site warehouse to deliver to.",

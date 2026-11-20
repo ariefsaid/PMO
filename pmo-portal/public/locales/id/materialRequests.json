@@ -91,7 +91,8 @@
       "raised": "Diajukan",
       "status": "Status",
       "step": "Langkah Anda",
-      "submitted": "Dikirim"
+      "submitted": "Dikirim",
+      "workOrder": "Perintah kerja"
     },
     "empty": "Belum ada permintaan material",
     "error": "Permintaan material tidak dapat dimuat",
@@ -114,8 +115,8 @@
   },
   "refusal": {
     "adminOnly": "Hanya administrator yang dapat melakukan ini.",
-    "cutoffDated": "Permintaan untuk besok ditutup pukul {{time}}. Tanggal paling awal yang bisa diminta adalah {{date}}.",
     "cutoff": "Batas waktu harian untuk besok sudah lewat. Pilih tanggal dibutuhkan yang lebih lambat.",
+    "cutoffDated": "Permintaan untuk besok ditutup pukul {{time}}. Tanggal paling awal yang bisa diminta adalah {{date}}.",
     "neededBy": "Pilih tanggal dibutuhkan yang belum lewat.",
     "noChain": "Rantai persetujuan belum diatur. Hubungi administrator.",
     "noDestination": "Proyek perintah kerja ini tidak punya gudang lokasi tujuan.",

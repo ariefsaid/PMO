@@ -8,7 +8,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useMaterialRequest, useMaterialRequestMutations, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
 import { useStockItems, useStockWarehouses } from '@/src/hooks/useStock';
 import { formatDay } from '@/src/lib/format';
-import { RequestStatusPill, StepStatusPill } from './materialRequests/shared';
+import { RequestStatusPill, RequestWorkOrder, StepStatusPill } from './materialRequests/shared';
 import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
 
 type Dialog = null | { kind: 'return' | 'reject' } | { kind: 'approve' } | { kind: 'withdraw' } | { kind: 'retry' };
@@ -76,6 +76,7 @@ const MaterialRequestDetailPage: React.FC = () => {
             { key: 'reject', label: t('detail.reject', 'Reject'), onSelect: () => setDialog({ kind: 'reject' }) }] : []),
           ...(canWithdraw ? [{ key: 'withdraw', label: t('detail.withdraw', 'Withdraw request'), onSelect: () => setDialog({ kind: 'withdraw' }) }] : []),
         ]} menuLabel={t('detail.moreActions', 'More actions')}>
+        <p><span className="text-muted-foreground">{t('list.columns.workOrder', 'Work order')}: </span><RequestWorkOrder workOrderId={req.workOrderId} projectId={req.projectId} /></p>
         {req.note && <p>{req.note}</p>}
       </RecordHeader>
 
