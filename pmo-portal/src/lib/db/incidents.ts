@@ -1,3 +1,4 @@
+import { likeAny } from '@/src/lib/postgrestLike';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
@@ -44,8 +45,6 @@ function throwWrite(error: PostgrestErrorLike): never {
 }
 
 /** Quote a user-typed term for a PostgREST `ilike`: `%`/`_` are LIKE metacharacters, `\\` escapes them, `"` ends the quoted value. */
-const likeAny = (value: string) => `"%${value.replace(/[\\%_"]/g, '\\$&')}%"`;
-
 /** The register's status filter + type/location search, shared by the page read and the full read. */
 function withFilters<Q extends { eq: (c: string, v: string) => Q; or: (f: string) => Q }>(
   query: Q,

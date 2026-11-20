@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import { useAuth } from '@/src/auth/useAuth';
+import { useOrgId } from '@/src/hooks/useOrgId';
 import type { BudgetCategory } from '@/src/lib/db/imprest';
 import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
@@ -9,7 +9,6 @@ import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-float', 'imprest-position', 'imprest-plan-usage', 'imprest-plans',
   'imprest-replenishments', 'imprest-counts', 'imprest-float-choices', 'imprest-float-claims', 'imprest-limit', 'imprest-awaiting', 'imprest-float-changes', 'imprest-posting-states'] as const;
 
-const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 
 export function useImprestFloats() {
   const orgId = useOrgId();

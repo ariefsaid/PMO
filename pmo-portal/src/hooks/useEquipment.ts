@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import { useAuth } from '@/src/auth/useAuth';
+import { useOrgId } from '@/src/hooks/useOrgId';
 import type { CostingDraft, UsageInput, UsageStatus } from '@/src/lib/db/equipment';
 
 /**
@@ -15,7 +15,6 @@ export const EQUIPMENT_QUERY_ROOTS = ['equipment-assets', 'equipment-usage', 'eq
   'equipment-asset-matches'] as const;
 const PROJECT_FINANCES_ROOT = 'project-finances';
 
-const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 /** A totals/allocations read names an asset OR a project: the RPCs require one and refuse a bare range (22023). */
 const namesOne = (q: { assetId?: string; projectId?: string }): boolean => Boolean(q.assetId || q.projectId);
 
