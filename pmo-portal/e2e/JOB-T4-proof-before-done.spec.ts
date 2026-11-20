@@ -7,7 +7,7 @@ import { serviceClient, ownProject, dropProject, profileId, uniq, ORG_ID } from 
 test.setTimeout(120_000);
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
-const admin = serviceClient();
+const admin = serviceClient('JOB-T4');
 let projectId = '';
 let taskId = '';
 test.afterEach(async () => {

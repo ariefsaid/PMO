@@ -7,7 +7,7 @@ import { serviceClient, ownProject, dropProject, uniq } from './support/jobFixtu
 
 test.setTimeout(150_000);
 
-const admin = serviceClient();
+const admin = serviceClient('JOB-T1');
 let projectId = '';
 test.beforeEach(async () => { projectId = await ownProject(admin, `JOB-T1 project ${uniq()}`); });
 test.afterEach(async () => { await dropProject(admin, projectId, ['task_dependencies', 'tasks']); });

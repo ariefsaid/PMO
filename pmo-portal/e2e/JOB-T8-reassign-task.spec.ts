@@ -6,7 +6,7 @@ import { serviceClient, ownProject, dropProject, profileId, uniq, ORG_ID } from 
 
 test.setTimeout(150_000);
 
-const admin = serviceClient();
+const admin = serviceClient('JOB-T8');
 let projectId = '';
 test.afterEach(async () => { if (projectId) await dropProject(admin, projectId); projectId = ''; });
 

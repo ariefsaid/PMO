@@ -14,7 +14,7 @@ test('JOB-PU16 issuing 20 of a bulk stock to a work order charges it 20 units at
   const number = `WO-PU16-${sfx}`;
   const workOrderId = randomUUID();
   const admin = await userClient('admin@acme.test');
-  const service = serviceClient();
+  const service = serviceClient('JOB-PU16');
   const project = await service.from('projects').select('org_id,currency').eq('id', SEED_PROJECT_ID).single();
   if (project.error) throw project.error;
   const wo = await service.from('work_orders').insert({ id: workOrderId, org_id: project.data.org_id, project_id: SEED_PROJECT_ID,

@@ -17,7 +17,7 @@ test('JOB-W1 client material arrives at zero cost and reaches the work order wit
   const number = `WO-W1-${sfx}`;
   const workOrderId = randomUUID();
   const admin = await userClient('admin@acme.test');
-  const service = serviceClient();
+  const service = serviceClient('JOB-W1');
   const project = await service.from('projects').select('org_id,currency').eq('id', SEED_PROJECT_ID).single();
   if (project.error) throw project.error;
   const wo = await service.from('work_orders').insert({ id: workOrderId, org_id: project.data.org_id, project_id: SEED_PROJECT_ID,

@@ -6,7 +6,7 @@ import { serviceClient, ownProject, dropProject, profileId, uniq, ORG_ID } from 
 
 test.setTimeout(90_000);
 
-const admin = serviceClient();
+const admin = serviceClient('JOB-T5');
 const projects: string[] = [];
 test.afterEach(async () => { for (const p of projects.splice(0)) await dropProject(admin, p); });
 

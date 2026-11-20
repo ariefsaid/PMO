@@ -9,7 +9,7 @@ export async function mrqSetup(steps: Array<{ role: string; label: string }>, cu
   const admin = await userClient('admin@acme.test');
   const orgId = (await admin.from('projects').select('org_id').eq('id', SEED_PROJECT_ID).single()).data?.org_id as string;
   const item = await makeItem(admin, sfx, 'M');
-  const wo = await serviceClient().from('work_orders').insert({
+  const wo = await serviceClient('material-request journey').from('work_orders').insert({
     org_id: orgId, project_id: SEED_PROJECT_ID, title: `JOB MRQ ${sfx}`, wo_number: `JOB-MRQ-${sfx}`, status: 'Issued',
     issued_at: new Date().toISOString(), order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0,
   }).select('id, title, wo_number').single();
