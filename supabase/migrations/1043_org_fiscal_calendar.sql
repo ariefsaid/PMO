@@ -1,5 +1,5 @@
--- 1018 (#2329): a fiscal calendar in PMO for an organization with no accounting system.
--- Rollback: supabase/migrations/rollback/1018_org_fiscal_calendar_down.sql
+-- 1043 (#2329): a fiscal calendar in PMO for an organization with no accounting system.
+-- Rollback: supabase/migrations/rollback/1043_org_fiscal_calendar_down.sql
 --
 -- One setting, derived years (spec D-1): the organization states the month its fiscal year starts and every fiscal
 -- year is computed from it, so there is no table of years to keep. Names follow D-2: a January start names a year by

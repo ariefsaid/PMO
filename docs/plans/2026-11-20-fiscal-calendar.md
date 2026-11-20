@@ -34,9 +34,9 @@ inside it, proven by pgTAP and mutation-checked.
 
 1. **pgTAP red** — `supabase/tests/1018_fiscal_calendar.test.sql` (AC-FCAL-001…010). Run:
    `npx supabase@2.122.1 test db supabase/tests/1018_fiscal_calendar.test.sql` → fails (functions missing).
-2. **1018 migration** — `supabase/migrations/1018_org_fiscal_calendar.sql` + `rollback/1018_org_fiscal_calendar_down.sql`:
+2. **1018 migration** — `supabase/migrations/1043_org_fiscal_calendar.sql` + `rollback/1043_org_fiscal_calendar_down.sql`:
    column, pure helpers, `org_pmo_fiscal_start_month`, `set_org_fiscal_year_start_month`, `get_pmo_fiscal_calendar`.
-3. **1019 migration** — `supabase/migrations/1019_budget_comparison_fiscal_year_cut.sql` + rollback: windowed helpers,
+3. **1019 migration** — `supabase/migrations/1044_budget_comparison_fiscal_year_cut.sql` + rollback: windowed helpers,
    `project_pmo_paid_by_category(uuid,date,date)`, one-argument helper delegates, `get_budget_comparison` PMO branch.
 4. **pgTAP green** + regression: `supabase/tests/0897_budget_comparison_no_ledger.test.sql`,
    `supabase/tests/budget_whole_project_comparison.test.sql`. Mutation checks M1–M3 (below).

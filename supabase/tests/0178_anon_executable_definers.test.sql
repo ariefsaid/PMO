@@ -257,7 +257,7 @@
 -- supabase/tests/operator_create_org.test.sql (AC-ORG-001/002). Anything added here without that
 -- pairing IS a relaxation.
 
--- ⚑ AMENDED BY 1018 (#2329): `set_org_fiscal_year_start_month` joins the retained set (+1, count 180 on dev's 179). SECURITY DEFINER
+-- ⚑ AMENDED BY 1043 (#2329): `set_org_fiscal_year_start_month` joins the retained set (+1, count 180 on dev's 179). SECURITY DEFINER
 -- writer under a member's JWT: it re-asserts active membership, the Admin role and the caller's org, and refuses where the
 -- organization reads an accounting-system ledger; proved by supabase/tests/1018_fiscal_calendar.test.sql (AC-FCAL-003/004).
 --
