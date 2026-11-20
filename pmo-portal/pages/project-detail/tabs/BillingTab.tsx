@@ -608,7 +608,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       <h3 className="text-sm font-semibold">{t('projectDetail.billing.claims.evidence', 'Evidence')}</h3>
       {claimDetailFor.evidence.length === 0
         ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p>
-        : <ClaimEvidenceList evidence={claimDetailFor.evidence} projectId={projectId} documents={documents.data ?? []} />}
+        : <ClaimEvidenceList evidence={claimDetailFor.evidence} documents={documents.data ?? []} />}
     </section>
   </Drawer>;
 
