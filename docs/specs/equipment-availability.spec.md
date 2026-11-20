@@ -1,6 +1,6 @@
 # Spec: Equipment availability, ownership and rental downtime (#2526)
 
-**Status:** proposed; owner decisions below need sign-off before build. IDs `FR-EAV-###`, `NFR-EAV-###`, `AC-EAV-###`. Plan: `docs/plans/2026-11-20-equipment-availability.md`. Executor: Orca worker for status/metrics; the rental-invoice deduction is a money path and is Director-dispatched, shipping alone. Map #2516; blocked by #2517. Extends `docs/specs/equipment-usage.spec.md` (#1519) and `equipment_assets` (0447); does not replace the usage log or its costing settings.
+**Status:** accepted; Director rulings adopt the recommended defaults below (2026-11-20). IDs `FR-EAV-###`, `NFR-EAV-###`, `AC-EAV-###`. Plan: `docs/plans/2026-11-20-equipment-availability.md`. Executor: Orca worker for status/metrics; the rental-invoice deduction is a money path and is Director-dispatched, shipping alone. Map #2516; blocked by #2517. Extends `docs/specs/equipment-usage.spec.md` (#1519) and `equipment_assets` (0447); does not replace the usage log or its costing settings.
 
 ## Job story
 
@@ -89,7 +89,9 @@ Hand calculation for the test month (30 days, 8 working hours/day): days 1-20 re
 | No proof on a down period | Shown "unproven"; excluded from deduction |
 | Invoice amount missing | Check shows expected amount only |
 
-## Owner decisions (recommended defaults, not rulings)
+## Director rulings (2026-11-20)
+
+The Director adopts all OD-EAV-1..4 and OQ-EAV-1..4 recommendations below. Rental downtime deduction is a comparison only and does not add a cost line to usage costing.
 | ID | Decision and default | If wrong, what breaks |
 |---|---|---|
 | OD-EAV-1 | Escalate when down more than 2 consecutive days, to users holding an equipment-manager permission. | Too eager buries real alerts; too late leaves rented machines billed while down. |
@@ -102,6 +104,6 @@ Hand calculation for the test month (30 days, 8 working hours/day): days 1-20 re
 | OQ-EAV-4 | Repeat escalation interval (default daily after the first). | Silence or noise. |
 
 ## Delivery checklist
-- [ ] Owner signs OD-EAV-1..4, answers OQ-EAV-1..4.
+- [x] Director adopted OD-EAV-1..4 and OQ-EAV-1..4 defaults.
 - [ ] Status/metrics slice and the invoice-check slice ship separately; the latter alone (money).
 - [ ] Glossary: physical availability, utilisation, downtime period, proven downtime.

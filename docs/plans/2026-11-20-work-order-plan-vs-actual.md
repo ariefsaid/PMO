@@ -45,5 +45,5 @@ The review aligned the cost and billing basis to the decisions recorded in the s
 | Q8 margin readers | Admin, Executive, Finance, PM. | 0997/0999, `can('view','workOrderPlan')` |
 
 Deviations from the plan and spec, for review:
-- **Work-order page (FR-WPVA-040, AC-WPVA-016).** #2518's page doesn't exist on this base yet, so the figures sit in the project's contract area for now: each work order has a basis row you can open, and a discipline roll-up follows. The E2E journey `AC-WPVA-016` is deferred until that page lands.
+- **Work-order page (FR-WPVA-040, AC-WPVA-016).** #2518's page doesn't exist on this base yet, so the figures sit in the project's contract area for now: each work order has a basis row you can open, and a discipline roll-up follows. The page section and the E2E journey `AC-WPVA-016` landed in #2570 (`docs/plans/2026-11-20-wo-page-plan-vs-actual.md`).
 - Plan editing in the UI is per whole work order. Per-discipline plan figures are visible and their editor is a follow-up.

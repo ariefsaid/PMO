@@ -28,6 +28,7 @@ const h = vi.hoisted(() => ({
   wom: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 // #1457: the invoice-overdue figure is bounded by the org's business day (fixed here per test file).
+vi.mock('@/src/components/tasks/WorkOrderOpenTasks', () => ({ WorkOrderOpenTasks: () => null }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
   useFxOrgDay: () => ({ day: '2026-06-01', isPending: false, isError: false, retry: vi.fn() }),
 }));
@@ -64,6 +65,7 @@ vi.mock('@/src/hooks/useSubcontract', () => ({ useWorkOrderCostVariations: () =>
 vi.mock('../TimeAndMaterials', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useTimeAndMaterials', () => ({ useInvoiceTmClaimNative: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 import BillingTab from '../tabs/BillingTab';
+vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 
 // C5/C6: in-page billing figures are whole and bare; the currency sits once in the summary heading.

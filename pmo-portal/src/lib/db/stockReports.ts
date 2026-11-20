@@ -4,7 +4,7 @@ import { AppError, toAppError } from '@/src/lib/appError';
 /** Quantities and money arrive as decimal strings from the read RPCs and stay strings (NFR-STK-007). Cost keys are absent below rank 20. */
 export interface StockOnHandRow {
   itemId: string; itemCode: string; itemName: string; unitCode: string; wholeOnly: boolean;
-  warehouseId: string; warehouseCode: string; warehouseName: string; warehouseKind: 'central' | 'site';
+  warehouseId: string; warehouseCode: string; warehouseName: string; warehouseKind: 'central' | 'site' | 'yard' | 'staging';
   qtyOnHand: string; valueOnHand?: string; avgCost?: string;
 }
 export interface StockLedgerRow {

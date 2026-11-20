@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { setOrgTerms } from '@/src/lib/i18n/orgTerms';
 import { makeRefLookup, refValidate, refId } from '../refLookup';
 
 const companies = [
@@ -10,6 +11,13 @@ const companies = [
 
 describe('makeRefLookup', () => {
   const lookup = makeRefLookup(companies, 'Company');
+
+  afterEach(() => setOrgTerms({}));
+  it('renames the app label without changing an unmatched imported name', () => {
+    setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
+    const project = makeRefLookup([], 'Project', true);
+    expect(project('Project Phoenix').error).toBe('Job "Project Phoenix" not found.');
+  });
 
   it('resolves an exact name to its id', () => {
     expect(lookup('Acme Corp')).toEqual({ id: 'c1', error: null });

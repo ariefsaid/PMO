@@ -79,7 +79,6 @@
     "retryCheck": "Periksa penyiapan lagi",
     "operatorHandoff": "Buka penyiapan akuntansi",
     "noDomains": "Belum ada informasi yang diperbarui dari ERPNext",
-    "m365ApprovalDescription": "Hanya jika Microsoft meminta persetujuan organisasi.",
     "organizationScope": "Koneksi pribadi: "
   },
   "uxs14": {
@@ -3535,7 +3534,6 @@
     },
     "m365OrgApproval": {
       "heading": "Microsoft 365",
-      "badge": "Persetujuan organisasi",
       "approve": "Setujui di Microsoft 365",
       "approving": "Membuka Microsoft 365…",
       "errorFallback": "Tidak dapat memulai persetujuan organisasi Microsoft 365."

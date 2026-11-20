@@ -96,7 +96,9 @@ disciplines make or lose money while there is still time to act.
 
 **Read and screens**
 - FR-WPVA-040 The work-order page (#2518) shall show plan vs actual, revenue vs actual and both margins; a project
-  tab shall list work orders and disciplines with the same figures and roll-up row.
+  tab shall list work orders and disciplines with the same figures and roll-up row. *(Status: shipped in #2570 —
+  `pages/work-order-detail/PlanVsActualSection.tsx`; the page reads the #2519 project read and shows this work order's
+  planned and actual direct and shared cost, revenue, both margins and discipline rows.)*
 - FR-WPVA-041 Every figure shall show its basis on demand (the contributing cost lines); overspend (actual over
   plan) shall read as such in words, not only in colour.
 
@@ -119,7 +121,7 @@ disciplines make or lose money while there is still time to act.
 | AC-WPVA-013 | Given equipment usage in hours and days, then hours show as hours and day entries show separately (no silent conversion). | Unit |
 | AC-WPVA-014 | Given overspend, then the screen states "over plan by X" in text. | Unit |
 | AC-WPVA-015 | Given a custom split saved by a Project Manager, then it is refused (Admin/Executive/Finance only). | pgTAP |
-| AC-WPVA-016 | Given a work order opened from the project tab, then its plan-vs-actual matches the project tab row. | E2E (one journey) |
+| AC-WPVA-016 | Given a work order opened from the project tab, then its plan-vs-actual matches the project tab row. | E2E (one journey). *Status: owned by `e2e/AC-WPVA-016-plan-vs-actual-matches.spec.ts` (#2570); panel states by `pages/work-order-detail/PlanVsActualSection.test.tsx`.* |
 
 Mutation check (required): break the allocation (`share := 0.5`) and AC-WPVA-004/005 go red; break the project-total
 sum and AC-WPVA-012 goes red; restore.

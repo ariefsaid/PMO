@@ -124,20 +124,20 @@ Totals: 14 ACs, 14 covered, 0 missing: none
 
 | AC | Intended layer (per spec) | Test found on branch |
 |---|---|---|
-| AC-BST-001 | (unstated) | pgTAP: `supabase/tests/0960_billing_stages.test.sql` |
+| AC-BST-001 | (unstated) | pgTAP: `supabase/tests/1021_billing_stages.test.sql` |
 | AC-BST-002 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/BillingTermsModal.test.tsx`; vitest: `pmo-portal/src/auth/policy.billingStages.test.ts`; vitest: `pmo-portal/src/lib/db/billingStages.test.ts` |
-| AC-BST-003 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx`; vitest: `pmo-portal/src/auth/policy.billingStages.test.ts`; pgTAP: `supabase/tests/0960_billing_stages.test.sql` |
-| AC-BST-004 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx`; vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/0960_billing_stages.test.sql` |
-| AC-BST-005 | (unstated) | pgTAP: `supabase/tests/0960_billing_stages.test.sql`; pgTAP: `supabase/tests/0962_billing_reconciliation.test.sql` |
-| AC-BST-006 | (unstated) | pgTAP: `supabase/tests/0960_billing_stages.test.sql` |
+| AC-BST-003 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx`; vitest: `pmo-portal/src/auth/policy.billingStages.test.ts`; pgTAP: `supabase/tests/1021_billing_stages.test.sql` |
+| AC-BST-004 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx`; vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/1021_billing_stages.test.sql` |
+| AC-BST-005 | (unstated) | pgTAP: `supabase/tests/1021_billing_stages.test.sql`; pgTAP: `supabase/tests/1023_billing_reconciliation.test.sql` |
+| AC-BST-006 | (unstated) | pgTAP: `supabase/tests/1021_billing_stages.test.sql` |
 | AC-BST-010 | (unstated) | vitest: `pmo-portal/src/lib/billingStages.test.ts` |
 | AC-BST-011 | (unstated) | vitest: `pmo-portal/src/lib/billingStages.test.ts` |
-| AC-BST-020 | (unstated) | vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/0962_billing_reconciliation.test.sql` |
-| AC-RET-001 | (unstated) | pgTAP: `supabase/tests/0565_log_table_retention_purges.test.sql`; pgTAP: `supabase/tests/0961_retention.test.sql` |
-| AC-RET-002 | (unstated) | vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/0961_retention.test.sql` |
-| AC-RET-003 | (unstated) | vitest: `pmo-portal/src/auth/policy.billingStages.test.ts`; pgTAP: `supabase/tests/0961_retention.test.sql` |
+| AC-BST-020 | (unstated) | vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/1023_billing_reconciliation.test.sql` |
+| AC-RET-001 | (unstated) | pgTAP: `supabase/tests/0565_log_table_retention_purges.test.sql`; pgTAP: `supabase/tests/1022_retention.test.sql` |
+| AC-RET-002 | (unstated) | vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/1022_retention.test.sql` |
+| AC-RET-003 | (unstated) | vitest: `pmo-portal/src/auth/policy.billingStages.test.ts`; pgTAP: `supabase/tests/1022_retention.test.sql` |
 | AC-RET-004 | (unstated) | e2e: `pmo-portal/e2e/AC-RET-004-billing-reconciliation-retention.spec.ts` |
-| AC-TRACE-001 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx`; vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/0962_billing_reconciliation.test.sql` |
+| AC-TRACE-001 | (unstated) | vitest: `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStages.test.tsx`; vitest: `pmo-portal/src/lib/db/billingStages.test.ts`; pgTAP: `supabase/tests/1023_billing_reconciliation.test.sql` |
 
 Totals: 14 ACs, 14 covered, 0 missing: none
 
@@ -308,7 +308,7 @@ Totals: 15 ACs, 15 covered, 0 missing: none
 
 | AC | Intended layer (per spec) | Test found on branch |
 |---|---|---|
-| AC-TERM-001 | pgTAP, `0975_org_terminology_rls.test.sql` | pgTAP: `supabase/tests/0975_org_terminology_rls.test.sql` |
+| AC-TERM-001 | pgTAP, `1024_org_terminology_rls.test.sql` | pgTAP: `supabase/tests/1024_org_terminology_rls.test.sql` |
 | AC-TERM-002 | unit, `orgTerms.test.ts` | vitest: `pmo-portal/src/lib/i18n/orgTerms.test.ts` |
 | AC-TERM-003 | unit, `orgTerms.i18next.test.ts` | vitest: `pmo-portal/src/lib/i18n/orgTerms.i18next.test.ts` |
 | AC-TERM-004 | unit, `AdministrationTerminology.test.tsx` | vitest: `pmo-portal/pages/AdministrationTerminology.test.tsx` |
@@ -344,18 +344,18 @@ Totals: 14 ACs, 10 covered, 4 missing: AC-IMT-008, AC-IMT-010, AC-IMT-013, AC-IM
 
 | AC | Intended layer (per spec) | Test found on branch |
 |---|---|---|
-| AC-TWOP-001 | pgTAP | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
-| AC-TWOP-002 | pgTAP | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
-| AC-TWOP-003 | pgTAP | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
-| AC-TWOP-004 | pgTAP (mutation-check: remove the trigger check → red) | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
-| AC-TWOP-005 | pgTAP | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
-| AC-TWOP-006 | pgTAP | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
+| AC-TWOP-001 | pgTAP | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
+| AC-TWOP-002 | pgTAP | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
+| AC-TWOP-003 | pgTAP | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
+| AC-TWOP-004 | pgTAP (mutation-check: remove the trigger check → red) | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
+| AC-TWOP-005 | pgTAP | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
+| AC-TWOP-006 | pgTAP | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
 | AC-TWOP-007 | Unit (repository + page) | vitest: `pmo-portal/src/lib/db/tasks.workOrder.test.ts` |
 | AC-TWOP-008 | Unit (RTL) | vitest: `pmo-portal/src/components/tasks/TaskProofPanel.test.tsx` |
 | AC-TWOP-009 | Unit | vitest: `pmo-portal/src/components/tasks/WorkOrderOpenTasks.test.tsx`; vitest: `pmo-portal/src/lib/db/tasks.workOrder.test.ts` |
 | AC-TWOP-010 | E2E (one journey) | e2e: `pmo-portal/e2e/AC-TWOP-010-proof-before-done.spec.ts` |
-| AC-TWOP-011 | pgTAP | pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
-| AC-TWOP-012 | Unit + pgTAP (count) | vitest: `pmo-portal/src/lib/db/taskProofs.test.ts`; vitest: `pmo-portal/src/lib/db/taskProofs.ts`; pgTAP: `supabase/tests/0991_task_work_order_proof.test.sql` |
+| AC-TWOP-011 | pgTAP | pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
+| AC-TWOP-012 | Unit + pgTAP (count) | vitest: `pmo-portal/src/lib/db/taskProofs.test.ts`; vitest: `pmo-portal/src/lib/db/taskProofs.ts`; pgTAP: `supabase/tests/1038_task_work_order_proof.test.sql` |
 
 Totals: 12 ACs, 12 covered, 0 missing: none
 

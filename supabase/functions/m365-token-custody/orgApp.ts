@@ -76,13 +76,29 @@ export async function handleSaveOrgApp(deps: HandlerDeps, body: Record<string, u
 export async function handleOrgAppInfo(deps: HandlerDeps): Promise<HandlerResult> {
   const orgId = await adminOrg(deps);
   if (typeof orgId !== 'string') return orgId;
-  const app = await resolveOrgApp(deps, orgId);
-  if ('status' in app && app.status !== 409) return app;
-  const configured = !('status' in app) && app.source === 'org';
+  const callbackUrls = { connect: deps.env.m365RedirectUri, signIn: `${deps.env.supabaseUrl}/auth/v1/callback` };
+  // #2260: the non-secret read (migration 1026) — the ids, the moment Microsoft last accepted them and
+  // whether a secret is stored. Reading the card must never decrypt the secret, so this path never calls
+  // m365_org_app_resolve (which returns it).
+  const { data, error } = await deps.serviceClient.rpc('m365_org_app_status', { p_org_id: orgId });
+  if (error || !Array.isArray(data) || data.length > 1) return fail(500, 'INTERNAL_ERROR');
+  if (data.length === 1) {
+    const row = data[0] as Record<string, unknown>;
+    if (typeof row.tenant_id !== 'string' || !row.tenant_id || typeof row.client_id !== 'string' || !row.client_id) return fail(500, 'INTERNAL_ERROR');
+    return { status: 200, body: {
+      configured: true, source: 'org', tenantId: row.tenant_id, clientId: row.client_id,
+      // A row whose Vault secret is gone says so instead of claiming a usable app.
+      secretSet: row.secret_set === true,
+      // The stored validation time: the Admin has to see how old the last check is (secrets expire).
+      validatedAt: typeof row.validated_at === 'string' && row.validated_at.length > 0 ? row.validated_at : null,
+      callbackUrls,
+    } };
+  }
+  // No app of its own: the deployment app is what connect and approval use, when this build has one.
+  const hasDeploymentApp = Boolean(deps.env.m365TenantId && deps.env.m365ClientId && deps.env.m365ClientSecret);
   return { status: 200, body: {
-    configured, source: 'status' in app ? null : app.source, tenantId: configured ? app.tenantId : null,
-    clientId: configured ? app.clientId : null, secretSet: configured,
-    callbackUrls: { connect: deps.env.m365RedirectUri, signIn: `${deps.env.supabaseUrl}/auth/v1/callback` },
+    configured: false, source: hasDeploymentApp ? 'deployment' : null, tenantId: null, clientId: null,
+    secretSet: false, validatedAt: null, callbackUrls,
   } };
 }
 

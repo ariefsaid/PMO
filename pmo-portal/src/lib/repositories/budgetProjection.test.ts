@@ -42,6 +42,7 @@ import {
   fetchActiveBudgetCategoryPhasing,
   listBudgetFiscalYears,
   fetchProjectFiscalCalendar,
+  fetchPmoFiscalCalendar,
   retryActiveBudgetPush,
   releaseActiveBudgetPushHold,
   listBudgetPostingAccountCatalogue,
@@ -54,6 +55,35 @@ import {
 } from './budgetProjection';
 import { AppError } from '@/src/lib/appError';
 import { Constants } from '@/src/lib/supabase/database.types';
+
+describe('PMO fiscal calendar (#2329)', () => {
+  beforeEach(() => { mockRpc.mockReset(); });
+
+  it('AC-FCAL-010 reads the PMO calendar of an organization with no accounting system, in the accounting-system shape', async () => {
+    const calendar = {
+      status: 'resolved',
+      project: { start: '2026-06-01', end: '2027-08-31' },
+      years: [
+        { name: '2026-2027', start: '2026-04-01', end: '2027-03-31' },
+        { name: '2027-2028', start: '2027-04-01', end: '2028-03-31' },
+      ],
+    };
+    mockRpc.mockResolvedValueOnce({ data: calendar, error: null });
+    await expect(fetchPmoFiscalCalendar('project-1')).resolves.toEqual(calendar);
+    expect(mockRpc).toHaveBeenCalledWith('get_pmo_fiscal_calendar', { p_project_id: 'project-1' });
+  });
+
+  it('AC-FCAL-010 keeps a not-set calendar explicit and rejects a project the caller cannot see', async () => {
+    mockRpc.mockResolvedValueOnce({ data: { status: 'unresolved', project: { start: '2026-06-01', end: null } }, error: null });
+    await expect(fetchPmoFiscalCalendar('project-1')).resolves.toEqual({ status: 'unresolved', project: { start: '2026-06-01', end: null } });
+
+    mockRpc.mockResolvedValueOnce({ data: null, error: null });
+    await expect(fetchPmoFiscalCalendar('project-1')).rejects.toBeInstanceOf(AppError);
+
+    mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'boom', code: '42501' } });
+    await expect(fetchPmoFiscalCalendar('project-1')).rejects.toBeInstanceOf(AppError);
+  });
+});
 
 describe('current project fiscal calendar read', () => {
   it('sends only the exact project calendar request and preserves opaque returned dates and names', async () => {

@@ -9,6 +9,8 @@
  * (including VI+Payment-only) is valid as long as required per-type fields are present
  * and the group has at least a title OR a project.
  */
+import { withEnglishOrgTerms } from '@/src/lib/i18n/orgTerms';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { RefLookup } from '@/src/lib/import/refLookup';
 import { refValidate } from '@/src/lib/import/refLookup';
 import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
@@ -237,7 +239,7 @@ export function validateGroups(
     const hasTitle = !!group.attrs.title?.trim();
     const hasProject = !!group.attrs.project?.trim();
     if (!hasTitle && !hasProject) {
-      groupErrors.push('Case must have at least a title or a project set.');
+      groupErrors.push(withEnglishOrgTerms('Case must have at least a title or a project set.', getActiveLocale().locale));
     }
 
     // Draft describes the initial case; later evidence may advance its status.

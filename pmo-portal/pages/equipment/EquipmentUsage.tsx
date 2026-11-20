@@ -347,6 +347,7 @@ const EquipmentUsagePage: React.FC = () => {
       filters={header}
     >
       <Link className="text-primary underline" to="/equipment/expiring">{t('equipment:nav.expiring', 'Expiring documents')}</Link>
+      <Button variant="outline" className="mb-3" onClick={() => navigate('/equipment/availability')}>{t('equipment:availability.title', 'Availability')}</Button>
       {canApproveTab && <Tabs items={tabs} value={tab} onChange={setTab} ariaLabel={t('equipment:usage.tabsLabel', 'Equipment usage views')} idBase="equipment-usage" className="mb-3" />}
       {/* The machine reads (picker, row names) page through the register: say how many are loaded so
           a machine past the first page is never silently missing from the picker. */}

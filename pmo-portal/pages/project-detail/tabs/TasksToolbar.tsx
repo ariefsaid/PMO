@@ -31,6 +31,9 @@ const TasksToolbar: React.FC<{
   onNewTask: () => void;
   scope: TaskScope;
   setTaskScope: (scope: TaskScope) => void;
+  workOrderFilter: string;
+  onWorkOrderFilter: (value: string) => void;
+  workOrderOptions: { value: string; label: string }[];
   statusFilter: TaskStatus | 'all';
   onStatusFilter: (value: TaskStatus | 'all') => void;
   assigneeFilter: string;
@@ -71,6 +74,9 @@ const TasksToolbar: React.FC<{
   onNewTask,
   scope,
   setTaskScope,
+  workOrderFilter,
+  onWorkOrderFilter,
+  workOrderOptions,
   statusFilter,
   onStatusFilter,
   assigneeFilter,
@@ -153,6 +159,11 @@ const TasksToolbar: React.FC<{
                 ...STATUSES.map((status) => ({ value: status, label: status })),
               ]}
             />
+          </div>
+          <div className="min-w-[144px] flex-1 sm:flex-none">
+            <SelectField id="tasks-filter-work-order" hideLabel
+              label={t('tasks:workOrderFilter.label', 'Filter by work order')} value={workOrderFilter} onChange={onWorkOrderFilter}
+              options={[{ value: 'all', label: t('tasks:workOrderFilter.all', 'All work orders') }, { value: 'none', label: t('tasks:workOrderFilter.none', 'No work order') }, ...workOrderOptions]} />
           </div>
           <div className="min-w-[144px] flex-1 sm:flex-none">
             <SelectField

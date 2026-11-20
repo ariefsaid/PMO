@@ -61,6 +61,14 @@ describe('AC-009 supporting: statement role eligibility', () => {
   });
 });
 
+describe('rate catalogue permissions', () => {
+  it('permits only Admin and Finance to import or manage locations', () => {
+    expect(allowedRoles('create', 'rateCatalogue')).toEqual(['Admin', 'Finance']);
+    expect(can('create', 'rateCatalogue', { realRole: null })).toBe(false);
+    expect(can('create', 'rateCatalogue', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+});
+
 describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
   // ── create ───────────────────────────────────────────────────────────────
   it('AC-CODE-001: manage organisation project numbering = Admin only', () => {
@@ -933,6 +941,16 @@ describe('can() — equipment usage and costing (#1519; transition_equipment_usa
     expect(allowedRoles('delete', 'equipmentAsset')).toEqual(['Admin']);
   });
 
+  it('AC-EAV-018 status and proof: the field role and managers; rental terms: Admin and Finance only', () => {
+    expect(allowedRoles('create', 'equipmentAvailability')).toEqual(['Admin', 'Project Manager', 'Engineer']);
+    expect(allowedRoles('manage', 'equipmentAvailability')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('approve', 'equipmentAvailability')).toEqual(['Admin', 'Finance']);
+    expect(can('approve', 'equipmentAvailability', { realRole: 'Executive' })).toBe(false);
+    expect(can('manage', 'equipmentAvailability', { realRole: 'Engineer' })).toBe(false);
+    expect(can('create', 'equipmentAvailability', { realRole: 'Finance' })).toBe(false);
+    expect(can('create', 'equipmentAvailability', { realRole: 'Engineer', record: { viewOnly: true } })).toBe(false); // view-as is read-only
+  });
+
   it('AC-EQU-017 only Admin and Finance set what an hour is worth — never a PM or an Executive', () => {
     expect(allowedRoles('manage', 'equipmentCosting')).toEqual(['Admin', 'Finance']);
     expect(can('manage', 'equipmentCosting', { realRole: 'Project Manager' })).toBe(false);
@@ -1115,5 +1133,70 @@ describe('#895 manual journals: the desk and the second approver', () => {
 describe('#1671 vendor bill void (UX gate; void_subcontract_bill is the authority)', () => {
   it('AC-SCV-008 only Admin and Finance may void a vendor bill', () => {
     expect(allowedRoles('void', 'procurementInvoice')).toEqual(['Admin', 'Finance']);
+  });
+});
+
+describe('can() — daily site report (#1522; dsr_save_draft / dsr_validate / dsr_report_revenue are the authority)', () => {
+  const rec = (author_id: string, project_manager_id: string | null) => ({ currentUserId: 'u1', record: { author_id, project_manager_id } });
+
+  it('AC-DSR-013 enter and submit: Admin, Engineer (the field role) or the project\'s own PM; never Finance or Executive', () => {
+    for (const realRole of ['Admin', 'Engineer'] as const) {
+      expect(can('create', 'dailySiteReport', { realRole, ...rec('u2', 'u9') })).toBe(true);
+    }
+    expect(can('create', 'dailySiteReport', { realRole: 'Project Manager', ...rec('u2', 'u1') })).toBe(true);
+    expect(can('create', 'dailySiteReport', { realRole: 'Project Manager', ...rec('u2', 'u9') })).toBe(false);
+    for (const realRole of ['Finance', 'Executive'] as const) {
+      expect(can('create', 'dailySiteReport', { realRole, ...rec('u2', 'u9') })).toBe(false);
+    }
+    expect(can('create', 'dailySiteReport', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('AC-DSR-005 validate: Admin, Finance or the project\'s PM, and never the author', () => {
+    for (const realRole of ['Admin', 'Finance'] as const) {
+      expect(can('approve', 'dailySiteReport', { realRole, ...rec('u2', 'u9') })).toBe(true);
+      expect(can('approve', 'dailySiteReport', { realRole, ...rec('u1', 'u9') })).toBe(false);
+    }
+    expect(can('approve', 'dailySiteReport', { realRole: 'Project Manager', ...rec('u2', 'u1') })).toBe(true);
+    expect(can('approve', 'dailySiteReport', { realRole: 'Project Manager', ...rec('u2', 'u9') })).toBe(false);
+    expect(can('approve', 'dailySiteReport', { realRole: 'Engineer', ...rec('u2', 'u1') })).toBe(false);
+    expect(can('approve', 'dailySiteReport', { realRole: 'Executive', ...rec('u2', 'u9') })).toBe(false);
+  });
+
+  it('correct: the validate audience, author or not (the corrector becomes the new version\'s author)', () => {
+    expect(can('revise', 'dailySiteReport', { realRole: 'Finance', ...rec('u1', 'u9') })).toBe(true);
+    expect(can('revise', 'dailySiteReport', { realRole: 'Engineer', ...rec('u2', 'u9') })).toBe(false);
+  });
+
+  it('revenue: the rate catalogue\'s readers only', () => {
+    for (const realRole of ['Admin', 'Finance', 'Executive'] as const) {
+      expect(can('view', 'dailySiteReportRevenue', { realRole, ...rec('u2', 'u9') })).toBe(true);
+    }
+    expect(can('view', 'dailySiteReportRevenue', { realRole: 'Project Manager', ...rec('u2', 'u1') })).toBe(true);
+    expect(can('view', 'dailySiteReportRevenue', { realRole: 'Project Manager', ...rec('u2', 'u9') })).toBe(false);
+    expect(can('view', 'dailySiteReportRevenue', { realRole: 'Engineer', ...rec('u2', 'u1') })).toBe(false);
+  });
+
+  it('every active role views reports', () => {
+    expect(allowedRoles('view', 'dailySiteReport')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer']);
+  });
+});
+
+describe('#2528 crews, roster and attendance (UX gate; RLS + attendance RPCs are the authority)', () => {
+  it('AC-CRW-014 every role reads crews; only delivery roles manage them, never in view-as', () => {
+    expect(allowedRoles('view', 'crew')).toEqual(ALL_ROLES);
+    expect(allowedRoles('manage', 'crew')).toEqual(['Admin', 'Executive', 'Project Manager']);
+    expect(allowedRoles('create', 'crew')).toEqual(['Admin', 'Executive', 'Project Manager']); // AC-CIM-011: the import buttons
+    expect(can('manage', 'crew', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+  it('AC-CRW-014 a delivery role, or the crew\'s own field controller, records attendance', () => {
+    expect(allowedRoles('create', 'attendance')).toEqual(['Admin', 'Executive', 'Project Manager']);
+    expect(can('create', 'attendance', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u1' } })).toBe(true);
+    expect(can('create', 'attendance', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u2' } })).toBe(false);
+    expect(can('create', 'attendance', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u1', viewOnly: true } })).toBe(false);
+  });
+  it('AC-CRW-010 a supervisor approves a no-login week, never one they recorded', () => {
+    expect(allowedRoles('approve', 'attendance')).toEqual(['Admin', 'Executive', 'Project Manager']);
+    expect(can('approve', 'attendance', { realRole: 'Admin', currentUserId: 'u1', record: { recorder_ids: ['u1'] } })).toBe(false);
+    expect(can('approve', 'attendance', { realRole: 'Project Manager', currentUserId: 'u1', record: { recorder_ids: ['u2'] } })).toBe(true);
   });
 });

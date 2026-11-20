@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { Button, Combobox, DateField, ListState, SelectField, TextArea, TextField, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
+import { useOrgFxContext } from '@/src/hooks/useOrgFxContext';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { addDays } from '@/src/lib/reports/months';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useStockItems, useStockUnits } from '@/src/hooks/useStock';
@@ -14,7 +17,6 @@ import { useRefusalText } from './materialRequests/useMaterialRequestText';
 
 interface FormLine { key: string; itemId: string; quantity: string; reason: string }
 const newLine = (): FormLine => ({ key: crypto.randomUUID(), itemId: '', quantity: '', reason: '' });
-const tomorrow = (): string => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); };
 
 /**
  * Raise (or amend a draft of) a material request for one work order (FR-MRQ-001/002/003). Phone-first: one column,
@@ -34,7 +36,11 @@ const MaterialRequestNewPage: React.FC = () => {
 
   const [projectId, setProjectId] = useState('');
   const [workOrderId, setWorkOrderId] = useState('');
-  const [neededBy, setNeededBy] = useState(tomorrow());
+  // Dates are the organisation's calendar days (the cut-off is judged in the organisation's zone), never the browser's or UTC's.
+  const orgTz = useOrgFxContext().data?.timezone;
+  const orgToday = useOrgToday(orgTz);
+  const [pickedNeededBy, setNeededBy] = useState<string | null>(null);
+  const neededBy = pickedNeededBy ?? (orgTz ? addDays(orgToday, 1) : '');
   const [note, setNote] = useState('');
   const [lines, setLines] = useState<FormLine[]>([newLine()]);
   const [seeded, setSeeded] = useState(false);
@@ -107,7 +113,7 @@ const MaterialRequestNewPage: React.FC = () => {
           statusOverride={workOrders.isPending && projectId ? 'loading' : workOrders.isError ? 'error' : undefined} onRetry={() => void workOrders.refetch()}
           selectedOption={woOptions.find((o) => o.value === workOrderId) ?? null} loadOptions={() => Promise.resolve(woOptions)}
           onChange={(v) => setWorkOrderId(v)} />
-        <DateField label={t('form.neededBy', 'Needed by')} required value={neededBy} onChange={setNeededBy} min={new Date().toISOString().slice(0, 10)} fullWidth
+        <DateField label={t('form.neededBy', 'Needed by')} required value={neededBy} onChange={setNeededBy} min={orgTz ? orgToday : undefined} fullWidth
           error={touched && !neededBy ? t('form.neededByRequired', 'Choose the date you need it.') : undefined} />
 
         <fieldset className="space-y-3">

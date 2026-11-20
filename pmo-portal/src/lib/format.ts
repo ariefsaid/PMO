@@ -1096,6 +1096,11 @@ export function formatUtcMonthYear(d: Date): string {
   }).format(d);
 }
 
+/** UTC "June" — full month name in the viewer's date locale (the fiscal-year start month picker, #2329). */
+export function formatUtcMonthLong(d: Date): string {
+  return dateFormatterFor('utcMonthLong', getDateLocale(), { month: 'long', timeZone: 'UTC' }).format(d);
+}
+
 /** UTC "Jun 2026" in the viewer's date locale: month + 4-digit year, so it never reads as a day. */
 export function formatUtcMonthYearFull(d: Date): string {
   return dateFormatterFor('utcMonthYearFull', getDateLocale(), {

@@ -7,18 +7,50 @@
   "filterByStatus": "Filter status",
   "openRow": "Buka {{type}}",
   "reported": "Dilaporkan {{date}}",
-  "col": { "incident": "Insiden", "severity": "Tingkat", "status": "Status", "date": "Tanggal", "location": "Lokasi" },
-  "action": { "edit": "Ubah", "delete": "Hapus", "next": "Langkah berikutnya", "clearFilters": "Hapus filter" },
-  "severity": { "Low": "Rendah", "Medium": "Sedang", "High": "Tinggi", "Critical": "Kritis" },
-  "error": { "title": "Insiden tidak dapat dimuat", "sub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi." },
+  "col": {
+    "incident": "Insiden",
+    "severity": "Tingkat",
+    "status": "Status",
+    "date": "Tanggal",
+    "location": "Lokasi",
+    "assignee": "Penanggung jawab"
+  },
+  "action": {
+    "edit": "Ubah",
+    "delete": "Hapus",
+    "next": "Langkah berikutnya",
+    "clearFilters": "Hapus filter"
+  },
+  "severity": {
+    "Low": "Rendah",
+    "Medium": "Sedang",
+    "High": "Tinggi",
+    "Critical": "Kritis"
+  },
+  "error": {
+    "title": "Insiden tidak dapat dimuat",
+    "sub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi."
+  },
   "empty": {
     "title": "Belum ada insiden",
     "sub": "Jika ada masalah di proyek atau lokasi, laporkan di sini agar bisa diselidiki dan ditutup.",
     "noMatchTitle": "Tidak ada insiden yang cocok dengan filter",
     "noMatchSub": "Coba status lain atau hapus pencarian."
   },
-  "pager": { "label": "Halaman", "range": "{{from}}–{{to}} dari {{total}}", "prev": "Halaman sebelumnya", "next": "Halaman berikutnya" },
-  "toast": { "closed": "Insiden ditutup", "started": "Penyelidikan dimulai", "deleted": "Insiden dihapus", "filed": "Insiden dilaporkan", "updated": "Insiden diperbarui" },
+  "pager": {
+    "label": "Halaman",
+    "range": "{{from}}–{{to}} dari {{total}}",
+    "prev": "Halaman sebelumnya",
+    "next": "Halaman berikutnya"
+  },
+  "toast": {
+    "closed": "Insiden ditutup",
+    "started": "Penyelidikan dimulai",
+    "deleted": "Insiden dihapus",
+    "filed": "Insiden dilaporkan",
+    "updated": "Insiden diperbarui",
+    "taskMade": "Tugas dibuat"
+  },
   "transition": {
     "advance": "Lanjutkan insiden?",
     "confirm": "Konfirmasi",
@@ -48,7 +80,15 @@
     "description": "Deskripsi",
     "noDescription": "Belum ada deskripsi.",
     "viewProject": "Lihat proyek",
-    "type": "Jenis"
+    "type": "Jenis",
+    "escalated": "Dieskalasi",
+    "escalatedBody": "Isu ini melewati tenggatnya pada {{date}}; penanggung jawab dan manajer proyek sudah diberi tahu.",
+    "closedOn": "Ditutup pada",
+    "task": "Tugas",
+    "taskLinked": "Sebuah tugas dibuat untuk isu ini.",
+    "makeTask": "Buat tugas",
+    "photos": "Foto",
+    "openTask": "Buka tugas"
   },
   "form": {
     "section": "Apa yang terjadi",
@@ -64,6 +104,42 @@
     "description": "Deskripsi",
     "descriptionPlaceholder": "Apa yang terjadi, siapa yang terlibat, dan tindakan langsung yang diambil.",
     "dateRequired": "Tanggal insiden wajib diisi.",
-    "typeRequired": "Jenis insiden wajib diisi."
+    "typeRequired": "Jenis insiden wajib diisi.",
+    "workOrder": "Perintah kerja",
+    "workOrderNoun": "perintah kerja",
+    "workOrderPlaceholder": "Opsional — pilih perintah kerja…",
+    "workOrderNeedsProject": "Pilih proyek terlebih dahulu",
+    "assignee": "Penanggung jawab",
+    "assigneeNoun": "orang",
+    "assigneePlaceholder": "Opsional — siapa yang harus memperbaikinya…",
+    "due": "Selesaikan sebelum",
+    "action": "Yang harus dikerjakan",
+    "actionPlaceholder": "mis. Ganti pagar pengaman yang rusak",
+    "photos": "Foto",
+    "addPhoto": "Tambah foto",
+    "photoHint": "Maksimal 10 foto, masing-masing 15 MB.",
+    "removePhoto": "Hapus",
+    "retryUpload": "Coba unggah foto lagi",
+    "uploadFailed": "Isu sudah disimpan, tetapi sebuah foto gagal diunggah. Teks Anda tetap ada — coba lagi untuk mengirim foto yang tersisa.",
+    "invalidDueTime": "Waktu jatuh tempo tidak berlaku di zona waktu Anda."
+  },
+  "filterByDue": "Filter berdasarkan tenggat",
+  "overdue": "Terlambat",
+  "evidence": {
+    "none": "Belum ada foto.",
+    "atClose": "Bukti penutupan",
+    "atRaise": "Saat dilaporkan"
+  },
+  "close": {
+    "note": "Catatan penutupan",
+    "notePlaceholder": "Apa yang dilakukan untuk memperbaikinya.",
+    "addPhoto": "Tambah foto penutupan",
+    "proofRequired": "Isu Tinggi atau Kritis wajib memiliki foto penutupan.",
+    "proofOptional": "Opsional untuk tingkat keparahan ini."
+  },
+  "projectScope": "Insiden proyek",
+  "allIncidents": "Semua insiden",
+  "notification": {
+    "overdue": "Insiden melewati tenggat"
   }
 }
