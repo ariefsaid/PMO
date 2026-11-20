@@ -32,7 +32,9 @@
     "leadTimeDays": "hari",
     "kinds": {
       "central": "Pusat",
-      "site": "Lokasi proyek"
+      "site": "Lokasi proyek",
+      "yard": "Halaman proyek",
+      "staging": "Area penyiapan"
     },
     "noKeepers": "Belum ada penjaga",
     "active": "Aktif",
@@ -75,7 +77,10 @@
         "codeRequired": "Kode wajib diisi.",
         "nameRequired": "Nama wajib diisi.",
         "unitRequired": "Pilih satuan.",
-        "leadTimeInvalid": "Isi hari bulat antara 0 dan 365."
+        "leadTimeInvalid": "Isi hari bulat antara 0 dan 365.",
+        "tag": "Label",
+        "tagHelp": "Opsional. Terkunci setelah barang punya pergerakan.",
+        "noTag": "Tanpa label"
       },
       "warehouse": {
         "newTitle": "Gudang baru",
@@ -140,13 +145,19 @@
     "issue": "Pengeluaran ke proyek",
     "return": "Pengembalian dari proyek",
     "adjustment": "Penyesuaian",
-    "count": "Stok opname"
+    "count": "Stok opname",
+    "opening": "Stok awal"
   },
   "empty": {
     "noStock": "Belum ada stok",
     "itemPicker": "Belum ada barang stok: tambahkan di Pengaturan stok."
   },
   "errors": {
+    "STK_ZERO_COST": "Barang ini harus diterima tanpa biaya.",
+    "STK_TAG_LOCKED": "Label ini tidak dapat diubah setelah stok bergerak.",
+    "STK_PAPER_REQUIRED": "Lampirkan dokumen yang diwajibkan sebelum memposting transfer ini.",
+    "STK_FILE_LOCKED": "Lampiran yang sudah diposting harus diarsipkan dengan alasan.",
+    "STK_FILE_MISSING": "Unggah lampiran sebelum menambahkannya ke dokumen.",
     "STK_INSUFFICIENT": "Stok tidak cukup untuk pergerakan ini.",
     "STK_NOT_KEEPER": "Hanya penjaga gudang ini yang dapat melakukannya.",
     "STK_OWNED_BY_ERP": "Stok dikelola di sistem akuntansi Anda, jadi tidak bisa diubah di sini.",
@@ -327,7 +338,8 @@
         "sentTitle": "Terkirim ke Odoo",
         "sentBody": "Menunggu jawaban Odoo. Buka dokumen untuk melihat posisinya."
       }
-    }
+    },
+    "workOrder": "Work Order / SPK"
   },
   "ledger": {
     "title": "Buku stok",
@@ -372,6 +384,8 @@
     "movements": "Pergerakan"
   },
   "form": {
+    "saveDraft": "Simpan draf",
+    "draftSaved": "Draf disimpan",
     "unknownKind": "Jenis dokumen tidak dikenal",
     "unknownKindSub": "Gunakan Terima, Transfer, Keluarkan, Kembalikan, Hitung stok, atau Penyesuaian dari halaman Stok.",
     "submit": {
@@ -626,5 +640,28 @@
     "column": "Isi ulang",
     "action": "Ajukan pembelian",
     "rowLabel": "Ajukan pembelian untuk {{item}}"
+  },
+  "siteWork": {
+    "files": {"unknownUploader": "Pengunggah tidak diketahui", "title": "Lampiran", "choose": "Pilih berkas", "label": "Label (opsional)", "upload": "Unggah lampiran", "remove": "Hapus", "reason": "Alasan pengarsipan", "loading": "Memuat lampiran…", "loadError": "Lampiran tidak dapat dimuat.", "error": "Lampiran tidak dapat diubah."},
+    "tags": {"connectedUnavailable": "Label stok tidak tersedia saat inventaris terhubung.", "confirmTitle": "Arsipkan label stok ini?", "confirmDescription": "Barang tetap memiliki labelnya, tetapi label tidak lagi ditawarkan untuk barang baru.", "manage": "Kelola label stok", "name": "Nama label", "zero": "Tanpa biaya", "paper": "Dokumen wajib", "add": "Tambah label", "save": "Simpan label", "loadError": "Label stok tidak dapat dimuat.", "loading": "Memuat label stok…"},
+    "balance": {
+      "connectedUnavailable": "Sisa stok perintah kerja tidak tersedia untuk inventaris yang terhubung.",
+      "issuedValue": "Nilai terpakai",
+      "loading": "Memuat stok…",
+      "open": "Stok untuk perintah kerja ini",
+      "error": "Stok untuk perintah kerja ini tidak dapat dimuat.",
+      "title": "Stok untuk perintah kerja ini",
+      "empty": "Belum ada stok yang bergerak untuk perintah kerja ini.",
+      "item": "Barang",
+      "location": "Lokasi",
+      "received": "Diterima",
+      "movedOut": "Dipindah ke tempat lain",
+      "issued": "Dikeluarkan",
+      "onSite": "Di lokasi",
+      "value": "Nilai",
+      "unassigned": "Tidak terkait perintah kerja",
+      "noValue": "—",
+      "zeroCost": "Dari klien, tanpa biaya"
+    }
   }
 }

@@ -24,6 +24,7 @@ let realRole: Role = 'Engineer';
 let effectiveRole: Role = 'Engineer';
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole }) }));
 
+vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({ CostAttributionFields: ({ projectId, value }: { projectId: string | null; value?: { workOrderId: string | null } }) => <div data-testid="cost-attribution-stub" data-project={projectId ?? ''} data-wo={value?.workOrderId ?? ''} /> }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-01' }) }));
 
 import StockMovementForm from './StockMovementForm';
@@ -80,6 +81,16 @@ describe('StockMovementForm', () => {
     renderForm('return');
     expect(await screen.findByLabelText(/^Project/)).toBeInTheDocument();
     expect(screen.getByTestId('cost-attribution-stub')).toBeInTheDocument();
+  });
+
+  it('#2612 citing an issue line prefills the work order that issue was for', async () => {
+    documents.issueLines.mockResolvedValue([{ id: 'il1', item_id: 'i1', quantity: '5', boq_item_id: null, item: { code: 'CEM', name: 'Cement', unit: { code: 'bag' } }, boq: null,
+      document: { id: 'd1', number: 'ISS-1', occurred_on: '2026-11-01', warehouse_id: 'w1', work_order_id: 'wo-7' } }]);
+    renderForm('return', 'Admin');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Project/), 'p1');
+    expect(screen.getByTestId('cost-attribution-stub')).toHaveAttribute('data-wo', '');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Issue to return/), 'il1');
+    expect(screen.getByTestId('cost-attribution-stub')).toHaveAttribute('data-wo', 'wo-7');
   });
 
   it('AC-STK-030 every field has a label, the item picker finds by code or name, and axe reports no violation', async () => {
@@ -300,4 +311,24 @@ describe('StockMovementForm', () => {
     renderForm('bogus');
     expect(await screen.findByText('Unknown document kind')).toBeInTheDocument();
   });
+});
+
+it.each(['yard', 'staging'])('offers destination project work orders for a %s transfer', async (kind) => {
+  master.listWarehouses.mockResolvedValue([wh('w1', 'CENTRAL'), { ...wh('w2', 'SITE-B'), kind, project_id: 'p1' }]);
+  renderForm('transfer');
+  await userEvent.selectOptions(await screen.findByLabelText(/^To warehouse/), 'w2');
+  expect(screen.getByTestId('cost-attribution-stub')).toHaveAttribute('data-project', 'p1');
+});
+
+it('saves a transfer as a draft so paper can be attached before posting', async () => {
+  renderForm('transfer');
+  await userEvent.selectOptions(await screen.findByLabelText(/^From warehouse/), 'w1');
+  await userEvent.selectOptions(screen.getByLabelText(/^To warehouse/), 'w2');
+  await userEvent.click(screen.getByRole('combobox', { name: /^Item/ }));
+  await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'cem');
+  await userEvent.click(await screen.findByRole('option', { name: /CEM - Cement 50kg/ }));
+  await userEvent.type(screen.getByLabelText(/^Quantity/), '2');
+  await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await waitFor(() => expect(documents.create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'transfer' }), expect.objectContaining({ post: false })));
+  expect(await screen.findByText('document page')).toBeInTheDocument();
 });

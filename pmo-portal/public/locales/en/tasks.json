@@ -15,5 +15,42 @@
     "pushFailedAria": "push failed",
     "pushFailedAriaWithReason": "push failed: {{reason}}",
     "pushFailedTitle": "The push to the external system failed"
+  },
+  "proof": {
+    "title": "Proof of completion",
+    "attached_one": "{{count}} proof attached.",
+    "attached_other": "{{count}} proofs attached.",
+    "missing": "Proof required: add a photo or document before this task can be Done.",
+    "optional": "No proof required for this task.",
+    "loading": "Loading proof…",
+    "loadFailed": "Proof could not be loaded.",
+    "remove": "Remove",
+    "addPhoto": "Add photo",
+    "addDocument": "Add document",
+    "photoInput": "Take or choose a photo",
+    "documentInput": "Choose a document",
+    "markDone": "Mark done",
+    "doneBlocked": "Add a photo or document first; this task cannot be Done without proof.",
+    "required": "Require proof of completion",
+    "workOrder": "Work order",
+    "noWorkOrder": "No work order",
+    "refused": {
+      "count": "A task holds at most 10 proof attachments.",
+      "size": "That file is larger than 15 MB.",
+      "type": "That file type is not allowed. Use a photo, PDF or Office document."
+    }
+  },
+  "workOrderTasks": {
+    "title": "Open tasks",
+    "empty": "No open tasks on this work order.",
+    "loading": "Loading tasks…",
+    "loadFailed": "Tasks could not be loaded.",
+    "unassigned": "Unassigned",
+    "noDue": "No due date"
+  },
+  "workOrderFilter": {
+    "label": "Filter by work order",
+    "all": "All work orders",
+    "none": "No work order"
   }
 }

@@ -18,6 +18,9 @@ import {
   classifyM365InvokeError,
   throwClassifiedM365Error,
   keepsFolderPermission,
+  getM365OrgApp,
+  saveM365OrgApp,
+  clearM365OrgApp,
 } from '../connectClient';
 import { AppError } from '../../appError';
 
@@ -387,5 +390,64 @@ describe('throwClassifiedM365Error (shared by the connect, Graph and record-fold
   it('classifies a network failure as external-unreachable', async () => {
     const e = await captureThrow(() => throwClassifiedM365Error(networkError('name resolution failed')));
     expect(e.code).toBe('external-unreachable');
+  });
+});
+
+describe('AC-M365SS-017 (transport) — the per-organisation app actions (#1017 S4)', () => {
+  const TENANT = '11111111-2222-3333-4444-555555555555';
+  const CLIENT = '66666666-7777-8888-9999-000000000000';
+  const info = {
+    configured: true, source: 'org', tenantId: TENANT, clientId: CLIENT, secretSet: true,
+    validatedAt: '2026-11-18T02:15:00+00:00',
+    callbackUrls: { connect: 'https://fn.invalid/callback', signIn: 'https://db.invalid/auth/v1/callback' },
+  };
+
+  it('AC-M365SS-017: getM365OrgApp posts org_app_info and returns the info body', async () => {
+    invoke.mockResolvedValueOnce({ data: info, error: null });
+    const result = await getM365OrgApp();
+    expect(invoke).toHaveBeenCalledWith('m365-token-custody', { body: { action: 'org_app_info' } });
+    expect(result).toEqual(info);
+  });
+
+  it('AC-M365AV-003: getM365OrgApp carries the validation time through to the card', async () => {
+    invoke.mockResolvedValueOnce({ data: info, error: null });
+    await expect(getM365OrgApp()).resolves.toMatchObject({ validatedAt: '2026-11-18T02:15:00+00:00' });
+  });
+
+  it('AC-M365SS-017: getM365OrgApp rejects a malformed 2xx as INTERNAL_ERROR', async () => {
+    invoke.mockResolvedValueOnce({ data: { configured: 'yes' }, error: null });
+    const thrown = await captureThrow(() => getM365OrgApp());
+    expect(thrown.code).toBe('INTERNAL_ERROR');
+  });
+
+  it('AC-M365SS-017: saveM365OrgApp posts save_org_app with the secret, and omits clientSecret when not given', async () => {
+    invoke.mockResolvedValueOnce({ data: { success: true, changedApp: true }, error: null });
+    await expect(saveM365OrgApp({ tenantId: TENANT, clientId: CLIENT, clientSecret: 'synthetic-value' }))
+      .resolves.toEqual({ changedApp: true });
+    expect(invoke).toHaveBeenLastCalledWith('m365-token-custody', {
+      body: { action: 'save_org_app', tenantId: TENANT, clientId: CLIENT, clientSecret: 'synthetic-value' },
+    });
+    invoke.mockResolvedValueOnce({ data: { success: true, changedApp: false }, error: null });
+    await expect(saveM365OrgApp({ tenantId: TENANT, clientId: CLIENT })).resolves.toEqual({ changedApp: false });
+    const body = invoke.mock.calls[1][1].body as Record<string, unknown>;
+    expect(body).toEqual({ action: 'save_org_app', tenantId: TENANT, clientId: CLIENT });
+    expect('clientSecret' in body).toBe(false);
+  });
+
+  it('AC-M365SS-009 (transport): a rejected save surfaces only the wire code and reviewed copy', async () => {
+    invoke.mockResolvedValueOnce({ data: null, error: httpError({ error: 'APP_REJECTED', message: 'raw microsoft detail' }, 422) });
+    const thrown = await captureThrow(() => saveM365OrgApp({ tenantId: TENANT, clientId: CLIENT, clientSecret: 'x' }));
+    expect(thrown.code).toBe('APP_REJECTED');
+    expect(thrown.message).toBe(describeM365Error('APP_REJECTED'));
+    expect(thrown.message).not.toContain('raw microsoft detail');
+  });
+
+  it('AC-M365SS-017: clearM365OrgApp posts clear_org_app and maps a failure by code', async () => {
+    invoke.mockResolvedValueOnce({ data: { success: true }, error: null });
+    await clearM365OrgApp();
+    expect(invoke).toHaveBeenLastCalledWith('m365-token-custody', { body: { action: 'clear_org_app' } });
+    invoke.mockResolvedValueOnce({ data: null, error: httpError({ error: 'FORBIDDEN', message: 'raw' }) });
+    const thrown = await captureThrow(() => clearM365OrgApp());
+    expect(thrown.code).toBe('FORBIDDEN');
   });
 });

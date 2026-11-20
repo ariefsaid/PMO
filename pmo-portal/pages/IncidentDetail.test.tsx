@@ -9,7 +9,7 @@ import { AppError } from '@/src/lib/appError';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 
 // ── The single-incident hook + mutations are mocked; the page is the unit. ──
-const { detailState, mutations } = vi.hoisted(() => ({
+const { detailState, mutations, uploadEvidence, evidenceState, linkedTaskState } = vi.hoisted(() => ({
   detailState: {
     data: undefined as Record<string, unknown> | null | undefined,
     isPending: false,
@@ -17,6 +17,9 @@ const { detailState, mutations } = vi.hoisted(() => ({
     error: null as (Error & { code?: string }) | null,
     refetch: vi.fn(),
   },
+  uploadEvidence: vi.fn().mockResolvedValue({}),
+  evidenceState: { data: [] as Array<{ id: string; kind: string; title: string }> },
+  linkedTaskState: { data: { project_id: 'p1' } as { project_id: string } | null },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
@@ -28,7 +31,16 @@ const { detailState, mutations } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useIncidents', () => ({
   useIncident: () => detailState,
   useIncidentMutations: () => mutations,
+  useAssigneeOptions: () => ({ data: [] }),
+  useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: uploadEvidence, isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
+  useIncidentFiles: () => evidenceState,
 }));
+vi.mock('@/src/hooks/useIncidentLinkedTask', () => ({ useIncidentLinkedTask: () => linkedTaskState }));
+const workOrdersState = vi.hoisted(() => ({ data: [] as unknown[] }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: workOrdersState.data }) }));
+
+
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-self', org_id: 'org-1' } }) }));
 
 // Project FK options back the project-link display name on the detail page.
 const { projectOptions } = vi.hoisted(() => ({
@@ -78,6 +90,8 @@ beforeEach(() => {
   detailState.isError = false;
   detailState.error = null;
   projectOptions.data = [];
+  evidenceState.data = [];
+  linkedTaskState.data = { project_id: 'p1' };
   mutations.update.mutateAsync.mockClear().mockResolvedValue(undefined);
   mutations.transition.mutateAsync.mockClear().mockResolvedValue(undefined);
   realRole = 'Admin';
@@ -169,12 +183,100 @@ describe('IncidentDetail', () => {
   });
 
   it('AC-INC-003: an Investigating incident advances to Closed via the header action', async () => {
-    detailState.data = { ...incident, status: 'Investigating' };
+    // A Medium issue closes without a photo (proof is required from High up — see the next test).
+    detailState.data = { ...incident, status: 'Investigating', severity: 'Medium' };
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /close incident/i }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /close incident/i }));
     expect(mutations.transition.mutateAsync).toHaveBeenCalledWith({ id: 'i1', status: 'Closed' });
+  });
+
+  it('AC-SIL-004: a High issue cannot be closed from the form until a close photo is added', async () => {
+    detailState.data = { ...incident, status: 'Investigating', severity: 'High' };
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /close incident/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeDisabled();
+    await userEvent.upload(within(dialog).getByTestId('incident-close-photo-input'), new File(['x'], 'proof.jpg', { type: 'image/jpeg' }));
+    expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeEnabled();
+  });
+
+  it('opens the linked task from the issue', () => {
+    detailState.data = { ...incident, project_id: 'p1', task_id: 't1' };
+    renderPage('Admin');
+    expect(screen.getByTestId('incident-task-linked')).toHaveAttribute('href', '/projects/p1/tasks?open=t1');
+  });
+
+  it('opens the task’s own project if the issue has moved', () => {
+    detailState.data = { ...incident, project_id: 'p2', task_id: 't1' };
+    linkedTaskState.data = { project_id: 'p1' };
+    renderPage('Admin');
+    expect(screen.getByTestId('incident-task-linked')).toHaveAttribute('href', '/projects/p1/tasks?open=t1');
+  });
+
+  it('permits a raise photo when close photos bring the total to ten', () => {
+    evidenceState.data = Array.from({ length: 10 }, (_, n) => ({ id: `f${n}`, title: `photo${n}.jpg`, kind: n < 5 ? 'at_raise' : 'at_close' }));
+    renderPage('Admin');
+    expect(within(screen.getByTestId('incident-evidence')).getByRole('button', { name: /add photo/i })).toBeInTheDocument();
+  });
+
+  it('accepts at most five close photos', async () => {
+    detailState.data = { ...incident, status: 'Investigating', severity: 'High' };
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /close incident/i }));
+    const dialog = await screen.findByRole('dialog');
+    const photos = Array.from({ length: 6 }, (_, n) => new File(['x'], `proof-${n}.jpg`, { type: 'image/jpeg' }));
+    await userEvent.upload(within(dialog).getByTestId('incident-close-photo-input'), photos);
+    expect(within(dialog).getByText('proof-4.jpg')).toBeInTheDocument();
+    expect(within(dialog).queryByText('proof-5.jpg')).not.toBeInTheDocument();
+  });
+
+  it('allows a high issue to close using its existing close proof', async () => {
+    detailState.data = { ...incident, status: 'Investigating', severity: 'High' };
+    evidenceState.data = [{ id: 'f1', kind: 'at_close', title: 'proof.jpg' }];
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /close incident/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeEnabled();
+    await userEvent.click(within(dialog).getByRole('button', { name: /close incident/i }));
+    expect(mutations.transition.mutateAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries closing after an uploaded proof and a failed status update', async () => {
+    detailState.data = { ...incident, status: 'Investigating', severity: 'High' };
+    mutations.transition.mutateAsync.mockRejectedValueOnce(new Error('network error'));
+    uploadEvidence.mockClear().mockResolvedValue({});
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /close incident/i }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.upload(within(dialog).getByTestId('incident-close-photo-input'), new File(['x'], 'proof.jpg', { type: 'image/jpeg' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /close incident/i }));
+    expect(mutations.transition.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(within(dialog).getByRole('button', { name: /close incident/i })).toBeEnabled();
+    await userEvent.click(within(dialog).getByRole('button', { name: /close incident/i }));
+    expect(mutations.transition.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(uploadEvidence).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-SIL-011: an open issue past its due time shows Overdue on the record', () => {
+    detailState.data = { ...incident, status: 'Open', due_at: '2020-01-01T00:00:00Z' };
+    renderPage('Admin');
+    expect(screen.getByTestId('incident-pills')).toHaveTextContent(/overdue/i);
+  });
+
+  it('FR-WORP-011: the work order an issue names links to its page', () => {
+    workOrdersState.data = [{ id: 'w1', wo_number: 'WO-0007', title: 'Pump install' }];
+    detailState.data = { ...incident, work_order_id: 'w1' };
+    renderPage('Admin');
+    expect(screen.getByRole('link', { name: 'WO-0007' })).toHaveAttribute('href', '/work-orders/w1');
+    workOrdersState.data = [];
+  });
+
+  it('AC-SIL-013: a legacy issue with every new column empty renders without an Overdue badge', () => {
+    detailState.data = { ...incident, status: 'Open', due_at: null, assignee_id: null, work_order_id: null, task_id: null };
+    renderPage('Admin');
+    expect(screen.getByTestId('incident-pills')).not.toHaveTextContent(/overdue/i);
   });
 
   it('AC-INC-003: a rejected transition (RLS) surfaces a classified warning toast, record unchanged', async () => {

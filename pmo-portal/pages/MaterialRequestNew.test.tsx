@@ -1,10 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
+  tz: 'Asia/Jakarta',
+  warehouses: [{ id: 'wh1', code: 'S1', name: 'Site one', kind: 'site', archived_at: null, project_id: 'p1' }] as unknown[],
+  warehouseQuery: { isPending: false, isError: false, refetch: vi.fn() },
   saveDraft: { mutateAsync: vi.fn().mockResolvedValue('r1'), isPending: false },
   submit: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
 }));
@@ -19,9 +22,11 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Site Alpha', short_name: null }] }) }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'w1', title: 'Slab', wo_number: 'WO-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useStock', () => ({
-  useStockItems: () => ({ data: [{ id: 'i1', code: 'CEM', name: 'Cement', unit_id: 'u1', archived_at: null }], isPending: false, isError: false, refetch: vi.fn() }),
-  useStockUnits: () => ({ data: [{ id: 'u1', code: 'BAG' }] }),
+  useStockItems: () => ({ data: [{ id: 'i1', code: 'CEM', name: 'Cement', unit_id: 'u1', archived_at: null }, { id: 'i2', code: 'BRK', name: 'Brick', unit_id: 'u2', archived_at: null }], isPending: false, isError: false, refetch: vi.fn() }),
+  useStockWarehouses: () => ({ data: h.warehouses, ...h.warehouseQuery }),
+  useStockUnits: () => ({ data: [{ id: 'u1', code: 'BAG', whole_only: false }, { id: 'u2', code: 'PCS', whole_only: true }] }),
 }));
+vi.mock('@/src/hooks/useOrgFxContext', () => ({ useOrgFxContext: () => ({ data: { currency: 'IDR', timezone: h.tz }, isPending: false }) }));
 vi.mock('@/src/components/shell', () => ({ BackBar: () => null }));
 
 import MaterialRequestNewPage from './MaterialRequestNew';
@@ -69,5 +74,148 @@ describe('raise a material request', () => {
     await userEvent.type(screen.getByLabelText(/^quantity/i), '2');
     await userEvent.click(screen.getByRole('button', { name: 'Send for approval' }));
     expect(await screen.findByText(/closed at 12:00.*earliest date/)).toBeInTheDocument();
+  });
+
+  it('#2610 a quantity typed with a decimal comma is read as that fraction and sent with a dot', async () => {
+    h.saveDraft.mutateAsync.mockClear();
+    render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+    await pick(/^project/i, 'Site Alpha');
+    await pick(/^work order/i, 'WO-1 · Slab');
+    await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
+    await userEvent.type(screen.getByLabelText(/^quantity/i), '2,5');
+    await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(h.saveDraft.mutateAsync.mock.calls[0][0].lines[0].quantity).toBe(2.5);
+  });
+
+  describe('#2613 the form says why before the server has to', () => {
+    const fill = async (itemId: string, qty: string) => {
+      render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+      await pick(/^project/i, 'Site Alpha');
+      await pick(/^work order/i, 'WO-1 · Slab');
+      await userEvent.selectOptions(screen.getByLabelText(/^item/i), itemId);
+      await userEvent.type(screen.getByLabelText(/^quantity/i), qty);
+    };
+    it('a fraction for an item counted in whole units is refused with a reason', async () => {
+      h.saveDraft.mutateAsync.mockClear();
+      await fill('i2', '2,5');
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(await screen.findByText(/counted in whole units/)).toBeInTheDocument();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+    });
+    it('more than three decimals is refused with a reason', async () => {
+      h.saveDraft.mutateAsync.mockClear();
+      await fill('i1', '1.2345');
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(await screen.findByText(/at most three decimals/)).toBeInTheDocument();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+    });
+    it('the same item on two lines is refused with a reason', async () => {
+      h.saveDraft.mutateAsync.mockClear();
+      await fill('i1', '1');
+      await userEvent.click(screen.getByRole('button', { name: 'Add item' }));
+      await userEvent.selectOptions(screen.getAllByLabelText(/^item/i)[1], 'i1');
+      await userEvent.type(screen.getAllByLabelText(/^quantity/i)[1], '1');
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(await screen.findByText(/already on another line/)).toBeInTheDocument();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('#2608 the delivery location', () => {
+    const single = [{ id: 'wh1', code: 'S1', name: 'Site one', kind: 'site', archived_at: null, project_id: 'p1' }];
+    afterEach(() => {
+      h.warehouses = single;
+      h.warehouseQuery = { isPending: false, isError: false, refetch: vi.fn() };
+    });
+    const open = async () => {
+      render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+      await pick(/^project/i, 'Site Alpha');
+      await pick(/^work order/i, 'WO-1 · Slab');
+      await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
+      await userEvent.type(screen.getByLabelText(/^quantity/i), '2');
+    };
+    it('one location is left for the server to pick: no question is asked', async () => {
+      h.saveDraft.mutateAsync.mockClear();
+      await open();
+      expect(screen.queryByLabelText(/deliver to/i)).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(h.saveDraft.mutateAsync.mock.calls[0][0].header.toWarehouseId).toBeNull();
+    });
+    it('a yard and a staging area: the requester must choose, and the choice is sent', async () => {
+      h.saveDraft.mutateAsync.mockClear();
+      h.warehouses = [{ id: 'y1', code: 'Y1', name: 'Yard', kind: 'yard', archived_at: null, project_id: 'p1' }, { id: 'g1', code: 'G1', name: 'Staging', kind: 'staging', archived_at: null, project_id: 'p1' }];
+      await open();
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(await screen.findByText(/several locations/)).toBeInTheDocument();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+      await userEvent.selectOptions(screen.getByLabelText(/deliver to/i), 'g1');
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(h.saveDraft.mutateAsync.mock.calls[0][0].header.toWarehouseId).toBe('g1');
+    });
+
+    it('does not send while warehouse destinations are still loading', async () => {
+      h.warehouseQuery = { isPending: true, isError: false, refetch: vi.fn() };
+      h.saveDraft.mutateAsync.mockClear();
+      h.submit.mutateAsync.mockClear();
+      await open();
+      expect(screen.getByTestId('liststate-loading')).toHaveAttribute('aria-busy', 'true');
+      expect(screen.getByRole('button', { name: 'Send for approval' })).toBeDisabled();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+      expect(h.submit.mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('shows a warehouse load error and does not send without knowing the destinations', async () => {
+      h.warehouseQuery = { isPending: false, isError: true, refetch: vi.fn() };
+      h.saveDraft.mutateAsync.mockClear();
+      h.submit.mutateAsync.mockClear();
+      await open();
+      expect(screen.getByText("Couldn't load delivery locations")).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Send for approval' })).toBeDisabled();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+      expect(h.submit.mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('does not send when the loaded project has no delivery location', async () => {
+      h.warehouses = [];
+      h.saveDraft.mutateAsync.mockClear();
+      h.submit.mutateAsync.mockClear();
+      await open();
+      expect(screen.getByText(/no site, yard or staging location yet/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Send for approval' })).toBeDisabled();
+      expect(h.saveDraft.mutateAsync).not.toHaveBeenCalled();
+      expect(h.submit.mutateAsync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('AC-MRQ-021 default needed-by is tomorrow in the organisation calendar', () => {
+    afterEach(() => { vi.useRealTimers(); });
+    const shown = () => (screen.getByLabelText(/needed by/i) as HTMLInputElement).value;
+
+    it('23:30 UTC on the 20th is already the 21st in UTC+7, so the default is the 22nd (UTC would say the 21st)', () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-20T23:30:00Z') });
+      h.tz = 'Asia/Jakarta';
+      render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+      expect(shown()).toBe('22 Nov 2026');
+    });
+
+    it('23:30 UTC is still the 20th in UTC-8, so the default is the 21st', () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-20T23:30:00Z') });
+      h.tz = 'America/Los_Angeles';
+      render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+      expect(shown()).toBe('21 Nov 2026');
+    });
+
+    it('the saved draft carries the organisation-calendar date', async () => {
+      vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-20T23:30:00Z') });
+      h.tz = 'Asia/Jakarta';
+      h.saveDraft.mutateAsync.mockClear();
+      render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+      await pick(/^project/i, 'Site Alpha');
+      await pick(/^work order/i, 'WO-1 · Slab');
+      await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
+      await userEvent.type(screen.getByLabelText(/^quantity/i), '2');
+      await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      expect(h.saveDraft.mutateAsync.mock.calls[0][0].header.neededBy).toBe('2026-11-22');
+    });
   });
 });

@@ -206,6 +206,18 @@ export async function fetchProjectFiscalCalendar(projectId: string): Promise<Bud
   return data;
 }
 
+/**
+ * #2329: the PMO fiscal calendar of an organization with no accounting system (`get_pmo_fiscal_calendar`, 1018), in
+ * the same shape and under the same validation as the accounting-system read above. Where an accounting system is
+ * read, the server answers `binding-unavailable`: that system keeps the calendar.
+ */
+export async function fetchPmoFiscalCalendar(projectId: string): Promise<BudgetProjectFiscalCalendar> {
+  const { data, error } = await supabase.rpc('get_pmo_fiscal_calendar', { p_project_id: projectId });
+  if (error) throw toAppError(error);
+  if (!isBudgetProjectFiscalCalendar(data)) throw new AppError('The project fiscal calendar response was invalid.');
+  return data;
+}
+
 /** One `budget_category_account_map` row, camelCase. A category may hold several (#768); at most one of them
  *  is its push account — the only one the ERP Budget receives. The others count toward its actuals only. */
 export interface CategoryAccountMapRow {
@@ -413,12 +425,6 @@ export async function listBudgetFiscalYears(projectId: string): Promise<BudgetFi
 }
 
 /** Find the first year with spending in the supplied, opaque fiscal-year order. */
-export async function fetchFirstSpendingYear(projectId: string, years: string[]): Promise<string | null> {
-  const { data, error } = await supabase.rpc('first_budget_spending_year', { p_project_id: projectId, p_fiscal_years: years });
-  if (error) throw toAppError(error);
-  return data;
-}
-
 /**
  * HIGH-D — re-drive the ERPNext push for this project's ACTIVE budget version.
  *

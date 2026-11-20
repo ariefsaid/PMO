@@ -24,6 +24,7 @@ import {
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { Link } from 'react-router';
 
 export interface ConnectProposalReviewProps {
   tier?: ConnectTier;
@@ -870,12 +871,12 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
           ) : (
             <span>
               {t('integrations.connect.purchaseDocs', '{{n}} purchase documents are in your connected system.', { n: purchaseRow.erp_count })}{' '}
-              <a
-                href='/procurement#erp-documents'
+              <Link
+                to='/procurement#erp-documents'
                 className='font-medium text-primary underline underline-offset-4 hover:text-primary/80'
               >
                 {t('integrations.connect.purchaseLink', 'Link them to PMO purchases')}
-              </a>
+              </Link>
             </span>
           )}
         </div>

@@ -29,8 +29,8 @@ export const CASES = [
   { id: 'cap_post',    fn: 'public.stock_apply_return(public.stock_documents,boolean)', from: /(if )v_ret \+ l\.quantity > v_issued( then\s*-- mut:cap_post)/, to: '$1false$2', test: 'supabase/tests/stock_out_flows.test.sql' },
   { id: 'returncost',  fn: 'public.stock_apply_return(public.stock_documents,boolean)', from: /(round\(l\.quantity \* v_issued_val \/ v_issued, 2\))(\s*end;\s*-- mut:returncost)/, to: '$1 + 1$2', test: 'supabase/tests/stock_out_flows.test.sql' },
   { id: 'returnclamp', fn: 'public.stock_apply_return(public.stock_documents,boolean)', from: /(v_in := )least\(v_in, v_issued_val - v_ret_val\)(;\s*-- mut:returnclamp)/, to: '$1v_in$2', test: 'supabase/tests/stock_out_flows.test.sql' },
-  { id: 'archivelock_wh',   fn: 'public.stock_post_core(uuid)', from: / for share;(\s*-- mut:archivelock_wh)/,   to: ';$1', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
-  { id: 'archivelock_item', fn: 'public.stock_post_core(uuid)', from: / for share;(\s*-- mut:archivelock_item)/, to: ';$1', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
+  { id: 'archivelock_wh',   fn: 'public.stock_post_core(uuid)', from: / for share;(\s*-- mut:archivelock_wh_v2)/,   to: ';$1', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
+  { id: 'archivelock_item', fn: 'public.stock_post_core(uuid)', from: / for share;(\s*-- mut:archivelock_item_v2)/, to: ';$1', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
   { id: 'returnlock', fn: 'public.stock_lock_for_document(public.stock_documents)', from: /( order by s\.id) for no key update;(\s*-- mut:returnlock)/, to: '$1;$2', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
   { id: 'lockorder',   fn: 'public.stock_lock_for_document(public.stock_documents)',    from: /(order by l\.item_id, w\.wid)(\s*-- mut:lockorder)/, to: '$1 desc$2', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
   // S3 (0415): read RPCs hide cost below rank 20.
@@ -81,12 +81,18 @@ export function mutate(def, c) {
   if (out === def) throw new Error(`${c.id}: mutation changed nothing`);
   return out;
 }
-export function runProof(ids = []) {
+// A case mutates a function (`fn`) or a view (`view`, re-created security_invoker like every money view here).
+const definition = (c) => {
+  if (!c.view) return sql(`select pg_get_functiondef('${c.fn}'::regprocedure)`).stdout;
+  const q = sql(`select pg_get_viewdef('${c.view}'::regclass)`).stdout.trim().replace(/;$/, '');
+  return q && `create or replace view ${c.view} with (security_invoker = true) as\n${q};\n`;
+};
+export function runProof(ids = [], cases = CASES) {
   if (!process.env.PMO_DB_LOCK_HELD) throw new Error('run under scripts/with-db-lock.sh');
   const results = [];
-  for (const c of CASES.filter((x) => !ids.length || ids.includes(x.id))) {
-    const orig = sql(`select pg_get_functiondef('${c.fn}'::regprocedure)`).stdout;
-    if (!orig) throw new Error(`${c.id}: function ${c.fn} not found`);
+  for (const c of cases.filter((x) => !ids.length || ids.includes(x.id))) {
+    const orig = definition(c);
+    if (!orig) throw new Error(`${c.id}: ${c.fn ?? c.view} not found`);
     const mutated = mutate(orig, c);
     let red;
     try {

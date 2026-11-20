@@ -1,0 +1,59 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import i18next from 'i18next';
+import { orgTermsPlugin } from './index';
+import { setOrgTerms } from './orgTerms';
+import en from '../../../public/locales/en/notifications.json';
+import id from '../../../public/locales/id/notifications.json';
+import { notificationBody, notificationTitle } from './notificationCopy';
+
+describe('notification wording', () => {
+  afterEach(() => setOrgTerms({}));
+  it.each(['budgetCancellationHeld', 'budgetRetryAuthorization'])('renders the %s app template', async (key) => {
+    const inst = i18next.createInstance();
+    await inst.use(orgTermsPlugin).init({ lng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en } } });
+    setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
+    expect(notificationBody({ body: 'stored', message_key: key, message_params: {} }, inst.t.bind(inst))).toContain('job');
+  });
+  it('renders the shipped Indonesian template and retains the typed invoice number', async () => {
+    const inst = i18next.createInstance();
+    await inst.use(orgTermsPlugin).init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+    setOrgTerms({ id: { project: { singular: 'pekerjaan', plural: 'pekerjaan-pekerjaan' } } });
+    const body = notificationBody({ body: 'stored', message_key: 'unassignedInvoice', message_params: { invoice: 'Project Phoenix', amount: '' } }, inst.t.bind(inst));
+    expect(body).toContain('Project Phoenix');
+    expect(body).toContain('tanpa pekerjaan');
+    expect(body).toContain('ke pekerjaan');
+  });
+  it('AC-TERM-007 renames a generated label but leaves a new user body and a historical body unchanged', async () => {
+    const inst = i18next.createInstance();
+    await inst.use(orgTermsPlugin).init({ lng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: {
+      en: { notifications: { budgetArchiveWarning: 'Budget for this project.', literal: '{{body}}', unassignedInvoice: 'Invoice {{invoice}}{{amount}} has no project.', unassignedInvoiceTitle: 'Invoice needs a project', budgetPushFailed: 'Project failed: {{reason}}.' } },
+    } });
+    setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
+    expect(notificationBody({ body: 'old body', message_key: 'budgetArchiveWarning', message_params: {} }, inst.t.bind(inst))).toBe('Budget for this job.');
+    expect(notificationBody({ body: 'Project {{name}}', message_key: 'literal', message_params: { body: 'Project {{name}}' } }, inst.t.bind(inst))).toBe('Project {{name}}');
+    expect(notificationTitle({ title: 'old title', message_key: 'unassignedInvoice' }, inst.t.bind(inst))).toBe('Invoice needs a job');
+    expect(notificationBody({ body: 'old body', message_key: 'unassignedInvoice', message_params: { invoice: 'Project Phoenix', amount: ' (42)' } }, inst.t.bind(inst))).toBe('Invoice Project Phoenix (42) has no job.');
+    expect(notificationBody({ body: 'old body', message_key: 'budgetPushFailed', message_params: { reason: 'Project {{name}}' } }, inst.t.bind(inst))).toBe('Job failed: Project {{name}}.');
+    expect(notificationBody({ body: 'Project Phoenix', message_key: null, message_params: null }, inst.t.bind(inst))).toBe('Project Phoenix');
+    expect(notificationBody({ body: 'Project Phoenix', message_key: 'unknown', message_params: {} }, inst.t.bind(inst))).toBe('Project Phoenix');
+  });
+  it('#2616 renders a document-expiry warning in each language, keeping user text literal', async () => {
+    const row = { title: 'stored title', body: 'stored body', message_key: 'documentExpiry',
+      message_params: { type: 'Permit {{x}}', subject: 'Budi 50%', days: 7, expires_on: '2026-11-28' } };
+    const english = i18next.createInstance();
+    await english.init({ lng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en } }, interpolation: { escapeValue: false } });
+    expect(notificationTitle(row, english.t.bind(english))).toBe('Permit {{x}} expires in 7 days');
+    expect(notificationBody(row, english.t.bind(english))).toMatch(/^Budi 50% — Permit \{\{x\}\} expires on .*2026, in 7 days\.$/);
+    expect(notificationTitle({ ...row, message_params: { ...row.message_params, days: 1 } }, english.t.bind(english))).toBe('Permit {{x}} expires in 1 day');
+    const bahasa = i18next.createInstance();
+    await bahasa.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } }, interpolation: { escapeValue: false } });
+    expect(notificationTitle(row, bahasa.t.bind(bahasa))).toBe('Permit {{x}} kedaluwarsa dalam 7 hari');
+    expect(notificationBody(row, bahasa.t.bind(bahasa))).toMatch(/^Budi 50% — Permit \{\{x\}\} kedaluwarsa pada .*2026, dalam 7 hari\.$/);
+  });
+  it('#2616 a stored warning without parameters keeps its stored text', async () => {
+    const inst = i18next.createInstance();
+    await inst.init({ lng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en } } });
+    expect(notificationBody({ body: 'Crane — Certificate expires 28 Nov 2026.', message_key: null, message_params: null }, inst.t.bind(inst))).toBe('Crane — Certificate expires 28 Nov 2026.');
+    expect(notificationTitle({ title: 'Certificate expires in 7 days', message_key: null }, inst.t.bind(inst))).toBe('Certificate expires in 7 days');
+  });
+});

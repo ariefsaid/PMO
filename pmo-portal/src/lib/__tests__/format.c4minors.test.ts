@@ -58,6 +58,8 @@ function makeTask(overrides: Partial<TaskWithRefs> & { id: string; name: string 
     completed_at: null,
     created_by: null,
     tombstoned_at: null,
+    work_order_id: null,
+    proof_required: false,
     meeting_id: null,
     source_updated_at: null,
     description: null,

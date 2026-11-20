@@ -39,9 +39,11 @@
   "noPlan": "Tanpa rencana",
   "notAssigned": "Belum dialokasikan",
   "notComparable": "Tidak dapat dibandingkan (mata uang lain)",
+  "orderValue": "Nilai pesanan (batas)",
   "otherCurrency": "Biaya dalam {{currency}}, dicatat terpisah",
   "overPlan": "Melebihi rencana {{amount}}",
   "overPlanHours": "Melebihi rencana {{hours}} jam",
+  "pageEmpty": "Belum ada rencana atau realisasi untuk perintah kerja ini.",
   "plan": {
     "crewHours": "Jam kru",
     "direct": "Anggaran langsung ({{currency}})",
@@ -51,9 +53,8 @@
     "save": "Simpan rencana",
     "title": "Rencana untuk {{number}}"
   },
-  "orderValue": "Nilai pesanan (batas)",
-  "projectHours": "Jam proyek dan kontrak",
   "planLabel": "Rencana",
+  "projectHours": "Jam proyek dan kontrak",
   "projectTotal": "Total proyek dan kontrak",
   "reason": {
     "commitment": "Komitmen, tidak dijumlahkan (tagihannya yang membawa biaya)",
@@ -99,6 +100,7 @@
   "splitStale": "Pembagian yang disimpan sudah usang: ada perintah kerja yang ditambah atau dibatalkan. Pembagian bawaan dipakai sampai ada yang menyimpannya lagi.",
   "title": "Rencana vs aktual",
   "uncosted": "{{hours}} jam tanpa tarif dan tidak masuk biaya.",
+  "pendingCrewHours": "{{hours}} jam pada timesheet yang belum disetujui tidak dihitung.",
   "underPlan": "Sisa {{amount}}",
   "underPlanHours": "Sisa {{hours}} jam",
   "unknown": "Tidak diketahui",

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -26,7 +27,9 @@ import { deriveWorkOrderBillingState, type WorkOrderBillingState } from '@/src/l
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { outstandingIn, settlementIn, sumOutstanding, summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import WorkOrderAcceptances from '../WorkOrderAcceptances';
+import { WorkOrderOpenTasks } from '@/src/components/tasks/WorkOrderOpenTasks';
 import { WorkOrderCostVariations } from '../WorkOrderCostVariations';
+import { WorkOrderStockBalance } from '../../stock/WorkOrderStockBalance';
 import { MoneyFigure, type InvoiceWithWorkOrder, type OrderLineView } from './workOrdersTabFigures';
 
 /** The billing/invoice figure reads the card's incompleteness states surface. */
@@ -122,6 +125,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
   linesRead,
 }) => {
   const { t } = useTranslation('project');
+  useTranslation('stock');
   const may = usePermission();
   const billingStateLabels: Record<Exclude<WorkOrderBillingState, 'not-billable'>, string> = {
     incomplete: t('common:projectDetail.workOrders.billing.status.incomplete', "Can't total"),
@@ -142,6 +146,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
     'partly-invoiced': 'progress',
   };
 
+  const [stockOpen, setStockOpen] = useState(false);
   const orderAllocations = contractAllocationsByWo.get(row.id) ?? [];
   const rawLines = allocationsByWo.get(row.id) ?? [];
   const hasOrderLines = orderAllocations.length > 0 || rawLines.length > 0;
@@ -244,6 +249,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
             </button>
           </h3>
           <span className="min-w-0 break-words text-sm text-foreground">{row.title}</span>
+          <Link to={`/work-orders/${row.id}`} data-testid={`wo-page-link-${row.id}`} className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground">{t('workOrders:openPage', 'Open page')}</Link>
           <StatusPill variant={workOrderStatusTone}>{statusLabel('workOrder', row.status, t)}</StatusPill>
           {canViewBilling && billingState && billingState !== 'not-billable' && <StatusPill variant={billingStateTones[billingState]}>
             {billingStateLabels[billingState]}
@@ -395,6 +401,13 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
         <WorkOrderCostVariations workOrderId={row.id} currency={currency} />
       </div>
 
+      <div className="mt-3 border-t border-border pt-3">
+        <Button variant="ghost" size="sm" aria-expanded={stockOpen} onClick={() => setStockOpen(!stockOpen)}>
+          {t('stock:siteWork.balance.open', 'Stock for this work order')}
+        </Button>
+        {stockOpen && <WorkOrderStockBalance workOrderId={row.id} currency={currency} />}
+      </div>
+
       <div className="mt-4 flex flex-col gap-3">
         {linesRead.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void linesRead.refetch()} />}
         {acceptancesRead.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.acceptances.error', 'Couldn’t load the BASTs')} onRetry={() => void acceptancesRead.refetch()} />}
@@ -443,6 +456,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
           </details>
         )}
       </div>
+      <WorkOrderOpenTasks workOrderId={row.id} />
     </article>
   );
 };

@@ -81,6 +81,43 @@ export async function listCostDisciplines(): Promise<CostDiscipline[]> {
   return rows.sort((a, b) => a.name.localeCompare(b.name) || a.code.localeCompare(b.code));
 }
 
+export interface CostDisciplineInput {
+  code: string;
+  name: string;
+}
+
+/** Limits of the table's checks (0950): a code of 1–20 characters, a name of 1–120. */
+export const DISCIPLINE_CODE_MAX = 20;
+export const DISCIPLINE_NAME_MAX = 120;
+
+/**
+ * #2623 (FR-WCA-010/011): an Admin adds a discipline. Only the code and name are sent: the database stamps org_id and the
+ * author, and RLS refuses a non-Admin (42501). A live duplicate code keeps its 23505 for the form to explain.
+ */
+export async function createCostDiscipline(input: CostDisciplineInput): Promise<string> {
+  const { data, error } = await supabase.from('cost_disciplines').insert({ code: input.code, name: input.name }).select('id').single();
+  if (error) throw new AppError(error.message, error.code);
+  const id = (data as { id?: unknown } | null)?.id;
+  if (typeof id !== 'string' || id === '') throw new AppError('the server added the discipline but returned no id');
+  return id;
+}
+
+/** An update RLS filtered out returns no row: say so, never a silent success. */
+async function updateDiscipline(id: string, patch: { code?: string; name?: string; archived_at?: string }): Promise<void> {
+  const { data, error } = await supabase.from('cost_disciplines').update(patch).eq('id', id).select('id');
+  if (error) throw new AppError(error.message, error.code);
+  if (!Array.isArray(data) || data.length === 0) throw new AppError('only an Admin can change the discipline list', '42501');
+}
+
+export function updateCostDiscipline(id: string, input: CostDisciplineInput): Promise<void> {
+  return updateDiscipline(id, { code: input.code, name: input.name });
+}
+
+/** Soft-archive (ADR-0018): it leaves the pickers; cost lines that already name it keep it. */
+export function archiveCostDiscipline(id: string): Promise<void> {
+  return updateDiscipline(id, { archived_at: new Date().toISOString() });
+}
+
 /**
  * Set (or clear, with nulls) the work order and discipline of 1..500 records of one source. Resolves to the
  * number of records changed. A refusal keeps its Postgres code (`23514` rule, `42501` not yours, `P0002`

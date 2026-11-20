@@ -54,6 +54,7 @@ export interface MilestoneRepository {
  * `setValue` into `update` would discard the witness the issue SoD reads.
  */
 export interface WorkOrderRepository {
+  claimDocuments(id: string): Promise<string[]>;
   list(projectId: string): Promise<WorkOrderRow[]>;
   get(id: string): Promise<WorkOrderRow | null>;
   create(projectId: string, input: WorkOrderInput): Promise<WorkOrderRow>;

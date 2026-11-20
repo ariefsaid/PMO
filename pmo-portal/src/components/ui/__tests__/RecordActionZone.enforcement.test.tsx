@@ -175,7 +175,12 @@ const { incidentState, incidentMutations } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useIncidents', () => ({
   useIncident: () => incidentState,
   useIncidentMutations: () => incidentMutations,
+  useAssigneeOptions: () => ({ data: [] }),
+  useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: vi.fn(), isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
+  useIncidentFiles: () => ({ data: [] }),
 }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
+
 
 // IncidentDetail resolves the linked project's name via the project FK options. Partial-mock
 // (keep the other FK-option hooks real for ProcurementDetails) — IncidentDetail is rendered

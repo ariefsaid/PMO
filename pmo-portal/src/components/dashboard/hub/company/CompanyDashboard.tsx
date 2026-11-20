@@ -315,7 +315,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         ? <div className="px-[var(--panel-inset)] pb-1"><ListState variant="error" title={t('home.overdueError', "Couldn't load overdue invoices")} onRetry={financePosition.retry} quiet /></div>
         : (
           <div className={cn('overflow-x-auto [--table-cell-inset:var(--panel-inset)]', financePosition.isPending && PHONE_TABLE_HOLD)}>
-            <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : overdueRows.length === 0 ? 'empty' : undefined} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} tableId="dashboard-company-overdue-clients" embedded />
+            <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowHref={() => '/finance/receivables?overdue=true'} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : overdueRows.length === 0 ? 'empty' : undefined} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} tableId="dashboard-company-overdue-clients" embedded />
           </div>
         )}
     </Card>

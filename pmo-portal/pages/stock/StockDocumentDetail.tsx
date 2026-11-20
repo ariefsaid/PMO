@@ -9,6 +9,7 @@ import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { STOCK_COMMAND_IN_FLIGHT, useProjectConsumption, useStockDocument, useStockErpState, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers, useStockOnHand } from '@/src/hooks/useStock';
+import { useWorkOrder } from '@/src/hooks/useWorkOrderRecord';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue, stockValuePreview, subtractDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -16,6 +17,14 @@ import { isSetupRefusal, parseRefusalEvidence } from '@/src/lib/adapterSeam/odoo
 import { formatDay } from '@/src/lib/format';
 import type { StockDocumentLine } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
+import { StockDocumentAttachments } from './StockDocumentAttachments';
+
+function StockWorkOrder({ id }: { id: string }) {
+  const { t } = useTranslation('stock');
+  const order = useWorkOrder(id);
+  if (!order.data) return null;
+  return <span>{t('detail.workOrder', 'Work order')} · <Link className="underline" to={`/work-orders/${order.data.id}`}>{order.data.wo_number ?? order.data.title}</Link></span>;
+}
 
 /** OQ-STK-7: after an issue posts, flag any of its work-item lines now over allowance (to the issue's date). Never blocks. */
 const OverAllowanceNotice: React.FC<{ projectId: string; on: string; lines: StockDocumentLine[] }> = ({ projectId, on, lines }) => {
@@ -52,7 +61,8 @@ const StockDocumentDetail: React.FC = () => {
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
-  const me = useAuth().currentUser?.id;
+  const currentUser = useAuth().currentUser;
+  const me = currentUser?.id;
   const currency = useOrgCurrency();
   const loc = getNumberLocale();
   const notify = useStockFailureNotice();
@@ -60,6 +70,7 @@ const StockDocumentDetail: React.FC = () => {
   const entries = useStockDocumentEntries(documentId);
   const keepers = useStockKeepers();
   const m = useStockDocumentMutations();
+  const [filesOpen, setFilesOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmPost, setConfirmPost] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState(false);
@@ -211,7 +222,7 @@ const StockDocumentDetail: React.FC = () => {
             className="!mb-4"
             headingLevel={2}
             name={t(`kinds.${d.kind}`)}
-            meta={formatDay(d.occurred_on)}
+            meta={<>{formatDay(d.occurred_on)}{d.work_order_id && <> · <StockWorkOrder id={d.work_order_id} /></>}</>}
             status={<StatusPill record="stockDocument" state={d.status === 'Draft' && held ? 'On hold' : d.status} />}
             primaryAction={canPost
               ? <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => setConfirmPost(true)}>{t('detail.post')}</Button>
@@ -275,6 +286,9 @@ const StockDocumentDetail: React.FC = () => {
               </div>
             )}
           </section>
+          <div><Button variant="outline" aria-expanded={filesOpen} onClick={() => setFilesOpen(!filesOpen)}>{t('siteWork.files.title')}</Button>
+            {filesOpen && currentUser?.org_id && <StockDocumentAttachments orgId={currentUser.org_id} documentId={d.id} status={d.status} canWrite={realRole === effectiveRole && (d.status === 'Draft' || d.status === 'Posted') && (isAuthor || may('manage', 'warehouse', ctx) || (keepers.data ?? []).some((k) => k.user_id === me && (k.warehouse_id === d.warehouse_id || k.warehouse_id === d.to_warehouse_id)))} />}
+          </div>
           <section aria-labelledby="entries-h">
             <h2 id="entries-h" className="mb-2 text-group font-semibold">{t('detail.entries')}</h2>
             {entries.isError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void entries.refetch()} />}

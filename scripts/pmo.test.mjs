@@ -1148,7 +1148,7 @@ test('AC-DOC-CLI-019: the CLI document-register write tier matches the guard tie
 
 test('AC-TVC-007: the CLI active-Admin rpc tier matches the guard tier', () => {
   assert.deepEqual(guardList('admin_cli_rpcs'), [...ADMIN_RPCS].sort());
-  assert.deepEqual([...ADMIN_RPCS], ['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation']);
+  assert.deepEqual([...ADMIN_RPCS], ['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report']);
   for (const name of ADMIN_RPCS) {
     assert.equal(ALLOWED_RPCS.includes(name), false, `${name} is Admin-only, not in the ordinary tier`);
     assert.equal(LOAD_RPCS.includes(name), false, `${name} is not a load-only RPC`);

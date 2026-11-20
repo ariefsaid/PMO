@@ -40,7 +40,8 @@ declare
   -- ADMIN/FINANCE TIER (`pmo purchases set-aside`, #1319 AC-13)  -- 0364
   set_aside_rpcs constant text[] := array['mark_erp_purchase_documents'];  -- 0364
   -- ACTIVE-ADMIN `pmo rpc` TIER (#1326) — keep in step with scripts/pmo.mjs ADMIN_RPCS.  -- 0366
-  admin_cli_rpcs constant text[] := array['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation'];  -- 0366
+  admin_cli_rpcs constant text[] := array['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation',
+    'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report'];  -- 1047
   -- OPERATOR READ TIER (`pmo get/documents/m365`, #1270) — keep in step with scripts/pmo.mjs.  -- 0367
   operator_read_tables constant text[] := array['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps',  -- 0367
     'contract_rate_lines', 'contract_rate_assignees'];  -- 0518

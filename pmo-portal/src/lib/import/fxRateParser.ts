@@ -135,16 +135,6 @@ function rawCalendarDate(value: string | number | Date, date1904: boolean): stri
   return null;
 }
 
-/** Parse an Excel/date-only calendar value without interpreting it in the viewer's timezone. */
-export function parseFxDate(
-  value: string | number | Date,
-  date1904: boolean,
-  today: string,
-): string | null {
-  const result = rawCalendarDate(value, date1904);
-  return result && result <= today ? result : null;
-}
-
 const DATE_HEADERS = new Set(['date', 'tanggal']);
 const RATE_HEADERS = new Set(['rate', 'kurs', 'jisdor', 'kurs jisdor']);
 const normalizedHeader = (cell: WorkbookCell): string =>

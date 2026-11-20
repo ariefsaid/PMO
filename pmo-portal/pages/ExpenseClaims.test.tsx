@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
@@ -71,6 +71,18 @@ const ROW = {
 };
 const renderPage = (initialPath = '/expenses') => render(<MemoryRouter initialEntries={[initialPath]}><ToastProvider><ExpenseClaims /></ToastProvider></MemoryRouter>);
 
+function CurrentPath() {
+  const location = useLocation();
+  return <output data-testid="current-path">{location.pathname}</output>;
+}
+
+const renderRoutedPage = (initialPath = '/expenses') => render(
+  <MemoryRouter initialEntries={[initialPath]}>
+    <CurrentPath />
+    <ToastProvider><ExpenseClaims /></ToastProvider>
+  </MemoryRouter>,
+);
+
 beforeEach(() => {
   mockNavigate.mockClear();
   h.listSpy.mockClear();
@@ -110,7 +122,9 @@ describe('ExpenseClaims page', () => {
 
   it('AC-EXP-060 opens a claim from its accessible row action', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Open Site visit' }));
+    const link = screen.getByRole('link', { name: 'Open Site visit' });
+    expect(link).toHaveAttribute('href', '/expenses/c1');
+    await userEvent.click(link);
     expect(mockNavigate).toHaveBeenCalledWith('/expenses/c1');
   });
 
@@ -137,16 +151,16 @@ describe('ExpenseClaims page', () => {
 
   it('ruling 1: keeps New claim in the header and in the empty state (quiet outline pending)', async () => {
     h.list.data = { rows: [], truncated: false };
-    renderPage();
-    const [headerAction, emptyAction] = screen.getAllByRole('button', { name: 'New claim' });
-    // New claim must never move: the header keeps its filled action at every width, and the
-    // empty state keeps its own copy. The quiet outline for this copy awaits the shared
-    // list-state action variant; until then it renders the primitive's default.
+    renderRoutedPage();
+    const headerAction = screen.getByRole('link', { name: 'New claim' });
+    expect(headerAction).toHaveAttribute('href', '/expenses/new');
+    const emptyAction = screen.getByRole('button', { name: 'New claim' });
+    // The header remains the filled link; the empty-state action remains an independent button.
     await userEvent.click(headerAction);
+    expect(screen.getByTestId('current-path')).toHaveTextContent('/expenses/new');
     await userEvent.click(emptyAction);
-    expect(mockNavigate).toHaveBeenCalledTimes(2);
-    expect(mockNavigate).toHaveBeenNthCalledWith(1, '/expenses/new');
-    expect(mockNavigate).toHaveBeenNthCalledWith(2, '/expenses/new');
+    expect(mockNavigate).toHaveBeenCalledOnce();
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
   });
 
   it('ruling 2: keeps the empty state inside the expense list card surface', () => {
@@ -195,9 +209,23 @@ describe('ExpenseClaims page', () => {
   });
 
   it('AC-EXP-060 New claim opens the full-page create route', async () => {
-    renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
-    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
+    renderRoutedPage();
+    const link = screen.getByRole('link', { name: 'New claim' });
+    expect(link).toHaveAttribute('href', '/expenses/new');
+    await userEvent.click(link);
+    expect(screen.getByTestId('current-path')).toHaveTextContent('/expenses/new');
+    expect(h.capture.capture).not.toHaveBeenCalled();
+    expect(h.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('AC-2077 New claim navigates in-app without reloading or creating a claim', () => {
+    renderRoutedPage();
+    const link = screen.getByRole('link', { name: 'New claim' });
+    expect(link).toHaveAttribute('href', '/expenses/new');
+    const click = createEvent.click(link, { button: 0 });
+    fireEvent(link, click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(screen.getByTestId('current-path')).toHaveTextContent('/expenses/new');
     expect(h.capture.capture).not.toHaveBeenCalled();
     expect(h.create.mutateAsync).not.toHaveBeenCalled();
   });
@@ -226,9 +254,9 @@ describe('ExpenseClaims page', () => {
   });
 
   it('AC-S12 readiness disclosure moves with the new full-page create route', async () => {
-    renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
-    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
+    renderRoutedPage();
+    await userEvent.click(screen.getByRole('link', { name: 'New claim' }));
+    expect(screen.getByTestId('current-path')).toHaveTextContent('/expenses/new');
     expect(h.capture.capture).not.toHaveBeenCalled();
   });
 
@@ -262,7 +290,8 @@ describe('#design-1115 phone list reads one claim per row', () => {
     try {
       h.list.data = { rows: [{ ...ROW, amount: 12.5, currency: 'USD' }], truncated: false };
       renderPage();
-      const open = screen.getByRole('button', { name: /Site visit/ });
+      const open = screen.getByRole('link', { name: 'Open Site visit' });
+      expect(open).toHaveAttribute('href', '/expenses/c1');
       expect(within(open).getByText('$12.50')).toBeInTheDocument();
       const card = open.closest('[data-record-row]') as HTMLElement;
       expect(within(card).getByText(/Harbour Upgrade/)).toBeInTheDocument();

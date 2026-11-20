@@ -1,0 +1,26 @@
+-- Reverses 1041_daily_site_report_rpcs.sql.
+drop trigger if exists organizations_dsr_default_lists on public.organizations;
+drop policy if exists storage_objects_site_report_photo_write on storage.objects;
+drop policy if exists storage_objects_site_report_photo_read on storage.objects;
+drop policy if exists dsr_photos_delete on public.dsr_photos;
+drop policy if exists dsr_photos_insert on public.dsr_photos;
+drop function if exists public.dsr_seed_default_lists_trigger();
+drop function if exists public.dsr_seed_default_lists(uuid);
+drop function if exists public.dsr_photo_writable(uuid);
+drop function if exists public.dsr_photo_stored(text);
+drop function if exists public.dsr_validation_queue();
+drop function if exists public.work_order_validated_revenue(uuid);
+drop function if exists public.dsr_report_revenue(uuid);
+drop function if exists public.dsr_correct(uuid, text);
+drop function if exists public.dsr_return(uuid, text);
+drop function if exists public.dsr_validate(uuid);
+drop function if exists public.dsr_submit(uuid);
+drop function if exists public.dsr_save_draft(jsonb);
+drop function if exists public.dsr_replace_lines(public.daily_site_reports, jsonb);
+drop function if exists public.dsr_require_member();
+drop function if exists public.dsr_log(uuid, uuid, text, text);
+drop function if exists public.dsr_line_amount(numeric, numeric);
+drop function if exists public.dsr_line_rate(uuid, text, uuid, date);
+drop function if exists public.dsr_may_see_revenue(uuid);
+drop function if exists public.dsr_may_validate(uuid);
+drop function if exists public.dsr_may_enter(uuid);

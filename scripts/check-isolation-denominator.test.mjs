@@ -14,6 +14,12 @@ import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { compareDenominators, formatEntry, preserveTableExpectations, readDenominator, validateDenominator, validateProbeInputs } from './check-isolation-denominator.mjs';
 
+test('site report isolation probe selects only authenticated progress columns', () => {
+  const denominator = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  assert.equal(denominator.tables.find((entry) => entry.table === 'dsr_progress_lines')?.columns,
+    'id,org_id,report_id,position,work_order_line_id,sub_stage,quantity,unit,frozen_at');
+});
+
 const fixture = () => ({
   tables: [
     { table: 'alpha', has_org: true, pk: 'id' },
@@ -449,6 +455,11 @@ test('validateDenominator rejects a table entry with an empty pk', () => {
   const bad = fixture();
   bad.tables[0] = { table: 'alpha', has_org: true, pk: '  ' };
   assert.throws(() => validateDenominator(bad), /pk/);
+});
+
+test('guarded invoice unpair is included in the isolation denominator', () => {
+  const manifest = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  assert.ok(manifest.definer_functions.includes('compare_and_unpair_invoice(uuid,uuid,timestamp with time zone,integer,timestamp with time zone)'));
 });
 
 test('capture surfaces are included in the isolation denominator', () => {

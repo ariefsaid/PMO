@@ -34,7 +34,7 @@ confirm the single-record choice.
 - FR-SIL-005 Existing issues, the register and analytics keep working with every new column null.
 
 **Photo evidence**
-- FR-SIL-010 An issue shall hold up to 10 photo/document attachments (15 MB each, image/PDF), each tagged `at_raise` or `at_close`, readable by anyone who reads the issue, added by the reporter, the assignee and manager roles.
+- FR-SIL-010 An issue shall hold up to 10 `at_raise` and up to 5 `at_close` photo/document attachments (15 MB each, image/PDF); the limits are independent. Attachments shall be readable by anyone who reads the issue and added by the reporter, assignee and manager roles.
 - FR-SIL-011 The raise form shall accept a phone camera capture (`accept="image/*"` + capture) and upload before or with the save, without losing the typed text on failure.
 - FR-SIL-012 Where the issue's severity is High or Critical, closing shall require at least one `at_close` attachment, enforced in the database. Lower severities: proof optional. (Open question 2.)
 
@@ -71,13 +71,15 @@ confirm the single-record choice.
 | AC-SIL-013 | Given legacy issues with null new columns, then list, detail and analytics render as before. | Unit (existing tests stay green) |
 | AC-SIL-014 | Given the journey raised → assigned → late → escalated → closed with proof, then the end state is Closed with `closed_at` and a close photo. | E2E (one journey, job invoked by a test hook) |
 
+Availability follows the existing per-organisation `incidents` entitlement and its current plan defaults and operator controls. The due day is entered and displayed in the acting user’s resolved timezone; `due_at` retains the corresponding end-of-day instant for escalation, and task creation derives its calendar date in that same resolved timezone.
+
 ## 4. Open questions
 1. Confirm "extend Incidents, one record" (vs a separate issue record beside it). Safety incidents and site issues may need different severity scales and visibility.
 2. Is close-proof required only for High/Critical (proposed) or always for issues on a work order?
 3. Who escalates to: the project's PM only, or also the assignee's line manager (profiles hierarchy exists, 0179)? Proposed PM (+ Admin fallback).
 4. Escalation cadence: once at due time (proposed), or repeated daily until closed?
 5. Channels: in-app notification only (proposed) or also Telegram/email (0083 vault exists)? Outbound channels are a separate ruling.
-6. Should the `incidents` UI switch stay off by default for new orgs? The feature must be reachable for site work: confirm its plan placement.
+6. Resolved: availability follows the existing `incidents` entitlement and its current plan defaults and operator controls.
 7. "Location" stays free text; should it also accept a stock location (yard/staging, #2523)? Proposed no in v1.
 8. Bucket: new `incident-files` bucket with the issue's read rule.
 

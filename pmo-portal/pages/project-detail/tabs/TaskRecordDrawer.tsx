@@ -14,11 +14,14 @@ import { CommentsSection } from '@/src/components/comments/CommentsSection';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
+import { TaskProofPanel } from '@/src/components/tasks/TaskProofPanel';
 import { orderedTasks } from './taskViewModel';
 
 interface TaskRecordDrawerProps {
   task: TaskWithRefs | null;
   allTasks: TaskWithRefs[];
+  /** The project's work orders the caller can read: a task's work-order link renders only for one of these (FR-WORP-011). */
+  workOrders?: { id: string; wo_number: string | null; title: string }[];
   projectId: string;
   canEdit: boolean;
   canArchive: boolean;
@@ -31,12 +34,15 @@ interface TaskRecordDrawerProps {
   openTask: (task: TaskWithRefs) => void;
   onClose: () => void;
   nestedOpen: boolean;
+  /** #2531: proof-of-completion affordances; the panel supports both required and optional attachments. */
+  proof?: { canAttach: boolean; canSetStatus: boolean; onMarkDone: (task: TaskWithRefs) => Promise<void> | void };
 }
 
 /** The task record drawer: details, subtasks, comments and history for one task. */
 const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
   task,
   allTasks,
+  workOrders = [],
   projectId,
   canEdit,
   canArchive,
@@ -49,6 +55,7 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
   openTask,
   onClose,
   nestedOpen,
+  proof,
 }) => {
   const { t } = useTranslation('project');
   if (!task) return null;
@@ -84,10 +91,24 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
           <dt className="text-muted-foreground">{t('projectDetail.tasks.column.assignee', 'Assignee')}</dt><dd className="min-w-0 break-words">{task.assignee?.full_name ?? t('projectDetail.tasks.unassigned', 'Unassigned')}</dd>
           <dt className="text-muted-foreground">{t('projectDetail.tasks.column.due', 'Due')}</dt><dd>{task.end_date ? formatDay(task.end_date) : '—'}</dd>
+          {task.work_order_id && (() => {
+            const workOrder = workOrders.find((candidate) => candidate.id === task.work_order_id);
+            return workOrder ? <><dt className="text-muted-foreground">{t('projectDetail.tasks.drawer.workOrder', 'Work order')}</dt><dd className="min-w-0 break-words"><Link className="underline" to={`/work-orders/${workOrder.id}`}>{workOrder.wo_number ?? workOrder.title}</Link></dd></> : null;
+          })()}
           <dt className="text-muted-foreground">{t('projectDetail.tasks.form.priority', 'Priority')}</dt><dd>{task.priority ?? t('projectDetail.tasks.noPriority', 'No priority')}</dd>
           <dt className="text-muted-foreground">{t('projectDetail.tasks.form.dependsOnLegend', 'Depends on')}</dt><dd className="min-w-0 break-words">{task.dependencies.length ? task.dependencies.map((dependency) => allTasks.find((candidate) => candidate.id === dependency.depends_on_id)?.name ?? dependency.depends_on_id).join(', ') : t('projectDetail.tasks.drawer.noDependencies', 'No dependencies are linked.')}</dd>
         </dl>
       </section>
+      {!externallyOwned && (
+        <TaskProofPanel
+          taskId={task.id}
+          status={task.status}
+          proofRequired={task.proof_required ?? false}
+          canAttach={proof?.canAttach ?? false}
+          canSetStatus={proof?.canSetStatus ?? false}
+          onMarkDone={() => proof?.onMarkDone(task)}
+        />
+      )}
       <section aria-labelledby="task-drawer-subtasks" className="space-y-2">
         <h2 id="task-drawer-subtasks" className="text-sm font-semibold">{t('projectDetail.tasks.drawer.subtasks', 'Subtasks')}</h2>
         {subtasks.length ? <ul className="divide-y divide-border rounded-md border border-border">

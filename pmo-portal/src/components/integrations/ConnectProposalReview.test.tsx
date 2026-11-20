@@ -1,6 +1,7 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router';
+import { cleanup, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import i18next from 'i18next';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -44,10 +45,15 @@ function renderWithRole(role: string | null, ui: React.ReactElement) {
   return render(
     <QueryClientProvider client={qc}>
       <ImpersonationProvider realRole={role as never}>
-        {ui}
+        <MemoryRouter><LocationProbe />{ui}</MemoryRouter>
       </ImpersonationProvider>
     </QueryClientProvider>,
   );
+}
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.hash}</output>;
 }
 
 const readyStatus = (census: ConnectCensusRow[], waitingForSend = 0) => ({
@@ -304,6 +310,11 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     ).toBeInTheDocument();
     const link = screen.getByRole('link', { name: 'Link them to PMO purchases' });
     expect(link).toHaveAttribute('href', '/procurement#erp-documents');
+    // #2077: handled by the router (in-app navigation), not left to a full document reload.
+    const click = createEvent.click(link, { button: 0 });
+    fireEvent(link, click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(screen.getByTestId('location')).toHaveTextContent('/procurement#erp-documents');
   });
 
   it('FR-ECA-042 domain row with erp_count null says it has not been checked, never "0"', async () => {

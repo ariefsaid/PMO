@@ -346,3 +346,37 @@ test('class centred control: a centred logo-and-name group at the top of a form 
   const logo = '<header style="display:flex;justify-content:center;margin-bottom:24px"><div style="display:inline-flex;align-items:center;gap:8px"><span style="width:32px;height:32px;border-radius:6px;background:#07f;color:#fff;display:flex;align-items:center;justify-content:center">P</span><span>Brand</span></div></header>';
   assert.deepEqual(layoutFixture(`<main style="padding:24px"><div style="max-width:384px;margin:0 auto">${logo}${lpanel('<p>Body</p>')}</div></main>`), []);
 });
+
+test('#2549 text baselines are keyed by route pattern: ids are normalised, exact keys still win', async () => {
+  const { routePattern, baselineKey } = await import('./ux-proof-settings.mjs');
+  const uuid = '3f2b8c1e-9d4a-4e7b-8a61-0c5d2e9f7a14';
+  assert.equal(routePattern(`/work-orders/${uuid}`), '/work-orders/:id');
+  assert.equal(routePattern(`/projects/${uuid}/tasks/${uuid.toUpperCase()}?tab=x`), '/projects/:id/tasks/:id?tab=x');
+  assert.equal(routePattern('/companies/new'), '/companies/new');
+  assert.equal(routePattern('/projects'), '/projects');
+  // a fixed route keeps its exact key (backward compatible with every existing baseline)
+  assert.equal(baselineKey({ '/projects@1440@exec': 44 }, '/projects', 1440, 'exec'), '/projects@1440@exec');
+  // a record route resolves to the pattern key, whichever id was visited
+  const budget = { '/work-orders/:id@1440@exec': 90 };
+  assert.equal(baselineKey(budget, `/work-orders/${uuid}`, 1440, 'exec'), '/work-orders/:id@1440@exec');
+  // a legacy exact-url key still wins when present
+  const legacy = { [`/work-orders/${uuid}@1440@exec`]: 80, '/work-orders/:id@1440@exec': 90 };
+  assert.equal(baselineKey(legacy, `/work-orders/${uuid}`, 1440, 'exec'), `/work-orders/${uuid}@1440@exec`);
+  // no baseline anywhere: new records are keyed by the pattern, so the next record page shares it
+  assert.equal(baselineKey({}, `/work-orders/${uuid}`, 390, 'exec'), '/work-orders/:id@390@exec');
+});
+
+test('#2549 existing record baselines also apply to another record id', async () => {
+  const { baselineKey } = await import('./ux-proof-settings.mjs');
+  const { readFileSync } = await import('node:fs');
+  const budget = JSON.parse(readFileSync(new URL('../docs/ux/word-budget.json', import.meta.url)));
+  const route = '/projects/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const key = baselineKey(budget, route, 390, 'pm@acme.test');
+  assert.equal(budget[key], 133);
+  assert.notEqual(budget.targets[key], undefined);
+});
+
+test('#2549 keeps distinct query-driven views when normalising record ids', async () => {
+  const { routePattern } = await import('./ux-proof-settings.mjs');
+  assert.equal(routePattern('/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all'), '/projects/:id/tasks?view=board&scope=all');
+});

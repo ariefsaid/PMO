@@ -50,8 +50,9 @@ disciplines make or lose money while there is still time to act.
   one SQL read that sources every figure from the same rows #2517 exposes; the UI shall not re-sum differently.
 - FR-WPVA-011 Actual equipment hours shall be the sum of equipment usage quantity in hours for the work order
   (days convert only if the org sets hours-per-day; otherwise shown separately, never mixed).
-- FR-WPVA-012 Actual crew hours shall be timesheet hours naming the work order; crew size shown is the count of
-  distinct people with hours (a figure, not a stored plan of names).
+- FR-WPVA-012 Actual crew hours shall be hours of Approved timesheet weeks naming the work order; crew size shown is
+  the count of distinct people with approved hours (a figure, not a stored plan of names). Hours on a Draft, Submitted
+  or Rejected week shall be named apart as not yet approved and never counted (#2626; the equipment rule FR-EAV-012).
 - FR-WPVA-013 A source whose money the caller may not read shall make the dependent totals "restricted", never
   zero or partial; margin is not shown for a restricted work order.
 - FR-WPVA-014 Cost in a currency other than the work order's shall be listed separately and shall make margin
@@ -96,7 +97,9 @@ disciplines make or lose money while there is still time to act.
 
 **Read and screens**
 - FR-WPVA-040 The work-order page (#2518) shall show plan vs actual, revenue vs actual and both margins; a project
-  tab shall list work orders and disciplines with the same figures and roll-up row.
+  tab shall list work orders and disciplines with the same figures and roll-up row. *(Status: shipped in #2570 —
+  `pages/work-order-detail/PlanVsActualSection.tsx`; the page reads the #2519 project read and shows this work order's
+  planned and actual direct and shared cost, revenue, both margins and discipline rows.)*
 - FR-WPVA-041 Every figure shall show its basis on demand (the contributing cost lines); overspend (actual over
   plan) shall read as such in words, not only in colour.
 
@@ -119,7 +122,8 @@ disciplines make or lose money while there is still time to act.
 | AC-WPVA-013 | Given equipment usage in hours and days, then hours show as hours and day entries show separately (no silent conversion). | Unit |
 | AC-WPVA-014 | Given overspend, then the screen states "over plan by X" in text. | Unit |
 | AC-WPVA-015 | Given a custom split saved by a Project Manager, then it is refused (Admin/Executive/Finance only). | pgTAP |
-| AC-WPVA-016 | Given a work order opened from the project tab, then its plan-vs-actual matches the project tab row. | E2E (one journey) |
+| AC-WPVA-016 | Given a work order opened from the project tab, then its plan-vs-actual matches the project tab row. | E2E (one journey). *Status: owned by `e2e/AC-WPVA-016-plan-vs-actual-matches.spec.ts` (#2570); panel states by `pages/work-order-detail/PlanVsActualSection.test.tsx`.* |
+| AC-WPVA-017 | Given a work order with an Approved week of 8 h and a Rejected, a Draft and a Submitted week, then its crew hours are 8, crew size counts approved people only, and the other hours are named as not yet approved. | pgTAP `supabase/tests/1115_work_order_crew_hours_approved_only.test.sql` + Unit (`rollupProject`) |
 
 Mutation check (required): break the allocation (`share := 0.5`) and AC-WPVA-004/005 go red; break the project-total
 sum and AC-WPVA-012 goes red; restore.

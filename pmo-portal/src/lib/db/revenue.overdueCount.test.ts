@@ -38,7 +38,7 @@ describe('getOverdueInvoiceCount', () => {
 
     await expect(getOverdueInvoiceCount('2026-11-05')).resolves.toBe(2);
     expect(h.from).toHaveBeenCalledWith('sales_invoices');
-    expect(h.select).toHaveBeenCalledWith('id,status,invoice_date,erp_due_date,received_date,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)');
+    expect(h.select).toHaveBeenCalledWith('id,status,invoice_date,erp_due_date,received_date,erp_outstanding_amount,retention_held,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)');
     expect(h.inFilter).toHaveBeenCalledWith('status', [...OPEN_CLIENT_INVOICE_STATUSES]);
     expect(h.isFilter).toHaveBeenCalledWith('paired_erp_invoice_id', null);
   });

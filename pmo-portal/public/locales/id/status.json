@@ -234,5 +234,11 @@
     "notShown": "Belum ditampilkan: {{figures}}",
     "hiddenCount_other": "{{count}} angka disembunyikan",
     "why": "Mengapa"
+  },
+  "siteReport": {
+    "draft": "Draf",
+    "submitted": "Menunggu validasi",
+    "returned": "Dikembalikan",
+    "validated": "Tervalidasi"
   }
 }

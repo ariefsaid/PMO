@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
-import { BahasaProvider } from '../../test/bahasa';
-import { ProjectedMarginBars } from '../../src/components/dashboard/ProjectedMarginBars';
+import { fireEvent, screen } from '@testing-library/react';
 import { getDashboardHarness, renderCompanyDashboard, resetCompanyDashboardHarness } from '../../test/companyDashboardHarness';
 import { pinHomeLayout } from '@/test/homeLayout';
 
@@ -42,12 +39,6 @@ describe('AC-UXA-003 redesigned company dashboard Bahasa coverage', () => {
 
     expect(await screen.findByRole('button', { name: 'Menurut jumlah' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Prospek/ })).toBeInTheDocument();
-    const chart = render(
-      <BahasaProvider locale="id">
-        <MemoryRouter><ProjectedMarginBars stages={[{ status: 'Leads', count: 1, total_value: 1_000, win_probability: 0.5, weighted_value: 500 }]} currency="USD" /></MemoryRouter>
-      </BahasaProvider>,
-    );
-    expect(within(chart.container).getByRole('progressbar', { name: /Prospek: .* tertimbang/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /2\s*Persetujuan/ })).toHaveAttribute('href', '/approvals');
   });
 });

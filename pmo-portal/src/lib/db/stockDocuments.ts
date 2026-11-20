@@ -3,7 +3,7 @@ import { fetchAllPages } from '@/src/lib/pagedRead';
 import { toAppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
-export type StockDocumentKind = 'receive' | 'transfer' | 'issue' | 'return' | 'adjustment' | 'count';
+export type StockDocumentKind = 'receive' | 'transfer' | 'issue' | 'return' | 'adjustment' | 'count' | 'opening';
 export type StockDocumentStatus = 'Draft' | 'Posted' | 'Cancelled';
 export type StockDocumentRow = Tables<'stock_documents'>;
 
@@ -108,12 +108,12 @@ export async function cancelStockDocument(documentId: string): Promise<void> {
   if (error) throw toAppError(error);
 }
 
-const DOC_COLS = 'id, number, kind, status, revision, warehouse_id, to_warehouse_id, project_id, procurement_id, reason, note, occurred_on, created_by, created_at, posted_by, posted_at, cancelled_at';
+const DOC_COLS = 'id, number, kind, status, revision, warehouse_id, to_warehouse_id, project_id, work_order_id, procurement_id, reason, note, occurred_on, created_by, created_at, posted_by, posted_at, cancelled_at';
 const DOC_LIST_SELECT = `${DOC_COLS}, warehouse:stock_warehouses!warehouse_id(code,name), to_warehouse:stock_warehouses!to_warehouse_id(code,name), project:projects(name), author:profiles!created_by(full_name)`;
 
 export interface StockDocumentListRow {
   id: string; number: string; kind: StockDocumentKind; status: StockDocumentStatus; revision: number;
-  warehouse_id: string; to_warehouse_id: string | null; project_id: string | null; occurred_on: string; created_by: string; created_at: string;
+  warehouse_id: string; to_warehouse_id: string | null; project_id: string | null; work_order_id?: string | null; occurred_on: string; created_by: string; created_at: string;
   warehouse: { code: string; name: string } | null; to_warehouse: { code: string; name: string } | null;
   project: { name: string } | null; author: { full_name: string } | null;
 }
@@ -201,13 +201,13 @@ export interface IssueLineRow {
   id: string; item_id: string; quantity: string; boq_item_id: string | null;
   item: { code: string; name: string; unit: { code: string } } | null;
   boq: { item_code: string; description: string } | null;
-  document: { id: string; number: string; occurred_on: string; warehouse_id: string };
+  document: { id: string; number: string; occurred_on: string; warehouse_id: string; work_order_id: string | null };
 }
 /** Posted issue lines of one project: what a Return may cite. Explicit columns only (no `unit_cost`). */
 export async function listProjectIssueLines(projectId: string): Promise<IssueLineRow[]> {
   const { data, error } = await supabase
     .from('stock_document_lines')
-    .select('id, item_id, quantity, boq_item_id, item:stock_items(code,name,unit:stock_units(code)), boq:boq_items(item_code,description), document:stock_documents!inner(id,number,occurred_on,warehouse_id,kind,status,project_id)')
+    .select('id, item_id, quantity, boq_item_id, item:stock_items(code,name,unit:stock_units(code)), boq:boq_items(item_code,description), document:stock_documents!inner(id,number,occurred_on,warehouse_id,work_order_id,kind,status,project_id)')
     .eq('document.kind', 'issue').eq('document.status', 'Posted').eq('document.project_id', projectId)
     .order('id', { ascending: false }).limit(100);
   if (error) throw toAppError(error);

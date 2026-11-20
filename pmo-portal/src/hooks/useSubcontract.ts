@@ -82,17 +82,6 @@ export function useVariationRoute(id: string | undefined) {
     enabled: Boolean(orgId && id),
   });
 }
-
-export function useProjectSubcontractExposure(projectId: string | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery({
-    queryKey: subcontractKeys.projectExposure(orgId, projectId),
-    queryFn: () => repositories.subcontracts.getProjectSubcontractExposure(projectId!),
-    enabled: Boolean(orgId && projectId),
-  });
-}
-
 export function useWorkOrderCostVariations(workOrderId: string | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;

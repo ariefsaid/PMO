@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next';
+import { Link } from 'react-router';
 import { INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
 import { CompanyNameLink, ProgressBar, TaxBasisLabel, type Column, type ProgressTone } from '@/src/components/ui';
 import { withCurrencyColumn } from '@/src/components/export';
@@ -187,13 +188,22 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
               {(projectDisplayName(p).trim().charAt(0) || '•').toUpperCase()}
             </span>
             <div className="flex min-w-0 flex-1 items-center gap-2">
-              <button
-                type="button"
+              <Link
+                to={`/projects/${p.id}`}
                 data-list-return-focus={`projects:${p.id}`}
                 onPointerEnter={() => onPrefetch?.(p.id)}
                 onFocus={() => onPrefetch?.(p.id)}
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (
+                    e.defaultPrevented
+                    || e.button !== 0
+                    || e.metaKey
+                    || e.ctrlKey
+                    || e.shiftKey
+                    || e.altKey
+                  ) return;
+                  e.preventDefault();
                   onOpen(p);
                 }}
                 className="min-w-0 flex-1 break-words text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -201,7 +211,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
                 aria-describedby={projectDisplayName(p) !== p.name ? `project-legal-${p.id}` : undefined}
               >
                 {projectDisplayName(p)}
-              </button>
+              </Link>
               {projectDisplayName(p) !== p.name && <span id={`project-legal-${p.id}`} className="sr-only">{p.name}</span>}
             </div>
           </div>

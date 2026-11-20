@@ -48,7 +48,12 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   },
   useIncidentsExportAll: () => ({ mutateAsync: exportAll, isPending: false }),
   useIncidentMutations: () => mutations,
+  useAssigneeOptions: () => ({ data: [] }),
+  useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: vi.fn(), isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
+  useIncidentFiles: () => ({ data: [] }),
 }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
+
 
 // The shared IncidentFormModal now reads the project FK options for its optional project link.
 vi.mock('@/src/hooks/useFkOptions', () => ({
@@ -175,7 +180,9 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
         </MemoryRouter>
       </ToastProvider>,
     );
-    await userEvent.click(screen.getByRole('button', { name: /open near miss/i }));
+    const rowLink = screen.getByRole('link', { name: /open near miss/i });
+    expect(rowLink.getAttribute('href')).toMatch(/^\/incidents\/[^/]+$/);
+    await userEvent.click(rowLink);
     expect(screen.getByText('Detail for incident')).toBeInTheDocument();
   });
 
@@ -184,6 +191,26 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /^Investigating$/ }));
     expect(screen.queryByText('Near Miss')).not.toBeInTheDocument();
     expect(screen.getByText('Equipment Damage')).toBeInTheDocument();
+  });
+
+  it('AC-SIL-011: an open issue past its due time carries an Overdue badge, with the job not yet run', () => {
+    listState.data = [
+      { ...seed[0], due_at: '2020-01-01T00:00:00Z', escalated_at: null },
+      { ...seed[1], due_at: '2999-01-01T00:00:00Z' },
+      { ...seed[2], due_at: '2020-01-01T00:00:00Z' }, // Closed: never overdue
+    ];
+    renderPage();
+    const rows = screen.getAllByRole('row');
+    const row = (name: string) => rows.find((r) => within(r).queryByText(name))!;
+    expect(within(row('Near Miss')).getByText('Overdue')).toBeInTheDocument();
+    expect(within(row('Equipment Damage')).queryByText('Overdue')).toBeNull();
+    expect(within(row('Spill')).queryByText('Overdue')).toBeNull();
+  });
+
+  it('AC-SIL-011: the Overdue filter asks the server for overdue issues only', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Overdue$/ }));
+    expect(pageCalls.at(-1)).toMatchObject({ overdue: true });
   });
 
   it('AC-IN-001: search filters rows by type/location', async () => {
@@ -369,8 +396,11 @@ describe('Incidents — File incident form (AC-IN-003)', () => {
         severity: 'Medium',
         location: 'Site C',
         description: 'Slippery floor',
-        // No project selected → project_id is sent as null (unlinked).
+        // No project selected → project_id is sent as null (unlinked); the site-issue fields are unset.
         project_id: null,
+        work_order_id: null,
+        assignee_id: null,
+        due_at: null,
       }),
     );
   }, 10_000);

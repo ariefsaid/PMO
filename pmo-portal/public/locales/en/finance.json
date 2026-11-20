@@ -113,6 +113,9 @@
     "dueDetails": "{{count}} invoices · next due {{date}}",
     "noneDue": "No invoices due in the next 30 days",
     "owedHelp": "Known outstanding balances on submitted and unpaid client invoices, including tax.",
+    "retentionHeld": "Retention held, not due until released: {{amount}}",
+    "retentionHeldField": "Retention held",
+    "dueNow": "Due now",
     "overdueHelp": "Known overdue balances divided by known owed balances in the same currency. Invoice count includes invoices with an unknown balance.",
     "dueHelp": "Open invoices with a due date from today through 30 days from today, using the invoice date, client terms, and ERP due date.",
     "receivedHelp": "Cash received on non-cancelled payments dated in this calendar month, compared with the previous calendar month.",
@@ -511,6 +514,9 @@
       "noForecastRowsSubPmo": "No approved budget is recorded for this fiscal year.",
       "noComparisonRowsSubPmo": "All-years comparison reads the active approved budget and paid purchases.",
       "recordedNoYearSplit": "Spending is not split by year yet. See All years.",
+      "recordedNotFiscalYear": "{{year}} is not a fiscal year of your calendar, so spending cannot be placed in it.",
+      "forecastActualsSourcePmo": "Paid purchases before tax and internal equipment charges in this fiscal year, latest payment {{date}}. Commitments are project-wide and not included in the fiscal-year final-cost formula.",
+      "forecastFinalFormulaPmo": "Calculated as paid spending to date plus cost to finish.",
       "recordedAsOf": "As of {{date}}",
       "recordedDateUnknown": "Date unavailable",
       "recordedNoAccount": "No ledger account is mapped",
@@ -1134,5 +1140,6 @@
   },
   "snapshotProvenance": {
     "empty": "No snapshot available yet"
-  }
+  },
+  "workOrderReference": "Work order"
 }

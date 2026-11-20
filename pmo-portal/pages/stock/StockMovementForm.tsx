@@ -118,7 +118,7 @@ const StockMovementForm: React.FC = () => {
   const needsProject = kind === 'issue' || kind === 'return';
   // #2517: an issue goes to its project's work order; a transfer to a site goes to the work order of that site's project.
   const destination = (warehouses.data ?? []).find((w) => w.id === toWarehouseId);
-  const attributionProject = needsProject ? projectId : kind === 'transfer' && destination?.kind === 'site' ? destination.project_id : null;
+  const attributionProject = needsProject ? projectId : kind === 'transfer' && destination && ['site', 'yard', 'staging'].includes(destination.kind) ? destination.project_id : null;
   const offersAttribution = needsProject || kind === 'transfer';
   const heading = t(`kinds.${kind}`);
 
@@ -167,16 +167,15 @@ const StockMovementForm: React.FC = () => {
     return item ? (units.data ?? []).find((u) => u.id === item.unit_id)?.code ?? '' : '';
   }
 
-  async function submit(ev: React.FormEvent) {
-    ev.preventDefault();
+  async function submit(post = true) {
     const { input, errors } = validate();
     setFieldErrors(errors);
     if (!input) return;
     setSubmitError(null);
     try {
-      const id = await create.mutateAsync({ input, post: true, clientRequestId: requestId.current, ...(offersAttribution ? { attribution } : {}) });
+      const id = await create.mutateAsync({ input, post, clientRequestId: requestId.current, ...(offersAttribution ? { attribution } : {}) });
       requestId.current = crypto.randomUUID(); // a success mints the next submit's id; a failure keeps it for the retry
-      toast(t('form.posted'), heading, 'success');
+      toast(post ? t('form.posted') : t('form.draftSaved'), heading, 'success');
       setSaved(true);
       navigate(`/stock/documents/${id}`);
     } catch (err) {
@@ -218,7 +217,7 @@ const StockMovementForm: React.FC = () => {
         <ListState variant="empty" icon="folder" title={t('form.noWarehouse.title')} sub={t('form.noWarehouse.sub')} />
       )}
       {!headerPending && !headerError && usable.length > 0 && (
-        <form data-testid="stock-movement-form" onSubmit={(e) => { if (linesSettled) void submit(e); else e.preventDefault(); }} noValidate className="space-y-4">
+        <form data-testid="stock-movement-form" onSubmit={(e) => { e.preventDefault(); if (linesSettled) void submit(); }} noValidate className="space-y-4">
           {viewOnly && <p className="text-sm text-muted-foreground">{t('form.viewOnly')}</p>}
           <div data-testid="stock-movement-header">
           <FormSection legend={t('form.sections.where')}>
@@ -277,7 +276,7 @@ const StockMovementForm: React.FC = () => {
                           label={`${t('form.cite')}${n}`}
                           required
                           value={l.sourceLineId}
-                          onChange={(v) => { const s = sourceById.get(v); setLine(l.key, { sourceLineId: v, itemId: s?.item_id ?? null }); if (s && !warehouseId) setWarehouseId(s.document.warehouse_id); }}
+                          onChange={(v) => { const s = sourceById.get(v); setLine(l.key, { sourceLineId: v, itemId: s?.item_id ?? null }); if (s && !warehouseId) setWarehouseId(s.document.warehouse_id); if (s?.document.work_order_id && !attribution.workOrderId) setAttribution({ ...attribution, workOrderId: s.document.work_order_id }); }}
                           options={sourceOptions}
                           placeholder={!projectId ? t('form.pickProjectFirst') : issueLines.isPending ? t('form.loading') : t('form.citePlaceholder')}
                           disabled={!projectId}
@@ -340,7 +339,7 @@ const StockMovementForm: React.FC = () => {
 
           {canSubmit ? (
             <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
-              <FormActions submitLabel={t(`form.submit.${kind}`)} cancelLabel={t('actions.cancel')} onCancel={() => guardLeave(() => navigate('/stock/documents'))} loading={create.isPending} disabled={!linesSettled} />
+              <FormActions submitLabel={t(`form.submit.${kind}`)} cancelLabel={t('actions.cancel')} onCancel={() => guardLeave(() => navigate('/stock/documents'))} loading={create.isPending} disabled={!linesSettled} extraActions={kind === 'transfer' ? <Button variant="outline" disabled={!linesSettled || create.isPending} onClick={() => void submit(false)}>{t('form.saveDraft')}</Button> : undefined} />
             </MobileActionBar>
           ) : (
             <p className="text-sm text-muted-foreground">{warehouseId ? t('form.notKeeper') : t('form.pickWarehouse')}</p>

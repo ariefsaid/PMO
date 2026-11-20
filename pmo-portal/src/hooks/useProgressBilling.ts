@@ -33,6 +33,7 @@ export function useProgressBillingMutations(projectId: string) {
     void qc.invalidateQueries({ queryKey: ['boq-items', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['progress-claims', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['project-billing', orgId, projectId] });
+    void qc.invalidateQueries({ queryKey: ['billing-reconciliation', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['salesInvoices'] });
   };
   // OD-BILL-1: an unraised claim counts as pending against its work order, so a claim write also moves the
@@ -50,6 +51,7 @@ export function useProgressBillingMutations(projectId: string) {
   };
   const createBoq = useMutation({ mutationFn: (input: BoqItemInput) => repositories.progressBilling.createBoq(projectId, input), onSuccess: invalidateBoq });
   const updateBoq = useMutation({ mutationFn: ({ id, input }: { id: string; input: BoqItemInput }) => repositories.progressBilling.updateBoq(id, input), onSuccess: invalidateBoq });
+  const savePricedBoq = useMutation({ mutationFn: ({ id, input, itemId, variantId, asOf }: { id: string | null; input: BoqItemInput; itemId: string; variantId: string; asOf: string }) => repositories.rateCatalogue.savePricedLine(projectId, id, input, itemId, variantId, asOf), onSuccess: invalidateBoq });
   const deleteBoq = useMutation({ mutationFn: (id: string) => repositories.progressBilling.deleteBoq(id), onSuccess: invalidateBoq });
   const recordAssessment = useMutation({
     mutationFn: (input: Omit<ProgressAssessmentInput, 'projectId'>) => repositories.progressBilling.recordAssessment({ ...input, projectId }),
@@ -71,5 +73,5 @@ export function useProgressBillingMutations(projectId: string) {
     mutationFn: (claimId: string) => repositories.progressBilling.raiseNativeInvoice(claimId),
     onSettled: invalidateClaim,
   });
-  return { createBoq, updateBoq, deleteBoq, recordAssessment, createClaim, attachEvidence, withdrawClaim, raiseInvoice, raiseNativeInvoice };
+  return { createBoq, updateBoq, savePricedBoq, deleteBoq, recordAssessment, createClaim, attachEvidence, withdrawClaim, raiseInvoice, raiseNativeInvoice };
 }

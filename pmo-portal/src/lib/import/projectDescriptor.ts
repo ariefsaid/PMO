@@ -1,3 +1,4 @@
+import { withEnglishOrgTerms } from '@/src/lib/i18n/orgTerms';
 import { repositories } from '@/src/lib/repositories';
 import {
   PROJECT_ORIGINATION_STATUSES,
@@ -89,15 +90,17 @@ export function makeProjectImportDescriptor(
   managers: readonly { id: string; name: string }[],
 ): ImportDescriptor<ProjectImportInput> {
   const client = makeRefLookup(companies, 'Company');
-  const pm = makeRefLookup(managers, 'Project manager');
+  const pm = makeRefLookup(managers, 'Project manager', true);
   return {
     entity: 'Projects',
+    entityIsAppCopy: true,
+    entityDisplayOne: 'project',
     fields: [
       {
         key: 'name',
         label: 'Name',
         required: true,
-        validate: (raw) => (raw.trim() ? null : 'Project name is required.'),
+        validate: (raw) => (raw.trim() ? null : withEnglishOrgTerms('Project name is required.', getActiveLocale().locale)),
       },
       {
         key: 'status',
@@ -106,12 +109,13 @@ export function makeProjectImportDescriptor(
         validate: (raw) =>
           PROJECT_ORIGINATION_STATUSES.includes(raw.trim() as ProjectStatus)
             ? null
-            : `Status must be one of: ${PROJECT_ORIGINATION_STATUSES.join(', ')}.`,
+            : `Status must be one of: ${PROJECT_ORIGINATION_STATUSES.map((status) => { const label = withEnglishOrgTerms(status, getActiveLocale().locale); return label === status ? status : `${label} (${status})`; }).join(', ')}.`,
       },
       { key: 'client_id', label: 'Company', required: false, validate: refValidate(client, false) },
       {
         key: 'project_manager_id',
         label: 'Project manager',
+        labelIsAppCopy: true,
         required: false,
         validate: refValidate(pm, false),
       },

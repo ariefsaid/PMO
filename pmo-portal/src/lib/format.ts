@@ -1010,9 +1010,6 @@ export function formatWeekday(d: Date): string {
 }
 
 /** "Jun 14, 2026" — Date-input twin of formatDate(iso) (same parts, local zone; shares its formatter). */
-export function formatFullDate(d: Date): string {
-  return dateFormatter().format(d);
-}
 
 /** "Jun 14, 2026, 03:45 PM" — last-sync style (hour '2-digit' is zero-padded). */
 export function formatDateTime(d: Date): string {
@@ -1097,6 +1094,11 @@ export function formatUtcMonthYear(d: Date): string {
     year: '2-digit',
     timeZone: 'UTC',
   }).format(d);
+}
+
+/** UTC "June" — full month name in the viewer's date locale (the fiscal-year start month picker, #2329). */
+export function formatUtcMonthLong(d: Date): string {
+  return dateFormatterFor('utcMonthLong', getDateLocale(), { month: 'long', timeZone: 'UTC' }).format(d);
 }
 
 /** UTC "Jun 2026" in the viewer's date locale: month + 4-digit year, so it never reads as a day. */
