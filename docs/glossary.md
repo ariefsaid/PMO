@@ -857,3 +857,8 @@ and **Phase** for a milestone. **Actual** and **Recorded spending** name the sam
 **Usage standard** — an organisation rule of how much of a consumable stock item one unit of planned work uses (for example welding rod per dia-inch), matched on the contract line's unit, with an optional code prefix and a waste margin (#2577).
 
 **Consumable plan** — a work order's stored list of consumable quantities, generated from its work-order lines and the usage standards and adjustable with a reason; material requests are checked against it before the contract allowances (#2577).
+**Client material requisition** — a request to the client to release client-supplied material for one work order, tracked
+from the **take-off** (the quantity the work order needs) through the client's **reservation** (their confirmation that a
+quantity is set aside) to **pickup** (collection, which posts a zero-cost stock receipt). The work order shows reserved,
+collected and still to collect; the figures are derived from recorded events, never stored. Distinct from a material request,
+which moves the organisation's own stock.
