@@ -263,7 +263,7 @@
 --
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(9);
 
 -- This is duplicated from 0185 as a visible proof contract. A future client RPC must retain its
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
