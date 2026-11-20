@@ -1,5 +1,5 @@
 -- mrq_step_pin.test.sql — #2598 a project can pin a material-request approval step to a named person.
--- Spec docs/specs/material-requests.spec.md (FR-MRQ-020..023, AC-MRQ-016..020). Migration under test: 1036_mrq_step_pins.sql.
+-- Spec docs/specs/material-requests.spec.md (FR-MRQ-020..023, AC-MRQ-016..020). Migration under test: 1045_mrq_step_pins.sql.
 -- Every denial asserts the errcode AND the message, so a different gate moving in front cannot pass it.
 begin;
 create extension if not exists pgtap;

@@ -285,7 +285,7 @@ select plan(7);
 -- is a read-only definer and is not listed.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 -- The union of the dev and work-order finance RPC inventories contains 194 retained names.
--- ⚑ AMENDED BY 1036 (#2598): `mrq_set_step_pin` joins the retained set (+1, count 195).
+-- ⚑ AMENDED BY 1045 (#2598): `mrq_set_step_pin` joins the retained set (+1, count 195).
 insert into client_callable_rpc_names (proname) values
   ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
   ('accept_connect_proposals'),
@@ -452,7 +452,7 @@ insert into client_callable_rpc_names (proname) values
   ('mrq_submit'),
   ('mrq_decide_step'),
   ('mrq_cancel'),
-  ('mrq_set_step_pin'),  -- ⚑ AMENDED BY 1036 (#2598): Admin or the project's manager pins a step to a named approver (mrq_step_pin.test.sql)
+  ('mrq_set_step_pin'),  -- ⚑ AMENDED BY 1045 (#2598): Admin or the project's manager pins a step to a named approver (mrq_step_pin.test.sql)
   ('set_shared_cost_split'),
   ('set_work_order_plan'),
   ('clear_shared_cost_split'),

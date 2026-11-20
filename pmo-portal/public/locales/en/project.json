@@ -1128,12 +1128,10 @@
       "anyone": "Anyone with the role",
       "pinnedTo": "Pinned to {{name}}",
       "unpinned": "Any {{role}}",
-      "choose": "Choose a person",
       "save": "Save",
       "cleared": "Pin removed",
       "saved": "Pin saved",
       "step": "Step {{n}}: {{label}}",
-      "noChain": "No approval chain is set up yet.",
       "loadFailed": "Approval steps could not be loaded",
       "retry": "Retry"
     }

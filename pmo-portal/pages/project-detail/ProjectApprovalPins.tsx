@@ -34,7 +34,7 @@ export function ProjectApprovalPins({ projectId, managerId }: { projectId: strin
     return <div>{title}<ListState variant="error" title={t('projectDetail.approvalPins.loadFailed', 'Approval steps could not be loaded')} onRetry={() => { void chain.refetch(); void pins.refetch(); }} retryLabel={t('projectDetail.approvalPins.retry', 'Retry')} /></div>;
   }
   const steps = chain.data ?? [];
-  // Nothing to pin until the Admin has set a chain, and nobody but the people who can pin needs the panel.
+  // Nothing to pin until the Admin has set a chain. Everyone else sees the pins read-only.
   if (steps.length === 0) return null;
   const pinFor = (position: number, role: string) => pins.data?.find((p) => p.position === position && p.role === role)?.approverId ?? '';
   const nameOf = (id: string) => users.data?.find((u) => u.id === id)?.full_name ?? '—';

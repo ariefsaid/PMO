@@ -1128,12 +1128,10 @@
       "anyone": "Siapa pun dengan peran ini",
       "pinnedTo": "Ditetapkan ke {{name}}",
       "unpinned": "Setiap {{role}}",
-      "choose": "Pilih orang",
       "save": "Simpan",
       "cleared": "Penetapan dihapus",
       "saved": "Penetapan disimpan",
       "step": "Langkah {{n}}: {{label}}",
-      "noChain": "Rantai persetujuan belum diatur.",
       "loadFailed": "Langkah persetujuan tidak dapat dimuat",
       "retry": "Coba lagi"
     }
