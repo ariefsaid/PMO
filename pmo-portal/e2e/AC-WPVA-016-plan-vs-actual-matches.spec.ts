@@ -3,7 +3,8 @@
 // Goal oracle: the work-order page's direct cost, shared cost and result figures equal the project tab row's.
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { requireServiceRoleKey, signIn } from './helpers';
+import { pinEnglishLocale, requireServiceRoleKey, signIn } from './helpers';
+import { formatExactMoney } from '../src/lib/format';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 test.setTimeout(60_000);
@@ -52,6 +53,7 @@ test('AC-WPVA-016 the work-order page plan-vs-actual matches the project tab row
     ]);
     if (plan.error) throw new Error('AC-WPVA-016 fixture plan: ' + plan.error.message);
 
+    await pinEnglishLocale(page);
     await signIn(page, 'finance@acme.test');
     await page.route('**/api/resource/**', (route) => route.abort());
     await page.goto('/projects/' + projectId + '/contract');
@@ -67,7 +69,7 @@ test('AC-WPVA-016 the work-order page plan-vs-actual matches the project tab row
     await expect(page).toHaveURL((url) => url.pathname === '/work-orders/' + workOrderId);
     const panel = page.getByTestId('wo-page-pva');
     await expect(panel).toBeVisible();
-    await expect(panel.getByTestId('wo-page-pva-plan-direct')).toContainText('5');
+    await expect(panel.getByTestId('wo-page-pva-plan-direct')).toHaveText(formatExactMoney('5000.00', 'EUR', 'en-US') ?? 'unformattable');
     await expect(panel.getByTestId('wo-page-pva-direct')).toHaveText(tab.direct);
     await expect(panel.getByTestId('wo-page-pva-allocated')).toHaveText(tab.allocated);
     await expect(panel.getByTestId('wo-page-pva-result')).toHaveText(tab.result);

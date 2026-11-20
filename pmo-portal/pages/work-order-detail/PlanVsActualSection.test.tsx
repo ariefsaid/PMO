@@ -5,6 +5,7 @@ import { I18nextProvider } from 'react-i18next';
 import { createInstance } from 'i18next';
 import idPva from '../../public/locales/id/workOrderPva.json';
 import enPva from '../../public/locales/en/workOrderPva.json';
+import { formatExactMoney } from '@/src/lib/format';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { rollupProject, type CostAmountLine, type PvaWorkOrder, type PlanLine } from '@/src/lib/workOrderPlanVsActual';
 import { PlanVsActualSection } from './PlanVsActualSection';
@@ -33,16 +34,16 @@ describe('PlanVsActualSection', () => {
       [{ id: 'p', workOrderId: 'A', disciplineId: null, kind: 'direct_budget', value: '550.00', note: null }],
     );
     render(<PlanVsActualSection workOrderId="A" query={ok(d)} disciplines={discs} />);
-    expect(screen.getByTestId('wo-page-pva-plan-direct').textContent).toMatch(/550/);
-    expect(screen.getByTestId('wo-page-pva-direct').textContent).toMatch(/600/);
-    expect(screen.getByTestId('wo-page-pva-direct').textContent).toMatch(/Over plan by .*50/);
-    expect(screen.getByTestId('wo-page-pva-allocated').textContent).toMatch(/60/);
-    expect(screen.getByTestId('wo-page-pva-revenue').textContent).toMatch(/1[.,]000/);
-    expect(screen.getByTestId('wo-page-pva-direct-margin').textContent).toMatch(/400/);
-    expect(screen.getByTestId('wo-page-pva-result').textContent).toMatch(/340/);
+    expect(screen.getByTestId('wo-page-pva-plan-direct').textContent).toBe(formatExactMoney('550.00', 'IDR', 'en-US'));
+    expect(screen.getByTestId('wo-page-pva-direct').textContent).toMatch(/^IDR.600\.00/);
+    expect(screen.getByTestId('wo-page-pva-direct').textContent).toContain('Over plan by ' + formatExactMoney('50.00', 'IDR', 'en-US'));
+    expect(screen.getByTestId('wo-page-pva-allocated').textContent).toContain(formatExactMoney('60.00', 'IDR', 'en-US'));
+    expect(screen.getByTestId('wo-page-pva-revenue').textContent).toBe(formatExactMoney('1000.00', 'IDR', 'en-US'));
+    expect(screen.getByTestId('wo-page-pva-direct-margin').textContent).toBe(formatExactMoney('400.00', 'IDR', 'en-US'));
+    expect(screen.getByTestId('wo-page-pva-result').textContent).toBe(formatExactMoney('340.00', 'IDR', 'en-US'));
     const civ = screen.getByTestId('wo-page-pva-discipline-civ');
     expect(within(civ).getByText('Civil')).toBeTruthy();
-    expect(civ.textContent).toMatch(/600/);
+    expect(civ.textContent).toContain(formatExactMoney('600.00', 'IDR', 'en-US'));
     // the other work order's figures are not shown
     expect(screen.queryByText(/WO-2/)).toBeNull();
   });
