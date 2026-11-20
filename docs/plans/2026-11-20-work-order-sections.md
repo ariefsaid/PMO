@@ -49,19 +49,19 @@
 ## Traceability (each AC owned at one lowest sufficient layer, ADR-0010)
 | AC | Layer | File |
 |---|---|---|
-| AC-WOS-001 | Unit + pgTAP | `workOrderSections.test.ts`, `<NNNN>_work_order_sections.test.sql` |
-| AC-WOS-002 | Unit + pgTAP | same two files |
+| AC-WOS-001 | pgTAP (owner) | `<NNNN>_work_order_sections.test.sql`; also referenced: Unit in `workOrderSections.test.ts` |
+| AC-WOS-002 | pgTAP (owner) | `<NNNN>_work_order_sections.test.sql`; also referenced: Unit in `workOrderSections.test.ts` |
 | AC-WOS-003, 004, 005, 006, 007 | pgTAP | `<NNNN>_work_order_sections.test.sql` (006 also needs a material request fixture) |
-| AC-WOS-008 | pgTAP + Unit | `<NNNN>_work_order_section_materials.test.sql`, `workOrderSections.test.ts` |
+| AC-WOS-008 | pgTAP (owner) | `<NNNN>_work_order_section_materials.test.sql`; also referenced: Unit in `workOrderSections.test.ts` |
 | AC-WOS-009, 010, 011 | pgTAP | `<NNNN>_work_order_section_materials.test.sql` |
-| AC-WOS-012 | Unit + pgTAP | `workOrderSections.test.ts`, `<NNNN>_work_order_sections.test.sql` |
+| AC-WOS-012 | pgTAP (owner) | `<NNNN>_work_order_sections.test.sql`; also referenced: Unit in `workOrderSections.test.ts` |
 | AC-WOS-013, 015, 016 | pgTAP | `<NNNN>_work_order_sections.test.sql` |
 | AC-WOS-014 | Unit | `workOrderSections.test.ts` |
 | AC-WOS-017 | pgTAP | crew-link test, Slice 5 |
 | AC-WOS-018 | Unit | terminology test, Slice 1 |
 | AC-WOS-019 | E2E | `e2e/AC-WOS-019-sections-rollup.spec.ts` |
 
-## Glossary (add to `docs/glossary.md` in the PR that ships Slice 2)
+## Glossary (added to `docs/glossary.md` with the spec)
 Section (child of a work order, generic term; the org's own word comes from the terminology dictionary) · Unsectioned remainder · Roll-up invariant · Section readiness · Section allocation (planned material quantity per section).
 
 ## Final gate

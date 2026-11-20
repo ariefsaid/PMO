@@ -84,18 +84,18 @@ Fixture used below: work order W with plan lines direct budget 1,000.00 (section
 
 | ID | Given / When / Then | Layer |
 |---|---|---|
-| AC-WOS-001 | Given a work order with no sections, when its page and reads run, then output is identical to before the feature (no section row, same totals, same material check). | Unit + pgTAP |
-| AC-WOS-002 | Given the fixture, when roll-up is read, then direct budget is A 400.00 + B 350.00 + remainder 250.00 = 1,000.00 = the work-order total, exactly; cable requested is 40 + 10 + 20 = 70. | Unit (pure function) + pgTAP (read) |
+| AC-WOS-001 | Given a work order with no sections, when its page and reads run, then output is identical to before the feature (no section row, same totals, same material check). | pgTAP (owner: server reads); also referenced: Unit |
+| AC-WOS-002 | Given the fixture, when roll-up is read, then direct budget is A 400.00 + B 350.00 + remainder 250.00 = 1,000.00 = the work-order total, exactly; cable requested is 40 + 10 + 20 = 70. | pgTAP (owner: server read); also referenced: Unit (pure function) |
 | AC-WOS-003 | Given a section of work order W1, when a plan line, material request or other child on W2 names it, then refused by the composite foreign key; on W1 it is accepted; with no section it is accepted. | pgTAP |
 | AC-WOS-004 | Given two sections in one work order, when a second section reuses a code, then refused; archived sections free nothing (code stays reserved). | pgTAP |
 | AC-WOS-005 | Given a Cancelled work order, when a section is added or edited, then refused; on a Closed one add is refused and readiness update is accepted. | pgTAP |
 | AC-WOS-006 | Given a section with a `pending` material request, when archived, then refused with the blocking reason; with none open it archives and is then not offered on a new request but its old requests still show it. | pgTAP |
 | AC-WOS-007 | Given a referenced section, when an Admin deletes it, then blocked as "in use"; an unreferenced one deletes; a non-Admin delete is refused. | pgTAP |
-| AC-WOS-008 | Given allocations for cable of 60 (A) and 30 (B) against a work-order plan of 100, when B is raised to 50, then refused; when the work order's plan later drops to 80, then the item is flagged over-allocated and no figure is rewritten. | pgTAP + Unit |
+| AC-WOS-008 | Given allocations for cable of 60 (A) and 30 (B) against a work-order plan of 100, when B is raised to 50, then refused; when the work order's plan later drops to 80, then the item is flagged over-allocated and no figure is rewritten. | pgTAP (owner); also referenced: Unit |
 | AC-WOS-009 | Given a request line of 25 cable on section A whose requested total would be 65 against A's allocation 60, when submitted without a reason, then refused; with a reason it is accepted; the work-order check still applies independently. | pgTAP |
 | AC-WOS-010 | Given a section with no cable allocation, when a line for cable is submitted on it, then it is checked against the work order's plan only. | pgTAP |
 | AC-WOS-011 | Given a material request in `approved`, when its section is changed, then refused; in `draft` it is accepted. | pgTAP |
-| AC-WOS-012 | Given a plan line change moving a figure between sections, when the work order's total is read, then it is unchanged and each section's figure moves by exactly that amount. | Unit + pgTAP |
+| AC-WOS-012 | Given a plan line change moving a figure between sections, when the work order's total is read, then it is unchanged and each section's figure moves by exactly that amount. | pgTAP (owner); also referenced: Unit |
 | AC-WOS-013 | Given readiness changes on a section, when history is read, then each change shows actor, time and note; a section starts `not_ready`. | pgTAP |
 | AC-WOS-014 | Given sections ready, ready and blocked, when the roll-up is read, then counts are 2/0/1 and "all ready" is false; with all ready it is true; with no live section there is no roll-up. | Unit |
 | AC-WOS-015 | Given the section's foreman, when they set readiness on their own section it is accepted; on another section or to edit plans it is refused. | pgTAP |
