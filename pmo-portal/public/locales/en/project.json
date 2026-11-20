@@ -1132,8 +1132,7 @@
         "noDependencies": "No dependencies are linked.",
         "subtasks": "Subtasks",
         "noSubtasks": "No subtasks.",
-        "history": "History",
-        "workOrder": "Work order"
+        "history": "History"
       },
       "noMilestone": "No phase",
       "drawerMoreActions": "More task actions",

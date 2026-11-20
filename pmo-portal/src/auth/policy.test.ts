@@ -1200,10 +1200,3 @@ describe('#2528 crews, roster and attendance (UX gate; RLS + attendance RPCs are
     expect(can('approve', 'attendance', { realRole: 'Project Manager', currentUserId: 'u1', record: { recorder_ids: ['u2'] } })).toBe(true);
   });
 });
-
-describe('document types and warning days (#2614)', () => {
-  it('only an Admin manages them, and not while viewing as another role', () => {
-    expect(allowedRoles('manage', 'documentType')).toEqual(['Admin']);
-    expect(can('manage', 'documentType', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
-  });
-});

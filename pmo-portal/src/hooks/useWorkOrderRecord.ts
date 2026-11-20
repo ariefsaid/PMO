@@ -31,23 +31,3 @@ export function useWorkOrderClaimDocuments(id: string | undefined) {
     enabled: Boolean(orgId) && Boolean(id),
   });
 }
-
-/** Issues (#2521) that name this work order, for its record page (FR-WORP-025). */
-export function useWorkOrderIssues(id: string | undefined, enabled = true) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['incidents', orgId, 'work-order', id],
-    queryFn: () => repositories.incident.list({ workOrderId: id as string }),
-    enabled: enabled && Boolean(orgId) && Boolean(id),
-  });
-}
-
-/** Open tasks (#2531) that name this work order; same key as the project tab's open-task list. */
-export function useWorkOrderOpenTasks(id: string | undefined) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['tasks', orgId, 'work-order', id],
-    queryFn: () => repositories.task.listOpenByWorkOrder(id as string),
-    enabled: Boolean(orgId) && Boolean(id),
-  });
-}

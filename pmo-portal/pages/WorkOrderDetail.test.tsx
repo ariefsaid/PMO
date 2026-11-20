@@ -10,9 +10,8 @@ const q = (data: unknown, over: Record<string, unknown> = {}) => ({ data, isPend
 const viewerOpen = vi.hoisted(() => vi.fn());
 vi.mock('@/src/components/documents/viewerContext', () => ({ useViewerOnDemand: () => ({ open: viewerOpen }) }));
 const h = vi.hoisted(() => ({ wo: null as unknown, alloc: null as unknown, boq: null as unknown, basts: null as unknown, billing: null as unknown,
-  docs: null as unknown, issues: null as unknown, tasks: null as unknown, issuesOn: true, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown }));
-vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: () => h.alloc, useWorkOrderClaimDocuments: () => h.claimDocs, useWorkOrderIssues: () => h.issues, useWorkOrderOpenTasks: () => h.tasks }));
-vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => h.issuesOn }));
+  docs: null as unknown, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown }));
+vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: () => h.alloc, useWorkOrderClaimDocuments: () => h.claimDocs }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts }));
@@ -41,7 +40,6 @@ beforeEach(async () => {
     { id: 'a2', work_order_id: 'other', status: 'Confirmed', is_final: false, acceptance_date: '2026-03-02', document_id: null, lines: [{ boq_item_id: 'b1', quantity: 9 }] }]);
   h.billing = q([{ workOrderId: 'w1', currency: 'IDR', invoiced: 10, pending: 20, paid: 30, remaining: 40, figuresComplete: true }]);
   h.claimDocs = q([]);
-  h.issues = q([]); h.tasks = q([]); h.issuesOn = true;
   h.docs = q([{ id: 'd1', title: 'BAST scan' }, { id: 'd2', title: 'Unrelated' }]);
   h.lines = q({ purchase_order: [ln('purchase_order', 'po1', 'd1'), ln('purchase_order', 'po2', null)], vendor_bill: [], timesheet_entry: [] });
   h.money = q({ purchase_order: { po1: { amount: 100, currency: 'IDR' }, po2: { amount: 50, currency: 'IDR' } } });
@@ -216,57 +214,5 @@ describe('WorkOrderDetail', () => {
     expect(Object.entries(id).filter(([, v]) => v.trim() === '')).toEqual([]);
     // Every page string is translated: no key whose Bahasa text is still the English sentence (placeholders-only strings excepted).
     expect(Object.keys(en).filter((k) => /[a-z]{4,}/i.test(en[k].replace(/\{\{.*?\}\}/g, '')) && en[k] === id[k])).toEqual([]);
-  });
-  // #2615 FR-WORP-025: issues and open tasks that name the work order.
-  it('lists the issues naming the work order with status and due time, each linking to the issue', () => {
-    h.issues = q([{ id: 'i1', type: 'Leaking flange', status: 'Open', due_at: '2999-01-01T00:00:00Z' }]);
-    renderPage();
-    const list = within(screen.getByTestId('wo-issues'));
-    expect(list.getByRole('link', { name: 'Leaking flange' })).toHaveAttribute('href', '/incidents/i1');
-    expect(list.getByText(/Fix by/)).toBeInTheDocument();
-  });
-
-  it('lists the open tasks with assignee and due date', () => {
-    h.tasks = q([{ id: 't1', name: 'Torque the bolts', assignee: { full_name: 'Sari Dewi' }, end_date: '2999-01-01' }, { id: 't2', name: 'Paint', assignee: null, end_date: null }]);
-    renderPage();
-    const list = within(screen.getByTestId('wo-open-tasks'));
-    expect(list.getByText('Torque the bolts')).toBeInTheDocument();
-    expect(list.getByText('Sari Dewi')).toBeInTheDocument();
-    expect(list.getByText('Unassigned')).toBeInTheDocument();
-    expect(list.getByText('No due date')).toBeInTheDocument();
-  });
-
-  it('shows an empty state for each section', () => {
-    renderPage();
-    expect(screen.getByText('No issues name this work order.')).toBeInTheDocument();
-    expect(screen.getByText('No open tasks name this work order.')).toBeInTheDocument();
-  });
-
-  it('a failing issues read shows its own error with retry; the tasks section still renders', async () => {
-    const refetch = vi.fn();
-    h.issues = q(undefined, { isError: true, refetch });
-    h.tasks = q([{ id: 't1', name: 'Torque the bolts', assignee: null, end_date: null }]);
-    renderPage();
-    await userEvent.setup().click(within(screen.getByText("Couldn't load the issues").closest('section') as HTMLElement).getByRole('button', { name: /retry/i }));
-    expect(refetch).toHaveBeenCalled();
-    expect(screen.getByText('Torque the bolts')).toBeInTheDocument();
-  });
-
-  it('a failing open-tasks read shows its own error with retry', async () => {
-    const refetch = vi.fn();
-    h.tasks = q(undefined, { isError: true, refetch });
-    renderPage();
-    await userEvent.setup().click(within(screen.getByText("Couldn't load the open tasks").closest('section') as HTMLElement).getByRole('button', { name: /retry/i }));
-    expect(refetch).toHaveBeenCalled();
-  });
-
-  it('both sections show loading, and the issues section is absent while the incidents module is off', () => {
-    h.issues = q(undefined, { isPending: true }); h.tasks = q(undefined, { isPending: true });
-    const { unmount } = renderPage();
-    expect(screen.queryByTestId('wo-issues')).toBeNull();
-    unmount();
-    h.issuesOn = false;
-    renderPage();
-    expect(screen.queryByText('Issues')).toBeNull();
   });
 });

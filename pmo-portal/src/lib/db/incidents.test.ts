@@ -91,12 +91,6 @@ describe('AC-IN-001 listIncidents (org-scoped, newest first)', () => {
     expect(h.calls.eq).toContainEqual(['status', 'Investigating']);
   });
 
-  it('FR-WORP-025: narrows to the issues naming one work order', async () => {
-    h.result.value = { data: [], error: null };
-    await listIncidents({ workOrderId: 'w1' });
-    expect(h.calls.eq).toContainEqual(['work_order_id', 'w1']);
-  });
-
   it('AC-IN-001: returns [] when supabase returns null data', async () => {
     h.result.value = { data: null, error: null };
     await expect(listIncidents()).resolves.toEqual([]);
