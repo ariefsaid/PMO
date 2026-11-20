@@ -48,6 +48,8 @@ inside it, proven by pgTAP and mutation-checked.
 8. **Admin setting red→green** — `pages/admin/OrgFiscalYearStart.test.tsx` AC-FCAL-014, then the component and its
    slot in `pages/Administration.tsx`; strings in `public/locales/{en,id}/`.
 9. **Glossary** — *Fiscal calendar*, *Fiscal year start month*.
+9a. **Inventories** — `supabase/tests/0178_anon_executable_definers.test.sql`: the setter joins the retained client
+    writer set (+1, 180). Month names come from the format seam (`formatUtcMonthLong` in `src/lib/format.ts`).
 10. **Gates** — check:guards, typecheck, eslint on touched files, `vitest related`, pgTAP files.
 
 ## Traceability
