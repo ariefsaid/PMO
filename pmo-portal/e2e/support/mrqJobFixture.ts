@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { serviceClient } from './jobFixtures';
 import { SEED_PROJECT_ID, makeItem, runSuffix, userClient } from './stockFixture';
 
 /** Material-request journeys: an issued work order + item on the seed delivery project, and the org's approval chain set. The chain and cut-off are org-wide, so journeys using this live in e2e/serial/. */
@@ -8,7 +9,7 @@ export async function mrqSetup(steps: Array<{ role: string; label: string }>, cu
   const admin = await userClient('admin@acme.test');
   const orgId = (await admin.from('projects').select('org_id').eq('id', SEED_PROJECT_ID).single()).data?.org_id as string;
   const item = await makeItem(admin, sfx, 'M');
-  const wo = await admin.from('work_orders').insert({
+  const wo = await serviceClient().from('work_orders').insert({
     org_id: orgId, project_id: SEED_PROJECT_ID, title: `JOB MRQ ${sfx}`, wo_number: `JOB-MRQ-${sfx}`, status: 'Issued',
     issued_at: new Date().toISOString(), order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0,
   }).select('id, title, wo_number').single();

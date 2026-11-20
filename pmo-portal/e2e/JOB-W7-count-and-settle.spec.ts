@@ -19,6 +19,7 @@ test('JOB-W7 a count of 47 against 50 posts a 3-unit difference and stock reads 
   await page.goto('/stock/new/count');
   await page.getByLabel(/^Warehouse/).selectOption({ label: label(central) });
   await page.getByRole('button', { name: 'Fill from stock on hand' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Replace lines' }).click();
   await page.getByLabel(/^Counted/).fill('47');
   await expect(page.getByTestId('system-1')).toContainText('50');
   await page.getByRole('button', { name: 'Save draft' }).click();
@@ -34,5 +35,5 @@ test('JOB-W7 a count of 47 against 50 posts a 3-unit difference and stock reads 
   await expect(page.getByRole('row').filter({ hasText: 'Stock count' }).first()).toContainText(/[-−]3/);
   await page.goto('/stock');
   await page.getByPlaceholder('Search items').fill(item.code);
-  await expect(page.getByRole('row').filter({ hasText: central.code })).toContainText('47');
+  await expect(page.getByRole('row').filter({ hasText: central.name })).toContainText('47');
 });

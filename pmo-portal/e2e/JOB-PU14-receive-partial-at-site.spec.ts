@@ -26,5 +26,5 @@ test('JOB-PU14 the site keeper receives 37 and the site stock rises by 37', asyn
 
   await page.goto('/stock');
   await page.getByPlaceholder('Search items').fill(item.code);
-  await expect(page.getByRole('row').filter({ hasText: site.code })).toContainText('37');
+  await expect(page.getByRole('row').filter({ hasText: site.name })).toContainText('37');
 });

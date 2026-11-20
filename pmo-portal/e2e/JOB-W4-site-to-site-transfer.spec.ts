@@ -27,8 +27,8 @@ test('JOB-W4 a transfer between two sites leaves 4 at the sender and 6 at the re
   // One view, every location: filter by the item, no warehouse chosen.
   await page.goto('/stock');
   await page.getByPlaceholder('Search items').fill(item.code);
-  const rowB = page.getByRole('row').filter({ hasText: siteB.code });
-  const rowC = page.getByRole('row').filter({ hasText: siteC.code });
+  const rowB = page.getByRole('row').filter({ hasText: siteB.name });
+  const rowC = page.getByRole('row').filter({ hasText: siteC.name });
   await expect(rowB).toContainText('4');
   await expect(rowC).toContainText('6');
 });

@@ -29,5 +29,5 @@ test('JOB-W10 returning 4 leftover units puts them back in the warehouse', async
 
   await page.goto('/stock');
   await page.getByPlaceholder('Search items').fill(item.code);
-  await expect(page.getByRole('row').filter({ hasText: site.code })).toContainText('10');
+  await expect(page.getByRole('row').filter({ hasText: site.name })).toContainText('10');
 });
