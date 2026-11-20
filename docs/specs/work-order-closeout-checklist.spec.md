@@ -2,6 +2,14 @@
 
 **Status:** proposed; owner decisions below need sign-off before build. Map #2516. Target February to March 2027, after the 15 December go-live. IDs `FR-WCO-###`, `NFR-WCO-###`, `AC-WCO-###`, `OD-WCO-#`. Plan: `docs/plans/2026-11-21-work-order-closeout-checklist.md`. Executor: Orca worker, **Director-dispatched**: it adds a precondition to closing a work order, which fixes the closing value and the money path (`docs/money-path-primer.md`, ADR-0019). It ships alone. It adds no amount and changes no separation-of-duties rule.
 
+## Review 20 Nov
+
+Read against `origin/dev`: migrations 0193, 0337 and 1026; `work_orders` column grants; the work-order detail route and `Administration.tsx`.
+
+- `work_orders` has `closed_at` but no `closed_by`; the existing `closed_by` from 1026 belongs to `incident_reports`. The plan adds the new work-order stamp with the shipped `profiles(id)` reference pattern.
+- Both shipped close paths are covered by the proposed status trigger. The client grant already withholds work-order stamps, and `assert_work_order_update` checks immutable identity and post-Draft content rather than acting as a column allow-list; the plan no longer extends it.
+- The acceptance cases now give explicit Given/When/Then steps for both close paths, empty checklists and the display age.
+
 ## Job story
 
 When a work order's work is finished, I want an ordered close-out checklist set by my organisation (acceptance letters, completion certificates, close-out documents), each item backed by an attached document, so that the work order closes only when every required item is done and the record shows who closed it.
@@ -9,7 +17,7 @@ When a work order's work is finished, I want an ordered close-out checklist set 
 ## Context and boundary (checked against `origin/dev`, 20 Nov 2026)
 
 - A work order moves `Draft` to `Issued` to `Closed` or `Cancelled` through `transition_work_order(p_id, p_to, p_over_commit_ack)` (0193, redefined 0337). Roles allowed: Admin, Executive, Project Manager, Finance. It stamps `work_orders.closed_at`; there is **no** `closed_by` column today.
-- There are **two** ways a work order becomes `Closed`, and the gate must cover both: (1) `transition_work_order(..., 'Closed')`, which 0337 refuses outright for a work order that has contract lines ("close it by confirming its final BAST"); (2) `confirm_work_order_acceptance` (0337), which for a final acceptance sets `closing_value`, `closing_acceptance_id`, `status = 'Closed'`, `closed_at` in one update guarded by `pmo.confirming_work_order_acceptance`. A single `before update` trigger on `work_orders` that fires when `status` becomes `Closed` covers both with one predicate, the same approach the invoice gate uses on `sales_invoices` and `external_command_outbox` (1021, `assert_claim_billing_stages_complete`).
+- There are **two** ways a work order becomes `Closed`, and the gate must cover both: (1) `transition_work_order(..., 'Closed')`, which 0337 refuses outright for a work order that has contract lines (close it by confirming its final acceptance); (2) `confirm_work_order_acceptance` (0337), which for a final acceptance sets `closing_value`, `closing_acceptance_id`, `status = 'Closed'`, `closed_at` in one update guarded by `pmo.confirming_work_order_acceptance`. A single `before update` trigger on `work_orders` that fires when `status` becomes `Closed` covers both with one predicate, the same approach the invoice gate uses on `sales_invoices` and `external_command_outbox` (1021, `assert_claim_billing_stages_complete`).
 - The billing-stage mechanism to reuse (1021, `docs/specs/billing-stages.spec.md`): an ordered list on the project copied onto each claim at creation; each item has a document checklist; a document is attached only if it is a `project_documents` row of the project with status Issued or Approved and a file; items complete in order; stage age is days current (`stageAgeDays`, `pmo-portal/src/lib/billingStages.ts`). The final acceptance already uses the same document rule (0337 `confirm_work_order_acceptance`).
 - The checklist template is **organisation-wide** (the issue says "set by the organisation"), not per contract. A project-level override is a later extension (OD-WCO-2).
 - The work-order record page sections live in `pmo-portal/pages/work-order-detail/` (`ScopeSection`, `BillingSection`, `DocumentsSection`, `CostSection`, `PlanVsActualSection`); the route is `/work-orders/:id` (`docs/specs/work-order-record-page.spec.md`).
@@ -48,18 +56,18 @@ When a work order's work is finished, I want an ordered close-out checklist set 
 
 | ID | Given / When / Then | Layer |
 |---|---|---|
-| AC-WCO-001 | Given Admin saves a list of three items (one optional), when a Draft work order is issued, then it has those three items in order, none done; a later edit of the list does not change it. | pgTAP |
+| AC-WCO-001 | Given Admin saves a list of three items (one optional), when a Draft work order is issued, then it has those three items in order, none done. When Admin later edits the organisation list, then the already-issued work order's checklist is unchanged. | pgTAP |
 | AC-WCO-002 | Given a Finance user, Project Manager or Engineer, when they replace the organisation's list, then only Admin succeeds; the rest are refused `42501`. | pgTAP |
-| AC-WCO-003 | Given an item with no document, when someone marks it done, then it is refused; with an Issued or Approved document of the same project it succeeds; a Draft document, one with no file, or another project's is refused. | pgTAP |
-| AC-WCO-004 | Given items A, B, C, when B is marked done before A, then it is refused (`item-out-of-order`); a future date, or a date before A's, is refused; a done item cannot be marked again. | pgTAP |
-| AC-WCO-005 | Given a work order with no contract lines and a required item open, when a Project Manager closes it by `transition_work_order`, then it is refused `closeout-incomplete`; with every required item done it closes and `closed_by` is the caller. | pgTAP |
-| AC-WCO-006 | Given a work order with contract lines, a confirmed-ready final acceptance and a required item open, when the acceptance is confirmed, then it is refused `closeout-incomplete`, the acceptance stays unconfirmed and no closing value is stamped; with the checklist complete the same confirmation closes it, stamps the closing value and `closed_by`. Mutation: remove the trigger and both closing halves must go red. | pgTAP |
-| AC-WCO-007 | Given an optional item left open and every required item done, when the work order is closed, then it closes. Given an organisation with an empty list, a work order closes as before. | pgTAP |
-| AC-WCO-008 | Given an item's age, when the work order was issued on 1 March and today is 11 March, then the first item's age is 10; if done on 5 March, 4; the second item starts on 5 March. | Unit (`pmo-portal/src/lib/closeoutChecklist.test.ts`) |
+| AC-WCO-003 | Given an item with no document, when someone marks it done, then it is refused. Given an Issued or Approved document from the same project with a file, when it is attached and the item is marked done, then it succeeds; given a Draft document, a document without a file, or one from another project, when it is attached, then it is refused. | pgTAP |
+| AC-WCO-004 | Given items A, B and C with A open, when B is marked done, then it is refused with `item-out-of-order`. Given the first item, when its done date is in the future or an earlier item date, then it is refused; given a done item, when it is marked again, then it is refused. | pgTAP |
+| AC-WCO-005 | Given a work order with no contract lines and one required item open, when a Project Manager closes it through `transition_work_order`, then it is refused with `closeout-incomplete`. Given the same work order with every required item done, when the Project Manager closes it, then it closes and `closed_by` is the caller. | pgTAP |
+| AC-WCO-006 | Given a work order with contract lines, a confirmed-ready final acceptance and a required item open, when the final acceptance is confirmed, then it is refused with `closeout-incomplete`, the acceptance stays unconfirmed and no closing value is stamped. Given the same work order with the checklist complete, when that acceptance is confirmed, then the work order closes with the closing value and `closed_by` stamped. Mutation: remove the trigger and both close cases must go red. | pgTAP |
+| AC-WCO-007 | Given an optional item left open and every required item done, when the work order is closed, then it closes. Given an organisation with an empty list, when its work order is closed, then it closes as before. | pgTAP |
+| AC-WCO-008 | Given a work order issued on 1 March with its first item open, when today is 11 March, then its age is 10 days. Given the first item was done on 5 March and the second is open, when its age is derived, then the second item's start is 5 March and its age uses that date. | Unit (`pmo-portal/src/lib/closeoutChecklist.test.ts`) |
 | AC-WCO-009 | Given a user of another organisation, when they read or write the list or any item, then nothing is returned or changed. | pgTAP |
 | AC-WCO-010 | Given a work order that was already `Issued` before the migration, when it is closed, then it closes under the old rules. | pgTAP |
-| AC-WCO-011 | Given the record page of an Issued work order with a checklist, when Finance attaches a document and marks the first item done, then the item shows done with document, date and person, the next item is current, and the Close action reports how many required items remain. | RTL (`CloseoutSection.test.tsx`) |
-| AC-WCO-012 | Given the journey issue work order, complete every item with documents, close it, then the record shows Closed with the closing person. | E2E (one journey) |
+| AC-WCO-011 | Given the record page of an Issued work order with a checklist, when Finance attaches a document and marks the first item done, then it shows done with document, date and person, the next item is current, and the Close action reports the remaining required count. | RTL (`CloseoutSection.test.tsx`) |
+| AC-WCO-012 | Given an issued work order with required checklist items, when the user attaches an eligible document to each item, marks them done and closes the work order, then the record shows Closed with the closing person. | E2E (one journey) |
 
 ## Errors
 | Condition | Result |
@@ -81,7 +89,7 @@ When a work order's work is finished, I want an ordered close-out checklist set 
 | OD-WCO-4 | Items complete **in order**, like billing stages. | Strict order forces someone to wait on an earlier document before recording a later one that arrived first. Any order is a small change (drop the order check) at the cost of the age rule. |
 | OD-WCO-5 | The checklist must be complete **before** the final acceptance is confirmed, because confirming it closes the work order and stamps the closing value irreversibly. | Allowing the acceptance first would have to leave the work order `Issued` after its closing value is fixed, a state that does not exist today. |
 | OD-WCO-6 | Attach and mark done: Finance, Admin and the project's manager. List: Admin only. Closing keeps the roles `transition_work_order` allows. | Too narrow: field staff cannot record what they collected. Too wide: anyone can mark a document as the certificate. |
-| OD-WCO-7 | The checklist records who marked each item and who closed the work order; it adds no second approver. | A second approver is separation of duties; if the owner wants one, it is a server-enforced rule (ADR-0019) and a separate decision. |
+| OD-WCO-7 | The checklist records who marked each item and who closed the work order; it adds no second approver. | If wrong, the same person can attach the evidence, mark the checklist complete and close the work order without an independent review. A second approver is a server-enforced separation-of-duties rule (ADR-0019) and needs a separate decision. |
 
 ## Delivery checklist
 - [ ] Owner signs OD-WCO-1..7.

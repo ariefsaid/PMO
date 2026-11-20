@@ -2,6 +2,14 @@
 
 **Status:** proposed; owner decisions below need sign-off before build. Map #2516. Target February to March 2027, after the 15 December go-live. IDs `FR-STC-###`, `NFR-STC-###`, `AC-STC-###`, `OD-STC-#`. Plan: `docs/plans/2026-11-21-site-timed-checkpoints.md`. Executor: Orca worker; the database slice (server-stamped times, role gates, the reminder job) is Director-dispatched with the security-auditor. **Not money path:** it posts nothing, adds no amount and does not gate validation or revenue of the daily site report. Builds on the daily site report (`docs/specs/daily-site-report.spec.md`, #1522, migrations 1040 and 1041) and the crews roster (1035, #2528).
 
+## Review 20 Nov
+
+Read against `origin/dev`: migrations 0245, 0275, 1028, 1035, 1036, 1040 and 1041; `App.tsx`, `SiteReportDetail.tsx`, `SiteReportPhotos.tsx`, `WorkOrderDetail.tsx` and `Administration.tsx`.
+
+- The roster read is `work_order_roster(p_work_order_id, p_date)` and is redefined by 1036. The plan now names a checkpoint-specific photo helper because the shipped `dsr_photo_stored` is scoped to `site-report-photos`.
+- The missing-controller reminder fallback is now consistent in the requirement, plan and owner decision: project manager, then active Admins.
+- The current-date helper is `native_org_today` (0275); `org_current_month` (0245) decides the month. The route plan names the static crews route, its ordering before the report-id route and its preload entry.
+
 ## Job story
 
 When a crew is due on site, I want the day's checkpoints (arrival, pre-work check, start, after the break, progress every few hours) set by my organisation with a time each, recorded by the field controller with a photo, so that a late checkpoint reminds the reporter and flags the work order, and I can see which crews started on time.
@@ -11,7 +19,7 @@ When a crew is due on site, I want the day's checkpoints (arrival, pre-work chec
 - A daily site report is one work order and one work date (`daily_site_reports`, 1040), entered by Admin, Engineer or the project's manager (`dsr_may_enter`, 1041). Its photos live in the private bucket `site-report-photos` under `<org>/<report>/…`, with an object policy keyed to the report (1041).
 - The crews roster (1035) gives, per work order and date, the crews placed on it and each crew's `field_controller_id` through `work_order_roster(p_work_order_id, p_date)` (a `security invoker` read) and the `work_order_crews` date ranges. A crew's field controller is the natural reporter. Daily reports are not tied to a crew today, so checkpoints are keyed to **work order, crew and date**, not to the report row (OD-STC-1).
 - The overdue-job precedent is `escalate_overdue_incidents()` (1028): a `security definer` function on `cron.schedule`, stamps a column once, notifies through `notify_workflow_user` (0237), writes an audit row. Notifications reach users as the shared literal message form (1025); a translated template key is later (OD-STC-6).
-- Times are the **organisation's local clock** (`organizations.default_timezone`, helper `native_org_today`/`org_current_month` family, 0245); the server converts to instants and stamps the recorded time itself. The client never supplies the recorded time.
+- Times are the **organisation's local clock** (`organizations.default_timezone`; `org_current_month` is from 0245 and `native_org_today` from 0275); the server converts to instants and stamps the recorded time itself. The client never supplies the recorded time.
 - This is **not** attendance (`attendance_days`, 1036) and not timesheet hours; it does not change either.
 - Out of scope: GPS or geofence proof, offline capture (native-app ruling #2534), per-contract or per-crew lists (OD-STC-2), payroll effects of lateness, a block on validating the day's report.
 
@@ -31,7 +39,7 @@ When a crew is due on site, I want the day's checkpoints (arrival, pre-work chec
 **The day**
 - FR-STC-010 A scheduled database job shall, for every work order that is `Issued` and has a crew rostered for the day (`work_order_crews`), create that day's checkpoints for each rostered crew from the current list, once; a re-run shall add none. The day is the organisation's local date.
 - FR-STC-011 When a crew is placed on a work order after the day's checkpoints were created, the job's next run shall create that crew's checkpoints for the rest of the day, with due instants already past counted late only after the grace (they are not back-dated to be recorded).
-- FR-STC-012 A crew with no field controller shall still get checkpoints; its reminders go to the work order's project manager (Admin if none).
+- FR-STC-012 A crew with no active field controller shall still get checkpoints; its reminders go to the work order's project manager, or the organisation's active Admins if there is no active project manager.
 
 **Recording**
 - FR-STC-020 When a checkpoint's crew field controller, or Admin, Engineer or the work order's project manager, records a checkpoint, the database shall stamp the server time and the caller, require a photo when the checkpoint requires one, and accept an optional note up to 500 characters. The recorded time shall come only from the server.
@@ -40,7 +48,7 @@ When a crew is due on site, I want the day's checkpoints (arrival, pre-work chec
 - FR-STC-023 Photos shall go to a new private bucket `site-checkpoint-photos`, path `<org>/<work order>/<crew>/<date>/<checkpoint>.<ext>`, readable and writable only by active members of that organisation who may record or read that work order's checkpoints, 10 MB, image types as `site-report-photos`.
 
 **Lateness**
-- FR-STC-030 When a checkpoint becomes late and is not recorded, a scheduled database job shall remind the crew's field controller once, stamp `late_notified_at`, and write an audit row; a re-run shall not notify twice. Recording a checkpoint after it was reminded clears nothing (the stamp stays).
+- FR-STC-030 When a checkpoint becomes late and is not recorded, a scheduled database job shall remind the crew's active field controller once; if there is none, it shall notify the work order's active project manager, then the organisation's active Admins. The job shall stamp `late_notified_at` and write an audit row; a re-run shall not notify twice. Recording a checkpoint after it was reminded clears nothing (the stamp stays).
 - FR-STC-031 A work order shall be **flagged** while any of its day checkpoints for today is late. The flag is derived from the rows, shown on the work order's record page and in the daily site report, and is not stored.
 - FR-STC-032 The daily site report page shall show the day's checkpoints for its work order, due time, recorded time, person, photo and late state. Validation and revenue shall not depend on them (OD-STC-4).
 
@@ -63,19 +71,19 @@ When a crew is due on site, I want the day's checkpoints (arrival, pre-work chec
 
 | ID | Given / When / Then | Layer |
 |---|---|---|
-| AC-STC-001 | Given Admin saves a list of four checkpoints, then it is stored in order with kind, time, grace and photo flag; a second `start`, a grace over 120 or a blank name is refused; Finance, Project Manager and Engineer are refused `42501`. | pgTAP |
-| AC-STC-002 | Given an Issued work order with two crews rostered today, when the job runs twice, then each crew has the list's checkpoints once; a Draft or Closed work order, or a crew outside its roster dates, has none. | pgTAP |
-| AC-STC-003 | Given a list edited after the day's checkpoints exist, then those rows are unchanged; the next day uses the new list. | pgTAP |
-| AC-STC-004 | Given the field controller of a crew, when they record `start` with a photo, then the server time and person are stamped and the client cannot set the time; with no photo where one is required it is refused; a controller of another crew, a Finance user or another organisation's user is refused. | pgTAP |
-| AC-STC-005 | Given a recorded checkpoint, when anyone edits its time, photo or person, then it is refused; a future day, or a non-Issued work order, is refused. | pgTAP |
-| AC-STC-006 | Given a checkpoint due at 07:00 with grace 10 in a timezone ahead of UTC, when the job runs at 07:11 local and nothing is recorded, then the controller is notified once and `late_notified_at` is stamped; at 07:09 nothing; a second run adds none. | pgTAP |
-| AC-STC-007 | Given a crew with no field controller, then the reminder goes to the project manager, or the Admins if none; another organisation's users receive nothing. | pgTAP |
-| AC-STC-008 | Given a late checkpoint today, then the work order reads as flagged; once every late one is recorded it still reads flagged for that day (late stays late); a work order with none late is not flagged. | pgTAP |
+| AC-STC-001 | Given Admin has entered a valid list of four checkpoints, when the list is saved, then it is stored in order with kind, time, grace and photo flag. Given a list with a second `start`, grace over 120, a blank name, or a caller with Finance, Project Manager or Engineer role, when the list is saved, then it is refused (role refusal `42501`). | pgTAP |
+| AC-STC-002 | Given an Issued work order with two crews rostered today, when the materialisation job runs twice, then each crew has one copy of each list checkpoint. Given a Draft or Closed work order, or a crew outside its roster dates, when the job runs, then no checkpoint is created for it. | pgTAP |
+| AC-STC-003 | Given a list edited after the day's checkpoints exist, when the materialisation job runs for the next day, then existing rows are unchanged and that next day uses the new list. | pgTAP |
+| AC-STC-004 | Given a crew's active field controller and an unrecorded `start` checkpoint requiring a photo, when the controller records it with a photo, then the database stamps its time and person and ignores any client-supplied time. Given a required-photo checkpoint without a photo, a different crew's controller, a Finance user or another organisation's user, when a record is attempted, then it is refused. | pgTAP |
+| AC-STC-005 | Given a recorded checkpoint, when anyone changes its recorded time, photo or person, then the change is refused. Given a future-day checkpoint or a checkpoint for a non-Issued work order, when recording is attempted, then it is refused. | pgTAP |
+| AC-STC-006 | Given an unrecorded checkpoint due at 07:00 with 10 minutes grace in a timezone ahead of UTC, when the job runs at 07:09 local, then no notification is sent; when it runs at 07:11, then the active field controller is notified once and `late_notified_at` is stamped; when it runs again, then no second notification is added. | pgTAP |
+| AC-STC-007 | Given a crew with no active field controller and a work order with an active project manager, when the late-reminder job runs, then the project manager receives the reminder. Given no active project manager, when the job runs, then each active Admin receives it and another organisation's users receive none. | pgTAP |
+| AC-STC-008 | Given a late checkpoint today, when the work-order flag is read, then the work order is flagged. Given that late checkpoint has since been recorded late, when the flag is read again for that day, then it remains flagged; given no late checkpoint, when the flag is read, then the work order is not flagged. | pgTAP |
 | AC-STC-009 | Given three days for one crew (start on time, start 20 minutes late, start never recorded), when the crews view is read, then it shows 3 days, 1 on time, share one third, statuses `on_time`, `late`, `not_started`. | pgTAP |
-| AC-STC-010 | Given more than 200 crews or a range over 92 days, then the read is bounded and reports truncation. | pgTAP |
-| AC-STC-011 | Given the pure lateness rule, when due 07:00, grace 10, recorded 07:10 or 07:11, or not recorded at 07:11, then the states are on time, late, late. | Unit (`pmo-portal/src/lib/siteCheckpoints.test.ts`) |
+| AC-STC-010 | Given more than 200 crews or a range over 92 days, when the crews-view read runs, then it is bounded and reports truncation. | pgTAP |
+| AC-STC-011 | Given a checkpoint due at 07:00 with 10 minutes grace, when it is recorded at 07:10, then its state is `on_time`; when it is recorded at 07:11, then its state is `late`; when it is still unrecorded at 07:11, then its state is `late`. | Unit (`pmo-portal/src/lib/siteCheckpoints.test.ts`) |
 | AC-STC-012 | Given a controller on a phone width, when they open the day's checkpoints, record one with a photo and see it as recorded with its time, then the next due one is current; a late one shows as late in words. | RTL (`SiteCheckpoints.test.tsx`) |
-| AC-STC-013 | Given a controller records `start` with a photo, then the crews view lists that crew with the day on time, and the daily report page shows the checkpoint. | E2E (one journey, job invoked by a test hook) |
+| AC-STC-013 | Given a rostered crew and a due `start` checkpoint, when its controller records the checkpoint with a photo and opens the crews view and daily report page, then the crews view lists the crew's day as on time and the daily report page shows the checkpoint. | E2E (one journey, job invoked by a test hook) |
 
 ## Errors
 | Condition | Result |
@@ -97,8 +105,8 @@ When a crew is due on site, I want the day's checkpoints (arrival, pre-work chec
 | OD-STC-5 | A recorded checkpoint is immutable; a correction is a note. | An editable time lets a controller move a late record to on time and the view stops being evidence. |
 | OD-STC-6 | The reminder uses the shared literal message form (English). A translated template key is added later. | Bahasa Indonesia users read an English reminder until it ships. |
 | OD-STC-7 | The crews view is for Admin, Executive, Engineer, the project's manager and the crew's own controller; not Finance or Viewer. | Too wide: a role without a field function reads crew punctuality. Too narrow: a site manager cannot see their crews; widen by one role in one function. |
-| OD-STC-8 | Reminders go to the field controller only; no second reminder and no escalation to the manager. | A single missed reminder is the only notice; escalation (as the issue log does) is a small later addition. |
-| OQ-STC-1 | Is a "progress every few hours" series entered as separate checkpoints (default) or as a repeating rule? | A repeating rule needs an interval field and a generator; separate rows need one row per slot. |
+| OD-STC-8 | Send one reminder to the active field controller; if there is none, use the project's active manager, then the organisation's active Admins. Do not repeat or escalate after that. | Without the fallback, a crew with no active controller has no recipient and its late checkpoint goes unchased; repeated notices would fill the inbox without improving follow-up. |
+| OQ-STC-1 | Is a "progress every few hours" series entered as separate checkpoints or as a repeating rule? Default: separate checkpoints, one row per planned time. | A repeating rule needs an interval field and a generator; separate rows need one row per slot, but avoid adding a recurrence model until an organisation needs it. |
 | OQ-STC-2 | Availability: does this follow the existing daily-site-report entitlement, or its own switch (`org_features`)? Default: follows the daily site report; confirm at build. | The feature appears for an organisation that has not enabled site reports. |
 
 ## Delivery checklist

@@ -2,6 +2,14 @@
 
 **Status:** proposed; owner decisions below need sign-off before build. Map #2516. Target January 2027, the first release after the 15 December go-live. IDs `FR-BSX-###`, `NFR-BSX-###`, `AC-BSX-###`, `OD-BSX-#`. Plan: `docs/plans/2026-11-21-billing-stage-targets.md`. Executor: Orca worker, **Director-dispatched**: this changes the invoice gate (`billing_stages_open`, `complete_billing_stage`), which is the money path (ADR-0019, `docs/money-path-primer.md`). It ships alone. Builds on `docs/specs/billing-stages.spec.md` (#2522, migrations 1021 and 1022); read it first. The terms Billing stage, Stage age and Invoice deadline are used as defined there.
 
+## Review 20 Nov
+
+Read against `origin/dev`: migrations 1021, 1022, 0237 and 1028; `billingStages.ts`, `ClaimBillingStages.tsx`, the billing-term editor, route configuration and locale files.
+
+- The shipped notification RPC takes eight arguments; the plan now records the exact order and puts stage/claim/overdue details in the body.
+- Skip authorization already exists as `can('edit', 'billingStage')` for Finance and Admin, so the plan reuses it. The template editor and RTL test now name their shipped component paths, route and `project` locale files.
+- The acceptance criteria now state a complete Given/When/Then for the skipped-stage invoice case and its refusal case.
+
 ## Job story
 
 When a progress claim is waiting on one of its billing steps, I want each step to carry a target number of days, to show as overdue once it passes the target and to tell the claim's project manager once, and I want a step that does not apply to this claim to be marked not needed with a reason, so that late steps are chased before the client's monthly cut-off and a claim is not held up by a step nobody needs.
@@ -44,26 +52,26 @@ When a progress claim is waiting on one of its billing steps, I want each step t
 ## Non-functional requirements
 - NFR-BSX-001 The new columns are nullable or defaulted so the migration is additive and existing claims are unchanged (no target, not optional, never overdue).
 - NFR-BSX-002 The job scans only open stages of live claims through a partial index, runs at most once a day per stage (one stamp), and holds each claim row `for update skip locked`.
-- NFR-BSX-003 English and Bahasa Indonesia strings in the existing stage namespace; `DESIGN.md` tokens; overdue is shown by words as well as colour; usable at phone width.
+- NFR-BSX-003 English and Bahasa Indonesia strings in the existing `project` namespace (`pmo-portal/public/locales/{en,id}/project.json`); `DESIGN.md` tokens; overdue is shown by words as well as colour; usable at phone width.
 - NFR-BSX-004 Every function is `security definer` with `set search_path = public`, `revoke all ... from public, anon`, and RLS `(select helper())` wrappers where a policy is touched (none expected).
 
 ## Acceptance criteria and owning layer
 
 | ID | Given / When / Then | Layer |
 |---|---|---|
-| AC-BSX-001 | Given a project list whose second stage has target 10 and is optional, when Finance saves it and a claim is created, then the claim's second stage carries target 10 and optional; a later edit of the list does not change that claim. | pgTAP |
+| AC-BSX-001 | Given a project list whose second stage has target 10 and is optional, when Finance saves it and a claim is created, then the claim's second stage carries target 10 and optional. When Finance later edits the project list, then that claim's copied stage remains unchanged. | pgTAP |
 | AC-BSX-002 | Given a Project Manager or Engineer, when they save a list with targets, then it is refused `42501`. | pgTAP |
-| AC-BSX-003 | Given a stage started 1 March with target 10, when today is 11 March then it is not overdue; on 12 March it is overdue with age 11; with no target it is never overdue; a completed stage is not. | Unit (`billingStages.test.ts`, pure `stageOverdue`) |
+| AC-BSX-003 | Given a current stage started 1 March with target 10, when today is 11 March, then it is not overdue; when today is 12 March, then it is overdue with age 11. Given a stage with no target or a completed stage, when overdue state is derived, then it is not overdue. | Unit (`billingStages.test.ts`, pure `stageOverdue`) |
 | AC-BSX-004 | Given an overdue current stage and an active project manager, when the job runs, then that manager gets one notification and `overdue_notified_at` is stamped; a second run adds none. | pgTAP |
-| AC-BSX-005 | Given a project with no active manager, when the job runs, then the active Admins are notified once each; given another organisation's stage, then none of its users is notified. | pgTAP |
+| AC-BSX-005 | Given a project with no active manager, when the job runs, then each active Admin is notified once. Given a stage in another organisation, when the job runs for the first organisation, then none of the other organisation's users is notified. | pgTAP |
 | AC-BSX-006 | Given a stage with no target, a completed or skipped stage, or a withdrawn claim, when the job runs, then nothing is sent. | pgTAP |
 | AC-BSX-007 | Given a current optional stage, when Finance skips it with a reason, then the skip date, person and reason are stored and the next stage is current from that date, with an audit row. | pgTAP |
-| AC-BSX-008 | Given a stage that is not optional, not current, already skipped or completed, or a blank or 2-character reason, when anyone skips it, then it is refused and nothing changes. | pgTAP |
-| AC-BSX-009 | Given a claim whose only open stage is skipped, when Finance raises the native invoice and an ERP outbox command is written, then both succeed; given the same claim with a required, non-optional stage still open, both are refused `billing-stages-incomplete`. Mutation: make `billing_stages_open` ignore `skipped_on`, and the first half must go red; make it count every skipped stage including non-optional ones as done by editing the skip guard, and AC-BSX-008 must go red; restore. | pgTAP |
-| AC-BSX-010 | Given stages A (completed), B (optional, skipped), C open, when C is completed on or after the skip date, then it succeeds; before the skip date it is refused; with B still open, C is refused `stage-out-of-order`. | pgTAP |
-| AC-BSX-011 | Given a Project Manager, when they skip a stage, then it is refused `42501`; a user of another organisation cannot see or change the stage. | pgTAP |
-| AC-BSX-012 | Given a claim with an overdue stage and a skippable optional stage, when the project manager opens the claim, then the overdue stage shows its age and target; Finance skips the optional one with a reason and the stage list shows it as not needed with that reason. | RTL (`ClaimBillingStages.test.tsx`): states, labels, role-gated skip button |
-| AC-BSX-013 | Given the journey list with an optional stage, claim created, required stages completed, optional stage skipped, then the invoice is raised and the claim trace shows the skip reason. | E2E (one journey) |
+| AC-BSX-008 | Given a stage that is not optional, not current, already skipped or completed, or a reason that is blank, shorter than 3 characters or longer than 500, when anyone skips it, then it is refused and nothing changes. | pgTAP |
+| AC-BSX-009 | Given a claim whose only unfinished stage was validly skipped, when Finance raises its native invoice and writes the ERP outbox command, then both succeed. Given the same claim with a required, non-optional stage still open, when either invoice or outbox write is attempted, then it is refused with `billing-stages-incomplete`. Mutation: make `billing_stages_open` ignore `skipped_on`, and the success case must go red; allow a non-optional stage to be skipped, and AC-BSX-008 must go red; restore. | pgTAP |
+| AC-BSX-010 | Given stages A completed, B optional and skipped, and C open, when C is completed on or after B's skip date, then it succeeds; when C is completed before that date, then it is refused. Given B is still open, when C is completed, then it is refused with `stage-out-of-order`. | pgTAP |
+| AC-BSX-011 | Given a Project Manager, when they skip a stage, then it is refused `42501`. Given a user of another organisation, when they read or change the stage, then it is refused. | pgTAP |
+| AC-BSX-012 | Given a claim with an overdue stage and a skippable optional stage, when the Project Manager opens the claim, then the overdue stage shows its age and target. When Finance skips the optional stage with a reason, then the stage list shows it as not needed with that reason. | RTL (`ClaimBillingStages.test.tsx`): states, labels, role-gated skip button |
+| AC-BSX-013 | Given a project list with an optional stage and a newly created claim, when the user completes required stages, skips the optional stage and raises the invoice, then the invoice succeeds and the claim trace shows the skip reason. | E2E (one journey) |
 
 ## Errors
 | Condition | Result |
@@ -79,7 +87,7 @@ When a progress claim is waiting on one of its billing steps, I want each step t
 |---|---|---|
 | OD-BSX-1 | Targets count **calendar days** from the day the stage became current (the existing Stage age). | Business days would need a calendar that the organisation does not have yet; with calendar days a stage that waits over a weekend can read overdue one day early. |
 | OD-BSX-2 | A claim keeps the target and optional flag it copied; changing the list later changes only new claims. Consistent with 1021. | Retroactive change would move a live claim's overdue state under a team that did not change anything. |
-| OD-BSX-3 | **Skipping is Finance or Admin only.** The stage screen lets a Project Manager complete stages but not waive one. | Too wide: a PM can waive a required control step on their own claim and unblock an invoice without finance seeing it. Too narrow: a PM must ask Finance to mark a step not needed; slower, never wrong. |
+| OD-BSX-3 | **Skipping is Finance or Admin only.** The stage screen lets a Project Manager complete stages but not waive one. | Too wide: a PM could waive an optional control step on their own claim without Finance confirming it does not apply. Too narrow: a PM must ask Finance to mark a step not needed, which delays the claim but preserves the control. |
 | OD-BSX-4 | One notification per stage to the project manager, with Admin fallback. No repeat, no escalation to a line manager. | Without the one-time stamp a daily job would notify daily; sending only to Admin would miss the person who can chase the client. |
 | OD-BSX-5 | The overdue notice uses the shared literal message form (English text), as the issue-overdue job does. A translated template key (`message_key`, 1025) is a later, separate change. | Bahasa Indonesia users read an English notice until the template is added. |
 | OD-BSX-6 | An optional stage can only be skipped when it is current, not ahead of time. | Allowing skip-ahead lets a stage be waived before the earlier ones ran and the reason be stale by the time it matters. |

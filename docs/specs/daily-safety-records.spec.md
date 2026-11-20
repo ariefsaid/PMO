@@ -2,6 +2,14 @@
 
 **Status:** proposed; owner decisions below need sign-off before build. Map #2516 (contractor field operations), after the December go-live. Target Q2 2027. IDs `FR-DSF-###`, `NFR-DSF-###`, `AC-DSF-###`. Plan: `docs/plans/2026-11-21-daily-safety-records.md`. Executor: Orca worker. **Not a money path:** no posting, no ERP write, no billing or payroll effect, no change to any separation-of-duties rule. It is a records feature with a read-only monthly summary. Photos are personal data of site workers, so storage access is part of the tested behaviour.
 
+## Review 20 Nov
+
+Read against `origin/dev`: migrations 0001, 0245, 0260, 0275, 1026, 1036, 1040 and 1041; attendance schema/guard, `work_order_roster`, `WorkOrderDetail.tsx`, `Administration.tsx` and `App.tsx`.
+
+- The lifecycle is now `draft | locked`: the proposed submit RPC locks the day, matching the requirements and plan. The roster RPC signature is `work_order_roster(p_work_order_id, p_date)` and 1036 adds the returned members.
+- `attendance_days` requires hours for `present` rows, so the missing-figure case now uses a rostered work order with no locked/approved attendance rows rather than an impossible present row without hours.
+- Lost-time classification now names the existing incident-manager roles and the server guard/history update required for the new `incident_reports.lost_time` column. Each acceptance ID has one owning layer in the plan.
+
 ## Job story
 
 When a crew starts work on a work order, I want the safety checks the field runs before work (fitness check, toolbox talk with an attendance photo, pre-work checklist, permit to work) and the safety officer's daily report recorded against that work order and that day, and a monthly summary of safe hours and safety figures, so that we can show the client and our own management that the checks happened, and see at a glance which work orders ran without them.
@@ -17,7 +25,7 @@ When a crew starts work on a work order, I want the safety checks the field runs
 
 ## Definitions
 
-- **Safety day** = one record for a `(work_order_id, work_date)` with status `draft | submitted | locked`, an author, and up to five parts. The work order must be `Issued`; the project is derived from it by the database.
+- **Safety day** = one record for a `(work_order_id, work_date)` with status `draft | locked`, an author, and up to five parts. Submitting changes `draft` to the immutable `locked` state in one step. The work order must be `Issued`; the project is derived from it by the database.
 - **Fitness check** = per worker on that day: `fit | not_fit | not_checked`, a note when `not_fit`. Workers come from the work order's roster (`work_order_roster`, 1036) and may include a named visitor.
 - **Toolbox talk** = topic, presenter, held-at time, attendee list (workers from the roster), and one or more attendance photos.
 - **Pre-work checklist** = the organisation's active list of pre-work items (OD-DSF-5), each `yes | no | not_applicable` with a note on `no`.
@@ -36,7 +44,7 @@ When a crew starts work on a work order, I want the safety checks the field runs
 - FR-DSF-003 When a toolbox talk is saved, the system shall require at least one attendee and shall store the attendance photo as a private file.
 - FR-DSF-004 The system shall reject a worker who is not on the work order's roster for the date, except a named visitor.
 - FR-DSF-005 When a permit's valid-to is before its valid-from, the system shall refuse it.
-- FR-DSF-006 When a safety day is submitted, the system shall lock it; a locked record shall be immutable. A correction shall be a new version that names the one it supersedes and carries a reason, as the daily site report does (1040 `supersedes_id`).
+- FR-DSF-006 When a safety day is submitted, the system shall change its status from `draft` to `locked`; a locked record shall be immutable. A correction shall be a new version that names the one it supersedes and carries a reason, as the daily site report does (1040 `supersedes_id`).
 - FR-DSF-007 The system shall let the safety officer's report be added by the safety officer role after the day is locked, as its own signed entry, without changing the locked parts.
 
 **Reading**
@@ -47,7 +55,7 @@ When a crew starts work on a work order, I want the safety checks the field runs
 **Monthly summary**
 - FR-DSF-011 The system shall provide a monthly safety summary per project and organisation: worked hours, safe hours, lost-time incidents, recordable incidents (non-lost-time incidents with severity Medium or above), near misses (sum from the safety officer's reports), toolbox talks held, complete days, and days worked without a safety record.
 - FR-DSF-012 The summary shall be one database read, reproducible from the underlying rows (the drill-down lists the days and incidents behind every count).
-- FR-DSF-013 When a figure cannot be computed (for example, a work order with attendance but no recorded hours), the summary shall hide it with its reason in one line and never show 0.
+- FR-DSF-013 When a figure cannot be computed (for example, a rostered work order has no locked or approved attendance rows for the period), the summary shall hide it with its reason in one line and never show 0.
 - FR-DSF-014 The summary shall be exportable as a read-only page for the client with figures only, no photos and no names.
 
 **Access and tenancy**
@@ -65,22 +73,22 @@ When a crew starts work on a work order, I want the safety checks the field runs
 
 | ID | Given / When / Then | Layer |
 |---|---|---|
-| AC-DSF-001 | Given an Issued work order, when an Engineer creates a safety day for a date twice, then one original exists; given a Draft or Closed work order, then creation is refused. | pgTAP |
+| AC-DSF-001 | Given an Issued work order, when an Engineer creates a safety day for a date twice, then one original exists; given a Draft or Closed work order, when creation is attempted, then it is refused. | pgTAP |
 | AC-DSF-002 | Given a toolbox talk with no attendee, or an attendee not on the roster and not a visitor, when saved, then it is refused. | pgTAP |
 | AC-DSF-003 | Given a permit valid-to before valid-from, when saved, then it is refused. | pgTAP |
-| AC-DSF-004 | Given a submitted safety day, when any part is updated or deleted, then it is refused; a correction creates version 2 with a reason, and version 1 stays readable. | pgTAP (+ mutation check) |
+| AC-DSF-004 | Given a locked safety day, when any part is updated or deleted, then it is refused; when a correction is created with a reason, then version 2 names version 1 as its predecessor and version 1 stays readable. | pgTAP (+ mutation check) |
 | AC-DSF-005 | Given a locked day, when the safety officer adds a report entry, then it saves as its own signed entry and the locked parts are unchanged. | pgTAP |
-| AC-DSF-006 | Given a Viewer, when they try to create or edit a safety day, then it is refused; given another Project Manager, then refused. | pgTAP |
-| AC-DSF-007 | Given a photo in organisation A, when a member of B requests it, then it is unreadable; given a disallowed type or over 10 MB, then upload is refused. | pgTAP (storage policy) |
-| AC-DSF-008 | Given attendance of workers present, a locked safety day with a photo, a complete checklist and a fitness check for each, when derived, then the day is complete; remove the photo and it reports the missing part. | Unit (pure function) |
+| AC-DSF-006 | Given a Viewer, when they try to create or edit a safety day, then it is refused; given a Project Manager for a different project, when they try to create or edit the first project's safety day, then it is refused. | pgTAP |
+| AC-DSF-007 | Given a photo in organisation A, when a member of B requests it, then it is unreadable; given a disallowed type or over 10 MB, when upload is attempted, then it is refused. | pgTAP (storage policy) |
+| AC-DSF-008 | Given present workers, a locked safety day with a toolbox photo, a complete checklist and a fitness check for each worker, when status is derived, then the day is complete. Given the same day without its photo, when status is derived, then the photo part is reported missing. | Unit (pure function) |
 | AC-DSF-009 | Given 3 workers present in attendance and no safety day, when the list is derived, then the day shows as worked without a safety record. | pgTAP |
-| AC-DSF-010 | Given attendance of 8 + 2 overtime hours on two days, a lost-time incident dated the first day, when the summary runs, then worked hours are 20 and safe hours are the hours after that incident date, reproducible from the listed rows. | pgTAP |
+| AC-DSF-010 | Given locked attendance of 8 regular and 2 overtime hours on each of two days, plus a lost-time incident dated on the first day, when the summary runs, then worked hours are 20 and safe hours are the 10 hours from the day after the incident, reproducible from the listed rows. | pgTAP |
 | AC-DSF-011 | Given a month boundary in a timezone ahead of UTC, when the summary runs, then an event at the local month's last day falls in that local month. | pgTAP |
-| AC-DSF-012 | Given a work order with attendance rows but no hours, when the summary runs, then worked hours are hidden with a reason, not 0. | Unit + pgTAP |
+| AC-DSF-012 | Given a rostered work order with no locked or approved attendance rows in the month, when the summary runs, then its worked and safe hours are hidden with a reason, not shown as 0. | pgTAP |
 | AC-DSF-013 | Given two organisations, when the summary runs, then only the caller's rows appear. | pgTAP |
 | AC-DSF-014 | Given the client export, when rendered, then it holds figures only, no photo link and no worker name. | Unit |
 | AC-DSF-015 | Given a field user, when they record a fitness check, a toolbox talk with a photo and a checklist for a work order, and submit, then the work-order page shows the day complete. | E2E (one journey, owner-sketch-approved layout) |
-| AC-DSF-016 | Given the monthly summary screen, when a count is opened, then the days or incidents behind it list and match the count. | E2E (one journey) + Unit (render) |
+| AC-DSF-016 | Given the monthly summary screen, when a count is opened, then the days or incidents behind it list and match the count. | E2E (one journey) |
 
 Mutation check: remove the lock-on-submit trigger and AC-DSF-004 must go red; remove the roster check and AC-DSF-002 must go red; remove the storage policy's organisation test and AC-DSF-007 must go red; restore.
 
@@ -99,14 +107,14 @@ Mutation check: remove the lock-on-submit trigger and AC-DSF-004 must go red; re
 |---|---|---|
 | OD-DSF-1 | Safety records are their own record per work order and day, separate from the daily site report. | Folding them into the site report ties safety entry to the report author's and validator's workflow; a day with safety checks and no progress report cannot be recorded, and a report's validation would depend on safety, which is not a billing decision. |
 | OD-DSF-2 | v1 records and reports; it does **not** block the site report, attendance or any money step when safety checks are missing. It flags "worked without a safety record". | If the owner needs a hard stop (no permit, no validation), a gate on the validation RPC is a money-adjacent change that must ship alone; recording-only gives no enforcement a client auditor may expect. |
-| OD-DSF-3 | Worked hours come from locked or approved attendance rows (`hours + overtime_hours`); safe hours restart after a **lost-time** incident, marked by a new boolean on `incident_reports`. | Using timesheets instead double counts people who are on both; with no lost-time marker, safe hours can only be "hours since the last incident of any severity", which resets on a minor event and understates the figure the client expects. |
+| OD-DSF-3 | Worked hours come from locked or approved attendance rows (`hours + overtime_hours`); safe hours restart after a **lost-time** incident, marked by a new boolean on `incident_reports`. Only Admin, Executive, Finance and the project's Project Manager may set or change that marker, using the existing incident-manager guard; an assignee cannot classify it. | Using timesheets instead double counts people who are on both; treating every incident as lost-time resets the count after a minor event. If an assignee can set the marker, the person investigating an incident can also change the organisation's safe-hours figure without manager review. |
 | OD-DSF-4 | Roles until #902: enter and submit = Admin, Engineer, the project's Project Manager; the safety officer's entry is allowed to the same set and to a new `safety officer` role when #902 lands. | A field user without these roles cannot record; adding a role later is a policy change, but re-mapping existing rows is not needed because the author is stored. |
 | OD-DSF-5 | The pre-work checklist is an organisation list (Admin-edited, like the assessment template of #2595) copied onto each day when it is created. | A fixed list cannot cover different disciplines; a per-day free-form list cannot be summarised. |
 | OD-DSF-6 | Photos and worker names are readable by Admin, Executive, the project's Project Manager and Engineer; a Viewer sees counts only. | Too narrow: a client auditor cannot see evidence; too wide: workers' photos are readable by any role in the organisation. |
 | OD-DSF-7 | Retention: keep records and photos for the life of the project and 24 months after close, then archive; deletion is a manual Admin action. | Too short loses audit evidence; unlimited retention keeps personal photos with no purpose. |
 | OQ-DSF-1 | Is the safety officer's report one per project per day, or one per work order per day? Default per work order and day, with a project roll-up. | A project-level report is duplicated across its work orders. |
 | OQ-DSF-2 | Does the permit to work need a second signer (issuer different from the requester)? Default no, recorded only. | A permit approved by the person who needs it, with no evidence of independent issue. |
-| OQ-DSF-3 | Bahasa Indonesia wording for the five parts to be confirmed by the owner. | Terms the field team does not use. |
+| OQ-DSF-3 | Bahasa Indonesia wording for the five parts. Default: start from the existing daily-site-report terminology and have the owner confirm the new labels before build. | Labels that do not match field usage make the form harder to complete and the records less consistent. |
 
 ## Delivery checklist
 - [ ] Owner signs OD-DSF-1..7 and answers OQ-DSF-1..3.
