@@ -53,7 +53,9 @@ export type Action =
   | 'revise'
   | 'link'
   | 'void'
-  | 'approve';
+  | 'approve'
+  | 'set_readiness'
+  | 'set_plan';
 
 export type Entity =
   | 'project'
@@ -103,6 +105,7 @@ export type Entity =
   | 'orgFeedback'
   | 'costAttribution'
   | 'workOrderPlan'
+  | 'workOrderSection'
   | 'sharedCostSplit'
   | 'vendorTaxDefault'
   | 'orgProjectNumbering'
@@ -165,6 +168,8 @@ export interface PolicyContext {
     user_id?: string | null;
     /** Author id — for equipment usage visibility and the document-edit author rule (A-7). */
     author_id?: string | null;
+    /** Work-order section foreman (#2576) — the only non-structure caller who may set a section's readiness. */
+    foreman_id?: string | null;
     /** Task creator — DD-TASK-8. Trigger-stamped server-side (`0204`), never client-set, so it is
      *  safe to read as an edit right here. Distinct from `assignee_id`: a task you created and
      *  assigned to someone else is still yours to edit. */
@@ -839,6 +844,25 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // and work_order_cost_amounts (0999) are the authority (ADR-0016).
   workOrderPlan: { view: allow(WORK_ORDER_MONEY), manage: allow(WORK_ORDER_MONEY) },
   sharedCostSplit: { manage: allow(['Admin', 'Executive', 'Finance']) },
+  /**
+   * #2576 work-order sections. UX ONLY — work_order_sections RLS + guard_work_order_section (1095) and
+   * set_work_order_plan (1096) are the authority (ADR-0016).
+   *   view          ← every active member (read follows work-order read).
+   *   create/edit/archive/set_plan ← the roles that write plan figures (0997): WORK_ORDER_MONEY.
+   *   delete        ← Admin only (RLS delete policy); the foreign keys still block a referenced section.
+   *   set_readiness ← those roles, or the section's own foreman (the guard trigger limits a foreman to readiness).
+   * The work order must be open for structure edits (Cancelled freezes every section; Closed allows readiness and archive).
+   */
+  workOrderSection: {
+    view: allow(ALL),
+    create: (role, ctx) => has(WORK_ORDER_MONEY, role) && ctx.record?.viewOnly !== true && !['Closed', 'Cancelled'].includes(ctx.record?.status ?? ''),
+    edit: (role, ctx) => has(WORK_ORDER_MONEY, role) && ctx.record?.viewOnly !== true && !['Closed', 'Cancelled'].includes(ctx.record?.status ?? ''),
+    archive: (role, ctx) => has(WORK_ORDER_MONEY, role) && ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled',
+    delete: (role, ctx) => role === 'Admin' && ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled',
+    set_plan: (role, ctx) => has(WORK_ORDER_MONEY, role) && ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled',
+    set_readiness: (role, ctx) => ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled'
+      && (has(WORK_ORDER_MONEY, role) || (!!ctx.currentUserId && ctx.record?.foreman_id === ctx.currentUserId)),
+  },
   /**
    * Equipment usage and allocation (#1519, migrations 0447/0460/0471). UX ONLY — transition_equipment_usage,
    * save_equipment_costing and the reads are the authority (ADR-0016); the FE may be stricter, never looser.

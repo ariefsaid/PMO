@@ -315,5 +315,7 @@
   "ui.errorBoundary.home",
   "ui.accessDenied.title",
   "ui.accessDenied.sub",
-  "ui.loadingPage.label"
+  "ui.loadingPage.label",
+  "terms.section",
+  "terms.sections"
 ]

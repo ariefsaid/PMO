@@ -325,7 +325,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
         <WorkOrderPlanModal
           projectId={projectId}
           workOrder={planFor}
-          plans={data.plans.filter((p) => p.workOrderId === planFor.id && p.disciplineId === null)}
+          plans={data.plans.filter((p) => p.workOrderId === planFor.id && p.disciplineId === null && (p.sectionId ?? null) === null)}
           onClose={() => setPlanFor(null)}
         />
       )}

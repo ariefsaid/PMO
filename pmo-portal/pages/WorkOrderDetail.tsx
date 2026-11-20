@@ -20,11 +20,12 @@ import { CostSection } from './work-order-detail/CostSection';
 import { BillingSection } from './work-order-detail/BillingSection';
 import { PlanVsActualSection } from './work-order-detail/PlanVsActualSection';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
+import { SectionsSection } from './work-order-detail/SectionsSection';
 
 /**
- * `/work-orders/:id` (#2518): one read-only page for a work order — scope and progress, costs, billing and
- * acceptances, documents, issues and tasks. Adds no write path; every read is the caller's own RLS (an absent,
- * foreign or unreadable id looks identical: not found).
+ * `/work-orders/:id` (#2518): one page for a work order — scope and progress, costs, billing and
+ * acceptances, documents, issues and tasks. Every read is the caller's own RLS (an absent, foreign or unreadable id
+ * looks identical: not found). Its one write surface is the sections block (#2576), gated by `can()`.
  */
 const WorkOrderDetail: React.FC = () => {
   const { t } = useTranslation('workOrders');
@@ -93,6 +94,7 @@ const WorkOrderDetail: React.FC = () => {
       <RecordStack>
         <ScopeSection projectId={row.project_id} progress={progress} isPending={allocations.isPending || boq.isPending || bastList.isPending} isError={allocations.isError || boq.isError || bastList.isError}
           onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
+        <SectionsSection workOrder={{ id: row.id, project_id: row.project_id, status: row.status, currency: row.currency }} />
         <CostSection labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
           onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
         {canPlanView && <PlanVsActualSection workOrderId={row.id} query={pva} disciplines={disciplines.data ?? []} />}

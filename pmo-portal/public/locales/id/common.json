@@ -2,6 +2,8 @@
   "terms": {
     "clientWorkOrder": "Work Order / SPK",
     "dashboard": "Dasbor",
+    "section": "Bagian",
+    "sections": "Bagian",
     "supplier": "Supplier",
     "timesheet": "Timesheet"
   },

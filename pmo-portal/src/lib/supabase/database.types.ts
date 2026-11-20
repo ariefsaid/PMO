@@ -2532,6 +2532,7 @@ export type Database = {
           note: string | null
           org_id: string
           project_id: string
+          section_id: string | null
           updated_at: string
           updated_by: string | null
           value: number
@@ -2546,6 +2547,7 @@ export type Database = {
           note?: string | null
           org_id?: string
           project_id: string
+          section_id?: string | null
           updated_at?: string
           updated_by?: string | null
           value: number
@@ -2553,7 +2555,75 @@ export type Database = {
         }
         Update: {
           note?: string | null
+          section_id?: string | null
           value?: number
+        }
+        Relationships: []
+      }
+      work_order_sections: {
+        Row: {
+          archived_at: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          foreman_id: string | null
+          id: string
+          location_note: string | null
+          name: string
+          org_id: string
+          project_id: string
+          readiness: string
+          readiness_note: string | null
+          readiness_set_at: string | null
+          readiness_set_by: string | null
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+          work_order_id: string
+        }
+        Insert: {
+          code: string
+          foreman_id?: string | null
+          location_note?: string | null
+          name: string
+          sort_order?: number
+          work_order_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          code?: string
+          foreman_id?: string | null
+          location_note?: string | null
+          name?: string
+          readiness?: string
+          readiness_note?: string | null
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      work_order_section_readiness_events: {
+        Row: {
+          id: string
+          note: string | null
+          org_id: string
+          readiness: string
+          section_id: string
+          set_at: string
+          set_by: string | null
+          work_order_id: string
+        }
+        Insert: {
+          id?: string
+          note?: string | null
+          org_id?: string
+          readiness: string
+          section_id: string
+          set_at?: string
+          set_by?: string | null
+          work_order_id: string
+        }
+        Update: {
+          note?: string | null
         }
         Relationships: []
       }
@@ -11830,6 +11900,7 @@ export type Database = {
           tombstoned_at: string | null
           work_order_id: string | null
           proof_required: boolean
+          section_id?: string | null // #2576: optional in Row so shipped task fixtures need no churn
         }
         Insert: {
           archived_at?: string | null
@@ -11853,6 +11924,7 @@ export type Database = {
           tombstoned_at?: string | null
           work_order_id?: string | null
           proof_required?: boolean
+          section_id?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -11876,6 +11948,7 @@ export type Database = {
           tombstoned_at?: string | null
           work_order_id?: string | null
           proof_required?: boolean
+          section_id?: string | null
         }
         Relationships: [
           {
@@ -12751,6 +12824,7 @@ export type Database = {
           crew_id: string
           id: string
           org_id: string
+          section_id: string | null
           valid_from: string
           valid_to: string | null
           version: number
@@ -12761,6 +12835,7 @@ export type Database = {
           crew_id: string
           id?: string
           org_id?: string
+          section_id?: string | null
           valid_from: string
           valid_to?: string | null
           version?: number
@@ -12771,6 +12846,7 @@ export type Database = {
           crew_id?: string
           id?: string
           org_id?: string
+          section_id?: string | null
           valid_from?: string
           valid_to?: string | null
           version?: number
@@ -13125,6 +13201,10 @@ export type Database = {
         Row: { id: string | null; name: string | null; code: string | null; job_title: string | null; archived_at: string | null }
         Relationships: []
       }
+      work_order_section_readiness: {
+        Row: { org_id: string | null; work_order_id: string | null; live_sections: number | null; not_ready: number | null; ready: number | null; blocked: number | null; all_ready: boolean | null }
+        Relationships: []
+      }
       work_order_cost_lines: {
         Row: {
           discipline_id: string | null
@@ -13439,6 +13519,15 @@ export type Database = {
       }
     }
     Functions: {
+      work_order_section_rollup: {
+        Args: { p_work_order_id: string }
+        Returns: {
+          section_id: string | null; code: string | null; name: string | null; location_note: string | null; foreman_id: string | null
+          readiness: string | null; readiness_note: string | null; sort_order: number | null; archived_at: string | null
+          direct_budget: number | null; indirect_budget: number | null; equipment_hours: number | null; crew_hours: number | null
+          tasks_total: number; tasks_done: number; crews_today: number
+        }[]
+      }
       set_work_order_plan: { Args: { p_project_id: string; p_work_order_id: string; p_changes: Json }; Returns: number }
       set_shared_cost_split: { Args: { p_project_id: string; p_split: Json }; Returns: number }
       clear_shared_cost_split: { Args: { p_project_id: string }; Returns: number }
