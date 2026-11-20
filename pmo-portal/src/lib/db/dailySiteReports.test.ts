@@ -7,7 +7,7 @@ const h = vi.hoisted(() => {
   const calls: Array<[string, unknown[]]> = [];
   const rpcCalls: Array<[string, unknown]> = [];
   const builder: Record<string, unknown> = {};
-  for (const k of ['select', 'eq', 'is', 'gte', 'lte', 'order', 'range', 'insert', 'maybeSingle'] as const) {
+  for (const k of ['select', 'eq', 'is', 'gte', 'lte', 'order', 'range', 'insert', 'update', 'maybeSingle'] as const) {
     builder[k] = (...a: unknown[]) => { calls.push([k, a]); return builder; };
   }
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
@@ -99,5 +99,28 @@ describe('#2619 report hours', () => {
   it('an RPC refusal is raised, not shown as zero hours', async () => {
     h.result.value = { data: null, error: { message: 'report not found', code: 'P0002' } };
     await expect(dal.reportHours('r1')).rejects.toBeInstanceOf(AppError);
+  });
+});
+
+describe('#2621 site report lists', () => {
+  it('the report pickers read only live items; the Admin editor reads archived ones too', async () => {
+    h.result.value = { data: [], error: null };
+    await dal.listIdleReasons();
+    expect(h.calls.some(([k, a]) => k === 'is' && (a as unknown[])[0] === 'archived_at')).toBe(true);
+    h.calls.length = 0;
+    await dal.listListItems('idle');
+    expect(h.calls.some(([k]) => k === 'is')).toBe(false);
+  });
+  it('add, rename and archive write only the label / archive stamp (org_id is stamped by the database)', async () => {
+    await dal.addListItem('weather', '  Heavy wind ');
+    await dal.renameListItem('idle', 'i1', ' Wind ');
+    await dal.setListItemArchived('idle', 'i1', true);
+    await dal.setListItemArchived('idle', 'i1', false);
+    const ins = h.calls.find(([k]) => k === 'insert');
+    expect(ins?.[1]).toEqual([{ label: 'Heavy wind' }]);
+    const updates = h.calls.filter(([k]) => k === 'update').map(([, a]) => a[0]);
+    expect(updates[0]).toEqual({ label: 'Wind' });
+    expect(updates[1]).toMatchObject({ archived_at: expect.any(String) });
+    expect(updates[2]).toEqual({ archived_at: null });
   });
 });

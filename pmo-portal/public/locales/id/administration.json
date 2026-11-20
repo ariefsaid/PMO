@@ -573,6 +573,25 @@
       "whoNow": "Yang dapat menyetujui sekarang",
       "helpRule": "Jika tidak ada yang terdaftar, {{roles}} dapat menyetujui kasus orang lain."
     },
+    "siteReportLists": {
+          "title": "Daftar laporan lapangan",
+          "helper": "Pilihan yang tersedia pada laporan lapangan. Mengarsipkan menyembunyikan pilihan dari laporan baru; laporan yang sudah memakainya tetap menyimpannya.",
+          "idle": "Alasan menganggur",
+          "weather": "Kondisi cuaca",
+          "add": "Tambah",
+          "addLabel": "Entri {{list}} baru",
+          "rename": "Ubah nama",
+          "renameFor": "Nama untuk {{name}}",
+          "save": "Simpan",
+          "cancel": "Batal",
+          "archive": "Arsipkan",
+          "restore": "Pulihkan",
+          "archived": "Diarsipkan",
+          "empty": "Belum ada isi",
+          "loadError": "Daftar tidak dapat dimuat",
+          "saved": "Daftar disimpan",
+          "duplicate": "Nama itu sudah ada dalam daftar"
+    },
     "fiscalYear": {
       "title": "Tahun fiskal",
       "label": "Tahun fiskal dimulai pada",

@@ -142,6 +142,29 @@ async function listOptions(table: 'dsr_idle_reasons' | 'dsr_weather_conditions')
 export const listIdleReasons = () => listOptions('dsr_idle_reasons');
 export const listWeatherConditions = () => listOptions('dsr_weather_conditions');
 
+/** #2621 FR-DSR-003/004: the Admin-kept pick lists (idle reasons, weather). RLS lets only an Admin write; org_id is stamped. */
+export type DsrListKind = 'idle' | 'weather';
+export interface DsrListAdminOption { id: string; label: string; archived_at: string | null }
+const listTable = (kind: DsrListKind) => (kind === 'idle' ? 'dsr_idle_reasons' : 'dsr_weather_conditions') as 'dsr_idle_reasons' | 'dsr_weather_conditions';
+
+/** Every item including archived ones, so an archived item can be restored. */
+export async function listListItems(kind: DsrListKind): Promise<DsrListAdminOption[]> {
+  return fetchAllPages<DsrListAdminOption>((f, t) => db.from(listTable(kind)).select('id, label, archived_at').order('label').order('id').range(f, t));
+}
+export async function addListItem(kind: DsrListKind, label: string): Promise<void> {
+  const { error } = await db.from(listTable(kind)).insert({ label: label.trim() });
+  if (error) fail(error);
+}
+export async function renameListItem(kind: DsrListKind, id: string, label: string): Promise<void> {
+  const { error } = await db.from(listTable(kind)).update({ label: label.trim() }).eq('id', id);
+  if (error) fail(error);
+}
+/** Archive hides the item from the report pickers; reports that already used it keep it. */
+export async function setListItemArchived(kind: DsrListKind, id: string, archived: boolean): Promise<void> {
+  const { error } = await db.from(listTable(kind)).update({ archived_at: archived ? new Date().toISOString() : null }).eq('id', id);
+  if (error) fail(error);
+}
+
 /** The work order's contract items (work_order_lines + their BOQ line). */
 export async function listContractItems(workOrderId: string): Promise<DsrContractItem[]> {
   const data = await fetchAllPages<{ id: string; boq_item_id: string; boq_items: { item_code: string; description: string; unit: string } | null }>((from, to) =>
