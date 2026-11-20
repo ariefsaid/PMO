@@ -271,9 +271,26 @@ const TASK_RULE_MESSAGES = [
   'a task without a project cannot name a work order',
   'work order must belong to the task\'s own project',
   'a cancelled work order takes no new tasks',
+  // #2587 (migration 1070): the record-link guard's own wording.
+  'this record is already finished',
+  'the record belongs to a different project than the task',
 ];
 const isTaskRule = (code: string | undefined, message: string): boolean =>
   code === '23514' && TASK_RULE_MESSAGES.includes(message);
+
+/**
+ * #2587 (migration 1070): a second open task for the same record. The pre-insert guard raises 23505 with this message
+ * (naming the existing task in `details`); the partial unique indexes are the concurrency backstop and raise a bare
+ * 23505. Both read the same to the user, who is told to open the task that exists.
+ */
+const OPEN_TASK_FOR_RECORD = /an open task already exists for this record|tasks_(procurement|expense_claim|material_request)_open_uniq/;
+/** The link-shape CHECKs: two links at once, or a link on a task that requires proof (FR-RLT-019). */
+const LINK_CHECKS: Record<string, string> = {
+  tasks_one_record_link: 'A task can follow one record at a time.',
+  tasks_record_link_no_proof: 'A task that requires proof of completion cannot follow a record.',
+};
+const linkCheckDetail = (code: string | undefined, message: string): string | undefined =>
+  code === '23514' ? Object.entries(LINK_CHECKS).find(([name]) => message.includes(name))?.[1] : undefined;
 
 export interface ClassifiedMutationError {
   /** The primary, human headline. */
@@ -319,7 +336,12 @@ export function classifyMutationError(
       : POSTGRES_GENERATED_DETAIL['23514']
     : undefined;
   const taskRule = isTaskRule(code, rawDetail);
-  const detail = detailOverride ?? (taskRule ? rawDetail : undefined) ?? safeCheckDetail ?? generated ?? rawDetail;
+  const openTaskForRecord = code === '23505' && OPEN_TASK_FOR_RECORD.test(rawDetail);
+  const linkCheck = linkCheckDetail(code, rawDetail);
+  const detail = detailOverride
+    ?? (openTaskForRecord ? 'This record already has an open task. Open it instead of creating another.' : undefined)
+    ?? linkCheck
+    ?? (taskRule ? rawDetail : undefined) ?? safeCheckDetail ?? generated ?? rawDetail;
 
   if (import.meta.env.DEV) {
     // The dev-only affordance for the raw text (AC-ERR-002): table/constraint names and RLS
@@ -347,7 +369,9 @@ export function classifyMutationError(
     return { headline: overrides[code], detail, rawDetail, classification };
   }
 
-  if (taskRule) return { headline: 'A task rule applies', detail, rawDetail, classification };
+  if (taskRule || linkCheck) return { headline: 'A task rule applies', detail, rawDetail, classification };
+
+  if (openTaskForRecord) return { headline: 'A task is already open', detail, rawDetail, classification };
 
   if (isPurchaseRule) return { headline: 'A purchase rule applies', detail, rawDetail, classification };
 

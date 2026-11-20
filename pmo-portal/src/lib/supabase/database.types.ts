@@ -11830,6 +11830,12 @@ export type Database = {
           tombstoned_at: string | null
           work_order_id: string | null
           proof_required: boolean
+          procurement_id: string | null
+          expense_claim_id: string | null
+          material_request_id: string | null
+          closed_by_record_type: string | null
+          closed_by_record_status: string | null
+          closed_by_record_at: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -11853,6 +11859,12 @@ export type Database = {
           tombstoned_at?: string | null
           work_order_id?: string | null
           proof_required?: boolean
+          procurement_id?: string | null
+          expense_claim_id?: string | null
+          material_request_id?: string | null
+          closed_by_record_type?: string | null
+          closed_by_record_status?: string | null
+          closed_by_record_at?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -11876,6 +11888,12 @@ export type Database = {
           tombstoned_at?: string | null
           work_order_id?: string | null
           proof_required?: boolean
+          procurement_id?: string | null
+          expense_claim_id?: string | null
+          material_request_id?: string | null
+          closed_by_record_type?: string | null
+          closed_by_record_status?: string | null
+          closed_by_record_at?: string | null
         }
         Relationships: [
           {
@@ -11925,6 +11943,27 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_expense_claim_id_fkey"
+            columns: ["expense_claim_id"]
+            isOneToOne: false
+            referencedRelation: "expense_claims"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_material_request_id_fkey"
+            columns: ["material_request_id"]
+            isOneToOne: false
+            referencedRelation: "material_requests"
             referencedColumns: ["id"]
           },
         ]
@@ -17147,6 +17186,18 @@ export type Database = {
       task_domain_externally_owned: {
         Args: { p_project_id: string }
         Returns: boolean
+      }
+      task_linked_records: {
+        Args: { p_task_ids: string[] }
+        Returns: {
+          is_end_state: boolean
+          label: string
+          link_type: string
+          readable: boolean
+          record_id: string
+          status: string
+          task_id: string
+        }[]
       }
       task_reminder_check: {
         Args: { p_org: string; p_sender: string; p_task: string }

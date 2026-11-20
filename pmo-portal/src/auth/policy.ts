@@ -578,6 +578,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     },
     archive: allow(DELIVERY), // 0355: Finance lost the write-role path (archived_at is a lifecycle column)
     delete: allow(DELIVERY),
+    // #2587 FR-RLT-004: set or clear the record link. A delivery role on any task; anyone else only on a task they
+    // CREATED (the link is a work field on the creator allow-list); never the assignee, never an externally-owned task.
+    // Same shape as `edit` — the database (check_task_record_link + the column pin) is the authority.
+    link: (role, ctx) => {
+      if (has(DELIVERY, role)) return true;
+      if (!ctx.currentUserId) return false;
+      return ctx.record?.externallyOwned !== true && ctx.record?.created_by === ctx.currentUserId;
+    },
   },
   taskStatus: {
     // Managers may set any task's status; an Engineer or Finance member may set status only on
