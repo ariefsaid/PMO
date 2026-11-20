@@ -1,4 +1,4 @@
--- 0981_site_issue_escalation_and_task.sql — #2521: the overdue pass and the issue-to-task hand-off.
+-- 1028_site_issue_escalation_and_task.sql — #2521: the overdue pass and the issue-to-task hand-off.
 -- Spec docs/specs/site-issue-log.spec.md (FR-SIL-020..023, FR-SIL-030/031); proven by supabase/tests/0979_site_issue_log.test.sql.
 --   §1 escalate_overdue_incidents(): every issue not Closed whose due time has passed and that has not been escalated, in an
 --      org whose `incidents` switch is on: stamp escalated_at once, notify the assignee and the project's manager (Admins
@@ -6,7 +6,7 @@
 --   §2 create_task_from_incident(uuid): one transaction, one task, linked through incident_reports.task_id (unique).
 --      The task is built without a work-order link when `tasks.work_order_id` does not exist yet (#2531); once it does, the
 --      same call sets it (read from information_schema at call time, no re-migration needed).
--- ── REVERSE (also rollback/0981_site_issue_escalation_and_task_down.sql) ─────────────────────────────
+-- ── REVERSE (also rollback/1028_site_issue_escalation_and_task_down.sql) ─────────────────────────────
 --   select cron.unschedule('incident-escalation'); drop function public.escalate_overdue_incidents(uuid); drop function public.create_task_from_incident(uuid);
 
 create function public.escalate_overdue_incidents(p_incident uuid default null) returns integer
