@@ -110,8 +110,8 @@ begin
   agg as (
     select m.item_id, round(sum(m.result), 3) as gen,
            jsonb_agg(jsonb_build_object('boq_item_id', m.boq_item_id, 'boq_code', m.boq_code, 'unit', m.unit,
-                                        'work_qty', m.work_qty, 'standard_id', m.standard_id,
-                                        'qty_per_unit', m.qty_per_unit, 'margin_pct', m.margin_pct, 'result', m.result)
+                                        'work_qty', m.work_qty::text, 'standard_id', m.standard_id,
+                                        'qty_per_unit', m.qty_per_unit::text, 'margin_pct', m.margin_pct::text, 'result', m.result::text)
                      order by m.boq_code, m.boq_item_id) as basis
       from m group by m.item_id),
   del as (delete from public.work_order_consumable_plan_lines p
@@ -183,10 +183,10 @@ begin
 
   select coalesce(jsonb_agg(jsonb_build_object(
            'item_id', p.item_id, 'item_code', i.code, 'item_name', i.name, 'unit_code', u.code,
-           'generated_qty', p.generated_qty, 'adjusted_qty', p.adjusted_qty, 'adjust_reason', p.adjust_reason,
+           'generated_qty', p.generated_qty::text, 'adjusted_qty', p.adjusted_qty::text, 'adjust_reason', p.adjust_reason,
            'adjusted_by', p.adjusted_by, 'adjusted_at', p.adjusted_at,
-           'planned_qty', coalesce(p.adjusted_qty, p.generated_qty),
-           'prior_qty', public.mrq_prior_quantity(p_work_order_id, p.item_id, '00000000-0000-0000-0000-000000000000'::uuid),
+           'planned_qty', coalesce(p.adjusted_qty, p.generated_qty)::text,
+           'prior_qty', round(public.mrq_prior_quantity(p_work_order_id, p.item_id, '00000000-0000-0000-0000-000000000000'::uuid), 3)::text,
            'source', case when p.adjusted_qty is not null then 'adjusted' else 'standard' end,
            'basis', p.basis) order by i.code), '[]'::jsonb)
     into v_lines
@@ -196,7 +196,7 @@ begin
    where p.work_order_id = p_work_order_id;
 
   select coalesce(jsonb_agg(jsonb_build_object('boq_item_id', b.id, 'item_code', b.item_code, 'description', b.description,
-                                               'unit', b.unit, 'quantity', wl.quantity) order by b.item_code), '[]'::jsonb)
+                                               'unit', b.unit, 'quantity', wl.quantity::text) order by b.item_code), '[]'::jsonb)
     into v_nostd
     from public.work_order_lines wl join public.boq_items b on b.id = wl.boq_item_id
    where wl.work_order_id = p_work_order_id
@@ -204,7 +204,7 @@ begin
 
   select coalesce(jsonb_agg(jsonb_build_object(
            'item_id', x.item_id, 'item_code', i.code, 'item_name', i.name, 'unit_code', u.code,
-           'planned_qty', public.mrq_plan_quantity(p_work_order_id, x.item_id), 'prior_qty', x.prior,
+           'planned_qty', round(public.mrq_plan_quantity(p_work_order_id, x.item_id), 3)::text, 'prior_qty', round(x.prior, 3)::text,
            'source', case when exists (select 1 from public.work_order_lines wl
                                          join public.boq_material_allowances a on a.boq_item_id = wl.boq_item_id and a.item_id = x.item_id
                                         where wl.work_order_id = p_work_order_id) then 'allowance' else 'none' end)
@@ -223,7 +223,27 @@ begin
                             'out_of_date', v_stale, 'lines', v_lines, 'no_standard', v_nostd, 'unplanned', v_unplanned);
 end $$;
 
--- §6 ACL: internals nobody; client RPCs authenticated only (hosted default-grant lesson) ------------------------
+-- §6 how many work-order lines in live (Draft or Issued) work orders each active standard's rule matches (FR-CUS-004).
+-- Invoker + RLS: the caller sees only their organisation's rows. A standard "matches" a line by its own rule (work unit,
+-- prefix); a longer-prefix standard for the same item may still win that line at generation. Zero is the symptom of a
+-- work unit typed differently from the contract lines' unit (OQ-CUS-1).
+create or replace function public.cus_standard_match_counts() returns table (standard_id uuid, match_lines integer)
+  language sql stable set search_path = public as $$
+  select s.id, count(m.line_id)::integer
+    from public.consumable_usage_standards s
+    left join (select wl.id as line_id, b.unit, b.item_code
+                 from public.work_order_lines wl
+                 join public.work_orders w on w.id = wl.work_order_id and w.status in ('Draft', 'Issued')
+                 join public.boq_items b on b.id = wl.boq_item_id) m
+      on lower(btrim(m.unit)) = lower(btrim(s.work_unit))
+     and starts_with(lower(m.item_code), lower(btrim(coalesce(s.boq_code_prefix, ''))))
+   where s.archived_at is null
+   group by s.id
+$$;
+revoke all on function public.cus_standard_match_counts() from public, anon;
+grant execute on function public.cus_standard_match_counts() to authenticated;
+
+-- §7 ACL: internals nobody; client RPCs authenticated only (hosted default-grant lesson) ------------------------
 revoke all on function public.cus_plan_matches(uuid), public.cus_plan_fingerprint(uuid), public.cus_assert_planner(uuid, boolean)
   from public, anon, authenticated, service_role;
 revoke all on function public.cus_generate_plan(uuid), public.cus_adjust_plan_line(uuid, uuid, numeric, text), public.cus_get_plan(uuid)

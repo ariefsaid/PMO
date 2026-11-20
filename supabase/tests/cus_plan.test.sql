@@ -4,7 +4,7 @@
 -- AC-CUS-011 who may plan · AC-CUS-012 other organisation · AC-CUS-014 added line item rules · FR-CUS-010 "no standard".
 begin;
 create extension if not exists pgtap;
-select plan(47);
+select plan(49);
 
 insert into organizations (id, name) values
   ('25770000-0000-0000-0000-00000000020a', 'CUSP Org A'),
@@ -94,6 +94,11 @@ select is((select sum((b->>'work_qty')::numeric) from jsonb_array_elements(publi
 select is((select jsonb_agg(n->>'item_code') from jsonb_array_elements(public.cus_get_plan('25770000-0000-0000-0000-000000002401')->'no_standard') n),
   '["CIV-01"]'::jsonb, 'FR-CUS-010 the contract line no standard covers is listed');
 select is((public.cus_get_plan('25770000-0000-0000-0000-000000002401')->>'out_of_date')::boolean, false, 'AC-CUS-006 a fresh plan is not out of date');
+-- FR-CUS-004: how many lines in live work orders each standard's rule matches (WO1 two lines, WO2 one; the Closed WO3 is not counted)
+select is((select match_lines from public.cus_standard_match_counts() where standard_id = '25770000-0000-0000-0000-000000002501'), 3,
+  'FR-CUS-004 the WLD rod standard matches three lines in live work orders (the Closed one is left out)');
+select is((select match_lines from public.cus_standard_match_counts() where standard_id = '25770000-0000-0000-0000-000000002502'), 3,
+  'FR-CUS-004 the prefix-free disc standard matches the same three lines, never the m3 line');
 select throws_ok($$ insert into work_order_consumable_plan_lines (work_order_id, item_id, generated_qty)
     values ('25770000-0000-0000-0000-000000002401', '25770000-0000-0000-0000-000000002313', 1) $$, '42501', null,
   'FR-CUS-016 plan lines have no direct client write');

@@ -52,6 +52,8 @@ export interface MaterialRequestLine {
   itemId: string;
   quantity: number;
   planQty: number | null;
+  /** Where the snapshotted plan figure came from (#2577); null on a request submitted before plan sources existed. */
+  planSource: PlanSource | null;
   priorQty: number | null;
   overPlanReason: string | null;
 }
@@ -117,10 +119,16 @@ export interface StandIn {
   revokedAt: string | null;
 }
 
+/** FR-CUS-012: `standard` (consumable plan, unadjusted), `adjusted`, `allowance` (BoQ allowance fallback), `none`. */
+export type PlanSource = 'standard' | 'adjusted' | 'allowance' | 'none';
+const PLAN_SOURCES: readonly string[] = ['standard', 'adjusted', 'allowance', 'none'];
+const asPlanSource = (v: unknown): PlanSource | null => (typeof v === 'string' && PLAN_SOURCES.includes(v) ? (v as PlanSource) : null);
+
 export interface LinePlan {
   itemId: string;
   planQty: number;
   priorQty: number;
+  planSource: PlanSource | null;
 }
 
 // ── pure helpers ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -221,7 +229,7 @@ export async function listMaterialRequests(f: MaterialRequestFilter): Promise<{ 
 export async function getMaterialRequest(id: string): Promise<MaterialRequestDetail | null> {
   const [req, lines, steps, events] = await Promise.all([
     supabase.from('material_requests').select(REQUEST_COLUMNS).eq('id', id).limit(1) as unknown as DbResult<RequestDbRow[]>,
-    supabase.from('material_request_lines').select('id, line_no, item_id, quantity, plan_qty, prior_qty, over_plan_reason')
+    supabase.from('material_request_lines').select('id, line_no, item_id, quantity, plan_qty, plan_source, prior_qty, over_plan_reason')
       .eq('request_id', id).order('line_no', { ascending: true }).limit(200) as unknown as DbResult<Array<Record<string, unknown>>>,
     supabase.from('material_request_steps').select('id, round, position, role, label, status, decided_by, acted_for, decided_at, reason')
       .eq('request_id', id).order('round', { ascending: true }).order('position', { ascending: true }).limit(500) as unknown as DbResult<Array<Record<string, unknown>>>,
@@ -235,7 +243,7 @@ export async function getMaterialRequest(id: string): Promise<MaterialRequestDet
     ...toRow(head),
     lines: (lines.data ?? []).map((l) => ({
       id: String(l.id), lineNo: Number(l.line_no), itemId: String(l.item_id), quantity: Number(l.quantity),
-      planQty: l.plan_qty == null ? null : Number(l.plan_qty), priorQty: l.prior_qty == null ? null : Number(l.prior_qty),
+      planQty: l.plan_qty == null ? null : Number(l.plan_qty), planSource: asPlanSource(l.plan_source), priorQty: l.prior_qty == null ? null : Number(l.prior_qty),
       overPlanReason: (l.over_plan_reason as string | null) ?? null,
     })),
     steps: (steps.data ?? []).map((s) => ({
@@ -270,7 +278,7 @@ export async function getLinePlans(workOrderId: string, itemIds: string[], exclu
     p_work_order_id: workOrderId, p_item_ids: itemIds, ...(excludeRequestId ? { p_exclude_request: excludeRequestId } : {}),
   });
   if (error) fail(error);
-  return (data ?? []).map((p) => ({ itemId: p.item_id, planQty: Number(p.plan_qty), priorQty: Number(p.prior_qty) }));
+  return (data ?? []).map((p) => ({ itemId: p.item_id, planQty: Number(p.plan_qty), priorQty: Number(p.prior_qty), planSource: asPlanSource(p.plan_source) }));
 }
 
 export async function listApprovalChain(): Promise<ChainStep[]> {
