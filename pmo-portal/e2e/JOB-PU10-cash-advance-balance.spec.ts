@@ -1,7 +1,7 @@
 // @e2e-isolation: self-isolated — creates its own uniquely-named project, budget, float, plan and claims each run and deletes them afterwards; the org procurement limit is inserted only when absent and removed only if this run inserted it. Shared-row dependency: the org-wide imprest settings row and the org senior approver set are read, not owned.
 /**
  * JOB-PU10 — site finance plans a cash advance of a set amount, records two purchases against it, and the float page shows the balance:
- * the advance minus the purchases (5,000,000 − 500,000 − 300,000 = 4,200,000), with the two receipts still waiting to be topped up.
+ * the advance minus the purchases (10,000 − 500 − 300 = 9,200), with the two receipts still waiting to be topped up.
  * Partly landed: floats, plans and claims exist; planning "how much cash advance is needed per month" before the advance exists is the plan step used here.
  */
 import { test, expect } from '@playwright/test';
@@ -65,7 +65,7 @@ test.beforeEach(async () => {
   ok('approver', await admin.from('spend_approvers').insert({ org_id: ORG_ID, project_id: projectId, profile_id: EXEC_ID }));
   const existing = ok('limit read', await admin.from('org_imprest_settings').select('org_id').eq('org_id', ORG_ID).maybeSingle());
   if (!existing) {
-    ok('limit', await admin.from('org_imprest_settings').insert({ org_id: ORG_ID, procurement_limit: 5_000_000, updated_by: ADMIN_ID }));
+    ok('limit', await admin.from('org_imprest_settings').insert({ org_id: ORG_ID, procurement_limit: 10_000, updated_by: ADMIN_ID }));
     limitInserted = true;
   }
 
@@ -74,7 +74,7 @@ test.beforeEach(async () => {
   const adminUser = await asUser('admin@acme.test');
   const finance = await asUser('finance@acme.test');
   const pm = await asUser('pm@acme.test');
-  floatId = (await rpc(finance, 'establish float', 'establish_imprest_float', { p_project: projectId, p_custodian: PM_ID, p_amount: 5_000_000 })) as string;
+  floatId = (await rpc(finance, 'establish float', 'establish_imprest_float', { p_project: projectId, p_custodian: PM_ID, p_amount: 10_000 })) as string;
   const change = need('float change', await admin.from('imprest_float_changes').select('id').eq('float_id', floatId).single());
   await rpc(adminUser, 'decide float amount', 'decide_imprest_float_change', { p_change: change.id, p_approve: true, p_notes: null });
   const funding = (await rpc(pm, 'request funding', 'request_imprest_replenishment', { p_float: floatId, p_kind: 'funding' })) as string;
@@ -85,14 +85,14 @@ test.beforeEach(async () => {
   const position = need('position', await pm.rpc('get_imprest_position', { p_float: floatId })) as Array<{ month: string }>;
   const month = position[0].month;
   const planId = need('plan', await pm.from('imprest_plans').insert({ float_id: floatId, month }).select('id').single()).id;
-  ok('plan line', await pm.from('imprest_plan_lines').insert({ plan_id: planId, budget_category: 'Vehicle', planned_amount: 2_000_000 }));
+  ok('plan line', await pm.from('imprest_plan_lines').insert({ plan_id: planId, budget_category: 'Vehicle', planned_amount: 10_000 }));
   await rpc(pm, 'submit plan', 'transition_imprest_plan', { p_id: planId, p_to: 'Submitted', p_notes: null });
   const exec = await asUser('exec@acme.test');
   await rpc(exec, 'approve plan', 'transition_imprest_plan', { p_id: planId, p_to: 'Approved', p_notes: null });
 
   // Two purchases against the advance: the Engineer files each, the Executive approves, the custodian pays.
   const engineer = await asUser('engineer@acme.test');
-  for (const [what, amount] of [['diesel', 500_000], ['welding rods', 300_000]] as const) {
+  for (const [what, amount] of [['diesel', 500], ['welding rods', 300]] as const) {
     const claim = need('claim', await engineer.from('expense_claims')
       .insert({ kind: 'claim', title: `${tag} ${what}`, project_id: projectId, budget_category: 'Vehicle', imprest_float_id: floatId }).select('id').single());
     ok('claim line', await engineer.from('expense_claim_lines')
@@ -125,8 +125,8 @@ test.afterEach(async () => {
 test('JOB-PU10 the float reads the advance minus the two purchases recorded against it', async ({ page }) => {
   await signIn(page, 'pm@acme.test');
   await page.goto(`/imprest/${floatId}`);
-  await expect(page.getByTestId('figure-receipts')).toContainText(/800[.,]000/, { timeout: 20_000 });
-  await expect(page.getByTestId('figure-cash')).toContainText(/4[.,]200[.,]000/);
+  await expect(page.getByTestId('figure-receipts')).toContainText(/\b800\b/, { timeout: 20_000 });
+  await expect(page.getByTestId('figure-cash')).toContainText(/9[.,]200/);
   await expect(page.locator('li', { hasText: `${tag} diesel` })).toBeVisible();
   await expect(page.locator('li', { hasText: `${tag} welding rods` })).toBeVisible();
 });

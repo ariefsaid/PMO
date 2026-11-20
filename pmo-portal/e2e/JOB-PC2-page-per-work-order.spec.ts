@@ -39,5 +39,5 @@ test('JOB-PC2 a project manager opens the work order page from the project and s
   await expect(page.getByRole('heading', { level: 1 })).toContainText(wo.number);
   await expect(page.getByTestId(`scope-line-${boqId}`)).toContainText('Spool fabrication');
   await expect(page.getByTestId('cost-group-equipment_usage')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId('cost-total-equipment_usage')).toContainText('300.00');
+  await expect(page.getByTestId('cost-total-equipment_usage')).toContainText('$300');
 });

@@ -91,6 +91,13 @@ describe('WorkOrderDetail', () => {
     expect(within(po).getByTestId('cost-total-purchase_order')).toBeTruthy();
     expect(screen.queryByTestId('cost-group-vendor_bill')).toBeNull();
   });
+  it('AC-WORP-022 shows readable hire charges for equipment usage without calling them uncosted', () => {
+    h.lines = q({ equipment_usage: [{ ...ln('equipment_usage', 'usage1', null), quantity: 3, quantityUnit: 'hours' }] });
+    h.money = q({ equipment_usage: { usage1: { amount: 300, currency: 'USD' } } });
+    renderPage();
+    expect(screen.getByTestId('cost-total-equipment_usage').textContent).toContain('$300');
+    expect(screen.getByTestId('cost-line-usage1').textContent).not.toContain('Not yet costed');
+  });
   it('links a purchase cost to its resolved source record', () => {
     h.links = q({ 'purchase_order:po1': '/procurement/purchase-1/timeline#cost-po1' });
     renderPage();

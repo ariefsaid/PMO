@@ -46,7 +46,7 @@ test('JOB-M1 the director sees plan, actual and the difference per work order, a
   await expect(rowA.getByTestId('wo-pva-direct')).toContainText('100.00 left'); // difference
   await expect(rowB).toContainText('150.00');
   await expect(rowB.getByTestId('wo-pva-direct')).toContainText('200.00');
-  await expect(rowB.getByTestId('wo-pva-direct')).toContainText('Over plan by 50.00');
+  await expect(rowB.getByTestId('wo-pva-direct')).toContainText('Over plan by $50.00');
   const total = pva.getByTestId('wo-pva-total-USD');
   await expect(total).toContainText('550.00');         // 400 + 150 planned
   await expect(total).toContainText('500.00');         // 300 + 200 actual

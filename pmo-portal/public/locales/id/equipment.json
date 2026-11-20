@@ -82,7 +82,7 @@
     "rentedAsset": "Alat sewaan",
     "from": "Periode tagihan dari",
     "to": "Periode tagihan sampai",
-    "invoiceAmount": "Jumlah tagihan supplier",
+    "invoiceAmount": "Jumlah invoice supplier",
     "runCheck": "Periksa tagihan",
     "result": "Hasil pemeriksaan",
     "rentalAmount": "Jumlah sewa",

@@ -108,7 +108,11 @@ export async function profileId(admin: SupabaseClient, email: string): Promise<s
 }
 
 export async function dropProject(admin: SupabaseClient, projectId: string, tables: string[] = ['tasks']): Promise<void> {
-  for (const table of tables) ok(`${table} cleanup`, await admin.from(table).delete().eq('project_id', projectId));
+  for (const table of tables) {
+    // Dependency rows have no project_id; deleting the owned tasks cascades through both task FKs.
+    if (table === 'task_dependencies') continue;
+    ok(`${table} cleanup`, await admin.from(table).delete().eq('project_id', projectId));
+  }
   ok('record changes cleanup', await admin.from('record_changes').delete().eq('entity_id', projectId));
   ok('project cleanup', await admin.from('projects').delete().eq('id', projectId));
 }

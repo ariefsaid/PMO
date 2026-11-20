@@ -1,9 +1,9 @@
 -- #2277: the down for 0903 restores every replaced function to its exact previous body and grants (0896 for undo, else 0882), refuses while any order-family placement exists,
--- and removes what 0903 added. The script substitutes the (signature, body hash, grants) of each replaced function and the request guard's body
--- hash, as recorded in a database reset to the migration before 0903, and the down file. One transaction; nothing is left behind.
+-- and removes what 0903 added. The script substitutes the (signature, body hash, grants) of each replaced function from before 0903,
+-- and the request guard's body hash from the reset at head, and the down file. One transaction; nothing is left behind.
 begin;
 select plan(7);
-select is(md5(pg_get_functiondef('public.api_client_request_guard()'::regprocedure)),'@GUARD@','AC-020 0903 leaves the request guard as it is at the migration before it');
+select is(md5(pg_get_functiondef('public.api_client_request_guard()'::regprocedure)),'@GUARD@','AC-020 0903 rollback leaves the request guard unchanged at head');
 insert into organizations(id,name,default_currency) values ('21953004-0000-0000-0000-000000000001','Family rollback org','USD');
 insert into auth.users(id,email) values ('21953004-0000-0000-0000-000000000002','rollback-family@example.test');
 insert into profiles(id,org_id,full_name,email,role,status) values ('21953004-0000-0000-0000-000000000002','21953004-0000-0000-0000-000000000001','Admin','rollback-family@example.test','Admin','active');

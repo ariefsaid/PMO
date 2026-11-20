@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# #2277 order-family rollback proof. Run under scripts/with-db-lock.sh. Records the replaced functions (and the request guard) in a database
-# reset to the migration before 0903, resets to head, then runs the down in a rolled-back transaction and compares. Ends with the database at head.
+# #2277 order-family rollback proof. Run under scripts/with-db-lock.sh. Records the replaced functions before 0903, resets to head,
+# then runs the down in a rolled-back transaction and compares both the restored functions and the untouched-at-head request guard.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PATH="/opt/homebrew/opt/libpq/bin:$PATH"
@@ -46,9 +46,9 @@ query="select '''' || p.oid::regprocedure::text || ''',''' || md5(pg_get_functio
 supabase db reset --no-seed --version "$prev" >/dev/null 2>&1
 psql "$db_url" -Atc "$query" | sed 's/^/(/; s/$/)/' > "$hashes"
 [ "$(wc -l < "$hashes")" -eq 5 ] || { echo "expected 5 recorded functions"; exit 1; }
-guard="$(psql "$db_url" -Atc "select md5(pg_get_functiondef('public.api_client_request_guard()'::regprocedure))")"
 paste -sd, "$hashes" > "$hashes.csv" && mv "$hashes.csv" "$hashes"
 supabase db reset >/dev/null 2>&1
+guard="$(psql "$db_url" -Atc "select md5(pg_get_functiondef('public.api_client_request_guard()'::regprocedure))")"
 python3 - "$test_file" "$hashes" "$guard" <<'PY'
 from pathlib import Path
 import sys

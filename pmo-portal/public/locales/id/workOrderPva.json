@@ -85,7 +85,7 @@
     "purchase_request": "Permintaan pembelian",
     "stock_document": "Pergerakan stok",
     "timesheet_entry": "Lembar waktu",
-    "vendor_bill": "Tagihan supplier"
+    "vendor_bill": "Invoice supplier"
   },
   "split": {
     "clear": "Pakai pembagian bawaan",

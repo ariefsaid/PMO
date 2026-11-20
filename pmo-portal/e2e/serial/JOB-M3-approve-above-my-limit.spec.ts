@@ -24,6 +24,7 @@ test.afterEach(async () => {
     await admin.from('procurements').delete().in('id', procIds);
   }
   if (projectId) {
+    await admin.from('erp_actuals_snapshot').delete().eq('project_id', projectId);
     await admin.from('spend_approvers').delete().eq('project_id', projectId);
     await admin.from('budget_versions').delete().eq('project_id', projectId);
     await admin.from('projects').delete().eq('id', projectId);
@@ -40,6 +41,15 @@ test('JOB-M3 the director approves the over-budget request from Approvals; the w
   ok('activate', await admin.from('budget_versions').update({ status: 'Active' }).eq('id', version.id));
   ok('project approver', await admin.from('spend_approvers').insert({ org_id: ORG_ID, project_id: projectId, profile_id: FINANCE_ID }));
   seniorRowId = need('senior set', await admin.from('spend_approvers').insert({ org_id: ORG_ID, project_id: null, profile_id: EXEC_ID }).select('id').single()).id;
+  // The seed org is ERP-ledger-backed, so PMO Paid rows are not this route's recorded-spend source.
+  // Add this project to the current generation with a known Materials actual. Reusing the generation
+  // preserves the seed projects' ledger rows while the journey runs.
+  const snapshot = need('current ledger generation', await admin.from('erp_actuals_snapshot')
+    .select('snapshot_id').eq('org_id', ORG_ID).order('created_at', { ascending: false }).limit(1).single());
+  ok('known Materials actual', await admin.from('erp_actuals_snapshot').insert({
+    org_id: ORG_ID, project_id: projectId, account: 'Cost of Goods Sold - PSC', fiscal_year: '2026',
+    debit: 100_000, credit: 0, net: 100_000, as_of: new Date().toISOString(), snapshot_id: snapshot.snapshot_id,
+  }));
   const mk = async (title: string, total: number) => need(title, await admin.from('procurements').insert({
     org_id: ORG_ID, title, project_id: projectId, requested_by_id: ENGINEER_ID, status: 'Requested', total_value: total, budget_category: 'Materials',
   }).select('id').single()).id as string;

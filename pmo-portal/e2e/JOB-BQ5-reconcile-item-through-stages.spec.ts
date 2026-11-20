@@ -15,9 +15,8 @@ test.afterEach(async () => { if (admin) { await cleanupBilling(admin, fx); fx = 
 
 test('JOB-BQ5 an item reconciles scope, progress and claimed quantity, with visible excess above scope', async ({ page }) => {
   admin = serviceClient('JOB-BQ5');
-  fx = await createBillingFixture(admin, runId('JOBBQ5'));
-  // A 12 km claim is above both the 6 km assessment and 10 km scope; set the work-order ceiling high enough to isolate that rule.
-  await admin.from('work_orders').update({ order_value: 1_000_000 }).eq('id', fx.workOrderId).throwOnError();
+  // A 12 km claim is above both the 6 km assessment and 10 km scope; the issued work-order value is set at creation.
+  fx = await createBillingFixture(admin, runId('JOBBQ5'), { workOrderValue: 1_000_000 });
   await signIn(page, 'finance@acme.test');
   await page.goto(`/projects/${fx.projectId}/contract`);
 
