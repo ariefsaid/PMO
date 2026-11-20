@@ -33,11 +33,15 @@ test('JOB-PC10 a catalogue line added at the remote location takes the remote ra
 
   await signIn(page, 'finance@acme.test');
   await page.goto(`/projects/${projectId}/contract`);
+  await page.getByRole('button', { name: 'Edit lines' }).click({ timeout: 30_000 });
   await page.getByRole('button', { name: /^add line$/i }).click();
   const dialog = page.getByRole('dialog');
   await pickComboboxOption(dialog, page, /catalogue item/i, new RegExp(`${run}-WELD`));
   await dialog.getByLabel(/^location/i).selectOption({ label: 'Remote' });
   await expect(dialog.getByText(/Rate:.*120\.00/)).toBeVisible();
+  await dialog.getByLabel('ERP item').fill(`${run}-WELD`);
+  await dialog.getByLabel('Description').fill('Butt weld');
+  await dialog.getByLabel('Unit').fill('inch');
   await dialog.getByLabel(/quantity/i).fill('10');
   await dialog.getByRole('button', { name: /save line/i }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });

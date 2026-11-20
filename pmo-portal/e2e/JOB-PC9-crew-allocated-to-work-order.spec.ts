@@ -33,11 +33,9 @@ test('JOB-PC9 a crew rostered on a work order for a date range is listed on it f
 
   await signIn(page, 'pm@acme.test');
   await page.goto(`/crews?view=roster&wo=${wo.id}`);
-  await page.getByRole('button', { name: 'Roster a crew' }).click();
+  await page.getByRole('button', { name: 'Roster a crew' }).first().click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel(/^crew/i).selectOption({ label: new RegExp(run) as unknown as string }).catch(async () => {
-    await dialog.getByLabel(/^crew/i).selectOption({ index: 1 });
-  });
+  await dialog.getByLabel(/^crew/i).selectOption(crewId);
   await dialog.getByLabel(/^from/i).fill(iso(from));
   await dialog.getByLabel(/^to/i).fill(iso(to));
   await dialog.getByRole('button', { name: 'Roster a crew' }).click();

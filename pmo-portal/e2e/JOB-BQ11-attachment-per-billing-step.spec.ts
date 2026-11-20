@@ -25,19 +25,19 @@ test('JOB-BQ11 a step with a required file is refused without it, and ticks once
   await raiseClaimAndOpen(page, fx, '4');
   const drawer = page.getByRole('dialog');
   const step = drawer.getByRole('listitem', { name: 'Joint survey report' });
-  await expect(step).toContainText('Not attached');
+  await expect(step.getByRole('link')).toHaveCount(0); // no file on the step yet
 
   // Ticked without the required file: refused, still not complete.
   await drawer.getByRole('button', { name: 'Complete Joint survey report' }).click();
   await expect(drawer.getByRole('alert')).toContainText(/attach every required document/i);
-  await expect(step).not.toContainText('Completed');
+  await expect(step).not.toContainText(/Completed \d/);
 
   // Attach the file, then the step ticks and shows the file.
   await step.getByLabel('Document for Survey report').selectOption({ label: fx.documentTitle });
   await step.getByRole('button', { name: 'Attach to Survey report' }).click();
   await expect(step.getByRole('link', { name: fx.documentTitle })).toBeVisible({ timeout: 15_000 });
   await drawer.getByRole('button', { name: 'Complete Joint survey report' }).click();
-  await expect(step).toContainText('Completed');
+  await expect(step).toContainText(/Completed \d/);
   await expect(step.getByRole('link', { name: fx.documentTitle })).toBeVisible();
   await expect(drawer.getByRole('listitem', { name: 'Client approval' })).toContainText('Current');
 });

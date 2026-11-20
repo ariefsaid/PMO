@@ -37,7 +37,7 @@ test('JOB-PC3 a plan saved on a released work order shows beside zero actuals, a
 
   await row.getByRole('button', { name: /^plan$/i }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel(/direct budget/i).fill('500');
+  await dialog.getByLabel(/^direct budget/i).fill('500');
   await dialog.getByLabel(/crew hours/i).fill('40');
   await dialog.getByRole('button', { name: /save plan/i }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
@@ -48,9 +48,9 @@ test('JOB-PC3 a plan saved on a released work order shows beside zero actuals, a
   await expect(page.getByTestId('wo-pva-project-hours')).toContainText(/Crew hours\s*0 · Plan: 40/);
 
   // A posted timesheet of 8 h on the work order raises the crew-hours actual.
-  const ts = need('timesheet', await admin.from('timesheets').insert({ org_id: ORG_ID, user_id: PM_ID, week_start_date: '2026-11-09', status: 'Approved', approved_by: PM_ID, approved_at: new Date().toISOString() }).select('id').single());
+  const ts = need('timesheet', await admin.from('timesheets').insert({ org_id: ORG_ID, user_id: PM_ID, week_start_date: '2025-03-03', status: 'Approved', approved_by: PM_ID, approved_at: new Date().toISOString() }).select('id').single());
   timesheetId = ts.id;
-  ok('entry', await admin.from('timesheet_entries').insert({ org_id: ORG_ID, timesheet_id: timesheetId, project_id: projectId, entry_date: '2026-11-10', hours: 8, work_order_id: wo.id }));
+  ok('entry', await admin.from('timesheet_entries').insert({ org_id: ORG_ID, timesheet_id: timesheetId, project_id: projectId, entry_date: '2025-03-04', hours: 8, work_order_id: wo.id }));
   await page.reload();
   await expect(page.getByTestId('wo-pva-project-hours')).toContainText(/Crew hours\s*8 · Plan: 40/, { timeout: 30_000 });
 });

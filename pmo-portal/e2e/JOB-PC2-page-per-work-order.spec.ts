@@ -4,24 +4,22 @@
 import { test, expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { signIn } from './helpers';
-import { cleanupAll, need, ok, ORG_ID, PM_ID, projectWithWorkOrders, runId, serviceClient } from './support/jobFixtures';
+import { cleanupAll, cleanupEquipment, equipmentCost, need, ok, ORG_ID, projectWithWorkOrders, runId, serviceClient, type EquipmentCostFixture } from './support/jobFixtures';
 
 test.setTimeout(120_000);
 
 let admin: SupabaseClient;
-let projectId = ''; let woIds: string[] = []; let assetId = ''; let boqId = '';
+let projectId = ''; let woIds: string[] = []; let equipment: EquipmentCostFixture | undefined; let boqId = '';
 test.afterEach(async () => {
   if (!admin) return;
+  await cleanupEquipment(admin, equipment);
   await cleanupAll(admin, [
-    ['equipment_usage_entries', 'asset_id', assetId ? [assetId] : []],
-    ['equipment_costing_settings', 'asset_id', assetId ? [assetId] : []],
-    ['equipment_assets', 'id', assetId ? [assetId] : []],
     ['work_order_lines', 'work_order_id', woIds],
     ['boq_items', 'id', boqId ? [boqId] : []],
     ['work_orders', 'id', woIds],
     ['projects', 'id', projectId ? [projectId] : []],
   ]);
-  projectId = ''; woIds = []; assetId = ''; boqId = '';
+  projectId = ''; woIds = []; equipment = undefined; boqId = '';
 });
 
 test('JOB-PC2 a project manager opens the work order page from the project and sees its scope and its costs', async ({ page }) => {
@@ -32,9 +30,7 @@ test('JOB-PC2 a project manager opens the work order page from the project and s
   const wo = fx.workOrders[0];
   boqId = need('line', await admin.from('boq_items').insert({ org_id: ORG_ID, project_id: projectId, item_code: 'SPOOL', description: 'Spool fabrication', unit: 'ea', quantity: 20, rate: 100 }).select('id').single()).id;
   ok('allocation', await admin.from('work_order_lines').insert({ org_id: ORG_ID, work_order_id: wo.id, boq_item_id: boqId, quantity: 20 }));
-  assetId = need('asset', await admin.from('equipment_assets').insert({ org_id: ORG_ID, code: run, name: run, default_unit: 'hours' }).select('id').single()).id;
-  ok('rate', await admin.from('equipment_costing_settings').insert({ org_id: ORG_ID, asset_id: assetId, setting_key: crypto.randomUUID(), version: 1, basis: 'hire_rate', work_rate: 100, rate_unit: 'hours', charge_category: 'Equipment', effective_from: '2026-01-01' }));
-  ok('usage', await admin.from('equipment_usage_entries').insert({ org_id: ORG_ID, asset_id: assetId, project_id: projectId, work_date: '2026-11-10', quantity: 3, unit: 'hours', status: 'Approved', author_id: PM_ID, approver_id: PM_ID, approved_at: new Date().toISOString(), work_order_id: wo.id }));
+  equipment = await equipmentCost(admin, run, projectId, 100, [{ woId: wo.id, day: '2026-11-10', hours: 3 }]);
 
   await signIn(page, 'pm@acme.test');
   await page.goto(`/projects/${projectId}/contract`);
@@ -43,5 +39,7 @@ test('JOB-PC2 a project manager opens the work order page from the project and s
   await expect(page.getByRole('heading', { level: 1 })).toContainText(wo.number);
   await expect(page.getByTestId(`scope-line-${boqId}`)).toContainText('Spool fabrication');
   await expect(page.getByTestId('cost-group-equipment_usage')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId('cost-total-equipment_usage')).toContainText('300.00');
+  await page.waitForTimeout(3000); // the amounts load after the lines
+  const group = page.getByTestId('cost-group-equipment_usage');
+  await expect(page.getByTestId('cost-total-equipment_usage'), 'group text: ' + await group.innerText()).toContainText('300.00');
 });
