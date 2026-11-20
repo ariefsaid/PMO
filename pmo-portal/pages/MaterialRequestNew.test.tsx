@@ -6,6 +6,7 @@ import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
   tz: 'Asia/Jakarta',
+  planSource: null as string | null,
   saveDraft: { mutateAsync: vi.fn().mockResolvedValue('r1'), isPending: false },
   submit: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
 }));
@@ -15,7 +16,7 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
     isPending: false, isError: false,
   }),
   useMaterialRequestMutations: () => ({ saveDraft: h.saveDraft, submit: h.submit }),
-  useLinePlans: () => ({ data: [{ itemId: 'i1', planQty: 10, priorQty: 4 }], isPending: false, isError: false }),
+  useLinePlans: () => ({ data: [{ itemId: 'i1', planQty: 10, priorQty: 4, planSource: h.planSource }], isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Site Alpha', short_name: null }] }) }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'w1', title: 'Slab', wo_number: 'WO-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() }) }));
@@ -34,6 +35,21 @@ const pick = async (label: RegExp, option: string) => {
 };
 
 describe('raise a material request', () => {
+  it.each([
+    ['standard', 'From usage standards'], ['adjusted', 'Adjusted by the planner'], ['allowance', 'From material allowance'], ['none', 'No plan'],
+  ])('AC-CUS-008 the form names where the plan figure %s comes from', async (source, label) => {
+    h.planSource = source;
+    render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+    await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
+    expect(screen.getByTestId('mrq-plan-source')).toHaveTextContent(label);
+    h.planSource = null;
+  });
+  it('FR-CUS-012 a plan with no source names none (nothing is guessed)', async () => {
+    h.planSource = null;
+    render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+    await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
+    expect(screen.queryByTestId('mrq-plan-source')).not.toBeInTheDocument();
+  });
   it('AC-MRQ-001 an over-plan line asks for a reason and cannot be sent without one', async () => {
     render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
     await pick(/^project/i, 'Site Alpha');

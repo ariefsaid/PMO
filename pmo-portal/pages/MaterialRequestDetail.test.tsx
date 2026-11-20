@@ -37,7 +37,7 @@ const step = (position: number, status: string, extra: Record<string, unknown> =
 const request = (over: Record<string, unknown> = {}) => ({
   id: 'r1', number: 'MRQ-0001', workOrderId: 'w', projectId: 'p', toWarehouseId: null, neededBy: '2026-11-25', note: null, status: 'pending', round: 1,
   createdBy: 'u-author', createdAt: '2026-11-19T08:00:00Z', submittedAt: '2026-11-19T08:05:00Z', transferDocumentId: null, transferCancelled: false,
-  lines: [{ id: 'l1', lineNo: 1, itemId: 'i1', quantity: 12, planQty: 10, priorQty: 0, overPlanReason: 'Extra slab' }],
+  lines: [{ id: 'l1', lineNo: 1, itemId: 'i1', quantity: 12, planQty: 10, planSource: null, priorQty: 0, overPlanReason: 'Extra slab' }],
   steps: [step(1, 'approved', { decidedBy: 'u-away', decidedAt: '2026-11-19T09:00:00Z' }), step(2, 'open'), step(3, 'waiting')],
   events: [],
   ...over,
@@ -53,6 +53,18 @@ describe('material request detail', () => {
     h.waiting = { data: [{ requestId: 'r1', stepPosition: 2, role: 'Project Manager', label: 'Check 2', actingFor: null, submittedAt: '2026-11-19T08:05:00Z' }] };
     h.req = { data: request(), isPending: false, isError: false, refetch: vi.fn() };
     h.decide.mutateAsync = vi.fn().mockResolvedValue(undefined);
+  });
+
+  it.each([
+    ['standard', 'From usage standards'], ['adjusted', 'Adjusted by the planner'], ['allowance', 'From material allowance'], ['none', 'No plan'],
+  ])('AC-CUS-008 the approver sees the source of the snapshotted plan figure: %s', (source, label) => {
+    h.req = { data: request({ lines: [{ id: 'l1', lineNo: 1, itemId: 'i1', quantity: 12, planQty: 10, planSource: source, priorQty: 0, overPlanReason: null }] }), isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByTestId('mrq-detail-plan-source')).toHaveTextContent(label);
+  });
+  it('FR-CUS-012 a request submitted before plan sources existed shows no label', () => {
+    renderPage();
+    expect(screen.queryByTestId('mrq-detail-plan-source')).not.toBeInTheDocument();
   });
 
   it('shows the chain with who acted and the line against plan', () => {

@@ -10,7 +10,7 @@ const q = (data: unknown, over: Record<string, unknown> = {}) => ({ data, isPend
 const viewerOpen = vi.hoisted(() => vi.fn());
 vi.mock('@/src/components/documents/viewerContext', () => ({ useViewerOnDemand: () => ({ open: viewerOpen }) }));
 const h = vi.hoisted(() => ({ wo: null as unknown, alloc: null as unknown, boq: null as unknown, basts: null as unknown, billing: null as unknown,
-  docs: null as unknown, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown }));
+  docs: null as unknown, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, stock: false, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown }));
 vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: () => h.alloc, useWorkOrderClaimDocuments: () => h.claimDocs }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
@@ -22,6 +22,11 @@ vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
 }));
 vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: () => h.pva }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
+vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: { stock: h.stock } }) }));
+vi.mock('./work-order-detail/ConsumablePlanSection', () => ({
+  ConsumablePlanSection: (p: { workOrderId: string; workOrderStatus: string; project: { project_manager_id: string | null } | null }) =>
+    <section data-testid="consumable-plan-stub">{`${p.workOrderId}|${p.workOrderStatus}|${p.project?.project_manager_id ?? 'none'}`}</section>,
+}));
 
 import WorkOrderDetail from './WorkOrderDetail';
 
@@ -32,6 +37,7 @@ const renderPage = () => render(<MemoryRouter initialEntries={['/work-orders/w1'
 beforeEach(async () => {
   await i18n.changeLanguage('en');
   h.canBilling = true;
+  h.stock = false;
   h.pva = { data: undefined, isPending: true, isError: false, refetch: () => undefined };
   h.wo = q(WO); h.project = q({ name: 'Plant A', client: { name: 'Acme' } });
   h.alloc = q([{ id: 'l1', boq_item_id: 'b1', quantity: 10 }]);
@@ -49,6 +55,16 @@ beforeEach(async () => {
 });
 
 describe('WorkOrderDetail', () => {
+  it('FR-CUS-014 the consumable plan section is mounted for a stock-enabled organisation, with the work order\'s PROJECT as the permission record', () => {
+    h.stock = true;
+    h.project = q({ name: 'Plant A', client: { name: 'Acme' }, project_manager_id: 'pm-1' });
+    renderPage();
+    expect(screen.getByTestId('consumable-plan-stub').textContent).toBe('w1|Issued|pm-1');
+  });
+  it('FR-CUS-014 and is absent when the stock module is off', () => {
+    renderPage();
+    expect(screen.queryByTestId('consumable-plan-stub')).toBeNull();
+  });
   it('AC-WPVA-016 shows the plan-vs-actual panel for this work order, and hides it from a role that may not view plans', async () => {
     const { rollupProject } = await import('@/src/lib/workOrderPlanVsActual');
     const workOrders = [{ id: 'w1', woNumber: 'WO-0007', title: 'Pump install', status: 'Issued', currency: 'IDR', revenue: '1000.00', revenueComplete: true }];
