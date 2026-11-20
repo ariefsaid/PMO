@@ -397,7 +397,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   // ONE memo unit (#2102): a toast, a menu open or an unrelated re-render must not rebuild the
   // columns; every input that changes what a cell paints is a dependency. Above the early
   // returns so the hook order is stable.
-  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = useMemo(
+  const { projectLabelOf, projectManagerNameOf, deliveryLabelOf, displayColumns, exportColumns, mobileCardDetails } = useMemo(
     () => salesInvoiceColumns({ t, all, embedded, native, actionsPending: mode === undefined, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus }),
     [t, all, embedded, native, mode, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus],
   );
@@ -698,6 +698,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
         panelPrimary={panelPrimary}
         invoiceStatus={invoiceStatus}
         projectLabelOf={projectLabelOf}
+        projectManagerNameOf={projectManagerNameOf}
+        deliveryLabelOf={deliveryLabelOf}
         rowMenu={rowMenu}
         odoo={odoo}
         onClose={closeInvoicePanel}

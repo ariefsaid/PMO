@@ -143,6 +143,40 @@ insert into public.incident_files (id, org_id, incident_id, kind, file_path, sto
 select 'a6120000-0000-4000-8000-000000000f91', i.org_id, i.id, 'at_raise', o.name, o.id
 from public.incident_reports i join storage.objects o on o.id = 'a6120000-0000-4000-8000-000000000f92'
 where i.org_id = 'a6120000-0000-4000-8000-00000000000a' order by i.id limit 1;
+-- Material request rows ensure the cross-org by-id read and update probes run on the new tables.
+insert into public.material_request_settings (org_id) values ('a6120000-0000-4000-8000-00000000000a') on conflict do nothing;
+insert into public.approval_chain_steps (id, org_id, position, role, label)
+values ('a6120000-0000-4000-8000-0000000000c1', 'a6120000-0000-4000-8000-00000000000a', 1, 'Finance', 'Isolation review');
+insert into public.approval_stand_ins (id, org_id, delegator_id, stand_in_id, starts_on, ends_on, created_by)
+select 'a6120000-0000-4000-8000-0000000000c2', a.org_id, a.id, b.id, current_date, current_date, a.id
+from public.profiles a cross join lateral (select id from public.profiles where org_id = a.org_id and id <> a.id order by id limit 1) b
+where a.org_id = 'a6120000-0000-4000-8000-00000000000a' order by a.id limit 1;
+insert into public.material_requests (id, org_id, number, work_order_id, project_id, needed_by, created_by)
+select 'a6120000-0000-4000-8000-0000000000c3', w.org_id, 'ISO-MRQ', w.id, w.project_id, current_date + 1, p.id
+from public.work_orders w join lateral (select id from public.profiles where org_id = w.org_id order by id limit 1) p on true
+where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.material_request_lines (id, org_id, request_id, line_no, item_id, quantity)
+select 'a6120000-0000-4000-8000-0000000000c4', r.org_id, r.id, 1, i.id, 1
+from public.material_requests r join lateral (select id from public.stock_items where org_id = r.org_id order by id limit 1) i on true
+where r.id = 'a6120000-0000-4000-8000-0000000000c3';
+insert into public.material_request_steps (id, org_id, request_id, round, position, role, label, status)
+values ('a6120000-0000-4000-8000-0000000000c5', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 1, 1, 'Finance', 'Isolation review', 'open');
+insert into public.material_request_events (id, org_id, request_id, action, to_status)
+values ('a6120000-0000-4000-8000-0000000000c6', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 'created', 'draft');
+-- Cover additional real by-id probes so read-mode skip counts stay within the existing ceiling.
+insert into public.user_views (id, org_id, user_id, name)
+select 'a6120000-0000-4000-8000-0000000000b2', org_id, id, 'Isolation view' from public.profiles
+where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1;
+insert into public.notifications (id, org_id, owner_id, title)
+select 'a6120000-0000-4000-8000-0000000000b3', org_id, id, 'Isolation notification' from public.profiles
+where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1;
+insert into public.spend_approvers (id, org_id, project_id, profile_id)
+select 'a6120000-0000-4000-8000-0000000000b4', w.org_id, w.project_id, p.id
+from public.work_orders w join lateral (select id from public.profiles where org_id = w.org_id order by id limit 1) p on true
+where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.project_progress_entries (id, org_id, project_id, month, pct_complete)
+select 'a6120000-0000-4000-8000-0000000000b5', org_id, project_id, date '2001-01-01', 0
+from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2';
 -- #2519: a plan figure and a shared-cost split row on the isolation work order.
 insert into public.work_order_plan_lines (id, org_id, project_id, work_order_id, kind, value)
 select 'a6120000-0000-4000-8000-0000000000d6', w.org_id, w.project_id, w.id, 'direct_budget', 1

@@ -11,11 +11,13 @@ type Props = {
   busy: boolean;
   stepWeek: (delta: number) => void;
   pendingWeekDelta: number | null;
+  /** The buffer holds hours that are not valid and so can never be saved as typed. */
+  discardHasInvalid: boolean;
   onCancelDiscard: () => void;
   onConfirmDiscard: () => void;
 };
 
-export function TimesheetWeekToolbar({ weekRangeLabel, isApprover, pendingCount, busy, stepWeek, pendingWeekDelta, onCancelDiscard, onConfirmDiscard }: Props) {
+export function TimesheetWeekToolbar({ weekRangeLabel, isApprover, pendingCount, busy, stepWeek, pendingWeekDelta, discardHasInvalid, onCancelDiscard, onConfirmDiscard }: Props) {
   const { t } = useTranslation(['common', 'timesheets']);
   // ── Page head + toolbar (shared by both views) ──────────────────────────────
   const stepper = (
@@ -74,7 +76,9 @@ export function TimesheetWeekToolbar({ weekRangeLabel, isApprover, pendingCount,
         <ConfirmDialog
           open tone="destructive"
           title={t('timesheets:discardWeek.title', 'Discard unsaved changes?')}
-          description={t('timesheets:discardWeek.description', 'Your unsaved hours for this week will be discarded.')}
+          description={discardHasInvalid
+            ? t('timesheets:discardWeek.descriptionInvalid', 'Some hours are not valid and cannot be saved. Moving to another week discards everything you typed in this one.')
+            : t('timesheets:discardWeek.description', 'Your unsaved hours for this week will be discarded.')}
           confirmLabel={t('timesheets:discardWeek.confirm', 'Discard changes')}
           onCancel={onCancelDiscard}
           onConfirm={onConfirmDiscard}
