@@ -3,7 +3,7 @@
 -- AC-CUS-012 other organisation · AC-CUS-014 archived or foreign item · FR-CUS-001 archive, never delete, history kept.
 begin;
 create extension if not exists pgtap;
-select plan(30);
+select plan(27);
 
 insert into organizations (id, name) values
   ('25770000-0000-0000-0000-00000000010a', 'CUS Org A'),
@@ -103,8 +103,9 @@ select lives_ok($$ insert into consumable_usage_standards (item_id, work_unit, q
 select throws_ok($$ delete from consumable_usage_standards where id = (select v from t_ids where k = 'ton') $$, '42501', null,
   'FR-CUS-001 a standard is archived, never deleted');
 select pg_temp._as('25770000-0000-0000-0000-0000000001a2');
-select throws_ok($$ update consumable_usage_standards set qty_per_unit = 9 where work_unit = 'm2' $$, '42501', null,
-  'AC-CUS-011 an Engineer cannot edit a standard');
+update consumable_usage_standards set qty_per_unit = 9 where work_unit = 'm2';
+select is((select count(*)::int from consumable_usage_standards where qty_per_unit = 9), 0,
+  'AC-CUS-011 an Engineer cannot edit a standard (the update matches no row)');
 select ok((select count(*) from consumable_usage_standards) >= 5, 'AC-CUS-011 a same-organisation active member can read the standards');
 
 -- ── AC-CUS-012: another organisation ───────────────────────────────────────────────────────────────────────────

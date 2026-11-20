@@ -32,7 +32,7 @@ create or replace function public.mrq_plan_figure(p_work_order_id uuid, p_item_i
              where wl.work_order_id = p_work_order_id
             having count(al.id) > 0) a
     union all
-    select 0::numeric, 'none', 3
+    select 0.000::numeric, 'none', 3
   ) p order by p.ord limit 1
 $$;
 

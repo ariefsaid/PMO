@@ -1,5 +1,6 @@
 {
   "tables": [
+    {"table":"consumable_usage_standards","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"equipment_downtime_proofs","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"equipment_escalation_log","has_org":true,"pk":"asset_id","columns":"*","b_read":"none","by_id":"n/a: no client SELECT grant (server-written escalation log); the blind read proves the denial"},
     {"table":"equipment_rental_checks","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
@@ -254,6 +255,7 @@
     {"table":"vendor_withholding_slips","has_org":true,"pk":"id","columns":"id,org_id,vendor_id,slip_number,slip_date,tax_period,pph_type,currency,tax_base,withheld_amount,invoice_count,status,revision,created_by,created_at,updated_at,voided_by,voided_at,void_reason","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_acceptance_lines","has_org":false,"pk":"acceptance_id","columns":"acceptance_id,boq_item_id,quantity","b_read":"parent-org-only","by_id":"n/a: parent acceptance carries org_id; blind read covers parent-scoped visibility"},
     {"table":"work_order_acceptances","has_org":true,"pk":"id","columns":"id,org_id,project_id,work_order_id,acceptance_date,is_final,status,prepared_by,prepared_at,confirmed_by,confirmed_at,confirm_basis,withdrawn_at,note,document_id","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"work_order_consumable_plan_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_crews","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_lines","has_org":true,"pk":"id","columns":"id,org_id,work_order_id,boq_item_id,quantity,created_at","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_plan_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
@@ -262,6 +264,12 @@
   "definer_functions": [
     "add_equipment_downtime_proof(uuid,date,text,text)",
     "change_equipment_rental_rate(uuid,date,numeric)",
+    "cus_adjust_plan_line(uuid,uuid,numeric,text)",
+    "cus_assert_planner(uuid,boolean)",
+    "cus_generate_plan(uuid)",
+    "cus_get_plan(uuid)",
+    "cus_plan_fingerprint(uuid)",
+    "cus_plan_matches(uuid)",
     "dsr_photo_stored(text)",
     "end_equipment_rental_term(uuid,date)",
     "equipment_charge_project_actuals_between(uuid,date,date)",
@@ -269,6 +277,7 @@
     "equipment_rental_check(uuid,date,date,numeric,text)",
     "list_equipment_downtime_flags()",
     "list_equipment_proofs(uuid[],date)",
+    "mrq_plan_figure(uuid,uuid)",
     "run_equipment_downtime_escalations(date)",
     "save_equipment_rental_term(jsonb)",
     "set_equipment_ownership(uuid,text,date)",

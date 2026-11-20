@@ -134,7 +134,7 @@ begin
 end $$;
 
 -- §4 adjust, add, revert (FR-CUS-009) --------------------------------------------------------------------------
--- p_adjusted_qty null reverts to the generated figure (and removes a line that was only ever added by hand).
+-- p_adjusted_qty null reverts to the generated figure (and removes a line with nothing generated, i.e. one added by hand).
 -- Upsert, so it also adds an item no standard covers: its generated qty is 0. Never touches the standards.
 create or replace function public.cus_adjust_plan_line(p_work_order_id uuid, p_item_id uuid, p_adjusted_qty numeric, p_reason text)
   returns void
@@ -148,7 +148,7 @@ begin
        set adjusted_qty = null, adjust_reason = null, adjusted_by = null, adjusted_at = null, updated_at = now()
      where p.work_order_id = p_work_order_id and p.item_id = p_item_id;
     delete from public.work_order_consumable_plan_lines p
-     where p.work_order_id = p_work_order_id and p.item_id = p_item_id and p.generated_at is null;
+     where p.work_order_id = p_work_order_id and p.item_id = p_item_id and p.basis = '[]'::jsonb;   -- nothing generated for it
     return;
   end if;
   if p_adjusted_qty < 0 or p_adjusted_qty >= 100000000000 then
