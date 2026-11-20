@@ -739,3 +739,9 @@ submission; distinct from general project risk or everything assigned to them.
 UI vocabulary keeps **Supplier** rather than vendor, **Purchase** for a procurement case,
 and **Phase** for a milestone. **Actual** and **Recorded spending** name the same spending position;
 **Cash received** and **Settlement** name different quantities and must stay distinct.
+
+**Client material requisition** — a request to the client to release client-supplied material for one work order, tracked
+from the **take-off** (the quantity the work order needs) through the client's **reservation** (their confirmation that a
+quantity is set aside) to **pickup** (collection, which posts a zero-cost stock receipt). The work order shows reserved,
+collected and still to collect; the figures are derived from recorded events, never stored. Distinct from a material request,
+which moves the organisation's own stock.
