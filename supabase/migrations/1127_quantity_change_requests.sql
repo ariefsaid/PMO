@@ -34,6 +34,8 @@ create trigger organizations_audit_quantity_change_limit after update on public.
   for each row execute function public.audit_org_quantity_change_limit();
 
 -- ── §2 requests ─────────────────────────────────────────────────────────────────────────────────────
+-- Note (FR-QCR-012 / plan M5 divergence): Entity changes are captured via dedicated append-only
+-- quantity_change_request_events table instead of registration with record_history_config.
 create table public.quantity_change_requests (
   id                 uuid primary key default gen_random_uuid(),
   org_id             uuid not null references public.organizations(id) default '00000000-0000-0000-0000-000000000001',

@@ -3,7 +3,7 @@
 -- Hand calculation: C 1000 (v1), R 1100: version 2 = 1100, allocation 600 -> 700, value change (1100-1000) x 50000 = 5,000,000.00.
 begin;
 create extension if not exists pgtap;
-select plan(67);
+select plan(68);
 
 -- ── fixtures (as the table owner) ───────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -265,6 +265,8 @@ select lives_ok($$select qcr_record_decision((select v from ids where k = 'r4'),
 select is((select order_value from work_orders where id = '25780000-0000-0000-0000-0000000000e2'), 110000.00::numeric,
   'AC-QCR-030 a Draft work order''s value rises by delta x rate (100 x 100 = 10,000): 100,000 to 110,000');
 select is((select quantity from work_order_lines where work_order_id = '25780000-0000-0000-0000-0000000000e2'), 200.000::numeric, 'AC-QCR-030 and its allocation rises 100 to 200');
+select ok(pg_get_functiondef('public.qcr_record_decision(uuid,text,date,text)'::regprocedure) like '%set_work_order_value(v_req.work_order_id, v_gross, v_wo.tax_treatment, v_tax,%',
+  'AC-QCR-030 set_work_order_value passes the calculated v_tax rather than the stale pre-change tax amount');
 
 select * from finish();
 rollback;

@@ -169,8 +169,11 @@ begin
         v_gross := v_net + v_tax;
       else
         v_gross := v_wo.order_value + v_value_delta;
+        v_tax := case when v_wo.tax_rate is not null
+                      then public.calculate_standalone_tax_amount(v_gross, 'exclusive', v_wo.tax_rate, v_wo.tax_base_numerator, v_wo.tax_base_denominator)
+                      else v_wo.tax_amount end;
       end if;
-      perform public.set_work_order_value(v_req.work_order_id, v_gross, v_wo.tax_treatment, v_wo.tax_amount, v_wo.tax_rate,
+      perform public.set_work_order_value(v_req.work_order_id, v_gross, v_wo.tax_treatment, v_tax, v_wo.tax_rate,
                                           v_wo.tax_base_numerator, v_wo.tax_base_denominator);
     end if;
     v_new_status := 'client_accepted';
