@@ -3,6 +3,7 @@ import { AdapterError } from '../contract.ts';
 import type { CensusDomain, ConnectAdapter, MasterKind, NormalisedMaster, PmoMaster } from '../connect/types.ts';
 import { createDoc, erpnextRequest, ErpError, getDoc, listDocsByFilters, withCommitDeadline, withProbeBudget, type ErpClientDeps } from './client.ts';
 import { normalised } from '../connect/sendViaOutbox.ts';
+import { accountUnusableText } from '../../integrations/erpSendRefusal.ts';
 import { accountCategoryKey } from '../../budget/categoryAccountMap.ts';
 export const ERP_CONNECT_PAGE = 200;
 const SPECS: Partial<Record<MasterKind, Array<{ doctype: string; fields: string[]; company: boolean; map: (r: Record<string, unknown>) => NormalisedMaster }>>> = {
@@ -71,7 +72,7 @@ async function readUsableAccount(client: ErpClientDeps, company: string, erpName
 /** The same, refusing in plain words: nothing is linked to an account that cannot hold direct costs. */
 async function usableAccount(client: ErpClientDeps, company: string, erpName: string, name: string): Promise<string> {
   const usable = await readUsableAccount(client, company, erpName);
-  if (usable === null) throw new AdapterError('commit-rejected', `The ERP already has an account named ${name} that cannot hold direct costs. Choose another name.`);
+  if (usable === null) throw new AdapterError('commit-rejected', accountUnusableText(name));
   return usable;
 }
 

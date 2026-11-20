@@ -21,6 +21,7 @@ vi.mock('@/src/components/ui', async (importOriginal) => {
   return { ...actual, Button: ButtonWithVariant };
 });
 
+import { accountUnusableText } from '@/src/lib/integrations/erpSendRefusal';
 import { ConnectProposalReview } from './ConnectProposalReview';
 
 const mockIntegrationsRepo = vi.hoisted(() => ({
@@ -107,6 +108,23 @@ describe('ConnectProposalReview (AC-ECA-003, FR-ECA-012, FR-ECA-042)', () => {
     fireEvent.click(within(await screen.findByTestId('connect-kind-account')).getByRole('button', { name: 'Review list' }));
     expect(await screen.findByText(/could not confirm whether the account was created/)).toBeInTheDocument();
     expect(screen.queryByText(/could not complete this account request/)).toBeNull();
+  });
+
+  it.each([['en', /already has an account with this name that cannot hold direct costs/], ['id', /ERP sudah memiliki akun dengan nama ini/]] as const)('AC-ECX-030 the stored unusable-account sentence reads in %s in the review list', async (language, expected) => {
+    mockIntegrationsRepo.getConnectStatus.mockResolvedValue(readyStatus([{ kind: 'account', pmo_count: 1, erp_count: 0, linked_count: 0, inactive_erp_count: 0, scenario: 'S-D', accepted_at: null }]));
+    mockIntegrationsRepo.listConnectProposals.mockResolvedValue({ proposals: [{ id: 'account-unusable', kind: 'account', outcome: 'review', reason: 'rejected', pmo_ids: ['Materials'], external_ids: [], reason_text: accountUnusableText('Site materials'), snapshot: { accountName: 'Site materials' }, state: 'open' }], nextAfterId: null });
+    const previousLanguage = i18next.language;
+    i18next.addResourceBundle('id', 'administration', idAdministration, true, true);
+    try {
+      await i18next.changeLanguage(language);
+      renderWithRole('Admin', <ConnectProposalReview tier='erpnext' orgId='org-1' />);
+      fireEvent.click(within(await screen.findByTestId('connect-kind-account')).getByRole('button', { name: language === 'en' ? 'Review list' : 'Tinjau daftar' }));
+      expect(await screen.findByText(expected)).toBeInTheDocument();
+    } finally {
+      cleanup();
+      await i18next.changeLanguage(previousLanguage || 'en');
+      i18next.removeResourceBundle('id', 'administration');
+    }
   });
 
   it('AC-ECX-030 account review does not claim an administrator was notified', async () => {

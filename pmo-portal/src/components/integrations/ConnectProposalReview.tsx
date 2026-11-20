@@ -24,6 +24,7 @@ import {
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { isAccountUnusableText } from '@/src/lib/integrations/erpSendRefusal';
 import { Link } from 'react-router';
 
 export interface ConnectProposalReviewProps {
@@ -749,7 +750,9 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                         {actionName(proposal)}
                         {proposal.outcome === 'review' && proposal.reason_text ? ` · ${proposal.kind === 'account' && (proposal.reason === 'held' || proposal.reason === 'unresolved')
                           ? t('administration:integrations.accounts.held', 'PMO could not confirm whether the account was created. Contact your administrator.')
-                          : proposal.reason_text}` : ''}
+                          : proposal.kind === 'account' && isAccountUnusableText(proposal.reason_text)
+                            ? t('administration:integrations.accounts.unusable', 'The ERP already has an account with this name that cannot hold direct costs. Choose another name.')
+                            : proposal.reason_text}` : ''}
                       </p>
                     </div>
                   </div>

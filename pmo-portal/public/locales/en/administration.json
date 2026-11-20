@@ -405,7 +405,8 @@
       "failed": "PMO could not ask for this account. Try again.",
       "linkedElsewhere": "{{name}} was already in the ERP under {{group}}, so PMO linked it there.",
       "held": "PMO could not confirm whether the account was created. Contact your administrator.",
-      "failedDetails": "PMO could not complete this account request. Check the details or contact your administrator."
+      "failedDetails": "PMO could not complete this account request. Check the details or contact your administrator.",
+      "unusable": "The ERP already has an account with this name that cannot hold direct costs. Choose another name."
     },
     "connect": {
       "title": "Match records",

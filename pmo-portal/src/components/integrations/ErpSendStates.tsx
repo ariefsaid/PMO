@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { repositories } from '@/src/lib/repositories';
-import { parseErpSendRefusal } from '@/src/lib/integrations/erpSendRefusal';
+import { isAccountUnusableText, parseErpSendRefusal } from '@/src/lib/integrations/erpSendRefusal';
 import { Button, StatusPill } from '@/src/components/ui';
 import type { ConnectTier } from '@/src/lib/repositories/types';
 
@@ -119,7 +119,9 @@ export function ErpSendStates({ enabled, tier = 'erpnext' }: { enabled: boolean;
   };
   const accountMessage = (text: string, held: boolean) => held
     ? t('administration:integrations.accounts.held', 'PMO could not confirm whether the account was created. Contact your administrator.')
-    : english && !text.includes('your administrator has been told') ? text : t('administration:integrations.accounts.failedDetails', 'PMO could not complete this account request. Check the details or contact your administrator.');
+    : isAccountUnusableText(text)
+      ? (english ? text : t('administration:integrations.accounts.unusable', 'The ERP already has an account with this name that cannot hold direct costs. Choose another name.'))
+      : english && !text.includes('your administrator has been told') ? text : t('administration:integrations.accounts.failedDetails', 'PMO could not complete this account request. Check the details or contact your administrator.');
   const refused = [...new Map([...(reviews.data?.proposals ?? []), ...(accountReviews.data?.proposals ?? [])]
     .filter((p) => (p.reason === 'rejected' || p.reason === 'held' || p.reason === 'unresolved') && p.reason_text)
     .map((p) => [p.id, p])).values()];

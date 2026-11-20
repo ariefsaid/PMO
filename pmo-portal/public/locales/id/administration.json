@@ -405,7 +405,8 @@
       "failed": "PMO tidak dapat meminta akun ini. Coba lagi.",
       "linkedElsewhere": "{{name}} sudah ada di ERP pada grup {{group}}, jadi PMO menautkannya ke sana.",
       "held": "PMO belum dapat memastikan akun telah dibuat. Hubungi administrator Anda.",
-      "failedDetails": "PMO tidak dapat menyelesaikan permintaan akun ini. Periksa detailnya atau hubungi administrator Anda."
+      "failedDetails": "PMO tidak dapat menyelesaikan permintaan akun ini. Periksa detailnya atau hubungi administrator Anda.",
+      "unusable": "ERP sudah memiliki akun dengan nama ini yang tidak dapat menampung biaya langsung. Pilih nama lain."
     },
     "connect": {
       "title": "Cocokkan data",
