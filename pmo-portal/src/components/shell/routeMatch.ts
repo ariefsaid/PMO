@@ -244,7 +244,7 @@ export const MODULES: ModuleDef[] = [
     label: 'Administration', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.administration',
     path: '/administration',
-    roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+    roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin, UserRole.ProjectManager],
   },
 ];
 
@@ -261,6 +261,7 @@ MODULES.sort((left, right) => compareNavigationOrder(left.path, right.path));
  */
 export function modulesForRole(role: UserRole): ModuleDef[] {
   const visible = MODULES.filter((m) => !m.roles || m.roles.includes(role));
+  if (role === UserRole.ProjectManager) return visible.map((module) => module.module === 'administration' ? { ...module, path: '/administration/people' } : module);
   if (role !== UserRole.Finance) return visible;
   return visible.map((module) =>
     module.module === 'administration'
@@ -378,6 +379,7 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
 export const ADMINISTRATION_SECTION_LABELS = {
   users: 'Users',
+  people: 'People',
   integrations: 'Organization integrations',
   accounting: 'Accounting setup',
   projects: 'Project setup',
@@ -400,6 +402,7 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   string
 > = {
   users: 'admin.nav.users',
+  people: 'administration:people.navLabel',
   integrations: 'admin.nav.integrations',
   accounting: 'admin.nav.accounting',
   projects: 'admin.nav.projects',

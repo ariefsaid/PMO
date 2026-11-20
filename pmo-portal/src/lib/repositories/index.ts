@@ -72,6 +72,7 @@ import { journalRepository } from './journals';
 import { equipmentRepository } from './equipment';
 import { documentExpiryRepository } from './documentExpiry';
 import { equipmentAvailabilityRepository } from './equipmentAvailability';
+import { peopleRepository } from './people';
 import { timeAndMaterialsRepository } from './timeAndMaterials';
 import { integrationsRepository } from './integrations';
 import { odooRepository } from './odoo';
@@ -134,6 +135,7 @@ export const repositories: Repositories = {
   equipment: equipmentRepository,
   documentExpiry: documentExpiryRepository,
   equipmentAvailability: equipmentAvailabilityRepository,
+  people: peopleRepository,
   timeAndMaterials: timeAndMaterialsRepository,
   expenseReceipts: expenseReceiptsRepository,
   expensePostings: expensePostingsRepository,

@@ -70,6 +70,7 @@ import type { ImprestRepository } from './contracts/imprest';
 import type { JournalRepository } from './contracts/journals';
 import type { EquipmentRepository } from './contracts/equipment';
 import type { DocumentExpiryRepository } from './contracts/documentExpiry';
+import type { PeopleRepository } from './contracts/people';
 import type { TimeAndMaterialsRepository } from './contracts/timeAndMaterials';
 import type {
   IncidentRepository,
@@ -150,6 +151,7 @@ export interface Repositories {
   equipment: EquipmentRepository;
   documentExpiry: DocumentExpiryRepository;
   equipmentAvailability: EquipmentAvailabilityRepository;
+  people: PeopleRepository;
   timeAndMaterials: TimeAndMaterialsRepository;
   expenseReceipts: ExpenseReceiptRepository;
   expensePostings: ExpensePostingRepository;
@@ -207,6 +209,7 @@ export type { ImprestRepository } from './contracts/imprest';
 export type { JournalRepository } from './contracts/journals';
 export type { EquipmentRepository } from './contracts/equipment';
 export type { DocumentExpiryRepository } from './contracts/documentExpiry';
+export type { PeopleRepository } from './contracts/people';
 export type { TimeAndMaterialsRepository } from './contracts/timeAndMaterials';
 export type { ErpPurchaseRepository } from './contracts/erpPurchases';
 export type { ErpJournalLineRepository } from './contracts/erpJournalLines';
