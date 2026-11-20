@@ -12,10 +12,13 @@ import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useStockItems, useStockUnits } from '@/src/hooks/useStock';
 import { useLinePlans, useMaterialRequest, useMaterialRequestMutations } from '@/src/hooks/useMaterialRequests';
 import { draftLineErrors, linePlanStatus } from '@/src/lib/repositories/materialRequests';
+import { isPositiveDecimal, normalizeDecimal } from '@/src/lib/stockFormat';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useRefusalText } from './materialRequests/useMaterialRequestText';
 
 interface FormLine { key: string; itemId: string; quantity: string; reason: string }
+/** A typed quantity (dot or decimal comma, 3 decimals at most) as the number to send; 0 when it is not a positive quantity. */
+const quantityOf = (raw: string): number => { const v = normalizeDecimal(raw); return isPositiveDecimal(v) ? Number(v) : 0; };
 const newLine = (): FormLine => ({ key: crypto.randomUUID(), itemId: '', quantity: '', reason: '' });
 
 /**
@@ -70,7 +73,7 @@ const MaterialRequestNewPage: React.FC = () => {
   const planReady = !plans.isPending && !plans.isError;
   const errors = draftLineErrors(lines.map((l) => {
     const p = planOf(l.itemId);
-    return { itemId: l.itemId, quantity: Number(l.quantity), overPlanReason: l.reason, planQty: p?.planQty ?? 0, priorQty: p?.priorQty ?? 0 };
+    return { itemId: l.itemId, quantity: quantityOf(l.quantity), overPlanReason: l.reason, planQty: p?.planQty ?? 0, priorQty: p?.priorQty ?? 0 };
   }));
   const complete = Boolean(workOrderId) && Boolean(neededBy) && lines.every((l) => l.itemId) && planReady && Object.keys(errors).length === 0;
 
@@ -83,7 +86,7 @@ const MaterialRequestNewPage: React.FC = () => {
       const id = await m.saveDraft.mutateAsync({
         id: requestId ?? null,
         header: { workOrderId, neededBy, toWarehouseId: null, note: note.trim() || null },
-        lines: lines.map((l) => ({ itemId: l.itemId, quantity: Number(l.quantity), overPlanReason: l.reason.trim() || null })),
+        lines: lines.map((l) => ({ itemId: l.itemId, quantity: quantityOf(l.quantity), overPlanReason: l.reason.trim() || null })),
         clientRequestId: requestId ? undefined : clientRequestId,
       });
       if (submit) {
@@ -122,7 +125,7 @@ const MaterialRequestNewPage: React.FC = () => {
           {itemsError && <ListState variant="error" title={t('form.itemsError', "Couldn't load stock items")} onRetry={() => void refetchItems()} />}
           {lines.map((l, i) => {
             const p = planOf(l.itemId);
-            const st = p ? linePlanStatus({ planQty: p.planQty, priorQty: p.priorQty, quantity: Number(l.quantity) || 0 }) : null;
+            const st = p ? linePlanStatus({ planQty: p.planQty, priorQty: p.priorQty, quantity: quantityOf(l.quantity) }) : null;
             const err = touched ? errors[i] : undefined;
             const item = items?.find((x) => x.id === l.itemId);
             return (

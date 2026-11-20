@@ -73,6 +73,17 @@ describe('raise a material request', () => {
     expect(await screen.findByText(/closed at 12:00.*earliest date/)).toBeInTheDocument();
   });
 
+  it('#2610 a quantity typed with a decimal comma is read as that fraction and sent with a dot', async () => {
+    h.saveDraft.mutateAsync.mockClear();
+    render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+    await pick(/^project/i, 'Site Alpha');
+    await pick(/^work order/i, 'WO-1 · Slab');
+    await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
+    await userEvent.type(screen.getByLabelText(/^quantity/i), '2,5');
+    await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(h.saveDraft.mutateAsync.mock.calls[0][0].lines[0].quantity).toBe(2.5);
+  });
+
   describe('AC-MRQ-021 default needed-by is tomorrow in the organisation calendar', () => {
     afterEach(() => { vi.useRealTimers(); });
     const shown = () => (screen.getByLabelText(/needed by/i) as HTMLInputElement).value;
