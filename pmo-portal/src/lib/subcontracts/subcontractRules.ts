@@ -35,14 +35,6 @@ export interface BillPrefillLine {
   rate: number;
 }
 
-export interface CapMessageInput {
-  itemCode: string;
-  poQty: number;
-  verified: number;
-  billed: number | null;
-  payable?: number | null;
-}
-
 /**
  * FR-SCA-050: payable = min(verified, PO) − billed, floored at 0.
  */

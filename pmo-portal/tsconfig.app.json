@@ -59,7 +59,6 @@
     "vite.config.ts",
     "eslint.config.js",
     "src/auth/agentRoles.ts",
-    "src/components/dashboard/hub/company/overviewData.ts",
     "src/components/dashboard/procurementStatusTone.ts",
     "src/components/dashboard/restructure/NeedsYouList.tsx",
     "src/components/documents/Harness.tsx",
