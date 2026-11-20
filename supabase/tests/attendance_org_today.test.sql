@@ -8,9 +8,12 @@ select plan(12);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('26170000-0000-0000-0000-00000000010a', 'OT Org', 'IDR', 'Pacific/Kiritimati');
-insert into auth.users (id, email) values ('26170000-0000-0000-0000-0000000001a4', 'ot-fc@example.com');
+insert into auth.users (id, email) values
+  ('26170000-0000-0000-0000-0000000001a4', 'ot-fc@example.com'),
+  ('26170000-0000-0000-0000-0000000001a5', 'ot-finance@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('26170000-0000-0000-0000-0000000001a4', '26170000-0000-0000-0000-00000000010a', 'OT FC', 'ot-fc@example.com', 'Engineer', 'active');
+  ('26170000-0000-0000-0000-0000000001a4', '26170000-0000-0000-0000-00000000010a', 'OT FC', 'ot-fc@example.com', 'Engineer', 'active'),
+  ('26170000-0000-0000-0000-0000000001a5', '26170000-0000-0000-0000-00000000010a', 'OT Finance', 'ot-finance@example.com', 'Finance', 'active');
 insert into projects (id, org_id, name, status) values
   ('26170000-0000-0000-0000-0000000001d1', '26170000-0000-0000-0000-00000000010a', 'OT Site', 'Ongoing Project');
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
@@ -71,6 +74,23 @@ select throws_ok($$ select pg_temp.rec(pg_temp.d('too_old')) $$, '23514', null,
 reset role;
 
 -- The validation queue age is measured from the organisation's local date too.
+-- Pick whichever extreme timezone is on a different date from the database now; a report two days old locally
+-- must have age 1, while a database-date calculation would return 0 or 2.
+select pg_temp.use_zone(case
+  when public.equipment_org_today('26170000-0000-0000-0000-00000000010a') = current_date then 'Pacific/Kiritimati'
+  else 'Etc/GMT+12'
+end);
+insert into daily_site_reports (id, org_id, project_id, work_order_id, work_date, status, author_id, submitted_at)
+values ('26170000-0000-0000-0000-000000002d01', '26170000-0000-0000-0000-00000000010a',
+        '26170000-0000-0000-0000-0000000001d1', '26170000-0000-0000-0000-000000001401',
+        public.equipment_org_today('26170000-0000-0000-0000-00000000010a') - 2, 'submitted',
+        '26170000-0000-0000-0000-0000000001a4', now());
+set local role authenticated;
+select pg_temp.act_as('26170000-0000-0000-0000-0000000001a5');
+select is((select age_days from public.dsr_validation_queue()
+            where report_id = '26170000-0000-0000-0000-000000002d01'), 1,
+  '#2617 the validation queue age uses the organisation local date');
+reset role;
 select is(pg_get_functiondef('public.dsr_validation_queue()'::regprocedure) ~* 'current_date', false,
   '#2617 the validation queue age does not read the database date');
 select is(pg_get_functiondef('public.dsr_validation_queue()'::regprocedure) ~ 'equipment_org_today', true,

@@ -68,7 +68,14 @@ select is((public.dsr_report_hours((select v from ids where k = 'r1'))->'equipme
 
 -- Read-only: calling it creates no hours.
 reset role;
-select is((select count(*)::int from timesheet_entries) + (select count(*)::int from attendance_days where timesheet_entry_id is not null), 1,
+select is((select count(*)::int from timesheet_entries
+            where org_id = '26190000-0000-0000-0000-0000000000a1'
+              and work_order_id = '26190000-0000-0000-0000-0000000000e1'
+              and entry_date = current_date)
+          + (select count(*)::int from attendance_days
+              where org_id = '26190000-0000-0000-0000-0000000000a1'
+                and work_order_id = '26190000-0000-0000-0000-0000000000e1'
+                and work_date = current_date and timesheet_entry_id is not null), 1,
   'reading the hours created no timesheet line');
 
 -- Another organisation sees nothing; an unknown report reads as absent.
