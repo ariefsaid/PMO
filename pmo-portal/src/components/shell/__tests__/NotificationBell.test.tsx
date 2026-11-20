@@ -38,6 +38,7 @@ vi.mock('@/src/lib/db/notifications', () => ({
 }));
 
 import { NotificationBell } from '../NotificationBell';
+import { BahasaProvider } from '@/test/bahasa';
 
 function row(overrides: Record<string, unknown> = {}) {
   return {
@@ -69,6 +70,13 @@ beforeEach(() => {
 });
 
 describe('NotificationBell', () => {
+  it('shows an overdue issue notification in the reader’s language', async () => {
+    listNotifications.mockResolvedValue([row({ title: 'Issue is overdue', metadata: { entity: { type: 'incident', id: 'i1' } } })]);
+    render(<BahasaProvider><MemoryRouter><NotificationBell /></MemoryRouter></BahasaProvider>);
+    await userEvent.click(await screen.findByRole('button', { name: /notifikasi/i }));
+    expect(await screen.findByText('Insiden melewati tenggat')).toBeInTheDocument();
+  });
+
   it('AC-AAN-032 the badge reflects the unread count and the accessible name includes it', async () => {
     listUnreadCount.mockResolvedValue(3);
     renderBell();

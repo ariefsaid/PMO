@@ -47,6 +47,7 @@ function severityStyle(severity: string) {
  * unrecognized type falls back to mark-read-only (no navigation). */
 const ENTITY_ROUTE_BASE: Record<string, string> = {
   procurement_case: '/procurement',
+  incident: '/incidents',
   project: '/projects',
   company: '/companies',
   contact: '/contacts',
@@ -97,7 +98,7 @@ type InboxState =
   | { status: 'ready'; rows: NotificationRow[]; nextCursor: NotificationCursor | null };
 
 export const NotificationBell: React.FC = () => {
-  const { t } = useTranslation(['common', 'notifications']);
+  const { t } = useTranslation(['common', 'notifications', 'incidents']);
   const navigate = useNavigate();
   const { openPanel, openThread } = useAssistantPanel();
   const [unread, setUnread] = useState(0);
@@ -333,7 +334,9 @@ export const NotificationBell: React.FC = () => {
                         </span>
                       </span>
                       <span className={cn('break-words text-control', isUnread ? 'font-semibold text-foreground' : 'font-normal text-foreground')}>
-                        {notificationTitle(row, t)}
+                        {row.title === 'Issue is overdue' && readMetadata(row.metadata).entity?.type === 'incident'
+                          ? t('incidents:notification.overdue', 'Issue is overdue')
+                          : notificationTitle(row, t)}
                       </span>
                       {body && (
                         <span className="break-words text-control text-muted-foreground">{body}</span>

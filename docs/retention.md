@@ -47,4 +47,5 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `erpnext-sweep-tick` | keep: trigger only, stores no rows |
 | `odoo-sweep-tick` | keep: trigger only, stores no rows |
 | `m365-pkce-sweep` | keep: trigger only, stores no rows |
+| `incident-escalation` | keep: trigger only; each escalation writes one audit event, which the audit retention rule already governs |
 | `plan-monthly-ai-allowance` | keep: trigger only, stores no rows (it writes one grant row per org per month, listed above) |

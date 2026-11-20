@@ -115,6 +115,12 @@ describe('#1991 listIncidentsPage (server-side status filter, search, paging)', 
     expect(page).toEqual({ rows: [{ id: 'i1' }], total: 120 });
   });
 
+  it('limits a project-scoped register to the selected project', async () => {
+    h.result.value = { data: [], error: null, count: 0 };
+    await listIncidentsPage({ page: 1, pageSize: 50, projectId: 'p1' });
+    expect(h.calls.eq).toContainEqual(['project_id', 'p1']);
+  });
+
   it('applies the status filter and the escaped type/location search on the server', async () => {
     h.result.value = { data: [], error: null, count: 0 };
     await listIncidentsPage({ page: 1, pageSize: 50, status: 'Closed', search: ' 100%_"x ' });
@@ -138,6 +144,12 @@ describe('#1991 listIncidentsPage (server-side status filter, search, paging)', 
 });
 
 describe('#1991 listIncidents (full set for export, honours status + search)', () => {
+  it('exports only incidents belonging to the selected project', async () => {
+    h.result.value = { data: [], error: null };
+    await listIncidents({ projectId: 'p1' });
+    expect(h.calls.eq).toContainEqual(['project_id', 'p1']);
+  });
+
   it('applies the status filter and the escaped search to the full read', async () => {
     h.result.value = { data: [{ id: 'i1' }], error: null };
     await listIncidents({ status: 'Closed', search: ' 100% ' });

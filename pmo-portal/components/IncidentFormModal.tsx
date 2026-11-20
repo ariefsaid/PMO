@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo } from 'react';
+import { instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   EntityFormModal,
@@ -10,8 +11,13 @@ import {
   FormGrid,
   useEntityForm,
   type ComboboxOption,
+  Button,
+  Icon,
 } from '@/src/components/ui';
+import { FileInput } from '@/src/components/ui/FormFields';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
+import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
+import { useAssigneeOptions, useIncidentEvidenceMutations } from '@/src/hooks/useIncidents';
 import type { IncidentRow, IncidentSeverity, IncidentInput } from '@/src/lib/db/incidents';
 import { DateField } from '@/src/components/ui/DateField';
 import { severityLabel } from '@/src/lib/incidents/transitions';
@@ -26,6 +32,10 @@ interface FormValues {
   location: string;
   description: string;
   project_id: string | null;
+  work_order_id: string | null;
+  assignee_id: string | null;
+  action: string;
+  due_date: string;
 }
 
 type Errors = Partial<Record<keyof FormValues, string>>;
@@ -42,11 +52,28 @@ function todayLocalISO(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** The selected due day ends in the user's resolved timezone. */
+function dueDateToIso(date: string, invalidMessage: string): string | null {
+  if (!date) return null;
+  const instant = zonedDatetimeLocalToInstant(`${date}T23:59`);
+  if (!instant) throw new Error(invalidMessage);
+  return instant.toISOString();
+}
+function isoToDueDate(iso: string | null | undefined): string {
+  return iso ? instantToZonedDatetimeLocal(new Date(iso)).slice(0, 10) : '';
+}
+
+const MAX_PHOTOS = 10;
+
 export interface IncidentFormModalProps {
   /** null = file (create); a row = edit. */
   incident: IncidentRow | null;
+  defaultProjectId?: string;
   onClose: () => void;
-  onCreate: (input: IncidentInput) => Promise<void>;
+  /** Creates the record and returns it; the caller does NOT close (photos may still need to upload). */
+  onCreate: (input: IncidentInput) => Promise<IncidentRow>;
+  /** Called once the record and every photo are saved. */
+  onCreated?: (row: IncidentRow, input: IncidentInput) => void;
   onUpdate: (id: string, input: IncidentInput) => Promise<void>;
   onError: (err: unknown) => void;
 }
@@ -60,12 +87,21 @@ export interface IncidentFormModalProps {
  */
 export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
   incident,
+  defaultProjectId,
   onClose,
   onCreate,
+  onCreated,
   onUpdate,
   onError,
 }) => {
   const { t } = useTranslation('incidents');
+  const { upload } = useIncidentEvidenceMutations();
+  // Photos picked on the phone. A failed upload keeps the typed text AND the unsent photos, and offers a retry
+  // without filing the issue twice (the saved record is remembered in `saved`).
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [saved, setSaved] = useState<{ row: IncidentRow; input: IncidentInput } | null>(null);
+  const [uploadFailed, setUploadFailed] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const isEdit = !!incident;
   const validate = (v: FormValues): Errors => {
     const errors: Errors = {};
@@ -82,7 +118,11 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
       severity: incident?.severity ?? 'Low',
       location: incident?.location ?? '',
       description: incident?.description ?? '',
-      project_id: incident?.project_id ?? null,
+      project_id: incident?.project_id ?? defaultProjectId ?? null,
+      work_order_id: incident?.work_order_id ?? null,
+      assignee_id: incident?.assignee_id ?? null,
+      action: incident?.action ?? '',
+      due_date: isoToDueDate(incident?.due_at),
     },
     validate,
     idPrefix: 'incident-form',
@@ -95,6 +135,19 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
   const severityField = form.fieldProps('severity');
   const locationField = form.fieldProps('location');
   const descriptionField = form.fieldProps('description');
+  const actionField = form.fieldProps('action');
+  const dueField = form.fieldProps('due_date');
+
+  // Work orders of the chosen project (the database re-checks the pairing); assignees = active members.
+  const workOrders = useProjectWorkOrders(form.values.project_id ?? '');
+  const workOrderOptions = useMemo<ComboboxOption[]>(
+    () => (workOrders.data ?? []).filter((wo) => wo.status !== 'Cancelled')
+      .map((wo) => ({ value: wo.id, label: wo.wo_number ?? wo.title, sub: wo.wo_number ? wo.title : undefined })),
+    [workOrders.data],
+  );
+  const loadWorkOrders = useCallback(async () => workOrderOptions, [workOrderOptions]);
+  const { data: assigneeOptions } = useAssigneeOptions();
+  const loadAssignees = useCallback(async (): Promise<ComboboxOption[]> => assigneeOptions ?? [], [assigneeOptions]);
 
   // Optional project link. FK options come from the cached hook (no re-fetch on popover open);
   // the loader just hands back the already-fetched list. org_id is never threaded (RLS scopes it).
@@ -121,17 +174,40 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
-      const input: IncidentInput = {
-        incident_date: values.incident_date,
-        type: values.type.trim(),
-        severity: values.severity,
-        location: values.location.trim() || undefined,
-        description: values.description.trim() || undefined,
-        project_id: values.project_id,
-      };
       try {
-        if (isEdit && incident) await onUpdate(incident.id, input);
-        else await onCreate(input);
+        const input: IncidentInput = {
+          work_order_id: values.project_id ? values.work_order_id : null,
+          assignee_id: values.assignee_id,
+          action: values.action.trim() || undefined,
+          due_at: dueDateToIso(values.due_date, t('form.invalidDueTime', 'The due time is not valid in your timezone.')),
+          incident_date: values.incident_date,
+          type: values.type.trim(),
+          severity: values.severity,
+          location: values.location.trim() || undefined,
+          description: values.description.trim() || undefined,
+          project_id: values.project_id,
+        };
+        if (isEdit && incident) {
+          await onUpdate(incident.id, input);
+          return;
+        }
+        // File: save the record once, then the photos; a retry after a failed upload skips the record.
+        const current = saved ?? { row: await onCreate(input), input };
+        if (!saved) setSaved(current);
+        const remaining = [...photos];
+        try {
+          while (remaining.length > 0) {
+            await upload.mutateAsync({ incident: current.row, kind: 'at_raise', file: remaining[0] });
+            remaining.shift();
+            setPhotos([...remaining]);
+          }
+        } catch (err) {
+          setUploadFailed(true);
+          onError(err);
+          return;
+        }
+        setUploadFailed(false);
+        onCreated?.(current.row, current.input);
       } catch (err) {
         onError(err);
       }
@@ -142,7 +218,7 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
     <EntityFormModal
       open
       title={isEdit ? t('edit', 'Edit incident') : t('file', 'File incident')}
-      submitLabel={isEdit ? t('save', 'Save incident') : t('file', 'File incident')}
+      submitLabel={isEdit ? t('save', 'Save incident') : uploadFailed ? t('form.retryUpload', 'Retry photo upload') : t('file', 'File incident')}
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={form.isSubmitting}
@@ -150,6 +226,7 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
+      <fieldset disabled={Boolean(saved)} className="min-w-0">
       <FormSection legend={t('form.section', 'What happened')}>
         <FormGrid>
           <DateField
@@ -196,8 +273,48 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
             placeholder={t('form.projectPlaceholder', 'Optional — link a project…')}
             value={form.values.project_id}
             selectedOption={selectedProjectOption}
-            onChange={(v) => form.setValue('project_id', v)}
+            onChange={(v) => form.setValues({ project_id: v, ...(v !== form.values.project_id ? { work_order_id: null } : {}) })}
             loadOptions={loadProjects}
+          />
+          <Combobox
+            label={t('form.workOrder', 'Work order')}
+            noun={t('form.workOrderNoun', 'work order')}
+            placeholder={form.values.project_id ? t('form.workOrderPlaceholder', 'Optional — name a work order…') : t('form.workOrderNeedsProject', 'Choose a project first')}
+            value={form.values.work_order_id}
+            selectedOption={workOrderOptions.find((o) => o.value === form.values.work_order_id) ?? null}
+            onChange={(v) => form.setValue('work_order_id', v || null)}
+            loadOptions={loadWorkOrders}
+            disabled={!form.values.project_id}
+            clearable
+            onClear={() => form.setValue('work_order_id', null)}
+          />
+          <Combobox
+            label={t('form.assignee', 'Person in charge')}
+            noun={t('form.assigneeNoun', 'person')}
+            placeholder={t('form.assigneePlaceholder', 'Optional — who must fix it…')}
+            value={form.values.assignee_id}
+            selectedOption={(assigneeOptions ?? []).find((o) => o.value === form.values.assignee_id) ?? null}
+            onChange={(v) => form.setValue('assignee_id', v || null)}
+            loadOptions={loadAssignees}
+            clearable
+            onClear={() => form.setValue('assignee_id', null)}
+          />
+          <DateField
+            id={dueField.id}
+            label={t('form.due', 'Fix by')}
+            value={dueField.value}
+            onChange={dueField.onChange}
+            onBlur={dueField.onBlur}
+            error={dueField.error}
+          />
+          <TextField
+            id={actionField.id}
+            label={t('form.action', 'What must be done')}
+            value={actionField.value}
+            onChange={actionField.onChange}
+            onBlur={actionField.onBlur}
+            placeholder={t('form.actionPlaceholder', 'e.g. Replace the damaged guard rail')}
+            fullWidth
           />
           <TextArea
             id={descriptionField.id}
@@ -210,6 +327,50 @@ export const IncidentFormModal: React.FC<IncidentFormModalProps> = ({
           />
         </FormGrid>
       </FormSection>
+      </fieldset>
+      {!isEdit && (
+        <FormSection legend={t('form.photos', 'Photos')}>
+          {/* Opens the phone camera; on a desktop it is an ordinary file picker. Up to 10, 15 MB each. */}
+          <FileInput
+            ref={fileInput}
+            accept="image/*"
+            capture="environment"
+            multiple
+            hidden
+            data-testid="incident-photo-input"
+            aria-label={t('form.addPhoto', 'Add photo')}
+            onChange={(e) => {
+              const picked = Array.from(e.target.files ?? []);
+              setPhotos((prev) => [...prev, ...picked].slice(0, MAX_PHOTOS));
+              e.target.value = '';
+            }}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={photos.length >= MAX_PHOTOS} onClick={() => fileInput.current?.click()}>
+              <Icon name="plus" />
+              {t('form.addPhoto', 'Add photo')}
+            </Button>
+            <span className="text-control text-muted-foreground">{t('form.photoHint', 'Up to 10 photos, 15 MB each.')}</span>
+          </div>
+          {photos.length > 0 && (
+            <ul className="mt-2 flex flex-col gap-1" aria-label={t('form.photos', 'Photos')}>
+              {photos.map((f, i) => (
+                <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 text-control">
+                  <span className="truncate">{f.name}</span>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}>
+                    {t('form.removePhoto', 'Remove')}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {uploadFailed && (
+            <p role="alert" className="mt-2 text-control text-destructive">
+              {t('form.uploadFailed', 'The issue was saved, but a photo could not be uploaded. Your text is kept — retry to send the remaining photos.')}
+            </p>
+          )}
+        </FormSection>
+      )}
     </EntityFormModal>
   );
 };
