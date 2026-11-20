@@ -89,9 +89,7 @@ const CutoffEditor: React.FC = () => {
       {error && <FormErrorStrip>{error}</FormErrorStrip>}
       {!cutoff.isError && <div className="flex flex-wrap items-end gap-2">
         <TextField label={t('settings.cutoffTime', 'Time (24-hour, e.g. 12:00)')} type="time" value={shown} onChange={setValue} />
-        <CanWrite entity="approvalChain" action="manage">
-          <Button variant="primary" disabled={value === null} loading={m.setCutoff.isPending} onClick={() => void save()}>{t('settings.saveCutoff', 'Save cut-off')}</Button>
-        </CanWrite>
+        <Button variant="primary" disabled={value === null} loading={m.setCutoff.isPending} onClick={() => void save()}>{t('settings.saveCutoff', 'Save cut-off')}</Button>
       </div>}
     </RecordSection>
   );
@@ -151,7 +149,7 @@ const StandInEditor: React.FC = () => {
   );
 };
 
-/** Approval settings for material requests: the org chain and cut-off (Admin edits, everyone reads) and stand-ins (own, or Admin's). */
+/** Approval settings for material requests: the org chain and cut-off (the cut-off is shown to Admins only) and stand-ins (own, or Admin's). */
 const MaterialRequestSettingsPage: React.FC = () => {
   const { t } = useTranslation('materialRequests');
   const navigate = useNavigate();
@@ -161,7 +159,7 @@ const MaterialRequestSettingsPage: React.FC = () => {
       <h1 className="mb-4 text-xl font-semibold">{t('settings.title', 'Approval settings')}</h1>
       <RecordStack>
         <ChainEditor />
-        <CutoffEditor />
+        <CanWrite entity="approvalChain" action="manage"><CutoffEditor /></CanWrite>
         <StandInEditor />
       </RecordStack>
     </div>
