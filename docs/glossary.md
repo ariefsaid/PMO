@@ -83,6 +83,10 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Correction** — a previewed, one-record change to a value the starting-data loader wrote, made with `pmo correct`; it never changes a record's identity, and a claim already created keeps the figures it was created with.
 
+**Fiscal calendar** — the fiscal years an organization's spending is cut by. Where the organization reads an accounting system, that system's calendar; otherwise PMO's own, derived from the **fiscal year start month** (#2329). PMO's years are named by their calendar year for a January start (`2027`) and `<start year>-<end year>` otherwise (`2026-2027` = 2026-04-01 to 2027-03-31). A budget year counts as a fiscal year only when its label is that exact name.
+
+**Fiscal year start month** — the month (1–12) an organization with no accounting system says its fiscal year starts (`organizations.fiscal_year_start_month`, Admin-set). PMO places each payment in a fiscal year by its date and each hire charge by its work month. Changing it re-sorts every past payment; it is ignored while an accounting system is read.
+
 **Budget projection** — a project/category/fiscal-year estimate to complete, with an optional explanatory note and currency.
 
 **Cost attribution rule** — a versioned, effective-dated rule matching external cost attributes to percentage allocations across projects; its targets carry the project shares.

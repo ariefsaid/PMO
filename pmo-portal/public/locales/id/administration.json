@@ -572,6 +572,17 @@
     "spendApprovers": {
       "whoNow": "Yang dapat menyetujui sekarang",
       "helpRule": "Jika tidak ada yang terdaftar, {{roles}} dapat menyetujui kasus orang lain."
+    },
+    "fiscalYear": {
+      "title": "Tahun fiskal",
+      "label": "Tahun fiskal dimulai pada",
+      "notSet": "Belum diatur",
+      "helper": "PMO menempatkan setiap pembayaran dalam tahun fiskal menurut tanggalnya, dan tab Anggaran menampilkan pengeluaran per tahun. Mengubah bulan akan mengelompokkan ulang semua pembayaran sebelumnya.",
+      "save": "Simpan tahun fiskal",
+      "saved": "Tahun fiskal disimpan",
+      "loadError": "Tidak dapat memuat tahun fiskal",
+      "accountingSystem": "Sistem akuntansi Anda yang menetapkan tahun fiskal.",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini."
     }
   },
   "exchangeRates": {

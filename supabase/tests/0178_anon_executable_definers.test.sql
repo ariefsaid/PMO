@@ -252,6 +252,10 @@
 -- supabase/tests/operator_create_org.test.sql (AC-ORG-001/002). Anything added here without that
 -- pairing IS a relaxation.
 
+-- ⚑ AMENDED BY 1018 (#2329): `set_org_fiscal_year_start_month` joins the retained set (+1, count 180 on dev's 179). SECURITY DEFINER
+-- writer under a member's JWT: it re-asserts active membership, the Admin role and the caller's org, and refuses where the
+-- organization reads an accounting-system ledger; proved by supabase/tests/1018_fiscal_calendar.test.sql (AC-FCAL-003/004).
+--
 begin;
 create extension if not exists pgtap;
 select plan(7);
@@ -278,7 +282,8 @@ select plan(7);
 -- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
 -- scripts/credit-allocation-race.test.mjs (AC-ALLOC-001..013).
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
--- The union of the dev and work-order finance RPC inventories contains 182 retained names.
+-- The union of the dev, work-order finance and fiscal-calendar RPC inventories contains 183 retained names.
+-- 1018's set_org_fiscal_year_start_month is the one added by the fiscal calendar.
 insert into client_callable_rpc_names (proname) values
   ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
   ('accept_connect_proposals'),
@@ -427,6 +432,7 @@ insert into client_callable_rpc_names (proname) values
   ('set_procurement_invoice_efaktur'),
   ('set_contract_rate_assignee'),  -- ⚑ AMENDED BY 0515 (#1514)
   ('set_procurement_gates'),
+  ('set_org_fiscal_year_start_month'), -- 1018 (#2329): active Admin, caller org, refused where a ledger is read; 1018_fiscal_calendar pgTAP
   ('set_project_contract_value'),
   ('set_sales_invoice_billing_kind'),
   ('accept_invoice_pairs'),
@@ -491,8 +497,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  190,
-  'AC-ACL-002 all 190 retained client-callable RPC names still have a public function');
+  191,
+  'AC-ACL-002 all 191 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -501,8 +507,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  190,
-  'AC-ACL-003 all 190 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  191,
+  'AC-ACL-003 all 191 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
