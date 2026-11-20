@@ -1,6 +1,6 @@
 # Plan — measurement to invoice: billing stages, reconciliation, retention (#2522, #1572)
 
-Spec: `docs/specs/billing-stages.spec.md`. Decision: ADR-0103. Branch `feat/2522-billing-stages`. Migrations 0960–0962.
+Spec: `docs/specs/billing-stages.spec.md`. Decision: ADR-0105. Branch `feat/2522-billing-stages`. Migrations 0960–0962.
 Money path: ships alone. Every gate is in the database with a pgTAP proof and a mutation check.
 
 ## Design

@@ -1,5 +1,5 @@
 -- 0961_retention.sql — retention: a share of each progress claim the client holds back, released later (#1572, #2522).
--- FR-RET-001..020, AC-RET-001..003 (docs/specs/billing-stages.spec.md); ADR-0103.
+-- FR-RET-001..020, AC-RET-001..003 (docs/specs/billing-stages.spec.md); ADR-0105.
 --
 -- Retention is held on the receivable, NOT as an invoice line: the invoice built from the claim (native or ERP) and its VAT
 -- stay at full value (DD-PBL-11), so no invoice builder changes. The claim stamps its retention once, at creation, from the
