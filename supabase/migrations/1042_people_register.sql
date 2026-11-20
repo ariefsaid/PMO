@@ -1,4 +1,4 @@
--- 1008_people_register.sql — #2542 follow-up: the People register (spec docs/specs/people-register.spec.md).
+-- 1042_people_register.sql — #2542 follow-up: the People register (spec docs/specs/people-register.spec.md).
 -- Adds a database-assigned person code (P-0001, P-0002, ...) per organisation when the code is left blank.
 -- The optional job title column and its insert/update grants belong to 1035_crews_roster (one owner).
 

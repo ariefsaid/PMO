@@ -4,7 +4,7 @@ Spec: `docs/specs/people-register.spec.md`. Branch `feat/2542b-people-register`,
 
 | # | Task | Files | Owning layer / AC |
 |---|---|---|---|
-| 1 | Migration: `job_title`, per-org code generator trigger, grants | `supabase/migrations/1008_people_register.sql`, `rollback/1008_people_register_down.sql` | pgTAP AC-PPL-001..004 |
+| 1 | Migration: `job_title`, per-org code generator trigger, grants | `supabase/migrations/1042_people_register.sql`, `rollback/1042_people_register_down.sql` | pgTAP AC-PPL-001..004 |
 | 2 | pgTAP incl. second-org probe rows, mutation check | `supabase/tests/people_register.test.sql` | pgTAP |
 | 3 | `person` entity in `can()` | `pmo-portal/src/auth/policy.ts` + test | Vitest AC-PPL-008 |
 | 4 | DAL, repository, contract, hooks | `src/lib/db/people.ts`, `src/lib/repositories/{people,contracts/people}.ts`, `index.ts`, `types.ts`, `src/hooks/usePeople.ts` | Vitest AC-PPL-005..007,009 |
