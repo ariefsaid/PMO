@@ -3,7 +3,7 @@
 -- never creates a group, a tax or anything of the fiscal structure. The request queues one `account` send for the shipped send drain
 -- (0494): the sweep creates the account through the money outbox under a key naming the category, the requested name and the group, reads it back, and the result writer
 -- links it in `budget_category_account_map` through `apply_connect_link` (0880). An account send that ends undecided or after its last
--- try asks Finance to contact the administrator, never to look in the ERP. Reversal: rollback/0975_erp_account_send_down.sql.
+-- try asks Finance to contact the administrator, never to look in the ERP. Reversal: rollback/1143_erp_account_send_down.sql.
 
 -- The expense groups an account may go under: groups of the bound company under the expense root, from the mirrored chart.
 create or replace function public.account_send_groups(p_tier text) returns table (erp_name text, account_name text, parent_account text)

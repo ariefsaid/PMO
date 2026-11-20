@@ -1,4 +1,4 @@
--- Reverses 0975_erp_account_send.sql. Queued account sends are dismissed first so the drain never claims a kind it no longer links;
+-- Reverses 1143_erp_account_send.sql. Queued account sends are dismissed first so the drain never claims a kind it no longer links;
 -- accounts already created in the ERP and their budget_category_account_map rows stay (they are ordinary mappings).
 update public.erp_connect_proposals set state = 'dismissed' where kind = 'account' and outcome = 'send' and state = 'sending';
 drop function if exists public.request_account_send(text, text, text, text);

@@ -1,4 +1,4 @@
--- Admin CLI account reconciliation listing and request guard. Guard composes 1141 (undo-import + opening balances) with the account reconciliation names. Reversal: rollback/1144_account_reconciliation_cli_down.sql.
+-- Admin CLI account reconciliation listing and request guard. Guard composes 1141 (undo-import + opening balances) with the account reconciliation names. Reversal: rollback/1145_account_reconciliation_cli_down.sql.
 create or replace function public.list_account_reconciliation()
 returns table(id uuid, category text, account_name text, state text)
 language plpgsql security definer set search_path = public, pg_temp as $$

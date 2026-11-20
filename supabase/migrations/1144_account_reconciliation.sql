@@ -1,4 +1,4 @@
--- Account reconciliation state and category disposition. Reversal: rollback/1143_account_reconciliation_down.sql.
+-- Account reconciliation state and category disposition. Reversal: rollback/1144_account_reconciliation_down.sql.
 alter table public.erp_connect_proposals add column account_disposed_at timestamptz;
 alter table public.erp_connect_proposals drop constraint erp_connect_proposals_reason_check;
 alter table public.erp_connect_proposals add constraint erp_connect_proposals_reason_check check (reason in ('ambiguous','tax-conflict','rejected','held','unresolved'));

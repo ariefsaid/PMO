@@ -1,4 +1,4 @@
--- A disposed account hold lets its category be requested again: the audited disposition ends the held outbox row, and a new request clears the earlier marker. Reversal: rollback/1145_account_reconciliation_retry_down.sql.
+-- A disposed account hold lets its category be requested again: the audited disposition ends the held outbox row, and a new request clears the earlier marker. Reversal: rollback/1146_account_reconciliation_retry_down.sql.
 create or replace function public.request_account_send(p_tier text, p_category text, p_parent_account text, p_account_name text) returns uuid
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_actor uuid := auth.uid(); v_org uuid := public.auth_org_id(); v_binding public.external_org_bindings%rowtype;
