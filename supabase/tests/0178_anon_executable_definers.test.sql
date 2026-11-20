@@ -233,6 +233,9 @@
 -- under a member's JWT: re-assert active membership, org and Admin/Finance (accept also the ERP-owns-revenue gate
 -- and re-checks every pair on locked rows); proven by supabase/tests/invoice_pairs.test.sql. The proposal and candidate
 -- functions are INVOKER and not listed.
+-- ⚑ AMENDED BY 1056 (#1696): `compare_and_unpair_invoice` joins the retained set (+1, count 225).
+-- The authenticated writer checks active membership, org and Admin/Finance before comparing
+-- the pair and lifecycle and calling the existing undo; proven by invoice_pairs_erp_cancelled.test.sql.
 --
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
@@ -384,6 +387,7 @@ insert into client_callable_rpc_names (proname) values
   ('record_vendor_withholding_slip'),
   ('correct_vendor_withholding_slip'),
   ('unpair_invoice'),
+  ('compare_and_unpair_invoice'),
   ('void_vendor_withholding_slip'),
   ('create_procurement_quotation'),
   ('create_procurement_receipt'),
@@ -550,7 +554,7 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  224,
+  225,
   'AC-ACL-002 all 224 retained client-callable RPC names still have a public function');
 
 select is(
@@ -560,7 +564,7 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  224,
+  225,
   'AC-ACL-003 all 224 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
