@@ -1,7 +1,7 @@
 -- Committed fixtures are isolated to these two sessions and removed after the interleavings.
 begin;
 select plan(4);
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 select dblink_connect('pay_race',format('dbname=%s user=%s password=postgres host=%s port=%s',current_database(),current_user,coalesce(host(inet_server_addr()),'supabase_db_pmo-portal'),coalesce(inet_server_port(),5432)));
 select dblink_exec('pay_race',$setup$
 insert into organizations(id,name,default_currency) values ('21950005-0000-0000-0000-000000000001','Race','USD');
