@@ -1,6 +1,6 @@
 -- 1008_people_register.sql — #2542 follow-up: the People register (spec docs/specs/people-register.spec.md).
--- Adds an optional job title and a database-assigned person code (P-0001, P-0002, ...) per organisation when the code is left blank.
-alter table public.people add column job_title text check (job_title is null or char_length(btrim(job_title)) between 1 and 120);
+-- Adds a database-assigned person code (P-0001, P-0002, ...) per organisation when the code is left blank.
+-- The optional job title column and its insert/update grants belong to 0988_crews_roster (one owner).
 
 -- Blank code on insert -> next P-NNNN for the org. Serialised per org by a transaction advisory lock; scans archived rows too,
 -- so a number is never reused. Named z_ so it fires after people_stamp_org_id has fixed org_id.
@@ -17,6 +17,3 @@ begin
 end $$;
 revoke all on function public.people_assign_code() from public, anon, authenticated;
 create trigger people_z_code_trg before insert on public.people for each row execute function public.people_assign_code();
-
-grant insert (job_title) on public.people to authenticated;
-grant update (job_title) on public.people to authenticated;
