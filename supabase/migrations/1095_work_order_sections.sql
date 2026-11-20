@@ -119,7 +119,7 @@ begin
     end if;
     -- A section is created not ready, with no readiness author yet; the creation is the first history row.
     new.readiness := 'not_ready'; new.readiness_note := null;
-    new.readiness_set_by := auth.uid(); new.readiness_set_at := now();
+    new.readiness_set_by := auth.uid(); new.readiness_set_at := clock_timestamp();
     new.archived_at := null;
     new.created_by := auth.uid(); new.updated_by := auth.uid(); new.created_at := now(); new.updated_at := now();
   else
@@ -149,7 +149,7 @@ begin
     end if;
     -- Readiness author and time are stamped here, never taken from the client.
     if (new.readiness, new.readiness_note) is distinct from (old.readiness, old.readiness_note) then
-      new.readiness_set_by := auth.uid(); new.readiness_set_at := now();
+      new.readiness_set_by := auth.uid(); new.readiness_set_at := clock_timestamp();
     else
       new.readiness_set_by := old.readiness_set_by; new.readiness_set_at := old.readiness_set_at;
     end if;
@@ -180,7 +180,7 @@ begin
   if tg_op in ('INSERT', 'UPDATE')
      and (tg_op = 'INSERT' or (new.readiness, new.readiness_note) is distinct from (old.readiness, old.readiness_note)) then
     insert into public.work_order_section_readiness_events (org_id, work_order_id, section_id, readiness, note, set_by, set_at)
-    values (new.org_id, new.work_order_id, new.id, new.readiness, new.readiness_note, auth.uid(), now());
+    values (new.org_id, new.work_order_id, new.id, new.readiness, new.readiness_note, auth.uid(), clock_timestamp());
   end if;
   if tg_op <> 'INSERT' then
     select jsonb_object_agg(k, to_jsonb(old) -> k) into v_before from unnest(pick) k;
@@ -189,8 +189,8 @@ begin
     select jsonb_object_agg(k, to_jsonb(new) -> k) into v_after from unnest(pick) k;
     if tg_op = 'UPDATE' and v_after = v_before then return null; end if;
   end if;
-  perform public.log_audit('work_order_section.' || lower(tg_op), v_row.org_id, auth.uid(), v_row.work_order_id,
-    jsonb_build_object('section_id', v_row.id, 'before', v_before, 'after', v_after));
+  perform public.log_audit('work_order_section.' || lower(tg_op), v_row.org_id, auth.uid(), v_row.id,
+    jsonb_build_object('work_order_id', v_row.work_order_id, 'before', v_before, 'after', v_after));
   return null;
 end $$;
 revoke all on function public.audit_work_order_section() from public, anon, authenticated;
