@@ -1,5 +1,5 @@
 -- mrq_step_pin.test.sql — #2598 a project can pin a material-request approval step to a named person.
--- Spec docs/specs/material-requests.spec.md (FR-MRQ-020..023, AC-MRQ-016..020). Migration under test: 1045_mrq_step_pins.sql.
+-- Spec docs/specs/material-requests.spec.md (FR-MRQ-022..025, AC-MRQ-016..019, AC-MRQ-022). Migration under test: 1045_mrq_step_pins.sql.
 -- Every denial asserts the errcode AND the message, so a different gate moving in front cannot pass it.
 begin;
 create extension if not exists pgtap;
@@ -96,10 +96,10 @@ select throws_ok($$ select public.mrq_set_step_pin('25980000-0000-0000-0000-0000
 select lives_ok($$ select public.mrq_set_step_pin('25980000-0000-0000-0000-0000000000d1', 3, '25980000-0000-0000-0000-0000000000a6') $$,
   'AC-MRQ-016 the project''s manager pins step 3 to a Finance person');
 select is((select approver_id from approval_step_pins where project_id = '25980000-0000-0000-0000-0000000000d1' and position = 3),
-  '25980000-0000-0000-0000-0000000000a6'::uuid, 'FR-MRQ-020 the pin is stored per project and step');
+  '25980000-0000-0000-0000-0000000000a6'::uuid, 'FR-MRQ-022 the pin is stored per project and step');
 select throws_ok($$ insert into approval_step_pins (project_id, position, role, approver_id)
                     values ('25980000-0000-0000-0000-0000000000d1', 1, 'Engineer', '25980000-0000-0000-0000-0000000000a4') $$,
-  '42501', null, 'FR-MRQ-020 no client writes the pin table directly');
+  '42501', null, 'FR-MRQ-022 no client writes the pin table directly');
 select pg_temp._as('25980000-0000-0000-0000-0000000000b1');
 select throws_ok($$ select public.mrq_set_step_pin('25980000-0000-0000-0000-0000000000d1', 3, '25980000-0000-0000-0000-0000000000a6') $$,
   'P0001', 'MRQ_NOT_FOUND: the project is not in your organisation', 'AC-MRQ-019 another organisation pins nothing');
@@ -137,13 +137,13 @@ select is((select acted_for from material_request_steps where request_id = (sele
 
 -- Cleared: the step is role-level again.
 select pg_temp._as('25980000-0000-0000-0000-0000000000a1');
-select lives_ok($$ select public.mrq_set_step_pin('25980000-0000-0000-0000-0000000000d1', 3, null) $$, 'AC-MRQ-020 an Admin clears the pin');
+select lives_ok($$ select public.mrq_set_step_pin('25980000-0000-0000-0000-0000000000d1', 3, null) $$, 'AC-MRQ-022 an Admin clears the pin');
 insert into t_ids values ('r3', pg_temp._raise());
 select pg_temp._to_step3((select v from t_ids where k = 'r3'));
 select pg_temp._as('25980000-0000-0000-0000-0000000000a5');
 select lives_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'r3'), 3, 'approve', null, '25980000-0000-0000-0000-000000000801') $$,
-  'AC-MRQ-020 with no pin any holder of the role decides');
-select is((select count(*)::int from approval_step_pins), 0, 'AC-MRQ-020 clearing removes the row');
+  'AC-MRQ-022 with no pin any holder of the role decides');
+select is((select count(*)::int from approval_step_pins), 0, 'AC-MRQ-022 clearing removes the row');
 
 select * from finish();
 rollback;

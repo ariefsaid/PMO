@@ -1,5 +1,5 @@
 -- 1045_mrq_step_pins.sql — #2598 a project can pin a material-request approval step to a named person.
--- Spec docs/specs/material-requests.spec.md (FR-MRQ-020..023). Proven by supabase/tests/mrq_step_pin.test.sql.
+-- Spec docs/specs/material-requests.spec.md (FR-MRQ-022..025). Proven by supabase/tests/mrq_step_pin.test.sql.
 --
 -- approval_step_pins: per project and chain position, one named approver. No pin = the step stays role-level.
 -- The pin applies to a request step only while its role still equals the pinned role (a chain edit that changes the
