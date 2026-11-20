@@ -276,8 +276,8 @@ describe('Administration route-backed shell', () => {
     // navigation under a loaded machine needs more than the 1s default.
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'), { timeout: 5000 });
     expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page');
-    // Nine organisation sections (People and Terminology included) + Your plan (S3) for an Admin viewer.
-    expect(screen.getAllByRole('link')).toHaveLength(9);
+    // Nine organisation sections (People, Terminology and Your plan (S3) included) + Cost attribution for an Admin viewer.
+    expect(screen.getAllByRole('link')).toHaveLength(10);
     expect(screen.getByTestId('administration-panel-users')).toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-integrations')).not.toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
@@ -351,11 +351,11 @@ describe('Administration route-backed shell', () => {
     expect(panelMounts.accounting).toBe(0);
   });
 
-  it('AC-ADMIA-002: an Operator sees all eleven destinations and only mounts the requested panel', async () => {
+  it('AC-ADMIA-002: an Operator sees all twelve destinations and only mounts the requested panel', async () => {
     const usageView = renderShell('/administration/usage', 'Admin', true);
 
     await waitFor(() => expect(screen.getByTestId('administration-panel-usage')).toBeInTheDocument());
-    expect(screen.getAllByRole('link')).toHaveLength(11);
+    expect(screen.getAllByRole('link')).toHaveLength(12);
     expect(screen.getByRole('link', { name: 'Usage' })).toHaveAttribute('aria-current', 'page');
     expect(screen.queryByTestId('administration-panel-users')).not.toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-features')).not.toBeInTheDocument();
@@ -517,7 +517,7 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const links = within(nav).getAllByRole('link');
 
-    expect(links).toHaveLength(9);
+    expect(links).toHaveLength(10);
     for (const link of links) {
       // Native deep links: real href, keyboard-focusable (never tabindex=-1), never a button.
       expect(link.getAttribute('href')).toMatch(/^\/administration\//);
@@ -604,7 +604,7 @@ describe('AC-ADMIA-005 — Administration section touch targets (phone)', () => 
     renderShell('/administration/usage', 'Admin', true);
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const links = within(nav).getAllByRole('link');
-    expect(links).toHaveLength(11);
+    expect(links).toHaveLength(12);
     for (const link of links) {
       expect(link.className).toContain('touch-target');
     }

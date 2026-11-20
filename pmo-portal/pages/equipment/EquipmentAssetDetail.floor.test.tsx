@@ -32,6 +32,8 @@ vi.mock('@/src/hooks/useProjects', () => ({
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: (h.viewAs ?? h.role) as Role }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
+vi.mock('./EquipmentRentalTerms', () => ({ EquipmentRentalTerms: () => null }));
+vi.mock('./ExpiryDocumentsCard', () => ({ ExpiryDocumentsCard: () => null }));
 
 import EquipmentAssetDetail from './EquipmentAssetDetail';
 
