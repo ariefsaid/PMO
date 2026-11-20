@@ -300,9 +300,9 @@ select plan(7);
 -- body; proven by supabase/tests/equipment_availability*.test.sql and equipment_rental_check.test.sql. `end_equipment_rental_term`
 -- has no client caller, so 1032 revokes its authenticated grant and it is deliberately NOT listed.
 -- ⚑ AMENDED BY 1030 (#2523): `archive_stock_document_file` joins the retained set (+1, count 224 = 217 + 7, counted from the list).
--- ⚑ AMENDED BY 1076 (#2577): `cus_generate_plan` and `cus_adjust_plan_line` join the retained set (+2, count 226).
 -- SECURITY DEFINER writer under a member's JWT (stockSiteWork.ts); re-asserts active membership, the caller's org and
 -- stock_can_attach; proven by the 1030 stock document files pgTAP.
+-- ⚑ AMENDED BY 1076 (#2577): `cus_generate_plan` and `cus_adjust_plan_line` join the retained set (+2, count 226).
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 -- Retained names: union of every merged branch's inventory; the AC-ACL-002/003 counts are counted from this list.
 insert into client_callable_rpc_names (proname) values
