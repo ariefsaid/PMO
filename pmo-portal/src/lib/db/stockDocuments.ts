@@ -3,7 +3,7 @@ import { fetchAllPages } from '@/src/lib/pagedRead';
 import { toAppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
-export type StockDocumentKind = 'receive' | 'transfer' | 'issue' | 'return' | 'adjustment' | 'count';
+export type StockDocumentKind = 'receive' | 'transfer' | 'issue' | 'return' | 'adjustment' | 'count' | 'opening';
 export type StockDocumentStatus = 'Draft' | 'Posted' | 'Cancelled';
 export type StockDocumentRow = Tables<'stock_documents'>;
 

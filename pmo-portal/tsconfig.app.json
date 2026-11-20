@@ -269,6 +269,7 @@
     "src/lib/auth/verifyCallerJwt.ts",
     "src/lib/budget-snapshot.ts",
     "src/lib/build/vendorChunk.ts",
+    "src/lib/db/openingBalances.concurrent.integration.mjs",
     "src/lib/db/stockPosting.concurrent.integration.mjs",
     "src/lib/db/vendorWithholdingSlips.concurrent.integration.mjs",
     "src/lib/figures/identity.ts",
