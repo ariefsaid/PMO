@@ -142,6 +142,7 @@ export type Entity =
   | 'equipmentAvailability'
   | 'equipmentRegister'
   | 'expiryDocument'
+  | 'documentType'
   | 'person'
   | 'maintenance'
   | 'tmRate'
@@ -935,6 +936,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: expiryDocumentWrite,
     archive: expiryDocumentWrite,
   },
+  /** Document types and warning days (#2614). UX ONLY: document_types RLS and column grants (0970) and set_document_warning_days (0972) are Admin-only. View-as is view-only. */
+  documentType: { manage: allowUnlessViewOnly(ADMIN) },
   /**
    * The People register (#2542 follow-up, migration 1008). UX ONLY — RLS (0970 people_* policies) and the column grants are the
    * authority (ADR-0016). The crews policy change grants basic reads to members and create/edit to Admin and Project Manager; archive remains Admin-only. View-as is view-only.
