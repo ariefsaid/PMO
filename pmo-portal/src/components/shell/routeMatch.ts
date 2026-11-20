@@ -612,7 +612,7 @@ export function breadcrumbForPath(
   // #2518: /work-orders/:id reads as Projects > the work order (no work-order module of its own).
   if (/^\/work-orders\/[^/]+$/.test(pathname)) {
     return [
-      { label: 'Projects', i18nKey: 'shell.nav.projects', href: '/projects', onClick: () => navigate?.('/projects') }, // i18n-exempt: fallback label is replaced from i18nKey at render
+      { label: MODULES.find((module) => module.path === '/projects')?.label ?? pathname, i18nKey: 'shell.nav.projects', href: '/projects', onClick: () => navigate?.('/projects') }, // the module's own label (itself translated from labelKey); i18nKey replaces it at render
       ...(workOrderProject ? [{ label: workOrderProject.name, href: `/projects/${workOrderProject.id}`, onClick: () => navigate?.(`/projects/${workOrderProject.id}`) }] : []),
       recordLabel
         ? { label: recordLabel }
