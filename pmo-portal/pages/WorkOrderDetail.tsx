@@ -5,6 +5,7 @@ import { ListState, RecordHeader, RecordStack, StatusPill } from '@/src/componen
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProject } from '@/src/hooks/useProjects';
+import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { useBoqItems } from '@/src/hooks/useProgressBilling';
 import { useWorkOrderAcceptances } from '@/src/hooks/useWorkOrderAcceptances';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
@@ -20,6 +21,7 @@ import { CostSection } from './work-order-detail/CostSection';
 import { BillingSection } from './work-order-detail/BillingSection';
 import { PlanVsActualSection } from './work-order-detail/PlanVsActualSection';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
+import { ConsumablePlanSection } from './work-order-detail/ConsumablePlanSection';
 
 /**
  * `/work-orders/:id` (#2518): one read-only page for a work order — scope and progress, costs, billing and
@@ -31,6 +33,7 @@ const WorkOrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const may = usePermission();
+  const { data: orgFeatures } = useOrgFeatures();
   const wo = useWorkOrder(id);
   const projectId = wo.data?.project_id ?? '';
   const project = useProject(projectId || undefined);
@@ -95,6 +98,7 @@ const WorkOrderDetail: React.FC = () => {
           onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
         <CostSection labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
           onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
+        {orgFeatures?.stock === true && <ConsumablePlanSection workOrderId={row.id} workOrderStatus={row.status} project={project.data} />}
         {canPlanView && <PlanVsActualSection workOrderId={row.id} query={pva} disciplines={disciplines.data ?? []} />}
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />

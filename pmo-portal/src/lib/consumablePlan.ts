@@ -4,6 +4,8 @@
  * is the authority. Exact decimals throughout (BigInt, never a JS float): rounded ONCE per item, half up at 3 decimals.
  */
 
+import { subtractDecimal } from '@/src/lib/stockFormat';
+
 export interface UsageStandard {
   id: string;
   itemId: string;
@@ -69,9 +71,9 @@ export function computeConsumablePlan(lines: PlanLineInput[], standards: UsageSt
   return { items, noStandard };
 }
 
-/** AC-CUS-013: remaining = planned - already requested, to 3 decimals, shown even when negative (an over-request stays visible). */
+/** AC-CUS-013: remaining = planned - already requested, exact at 3 decimals (trailing zeros dropped), shown even when negative (an over-request stays visible). */
 export function remainingQuantity(planned: string, requested: string): string {
-  return format(scaled(planned, 3) - scaled(requested, 3), 3);
+  return subtractDecimal(planned, requested);
 }
 
 export interface PlanDiffRow { itemId: string; oldQty: string | null; newQty: string | null; change: 'added' | 'removed' | 'changed'; keepsAdjustment: boolean }

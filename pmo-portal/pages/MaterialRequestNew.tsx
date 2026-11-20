@@ -137,6 +137,7 @@ const MaterialRequestNewPage: React.FC = () => {
                     {plans.isPending ? '…' : p
                       ? t('form.planLine', 'Plan {{plan}} · already requested {{prior}} · new total {{total}}', { plan: p.planQty, prior: p.priorQty, total: st?.newTotal })
                       : t('form.planUnknown', 'Plan figures unavailable')}
+                    {p?.planSource && <span className="ml-2" data-testid="mrq-plan-source">{t(`form.planSource.${p.planSource}`, { standard: 'From usage standards', adjusted: 'Adjusted by the planner', allowance: 'From material allowance', none: 'No plan' }[p.planSource])}</span>}
                     {st?.overPlan && <strong className="ml-2 text-warning-foreground">{t('form.overPlan', 'Over plan')}</strong>}
                   </p>
                 )}

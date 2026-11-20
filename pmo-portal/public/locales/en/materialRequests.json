@@ -65,6 +65,12 @@
     "note": "Note (optional)",
     "overPlan": "Over plan",
     "planLine": "Plan {{plan}} · already requested {{prior}} · new total {{total}}",
+    "planSource": {
+      "standard": "From usage standards",
+      "adjusted": "Adjusted by the planner",
+      "allowance": "From material allowance",
+      "none": "No plan"
+    },
     "planUnknown": "Plan figures unavailable",
     "project": "Project",
     "projectNoun": "project",

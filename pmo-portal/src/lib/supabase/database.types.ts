@@ -15166,6 +15166,7 @@ export type Database = {
       }
       cus_generate_plan: { Args: { p_work_order_id: string }; Returns: number }
       cus_get_plan: { Args: { p_work_order_id: string }; Returns: Json }
+      cus_standard_match_counts: { Args: never; Returns: { match_lines: number; standard_id: string }[] }
       deactivate_external_binding: {
         Args: { p_actor_id: string; p_external_tier: string; p_org_id: string }
         Returns: number

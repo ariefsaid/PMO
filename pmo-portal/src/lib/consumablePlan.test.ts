@@ -59,11 +59,11 @@ describe('computeConsumablePlan (#2577)', () => {
 
 describe('remainingQuantity (#2577)', () => {
   it('AC-CUS-013 remaining = planned - already requested', () => {
-    expect(remainingQuantity('8.800', '3.000')).toBe('5.800');
+    expect(remainingQuantity('8.800', '3.000')).toBe('5.8');
   });
   it('AC-CUS-013 is shown even when negative, never clamped to zero', () => {
-    expect(remainingQuantity('8.800', '9.000')).toBe('-0.200');
-    expect(remainingQuantity('0', '1.5')).toBe('-1.500');
+    expect(remainingQuantity('8.800', '9.000')).toBe('-0.2');
+    expect(remainingQuantity('0', '1.5')).toBe('-1.5');
   });
 });
 
