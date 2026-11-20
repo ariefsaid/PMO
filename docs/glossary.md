@@ -370,13 +370,21 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Left after this purchase** — the approval panel's decision figure: Active budget − recorded spending − open orders − Reserved − this purchase, before tax, each amount counted once. A request already in Reserved, or already an order, is not subtracted again. Spending is the project header's reading (the one Budget used divides); open orders are the order total less what spending already holds. When spending or open orders are not known the figure is not shown as a number; with only spending unknown the panel states the amount without it under its own label (OD-APPROVAL-LEFT). It is advisory; approver routing reads the same project reading and tests the line and the project in SQL (OD-APPROVER-BASIS). Not the same as **Left after open orders** (project Budget tab: budget less committed orders, before this purchase and Reserved).
 
-**Left to bill** — signed contract value (net of tax) less invoiced to date, per held contract (on-hand status, not archived: the Contract on hand set, whatever the selected period) and currency at a month; it does not depend on the revenue recognition basis. The management pack derives it once and every report tile, row, total, export and the home dashboard read that one figure (#2203). A held contract with no contract value is not in it; the total stays a number and the count of such contracts is said beside it ("N contracts with no value, not in the total").
+**Left to bill** — signed contract value (net of tax) less invoiced to date (also read per issued work order, #2575), per held contract (on-hand status, not archived: the Contract on hand set, whatever the selected period) and currency at a month; it does not depend on the revenue recognition basis. The management pack derives it once and every report tile, row, total, export and the home dashboard read that one figure (#2203). A held contract with no contract value is not in it; the total stays a number and the count of such contracts is said beside it ("N contracts with no value, not in the total").
 
 **Remaining work** — signed contract value less recognised revenue to date in the management pack; it follows the recognition basis (progress, earned value or invoiced) and is distinct from Left to bill. Formerly named "backlog" in the pack (DD-MMP-3).
 
 **Incoming payment** — a customer payment record, optionally linked to a sales invoice, carrying amount, currency, status and receipt/withholding details.
 
 ---
+
+**Work in hand** — **Left to bill** on the Contract on hand set and on its issued work orders, ranked per currency. A contract and its work orders are shown as a hierarchy and never added together (#2575).
+
+**Billed to date** (of a contract or work order) — the pack's *invoiced to date*: billed work (the single definition shared by the billing summary and the management pack: submitted, unpaid or paid invoices, net of tax, plus the down-payment recovery; a down payment counts zero) summed over a contract or a work order.
+
+**Current billing rate** — billed work in the last six complete months divided by the months counted, from the first month billing began inside that window; undefined when nothing was billed in it.
+
+**Months of backlog** — Left to bill divided by the current billing rate, to one decimal; undefined (shown as "no billing rate") when the rate is undefined.
 
 ## Expenses & vendor tax
 
