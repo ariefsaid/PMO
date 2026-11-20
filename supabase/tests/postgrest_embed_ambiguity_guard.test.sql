@@ -52,6 +52,9 @@ select set_eq(
             -- 1004 (#1522): daily_site_reports carries author_id AND validated_by, both -> profiles. New
             -- table: the DAL (src/lib/db/dailySiteReports.ts) embeds no profiles; names resolve by id.
             ('daily_site_reports -> profiles'),
+            -- 1136 (#2584): subcontract_certificates carries prepared_by, submitted_by, approved_by and cancelled_by, all ->
+            -- profiles. New table: the DAL (src/lib/db/subcontractCertificates.ts) selects explicit columns and embeds no profiles.
+            ('subcontract_certificates -> profiles'),
             ('credits -> profiles'),
             -- 0882 (#2195): erp_capture_invoice_assignments carries actor_id, undone_by and the two
             -- prior_mark_* columns, all -> profiles. Checked before adding: no DAL, repository,
