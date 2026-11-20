@@ -21,7 +21,9 @@ import { crewToolErrorMessage } from './crewToolErrors';
 const asReport = (r: ToolReportRow): ToolReport => ({ id: r.id, kind: r.kind, qty: r.qty, status: r.status, due_on: r.due_on });
 
 /** The report sheet: kind, quantity, a photo, a note. Three taps from the crew's tools screen (NFR-CTR-001). */
-const ReportSheet: React.FC<{ line: ToolLineRow; onClose: () => void }> = ({ line, onClose }) => {
+const ReportSheet: React.FC<{ line: ToolLineRow; reportId: string; onSubmitted: () => void; onClose: () => void }> = ({
+  line, reportId, onSubmitted, onClose,
+}) => {
   const { t } = useTranslation('crewTools');
   const { toast } = useToast();
   const { report } = useToolMutations();
@@ -30,8 +32,6 @@ const ReportSheet: React.FC<{ line: ToolLineRow; onClose: () => void }> = ({ lin
   const [note, setNote] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  // One id per sheet: a retry from a poor connection returns the same report (FR-CTR-009).
-  const [reportId] = useState(() => crypto.randomUUID());
   const n = Number(qty);
   const check = canReport(line.held_qty, [
     { id: 'open', kind: 'lost', qty: line.damaged_qty + line.lost_qty, status: 'open', due_on: null }], n);
@@ -44,6 +44,7 @@ const ReportSheet: React.FC<{ line: ToolLineRow; onClose: () => void }> = ({ lin
     void (async () => {
       try {
         await report.mutateAsync({ reportId, lineId: line.id, kind, qty: n, note: note.trim() || null, photos: photo ? [photo] : [] });
+        onSubmitted();
         toast(t('crewTools:reported', 'Reported. The equipment coordinator has a task.'), undefined, 'success');
         onClose();
       } catch (err) { setProblem(crewToolErrorMessage(t, err)); }
@@ -269,12 +270,18 @@ export const CrewTools: React.FC = () => {
   const users = useUsers();
   const [crewId, setCrewId] = useState<string | null>(null);
   const [reporting, setReporting] = useState<ToolLineRow | null>(null);
+  const [draftReportIds, setDraftReportIds] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<ToolLineRow | 'new' | null>(null);
   const [closing, setClosing] = useState<ToolReportRow | null>(null);
   const [correcting, setCorrecting] = useState<ToolReportRow | null>(null);
   const [archiving, setArchiving] = useState<ToolLineRow | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const { updateLine } = useToolMutations();
+
+  const openReport = (l: ToolLineRow) => {
+    setDraftReportIds((prev) => (prev[l.id] ? prev : { ...prev, [l.id]: crypto.randomUUID() }));
+    setReporting(l);
+  };
 
   const crewRows = useMemo(() => crews.data ?? [], [crews.data]);
   useEffect(() => {
@@ -318,7 +325,7 @@ export const CrewTools: React.FC = () => {
     { key: 'usable', header: t('crewTools:usable', 'Usable'), align: 'num', cell: (l) => <strong>{l.usable_qty}</strong> },
     { key: 'report', header: t('crewTools:reportColumn', 'Report'),
       cell: (l) => (canReportHere && l.usable_qty > 0
-        ? <Button variant="outline" size="sm" onClick={() => setReporting(l)}>{t('crewTools:reportProblem', 'Report a problem')}</Button> : null) },
+        ? <Button variant="outline" size="sm" onClick={() => openReport(l)}>{t('crewTools:reportProblem', 'Report a problem')}</Button> : null) },
   ];
   const reportColumns: Column<ToolReportRow>[] = [
     { key: 'tool', header: t('crewTools:name', 'Tool'), kind: 'primary', rowHeader: true, cell: (r) => `${r.line_name} x${r.qty}` },
@@ -375,7 +382,21 @@ export const CrewTools: React.FC = () => {
           )}
         </CardPad>
       </Card>
-      {reporting && <ReportSheet line={reporting} onClose={() => setReporting(null)} />}
+      {reporting && (
+        <ReportSheet
+          line={reporting}
+          reportId={draftReportIds[reporting.id] ?? crypto.randomUUID()}
+          onSubmitted={() => {
+            const lineId = reporting.id;
+            setDraftReportIds((prev) => {
+              const next = { ...prev };
+              delete next[lineId];
+              return next;
+            });
+          }}
+          onClose={() => setReporting(null)}
+        />
+      )}
       {editing && crewId && <LineModal crewId={crewId} line={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
       {closing && <CloseModal report={closing} onClose={() => setClosing(null)} />}
       {correcting && <CorrectModal report={correcting} onClose={() => setCorrecting(null)} />}

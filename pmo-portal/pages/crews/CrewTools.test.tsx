@@ -93,4 +93,26 @@ describe('crew tools screen', () => {
     await user.click(screen.getByRole('button', { name: 'Save correction' }));
     await waitFor(() => expect(h.correct).toHaveBeenCalledWith({ reportId: 'r1', kind: 'damaged', qty: 2, reason: 'miscounted' }));
   });
+  it('reopening the report sheet for the same tool reuses the report ID until sent', async () => {
+    const user = userEvent.setup();
+    const spy = vi.spyOn(crypto, 'randomUUID');
+    render(<ToastProvider><CrewTools /></ToastProvider>);
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }));
+    const uuidCountAfterFirstOpen = spy.mock.calls.length;
+    expect(uuidCountAfterFirstOpen).toBeGreaterThan(0);
+    const firstUuid = spy.mock.results[uuidCountAfterFirstOpen - 1].value;
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }));
+    expect(spy.mock.calls.length).toBe(uuidCountAfterFirstOpen);
+
+    await user.selectOptions(screen.getByLabelText('What happened'), 'lost');
+    await user.click(screen.getByRole('button', { name: 'Send report' }));
+    await waitFor(() => expect(h.report).toHaveBeenCalledWith(expect.objectContaining({ reportId: firstUuid })));
+
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }));
+    expect(spy.mock.calls.length).toBe(uuidCountAfterFirstOpen + 1);
+    spy.mockRestore();
+  });
 });
