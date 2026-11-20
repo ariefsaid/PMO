@@ -2490,3 +2490,9 @@ begin
   perform public.set_stock_reorder_level((c||'000000002002')::uuid, (c||'000000001003')::uuid, 200, 400);
   perform set_config('request.jwt.claims', '', true);
 end $$;
+
+-- Stable submitted claim for expense-detail route captures.
+insert into public.expense_claims (id, claimant_id, project_id, budget_category, title, currency, amount, status, submitted_at)
+values ('fe251100-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000000a2',
+        '41000000-0000-0000-0000-000000000001', 'Materials', 'Approval route review', 'IDR', 0, 'Submitted', '2026-11-19 00:00:00+00')
+on conflict (id) do nothing;

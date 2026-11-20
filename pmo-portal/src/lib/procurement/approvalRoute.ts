@@ -2,7 +2,7 @@ import type { TFunction } from 'i18next';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 
 /**
- * #803 approval routing — the FE mirror of `public.spend_approval_route` (migration 0243, ADR-0075).
+ * #803 approval routing — the FE mirror of `public.spend_approval_route` (migrations 0243, 1016, ADR-0075).
  * UX ONLY (ADR-0016): `transition_procurement` is the authority. Pure — no I/O, no React.
  */
 /** `admin`: a senior set is configured but nobody in it can act, so only an Admin decides (DD-APR-4). */
@@ -15,6 +15,9 @@ export type ApprovalRouteReason =
   | 'no_active_budget'
   | 'currency_mismatch'
   | 'exceeds_line'
+  | 'exceeds_project'
+  | 'spending_unknown'
+  | 'spending_not_visible'
   | 'budget_changed'
   | 'amount_invalid';
 
@@ -48,16 +51,12 @@ export function mayDecideRoutedApproval(
   return Boolean(userId) && route.approvers.some((a) => a.id === userId);
 }
 
-/** Roles at or above the spend-approval ranks; below them a viewer's reads cannot see all the spend behind a budget line. */
-const APPROVER_RANK_ROLES = ['Admin', 'Executive', 'Finance', 'Project Manager'];
-
 /**
  * One line telling a viewer who is not routed this procurement who decides it, and why (FR-APR-031). */
 export function approvalRouteNote(
   route: Pick<ApprovalRoute, 'route' | 'reason' | 'approvers'>,
   category: string | null,
   t: TFunction,
-  viewerRole?: string | null,
 ): string {
   if (route.route === 'admin') {
     return t(
@@ -72,10 +71,22 @@ export function approvalRouteNote(
   let why: string;
   if (route.route === 'org' && route.reason === 'within_budget') {
     why = t('procurementDetail.route.why.escalated', "the project's own approver cannot approve it.");
-  } else if (route.reason === 'within_budget' && viewerRole != null && !APPROVER_RANK_ROLES.includes(viewerRole)) {
-    // The budget-used figure behind "within budget" is summed under the viewer's own row visibility, so below the
-    // approver ranks it can understate what is already spent: say who decides, not that the spend fits.
-    why = t('procurementDetail.route.why.projectApprover', 'they are the approver set for this project.');
+  } else if (route.reason === 'spending_not_visible') {
+    // Below approval rank the server returns the people who could decide and no figure.
+    why = t('procurement:routeWhy.spendingNotVisible', {
+      defaultValue: "whether it fits the project's {{category}} budget is checked when it is decided.",
+      category: cat,
+    });
+  } else if (route.reason === 'spending_unknown') {
+    why = t('procurement:routeWhy.spendingUnknown', {
+      defaultValue: "what is already spent on the project's {{category}} budget is not known yet.",
+      category: cat,
+    });
+  } else if (route.reason === 'exceeds_project') {
+    why = t(
+      'procurement:routeWhy.exceedsProject',
+      "it would take the project's budget over its limit, counting what is already spent.",
+    );
   } else if (route.reason === 'within_budget') {
     why = t('procurementDetail.route.why.withinBudget', {
       defaultValue: "it is within the project's {{category}} budget.",
@@ -83,7 +94,7 @@ export function approvalRouteNote(
     });
   } else if (route.reason === 'exceeds_line') {
     why = t('procurementDetail.route.why.exceedsLine', {
-      defaultValue: "it would take the project's {{category}} budget over its limit.",
+      defaultValue: "it would take the project's {{category}} budget over its limit, counting what is already spent.",
       category: cat,
     });
   } else if (route.reason === 'no_project') {
