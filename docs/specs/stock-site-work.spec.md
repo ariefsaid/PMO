@@ -1,6 +1,6 @@
 # Stock for site work: yard and staging, client-supplied stock, balance per work order (SSW)
 
-Issue #2523 (map #2516, blocked by #2517). Status: **Draft, 2026-11-20**. Executor on sign-off: **Director-dispatched
+Issue #2523 (map #2516, blocked by #2517). Status: **Accepted, 2026-11-20**. Executor on sign-off: **Director-dispatched
 Orca worker, ships alone** (stock value and posting engine). Plan `docs/plans/2026-11-20-stock-site-work.md`.
 IDs: `FR-SSW-###`, `AC-SSW-###`. **Money path: stock valuation.** The ledger remains the single writer
 (`stock_write_entry`, FR-STK-072); nothing here writes the ledger except through that function.
@@ -49,11 +49,11 @@ without a side spreadsheet.
 
 **Balance per work order**
 - FR-SSW-030 The system shall report, per work order, quantity (and value) on hand, derived only from ledger rows: net of posted
-  transfers into the site/yard/staging with that work order, issues and returns naming it.
+  movements attributed to that work order, separating stock at project locations from issues and returns. Attribution is a reporting tag, not a reservation or proof of physical ownership.
 - FR-SSW-031 Quantities by item, by location, and by zero-cost vs costed; value is shown only to roles that read stock value today.
 - FR-SSW-032 Balances come only from ledger movements; no stored per-work-order balance exists. A reconciliation test proves
   sum over work orders + unassigned = project's location balance.
-- FR-SSW-033 An issue that would take a work order's balance below zero shall follow today's negative-stock rule (refuse unless the org allows it).
+- FR-SSW-033 An issue shall follow today's per-item, per-location negative-stock rule (refuse a shortfall). Work-order attribution is a reporting and cost tag, not stock ownership; attribution or re-attribution after posting does not change location quantities or affect that rule.
 
 ## 3. Acceptance criteria
 
@@ -73,14 +73,15 @@ without a side spreadsheet.
 | AC-SSW-012 | Given a transfer naming a WO of another project, then refused (#2517 rule, new kinds). | pgTAP |
 | AC-SSW-013 | Given existing central/site data, after migrating, then reports are byte-identical. | pgTAP |
 
-## 4. Open questions
-1. **Moving-value on transfer:** does the transfer move value (as shipped) or only quantity? Assumed shipped behaviour; confirm no change to valuation.
-2. Is "balance per work order" meant to be stock *physically at the work order's location* or *issued to* it? Proposed: both, shown separately ("on site for", "issued to").
-3. May a zero-cost item be sold/consumed and later billed to the client at cost-plus? Assumed no; out of scope.
-4. A client-supplied item returned to the client: use the existing return/adjustment, or a new kind? Assumed adjustment (reason required).
-5. Paper required (FR-SSW-022): per tag, or org-wide? Proposed per zero-cost tag.
-6. Do yard/staging need keepers and allowances as `site` does (0412 keepers, 0417 allowances)? Assumed yes, same rules.
-7. Bucket for attachments: new `stock-documents` bucket with the document's read rule (proposed) vs project-documents.
+## 4. Decisions (Director, 2026-11-20)
+1. Transfers move value under the existing moving-value rule; valuation is unchanged.
+2. Report stock on site for the work order and stock issued to it separately. Stock belongs to a location, not a work order; attribution is a reporting and cost tag on the movement.
+3. Client-supplied stock sold or billed at cost-plus is out of scope.
+4. Return to the client uses the existing adjustment with a reason.
+5. Paper required is configured per zero-cost tag.
+6. Yard and staging use the same keeper and allowance rules as site locations.
+7. Attachments use the private stock-documents bucket and the document read rule.
+8. Zero-cost tags, paper-required enforcement and work-order stock balances are standalone-ledger features in this slice. When inventory is ERP-connected, the UI hides tag settings with an explanation and reports work-order stock balances as unavailable; connected support is a follow-up.
 
 ## 5. Out of scope
 New posting kinds, ERP/Odoo posting changes (`docs/specs/odoo-stock-posting.spec.md` stays as is; a zero-value ledger row must still post cleanly or be skipped: check at build), costing methods other than moving value, barcode scanning.

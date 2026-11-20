@@ -58,7 +58,7 @@ describe('C8b useStock.ts:133 — a write refreshes the document count with the 
     await act(async () => { await result.current.cancel.mutateAsync('d1'); });
 
     const keys = spy.mock.calls.map((call) => JSON.stringify(call[0]?.queryKey));
-    for (const root of ['stock-on-hand', 'stock-ledger', 'stock-documents', 'stock-documents-count', 'stock-document', 'stock-consumption']) {
+    for (const root of ['stock-on-hand', 'stock-ledger', 'stock-documents', 'stock-documents-count', 'stock-document', 'stock-consumption', 'wo-stock-balance']) {
       expect(keys).toContain(JSON.stringify([root, 'org-1']));
     }
   });

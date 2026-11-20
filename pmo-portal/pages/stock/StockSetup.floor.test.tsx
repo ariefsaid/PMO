@@ -19,6 +19,8 @@ const { master, profile, project, reports } = vi.hoisted(() => ({
   project: { listIdentity: vi.fn() },
   reports: { onHand: vi.fn() },
 }));
+vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ isOwnershipCacheSynced: () => true, routeDomainWrite: () => 'pmo', subscribeOwnershipCache: () => () => {} }));
+vi.mock('@/src/lib/repositories/stockSiteWork', () => ({ stockSiteWorkRepository: { tags: { list: async () => [] } } }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, reports }, profile, project } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 
@@ -135,7 +137,7 @@ describe('stock setup floor controls', () => {
     await userEvent.clear(leadTime);
     await userEvent.type(leadTime, '14');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create item' }));
-    await waitFor(() => expect(master.createItem).toHaveBeenCalledWith({ code: 'ANCHOR', name: 'Chemical anchor', description: 'Fixing compound', unitId: 'u1', leadTimeDays: 14 }));
+    await waitFor(() => expect(master.createItem).toHaveBeenCalledWith({ code: 'ANCHOR', name: 'Chemical anchor', description: 'Fixing compound', unitId: 'u1', leadTimeDays: 14, tagId: null }));
   });
 
   it('floor: warehouse form sends its kind and default project', async () => {

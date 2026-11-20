@@ -32,7 +32,9 @@
     "leadTimeDays": "days",
     "kinds": {
       "central": "Central",
-      "site": "Site"
+      "site": "Site",
+      "yard": "Yard",
+      "staging": "Staging"
     },
     "noKeepers": "No keeper",
     "active": "Active",
@@ -75,7 +77,10 @@
         "codeRequired": "Code is required.",
         "nameRequired": "Name is required.",
         "unitRequired": "Choose a unit.",
-        "leadTimeInvalid": "Enter whole days between 0 and 365."
+        "leadTimeInvalid": "Enter whole days between 0 and 365.",
+        "tag": "Tag",
+        "tagHelp": "Optional. Fixed once the item has movements.",
+        "noTag": "No tag"
       },
       "warehouse": {
         "newTitle": "New warehouse",
@@ -147,6 +152,11 @@
     "itemPicker": "No stock items yet: add one in Stock setup."
   },
   "errors": {
+    "STK_ZERO_COST": "This item must be received at zero cost.",
+    "STK_TAG_LOCKED": "This tag cannot be changed after stock has moved.",
+    "STK_PAPER_REQUIRED": "Attach the required paper before posting this transfer.",
+    "STK_FILE_LOCKED": "A posted attachment must be archived with a reason.",
+    "STK_FILE_MISSING": "Upload the attachment before adding it to the document.",
     "STK_INSUFFICIENT": "Not enough stock on hand for this movement.",
     "STK_NOT_KEEPER": "Only a keeper of this warehouse can do this.",
     "STK_OWNED_BY_ERP": "Stock is managed in your accounting system, so it cannot be changed here.",
@@ -373,6 +383,8 @@
     "movements": "Movements"
   },
   "form": {
+    "saveDraft": "Save draft",
+    "draftSaved": "Draft saved",
     "unknownKind": "Unknown document kind",
     "unknownKindSub": "Use Receive, Transfer, Issue, Return, Stock count or Adjustment from the Stock page.",
     "submit": {
@@ -627,5 +639,28 @@
     "column": "Restock",
     "action": "Request purchase",
     "rowLabel": "Request purchase for {{item}}"
+  },
+  "siteWork": {
+    "files": {"unknownUploader": "Unknown uploader", "title": "Attachments", "choose": "Choose file", "label": "Label (optional)", "upload": "Upload attachment", "remove": "Remove", "reason": "Reason for archiving", "loading": "Loading attachments…", "loadError": "Could not load attachments.", "error": "Could not change the attachment."},
+    "tags": {"connectedUnavailable": "Stock tags are unavailable while inventory is connected.", "confirmTitle": "Archive this stock tag?", "confirmDescription": "Items keep their tag, but it will no longer be offered for new items.", "manage": "Manage stock tags", "name": "Tag name", "zero": "Zero cost", "paper": "Paper required", "add": "Add tag", "save": "Save tag", "loadError": "Could not load stock tags.", "loading": "Loading stock tags…"},
+    "balance": {
+      "connectedUnavailable": "Work-order stock balances are not available for connected inventory.",
+      "issuedValue": "Issued value",
+      "loading": "Loading stock…",
+      "open": "Stock for this work order",
+      "error": "Could not load stock for this work order.",
+      "title": "Stock for this work order",
+      "empty": "No stock has moved for this work order yet.",
+      "item": "Item",
+      "location": "Location",
+      "received": "Received",
+      "movedOut": "Moved elsewhere",
+      "issued": "Issued",
+      "onSite": "On site",
+      "value": "Value",
+      "unassigned": "Not assigned to a work order",
+      "noValue": "—",
+      "zeroCost": "Client-supplied, no cost"
+    }
   }
 }
