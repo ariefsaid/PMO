@@ -225,6 +225,8 @@ export interface M365OrgAppInfo {
   tenantId: string | null;
   clientId: string | null;
   secretSet: boolean;
+  /** When Microsoft last accepted these values (#2260) — a client secret expires, so the card shows the age. */
+  validatedAt: string | null;
   callbackUrls: { connect: string; signIn: string };
 }
 
@@ -238,6 +240,7 @@ export interface M365OrgAppInput {
 function isOrgAppInfo(data: unknown): data is M365OrgAppInfo {
   const d = data as Partial<M365OrgAppInfo> | null;
   return !!d && typeof d.configured === 'boolean' && typeof d.secretSet === 'boolean'
+    && (d.validatedAt === undefined || d.validatedAt === null || typeof d.validatedAt === 'string')
     && !!d.callbackUrls && typeof d.callbackUrls.connect === 'string' && typeof d.callbackUrls.signIn === 'string';
 }
 

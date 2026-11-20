@@ -32,9 +32,9 @@ const CLIENT = '66666666-7777-8888-9999-000000000000';
 const OTHER_CLIENT = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const SECRET = 'synthetic-secret-value-123';
 const callbackUrls = { connect: 'https://fn.invalid/m365/callback', signIn: 'https://db.invalid/auth/v1/callback' };
-const deploymentInfo: M365OrgAppInfo = { configured: false, source: 'deployment', tenantId: null, clientId: null, secretSet: false, callbackUrls };
+const deploymentInfo: M365OrgAppInfo = { configured: false, source: 'deployment', tenantId: null, clientId: null, secretSet: false, validatedAt: null, callbackUrls };
 const noneInfo: M365OrgAppInfo = { ...deploymentInfo, source: null };
-const orgInfo: M365OrgAppInfo = { configured: true, source: 'org', tenantId: TENANT, clientId: CLIENT, secretSet: true, callbackUrls };
+const orgInfo: M365OrgAppInfo = { configured: true, source: 'org', tenantId: TENANT, clientId: CLIENT, secretSet: true, validatedAt: '2026-11-18T02:15:00+00:00', callbackUrls };
 
 const view = () => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -103,6 +103,21 @@ describe('AC-M365SS-017 — read states', () => {
     expect(await screen.findByText(TENANT)).toBeInTheDocument();
     expect(screen.getByText(CLIENT)).toBeInTheDocument();
     expect(screen.getByText('Saved')).toBeInTheDocument();
+  });
+
+  it('AC-M365AV-003: a saved app shows how old the last check with Microsoft is', async () => {
+    mock.get.mockResolvedValue({ ...orgInfo, validatedAt: new Date(Date.now() - 3 * 86_400_000).toISOString() });
+    view();
+    expect(await screen.findByText('Last checked')).toBeInTheDocument();
+    expect(screen.getByText('3 days ago')).toBeInTheDocument();
+  });
+
+  it('AC-M365AV-003: an app with no recorded check says so rather than showing a blank or a fake time', async () => {
+    mock.get.mockResolvedValue({ ...orgInfo, validatedAt: null });
+    view();
+    expect(await screen.findByText('Last checked')).toBeInTheDocument();
+    expect(screen.getByText('Not recorded')).toBeInTheDocument();
+    expect(screen.queryByText('—')).not.toBeInTheDocument();
   });
 
   it('AC-M365SS-017: both callback URLs from org_app_info render with a working copy button', async () => {

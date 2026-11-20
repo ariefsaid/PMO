@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button, Card, ConfirmDialog, FieldError, FormGrid, Icon, ListState, TextField } from '@/src/components/ui';
+import { Button, Card, ConfirmDialog, FieldError, FormGrid, ListState, TextField } from '@/src/components/ui';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { usePermission } from '@/src/auth/usePermission';
 import { useM365OrgApp } from '@/src/hooks/useM365OrgApp';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { formatRelativeTime } from '@/src/lib/format';
 import { knownM365ErrorReason } from '@/src/lib/m365/errorCopy';
 import type { M365OrgAppInfo, M365OrgAppInput } from '@/src/lib/m365/connectClient';
 
@@ -46,18 +47,17 @@ export const M365AppRegistrationCard: React.FC = () => {
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
+  // One left edge per surface (#2260 render pass): a leading icon pushed the heading 22px in, so the
+  // heading and the sentence under it started at two different x positions.
   const heading = (
-    <div className="flex items-center gap-2">
-      <Icon name="lock" aria-hidden="true" />
-      <h2 className="text-group font-semibold text-foreground">{t('integrations.m365App.heading', 'Microsoft 365 app')}</h2>
-    </div>
+    <h2 className="text-group font-semibold text-foreground">{t('integrations.m365App.heading', 'Microsoft 365 app')}</h2>
   );
 
   if (!canManage) {
     return (
-      <Card className="mb-3.5 p-4" data-testid="m365-app-registration">
+      <Card className="mb-2.5 p-4" data-testid="m365-app-registration">
         {heading}
-        <p className="mt-1 text-sm text-muted-foreground">{t('integrations.m365App.readOnly', 'Your administrator manages this app.')}</p>
+        <p className="mt-2.5 text-sm text-muted-foreground">{t('integrations.m365App.readOnly', 'Your administrator manages this app.')}</p>
       </Card>
     );
   }
@@ -77,9 +77,9 @@ export const M365AppRegistrationCard: React.FC = () => {
   }
 
   return (
-    <Card className="mb-3.5 p-4" data-testid="m365-app-registration">
+    <Card className="mb-2.5 p-4" data-testid="m365-app-registration">
       {heading}
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="mt-2.5 text-sm text-muted-foreground">
         {t('integrations.m365App.description', 'The app your organization registered in Microsoft Entra. Microsoft checks it before it is saved.')}
       </p>
 
@@ -104,6 +104,13 @@ export const M365AppRegistrationCard: React.FC = () => {
                 <dd className="break-all font-mono text-foreground">{info.clientId}</dd>
                 <dt className="text-muted-foreground">{t('integrations.m365App.secretLabel', 'Client secret')}</dt>
                 <dd className="text-foreground">{info.secretSet ? t('integrations.m365App.secretSaved', 'Saved') : t('integrations.m365App.secretMissing', 'Not saved')}</dd>
+                {/* #2260: a client secret expires, so the Admin needs to see how old the last check is. */}
+                <dt className="text-muted-foreground">{t('integrations.m365App.checkedLabel', 'Last checked')}</dt>
+                <dd className="text-foreground" data-testid="m365-app-checked">
+                  {info.validatedAt
+                    ? formatRelativeTime(info.validatedAt)
+                    : t('integrations.m365App.checkedNever', 'Not recorded')}
+                </dd>
               </dl>
             ) : (
               <p className="text-control text-muted-foreground">

@@ -398,6 +398,7 @@ describe('AC-M365SS-017 (transport) — the per-organisation app actions (#1017 
   const CLIENT = '66666666-7777-8888-9999-000000000000';
   const info = {
     configured: true, source: 'org', tenantId: TENANT, clientId: CLIENT, secretSet: true,
+    validatedAt: '2026-11-18T02:15:00+00:00',
     callbackUrls: { connect: 'https://fn.invalid/callback', signIn: 'https://db.invalid/auth/v1/callback' },
   };
 
@@ -406,6 +407,11 @@ describe('AC-M365SS-017 (transport) — the per-organisation app actions (#1017 
     const result = await getM365OrgApp();
     expect(invoke).toHaveBeenCalledWith('m365-token-custody', { body: { action: 'org_app_info' } });
     expect(result).toEqual(info);
+  });
+
+  it('AC-M365AV-003: getM365OrgApp carries the validation time through to the card', async () => {
+    invoke.mockResolvedValueOnce({ data: info, error: null });
+    await expect(getM365OrgApp()).resolves.toMatchObject({ validatedAt: '2026-11-18T02:15:00+00:00' });
   });
 
   it('AC-M365SS-017: getM365OrgApp rejects a malformed 2xx as INTERNAL_ERROR', async () => {

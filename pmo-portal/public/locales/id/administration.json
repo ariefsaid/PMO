@@ -481,6 +481,8 @@
       "secretLabel": "Rahasia klien",
       "secretSaved": "Tersimpan",
       "secretMissing": "Belum disimpan",
+      "checkedLabel": "Terakhir diperiksa",
+      "checkedNever": "Belum tercatat",
       "usingPlatform": "Organisasi Anda memakai aplikasi yang disediakan platform.",
       "none": "Belum ada aplikasi Microsoft yang diatur.",
       "edit": "Ubah aplikasi",

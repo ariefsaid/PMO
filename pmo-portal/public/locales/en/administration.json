@@ -481,6 +481,8 @@
       "secretLabel": "Client secret",
       "secretSaved": "Saved",
       "secretMissing": "Not saved",
+      "checkedLabel": "Last checked",
+      "checkedNever": "Not recorded",
       "usingPlatform": "Your organization uses the platform-provided app.",
       "none": "No Microsoft app is set up yet.",
       "edit": "Edit app",
