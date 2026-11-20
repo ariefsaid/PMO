@@ -247,9 +247,16 @@ begin
      is distinct from (old.org_id, old.vendor_company_id, old.project_id, old.work_order_id, old.currency, old.amount, old.reason_code, old.reason_text,
       old.proof_document_id, old.created_by) then
     raise exception 'a backcharge is not edited; archive it and record another' using errcode = '42501'; end if;
-  if new.claimed_by_certificate_id is distinct from old.claimed_by_certificate_id
-     and coalesce(current_setting('pmo.spc_freeze', true), '') <> 'on' and coalesce(current_setting('pmo.spc_release', true), '') <> 'on' then
-    raise exception 'a backcharge is claimed or released with its certificate' using errcode = '42501'; end if;
+  if new.claimed_by_certificate_id is distinct from old.claimed_by_certificate_id then
+    -- claimed only by a submitted certificate (null -> cert), released only once its certificate is back with the preparer or
+    -- cancelled (cert -> null): the claim of an approved or billed certificate is never moved, by any path.
+    if (old.claimed_by_certificate_id is null and (coalesce(current_setting('pmo.spc_freeze', true), '') <> 'on'
+          or (select c.status from public.subcontract_certificates c where c.id = new.claimed_by_certificate_id) is distinct from 'submitted'))
+       or (old.claimed_by_certificate_id is not null and (new.claimed_by_certificate_id is not null
+          or coalesce(current_setting('pmo.spc_release', true), '') <> 'on'
+          or (select c.status from public.subcontract_certificates c where c.id = old.claimed_by_certificate_id) not in ('returned', 'draft', 'cancelled'))) then
+      raise exception 'a backcharge is claimed or released with its certificate' using errcode = '42501'; end if;
+  end if;
   if new.archived_at is distinct from old.archived_at and (not v_w or old.claimed_by_certificate_id is not null) then
     raise exception 'a backcharge in a live certificate cannot be archived' using errcode = '42501'; end if;
   return new;
