@@ -17,11 +17,11 @@ create table public.work_order_consumable_plan_lines (
   generated_qty     numeric(14,3) not null default 0 constraint cus_plan_generated_check check (generated_qty >= 0 and generated_qty < 'Infinity'::numeric),
   adjusted_qty      numeric(14,3) constraint cus_plan_adjusted_check check (adjusted_qty is null or (adjusted_qty >= 0 and adjusted_qty < 'Infinity'::numeric)),
   adjust_reason     text constraint cus_plan_reason_check check (adjust_reason is null or length(btrim(adjust_reason)) between 1 and 500),
-  adjusted_by       uuid references public.profiles(id),
+  adjusted_by       uuid,                                   -- plain uuid: a second FK to profiles would make every embed of profiles ambiguous
   adjusted_at       timestamptz,
   basis             jsonb not null default '[]'::jsonb constraint cus_plan_basis_check check (jsonb_typeof(basis) = 'array'),
   input_fingerprint text,                                   -- null on a line added by hand and never generated
-  generated_by      uuid references public.profiles(id),
+  generated_by      uuid,
   generated_at      timestamptz,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now(),
@@ -103,6 +103,7 @@ create or replace function public.cus_generate_plan(p_work_order_id uuid) return
   language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare wo public.work_orders; v_fp text; v_n integer;
 begin
+  perform public.assert_is_active_member();
   wo := public.cus_assert_planner(p_work_order_id);
   perform pg_advisory_xact_lock(hashtextextended('cus-plan:' || p_work_order_id::text, 0));
   v_fp := public.cus_plan_fingerprint(p_work_order_id);
@@ -141,6 +142,7 @@ create or replace function public.cus_adjust_plan_line(p_work_order_id uuid, p_i
   language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare wo public.work_orders; v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
 begin
+  perform public.assert_is_active_member();
   wo := public.cus_assert_planner(p_work_order_id);
   perform pg_advisory_xact_lock(hashtextextended('cus-plan:' || p_work_order_id::text, 0));
   if p_adjusted_qty is null then
