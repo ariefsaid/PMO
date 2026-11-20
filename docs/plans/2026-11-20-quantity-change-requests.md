@@ -50,7 +50,8 @@ Described, not numbered. Every policy wraps helpers as `(select public.auth_org_
 
 | AC | Layer | File |
 |---|---|---|
-| AC-QCR-001, 002, 023 | Unit (+ pgTAP read for 001, 002) | `src/lib/__tests__/quantityChangeRules.test.ts`; `supabase/tests/quantity_change_requests.test.sql` |
+| AC-QCR-001, 002 | pgTAP (owner) | `supabase/tests/quantity_change_requests.test.sql`; also referenced: Unit in `src/lib/__tests__/quantityChangeRules.test.ts` |
+| AC-QCR-023 | Unit | `src/lib/__tests__/quantityChangeRules.test.ts` |
 | AC-QCR-003..018 | pgTAP | `supabase/tests/quantity_change_requests.test.sql` |
 | AC-QCR-019..021 | pgTAP | `supabase/tests/quantity_versions.test.sql` |
 | AC-QCR-022, 024 | pgTAP | `supabase/tests/quantity_change_requests.test.sql` |
@@ -64,7 +65,7 @@ Described, not numbered. Every policy wraps helpers as `(select public.auth_org_
 - ADR candidate: client acceptance, not internal approval, is the event that changes a billable quantity; internal approval gates only submission.
 - ADR candidate: no sole-operator exception for money-changing approval (differs from acceptance confirmation) if OD-QCR-3 is signed as proposed.
 
-## Glossary (to `docs/glossary.md` in the same PR)
+## Glossary (added to `docs/glossary.md` with the spec)
 
 Quantity change request, contract quantity, quantity version, forecast quantity at completion (distinct from the cost-side estimate at completion), over-contract, request limit, internal approval. Disambiguate from PO variation (vendor side).
 

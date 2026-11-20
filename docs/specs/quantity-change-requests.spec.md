@@ -86,8 +86,8 @@ Hand calculation (test fixture): contract item "Excavation", unit m3, rate 50,00
 
 | ID | Given / When / Then | Layer |
 |---|---|---|
-| AC-QCR-001 | Given the fixture, when over-contract is computed, then P = 1,040.000 from the assessment source and the item is over by 40.000; with P = 1,000.000 exactly it is not over. | Unit (pure function) + pgTAP (read function) |
-| AC-QCR-002 | Given P <= C and E = 1,100.000, when evaluated, then the item is over-contract with trigger kind `forecast`. | Unit + pgTAP |
+| AC-QCR-001 | Given the fixture, when over-contract is computed, then P = 1,040.000 from the assessment source and the item is over by 40.000; with P = 1,000.000 exactly it is not over. | pgTAP (owner: server evaluates the over-contract trigger); also referenced: Unit (`quantityChangeRules`) |
+| AC-QCR-002 | Given P <= C and E = 1,100.000, when evaluated, then the item is over-contract with trigger kind `forecast`. | pgTAP (owner: server evaluates the over-contract trigger); also referenced: Unit (`quantityChangeRules`) |
 | AC-QCR-003 | Given an item over-contract for the first time, when the flag is computed, then one notification exists for the Project Manager and none is repeated on the next evaluation. | pgTAP |
 | AC-QCR-004 | Given an over-contract item allocated to the work order, when a request line R = 1,100.000 is raised, then a `draft` request exists with the trigger snapshot (progress, 1,040.000, C = 1,000.000). | pgTAP |
 | AC-QCR-005 | Given R = 1,000.000, R = 1,030.000 (below P), a not-over item, or an item not on the work order, when raised, then each is refused with its own reason. | pgTAP |

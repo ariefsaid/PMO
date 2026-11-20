@@ -681,6 +681,31 @@ or the previous version is accepted.
 rows plus "Row in your file" and "Reason", so they can be fixed and uploaded again. Rows that already existed are on their
 own "Already there" sheet.
 
+### Quantity change requests (#2578)
+
+**Quantity change request** (*permintaan perubahan kuantitas*) — a request to raise the contract quantity of one or more
+contract items, raised when reported progress or the forecast passes the current contract quantity. A second person
+approves it internally before it is recorded as sent to the client; the client's decision is what changes the quantity.
+Not a **PO variation**, which changes what is owed to a supplier.
+
+**Contract quantity** — the current agreed quantity of one contract item on a project. Billing, assessment and acceptance
+read it; it is the quantity of the item's latest version.
+
+**Quantity version** — one immutable record of a contract item's quantity at a point in time, with its source (baseline,
+setup edit or change request), the request and the person. The history is never edited.
+
+**Forecast quantity at completion** — the quantity a Project Manager expects a contract item to total when finished.
+Recorded append-only, the latest wins. Distinct from the cost-side estimate at completion in the budget.
+
+**Over-contract** — a contract item whose reported progress or forecast quantity is strictly greater than its contract
+quantity; equal is not over. It is what allows a quantity change request to be raised.
+
+**Request limit** — an organisation-set whole number of quantity change requests one work order may raise; empty means no
+limit.
+
+**Internal approval** — the second person's sign-off on a quantity change request before it goes to the client. It gates
+submission only; the contract quantity changes on the client's acceptance.
+
 ## Purchase history & figure language
 
 The purchase-history terms below describe the intended model; their presence does not assert that
