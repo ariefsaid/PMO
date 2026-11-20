@@ -1,6 +1,7 @@
 -- 1042_people_register.sql — #2542 follow-up: the People register (spec docs/specs/people-register.spec.md).
 -- Adds a database-assigned person code (P-0001, P-0002, ...) per organisation when the code is left blank.
--- The optional job title column and its insert/update grants belong to 1035_crews_roster (one owner).
+-- The optional job title column and its grants belong to 1035_crews_roster; this migration is the one owner of person-code
+-- generation (crews sets no column default, so a blank code always reaches this trigger).
 
 -- Blank code on insert -> next P-NNNN for the org. Serialised per org by a transaction advisory lock; scans archived rows too,
 -- so a number is never reused. Named z_ so it fires after people_stamp_org_id has fixed org_id.
