@@ -139,7 +139,9 @@
     "saveInService": "Simpan tanggal mulai digunakan",
     "proofsError": "Status bukti tidak dapat dimuat",
     "ownershipSaved": "Kepemilikan disimpan",
-    "rateChanged": "Tarif diubah"
+    "rateChanged": "Tarif diubah",
+    "openProof": "Buka {{name}}",
+    "unprovenIncluded": "Belum terbukti — disertakan dengan alasan"
   },
   "basis": {
     "actual_cost": "Biaya aktual menurut pemakaian",
