@@ -12,7 +12,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { run, writeCredentials } from './pmo.mjs';
-import { ALLOWED_EXTENSIONS, DENIED_EXTENSIONS, MAX_FILE_BYTES, sanitizeFilename, storagePath } from './lib/pmo-documents.mjs';
+import { ALLOWED_EXTENSIONS, DENIED_EXTENSIONS, MAX_FILE_BYTES, categoryResolutionNote, sanitizeFilename, storagePath } from './lib/pmo-documents.mjs';
 
 const ORG = '18570000-0000-0000-0000-00000000000a';
 const PROJECT = '18570000-0000-0000-0000-0000000000d1';
@@ -108,8 +108,7 @@ test('AC-DOC-CLI-012 documents create refuses bad input before any request', asy
       [['--category', 'Other', '--title', 'T'], 'project missing'],
       [['--project', 'nope', '--category', 'Other', '--title', 'T'], 'project not a uuid'],
       [['--project', PROJECT, '--title', 'T'], 'category missing'],
-      [['--project', PROJECT, '--category', 'Method Statement', '--title', 'T'], 'category outside the app list'],
-      [['--project', PROJECT, '--category', 'drawing', '--title', 'T'], 'category in another case'],
+      [['--project', PROJECT, '--category', 'x'.repeat(121), '--title', 'T'], 'category longer than a category name can be'],
       [['--project', PROJECT, '--category', 'Other', '--title', '  '], 'title blank'],
       [['--project', PROJECT, '--category', 'Other', '--title', 'T', '--date', '2026-02-30'], 'impossible date'],
       [['--project', PROJECT, '--category', 'Other', '--title', 'T', '--file', '/no/such/file.pdf'], 'missing file'],
@@ -334,14 +333,21 @@ test('AC-DOC-CLI-022 the file size is checked before the file is read', async ()
   } finally { await s.close(); }
 });
 
-test('AC-DOC-CLI-023 --category accepts exactly the app list, which the app reads from the same file', async () => {
-  const shared = JSON.parse(fs.readFileSync(path.join(root, 'pmo-portal/src/lib/documentCategories.json'), 'utf8'));
-  assert.match(fs.readFileSync(path.join(root, 'pmo-portal/src/lib/documentCategories.ts'), 'utf8'), /from '\.\/documentCategories\.json'/);
+test('AC-DCV-017 --category is not checked against a fixed list: any name goes to the database, which resolves it against the organisation\'s categories', async () => {
   const s = await fake({ 'GET /rest/v1/projects': PROJECT_FOUND });
   try {
-    for (const category of shared) {
+    // a custom name and a different case both reach the preview; nothing here decides whether the category exists
+    for (const category of ['Commercial approval', 'drawing', 'Method Statement']) {
       const r = await cli(['documents', 'create', '--project', PROJECT, '--category', category, '--title', 'T'], s);
       assert.equal(r.code, 0, `${category}: ${r.err}`);
+      assert.equal(r.json.document.category, category);
     }
   } finally { await s.close(); }
+});
+
+test('AC-DCV-017 a created entry the database filed under Other says so; one filed as asked adds no note', async () => {
+  assert.equal(categoryResolutionNote('Commercial approval', { category: 'Commercial approval' }), null);
+  assert.equal(categoryResolutionNote('drawing', { category: 'Drawing' }), null, 'the database matches case-insensitively');
+  assert.match(categoryResolutionNote('Method Statement', { category: 'Other' }), /not one of this organisation's document categories.*"Other"/);
+  assert.equal(categoryResolutionNote('Anything', {}), null, 'no row category, nothing to compare');
 });

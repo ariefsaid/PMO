@@ -1306,7 +1306,8 @@
     "fieldCategory": "Kategori",
     "fieldRevision": "Revisi",
     "revisionPlaceholder": "mis. B",
-    "fieldDate": "Tanggal dokumen"
+    "fieldDate": "Tanggal dokumen",
+    "categoryLocked": "Revisi tetap berada di kategori dokumen yang direvisinya."
   },
   "fileCell": {
     "progress": "Progres unggah untuk {{title}}",

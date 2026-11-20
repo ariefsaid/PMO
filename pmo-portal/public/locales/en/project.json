@@ -1306,7 +1306,8 @@
     "fieldCategory": "Category",
     "fieldRevision": "Revision",
     "revisionPlaceholder": "e.g. B",
-    "fieldDate": "Document date"
+    "fieldDate": "Document date",
+    "categoryLocked": "A revision stays in the category of the document it revises."
   },
   "fileCell": {
     "progress": "Upload progress for {{title}}",

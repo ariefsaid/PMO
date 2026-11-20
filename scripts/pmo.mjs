@@ -66,7 +66,7 @@ import { TmOutcomeUnknown, assembleClaim, claimSources, deselectSources, explain
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
 import { BID_OUTCOMES, LOST_REASONS, planBidOutcome } from './lib/pmo-bids.mjs';
-import { DOCUMENT_BUCKET, DOCUMENT_WRITE_TABLES, checkFile, planEntry, storagePath, uploadRefusal } from './lib/pmo-documents.mjs';
+import { DOCUMENT_BUCKET, DOCUMENT_WRITE_TABLES, categoryResolutionNote, checkFile, planEntry, storagePath, uploadRefusal } from './lib/pmo-documents.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
 
@@ -1421,9 +1421,12 @@ async function documentCreate(ctx, flags) {
   const creds = requireSession(ctx);
   const created = await authed(ctx, 'POST', '/rest/v1/project_documents', { headers: { prefer: 'return=representation' }, body: { ...entry, author_id: creds.user?.id ?? null } });
   const document = Array.isArray(created) ? created[0] : created;
-  if (!upload) return { dry_run: false, document, file: null };
+  // the database resolves the name against the organisation's live categories; say so when it fell back to Other (#2579)
+  const note = categoryResolutionNote(entry.category, document);
+  const extra = note ? { category_note: note } : {};
+  if (!upload) return { dry_run: false, document, file: null, ...extra };
   try {
-    return { dry_run: false, document, file: await storeDocumentFile(ctx, document.id, upload, document) };
+    return { dry_run: false, document, file: await storeDocumentFile(ctx, document.id, upload, document), ...extra };
   } catch (e) {
     // the entry exists: name it, so the next step finishes it instead of creating a second one
     throw new CliError(`The entry was created (${document.id}) but its file was not stored: ${e.message} Finish with: pmo documents upload ${document.id} <file> --confirm`,
