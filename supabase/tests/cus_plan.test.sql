@@ -4,7 +4,7 @@
 -- AC-CUS-011 who may plan · AC-CUS-012 other organisation · AC-CUS-014 added line item rules · FR-CUS-010 "no standard".
 begin;
 create extension if not exists pgtap;
-select plan(49);
+select plan(50);
 
 insert into organizations (id, name) values
   ('25770000-0000-0000-0000-00000000020a', 'CUSP Org A'),
@@ -204,6 +204,10 @@ select throws_like($$ select public.cus_get_plan('25770000-0000-0000-0000-000000
 select throws_like($$ select public.cus_adjust_plan_line('25770000-0000-0000-0000-000000002401', '25770000-0000-0000-0000-000000002315', 5, 'x') $$,
   'CUS_NOT_FOUND:%', 'AC-CUS-012 another organisation cannot adjust a plan');
 select is((select count(*)::int from work_order_consumable_plan_lines), 0, 'AC-CUS-012 another organisation reads no plan line');
+
+-- ── index coverage ────────────────────────────────────────────────────────────
+select has_index('public', 'work_order_consumable_plan_lines', 'work_order_consumable_plan_lines_adjusted_by_idx',
+  array['adjusted_by'], 'work_order_consumable_plan_lines indexes adjusted_by');
 
 select * from finish();
 rollback;

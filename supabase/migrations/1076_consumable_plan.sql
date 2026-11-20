@@ -33,6 +33,7 @@ create table public.work_order_consumable_plan_lines (
 );
 create index work_order_consumable_plan_lines_wo_idx on public.work_order_consumable_plan_lines (work_order_id);   -- NFR-CUS-004
 create index work_order_consumable_plan_lines_item_idx on public.work_order_consumable_plan_lines (item_id);
+create index work_order_consumable_plan_lines_adjusted_by_idx on public.work_order_consumable_plan_lines (adjusted_by);
 create trigger work_order_consumable_plan_lines_stamp_org_id before insert on public.work_order_consumable_plan_lines
   for each row execute function public.stamp_org_id();
 
