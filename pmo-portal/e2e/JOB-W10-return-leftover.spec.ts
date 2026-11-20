@@ -27,6 +27,9 @@ test('JOB-W10 returning 4 leftover units puts them back in the warehouse', async
   await page.getByRole('button', { name: 'Post return' }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 
+  const ledger = await admin.from('stock_ledger').select('kind,qty_delta').eq('item_id', item.id);
+  expect(ledger.data?.map((e) => `${e.kind}:${Number(e.qty_delta)}`).sort(), 'the return is on the ledger').toContain('return:4');
+
   await page.goto('/stock');
   await page.getByPlaceholder('Search items').fill(item.code);
   await expect(page.getByRole('row').filter({ hasText: item.code }).filter({ hasText: site.name })).toContainText('10');

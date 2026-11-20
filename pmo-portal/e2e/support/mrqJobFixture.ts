@@ -45,8 +45,8 @@ export async function sendForApproval(page: import('@playwright/test').Page) {
   const send = page.getByRole('button', { name: 'Send for approval' });
   const reason = page.getByLabel(/why do you need more than the plan/i);
   await send.click();
-  if (await reason.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true, () => false) && !(await reason.inputValue()) && await send.isEnabled()) {
+  if (await reason.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true, () => false) && !(await reason.inputValue())) {
     await reason.fill('Extra for the slab');
-    await send.click();
+    if (await send.isEnabled()) await send.click();
   }
 }

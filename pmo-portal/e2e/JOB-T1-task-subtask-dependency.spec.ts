@@ -46,7 +46,9 @@ test('JOB-T1 a project manager adds a task, a subtask with another assignee, and
   await afterRow.getByRole('button', { name: 'Row actions' }).click();
   await page.getByRole('menuitem', { name: /^edit$/i }).click();
   const dialog = page.getByRole('dialog');
-  await pickComboboxOption(dialog, page, /add a dependency/i, new RegExp(parent));
+  await dialog.getByRole('combobox', { name: /add a dependency/i }).click();
+  await page.getByRole('option', { name: new RegExp(parent) }).click();
+  await expect(dialog.getByRole('listitem').filter({ hasText: parent })).toBeVisible();
   await dialog.getByRole('button', { name: /save task/i }).click();
   await expect(dialog).toBeHidden({ timeout: 15_000 });
 
