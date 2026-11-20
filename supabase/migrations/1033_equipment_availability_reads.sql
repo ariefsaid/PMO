@@ -1,7 +1,7 @@
--- 0986_equipment_availability_reads.sql — #2526 slice 2b: downtime runs, the availability/utilisation read model,
+-- 1033_equipment_availability_reads.sql — #2526 slice 2b: downtime runs, the availability/utilisation read model,
 -- and the escalation job. Spec FR-EAV-006/009/010/011/012; AC-EAV-001..004, 011. Proven by equipment_status.test.sql.
 -- Mirrors pmo-portal/src/lib/equipmentMetrics.ts (the pure oracle; the pgTAP hand-calculated month agrees with its test).
--- Reverse: rollback/0986_equipment_availability_reads_down.sql
+-- Reverse: rollback/1033_equipment_availability_reads_down.sql
 
 -- A downtime period starts at the first down status after a non-down (or no) status and ends at the first later
 -- ready/standby status (FR-EAV-006). It is derived, never stored, so editing a status can never orphan a period.
