@@ -177,6 +177,10 @@ select set_eq(
             -- the only DAL embed of the table is from incoming_payments (revenue.ts, no profiles embed); nothing embeds
             -- profiles from it. Whatever ships first MUST qualify it with !constraint_name.
             ('incoming_payment_allocations -> profiles'),
+            -- 0961 (#1572): retention_releases carries created_by AND released_by -> auth.users. CHECKED BEFORE ADDING:
+            -- the only DAL read (src/lib/db/billingStages.ts listRetentionReleases) embeds nothing; whatever embeds users
+            -- from it MUST qualify with !constraint_name.
+            ('retention_releases -> users'),
             -- 0997 (#2519): work_order_plan_lines carries created_by AND updated_by -> profiles. CHECKED BEFORE ADDING:
             -- the only DAL read (workOrderFinance.ts) selects plain columns, no profiles embed. Whatever ships first
             -- MUST qualify it with !constraint_name.

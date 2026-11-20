@@ -29,6 +29,9 @@ import ProgressAssessmentModal from '../ProgressAssessmentModal';
 import ProgressClaimModal from '../ProgressClaimModal';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
 import { ClaimEvidenceList } from './ClaimEvidenceList';
+import { ClaimBillingStages } from './ClaimBillingStages';
+import { BillingReconciliation } from './BillingReconciliation';
+import { BillingTermsModal } from './BillingTermsModal';
 import ProjectBillingStart from '../ProjectBillingStart';
 import TimeAndMaterials from '../TimeAndMaterials';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
@@ -107,6 +110,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   // #1512 S5: planned material per work item - Finance rank and above, or this project's own PM (PQ-7; RLS decides).
   const canSetAllowance = may('edit', 'materialAllowance', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId, viewOnly: realRole !== effectiveRole } });
   const [claimFormOpen, setClaimFormOpen] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
   const [assessOpen, setAssessOpen] = useState(false);
   const [contractLinesOpen, setContractLinesOpen] = useState(false);
   const [catalogueOpen, setCatalogueOpen] = useState(false);
@@ -549,11 +553,16 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       <CardHead
         level={2}
         className="text-base"
-        actions={
-          canBill && claimDataReady && !canStartInvoice && (
-            <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
-          )
-        }
+        actions={(may('edit', 'billingStage') || (canBill && claimDataReady && !canStartInvoice)) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {may('edit', 'billingStage') && (
+              <Button variant="outline" size="sm" onClick={() => setTermsOpen(true)}>{t('projectDetail.billing.terms.title', 'Billing terms')}</Button>
+            )}
+            {canBill && claimDataReady && !canStartInvoice && (
+              <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
+            )}
+          </div>
+        )}
       >
         {t('projectDetail.billing.claims.billingTitle', 'Billing claims')}
       </CardHead>
@@ -626,6 +635,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p>
         : <ClaimEvidenceList evidence={claimDetailFor.evidence} projectId={projectId} documents={documents.data ?? []} />}
     </section>
+    {claimDetailFor.kind === 'progress' && <ClaimBillingStages claimId={claimDetailFor.id} projectId={projectId} currency={currency}
+      invoiced={Boolean(claimDetailFor.invoice)} withdrawn={Boolean(claimDetailFor.withdrawn_at)} today={orgToday} />}
   </Drawer>;
 
   const timeAndMaterials = canViewMoney && <TimeAndMaterials projectId={projectId} projectManagerId={projectManagerId} currency={currency}
@@ -677,6 +688,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             {t('projectDetail.billing.boq.manage', 'Edit contract lines')}
           </Button>
           {may('view', 'rateCatalogue') && <Button variant="outline" size="sm" onClick={() => setCatalogueOpen(true)}>{t('rateCatalogue.title', 'Rate catalogue')}</Button>}
+          {may('edit', 'billingStage') && <Button variant="outline" size="sm" onClick={() => setTermsOpen(true)}>{t('projectDetail.billing.terms.title', 'Billing terms')}</Button>}
           {canStartInvoice && <Link
             className={buttonClasses('outline', 'sm')}
             to={`/finance/receivables?create=1&project=${encodeURIComponent(projectId)}`}
@@ -688,6 +700,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         <Drawer open={catalogueOpen} nestedOpen={catalogueImportOpen} width="lg" title={t('rateCatalogue.title', 'Rate catalogue')} onClose={() => setCatalogueOpen(false)}>
           {catalogueOpen && <RateCatalogue projectId={projectId} currency={currency} canWrite={may('create', 'rateCatalogue', { record: { viewOnly: realRole !== effectiveRole } })} onImportOpenChange={setCatalogueImportOpen} />}
         </Drawer>
+        {termsOpen && <BillingTermsModal projectId={projectId} onClose={() => setTermsOpen(false)} />}
         <Drawer open={contractLinesOpen} nestedOpen={Boolean(boqDetailFor)} width="lg" title={t('projectDetail.billing.boq.title', 'Bill of quantities')}
           initialFocus={() => {
             if (!focusImportOnReopen.current) return true;
@@ -808,6 +821,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         </>
       )}
 
+      {canViewMoney && <BillingReconciliation projectId={projectId} workOrderId={null} currency={currency} />}
+
       {timeAndMaterials}
 
       {importOpen && <ImportWizard descriptor={boqImportDescriptor} onClose={closeImport} />}
@@ -822,6 +837,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={orgToday.slice(0, 7)}
           onClose={() => setAssessOpen(false)} onSave={saveAssessment} onError={fail} />
       )}
+      {termsOpen && <BillingTermsModal projectId={projectId} onClose={() => setTermsOpen(false)} />}
       {claimFormOpen && (
         <ProgressClaimModal sources={claimSources.map(({ query, name }) => ({ name,
           pending: query.isPending || (!query.isError && query.data == null), error: query.isError, retry: () => { void query.refetch(); } }))}

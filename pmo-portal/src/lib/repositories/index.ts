@@ -50,6 +50,7 @@ import {
   externalDomainOwnershipRepository,
 } from './admin';
 import { taskRepository } from './tasks';
+import { billingStagesRepository } from './billingStages';
 import { commentRepository } from './comments';
 import { meetingRepository } from './meetings';
 import { incidentRepository } from './incidents';
@@ -122,6 +123,7 @@ export const repositories: Repositories = {
   workOrder: workOrderRepository,
   progressBilling: progressBillingRepository,
   rateCatalogue: rateCatalogueRepository,
+  billingStages: billingStagesRepository,
   stock: stockRepository,
   workOrderAcceptance: workOrderAcceptanceRepository,
   procurementFiles: procurementFilesRepository,

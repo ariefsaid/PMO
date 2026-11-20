@@ -124,10 +124,15 @@
 -- ⚑ AMENDED BY 0731 (#1415): `record_native_on_account_receipt`, `apply_native_receipt` and `unapply_native_allocation` join (+3). Finance/Admin-gated
 -- SECURITY DEFINER writers under a member's JWT (membership, role, org re-asserted; anon/PUBLIC revoked), proven by 0731_payment_allocation_*.test.sql.
 -- ⚑ AMENDED BY 0765 (#1507 S6): `switch_odoo_ledger_basis` joins (+1). Active-Admin writer under a member's JWT; anon/PUBLIC revoked; proved by odoo_ledger_basis.test.sql.
--- Current retained set: 177 names after 0924 (+1), 0887 (#895, +6), 0885 (#1671, +1), 0910 (+1), 0907 (#564, +1), 0858 (+2), #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3), 0704 (#1817, +1), 0792 (#1413, +2) and 0854 (#1511 F3, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
+-- Current retained set: 189 names after 0960/0961 (+10), 0951/0972 (+2), 0924 (+1), 0887 (#895, +6), 0885 (#1671, +1), 0910 (+1), 0907 (#564, +1), 0858 (+2), #1507 S6, #1505, #1813, #1514 D1, #1472 S6B, 0731 (+3), 0704 (#1817, +1), 0792 (#1413, +2) and 0854 (#1511 F3, +1), including #1462's archive inventory read; 0685 adds request_financial_statement_refresh (Refresh now).
 -- ⚑ AMENDED BY 0910 (#1599 ECX-3): `request_company_defaults` joins the retained set (+1). A SECURITY DEFINER writer under a
 -- member's JWT: it re-asserts active membership, org and Admin/Finance and checks every choice against the mirrors; proven by
 -- supabase/tests/erp_company_defaults.test.sql. The other 0910 functions are service-role-only or internal.
+-- ⚑ AMENDED BY 0960/0961 (#2522, #1572): `set_billing_stage_template`, `set_project_invoice_deadline`, `attach_billing_stage_document`,
+-- `note_billing_stage`, `complete_billing_stage`, `set_project_retention`, `schedule_retention_release`, `release_retention` and
+-- `cancel_retention_release`, and `set_project_billing_terms` join (+10). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership, role
+-- (Admin/Finance, or Project Manager for stage recording) and the caller's org; proved by supabase/tests/0960_billing_stages.test.sql
+-- and supabase/tests/0961_retention.test.sql.
 -- ⚑ AMENDED BY 0924: `create_native_progress_claim_invoice` joins (+1, count 177 on dev's 176). SECURITY DEFINER writer under a member's JWT: re-asserts active
 -- membership, Admin / Finance, the org's own claim and that no ERP owns revenue; proved by supabase/tests/0924_native_progress_claim_invoice.test.sql.
 -- ⚑ AMENDED BY 0704 (#1817): `create_native_tm_invoice` joins (+1). SECURITY DEFINER writer under a member's JWT: re-asserts active membership,
@@ -284,7 +289,7 @@ select plan(7);
 -- not recorded. Proven by supabase/tests/three_way_match.test.sql and three_way_match_mutation.test.sql. `get_bill_match`
 -- is a read-only definer and is not listed.
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
--- The union of the dev and work-order finance RPC inventories contains 194 retained names.
+-- 204 retained names (union of dev, work-order finance and billing-stage RPC inventories).
 insert into client_callable_rpc_names (proname) values
   ('set_document_warning_days'), -- 0972: active Admin, scoped to caller org; document_expiry pgTAP
   ('accept_connect_proposals'),
@@ -307,6 +312,16 @@ insert into client_callable_rpc_names (proname) values
   ('approve_equipment_usage_week'),
   ('archive_equipment_usage'),
   ('attach_claim_evidence'),
+  ('attach_billing_stage_document'),  -- ⚑ AMENDED BY 0960 (#2522)
+  ('note_billing_stage'),  -- ⚑ AMENDED BY 0960
+  ('complete_billing_stage'),  -- ⚑ AMENDED BY 0960
+  ('set_billing_stage_template'),  -- ⚑ AMENDED BY 0960
+  ('set_project_invoice_deadline'),  -- ⚑ AMENDED BY 0960
+  ('set_project_retention'),  -- ⚑ AMENDED BY 0961 (#1572)
+  ('set_project_billing_terms'),  -- Atomic project terms (#2522)
+  ('schedule_retention_release'),  -- ⚑ AMENDED BY 0961
+  ('release_retention'),  -- ⚑ AMENDED BY 0961
+  ('cancel_retention_release'),  -- ⚑ AMENDED BY 0961
   ('create_record_only_journal_purchase'), -- 0858: active Admin and org scoped; 2195 pgTAP
   ('undo_captured_purchase'), -- 0858: active Admin and org scoped; 2195 pgTAP
   ('attach_erp_journal_lines'),  -- 0687: Admin/Exec/PM/Finance, org from the session; 0687 pgTAP
@@ -501,8 +516,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  194,
-  'AC-ACL-002 all 194 retained client-callable RPC names still have a public function');
+  204,
+  'AC-ACL-002 all 204 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -511,8 +526,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  194,
-  'AC-ACL-003 all 194 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  204,
+  'AC-ACL-003 all 204 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
