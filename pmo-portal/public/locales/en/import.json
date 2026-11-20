@@ -11,7 +11,11 @@
     "equipment": "equipment",
     "equipmentOne": "equipment asset",
     "people": "people",
-    "person": "person"
+    "person": "person",
+    "crews": "crews",
+    "crew": "crew",
+    "crewMembers": "crew members",
+    "crewMember": "crew member"
   },
   "wizard": {
     "title": "Import {{entity}}",
@@ -238,6 +242,56 @@
       "codeLong": "Employee code is too long.",
       "name": "Display name is required.",
       "nameLong": "Display name is too long."
+    }
+  },
+  "crewImport": {
+    "code": "Crew code",
+    "name": "Name",
+    "kind": "Crew type",
+    "vendor": "Vendor",
+    "discipline": "Discipline",
+    "controller": "Field controller",
+    "roles": "Standard roles",
+    "codeHint": "Your own code for the crew. Each live crew has its own code.",
+    "kindHint": "own or vendor. Blank means own.",
+    "vendorHint": "Required for a vendor crew: the name of an existing company.",
+    "controllerHint": "The name of an existing user.",
+    "rolesHint": "Optional. Role name and headcount, e.g. Welder=2; Fitter=3.",
+    "alreadyThere": "A live crew with this code already exists.",
+    "error": {
+      "code": "Crew code is required.",
+      "codeLong": "Crew code is too long.",
+      "name": "Name is required.",
+      "nameLong": "Name is too long.",
+      "kind": "Crew type must be own or vendor.",
+      "rolesHeadcount": "Each role headcount must be a whole number from 1 to 500.",
+      "rolesLong": "A role name is too long (60 characters at most).",
+      "rolesRepeat": "A role name is listed twice.",
+      "rolesFormat": "Standard roles must read like Welder=2; Fitter=3.",
+      "vendorNeeded": "A vendor crew needs its vendor company.",
+      "vendorNotAllowed": "An own-staff crew has no vendor company.",
+      "repeat": "This crew code already appears in row {n}."
+    }
+  },
+  "crewMemberImport": {
+    "crew": "Crew code",
+    "worker": "Person",
+    "role": "Standard role",
+    "from": "From",
+    "to": "To",
+    "crewHint": "The code of a live crew.",
+    "workerHint": "The person's code or name, as in the people register.",
+    "roleHint": "Optional. One of the crew's standard roles.",
+    "toHint": "Optional. Leave blank for no end date.",
+    "alreadyThere": "This person is already placed in this crew from this date.",
+    "error": {
+      "date": "Dates are written year-month-day, e.g. 2026-01-31.",
+      "required": "Required.",
+      "fromNeeded": "From is required.",
+      "role": "This is not one of the crew's standard roles.",
+      "endBefore": "To is before From.",
+      "overlapInFile": "This person is already placed on overlapping dates in row {n}.",
+      "overlap": "These dates overlap another placement of this person. End that one first."
     }
   }
 }

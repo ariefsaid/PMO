@@ -355,7 +355,7 @@ const ApprovalsPage: React.FC = () => {
                   items={procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, row }))}
                   selectedKey={selectedKey}
                   onSelect={pickItem}
-                  isPending={procPending || (activeScope === 'all' && allScopePending && procurementRows.length === 0)}
+                  isPending={procPending}
                   isError={procError}
                   onRetry={() => refetchProc()}
                   emptyTitle={t(
@@ -374,7 +374,7 @@ const ApprovalsPage: React.FC = () => {
                   items={timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, row }))}
                   selectedKey={selectedKey}
                   onSelect={pickItem}
-                  isPending={tsPending || (activeScope === 'all' && allScopePending && timesheetRows.length === 0)}
+                  isPending={tsPending}
                   isError={tsError}
                   onRetry={() => refetchTimesheets()}
                   emptyTitle={t(

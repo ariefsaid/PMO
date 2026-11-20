@@ -91,6 +91,7 @@ describe('useMyTasks excludes tombstoned rows (C5c)', () => {
         end_date: null,
         priority: null,
         archived_at: null,
+        work_order_name: null, // #2531: a task with no work order maps to null
       },
     ]);
   });

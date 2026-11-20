@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render as testingRender, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { Link, MemoryRouter, useLocation } from 'react-router';
+import { setOrgTerms } from '@/src/lib/i18n/orgTerms';
 import { ImportWizard } from '../ImportWizard';
 import type { ImportDescriptor } from '@/src/lib/import';
 
@@ -55,6 +56,38 @@ describe('ImportWizard', () => {
         ['Unmatched project with a deliberately long name that exceeds the cell clamp', 'Partner'], // invalid: unmatched name + bad enum
       ],
     });
+  });
+
+  afterEach(() => setOrgTerms({}));
+  it('renames a flagged app entity in the wizard title', () => {
+    setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
+    const custom = { ...descriptor, entity: 'Projects', entityIsAppCopy: true } as unknown as ImportDescriptor<Co>;
+    render(<ImportWizard descriptor={custom} onClose={vi.fn()} />);
+    expect(screen.getByText('Import jobs')).toBeInTheDocument();
+  });
+  it('uses singular terminology for the one-row import action', async () => {
+    setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({ headers: ['Company name', 'Type'], rows: [['Project Phoenix', 'Client']] });
+    const custom = { ...descriptor, entity: 'Projects', entityDisplayOne: 'project', entityIsAppCopy: true } as unknown as ImportDescriptor<Co>;
+    const user = userEvent.setup();
+    render(<ImportWizard descriptor={custom} onClose={vi.fn()} />);
+    await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
+    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    expect(await screen.findByRole('button', { name: /import 1 job/i })).toBeEnabled();
+  });
+
+  it('renames app field labels without changing imported column headers or cell values', async () => {
+    setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({ headers: ['Project', 'Type'], rows: [['Project Phoenix', 'Client']] });
+    const custom = { ...descriptor, fields: [{ key: 'name', label: 'Project', labelIsAppCopy: true, required: true, validate: () => null }, descriptor.fields[1]] } as unknown as ImportDescriptor<Co>;
+    const user = userEvent.setup();
+    render(<ImportWizard descriptor={custom} onClose={vi.fn()} />);
+    await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
+    expect(await screen.findByText('Job')).toBeInTheDocument();
+    expect(screen.getAllByRole('option', { name: 'Project' })).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    expect(await screen.findByText('Project Phoenix')).toBeInTheDocument();
   });
 
   // Decision (ADR-0027): the wizard is a dedicated portal dialog (role="dialog" aria-modal)

@@ -30,5 +30,6 @@ export { makeContractLineImportDescriptor, type ContractLineImportInput } from '
 export { makeStockItemImportDescriptor, makeStockLocationImportDescriptor } from './stockItemDescriptor';
 export { makeEquipmentImportDescriptor, type EquipmentImportInput } from './equipmentDescriptor';
 export { makePeopleImportDescriptor } from './employeeDescriptor';
+export { makeCrewImportDescriptor, makeCrewMemberImportDescriptor, type CrewImportInput } from './crewDescriptor';
 export { buildTemplateWorkbook } from './templateFile';
 export { buildFailedRowsWorkbook } from './failedRowsFile';

@@ -13,6 +13,7 @@ import { useDocuments } from '@/src/hooks/useDocuments';
 import type { SubcontractAcceptanceWithLines, SubcontractCapExceptionRow, SubcontractPoPositionRow } from '@/src/lib/db/subcontracts';
 import SubcontractAcceptanceModal from './SubcontractAcceptanceModal';
 import { SubcontractLinesEditor, SubcontractAttributeModal } from './SubcontractLinesEditor';
+import { ProjectDocumentLink } from '@/src/components/documents/targets/ProjectDocumentLink';
 import PoVariationModal from './PoVariationModal';
 import { PoVariationsList } from './PoVariationsList';
 
@@ -247,14 +248,13 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
               <ul className="flex flex-col gap-1.5">
                 {(acceptances.data ?? []).map((a) => {
                   const isDraft = a.status === 'Draft';
-                  const doc = (documents.data ?? []).find((d) => d.id === a.document_id);
                   return (
                     <li key={a.id} className="flex flex-col gap-1 rounded-md border border-border p-2 text-sm">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold tabular">{formatDay(a.acceptance_date)}</span>
                         <StatusPill record="acceptance" state={a.status} />
                         <span className="text-sm text-muted-foreground">
-                          {doc ? t('subcontract.acceptance.document', 'Signed document: {{title}}', { title: doc.title })
+                          {a.document_id ? <>{t('subcontract.acceptance.documentLabel', 'Signed document:')} <ProjectDocumentLink documentId={a.document_id} documents={documents.data ?? []} /></>
                             : t('subcontract.acceptance.noDocument', 'No signed document linked')}
                         </span>
                         {a.status === 'Confirmed' && a.confirm_basis === 'sole_operator' && (

@@ -3,7 +3,7 @@
 -- 21-23 broken, 24-30 ready, approved work 80 h  =>  27/30 = 90.0 % available, 80 / (27 x 8) = 37.0 % utilised.
 begin;
 create extension if not exists pgtap;
-select plan(37);
+select plan(49);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25260000-0000-0000-0000-00000000000a', 'EAV Org A', 'IDR', 'UTC'),
@@ -54,6 +54,9 @@ select '25260000-0000-0000-0000-00000000000a', a, '25260000-0000-0000-0000-00000
 insert into equipment_usage_entries (org_id, asset_id, project_id, work_date, quantity, unit, kind, status, author_id)
 values ('25260000-0000-0000-0000-00000000000a', '25260000-0000-0000-0000-0000000000d1', '25260000-0000-0000-0000-0000000000c1', '2026-09-16', 8, 'hours', 'work', 'Submitted', '25260000-0000-0000-0000-0000000000a6');
 
+insert into equipment_usage_entries (org_id, asset_id, project_id, work_date, quantity, unit, kind, status, author_id, approver_id, approved_at)
+values ('25260000-0000-0000-0000-00000000000a', '25260000-0000-0000-0000-0000000000d5', '25260000-0000-0000-0000-0000000000c1', '2026-09-02', 8, 'hours', 'work', 'Approved', '25260000-0000-0000-0000-0000000000a6', '25260000-0000-0000-0000-0000000000a3', now());
+
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
 $$;
@@ -80,12 +83,16 @@ select is((select utilisation_pct from equipment_metrics(array['25260000-0000-00
 select is((select pending_usage_entries from equipment_metrics(array['25260000-0000-0000-0000-0000000000d1']::uuid[], '2026-09-01', '2026-09-30', 'month')),
   1, 'AC-EAV-011 a Submitted entry is reported as pending, not counted');
 
+select is((select utilisation_pct from equipment_metrics(array['25260000-0000-0000-0000-0000000000d5']::uuid[], '2026-09-01', '2026-09-03', 'month')), null::numeric,
+  'AC-EAV-002 unrecorded days have no utilisation');
+
 -- ── AC-EAV-005 status dates ──
 select pg_temp.act_as('25260000-0000-0000-0000-0000000000a6');   -- Engineer (field role) sets status
 select throws_ok($$ select set_equipment_status('25260000-0000-0000-0000-0000000000d6', current_date + 1, 'ready') $$,
   '22023', 'the status date is in the future', 'AC-EAV-005 a future date is refused');
 select pg_temp.act_as('25260000-0000-0000-0000-0000000000a1');
 select lives_ok($$ select set_equipment_ownership('25260000-0000-0000-0000-0000000000d6', 'owned', '2026-09-10') $$, 'an in-service date is recorded');
+select throws_ok($$ select set_equipment_ownership('25260000-0000-0000-0000-0000000000d6', 'rented') $$, '22023', 'a rented asset needs a rental period', 'FR-EAV-001 rented ownership requires terms');
 select pg_temp.act_as('25260000-0000-0000-0000-0000000000a6');
 select throws_ok($$ select set_equipment_status('25260000-0000-0000-0000-0000000000d6', '2026-09-09', 'ready') $$,
   '22023', 'the status date precedes the asset''s in-service date', 'AC-EAV-005 a date before in-service is refused');
@@ -95,6 +102,9 @@ select is((select count(*)::int from equipment_status_history where asset_id = '
   'FR-EAV-004 both writes are kept in history');
 select is((select actor_id from equipment_status_history where asset_id = '25260000-0000-0000-0000-0000000000d6' order by id desc limit 1),
   '25260000-0000-0000-0000-0000000000a6'::uuid, 'FR-EAV-004 history records the actor');
+select pg_temp.act_as('25260000-0000-0000-0000-0000000000a1');
+select throws_ok($$ select set_equipment_ownership('25260000-0000-0000-0000-0000000000d6', 'owned', '2026-09-11') $$, '22023', 'in-service date follows an existing status', 'AC-EAV-005 moving in-service date after status is refused');
+select pg_temp.act_as('25260000-0000-0000-0000-0000000000a6');
 select is(set_equipment_status_bulk('2026-09-11', '[{"asset_id":"25260000-0000-0000-0000-0000000000d6","status":"ready"},{"asset_id":"25260000-0000-0000-0000-0000000000d7","status":"standby"}]'::jsonb),
   2, 'FR-EAV-008 the bulk screen saves several assets in one call');
 -- proof attaches to a down day only
@@ -102,6 +112,19 @@ select is((add_equipment_downtime_proof('25260000-0000-0000-0000-0000000000d6', 
   true, 'FR-EAV-007 a proof on a down day returns its storage path');
 select throws_ok($$ select add_equipment_downtime_proof('25260000-0000-0000-0000-0000000000d6', '2026-09-11', 'x.jpg') $$,
   '22023', 'proof attaches to a down day', 'FR-EAV-007 a proof on a ready day is refused');
+
+select lives_ok($$ insert into storage.objects (bucket_id, name)
+  select 'equipment-proof', file_path from equipment_downtime_proofs where asset_id = '25260000-0000-0000-0000-0000000000d6' $$,
+  'AC-EAV-013 the field controller can upload the registered proof');
+
+create function pg_temp.proof_after_upload() returns boolean language plpgsql as $$
+declare result boolean;
+begin
+  execute $q$ select proven from public.list_equipment_proofs(array['25260000-0000-0000-0000-0000000000d6']::uuid[], '2026-09-10') $q$ into result;
+  return result;
+exception when undefined_function then return null;
+end $$;
+select is(pg_temp.proof_after_upload(), true, 'AC-EAV-013 uploaded evidence is visible as proven');
 
 -- ── AC-EAV-006 / 007 rental periods ──
 select pg_temp.act_as('25260000-0000-0000-0000-0000000000a2');   -- Finance edits terms
@@ -132,10 +155,41 @@ select is(run_equipment_downtime_escalations('2026-09-24'), 0, 'AC-EAV-003 a rer
 select is((select count(*)::int from notifications where title = 'Equipment down more than 2 days'), 2, 'AC-EAV-003 no notice is repeated the same day');
 select is(run_equipment_downtime_escalations('2026-09-29'), 0, 'FR-EAV-010 an asset with no status for the last day is not escalated');
 
+insert into equipment_status_days (org_id, asset_id, status_date, status) values
+ ('25260000-0000-0000-0000-00000000000a', '25260000-0000-0000-0000-0000000000d7', '2026-09-20', 'broken'),
+ ('25260000-0000-0000-0000-00000000000a', '25260000-0000-0000-0000-0000000000d7', '2026-09-22', 'broken'),
+ ('25260000-0000-0000-0000-00000000000a', '25260000-0000-0000-0000-0000000000d7', '2026-09-23', 'broken');
+select is((select count(*)::int from equipment_downtime_escalations('25260000-0000-0000-0000-00000000000a', '2026-09-23') where asset_id = '25260000-0000-0000-0000-0000000000d7'), 0,
+  'AC-EAV-004 nonconsecutive down days do not escalate');
+
+select is(has_table_privilege('authenticated', 'public.equipment_status_days', 'INSERT'), false, 'AC-EAV-012 no direct status insert grant');
+select is(has_table_privilege('authenticated', 'public.equipment_rental_terms', 'UPDATE'), false, 'AC-EAV-012 no direct rental update grant');
+select is((select count(*)::int from pg_policies where schemaname = 'public' and tablename in ('equipment_status_days','equipment_status_history','equipment_rental_terms','equipment_downtime_proofs') and cmd = 'SELECT'), 4, 'AC-EAV-012 each readable table has an RLS policy');
+
+insert into equipment_assets (id, org_id, code, name, default_unit, archived_at) values
+  ('25260000-0000-0000-0000-0000000000d8', '25260000-0000-0000-0000-00000000000a', 'EAV-8', 'Zoned', 'hours', '2026-09-01 20:00:00+00');
+insert into equipment_status_days (org_id, asset_id, status_date, status) values
+  ('25260000-0000-0000-0000-00000000000a', '25260000-0000-0000-0000-0000000000d8', '2026-09-01', 'ready');
+update organizations set default_timezone = 'Asia/Jakarta' where id = '25260000-0000-0000-0000-00000000000a';
+set local role authenticated;
+select pg_temp.act_as('25260000-0000-0000-0000-0000000000a3');
+select is((select in_service_days from equipment_metrics(array['25260000-0000-0000-0000-0000000000d8']::uuid[], '2026-09-01', '2026-09-02', 'month')), 1, 'NFR-EAV-003 archive date follows the org calendar');
+reset role;
+update organizations set default_timezone = 'UTC' where id = '25260000-0000-0000-0000-00000000000a';
+
 -- ── AC-EAV-012 tenancy and role ──
 set local role authenticated;
 select pg_temp.act_as('25260000-0000-0000-0000-0000000000b1');   -- another organisation's Admin
 select is((select count(*)::int from equipment_status_days), 0, 'AC-EAV-012 another org reads no status rows');
+create function pg_temp.foreign_proof_count() returns integer language plpgsql as $$
+declare result integer;
+begin
+  execute $q$ select count(*)::int from public.list_equipment_proofs(array['25260000-0000-0000-0000-0000000000d6']::uuid[], '2026-09-10') $q$ into result;
+  return result;
+exception when undefined_function then return -1;
+end $$;
+select is(pg_temp.foreign_proof_count(), 0, 'AC-EAV-012 another org cannot read proof status');
+select is(coalesce(has_function_privilege('anon', to_regprocedure('public.list_equipment_proofs(uuid[],date)'), 'EXECUTE'), false), false, 'AC-EAV-012 anon cannot call proof status');
 select throws_ok($$ select set_equipment_status('25260000-0000-0000-0000-0000000000d1', '2026-09-30', 'ready') $$,
   'P0002', 'asset not found', 'AC-EAV-012 another org cannot write status on this asset');
 select pg_temp.act_as('25260000-0000-0000-0000-0000000000a6');   -- Engineer: status yes, terms and metrics no

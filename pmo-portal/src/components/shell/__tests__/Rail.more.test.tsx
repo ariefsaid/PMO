@@ -45,11 +45,11 @@ describe('Rail navigation groups', () => {
   beforeEach(() => localStorage.removeItem('shell.navigation.collapsedGroups'));
 
   it.each([
-    ['Executive', ['/approvals', '/', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest']],
-    ['Project Manager', ['/approvals', '/', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/my-tasks', '/sales', '/companies', '/contacts']],
-    ['Finance', ['/approvals', '/', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/expenses', '/imprest', '/my-tasks', '/sales', '/companies', '/contacts']],
-    ['Engineer', ['/', '/projects', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/my-tasks']],
-    ['Admin', ['/approvals', '/', '/projects', '/procurement', '/stock', '/equipment', '/incidents', '/meetings', '/calendar', '/sales', '/companies', '/contacts', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/timesheets', '/expenses', '/imprest', '/my-tasks']],
+    ['Executive', ['/approvals', '/', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/sales', '/companies', '/contacts', '/projects', '/procurement', '/stock', '/equipment', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/material-requests']],
+    ['Project Manager', ['/approvals', '/', '/projects', '/procurement', '/stock', '/equipment', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/imprest', '/material-requests', '/my-tasks', '/sales', '/companies', '/contacts']],
+    ['Finance', ['/approvals', '/', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/projects', '/procurement', '/stock', '/equipment', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/expenses', '/imprest', '/material-requests', '/my-tasks', '/sales', '/companies', '/contacts']],
+    ['Engineer', ['/', '/projects', '/stock', '/equipment', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/timesheets', '/expenses', '/material-requests', '/my-tasks']],
+    ['Admin', ['/approvals', '/', '/projects', '/procurement', '/stock', '/equipment', '/site-reports', '/crews', '/incidents', '/meetings', '/calendar', '/sales', '/companies', '/contacts', '/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/journals', '/timesheets', '/expenses', '/imprest', '/material-requests', '/my-tasks']],
   ] as const)('%s keeps its destination set, in the order that role works', (role, expectedHrefs) => {
     roleState.role = role;
     renderRail();

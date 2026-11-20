@@ -1,16 +1,21 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { FileInput } from '@/src/components/ui/FormFields';
-import { Button, ListPage, ListState, SelectField, TextField, useToast } from '@/src/components/ui';
+import { FileCell } from '@/src/components/FileCell';
+import { Button, Checkbox, ListPage, ListState, SelectField, StatusPill, TextField, useToast } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useEquipmentAssetPages } from '@/src/hooks/useEquipment';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import {
-  useAttachProof, useDowntimeFlags, useEquipmentMetrics, useRentalCheck, useSetStatusBulk, useStatusDays,
+  useAttachProof, useDowntimeFlags, useEquipmentMetrics, useEquipmentWorkingHours, useSetStatusBulk, useStatusDays, useLatestStatusDays, useEquipmentProofs,
 } from '@/src/hooks/useEquipmentAvailability';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { isDownStatus, type EquipmentStatus } from '@/src/lib/equipmentMetrics';
-import { monthStart, toIso } from './equipmentWeek';
+import { monthStart } from './equipmentWeek';
+import RentalInvoiceCheck from './RentalInvoiceCheck';
 
 const STATUSES: EquipmentStatus[] = ['ready', 'standby', 'broken', 'at_vendor', 'waiting_parts'];
 
@@ -25,28 +30,55 @@ function statusLabel(t: ReturnType<typeof useTranslation>['t'], s: EquipmentStat
   }
 }
 
+function ProofUpload({ code, onFile }: { code: string; onFile: (file: File | undefined) => void }) {
+  const { t } = useTranslation();
+  const input = React.useRef<HTMLInputElement>(null);
+  return <span className="[&_button]:text-control [&_svg]:size-4">
+    <FileCell status="Draft" filePath={null} title={code} onUpload={() => input.current?.click()} />
+    <FileInput ref={input} tabIndex={-1} className="sr-only" aria-label={t('equipment:availability.proofFor', 'Attach proof for {{code}}', { code })} accept="image/*,application/pdf" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; onFile(file); }} />
+  </span>;
+}
+
 /** Equipment → Availability (#2526): set today's status for every machine (phone-first), see availability and utilisation,
- *  and — for Finance — check a rented machine's downtime deduction against the vendor invoice. UX only; the RPCs enforce. */
+ *  with organisation-scoped terms and working hours. UX only; the RPCs enforce. */
 const EquipmentAvailabilityPage: React.FC = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
   const writeCtx = { record: { viewOnly: realRole !== effectiveRole } };
-  const today = toIso(new Date());
+  const timezone = useOrgBusinessTimezone();
+  const today = useOrgToday(timezone);
   const monthFrom = monthStart(today);
 
+  const [view, setView] = useState<'status' | 'check'>('status');
+  const canCheck = may('approve', 'equipmentAvailability', writeCtx);
+  const [chosenStatusDate, setStatusDate] = useState<string | null>(null);
+  const statusDate = chosenStatusDate ?? today;
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [uploadedProofs, setUploadedProofs] = useState<Set<string>>(() => new Set());
   const assets = useEquipmentAssetPages();
-  const rows = (assets.data?.pages ?? []).flatMap((p) => p.rows);
-  const status = useStatusDays(monthFrom, today);
+  const [assetPage, setAssetPage] = useState(0);
+  const pages = assets.data?.pages ?? [];
+  const rows = pages[assetPage]?.rows ?? [];
+  const nextPage = async () => {
+    if (assetPage + 1 < pages.length) { setAssetPage(assetPage + 1); setMetricAssets([]); return; }
+    const next = await assets.fetchNextPage();
+    if (next.data && next.data.pages.length > assetPage + 1) { setAssetPage(assetPage + 1); setMetricAssets([]); }
+  };
+  const queryDate = statusDate || today;
+  const status = useStatusDays(monthStart(queryDate), queryDate, rows.map((a) => a.id));
+  const latest = useLatestStatusDays(rows.map((a) => a.id), queryDate);
+  const proofStates = useEquipmentProofs(rows.map((a) => a.id), statusDate);
+  const provenAssets = new Set((proofStates.data ?? []).filter((p) => p.proven).map((p) => p.asset_id));
   const flags = useDowntimeFlags();
   const flagged = new Set((flags.data ?? []).map((f) => f.asset_id));
   const lastStatus = useMemo(() => {
     const m = new Map<string, EquipmentStatus>();
-    for (const s of status.data ?? []) m.set(s.asset_id, s.status);   // ordered by date: the last write wins
+    for (const s of latest.data ?? []) m.set(s.asset_id, s.status);
     return m;
-  }, [status.data]);
-  const todays = useMemo(() => new Map((status.data ?? []).filter((s) => s.status_date === today).map((s) => [s.asset_id, s.status])), [status.data, today]);
+  }, [latest.data]);
+  const todays = useMemo(() => new Map((status.data ?? []).filter((s) => s.status_date === statusDate).map((s) => [s.asset_id, s.status])), [status.data, statusDate]);
 
   const [draft, setDraft] = useState<Record<string, EquipmentStatus>>({});
   const [problem, setProblem] = useState<string | null>(null);
@@ -55,11 +87,13 @@ const EquipmentAvailabilityPage: React.FC = () => {
 
   const save = async () => {
     setProblem(null);
-    const items = Object.entries(draft).map(([asset_id, st]) => ({ asset_id, status: st }));
+    const items = Object.entries(draft).map(([asset_id, st]) => ({ asset_id, status: st, ...(notes[asset_id]?.trim() ? { note: notes[asset_id].trim() } : {}) }));
     if (items.length === 0) return;
     try {
-      await bulk.mutateAsync({ date: today, items });
+      await bulk.mutateAsync({ date: statusDate, items });
       setDraft({});
+      setNotes({});
+      setUploadedProofs((prior) => { const next = new Set(prior); for (const item of items) next.delete(`${item.asset_id}:${statusDate}`); return next; });
       toast(t('equipment:availability.saved', 'Status saved'), undefined, 'success');
     } catch (err) { setProblem(classifyMutationError(err).headline); }
   };
@@ -67,41 +101,46 @@ const EquipmentAvailabilityPage: React.FC = () => {
     if (!file) return;
     setProblem(null);
     try {
-      await proof.mutateAsync({ assetId, date: today, file });
+      await proof.mutateAsync({ assetId, date: statusDate, file });
+      setUploadedProofs((prior) => new Set(prior).add(`${assetId}:${statusDate}`));
       toast(t('equipment:availability.proofSaved', 'Proof attached'), undefined, 'success');
     } catch (err) { setProblem(classifyMutationError(err).headline); }
   };
 
   const canMetrics = may('view', 'equipmentCosting');
-  const metrics = useEquipmentMetrics(rows.slice(0, 200).map((a) => a.id), monthFrom, today, 'month', canMetrics && rows.length > 0);
-  const byAsset = new Map((metrics.data ?? []).map((m) => [m.asset_id, m]));
+  const [chosenMetricFrom, setMetricFrom] = useState<string | null>(null);
+  const [chosenMetricTo, setMetricTo] = useState<string | null>(null);
+  const metricFrom = chosenMetricFrom ?? monthFrom;
+  const metricTo = chosenMetricTo ?? today;
+  const [grain, setGrain] = useState<'day' | 'week' | 'month'>('month');
+  const [metricAssets, setMetricAssets] = useState<string[]>([]);
+  const [hours, setHours] = useState('');
+  const workingHours = useEquipmentWorkingHours();
+  const metrics = useEquipmentMetrics(metricAssets.length ? rows.filter((a) => metricAssets.includes(a.id)).map((a) => a.id) : rows.map((a) => a.id), metricFrom, metricTo, grain, canMetrics && rows.length > 0);
+  const byAsset = new Map(rows.map((a) => [a.id, a]));
 
-  const canCheck = may('approve', 'equipmentAvailability', writeCtx);
-  const rented = rows.filter((a) => (a as { ownership?: string }).ownership === 'rented');
-  const [checkAsset, setCheckAsset] = useState('');
-  const [from, setFrom] = useState(monthFrom);
-  const [to, setTo] = useState(today);
-  const [invoice, setInvoice] = useState('');
-  const [reason, setReason] = useState('');
-  const check = useRentalCheck();
-  const runCheck = async (withReason: boolean) => {
-    setProblem(null);
-    try { await check.mutateAsync({ assetId: checkAsset, from, to, invoice, reason: withReason ? reason : undefined }); }
-    catch (err) { setProblem(classifyMutationError(err).headline); }
-  };
-  const result = check.data;
 
   return (
     <ListPage title={t('equipment:availability.title', 'Availability')}>
+
+      {canCheck && <nav aria-label={t('equipment:availability.views', 'Availability views')} className="mb-4 flex gap-2">
+        <Button variant="outline" aria-pressed={view === 'status'} onClick={() => setView('status')}>{t('equipment:availability.statusHeading', 'Equipment status')}</Button>
+        <Button variant="outline" aria-pressed={view === 'check'} onClick={() => setView('check')}>{t('equipment:availability.checkHeading', 'Rental invoice check')}</Button>
+      </nav>}
       {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
       {assets.isPending && <ListState variant="loading" shape="table" rows={4} />}
-      {!assets.isPending && rows.length === 0 && (
+      {assets.isError && <ListState variant="error" title={t('equipment:availability.assetsError', "Couldn't load equipment")} onRetry={() => void assets.refetch()} />}
+      {latest.isError && <p role="alert">{t('equipment:availability.latestError', 'Could not load last statuses')}</p>}
+      {proofStates.isError && <p role="alert">{t('equipment:availability.proofsError', 'Could not load evidence status')}</p>}
+      {status.isError && <p role="alert">{t('equipment:availability.statusError', 'Could not load statuses')}</p>}
+      {!assets.isPending && !assets.isError && rows.length === 0 && (
         <ListState variant="empty" title={t('equipment:availability.empty', 'No equipment yet')}
           sub={t('equipment:availability.emptySub', 'Add assets under Equipment → Assets, then set their daily status here.')} />
       )}
-      {rows.length > 0 && (
+      {view === 'status' && !assets.isError && !status.isError && rows.length > 0 && (
         <section aria-labelledby="eav-status-h" className="mb-6">
-          <h2 id="eav-status-h" className="text-base font-semibold mb-2">{t('equipment:availability.todayHeading', "Today's status")}</h2>
+          <h2 id="eav-status-h" className="text-base font-semibold mb-2">{t('equipment:availability.statusHeading', 'Equipment status')}</h2>
+          <div className="mb-3 max-w-xs"><TextField label={t('equipment:availability.statusDate', 'Status date')} type="date" value={statusDate} onChange={(v) => { setStatusDate(v); setDraft({}); setNotes({}); }} /></div>
           <ul className="divide-y divide-border rounded-md border border-border">
             {rows.map((a) => {
               const current = draft[a.id] ?? todays.get(a.id);
@@ -110,19 +149,20 @@ const EquipmentAvailabilityPage: React.FC = () => {
               return (
                 <li key={a.id} className="flex flex-wrap items-center gap-3 p-3">
                   <span className="min-w-40 flex-1">
-                    <span className="font-medium">{a.code}</span> <span className="text-muted-foreground">{a.name}</span>
+                    <Link to={`/equipment/assets/${a.id}`} className="touch-target inline-flex items-center font-medium text-primary-text hover:underline">{a.code}</Link> <span className="text-muted-foreground">{a.name}</span>
+                    {current && !may('create', 'equipmentAvailability', writeCtx) && <span className="ml-2">{statusLabel(t, current)}</span>}
+                    {(uploadedProofs.has(`${a.id}:${statusDate}`) || (!proofStates.isFetching && provenAssets.has(a.id))) && down && !draft[a.id] && <StatusPill variant="won" className="ml-2">{t('equipment:availability.proven', 'Proven')}</StatusPill>}
+                    {down && todays.has(a.id) && !draft[a.id] && proofStates.data && !proofStates.isFetching && !proofStates.isError && !uploadedProofs.has(`${a.id}:${statusDate}`) && !provenAssets.has(a.id) && <StatusPill variant="warn" className="ml-2">{t('equipment:availability.noProof', 'No proof')}</StatusPill>}
                     {flagged.has(a.id) && <span role="status" className="ml-2 text-destructive-text text-sm">{t('equipment:availability.flagged', 'Down more than 2 days')}</span>}
                     {!todays.has(a.id) && !draft[a.id] && <span className="ml-2 text-sm text-muted-foreground">{prev ? t('equipment:availability.last', 'Last: {{status}}', { status: statusLabel(t, prev) }) : t('equipment:availability.unrecorded', 'Not recorded')}</span>}
                   </span>
                   <CanWrite entity="equipmentAvailability" action="create" ctx={writeCtx}>
-                    <SelectField label={t('equipment:availability.statusFor', 'Status of {{code}}', { code: a.code })} value={current ?? ''}
+                    <SelectField hideLabel label={t('equipment:availability.statusFor', 'Status of {{code}}', { code: a.code })} value={current ?? ''}
                       onChange={(v) => setDraft((d) => ({ ...d, [a.id]: v as EquipmentStatus }))}
                       options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...STATUSES.map((s) => ({ value: s, label: statusLabel(t, s) }))]} />
+                    {draft[a.id] && <TextField label={t('equipment:availability.noteFor', 'Note for {{code}}', { code: a.code })} value={notes[a.id] ?? ''} onChange={(v) => setNotes((n) => ({ ...n, [a.id]: v }))} />}
                     {down && todays.has(a.id) && !draft[a.id] && (
-                      <label className="text-sm">
-                        <span className="sr-only">{t('equipment:availability.proofFor', 'Attach proof for {{code}}', { code: a.code })}</span>
-                        <FileInput accept="image/*,application/pdf" onChange={(e) => void attach(a.id, e.target.files?.[0])} />
-                      </label>
+                      <ProofUpload code={a.code} onFile={(file) => void attach(a.id, file)} />
                     )}
                   </CanWrite>
                 </li>
@@ -130,28 +170,52 @@ const EquipmentAvailabilityPage: React.FC = () => {
             })}
           </ul>
           <CanWrite entity="equipmentAvailability" action="create" ctx={writeCtx}>
-            <Button variant="primary" className="mt-3" disabled={Object.keys(draft).length === 0 || bulk.isPending} onClick={() => void save()}>
-              {t('equipment:availability.save', "Save today's status")}
+            <Button variant="primary" className="mt-3" disabled={!statusDate || Object.keys(draft).length === 0 || bulk.isPending} onClick={() => void save()}>
+              {t('equipment:availability.saveStatuses', 'Save statuses')}
             </Button>
           </CanWrite>
         </section>
       )}
 
-      {canMetrics && rows.length > 0 && (
+      {(assetPage > 0 || assetPage + 1 < pages.length || assets.hasNextPage) && <div className="flex gap-2 mb-4">
+        <Button variant="outline" disabled={assetPage === 0 || Object.keys(draft).length > 0} onClick={() => { setAssetPage(assetPage - 1); setMetricAssets([]); }}>{t('equipment:availability.previousPage', 'Previous equipment page')}</Button>
+        <Button variant="outline" disabled={(!assets.hasNextPage && assetPage + 1 >= pages.length) || Object.keys(draft).length > 0 || assets.isFetchingNextPage} onClick={() => void nextPage()}>{t('equipment:availability.nextPage', 'Next equipment page')}</Button>
+      </div>}
+
+      {view === 'status' && canMetrics && rows.length > 0 && (
         <section aria-labelledby="eav-metrics-h" className="mb-6">
           <h2 id="eav-metrics-h" className="text-base font-semibold mb-2">{t('equipment:availability.metricsHeading', 'This month')}</h2>
+          <details className="mb-3">
+            <summary>{t('equipment:availability.metricAssets', 'Assets for metrics')}</summary>
+            <p className="text-sm text-muted-foreground">{t('equipment:availability.allWhenNone', 'Select none to show all on this page.')}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {rows.map((a) => <Checkbox key={a.id} label={`${a.code} ${a.name}`} checked={metricAssets.includes(a.id)} onChange={(checked) => setMetricAssets((selected) => checked ? [...selected, a.id] : selected.filter((id) => id !== a.id))}>{a.code} {a.name}</Checkbox>)}
+            </div>
+          </details>
+          <div className="grid gap-3 sm:grid-cols-3 mb-3">
+            <SelectField label={t('equipment:availability.interval', 'Metric interval')} value={grain} onChange={(v) => setGrain(v as 'day' | 'week' | 'month')} options={[{ value: 'day', label: t('equipment:availability.day', 'Day') }, { value: 'week', label: t('equipment:availability.week', 'Week') }, { value: 'month', label: t('equipment:availability.month', 'Month') }]} />
+            <TextField label={t('equipment:availability.metricFrom', 'Metric period from')} type="date" value={metricFrom} onChange={setMetricFrom} />
+            <TextField label={t('equipment:availability.metricTo', 'Metric period to')} type="date" value={metricTo} onChange={setMetricTo} />
+          </div>
+          {realRole === 'Admin' && realRole === effectiveRole && <div className="mb-3 flex flex-wrap items-end gap-2">
+            <TextField label={t('equipment:availability.workingHours', 'Working hours per day')} inputMode="decimal" value={hours} onChange={setHours} />
+            <Button variant="outline" disabled={!hours || workingHours.isPending} onClick={() => { void workingHours.mutateAsync(hours).then(() => { setHours(''); toast(t('equipment:availability.hoursSaved', 'Working hours saved'), undefined, 'success'); }).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.saveHours', 'Save working hours')}</Button>
+          </div>}
+          {metrics.isError && <p role="alert">{t('equipment:availability.metricsError', 'Could not load metrics for this period.')}</p>}
           <table className="w-full text-sm">
             <thead><tr className="text-left">
               <th scope="col">{t('equipment:availability.asset', 'Asset')}</th>
+              <th scope="col">{t('equipment:availability.period', 'Period')}</th>
               <th scope="col">{t('equipment:availability.availability', 'Availability')}</th>
               <th scope="col">{t('equipment:availability.utilisation', 'Utilisation')}</th>
               <th scope="col">{t('equipment:availability.unrecordedDays', 'Unrecorded days')}</th>
             </tr></thead>
-            <tbody>{rows.map((a) => {
-              const m = byAsset.get(a.id);
+            <tbody>{(metrics.data ?? []).map((m) => {
+              const a = byAsset.get(m.asset_id);
+              if (!a) return null;
               return (
-                <tr key={a.id}>
-                  <th scope="row" className="font-medium">{a.code}</th>
+                <tr key={`${a.id}-${m.bucket_start}`}>
+                  <th scope="row" className="font-medium">{a.code}</th><td>{m.bucket_start}</td>
                   <td>{m?.availability_pct != null ? `${m.availability_pct}%` : '—'}</td>
                   <td>{m?.utilisation_pct != null ? `${m.utilisation_pct}%` : '—'}
                     {m && m.pending_usage_entries > 0 && <span className="ml-1 text-muted-foreground">{t('equipment:availability.pendingUsage', '({{n}} awaiting approval)', { n: m.pending_usage_entries })}</span>}</td>
@@ -163,40 +227,10 @@ const EquipmentAvailabilityPage: React.FC = () => {
         </section>
       )}
 
-      {canCheck && rented.length > 0 && (
-        <section aria-labelledby="eav-check-h">
-          <h2 id="eav-check-h" className="text-base font-semibold mb-2">{t('equipment:availability.checkHeading', 'Rental invoice check')}</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <SelectField label={t('equipment:availability.rentedAsset', 'Rented machine')} value={checkAsset} onChange={setCheckAsset}
-              options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...rented.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))]} />
-            <TextField label={t('equipment:availability.from', 'Invoice period from')} type="date" value={from} onChange={setFrom} />
-            <TextField label={t('equipment:availability.to', 'Invoice period to')} type="date" value={to} onChange={setTo} />
-            <TextField label={t('equipment:availability.invoiceAmount', 'Vendor invoice amount')} inputMode="decimal" value={invoice} onChange={setInvoice} />
-          </div>
-          <Button variant="primary" className="mt-3" disabled={!checkAsset || check.isPending} onClick={() => void runCheck(false)}>{t('equipment:availability.runCheck', 'Check invoice')}</Button>
-          {result && (
-            <div className="mt-4" role="region" aria-label={t('equipment:availability.result', 'Check result')}>
-              <dl className="grid grid-cols-2 gap-1 text-sm max-w-md">
-                <dt>{t('equipment:availability.rentalAmount', 'Rental amount')}</dt><dd className="text-right tabular-nums">{result.rentalAmount} {result.currency}</dd>
-                <dt>{t('equipment:availability.deduction', 'Downtime deduction')}</dt><dd className="text-right tabular-nums">{result.deduction}</dd>
-                <dt>{t('equipment:availability.expected', 'Expected invoice')}</dt><dd className="text-right tabular-nums">{result.expectedAmount}</dd>
-                {result.difference != null && (<><dt>{t('equipment:availability.difference', 'Invoice minus expected')}</dt><dd className="text-right tabular-nums">{result.difference}</dd></>)}
-              </dl>
-              <h3 className="mt-3 text-sm font-semibold">{t('equipment:availability.days', 'Down days')}</h3>
-              <ul className="text-sm">{result.days.map((d) => (
-                <li key={d.date}>{d.date} · {statusLabel(t, d.status)} · {d.proven ? t('equipment:availability.proven', 'Proven') : t('equipment:availability.unproven', 'Unproven — not deducted')}
-                  {d.proofs.map((p) => <span key={p.id} className="ml-2">{p.file_name}</span>)}</li>
-              ))}</ul>
-              {result.unproven_days.length > 0 && !result.included_unproven_reason && (
-                <div className="mt-3">
-                  <TextField label={t('equipment:availability.reason', 'Reason to include unproven days')} value={reason} onChange={setReason} />
-                  <Button variant="outline" className="mt-2" disabled={!reason.trim()} onClick={() => void runCheck(true)}>{t('equipment:availability.include', 'Include unproven days')}</Button>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-      )}
+
+
+
+      {view === 'check' && canCheck && <RentalInvoiceCheck assets={rows.filter((a) => (a as { ownership?: string }).ownership === 'rented')} today={today} monthFrom={monthFrom} statusLabel={(value) => statusLabel(t, value)} />}
     </ListPage>
   );
 };

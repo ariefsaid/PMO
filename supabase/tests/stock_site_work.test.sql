@@ -5,7 +5,7 @@
 -- Every denial asserts errcode AND message so a different gate moving in front cannot pass it.
 begin;
 create extension if not exists pgtap;
-select plan(49);
+select plan(60);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25230000-0000-0000-0000-00000000000a', 'SSW Org',       'IDR', 'UTC'),
@@ -73,6 +73,9 @@ create function public.ssw_ledger_value(p_item uuid) returns numeric language sq
 create function public.ssw_loc_qty(p_item uuid) returns numeric language sql security definer as $$
   select coalesce(sum(qty_on_hand), 0) from public.stock_balances where item_id = p_item
      and warehouse_id in ('25230000-0000-0000-0000-000000002002','25230000-0000-0000-0000-000000002003') $$;
+create function public.ssw_project_transfer_in(p_project uuid) returns numeric language sql security definer as $$
+  select sum(l.qty_delta) from public.stock_ledger l join public.stock_warehouses w on w.id = l.warehouse_id
+   where l.kind = 'transfer' and l.qty_delta > 0 and w.project_id = p_project $$;
 create function public.ssw_attr(p_doc uuid, p_wo uuid) returns integer language sql as $$
   select public.set_cost_attribution('stock_document', array[p_doc], p_wo, null) $$;
 create function public.ssw_bal_row(p_wo uuid, p_item uuid, p_key text) returns text language sql as $$
@@ -125,8 +128,7 @@ select is(ssw_bal_row('25230000-0000-0000-0000-000000000401','25230000-0000-0000
 select is((select r->>'on_site_qty' from jsonb_array_elements(public.get_work_order_stock_balance('25230000-0000-0000-0000-000000000401', null)) r
             where r->>'warehouse_kind' = 'staging' and r->>'item_id' = '25230000-0000-0000-0000-000000001002'), '1', 'AC-SSW-009 WO one has 1 on site (received 4, issued 3)');
 select is((select sum((r->>'received_qty')::numeric) from jsonb_array_elements(public.get_work_order_stock_balance(null, '25230000-0000-0000-0000-0000000000c1')) r),
-          (select sum(qty_delta) from public.stock_ledger l join public.stock_warehouses w on w.id = l.warehouse_id
-            where l.kind = 'transfer' and l.qty_delta > 0 and w.project_id = '25230000-0000-0000-0000-0000000000c1'),
+          ssw_project_transfer_in('25230000-0000-0000-0000-0000000000c1'),
   'AC-SSW-009 reconciliation: received over all work orders and unassigned = the project''s locations'' transfer-in total');
 select is((select count(*)::int from jsonb_array_elements(public.get_work_order_stock_balance(null, '25230000-0000-0000-0000-0000000000c1')) r where r->>'work_order_id' is null), 0,
   'AC-SSW-009 every movement so far is attributed (no unassigned bucket)');
@@ -169,8 +171,11 @@ select is((select name from stock_tags where id = '25230000-0000-0000-0000-00000
 -- ── AC-SSW-007 attachments on a posted document ───────────────────────────────────────────────────────
 select ssw_as('25230000-0000-0000-0000-0000000000a1');
 select set_config('ssw.d1', ssw_xfer('25230000-0000-0000-0000-000000002001','25230000-0000-0000-0000-000000002002','25230000-0000-0000-0000-000000001001', 1)::text, false);
+reset role;
+insert into storage.objects (bucket_id, name) values ('stock-documents', '25230000-0000-0000-0000-00000000000a/' || current_setting('ssw.d1') || '/25230000-0000-0000-0000-000000004001/slip.pdf');
+select ssw_as('25230000-0000-0000-0000-0000000000a1');
 select lives_ok($$ insert into stock_document_files (id, document_id, file_path, label) values
-  ('25230000-0000-0000-0000-000000004001', current_setting('ssw.d1')::uuid, '25230000-0000-0000-0000-00000000000a/x/y/slip.pdf', 'Picking slip') $$,
+  ('25230000-0000-0000-0000-000000004001', current_setting('ssw.d1')::uuid, '25230000-0000-0000-0000-00000000000a/' || current_setting('ssw.d1') || '/25230000-0000-0000-0000-000000004001/slip.pdf', 'Picking slip') $$,
   'AC-SSW-007 an attachment saves on a posted document');
 select throws_ok($$ delete from stock_document_files where id = '25230000-0000-0000-0000-000000004001' $$, 'P0001',
   'STK_FILE_LOCKED: a posted document''s attachment cannot be deleted; archive it with a reason', 'AC-SSW-007 a posted document''s attachment cannot be deleted');
@@ -180,8 +185,9 @@ select lives_ok($$ select archive_stock_document_file('25230000-0000-0000-0000-0
 reset role;
 select is((select count(*)::int from audit_events where action = 'stock.file.archive' and entity_id = current_setting('ssw.d1')::uuid and detail->>'reason' = 'Wrong slip'), 1,
   'AC-SSW-007 the archive left an audit row with the reason');
+insert into storage.objects (bucket_id, name) values ('stock-documents', '25230000-0000-0000-0000-00000000000a/' || current_setting('ssw.d1') || '/25230000-0000-0000-0000-000000004003/slip.pdf');
 select ssw_as('25230000-0000-0000-0000-0000000000a6');
-select throws_ok($$ insert into stock_document_files (document_id, file_path) values (current_setting('ssw.d1')::uuid, 'p') $$, '42501', null,
+select throws_ok($$ insert into stock_document_files (id, document_id, file_path) values ('25230000-0000-0000-0000-000000004003', current_setting('ssw.d1')::uuid, '25230000-0000-0000-0000-00000000000a/' || current_setting('ssw.d1') || '/25230000-0000-0000-0000-000000004003/slip.pdf') $$, '42501', null,
   'AC-SSW-007 an Engineer who is neither author nor keeper cannot attach');
 reset role;
 
@@ -191,7 +197,10 @@ select ssw_rcv('25230000-0000-0000-0000-000000002001','25230000-0000-0000-0000-0
 select set_config('ssw.d2', ssw_xfer('25230000-0000-0000-0000-000000002001','25230000-0000-0000-0000-000000002002','25230000-0000-0000-0000-000000001003', 2, false)::text, false);
 select throws_ok($$ select post_stock_document(current_setting('ssw.d2')::uuid) $$, 'P0001',
   'STK_PAPER_REQUIRED: attach the delivery paper before posting this client-supplied transfer', 'AC-SSW-008 posting without paper is refused');
-select lives_ok($$ insert into stock_document_files (document_id, file_path, label) values (current_setting('ssw.d2')::uuid, 'p/q/r/slip.pdf', 'Delivery note') $$,
+reset role;
+insert into storage.objects (bucket_id, name) values ('stock-documents', '25230000-0000-0000-0000-00000000000a/' || current_setting('ssw.d2') || '/25230000-0000-0000-0000-000000004002/slip.pdf');
+select ssw_as('25230000-0000-0000-0000-0000000000a1');
+select lives_ok($$ insert into stock_document_files (id, document_id, file_path, label) values ('25230000-0000-0000-0000-000000004002', current_setting('ssw.d2')::uuid, '25230000-0000-0000-0000-00000000000a/' || current_setting('ssw.d2') || '/25230000-0000-0000-0000-000000004002/slip.pdf', 'Delivery note') $$,
   'AC-SSW-008 the author attaches the paper to the draft');
 select lives_ok($$ select post_stock_document(current_setting('ssw.d2')::uuid) $$, 'AC-SSW-008 with paper attached the transfer posts');
 select is(ssw_bal('25230000-0000-0000-0000-000000002002','25230000-0000-0000-0000-000000001003'), '2.000/0.00', 'AC-SSW-008 the pump reached the yard at value 0');
@@ -212,6 +221,54 @@ reset role;
 select ssw_as('25230000-0000-0000-0000-0000000000b1');
 select throws_ok($$ select public.get_work_order_stock_balance('25230000-0000-0000-0000-000000000401', null) $$, 'P0001',
   'STK_NOT_FOUND: the work order is not in your organisation', 'AC-SSW-009 another org reads nothing');
+reset role;
+select ssw_as('25230000-0000-0000-0000-0000000000a1');
+select throws_ok($$ insert into stock_document_files (document_id, file_path) values (current_setting('ssw.d2')::uuid, 'missing/object') $$,
+  'P0001', 'STK_FILE_MISSING: upload the attachment before linking it', 'AC-SSW-008 a metadata row without an uploaded file cannot count as paper');
+select ssw_rcv('25230000-0000-0000-0000-000000002003','25230000-0000-0000-0000-000000001004', 2, 0);
+select is((select coalesce(sum((r->>'on_site_qty')::numeric), 0) from jsonb_array_elements(public.get_work_order_stock_balance(null, '25230000-0000-0000-0000-0000000000c1')) r where r->>'item_id' = '25230000-0000-0000-0000-000000001004'),
+  ssw_loc_qty('25230000-0000-0000-0000-000000001004'), 'AC-SSW-009 direct receipts at a project location reconcile as unassigned');
+select set_config('ssw.central_issue', ssw_issue('25230000-0000-0000-0000-000000002001','25230000-0000-0000-0000-000000001001', 1)::text, false);
+select ssw_attr(current_setting('ssw.central_issue')::uuid, '25230000-0000-0000-0000-000000000402');
+select is((select sum((r->>'issued_qty')::numeric) from jsonb_array_elements(public.get_work_order_stock_balance('25230000-0000-0000-0000-000000000402', null)) r where r->>'item_id' = '25230000-0000-0000-0000-000000001001'), 6::numeric,
+  'AC-SSW-009 issued to a work order includes a direct issue from central');
+reset role;
+insert into stock_items (id, org_id, code, name, unit_id) values
+  ('25230000-0000-0000-0000-000000001005', '25230000-0000-0000-0000-00000000000a', 'DRFT', 'Draft only', '25230000-0000-0000-0000-0000000000d1');
+select ssw_as('25230000-0000-0000-0000-0000000000a1');
+select ssw_rcv('25230000-0000-0000-0000-000000002001', '25230000-0000-0000-0000-000000001005', 1, 0, false);
+select lives_ok($$ update stock_items set tag_id = '25230000-0000-0000-0000-000000003001' where id = '25230000-0000-0000-0000-000000001005' $$,
+ 'AC-SSW-005 an item with only draft lines and no ledger entries can change its tag');
+reset role;
+insert into stock_items (id, org_id, code, name, unit_id) values
+  ('25230000-0000-0000-0000-000000001006', '25230000-0000-0000-0000-00000000000a', 'DRFT5', 'Draft cost', '25230000-0000-0000-0000-0000000000d1');
+select ssw_as('25230000-0000-0000-0000-0000000000a1');
+select set_config('ssw.nonzero_draft', ssw_rcv('25230000-0000-0000-0000-000000002001', '25230000-0000-0000-0000-000000001006', 1, 5, false)::text, false);
+select lives_ok($$ update stock_items set tag_id = '25230000-0000-0000-0000-000000003001' where id = '25230000-0000-0000-0000-000000001006' $$,
+ 'AC-SSW-005 a draft with a cost still permits retagging before the first ledger entry');
+select throws_ok($$ select post_stock_document(current_setting('ssw.nonzero_draft')::uuid) $$,
+ 'P0001', 'STK_ZERO_COST: a client-supplied item is received at cost 0', 'AC-SSW-002 posting rechecks zero cost after an item was retagged');
+reset role;
+insert into stock_tags (id, org_id, name, zero_cost) values ('25230000-0000-0000-0000-000000003005', '25230000-0000-0000-0000-00000000000a', 'Draft tag', false);
+insert into stock_items (id, org_id, code, name, unit_id, tag_id) values
+  ('25230000-0000-0000-0000-000000001007', '25230000-0000-0000-0000-00000000000a', 'DRFTFLAG', 'Draft flag', '25230000-0000-0000-0000-0000000000d1', '25230000-0000-0000-0000-000000003005');
+select ssw_as('25230000-0000-0000-0000-0000000000a1');
+select set_config('ssw.flag_draft', ssw_rcv('25230000-0000-0000-0000-000000002001', '25230000-0000-0000-0000-000000001007', 1, 5, false)::text, false);
+select lives_ok($$ update stock_tags set zero_cost = true where id = '25230000-0000-0000-0000-000000003005' $$,
+ 'FR-SSW-014 a tag with only draft lines can change its zero-cost flag');
+select throws_ok($$ select post_stock_document(current_setting('ssw.flag_draft')::uuid) $$,
+ 'P0001', 'STK_ZERO_COST: a client-supplied item is received at cost 0', 'AC-SSW-002 posting rechecks zero cost after a tag flag changes');
+select set_config('ssw.cross_project', ssw_xfer('25230000-0000-0000-0000-000000002002','25230000-0000-0000-0000-000000002004','25230000-0000-0000-0000-000000001001', 1)::text, false);
+select ssw_attr(current_setting('ssw.cross_project')::uuid, '25230000-0000-0000-0000-000000000403');
+select is((select count(*)::int from jsonb_array_elements(public.get_work_order_stock_balance(null, '25230000-0000-0000-0000-0000000000c1')) r where r->>'work_order_id' = '25230000-0000-0000-0000-000000000403'), 0,
+ 'AC-SSW-009 a transfer to another project does not attribute its source leg to the destination work order');
+reset role;
+set local storage.allow_delete_query = 'true';
+select throws_ok($$ delete from storage.objects where bucket_id = 'stock-documents' and name = '25230000-0000-0000-0000-00000000000a/' || current_setting('ssw.d1') || '/25230000-0000-0000-0000-000000004001/slip.pdf' $$,
+ 'P0001', 'STK_FILE_LOCKED: a posted document''s attachment cannot be deleted; archive it with a reason', 'AC-SSW-007 posted storage bytes cannot be deleted');
+select ssw_as('25230000-0000-0000-0000-0000000000a1');
+select throws_ok($$ insert into stock_document_files (id, document_id, file_path) values ('25230000-0000-0000-0000-000000004003', current_setting('ssw.d2')::uuid, '25230000-0000-0000-0000-00000000000a/' || current_setting('ssw.d1') || '/25230000-0000-0000-0000-000000004003/slip.pdf') $$,
+ 'P0001', 'STK_FILE_MISSING: upload the attachment before linking it', 'AC-SSW-008 another document''s object cannot serve as paper');
 reset role;
 select * from finish();
 rollback;

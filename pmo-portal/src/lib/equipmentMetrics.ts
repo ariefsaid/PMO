@@ -1,6 +1,6 @@
-// #2526 — equipment availability, utilisation and the rental downtime deduction. Pure and exact: every figure is
+// #2526 — equipment availability and utilisation. Pure and exact: every figure is
 // derived from integers (BigInt) and rounded half-up only for display. Mirrors the SQL read model
-// (`equipment_metrics`, `equipment_rental_check`, migration 0986/0987); docs/specs/equipment-availability.spec.md.
+// (`equipment_metrics`, migration 0986); docs/specs/equipment-availability.spec.md.
 import { formatExactCents, parseExactCents } from './exactDecimal';
 
 export type EquipmentStatus = 'ready' | 'standby' | 'broken' | 'at_vendor' | 'waiting_parts';
@@ -55,11 +55,6 @@ export function mondayOf(iso: string): string {
   const dow = new Date(toUtc(iso)).getUTCDay(); // 0 = Sunday
   return fromUtc(toUtc(iso) - ((dow + 6) % 7) * MS);
 }
-export function daysInMonthOf(iso: string): number {
-  const [y, m] = iso.split('-').map(Number);
-  return new Date(Date.UTC(y, m, 0)).getUTCDate();
-}
-
 /** n/d as a percentage with one decimal, rounded half up (non-negative n, positive d). */
 function pct1(n: bigint, d: bigint): string | null {
   if (d <= 0n) return null;
@@ -97,7 +92,7 @@ export function computeEquipmentMetrics(input: MetricsInput): EquipmentMetrics {
       if (st === null) unrecorded += 1; else inService += 1;
       if (isAvail) available += 1;
     }
-    days.push({ date, status: outside ? null : st, available: isAvail, workTenThousandthsHours: Number(workByDay.get(date) ?? 0n) });
+    days.push({ date, status: outside ? null : st, available: isAvail, workTenThousandthsHours: outside || st === null ? 0 : Number(workByDay.get(date) ?? 0n) });
   }
 
   const sumWork = (rows: DayRow[]) => rows.reduce((s, r) => s + BigInt(r.workTenThousandthsHours), 0n);
@@ -131,6 +126,11 @@ export function computeEquipmentMetrics(input: MetricsInput): EquipmentMetrics {
   };
 }
 
+export function daysInMonthOf(iso: string): number {
+  const [y, m] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
 // ── rental invoice check (FR-EAV-014..017) ────────────────────────────────────────────────────────
 export interface DownDay { date: string; proven: boolean }
 export interface RentalInput {
@@ -155,13 +155,12 @@ export interface RentalCheck {
   includedUnprovenReason: string | null;
 }
 
-/** Exact rate x days. A monthly rate is divided by the calendar days of the day's own month (OQ-EAV-1 default);
- *  the sum is kept as a rational over the product of month lengths avoided by working in thousandths of a cent. */
-function dayAmountMicro(rateCents: bigint, basis: 'day' | 'month', date: string): bigint {
-  const scaled = rateCents * 1_000_000n; // keep 6 extra digits so the per-day split rounds only once, at the end
+/** Exact rate x days. Each cent is divided into 377580 units, divisible by every calendar month length. */
+function dayAmountUnits(rateCents: bigint, basis: 'day' | 'month', date: string): bigint {
+  const scaled = rateCents * 377_580n;
   return basis === 'day' ? scaled : scaled / BigInt(daysInMonthOf(date));
 }
-const microToCents = (m: bigint): bigint => (m + 500_000n) / 1_000_000n;
+const unitsToCents = (units: bigint): bigint => (units + 188_790n) / 377_580n;
 
 export function rentalDeduction(input: RentalInput): RentalCheck {
   const rate = parseExactCents(input.rate);
@@ -169,20 +168,20 @@ export function rentalDeduction(input: RentalInput): RentalCheck {
   const reason = input.includeUnproven?.reason?.trim() ?? '';
   if (input.includeUnproven && !reason) throw new Error('including unproven downtime needs a reason');
 
-  let rentalMicro = 0n;
-  for (let t = toUtc(input.from); t <= toUtc(input.to); t += MS) rentalMicro += dayAmountMicro(rate, input.basis, fromUtc(t));
+  let rentalUnits = 0n;
+  for (let t = toUtc(input.from); t <= toUtc(input.to); t += MS) rentalUnits += dayAmountUnits(rate, input.basis, fromUtc(t));
   const seen = new Set<string>();
-  let deductMicro = 0n;
+  let deductUnits = 0n;
   const deducted: string[] = [], unproven: string[] = [];
   for (const d of [...input.downDays].sort((a, b) => a.date.localeCompare(b.date))) {
     if (d.date < input.from || d.date > input.to || seen.has(d.date)) continue;
     seen.add(d.date);
     if (!d.proven) unproven.push(d.date);
-    if (d.proven || reason) { deductMicro += dayAmountMicro(rate, input.basis, d.date); deducted.push(d.date); }
+    if (d.proven || reason) { deductUnits += dayAmountUnits(rate, input.basis, d.date); deducted.push(d.date); }
   }
-  if (deductMicro > rentalMicro) deductMicro = rentalMicro; // FR-EAV-017
-  const rentalC = microToCents(rentalMicro);
-  const deductC = microToCents(deductMicro) > rentalC ? rentalC : microToCents(deductMicro);
+  if (deductUnits > rentalUnits) deductUnits = rentalUnits; // FR-EAV-017
+  const rentalC = unitsToCents(rentalUnits);
+  const deductC = unitsToCents(deductUnits) > rentalC ? rentalC : unitsToCents(deductUnits);
   const expectedC = rentalC - deductC;
   const inv = input.invoiceAmount != null && input.invoiceAmount !== '' ? parseExactCents(input.invoiceAmount) : null;
   if (input.invoiceAmount != null && input.invoiceAmount !== '' && inv === null) throw new Error('invalid invoice amount');

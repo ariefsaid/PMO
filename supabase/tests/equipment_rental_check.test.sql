@@ -3,7 +3,7 @@
 -- AC-EAV-009 turns red; restore.
 begin;
 create extension if not exists pgtap;
-select plan(22);
+select plan(26);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25260000-0000-0000-0000-00000000000a', 'EAV Org A', 'IDR', 'UTC'),
@@ -47,6 +47,20 @@ insert into equipment_downtime_proofs (org_id, asset_id, proof_date, file_name, 
 values ('25260000-0000-0000-0000-00000000000a', '25260000-0000-0000-0000-0000000000f1', '2026-09-21', 'ticket.pdf',
         '25260000-0000-0000-0000-00000000000a/25260000-0000-0000-0000-0000000000f1/25260000-0000-0000-0000-0000000000aa/ticket.pdf');
 
+-- An unfinished upload must not count as proof; the metadata row alone is not an attachment.
+select is((select proven from public.equipment_downtime_days('25260000-0000-0000-0000-00000000000a', '25260000-0000-0000-0000-0000000000f1', '2026-09-21', '2026-09-21')), false, 'AC-EAV-009 incomplete upload is unproven');
+insert into storage.objects (bucket_id, name) values ('equipment-proof', '25260000-0000-0000-0000-00000000000a/25260000-0000-0000-0000-0000000000f1/25260000-0000-0000-0000-0000000000aa/ticket.pdf');
+
+insert into equipment_assets (id, org_id, code, name, default_unit, ownership, in_service_on, archived_at)
+values ('25260000-0000-0000-0000-0000000000f6', '25260000-0000-0000-0000-00000000000a', 'EAV-R6', 'Rental dates', 'hours', 'rented', '2026-09-10', '2026-09-20 00:00:00+00');
+insert into equipment_rental_terms (org_id, asset_id, vendor_id, rate, basis, currency, rented_from)
+values ('25260000-0000-0000-0000-00000000000a', '25260000-0000-0000-0000-0000000000f6', '25260000-0000-0000-0000-0000000000e1', 100, 'day', 'IDR', '2026-09-01');
+
+insert into equipment_assets (id, org_id, code, name, default_unit, ownership)
+values ('25260000-0000-0000-0000-0000000000f7', '25260000-0000-0000-0000-00000000000a', 'EAV-R7', 'Half cent', 'hours', 'rented');
+insert into equipment_rental_terms (org_id, asset_id, vendor_id, rate, basis, currency, rented_from)
+values ('25260000-0000-0000-0000-00000000000a', '25260000-0000-0000-0000-0000000000f7', '25260000-0000-0000-0000-0000000000e1', 0.01, 'month', 'IDR', '2026-09-01');
+
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
 $$;
@@ -84,6 +98,15 @@ select is(equipment_rental_check('25260000-0000-0000-0000-0000000000f3', '2026-0
   'AC-EAV-010 a deduction of every day equals, and never exceeds, the rental amount');
 select is(equipment_rental_check('25260000-0000-0000-0000-0000000000f3', '2026-09-01', '2026-09-30', null, 'down all month')->>'expected_amount', '0.00',
   'AC-EAV-010 the expected amount floors at zero');
+
+select is(equipment_rental_check('25260000-0000-0000-0000-0000000000f6', '2026-09-01', '2026-09-30')->>'rental_amount', '1000.00',
+  'FR-EAV-015 only days in service enter the invoice check');
+
+select is(equipment_rental_check('25260000-0000-0000-0000-0000000000f7', '2026-09-01', '2026-09-15')->>'rental_amount', '0.01',
+  'NFR-EAV-003 monthly half cent rounds once without truncation');
+
+select throws_ok($$ select equipment_rental_check('25260000-0000-0000-0000-0000000000f1', '2025-01-01', '2025-01-31') $$,
+  '22023', 'no rental term covers the invoice period', 'FR-EAV-015 a period with no rental terms is refused');
 
 -- ── guards ──
 select throws_ok($$ select equipment_rental_check('25260000-0000-0000-0000-0000000000f4', '2026-09-01', '2026-09-30') $$,

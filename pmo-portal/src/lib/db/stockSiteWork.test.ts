@@ -3,13 +3,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const h = vi.hoisted(() => {
   const queue: Array<{ data: unknown; error: unknown }> = [];
   const rpc = vi.fn(async () => queue.shift() ?? { data: null, error: null });
-  return { rpc, queue };
+  const upload = vi.fn();
+  const remove = vi.fn();
+  const insert = vi.fn();
+  const deleteRow = vi.fn();
+  const pages: unknown[][] = [];
+  const range = vi.fn();
+  const query: Record<string, unknown> = {};
+  Object.assign(query, { select: () => query, order: () => query, is: () => query, eq: () => query,
+    range: (a: number, b: number) => { range(a, b); return query; },
+    limit: () => query, then: (resolve: (value: unknown) => void) => resolve({ data: pages.shift() ?? [], error: null }) });
+  return { rpc, queue, upload, remove, insert, deleteRow, query, pages, range };
 });
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, storage: { from: () => ({ upload: h.upload, remove: h.remove }) }, from: () => ({ ...h.query, insert: h.insert, delete: h.deleteRow }) } }));
 
-import { archiveStockDocumentFile, getWorkOrderStockBalance } from './stockSiteWork';
+import { archiveStockDocumentFile, getWorkOrderStockBalance, uploadStockDocumentFile, listStockTags, listStockDocumentFiles, deleteStockDocumentFile } from './stockSiteWork';
 
-beforeEach(() => { h.queue.length = 0; h.rpc.mockClear(); });
+beforeEach(() => { h.queue.length = 0; h.rpc.mockClear(); h.upload.mockReset(); h.remove.mockReset(); h.insert.mockReset(); h.deleteRow.mockReset(); h.pages.length = 0; h.range.mockClear(); });
 
 const row = (extra: Record<string, unknown> = {}) => ({
   work_order_id: 'wo1', item_id: 'i', item_code: 'FREE', item_name: 'Valve', unit_code: 'pc', warehouse_id: 'w', warehouse_code: 'YARD1', warehouse_kind: 'yard',
@@ -48,4 +58,43 @@ describe('stockSiteWork DAL', () => {
     h.queue.push({ data: null, error: { message: 'STK_INVALID: archiving needs a reason', code: 'P0001' } });
     await expect(archiveStockDocumentFile('f1', ' ')).rejects.toMatchObject({ message: expect.stringContaining('archiving needs a reason') });
   });
+});
+
+describe('document attachment upload', () => {
+  it('uploads the object before creating its metadata, with the matching file id in the path', async () => {
+    h.upload.mockResolvedValue({ error: null });
+    h.insert.mockResolvedValue({ error: null });
+    const f = new File(['paper'], 'delivery slip.pdf', { type: 'application/pdf' });
+    await uploadStockDocumentFile('org', 'doc', f, 'Slip');
+    const [path, sentFile] = h.upload.mock.calls[0];
+    expect(sentFile).toBe(f);
+    expect(path).toMatch(/^org\/doc\/[^/]+\/delivery_slip.pdf$/);
+    expect(h.insert).toHaveBeenCalledWith(expect.objectContaining({ document_id: 'doc', id: path.split('/')[2], file_path: path, label: 'Slip' }));
+    expect(h.upload.mock.invocationCallOrder[0]).toBeLessThan(h.insert.mock.invocationCallOrder[0]);
+  });
+  it('does not record metadata if uploading fails', async () => {
+    h.upload.mockResolvedValue({ error: { message: 'upload failed' } });
+    await expect(uploadStockDocumentFile('org', 'doc', new File(['x'], 'x.pdf'), null)).rejects.toThrow('upload failed');
+    expect(h.insert).not.toHaveBeenCalled();
+  });
+});
+
+it('reads all tag pages instead of dropping tags beyond the first page', async () => {
+  h.pages.push(Array.from({ length: 500 }, (_, id) => ({ id })), [{ id: 500 }]);
+  expect(await listStockTags()).toHaveLength(501);
+  expect(h.range.mock.calls).toEqual([[0, 499], [500, 999]]);
+});
+it('reads all document attachment pages', async () => {
+  h.pages.push(Array.from({ length: 500 }, (_, id) => ({ id })), [{ id: 500 }]);
+  expect(await listStockDocumentFiles('doc')).toHaveLength(501);
+  expect(h.range.mock.calls).toEqual([[0, 499], [500, 999]]);
+});
+
+it('removes the uploaded object when deleting a draft attachment', async () => {
+  h.remove.mockResolvedValue({ error: null });
+  h.deleteRow.mockReturnValue(h.query);
+  h.pages.push([{ id: 'f1' }]);
+  await deleteStockDocumentFile('f1', 'org/doc/f1/slip.pdf');
+  expect(h.remove).toHaveBeenCalledWith(['org/doc/f1/slip.pdf']);
+  expect(h.deleteRow).toHaveBeenCalledOnce();
 });

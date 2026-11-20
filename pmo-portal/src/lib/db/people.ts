@@ -1,26 +1,56 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { toAppError } from '@/src/lib/appError';
+import { fetchAllPages } from '@/src/lib/pagedRead';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 
-/** `people` (migration 0970) is not in the generated types yet, so reads and writes go through a narrow local shape. */
-export interface PersonRow { id: string; code: string; name: string; archived_at: string | null }
-export interface PersonInput { code: string; name: string }
-
-type Table = {
-  select: (c: string) => { is: (c: string, v: null) => { order: (c: string) => { limit: (n: number) => Promise<{ data: PersonRow[] | null; error: { message: string; code?: string } | null }> } } };
-  insert: (v: PersonInput) => { select: (c: string) => { single: () => Promise<{ data: PersonRow | null; error: { message: string; code?: string } | null }> } };
-};
-const people = () => (supabase as unknown as { from: (t: string) => Table }).from('people');
-
-/** Live (not archived) people, for the import's already-there check. RLS decides what the read returns. */
-export async function listPeople(): Promise<PersonRow[]> {
-  const { data, error } = await people().select('id, code, name, archived_at').is('archived_at', null).order('code').limit(5000);
-  if (error) throw toAppError(error);
-  return data ?? [];
+/**
+ * People register DAL (#2542 follow-up, migration 1008). The workforce register behind expiring documents: anyone who
+ * holds a document, app user or not. org_id is NEVER sent (column default + trigger stamp it, ADR-0017); a blank code is
+ * assigned by the database (P-0001, …). RLS and the column grants are the authority. The table is not in the generated
+ * types until the next `supabase gen types`, so the query builder is typed here.
+ */
+export interface PersonListRow {
+  id: string;
+  code: string;
+  name: string;
+  job_title: string | null;
+  profile_id: string | null;
+}
+/** The editable fields (the 0970 + 1008 grants). `code` is omitted/blank on create to have the database assign it. */
+export interface PersonInput {
+  name: string;
+  code?: string | null;
+  job_title: string | null;
+  profile_id: string | null;
 }
 
-/** One person record: code and name only. The org is stamped by the database, never sent. */
-export async function createPerson(i: PersonInput): Promise<PersonRow> {
-  const { data, error } = await people().insert({ code: i.code.trim(), name: i.name.trim() }).select('id, code, name, archived_at').single();
-  if (error || !data) throw toAppError(error ?? { message: 'The person was not saved.' });
-  return data;
+const COLUMNS = 'id, code, name, job_title, profile_id';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const table = (): any => supabase.from('people' as never);
+function fail(error: { message: string; code?: string }): never { throw new AppError(error.message, error.code); }
+
+/** Live people, ordered by code then id so the offset scan is total. */
+export async function listPeople(): Promise<PersonListRow[]> {
+  return fetchAllPages<PersonListRow>((from, to) =>
+    table().select(COLUMNS).is('archived_at', null).order('code', { ascending: true }).order('id', { ascending: true }).range(from, to));
+}
+
+export async function createPerson(input: PersonInput): Promise<PersonListRow> {
+  const code = input.code?.trim();
+  const row = { name: input.name.trim(), job_title: input.job_title, profile_id: input.profile_id, ...(code ? { code } : {}) };
+  const { data, error } = await table().insert(row).select(COLUMNS).single();
+  if (error) fail(error);
+  return data as PersonListRow;
+}
+
+export async function updatePerson(id: string, input: PersonInput & { code: string }): Promise<void> {
+  const fields = { name: input.name.trim(), code: input.code.trim(), job_title: input.job_title, profile_id: input.profile_id };
+  const { data, error } = await table().update(fields).eq('id', id).select('id');
+  if (error) fail(error);
+  assertWriteLanded(data, 'Person not found, or you may not change them.');
+}
+
+export async function archivePerson(id: string): Promise<void> {
+  const { data, error } = await table().update({ archived_at: new Date().toISOString() }).eq('id', id).select('id');
+  if (error) fail(error);
+  assertWriteLanded(data, 'Person not found, or you may not change them.');
 }

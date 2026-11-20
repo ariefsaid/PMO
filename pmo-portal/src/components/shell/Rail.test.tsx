@@ -197,3 +197,11 @@ it('keeps the approvals recovery route available when eligibility cannot be load
   eligibility.pendingError = false;
   roleState.role = 'Admin';
 });
+
+it('lets a Project Manager open the People register from the rail', () => {
+  roleState.role = 'Project Manager';
+  const auth = { currentUser: { id: 'me', org_id: 'org-1' }, role: 'Project Manager' } as AuthContextValue;
+  render(<AuthContext.Provider value={auth}><MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>);
+  expect(screen.getByRole('link', { name: 'Administration' })).toHaveAttribute('href', '/administration/people');
+  roleState.role = 'Admin';
+});

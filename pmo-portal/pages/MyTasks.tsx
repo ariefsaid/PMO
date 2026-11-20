@@ -133,6 +133,7 @@ const MyTasks: React.FC = () => {
     next.delete('due');
     return next;
   }, { replace: true });
+  const [workOrderFilter, setWorkOrderFilter] = React.useState('all');
   const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string } | null>(null);
   // R2: queue and search are URL-owned like the due=week drill, so Back/refresh keep them;
   // defaults stay out of the URL (empty = open queue, no search).
@@ -173,6 +174,7 @@ const MyTasks: React.FC = () => {
     if (!tasks) return [];
     const normalizedSearch = search.trim().toLocaleLowerCase();
     return tasks.filter((task) => {
+      if (workOrderFilter === 'none' ? task.work_order_id != null : workOrderFilter !== 'all' && task.work_order_id !== workOrderFilter) return false;
       const isCompleted = task.status === 'Done';
       if (isCompleted !== (queue === 'completed')) return false;
       // #1461 due=week: open tasks due by the end of this week (the figure's counted set).
@@ -180,7 +182,7 @@ const MyTasks: React.FC = () => {
       if (!normalizedSearch) return true;
       return `${task.name} ${task.project_name ?? ''} ${task.project_contractual_name ?? ''}`.toLocaleLowerCase().includes(normalizedSearch);
     });
-  }, [tasks, queue, search, dueBy]);
+  }, [tasks, queue, search, dueBy, workOrderFilter]);
 
   // Unknown (list not loaded) is null: the open-task figure is a fact only once the read has
   // landed, and it never renders as a fabricated 0 (unknown-as-zero audit F19).
@@ -294,6 +296,9 @@ const MyTasks: React.FC = () => {
               { value: 'completed', label: t('myTasks.completed', 'Completed') },
             ]}
           />
+          <div className="max-w-xs"><SelectField id="my-task-work-order-filter" hideLabel
+            label={tasksT('workOrderFilter.label', 'Filter by work order')} value={workOrderFilter} onChange={setWorkOrderFilter}
+            options={[{ value: 'all', label: tasksT('workOrderFilter.all', 'All work orders') }, { value: 'none', label: tasksT('workOrderFilter.none', 'No work order') }, ...Array.from(new Map((tasks ?? []).filter((task) => task.work_order_id && task.work_order_name).map((task) => [task.work_order_id!, task.work_order_name!])).entries()).map(([value, label]) => ({ value, label }))]} /></div>
           <div className="flex w-full items-center gap-2 min-[640px]:max-w-md">
             {/* #1461: a due=week drill names the active window and can clear it. */}
             {dueBy && (

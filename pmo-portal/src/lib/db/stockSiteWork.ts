@@ -5,7 +5,7 @@
  * Quantities and money stay decimal strings (NFR-STK-007); value keys are absent for roles that do not read stock value.
  */
 import { supabase } from '@/src/lib/supabase/client';
-import { assertWriteLanded, toAppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 export type StockTagRow = Tables<'stock_tags'>;
@@ -15,7 +15,7 @@ export interface StockTagInput { name: string; zeroCost: boolean; paperRequired:
 export interface WorkOrderStockRow {
   workOrderId: string | null;           // null = movements whose document names no work order ("unassigned")
   itemId: string; itemCode: string; itemName: string; unitCode: string;
-  warehouseId: string; warehouseCode: string; warehouseKind: 'site' | 'yard' | 'staging';
+  warehouseId: string; warehouseCode: string; warehouseKind: 'central' | 'site' | 'yard' | 'staging';
   tagId: string | null; tagName: string | null; zeroCost: boolean;
   receivedQty: string; movedOutQty: string; issuedQty: string; onSiteQty: string;
   receivedValue?: string; movedOutValue?: string; issuedValue?: string; onSiteValue?: string;
@@ -23,12 +23,24 @@ export interface WorkOrderStockRow {
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-export async function listStockTags(includeArchived = false): Promise<StockTagRow[]> {
-  let q = supabase.from('stock_tags').select('*').order('name').order('id').limit(500);
-  if (!includeArchived) q = q.is('archived_at', null);
-  const { data, error } = await q;
-  if (error) throw toAppError(error);
-  return data ?? [];
+const PAGE = 500;
+const MAX_PAGES = 40;
+async function readAll<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string; code?: string } | null }>): Promise<T[]> {
+  const rows: T[] = [];
+  for (let index = 0; index < MAX_PAGES; index++) {
+    const { data, error } = await page(index * PAGE, (index + 1) * PAGE - 1);
+    if (error) throw toAppError(error);
+    rows.push(...(data ?? []));
+    if ((data?.length ?? 0) < PAGE) return rows;
+  }
+  throw new AppError('Too many rows to list; narrow the filter.', 'STK_TOO_MANY');
+}
+export function listStockTags(includeArchived = false): Promise<StockTagRow[]> {
+  return readAll<StockTagRow>((from, to) => {
+    let q = supabase.from('stock_tags').select('*').order('name').order('id').range(from, to);
+    if (!includeArchived) q = q.is('archived_at', null);
+    return q;
+  });
 }
 export async function createStockTag(i: StockTagInput): Promise<StockTagRow> {
   const { data, error } = await supabase.from('stock_tags')
@@ -48,11 +60,9 @@ export async function setStockTagArchived(id: string, archived: boolean): Promis
   assertWriteLanded(data, 'You cannot change this tag.');
 }
 
-export async function listStockDocumentFiles(documentId: string): Promise<StockDocumentFileRow[]> {
-  const { data, error } = await supabase.from('stock_document_files').select('*').eq('document_id', documentId)
-    .order('created_at', { ascending: false }).order('id').limit(200);
-  if (error) throw toAppError(error);
-  return data ?? [];
+export function listStockDocumentFiles(documentId: string): Promise<StockDocumentFileRow[]> {
+  return readAll<StockDocumentFileRow>((from, to) => supabase.from('stock_document_files').select('*').eq('document_id', documentId)
+    .order('created_at', { ascending: false }).order('id').range(from, to));
 }
 export async function addStockDocumentFile(a: { documentId: string; filePath: string; label: string | null }): Promise<StockDocumentFileRow> {
   const { data, error } = await supabase.from('stock_document_files')
@@ -60,7 +70,9 @@ export async function addStockDocumentFile(a: { documentId: string; filePath: st
   if (error) throw toAppError(error);
   return data;
 }
-export async function deleteStockDocumentFile(id: string): Promise<void> {
+export async function deleteStockDocumentFile(id: string, filePath: string): Promise<void> {
+  const { error: storageError } = await supabase.storage.from('stock-documents').remove([filePath]);
+  if (storageError) throw toAppError(storageError);
   const { data, error } = await supabase.from('stock_document_files').delete().eq('id', id).select('id');
   if (error) throw toAppError(error);
   assertWriteLanded(data, 'You cannot remove this attachment.');
@@ -89,4 +101,23 @@ export async function getWorkOrderStockBalance(f: { workOrderId?: string; projec
     }
     return out as WorkOrderStockRow;
   });
+}
+
+/** Upload before recording metadata, so a failed upload never counts as paper. */
+export async function uploadStockDocumentFile(orgId: string, documentId: string, file: File, label: string | null): Promise<void> {
+  const id = crypto.randomUUID();
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-160) || 'attachment';
+  const filePath = `${orgId}/${documentId}/${id}/${safeName}`;
+  const { error: uploadError } = await supabase.storage.from('stock-documents').upload(filePath, file);
+  if (uploadError) throw toAppError(uploadError);
+  const { error } = await supabase.from('stock_document_files').insert({ id, document_id: documentId, file_path: filePath, label });
+  if (error) {
+    await supabase.storage.from('stock-documents').remove([filePath]);
+    throw toAppError(error);
+  }
+}
+export async function stockDocumentFileUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from('stock-documents').createSignedUrl(path, 300);
+  if (error) throw toAppError(error);
+  return data.signedUrl;
 }

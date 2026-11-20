@@ -1,3 +1,4 @@
+import { withEnglishOrgTerms } from '@/src/lib/i18n/orgTerms';
 import React, { useCallback, useEffect, useId, useRef } from 'react';
 import { Dialog } from '@base-ui/react/dialog';
 import { Button, DataTable, Icon, StatusPill, UnsavedChangesDialog, type Column, type StatusVariant } from '@/src/components/ui';
@@ -77,8 +78,12 @@ const stepSubtitle = (step: WizardStep, t: TFunction, maxRows: number): string =
 };
 
 /** The entity word a title/button reads: the descriptor's localized display name, else the stable identifier. */
-const entityWord = <Input,>(descriptor: ImportDescriptor<Input>): string =>
-  descriptor.entityDisplay ?? descriptor.entity.toLowerCase();
+const entityWord = <Input,>(descriptor: ImportDescriptor<Input>, locale: string, singular = false): string => {
+  const word = (singular ? descriptor.entityDisplayOne : undefined) ?? descriptor.entityDisplay ?? descriptor.entity.toLowerCase();
+  return descriptor.entityIsAppCopy ? withEnglishOrgTerms(word, locale) : word;
+};
+const fieldLabel = <Input,>(field: ImportField<Input>, locale: string): string =>
+  field.labelIsAppCopy ? withEnglishOrgTerms(field.label, locale) : field.label;
 
 export interface ImportWizardProps<Input> {
   descriptor: ImportDescriptor<Input>;
@@ -90,7 +95,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
   // The wizard's own chrome (titles, subtitles, buttons) reads the `import` catalogue; declaring the
   // namespace here fetches it on mount (CATALOGUES.md route 1) instead of relying on the
   // missing-key handler's on-demand fetch + re-render.
-  const { t } = useTranslation('import');
+  const { t, i18n } = useTranslation('import');
   const wiz = useImportWizard(descriptor);
   // "Complete" only when every line became a record. A line already there is not a failure; a line the write refused,
   // or the preview refused for its errors, is a line not imported.
@@ -167,7 +172,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
               <div className="min-w-0 flex-1">
                 <Dialog.Title className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground">
                   {wiz.step === 'upload'
-                    ? t('import:wizard.title', 'Import {{entity}}', { entity: entityWord(descriptor) })
+                    ? t('import:wizard.title', 'Import {{entity}}', { entity: entityWord(descriptor, i18n.resolvedLanguage ?? i18n.language) })
                     : stepTitle(wiz.step, t, someNotImported)}
                 </Dialog.Title>
                 <Dialog.Description render={<p />} id={subId} className="mt-px text-control text-muted-foreground">
@@ -238,7 +243,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
                   >
                     {t('import:wizard.importButton', {
                       count: wiz.counts.valid,
-                      entity: wiz.counts.valid === 1 ? (descriptor.entityDisplayOne ?? entityWord(descriptor)) : entityWord(descriptor),
+                      entity: entityWord(descriptor, i18n.resolvedLanguage ?? i18n.language, wiz.counts.valid === 1),
                       defaultValue_one: 'Import {{count}} {{entity}}',
                       defaultValue_other: 'Import {{count}} {{entity}}',
                     })}
@@ -392,14 +397,14 @@ function MappingRow<Input>({
   onChange: (idx: number | null) => void;
 }) {
   const id = useId();
-  const { t } = useTranslation('import');
+  const { t, i18n } = useTranslation('import');
   return (
     // A label and its select read as one pair: stacked on a phone, side by side from `md` with a column each
     // (in the wide dialog the columns are fixed, not stretched to 550px apart — layout rule 1/2).
     <div className={cn('grid grid-cols-1 gap-1.5 md:items-start md:gap-4', wide ? 'md:grid-cols-[minmax(0,18rem)_minmax(0,22rem)]' : 'md:grid-cols-[1fr_1fr]')}>
       <div className="flex min-w-0 flex-col gap-0.5">
         <label htmlFor={id} id={`${id}-label`} className="text-control font-medium text-foreground">
-          {field.label}
+          {fieldLabel(field, i18n.resolvedLanguage ?? i18n.language)}
           {field.required && <span className="ml-0.5 text-destructive">*</span>}
         </label>
         {field.hint && <p id={`${id}-hint`} className="text-control text-muted-foreground">{field.hint}</p>}
@@ -431,7 +436,7 @@ function MappingRow<Input>({
 const CHIP_VARIANT: StatusVariant = 'won';
 
 function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: ImportDescriptor<Input> }) {
-  const { t } = useTranslation('import');
+  const { t, i18n } = useTranslation('import');
   const rows = wiz.parsed?.rows ?? [];
   // `hideInPreview` fields stay mapped + validated but hold no column (round A item 6: the import key is
   // internal; the Row number identifies the row). An error on a hidden field still surfaces — under the
@@ -463,7 +468,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
     { key: 'row', header: t('import:preview.row', 'Row'), kind: 'number', align: 'num', size: 64, cell: (v) => v.index + 1, exportValue: (v) => v.index + 1 },
     ...visibleFields.map((field): Column<(typeof wiz.validation)[number]> => ({
       key: field.key,
-      header: field.label,
+      header: fieldLabel(field, i18n.resolvedLanguage ?? i18n.language),
       kind: 'text',
       size: field.previewSize ?? 100,
       ...(field.numeric ? { align: 'num' as const } : {}),
@@ -508,7 +513,7 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
     { key: 'row', header: t('import:preview.row', 'Row'), kind: 'number', align: 'num', cell: (v) => v.index + 1, exportValue: (v) => v.index + 1 },
     ...visibleFields.map((field): Column<(typeof wiz.validation)[number]> => ({
       key: field.key,
-      header: field.label,
+      header: fieldLabel(field, i18n.resolvedLanguage ?? i18n.language),
       kind: field.key === primaryField?.key ? 'primary' : 'text',
       cell: (v) => {
         const col = wiz.mapping[field.key];

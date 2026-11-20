@@ -19,6 +19,8 @@ const { master, profile, project, reports } = vi.hoisted(() => ({
   project: { listIdentity: vi.fn() },
   reports: { onHand: vi.fn() },
 }));
+vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ isOwnershipCacheSynced: () => true, routeDomainWrite: () => 'pmo', subscribeOwnershipCache: () => () => {} }));
+vi.mock('@/src/lib/repositories/stockSiteWork', () => ({ stockSiteWorkRepository: { tags: { list: async () => [] } } }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, reports }, profile, project } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 

@@ -9,7 +9,7 @@ Spec: `docs/specs/unit-rate-catalogue.spec.md`. Migration 0955 (range 0955–095
 - Writes go through definer RPCs (Admin/Finance, advisory lock per project); pricing a line is an invoker RPC so the caller's own `boq_items` RLS, column grants and locks decide.
 
 ## Tasks
-1. `supabase/migrations/0955_unit_rate_catalogue.sql` + rollback (refuses while a line is priced from the catalogue). Owner: `supabase/tests/rate_catalogue.test.sql` (AC-RC-1..6).
+1. `supabase/migrations/1020_unit_rate_catalogue.sql` + rollback (refuses while a line is priced from the catalogue). Owner: `supabase/tests/rate_catalogue.test.sql` (AC-RC-1..6).
 2. `src/lib/db/rateCatalogue.ts`, `repositories/rateCatalogue.ts`, contract (ADR-0017 seam). `rateAt` pure helper.
 3. Import: `rateCatalogueDescriptor.ts` (variant columns, stage cell, 5,000-row cap via new optional `maxRows`), wizard failed-rows download (`failedRows.ts`). Owner: `rateCatalogueDescriptor.test.ts` (AC-RC-2,5,7,8). English and Bahasa Indonesia strings.
 4. Glossary terms.

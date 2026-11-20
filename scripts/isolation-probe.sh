@@ -93,7 +93,10 @@ if [ "${RPC_ONLY:-0}" != 1 ]; then
     code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?$pk=eq.$aid&select=$columns")
     # Granted tenant tables deny by returning []; none also permits a denied SELECT grant.
     table_read "table $t by-id read" "$code" none
-    if [ "${PROBE_A_DISPOSABLE:-0}" != 1 ]; then skip "$t update — needs disposable tenant A"; continue; fi
+    if [ "${PROBE_A_DISPOSABLE:-0}" != 1 ]; then
+      if [ "${PAIRED_READ_WRITE:-0}" = 1 ]; then say "  N/A  $t update — paired write run"; else skip "$t update — needs disposable tenant A"; fi
+      continue
+    fi
     code=$(req -X PATCH "${hdr_b[@]}" -H 'Prefer: return=representation' "$BASE/rest/v1/$t?$pk=eq.$aid" -d "{\"$pk\":\"$aid\"}")
     table_update "table $t update" "$code"
   done < <(jq -r '.[] | [.table,.has_org,.pk,.columns,.b_read,.by_id] | @tsv' "$TABLES_JSON")
@@ -248,6 +251,9 @@ fi
 c=$(rpc get_finance_hub_figures "{}")
 A_COMPANY=$(jq -r '.[]|select(.table=="companies")|.id' "$A_ROWS_JSON")
 A_SI=$(jq -r '.[]|select(.table=="sales_invoices")|.id' "$A_ROWS_JSON")
+if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
+  c=$(rpc set_project_billing_terms "{\"p_project\":\"$A_PROJECT\",\"p_stages\":[],\"p_day\":null,\"p_warn_days\":5,\"p_pct\":0}")
+else skip "set_project_billing_terms (projects)"; fi
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc get_projects_money_collection "{\"p_project_ids\":[\"$A_PROJECT\"]}")
 else skip "get_projects_money_collection (projects)"; fi

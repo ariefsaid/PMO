@@ -157,9 +157,18 @@ export const MODULES: ModuleDef[] = [
   { module: 'imprest', icon: 'site-cash', label: 'Site cash', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'imprest:nav.siteCash', path: '/imprest', detail: { pattern: '/imprest/:floatId', param: 'floatId' },
     feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // #2524: Material requests — every role raises one; RLS scopes reads.
+  { module: 'materialRequests', icon: 'file', label: 'Material requests', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'materialRequests:nav.materialRequests', path: '/material-requests', detail: { pattern: '/material-requests/:requestId', param: 'requestId' } },
   // #1519: Equipment usage — every role logs; the Approvals view and amounts gate inside the pages.
   { module: 'equipment', icon: 'equipment', label: 'Equipment', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'equipment:nav.equipment', path: '/equipment', detail: { pattern: '/equipment/assets/:assetId', param: 'assetId' } },
+  // #1522: daily site reports — every role reads; entry and validation gate inside the pages.
+  { module: 'site-reports', icon: 'reports', label: 'Site reports', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'siteReport:nav', path: '/site-reports', detail: { pattern: '/site-reports/:reportId', param: 'reportId' } },
+  // #2528: Crews — every role reads; the tick and the manage actions gate inside the page.
+  { module: 'crews', icon: 'user', label: 'Crews', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'crews:nav.crews', path: '/crews' },
   // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Finance, Engineers and Admins
   // (Finance works assigned tasks like an Engineer, owner 2026-10-23).
   // Project-level Tasks remain available for oversight; Executive navigation is unchanged.
@@ -238,7 +247,7 @@ export const MODULES: ModuleDef[] = [
     label: 'Administration', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.administration',
     path: '/administration',
-    roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+    roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin, UserRole.ProjectManager],
   },
 ];
 
@@ -255,6 +264,7 @@ MODULES.sort((left, right) => compareNavigationOrder(left.path, right.path));
  */
 export function modulesForRole(role: UserRole): ModuleDef[] {
   const visible = MODULES.filter((m) => !m.roles || m.roles.includes(role));
+  if (role === UserRole.ProjectManager) return visible.map((module) => module.module === 'administration' ? { ...module, path: '/administration/people' } : module);
   if (role !== UserRole.Finance) return visible;
   return visible.map((module) =>
     module.module === 'administration'
@@ -341,11 +351,14 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   // #1519: the asset reference list is part of Equipment.
   '/equipment/assets': '/equipment',
   '/equipment/expiring': '/equipment',
+  '/equipment/availability': '/equipment',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
 export function railParentForPath(pathname: string): string | undefined {
   if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
+  // #2518: a work order's page belongs to Projects.
+  if (/^\/work-orders\/[^/]+$/.test(pathname)) return '/projects';
   return RAIL_PARENT_FOR_PATH[pathname];
 }
 
@@ -361,6 +374,7 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/stock/new/return': { label: 'Return from project', i18nKey: 'stock:kinds.return' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/count': { label: 'Stock count', i18nKey: 'stock:kinds.count' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/adjustment': { label: 'Adjustment', i18nKey: 'stock:kinds.adjustment' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/equipment/availability': { label: 'Availability', i18nKey: 'equipment:availability.title' }, // i18n-exempt: translated at render
   '/equipment/assets': { label: 'Assets', i18nKey: 'equipment:nav.assets' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/equipment/expiring': { label: 'Expiring documents', i18nKey: 'equipment:nav.expiring' }, // i18n-exempt: fallback label is replaced from i18nKey at render
 };
@@ -368,6 +382,7 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
 export const ADMINISTRATION_SECTION_LABELS = {
   users: 'Users',
+  people: 'People',
   integrations: 'Organization integrations',
   accounting: 'Accounting setup',
   projects: 'Project setup',
@@ -376,6 +391,7 @@ export const ADMINISTRATION_SECTION_LABELS = {
   usage: 'Usage',
   features: 'Features',
   'exchange-rates': 'Exchange rates',
+  terminology: 'Terminology',
   'cost-attribution': 'Cost attribution',
 } as const;
 
@@ -390,6 +406,7 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   string
 > = {
   users: 'admin.nav.users',
+  people: 'administration:people.navLabel',
   integrations: 'admin.nav.integrations',
   accounting: 'admin.nav.accounting',
   projects: 'admin.nav.projects',
@@ -398,6 +415,7 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   usage: 'admin.nav.usage',
   features: 'admin.nav.features',
   'exchange-rates': 'admin.nav.exchangeRates',
+  terminology: 'administration:terminology.nav',
   'cost-attribution': 'costAttribution:title',
 };
 
@@ -467,6 +485,7 @@ export function breadcrumbForPath(
   /** Same-owner return descriptor, minted only by `contextualListReturnNavigation`. */
   contextualParent?: ListReturnNavigation,
   routeSearch = '',
+  workOrderProject?: { id: string; name: string },
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
@@ -593,6 +612,19 @@ export function breadcrumbForPath(
     return [{ label: selectedIndexModule.label, ...(selectedIndexModule.labelKey ? { i18nKey: selectedIndexModule.labelKey } : {}) }];
   }
 
+  // #2518: /work-orders/:id reads as Projects > the work order (no work-order module of its own).
+  if (/^\/work-orders\/[^/]+$/.test(pathname)) {
+    return [
+      { label: MODULES.find((module) => module.path === '/projects')?.label ?? pathname, i18nKey: 'shell.nav.projects', href: '/projects', onClick: () => navigate?.('/projects') }, // the module's own label (itself translated from labelKey); i18nKey replaces it at render
+      ...(workOrderProject ? [{ label: workOrderProject.name, href: `/projects/${workOrderProject.id}`, onClick: () => navigate?.(`/projects/${workOrderProject.id}`) }] : []),
+      recordLabel
+        ? { label: recordLabel }
+        : recordResolved
+          ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
+          : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+    ];
+  }
+
   for (const m of MODULES) {
     // Detail route → [module link > record]. The dashboard has no detail route.
     if (m.detail) {
@@ -656,6 +688,7 @@ export function breadcrumbForPath(
 
 /** Cached index lists the breadcrumb reads to resolve a detail route's name. */
 export interface RecordLists {
+  workOrders?: { id: string; wo_number: string | null; title: string; project_id?: string }[];
   projects?: { id: string; name: string; short_name?: string | null }[];
   opportunities?: { id: string; name: string; short_name?: string | null }[];
   procurements?: { id: string; title: string }[];
@@ -769,6 +802,12 @@ export function recordLabelForPath(
 
   const project = projectIdentityForPath(pathname, lists);
   if (project) return projectDisplayName(project);
+
+  const workOrderId = idFrom('/work-orders');
+  if (workOrderId) {
+    const order = lists.workOrders?.find((item) => item.id === workOrderId);
+    return order?.wo_number ?? order?.title;
+  }
 
   const procurementId = idFrom('/procurement');
   if (procurementId) return lists.procurements?.find((p) => p.id === procurementId)?.title;

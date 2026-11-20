@@ -28,6 +28,7 @@ const ADMIN = 'admin@acme.test';
 
 const ORGANIZATION_SECTIONS = [
   { name: 'Users', url: '/administration/users', testid: 'administration-panel-users', heading: 'Users' },
+  { name: 'People', url: '/administration/people', testid: 'administration-panel-people', heading: 'People' },
   {
     name: 'Organization integrations',
     url: '/administration/integrations',

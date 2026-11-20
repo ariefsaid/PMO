@@ -46,6 +46,11 @@ describe('computeEquipmentMetrics', () => {
     expect(m.utilisationPct).toBe('41.7');
   });
 
+  it('AC-EAV-002 excludes work on unrecorded days from utilisation', () => {
+    const m = computeEquipmentMetrics({ from: day(1), to: day(2), workingHoursPerDay: '8', statuses: [{ date: day(1), status: 'ready' }], usage: [work('8', 'Approved', day(2))] });
+    expect(m.utilisationPct).toBe('0.0');
+  });
+
   it('AC-EAV-011 only Approved usage counts; pending usage is named', () => {
     const m = computeEquipmentMetrics({
       ...base,
@@ -131,6 +136,11 @@ describe('rentalDeduction', () => {
     const r = rentalDeduction({ from: day(1), to: day(10), rate: '100.00', basis: 'day', currency: 'IDR', downDays: downDays([4, 5], true) });
     expect(r.rentalAmount).toBe('1000.00');
     expect(r.deduction).toBe('200.00');
+  });
+
+  it('rounds a half-cent monthly charge only after exact proration', () => {
+    const r = rentalDeduction({ from: '2026-09-01', to: '2026-09-15', rate: '0.01', basis: 'month', currency: 'IDR', downDays: [] });
+    expect(r.rentalAmount).toBe('0.01');
   });
 
   it('a monthly rate is divided by the calendar days of the day\'s own month, exactly', () => {

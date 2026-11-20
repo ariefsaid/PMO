@@ -45,3 +45,7 @@ describe('modulesForRoleWithOperator (AC-ADMIA-002)', () => {
     );
   });
 });
+it('a Project Manager can discover the People register from Navigate', () => {
+  const administration = modulesForRoleWithOperator(UserRole.ProjectManager, false).find((m) => m.module === 'administration');
+  expect(administration?.path).toBe('/administration/people');
+});

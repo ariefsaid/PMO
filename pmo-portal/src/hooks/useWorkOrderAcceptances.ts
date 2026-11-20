@@ -36,6 +36,7 @@ export function useWorkOrderAcceptanceMutations(projectId: string) {
   const refreshAcceptances = () => qc.invalidateQueries({ queryKey: ['work-order-acceptances', orgId, projectId] });
   const refreshAllocations = () => {
     void qc.invalidateQueries({ queryKey: ['work-order-lines', orgId] });
+    void qc.invalidateQueries({ queryKey: ['billing-reconciliation', orgId, projectId] });
     void qc.invalidateQueries({ queryKey: ['project-billing', orgId, projectId] });
   };
   const refreshClose = () => {

@@ -518,4 +518,17 @@ describe('CommandPalette', () => {
     expect(state.refetch).toHaveBeenCalledOnce();
     expect(screen.getByText('Sales Pipeline')).toBeInTheDocument();
   });
+
+  it('AC-NBR-034: answered record rows remain visible above the loading row for remaining sources', async () => {
+    const records: PaletteItem[] = [
+      ...items,
+      { id: 'projects:p1', group: 'Records', title: 'Harbour Works', sub: 'Project', icon: 'projects', run: vi.fn() },
+    ];
+    render(<CommandPalette open items={records} onClose={vi.fn()} loadingMore />);
+    await userEvent.type(screen.getByRole('combobox'), 'harbour');
+    const row = await screen.findByText('Harbour Works');
+    const skeleton = screen.getAllByTestId('cmdk-skeleton-row')[0];
+    expect(row.compareDocumentPosition(skeleton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText(/No results for/)).not.toBeInTheDocument();
+  });
 });
