@@ -558,9 +558,23 @@
     "undoFor": "Batalkan {{number}}",
     "undoTitle": "Hitung {{number}} secara terpisah lagi?",
     "undoBody": "Invoice PMO kembali masuk ke pendapatan dan piutang. Invoice ERP {{erp}} tetap ada, jadi jika keduanya dihitung, penjualan tampil dua kali sampai Anda memasangkannya lagi.",
+    "erpCancelled": {
+      "title": "Invoice ERP dibatalkan",
+      "help": "Salinan ERP yang dibatalkan dan salinan PMO yang dipasangkan tidak termasuk dalam total invoice proyek. Jika penjualan masih berlaku, batalkan pasangan. Jika penjualan dibatalkan, biarkan tetap berpasangan.",
+      "row": "Invoice ERP {{number}} dibatalkan"
+    },
+    "erpUnknown": {
+      "title": "Status invoice ERP tidak diketahui",
+      "help": "Status invoice ERP belum dapat dipastikan. Tinjau pasangan sebelum memutuskan apakah akan membatalkannya."
+    },
+    "undoChanged": "Pasangan atau status ERP berubah. Tinjau informasi terbaru dan coba lagi.",
+    "undoNeedsLifecycle": "Coba muat ulang status invoice ERP sebelum membatalkan pasangan ini.",
+    "undoBodyUnknown": "Status invoice ERP tidak dapat dipastikan. Pembatalan pasangan dapat mengembalikan {{number}} sementara salinan ERP masih terhitung, sehingga penjualan dapat terhitung dua kali.",
+    "undoBodyCancelled": "Invoice ERP {{erp}} dibatalkan. Batalkan pasangan agar {{number}} dihitung secara terpisah lagi.",
     "undoDone": "{{number}} kini dihitung secara terpisah lagi.",
     "undoFailed": "Tidak ada yang diubah. Pasangan mungkin sudah dibatalkan; daftar telah dimuat ulang.",
     "loadFailed": {
+      "lifecycle": "Status invoice ERP tidak dapat dimuat. Tinjau pasangan di bawah ini.",
       "propose": "Invoice yang cocok gagal dimuat.",
       "unpaired": "Invoice yang masih dihitung sebagai invoice PMO gagal dimuat.",
       "accepted": "Invoice yang sudah dihitung sekali gagal dimuat."

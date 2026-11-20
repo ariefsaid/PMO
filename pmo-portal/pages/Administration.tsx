@@ -1,4 +1,5 @@
 import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
+import CostDisciplines from './admin/CostDisciplines';
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -286,6 +287,7 @@ const SelectedAdministrationPanel: React.FC<{
           <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
+            <CostDisciplines />
           </div>
         </div>
       );
