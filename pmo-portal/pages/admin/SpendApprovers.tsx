@@ -22,6 +22,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { can } from '@/src/auth/policy';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { repositories } from '@/src/lib/repositories';
+import { spendApprovalSettingsRepository } from '@/src/lib/repositories/spendApprovalSettings';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
@@ -56,11 +57,11 @@ const SpendApprovers: React.FC = () => {
   const tiersKey = ['spend-approval-tiers', orgId] as const;
   const { data: tiersOn } = useQuery<boolean>({
     queryKey: tiersKey,
-    queryFn: () => repositories.orgSettings.getSpendApprovalTiersEnabled(),
+    queryFn: () => spendApprovalSettingsRepository.getTiersEnabled(),
     enabled: Boolean(orgId),
   });
   const tiersMutation = useMutation({
-    mutationFn: (enabled: boolean) => repositories.orgSettings.setSpendApprovalTiersEnabled(enabled),
+    mutationFn: (enabled: boolean) => spendApprovalSettingsRepository.setTiersEnabled(enabled),
     onSuccess: () => qc.invalidateQueries({ queryKey: tiersKey }),
     onError: (err) => {
       const { headline, detail } = classifyMutationError(err);

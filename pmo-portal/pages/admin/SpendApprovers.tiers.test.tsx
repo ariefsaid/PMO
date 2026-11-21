@@ -26,8 +26,6 @@ vi.mock('@/src/lib/repositories', () => ({
       listSpendApprovers: m.listSpendApprovers,
       addSpendApprover: m.addSpendApprover,
       removeSpendApprover: m.removeSpendApprover,
-      getSpendApprovalTiersEnabled: m.getSpendApprovalTiersEnabled,
-      setSpendApprovalTiersEnabled: m.setSpendApprovalTiersEnabled,
     },
     profile: { listOrgProfiles: m.listOrgProfiles },
   },
@@ -37,6 +35,13 @@ let realRole: Role = 'Admin';
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole: realRole }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [], isError: false, refetch: async () => undefined }),
+}));
+
+vi.mock('@/src/lib/repositories/spendApprovalSettings', () => ({
+  spendApprovalSettingsRepository: {
+    getTiersEnabled: m.getSpendApprovalTiersEnabled,
+    setTiersEnabled: m.setSpendApprovalTiersEnabled,
+  },
 }));
 
 import SpendApprovers from './SpendApprovers';

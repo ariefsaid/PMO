@@ -128,10 +128,6 @@ export interface OrgSettingsRepository {
   listSpendApprovers(): Promise<SpendApproverRow[]>;
   /** #803, Admin-only (RLS): name an approver — `projectId` null = the overhead/over-budget set. */
   addSpendApprover(profileId: string, projectId: string | null, minAmount?: number | null): Promise<void>;
-  /** #2695 — approver lists narrowed by amount tier (default off). */
-  getSpendApprovalTiersEnabled(): Promise<boolean>;
-  /** Admin-only (RLS). */
-  setSpendApprovalTiersEnabled(enabled: boolean): Promise<void>;
   /** #803, Admin-only (RLS): remove one approver row. */
   removeSpendApprover(id: string): Promise<void>;
 }

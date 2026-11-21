@@ -1,12 +1,6 @@
 /** People, operator, usage, saved views, org features/settings, credits and domain-ownership repository implementations (the admin/settings group). */
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
-import {
-  listSpendApprovers,
-  addSpendApprover,
-  removeSpendApprover,
-  getSpendApprovalTiersEnabled,
-  setSpendApprovalTiersEnabled,
-} from '@/src/lib/db/spendApprovers';
+import { listSpendApprovers, addSpendApprover, removeSpendApprover } from '@/src/lib/db/spendApprovers';
 import { listUsers, listUsersPage, countActiveAdminsByOrg, findUserPage, listManagerChoices, updateUserRole, assignUserManager, inviteUser, setUserStatus } from '@/src/lib/db/adminUsers';
 import { isOperator } from '@/src/lib/db/operators';
 import {
@@ -151,8 +145,6 @@ export const orgSettingsRepository: OrgSettingsRepository = {
   listSpendApprovers: () => wrap(() => listSpendApprovers()),
   addSpendApprover: (profileId, projectId, minAmount) =>
     wrap(() => (minAmount === undefined ? addSpendApprover(profileId, projectId) : addSpendApprover(profileId, projectId, minAmount))),
-  getSpendApprovalTiersEnabled: () => wrap(() => getSpendApprovalTiersEnabled()),
-  setSpendApprovalTiersEnabled: (enabled) => wrap(() => setSpendApprovalTiersEnabled(enabled)),
   removeSpendApprover: (id) => wrap(() => removeSpendApprover(id)),
 };
 
