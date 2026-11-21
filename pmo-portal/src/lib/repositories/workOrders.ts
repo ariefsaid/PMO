@@ -1,4 +1,5 @@
 /** Delivery implementations: milestones, work orders, progress billing (incl. claim-invoice dispatch), acceptances. */
+import { listTaskGroups, createTaskGroup, updateTaskGroup, deleteTaskGroup } from '@/src/lib/db/taskGroups';
 import { AppError } from '@/src/lib/appError';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
@@ -59,6 +60,10 @@ export const milestoneRepository: MilestoneRepository = {
   update: (id, patch) => wrap(() => updateMilestone(id, patch)),
   delete: (id) => wrap(() => deleteMilestone(id)),
   setTaskMilestone: (taskId, milestoneId) => wrap(() => updateTaskMilestone(taskId, milestoneId)),
+  listTaskGroups: (projectId) => wrap(() => listTaskGroups(projectId)),
+  createTaskGroup: (input, projectId) => wrap(() => createTaskGroup(input, projectId)),
+  updateTaskGroup: (id, patch) => wrap(() => updateTaskGroup(id, patch)),
+  deleteTaskGroup: (id) => wrap(() => deleteTaskGroup(id)),
 };
 
 /**

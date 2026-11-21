@@ -116,6 +116,9 @@ const PersonDetailPage = lazyWithPreload(() => import('./pages/equipment/PersonD
 const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssetDetail'));
 const SiteReportsPage = lazyWithPreload(() => import('./pages/siteReports/SiteReports'));
 const SiteReportDetailPage = lazyWithPreload(() => import('./pages/siteReports/SiteReportDetail'));
+const CrewPunctualityPage = lazyWithPreload(() => import('./pages/siteReports/CrewPunctuality'));
+const SafetyDayFormPage = lazyWithPreload(() => import('./pages/safetyDays/SafetyDayForm'));
+const SafetySummaryPage = lazyWithPreload(() => import('./pages/SafetySummary'));
 const QuantityChangesPage = lazyWithPreload(() => import('./pages/quantityChanges/QuantityChanges'));
 const QuantityChangeDetailPage = lazyWithPreload(() => import('./pages/quantityChanges/QuantityChangeDetail'));
 const CrewsPage = lazyWithPreload(() => import('./pages/crews/Crews'));
@@ -154,6 +157,8 @@ const JournalsPage = lazyWithPreload(() => import('./pages/Journals'));
 const ManagementPackPage = lazyWithPreload(() => import('./pages/ManagementPack'));
 const FinanceHubPage = lazyWithPreload(() => import('./pages/finance/FinanceHubRoute'));
 const ReceivablesPage = lazyWithPreload(() => import('./pages/finance/ReceivablesPage'));
+const BillingBoardPage = lazyWithPreload(() => import('./pages/BillingBoard'));
+const BillingPlanPage = lazyWithPreload(() => import('./pages/BillingPlan'));
 const PayablesPage = lazyWithPreload(() => import('./pages/finance/PayablesPage'));
 const WorkInHandPage = lazyWithPreload(() => import('./pages/finance/WorkInHand'));
 const ProfileSettingsPage = lazyWithPreload(() => import('./pages/ProfileSettings'));
@@ -267,7 +272,9 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/material-requests/:requestId/delivery-note', chunks: [DeliveryNotePrintPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests/:requestId', chunks: [MaterialRequestDetailPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests', chunks: [MaterialRequestsPage], namespaces: ['materialRequests'] },
-  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk'] },
+  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk', 'safety'] },
+  { path: '/safety-days/:dayId', chunks: [SafetyDayFormPage], namespaces: ['safety', 'status'] },
+  { path: '/safety', chunks: [SafetySummaryPage], namespaces: ['safety'] },
   { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
   { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage], namespaces: ['imprest'] },
   { path: '/equipment', chunks: [EquipmentUsagePage], namespaces: ['equipment'] },
@@ -276,6 +283,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/equipment/availability', chunks: [EquipmentAvailabilityPage], namespaces: ['equipment'] },
   { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage], namespaces: ['equipment'] },
   { path: '/site-reports', chunks: [SiteReportsPage], namespaces: ['siteReport'] },
+  { path: '/site-reports/crews', chunks: [CrewPunctualityPage], namespaces: ['siteReport'] },
   { path: '/site-reports/:reportId', chunks: [SiteReportDetailPage], namespaces: ['siteReport'] },
   { path: '/quantity-changes', chunks: [QuantityChangesPage], namespaces: ['quantityChanges', 'status'] },
   { path: '/quantity-changes/:requestId', chunks: [QuantityChangeDetailPage], namespaces: ['quantityChanges', 'status'] },
@@ -286,10 +294,12 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/clearance/:personId', chunks: [PersonClearancePage], namespaces: ['administration'] },
-  { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
-  { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
+  { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement', 'safety'] },
+  { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement', 'safety'] },
   { path: '/finance', chunks: [FinanceHubPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/receivables', chunks: [ReceivablesPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/finance/billing-board', chunks: [BillingBoardPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/finance/billing-plan', chunks: [BillingPlanPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/payables', chunks: [PayablesPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/work-in-hand', chunks: [WorkInHandPage], namespaces: ['workInHand', 'financeHub'] },
@@ -498,6 +508,9 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/material-requests/:requestId/delivery-note', element: <DeliveryNotePrintPage /> },
   { path: '/material-requests/:requestId', element: <MaterialRequestDetailPage /> },
   { path: '/work-orders/:id', element: <WorkOrderDetailPage /> },
+  // #2596: daily safety records per work order and day, and the monthly safety summary.
+  { path: '/safety-days/:dayId', element: <SafetyDayFormPage /> },
+  { path: '/safety', element: <SafetySummaryPage /> },
   { path: '/imprest', element: gated('imprest', <ImprestFloatsPage />) },
   { path: '/imprest/:floatId', element: gated('imprest', <ImprestFloatDetailPage />) },
   // #1519: equipment usage grid, asset reference and per-asset costing.
@@ -508,6 +521,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/equipment/assets/:assetId', element: <EquipmentAssetDetailPage /> },
   // #1522: daily site reports per work order and the QS validation queue.
   { path: '/site-reports', element: <SiteReportsPage /> },
+  { path: '/site-reports/crews', element: <CrewPunctualityPage /> },
   { path: '/site-reports/:reportId', element: <SiteReportDetailPage /> },
   { path: '/quantity-changes', element: <QuantityChangesPage /> },
   { path: '/quantity-changes/:requestId', element: <QuantityChangeDetailPage /> },
@@ -540,6 +554,8 @@ export const appRouteConfig: RouteObject[] = [
   // Finance section. Each area has one canonical URL; Statements keeps its existing page.
   { path: '/finance', element: <FinanceAccessRoute><FinanceHubPage /></FinanceAccessRoute> },
   { path: '/finance/receivables', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<ReceivablesPage />} /></FinanceAccessRoute> },
+  { path: '/finance/billing-board', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<BillingBoardPage />} /></FinanceAccessRoute> },
+  { path: '/finance/billing-plan', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<BillingPlanPage />} /></FinanceAccessRoute> },
   { path: '/finance/payables', element: <FinanceAccessRoute><FeatureRoute feature="procurement" element={<PayablesPage />} /></FinanceAccessRoute> },
   { path: '/finance/reports', element: <FinanceAccessRoute><FeatureRoute feature="management_pack" element={<ManagementPackPage />} /></FinanceAccessRoute> },
   { path: '/finance/work-in-hand', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<WorkInHandPage />} /></FinanceAccessRoute> },

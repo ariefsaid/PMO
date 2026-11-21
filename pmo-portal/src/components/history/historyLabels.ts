@@ -60,6 +60,7 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     pay_number: t('history.field.pay_number', 'Payment number'),
     assignee_id: t('history.field.assignee_id', 'Assignee'),
     milestone_id: t('history.field.milestone_id', 'Phase'),
+    task_group_id: t('project:projectDetail.tasks.form.taskGroup', 'Task group'),
     parent_task_id: t('history.field.parent_task_id', 'Parent task'),
     meeting_id: t('history.field.meeting_id', 'Meeting'),
     priority: t('history.field.priority', 'Priority'),

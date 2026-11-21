@@ -40,6 +40,7 @@ export type Action =
   | 'manage_external_bindings'
   | 'view_financial_directory'
   | 'manage'
+  | 'viewPeople'
   | 'push_timesheet'
   | 'confirm_employee_link'
   | 'upload'
@@ -99,9 +100,13 @@ export type Entity =
   | 'rateCatalogue'
   | 'dailySiteReport'
   | 'dailySiteReportRevenue'
+  | 'safetyDay'
+  | 'safetyLists'
   | 'quantityChange'
   | 'progressClaim'
   | 'billingStage'
+  | 'closeoutItem'
+  | 'closeoutChecklist'
   | 'workOrderLine'
   | 'workOrderAcceptance'
   | 'expenseClaim'
@@ -136,7 +141,12 @@ export type Entity =
   | 'siteReportLists'
   | 'workOrderRevenuePlan'
   | 'revenuePlanSettings'
+  | 'siteCheckpoint'
+  | 'siteCheckpointList'
+  | 'workOrderCandidate'
+  | 'workOrderCandidateTemplate'
   | 'costDiscipline'
+  | 'workOrderList'
   | 'billMatch'
   | 'employeeLink'
   | 'pushHold'
@@ -208,6 +218,8 @@ export interface PolicyContext {
     /** Project task write ownership and saved-view owner for record-scoped checks. */
     externallyOwned?: boolean;
     user_id?: string | null;
+    /** The crew's field controller — timed checkpoints (#2594): the controller records their own crew's checkpoints. */
+    field_controller_id?: string | null;
     /** Author id — for equipment usage visibility and the document-edit author rule (A-7). */
     author_id?: string | null;
     /** #2584 progress certificate: who prepared and who submitted it (the approver is neither). */
@@ -444,6 +456,19 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   dailySiteReportRevenue: { view: (role, ctx) => has(DSR_REVENUE, role) || isOwnProjectPm(role, ctx) },
   /**
+   * Daily safety records (#2596, 1410-1414). UX ONLY. Mirrors safety_may_enter: Admin, Engineer, or the project's own PM
+   * enter, submit and correct; every active member reads counts; worker names and photos follow OD-DSF-6
+   * (`viewPeople`). The database refuses everything else.
+   */
+  safetyDay: {
+    view: allow(ALL),
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_ENTER, role) || isOwnProjectPm(role, ctx)),
+    edit: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_ENTER, role) || isOwnProjectPm(role, ctx)),
+    viewPeople: (role, ctx) => has(['Admin', 'Executive', 'Engineer'], role) || isOwnProjectPm(role, ctx),
+  },
+  /** The check types, permit types and pre-work checklist: Admin-only rows (1410) and the switch (set_safety_records_enabled). */
+  safetyLists: { manage: allow(ADMIN) },
+  /**
    * Quantity change requests (#2578). UX only: qcr_* functions and RLS are the authority (ADR-0016/0019).
    *   view ← read;  create ← raise or edit a draft;  act ← submit (the author or an editor);
    *   approve ← approve or return, never the author, ANY editor (`record.editor_ids`) or the submitter (`record.submitted_by`);
@@ -613,6 +638,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     transition: allow(['Admin', 'Finance', 'Project Manager']),
     edit: allow(CONFIRM_BAST),
   },
+  /**
+   * Work-order close-out checklist (#2593; 1400–1402). transition = attach a document to an item and mark it done
+   * (lock_closeout_item: Admin, Finance, and the project's own manager); edit = the organisation's list (Admin). The close
+   * itself stays with transition_work_order's roles; the database guard refuses it while a required item is open. UX only.
+   */
+  closeoutItem: { view: allow(ALL), transition: allow(['Admin', 'Finance', 'Project Manager']) },
+  closeoutChecklist: { view: allow(ALL), edit: allow(ADMIN) },
   /**
    * Expense claims and cash advances (#775, migration 0247). Mirrors the server:
    *   view/create ← every active member raises their own (RLS insert: claimant = auth.uid()); reads are RLS-scoped
@@ -987,14 +1019,38 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // tax posture is an accounting judgement, the same class as the budget→ERP account map (0137).
   // UX ONLY — RLS is the enforcement authority (ADR-0016), and the FE may be stricter, never looser.
   orgProjectClassification: { manage: allow(ADMIN) },
+  // #2595: candidate work orders. Open and assess: Admin, Engineer, or the project's own Project Manager (mirrors create_work_order_candidate and
+  // the item policies of 1405); decide: Admin or the project's Project Manager (decide_work_order_candidate, 1407). The checklist template is Admin-only
+  // (set_work_order_candidate_template). Pass the project's manager id as ctx.record.project_manager_id. UX ONLY; the database decides.
+  workOrderCandidate: {
+    view: allow(ALL),
+    create: (role, ctx) => has(['Admin', 'Engineer'], role) || isOwnProjectPm(role, ctx),
+    edit: (role, ctx) => has(['Admin', 'Engineer'], role) || isOwnProjectPm(role, ctx),
+    approve: (role, ctx) => role === 'Admin' || isOwnProjectPm(role, ctx),
+  },
+  workOrderCandidateTemplate: { manage: allow(ADMIN) },
   // #2621: the site report idle-reason and weather lists. Mirrors the Admin-only insert/update policies of 1040. UX ONLY.
   siteReportLists: { manage: allow(ADMIN) },
   // #2671 dated revenue plan per work order. UX ONLY — wo_revenue_plan_* (1276) and the reads (1277) are the authority
   // (ADR-0016): the project's own Project Manager only, Admin/Executive/Finance on any project.
   workOrderRevenuePlan: { view: allow(['Admin', 'Executive', 'Finance', 'Project Manager']), manage: allow(['Admin', 'Executive', 'Finance', 'Project Manager']) },
   revenuePlanSettings: { manage: allow(ADMIN) },
+  /**
+   * Timed checkpoints (#2594, 1385..1388). UX ONLY — record_site_checkpoint and the read rule are the authority (ADR-0016).
+   *   view   ← Admin, Executive, Engineer, the work order's project manager, the crew's own field controller;
+   *   create ← record: Admin, Engineer, the work order's project manager, the crew's own field controller (not Executive).
+   */
+  siteCheckpoint: {
+    view: (role, ctx) => has(['Admin', 'Executive', 'Engineer'], role) || isOwnProjectPm(role, ctx)
+      || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId),
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (has(['Admin', 'Engineer'], role) || isOwnProjectPm(role, ctx)
+      || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+  },
+  siteCheckpointList: { manage: allow(ADMIN) },
   // #2623 (FR-WCA-011): the organisation's cost disciplines. Mirrors 0950's RLS (insert/update/delete: active Admin). UX ONLY.
   costDiscipline: { create: allow(ADMIN), edit: allow(ADMIN), archive: allow(ADMIN) },
+  // #2668 (FR-WAG-002): the organisation's work-order area and group lists. Mirrors 1382's RLS (Admin writes). UX ONLY.
+  workOrderList: { create: allow(ADMIN), edit: allow(ADMIN), archive: allow(ADMIN) },
   // #2622 (1018): a bill's three-way match. get_bill_match reads for Admin/Executive/PM/Finance; approve_bill_match_exception
   // is Admin/Finance, never the bill's author nor its lines' recorder (SoD in the RPC). UX ONLY.
   billMatch: { view: allow(WORK_ORDER_MONEY), approve: allow(['Admin', 'Finance']) },

@@ -1,0 +1,1 @@
+{"tables": [{"table": "done_not_claimed_notices", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"}], "definer_functions": ["set_billing_plan_reminder(boolean,integer)", "notify_done_not_claimed()"]}

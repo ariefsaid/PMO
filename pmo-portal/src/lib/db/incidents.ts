@@ -10,6 +10,14 @@ export type IncidentRow = Tables<'incident_reports'>;
 export type IncidentSeverity = IncidentRow['severity']; // 'Low' | 'Medium' | 'High' | 'Critical'
 export type IncidentStatus = IncidentRow['status']; // 'Open' | 'Investigating' | 'Closed'
 
+/** One task of an issue as the detail page lists it (#2677). `tasks` is null when row security hides the task from the caller. */
+export interface IncidentTaskLine {
+  created_at: string;
+  tasks: { id: string; name: string; status: string; assignee_id: string | null; end_date: string | null; project_id: string } | null;
+}
+/** An issue with its tasks (oldest first) embedded; `incident_tasks` is absent on legacy fixtures. */
+export type IncidentDetailRow = IncidentRow & { incident_tasks?: IncidentTaskLine[] };
+
 /**
  * The fields a "File incident" form supplies. org_id, status and reported_by are NEVER
  * among them — RLS stamps org_id (companies_write-style WITH CHECK), the column default
@@ -136,14 +144,15 @@ export async function countIncidents(): Promise<number> {
  * is NEVER sent — RLS scopes the row. Throws an `AppError` (code preserved) on a genuine
  * query error.
  */
-export async function getIncident(id: string): Promise<IncidentRow | null> {
+export async function getIncident(id: string): Promise<IncidentDetailRow | null> {
   const { data, error } = await supabase
     .from('incident_reports')
-    .select('*')
+    .select('*, incident_tasks(created_at, tasks(id, name, status, assignee_id, end_date, project_id))')
     .eq('id', id)
+    .order('created_at', { referencedTable: 'incident_tasks', ascending: true })
     .maybeSingle();
   if (error) throwWrite(error);
-  return data ?? null;
+  return (data as IncidentDetailRow | null) ?? null;
 }
 
 /**
@@ -296,4 +305,27 @@ export async function createTaskFromIncident(incidentId: string): Promise<string
   const { data, error } = await supabase.rpc('create_task_from_incident', { p_incident: incidentId });
   if (error) throwWrite(error);
   return data as string;
+}
+
+/** Add a further task to an issue (managers; #2677). The database checks role, organisation, entitlement, project, open status and assignee. */
+export async function addTaskToIncident(incidentId: string, input: { name: string; assigneeId?: string | null; dueDate?: string | null }): Promise<string> {
+  const { data, error } = await supabase.rpc('add_task_to_incident', {
+    p_incident: incidentId,
+    p_name: input.name,
+    ...(input.assigneeId ? { p_assignee: input.assigneeId } : {}),
+    ...(input.dueDate ? { p_due_date: input.dueDate } : {}),
+  });
+  if (error) throwWrite(error);
+  return data as string;
+}
+
+/** Record the root cause of an issue (manager or the person in charge; the database guard decides). Empty clears it. */
+export async function setIncidentRootCause(id: string, rootCause: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('incident_reports')
+    .update({ root_cause: rootCause.trim() || null })
+    .eq('id', id)
+    .select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'Incident not found or you do not have permission to edit it.');
 }

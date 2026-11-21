@@ -1,0 +1,5 @@
+# Client-callable SECURITY DEFINER writers added by 1410-1412 (#2596). Each checks the caller (active member, role, project) itself.
+set_safety_records_enabled  # 1410: active Admin only
+safety_save_talk  # 1412: an enterer of a draft day; at least one attendee
+submit_safety_day  # 1412: the day's author, an enterer
+correct_safety_day  # 1412: an enterer; a reason; a locked, uncorrected day

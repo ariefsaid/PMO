@@ -57,6 +57,7 @@ the project's tabs and modals.
 - FR-WORP-024 *Documents*: files linked to the work order through the existing document seam, openable in place.
 - FR-WORP-025 *Issues*: issues (#2521) naming the work order, with status and due time; *Open tasks* (#2531): tasks
   naming it that are not Done, with assignee and due date. Both link out and show an empty state.
+- FR-WORP-028 *Close-out checklist* (#2593, `docs/specs/work-order-closeout-checklist.spec.md`): where the work order has a checklist, an ordered list of its items with age, attached document, done date and person, and the count of required items still open; Admin, Finance and the project's manager attach and mark done. The section is absent when the work order has no checklist. The database refuses to close the work order while a required item is open.
 - FR-WORP-026 A panel whose read fails shall show its own error with retry; the other panels still render.
 - FR-WORP-027 A panel shall never render blank: loading, empty, error and restricted each have copy (English and
   Bahasa Indonesia).

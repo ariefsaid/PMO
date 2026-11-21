@@ -26,6 +26,7 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import type { ProjectBillingSummary } from '@/src/lib/progressBilling';
 import { deriveWorkOrderBillingState, type WorkOrderBillingState } from '@/src/lib/workOrderBilling';
 import { statusLabel } from '@/src/lib/status/statusMap';
+import { WorkOrderAreaGroup } from './WorkOrderAreaGroup';
 import { outstandingIn, settlementIn, sumOutstanding, summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 import WorkOrderAcceptances from '../WorkOrderAcceptances';
 import { WorkOrderOpenTasks } from '@/src/components/tasks/WorkOrderOpenTasks';
@@ -252,6 +253,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
           <span className="min-w-0 break-words text-sm text-foreground">{row.title}</span>
           <Link to={`/work-orders/${row.id}`} data-testid={`wo-page-link-${row.id}`} className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground">{t('workOrders:openPage', 'Open page')}</Link>
           <StatusPill variant={workOrderStatusTone}>{statusLabel('workOrder', row.status, t)}</StatusPill>
+          <WorkOrderAreaGroup row={row} />
           {canViewBilling && billingState && billingState !== 'not-billable' && <StatusPill variant={billingStateTones[billingState]}>
             {billingStateLabels[billingState]}
           </StatusPill>}

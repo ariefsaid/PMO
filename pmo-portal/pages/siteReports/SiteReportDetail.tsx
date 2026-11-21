@@ -24,6 +24,7 @@ import {
   siteReportDraftInput, siteReportFormFromDetail, validateSiteReportForm, workingMinutes, type SiteReportForm,
 } from './siteReportForm';
 import { SiteReportPhotos } from './SiteReportPhotos';
+import { SiteCheckpoints } from './SiteCheckpoints';
 
 type Dialog = 'return' | 'correct' | null;
 
@@ -273,6 +274,8 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           )}
           <p className="mt-3 text-foreground"><span className="text-muted-foreground">{t('people.title', 'People hours')}</span> <span className="tabular-nums">{peopleHours}</span></p>
         </RecordSection>
+
+        <SiteCheckpoints workOrderId={report.work_order_id} workDate={report.work_date} projectManagerId={project?.project_manager_id ?? null} canRecordDay />
 
         <SiteReportPhotos report={report} photos={detail.photos} canWrite={editable} />
 

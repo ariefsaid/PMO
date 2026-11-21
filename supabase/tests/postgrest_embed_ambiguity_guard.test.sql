@@ -236,7 +236,15 @@ select set_eq(
             -- 1240 (#2708): leave_requests carries entered_by AND decided_by, both -> profiles. CHECKED BEFORE ADDING: the leave DAL
             -- (src/lib/db/leave.ts) reads through the leave_requests_visible RPC and embeds nothing; whatever ships first MUST
             -- qualify it with !constraint_name.
-            ('leave_requests -> profiles') $$,
+            ('leave_requests -> profiles')             -- 1405 (candidate work orders): work_order_candidates carries decided_by AND created_by, both -> profiles.
+            -- 1401 (close-out checklist): work_order_closeout_items carries done_by AND attached_by, both -> profiles.
+            -- 1365 (billing steps): claim_billing_stages carries completed_by AND skipped_by, both -> users.
+            -- Checked before adding: no DAL embeds profiles from work_order_candidates or users from claim_billing_stages
+            -- (billingStages.ts and workOrderCandidates.ts embed only their own child tables); closeoutChecklist.ts
+            -- qualifies both profiles embeds from work_order_closeout_items by column (profiles!done_by, profiles!closed_by).
+            ('work_order_candidates -> profiles'),
+            ('work_order_closeout_items -> profiles'),
+            ('claim_billing_stages -> users') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

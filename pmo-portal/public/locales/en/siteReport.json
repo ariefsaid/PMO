@@ -7,6 +7,31 @@
     "submit": "Submit",
     "validate": "Validate"
   },
+  "checkpoints": {
+    "confirm": "Record now",
+    "due": "Due {{time}}",
+    "file": "Photo file",
+    "flag": "Checkpoint late today",
+    "flagLink": "See crews",
+    "loadError": "Couldn't load the checkpoints",
+    "next": "Next",
+    "note": "Note (optional)",
+    "photoNeeded": "A photo is needed",
+    "photoOptional": "Photo is optional",
+    "record": "Record",
+    "recordedAt": "Recorded {{time}}",
+    "retake": "Retake photo",
+    "state": {
+      "late": "Late",
+      "onTime": "On time",
+      "pending": "Due",
+      "recordedLate": "Recorded late"
+    },
+    "takePhoto": "Take photo",
+    "timezone": "Times shown in {{zone}}",
+    "title": "Checkpoints",
+    "viewPhoto": "View photo"
+  },
   "consumables": {
     "add": "Add consumable",
     "item": "Stock item",
@@ -18,6 +43,27 @@
     "confirm": "Start correction",
     "label": "Reason for the correction",
     "title": "Correct this report"
+  },
+  "crews": {
+    "badRange": "Choose a range of 1 to 92 days.",
+    "empty": "No crew days in this range",
+    "from": "From",
+    "help": "Counts the days each crew recorded the work-start checkpoint within its target time. The share is a count of days, never an average of minutes.",
+    "link": "Crews on time and lost time",
+    "minutesLate": "{{n}} min late",
+    "missedTitle": "Missed the target time",
+    "share": "{{onTime}} of {{days}} days on time",
+    "status": {
+      "late": "Late",
+      "not_started": "Not started",
+      "on_time": "On time"
+    },
+    "target": "Target {{time}}",
+    "title": "Crews on time",
+    "to": "To",
+    "toReports": "Back to site reports",
+    "truncated": "Showing the first 200 crews, lowest share on time first.",
+    "workOrder": "Work order"
   },
   "detail": {
     "correction": "Correction: {{reason}}",
@@ -75,6 +121,14 @@
     "previous": "Previous",
     "status": "Status",
     "title": "Reports"
+  },
+  "lost": {
+    "archived": "Archived",
+    "none": "No idle time recorded in this range",
+    "reports": "From {{n}} reports",
+    "subline": "Idle time on submitted and validated site reports in the same dates.",
+    "title": "Lost time by cause",
+    "total": "Total"
   },
   "nav": "Site reports",
   "new": {

@@ -30,6 +30,7 @@ import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import type { TaskWithRefs, TaskStatus, TaskPriority, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
+import type { WithTaskGroup } from '@/src/lib/db/taskGroups';
 import { collectDescendants } from '@/src/lib/tasks/taskTree';
 import { STATUS_OPTIONS } from './taskViewModel';
 import { DateField } from '@/src/components/ui/DateField';
@@ -75,6 +76,8 @@ interface TaskFormModalProps {
   defaultMilestoneId?: string | null;
   /** Available milestones for the milestone select field. */
   milestones?: MilestoneWithProgress[];
+  /** #2679: active task groups of the project; the select shows only when there are some and the caller manages. */
+  taskGroups?: { id: string; name: string }[];
   /** #2531: the project's work orders for the link picker (structure editors only). */
   workOrders?: { id: string; title: string; wo_number: string | null; status: string }[];
   /** #2531: may the viewer set the work-order link and the proof flag (Admin/Executive/Project Manager). */
@@ -95,6 +98,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   allTasks,
   defaultMilestoneId = null,
   milestones = [],
+  taskGroups = [],
   workOrders = [],
   canStructure = false,
   pendingPushState = IDLE_PENDING_PUSH,
@@ -134,6 +138,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const selectedWorkOrder = workOrderOptions.find((o) => o.value === workOrderId) ?? null;
 
   // PGB-025: Track phase and parent changes as part of form dirty state
+  const initialTaskGroupId = (task as (TaskWithRefs & WithTaskGroup) | null)?.task_group_id ?? null;
+  const [taskGroupId, setTaskGroupId] = useState<string | null>(initialTaskGroupId);
   const phaseDirty = milestoneId !== initialMilestoneId;
   const parentDirty = parentTaskId !== initialParentTaskId;
 
@@ -244,6 +250,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               ...base,
               milestone_id: milestoneId,
               ...(parentTaskId !== initialParentTaskId ? { parent_task_id: parentTaskId } : {}),
+              ...(canStructure && taskGroupId !== initialTaskGroupId ? { task_group_id: taskGroupId } : {}),
               ...(canStructure && workOrderId !== initialWorkOrderId ? { work_order_id: workOrderId } : {}),
               ...(canStructure && proofRequired !== initialProofRequired ? { proof_required: proofRequired } : {}),
             },
@@ -257,6 +264,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             parent_task_id: parentTaskId,
             ...(canStructure && workOrderId ? { work_order_id: workOrderId } : {}),
             ...(canStructure && proofRequired ? { proof_required: true } : {}),
+            ...(canStructure && taskGroupId ? { task_group_id: taskGroupId } : {}),
           });
         }
       } catch (err) {
@@ -286,7 +294,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
-      dirty={form.isDirty || depsDirty || phaseDirty || parentDirty || woDirty}
+      dirty={form.isDirty || depsDirty || phaseDirty || parentDirty || woDirty || taskGroupId !== initialTaskGroupId}
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
@@ -367,6 +375,18 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               placeholder={t('projectDetail.tasks.noMilestone', 'No phase')}
               searchPlaceholder={t('projectDetail.tasks.form.searchMilestones', 'Search phases…')}
               noun={t('projectDetail.tasks.phaseNoun', 'phase')}
+            />
+          )}
+          {canStructure && taskGroups.length > 0 && (
+            <Combobox
+              label={t('projectDetail.tasks.form.taskGroup', 'Task group')}
+              value={taskGroupId}
+              selectedOption={taskGroups.map((g) => ({ value: g.id, label: g.name })).find((o) => o.value === taskGroupId) ?? null}
+              loadOptions={async () => taskGroups.map((g) => ({ value: g.id, label: g.name }))}
+              onChange={(v) => setTaskGroupId(v || null)}
+              placeholder={t('projectDetail.tasks.form.noTaskGroup', 'No group')}
+              searchPlaceholder={t('projectDetail.tasks.form.searchTaskGroups', 'Search groups…')}
+              noun={t('projectDetail.tasks.form.taskGroupNoun', 'group')}
             />
           )}
           {/* OD-INT-9 — the parent-task picker. Options already exclude the task itself and

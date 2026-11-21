@@ -172,6 +172,8 @@ vi.mock('@/src/lib/db/incidents', () => ({
   uploadIncidentFile: vi.fn(),
   getIncidentFileUrl: vi.fn(),
   createTaskFromIncident: vi.fn(),
+  addTaskToIncident: vi.fn(),
+  setIncidentRootCause: vi.fn(),
 }));
 vi.mock('@/src/lib/db/milestones', () => ({
   listMilestones: vi.fn(),
@@ -248,7 +250,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'subcontractCertificates' from the subcontractor progress certificate (#2584).
       // 'projectStage' from stage history (#1638).
       // 'timeAndMaterials' from time-and-materials claims (#1514 T7): rate card, assembly, sign-off and the reads.
-      ['agentAttachment', 'agentRun', 'billingStages', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dailySiteReport', 'dashboard', 'document', 'documentCategory', 'documentExpiry', 'equipment', 'equipmentAvailability', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'issueClosingReport', 'journal', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'people', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'quantityChange', 'rateCatalogue', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontractCertificates', 'subcontracts', 'supplyRisk', 'task', 'taskProof', 'thirdPartyInspection', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workInHand', 'workOrder', 'workOrderAcceptance'].sort(),
+      ['agentAttachment', 'agentRun', 'billingStages', 'budget', 'closeoutChecklist', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dailySiteReport', 'dashboard', 'document', 'documentCategory', 'documentExpiry', 'equipment', 'equipmentAvailability', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'issueClosingReport', 'journal', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'people', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'quantityChange', 'rateCatalogue', 'recordHistory', 'reports', 'revenue', 'safetyDay', 'stock', 'subcontractCertificates', 'subcontracts', 'supplyRisk', 'task', 'taskProof', 'thirdPartyInspection', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workInHand', 'workOrder', 'workOrderAcceptance', 'workOrderCandidate'].sort(),
     );
   });
 
@@ -412,7 +414,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listOrgDrafts', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'resubmitVersion', 'returnVersion', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
-      ['count', 'create', 'createTask', 'delete', 'fileUrl', 'get', 'list', 'listFiles', 'listPage', 'transition', 'update', 'uploadFile'].sort(),
+      ['addTask', 'count', 'create', 'createTask', 'delete', 'fileUrl', 'get', 'list', 'listFiles', 'listPage', 'setRootCause', 'transition', 'update', 'uploadFile'].sort(),
     );
     expect(Object.keys(repositories.comment).sort()).toEqual(['archive', 'create', 'list']);
   });

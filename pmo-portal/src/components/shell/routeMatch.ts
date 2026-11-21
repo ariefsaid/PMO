@@ -331,6 +331,8 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   // #2061: the phone Home (my queue) is a composition of already-modular surfaces, not a module
   // of its own — register its title so the breadcrumb reads "Home", never "Not found".
   '/home': 'Home',
+  // #2596: the monthly safety summary is a routable page behind the organisation setting, not a rail module.
+  '/safety': 'Safety summary',
 };
 
 /**
@@ -356,6 +358,9 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/equipment/assets': '/equipment',
   '/equipment/expiring': '/equipment',
   '/equipment/availability': '/equipment',
+  // #2681, #2682: the billing board and the billing plan are pages of the Receivables area, not rail modules.
+  '/finance/billing-board': '/finance/receivables',
+  '/finance/billing-plan': '/finance/receivables',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
@@ -363,6 +368,8 @@ export function railParentForPath(pathname: string): string | undefined {
   if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
   // #2518: a work order's page belongs to Projects.
   if (/^\/work-orders\/[^/]+$/.test(pathname)) return '/projects';
+  // #2596: a safety day belongs to its work order, so to Projects.
+  if (/^\/safety-days\/[^/]+$/.test(pathname)) return '/projects';
   return RAIL_PARENT_FOR_PATH[pathname];
 }
 
@@ -381,6 +388,8 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/equipment/availability': { label: 'Availability', i18nKey: 'equipment:availability.title' }, // i18n-exempt: translated at render
   '/equipment/assets': { label: 'Assets', i18nKey: 'equipment:nav.assets' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/equipment/expiring': { label: 'Expiring documents', i18nKey: 'equipment:nav.expiring' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/finance/billing-board': { label: 'Billing board', i18nKey: 'finance:billingBoard.title' }, // i18n-exempt: translated at render
+  '/finance/billing-plan': { label: 'Billing plan', i18nKey: 'finance:billingPlan.title' }, // i18n-exempt: translated at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */

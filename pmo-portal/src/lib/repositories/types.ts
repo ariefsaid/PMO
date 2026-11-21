@@ -26,6 +26,8 @@ import type { RecordHistoryRepository } from './contracts/recordHistory';
 import type { ProjectStageRepository } from './contracts/projectStages';
 import type { RateCatalogueRepository } from './contracts/rateCatalogue';
 import type { DailySiteReportRepository } from './contracts/dailySiteReports';
+import type { WorkOrderCandidateRepository } from './contracts/workOrderCandidates';
+import type { SafetyDayRepository } from './contracts/safetyDays';
 import type { QuantityChangeRepository } from './contracts/quantityChanges';
 import type { SubcontractRepository } from './contracts/subcontracts';
 import type { SubcontractCertificateRepository } from './contracts/subcontractCertificates';
@@ -121,6 +123,7 @@ import type {
   WorkOrderRepository,
 } from './contracts/workOrders';
 import type { BillingStagesRepository } from './contracts/billingStages';
+import type { CloseoutChecklistRepository } from './contracts/closeoutChecklist';
 import type { WorkInHandRepository } from './contracts/workInHand';
 import type { SupplyRiskRepository } from './contracts/supplyRisk';
 
@@ -137,6 +140,8 @@ export interface Repositories {
   projectStage: ProjectStageRepository;
   rateCatalogue: RateCatalogueRepository;
   dailySiteReport: DailySiteReportRepository;
+  workOrderCandidate: WorkOrderCandidateRepository;
+  safetyDay: SafetyDayRepository;
   quantityChange: QuantityChangeRepository;
   company: CompanyRepository;
   document: DocumentRepository;
@@ -158,6 +163,7 @@ export interface Repositories {
   workOrder: WorkOrderRepository;
   progressBilling: ProgressBillingRepository;
   billingStages: BillingStagesRepository;
+  closeoutChecklist: CloseoutChecklistRepository;
   workInHand: WorkInHandRepository;
   stock: StockRepository;
   workOrderAcceptance: WorkOrderAcceptanceRepository;
@@ -225,6 +231,7 @@ export type { IssueClosingReportRepository } from './contracts/issueClosingRepor
 export type { CommentRepository } from './contracts/comments';
 export type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
 export type { BillingStagesRepository } from './contracts/billingStages';
+export type { CloseoutChecklistRepository } from './contracts/closeoutChecklist';
 export type { WorkInHandRepository } from './contracts/workInHand';
 export type { ExpenseClaimRepository, ExpensePostingRepository, ExpenseReceiptRepository } from './contracts/expenses';
 export type { ImprestRepository } from './contracts/imprest';

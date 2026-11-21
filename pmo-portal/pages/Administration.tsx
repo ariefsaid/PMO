@@ -1,5 +1,6 @@
 import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
 import CostDisciplines from './admin/CostDisciplines';
+import WorkOrderLists from './admin/WorkOrderLists';
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -39,6 +40,7 @@ import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
+import WorkOrderCloseoutTemplate from './admin/WorkOrderCloseoutTemplate';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import PurchaseOrderSettingsSection from './admin/PurchaseOrderSettingsSection';
 import SiteReportLists from './admin/SiteReportLists';
@@ -46,6 +48,9 @@ import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
 import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
 import OrgCrewLoans from './admin/OrgCrewLoans';
+import SiteCheckpointTemplate from './admin/SiteCheckpointTemplate';
+import WorkOrderCandidateTemplate from './admin/WorkOrderCandidateTemplate';
+import SafetyLists from './admin/SafetyLists';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import OrgPerformanceIndices from './admin/OrgPerformanceIndices';
 import OrgAttendanceTarget from './admin/OrgAttendanceTarget';
@@ -334,7 +339,12 @@ const SelectedAdministrationPanel: React.FC<{
             <SiteReportLists />
             <RevenuePlanSettings />
             <NonWorkingDatesCard />
+            <SiteCheckpointTemplate />
+            <WorkOrderCandidateTemplate />
+            <SafetyLists />
             <CostDisciplines />
+            <WorkOrderCloseoutTemplate />
+            <WorkOrderLists />
             <OrgPerformanceIndices />
             <OrgAttendanceTarget />
             <IssueClosingReportSettings />

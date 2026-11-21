@@ -25,18 +25,21 @@ import { RevenuePlanGate } from './work-order-detail/RevenuePlanGate';
 import { PerformanceIndices } from './work-order-detail/PerformanceIndices';
 import { DailyTargetGate } from './work-order-detail/DailyTargetGate';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
+import { CloseoutSection } from './work-order-detail/CloseoutSection';
 import { QuantityChangesSection } from './work-order-detail/QuantityChangesSection';
 import { SectionsSection } from './work-order-detail/SectionsSection';
 import { ConsumablePlanSection } from './work-order-detail/ConsumablePlanSection';
 import { InspectionsSection } from './work-order-detail/InspectionsSection';
 import { ClientMaterialSection } from './work-order-detail/ClientMaterialSection';
 import { IssuesSection } from './work-order-detail/IssuesSection';
+import { SiteCheckpointFlag } from './work-order-detail/SiteCheckpointFlag';
+import { SafetySection } from './work-order-detail/SafetySection';
 import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 
 /**
  * `/work-orders/:id` (#2518): one page for a work order — scope and progress, costs, billing and
- * acceptances, documents, issues and tasks. Every read is the caller's own RLS (an absent, foreign or unreadable id
- * looks identical: not found). Its one write surface is the sections block (#2576), gated by `can()`.
+ * acceptances, the close-out checklist (#2593), documents, issues and tasks. Every read is the caller's own RLS (an absent, foreign or unreadable id
+ * looks identical: not found). Its write surfaces are the sections block (#2576) and the close-out checklist (#2593), gated by `can()`.
  */
 const WorkOrderDetail: React.FC = () => {
   const { t } = useTranslation('workOrders');
@@ -116,6 +119,7 @@ const WorkOrderDetail: React.FC = () => {
         ]} />
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       <RecordStack>
+        <SiteCheckpointFlag workOrderId={row.id} />
         <ScopeSection projectId={row.project_id} progress={progress} isPending={allocations.isPending || boq.isPending || bastList.isPending} isError={allocations.isError || boq.isError || bastList.isError}
           onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
         <SectionsSection workOrder={{ id: row.id, project_id: row.project_id, status: row.status, currency: row.currency }} />
@@ -131,9 +135,11 @@ const WorkOrderDetail: React.FC = () => {
         <DailyTargetGate workOrderId={row.id} />
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
+        <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         {may('view', 'quantityChange') && <QuantityChangesSection workOrderId={row.id} projectId={row.project_id} status={row.status} />}
         <InspectionsSection workOrderId={row.id} />
         <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
+        <SafetySection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         {issuesOn && <IssuesSection issues={issues.data ?? []} isPending={issues.isPending} isError={issues.isError} onRetry={() => void issues.refetch()} />}
         <OpenTasksSection tasks={openTasks.data ?? []} isPending={openTasks.isPending} isError={openTasks.isError} onRetry={() => void openTasks.refetch()} />
       </RecordStack>

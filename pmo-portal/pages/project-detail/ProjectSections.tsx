@@ -17,6 +17,7 @@ import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
 import { BillingMilestonesBlock } from './BillingMilestonesBlock';
 import { ProjectPerformance } from './ProjectPerformance';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
+import { CandidateWorkOrders } from './tabs/CandidateWorkOrders';
 import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity';
 
 import { AREAS, type Area } from './projectDetailAreas';
@@ -164,6 +165,7 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
           timeAndMaterials={<BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
             projectManagerId={project.project_manager_id ?? null} mode="contract-time-materials" />}>
           <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+            <CandidateWorkOrders projectId={project.id} projectManagerId={project.project_manager_id ?? null} />
             <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
               focusWorkOrderId={new URLSearchParams(window.location.search).get('wo')}
               autoInvoiceWorkOrderId={new URLSearchParams(window.location.search).get('invoice') === '1' ? new URLSearchParams(window.location.search).get('wo') : null}

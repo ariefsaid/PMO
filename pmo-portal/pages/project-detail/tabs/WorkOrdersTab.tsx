@@ -62,6 +62,9 @@ import DisciplineProfit from '../DisciplineProfit';
 import RevenuePlanRollup from '../RevenuePlanRollup';
 import EarnedBilledProfit from '../EarnedBilledProfit';
 import DailyTargetRollup from '../DailyTargetRollup';
+import { useWorkOrderLists } from '@/src/hooks/useWorkOrderLists';
+import { WorkOrderListsProvider } from '@/src/components/WorkOrderListsProvider';
+import { bucketWorkOrders, type WorkOrderGroupBy } from '@/src/lib/workOrderGrouping';
 
 /**
  * The work-order surface for one project (#566) — the client's inbound POs and the drawdown they
@@ -104,12 +107,13 @@ export interface WorkOrdersTabProps {
   projectStatus?: string | null;
 }
 
-const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null, autoInvoiceWorkOrderId = null, projectManagerId = null, projectName = '', projectStatus = null }) => {
+const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null, autoInvoiceWorkOrderId = null, projectManagerId = null, projectName = '', projectStatus = null }) => {
   const { t } = useTranslation('project');
   const [searchParams, setSearchParams] = useSearchParams();
   const may = usePermission();
   const { currentUser } = useAuth();
   const { toast } = useToast();
+  const lists = useWorkOrderLists();
 
   const { data, isPending, isFetching, isError, refetch } = useProjectWorkOrders(projectId);
   const { create, update, setValue, transition } = useWorkOrderMutations(projectId);
@@ -513,6 +517,19 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const filteredOrderIds = new Set(filteredOrders.map((row) => row.id));
   const visibleCustomerOrders = customerOrders.filter((row) => filteredOrderIds.has(row.id));
   const visibleDraftOrders = draftOrders.filter((row) => filteredOrderIds.has(row.id));
+  // #2668 (FR-WAG-005): grouping is view state in the URL; it is offered only for a list the organisation keeps.
+  const requestedGroupBy = searchParams.get('groupBy');
+  const groupBy: WorkOrderGroupBy | null = lists.hasLists
+    && ((requestedGroupBy === 'area' && lists.liveAreas.length > 0) || (requestedGroupBy === 'group' && lists.liveGroups.length > 0))
+    ? requestedGroupBy as WorkOrderGroupBy : null;
+  const groupBuckets = groupBy
+    ? bucketWorkOrders([...visibleDraftOrders, ...visibleCustomerOrders], groupBy === 'area' ? lists.areas : lists.groups, (row) => (groupBy === 'area' ? row.area_id : row.group_id))
+    : null;
+  const setGroupBy = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === 'area' || value === 'group') next.set('groupBy', value); else next.delete('groupBy');
+    setSearchParams(next, { replace: true });
+  };
   const deliveryCandidates = liveOrders.filter(canPrepareForOrder);
   const orderExportColumns: Column<WorkOrderRow>[] = [
     { key: 'number', header: t('projectDetail.workOrders.export.number', 'Work order'), cell: (row) => row.wo_number ?? row.title, exportValue: (row) => row.wo_number ?? row.title },
@@ -534,6 +551,69 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     setInvoiceDrawerFor(openRecordType === 'workOrderInvoice' ? invoiceRows.find((invoice) => invoice.id === openRecordId) ?? null : null);
     setClaimDrawerFor(openRecordType === 'workOrderClaim' && canViewBilling ? claimRows.find((claim) => claim.id === openRecordId) ?? null : null);
   }, [openRecordId, openRecordType, rows, drawerLineRows, invoiceRows, claimRows, canViewBilling]);
+
+  // #2668: the draft list and the order cards as functions of the rows they show, so a group heading can wrap each bucket.
+  const renderDrafts = (list: WorkOrderRow[]) => list.length > 0 && (
+              <section aria-labelledby="pd-draft-orders" className="mb-6 mt-4 px-[var(--panel-inset)]">
+                <h3 id="pd-draft-orders" className="mb-2 text-sm font-medium text-muted-foreground">
+                  {t('projectDetail.workOrders.drafts', 'Draft orders')}
+                </h3>
+                <WorkOrdersDraftOrders
+                  rows={list}
+                  readsPending={isPending}
+                  readsFetching={isFetching}
+                  readsError={isError}
+                  lineReadsPending={lineReadsPending}
+                  lineReadsFailed={lineReadsFailed}
+                  openPoDrawer={openPoDrawer}
+                  onEdit={setFormFor}
+                  onSetValue={setValueFor}
+                  onIssue={requestIssue}
+                  onCancel={(row) => setPending({ row, to: 'Cancelled' })}
+                  onAllocateLines={setLinesFor}
+                />
+              </section>
+            );
+  const renderCards = (list: WorkOrderRow[]) => list.length > 0 && <div data-testid="customer-order-card" className="flex flex-col gap-4 p-[var(--panel-inset)] pt-4">{list.map((row) => <WorkOrderCustomerOrderCard
+              key={row.id}
+              row={row}
+              currency={currency}
+              canViewBilling={canViewBilling}
+              orgDay={orgDay}
+              boqRows={boqRows}
+              documentRows={documents.data ?? []}
+              projectManagerId={projectManagerId}
+              allocationsByWo={allocationsByWo}
+              acceptancesByWo={acceptancesByWo}
+              invoicesByWo={invoicesByWo}
+              billingById={billingById}
+              ageById={ageById}
+              drawerLineRowsByWo={drawerLineRowsByWo}
+              contractAllocationsByWo={contractAllocationsByWo}
+              boqById={boqById}
+              lineReadsPending={lineReadsPending}
+              lineReadsFailed={lineReadsFailed}
+              invoiceReadReady={invoiceReadReady}
+              invoicesRead={invoicesQuery}
+              billingRead={billing}
+              contractLines={projectBilling.data?.contractLines}
+              retryLineReads={retryLineReads}
+              canPrepareForOrder={canPrepareForOrder}
+              orderInvoiceAction={orderInvoiceAction}
+              closeByBast={closeByBast}
+              currentUserId={currentUser?.id ?? null}
+              openPoDrawer={openPoDrawer}
+              openLineDrawer={openLineDrawer}
+              openInvoiceDrawer={openInvoiceDrawer}
+              setFormFor={setFormFor}
+              setPending={setPending}
+              setBastFor={setBastFor}
+              setConfirmFor={setConfirmFor}
+              setWithdrawFor={setWithdrawFor}
+              setLinesFor={setLinesFor}
+              acceptancesRead={acceptancesQuery}
+              linesRead={lines}
+            />)}</div>;
 
   return (
     <div className="space-y-[var(--space-panel-gap)]">
@@ -632,6 +712,18 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             wrapperClassName="min-w-[160px] gap-1"
             aria-label={t('projectDetail.workOrders.filter.status', 'Status')}
           />
+          {lists.hasLists && <SelectField
+            label={t('projectDetail.workOrders.groupBy.label', 'Group by')}
+            value={groupBy ?? 'none'}
+            onChange={setGroupBy}
+            options={[
+              { value: 'none', label: t('projectDetail.workOrders.groupBy.none', 'None') },
+              ...(lists.liveAreas.length > 0 ? [{ value: 'area', label: t('projectDetail.workOrders.groupBy.area', 'Area') }] : []),
+              ...(lists.liveGroups.length > 0 ? [{ value: 'group', label: t('projectDetail.workOrders.groupBy.group', 'Group') }] : []),
+            ]}
+            wrapperClassName="min-w-[160px] gap-1"
+            aria-label={t('projectDetail.workOrders.groupBy.label', 'Group by')}
+          />}
         </div>}
         {autoInvoiceNote && <p role="status" className="px-[var(--panel-inset)] pt-4 text-sm text-muted-foreground">{autoInvoiceNote}</p>}
         {/* L6/C4: the "Still to invoice" total only adds information across several orders (one order's own line
@@ -680,68 +772,19 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </p>
             )}
 
-            {visibleDraftOrders.length > 0 && (
-              <section aria-labelledby="pd-draft-orders" className="mb-6 mt-4 px-[var(--panel-inset)]">
-                <h3 id="pd-draft-orders" className="mb-2 text-sm font-medium text-muted-foreground">
-                  {t('projectDetail.workOrders.drafts', 'Draft orders')}
+            {groupBuckets ? groupBuckets.map((bucket) => (
+              <section key={bucket.key ?? 'none'} data-testid={`wo-group-${bucket.key ?? 'none'}`} aria-labelledby={`wo-group-h-${bucket.key ?? 'none'}`} className="mt-4">
+                <h3 id={`wo-group-h-${bucket.key ?? 'none'}`} className="px-[var(--panel-inset)] text-sm font-semibold">
+                  {bucket.entry?.name ?? (groupBy === 'area' ? t('projectDetail.workOrders.groupBy.noArea', 'No area') : t('projectDetail.workOrders.groupBy.noGroup', 'No group'))}
+                  <span className="ml-2 font-normal text-muted-foreground">{bucket.rows.length}</span>
                 </h3>
-                <WorkOrdersDraftOrders
-                  rows={visibleDraftOrders}
-                  readsPending={isPending}
-                  readsFetching={isFetching}
-                  readsError={isError}
-                  lineReadsPending={lineReadsPending}
-                  lineReadsFailed={lineReadsFailed}
-                  openPoDrawer={openPoDrawer}
-                  onEdit={setFormFor}
-                  onSetValue={setValueFor}
-                  onIssue={requestIssue}
-                  onCancel={(row) => setPending({ row, to: 'Cancelled' })}
-                  onAllocateLines={setLinesFor}
-                />
+                {renderDrafts(bucket.rows.filter((row) => row.status === 'Draft'))}
+                {renderCards(bucket.rows.filter((row) => row.status !== 'Draft'))}
               </section>
-            )}
-
-            {visibleCustomerOrders.length > 0 && <div data-testid="customer-order-card" className="flex flex-col gap-4 p-[var(--panel-inset)] pt-4">{visibleCustomerOrders.map((row) => <WorkOrderCustomerOrderCard
-              key={row.id}
-              row={row}
-              currency={currency}
-              canViewBilling={canViewBilling}
-              orgDay={orgDay}
-              boqRows={boqRows}
-              documentRows={documents.data ?? []}
-              projectManagerId={projectManagerId}
-              allocationsByWo={allocationsByWo}
-              acceptancesByWo={acceptancesByWo}
-              invoicesByWo={invoicesByWo}
-              billingById={billingById}
-              ageById={ageById}
-              drawerLineRowsByWo={drawerLineRowsByWo}
-              contractAllocationsByWo={contractAllocationsByWo}
-              boqById={boqById}
-              lineReadsPending={lineReadsPending}
-              lineReadsFailed={lineReadsFailed}
-              invoiceReadReady={invoiceReadReady}
-              invoicesRead={invoicesQuery}
-              billingRead={billing}
-              contractLines={projectBilling.data?.contractLines}
-              retryLineReads={retryLineReads}
-              canPrepareForOrder={canPrepareForOrder}
-              orderInvoiceAction={orderInvoiceAction}
-              closeByBast={closeByBast}
-              currentUserId={currentUser?.id ?? null}
-              openPoDrawer={openPoDrawer}
-              openLineDrawer={openLineDrawer}
-              openInvoiceDrawer={openInvoiceDrawer}
-              setFormFor={setFormFor}
-              setPending={setPending}
-              setBastFor={setBastFor}
-              setConfirmFor={setConfirmFor}
-              setWithdrawFor={setWithdrawFor}
-              setLinesFor={setLinesFor}
-              acceptancesRead={acceptancesQuery}
-              linesRead={lines}
-            />)}</div>}
+            )) : <>
+              {renderDrafts(visibleDraftOrders)}
+              {renderCards(visibleCustomerOrders)}
+            </>}
           </>
         )}
       </section>
@@ -911,5 +954,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     </div>
   );
 };
+
+/** #2668: the organisation's area and group lists load once for the tab, its cards and its form. */
+const WorkOrdersTab: React.FC<WorkOrdersTabProps> = (props) => <WorkOrderListsProvider><WorkOrdersTabInner {...props} /></WorkOrderListsProvider>;
 
 export default WorkOrdersTab;

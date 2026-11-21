@@ -20,6 +20,8 @@ import { recordHistoryRepository } from './recordHistory';
 import { projectStageRepository } from './projectStages';
 import { rateCatalogueRepository } from './rateCatalogue';
 import { dailySiteReportRepository } from './dailySiteReports';
+import { workOrderCandidateRepository } from './workOrderCandidates';
+import { safetyDayRepository } from './safetyDays';
 import { quantityChangeRepository } from './quantityChanges';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { supplyRiskRepository } from './supplyRisk';
@@ -54,6 +56,7 @@ import {
 } from './admin';
 import { taskRepository } from './tasks';
 import { billingStagesRepository } from './billingStages';
+import { closeoutChecklistRepository } from './closeoutChecklist';
 import { workInHandRepository } from './workInHand';
 import { taskProofRepository } from './taskProofs';
 import { thirdPartyInspectionRepository } from './thirdPartyInspections';
@@ -140,8 +143,11 @@ export const repositories: Repositories = {
   progressBilling: progressBillingRepository,
   rateCatalogue: rateCatalogueRepository,
   billingStages: billingStagesRepository,
-  workInHand: workInHandRepository,
+  closeoutChecklist: closeoutChecklistRepository,
   dailySiteReport: dailySiteReportRepository,
+  workOrderCandidate: workOrderCandidateRepository,
+  safetyDay: safetyDayRepository,
+  workInHand: workInHandRepository,
   quantityChange: quantityChangeRepository,
   stock: stockRepository,
   workOrderAcceptance: workOrderAcceptanceRepository,

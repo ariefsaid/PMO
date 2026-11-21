@@ -1,28 +1,32 @@
 # Work-Order Close-Out Checklist Implementation Plan (#2593)
 
-> Fresh Orca worker per slice; the database slice is Director-dispatched (it gates closing, which fixes the closing value). Spec: `docs/specs/work-order-closeout-checklist.spec.md`. Starts after OD-WCO-1..7 are signed (February to March 2027). Reuses the billing-stage design of 1021; read `supabase/migrations/1021_billing_stages.sql` and `docs/specs/billing-stages.spec.md` first.
+> Fresh Orca worker per slice; the database slice is Director-dispatched (it gates closing, which fixes the closing value). Spec: `docs/specs/work-order-closeout-checklist.spec.md`. Ships in the 15 December 2026 release (OD-SCOPE-12); OD-WCO-1..7 take their recommended defaults. Reuses the billing-stage design of 1021; read `supabase/migrations/1021_billing_stages.sql` and `docs/specs/billing-stages.spec.md` first.
 
-## Migration (number assigned by the Director; not numbered here)
-One additive migration:
+## Migrations (numbers 1400 to 1404 only; none touches billing-stage tables or functions)
+- `1400_work_order_closeout_tables.sql`: the two tables, RLS, indexes, `work_orders.closed_by`, record-history registration.
+- `1401_work_order_closeout_functions.sql`: `set_closeout_checklist`, `lock_closeout_item`, `attach_closeout_item_document`, `complete_closeout_item`, plus reads if a view is needed.
+- `1402_work_order_closeout_triggers.sql`: the issue-time copy trigger and the close guard trigger.
+- `1403`, `1404`: reserved for fixes found in review; unused numbers stay unused.
+Each has `supabase/migrations/rollback/<number>_*_down.sql`. Isolation-denominator fragment: `scripts/isolation-probe-denominator.d/2593-work-order-closeout.json`. Content of the three migrations:
 - `closeout_checklist_templates (id, org_id, position smallint 1..20, name text 1..120, required boolean default true, unique(org_id, position))`; `org_id` stamped by the existing org-stamp trigger; RLS select for active members of the org via `(select helper())`; no client write grant.
 - `work_order_closeout_items (id, org_id, work_order_id references work_orders on delete cascade, project_id, position, name, required, started_on date, done_on date, document_id uuid references project_documents(id), done_by uuid references profiles(id), done_at timestamptz, unique(work_order_id, position), check (done_on is null or (document_id is not null and done_by is not null and started_on is not null and done_on >= started_on)))` and index on `(org_id, work_order_id)`; RLS as above.
 - `alter table work_orders add column closed_by uuid references profiles(id)`; do not grant clients write access to this stamp. `work_orders` already withholds `status` and stamps from client column grants; `assert_work_order_update` enforces identity and post-Draft content rules, not a column allow-list, so do not extend it. Add `closed_by` to the existing work-order `record_history_config.captured` map as a `ref`.
 - Functions (all `security definer`, `set search_path = public`, `revoke all ... from public, anon`, grant to `authenticated, service_role` where a client calls them):
   - `set_closeout_checklist(p_items jsonb) returns integer` (Admin only, whole list, at most 20, 1..120-character names, audit row), shape of `set_billing_stage_template`.
-  - `instantiate_work_order_closeout_items()` trigger `after update of status on work_orders when (old.status = 'Draft' and new.status = 'Issued')`; copies the template, first item `started_on = (now() at time zone org tz)::date` via `native_org_today`. A work order already `Issued` gets nothing.
+  - `instantiate_work_order_closeout_items()` trigger `after update of status on work_orders when (old.status = 'Draft' and new.status = 'Issued')`; copies the template, every item `started_on` = the issue day via `native_org_today` (a done required item restarts the next required one). A work order already `Issued` gets nothing.
   - `lock_closeout_item(p_item uuid)` internal: member, role in (Admin, Finance, Project Manager of the project), lock the `work_orders` row `for update` (same order as `transition_work_order` and `confirm_work_order_acceptance`), refuse when not `Issued` or the item is done.
   - `attach_closeout_item_document(p_item uuid, p_document uuid)` modelled on `attach_billing_stage_document` (1021): the document is a `project_documents` row of the work order's project, status Issued or Approved, with a file (the rule in 0337 `confirm_work_order_acceptance`).
-  - `complete_closeout_item(p_item uuid, p_done_on date)` modelled on `complete_billing_stage`: earlier items done, document attached, date not in the future and not before the previous item, stamp `done_by`, `done_at`, start the next item, audit row.
+  - `complete_closeout_item(p_item uuid, p_done_on date)` modelled on `complete_billing_stage`: earlier REQUIRED items done (an optional item never waits or holds later items), document attached, date not in the future and not before the previous item, stamp `done_by`, `done_at`, start the next item, audit row.
   - `assert_work_order_closeout_complete()` trigger `before update of status on work_orders when (new.status = 'Closed' and old.status is distinct from 'Closed')`: raise `55000`, detail `closeout-incomplete`, naming the count of open required items; otherwise set `new.closed_by := auth.uid()`. Name the trigger `work_orders_zzzzzz_closeout_guard` so it fires after shipped `work_orders_zzzz_closing_guard` (alphabetical trigger order), and prove both close paths in pgTAP. This one predicate covers `transition_work_order` and the final-acceptance update.
 - Do **not** edit `transition_work_order` or `confirm_work_order_acceptance`; the trigger is the single gate. Their existing refusals (contract lines, closing-value rules) stay and run first or last without conflict; AC-WCO-006 proves the acceptance stays unconfirmed (one transaction).
-- **Rollback:** `supabase/migrations/rollback/<number>_work_order_closeout_down.sql` drops the triggers, functions, tables and `work_orders.closed_by`. Header notes that a closed work order's `closed_by` is lost.
+- **Rollback:** `supabase/migrations/rollback/1402_work_order_closeout_down.sql` drops the triggers, functions, tables and `work_orders.closed_by`. Header notes that a closed work order's `closed_by` is lost.
 - Record history: register `closeout_checklist_template` and `work_order_closeout_item`, attach their `*_zz_record_change` triggers, and add both entity arms to `record_history_visible`; retain the existing work-order history trigger after classifying `closed_by`.
 
 ## Slice 1: pure derivation (Orca)
 - [ ] Test first `pmo-portal/src/lib/closeoutChecklist.test.ts` (AC-WCO-008), then `pmo-portal/src/lib/closeoutChecklist.ts`: `closeoutItemAgeDays`, `closeoutRemaining(items)` (open required count). Reuse `stageAgeDays` rather than a second age rule (import or generalise it in `src/lib/billingStages.ts` only if a test shows the need).
 
 ## Slice 2: database (Director-dispatched Orca worker, Opus)
-- [ ] pgTAP `supabase/tests/<number>_work_order_closeout.test.sql`: AC-WCO-001..007, 009, 010. Fixtures follow `supabase/tests/0960_billing_stages.test.sql` (owner-written rows, client checks as `authenticated`); include a work order with contract lines and a final acceptance (follow the 0337 acceptance tests), a second organisation, Admin, Finance, Project Manager, Engineer.
+- [ ] pgTAP `supabase/tests/1400_work_order_closeout.test.sql`: AC-WCO-001..007, 009, 010. Fixtures follow `supabase/tests/0960_billing_stages.test.sql` (owner-written rows, client checks as `authenticated`); include a work order with contract lines and a final acceptance (follow the 0337 acceptance tests), a second organisation, Admin, Finance, Project Manager, Engineer.
 - [ ] Mutation checks: drop the closing trigger (AC-WCO-005 and 006 red); remove the role check in `complete_closeout_item` (AC-WCO-003 or the role case red); let a Draft document attach (AC-WCO-003 red); restore each.
 - [ ] `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db <files>'` as one lock hold.
 
@@ -38,7 +42,7 @@ One additive migration:
 
 | AC | Owning layer | File |
 |---|---|---|
-| AC-WCO-001..007, 009, 010 | pgTAP | `supabase/tests/<number>_work_order_closeout.test.sql` |
+| AC-WCO-001..007, 009, 010 | pgTAP | `supabase/tests/1400_work_order_closeout.test.sql` |
 | AC-WCO-008 | Unit | `pmo-portal/src/lib/closeoutChecklist.test.ts` |
 | AC-WCO-011 | RTL | `pmo-portal/pages/work-order-detail/CloseoutSection.test.tsx` |
 | AC-WCO-012 | E2E | `pmo-portal/e2e/AC-WCO-012-work-order-closeout.spec.ts` |

@@ -389,6 +389,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Work order** — a client's purchase order against a project, with an order value, tax basis and a Draft, Issued, Closed or Cancelled status; it is the commitment that billing and acceptance run against.
 
+**Work order area** and **work order group** — two optional, organisation-owned lists (an Admin adds, renames and archives entries; nothing is coded). A work order names at most one area and one group; the project work-order list can be grouped by either. An archived entry leaves the pickers but stays on the work orders that already name it.
+
 **Cost attribution** — the optional work order and discipline a cost record names (purchase request, purchase order, goods receipt, vendor bill, timesheet line, stock movement, equipment usage); a cost with neither is a project-level cost. The work order must be on the cost's own project (ADR-0104).
 
 **Discipline** — an entry in the organisation's own list of trades or engineering disciplines (for example civil, mechanical, electrical) that a cost can name. The Admin keeps the list on the **Cost disciplines** screen (*disiplin biaya*) and archives rather than deletes (#2623).
@@ -422,12 +424,31 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **PMO down payment item** — the one fixed item (`DOWN-PAYMENT`) a down-payment claim names while no ERP owns revenue and the organisation has set no down-payment item; the ERP raise refuses a claim that names it. Its lines read "Down payment" and "Down payment recovery" on the invoice.
 
 **Billing stage** — one ordered step a progress claim passes before its invoice can be raised (for example internal measurement, joint survey, client approval). A project lists its stages; each new progress claim takes a copy (its *stage plan*), and the invoice is refused while any stage is open (#2522).
+**Step owner role** — the role responsible for a billing step of a claim (from the existing role set); optional, set per step on the project's list, a template or the claim (#2680). **Step target date** — the date a step should be done by; when set it wins over the step's target days. **Step template** — an organisation's named list of billing steps (names, owner roles, target days, documents) that the client's team writes; loading it onto a project or claim copies it. **Waiting step pointer** — a needs-you entry for current steps owned by the viewer's role; derived on read, so it clears when the step completes.
 
 **Client-side stage** — a billing stage done in the client's own system; PMO records it by hand with the date, the client's document number and the proof document.
 
 **Stage checklist** — the documents a billing stage needs; a required item must have an issued or approved project document with a file before the stage completes, and that document becomes the claim's evidence.
 
 **Stage age** — days a billing stage has been current: from its start (the previous stage's completion) to its completion, or to today while open.
+
+**Stage target** — the number of days (1 to 365) a billing stage is expected to take, set per stage on the project's list and copied onto each new claim. No target means the stage is never overdue (#2592).
+
+**Overdue stage** — a current billing stage whose age in days is greater than its target. The claim shows it as overdue with its age and target, and the claim's project manager (the organisation's Admins when there is none) is notified once (#2592).
+
+**Optional stage** — a billing stage the project's list marks as one that may not apply to a claim. Only an optional, current stage can be marked not needed (#2592).
+
+**Skipped stage** — an optional billing stage marked not needed by Finance or an Admin, with a date and a reason. It counts as complete for ordering and for the invoice gate, and it is not undone (#2592).
+
+**Billing board** — a read-only screen listing every open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with the days on that step and an overdue chip. It is a view over the claims' own steps: nothing is stored for it, and a claim moves on only by completing its step on the claim. Bahasa Indonesia: Papan penagihan (#2681).
+
+**Billing plan** — a screen at the Receivables header that lists billing candidates against a monthly target. Candidates only: ticks are view state, nothing is stored for them, and nothing raises a claim or an invoice. Over-claim shows as a warning, never a block. Bahasa Indonesia: Rencana penagihan (#2682).
+
+**Billing candidate** — accepted work that is not yet claimed: accepted quantity above claimed quantity on a work-order allocation (the Cascade's "Unclaimed"), or a money-only order with an amount left. "Progress not yet client-certified" in the ticket words (#2682).
+
+**Monthly target** — the amount the organisation aims to bill in a calendar month, with its currency; a default plus optional per-month overrides, set by Admin or Finance. Other currencies are listed apart, not converted (#2682).
+
+**Board column** — one step name on the billing board, ordered by the median position of that name across the claims; a final column, All steps done, holds claims ready to invoice (#2681).
 
 **Invoice deadline** — the project's monthly day (1–31, clamped to the month's end) by which its invoice must reach the client, with a warning window in days. A claim shows it while its stages are still open or it has no stage plan; it is hidden once every planned stage is complete (#2522).
 
@@ -665,6 +686,10 @@ adding to 100 and effective-dated.
 example internal measurement, joint survey, client approval). A project lists its stages; each new progress claim takes
 a copy (its *stage plan*), and the invoice is refused while any stage is open.
 
+**Step owner role** (*peran penanggung jawab langkah*), **Step target date** (*tanggal target langkah*), **Step template**
+(*templat langkah*) and **Waiting step pointer** (*penanda langkah menunggu*) — see the entry above (#2680). The pointer
+sits in the needs-you list of the person whose role owns a current step and goes away when the step completes.
+
 **Client-side stage** (*di sistem klien*) — a billing stage done in the client's own system; PMO records it by hand with
 the date, the client's document number and the proof document.
 
@@ -688,6 +713,17 @@ at creation from the project's percentage and held on the receivable, never as a
 **Due now** (*jatuh tempo sekarang*) — what is outstanding on a client invoice less the retention still held on it
 (never below zero). Ageing and overdue count only this; the retention held stays in what is owed, as its own figure,
 until a release is recorded (#2625, ADR-0105 §4).
+
+### Work-order close-out (#2593)
+
+**Close-out checklist** (*daftar periksa penutupan*) — the organisation's ordered list of what a work order must collect
+before it closes (the organisation names the items; PMO ships none). A work order takes a copy when it is issued, and
+it closes only when every required item is done. A material joint count, loss report or completion report is an item of
+the same list, not a separate mechanism.
+
+**Close-out item** (*butir penutupan*) — one line of a work order's checklist: required or optional, with an attached
+issued or approved project document, a done date and who marked it. Items are done in order; an item's age counts from the
+previous item's done date (the issue date for the first).
 
 ### Site issues and task proof (#2521, #2531)
 
@@ -1133,6 +1169,11 @@ no data of its own. A step waiting on a role shows in that person's needs-you li
 **Candidate work order** — a work order that starts as an offer under a contract and is assessed with a checklist before the project
 manager accepts or rejects it, with the reason recorded.
 
+**Assessment checklist** — the organisation's own list of checks made on a candidate work order (the system supplies none); each candidate
+copies it when opened, and every check there has an owner, a target date, a result (open, passed, failed or not applicable), a note and proof files.
+
+**Ready to accept** — a candidate whose required checks are all passed or not applicable. Only then can it be accepted; rejecting is always possible.
+
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
 
@@ -1176,6 +1217,41 @@ reads the person's position once and the database decides inside or outside; whe
 or no position). It waits for the check-in supervisor, who approves (attendance is recorded) or rejects with a reason; the person
 who checked in never decides their own. The supervisor is the organisation's configured built-in role, or by default the crew's
 field controller or a crew manager.
+
+## Timed checkpoints (#2594)
+- **Checkpoint** — a named point in the working day, set by the organisation, with a local target time, a grace in minutes and a photo-required flag. Nothing about its name or time is built in.
+- **Day checkpoint** — a copy of a checkpoint for one work order, crew and date, with its due instant; once recorded it carries the server time, the person, an optional note and a photo, and never changes.
+- **Started on time** — the crew's `start` checkpoint was recorded at or before its due time plus grace. Reported as a count of days, not an average of minutes.
+- **Lost time by cause** — idle minutes of submitted or validated daily site reports, summed by the organisation's own lost-time cause list.
+
+**Safety day** — one record per work order and date holding the five daily safety parts: the fitness check, the toolbox talk with its
+attendance photo, the pre-work checklist, the permit to work and the safety officer's report. It is a draft until submitted, then
+locked; a correction is a new version naming the one it replaces, with a reason. The check types, permit types and checklist items
+come from lists the client keeps. Off until an Admin switches safety records on (#2596).
+
+**Safe hours** — worked hours (present attendance, locked or approved) since the date of the project's last lost-time incident, or
+since the start of attendance when there is none. Hidden with a reason when there is nothing to count from; never shown as 0.
+
+**Lost-time incident** — an incident marked as one that cost working time. Only an incident manager (Admin, Executive, Project
+Manager, Finance) sets the mark; it restarts the safe-hours count for the project.
+
+**Availability target / use target** — optional organisation settings (percent) the equipment availability screen compares each metric figure with; a figure below its target is marked. Unset means no marking.
+
+**Escalation limit** — the organisation setting (whole days, default 2) after which an open equipment downtime is flagged and notified: more than this many recorded down days.
+
+**Task group** — a named set of a project's tasks, optionally linked to one phase (milestone). While linked and not archived, the group's
+top-level, non-archived tasks count toward the phase's calculated progress, once each, together with the tasks placed directly on the
+phase. A phase with no linked group is measured exactly as before. Only Admin and Project Manager manage groups (#2679).
+
+**Issue task** — a task linked to a site issue through `incident_tasks`; one issue has many, one task serves one issue (#2677).
+
+**Root cause** — the cause of an issue, recorded apart from the visible problem (description) and the close note (#2677).
+
+- **Breakdown** — an equipment downtime period: from the first down status until the next ready or standby status. Identified by asset and start date; never stored.
+- **Response time** (vendor) — whole minutes from the reported time of a breakdown to the recorded time the rental vendor responded; a breakdown with no recorded response is awaiting, not zero.
+
+- **Done-not-claimed age** (#2675): whole days from the latest confirmed acceptance of a candidate's work order to the organisation's today. Information, shown on every candidate line of the billing plan.
+- **Done-not-claimed alert** (#2675): off by default; when an organisation switches the reminder on and sets a day limit, lines older than the limit are flagged and Finance is told once per line. It never raises a claim or an invoice.
 ## Work-order sections (#2576)
 **Section** — an optional child of one work order: a place or scope with a code (unique per work order, reserved for its life), a name, an optional note and foreman, a held readiness and a sort order. It carries no value, invoice, acceptance or status of its own, and is neither a discipline (the organisation-wide cost list) nor a work-order line (a contract quantity). The organisation's word for it is the shared term `terms.section` ("Section" / "Bagian"); no screen spells it. Not the record page's layout regions, which are *panels*.
 **Unsectioned remainder** — the records of a work order that name no section; shown as "Not in a section". A work order with no section has none and reads exactly as before.

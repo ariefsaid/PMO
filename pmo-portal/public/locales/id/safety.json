@@ -1,0 +1,174 @@
+{
+  "actions": {
+    "correct": "Koreksi",
+    "submit": "Kirim dan kunci"
+  },
+  "admin": {
+    "add": "Tambah",
+    "addLabel": "Entri {{list}} baru",
+    "archive": "Arsipkan",
+    "archived": "Diarsipkan",
+    "cancel": "Batal",
+    "checkTypes": "Jenis pemeriksaan kebugaran",
+    "checklist": "Daftar periksa sebelum kerja",
+    "duplicate": "Entri itu sudah ada dalam daftar",
+    "empty": "Belum ada isi",
+    "enable": "Catat keselamatan harian pada surat perintah kerja",
+    "helper": "Catatan keselamatan harian per surat perintah kerja. Jenis pemeriksaan, jenis izin kerja, dan butir daftar periksa adalah milik Anda: tambahkan yang dipakai di lokasi Anda. Mengarsipkan menyembunyikan entri dari hari baru; hari yang sudah memakainya tetap menyimpannya.",
+    "loadError": "Daftar tidak dapat dimuat",
+    "permitTypes": "Jenis izin kerja",
+    "rename": "Ubah nama",
+    "renameFor": "Nama untuk {{name}}",
+    "restore": "Pulihkan",
+    "save": "Simpan",
+    "saved": "Daftar disimpan",
+    "title": "Catatan keselamatan"
+  },
+  "checklist": {
+    "answer": {
+      "no": "Tidak",
+      "not_applicable": "Tidak berlaku",
+      "yes": "Ya"
+    },
+    "answerLabel": "Jawaban untuk {{item}}",
+    "none": "Belum ada daftar periksa untuk organisasi ini",
+    "note": "Catatan (wajib jika tidak)",
+    "noteLabel": "Catatan untuk {{item}}",
+    "title": "Daftar periksa sebelum kerja",
+    "unanswered": "Belum dijawab"
+  },
+  "correct": {
+    "confirm": "Mulai koreksi",
+    "label": "Alasan koreksi",
+    "title": "Koreksi hari keselamatan ini"
+  },
+  "day": {
+    "complete": "Lengkap",
+    "date": "Tanggal",
+    "draft": "Draf",
+    "locked": "Terkunci",
+    "missing": "Kurang: {{parts}}",
+    "noRecord": "Bekerja tanpa catatan keselamatan",
+    "open": "Buka",
+    "present": "{{count}} hadir",
+    "record": "Catat hari keselamatan",
+    "recordShort": "Catat"
+  },
+  "fitness": {
+    "add": "Tambah pemeriksaan",
+    "none": "Belum ada pemeriksaan kebugaran",
+    "note": "Catatan (wajib jika tidak bugar)",
+    "pickWorker": "Pekerja pada daftar tugas",
+    "pickWorkerNone": "Pilih pekerja",
+    "result": {
+      "fit": "Bugar",
+      "not_checked": "Belum diperiksa",
+      "not_fit": "Tidak bugar"
+    },
+    "resultLabel": "Hasil",
+    "title": "Pemeriksaan kebugaran",
+    "type": "Pemeriksaan",
+    "typeNone": "Tanpa pemeriksaan khusus",
+    "visitor": "Atau tamu yang disebutkan namanya",
+    "worker": "Pekerja"
+  },
+  "form": {
+    "back": "Kembali",
+    "correction": "Koreksi: {{reason}}",
+    "error": "Hari keselamatan ini tidak dapat dimuat",
+    "notFound": "Hari keselamatan tidak ditemukan",
+    "remove": "Hapus",
+    "stillNeeded": "Masih dibutuhkan: {{parts}}",
+    "title": "Hari keselamatan",
+    "version": "Versi {{n}}",
+    "workOrder": "Surat perintah kerja"
+  },
+  "officer": {
+    "add": "Tambah entri",
+    "body": "Laporan",
+    "counts": "{{near}} nyaris celaka · {{obs}} observasi",
+    "near": "Nyaris celaka",
+    "none": "Belum ada laporan",
+    "number": "Bilangan bulat",
+    "obs": "Observasi",
+    "title": "Laporan petugas keselamatan"
+  },
+  "parts": {
+    "checklist": "Daftar periksa sebelum kerja",
+    "fitness_check": "Pemeriksaan kebugaran",
+    "safety_record": "Catatan keselamatan",
+    "toolbox_talk_photo": "Foto pembicaraan kotak peralatan"
+  },
+  "permits": {
+    "add": "Tambah izin",
+    "close": "Tutup",
+    "closed": "Ditutup",
+    "issuedBy": "Diterbitkan oleh {{name}}",
+    "issuer": "Diterbitkan oleh",
+    "none": "Belum ada izin tercatat",
+    "number": "Nomor izin",
+    "open": "Terbuka",
+    "order": "Berlaku sampai tidak boleh sebelum berlaku dari",
+    "reopen": "Buka kembali",
+    "title": "Izin kerja",
+    "type": "Jenis izin",
+    "typeNone": "Tanpa jenis",
+    "validFrom": "Berlaku dari",
+    "validTo": "Berlaku sampai"
+  },
+  "section": {
+    "empty": "Tidak ada hari keselamatan dalam 30 hari terakhir",
+    "error": "Catatan keselamatan tidak dapat dimuat",
+    "subline": "Pemeriksaan kebugaran, pembicaraan kotak peralatan, daftar periksa sebelum kerja, izin kerja, dan laporan petugas keselamatan, per hari.",
+    "summary": "Ringkasan bulanan",
+    "title": "Catatan keselamatan harian"
+  },
+  "summary": {
+    "allProjects": "Semua proyek",
+    "backToFull": "Kembali ke ringkasan lengkap",
+    "clientSubtitle": "Angka untuk bulan ini",
+    "clientView": "Tampilan klien",
+    "detailError": "Baris tidak dapat dimuat",
+    "error": "Ringkasan tidak dapat dimuat",
+    "figure": {
+      "completeDays": "Hari lengkap",
+      "daysWithoutRecord": "Hari bekerja tanpa catatan keselamatan",
+      "lostTimeIncidents": "Insiden kehilangan waktu kerja",
+      "nearMisses": "Nyaris celaka",
+      "recordableIncidents": "Insiden tercatat",
+      "safeMinutes": "Jam aman",
+      "toolboxTalks": "Pembicaraan kotak peralatan",
+      "workedMinutes": "Jam kerja"
+    },
+    "hiddenDefault": "tidak dapat dihitung untuk periode ini",
+    "month": "Bulan",
+    "off": "Catatan keselamatan belum diaktifkan untuk organisasi ini",
+    "print": "Cetak",
+    "project": "Proyek",
+    "showRows": "Tampilkan barisnya",
+    "subtitle": "Jam kerja, insiden, dan catatan keselamatan untuk satu bulan.",
+    "title": "Ringkasan keselamatan",
+    "workOrder": "Surat perintah kerja"
+  },
+  "toast": {
+    "corrected": "Koreksi dimulai",
+    "submitted": "Hari keselamatan dikirim dan dikunci"
+  },
+  "toolbox": {
+    "addPhoto": "Tambah foto kehadiran",
+    "attendeeCount": "{{count}} peserta",
+    "attendees": "Peserta dari daftar tugas",
+    "noRoster": "Tidak ada yang ditugaskan pada surat perintah kerja ini untuk tanggal ini",
+    "none": "Belum ada pembicaraan kotak peralatan",
+    "photoCount": "{{count}} foto",
+    "photoInput": "Foto kehadiran",
+    "presentedBy": "Disampaikan oleh {{name}}",
+    "presenter": "Penyampai",
+    "save": "Simpan pembicaraan kotak peralatan",
+    "time": "Dilaksanakan pukul",
+    "title": "Pembicaraan kotak peralatan",
+    "topic": "Topik",
+    "viewPhoto": "Foto kehadiran {{n}}",
+    "visitor": "Tamu yang disebutkan namanya (opsional)"
+  }
+}
