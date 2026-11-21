@@ -3,7 +3,7 @@
 -- Orgs: A (the feature gets switched on), B (never switched on). Mutation notes: spec section 7.
 begin;
 create extension if not exists pgtap;
-select plan(51);
+select plan(53);
 
 insert into organizations (id, name, default_currency) values
   ('26980000-0000-0000-0000-00000000000a', 'PCH Org A', 'IDR'),
@@ -141,6 +141,16 @@ select throws_ok($$ select set_procurement_payment_channel('26980000-0000-0000-0
   'AC-PCH-007 an archived channel cannot be chosen');
 select throws_ok($$ select set_procurement_payment_channel('26980000-0000-0000-0000-0000000000f2', '26980000-0000-0000-0000-0000000000ee') $$, '42501', null,
   'AC-PCH-007 a channel that does not exist in the org cannot be chosen');
+-- Another org's real, live channel (tenancy): org B has one; an org A caller cannot put it on an org A request.
+reset role;
+insert into org_payment_channels (id, org_id, name, sort_order) values
+  ('26980000-0000-0000-0000-0000000000ec', '26980000-0000-0000-0000-00000000000b', 'PCH B live channel', 1);
+set local role authenticated;
+select pg_temp.act_as('26980000-0000-0000-0000-0000000000a2');
+select throws_ok($$ select set_procurement_payment_channel('26980000-0000-0000-0000-0000000000f2', '26980000-0000-0000-0000-0000000000ec') $$, '42501', null,
+  'AC-PCH-007 another organisation''s live channel cannot be put on a request');
+select is((select payment_channel_id from procurements where id = '26980000-0000-0000-0000-0000000000f2'), pg_temp.ch('Cash'),
+  'AC-PCH-007 and the request''s channel is unchanged');
 -- Feature off again: refused for everyone.
 select pg_temp.act_as('26980000-0000-0000-0000-0000000000a1');
 select lives_ok($$ select set_payment_channel_settings(false) $$, 'AC-PCH-007 an Admin switches the feature off');
