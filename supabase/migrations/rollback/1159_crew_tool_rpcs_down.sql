@@ -1,4 +1,4 @@
--- Reverse of 1082_crew_tool_rpcs.sql. Reverse 1083 first.
+-- Reverse of 1159_crew_tool_rpcs.sql. Reverse 1083 first.
 drop view if exists public.crew_tool_line_summary;
 drop function if exists public.set_crew_tool_settings(uuid, integer);
 drop function if exists public.close_crew_tool_report(uuid, text);

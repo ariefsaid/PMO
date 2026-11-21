@@ -1,11 +1,11 @@
--- 1082_crew_tool_rpcs.sql — #2581: the tool report's writers, the coordinator setting and the usable-quantity view.
+-- 1159_crew_tool_rpcs.sql — #2581: the tool report's writers, the coordinator setting and the usable-quantity view.
 -- Spec: docs/specs/crew-tools-register.spec.md (FR-CTR-006..014, 016). Proven by supabase/tests/crew_tool_*.test.sql.
 --   report_crew_tool          report + photo rows + task + notifications in ONE call, idempotent on the report id
 --   correct_crew_tool_report  a crew manager corrects kind or quantity of an open report, with a reason (audited)
 --   close_crew_tool_report    the one call that closes a report AND sets its task Done (assignee or crew manager)
 --   set_crew_tool_settings    coordinator and task due days (Admin, Project Manager)
 --   crew_tool_line_summary    held / damaged / lost / usable per live line (security invoker)
--- No money: nothing is costed, posted or approved here (OQ-CTR-3). Reversal: rollback/1082_crew_tool_rpcs_down.sql.
+-- No money: nothing is costed, posted or approved here (OQ-CTR-3). Reversal: rollback/1159_crew_tool_rpcs_down.sql.
 
 -- ── wording for the task and the notification, in the reader's language (FR-CTR-011/013) ───────────────────────
 create function public.crew_tool_message(p_locale text, p_kind text, p_tool text, p_qty integer, p_crew text, p_due date)
