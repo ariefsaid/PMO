@@ -11,8 +11,8 @@
 - **Dates** use the organisation's today (`field_org_today`, 1110), not the browser date.
 - **Access** (today's roles; HR roles arrive with #2709 and extend it later). Read: Admin, Project Manager, Finance, Executive. Write person state: Admin, Project Manager. Define items: Admin. Medical-type items get no special handling beyond this; item notes are short free text and the UI states they are not for medical detail. RLS is the authority; `can()` is UX only.
 - **Roster blocking is left out.** No existing screen or rule changes; nothing blocks an uncleared person. A later ticket can read the function behind a setting.
-- **Settings added: none.** The item list is the setting; with no items the feature shows only its empty state and nothing else in PMO reads it.
-- **New surfaces only:** an Administration section "Clearance" (route `/administration/clearance`: items and a people-by-state list) and a per-person checklist (`/administration/clearance/:personId`).
+- **Setting added: `organizations.clearance_checklist_enabled`, default false** (owner ruling, #2707 brief). An Admin turns it on in Administration > People (existing org settings area, en + id label). Off: Administration shows no Clearance tab, the person record shows no link, and both routes show a not-enabled state. On: the tab, the routes and the person-record link appear (for roles that may read). The item list itself is organisation data.
+- **New surfaces:** an Administration section "Clearance" (route `/administration/clearance`: items and a people-by-state list) and a per-person checklist (`/administration/clearance/:personId`), both behind the setting.
 - **Archive, not delete** (ADR-0018): items archive; a removed done-state is cleared by deleting its row (state, not a record of record).
 
 ## Requirements (EARS)
@@ -25,6 +25,7 @@
 - **FR-CLR-007** Where the user may not write, the system shall hide the edit controls and the server shall refuse the write.
 - **FR-CLR-008** The system shall never return another organisation's items, states or people, and shall refuse a person or item from another organisation.
 - **FR-CLR-009** While no items exist, the screen shall explain how to start (generic words), with no hard-coded item names.
+- **FR-CLR-011** While the setting is off, the system shall show no Clearance tab or person-record link and the routes shall show a not-enabled state; only an Admin can change the setting.
 - **FR-CLR-010** The screens shall work on phone and desktop, in English and Bahasa Indonesia.
 
 ## Acceptance criteria
@@ -39,7 +40,8 @@
 - **AC-CLR-009** The checklist screen lists items with state, saves a done date, shows the cleared badge, hides edits for a read-only role, shows the generic empty state with no items. *(Vitest/RTL)*
 - **AC-CLR-010** No English-only strings in Bahasa Indonesia. *(Vitest)*
 - **AC-CLR-011** An Admin defines an item, opens a person, marks it done, and sees Cleared. *(Playwright, one journey)*
+- **AC-CLR-013** The setting defaults to off; an Admin turns it on; a non-Admin cannot; off, the routes show not-enabled and fetch no checklist. *(pgTAP for default and write role; Vitest for the screens)*
 - **AC-CLR-012** Existing screens, routes and `can()` kinds are unchanged; existing tests pass untouched. *(CI regression; touched-file vitest)*
 
 ## Review
-Open points are in the plan's open questions.
+Owner rulings applied: gated tab and routes by the setting; no required items means nobody is cleared; Project Manager records state, only Admin defines items.

@@ -8,8 +8,8 @@ Spec: `docs/specs/cleared-for-site-checklist.spec.md`. Migrations 1235-1239 only
 | `1235_clearance_items.sql` | `clearance_items` (org_id stamp trigger, name, is_required, sort_order, archived_at, live-name unique index); RLS read Admin/PM/Finance/Executive, write Admin; `(select helper())` wrapping; revoke-then-grant |
 | `1236_person_clearances.sql` | `person_clearances` (person_id, item_id, done_on, expires_on, note, updated_by/at; unique person+item; same-org guard trigger; expiry>=done check); RLS read the four roles, write Admin/PM |
 | `1237_person_clearance_status.sql` | `person_clearance_items(p_person)` per-item state and `person_clearance_summary()` per-person cleared; both SECURITY INVOKER (RLS applies), search_path pinned, today from `field_org_today` |
-| `1238_clearance_manifest.sql` | only if the isolation guard needs rows (else unused, number released) |
-| `1239` | reserved, unused unless needed |
+| (1235 also adds `organizations.clearance_checklist_enabled boolean not null default false` + Admin-only column grant) | the setting |
+| 1238, 1239 | unused (the isolation manifest is `scripts/isolation-probe-denominator.d/2707-cleared-for-site.json`) |
 Rollbacks: `rollback/1235..1237_*_down.sql` (refuse to drop tables holding rows).
 
 ## Frontend (`pmo-portal/`)
@@ -23,9 +23,9 @@ Rollbacks: `rollback/1235..1237_*_down.sql` (refuse to drop tables holding rows)
 AC-CLR-001..007 `supabase/tests/2707_cleared_for_site.test.sql` (+ mutation run); 008 `src/lib/repositories/__tests__/clearance.test.ts`, `src/auth/policy` test; 009/010 `pages/administration/__tests__/PersonClearance.test.tsx` + bahasa test; 011 `e2e/AC-CLR-011-cleared-for-site.spec.ts`; 012 existing suites untouched. Also isolation-denominator guard self-test and run.
 
 ## Settings added
-None (default = unchanged behaviour). Roster blocking left out.
+`clearance_checklist_enabled`, default false = unchanged behaviour: no tab, no link, routes show not-enabled. Roster blocking left out.
 
-## Open questions
+## Resolved questions (owner)
 1. Entry point: a new "Clearance" tab under Administration is an additive nav entry on an existing screen. OK, or reach only by direct route and a link from the person record?
 2. Cleared when no required items exist: spec says false. Confirm.
 3. PM may record states (not define items); confirm, since people edit is also Admin+PM.
