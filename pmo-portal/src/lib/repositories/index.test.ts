@@ -82,6 +82,10 @@ vi.mock('@/src/lib/db/tasks', () => ({
   archiveTask: vi.fn(),
   unarchiveTask: vi.fn(),
 }));
+vi.mock('@/src/lib/db/purchaseOrderSettings', () => ({
+  getPurchaseOrderSettings: vi.fn(),
+  setPurchaseOrderSettings: vi.fn(),
+}));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurements: vi.fn() }));
 vi.mock('@/src/lib/db/procurementLifecycle', () => ({
   getProcurementDetail: vi.fn(),
@@ -199,6 +203,7 @@ import * as adminUsersDal from '@/src/lib/db/adminUsers';
 import * as operatorsDal from '@/src/lib/db/operators';
 import * as usageDal from '@/src/lib/db/usage';
 import * as procurementsDal from '@/src/lib/db/procurements';
+import * as poSettingsDal from '@/src/lib/db/purchaseOrderSettings';
 import * as procLifecycleDal from '@/src/lib/db/procurementLifecycle';
 import * as procCrudDal from '@/src/lib/db/procurementCrud';
 import * as procCeilingDal from '@/src/lib/db/procurementPaymentCeiling';
@@ -385,8 +390,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'listByProject',
         'listByVendor',
         'listDocuments',
+        'purchaseOrderSettings',
         'selectQuote',
         'setEfaktur',
+        'setPurchaseOrderSettings',
         'transition',
         'unlinkMicrosoftDocument',
         'updateHeader',
@@ -918,6 +925,25 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(procRecordsDal.createPayment).toHaveBeenCalledWith(
       'proc-1', 'inv-1', null, 'Paid', '2026-06-21', 50000,
     );
+  });
+
+  it('purchaseOrderSettings and setPurchaseOrderSettings delegate to purchaseOrderSettings DAL', async () => {
+    vi.mocked(poSettingsDal.getPurchaseOrderSettings).mockResolvedValue({
+      enabled: true,
+      signatureBlocks: ['Sign 1'],
+      authorisedCollectors: ['Collector 1'],
+    });
+    vi.mocked(poSettingsDal.setPurchaseOrderSettings).mockResolvedValue(undefined);
+
+    await expect(repositories.procurement.purchaseOrderSettings()).resolves.toEqual({
+      enabled: true,
+      signatureBlocks: ['Sign 1'],
+      authorisedCollectors: ['Collector 1'],
+    });
+    expect(poSettingsDal.getPurchaseOrderSettings).toHaveBeenCalledTimes(1);
+
+    await repositories.procurement.setPurchaseOrderSettings(true, ['Sign 1'], ['Collector 1']);
+    expect(poSettingsDal.setPurchaseOrderSettings).toHaveBeenCalledWith(true, ['Sign 1'], ['Collector 1']);
   });
 
   it('timesheet methods delegate to the timesheet DAL fns', async () => {
