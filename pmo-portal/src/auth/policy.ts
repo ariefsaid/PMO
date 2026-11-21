@@ -82,6 +82,8 @@ export type Entity =
   | 'dailySiteReportRevenue'
   | 'progressClaim'
   | 'billingStage'
+  | 'closeoutItem'
+  | 'closeoutChecklist'
   | 'workOrderLine'
   | 'workOrderAcceptance'
   | 'expenseClaim'
@@ -473,6 +475,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     transition: allow(['Admin', 'Finance', 'Project Manager']),
     edit: allow(CONFIRM_BAST),
   },
+  /**
+   * Work-order close-out checklist (#2593; 1400–1402). transition = attach a document to an item and mark it done
+   * (lock_closeout_item: Admin, Finance, and the project's own manager); edit = the organisation's list (Admin). The close
+   * itself stays with transition_work_order's roles; the database guard refuses it while a required item is open. UX only.
+   */
+  closeoutItem: { view: allow(ALL), transition: allow(['Admin', 'Finance', 'Project Manager']) },
+  closeoutChecklist: { view: allow(ALL), edit: allow(ADMIN) },
   /**
    * Expense claims and cash advances (#775, migration 0247). Mirrors the server:
    *   view/create ← every active member raises their own (RLS insert: claimant = auth.uid()); reads are RLS-scoped

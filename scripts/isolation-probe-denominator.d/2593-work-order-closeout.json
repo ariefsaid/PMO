@@ -1,0 +1,26 @@
+{
+  "tables": [
+    {
+      "table": "closeout_checklist_templates",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "work_order_closeout_items",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ],
+  "definer_functions": [
+    "attach_closeout_item_document(uuid,uuid)",
+    "complete_closeout_item(uuid,date)",
+    "lock_closeout_item(uuid)",
+    "set_closeout_checklist(jsonb)"
+  ]
+}

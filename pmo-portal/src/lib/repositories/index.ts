@@ -52,6 +52,7 @@ import {
 } from './admin';
 import { taskRepository } from './tasks';
 import { billingStagesRepository } from './billingStages';
+import { closeoutChecklistRepository } from './closeoutChecklist';
 import { taskProofRepository } from './taskProofs';
 import { commentRepository } from './comments';
 import { meetingRepository } from './meetings';
@@ -129,6 +130,7 @@ export const repositories: Repositories = {
   progressBilling: progressBillingRepository,
   rateCatalogue: rateCatalogueRepository,
   billingStages: billingStagesRepository,
+  closeoutChecklist: closeoutChecklistRepository,
   dailySiteReport: dailySiteReportRepository,
   stock: stockRepository,
   workOrderAcceptance: workOrderAcceptanceRepository,

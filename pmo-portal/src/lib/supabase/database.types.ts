@@ -2297,6 +2297,42 @@ export type Database = {
           },
         ]
       }
+      closeout_checklist_templates: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+          position: number
+          required: boolean
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          org_id: string
+          position: number
+          required?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+          position?: number
+          required?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "closeout_checklist_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           archived_at: string | null
@@ -12872,6 +12908,80 @@ export type Database = {
           },
         ]
       }
+      work_order_closeout_items: {
+        Row: {
+          attached_at: string | null
+          attached_by: string | null
+          document_id: string | null
+          done_at: string | null
+          done_by: string | null
+          done_on: string | null
+          id: string
+          name: string
+          org_id: string
+          position: number
+          project_id: string
+          required: boolean
+          started_on: string | null
+          work_order_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          attached_at?: string | null
+          attached_by?: string | null
+          document_id?: string | null
+          done_at?: string | null
+          done_by?: string | null
+          done_on?: string | null
+          id?: string
+          name: string
+          org_id: string
+          position: number
+          project_id: string
+          required: boolean
+          started_on?: string | null
+          work_order_id: string
+        }
+        Update: {
+          attached_at?: string | null
+          attached_by?: string | null
+          document_id?: string | null
+          done_at?: string | null
+          done_by?: string | null
+          done_on?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          position?: number
+          project_id?: string
+          required?: boolean
+          started_on?: string | null
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_order_closeout_items_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_closeout_items_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_closeout_items_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_order_lines: {
         Row: {
           boq_item_id: string
@@ -12933,6 +13043,7 @@ export type Database = {
           cancelled_at: string | null
           client_po_number: string | null
           closed_at: string | null
+          closed_by: string | null
           closing_acceptance_id: string | null
           closing_value: number | null
           created_at: string
@@ -12965,6 +13076,7 @@ export type Database = {
           cancelled_at?: string | null
           client_po_number?: string | null
           closed_at?: string | null
+          closed_by?: string | null
           closing_acceptance_id?: string | null
           closing_value?: number | null
           created_at?: string
@@ -12997,6 +13109,7 @@ export type Database = {
           cancelled_at?: string | null
           client_po_number?: string | null
           closed_at?: string | null
+          closed_by?: string | null
           closing_acceptance_id?: string | null
           closing_value?: number | null
           created_at?: string
@@ -13026,6 +13139,13 @@ export type Database = {
           wo_number?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "work_orders_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "work_orders_closing_acceptance_id_fkey"
             columns: ["closing_acceptance_id"]
@@ -13625,6 +13745,18 @@ export type Database = {
       cancel_retention_release: {
         Args: { p_release: string }
         Returns: undefined
+      }
+      attach_closeout_item_document: {
+        Args: { p_document: string; p_item: string }
+        Returns: undefined
+      }
+      complete_closeout_item: {
+        Args: { p_done_on: string; p_item: string }
+        Returns: undefined
+      }
+      set_closeout_checklist: {
+        Args: { p_items: Json }
+        Returns: number
       }
       complete_billing_stage: {
         Args: {
