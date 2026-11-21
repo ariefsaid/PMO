@@ -23,8 +23,8 @@ insert into projects (id, org_id, name, status, currency, contract_value, tax_tr
   ('13700000-0000-0000-0000-0000000000c1', '13700000-0000-0000-0000-0000000000a1', 'BBD one', 'Ongoing Project', 'IDR', 90000000, 'exclusive', 0, null, 1, 1, false, '13700000-0000-0000-0000-0000000000cc'),
   ('13700000-0000-0000-0000-0000000000c2', '13700000-0000-0000-0000-0000000000a1', 'BBD two', 'Ongoing Project', 'IDR', 90000000, 'exclusive', 0, null, 1, 1, false, '13700000-0000-0000-0000-0000000000cc'),
   ('13700000-0000-0000-0000-0000000000c3', '13700000-0000-0000-0000-0000000000a2', 'BBD foreign', 'Ongoing Project', 'IDR', 90000000, 'exclusive', 0, null, 1, 1, false, '13700000-0000-0000-0000-0000000000cd');
-insert into work_orders (id, project_id, title, order_value, tax_treatment, tax_amount) values
-  ('13700000-0000-0000-0000-0000000000d1', '13700000-0000-0000-0000-0000000000c1', 'BBD work order', 100, 'exclusive', 0);
+insert into work_orders (id, project_id, title, order_value, tax_treatment, tax_amount, currency) values
+  ('13700000-0000-0000-0000-0000000000d1', '13700000-0000-0000-0000-0000000000c1', 'BBD work order', 100, 'exclusive', 0, 'IDR');
 
 -- Claims (no project template exists, so no stage is created by the trigger; the steps are inserted here).
 -- e1 c1: step 1 done, step 2 current (own date), step 3 open.   e2 c1: step 1 skipped, step 2 current (days only).
@@ -44,7 +44,6 @@ select o.org, o.claim, o.proj, o.pos, o.nm, false, o.st, o.done, case when o.don
     ('13700000-0000-0000-0000-0000000000a1'::uuid, '13700000-0000-0000-0000-000000000e01'::uuid, '13700000-0000-0000-0000-0000000000c1'::uuid, 1::smallint, 'Check',   date '2026-01-01', date '2026-01-03', null::date, null::smallint, null::date),
     ('13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-000000000e01', '13700000-0000-0000-0000-0000000000c1', 2, 'Approve', date '2026-01-03', null, null, 5::smallint, date '2026-01-20'),
     ('13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-000000000e01', '13700000-0000-0000-0000-0000000000c1', 3, 'Send',    null, null, null, null, null),
-    ('13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-000000000e02', '13700000-0000-0000-0000-0000000000c1', 1, 'Check',   date '2026-01-01', null, date '2026-01-02', null, null),
     ('13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-000000000e02', '13700000-0000-0000-0000-0000000000c1', 2, 'Approve', date '2026-01-02', null, null, 7::smallint, null),
     ('13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-000000000e03', '13700000-0000-0000-0000-0000000000c2', 1, 'Check',   date '2026-02-01', date '2026-02-02', null, null, null),
     ('13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-000000000e03', '13700000-0000-0000-0000-0000000000c2', 2, 'Approve', date '2026-02-02', date '2026-02-09', null, null, null),
@@ -52,6 +51,9 @@ select o.org, o.claim, o.proj, o.pos, o.nm, false, o.st, o.done, case when o.don
     ('13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-000000000e06', '13700000-0000-0000-0000-0000000000c1', 1, 'Check',   date '2026-01-01', date '2026-01-02', null, null, null),
     ('13700000-0000-0000-0000-0000000000a2', '13700000-0000-0000-0000-000000000e07', '13700000-0000-0000-0000-0000000000c3', 1, 'Check',   date '2026-01-01', null, null, null, null)
   ) as o(org, claim, proj, pos, nm, st, done, skip, td, tn);
+insert into claim_billing_stages (org_id, claim_id, project_id, position, name, client_side, started_on, optional, skipped_on, skipped_by, skipped_reason) values
+  ('13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-000000000e02', '13700000-0000-0000-0000-0000000000c1', 1, 'Check', false, date '2026-01-01', true, date '2026-01-02',
+   '13700000-0000-0000-0000-0000000000b1', 'not needed');
 insert into sales_invoices (tax_treatment, tax_amount, id, org_id, project_id, customer_id, si_number, invoice_date, amount, erp_outstanding_amount, status, erp_docstatus, author_user_id) values
   ('exclusive', 0, '13700000-0000-0000-0000-000000000e06', '13700000-0000-0000-0000-0000000000a1', '13700000-0000-0000-0000-0000000000c1', '13700000-0000-0000-0000-0000000000cc',
    'SI-BBD-001', '2026-03-02', 500.00, 500.00, 'Unpaid', 1, '13700000-0000-0000-0000-0000000000b1');

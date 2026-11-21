@@ -3,6 +3,7 @@
 -- A READ over claim_billing_stages: no table, no write, no definer. SECURITY INVOKER, so RLS on claim_billing_stages / progress_claims /
 -- projects / sales_invoices decides what a caller sees (Engineers are excluded by the stage tables' restrictive scope).
 -- billing_stage_due_on is not executable by authenticated (1368), so the same two-branch rule is written inline; the test pins them together.
+-- native_org_today is not executable by authenticated either, so the organisation's calendar day is written inline the same way.
 -- Bounded: 501 rows (the caller shows 500 and a "truncated" notice). "Invoiced" = a sales invoice visible to the caller whose id is the claim id.
 -- ── REVERSE: rollback/1370_billing_board_read_down.sql ───────────────────────────────────────────────────────────────
 
@@ -21,7 +22,7 @@ create function public.billing_board(p_project uuid default null)
               when cur.target_days is null or cur.started_on is null then null
               else cur.started_on + cur.target_days end,
          cur.id is null,
-         public.native_org_today(pc.org_id)
+         (now() at time zone coalesce((select o.default_timezone from public.organizations o where o.id = pc.org_id), 'UTC'))::date
     from public.progress_claims pc
     join public.projects p on p.id = pc.project_id
     left join public.work_orders wo on wo.id = pc.work_order_id
