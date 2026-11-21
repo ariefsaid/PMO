@@ -1,0 +1,11 @@
+{
+  "definer_functions": [
+    "actor_is_light()",
+    "light_can_see_crew(uuid)",
+    "light_can_see_crew_member(uuid,uuid)",
+    "light_can_see_work_order(uuid)",
+    "my_home()",
+    "org_seat_report()"
+  ],
+  "tables": []
+}

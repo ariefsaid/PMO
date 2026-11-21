@@ -1,0 +1,7 @@
+# #2710 light accounts: client-callable SECURITY DEFINER names (authenticated only; anon revoked in 1205/1207/1208).
+actor_is_light  # 1205: caller's own light-account flag
+light_can_see_crew  # 1205: own-crew test used by restrictive policies; scoped to the caller's org and identity
+light_can_see_crew_member  # 1205: own crew-member test used by restrictive policies
+light_can_see_work_order  # 1205: rostered-work-order test used by restrictive policies
+my_home  # 1207: caller's own tasks, rostered work orders and reported issues; no price or budget field
+org_seat_report  # 1208: active Admin/Executive of the caller org; counts only

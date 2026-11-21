@@ -58,6 +58,8 @@ import { AccessDenied, ToastProvider, TOOLTIP_OPEN_DELAY_MS } from '@/src/compon
 import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 import { EnvBadge } from '@/src/components/EnvBadge';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
+import { isLightAccount } from '@/src/auth/lightAccount';
+import { LightShell } from '@/src/components/shell/LightShell';
 import { DocumentViewerProvider } from '@/src/components/documents';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { useFeature } from '@/src/auth/useFeature';
@@ -930,6 +932,15 @@ const Shell: React.FC = () => {
   );
 };
 
+/**
+ * #2710: a light account (Foreman, Field user) gets its one phone home screen instead of the full shell. Everyone else renders the
+ * same `Shell` as before. The database enforces the limit; this only chooses the surface.
+ */
+const ShellGate: React.FC = () => {
+  const { currentUser } = useAuth();
+  return isLightAccount(currentUser) ? <LightShell /> : <Shell />;
+};
+
 // ── Router (data router — enables router-level Back/Forward blocking) ──────
 /**
  * The application's router, as DATA (#1525). `createBrowserRouter` replaces the plain
@@ -963,7 +974,7 @@ export const createAppRouter = (): DataRouter => createBrowserRouter([
               // #728: Supabase's OAuth server sends the browser here to approve an outside
               // client (the PMO CLI). Signed-in only, but outside the app shell.
               { path: '/oauth/consent', element: <OAuthConsentPage /> },
-              { path: '/*', element: <Shell /> },
+              { path: '/*', element: <ShellGate /> },
             ],
           },
         ],

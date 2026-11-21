@@ -6,6 +6,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { builtInRolesRepository } from '@/src/lib/repositories/builtInRoles';
 import { BUILT_IN_ROLES_ENABLED_KEY, useBuiltInRolesEnabled } from '@/src/hooks/useBuiltInRoles';
+import { SeatReport } from '@/src/components/my/SeatReport';
 
 /**
  * Administration › People › Built-in roles (#2709). One organization setting, off by default: while off, the Users screen is
@@ -63,6 +64,7 @@ const OrgBuiltInRoles: React.FC = () => {
                 {enabled ? t('admin.builtInRoles.turnOff', 'Turn off built-in roles') : t('admin.builtInRoles.turnOn', 'Turn on built-in roles')}
               </Button>
             )}
+            {enabled && canManage && <SeatReport />}
           </>
         )}
       </div>

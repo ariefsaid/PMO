@@ -1075,3 +1075,7 @@ schedule, at a local send time in the organisation's timezone. Nothing exists un
 
 **Report kind** — one of a small fixed set of generic reports a scheduled report can send: the daily progress summary (from the day's site
 reports) and overdue tasks. The body is computed per recipient, so a figure the recipient's role may not see is left out.
+
+**Light account** — a person whose built-in role is Foreman or Field user. One phone home screen (own tasks, clock-in at work orders they are rostered on, deliveries addressed to them, issues they reported; the Foreman also ticks their own crew). No project page, work-order page, list, dashboard, price or budget. The database confines it with restrictive row policies; the organization sets nothing beyond who holds the role. (#2710, `docs/specs/light-accounts.spec.md`.)
+
+**Seat type** — `light` (a light account) or `full` (everyone else), derived from the built-in role. Seat reports split the two; price and counts stay the owner's.
