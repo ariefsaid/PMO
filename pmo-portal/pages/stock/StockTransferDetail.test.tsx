@@ -113,6 +113,21 @@ describe('StockTransferDetail receive (AC-TST-024)', () => {
     await waitFor(() => expect(h.resolve).toHaveBeenCalledWith('l1', 'returned', ''));
   });
 
+  it('AC-TST-024 quantities that arrive as JSON numbers (PostgREST numeric) render and submit as decimal strings', async () => {
+    h.transfer = transfer({ lines: [line({ qtySent: 10 })] });
+    renderPage();
+    expect(await screen.findByLabelText(/^Counted/)).toHaveValue('10');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm receipt' }));
+    await waitFor(() => expect(h.receive).toHaveBeenCalledWith('t1', [{ lineId: 'l1', counted: '10', accepted: '10', rejectReason: '', qualityResult: null }], null));
+  });
+
+  it('AC-TST-024 a received transfer with numeric counts renders its lines', async () => {
+    h.transfer = transfer({ status: 'Received', receivedBy: 'me', receivedAt: '2026-11-20T10:00:00Z', lines: [line({ qtySent: 10, qtyCounted: 7, qtyAccepted: 7, qtyRejected: 0 })] });
+    renderPage();
+    expect(await screen.findByRole('button', { name: 'It arrived' })).toBeInTheDocument();
+    expect(screen.getByText(/3 short/)).toBeInTheDocument();
+  });
+
   it('AC-TST-024 the receive screen reads in Bahasa Indonesia too', () => {
     expect(stockId.transfers.receiveAction).toBe('Konfirmasi penerimaan');
     expect(stockId.handover.guestToggle).toBe('Penanda tangan tidak punya akun');

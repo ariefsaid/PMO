@@ -15,11 +15,14 @@ import { useProofStatus, useStockTransfer, useTransferConfirmations, useTransfer
 import { formatDateTime } from '@/src/lib/format';
 import { formatQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import { stockTransfersRepository as repo, type ProofRule, type QualityResult, type ShortResolution, type StockTransferLine } from '@/src/lib/repositories/stockTransfers';
+import { stockTransfersRepository as repo, type ProofRule, type QualityResult, type ShortResolution, type StockTransfer, type StockTransferLine } from '@/src/lib/repositories/stockTransfers';
 
 interface Count { counted: string; accepted: string; reason: string; quality: QualityResult | '' }
 const ruleOf = (tag: { proof_required?: string; paper_required: boolean }): ProofRule => (tag.proof_required as ProofRule | undefined) ?? (tag.paper_required ? 'paper' : 'none');
 const flagged = (item: object | undefined): boolean => (item as { needs_quality_check?: boolean } | undefined)?.needs_quality_check === true;
+
+const text = (v: string | number | null): string | null => (v === null ? null : String(v));
+const stringQuantities = (t: StockTransfer): StockTransfer => ({ ...t, lines: t.lines.map((l) => ({ ...l, qtySent: String(l.qtySent), qtyCounted: text(l.qtyCounted), qtyAccepted: text(l.qtyAccepted), qtyRejected: text(l.qtyRejected) })) });
 
 /** One transfer: its counts, the receive form (count, accept or reject, quality, handover confirmation), shortfall resolution and the confirmations on record. */
 const StockTransferDetail: React.FC = () => {
@@ -45,7 +48,7 @@ const StockTransferDetail: React.FC = () => {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const transfer = q.data;
+  const transfer = q.data ? stringQuantities(q.data) : q.data;   // a numeric column can arrive as a JSON number; the formatters take strings
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);
   const tagById = useMemo(() => new Map((tags.data ?? []).map((g) => [g.id, g])), [tags.data]);
   if (q.isPending) return <ListState variant="loading" rows={4} />;
