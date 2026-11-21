@@ -32,33 +32,34 @@ let tag = '';
 test.beforeEach(async () => {
   const key = requireServiceRoleKey();
   if (!key) throw new Error('AC-MBP-018 needs SUPABASE_SERVICE_ROLE_KEY — run it via scripts/e2e-local.sh, which exports it');
-  admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
-  const must = <T,>(step: string, r: { data: T | null; error: { message: string } | null }): T => {
+  const db = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
+  admin = db;
+  const must = (step: string, r: { data: unknown; error: { message: string } | null }): { id: string } => {
     if (r.error || r.data === null) throw new Error(`AC-MBP-018 fixture ${step}: ${r.error?.message ?? 'no row'}`);
-    return r.data;
+    return r.data as { id: string };
   };
   tag = `AC-MBP-018 ${Date.now()}`;
-  companyId = must('company', await admin.from('companies').insert({ org_id: ORG_ID, name: `${tag} Client`, type: 'Client' }).select('id').single()).id;
-  projectId = must('project', await admin.from('projects').insert({
+  companyId = must('company', await db.from('companies').insert({ org_id: ORG_ID, name: `${tag} Client`, type: 'Client' }).select('id').single()).id;
+  projectId = must('project', await db.from('projects').insert({
     org_id: ORG_ID, name: tag, status: 'Ongoing Project', currency: 'IDR', client_id: companyId,
     contract_value: 100_000_000, tax_treatment: 'exclusive', tax_amount: 0, tax_rate: 12, tax_base_numerator: 11, tax_base_denominator: 12,
   }).select('id').single()).id;
-  const finance = must('finance user', await admin.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single());
-  boqId = must('boq', await admin.from('boq_items').insert({
+  const finance = must('finance user', await db.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single());
+  boqId = must('boq', await db.from('boq_items').insert({
     org_id: ORG_ID, project_id: projectId, item_code: 'MBP-1', description: `${tag} item`, unit: 'm', quantity: 100, rate: 1000, earning_basis: 'unit_rate', line_no: 1,
   }).select('id').single()).id;
-  workOrderId = must('work order', await admin.from('work_orders').insert({
+  workOrderId = must('work order', await db.from('work_orders').insert({
     org_id: ORG_ID, project_id: projectId, title: `${tag} order`, status: 'Issued', order_value: 100_000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'IDR',
   }).select('id').single()).id;
-  must('order line', await admin.from('work_order_lines').insert({ org_id: ORG_ID, work_order_id: workOrderId, boq_item_id: boqId, quantity: 20 }).select('work_order_id').single());
-  acceptanceId = must('acceptance', await admin.from('work_order_acceptances').insert({
+  must('order line', await db.from('work_order_lines').insert({ org_id: ORG_ID, work_order_id: workOrderId, boq_item_id: boqId, quantity: 20 }).select('work_order_id').single());
+  acceptanceId = must('acceptance', await db.from('work_order_acceptances').insert({
     org_id: ORG_ID, project_id: projectId, work_order_id: workOrderId, acceptance_date: new Date().toISOString().slice(0, 10), is_final: false, status: 'Confirmed',
     prepared_by: finance.id, confirmed_by: finance.id, confirmed_at: new Date().toISOString(), confirm_basis: 'standard',
   }).select('id').single()).id;
-  must('acceptance line', await admin.from('work_order_acceptance_lines').insert({ acceptance_id: acceptanceId, boq_item_id: boqId, quantity: 12 }).select('acceptance_id').single());
-  const prior = await admin.from('org_billing_plan_settings').select('*').eq('org_id', ORG_ID).maybeSingle();
+  must('acceptance line', await db.from('work_order_acceptance_lines').insert({ acceptance_id: acceptanceId, boq_item_id: boqId, quantity: 12 }).select('acceptance_id').single());
+  const prior = await db.from('org_billing_plan_settings').select('*').eq('org_id', ORG_ID).maybeSingle();
   priorSettings = prior.data ?? null;
-  await admin.from('org_billing_plan_settings').delete().eq('org_id', ORG_ID);
+  await db.from('org_billing_plan_settings').delete().eq('org_id', ORG_ID);
 });
 
 test.afterEach(async () => {
