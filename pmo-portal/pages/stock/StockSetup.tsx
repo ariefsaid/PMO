@@ -338,7 +338,7 @@ interface FormProps {
   onClose: () => void;
   onDone: (isEdit: boolean) => void;
 }
-interface Values { code: string; name: string; wholeOnly: boolean; description: string; unitId: string; leadTime: string; kind: 'central' | 'site' | 'yard' | 'staging'; projectId: string; tagId: string }
+interface Values { code: string; name: string; wholeOnly: boolean; description: string; unitId: string; leadTime: string; kind: 'central' | 'site' | 'yard' | 'staging'; projectId: string; tagId: string; cover: string }
 
 const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tagsEnabled, onClose, onDone }) => {
   const { t } = useTranslation('stock');
@@ -360,6 +360,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
       if (!v.unitId) e.unitId = t('setup.form.item.unitRequired');
       if (v.leadTime.trim() && !(/^\d+$/.test(v.leadTime.trim()) && Number(v.leadTime) <= 365)) e.leadTime = t('setup.form.item.leadTimeInvalid');
     }
+    if (which === 'warehouses' && v.cover.trim() && !/^\d+(\.\d{1,2})?$/.test(v.cover.trim())) e.cover = t('setup.form.warehouse.coverInvalid');
     return e;
   };
   const form = useEntityForm<Values>({
@@ -367,6 +368,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
       code: row ? (row as { code: string }).code : '', name: row ? (row as { name: string }).name : '',
       wholeOnly: unitRow?.whole_only ?? false, description: itemRow?.description ?? '', unitId: itemRow?.unit_id ?? '',
       leadTime: itemRow?.lead_time_days == null ? '' : String(itemRow.lead_time_days), kind: (whRow?.kind as Values['kind'] | undefined) ?? 'site', projectId: whRow?.project_id ?? '', tagId: itemRow?.tag_id ?? '',
+      cover: whRow?.cover_value == null ? '' : String(whRow.cover_value),
     },
     validate,
     idPrefix: `stock-${k}-form`,
@@ -382,6 +384,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
   const kind = form.fieldProps('kind');
   const projectId = form.fieldProps('projectId');
   const tagId = form.fieldProps('tagId');
+  const cover = form.fieldProps('cover');
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -394,7 +397,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
           const input: StockItemInput = { code: v.code, name: v.name, description: v.description || null, unitId: v.unitId, leadTimeDays: v.leadTime.trim() ? Number(v.leadTime) : null, ...(tagsEnabled ? { tagId: v.tagId || null } : {}) };
           if (row) await m.updateItem.mutateAsync({ id: row.id, input }); else await m.createItem.mutateAsync(input);
         } else {
-          const input: StockWarehouseInput = { code: v.code, name: v.name, kind: v.kind, projectId: v.projectId || null };
+          const input: StockWarehouseInput = { code: v.code, name: v.name, kind: v.kind, projectId: v.projectId || null, coverValue: v.cover.trim() ? v.cover.trim() : null };
           if (row) await m.updateWarehouse.mutateAsync({ id: row.id, input }); else await m.createWarehouse.mutateAsync(input);
         }
         onDone(isEdit);
@@ -449,6 +452,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
               options={(['central', 'site', 'yard', 'staging'] as const).map((k2) => ({ value: k2, label: t(`setup.kinds.${k2}`) }))} />
             <SelectField id={projectId.id} label={t('setup.form.warehouse.project')} helper={t('setup.form.warehouse.projectHelp')} value={projectId.value} onChange={projectId.onChange} onBlur={projectId.onBlur}
               placeholder={t('setup.form.warehouse.noProject')} options={projects.map((p) => ({ value: p.id, label: p.name }))} />
+            <TextField id={cover.id} label={t('setup.form.warehouse.cover')} helper={t('setup.form.warehouse.coverHelp')} value={cover.value} onChange={cover.onChange} onBlur={cover.onBlur} error={cover.error} inputMode="decimal" />
           </>
         )}
       </FormGrid>

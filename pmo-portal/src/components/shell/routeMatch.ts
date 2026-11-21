@@ -341,6 +341,7 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/stock/documents': '/stock',
   '/stock/ledger': '/stock',
   '/stock/reorder': '/stock',
+  '/stock/at-risk': '/stock',
   '/stock/setup': '/stock',
   '/stock/new/receive': '/stock',
   '/stock/new/transfer': '/stock',

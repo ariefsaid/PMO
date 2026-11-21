@@ -94,7 +94,10 @@
         "projectHelp": "Optional. Only a default for issues; it does not restrict them.",
         "noProject": "No default project",
         "codeRequired": "Code is required.",
-        "nameRequired": "Name is required."
+        "nameRequired": "Name is required.",
+        "cover": "Cover value",
+        "coverHelp": "The protection recorded for this location. Stock value above it shows as at risk.",
+        "coverInvalid": "A cover is 0 or more, 2 decimals at most."
       }
     },
     "states": {
@@ -200,7 +203,8 @@
     "documents": "Documents",
     "ledger": "Ledger",
     "setup": "Setup",
-    "reorder": "Reorder"
+    "reorder": "Reorder",
+    "atRisk": "At risk"
   },
   "onHand": {
     "title": "Stock",
@@ -642,8 +646,31 @@
     "rowLabel": "Request purchase for {{item}}"
   },
   "siteWork": {
-    "files": {"unknownUploader": "Unknown uploader", "title": "Attachments", "choose": "Choose file", "label": "Label (optional)", "upload": "Upload attachment", "remove": "Remove", "reason": "Reason for archiving", "loading": "Loading attachments…", "loadError": "Could not load attachments.", "error": "Could not change the attachment."},
-    "tags": {"connectedUnavailable": "Stock tags are unavailable while inventory is connected.", "confirmTitle": "Archive this stock tag?", "confirmDescription": "Items keep their tag, but it will no longer be offered for new items.", "manage": "Manage stock tags", "name": "Tag name", "zero": "Zero cost", "paper": "Paper required", "add": "Add tag", "save": "Save tag", "loadError": "Could not load stock tags.", "loading": "Loading stock tags…"},
+    "files": {
+      "unknownUploader": "Unknown uploader",
+      "title": "Attachments",
+      "choose": "Choose file",
+      "label": "Label (optional)",
+      "upload": "Upload attachment",
+      "remove": "Remove",
+      "reason": "Reason for archiving",
+      "loading": "Loading attachments…",
+      "loadError": "Could not load attachments.",
+      "error": "Could not change the attachment."
+    },
+    "tags": {
+      "connectedUnavailable": "Stock tags are unavailable while inventory is connected.",
+      "confirmTitle": "Archive this stock tag?",
+      "confirmDescription": "Items keep their tag, but it will no longer be offered for new items.",
+      "manage": "Manage stock tags",
+      "name": "Tag name",
+      "zero": "Zero cost",
+      "paper": "Paper required",
+      "add": "Add tag",
+      "save": "Save tag",
+      "loadError": "Could not load stock tags.",
+      "loading": "Loading stock tags…"
+    },
     "balance": {
       "connectedUnavailable": "Work-order stock balances are not available for connected inventory.",
       "issuedValue": "Issued value",
@@ -662,6 +689,30 @@
       "unassigned": "Not assigned to a work order",
       "noValue": "—",
       "zeroCost": "Client-supplied, no cost"
+    }
+  },
+  "atRisk": {
+    "title": "Stock at risk",
+    "count": "{{count}} locations",
+    "countOne": "1 location",
+    "columns": {
+      "location": "Location",
+      "kind": "Kind",
+      "project": "Project",
+      "stockValue": "Stock value",
+      "cover": "Cover",
+      "atRisk": "At risk"
+    },
+    "summary": {
+      "held": "Stock value held",
+      "atRisk": "Value at risk",
+      "exposed": "{{count}} above cover",
+      "exposedOne": "1 above cover"
+    },
+    "notRecorded": "Not recorded",
+    "states": {
+      "emptyTitle": "No location holds stock",
+      "emptySub": "Locations with stock appear here against the cover recorded on them."
     }
   }
 }

@@ -373,3 +373,56 @@ it('does not let an item be created while its stock tags cannot load', async () 
   expect(await screen.findByText("Couldn't load stock setup")).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'New item' })).not.toBeInTheDocument();
 });
+
+describe("the location's recorded cover (#2694)", () => {
+  const openWarehouseEdit = async (whRow: Record<string, unknown> = wh) => {
+    master.listWarehouses.mockResolvedValue([whRow]);
+    renderPage();
+    await userEvent.click(await screen.findByRole('tab', { name: 'Warehouses' }));
+    const table = await screen.findByRole('table', { name: 'Warehouses' });
+    await userEvent.click(within(within(table).getByRole('row', { name: /CENTRAL/ })).getByRole('button', { name: /row actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+  };
+
+  it('AC-SAR-310 a recorded cover saves through the warehouse update', async () => {
+    await openWarehouseEdit();
+    await userEvent.type(screen.getByLabelText('Cover value'), '2500');
+    await userEvent.click(screen.getByRole('button', { name: 'Save warehouse' }));
+    await waitFor(() => expect(master.updateWarehouse).toHaveBeenCalledWith('w1', expect.objectContaining({ coverValue: '2500' })));
+  });
+
+  it('AC-SAR-310 editing a location with a cover prefills it, and clearing the field records it as not recorded', async () => {
+    await openWarehouseEdit({ ...wh, cover_value: 2500 });
+    const field = screen.getByLabelText('Cover value') as HTMLInputElement;
+    expect(field.value).toBe('2500');
+    await userEvent.clear(field);
+    await userEvent.click(screen.getByRole('button', { name: 'Save warehouse' }));
+    await waitFor(() => expect(master.updateWarehouse).toHaveBeenCalledWith('w1', expect.objectContaining({ coverValue: null })));
+  });
+
+  it('AC-SAR-310 a negative or over-precise cover is refused with the field error, and nothing is sent', async () => {
+    await openWarehouseEdit();
+    await userEvent.type(screen.getByLabelText('Cover value'), '-1');
+    await userEvent.click(screen.getByRole('button', { name: 'Save warehouse' }));
+    expect(await screen.findByText('A cover is 0 or more, 2 decimals at most.')).toBeInTheDocument();
+    expect(master.updateWarehouse).not.toHaveBeenCalled();
+    const field = screen.getByLabelText('Cover value');
+    await userEvent.clear(field);
+    await userEvent.type(field, '2.555');
+    await userEvent.click(screen.getByRole('button', { name: 'Save warehouse' }));
+    expect(await screen.findByText('A cover is 0 or more, 2 decimals at most.')).toBeInTheDocument();
+    expect(master.updateWarehouse).not.toHaveBeenCalled();
+  });
+
+  it('AC-SAR-310 a new location starts with no cover, and one can be recorded at creation', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('tab', { name: 'Warehouses' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'New warehouse' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/^Code/), 'SITE-Z');
+    await userEvent.type(within(dialog).getByLabelText(/^Name/), 'Site Z');
+    await userEvent.type(within(dialog).getByLabelText('Cover value'), '1000');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create warehouse' }));
+    await waitFor(() => expect(master.createWarehouse).toHaveBeenCalledWith(expect.objectContaining({ coverValue: '1000' })));
+  });
+});
