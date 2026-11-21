@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, Icon, ListPage, ListState } from '@/src/components/ui';
-import { useAuth } from '@/src/auth/useAuth';
+import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useLeaveEnabled, useLeaveRequests, useLeaveSettings } from '@/src/hooks/useLeave';
 import { LeaveRequestList } from './LeaveRequestList';
 import { LeaveRequestForm } from './LeaveRequestForm';
@@ -14,7 +15,11 @@ const LeaveRequestsPage: React.FC = () => {
   const settings = useLeaveSettings();
   const enabled = useLeaveEnabled();
   const requests = useLeaveRequests();
-  const isAdmin = useAuth().currentUser?.role === 'Admin';
+  const may = usePermission();
+  const { realRole, effectiveRole } = useEffectiveRole();
+  const viewOnly = realRole !== effectiveRole;
+  const isAdmin = may('manage', 'leaveRequest', { record: { viewOnly } });
+  const canRequest = may('request', 'leaveRequest', { record: { viewOnly } });
   const [creating, setCreating] = useState(false);
   const [params] = useSearchParams();
   if (params.get('view') === 'settings') return <LeaveSettingsPage />;
@@ -23,7 +28,7 @@ const LeaveRequestsPage: React.FC = () => {
   const mine = rows.filter((r) => !r.can_decide);
   return (
     <ListPage title={t('crews:leave.title', 'Leave')}
-      primaryAction={enabled ? <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('crews:leave.request', 'Request leave')}</Button> : undefined}>
+      primaryAction={enabled && canRequest ? <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('crews:leave.request', 'Request leave')}</Button> : undefined}>
       {settings.isPending && <ListState variant="loading" rows={3} />}
       {!settings.isPending && !enabled && (
         <p className="text-sm text-muted-foreground">

@@ -44,6 +44,7 @@ export type Action =
   | 'confirm_employee_link'
   | 'upload'
   | 'withdraw'
+  | 'cancel'
   | 'post'
   | 'confirm'
   | 'resolve'
@@ -149,7 +150,8 @@ export type Entity =
   | 'tmClaim'
   | 'tmSignoff'
   | 'crew'
-  | 'attendance';
+  | 'attendance'
+  | 'leaveRequest';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -908,6 +910,21 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    *                 approve (a no-login week) = a crew manager who recorded none of it (`record.recorder_ids`, the SoD
    *                 mirror of 0990). A login's week is approved on the timesheet, whose own gate applies.
    */
+  /**
+   * Leave and sick requests (#2708, migrations 1240-1243). UX ONLY — `leave_request_submit/decide/cancel` and
+   * `set_leave_settings` are the authority (ADR-0016); the FE may be stricter, never looser.
+   *   request / cancel ← every member; the database narrows to the person, their line manager or an office user.
+   *   decide           ← any role (the line manager can be any role); the screen also needs the database's `can_decide`
+   *                      for the row, which carries line manager, approver role and the self-decide refusal (LV_SOD).
+   *   manage           ← Admin: the on/off switch, the approver role and the leave type list (`set_leave_settings`).
+   *   A view-as session may do none of them.
+   */
+  leaveRequest: {
+    request: allowUnlessViewOnly(ALL),
+    cancel: allowUnlessViewOnly(ALL),
+    decide: allowUnlessViewOnly(ALL),
+    manage: allowUnlessViewOnly(ADMIN),
+  },
   crew: { view: allow(ALL), create: allowUnlessViewOnly(DELIVERY), manage: allowUnlessViewOnly(DELIVERY) },
   attendance: {
     create: (role, ctx) => ctx.record?.viewOnly !== true && (

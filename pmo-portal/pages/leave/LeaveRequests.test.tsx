@@ -19,7 +19,9 @@ const h = vi.hoisted(() => ({
   submit: vi.fn(),
   decide: vi.fn(),
   role: 'Engineer',
+  viewAs: null as string | null,
 }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.viewAs ?? h.role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o1', id: 'u1', role: h.role } }) }));
 vi.mock('@/src/hooks/useLeave', () => ({
   useLeaveSettings: () => ({ data: { enabled: h.enabled, approver_role: null }, isPending: false }),
@@ -53,7 +55,7 @@ const page = (bahasa = false) => {
 };
 
 describe('leave requests page (#2708)', () => {
-  beforeEach(() => { h.enabled = true; h.rows = []; h.submit.mockReset(); h.decide.mockReset(); h.role = 'Engineer'; });
+  beforeEach(() => { h.enabled = true; h.rows = []; h.submit.mockReset(); h.decide.mockReset(); h.role = 'Engineer'; h.viewAs = null; });
 
   it('OFF: says it is not switched on and offers no request button', () => {
     h.enabled = false;
@@ -93,6 +95,22 @@ describe('leave requests page (#2708)', () => {
     h.decide.mockResolvedValue(undefined);
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
     expect(h.decide).toHaveBeenCalledWith({ id: 'a', decision: 'Approved', note: null });
+  });
+
+  it('AC-LV-013 in a view-as session the row flag is not enough: no Approve, Reject or Cancel is offered', () => {
+    h.viewAs = 'Admin';
+    h.rows = [row({ id: 'a', can_decide: true, is_mine: false }), row({ id: 'b' })];
+    page();
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel request' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Request leave' })).toBeNull();
+  });
+
+  it('AC-LV-013 the database flag still narrows: can() alone offers no Approve on a row the database does not allow', () => {
+    h.role = 'Admin';
+    h.rows = [row({ id: 'a', can_decide: false, is_mine: false })];
+    page();
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
   });
 
   it('AC-LV-013 the approvals section lists only what the viewer may decide, and nothing when there is none', () => {

@@ -25,6 +25,7 @@ import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 import { AccountingHelp } from './admin/AccountingHelp';
 import OrgTaxDefault from './admin/OrgTaxDefault';
+import LeaveRequestsSetting from './admin/LeaveRequestsSetting';
 import OrgFiscalYearStart from './admin/OrgFiscalYearStart';
 import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
@@ -250,6 +251,7 @@ const SelectedAdministrationPanel: React.FC<{
           <SectionName name={label('people')} />
           <People />
           <DocumentTypes />
+          <LeaveRequestsSetting />
         </div>
       );
     case 'integrations':

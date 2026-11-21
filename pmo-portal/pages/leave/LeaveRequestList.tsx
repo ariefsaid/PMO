@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ReasonDialog, StatusPill, useToast } from '@/src/components/ui';
+import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useLeaveMutations } from '@/src/hooks/useLeave';
 import type { LeaveRequestRow } from '@/src/lib/repositories/leave';
 import { formatDay } from '@/src/lib/format';
@@ -15,6 +17,12 @@ export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[] }> = ({ rows }
   const { t } = useTranslation('crews');
   const { toast } = useToast();
   const { decide, cancel } = useLeaveMutations();
+  const may = usePermission();
+  const { realRole, effectiveRole } = useEffectiveRole();
+  // can() AND the row flag from the database: the screen may be stricter than the RPC, never looser.
+  const record = { viewOnly: realRole !== effectiveRole };
+  const canDecide = may('decide', 'leaveRequest', { record });
+  const canCancel = may('cancel', 'leaveRequest', { record });
   const [rejecting, setRejecting] = useState<LeaveRequestRow | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const run = async (fn: () => Promise<unknown>, done: string) => {
@@ -41,7 +49,7 @@ export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[] }> = ({ rows }
               {r.decision_note && <div className="text-muted-foreground">{t('crews:leave.note', 'Note: {{note}}', { note: r.decision_note })}</div>}
             </div>
             <StatusPill variant={PILL[r.status]}>{statusLabel[r.status]}</StatusPill>
-            {r.can_decide && (
+            {r.can_decide && canDecide && (
               <>
                 <Button variant="primary" size="sm" onClick={() => void run(() => decide.mutateAsync({ id: r.id, decision: 'Approved', note: null }), t('crews:leave.approved', 'Leave approved'))}>
                   {t('crews:leave.approve', 'Approve')}
@@ -49,7 +57,7 @@ export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[] }> = ({ rows }
                 <Button variant="outline" size="sm" onClick={() => setRejecting(r)}>{t('crews:leave.reject', 'Reject')}</Button>
               </>
             )}
-            {r.is_mine && r.status === 'Pending' && (
+            {r.is_mine && r.status === 'Pending' && canCancel && (
               <Button variant="ghost" size="sm" onClick={() => void run(() => cancel.mutateAsync(r.id), t('crews:leave.cancelled', 'Request cancelled'))}>
                 {t('crews:leave.cancel', 'Cancel request')}
               </Button>

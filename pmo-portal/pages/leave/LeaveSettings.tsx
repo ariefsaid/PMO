@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, CardPad, GateNotice, ListPage, SelectField, Switch, TextField, useToast } from '@/src/components/ui';
-import { useAuth } from '@/src/auth/useAuth';
+import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useLeaveSettings, useLeaveSettingsMutations, useLeaveTypes } from '@/src/hooks/useLeave';
 import { leaveErrorMessage } from './leaveErrors';
 
@@ -13,7 +14,9 @@ const APPROVER_ROLES = ['Admin', 'Executive', 'Finance', 'Project Manager'] as c
 const LeaveSettingsPage: React.FC = () => {
   const { t } = useTranslation('crews');
   const { toast } = useToast();
-  const isAdmin = useAuth().currentUser?.role === 'Admin';
+  const may = usePermission();
+  const { realRole, effectiveRole } = useEffectiveRole();
+  const isAdmin = may('manage', 'leaveRequest', { record: { viewOnly: realRole !== effectiveRole } });
   const settings = useLeaveSettings();
   const types = useLeaveTypes();
   const { save, createType, archiveType } = useLeaveSettingsMutations();
