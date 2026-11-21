@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates its own uniquely named item, contract line (with a unique work unit no other standard matches), work order and standard each run; archives its standard afterwards; sets the org's material-request chain (read only by this feature) to a single Project Manager step.
+// @e2e-isolation: self-isolated — creates its own uniquely named item, contract line (with a unique work unit no other standard matches), work order, site location and standard each run; archives its standard afterwards; sets the org's material-request chain (read only by this feature) to a single Project Manager step.
 /** AC-CUS-015 — goal: a planner turns a usage standard into a consumable plan for a work order, and a site user's request is checked against that plan: the form shows the generated figure with its source, asks for a reason when over it, and the request goes through. */
 import { test, expect, type Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
@@ -36,7 +36,11 @@ async function fixture() {
   if (wo.error) throw new Error('work order: ' + wo.error.message);
   const chain = await admin.rpc('mrq_set_chain', { p_steps: [{ role: 'Project Manager', label: 'Plan check', only_over_plan: false }] });
   if (chain.error) throw new Error('chain: ' + chain.error.message);
-  return { admin, sfx, rod, gas, unit, wo: wo.data };
+  // The journey's own delivery location. With it the seed project always has several, so the form asks where the
+  // material goes and the journey answers — instead of relying on no other test having added a location (they do).
+  const site = await admin.from('stock_warehouses').insert({ code: `E2E-CU${sfx}`, name: `E2E site ${sfx}`, kind: 'site', org_id: orgId, project_id: SEED_PROJECT_ID }).select('id, code, name').single();
+  if (site.error) throw new Error('site: ' + site.error.message);
+  return { admin, sfx, rod, gas, unit, wo: wo.data, site: site.data };
 }
 
 async function pick(page: Page, label: RegExp, option: string) {
@@ -45,7 +49,7 @@ async function pick(page: Page, label: RegExp, option: string) {
 }
 
 test('AC-CUS-015: a planner adds a standard, generates the work order\'s consumable plan and adjusts a line; a site user\'s request shows the plan figure and its source, asks for a reason when over it, and submits', async ({ page }) => {
-  const { admin, rod, gas, unit, wo } = await fixture();
+  const { admin, rod, gas, unit, wo, site } = await fixture();
   try {
     // Planner: the standard (welding rod per unit of work, 10% waste, for contract lines starting WLD).
     await signIn(page, 'admin@acme.test');
@@ -82,6 +86,7 @@ test('AC-CUS-015: a planner adds a standard, generates the work order\'s consuma
     await page.goto('/material-requests/new');
     await pick(page, /^project/i, SEED_PROJECT_NAME);
     await pick(page, /^work order/i, `${wo.wo_number} · ${wo.title}`);
+    await page.getByLabel('Deliver to').selectOption({ label: `${site.code} · ${site.name}` });
     await page.getByLabel(/^item/i).selectOption({ label: `${rod.code} · ${rod.name}` });
     await page.getByLabel(/^quantity/i).fill('9');
     await expect(page.getByTestId('mrq-plan')).toContainText('Plan 8.8');

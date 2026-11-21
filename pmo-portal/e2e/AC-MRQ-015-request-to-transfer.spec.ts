@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates its own uniquely named item, unit, work order and request each run (stock and request history are append-only, so none is deleted); sets the org's material-request chain (read only by this feature) to PM → Finance → Admin.
+// @e2e-isolation: self-isolated — creates its own uniquely named item, unit, work order, central warehouse, site location and request each run (stock and request history are append-only, so none is deleted); sets the org's material-request chain (read only by this feature) to PM → Finance → Admin.
 /** AC-MRQ-015 — goal: a field controller on a phone raises an over-plan request, three approvers act in order, and the transfer draft with its delivery document is reachable from the request. */
 import { test, expect, type Page } from '@playwright/test';
 import { signIn } from './helpers';
@@ -31,7 +31,11 @@ async function fixture() {
   if (chain.error) throw new Error('chain: ' + chain.error.message);
   const wh = await admin.from('stock_warehouses').insert({ code: `E2E-MC${sfx}`, name: `E2E main ${sfx}`, kind: 'central' }).select('id, code, name').single();
   if (wh.error) throw new Error('warehouse: ' + wh.error.message);
-  return { item, wo: wo.data, warehouse: wh.data };
+  // The journey's own delivery location. With it the seed project always has several, so the form asks where the
+  // material goes and the journey answers — instead of relying on no other test having added a location (they do).
+  const site = await admin.from('stock_warehouses').insert({ code: `E2E-MS${sfx}`, name: `E2E site ${sfx}`, kind: 'site', org_id: orgId, project_id: SEED_PROJECT_ID }).select('id, code, name').single();
+  if (site.error) throw new Error('site: ' + site.error.message);
+  return { item, wo: wo.data, warehouse: wh.data, site: site.data };
 }
 
 async function pick(page: Page, label: RegExp, option: string) {
@@ -50,13 +54,14 @@ async function decide(page: Page, email: string, requestUrl: string, source?: st
 }
 
 test('AC-MRQ-015: a field controller raises an over-plan request on a phone, three approvers act in order, and the transfer draft is reachable from the request', async ({ page }) => {
-  const { item, wo, warehouse } = await fixture();
+  const { item, wo, warehouse, site } = await fixture();
 
   // Field controller (the Engineer) raises it. The work order has no material plan, so the line is over plan and needs a reason.
   await signIn(page, 'engineer@acme.test');
   await page.goto('/material-requests/new');
   await pick(page, /^project/i, SEED_PROJECT_NAME);
   await pick(page, /^work order/i, `${wo.wo_number} · ${wo.title}`);
+  await page.getByLabel('Deliver to').selectOption({ label: `${site.code} · ${site.name}` });
   await page.getByLabel(/^item/i).selectOption({ label: `${item.code} · ${item.name}` });
   await page.getByLabel(/^quantity/i).fill('7');
   await expect(page.getByTestId('mrq-plan')).toContainText('Over plan');
