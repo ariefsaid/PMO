@@ -1,6 +1,6 @@
 # Spec: Work-order close-out checklist (#2593)
 
-**Status:** proposed; owner decisions below need sign-off before build. Map #2516. Target February to March 2027, after the 15 December go-live. IDs `FR-WCO-###`, `NFR-WCO-###`, `AC-WCO-###`, `OD-WCO-#`. Plan: `docs/plans/2026-11-21-work-order-closeout-checklist.md`. Executor: Orca worker, **Director-dispatched**: it adds a precondition to closing a work order, which fixes the closing value and the money path (`docs/money-path-primer.md`, ADR-0019). It ships alone. It adds no amount and changes no separation-of-duties rule.
+**Status:** approved for build, 15 December 2026 release (OD-SCOPE-12, owner 2026-11-21; replaces the February to March 2027 target). Open owner decisions OD-WCO-1..7 take their recommended defaults below, as the brief directs; OD-SCOPE-2 applies (checklist items are client data, never coded). Map #2516. IDs `FR-WCO-###`, `NFR-WCO-###`, `AC-WCO-###`, `OD-WCO-#`. Plan: `docs/plans/2026-11-21-work-order-closeout-checklist.md`. Executor: Orca worker, **Director-dispatched**: it adds a precondition to closing a work order, which fixes the closing value and the money path (`docs/money-path-primer.md`, ADR-0019). It ships alone. It adds no amount and changes no separation-of-duties rule.
 
 ## Review 20 Nov
 
@@ -9,6 +9,13 @@ Read against `origin/dev`: migrations 0193, 0337 and 1026; `work_orders` column 
 - `work_orders` has `closed_at` but no `closed_by`; the existing `closed_by` from 1026 belongs to `incident_reports`. The plan adds the new work-order stamp with the shipped `profiles(id)` reference pattern.
 - Both shipped close paths are covered by the proposed status trigger. The client grant already withholds work-order stamps, and `assert_work_order_update` checks immutable identity and post-Draft content rather than acting as a column allow-list; the plan no longer extends it.
 - The acceptance cases now give explicit Given/When/Then steps for both close paths, empty checklists and the display age.
+
+## Scope rulings 21 Nov (OD-SCOPE)
+
+- OD-SCOPE-12 and OD-SCOPE-16 (#2538): the close-out checklist ships for 15 December **together with material close-out**. Material close-out is not a separate mechanism: a joint count, a loss report and a material completion report are items of this same checklist, named by the organisation. No item name is written into code, seed or tests as a fixed list; test names are generic ("item one").
+- OD-SCOPE-2: the only settings are the items and each item's required flag, both in the organisation's list (FR-WCO-001). No feature switch is added: while an organisation's list is empty nothing new is visible and closing is unchanged (NFR-WCO-001).
+- Another builder (#2592) changes the billing-stage tables and functions concurrently. This ticket copies the 1021 pattern into its own tables and functions and edits none of them.
+- Migrations 1400 to 1404 only.
 
 ## Job story
 
