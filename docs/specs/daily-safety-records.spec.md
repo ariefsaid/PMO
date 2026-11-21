@@ -1,6 +1,6 @@
 # Spec: Daily safety records per work order (#2596)
 
-**Status:** proposed; owner decisions below need sign-off before build. Map #2516 (contractor field operations), after the December go-live. Target Q2 2027. IDs `FR-DSF-###`, `NFR-DSF-###`, `AC-DSF-###`. Plan: `docs/plans/2026-11-21-daily-safety-records.md`. Executor: Orca worker. **Not a money path:** no posting, no ERP write, no billing or payroll effect, no change to any separation-of-duties rule. It is a records feature with a read-only monthly summary. Photos are personal data of site workers, so storage access is part of the tested behaviour.
+**Status:** approved scope; built for the 15 December 2026 release (OD-SCOPE-12). Owner decisions OD-DSF-1..7 and OQ-DSF-1..3 take their recommended defaults below (list in the build report); OD-SCOPE-2 and OD-SCOPE-4 applied. Map #2516 (contractor field operations). IDs `FR-DSF-###`, `NFR-DSF-###`, `AC-DSF-###`. Plan: `docs/plans/2026-11-21-daily-safety-records.md`. Executor: Orca worker. **Not a money path:** no posting, no ERP write, no billing or payroll effect, no change to any separation-of-duties rule. It is a records feature with a read-only monthly summary. Photos are personal data of site workers, so storage access is part of the tested behaviour.
 
 ## Review 20 Nov
 
@@ -9,6 +9,13 @@ Read against `origin/dev`: migrations 0001, 0245, 0260, 0275, 1026, 1036, 1040 a
 - The lifecycle is now `draft | locked`: the proposed submit RPC locks the day, matching the requirements and plan. The roster RPC signature is `work_order_roster(p_work_order_id, p_date)` and 1036 adds the returned members.
 - `attendance_days` requires hours for `present` rows, so the missing-figure case now uses a rostered work order with no locked/approved attendance rows rather than an impossible present row without hours.
 - Lost-time classification now names the existing incident-manager roles and the server guard/history update required for the new `incident_reports.lost_time` column. Each acceptance ID has one owning layer in the plan.
+
+## OD-SCOPE applied (21 Nov)
+
+- **OD-SCOPE-12:** ships for 15 December. Q2 2027 target withdrawn; the owner sketch-glance is a directional layout check inside the build, not a gate on the schema.
+- **OD-SCOPE-2 (no client process in code):** the **check types** (what a fitness check records, e.g. a list of named checks) and the **permit types** are client lists in settings, edited by Admin, empty by default; no type name, checklist item or validity rule is coded. The pre-work checklist is likewise an org list (OD-DSF-5). While an organisation has configured no lists, the safety section on the work-order page shows only the free parts (toolbox talk, report) and no existing screen or rule changes.
+- **OD-SCOPE-4 (light accounts):** light accounts (Foreman, Field user) have no work-order page, so this ticket builds **no light-account screen**. Entry is on the work-order page for the full-account roles of OD-DSF-4. A light-account safety entry is Q1 2027 with offline capture.
+- **Off until configured:** the "worked without a safety record" flag and the `/safety` route entry point show only when the organisation setting `safety_records_enabled` is on (default off), so existing organisations see no change.
 
 ## Job story
 
@@ -59,6 +66,7 @@ When a crew starts work on a work order, I want the safety checks the field runs
 - FR-DSF-014 The summary shall be exportable as a read-only page for the client with figures only, no photos and no names.
 
 **Access and tenancy**
+- FR-DSF-018 The system shall let Admin maintain the organisation's fitness-check types, permit types and pre-work checklist items as lists (add, rename, archive); a fitness check and a permit store the chosen list entry, and an archived entry stays readable on past days.
 - FR-DSF-015 Entry shall be limited by the database to Admin, Engineer, or the project's Project Manager (and the safety-officer role once #902 ships); read to every active member of the organisation except Viewer for photos and names (OD-DSF-6).
 - FR-DSF-016 `org_id` is stamped by default and never sent by the client; another organisation's rows and files are never returned (ADR-0017).
 - FR-DSF-017 Every create, submit, correction and file upload shall appear in record history with who and when.
@@ -87,6 +95,8 @@ When a crew starts work on a work order, I want the safety checks the field runs
 | AC-DSF-012 | Given a rostered work order with no locked or approved attendance rows in the month, when the summary runs, then its worked and safe hours are hidden with a reason, not shown as 0. | pgTAP |
 | AC-DSF-013 | Given two organisations, when the summary runs, then only the caller's rows appear. | pgTAP |
 | AC-DSF-014 | Given the client export, when rendered, then it holds figures only, no photo link and no worker name. | Unit |
+| AC-DSF-017 | Given an Admin, when they add, rename and archive a check type, permit type and checklist item, then Engineers can pick the active ones, past days keep the archived ones, and a Viewer or Engineer cannot edit the lists. | pgTAP |
+| AC-DSF-018 | Given an organisation with `safety_records_enabled` off, when the work-order page and navigation load, then no safety section, flag or route entry appears. | Unit |
 | AC-DSF-015 | Given a field user, when they record a fitness check, a toolbox talk with a photo and a checklist for a work order, and submit, then the work-order page shows the day complete. | E2E (one journey, owner-sketch-approved layout) |
 | AC-DSF-016 | Given the monthly summary screen, when a count is opened, then the days or incidents behind it list and match the count. | E2E (one journey) |
 
