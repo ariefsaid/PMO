@@ -131,6 +131,7 @@ export type Entity =
   | 'materialRequest'
   | 'approvalChain'
   | 'purchaseType'
+  | 'equipmentPlan'
   | 'standIn'
   | 'approvalStepPin'
   | 'materialAllowance'
@@ -411,6 +412,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   approvalChain: { view: allow(ALL), manage: allowUnlessViewOnly(ADMIN) },
   /** The org's purchase types and the switch that turns them on (#2697): Admin only, mirroring set_purchase_types_enabled / upsert_purchase_type. */
   purchaseType: { view: allow(ALL), manage: allowUnlessViewOnly(ADMIN) },
+  /** The monthly equipment and service plan (#2700). UX only: the RPCs enforce the same roles and the approver route (the database also checks who approves and refuses the author). `manage` = the settings and categories, Admin only. */
+  equipmentPlan: { view: allow(ALL), create: allowUnlessViewOnly(ALL), manage: allowUnlessViewOnly(ADMIN) },
   /** Stand-ins (FR-MRQ-009): the person away names their own; an Admin names anyone's (mrq_set_stand_in). */
   standIn: {
     view: allow(ALL),

@@ -1072,3 +1072,10 @@ the material close-out: joint count, loss report, material completion report). T
 
 **Vendor location** (stock) — a stock location of kind `vendor`: material held at an outside vendor, e.g. sent out for a process. Optionally linked to a Vendor company; it names no project, takes only transfers (out and back), adjustments and counts, and is not a project location for the work-order balance. A send-out to it is not usage for reorder suggestions. Created by the organisation in Stock setup; none exists by default. (#2683, `docs/specs/stock-vendor-location.spec.md`.)
 **Usage threshold** (*ambang pemakaian*) — one of two percentages of a work order's planned material quantity, set per organisation by an Admin on the material-request settings (empty = off). When a submitted material request takes an item's use (already used plus the request's quantity) to or past a threshold, the request shows a warning and the project's manager gets one notification for that work order, item and threshold. A warning never blocks a request (#2686).
+**Monthly plan** — one project's plan of equipment and services for one calendar month, in Draft, Submitted, Approved or Rejected status; approving it creates one Draft rental purchase per line, once (#2700).
+
+**Plan line** — one item of a monthly plan: what is needed, optionally a work order and a plan category, a vendor, a quantity, a rate and dates inside the month; after approval it links to the purchase it created (#2700).
+
+**Plan category** — an entry in the organisation's own list that a plan line can name (for example a kind of equipment or service); an Admin keeps it and retires rather than deletes (#2700).
+
+**Plan approval step** — the organisation setting that says who approves a monthly plan: the project's spend approvers (then the senior approvers, then an Admin) or anyone whose role can approve spend; the author may not approve their own plan unless the organisation allows it (#2700).
