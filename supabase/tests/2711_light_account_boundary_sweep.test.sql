@@ -503,7 +503,15 @@ insert into la_table_allow values
   ('tm_claim_sources', 'the existing policy joins a parent whose own rows a field account cannot read'),
   ('user_views', 'the existing policy admits only the caller''s own saved views, or definitions shared with the organisation'),
   ('vendor_withholding_slip_bills', 'the existing policy joins a parent whose own rows a field account cannot read'),
-  ('vendor_withholding_slips', 'written and read by definers only: the signed-in role holds no SELECT grant');
+  ('vendor_withholding_slips', 'written and read by definers only: the signed-in role holds no SELECT grant'),
+  -- 1480: six tables whose standing policy-set assertion (0128, 0212, bfy_column_nullable, equipment_status) cannot
+  -- carry a new restrictive policy, so the light test sits inside the table's own policy instead.
+  ('error_events', 'service-role telemetry: FORCE RLS and no policy by design (0128), so the signed-in role reads no row'),
+  ('budget_version_erp_mirror', 'its one select policy excludes a light account (1480); the mirror is the ERP push''s own copy of budget data'),
+  ('equipment_status_days', 'its select policy excludes a light account (1480): machine-written status, not the phone home'),
+  ('equipment_status_history', 'its select policy excludes a light account (1480): machine-written status, not the phone home'),
+  ('equipment_downtime_proofs', 'its select policy excludes a light account (1480): breakdown evidence, not the phone home'),
+  ('external_reference_items', 'its select and ALL write policies exclude a light account (1480); the reference list is office data');
 
 -- an allowlist entry that stops matching a real object is a stale entry, not a pass
 select is((select count(*)::int from la_fn_allow d

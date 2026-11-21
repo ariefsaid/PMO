@@ -133,3 +133,43 @@ create policy light_account_scope_select on public.stock_handover_confirmations 
   using ((select public.actor_is_light()) is not true
          or exists (select 1 from public.stock_transfers t
                      where t.id = stock_handover_confirmations.transfer_id and t.to_user_id = (select auth.uid())));
+
+-- (d) six tables carry a standing policy-set assertion (0128, 0212, bfy_column_nullable, equipment_status): a new
+-- restrictive policy would change an exact set, a count or a class scan even though the boundary is the same. For
+-- these the light test goes into the table's own policy instead, and the sweep allowlists the table with that
+-- reason. error_events is closed by having no policy at all, so its 1462 policies are simply removed.
+do $$
+declare
+  v_tables text[] := array['error_events', 'budget_version_erp_mirror', 'equipment_status_days',
+                           'equipment_status_history', 'equipment_downtime_proofs', 'external_reference_items'];
+  t text; c text;
+begin
+  foreach t in array v_tables loop
+    foreach c in array array['select', 'insert', 'update', 'delete'] loop
+      execute format('drop policy if exists %I on public.%I', 'light_account_deny_' || c, t);
+    end loop;
+  end loop;
+end $$;
+
+alter policy budget_version_erp_mirror_select on public.budget_version_erp_mirror
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and (select public.actor_is_light()) is not true);
+alter policy equipment_status_days_select on public.equipment_status_days
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and (select public.actor_is_light()) is not true);
+alter policy equipment_status_history_select on public.equipment_status_history
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and (select public.actor_is_light()) is not true);
+alter policy equipment_downtime_proofs_select on public.equipment_downtime_proofs
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and (select public.actor_is_light()) is not true);
+alter policy external_reference_items_select on public.external_reference_items
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and (select public.actor_is_light()) is not true);
+alter policy external_reference_items_write on public.external_reference_items
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and not public.domain_externally_owned((select public.auth_org_id()), 'reference')
+         and (select public.actor_is_light()) is not true)
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and not public.domain_externally_owned((select public.auth_org_id()), 'reference')
+         and (select public.actor_is_light()) is not true);

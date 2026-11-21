@@ -102,3 +102,37 @@ end $$;
 drop policy if exists light_account_scope_select on public.stock_transfers;
 drop policy if exists light_account_scope_select on public.stock_transfer_lines;
 drop policy if exists light_account_scope_select on public.stock_handover_confirmations;
+
+-- (d) the six tables whose boundary lives inside their own policy: restore the 1462 policies and the policy text as
+-- 1462 left it (the select policies org-wide and active-member, the reference write policy with its domain test).
+do $$
+declare
+  v_tables text[] := array['error_events', 'budget_version_erp_mirror', 'equipment_status_days',
+                           'equipment_status_history', 'equipment_downtime_proofs', 'external_reference_items'];
+  t text;
+begin
+  foreach t in array v_tables loop
+    execute format('create policy light_account_deny_select on public.%I as restrictive for select to authenticated using ((select public.actor_is_light()) is not true)', t);
+    execute format('create policy light_account_deny_insert on public.%I as restrictive for insert to authenticated with check ((select public.actor_is_light()) is not true)', t);
+    execute format('create policy light_account_deny_update on public.%I as restrictive for update to authenticated using ((select public.actor_is_light()) is not true) with check ((select public.actor_is_light()) is not true)', t);
+    if has_table_privilege('authenticated', format('public.%I', t), 'DELETE') then
+      execute format('create policy light_account_deny_delete on public.%I as restrictive for delete to authenticated using ((select public.actor_is_light()) is not true)', t);
+    end if;
+  end loop;
+end $$;
+
+alter policy budget_version_erp_mirror_select on public.budget_version_erp_mirror
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
+alter policy equipment_status_days_select on public.equipment_status_days
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
+alter policy equipment_status_history_select on public.equipment_status_history
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
+alter policy equipment_downtime_proofs_select on public.equipment_downtime_proofs
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
+alter policy external_reference_items_select on public.external_reference_items
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
+alter policy external_reference_items_write on public.external_reference_items
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and not public.domain_externally_owned((select public.auth_org_id()), 'reference'))
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member())
+         and not public.domain_externally_owned((select public.auth_org_id()), 'reference'));
