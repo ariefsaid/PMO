@@ -1,4 +1,4 @@
--- work_in_hand.test.sql — #2575 (migration 1060): get_work_in_hand, the read-only inputs to Left to bill and months of backlog.
+-- work_in_hand.test.sql — #2575 (migration 1148): get_work_in_hand, the read-only inputs to Left to bill and months of backlog.
 -- Owns AC-WIH-009..016 and 018 (spec docs/specs/work-in-hand-backlog.spec.md). The rate and backlog arithmetic is owned by
 -- the unit test pmo-portal/src/lib/workInHand.test.ts (AC-WIH-001..008); this file proves the rows it is fed.
 -- Cast: FIN a1 Finance · ADM a2 Admin · EXE a3 Executive · PM a4 · ENG a5 · OFF a6 Finance, disabled · XORG b1 Finance, org B.

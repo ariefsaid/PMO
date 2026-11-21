@@ -16,11 +16,11 @@ Built to the spec's recommended defaults; none is a ruling. Each is one place to
 - OQ-WIH-3 Bahasa Indonesia wording is the spec's default ("Sisa tagihan", "Bulan backlog", with "invoice" for invoice per the id catalogue rule); to confirm.
 - OQ-WIH-4 Not changed: contract value stays readable through the existing project reads; the role gate is a presentation gate only.
 
-Build notes: migration number is 1060 (assigned range 1060-1064); the screen lives at `pmo-portal/pages/finance/WorkInHand.tsx` beside the other finance pages (the plan named `pages/WorkInHand.tsx`); the route sits behind the `revenue` module switch as well as `can('view','finance')`; the entry is a link on the Finance hub, not a new rail item. Work orders whose contract is not ranked (no value, incomplete) are listed at the top level of their currency table.
+Build notes: migration number is 1148 (assigned range 1148-1064); the screen lives at `pmo-portal/pages/finance/WorkInHand.tsx` beside the other finance pages (the plan named `pages/WorkInHand.tsx`); the route sits behind the `revenue` module switch as well as `can('view','finance')`; the entry is a link on the Finance hub, not a new rail item. Work orders whose contract is not ranked (no value, incomplete) are listed at the top level of their currency table.
 
 > Fresh Orca worker per slice. Spec: `docs/specs/work-in-hand-backlog.spec.md`. Read-only money path; no posting, no SoD change. Starts after sign-off of OD-WIH-1..6 and the owner's layout sketch-glance (scheduled after the December go-live). Builds on `sales_invoice_work_billed` (0498), `work_order_billing` (0337), `get_project_billing` (0921), `org_current_month` (0245) and the work-order record page (#2518).
 
-## Migration (1060)
+## Migration (1148)
 One migration, additive: a `security invoker`, `stable` function `get_work_in_hand(p_as_of date default null)` returning one `jsonb` value. No table, column or grant change.
 - Gate first: `is_active_member()` and `auth_role() in ('Admin','Executive','Finance')`, else raise `42501` (same shape as `get_project_finances`, 0498).
 - As-of = `coalesce(p_as_of, org_current_month-aware local date)` from `organizations.default_timezone`; the window is the 6 complete months before the as-of month.
