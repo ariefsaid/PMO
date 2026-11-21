@@ -37,7 +37,7 @@ test('AC-LCM-018 Admin switches labour cost on and adds a role rate', async ({ p
   await toggle.click();
   await expect(toggle).toBeChecked();
   await expect(section.getByRole('button', { name: 'Add rate' })).toBeVisible();
-  await expect(section.getByTestId('labour-classes').getByText('Direct')).toBeVisible();
+  await expect(section.getByTestId('labour-classes').getByText('Direct', { exact: true })).toBeVisible();
 
   await section.getByRole('button', { name: 'Add rate' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add rate' });
