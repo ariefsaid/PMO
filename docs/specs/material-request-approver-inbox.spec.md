@@ -1,6 +1,6 @@
 # Spec: Material requests reach the approver (inbox entry and in-app notification) (#2685)
 
-**Status:** proposed (Phase 1, awaiting Director review). IDs `FR-MRI-###`, `AC-MRI-###`. Plan: `docs/plans/2026-11-21-material-request-approver-inbox.md`. Map #2516. Builds on `docs/specs/material-requests.spec.md` (chain, pins, stand-ins, queue FR-MRQ-005..026) and reuses the existing notifications table and the `/approvals` page. Approval-adjacent: the recipient rule is enforced in the database; ships through a Director-dispatched worker.
+**Status:** approved (Director, 2026-11-21); built. IDs `FR-MRI-###`, `AC-MRI-###`. Plan: `docs/plans/2026-11-21-material-request-approver-inbox.md`. Map #2516. Builds on `docs/specs/material-requests.spec.md` (chain, pins, stand-ins, queue FR-MRQ-005..026) and reuses the existing notifications table and the `/approvals` page. Approval-adjacent: the recipient rule is enforced in the database; ships through a Director-dispatched worker.
 
 ## Job story
 
@@ -24,7 +24,8 @@ When a material request needs my approval, I want to be told and find it in my a
 - FR-MRI-005 The recipient set shall equal the set of people for whom the existing queue (`mrq_waiting_for_me`) lists that request, so the inbox, the notification and the decision rule never disagree.
 - FR-MRI-006 When the step is decided (approved, returned, rejected), superseded, or the request is cancelled, its notifications shall be removed for every recipient.
 - FR-MRI-007 When a pin or a stand-in is set, re-pointed or revoked while a step is open, the system shall add the notification for people who newly can decide it and remove it for people who no longer can.
-- FR-MRI-008 A notification names the request (number and work order), the step label, links to the request, and is in the recipient's organisation only. The actor is never notified of their own action.
+- FR-MRI-008 A notification names the request number and the step label, links to the request, and is in the recipient's organisation only. A person who decides a step is never notified of the next step they cannot decide (earlier-decision rule). Someone who changes the setting, a pin or a stand-in is not excluded as such: they are notified when they are a legitimate approver of an open step.
+- FR-MRI-014 When an Admin switches the setting on, the system shall run the same sync for every step open at that moment in that organisation (backfill). When it is switched off, the system shall delete this feature's unread step notifications for that organisation; read ones are kept.
 
 **Approvals inbox**
 - FR-MRI-009 While the setting is on, `/approvals` shall show a "Material requests" section and scope listing every open step the viewer can decide (the existing queue), oldest first, each row opening the request; counts, the "All pending" scope and the "caught up" state shall include it.
@@ -71,7 +72,10 @@ While the setting is off: no trigger writes a notification, `/approvals` renders
 | AC-MRI-015 | Given a row, when the step is decided, then the queue refreshes and the row is gone. | Unit |
 | AC-MRI-016 | Given a material-request notification, when opened from the bell, then it opens that request. | Unit |
 | AC-MRI-017 | Given an Admin and a non-Admin on the settings screen, then only the Admin sees the toggle; it calls the server function; labels exist in English and Bahasa Indonesia. | Unit |
+| AC-MRI-019 | Given steps already open, when an Admin switches the setting on, then each gets its notifications for exactly the people who can decide it now (backfill). | pgTAP |
+| AC-MRI-020 | Given unread step notifications, when an Admin switches the setting off, then they are all deleted for the organisation and later submissions notify no one. | pgTAP |
 | AC-MRI-018 | Given the setting on, when a requester submits and an approver opens the approvals inbox, approves, then the entry and the bell notification are gone. | E2E (one journey) |
+
 
 ## Errors
 | Condition | Result |
@@ -81,7 +85,10 @@ While the setting is off: no trigger writes a notification, `/approvals` renders
 | Step has no one who can decide it | No notification; the existing "no approver" state applies |
 
 ## Out of scope
-- Phone push, email or messaging-app delivery; reminders or escalation of an unattended step; backfilling notifications when the setting is switched on (open steps still show in the inbox through the queue); re-notifying on a role change of a profile (the inbox stays correct because it reads the live queue).
+- Phone push, email or messaging-app delivery; reminders or escalation of an unattended step; re-notifying on a role change of a profile (the inbox stays correct because it reads the live queue).
+
+## Deliberate deviation (follow-up)
+Notification wording is plain English written by the database, the same as every existing 0237 workflow notification. The `message_key` template guard (1025) is not changed, so a Bahasa Indonesia reader sees the English title and body in the bell. Templated, translated wording for workflow notifications is one follow-up for all of them, not for this feature alone.
 
 ## Delivery checklist
 - [ ] Glossary: approvals inbox (material-request section), approver notification.

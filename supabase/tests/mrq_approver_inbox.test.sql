@@ -96,9 +96,9 @@ select is(pg_temp._on('26850000-0000-0000-0000-00000000000a'), false, 'AC-MRI-00
 insert into t_ids values ('r1', pg_temp._raise());
 select is(pg_temp._who((select v from t_ids where k = 'r1')), '', 'AC-MRI-002 setting off: a submitted request notifies no one');
 select pg_temp._as('26850000-0000-0000-0000-0000000000a1'); select public.mrq_set_approver_inbox(true);
-select is(pg_temp._who((select v from t_ids where k = 'r1')), 'a4', 'AC-MRI-012 switching on backfills the step open now: the Engineer holder, not the author');
+select is(pg_temp._who((select v from t_ids where k = 'r1')), 'a4', 'AC-MRI-019 switching on backfills the step open now: the Engineer holder, not the author');
 select public.mrq_set_approver_inbox(false);
-select is(pg_temp._cntall(), 0, 'AC-MRI-013 switching off deletes the unread step notifications');
+select is(pg_temp._cntall(), 0, 'AC-MRI-020 switching off deletes the unread step notifications');
 select public.mrq_set_approver_inbox(true);
 insert into t_ids values ('r2', pg_temp._raise());
 select is(pg_temp._who((select v from t_ids where k = 'r2')), 'a4', 'AC-MRI-003 submit notifies the step-1 role holder, not the author, other roles or another organisation');
@@ -155,7 +155,7 @@ select is(pg_temp._who((select v from t_ids where k = 'r5')), 'a6', 'AC-MRI-005 
 select public.mrq_set_approver_inbox(false);
 insert into t_ids values ('r6', pg_temp._raise());
 select is(pg_temp._who((select v from t_ids where k = 'r6')), '', 'AC-MRI-002 setting off again: a new request notifies no one');
-select is(pg_temp._cntall(), 0, 'AC-MRI-013 and nothing is left from the earlier requests');
+select is(pg_temp._cntall(), 0, 'AC-MRI-020 and nothing is left from the earlier requests');
 select pg_temp._as('26850000-0000-0000-0000-0000000000a2');
 select throws_ok($$ insert into notifications (org_id, owner_id, title) values ('26850000-0000-0000-0000-00000000000a', '26850000-0000-0000-0000-0000000000a4', 'x') $$, '42501', null, 'AC-MRI-011 a client cannot write a notification for another person');
 select is((select count(*)::int from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname in ('mrq_step_recipients','mrq_sync_step_notifications','mrq_approver_inbox_on','mrq_step_notify_trg','mrq_pin_notify_trg','mrq_stand_in_notify_trg','mrq_request_notify_trg') and (has_function_privilege('authenticated', p.oid, 'execute') or has_function_privilege('anon', p.oid, 'execute'))), 0, 'AC-MRI-011 no recipient helper or trigger function is executable by a client');

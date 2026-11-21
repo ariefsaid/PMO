@@ -1,5 +1,7 @@
 # Plan: Material requests reach the approver (#2685)
 
+**Status:** built. Deviations from the Phase 1 plan: (1) one pgTAP file holds the parity proof; (2) `1336` also carries a trigger on `material_requests` status (a submission opens step 1 before the request turns pending); (3) notifications are inserted directly (not through `notify_workflow_user`) so the actor-skip does not hide an Admin's own steps on backfill, and carry `metadata.mrq_step_id`; (4) backfill on switch-on and unread-delete on switch-off are in `mrq_set_approver_inbox` (AC-MRI-019/020); (5) the e2e journey lives in `e2e/serial/` because it flips an org-wide setting; (6) the toggle component renders nothing outside a query client so the existing settings-page test stays untouched.
+
 Spec: `docs/specs/material-request-approver-inbox.spec.md`. Executor: Director-dispatched worker (approval recipient rule). Migrations 1335..1337 only. No ADR (reuses ADR-0019 and the 0237 notification pattern).
 
 ## Design in one paragraph
