@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   STATUS_LABEL,
-  transitionVerb,
   stageLabelForStatus,
   toastStateLabel,
 } from '../procurement';
@@ -74,17 +73,4 @@ describe('AC-IXD-PROC-001: one canonical procurement label per state', () => {
     }
   });
 
-  it('AC-IXD-PROC-001: the button verb to reach a state references that same canonical state', () => {
-    // The imperative the user clicks names the state they will land in. The verb
-    // for moving TO a status contains the canonical label of that status, so the
-    // button → resulting badge → toast all name one state.
-    expect(transitionVerb(s('Requested'))).toMatch(/Request/i);
-    expect(transitionVerb(s('Approved'))).toMatch(/Approve/i);
-    expect(transitionVerb(s('Vendor Quoted'))).toMatch(/Supplier quote/i);
-    expect(transitionVerb(s('Quote Selected'))).toMatch(/Select Quote/i);
-    expect(transitionVerb(s('Ordered'))).toMatch(/Purchase Order/i);
-    expect(transitionVerb(s('Received'))).toMatch(/Receipt/i);
-    expect(transitionVerb(s('Vendor Invoiced'))).toMatch(/Supplier invoice/i);
-    expect(transitionVerb(s('Paid'))).toMatch(/Paid/i);
-  });
 });

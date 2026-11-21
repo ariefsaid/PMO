@@ -126,6 +126,9 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
     return t('noPlan', 'No plan');
   };
 
+  // FR-WPVA-012: crew hours are Approved weeks only; hours on a week not yet approved are named, never counted.
+  const pendingText = (hours: number) => t('pendingCrewHours', '{{hours}} h on timesheets not yet approved are not counted.', { hours: formatNumberExact(hours) });
+
   const reasonText = (l: CostAmountLine) => ({
     counted: t('reason.counted', 'Counted'),
     commitment: t('reason.commitment', 'Commitment, not summed (its bill carries the cost)'),
@@ -214,6 +217,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
                 <li key={d.disciplineId ?? 'none'}>{disciplineName(d.disciplineId)}: {t('col.plan', 'Planned direct')} {d.planDirect === null ? t('noPlan', 'No plan') : money(d.planDirect, w.currency)} · {money(d.direct, w.currency)} {t('directShort', 'direct')}{d.planDirect !== null && ` · ${variantText(d.planDirect, d.direct, w.currency)}`} · {t('col.planIndirect', 'Planned indirect')} {d.planIndirect === null ? t('noPlan', 'No plan') : money(d.planIndirect, w.currency)} · {money(d.allocated, w.currency)} {t('sharedShort', 'shared')}{d.planIndirect !== null && ` · ${variantText(d.planIndirect, d.allocated, w.currency)}`}</li>
               ))}</ul>
             )}
+            {f.pendingCrewHours > 0 && <p className="text-sm text-muted-foreground">{pendingText(f.pendingCrewHours)}</p>}
             {f.uncostedHours > 0 && <p className="text-sm text-muted-foreground">{t('uncosted', '{{hours}} h carry no rate and are not in the cost.', { hours: formatNumberExact(f.uncostedHours) })}</p>}
             {basisTable(f.lines, basisId)}
           </td></tr>
@@ -289,6 +293,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
               <div><dt className="text-muted-foreground">{t('crewHours', 'Crew hours')}</dt><dd>{formatNumberExact(rollup.hours.crewHours)} · {t('planLabel', 'Plan')}: {rollup.hours.planCrewHours === null ? t('noPlan', 'No plan') : formatNumberExact(rollup.hours.planCrewHours)}</dd></div>
               <div><dt className="text-muted-foreground">{t('crewSize', 'People with hours')}</dt><dd>{formatNumberExact(rollup.hours.crewSize)}</dd></div>
             </dl>
+            {rollup.hours.pendingCrewHours > 0 && <p className="text-muted-foreground">{pendingText(rollup.hours.pendingCrewHours)}</p>}
           </section>
         )}
         {rollup.disciplines.length > 0 && (

@@ -85,6 +85,9 @@ describe('ECA setup verbs (ECA2-T16)', () => {
     ['decideConnectReview', () => repo.decideConnectReview('odoo', 'r1', { action: 'dismiss' }), 'decide-review', { id: 'r1', choice: { action: 'dismiss' } }],
     ['unlinkConnectMatch', () => repo.unlinkConnectMatch('odoo', 'l1'), 'unlink-match', { id: 'l1' }],
     ['retryConnectSend', () => repo.retryConnectSend('odoo', 'h1'), 'retry-send', { id: 'h1' }],
+    ['listAccountSendGroups', () => repo.listAccountSendGroups('odoo'), 'account-groups', {}],
+    ['requestAccountSend', () => repo.requestAccountSend('odoo', { category: 'Labor', parentAccount: 'Direct Expenses - EC', accountName: 'Site labour' }), 'send-account',
+      { category: 'Labor', parentAccount: 'Direct Expenses - EC', accountName: 'Site labour' }],
   ];
   it.each(cases)('%s posts the %s verb with the tier', async (_n, run, action, extra) => {
     ok({ result: action, counts: {}, remaining: 0 });

@@ -4,10 +4,14 @@
 -- AC-CRW-006 off rotation needs a reason to be present · AC-CRW-007 at most 24 hours a day across work orders ·
 -- AC-CRW-008 phone and roster on one day keep one record, flagged when they disagree · AC-CRW-013 back-date window ·
 -- AC-CRW-014 only a crew's recorder writes, another organisation sees nothing.
--- Dates are relative to today because the back-date window is.
+-- Dates are relative to the organisation's today because the back-date window is.
 begin;
 create extension if not exists pgtap;
 select plan(26);
+-- #2617: "today" is the organisation's local date (the function under test uses it), so the fixtures use it too.
+create or replace function pg_temp.today() returns date language sql stable as $$
+  select public.equipment_org_today('25280000-0000-0000-0000-00000000010a')
+$$;
 
 insert into organizations (id, name, default_currency) values
   ('25280000-0000-0000-0000-00000000010a', 'ATT Org',       'IDR'),
@@ -38,21 +42,21 @@ insert into people (id, org_id, kind, name, profile_id) values
   ('25280000-0000-0000-0000-000000001f03', '25280000-0000-0000-0000-00000000010a', 'vendor', 'Vendor Three', null),
   ('25280000-0000-0000-0000-000000001f09', '25280000-0000-0000-0000-00000000010a', 'vendor', 'Not rostered', null);
 insert into crew_members (org_id, crew_id, worker_id, valid_from) values
-  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001c01', '25280000-0000-0000-0000-000000001f01', current_date - 30),
-  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001c01', '25280000-0000-0000-0000-000000001f02', current_date - 30),
-  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001c01', '25280000-0000-0000-0000-000000001f03', current_date - 30);
+  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001c01', '25280000-0000-0000-0000-000000001f01', pg_temp.today() - 30),
+  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001c01', '25280000-0000-0000-0000-000000001f02', pg_temp.today() - 30),
+  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001c01', '25280000-0000-0000-0000-000000001f03', pg_temp.today() - 30);
 insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values
-  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001401', '25280000-0000-0000-0000-000000001c01', current_date - 30),
-  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001402', '25280000-0000-0000-0000-000000001c02', current_date - 30);
+  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001401', '25280000-0000-0000-0000-000000001c01', pg_temp.today() - 30),
+  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001402', '25280000-0000-0000-0000-000000001c02', pg_temp.today() - 30);
 insert into crew_worker_rotation_off (org_id, worker_id, off_from, off_to) values
-  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001f03', current_date - 2, current_date - 1);
+  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001f03', pg_temp.today() - 2, pg_temp.today() - 1);
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
 $$;
 create temp table att_args (k text primary key, d date);
-insert into att_args values ('today', current_date), ('d1', current_date - 1), ('d2', current_date - 2), ('d3', current_date - 3),
-  ('d4', current_date - 4), ('future', current_date + 1), ('too_old', current_date - 8), ('earliest', current_date - 7);
+insert into att_args values ('today', pg_temp.today()), ('d1', pg_temp.today() - 1), ('d2', pg_temp.today() - 2), ('d3', pg_temp.today() - 3),
+  ('d4', pg_temp.today() - 4), ('future', pg_temp.today() + 1), ('too_old', pg_temp.today() - 8), ('earliest', pg_temp.today() - 7);
 grant select on att_args to authenticated;
 create or replace function pg_temp.d(p text) returns date language sql stable as $$ select d from att_args where k = p $$;
 
@@ -102,9 +106,9 @@ select is(attendance_record('25280000-0000-0000-0000-000000001401', pg_temp.d('t
   '[{"worker_id": "25280000-0000-0000-0000-000000001f02", "status": "present", "hours": 8}]'), 1,
   'AC-CRW-007 8 hours on work order one are recorded');
 reset role;
-update crew_members set valid_to = current_date - 1 where worker_id = '25280000-0000-0000-0000-000000001f02';
+update crew_members set valid_to = pg_temp.today() - 1 where worker_id = '25280000-0000-0000-0000-000000001f02';
 insert into crew_members (org_id, crew_id, worker_id, valid_from) values
-  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001c02', '25280000-0000-0000-0000-000000001f02', current_date);
+  ('25280000-0000-0000-0000-00000000010a', '25280000-0000-0000-0000-000000001c02', '25280000-0000-0000-0000-000000001f02', pg_temp.today());
 set local role authenticated;
 select pg_temp.act_as('25280000-0000-0000-0000-0000000001a4');
 select throws_ok($$ select attendance_record('25280000-0000-0000-0000-000000001402', pg_temp.d('today'), 'roster_tick',
@@ -148,8 +152,8 @@ select throws_ok($$ select attendance_record('25280000-0000-0000-0000-0000000014
   '[{"worker_id": "25280000-0000-0000-0000-000000001f01", "status": "present", "hours": 8}]') $$,
   '23514', 'ATT_DATE_FUTURE: attendance cannot be recorded for a future date', 'AC-CRW-013 a future date is refused');
 select throws_ok(format($$ select attendance_record('25280000-0000-0000-0000-000000001401', %L, 'roster_tick',
-  '[{"worker_id": "25280000-0000-0000-0000-000000001f01", "status": "present", "hours": 8}]') $$, current_date - 8),
-  '23514', 'ATT_DATE_WINDOW: the earliest date open for attendance is ' || to_char(current_date - 7, 'YYYY-MM-DD'),
+  '[{"worker_id": "25280000-0000-0000-0000-000000001f01", "status": "present", "hours": 8}]') $$, pg_temp.d('too_old')),
+  '23514', 'ATT_DATE_WINDOW: the earliest date open for attendance is ' || to_char(pg_temp.d('earliest'), 'YYYY-MM-DD'),
   'AC-CRW-013 a date beyond the back-date limit is refused, naming the earliest allowed date');
 
 -- AC-CRW-014: an Engineer who controls no crew cannot record and reads only their own records.

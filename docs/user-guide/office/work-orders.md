@@ -33,6 +33,17 @@ got, what it has cost, what has been billed, what documents and issues belong to
 4. Later, close a finished order, or cancel one that will not proceed.
 5. To follow progress day to day, click the order's row to open its page.
 
+### Keep the organisation's cost disciplines (Admin)
+
+Cost records name a discipline (civil, mechanical, electrical, …) so costs and plans can be read
+by discipline. The list is the organisation's own.
+
+1. Open **Administration** → **Project setup** and find **Cost disciplines**.
+2. **Add discipline**: a **Code** (up to 20 characters, one live code per organisation) and a
+   **Name** (up to 120). Use **Edit** to rename one.
+3. **Archive** a discipline you no longer use. It leaves the discipline pickers; cost records that
+   already name it keep it. Other roles see the list read-only.
+
 ## What the result looks like
 
 The work-order page shows, from top to bottom:
@@ -111,6 +122,17 @@ dokumen serta masalah yang melekat padanya.
    mendapat nomornya.
 4. Kemudian, tutup pesanan yang selesai, atau batalkan pesanan yang tidak akan berjalan.
 5. Untuk memantau kemajuan sehari-hari, klik baris pesanan untuk membuka halamannya.
+
+### Mengelola disiplin biaya organisasi (Admin)
+
+Catatan biaya menyebut disiplin (sipil, mekanikal, elektrikal, …) agar biaya dan rencana dapat
+dibaca per disiplin. Daftarnya milik organisasi sendiri.
+
+1. Buka **Administrasi** → **Pengaturan proyek** dan cari **Disiplin biaya**.
+2. **Tambah disiplin**: **Kode** (hingga 20 karakter, satu kode aktif per organisasi) dan
+   **Nama** (hingga 120). Gunakan **Ubah** untuk mengganti nama.
+3. **Arsipkan** disiplin yang tidak dipakai lagi. Ia keluar dari pilihan disiplin; catatan biaya
+   yang sudah menyebutnya tetap memakainya. Peran lain melihat daftar ini tanpa dapat mengubah.
 
 ## Bagaimana hasilnya
 

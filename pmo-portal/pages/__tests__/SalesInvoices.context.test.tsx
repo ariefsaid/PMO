@@ -156,7 +156,8 @@ describe('#2564 receivables rows keep delivery and project context', () => {
     expect(within(dialog).getByText('Project manager')).toBeInTheDocument();
     expect(within(dialog).getByText('Rina Pratama')).toBeInTheDocument();
     expect(within(dialog).getByText('Delivery')).toBeInTheDocument();
-    expect(within(dialog).getByText(/Delivered 5 Oct/)).toBeInTheDocument();
+    // #2442: the drawer states dates with the year, so its Delivery fact matches its other facts.
+    expect(within(dialog).getByText(/Delivered 5 Oct 2026/)).toBeInTheDocument();
     expect(within(dialog).getAllByText(/1,250,000\.50/).length).toBeGreaterThan(0);
   });
 });

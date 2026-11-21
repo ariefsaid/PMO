@@ -7,7 +7,7 @@ create temporary table whole_project_lock_dblink_extension_state as
 set statement_timeout = '45s';
 begin;
 select plan(34);
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 create temporary table whole_project_lock_connect_status as
   select dblink_connect('whole_project_lock', format(
     'dbname=%s user=%s password=postgres host=%s port=%s',

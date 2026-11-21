@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ListState, RecordHeader, RecordStack, StatusPill } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
+import { useFeature } from '@/src/auth/useFeature';
 import { useProject } from '@/src/hooks/useProjects';
 import { useBoqItems } from '@/src/hooks/useProgressBilling';
 import { useWorkOrderAcceptances } from '@/src/hooks/useWorkOrderAcceptances';
@@ -11,7 +12,7 @@ import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useCostDisciplines, useWorkOrderCostLines, useWorkOrderCostMoney, useWorkOrderCostLinks, useWorkOrderTimesheetLabels } from '@/src/hooks/useWorkOrderCosts';
 import { useProjectPlanVsActual } from '@/src/hooks/useWorkOrderPlanVsActual';
-import { useWorkOrder, useWorkOrderAllocations, useWorkOrderClaimDocuments } from '@/src/hooks/useWorkOrderRecord';
+import { useWorkOrder, useWorkOrderAllocations, useWorkOrderClaimDocuments, useWorkOrderIssues, useWorkOrderOpenTasks } from '@/src/hooks/useWorkOrderRecord';
 import { deriveScopeProgress } from '@/src/lib/workOrderProgress';
 import { buildCostView } from '@/src/lib/workOrderCostView';
 import { formatCurrency } from '@/src/lib/format';
@@ -21,6 +22,8 @@ import { BillingSection } from './work-order-detail/BillingSection';
 import { PlanVsActualSection } from './work-order-detail/PlanVsActualSection';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { SectionsSection } from './work-order-detail/SectionsSection';
+import { IssuesSection } from './work-order-detail/IssuesSection';
+import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 
 /**
  * `/work-orders/:id` (#2518): one page for a work order — scope and progress, costs, billing and
@@ -35,6 +38,9 @@ const WorkOrderDetail: React.FC = () => {
   const wo = useWorkOrder(id);
   const projectId = wo.data?.project_id ?? '';
   const project = useProject(projectId || undefined);
+  const issuesOn = useFeature('incidents');
+  const issues = useWorkOrderIssues(wo.data ? id : undefined, issuesOn);
+  const openTasks = useWorkOrderOpenTasks(wo.data ? id : undefined);
   const allocations = useWorkOrderAllocations(wo.data ? id : undefined);
   const claimDocs = useWorkOrderClaimDocuments(wo.data ? id : undefined);
   const boq = useBoqItems(projectId);
@@ -101,6 +107,8 @@ const WorkOrderDetail: React.FC = () => {
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
         <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
+        {issuesOn && <IssuesSection issues={issues.data ?? []} isPending={issues.isPending} isError={issues.isError} onRetry={() => void issues.refetch()} />}
+        <OpenTasksSection tasks={openTasks.data ?? []} isPending={openTasks.isPending} isError={openTasks.isError} onRetry={() => void openTasks.refetch()} />
       </RecordStack>
     </>
   );

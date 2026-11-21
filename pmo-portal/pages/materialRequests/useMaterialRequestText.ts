@@ -52,7 +52,8 @@ export function useRefusalText(): (err: unknown) => string {
     neededBy: t('refusal.neededBy', 'Choose a needed-by date that is not in the past.'),
     noChain: t('refusal.noChain', 'No approval chain is set up yet. Ask an administrator.'),
     sourceRequired: t('refusal.sourceRequired', 'Choose the warehouse the material leaves from.'),
-    noDestination: t('refusal.noDestination', 'The work order’s project has no site warehouse to deliver to.'),
+    noDestination: t('refusal.noDestination', 'The work order’s project has no site, yard or staging location to deliver to.'),
+    manyDestinations: t('refusal.manyDestinations', 'The work order’s project has several delivery locations. Ask the requester to name the one this goes to.'),
     notKeeper: t('refusal.notKeeper', 'You do not keep that warehouse, so you cannot send stock from it.'),
     notPending: t('refusal.notPending', 'This request is no longer waiting for approval.'),
     notDraft: t('refusal.notDraft', 'Only a draft can be changed.'),
@@ -62,6 +63,12 @@ export function useRefusalText(): (err: unknown) => string {
     adminOnly: t('refusal.adminOnly', 'Only an administrator can do this.'),
     section: t('refusal.section', 'Choose a {{section}} that is open on this work order.', { section }),
     sectionLocked: t('refusal.sectionLocked', 'The {{section}} can change only while the request is a draft.', { section }),
+    notPinned: t('refusal.notPinned', 'This step is pinned to another approver on this project.'),
+    pinForbidden: t('refusal.pinForbidden', 'Only an administrator or the project\'s manager can pin an approval step.'),
+    pinInvalid: t('refusal.pinInvalid', 'Choose an active member who holds this step\'s role.'),
+    invalid: t('refusal.invalid', 'The request could not be saved. Check that each item appears once, that items counted in whole units have no fraction, and that quantities have at most three decimals.'),
+    notFound: t('refusal.notFound', 'That request or person was not found. Reload the page and try again.'),
+    destination: t('refusal.destination', 'Choose a delivery location that belongs to the work order’s project.'),
     unknown: t('refusal.unknown', 'That did not work. Try again.'),
   };
   return (err) => {

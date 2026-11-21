@@ -31,7 +31,7 @@
   },
   "equipment": {
     "add": "Tambah pemakaian",
-    "none": "Belum ada pemakaian alat pada perintah kerja dan tanggal ini",
+    "none": "Belum ada pemakaian alat pada $t(common:terms.clientWorkOrder) dan tanggal ini",
     "title": "Jam alat",
     "unit": {
       "days": "hari",
@@ -82,9 +82,9 @@
     "date": "Tanggal kerja",
     "exists": "Sudah ada laporan untuk tanggal ini",
     "pickProject": "Pilih proyek",
-    "pickWorkOrder": "Pilih perintah kerja",
+    "pickWorkOrder": "Pilih $t(common:terms.clientWorkOrder)",
     "project": "Proyek",
-    "workOrder": "Perintah kerja"
+    "workOrder": "$t(common:terms.clientWorkOrder)"
   },
   "newReport": "Laporan baru",
   "note": {
@@ -115,15 +115,15 @@
     "unrated_other": "{{count}} baris tanpa tarif"
   },
   "queue": {
-    "due_one": "Terlambat {{count}} hari",
-    "due_other": "Terlambat {{count}} hari",
+    "due_one": "Jatuh tempo {{count}} hari",
+    "due_other": "Jatuh tempo {{count}} hari",
     "noValidator": "Menunggu validator",
     "title": "Perlu divalidasi",
     "unrated_one": "{{count}} tanpa tarif",
     "unrated_other": "{{count}} tanpa tarif"
   },
   "revenue": {
-    "day": "Pendapatan hari ini",
+    "day": "Pendapatan hari itu",
     "toDate": "Tervalidasi sampai kini"
   },
   "title": "Laporan lapangan",

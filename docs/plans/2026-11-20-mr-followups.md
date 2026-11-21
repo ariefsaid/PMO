@@ -1,6 +1,6 @@
 # Plan: material request follow-ups (#2571)
 
-Spec: `docs/specs/material-requests.spec.md` (FR-MRQ-020, FR-MRQ-021; AC-MRQ-020, AC-MRQ-021). No migrations.
+Spec: `docs/specs/material-requests.spec.md` (FR-MRQ-024, FR-MRQ-025; AC-MRQ-021, AC-MRQ-022). No migrations.
 
 ## Tasks
 1. Test first (red): `pages/MaterialRequestNew.test.tsx` pins the default needed-by across the UTC/organisation-day boundary with a faked clock (23:30 UTC, UTC+7 and UTC-8) and the saved draft payload. `pages/MaterialRequestSettings.test.tsx` checks an Engineer does not see the cut-off control and an Admin does.

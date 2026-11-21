@@ -1,3 +1,4 @@
+import { threeWayMatchHeldMessage } from './threeWayMatchError';
 import React, { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { ProjectNameLink, useToast } from '@/src/components/ui';
@@ -263,7 +264,7 @@ export function useProcurementDecision(
         'success',
       );
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = threeWayMatchHeldMessage(err, t) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
       setMutationError(detail ? `${headline}. ${detail}` : headline);
     }

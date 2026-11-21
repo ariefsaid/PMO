@@ -9,15 +9,18 @@ import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { addDays } from '@/src/lib/reports/months';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
-import { useStockItems, useStockUnits } from '@/src/hooks/useStock';
+import { useStockItems, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
 import { useLinePlans, useMaterialRequest, useMaterialRequestMutations } from '@/src/hooks/useMaterialRequests';
 import { useLiveSections, useSectionLinePlans } from '@/src/hooks/useWorkOrderSectionMaterials';
 import { useTerms } from '@/src/lib/i18n/terms';
 import { draftLineErrors, linePlanStatus } from '@/src/lib/repositories/materialRequests';
+import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useRefusalText } from './materialRequests/useMaterialRequestText';
 
 interface FormLine { key: string; itemId: string; quantity: string; reason: string }
+/** A typed quantity (dot or decimal comma, 3 decimals at most) as the number to send; 0 when it is not a positive quantity. */
+const quantityOf = (raw: string): number => { const v = normalizeDecimal(raw); return isPositiveDecimal(v) ? Number(v) : 0; };
 const newLine = (): FormLine => ({ key: crypto.randomUUID(), itemId: '', quantity: '', reason: '' });
 
 /**
@@ -34,6 +37,9 @@ const MaterialRequestNewPage: React.FC = () => {
   const { data: projects } = useProjectPickerOptions();
   const { data: items, isPending: itemsPending, isError: itemsError, refetch: refetchItems } = useStockItems();
   const { data: units } = useStockUnits();
+  const { data: warehouses, isPending: warehousesPending, isError: warehousesError, refetch: refetchWarehouses } = useStockWarehouses();
+  const warehousesReady = !warehousesPending && !warehousesError && warehouses !== undefined;
+  const wholeByUnit = useMemo(() => new Map((units ?? []).map((u) => [u.id, u.whole_only])), [units]);
   const m = useMaterialRequestMutations();
   const terms = useTerms();
 
@@ -45,6 +51,7 @@ const MaterialRequestNewPage: React.FC = () => {
   const orgToday = useOrgToday(orgTz);
   const [pickedNeededBy, setNeededBy] = useState<string | null>(null);
   const neededBy = pickedNeededBy ?? (orgTz ? addDays(orgToday, 1) : '');
+  const [toWarehouseId, setToWarehouseId] = useState('');
   const [note, setNote] = useState('');
   const [lines, setLines] = useState<FormLine[]>([newLine()]);
   const [seeded, setSeeded] = useState(false);
@@ -56,11 +63,15 @@ const MaterialRequestNewPage: React.FC = () => {
   const req = existing.data;
   if (requestId && req && !seeded) {
     setSeeded(true);
-    setProjectId(req.projectId); setWorkOrderId(req.workOrderId); setSectionId(req.sectionId ?? ''); setNeededBy(req.neededBy); setNote(req.note ?? '');
+    setProjectId(req.projectId); setWorkOrderId(req.workOrderId); setSectionId(req.sectionId ?? ''); setNeededBy(req.neededBy); setNote(req.note ?? ''); setToWarehouseId(req.toWarehouseId ?? '');
     setLines(req.lines.map((l) => ({ key: l.id, itemId: l.itemId, quantity: String(l.quantity), reason: l.overPlanReason ?? '' })));
   }
 
   const workOrders = useProjectWorkOrders(projectId);
+  // Where the delivery goes: one location is picked by the server; with several the requester must choose (#2608).
+  const locations = useMemo(() => (warehousesReady ? warehouses : []).filter((w) => ['site', 'yard', 'staging'].includes(w.kind) && !w.archived_at && w.project_id === projectId)
+    .map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` })), [warehouses, warehousesReady, projectId]);
+  const destination = locations.length > 1 ? (locations.some((o) => o.value === toWarehouseId) ? toWarehouseId : '') : '';
   const itemIds = lines.map((l) => l.itemId).filter(Boolean);
   const plans = useLinePlans(workOrderId || undefined, itemIds, requestId);
   const planOf = (itemId: string) => plans.data?.find((p) => p.itemId === itemId);
@@ -81,10 +92,19 @@ const MaterialRequestNewPage: React.FC = () => {
   const errors = draftLineErrors(lines.map((l) => {
     const p = planOf(l.itemId);
     const sp = sectionPlanOf(l.itemId);
-    return { itemId: l.itemId, quantity: Number(l.quantity), overPlanReason: l.reason, planQty: p?.planQty ?? 0, priorQty: p?.priorQty ?? 0,
+    return { itemId: l.itemId, quantity: quantityOf(l.quantity), overPlanReason: l.reason, planQty: p?.planQty ?? 0, priorQty: p?.priorQty ?? 0,
       sectionPlanQty: sp?.sectionPlanQty ?? null, sectionPriorQty: sp?.sectionPriorQty ?? null };
   }));
-  const complete = Boolean(workOrderId) && Boolean(neededBy) && lines.every((l) => l.itemId) && planReady && Object.keys(errors).length === 0;
+  // Checks the server also makes (MRQ_INVALID), caught here so the person sees which line and why.
+  const extraErrors = lines.map((l, i): 'duplicateItem' | 'quantityDecimals' | 'wholeOnly' | undefined => {
+    const v = normalizeDecimal(l.quantity);
+    if (l.itemId && lines.findIndex((x) => x.itemId === l.itemId) !== i) return 'duplicateItem';
+    if (/^\d+\.\d{4,}$/.test(v)) return 'quantityDecimals';
+    const unitId = items?.find((x) => x.id === l.itemId)?.unit_id;
+    if (isPositiveDecimal(v) && unitId && wholeByUnit.get(unitId) && !isWholeQuantity(v)) return 'wholeOnly';
+    return undefined;
+  });
+  const complete = warehousesReady && locations.length > 0 && extraErrors.every((e) => !e) && Boolean(workOrderId) && (locations.length === 1 || Boolean(destination)) && Boolean(neededBy) && lines.every((l) => l.itemId) && planReady && Object.keys(errors).length === 0;
 
   const patch = (key: string, p: Partial<FormLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...p } : l)));
 
@@ -94,8 +114,8 @@ const MaterialRequestNewPage: React.FC = () => {
     try {
       const id = await m.saveDraft.mutateAsync({
         id: requestId ?? null,
-        header: { workOrderId, sectionId: sectionId || null, neededBy, toWarehouseId: null, note: note.trim() || null },
-        lines: lines.map((l) => ({ itemId: l.itemId, quantity: Number(l.quantity), overPlanReason: l.reason.trim() || null })),
+        header: { workOrderId, sectionId: sectionId || null, neededBy, toWarehouseId: destination || null, note: note.trim() || null },
+        lines: lines.map((l) => ({ itemId: l.itemId, quantity: quantityOf(l.quantity), overPlanReason: l.reason.trim() || null })),
         clientRequestId: requestId ? undefined : clientRequestId,
       });
       if (submit) {
@@ -129,6 +149,16 @@ const MaterialRequestNewPage: React.FC = () => {
           <SelectField label={terms.section} value={sectionId} onChange={setSectionId} fullWidth
             options={[{ value: '', label: t('form.noSection', 'No {{section}}', { section: sectionWord }) }, ...sectionOptions]} />
         )}
+        {projectId && warehousesPending && <ListState variant="loading" rows={1} />}
+        {projectId && warehousesError && <ListState variant="error" title={t('form.warehousesError', "Couldn't load delivery locations")} onRetry={() => void refetchWarehouses()} />}
+        {projectId && warehousesReady && locations.length > 1 && (
+          <SelectField label={t('form.destination', 'Deliver to')} required value={destination} onChange={setToWarehouseId} fullWidth
+            options={[{ value: '', label: t('form.chooseDestination', 'Choose a location') }, ...locations]}
+            error={touched && !destination ? t('form.destinationRequired', 'This project has several locations. Choose where the material goes.') : undefined} />
+        )}
+        {projectId && warehousesReady && locations.length === 0 && (
+          <p role="status" className="text-control text-warning-foreground">{t('form.noDestination', 'This project has no site, yard or staging location yet. The stock keeper must add one before this can be delivered.')}</p>
+        )}
         <DateField label={t('form.neededBy', 'Needed by')} required value={neededBy} onChange={setNeededBy} min={orgTz ? orgToday : undefined} fullWidth
           error={touched && !neededBy ? t('form.neededByRequired', 'Choose the date you need it.') : undefined} />
 
@@ -139,16 +169,19 @@ const MaterialRequestNewPage: React.FC = () => {
           {lines.map((l, i) => {
             const p = planOf(l.itemId);
             const sp = sectionPlanOf(l.itemId);
-            const st = p ? linePlanStatus({ planQty: p.planQty, priorQty: p.priorQty, quantity: Number(l.quantity) || 0, sectionPlanQty: sp?.sectionPlanQty, sectionPriorQty: sp?.sectionPriorQty }) : null;
+            const st = p ? linePlanStatus({ planQty: p.planQty, priorQty: p.priorQty, quantity: quantityOf(l.quantity), sectionPlanQty: sp?.sectionPlanQty, sectionPriorQty: sp?.sectionPriorQty }) : null;
             const err = touched ? errors[i] : undefined;
             const item = items?.find((x) => x.id === l.itemId);
             return (
               <div key={l.key} className="space-y-2 rounded-md border border-border p-3" data-testid="mrq-line">
                 <SelectField label={t('form.item', 'Item')} required value={l.itemId} onChange={(v) => patch(l.key, { itemId: v })}
+                  error={touched && extraErrors[i] === 'duplicateItem' ? t('form.duplicateItem', 'This item is already on another line. Put it on one line.') : undefined}
                   options={[{ value: '', label: t('form.chooseItem', 'Choose an item') }, ...itemOptions]} fullWidth />
                 <TextField label={t('form.quantity', 'Quantity{{unit}}', { unit: item ? ` (${unitName(item.unit_id)})` : '' })} required inputMode="decimal"
                   value={l.quantity} onChange={(v) => patch(l.key, { quantity: v })}
-                  error={err === 'quantityRequired' ? t('form.quantityRequired', 'Enter a quantity above zero.') : undefined} />
+                  error={touched && extraErrors[i] === 'quantityDecimals' ? t('form.quantityDecimals', 'Use at most three decimals.')
+                    : touched && extraErrors[i] === 'wholeOnly' ? t('form.wholeOnly', 'This item is counted in whole units. Enter a whole number.')
+                    : err === 'quantityRequired' ? t('form.quantityRequired', 'Enter a quantity above zero.') : undefined} />
                 {l.itemId && (
                   <p className="text-control text-muted-foreground" data-testid="mrq-plan">
                     {plans.isPending ? '…' : p
@@ -177,7 +210,7 @@ const MaterialRequestNewPage: React.FC = () => {
         <TextArea label={t('form.note', 'Note (optional)')} rows={2} value={note} onChange={setNote} />
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" disabled={busy} onClick={() => void save(false)}>{t('form.saveDraft', 'Save draft')}</Button>
-          <Button variant="primary" loading={busy} disabled={!complete && touched} onClick={() => void save(true)}>{t('form.submit', 'Send for approval')}</Button>
+          <Button variant="primary" loading={busy} disabled={!warehousesReady || locations.length === 0 || (!complete && touched)} onClick={() => void save(true)}>{t('form.submit', 'Send for approval')}</Button>
         </div>
       </div>
     </div>

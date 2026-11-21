@@ -92,7 +92,7 @@ describe('listProcurements', () => {
     expect(sel).toContain('purchase_requests(amount,date,created_at,external_ref)');
     expect(sel).toContain('purchase_orders(amount,date,created_at,external_ref)');
     expect(sel).toContain('receipts:procurement_receipts(receipt_date,created_at)');
-    expect(sel).toContain('procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref)');
+    expect(sel).toContain('procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref,voided_at)');
     expect(sel).toContain('payments(amount,date,created_at,status)');
     expect(sel).toContain('status_events:procurement_status_events(to_status,created_at)');
   });
@@ -117,7 +117,7 @@ describe('listProcurements', () => {
     await listProcurements({ lean: true });
     const sel = mockSelect.mock.calls.at(-1)![0] as string;
     expect(sel).toContain('project:projects(name,short_name,code,project_manager_id)');
-    expect(sel).toContain('procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref)');
+    expect(sel).toContain('procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref,voided_at)');
     expect(sel).toContain('payments(amount,date,created_at,status)');
     expect(sel).toContain('status_events:procurement_status_events(to_status,created_at)');
     expect(sel).not.toContain('open_commitment');

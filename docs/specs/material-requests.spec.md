@@ -35,8 +35,16 @@ When a site needs material for a work order, I want to request items and quantit
 - FR-MRQ-014 Where the organisation sets a **daily cut-off time** (time of day in project-local time, optional), a request needed-by the next calendar day shall be accepted only when submitted before the cut-off; otherwise it shall be refused with the earliest accepted date. A request for later dates is unaffected. With no cut-off set, nothing is refused.
 - FR-MRQ-015 Cut-off is evaluated server-side at submission using server time and the project's time zone; the client display is advisory.
 
-- FR-MRQ-020 (#2571) When a new request form opens, the system shall default the needed-by date to the day after today in the organisation's calendar (the organisation time zone), and the earliest pickable date shall be today in that calendar, never the browser's or UTC's date.
-- FR-MRQ-021 (#2571) The daily cut-off control shall be shown only to roles allowed to change it (the Admin role, matching the database rule); other roles shall not see it.
+**Pinned approver (#2598, option 3: role by default, person optional)**
+- FR-MRQ-022 Where an Admin or the project's manager pins a chain step to a named person on a project, the system shall let only that person, or their in-window stand-in, decide that step on requests for work orders of that project. A step with no pin stays role-level.
+- FR-MRQ-023 The pinned person shall be an active member of the organisation who holds the step's role (a project is visible to every active member, so nothing further is checked). The server refuses any other approver, a position the chain does not have, and a caller who is neither an Admin nor the project's manager.
+- FR-MRQ-024 The pin is read at decision time and applies only while the chain step at that position still has the pinned role; every other rule (order, not the author, not two steps of one request, stand-in window) still holds. A stand-in acts only for the pinned person.
+- FR-MRQ-025 The queue "waiting for me" shall list a pinned step only for the pinned person and their stand-ins. The pin is set per project on the project screen, in English and Bahasa Indonesia.
+- FR-MRQ-026 While a pinned person is not an active member or no longer holds the pinned role, the pin shall not bind its step: the step follows its role rule (and stand-ins for role holders) and appears in those holders' queues, and the project's setting screen flags the pin as needing attention until an Admin or the project's manager re-points or clears it. The pin row is kept.
+
+**Request date defaults and cut-off visibility (#2571)**
+- FR-MRQ-020 When a new request form opens, the system shall default the needed-by date to the day after today in the organisation's calendar (the organisation time zone), and the earliest pickable date shall be today in that calendar, never the browser's or UTC's date.
+- FR-MRQ-021 The daily cut-off control shall be shown only to roles allowed to change it (the Admin role, matching the database rule); other roles shall not see it.
 
 **Access, lists, audit**
 - FR-MRQ-016 Actions (create, submit, approve-step, manage chain, manage stand-in, view) shall be registered in the role matrix (#902); `can()` gates UI; RLS/RPC enforce. A field controller may create and submit for work orders in their scope.
@@ -68,8 +76,15 @@ When a site needs material for a work order, I want to request items and quantit
 | AC-MRQ-013 | Given pending requests across roles, when an approver opens "waiting for me", then only their open steps (and those they stand in for) appear. | Unit + pgTAP |
 | AC-MRQ-014 | Given a user in another organisation, when they read or act, then refused. | pgTAP |
 | AC-MRQ-015 | Given a field controller on a phone, when they raise an over-plan request and three approvers act in order, then a transfer draft with its delivery document is reachable from the request. | E2E (one journey) |
+| AC-MRQ-016 | Given a project, when its manager or an Admin pins step 3 to a Finance person, then it is stored; when anyone else tries, then refused. | pgTAP + Unit |
+| AC-MRQ-017 | Given a pin to someone without the step's role, a deactivated member, another organisation's user, or a position the chain lacks, then refused. | pgTAP + Unit |
+| AC-MRQ-018 | Given a pinned step, when another holder of the role decides it, then refused and absent from their queue; the pinned person and their stand-in may (both identities stored); a stand-in for someone else may not (mutation check: ignore the pin, test goes red). | pgTAP |
+| AC-MRQ-019 | Given a user in another organisation, when they pin or read pins, then refused and nothing visible. | pgTAP |
 | AC-MRQ-020 | Given a non-Admin and an Admin, when each opens the approval settings, then only the Admin sees the cut-off control and its save button. | Unit |
 | AC-MRQ-021 | Given 23:30 UTC on the 20th and an organisation in UTC+7, when a new request opens, then needed-by defaults to the 22nd (and to the 21st for a UTC-8 organisation), and the saved draft carries that date. | Unit |
+| AC-MRQ-022 | Given a pin is cleared, when the step opens, then any holder of the role may decide it again. | pgTAP + Unit |
+| AC-MRQ-023 | Given a pinned step whose person is deactivated or lost the step role, when a role holder (or a stand-in for one) looks at their queue and decides, then the step is theirs (mutation check: drop the liveness test, go red). | pgTAP |
+| AC-MRQ-024 | Given such a stuck pin, then the row is kept, the setting screen shows it as needing attention, and re-pointing it to a live person binds again. | pgTAP + Unit |
 
 ## Errors
 | Condition | Result |
@@ -77,6 +92,7 @@ When a site needs material for a work order, I want to request items and quantit
 | Over plan, no reason | Field error on the line |
 | After cut-off for next day | Refusal naming the cut-off and earliest date |
 | Approve out of order / by author / twice | Refused with reason |
+| Decide a pinned step as another holder of the role | Refused: pinned to another approver on this project |
 | Transfer creation fails | Request stays pending at last step; error shown; retry |
 | No user holds the open step's role | Queue shows "no approver"; Admin can reassign role holders, not approve |
 

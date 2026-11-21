@@ -96,6 +96,15 @@ purchases already refuse a bill over the accepted quantity (`0472`, hard cap at 
 - **AC-TWM-013** (owning test `supabase/tests/three_way_match_mutation.test.sql`) With the SoD line removed from the
   shipped approval the author can approve, and with the over-received rule removed from the shipped evaluator an
   over-billed purchase can be paid — so AC-TWM-009 and AC-TWM-002 bind to the shipped code.
+- **AC-TWM-014** Given the match on and a held bill on a purchase, When a reader (Admin, Executive, Project Manager,
+  Finance) opens the purchase, Then the held bill is named with "Review match", and its match panel shows the status,
+  the reasons and per line ordered, received, billed to date, order rate and bill rate. Owner: RTL
+  `pages/procurement/BillMatchDrawer.test.tsx`, `pages/procurement/ProcurementLedger.threeWayMatch.test.tsx`.
+- **AC-TWM-015** Given a held bill, When Finance or an Admin approves the exception with a reason Then it is sent to
+  `approve_bill_match_exception`; an Executive or Project Manager is offered no approval; a separation-of-duties
+  refusal is explained. Owner: RTL `pages/procurement/BillMatchDrawer.test.tsx` (the rule itself: AC-TWM-008/009 pgTAP).
+- **AC-TWM-016** Given a held purchase, When a payment is refused (MH001) Then the message names the three-way match
+  hold and the way forward, in English and Bahasa Indonesia. Owner: unit `pages/procurement/threeWayMatchError.test.ts`.
 
 ## 6. Open questions for the Director / owner
 
@@ -103,6 +112,9 @@ purchases already refuse a bill over the accepted quantity (`0472`, hard cap at 
 - **OQ-TWM-2** ERP organisations: with the match on, ERP-owned purchasing is still not matched (D-TWM-8). Should the
   ERPNext pre-send check (#2411) consult `bill_match_evaluate` instead? That is an edge-function change on the money
   path — a separate ticket.
-- **OQ-TWM-3** Screens: this slice is database-only. The bill and receipt screens need a lines editor, a match panel
-  and an "Approve exception" action (repository seam + `can()` gate + `restructure`) — the next slice.
+- **OQ-TWM-3** Screens. *Partly closed (#2622):* the match panel per bill (status, reasons, per-line ordered /
+  received / billed, tolerances, the exception record), "Approve exception" (`can('approve','billMatch')`: Admin,
+  Finance; SoD in the RPC) and the translated payment-hold refusal ship over `get_bill_match` and
+  `approve_bill_match_exception` (AC-TWM-014..016). Still open: the Admin on/off + tolerance setting and the receipt-
+  and bill-lines editors.
 - **OQ-TWM-4** A sole-member organisation cannot approve an exception (no sole-operator escape, unlike the bill void).

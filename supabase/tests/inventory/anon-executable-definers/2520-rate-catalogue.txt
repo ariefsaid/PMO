@@ -1,0 +1,3 @@
+rate_catalogue_add_variants
+rate_catalogue_set_default_variant
+rate_catalogue_upsert_item

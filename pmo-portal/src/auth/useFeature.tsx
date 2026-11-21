@@ -1,4 +1,3 @@
-import React from 'react';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import {
   ENV_FEATURE_GATES,
@@ -26,7 +25,6 @@ import {
  * NOTE: this is still UX-gating only. Since S2 the server refuses writes for a disabled module
  * (FR-PLN-006); the FE gate exists so the affordance is not offered at all.
  */
-// eslint-disable-next-line react-refresh/only-export-components -- hook co-located with its declarative render gate
 export function useFeature(key: EntitleableKey): boolean {
   // Hooks must run unconditionally (rules-of-hooks) — call the query even for core keys, then
   // short-circuit. The query is cached and deduped across every useFeature caller in the tree.
@@ -37,11 +35,3 @@ export function useFeature(key: EntitleableKey): boolean {
   if (gate && !isFeatureEnabled(gate)) return false; // deployment kill switch wins
   return data?.[k] ?? FEATURE_ENV_DEFAULT[k];
 }
-
-export const FeatureGate: React.FC<{
-  feature: EntitleableKey;
-  children: React.ReactNode;
-}> = ({ feature, children }) => {
-  if (!useFeature(feature)) return null;
-  return <React.Fragment>{children}</React.Fragment>;
-};

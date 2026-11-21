@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { amountFromDashboard, currencyFigure, exactFromDashboard, selectCollectedTotals, selectUnbilledTotals } from './useCompanyFigures';
+import { amountFromDashboard, currencyFigure, exactFromDashboard, selectCollectedTotals } from './useCompanyFigures';
 import { selectBilledWorkByMonth, selectBilledWorkInPeriod } from '@/src/lib/reports/managementPack';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
 import { monthsBetween } from '@/src/lib/reports/months';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
-import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
 
 describe('company period totals', () => {
   it('sums selected-period billed work in the selected months by currency', () => {
@@ -88,16 +87,4 @@ describe('company period totals', () => {
     expect(exact?.exactValue).toContain('USD amount unknown');
   });
 
-  it('formats unbilled totals from their remaining amount by currency', () => {
-    const totals: UnbilledWorkOrderTotal[] = [
-      { currency: 'USD', remaining: 1_250, count: 2 },
-      { currency: 'IDR', remaining: 2_000_000, count: 1 },
-    ];
-
-    expect(selectUnbilledTotals(totals)).toEqual([
-      { currency: 'USD', amount: 1_250 },
-      { currency: 'IDR', amount: 2_000_000 },
-    ]);
-    expect(selectUnbilledTotals(undefined)).toBeUndefined();
-  });
 });

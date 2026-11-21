@@ -135,6 +135,20 @@ describe('Receivables page', () => {
     expect(within(tile('Received this month')).getByTestId('kpi-skeleton')).toBeInTheDocument();
   });
 
+  it('AC-RET-005 owed includes the retention still held, which is shown as its own figure and kept out of the ages (#2625)', async () => {
+    h.position = { ...h.position, receivablesRetentionHeld: { IDR: 5000 } };
+    renderPage();
+    expect(tile('Owed to you')).toHaveTextContent(/IDR\s*150/);
+    expect(screen.getByTestId('receivables-retention-held')).toHaveTextContent(/Retention held, not due until released: IDR\s*50/);
+    await financeTestI18n.changeLanguage('id');
+    expect(await screen.findByTestId('receivables-retention-held')).toHaveTextContent(/Retensi ditahan, belum jatuh tempo sampai dilepas/);
+  });
+
+  it('AC-RET-005 no retention held shows no retention line', () => {
+    renderPage();
+    expect(screen.queryByTestId('receivables-retention-held')).not.toBeInTheDocument();
+  });
+
   it('B6: keeps cash visible while the invoice read is pending', () => {
     h.financePending = true;
     h.receivablesPending = true;

@@ -6,7 +6,7 @@ import { CanWrite } from '@/src/auth/usePermission';
 import { useMaterialRequest, useMaterialRequests, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
 import type { MaterialRequestRow, MaterialRequestStatus, WaitingStep } from '@/src/lib/repositories/materialRequests';
 import { formatDay } from '@/src/lib/format';
-import { RequestStatusPill } from './materialRequests/shared';
+import { RequestStatusPill, RequestWorkOrder } from './materialRequests/shared';
 import { useLabels } from './materialRequests/useMaterialRequestText';
 
 /** A waiting step's request: from the loaded list page when present, else fetched (the queue is oldest-first, the list newest-first and bounded). */
@@ -39,11 +39,14 @@ const MaterialRequestsPage: React.FC = () => {
     { key: 'step', header: t('list.columns.step', 'Your step'), cell: (w) => <>
       {t('list.stepOf', 'Step {{n}}: {{label}}', { n: w.stepPosition, label: w.label })}
       {w.actingFor && <span className="ml-2 text-muted-foreground">{t('list.standingIn', 'standing in')}</span>}</> },
+    { key: 'workOrder', header: t('list.columns.workOrder', 'Work order'),
+      cell: (w) => <WaitingRequest id={w.requestId} known={requestOf(w.requestId)} render={(r) => <RequestWorkOrder workOrderId={r.workOrderId} projectId={r.projectId} />} /> },
     { key: 'needed', header: t('list.columns.neededBy', 'Needed by'), cell: (w) => <WaitingRequest id={w.requestId} known={requestOf(w.requestId)} render={(r) => formatDay(r.neededBy)} /> },
     { key: 'sent', header: t('list.columns.submitted', 'Sent'), cell: (w) => formatDay(w.submittedAt) },
   ];
   const columns: Column<MaterialRequestRow>[] = [
     { key: 'number', header: t('list.columns.number', 'Request'), rowHeader: true, cell: (r) => <span className="font-semibold">{r.number}</span> },
+    { key: 'workOrder', header: t('list.columns.workOrder', 'Work order'), cell: (r) => <RequestWorkOrder workOrderId={r.workOrderId} projectId={r.projectId} /> },
     { key: 'status', header: t('list.columns.status', 'Status'), cell: (r) => <span className="flex flex-wrap items-center gap-2">
       <RequestStatusPill status={r.status} />
       {waitingIds.has(r.id) && <span className="text-control text-primary-text">{t('list.waitingForYou', 'Waiting for you')}</span>}</span> },

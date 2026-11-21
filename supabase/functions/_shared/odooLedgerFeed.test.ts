@@ -19,7 +19,7 @@ const client = () => createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KE
 
 interface PageRow { erp_name: string; account: string; project: string | null; fiscal_year: string; debit: string; credit: string; is_cancelled: boolean; posting_date: string }
 interface Page { p_org_id: string; p_rows: PageRow[]; p_cursor: string }
-interface Opts { links?: Record<string, string>; accounts?: Record<string, string>; binding?: Record<string, unknown>; fiscal?: { month: string; day: number }; failApplyAt?: number; switched?: boolean; links2?: Record<string, string>; lastCheckAt?: string; failRecord?: boolean; publishedAt?: string; inventory?: boolean; stockLastCheckAt?: string; stockApplyChanged?: number; stockTie?: string; failStockApplyAt?: number; failSnapshotOnce?: boolean; failStockRecordOnce?: boolean; inventoryCreatedAt?: string; timezone?: string }
+interface Opts { links?: Record<string, string>; accounts?: Record<string, string>; binding?: Record<string, unknown>; fiscal?: { month: string; day: number }; failApplyAt?: number; switched?: boolean; links2?: Record<string, string>; lastCheckAt?: string; failRecord?: boolean; publishedAt?: string; inventory?: boolean; stockLastCheckAt?: string; stockApplyChanged?: number; stockTie?: string; failStockApplyAt?: number; failSnapshotOnce?: boolean; failStockRecordOnce?: boolean; failStockCursorReadAfterMarkOnce?: boolean; inventoryCreatedAt?: string; timezone?: string }
 
 const line = (id: number, over: Record<string, unknown> = {}) => ({
   id, move_id: [id, `BILL/${id}`], move_name: `BILL/${id}`, journal_id: [3, 'Bills'], partner_id: [9, 'Vendor'], company_id: [1, 'Main'], currency_id: [1, 'IDR'],
@@ -56,6 +56,7 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
   let failStockApplyAt = o.failStockApplyAt;
   let failSnapshotOnce = o.failSnapshotOnce === true;
   let failStockRecordOnce = o.failStockRecordOnce === true;
+  let failStockCursorReadAfterMarkOnce = o.failStockCursorReadAfterMarkOnce === true;
   const marked = new Set<number>();
   let links = o.links ?? { [P1]: '101', [P2]: '102', [P3]: '102' };
   const accounts = { ...(o.accounts ?? { '501': '5100' }) } as Record<string, string>;
@@ -63,6 +64,7 @@ function harness(prepare: (fake: FakeOdoo) => void, o: Opts = {}) {
     supabaseSelect('external_org_bindings', () => jsonResponse([{ status: 'active', activated_at: '2026-11-01T00:00:00Z', config: { capabilities: { later: { 'account.move.line': true } }, ...(!switched ? {} : { ledger_basis_at: '2026-11-05T00:00:00Z' }) }, ...o.binding }])),
     supabaseSelect('external_sync_watermarks', (c) => {
       if (c.url.searchParams.get('domain') === 'eq.ledger-published:odoo') return jsonResponse(publishedAt ? [{ updated_at: publishedAt }] : []);
+      if (c.url.searchParams.get('domain') === 'eq.ledger-stock-cost:odoo' && failStockCursorReadAfterMarkOnce && doubleMarks.length > 0) { failStockCursorReadAfterMarkOnce = false; return jsonResponse({ code: 'XX000', message: 'read failed' }, { status: 500 }); }
       if (c.url.searchParams.get('domain') === 'eq.ledger-stock-cost:odoo') return jsonResponse(stockCursor === undefined ? [] : [{ watermark_cursor: stockCursor }]);
       const other = otherMarks.get((c.url.searchParams.get('domain') ?? '').replace(/^eq\./, ''));
       if (other) return jsonResponse([other]);
@@ -767,6 +769,19 @@ describe('runLedgerPass — #2282 issued material cost kind (AC-IMC-001, 004, 00
     assertEquals([first.stockCheck, h.stockChecks.length, h.doubleMarks], [undefined, 0, [[31]]]);
     assertEquals(h.otherMarks.has('ledger-stock-unpublished:odoo'), true);
     // The row is flagged in the table, so the next pass leaves it out of the snapshot before it checks.
+    const second = await stockPass(h);
+    assertEquals(stockRowsOf(h.snapshots[h.snapshots.length - 1]), []);
+    assertEquals([second.stockCheck, h.stockChecks[0].p_double_counts], ['differs', 1]);
+    assertEquals(h.otherMarks.has('ledger-stock-unpublished:odoo'), false);
+  });
+
+  it('AC-IMC-005 a marking that changed rows is remembered when the cursor re-read after it fails: the next pass publishes it first, and the check does not say "matches"', async () => {
+    const h = harness((fake) => { seedStock(fake, [issue(31)], ENTRY); fake.seed('account.move.line', [entryItem(40, { analytic_distribution: { '101': 100 } })]); },
+      { accounts, inventory: true, publishedAt: '2026-11-10T00:00:00Z', failStockCursorReadAfterMarkOnce: true });
+    await h.primeLinkFingerprint('2026-11-09T00:00:00Z');
+    const first = await stockPass(h);
+    assertEquals([first.stockCheck, h.stockChecks.length, h.doubleMarks], [undefined, 0, [[31]]]);
+    assertEquals(h.otherMarks.has('ledger-stock-unpublished:odoo'), true);
     const second = await stockPass(h);
     assertEquals(stockRowsOf(h.snapshots[h.snapshots.length - 1]), []);
     assertEquals([second.stockCheck, h.stockChecks[0].p_double_counts], ['differs', 1]);

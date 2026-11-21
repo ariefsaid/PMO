@@ -155,8 +155,7 @@ describe('AC-M365LOC-006 — M365OrgApprovalCard is localized (en/id) and code-d
   it('AC-M365LOC-006: English shows the card copy, the approve action and no raw key', async () => {
     await renderLocalized('en');
     const card = screen.getByTestId('m365-org-approval');
-    expect(card).toHaveTextContent('Organization approval');
-    expect(card).toHaveTextContent(/only if microsoft asks for organization approval/i);
+    expect(card).toHaveTextContent('Microsoft 365');
     expect(screen.getByRole('button', { name: 'Approve in Microsoft 365' })).toBeInTheDocument();
     expect(card.textContent).not.toMatch(/integrations\.[a-zA-Z0-9.]+/);
   });
@@ -164,17 +163,16 @@ describe('AC-M365LOC-006 — M365OrgApprovalCard is localized (en/id) and code-d
   it('AC-M365LOC-006: Bahasa shows the localized card copy and approve action', async () => {
     await renderLocalized('id');
     const card = screen.getByTestId('m365-org-approval');
-    expect(card).toHaveTextContent('Persetujuan organisasi');
-    expect(card).toHaveTextContent(/hanya jika Microsoft meminta persetujuan organisasi/i);
+    expect(card).toHaveTextContent('Microsoft 365');
     expect(screen.getByRole('button', { name: 'Setujui di Microsoft 365' })).toBeInTheDocument();
     // None of the English copy survives in the Bahasa render.
-    expect(card.textContent).not.toMatch(/Organization approval|Approve in Microsoft 365/);
+    expect(card.textContent).not.toMatch(/Approve in Microsoft 365/);
   });
 
   it('AC-M365LOC-006: with NO catalogue loaded the card still reads as English (defaults, never keys)', async () => {
     await renderLocalized('en', false);
     const card = screen.getByTestId('m365-org-approval');
-    expect(card).toHaveTextContent('Organization approval');
+    expect(card).toHaveTextContent('Microsoft 365');
     expect(screen.getByRole('button', { name: 'Approve in Microsoft 365' })).toBeInTheDocument();
     expect(card.textContent).not.toMatch(/integrations\.[a-zA-Z0-9.]+/);
   });

@@ -6,7 +6,7 @@
 -- FR-MRQ-004 create and submit replay on a client request id · FR-MRQ-013 a cancelled draft flags the request.
 begin;
 create extension if not exists pgtap;
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 select plan(38);
 
 insert into organizations (id, name, default_currency, default_timezone) values

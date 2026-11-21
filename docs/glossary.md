@@ -234,7 +234,8 @@ reporting manager.
 **Issue (site)** — a problem raised on site (#2521): an incident record that also names the person in
 charge, what must be done, a due time, optionally a work order of its project, and photo evidence.
 One record serves safety incidents and site issues; the UI says *issue* for site work and *incident*
-for safety events. High and Critical issues close only with a close photo.
+for safety events. High and Critical issues close only with a **close proof** (a photo or document
+attached at close).
 
 **Escalation** — the once-only step when an open issue passes its due time: the database marks it
 escalated, tells the person in charge and the project manager (Admins when the project has none),
@@ -371,7 +372,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Cost attribution** — the optional work order and discipline a cost record names (purchase request, purchase order, goods receipt, vendor bill, timesheet line, stock movement, equipment usage); a cost with neither is a project-level cost. The work order must be on the cost's own project (ADR-0104).
 
-**Discipline** — an entry in the organisation's own list of trades or engineering disciplines (for example civil, mechanical, electrical) that a cost can name; kept by an Admin and archived rather than deleted.
+**Discipline** — an entry in the organisation's own list of trades or engineering disciplines (for example civil, mechanical, electrical) that a cost can name. The Admin keeps the list on the **Cost disciplines** screen (*disiplin biaya*) and archives rather than deletes (#2623).
 
 **Direct cost** (of a work order) — the counted cost records that name the work order, in its own currency: vendor bills pre-tax, posted stock issues and returns at stock-ledger value, and approved equipment usage at a hire rate. Purchase requests, orders and receipts are commitments and never add to it; hours with no rate are carried as hours (#2519).
 
@@ -388,6 +389,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value.
 
 **Work order acceptance line** — the quantity accepted for one contract line on a work order acceptance; the latest confirmed quantity, not a sum, is what has been accepted to date.
+
+**Opening balance** — where a running work order or a stock location stood at go-live, loaded once by an Admin and dated at the organisation's one go-live date (#2588). A work order's opening is a confirmed acceptance marked `opening` (certified quantity) plus the quantity and value claimed before go-live, which counts as already invoiced; a location's opening is a posted stock document of kind `opening` (counted quantity at unit cost). It is not new activity, it counts once, and an Admin can reverse it only before the first real transaction. Finished work orders carry none.
 
 **Progress assessment quantity** — the quantity completed to date for a bill-of-quantities item in a project progress entry.
 
@@ -407,7 +410,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Stage age** — days a billing stage has been current: from its start (the previous stage's completion) to its completion, or to today while open.
 
-**Invoice deadline** — the project's monthly day (1–31, clamped to the month's end) by which its invoice must reach the client, with a warning window in days.
+**Invoice deadline** — the project's monthly day (1–31, clamped to the month's end) by which its invoice must reach the client, with a warning window in days. A claim shows it while its stages are still open or it has no stage plan; it is hidden once every planned stage is complete (#2522).
 
 **Measured quantity** — quantity on progress claims that are not withdrawn and whose invoice, if any, is not cancelled. **Billed quantity** — quantity on progress claims with an invoice that is not cancelled. Per bill-of-quantities item the reconciliation reads unbilled, partly billed, fully billed or surplus.
 
@@ -420,6 +423,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **Left to bill** — signed contract value (net of tax) less invoiced to date (also read per issued work order, #2575), per held contract (on-hand status, not archived: the Contract on hand set, whatever the selected period) and currency at a month; it does not depend on the revenue recognition basis. The management pack derives it once and every report tile, row, total, export and the home dashboard read that one figure (#2203). A held contract with no contract value is not in it; the total stays a number and the count of such contracts is said beside it ("N contracts with no value, not in the total").
 
 **Remaining work** — signed contract value less recognised revenue to date in the management pack; it follows the recognition basis (progress, earned value or invoiced) and is distinct from Left to bill. Formerly named "backlog" in the pack (DD-MMP-3).
+
+**Cancelled invoice pair** — an invoice pair whose linked ERP invoice was later cancelled; Finance can review the pair and decide whether to undo it.
 
 **Incoming payment** — a customer payment record, optionally linked to a sales invoice, carrying amount, currency, status and receipt/withholding details.
 
@@ -524,7 +529,8 @@ the project's actuals. (#2282.)
 
 **Material request** — a request for stock items and quantities for one work order, with a needed-by date. Draft,
 Pending (waiting for approval), Approved, Rejected, Cancelled or Fulfilled. An approved request becomes a stock
-**Transfer** draft to the work order's site; a keeper posts it, which marks the request Fulfilled. Not a purchase
+**Transfer** draft to one of the work order's project's stock locations (its site, a yard or a staging location,
+named when the project has several); a keeper posts it, which marks the request Fulfilled. Not a purchase
 request: it moves stock the organisation already holds.
 
 **Planned quantity (material request)** — the material allowances of the contract lines a work order carries, in
@@ -538,6 +544,17 @@ steps are decided in order. The requester never decides a step, and one person d
 **Stand-in** — a person named, for a date range, to decide approval steps on behalf of someone away. Only that
 person's own role counts (one hop), never on a request the stand-in or the person away raised; both names are kept on
 the decision.
+
+**Pinned approver** — a project's choice that one approval-chain step is decided by a named person: on requests for
+that project's work orders, only that person, or their in-window stand-in, may decide the step; every other chain
+rule (order, not the author, one step per person) still holds. The pinned person must be an active member holding
+the step's role; an Admin or the project's manager sets the pin on the project screen, and a step with no pin stays
+role-level (#2598).
+
+**Pin needing attention** — a pinned approver whose person is no longer an active member or no longer holds the
+step's role: the pin stops binding, the step falls back to its role rule (and stand-ins for role holders), and the
+project's setting screen flags the pin as needing attention until an Admin or the project's manager re-points or
+clears it; the pin row is kept (#2605).
 
 **Cut-off (material request)** — an optional time of day after which a request needed by the next day is refused;
 later dates are not affected. Checked on the server clock in the organisation's time zone.
@@ -566,6 +583,10 @@ it is saved again.
 
 **Plan figure** — a planned amount for a work order, optionally per discipline: direct budget or indirect budget in the
 work order's currency, or equipment hours or crew hours. It never changes an actual, a project total or a budget version.
+
+**Actual crew hours** — the crew hours a work order's plan versus actual counts: hours on **Approved** timesheet weeks
+naming the work order; hours on a Draft, Submitted or Rejected week are named apart as not yet approved and never
+counted. Crew size is the count of distinct people with approved hours (#2626).
 
 ### Unit-rate catalogue (#2520)
 
@@ -597,7 +618,8 @@ document with a file before the stage completes, and that document becomes the c
 completion, or to today while open.
 
 **Invoice deadline** — the project's monthly day (1-31, clamped to the month's end) by which its invoice must reach the
-client, with a warning window in days.
+client, with a warning window in days. A claim shows it while its stages remain open or it has no stage plan; it is
+hidden when every planned stage is complete (#2522).
 
 **Measured quantity** — per bill-of-quantities item, the quantity on progress claims that are not withdrawn.
 **Billed quantity** — the quantity on progress claims whose invoice exists and is not cancelled. The reconciliation reads
@@ -606,13 +628,16 @@ unbilled, partly billed, fully billed or surplus.
 **Retention** (*retensi*) — the share of a progress claim the client holds back until a later event; stamped on the claim
 at creation from the project's percentage and held on the receivable, never as an invoice line (ADR-0103).
 **Retention release** — a scheduled, then recorded, payment-due event for part or all of a claim's retention.
+**Due now** (*jatuh tempo sekarang*) — what is outstanding on a client invoice less the retention still held on it
+(never below zero). Ageing and overdue count only this; the retention held stays in what is owed, as its own figure,
+until a release is recorded (#2625, ADR-0105 §4).
 
 ### Site issues and task proof (#2521, #2531)
 
 **Issue (site)** (*isu*) — a problem raised on site: an incident record that also names the person in charge, what must
 be done, a due time, optionally a work order of its project, and photo evidence. One record serves safety incidents and
 site issues; the UI says *issue* for site work and *incident* for safety events. High and Critical issues close only with
-a close photo.
+a **close proof** (a photo or document attached at close).
 
 **Escalation** (*dieskalasi*) — the once-only step when an open issue passes its due time: the database marks it
 escalated, tells the person in charge and the project manager (Admins when the project has none), and writes an audit
@@ -642,7 +667,8 @@ is 0 at every step.
 
 **Material request** (*permintaan material*) — a request for stock items and quantities for one work order, with a
 needed-by date: Draft, Pending, Approved, Rejected, Cancelled or Fulfilled. An approved request becomes a stock
-**Transfer** draft to the work order's site; a keeper posts it, which marks the request Fulfilled. Not a purchase request:
+**Transfer** draft to one of the work order's project's stock locations (its site, a yard or a staging location,
+named when the project has several); a keeper posts it, which marks the request Fulfilled. Not a purchase request:
 it moves stock the organisation already holds.
 
 **Planned quantity (material request)** — the material allowances of the contract lines a work order carries, in
@@ -828,7 +854,9 @@ that material.
 
 **Supply-risk status** — a supplier's state as a source of supply: Active, At risk or Inactive, set by a person (Admin or Finance) with a reason and audited; it never changes by itself and blocks nothing.
 
-**Payables age** — whole calendar days from a *procurement case's earliest* supplier-invoice date to the organisation's today, for the case's unpaid balance (the payables figure is per case, one age per case); when the organisation's procurement domain is externally owned, the ERP's own aging buckets are used instead. It only suggests a supply-risk status.
+**Unpaid supplier total** — what the organisation still owes a supplier: per procurement case, its bills less its payments — or the outstanding amounts of its linked ERP invoices when the case has no PMO bill — with a missing amount meaning unknown, never zero, and a voided bill counting nothing (#2600). The payables screen, the procurement list and the supply-risk suggestion all read this one figure.
+
+**Payables age** — whole calendar days from a *procurement case's earliest* supplier-invoice date — voided bills skipped (#2600) — to the organisation's today, for the case's unpaid balance (the payables figure is per case, one age per case); when the organisation's procurement domain is externally owned, the ERP's own aging buckets are used instead. It only suggests a supply-risk status.
 
 **Exposed work order** — a Draft or Issued work order that has at least one open purchase order (Issued or Acknowledged) from a given supplier; it is warned when that supplier is At risk or Inactive.
 
@@ -886,6 +914,15 @@ behind them; distinct from instructions or an explanation of the page.
 
 **Waits on you** — work requiring the current person's action, such as a decision or a returned
 submission; distinct from general project risk or everything assigned to them.
+
+**Import key** — the stable id a row of `purchases import-history` carries; it makes a rerun safe (same row: skip) and names the row
+for `purchases undo-import`. Undoing an import frees its key.
+
+**Undo of an imported purchase** — a preview-first, Admin-only removal of one import's rows, refused once anything outside the import
+exists against the purchase; audited with a reason.
+
+**Row link** — how a list row opens its record: a real link to the record's own page, not a button, so it opens in a
+new tab like any link and the list stays in place (#2077).
 
 ### Third-party inspections (#2580)
 
@@ -958,6 +995,53 @@ quantity is set aside) to **pickup** (collection, which posts a zero-cost stock 
 collected and still to collect; the figures are derived from recorded events, never stored. Distinct from a material request,
 which moves the organisation's own stock.
 **Tracker reading** — one figure from a machine's tracker for one unit and calendar day: engine hours and an optional place label, matched to an equipment asset by its tracker unit identifier. Held apart from usage entries; it never counts in any cost or total until a person proposes it as a Draft usage entry and a different person approves it (#2582).
+
+**Direct-cost account** — an active posting account under an expense group in the connected company's chart, linked to a budget category for its costs. Admin or Finance may request a leaf account under an existing group from PMO; the group and the rest of the chart remain under the accountant's control.
+
+**Unresolved account reconciliation** — an account request awaiting an authoritative link or an audited administrator disposition after its outcome could not be settled. A disposition records the administrator's reason and attestation and is available only once the original outbox is terminal and unclaimable.
+
+## Import templates (#2530)
+- **Import template** — a spreadsheet a person downloads from an import screen: the field labels as headers, one example row, dropdowns for closed lists and a Notes sheet saying what each column holds. It carries a version, and an upload of the current or the previous version is accepted.
+- **Failed-rows file** — the spreadsheet offered when an import ends with rows that did not go in: the original cells of those rows plus "Row in your file" and "Reason", so they can be fixed and uploaded again. Rows that already existed are on their own "Already there" sheet.
+
+## Contractor scope for the 15 December 2026 release (#2516, owner 2026-11-21)
+
+**Foreman** (*mandor*) — the field role that leads a crew. A light account: one phone home screen with its own tasks,
+clock-in at rostered work orders, deliveries addressed to it and its own reported issues; it also ticks its own crew's roster.
+See *Light account*.
+
+**Light account** — a cheaper seat counted separately from full accounts, for the two field roles **Foreman** and **Field user**.
+It reaches only what is assigned to it (access follows roster and assignment, with no cap on the number of projects) and has no
+project page, work-order page, list, dashboard, price or budget. Anyone who needs to look at a project has a full account.
+
+**Field user** — a field role (worker, courier, receiver) that is a light account: the phone home screen shows its tasks,
+clock-in where rostered, deliveries addressed to it, and issues it reported.
+
+**Reservation** (stock) — a held quantity of one item at one location for one work order. Nothing is physically locked: stock reads
+"x free + y reserved", and a work order's own request uses its reservation first. Distinct from a client's *reservation* inside a
+client material requisition, which is the client's confirmation that material is set aside.
+
+**Borrowing** — a material request that takes stock reserved for another work order. It is marked as borrowing and goes to an
+approval step; whether it approves or only warns is an organisation setting.
+
+**Delivery note** — the printable document generated from an approved material request, with signature blocks, for a handover of
+goods. A client may rename it. See *Handover proof*.
+
+**Handover proof** — the evidence that goods changed hands: the photographed signed paper, or a handover confirmed in PMO (the
+logged-in person's name, time and counted quantity, photos of the goods and of the receiver; a person with no account signs on
+an account holder's phone with their name typed). The organisation chooses which counts, per stock tag.
+
+**Daily target** — a figure entered per work order for a day or a month and spread evenly over working days unless edited. PMO does not
+calculate it from crews or productivity; the daily report's revenue is read against it.
+
+**Billing board** — a view over billing records: cards are claims, columns are the steps of the claim, with age on each card. It holds
+no data of its own. A step waiting on a role shows in that person's needs-you list and clears when the step completes.
+
+**Candidate work order** — a work order that starts as an offer under a contract and is assessed with a checklist before the project
+manager accepts or rejects it, with the reason recorded.
+
+**Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
+the material close-out: joint count, loss report, material completion report). The closer is recorded.
 
 ## Work-order sections (#2576)
 **Section** — an optional child of one work order: a place or scope with a code (unique per work order, reserved for its life), a name, an optional note and foreman, a held readiness and a sort order. It carries no value, invoice, acceptance or status of its own, and is neither a discipline (the organisation-wide cost list) nor a work-order line (a contract quantity). The organisation's word for it is the shared term `terms.section` ("Section" / "Bagian"); no screen spells it. Not the record page's layout regions, which are *panels*.

@@ -159,7 +159,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
   it('AC-W6-IXD-ATRISK: the budget caption is ABSENT from the Project/name and Progress cells', () => {
     renderPage();
     const row = screen.getByText('At Risk Project').closest('tr')!;
-    const nameCell = within(row).getByRole('button', { name: 'At Risk Project' }).closest('td')!;
+    const nameCell = within(row).getByRole('link', { name: 'At Risk Project' }).closest('td')!;
     // Find the progress cell (delivery %) by finding the progressbar whose label is Delivery
     const deliveryBar = within(row).getByRole('progressbar', { name: 'Delivery 32%' });
     const progressCell = deliveryBar.closest('td')!;

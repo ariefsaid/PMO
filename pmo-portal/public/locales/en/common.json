@@ -81,7 +81,6 @@
     "retryCheck": "Check setup again",
     "operatorHandoff": "Open accounting setup",
     "noDomains": "No connected information is currently updating from ERPNext",
-    "m365ApprovalDescription": "Only if Microsoft asks for organization approval.",
     "organizationScope": "Personal connections: "
   },
   "uxs14": {
@@ -1350,33 +1349,10 @@
       "emptySub": "Try a wider time frame to see your win rate.",
       "declined": "{{n}} declined to bid, not counted in the win rate"
     },
-    "bva": {
-      "atRisk": "At risk"
-    },
-    "projectedMargin": {
-      "group": "Weighted pipeline value by stage",
-      "barLabel": "{{stage}}: {{value}} weighted"
-    },
     "procurementStatus": {
       "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}."
     },
-    "delivery": {
-      "percent": "Delivery {{rounded}}%"
-    },
-    "engineer": {
-      "noHours": "No hours logged this week",
-      "entriesEmptySub": "Hours you log will show up here.",
-      "noNote": "No note",
-      "unknownProject": "Unknown",
-      "hoursShort": "{{hours}}h",
-      "hoursSpoken": "{{hours}} {{unit}}",
-      "hoursUnit": "hours"
-    },
-    "atRisk": {
-      "reviewSingle": "Review {{count}} at-risk project",
-      "reviewMany": "Review {{count}} at-risk projects"
-    },
-    "budgetReviewLink": "Review {{project}} budget",
+    "delivery": {},
     "snapshots": {
       "unavailable": "No accounting snapshot has been synced yet.",
       "guidance": "Ask your administrator to sync accounting data."
@@ -1402,35 +1378,8 @@
       "label": "Board pack",
       "tooltip": "Board pack export arrives with Reports"
     },
-    "chart": {
-      "procStatus": {
-        "chartLabel": "Procurement by status",
-        "empty": "No procurement activity yet",
-        "noun": "procurement cases"
-      }
-    },
     "kpi": {
-      "awaitingApproval": {
-        "label": "Awaiting your approval",
-        "unavailable": "unavailable: check connection",
-        "one": "{{count}} item waiting",
-        "many": "{{count}} items waiting",
-        "linkUnavailable": "{{label}}: unavailable",
-        "linkOne": "{{label}}: {{count}} item awaiting",
-        "linkMany": "{{label}}: {{count}} items awaiting"
-      },
       "helpLabel": "Help: {{label}}"
-    },
-    "stillToInvoice": {
-      "daysSinceAcceptance": "Days since acceptance, not invoiced: {{days}}",
-      "count": "Work orders: {{n}}",
-      "daysSinceClosed": "Days since closed: {{days}}",
-      "empty": "Nothing left to invoice on issued work orders",
-      "error": "Couldn't load what is still to invoice",
-      "incomplete": "Work orders not totalled (an invoice on them has no amount or is in another currency): {{n}}",
-      "title": "Still to invoice on work orders",
-      "incompleteMore": "and {{n}} more",
-      "clientPo": "Client PO {{po}}"
     }
   },
   "decisionContext": {
@@ -3477,7 +3426,7 @@
           "emptyTitle": "No Companies found",
           "emptySub": "Create a Company in ERPNext before activating this integration.",
           "activateFailed": "Activation failed. Your selection was kept; you can try again.",
-          "missingReads": "The ERPNext integration user cannot read: {{doctypes}}. Grant it read access to these in ERPNext, then activate again. Your selection was kept.",
+          "missingReads": "The ERPNext integration user cannot read: {{doctypes}}. Your operator will fix its role; then activate again. Your selection was kept.",
           "unsupportedVersion": "ERPNext {{version}} is not supported. PMO supports ERPNext {{supported}}. Nothing was activated."
         },
         "health": {
@@ -3587,14 +3536,13 @@
     },
     "m365OrgApproval": {
       "heading": "Microsoft 365",
-      "badge": "Organization approval",
       "approve": "Approve in Microsoft 365",
       "approving": "Opening Microsoft 365…",
       "errorFallback": "Could not start Microsoft 365 organization approval."
     },
     "erpSetup": {
       "defaultsFailed": "Could not save ERP defaults. Check the values and try again.",
-      "domainFailed": "Could not employ this domain. Check ERP read permissions and try again.",
+      "domainFailed": "Could not employ this domain. Your operator will fix the integration role; then try again.",
       "unavailable": "ERP setup unavailable",
       "configured": "{{count}} of {{total}} configured",
       "activityMissing": "Activity type not set",
@@ -4448,33 +4396,6 @@
       "previewNote": "Illustrative only; the actual number is assigned when a project is created."
     },
     "accounting": {}
-  },
-  "uxs03": {
-    "spendingContract": "Spending vs contract",
-    "spendingContractBar": "{{name}}: {{percent}}% of contract",
-    "notAvailableYet": "Not available yet",
-    "attentionAndApprovals": "Attention and approvals",
-    "realizedMargin": "Margin on billed work",
-    "realizedMarginKnown": "Known margin on billed work",
-    "contractRemaining": "Contract remaining after known Actual",
-    "coverage": "Actual available for {{known}} of {{total}} delivery projects",
-    "coverageCategories": "Actual coverage: {{known}} of {{total}} mapped cost categories",
-    "pmoPurchasing": "PMO purchasing requests",
-    "pmoPurchasingScope": "ERP-native purchases are outside this PMO request chart.",
-    "activeBudget": "Active budget",
-    "actual": "Actual",
-    "variance": "Variance",
-    "utilization": "Utilization",
-    "atRisk": "At risk",
-    "activeBudgetReviewEmpty": "No active budgets ready for review",
-    "activeBudgetReviewEmptySub": "Active, positive-value budgets appear here.",
-    "actualSourceCurrency": "Source currency: {{currency}}",
-    "actualAsOf": "As of {{date}}",
-    "financeDashboardTitle": "Finance Dashboard",
-    "financeDashboardSubtitle": "Portfolio revenue, spend, margin, and budget utilization.",
-    "financeBudgetReviewTitle": "Budget review: top 5 by variance (portfolio-wide)",
-    "financeProjectColumn": "Project",
-    "financeReadyToPay": "Ready to pay"
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} or {{fourth}}",

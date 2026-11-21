@@ -39,7 +39,7 @@ test('AC-SIL-014: an issue is raised, assigned, goes late, is escalated, and clo
   expect(sql(`select public.escalate_overdue_incidents('${id}'::uuid);`)).toBe('1');
 
   await page.reload();
-  await page.getByRole('button', { name: new RegExp(`open ${type}`, 'i') }).click();
+  await page.getByRole('link', { name: new RegExp(`open ${type}`, 'i') }).click();
   await expect(page.getByTestId('incident-escalated')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('incident-pills')).toContainText(/overdue/i);
 
