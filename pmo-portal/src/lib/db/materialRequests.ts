@@ -144,6 +144,20 @@ export function lineUsageWarning(l: { planQty: number; priorQty: number; quantit
   return { slot, threshold: (slot === 2 ? th.pct2 : th.pct1) as number, reachedPct: reached };
 }
 
+/** AC-MUT-008, client side: empty = off; each from 1 to 1000; the second above the first. The server re-checks. */
+export function parseUsageThresholds(a: string, b: string): { ok: true; value: UsageThresholds } | { ok: false; error: 'range' | 'order' } {
+  const one = (v: string): number | null | undefined => {
+    const t = v.trim();
+    if (t === '') return null;
+    const n = Number(t);
+    return Number.isFinite(n) && n >= 1 && n <= 1000 ? Math.round(n * 100) / 100 : undefined;
+  };
+  const pct1 = one(a); const pct2 = one(b);
+  if (pct1 === undefined || pct2 === undefined) return { ok: false, error: 'range' };
+  if (pct1 !== null && pct2 !== null && pct2 <= pct1) return { ok: false, error: 'order' };
+  return { ok: true, value: { pct1, pct2 } };
+}
+
 export interface LinePlan {
   itemId: string;
   planQty: number;

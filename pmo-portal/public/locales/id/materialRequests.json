@@ -208,5 +208,18 @@
     "returned": "Dikembalikan",
     "superseded": "Digantikan",
     "waiting": "Belum"
+  },
+  "usage": {
+    "title": "Peringatan pemakaian",
+    "sub": "Beri peringatan saat pemakaian material perintah kerja mencapai persentase rencana ini. Kosongkan kolom untuk mematikan peringatan itu. Peringatan tidak pernah menghalangi permintaan.",
+    "first": "Peringatan pertama (% dari rencana)",
+    "second": "Peringatan kedua (% dari rencana)",
+    "save": "Simpan peringatan",
+    "saved": "Peringatan pemakaian disimpan",
+    "loadError": "Peringatan pemakaian tidak dapat dimuat",
+    "invalidRange": "Masukkan persentase dari 1 sampai 1000.",
+    "invalidOrder": "Peringatan kedua harus lebih tinggi dari yang pertama.",
+    "reached": "Pemakaian mencapai {{reached}}% dari rencana, melewati peringatan {{threshold}}%.",
+    "planZero": "Rencana belum ditetapkan, jadi pemakaian apa pun melewati peringatan {{threshold}}%."
   }
 }

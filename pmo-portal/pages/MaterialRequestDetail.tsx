@@ -10,6 +10,8 @@ import { useStockItems, useStockKeepers, useStockWarehouses } from '@/src/hooks/
 import { formatDay } from '@/src/lib/format';
 import { RequestStatusPill, RequestWorkOrder, StepStatusPill } from './materialRequests/shared';
 import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
+import { UsageWarning } from './materialRequests/UsageWarning';
+import { useUsageThresholds } from '@/src/hooks/useUsageThresholds';
 
 type Dialog = null | { kind: 'return' | 'reject' } | { kind: 'approve' } | { kind: 'withdraw' } | { kind: 'retry' };
 
@@ -25,6 +27,7 @@ const MaterialRequestDetailPage: React.FC = () => {
   const name = useUserNames();
   const labels = useLabels();
   const q = useMaterialRequest(requestId);
+  const usage = useUsageThresholds();
   const waiting = useWaitingForMe();
   const { data: items } = useStockItems(true);
   const { data: warehouses } = useStockWarehouses();
@@ -128,6 +131,7 @@ const MaterialRequestDetailPage: React.FC = () => {
               <li key={l.id} className="py-2" data-testid="mrq-detail-line">
                 <div className="flex flex-wrap justify-between gap-2"><span className="font-medium">{itemName(l.itemId)}</span><span className="tabular-nums">{l.quantity}</span></div>
                 {l.planQty !== null && <div className="text-control text-muted-foreground">{t('form.planLine', 'Plan {{plan}} · already requested {{prior}} · new total {{total}}', { plan: l.planQty, prior: l.priorQty ?? 0, total: (l.priorQty ?? 0) + l.quantity })}</div>}
+                {l.planQty !== null && <UsageWarning line={{ planQty: l.planQty, priorQty: l.priorQty ?? 0, quantity: l.quantity }} thresholds={usage.thresholds} />}
                 {l.overPlanReason && <div className="text-control">{t('detail.overPlanReason', 'Over plan: {{reason}}', { reason: l.overPlanReason })}</div>}
               </li>
             ))}
