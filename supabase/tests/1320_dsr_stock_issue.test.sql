@@ -236,7 +236,7 @@ select drs_as('26760000-0000-0000-0000-0000000000a3');
 select lives_ok($$select public.dsr_validate((select v from ids where k = 'closed'))$$, 'AC-DRS-007 validates though the engine refuses the issue');
 reset role;
 select is(drs_line_state((select v from ids where k = 'closed'), 1), 'failed', 'AC-DRS-007 the line is failed');
-select like((select l.reason from dsr_stock_posting_lines l join dsr_consumables c on c.id = l.consumable_id where c.report_id = (select v from ids where k = 'closed')), 'STK_PROJECT_NOT_ACTIVE%', 'AC-DRS-007 with the engine code');
+select alike((select l.reason from dsr_stock_posting_lines l join dsr_consumables c on c.id = l.consumable_id where c.report_id = (select v from ids where k = 'closed')), 'STK_PROJECT_NOT_ACTIVE%', 'AC-DRS-007 with the engine code');
 select is(drs_oh('26760000-0000-0000-0000-000000000034', '26760000-0000-0000-0000-000000000022'), 10::numeric, 'AC-DRS-007 nothing posted');
 
 -- ── AC-DRS-011 nothing posted earlier: no return; setting off later: still reverses, posts nothing new ─────
