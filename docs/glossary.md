@@ -1042,3 +1042,7 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+**Availability target / use target** — optional organisation settings (percent) the equipment availability screen compares each metric figure with; a figure below its target is marked. Unset means no marking.
+
+**Escalation limit** — the organisation setting (whole days, default 2) after which an open equipment downtime is flagged and notified: more than this many recorded down days.

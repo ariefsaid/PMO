@@ -63,7 +63,7 @@
     "empty": "No equipment yet",
     "emptySub": "Add assets under Equipment → Assets, then set their daily status here.",
     "todayHeading": "Today's status",
-    "flagged": "Down more than 2 days",
+    "flagged": "Down more than {{n}} days",
     "last": "Last: {{status}}",
     "unrecorded": "Not recorded",
     "statusFor": "Status of {{code}}",
@@ -142,7 +142,14 @@
     "ownershipSaved": "Ownership saved",
     "rateChanged": "Rate changed",
     "openProof": "Open {{name}}",
-    "unprovenIncluded": "Unproven — included with reason"
+    "unprovenIncluded": "Unproven — included with reason",
+    "availabilityTarget": "Availability target (%)",
+    "utilisationTarget": "Use target (%)",
+    "escalationLimit": "Escalate after more than (days down)",
+    "saveTargets": "Save targets",
+    "targetsSaved": "Targets saved",
+    "targetNote": "(target {{target}}%)",
+    "belowTarget": "Below target"
   },
   "basis": {
     "actual_cost": "Actual cost by usage",

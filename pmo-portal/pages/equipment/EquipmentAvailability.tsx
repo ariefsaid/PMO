@@ -10,7 +10,7 @@ import { useEquipmentAssetPages } from '@/src/hooks/useEquipment';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import {
-  useAttachProof, useDowntimeFlags, useEquipmentMetrics, useEquipmentWorkingHours, useSetStatusBulk, useStatusDays, useLatestStatusDays, useEquipmentProofs,
+  useAttachProof, useDowntimeFlags, useEquipmentMetrics, useEquipmentWorkingHours, useEquipmentTargets, useSetEquipmentTargets, useSetStatusBulk, useStatusDays, useLatestStatusDays, useEquipmentProofs,
 } from '@/src/hooks/useEquipmentAvailability';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { isDownStatus, type EquipmentStatus } from '@/src/lib/equipmentMetrics';
@@ -116,6 +116,18 @@ const EquipmentAvailabilityPage: React.FC = () => {
   const [metricAssets, setMetricAssets] = useState<string[]>([]);
   const [hours, setHours] = useState('');
   const workingHours = useEquipmentWorkingHours();
+  const targetsQuery = useEquipmentTargets();
+  const saveTargets = useSetEquipmentTargets();
+  const escalationLimit = targetsQuery.data?.escalation_down_days ?? 2;
+  const availabilityTarget = targetsQuery.data?.availability_target_pct ?? null;
+  const utilisationTarget = targetsQuery.data?.utilisation_target_pct ?? null;
+  const [chosenAvTarget, setAvTarget] = useState<string | null>(null);
+  const [chosenUtTarget, setUtTarget] = useState<string | null>(null);
+  const [chosenLimit, setLimit] = useState<string | null>(null);
+  const avTargetInput = chosenAvTarget ?? (availabilityTarget != null ? String(availabilityTarget) : '');
+  const utTargetInput = chosenUtTarget ?? (utilisationTarget != null ? String(utilisationTarget) : '');
+  const limitInput = chosenLimit ?? String(escalationLimit);
+  const belowTarget = (value: string | number | null | undefined, target: number | null) => target != null && value != null && Number(value) < Number(target);
   const metrics = useEquipmentMetrics(metricAssets.length ? rows.filter((a) => metricAssets.includes(a.id)).map((a) => a.id) : rows.map((a) => a.id), metricFrom, metricTo, grain, canMetrics && rows.length > 0);
   const byAsset = new Map(rows.map((a) => [a.id, a]));
 
@@ -153,7 +165,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
                     {current && !may('create', 'equipmentAvailability', writeCtx) && <span className="ml-2">{statusLabel(t, current)}</span>}
                     {(uploadedProofs.has(`${a.id}:${statusDate}`) || (!proofStates.isFetching && provenAssets.has(a.id))) && down && !draft[a.id] && <StatusPill variant="won" className="ml-2">{t('equipment:availability.proven', 'Proven')}</StatusPill>}
                     {down && todays.has(a.id) && !draft[a.id] && proofStates.data && !proofStates.isFetching && !proofStates.isError && !uploadedProofs.has(`${a.id}:${statusDate}`) && !provenAssets.has(a.id) && <StatusPill variant="warn" className="ml-2">{t('equipment:availability.noProof', 'No proof')}</StatusPill>}
-                    {flagged.has(a.id) && <span role="status" className="ml-2 text-destructive-text text-sm">{t('equipment:availability.flagged', 'Down more than 2 days')}</span>}
+                    {flagged.has(a.id) && <span role="status" className="ml-2 text-destructive-text text-sm">{t('equipment:availability.flagged', 'Down more than {{n}} days', { n: escalationLimit })}</span>}
                     {!todays.has(a.id) && !draft[a.id] && <span className="ml-2 text-sm text-muted-foreground">{prev ? t('equipment:availability.last', 'Last: {{status}}', { status: statusLabel(t, prev) }) : t('equipment:availability.unrecorded', 'Not recorded')}</span>}
                   </span>
                   <CanWrite entity="equipmentAvailability" action="create" ctx={writeCtx}>
@@ -201,13 +213,19 @@ const EquipmentAvailabilityPage: React.FC = () => {
             <TextField label={t('equipment:availability.workingHours', 'Working hours per day')} inputMode="decimal" value={hours} onChange={setHours} />
             <Button variant="outline" disabled={!hours || workingHours.isPending} onClick={() => { void workingHours.mutateAsync(hours).then(() => { setHours(''); toast(t('equipment:availability.hoursSaved', 'Working hours saved'), undefined, 'success'); }).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.saveHours', 'Save working hours')}</Button>
           </div>}
+          {realRole === 'Admin' && realRole === effectiveRole && <div className="mb-3 flex flex-wrap items-end gap-2">
+            <TextField label={t('equipment:availability.availabilityTarget', 'Availability target (%)')} inputMode="decimal" value={avTargetInput} onChange={setAvTarget} />
+            <TextField label={t('equipment:availability.utilisationTarget', 'Use target (%)')} inputMode="decimal" value={utTargetInput} onChange={setUtTarget} />
+            <TextField label={t('equipment:availability.escalationLimit', 'Escalate after more than (days down)')} inputMode="numeric" value={limitInput} onChange={setLimit} />
+            <Button variant="outline" disabled={saveTargets.isPending || !limitInput} onClick={() => { void saveTargets.mutateAsync({ availability: avTargetInput.trim() || null, utilisation: utTargetInput.trim() || null, escalationDays: limitInput.trim() }).then(() => { setAvTarget(null); setUtTarget(null); setLimit(null); toast(t('equipment:availability.targetsSaved', 'Targets saved'), undefined, 'success'); }).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.saveTargets', 'Save targets')}</Button>
+          </div>}
           {metrics.isError && <p role="alert">{t('equipment:availability.metricsError', 'Could not load metrics for this period.')}</p>}
           <table className="w-full text-sm">
             <thead><tr className="text-left">
               <th scope="col">{t('equipment:availability.asset', 'Asset')}</th>
               <th scope="col">{t('equipment:availability.period', 'Period')}</th>
-              <th scope="col">{t('equipment:availability.availability', 'Availability')}</th>
-              <th scope="col">{t('equipment:availability.utilisation', 'Utilisation')}</th>
+              <th scope="col">{t('equipment:availability.availability', 'Availability')}{availabilityTarget != null && <span className="ml-1 font-normal text-muted-foreground">{t('equipment:availability.targetNote', '(target {{target}}%)', { target: availabilityTarget })}</span>}</th>
+              <th scope="col">{t('equipment:availability.utilisation', 'Utilisation')}{utilisationTarget != null && <span className="ml-1 font-normal text-muted-foreground">{t('equipment:availability.targetNote', '(target {{target}}%)', { target: utilisationTarget })}</span>}</th>
               <th scope="col">{t('equipment:availability.unrecordedDays', 'Unrecorded days')}</th>
             </tr></thead>
             <tbody>{(metrics.data ?? []).map((m) => {
@@ -216,8 +234,10 @@ const EquipmentAvailabilityPage: React.FC = () => {
               return (
                 <tr key={`${a.id}-${m.bucket_start}`}>
                   <th scope="row" className="font-medium">{a.code}</th><td>{m.bucket_start}</td>
-                  <td>{m?.availability_pct != null ? `${m.availability_pct}%` : '—'}</td>
+                  <td>{m?.availability_pct != null ? `${m.availability_pct}%` : '—'}
+                    {belowTarget(m?.availability_pct, availabilityTarget) && <span className="ml-1 text-destructive-text">{t('equipment:availability.belowTarget', 'Below target')}</span>}</td>
                   <td>{m?.utilisation_pct != null ? `${m.utilisation_pct}%` : '—'}
+                    {belowTarget(m?.utilisation_pct, utilisationTarget) && <span className="ml-1 text-destructive-text">{t('equipment:availability.belowTarget', 'Below target')}</span>}
                     {m && m.pending_usage_entries > 0 && <span className="ml-1 text-muted-foreground">{t('equipment:availability.pendingUsage', '({{n}} awaiting approval)', { n: m.pending_usage_entries })}</span>}</td>
                   <td>{m?.unrecorded_days ?? '—'}</td>
                 </tr>

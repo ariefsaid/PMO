@@ -115,6 +115,16 @@ export async function setWorkingHours(hours: string): Promise<void> {
   await call('set_equipment_working_hours', { p_hours: hours });
 }
 
+export interface EquipmentTargets { availability_target_pct: number | null; utilisation_target_pct: number | null; escalation_down_days: number }
+export const DEFAULT_EQUIPMENT_TARGETS: EquipmentTargets = { availability_target_pct: null, utilisation_target_pct: null, escalation_down_days: 2 };
+export async function getTargets(): Promise<EquipmentTargets> {
+  const rows = (await call('get_equipment_targets')) as EquipmentTargets[] | null;
+  return rows?.[0] ?? DEFAULT_EQUIPMENT_TARGETS;
+}
+export async function setTargets(t: { availability: string | null; utilisation: string | null; escalationDays: string }): Promise<void> {
+  await call('set_equipment_targets', { p_availability: t.availability, p_utilisation: t.utilisation, p_escalation_days: t.escalationDays });
+}
+
 export interface RentalCheckDay { date: string; status: EquipmentStatus; proven: boolean; deducted: boolean; proofs: { id: string; file_name: string; file_path: string }[] }
 export interface RentalCheckResult { currency: string | null; rental_amount: string; deduction: string; expected_amount: string; difference: string | null; days: RentalCheckDay[]; unproven_days: string[]; included_unproven_reason: string | null }
 export async function rentalCheck(assetId: string, from: string, to: string, invoiceAmount?: string | null, includeUnprovenReason?: string | null): Promise<RentalCheckResult> {

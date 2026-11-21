@@ -63,7 +63,7 @@
     "empty": "Belum ada alat",
     "emptySub": "Tambahkan aset di Alat → Aset, lalu atur status hariannya di sini.",
     "todayHeading": "Status hari ini",
-    "flagged": "Rusak lebih dari 2 hari",
+    "flagged": "Rusak lebih dari {{n}} hari",
     "last": "Terakhir: {{status}}",
     "unrecorded": "Belum dicatat",
     "statusFor": "Status {{code}}",
@@ -142,7 +142,14 @@
     "ownershipSaved": "Kepemilikan disimpan",
     "rateChanged": "Tarif diubah",
     "openProof": "Buka {{name}}",
-    "unprovenIncluded": "Belum terbukti — disertakan dengan alasan"
+    "unprovenIncluded": "Belum terbukti — disertakan dengan alasan",
+    "availabilityTarget": "Target ketersediaan (%)",
+    "utilisationTarget": "Target pemakaian (%)",
+    "escalationLimit": "Eskalasi setelah lebih dari (hari rusak)",
+    "saveTargets": "Simpan target",
+    "targetsSaved": "Target disimpan",
+    "targetNote": "(sasaran {{target}}%)",
+    "belowTarget": "Di bawah target"
   },
   "basis": {
     "actual_cost": "Biaya aktual menurut pemakaian",

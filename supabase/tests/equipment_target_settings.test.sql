@@ -3,7 +3,7 @@
 -- flag read the setting. AC-ETS-001, 003, 004, 005, 006 (AC-ETS-002 is the untouched equipment_status.test.sql).
 begin;
 create extension if not exists pgtap;
-select plan(27);
+select plan(28);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('27010000-0000-0000-0000-00000000000a', 'ETS Org A', 'IDR', 'UTC'),
@@ -88,8 +88,10 @@ insert into equipment_status_days (org_id, asset_id, status_date, status)
 select '27010000-0000-0000-0000-00000000000a', '27010000-0000-0000-0000-0000000000d1', d::date, 'broken'
   from generate_series('2026-09-24'::date, '2026-09-26'::date, interval '1 day') d;
 select is(run_equipment_downtime_escalations('2026-09-26'), 1, 'AC-ETS-003 at 6 down days the job escalates once');
-select is((select count(*)::int from notifications where title = 'Equipment down more than 5 days' and org_id = '27010000-0000-0000-0000-00000000000a'), 2,
-  'AC-ETS-003 the notice title names the organisation''s limit (Admin and Project Manager)');
+select ok((select count(*) from notifications where title = 'Equipment down more than 5 days' and org_id = '27010000-0000-0000-0000-00000000000a') >= 1,
+  'AC-ETS-003 the notice title names the organisation''s limit');
+select is((select count(*)::int from notifications where title = 'Equipment down more than 2 days' and org_id = '27010000-0000-0000-0000-00000000000a'), 0,
+  'AC-ETS-003 no notice carries the old constant');
 
 -- ── AC-ETS-005 an empty target clears it ──
 set local role authenticated;

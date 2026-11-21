@@ -46,6 +46,8 @@ vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useEquipmentOwnership: () => ({ mutateAsync: h.ownership, isPending: false }),
   useChangeRentalRate: () => ({ mutateAsync: h.changeRate, isPending: false }),
   useEquipmentWorkingHours: () => ({ mutateAsync: h.workingHours, isPending: false }),
+  useEquipmentTargets: () => ({ data: undefined }),
+  useSetEquipmentTargets: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
 

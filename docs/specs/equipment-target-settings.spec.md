@@ -1,6 +1,6 @@
 # Equipment targets and breakdown escalation limit as settings
 
-Status: Phase 1 draft (#2701). Extends `docs/specs/equipment-availability.spec.md` (#2526). Rulings: OD-SCOPE-2 (no client process in code).
+Status: approved, built (#2701). Extends `docs/specs/equipment-availability.spec.md` (#2526). Rulings: OD-SCOPE-2 (no client process in code).
 
 ## Job story
 When I review equipment, I want the availability and use targets and the breakdown escalation limit to be mine to set, so they fit my operation.
@@ -8,6 +8,7 @@ When I review equipment, I want the availability and use targets and the breakdo
 ## Findings in shipped code (artifact-read, scope: `supabase/migrations/`, `pmo-portal/src`, `pmo-portal/pages`, `pmo-portal/public/locales`)
 - Escalation limit: one fixed value. `equipment_downtime_escalations` (migration 1033) flags an open downtime period with `count(*) > 2` recorded down days; the notice title and the on-screen label ("Down more than 2 days", `equipment.json` `availability.flagged`) repeat the 2 in text.
 - Availability target and use target: none exist today. The screen shows `availability_pct` and `utilisation_pct` with no comparison. So the targets are new and carry no default figure: unset means nothing changes on any screen.
+- Recorded (owner-approved): no fixed availability or use target existed in shipped code, so "replacing fixed values" applies to the escalation limit only; the targets are new and unset by default.
 - Working hours per day already follows the pattern we reuse: a column on `organizations` with an Admin-only security-definer RPC (`set_equipment_working_hours`, 1032).
 
 ## Requirements (EARS)

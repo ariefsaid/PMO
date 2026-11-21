@@ -17,6 +17,8 @@ export interface EquipmentAvailabilityRepository {
   listDowntimeFlags: typeof dal.listDowntimeFlags;
   setOwnership: typeof dal.setOwnership;
   setWorkingHours: typeof dal.setWorkingHours;
+  getTargets: typeof dal.getTargets;
+  setTargets: typeof dal.setTargets;
   listRentalTerms: typeof dal.listRentalTerms;
   saveRentalTerm: typeof dal.saveRentalTerm;
   changeRentalRate: typeof dal.changeRentalRate;
@@ -37,6 +39,8 @@ export const equipmentAvailabilityRepository: EquipmentAvailabilityRepository = 
   listDowntimeFlags: () => wrap(() => dal.listDowntimeFlags()),
   setWorkingHours: (h) => wrap(() => dal.setWorkingHours(h)),
   setOwnership: (a, o, d) => wrap(() => dal.setOwnership(a, o, d)),
+  getTargets: () => wrap(() => dal.getTargets()),
+  setTargets: (t) => wrap(() => dal.setTargets(t)),
   listRentalTerms: (a) => wrap(() => dal.listRentalTerms(a)),
   saveRentalTerm: (t) => wrap(() => dal.saveRentalTerm(t)),
   changeRentalRate: (a, e, r) => wrap(() => dal.changeRentalRate(a, e, r)),
