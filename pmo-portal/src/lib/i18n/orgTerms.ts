@@ -1,6 +1,6 @@
 /** Organisation terminology (#2529): rewrite shipped app copy using the active org's terms. */
 
-export const TERM_KEYS = ['workOrder', 'project', 'clientSuppliedStock', 'purchaseRequest', 'discipline', 'materialRequest'] as const;
+export const TERM_KEYS = ['workOrder', 'project', 'clientSuppliedStock', 'purchaseRequest', 'discipline', 'materialRequest', 'deliveryNote'] as const;
 export type TermKey = (typeof TERM_KEYS)[number];
 export const TERM_LOCALES = ['en', 'id'] as const;
 export type TermLocale = (typeof TERM_LOCALES)[number];
@@ -21,6 +21,7 @@ export const SHIPPED_FORMS: Record<TermLocale, Record<TermKey, { singular: strin
     purchaseRequest: { singular: ['purchase request'], plural: ['purchase requests'] },
     discipline: { singular: ['discipline'], plural: ['disciplines'] },
     materialRequest: { singular: ['material request'], plural: ['material requests'] },
+    deliveryNote: { singular: ['delivery note'], plural: ['delivery notes'] },
   },
   id: {
     workOrder: { singular: ['work order', 'SPK', 'Work Order / SPK'], plural: ['work order', 'SPK', 'Work Order / SPK'] },
@@ -29,6 +30,7 @@ export const SHIPPED_FORMS: Record<TermLocale, Record<TermKey, { singular: strin
     purchaseRequest: { singular: ['permintaan pembelian'], plural: ['permintaan pembelian'] },
     discipline: { singular: ['disiplin'], plural: ['disiplin'] },
     materialRequest: { singular: ['permintaan material'], plural: ['permintaan material'] },
+    deliveryNote: { singular: ['surat jalan', 'nota pengiriman'], plural: ['surat jalan', 'nota pengiriman'] },
   },
 };
 
@@ -82,7 +84,7 @@ export function applyOrgTerms(text: string, locale: string, terms: OrgTerms, con
     for (const number of ['plural', 'singular'] as const) {
       for (const form of shipped[number]) {
         const normalized = form.toLowerCase();
-        if (!replacements.has(normalized) || (loc === 'en' && number === 'singular' && shipped.plural.some((plural) => plural.toLowerCase() === normalized))) replacements.set(normalized, { key, number });
+        if (!replacements.has(normalized) || (number === 'singular' && shipped.plural.some((plural) => plural.toLowerCase() === normalized))) replacements.set(normalized, { key, number });
       }
     }
   }

@@ -308,6 +308,25 @@ export async function getMaterialRequestCutoff(): Promise<string | null> {
   return data?.[0]?.cutoff_time ?? null;
 }
 
+export interface DeliveryNoteSettings {
+  enabled: boolean;
+  signatureBlocks: string[];
+}
+
+export const DEFAULT_DELIVERY_NOTE_SIGNATURE_BLOCKS = ['Dispatched by', 'Delivered by', 'Received by'];
+
+export async function getDeliveryNoteSettings(): Promise<DeliveryNoteSettings> {
+  const { data, error } = await (supabase
+    .from('material_request_settings')
+    .select('delivery_note_enabled, delivery_note_signature_blocks')
+    .limit(1) as unknown as DbResult<Array<{ delivery_note_enabled: boolean | null; delivery_note_signature_blocks: string[] | null }>>);
+  if (error) fail(error);
+  return {
+    enabled: Boolean(data?.[0]?.delivery_note_enabled),
+    signatureBlocks: data?.[0]?.delivery_note_signature_blocks?.length ? data[0].delivery_note_signature_blocks : DEFAULT_DELIVERY_NOTE_SIGNATURE_BLOCKS,
+  };
+}
+
 export async function listStandIns(): Promise<StandIn[]> {
   const { data, error } = await (supabase.from('approval_stand_ins').select('id, delegator_id, stand_in_id, starts_on, ends_on, revoked_at')
     .order('starts_on', { ascending: false }).order('id', { ascending: true }).limit(200) as unknown as DbResult<Array<Record<string, string | null>>>);
@@ -378,6 +397,14 @@ export async function setApprovalChain(steps: ChainStepInput[]): Promise<void> {
 
 export async function setMaterialRequestCutoff(cutoff: string | null): Promise<void> {
   const { error } = await supabase.rpc('mrq_set_cutoff', { p_cutoff: cutoff });
+  if (error) fail(error);
+}
+
+export async function setDeliveryNoteSettings(enabled: boolean, signatureBlocks: string[]): Promise<void> {
+  const { error } = await supabase.rpc('mrq_set_delivery_note_settings', {
+    p_enabled: enabled,
+    p_signature_blocks: signatureBlocks,
+  });
   if (error) fail(error);
 }
 

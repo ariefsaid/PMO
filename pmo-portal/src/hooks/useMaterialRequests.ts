@@ -44,6 +44,10 @@ export function useMaterialRequestCutoff() {
   const orgId = useOrgId();
   return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'cutoff'], queryFn: () => repo.cutoff(), enabled: Boolean(orgId) });
 }
+export function useDeliveryNoteSettings() {
+  const orgId = useOrgId();
+  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'delivery-note-settings'], queryFn: () => repo.deliveryNoteSettings(), enabled: Boolean(orgId) });
+}
 export function useStandIns() {
   const orgId = useOrgId();
   return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'stand-ins'], queryFn: () => repo.standIns(), enabled: Boolean(orgId) });
@@ -74,6 +78,10 @@ export function useMaterialRequestMutations() {
     retryTransfer: useMutation({ mutationFn: (a: { id: string; sourceWarehouseId: string }) => repo.retryTransfer(a.id, a.sourceWarehouseId), ...opts }),
     setChain: useMutation({ mutationFn: (steps: ChainStepInput[]) => repo.setChain(steps), ...opts }),
     setCutoff: useMutation({ mutationFn: (c: string | null) => repo.setCutoff(c), ...opts }),
+    setDeliveryNoteSettings: useMutation({
+      mutationFn: (a: { enabled: boolean; signatureBlocks: string[] }) => repo.setDeliveryNoteSettings(a.enabled, a.signatureBlocks),
+      ...opts,
+    }),
     setStandIn: useMutation({ mutationFn: (s: { delegatorId: string; standInId: string; startsOn: string; endsOn: string }) => repo.setStandIn(s), ...opts }),
     setStepPin: useMutation({ mutationFn: (a: { projectId: string; position: number; approverId: string | null }) => repo.setStepPin(a.projectId, a.position, a.approverId), ...opts }),
     revokeStandIn: useMutation({ mutationFn: (id: string) => repo.revokeStandIn(id), ...opts }),

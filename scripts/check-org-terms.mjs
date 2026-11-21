@@ -37,6 +37,7 @@ export const TERM_PATTERNS = {
   purchaseRequest: /\bpurchase requests?\b/i,
   discipline: /\bdisciplines?\b/i,
   materialRequest: /\bmaterial requests?\b/i,
+  deliveryNote: /\bdelivery notes?\b/i,
 };
 const ATTRS = new Set(['title', 'label', 'placeholder', 'aria-label', 'alt', 'description', 'sub', 'heading', 'aria-description', 'aria-valuetext', 'helperText', 'emptyTitle', 'emptyMessage', 'ariaLabel', 'ariaDescription', 'tooltip', 'caption', 'subtitle']);
 const PROPS = new Set(['label', 'title', 'description', 'message', 'placeholder', 'heading', 'ariaLabel', 'ariaDescription', 'emptyTitle', 'emptyMessage', 'helperText', 'tooltip', 'caption', 'subtitle']);

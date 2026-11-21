@@ -102,6 +102,7 @@ const ImprestFloatDetailPage = lazyWithPreload(() => import('./pages/ImprestFloa
 const MaterialRequestsPage = lazyWithPreload(() => import('./pages/MaterialRequests'));
 const MaterialRequestNewPage = lazyWithPreload(() => import('./pages/MaterialRequestNew'));
 const MaterialRequestDetailPage = lazyWithPreload(() => import('./pages/MaterialRequestDetail'));
+const DeliveryNotePrintPage = lazyWithPreload(() => import('./pages/DeliveryNotePrint'));
 const MaterialRequestSettingsPage = lazyWithPreload(() => import('./pages/MaterialRequestSettings'));
 const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
 const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAvailability'));
@@ -256,6 +257,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/material-requests/settings', chunks: [MaterialRequestSettingsPage], namespaces: ['materialRequests'] },
   { path: '/material-requests/new', chunks: [MaterialRequestNewPage], namespaces: ['materialRequests'] },
   { path: '/material-requests/:requestId/edit', chunks: [MaterialRequestNewPage], namespaces: ['materialRequests'] },
+  { path: '/material-requests/:requestId/delivery-note', chunks: [DeliveryNotePrintPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests/:requestId', chunks: [MaterialRequestDetailPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests', chunks: [MaterialRequestsPage], namespaces: ['materialRequests'] },
   { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk'] },
@@ -483,6 +485,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/material-requests/new', element: <MaterialRequestNewPage /> },
   { path: '/material-requests/settings', element: <MaterialRequestSettingsPage /> },
   { path: '/material-requests/:requestId/edit', element: <MaterialRequestNewPage /> },
+  { path: '/material-requests/:requestId/delivery-note', element: <DeliveryNotePrintPage /> },
   { path: '/material-requests/:requestId', element: <MaterialRequestDetailPage /> },
   { path: '/work-orders/:id', element: <WorkOrderDetailPage /> },
   { path: '/imprest', element: gated('imprest', <ImprestFloatsPage />) },
