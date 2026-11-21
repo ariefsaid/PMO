@@ -25,6 +25,21 @@ describe('refusalMessage', () => {
     expect(refusalMessage(t, 'notClientSupplied', null)).toBe('This item is not client-supplied.');
   });
 
+  it('every remaining key carries its own sentence', () => {
+    expect(refusalMessage(t, 'notKeeper', null)).toContain('do not keep this location');
+    expect(refusalMessage(t, 'ownedByErp', null)).toContain('connected ERP');
+    expect(refusalMessage(t, 'workOrder', null)).toContain('closed or cancelled');
+    expect(refusalMessage(t, 'cancelled', null)).toContain('requisition is cancelled');
+    expect(refusalMessage(t, 'notOpen', null)).toContain('Send the requisition first');
+    expect(refusalMessage(t, 'notDraft', null)).toContain('Only a draft requisition');
+    expect(refusalMessage(t, 'hasPickup', null)).toContain('pickup is already posted');
+    expect(refusalMessage(t, 'forbidden', null)).toContain('Your role cannot do this');
+    expect(refusalMessage(t, 'allocation', null)).toContain('belongs to another work order');
+    expect(refusalMessage(t, 'otherProject', null)).toContain('belongs to another project');
+    expect(refusalMessage(t, 'noProject', null)).toContain('site, yard or staging location');
+    expect(refusalMessage(t, 'notFound', null)).toContain('not available to you');
+  });
+
   it('an unknown key says nothing (the caller shows its own words)', () => {
     expect(refusalMessage(t, 'unknown', null)).toBeNull();
   });
