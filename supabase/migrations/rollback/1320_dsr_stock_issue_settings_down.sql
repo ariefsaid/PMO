@@ -3,6 +3,7 @@ alter table public.dsr_consumables drop column if exists work_order_line_id;
 drop trigger if exists work_orders_zzzzz_site_location on public.work_orders;
 drop function if exists public.guard_work_order_site_location();
 update public.record_history_config set captured = captured - 'site_warehouse_id' where table_name = 'work_orders';
+revoke update (site_warehouse_id) on public.work_orders from authenticated;
 drop index if exists public.work_orders_site_warehouse_idx;
 alter table public.work_orders drop column if exists site_warehouse_id;
 alter table public.stock_items drop column if exists consumable;
