@@ -44,7 +44,7 @@ test('AC-LCM-018 Admin switches labour cost on and adds a role rate', async ({ p
   await dialog.getByLabel('Role', { exact: false }).first().selectOption({ index: 1 });
   await dialog.getByLabel('Amount').fill('55000');
   await dialog.getByLabel('Overtime multiplier').fill('1.5');
-  await dialog.getByLabel('From', { exact: true }).fill('2031-01-01');
+  await dialog.getByLabel(/^From/).fill('2031-01-01');
   await dialog.getByRole('button', { name: 'Save rate' }).click();
   await expect(dialog).toBeHidden();
   const row = section.getByTestId('labour-rates').getByRole('row').filter({ hasText: '2031-01-01' });
