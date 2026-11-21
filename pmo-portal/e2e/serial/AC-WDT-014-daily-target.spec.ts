@@ -60,7 +60,7 @@ test('AC-WDT-014 a non-working date is left out of the month spread, and both sc
 
     await pinEnglishLocale(page);
     await signIn(page, 'admin@acme.test');
-    await page.goto('/administration');
+    await page.goto('/administration/projects');
     const card = page.locator('#non-working-dates');
     await expect(card).toBeVisible({ timeout: 15_000 });
     await card.getByLabel('Date').fill(listedDate);
