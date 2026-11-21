@@ -23,14 +23,6 @@
       "columns": "*",
       "b_read": "own-org-only",
       "by_id": "applicable"
-    },
-    {
-      "table": "work_orders",
-      "has_org": true,
-      "pk": "id",
-      "columns": "*",
-      "b_read": "own-org-only",
-      "by_id": "applicable"
     }
   ]
 }
