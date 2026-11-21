@@ -443,10 +443,10 @@ const ProcurementPage: React.FC = () => {
   const needsYouMoney = useMemo(() => tabMoney(totalsByCurrency(needsYouRows.map(({ row }) => row), realRole as ProcurementListRole, 'needs-you', new Map(needsYouRows.map(({ row, result }) => [row.id, result.reason]))), home), [needsYouRows, realRole, home]);
   const orphanMoney = useMemo(() => (canViewOrphans ? tabMoney(orphanTotals(orphanRows), home) : ''), [canViewOrphans, orphanRows, home]);
   const tabs: Array<{ key: ProcurementTab; label: string; count: number; money: string }> = useMemo(() => [
-    { key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: needsYouRows.length, money: needsYouMoney },
+    { key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: needsYouRows.length, money: maySeePrices ? needsYouMoney : '' },
     { key: 'all', label: t('tab.all', 'All'), count: all.length, money: '' },
-    ...(canSeeOrphans ? [{ key: 'orphans' as const, label: t('tab.orphans', 'Not in a procurement'), count: orphanRows.length, money: orphanMoney }] : []),
-  ], [all.length, canSeeOrphans, needsYouMoney, needsYouRows.length, orphanMoney, orphanRows.length, t]);
+    ...(canSeeOrphans ? [{ key: 'orphans' as const, label: t('tab.orphans', 'Not in a procurement'), count: orphanRows.length, money: maySeePrices ? orphanMoney : '' }] : []),
+  ], [all.length, canSeeOrphans, maySeePrices, needsYouMoney, needsYouRows.length, orphanMoney, orphanRows.length, t]);
 
   return (
     // L6: the All tab carries the total, so the title has no second count.
