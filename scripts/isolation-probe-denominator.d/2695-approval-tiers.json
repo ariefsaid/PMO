@@ -1,0 +1,5 @@
+{
+  "tables": [
+    {"table":"spend_approval_settings","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ]
+}

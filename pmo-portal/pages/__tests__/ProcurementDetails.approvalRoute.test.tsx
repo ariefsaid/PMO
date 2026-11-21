@@ -221,3 +221,27 @@ vi.mock('@/src/hooks/useErpJournalLines', () => import('@/pages/__tests__/helper
 vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));
+
+describe('AC-TIER-013 the approver sees the budget line used (#2695)', () => {
+  it('AC-TIER-013: the routed approver sees the line used and the line budget', () => {
+    mockRole = 'Finance';
+    mockUserId = 'u-finance';
+    detailState.data = {
+      ...base, status: 'Requested', budget_category: 'Materials',
+      approvalRoute: { ...routedTo('u-finance', 'Fay Finance'), lineBudget: 100000, lineUsed: 40000 },
+    };
+    renderPage();
+    expect(screen.getByTestId('sod-ready-hint').textContent).toMatch(/Budget line used .*40,000.* of .*100,000/);
+  });
+
+  it('AC-TIER-013: with no readable figures the line is absent', () => {
+    mockRole = 'Finance';
+    mockUserId = 'u-finance';
+    detailState.data = {
+      ...base, status: 'Requested', budget_category: 'Materials',
+      approvalRoute: { ...routedTo('u-finance', 'Fay Finance'), lineBudget: null, lineUsed: null },
+    };
+    renderPage();
+    expect(screen.queryByText(/Budget line used/)).not.toBeInTheDocument();
+  });
+});

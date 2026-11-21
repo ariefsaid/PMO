@@ -665,6 +665,16 @@
       }
     },
     "spendApprovers": {
+      "tiers": {
+        "switch": "Pilih penyetuju berdasarkan jumlah",
+        "on": "Penyetuju dipilih berdasarkan jumlah.",
+        "base": "Tingkat dasar",
+        "from": "Mulai {{amount}}",
+        "help": "Setiap penyetuju memutuskan mulai dari jumlah yang Anda tetapkan. Permintaan diteruskan ke tingkat tertinggi yang jumlahnya tidak melebihi jumlah permintaan; yang tanpa jumlah berada di tingkat dasar. Tambahkan seseorang ke setiap tingkat yang ia tangani. Jumlah dalam mata uang organisasi Anda.",
+        "fromAmount": "Mulai dari jumlah (opsional)",
+        "fromAmountHelp": "Kosongkan untuk tingkat dasar. Hanya berlaku saat pemilihan penyetuju berdasarkan jumlah aktif.",
+        "amountInvalid": "Masukkan jumlah nol atau lebih."
+      },
       "whoNow": "Yang dapat menyetujui sekarang",
       "helpRule": "Jika tidak ada yang terdaftar, {{roles}} dapat menyetujui kasus orang lain."
     },

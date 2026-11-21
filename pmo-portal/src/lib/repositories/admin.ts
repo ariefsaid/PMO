@@ -143,7 +143,8 @@ export const orgSettingsRepository: OrgSettingsRepository = {
   getFiscalYearSetting: () => wrap(() => getOrgFiscalYearSetting()),
   setFiscalYearStartMonth: (month) => wrap(() => setOrgFiscalYearStartMonth(month)),
   listSpendApprovers: () => wrap(() => listSpendApprovers()),
-  addSpendApprover: (profileId, projectId) => wrap(() => addSpendApprover(profileId, projectId)),
+  addSpendApprover: (profileId, projectId, minAmount) =>
+    wrap(() => (minAmount === undefined ? addSpendApprover(profileId, projectId) : addSpendApprover(profileId, projectId, minAmount))),
   removeSpendApprover: (id) => wrap(() => removeSpendApprover(id)),
 };
 

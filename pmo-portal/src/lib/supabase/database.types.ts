@@ -10914,11 +10914,51 @@ export type Database = {
           },
         ]
       }
+      spend_approval_settings: {
+        Row: {
+          id: string
+          org_id: string
+          tiers_enabled: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          org_id?: string
+          tiers_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          tiers_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spend_approval_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spend_approval_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spend_approvers: {
         Row: {
           created_at: string
           created_by: string | null
           id: string
+          min_amount: number | null
           org_id: string
           profile_id: string
           project_id: string | null
@@ -10927,6 +10967,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          min_amount?: number | null
           org_id?: string
           profile_id: string
           project_id?: string | null
@@ -10935,6 +10976,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          min_amount?: number | null
           org_id?: string
           profile_id?: string
           project_id?: string | null
