@@ -30,8 +30,8 @@ purchase order.
   settles it. An advance refuses attribution (`COST_ADVANCE`, 23514). A claim settling an advance carries its own
   attribution.
 - **DD-SCWO-3 Attribution is correctable after submission; nothing else is.** It does not enter routing, amount or
-  posting, so the DD-EXP-10 freeze gets one exemption (same shape as 0951 §4 for posted stock): an update changing only
-  the two columns passes at any status. Who may: the 0951 rule (Admin, Executive, Finance, Project Manager any claim of
+  posting. The only writer is `set_cost_attribution` (a definer; clients get no column grant), so the DD-EXP-10 freeze,
+  which already waves a BYPASSRLS actor through, needs no exemption and none is added. Who may: the 0951 rule (Admin, Executive, Finance, Project Manager any claim of
   the org, audited; the claimant their own claim while Draft or Rejected).
 - **DD-SCWO-4 Money is counted once, never inferred.** An Approved or Paid claim counts at its `amount` (the org
   currency, DD-EXP-11). It is a work-order cost line only when it **names a work order**. An unattributed claim keeps
@@ -52,8 +52,9 @@ purchase order.
 - FR-SCWO-003 A record of kind `advance` shall refuse a work order or discipline (`COST_ADVANCE`).
 - FR-SCWO-004 `set_cost_attribution` shall accept source `expense_claim`, with the DD-SCWO-3 who-may rule; another
   org's id reads as absent; one audit row per record carrying the before value.
-- FR-SCWO-005 While a claim is Submitted, Approved, Paid or Cancelled, the system shall still refuse any change to its
-  content, and shall allow a change to only the two attribution columns (DD-SCWO-3).
+- FR-SCWO-005 While a claim is Submitted, Approved, Paid or Cancelled, a change to the attribution through
+  `set_cost_attribution` shall leave every other column of the claim as it was, and a client shall have no direct write
+  to the two columns (DD-SCWO-3).
 - FR-SCWO-006 A claim's project shall not change to another project while it names a work order of the old project
   (`COST_WO_PROJECT` on the project column).
 - FR-SCWO-007 `work_order_cost_lines` shall return one `expense_claim` row per claim (kind `claim`), RLS of
@@ -86,7 +87,7 @@ asserting errcode **and** message; mutation-checked (FR-SCWO-002, -003, -004, -0
 | AC-SCWO-002 | Given a claim with no project, when a work order is named, then `COST_WO_NO_PROJECT`; a cancelled work order newly named is `COST_WO_CANCELLED`; an archived or foreign discipline is `COST_DISCIPLINE`. | pgTAP |
 | AC-SCWO-003 | Given a float cash advance, when a work order is named, then `COST_ADVANCE`; the claim that settles it may carry its own. | pgTAP |
 | AC-SCWO-004 | Given an Approved claim, when Finance sets its work order, then it saves with one audit row (before value); when the claimant or an Engineer tries, 42501; another org's claim id reads as not found. | pgTAP |
-| AC-SCWO-005 | Given a Paid claim, when anyone changes amount, title, project or category, then the freeze still refuses; when only the two columns change (permitted role), it passes. | pgTAP |
+| AC-SCWO-005 | Given a Paid claim, when Finance sets its work order, then only the two columns change; when the claimant writes the columns directly, it is refused (permission denied). | pgTAP |
 | AC-SCWO-006 | Given a claim naming a work order, when its project is changed, then refused `COST_WO_PROJECT`. | pgTAP |
 | AC-SCWO-007 | Given attributed claims across statuses, when cost lines are read as Finance, then one `expense_claim` row each; an Engineer sees only their own; another org sees none. | pgTAP |
 | AC-SCWO-008 | Given WO-A with a Paid claim 400 (CIV), an Approved claim 100 (ELE), a Submitted claim 50 and an unattributed Approved claim 70, when actuals are read in PMO mode, then WO-A direct gains 500 (400 CIV, 100 ELE), the Submitted one is `not-posted` with no amount, the 70 adds no line, and the project actual (purchases and equipment) is unchanged. | pgTAP |

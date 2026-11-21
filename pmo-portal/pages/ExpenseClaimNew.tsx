@@ -20,6 +20,9 @@ import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { BudgetCategory, ExpenseLineInput, ExpenseType } from '@/src/lib/db/expenseClaims';
 import { RECEIPT_INPUT_ACCEPT } from '@/src/lib/db/expenseReceipts';
 import { BackBar } from '@/src/components/shell';
+import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
+import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { AttributionRefusedError, NO_ATTRIBUTION, workOrderCostRepository, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 import { expenseTypeLabel } from './expenses/expenseLabels';
 import { PostingReadinessNote } from './expenses/ExpenseClaimFormModal';
 import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
@@ -59,6 +62,7 @@ const ExpenseClaimNew: React.FC = () => {
   const [purpose, setPurpose] = useState('');
   const [advanceId, setAdvanceId] = useState('');
   const [floatId, setFloatId] = useState('');
+  const [attribution, setAttribution] = useState<CostAttribution>(NO_ATTRIBUTION);
   const ownAdvances = useOwnAdvanceOptions();
   // An unloaded list is "unknown", never "no advance": a new claim is not saved until it has loaded.
   const advancesNotReady = ownAdvances.isPending || ownAdvances.isError;
@@ -76,7 +80,7 @@ const ExpenseClaimNew: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [blockedLeave, setBlockedLeave] = useState<(() => void) | null>(null);
-  const dirty = Boolean(title || advanceId || floatId || projectId || category || purpose || receipt || lines.some((line) => line.date || line.type || line.description || line.amount));
+  const dirty = Boolean(attribution.workOrderId || attribution.disciplineId || title || advanceId || floatId || projectId || category || purpose || receipt || lines.some((line) => line.date || line.type || line.description || line.amount));
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: (leave) => setBlockedLeave(() => leave) });
   const options = projectChoices.options;
   const categoryPrecedents = useMemo(() => {
@@ -145,6 +149,14 @@ const ExpenseClaimNew: React.FC = () => {
           return;
         }
       }
+      // #2732: name the work order and discipline once the claim exists (ADR-0104: one write path). A refusal leaves the saved draft.
+      try { await workOrderCostRepository.attributeOrRefuse('expense_claim', claimId, attribution); } catch (reason) {
+        const refusal = reason instanceof AttributionRefusedError ? reason.refusal : reason;
+        const d = describeAttributionError(refusal, t);
+        toast(d.headline, d.detail, 'warning');
+        navigate(`/expenses/${claimId}`, { replace: true });
+        return;
+      }
       if (mode === 'submit') {
         // The same transition the saved claim's Submit button runs; a refusal leaves the saved draft open with the reason.
         try { await transition.mutateAsync({ id: claimId, to: 'Submitted' }); } catch (reason) {
@@ -192,6 +204,11 @@ const ExpenseClaimNew: React.FC = () => {
             <SelectField label={t('expenses.form.category.label', 'Budget category')} value={category} onChange={(value) => { setCategory(value); setCategoryEdited(true); }} options={categories} helper={<BudgetCategoryHelp />} />
           </div>
           {!categoryEdited && categoryPrecedents.get(projectId) && <p className="col-span-full text-control text-muted-foreground" role="note">{t('uxs29.expenseCapture.categorySource', 'Suggested from your most recent same-project claim: {{title}}.', { title: categoryPrecedents.get(projectId)?.sourceTitle })}</p>}
+          {projectId && (
+            <div className="col-span-full grid grid-cols-1 gap-x-4 gap-y-3.5 sm:grid-cols-2">
+              <CostAttributionFields idPrefix="expense-claim" projectId={projectId} value={attribution} onChange={setAttribution} />
+            </div>
+          )}
           <TextField label={t('expenses.form.purpose.label', 'Purpose')} value={purpose} onChange={setPurpose} fullWidth />
           {floatChoices.length > 0 && <>
             <SelectField label={t('imprest:form.chargeToFloat', 'Charge to site cash')} value={floatId} onChange={(value) => { setFloatId(value); setAdvanceId(''); }}
