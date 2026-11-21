@@ -6420,6 +6420,18 @@ export type Database = {
         }
         Relationships: []
       }
+      org_purchase_type_settings: {
+        Row: { enabled: boolean; org_id: string; updated_at: string; updated_by: string | null }
+        Insert: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Update: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Relationships: []
+      }
+      purchase_types: {
+        Row: { active: boolean; created_at: string; id: string; is_rental: boolean; name: string; name_id: string | null; org_id: string; position: number }
+        Insert: { active?: boolean; created_at?: string; id?: string; is_rental?: boolean; name: string; name_id?: string | null; org_id?: string; position?: number }
+        Update: { active?: boolean; created_at?: string; id?: string; is_rental?: boolean; name?: string; name_id?: string | null; org_id?: string; position?: number }
+        Relationships: []
+      }
       material_request_settings: {
         Row: {
           approver_inbox: boolean
@@ -8725,7 +8737,11 @@ export type Database = {
           import_key: string | null
           import_normalized_ref: string | null
           imported_at: string | null
+          extends_procurement_id: string | null
           is_subcontract: boolean
+          purchase_type_id: string | null
+          rental_from: string | null
+          rental_to: string | null
           org_id: string
           origin: string | null
           po_number: string | null
@@ -8756,7 +8772,11 @@ export type Database = {
           import_key?: string | null
           import_normalized_ref?: string | null
           imported_at?: string | null
+          extends_procurement_id?: string | null
           is_subcontract?: boolean
+          purchase_type_id?: string | null
+          rental_from?: string | null
+          rental_to?: string | null
           org_id?: string
           origin?: string | null
           po_number?: string | null
@@ -8787,7 +8807,11 @@ export type Database = {
           import_key?: string | null
           import_normalized_ref?: string | null
           imported_at?: string | null
+          extends_procurement_id?: string | null
           is_subcontract?: boolean
+          purchase_type_id?: string | null
+          rental_from?: string | null
+          rental_to?: string | null
           org_id?: string
           origin?: string | null
           po_number?: string | null
@@ -14187,6 +14211,16 @@ export type Database = {
       start_procurement_import_run: {
         Args: { p_org_id?: string | null }
         Returns: string
+      }
+      set_purchase_types_enabled: { Args: { p_enabled: boolean }; Returns: undefined }
+      set_purchase_type_active: { Args: { p_id: string; p_active: boolean }; Returns: undefined }
+      upsert_purchase_type: {
+        Args: { p_id: string | null; p_name: string; p_name_id: string | null; p_is_rental: boolean; p_position: number }
+        Returns: Database['public']['Tables']['purchase_types']['Row']
+      }
+      extend_rental_procurement: {
+        Args: { p_id: string; p_original: string; p_from: string; p_to: string; p_items?: Json }
+        Returns: Database['public']['Tables']['procurements']['Row']
       }
       create_procurement_with_items: { Args: { p_id: string; p_header: Json; p_items: Json }; Returns: Database['public']['Tables']['procurements']['Row'] }
       subcontract_cap_exceptions: {

@@ -17,6 +17,8 @@ import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
 import { LineItemsSection, type LineItemsSectionHandle } from './procurement/LineItemsSection';
 import { readOrigin, readRestockLine, resolveFormOrigin } from '@/src/lib/stockRequestPurchase';
+import PurchaseTypeFields from '@/src/components/procurement/PurchaseTypeFields';
+import { NO_PURCHASE_TYPE, purchaseTypePeriodErrors, type PurchaseTypeValue } from '@/src/components/procurement/purchaseTypeValue';
 import { useBudgetCategoryOptions } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
@@ -132,6 +134,11 @@ export default function ProcurementCreate() {
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
+  // #2697: the purchase type and rental period; the fields appear only where the organisation turned purchase types on.
+  const [purchaseType, setPurchaseType] = useState<PurchaseTypeValue>(NO_PURCHASE_TYPE);
+  const [periodTouched, setPeriodTouched] = useState(false);
+  const { t: tTypes } = useTranslation('purchaseTypes');
+  const periodErrors = purchaseTypePeriodErrors(purchaseType, (key, fallback) => tTypes(key, fallback));
   const [lines, setLines] = useState<DraftLine[]>(() => restock && restock.rate !== null
     ? [{ id: crypto.randomUUID(), name: restock.name, quantity: restock.quantity, rate: restock.rate, amount: itemsNetTotal([{ quantity: restock.quantity, rate: restock.rate }]), description: null }]
     : []);
@@ -155,7 +162,7 @@ export default function ProcurementCreate() {
   const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
   const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
   const dirty = saving || attempt !== null || (
-    title !== initialTitle || supplierId !== null || budgetCategory !== '' || lines.length > initialLineCount || addRowEdited || selectedProject !== projectId
+    title !== initialTitle || supplierId !== null || budgetCategory !== '' || purchaseType.id !== '' || lines.length > initialLineCount || addRowEdited || selectedProject !== projectId
   );
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
   const updateAddRowDirty = useCallback((hasInput: boolean) => {
@@ -260,6 +267,10 @@ export default function ProcurementCreate() {
       setErrors({ title: t('titleRequired', 'A procurement title is required.') });
       return;
     }
+    if (have === 'need' && (periodErrors.from || periodErrors.to)) {
+      setPeriodTouched(true);
+      return;
+    }
     setErrors({});
 
     let pendingLine: DraftLine | null = null;
@@ -284,6 +295,7 @@ export default function ProcurementCreate() {
       header: {
         title: title.trim(), projectId: selectedProject, vendorId: supplierId,
         ...(have === 'need' && budgetCategory ? { budgetCategory: budgetCategory as BudgetCategory } : {}),
+        ...(have === 'need' && purchaseType.id ? { purchaseTypeId: purchaseType.id, ...(purchaseType.isRental ? { rentalFrom: purchaseType.from, rentalTo: purchaseType.to } : {}) } : {}),
       },
       lines: have === 'need' ? (pendingLine ? [...lines, pendingLine] : lines).map(({ id, name, quantity, rate, description }) => ({ id, name, quantity, rate, description })) : [],
     };
@@ -427,6 +439,7 @@ export default function ProcurementCreate() {
                   helper={<BudgetCategoryHelp />}
                 />
               )}
+              {needForm && <PurchaseTypeFields value={purchaseType} onChange={setPurchaseType} showErrors={periodTouched} disabled={saving || Boolean(attempt)} />}
               </FormGrid>
             </fieldset>
           </CardPad>

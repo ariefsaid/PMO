@@ -103,6 +103,7 @@ const MaterialRequestsPage = lazyWithPreload(() => import('./pages/MaterialReque
 const MaterialRequestNewPage = lazyWithPreload(() => import('./pages/MaterialRequestNew'));
 const MaterialRequestDetailPage = lazyWithPreload(() => import('./pages/MaterialRequestDetail'));
 const MaterialRequestSettingsPage = lazyWithPreload(() => import('./pages/MaterialRequestSettings'));
+const PurchaseTypeSettingsPage = lazyWithPreload(() => import('./pages/PurchaseTypeSettings'));
 const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
 const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAvailability'));
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
@@ -223,9 +224,10 @@ const PRELOAD_RULES: PreloadRule[] = [
   // /sales/:id redirects to /projects/:projectId — start that download now.
   { path: '/sales/:opportunityId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
   { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList'] },
-  { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate'] },
-  { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
-  { path: '/procurement/:procurementId', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
+  { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate', 'purchaseTypes'] },
+  { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord', 'purchaseTypes'] },
+  { path: '/procurement/:procurementId', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord', 'purchaseTypes'] },
+  { path: '/purchase-types/settings', chunks: [PurchaseTypeSettingsPage], namespaces: ['purchaseTypes'] },
   { path: '/timesheets', chunks: [TimesheetsPage], namespaces: ['timesheets'] },
   // The triage queue renders one section per approval domain; all four are static imports.
   { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance', 'materialRequests'] },
@@ -465,6 +467,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/material-requests', element: <MaterialRequestsPage /> },
   { path: '/material-requests/new', element: <MaterialRequestNewPage /> },
   { path: '/material-requests/settings', element: <MaterialRequestSettingsPage /> },
+  { path: '/purchase-types/settings', element: gated('procurement', <PurchaseTypeSettingsPage />) },
   { path: '/material-requests/:requestId/edit', element: <MaterialRequestNewPage /> },
   { path: '/material-requests/:requestId', element: <MaterialRequestDetailPage /> },
   { path: '/work-orders/:id', element: <WorkOrderDetailPage /> },
