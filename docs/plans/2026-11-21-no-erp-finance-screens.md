@@ -39,3 +39,6 @@ changed files, touched vitest files. Test first.
 | AC-NEF-006 | `FinanceHub.noErp.test.tsx` |
 | AC-NEF-007 | E2E `AC-NEF-010..022` |
 | AC-NEF-008 | i18n parity test + screenshots |
+
+## Build notes
+E2E is two files (`AC-NEF-001-statements-leads-to-pack`, `AC-NEF-010-no-erp-screens` holding AC-NEF-010..022 as one test each). `FinanceHub` takes an optional `noAccounting` prop from the new `pages/finance/FinanceHubRoute.tsx` (App lazy import), so existing FinanceHub tests are untouched.

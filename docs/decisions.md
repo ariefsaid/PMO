@@ -3932,3 +3932,5 @@ currencies · earned with no validated progress reads "not available", never zer
 reads "incomplete" with the count · per-discipline billed comes from claim lines, the rest is "Not itemised" · the management
 pack's cost and billed are the project tab's own plan-versus-actual roll-up (computed in the app from the same function), so the pack
 and the tab never disagree · a management view; statutory recognition and ledger posting are out.
+
+- **DD-NEF-1 (#2734, 2026-11-21) Statements with no accounting system.** "No accounting system" is derived (no externally-owned domain, no active binding, both reads settled; unknown fails closed to today's screen), never stored. Such an organisation sees a Management profit and loss card on Statements and the hub tile linking to Reports instead of "set up accounting"; Admin also gets a pointer to the Profit per discipline setting, whose default is unchanged. No ledger statements in PMO.

@@ -54,6 +54,7 @@ source in plan task 1 before any code; a screen found otherwise is fixed in this
   action "Open reports" that navigates to `/finance/reports`.
 - FR-NEF-003 The "Set up accounting" action shall remain available to a viewer who may manage integrations, as a
   secondary action in the same card, so connecting later is one click away.
+- FR-NEF-003a For a viewer who may manage the organisation's accounting settings (Admin), the card carries one more line pointing to the Profit per discipline setting (Administration > Accounting) that adds cost and margin to the report; other roles see nothing extra. The setting's default is not changed.
 - FR-NEF-004 While either read is loading the screen shall show its existing loading state, never the PMO card; if
   either read failed it shall show the existing unavailable state unchanged (fail closed to today's behaviour, so a
   connected organisation can never see the card).
@@ -92,7 +93,17 @@ proved by their existing pgTAP files. The card grants no access (a link plus tex
 is active and AC-NEF-005 goes red; drop the loading guard and AC-NEF-004 goes red; point the action elsewhere and
 AC-NEF-002 goes red.
 
-## 7. Open questions
+## 7. Walk result (build, 2026-11-21)
+Read against each screen's data source. Only two screens needed a no-ERP change (rows 7 and 8); no screen was found that
+neither works from PMO's records nor is hidden, and none needs new money logic. Journals (row 12) shows its Odoo notice
+only for an Odoo organisation. Payables, billing and journals read PMO-native rows (#784 and the PMO-native vendor bill
+slices); the e2e journeys prove each opens cleanly. Implementation note: the Finance hub reads "no accounting system"
+through a route wrapper (`FinanceHubRoute`), so `FinanceHub` itself gained only an optional prop and its tests are untouched.
+
+## 7a. Rulings (coordinator, 2026-11-21)
+No setting default changes (open question 1 closed). A screen that does neither is hidden for no-ERP organisations only.
+
+## 7b. Open questions
 1. The management profit and loss margin columns exist only while `discipline_profit_enabled` is on (#2669/#2733). With it
    off the pack still shows recognised, invoiced and unbilled but no cost or margin. Proposed: leave as is, and make the
    card say nothing about margins; owner may want the setting default on for no-ERP orgs (a separate ruling).
