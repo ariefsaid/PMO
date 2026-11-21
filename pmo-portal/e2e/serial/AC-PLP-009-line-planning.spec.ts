@@ -36,13 +36,13 @@ test('AC-PLP-009 line planning is hidden by default and works once an Admin turn
   await page.getByLabel('New item quantity').fill('2');
   await page.getByLabel('New item unit price').fill('10');
   await page.getByRole('button', { name: 'Add line item' }).click();
-  await page.getByLabel('Category').selectOption({ label: 'Project' });
+  await page.getByLabel('Line category').selectOption({ label: 'Project' });
   await page.getByLabel('Needed by').fill('2026-12-31');
   await page.getByRole('button', { name: 'Save draft' }).click();
 
   await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]{36}/, { timeout: 15_000 });
   await page.getByRole('tab', { name: /line items/i }).click();
   const panel = page.getByTestId('line-planning-panel');
-  await expect(panel.getByLabel('Category')).toHaveValue(/.+/);
+  await expect(panel.getByLabel('Line category')).toHaveValue(/.+/);
   await expect(panel.getByLabel('Needed by')).toHaveValue('2026-12-31');
 });

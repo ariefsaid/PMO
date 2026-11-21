@@ -1000,7 +1000,7 @@
     "noCategories": "No categories yet.",
     "retired": "Retired",
     "section": "Category and needed by",
-    "category": "Category",
+    "category": "Line category",
     "neededBy": "Needed by",
     "none": "None",
     "lineLabel": "Line {{name}}",
