@@ -1,4 +1,4 @@
--- cus_standards.test.sql — #2577 consumable usage standards: the standards table (migration 1075).
+-- cus_standards.test.sql — #2577 consumable usage standards: the standards table (migration 1154).
 -- Spec docs/specs/consumable-usage-standards.spec.md. AC-CUS-003 duplicate standard refused · AC-CUS-011 who may write ·
 -- AC-CUS-012 other organisation · AC-CUS-014 archived or foreign item · FR-CUS-001 archive, never delete, history kept.
 begin;

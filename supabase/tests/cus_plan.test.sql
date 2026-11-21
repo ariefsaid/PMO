@@ -1,4 +1,4 @@
--- cus_plan.test.sql — #2577 consumable usage standards: the consumable plan of a work order (migration 1076).
+-- cus_plan.test.sql — #2577 consumable usage standards: the consumable plan of a work order (migration 1155).
 -- Spec docs/specs/consumable-usage-standards.spec.md. AC-CUS-001 hand-worked generation · AC-CUS-003 longest prefix wins ·
 -- AC-CUS-004 closed refused · AC-CUS-005 regeneration keeps adjustments · AC-CUS-006 out of date · AC-CUS-007 reason and actor ·
 -- AC-CUS-011 who may plan · AC-CUS-012 other organisation · AC-CUS-014 added line item rules · FR-CUS-010 "no standard".

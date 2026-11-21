@@ -14,7 +14,7 @@ Built on the spec's recommended defaults; none of these is a ruling.
 - OQ-CUS-3: standards apply to the allocated quantity (`work_order_lines.quantity`), not executed quantity.
 
 Decisions the builder made where the spec was silent (also owner to confirm):
-- Migration numbers are 1075 (standards + record history), 1076 (plan lines, functions, match counts), 1077 (plan-figure precedence, ships alone); rollbacks under `supabase/migrations/rollback/`.
+- Migration numbers are 1154 (standards + record history), 1155 (plan lines, functions, match counts), 1156 (plan-figure precedence, ships alone); rollbacks under `supabase/migrations/rollback/`.
 - An empty plan (a regeneration that matches nothing and keeps no adjusted line) leaves no row, so it cannot be flagged out of date; the "no standard" list is always live. The fingerprint is stored per plan line (as the plan says) rather than in a header table.
 - Adjusting or adding a plan line on a Closed or Cancelled work order is refused, the same as generation (FR-CUS-006 names generation only).
 - `p_adjusted_qty = null` on `cus_adjust_plan_line` reverts a line to its generated figure (and removes a hand-added line); not in the spec, needed so an adjustment can be undone without regenerating.

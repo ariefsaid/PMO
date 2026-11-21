@@ -1,4 +1,4 @@
--- cus_mrq_plan.test.sql — #2577 consumable usage standards: the plan figure a material request is checked against (migration 1077).
+-- cus_mrq_plan.test.sql — #2577 consumable usage standards: the plan figure a material request is checked against (migration 1156).
 -- Spec docs/specs/consumable-usage-standards.spec.md. AC-CUS-008 precedence and source (plan line, adjusted, adjusted to 0,
 -- allowance fallback, none; mrq_plan_for agrees) · AC-CUS-009 the over-plan reason rule on both figures · AC-CUS-010 a
 -- submitted request keeps the figure it snapshotted. Existing mrq_* files cover the rest of the request flow unchanged.
