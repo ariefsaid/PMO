@@ -33,10 +33,12 @@ test('AC-IHC-011 Admin switches idle time as cost on and it persists', async ({ 
   const idle = page.getByTestId('idle-cost-settings');
   const toggle = idle.getByRole('checkbox', { name: 'Cost idle hours in money' });
   await expect(toggle).not.toBeChecked();
-  await toggle.check();
+  // The switch flips after the save round-trip (a controlled checkbox), so click and wait for the saved state.
+  await toggle.click();
   await expect(toggle).toBeChecked();
   await expect(idle.getByRole('status')).toContainText('Nothing shows until labour cost in money is switched on.');
-  await labour.check();
+  await labour.click();
+  await expect(labour).toBeChecked();
   await expect(idle.getByRole('status')).toBeHidden();
   await shots(page, idle, 'idle-cost-switch');
   await page.reload();
