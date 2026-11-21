@@ -58,6 +58,12 @@ create function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true) $$;
 create function pg_temp.n_upd(q text) returns int language plpgsql as $$ declare n int; begin execute q; get diagnostics n = row_count; return n; end $$;
 create function pg_temp.usable(p_line uuid) returns int language sql as $$ select usable_qty from public.crew_tool_line_summary where id = p_line $$;
+-- FR-CTR-006 / NFR-CTR-003: the organisation's calendar date (0275's own expression), never the database's current_date —
+-- in the 17:00-24:00 UTC window the org (Asia/Jakarta, UTC+7) is already a day ahead and the two clocks differ.
+create function pg_temp.org_today() returns date language sql stable as $$
+  select (now() at time zone coalesce(
+            (select o.default_timezone from public.organizations o where o.id = '25810000-0000-0000-0000-00000000000a'),
+            'UTC'))::date $$;
 grant execute on all functions in schema pg_temp to public;
 
 set local role authenticated;
@@ -92,7 +98,7 @@ select is((select count(*)::int from tasks where crew_tool_report_id = pg_temp.r
 select is((select assignee_id from tasks where crew_tool_report_id = pg_temp.rid(1)), '25810000-0000-0000-0000-0000000000a5'::uuid,
   'AC-CTR-003 the task is assigned to the coordinator');
 select is((select name from tasks where crew_tool_report_id = pg_temp.rid(1)), 'Replace: Hammer x1 (Crew A)', 'FR-CTR-011 the task is named from the tool and crew');
-select is((select end_date from tasks where crew_tool_report_id = pg_temp.rid(1)), current_date + 3, 'FR-CTR-011 due in task_due_days');
+select is((select end_date from tasks where crew_tool_report_id = pg_temp.rid(1)), pg_temp.org_today() + 3, 'FR-CTR-011 due in task_due_days');
 select is((select project_id from tasks where crew_tool_report_id = pg_temp.rid(1)), null, 'FR-CTR-011 a crew with no roster leaves the project empty');
 select is((select count(*)::int from crew_tool_report_files where report_id = pg_temp.rid(1) and org_id = '25810000-0000-0000-0000-00000000000a'), 1,
   'FR-CTR-017 the photo row is the report''s and carries its organisation');
