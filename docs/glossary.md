@@ -1044,3 +1044,12 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+### Subcontractor progress certificate (#2584)
+
+**Subcontractor progress certificate** — a month's measured work of one subcontractor on one subcontract purchase order and its work order, priced at the subcontractor's agreed rates, less backcharges, approved by a different person and then turned into one vendor bill. It is a calculation and approval record: it never posts or pays.
+**Measured line** — a progress line of a validated, not superseded daily report whose crew is a vendor crew of the purchase order's vendor, on the order's effective revision, in the month, and in no other live certificate. Measured work is claimed per work order, day, contract line and crew.
+**Rate card (subcontractor)** — the cost rate paid to a vendor per contract item and month window; separate from the client rate catalogue. A rate takes effect on the first day of a month.
+**Backcharge** — a recovery from a subcontractor (rework, damage, safety, materials we supplied, other) deducted on the certificate that includes it. It lowers the bill's payable, never its amount.
+**Net certified amount** — the certificate's gross less its backcharges; the figure the payment ceiling allows (the payable).
+**Live certificate** — one that is submitted, approved or billed; only a live certificate holds measured work or a backcharge.

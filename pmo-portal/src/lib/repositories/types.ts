@@ -27,6 +27,7 @@ import type { RateCatalogueRepository } from './contracts/rateCatalogue';
 import type { DailySiteReportRepository } from './contracts/dailySiteReports';
 import type { QuantityChangeRepository } from './contracts/quantityChanges';
 import type { SubcontractRepository } from './contracts/subcontracts';
+import type { SubcontractCertificateRepository } from './contracts/subcontractCertificates';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
 import type { ProjectOverviewRepository } from './contracts/projectOverview';
 import type { DashboardRepository } from './contracts/dashboard';
@@ -139,6 +140,7 @@ export interface Repositories {
   profile: ProfileRepository;
   procurement: ProcurementRepository;
   subcontracts: SubcontractRepository;
+  subcontractCertificates: SubcontractCertificateRepository;
   revenue: RevenueRepository;
   timesheet: TimesheetRepository;
   budget: BudgetRepository;
@@ -192,6 +194,7 @@ export interface Repositories {
 
 export type { CommandIntent } from './contracts/commandIntent';
 export type { SubcontractRepository, CaptureSubcontractVendorInvoiceInput } from './contracts/subcontracts';
+export type { SubcontractCertificateRepository } from './contracts/subcontractCertificates';
 export type { FieldChange, HistoryCursor, HistoryEvent, HistoryNameKind, HistoryPage, RecordHistoryRepository } from './contracts/recordHistory';
 export type { ProjectStageRepository } from './contracts/projectStages';
 export type { DirectoryKind, MirrorKind, ListMasterInput, MasterRecord, OdooConnectionRead, OdooRepository, OdooConfigProposalRead, OdooProjectLinksRead, SaveDefaultsInput } from './contracts/odoo';
