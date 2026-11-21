@@ -17,6 +17,12 @@ Read against `origin/dev`: migrations 0193, 0337 and 1026; `work_orders` column 
 - Another builder (#2592) changes the billing-stage tables and functions concurrently. This ticket copies the 1021 pattern into its own tables and functions and edits none of them.
 - Migrations 1400 to 1404 only.
 
+## Build notes (phase 2)
+
+- Record history: `work_orders.closed_by` is registered as a captured `ref` (the catalog gate classifies every column). The two new tables are **not** added to the record-history registry: the registry has a pinned count (17) in a shipped test, and the checklist rows already carry who and when (`done_by`, `done_at`, `attached_by`) and an audit event per write.
+- Project manager: the database accepts a Project Manager only when they are `projects.project_manager_id` of the work order's project (FR-WCO-031); the screen shows the controls to every Project Manager and the database decides.
+- The Close action stays where it is (the project's work-order list); the record page shows the count of required items still open and the database message names the count when a close is refused.
+
 ## Job story
 
 When a work order's work is finished, I want an ordered close-out checklist set by my organisation (acceptance letters, completion certificates, close-out documents), each item backed by an attached document, so that the work order closes only when every required item is done and the record shows who closed it.

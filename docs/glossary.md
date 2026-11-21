@@ -632,6 +632,17 @@ at creation from the project's percentage and held on the receivable, never as a
 (never below zero). Ageing and overdue count only this; the retention held stays in what is owed, as its own figure,
 until a release is recorded (#2625, ADR-0105 §4).
 
+### Work-order close-out (#2593)
+
+**Close-out checklist** (*daftar periksa penutupan*) — the organisation's ordered list of what a work order must collect
+before it closes (the organisation names the items; PMO ships none). A work order takes a copy when it is issued, and
+it closes only when every required item is done. A material joint count, loss report or completion report is an item of
+the same list, not a separate mechanism.
+
+**Close-out item** (*butir penutupan*) — one line of a work order's checklist: required or optional, with an attached
+issued or approved project document, a done date and who marked it. Items are done in order; an item's age counts from the
+previous item's done date (the issue date for the first).
+
 ### Site issues and task proof (#2521, #2531)
 
 **Issue (site)** (*isu*) — a problem raised on site: an incident record that also names the person in charge, what must
