@@ -13,7 +13,7 @@ One migration, `supabase/migrations/1286_work_order_performance.sql`, additive. 
 - PV per work order: BAC (`work_order_billing.order_net`) x planned fraction from `work_orders.start_date`/`end_date`, computed in integer cents with half-up; null when a date is missing or `end_date < start_date`.
 - AC per work order: from direct rows of `work_order_cost_amounts(p_project_id)` with `reason = 'counted'`, matching currency, and `occurred_on <= as-of`; `unresolved-direct` or an undated counted direct row makes AC incomplete. Commitment, stocked, transfer, unposted, unrated and shared/unassigned rows do not count as actual direct cost. A counted direct cost in another currency makes AC not comparable. The read is refused for callers outside the revenue-and-cost role gate; do not return a partial `restricted` figure.
 - Status rules: `Issued` and `Closed` get figures (a Closed work order's BAC is its closing value; actual EV/AC are capped at the earlier of the requested as-of date and its organisation-local `closed_at` date; PV still uses `end_date`); `Draft` and `Cancelled` are listed as excluded with a reason. The current 0193 project currency guard requires all a project's work orders to use the project's currency.
-- Project total: sums of EV, PV, AC over work orders with complete figures; `excluded_count`; bound 500 work orders, `truncated` and an omitted-work-order count. Preserve the `work_order_cost_amounts` `reason` distinctions and refuse a complete AC when a counted direct row has no date.
+- Project total: the read returns per-work-order rows; the browser (`deriveProjectPerformance`) forms the ratio of exact sums over complete Issued/Closed rows and counts the excluded; bound 500 work orders, `truncated` and an omitted-work-order count. Preserve the `work_order_cost_amounts` `reason` distinctions and refuse a complete AC when a counted direct row has no date.
 - Returns amounts as exact decimal strings; ratios are computed in the browser pure function from integers, never in float.
 - **Rollback:** `supabase/migrations/rollback/1286_work_order_performance_down.sql` = `drop function if exists public.get_work_order_performance(uuid, date);`.
 - ADR: none expected; record one only if the owner rules a different plan basis (OD-CSP-1) because every future schedule figure would share it.
@@ -31,7 +31,7 @@ One migration, `supabase/migrations/1286_work_order_performance.sql`, additive. 
 - [x] Owner sketch-glance replaced by phone and desktop screenshots in `docs/evidence/1215/2597/`.
 - [ ] `pmo-portal/pages/work-order-detail/PerformanceIndices.tsx` inside `PlanVsActualSection.tsx` (figures, text readings, as-of date, drill-down to the validated reports, cost lines and the two plan dates); `pmo-portal/pages/project-detail/ProjectPerformance.tsx` beside `ProjectSCurve` in `pmo-portal/pages/project-detail/ProjectSections.tsx`, gated by the same `can()` as plan versus actual (UX only). One basis line and one hidden-figures line per panel. `ProjectSCurve` and `sCurve.ts` stay unchanged.
 - [ ] Strings: add to `pmo-portal/public/locales/en/workOrderPva.json` and `.../id/workOrderPva.json` (already registered for `/work-orders/:id` in `pmo-portal/App.tsx`); add the project namespace entry where `ProjectSections` strings live. Bahasa per OQ-CSP-3.
-- [ ] E2E `pmo-portal/e2e/AC-CSP-016-project-performance-indices.spec.ts` (Finance user; seeded validated reports and cost; assert both indices beside the curve and a work-order row opens its page with the same figures). Read `docs/e2e-parallel-conventions.md` first and tag the isolation class.
+- [ ] E2E `pmo-portal/e2e/serial/AC-CSP-016-project-performance-indices.spec.ts` (serial: it switches the organisation setting on) (Finance user; seeded validated reports and cost; assert both indices beside the curve and a work-order row opens its page with the same figures). Read `docs/e2e-parallel-conventions.md` first and tag the isolation class.
 - [ ] Unit/RTL `pmo-portal/pages/work-order-detail/PerformanceIndices.test.tsx`: hidden-figure reasons, truncation line, text readings; behaviour only, no look-pinning.
 - [ ] `scripts/ux-proof.sh` on the project page and `/work-orders/:id`.
 
@@ -40,10 +40,10 @@ One migration, `supabase/migrations/1286_work_order_performance.sql`, additive. 
 | AC | Owning layer | File |
 |---|---|---|
 | AC-CSP-001..005, 020 (reading) | Unit | `pmo-portal/src/lib/workOrderPerformance.test.ts` |
-| AC-CSP-018 | Unit (RTL) | `pmo-portal/pages/work-order-detail/PerformanceIndices.test.tsx`, `pmo-portal/pages/project-detail/ProjectPerformance.test.tsx` |
+| AC-CSP-018 | Unit (RTL) | `pmo-portal/pages/work-order-detail/PerformanceIndices.test.tsx` (covers both panels), `pmo-portal/src/lib/db/workOrderPerformance.test.ts` (the off response) |
 | AC-CSP-019, 020 (validation) | pgTAP | `supabase/tests/performance_indices_settings.test.sql` |
 | AC-CSP-006..015, 017 | pgTAP | `supabase/tests/work_order_performance.test.sql` |
-| AC-CSP-016 | E2E | `pmo-portal/e2e/AC-CSP-016-project-performance-indices.spec.ts` |
+| AC-CSP-016 | E2E | `pmo-portal/e2e/serial/AC-CSP-016-project-performance-indices.spec.ts` (serial: it switches the organisation setting on) |
 
 `PerformanceIndices.test.tsx` also covers the AC-CSP-015 truncation presentation; pgTAP remains the owning layer for the bounded server response. The UI hides AC-CSP-013 callers based on the same `can()` check, while pgTAP owns its server refusal.
 

@@ -45,13 +45,14 @@ const wrap = (ui: React.ReactElement, lng: 'en' | 'id' = 'en') => render(
 );
 
 beforeEach(() => {
+  vi.stubGlobal('requestIdleCallback', (cb: () => void) => { cb(); return 1; });
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   h.settings = { data: { enabled: true, bands: { low: '0.90', high: '1.10' } } };
   h.project.mockReset();
   h.project.mockReturnValue(read([row()]));
   h.canView = true;
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('AC-CSP-018 the panels are off until the organisation turns them on', () => {
   it('renders nothing and requests nothing on the work-order page when the setting is off', () => {

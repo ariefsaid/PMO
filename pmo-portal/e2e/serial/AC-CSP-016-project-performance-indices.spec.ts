@@ -26,9 +26,9 @@ test('AC-CSP-016 the project and the work order show the same cost and schedule 
     try { const r = await op(); if (r.error) cleanupFailures.push(label + ': ' + r.error.message); }
     catch (e) { cleanupFailures.push(label + ': ' + (e instanceof Error ? e.message : String(e))); }
   };
-  const must = <T,>(r: { data: T | null; error: { message: string } | null }, what: string): T => {
-    if (r.error || r.data === null) throw new Error('AC-CSP-016 fixture ' + what + ': ' + (r.error?.message ?? 'no row'));
-    return r.data;
+  const must = <T,>(r: { data: T; error: { message: string } | null }, what: string): NonNullable<T> => {
+    if (r.error || r.data === null || r.data === undefined) throw new Error('AC-CSP-016 fixture ' + what + ': ' + (r.error?.message ?? 'no row'));
+    return r.data as NonNullable<T>;
   };
 
   try {
