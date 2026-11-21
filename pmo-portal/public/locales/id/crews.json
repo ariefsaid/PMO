@@ -157,6 +157,7 @@
     "backToLeave": "Kembali ke cuti",
     "cancel": "Batalkan permintaan",
     "cancelled": "Permintaan dibatalkan",
+    "days_one": "{{count}} hari",
     "days_other": "{{count}} hari",
     "errors": {
       "duplicateType": "Jenis cuti itu sudah ada.",
