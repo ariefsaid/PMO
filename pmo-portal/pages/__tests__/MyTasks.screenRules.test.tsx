@@ -19,6 +19,8 @@ vi.mock('@/src/hooks/useMyTasks', () => ({
   useMyTaskMutations: () => ({ updateStatus: { mutate: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useTaskLinkedRecords', () => ({ useTaskLinkedRecords: () => ({ data: undefined }) }));
+
 import MyTasks from '../MyTasks';
 
 const renderMyTasks = () => render(

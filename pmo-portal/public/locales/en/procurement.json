@@ -621,6 +621,9 @@
       "rejectBody": "This variation will be rejected or disputed and will not increase the PO.",
       "reviseTitle": "Issue a new PO revision?",
       "reviseBody": "This applies the approved quantity change to the purchase order."
+    },
+    "certificates": {
+      "link": "Progress certificates"
     }
   },
   "procurementBulk": {

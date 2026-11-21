@@ -9,17 +9,27 @@ export type StockKeeperRow = Tables<'stock_warehouse_keepers'>;
 export interface StockUnitInput { code: string; name: string; wholeOnly: boolean }
 export interface StockItemInput { code: string; name: string; description: string | null; unitId: string; leadTimeDays: number | null; tagId?: string | null }
 export interface StockWarehouseInput { code: string; name: string; kind: 'central' | 'site' | 'yard' | 'staging' | 'vendor'; projectId: string | null; vendorCompanyId?: string | null }
+export interface StockItemFilters { includeArchived?: boolean; tagId?: string; tagIds?: string[]; limit?: number }
 
 const PAGE = 500;                 // below PostgREST max_rows (1000); a 1,203-row list is three pages, never truncated
 const MAX_PAGES = 40;             // 20,000 rows; beyond that the call throws instead of silently truncating
-async function readAll<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string; code?: string } | null }>): Promise<T[]> {
+async function readAll<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string; code?: string } | null }>,
+  limit?: number,
+): Promise<T[]> {
   const out: T[] = [];
-  for (let i = 0; i < MAX_PAGES; i++) {
-    const { data, error } = await page(i * PAGE, i * PAGE + PAGE - 1);
+  const maxPages = limit !== undefined ? Math.max(1, Math.ceil(limit / PAGE)) : MAX_PAGES;
+  for (let i = 0; i < maxPages; i++) {
+    const from = i * PAGE;
+    const to = limit !== undefined ? Math.min(from + PAGE - 1, limit - 1) : from + PAGE - 1;
+    if (to < from) return out;
+    const { data, error } = await page(from, to);
     if (error) throw toAppError(error);
     out.push(...(data ?? []));
-    if ((data?.length ?? 0) < PAGE) return out;
+    if ((data?.length ?? 0) < (to - from + 1)) return out;
+    if (limit !== undefined && out.length >= limit) return out.slice(0, limit);
   }
+  if (limit !== undefined) return out.slice(0, limit);
   throw new AppError('Too many rows to list; narrow the filter.', 'STK_TOO_MANY');
 }
 
@@ -29,12 +39,17 @@ export const listStockUnits = (includeArchived = false) =>
     if (!includeArchived) q = q.is('archived_at', null);
     return q;
   });
-export const listStockItems = (includeArchived = false) =>
-  readAll<StockItemRow>((a, b) => {
+export const listStockItems = (filters: boolean | StockItemFilters = false): Promise<StockItemRow[]> => {
+  const f: StockItemFilters = typeof filters === 'boolean' ? { includeArchived: filters } : filters;
+  if (f.tagIds && f.tagIds.length === 0) return Promise.resolve([]);
+  return readAll<StockItemRow>((a, b) => {
     let q = supabase.from('stock_items').select('*').order('code').order('id').range(a, b);
-    if (!includeArchived) q = q.is('archived_at', null);
+    if (!f.includeArchived) q = q.is('archived_at', null);
+    if (f.tagId) q = q.eq('tag_id', f.tagId);
+    if (f.tagIds && f.tagIds.length > 0) q = q.in('tag_id', f.tagIds);
     return q;
-  });
+  }, f.limit);
+};
 export const listStockWarehouses = (includeArchived = false) =>
   readAll<StockWarehouseRow>((a, b) => {
     let q = supabase.from('stock_warehouses').select('*').order('code').order('id').range(a, b);

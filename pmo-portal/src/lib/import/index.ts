@@ -27,6 +27,7 @@ export {
 } from './budgetDescriptor';
 export { makeRateCatalogueImportDescriptor, RATE_CATALOGUE_MAX_ROWS } from './rateCatalogueDescriptor';
 export { makeContractLineImportDescriptor, type ContractLineImportInput } from './contractLineDescriptor';
+export { makeClientTakeoffImportDescriptor, type ClientTakeoffLine } from './clientTakeoffDescriptor';
 export { makeStockItemImportDescriptor, makeStockLocationImportDescriptor } from './stockItemDescriptor';
 export { makeEquipmentImportDescriptor, type EquipmentImportInput } from './equipmentDescriptor';
 export { makePeopleImportDescriptor } from './employeeDescriptor';

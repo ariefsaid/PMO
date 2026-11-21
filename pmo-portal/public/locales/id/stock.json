@@ -221,7 +221,8 @@
     "ledger": "Buku stok",
     "setup": "Pengaturan",
     "reorder": "Pemesanan ulang",
-    "transfers": "Transfer"
+    "transfers": "Transfer",
+    "usageStandards": "Standar pemakaian"
   },
   "onHand": {
     "atVendor": "Di vendor",

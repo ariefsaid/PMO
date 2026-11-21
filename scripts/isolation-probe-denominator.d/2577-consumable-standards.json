@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "mrq_plan_figure(uuid,uuid)"
+  ]
+}

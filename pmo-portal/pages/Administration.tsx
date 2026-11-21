@@ -21,6 +21,7 @@ import YourPlan from './YourPlan';
 import { FeedbackSurveysSetting } from '@/src/components/feedback/FeedbackSurveysSetting';
 import AdministrationExchangeRates from './AdministrationExchangeRates';
 import AdministrationTerminology from './AdministrationTerminology';
+import AdministrationDocumentCategories from './AdministrationDocumentCategories';
 import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 import { AccountingHelp } from './admin/AccountingHelp';
@@ -51,12 +52,13 @@ export type AdministrationSection =
   | 'credits'
   | 'exchange-rates'
   | 'terminology'
+  | 'document-categories'
   | 'cost-attribution'
   | 'usage'
   | 'features';
 
 /** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
-const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'integrations', 'accounting', 'projects', 'plan', 'credits', 'terminology', 'exchange-rates'];
+const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'integrations', 'accounting', 'projects', 'plan', 'credits', 'terminology', 'document-categories', 'exchange-rates'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
 /** #1271: Finance's second destination, beside Exchange rates. Admin/Executive reach cost attribution inside Accounting setup, so it is not in their nav. */
 const FINANCE_SECTIONS: AdministrationSection[] = ['people', 'exchange-rates', 'cost-attribution'];
@@ -73,6 +75,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   credits: 'Credits',
   'exchange-rates': 'Exchange rates',
   terminology: 'Terminology',
+  'document-categories': 'Document categories',
   'cost-attribution': 'Cost attribution',
   usage: 'Usage',
   features: 'Features',
@@ -93,6 +96,7 @@ const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string>
   credits: t('admin.nav.credits', SECTION_LABEL_DEFAULTS.credits),
   'exchange-rates': t('admin.nav.exchangeRates', SECTION_LABEL_DEFAULTS['exchange-rates']),
   terminology: t('administration:terminology.nav', SECTION_LABEL_DEFAULTS.terminology),
+  'document-categories': t('administration:documentCategories.nav', SECTION_LABEL_DEFAULTS['document-categories']),
   'cost-attribution': t('costAttribution:title', SECTION_LABEL_DEFAULTS['cost-attribution']),
   usage: t('admin.nav.usage', SECTION_LABEL_DEFAULTS.usage),
   features: t('admin.nav.features', SECTION_LABEL_DEFAULTS.features),
@@ -327,6 +331,13 @@ const SelectedAdministrationPanel: React.FC<{
           <AdministrationTerminology />
         </div>
       );
+    case 'document-categories':
+      return (
+        <div data-testid="administration-panel-document-categories-section" className="min-w-0">
+          <SectionName name={label('document-categories')} />
+          <AdministrationDocumentCategories />
+        </div>
+      );
     case 'usage':
       return (
         <div data-testid="administration-panel-usage" className="min-w-0">
@@ -355,6 +366,7 @@ const Administration: React.FC = () => {
   const isAdminViewer = may('view', 'user');
   const canFx = may('view', 'fxRate');
   const canManageCostAttribution = may('manage', 'costAttribution');
+  const canManageDocumentCategories = may('manage', 'documentCategory');
   const canViewCostAttribution = isAdminViewer || canManageCostAttribution;
   const isFinance = realRole === 'Finance';
   const isOperator = operatorMembership.isOperator;
@@ -371,7 +383,9 @@ const Administration: React.FC = () => {
     : [
       ...ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx)
         // "Your plan" is the org Admin's read-only page (FR-PLN-014); an Operator reaches it too.
-        .filter((id) => id !== 'plan' || isAdminViewer || isOperator),
+        .filter((id) => id !== 'plan' || isAdminViewer || isOperator)
+        // #2579: document categories are an Admin-only page; the nav entry is not rendered for anyone else.
+        .filter((id) => id !== 'document-categories' || canManageDocumentCategories),
       ...(canViewCostAttribution ? ['cost-attribution' as const] : []),
     ];
   const sectionLabels = buildSectionLabels(t);
@@ -428,6 +442,13 @@ const Administration: React.FC = () => {
           {isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />}
           <GateNotice variant="blocked">
             {t('fx.denied', 'Exchange rates are available to Finance and Admin.')}
+          </GateNotice>
+        </>
+      ) : section === 'document-categories' && !canManageDocumentCategories ? (
+        <>
+          {isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />}
+          <GateNotice variant="blocked">
+            {t('administration:documentCategories.denied', 'Document categories are managed by an Admin.')}
           </GateNotice>
         </>
       ) : operatorRoute && !isOperator ? (

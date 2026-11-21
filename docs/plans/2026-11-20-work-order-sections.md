@@ -3,6 +3,26 @@
 > Fresh Orca worker per slice; Slice 3 (material requests) Director-dispatched and ships alone. Spec: `docs/specs/work-order-sections.spec.md`. Sign OD-WOS-1..7 and answer OQ-WOS-1..2 first. Builds on shipped `work_orders` (0193), `work_order_plan_lines` (0997), `material_requests`/`material_request_lines` (1000/1001), `work_order_cost_lines` (0951, untouched). Child links to #2528 crews, #1522 daily report, #2531 tasks and the #2529 override are separate later slices, each started only when its dependency has shipped; reconcile their final table and column names at that time.
 > Read first: `docs/specs/work-order-plan-vs-actual.spec.md`, `docs/specs/material-requests.spec.md` (FR-MRQ-002, `mrq_plan_quantity`), `docs/adr/0018*.md`, the reference slice `pages/Companies.tsx` + `src/lib/db/companies.ts`.
 
+## Built on defaults (owner to confirm)
+
+The builder took each recommended default; none is a ruling. If one is wrong, the "if wrong" column of the spec names what breaks.
+- **OD-WOS-1** zero or more sections per work order; no record is forced into one (the remainder row exists whenever at least one section does).
+- **OD-WOS-2** the foreman is one active user of the organisation, optional; the section's foreman may set readiness on their own section only (a guard trigger limits them to the readiness columns).
+- **OD-WOS-3** a flat list per work order (200 at most), no nesting.
+- **OD-WOS-4** cost attribution does not gain a section.
+- **OD-WOS-5** readiness is one held value plus a note; it gates nothing; no weekly plans or checklists.
+- **OD-WOS-6** per-section material allocation is optional; the work-order plan check always applies and the stricter of the two applies.
+- **OD-WOS-7** English "Section", Bahasa "Bagian", through `terms.section` / `terms.sections`.
+- **OQ-WOS-1** a crew is placed on a section by date range (the roster's shipped one-placement-a-day rule refuses two sections the same day).
+- **OQ-WOS-2** quantities and task counts only; no single progress percent.
+- Builder choices inside those defaults: a Closed work order refuses new sections and structure edits but still takes readiness and archive; a Cancelled one refuses every change; an archived section stays in the roll-up (records already on it keep it) and a section code stays reserved after archive.
+
+## Build state at the end of the branch (reconciled with `dev`, 2026-11-20)
+
+The Delivery checklist's "unshipped" owners had in fact shipped on `dev` when this was built: crews roster (`1035`, #2528), daily site reports (`1040`, #1522), task-to-work-order link (`1038`, #2531) and org terminology (`1024`, #2529). Built: crew placement, task and daily-report progress-line links (`1171`; the progress line gained a `work_order_id` stamped from its report so the composite key holds, and `dsr_replace_lines`/`dsr_correct` are restated whole), plan lines, material check and request link, and the validated-quantity-per-section read (`work_order_section_progress`, `1172`) shown on the sections block. **Not built:** `section` as an *overridable* term in #2529's closed term set (the key and its use are in place; the override is a one-line addition to that set plus its check constraint).
+
+Migrations used: `1169` section master, `1170` plan-line link, `1171` crew and task links, `1172` reads, `1173` material allocation, request link and submit check (shipped alone, own commits).
+
 ## Design
 - **Parent-child integrity by composite key.** `work_order_sections` has `unique (id, work_order_id)`. Each child that already has `work_order_id` gains `section_id uuid null` and a composite foreign key `(section_id, work_order_id) references work_order_sections (id, work_order_id)`. With default MATCH SIMPLE a null `section_id` skips the check, so an unsectioned record is always valid and a section of another work order is impossible at the database, whichever path writes. Org and project coherence is checked in the section's own guard trigger and the children's existing guards. ADR candidate: this composite-FK pattern.
 - **Roll-up by construction.** Children keep `work_order_id`; the work-order total is the sum of all rows on it. The section read is a `group by section_id` (null shown as "Not in a section"), so `sum(sections) + remainder = total` holds without a second formula. The invariant is a Layer-1 unit test and a pgTAP assertion.

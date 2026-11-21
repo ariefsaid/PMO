@@ -4,6 +4,28 @@
 
 ADR candidate: category-gated document visibility: one predicate, a restrictive policy on the register table and on `storage.objects` for the `project-documents` bucket, with the role seam left on the shipped `auth_role()` (0002). Write the ADR only if the owner confirms OD-DCV-1.
 
+## Built on defaults (owner to confirm)
+
+The build took the recommended default of every open owner decision in the spec. Each is a one-line change or a data change if the owner rules otherwise.
+
+- OD-DCV-1: the five existing `user_role` values; the role seam is `auth_role()`. No custom roles (#902) and no ADR written (the ADR is held until this is confirmed).
+- OD-DCV-2: existing categories start with all roles; a new category must name its roles at creation, a create with none is refused, and Admin is always added. The administration form starts a new category with Admin only checked, so the Admin chooses on purpose.
+- OD-DCV-3: Admin sees every category and cannot be removed from any (`set_document_category_roles` refuses a set without Admin; the policy also short-circuits for Admin).
+- OD-DCV-4: a hidden document leaves no trace (no count, placeholder or message on any screen; the database returns no row).
+- OD-DCV-5: scope is the project register and its bucket; procurement, expense, incident and expiry attachments are untouched.
+- OD-DCV-6: a person files into, and edits within, only categories they can see (the restrictive policy's `with check`).
+- OD-DCV-7: system category names are translated (English, Bahasa Indonesia); organisation-created names show as typed.
+- OD-DCV-8: a revision lineage shares one category; the insert trigger stamps the parent's category and refuses a different one; a re-file (`refile_document_lineage`) moves the whole lineage in one transaction. The revision form shows the category locked.
+- OD-DCV-9: no implicit see-everything role besides Admin; Executive sees only what the matrix says.
+- OD-DCV-10: linked Microsoft 365 files keep Microsoft's permissions; the administration page says so.
+- OD-DCV-11: `Reference` is a system category (seeded with all roles, cannot be renamed or archived) and is not offered in the ordinary register forms.
+
+### Deviations from the plan text (recorded while building)
+
+- The category-change record is written to `audit_events` through `log_audit` (actor, time, old and new roles or names; Admin and Operator readable), not by registering the two tables in `record_history_config`. The registry needs a classification, a parent arm and a `record_history_visible` arm per table; the audit trail already carries the same facts for this surface and is what `project_documents` itself uses.
+- `pmo documents create` does not read the live category list: that read would need the command-line request guard's table list changed, in a migration other work also restates. Instead the command sends the name, the database resolves it case-insensitively against the organisation's live categories (else `Other`), and the command reports `category_note` when the entry did not land where asked. A live read is a follow-up for the Director to schedule.
+- The pgTAP runner in this sandbox cannot pull the `pg_prove` image, so the files were run with `psql` against the same local stack (TAP output read directly). CI's `pgtap` job is the pull-request proof.
+
 ## Data-model facts this plan relies on (re-verify at head before building)
 - `project_documents.category` is `text not null`; writers that supply only that text include the CLI (`scripts/lib/pmo-documents.mjs`), the Microsoft 365 folder and link routines (0336, 0338, 0375, 0534, 0763, and the definers in 0292) and the operator write API (0370, 0884). They must keep working unchanged. Shipped code writes a label the JSON list does not hold: `Reference` for a Microsoft 365 folder entry (`DocumentFormModal` defaults to it, `documentCategoryLabel` translates it), so the seed below is eight names, not seven.
 - `auth_role()` (0002) reads `profiles.role` on every statement, so a role change takes effect on the next request and is the one seam ADR-0103 later replaces.

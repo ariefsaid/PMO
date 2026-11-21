@@ -221,7 +221,8 @@
     "ledger": "Ledger",
     "setup": "Setup",
     "reorder": "Reorder",
-    "transfers": "Transfers"
+    "transfers": "Transfers",
+    "usageStandards": "Usage standards"
   },
   "onHand": {
     "atVendor": "At vendor",

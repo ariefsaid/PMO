@@ -16,25 +16,32 @@ import { useWorkOrder, useWorkOrderAllocations, useWorkOrderClaimDocuments, useW
 import { deriveScopeProgress } from '@/src/lib/workOrderProgress';
 import { buildCostView } from '@/src/lib/workOrderCostView';
 import { formatCurrency } from '@/src/lib/format';
+import { WorkOrderSupplyWarning } from '@/src/components/SupplyRiskWarning';
 import { ScopeSection } from './work-order-detail/ScopeSection';
 import { CostSection } from './work-order-detail/CostSection';
 import { BillingSection } from './work-order-detail/BillingSection';
 import { PlanVsActualSection } from './work-order-detail/PlanVsActualSection';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
+import { QuantityChangesSection } from './work-order-detail/QuantityChangesSection';
+import { SectionsSection } from './work-order-detail/SectionsSection';
+import { ConsumablePlanSection } from './work-order-detail/ConsumablePlanSection';
+import { InspectionsSection } from './work-order-detail/InspectionsSection';
+import { ClientMaterialSection } from './work-order-detail/ClientMaterialSection';
 import { IssuesSection } from './work-order-detail/IssuesSection';
 import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 import { SiteLocationSection } from './work-order-detail/SiteLocationSection';
 
 /**
- * `/work-orders/:id` (#2518): one read-only page for a work order — scope and progress, costs, billing and
- * acceptances, documents, issues and tasks. Adds no write path; every read is the caller's own RLS (an absent,
- * foreign or unreadable id looks identical: not found).
+ * `/work-orders/:id` (#2518): one page for a work order — scope and progress, costs, billing and
+ * acceptances, documents, issues and tasks. Every read is the caller's own RLS (an absent, foreign or unreadable id
+ * looks identical: not found). Its one write surface is the sections block (#2576), gated by `can()`.
  */
 const WorkOrderDetail: React.FC = () => {
   const { t } = useTranslation('workOrders');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const may = usePermission();
+  const stockOn = useFeature('stock');
   const wo = useWorkOrder(id);
   const projectId = wo.data?.project_id ?? '';
   const project = useProject(projectId || undefined);
@@ -56,6 +63,14 @@ const WorkOrderDetail: React.FC = () => {
   const disciplines = useCostDisciplines(Boolean(wo.data));
   const canPlanView = may('view', 'workOrderPlan');
   const pva = useProjectPlanVsActual(projectId, canPlanView && Boolean(wo.data));
+
+  const allocationOptions = useMemo(
+    () => (allocations.data ?? []).map((a) => {
+      const item = (boq.data ?? []).find((b) => b.id === a.boq_item_id);
+      return { value: a.id, label: item ? `${item.item_code} · ${item.description}` : a.boq_item_id };
+    }),
+    [allocations.data, boq.data],
+  );
 
   const backLabel = t('back', 'Work orders');
   const goBack = () => navigate(projectId ? `/projects/${projectId}/work-orders` : '/projects');
@@ -97,14 +112,20 @@ const WorkOrderDetail: React.FC = () => {
           { label: t('client', 'Client'), value: project.data?.client?.name ?? '—' },
           { label: t('orderValue', 'Order value'), value: <span className="tabular-nums" data-testid="wo-order-value">{formatCurrency(Number(row.order_value), row.currency)}</span> },
         ]} />
+      <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       <RecordStack>
         <ScopeSection projectId={row.project_id} progress={progress} isPending={allocations.isPending || boq.isPending || bastList.isPending} isError={allocations.isError || boq.isError || bastList.isError}
           onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
+        <SectionsSection workOrder={{ id: row.id, project_id: row.project_id, status: row.status, currency: row.currency }} />
         <CostSection labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
           onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
+        {stockOn && <ConsumablePlanSection workOrderId={row.id} workOrderStatus={row.status} project={project.data} />}
+        {may('view', 'clientRequisition') && <ClientMaterialSection workOrderId={row.id} projectId={row.project_id} workOrderStatus={row.status} allocationOptions={allocationOptions} />}
         {canPlanView && <PlanVsActualSection workOrderId={row.id} query={pva} disciplines={disciplines.data ?? []} />}
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
+        {may('view', 'quantityChange') && <QuantityChangesSection workOrderId={row.id} projectId={row.project_id} status={row.status} />}
+        <InspectionsSection workOrderId={row.id} />
         <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
         {issuesOn && <IssuesSection issues={issues.data ?? []} isPending={issues.isPending} isError={issues.isError} onRetry={() => void issues.refetch()} />}
         <SiteLocationSection workOrderId={row.id} projectId={row.project_id} />

@@ -15,7 +15,9 @@
     "equipment": "equipment",
     "equipmentOne": "equipment asset",
     "people": "people",
-    "person": "person"
+    "person": "person",
+    "clientTakeoff": "take-off lines",
+    "clientTakeoffLine": "take-off line"
   },
   "wizard": {
     "title": "Import {{entity}}",
@@ -293,6 +295,20 @@
       "codeLong": "Employee code is too long.",
       "name": "Display name is required.",
       "nameLong": "Display name is too long."
+    }
+  },
+  "clientTakeoff": {
+    "itemCode": "Item code",
+    "takeoff": "Take-off quantity",
+    "requested": "Requested quantity",
+    "itemHint": "The code of a client-supplied item.",
+    "requestedHint": "Optional. Blank means the take-off quantity.",
+    "error": {
+      "quantity": "Enter a quantity above 0 with at most 3 decimal places.",
+      "itemRequired": "Item code is required.",
+      "itemUnknown": "Item code not found among the client-supplied items.",
+      "whole": "This item is counted in whole units.",
+      "repeat": "This item already appears in row {n}."
     }
   }
 }

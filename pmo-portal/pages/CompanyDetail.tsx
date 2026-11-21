@@ -20,6 +20,7 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { VendorTaxDefaultsCard } from './company/VendorTaxDefaultsCard';
+import { SupplyRiskCard } from './company/SupplyRiskCard';
 import { CompanyFormModal } from './company/CompanyFormModal';
 import { AccountActivityCard } from './company/AccountActivityCard';
 import { PrimaryContactField, CompanyContactsList } from './company/CompanyContacts';
@@ -246,6 +247,8 @@ const CompanyDetail: React.FC = () => {
       </Card>
       {/* #876 slice 2 (OD-VWH-1): the vendor's default tax treatment pre-fills its bills. */}
       {company.type === 'Vendor' && <VendorTaxDefaultsCard company={company} />}
+      {/* #2583: the supplier's supply-risk status, the payables-age suggestion and the exposed work orders. */}
+      {company.type === 'Vendor' && <SupplyRiskCard company={company} />}
 
       {/* AC-IFW-COMPANY-01 + AC-G3C-CD-3: related projects (always) and procurement
           (always fetch; visible for Vendors or any type when vendor PRs exist). */}

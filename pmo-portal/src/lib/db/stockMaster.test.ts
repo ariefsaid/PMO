@@ -3,11 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Chainable, thenable query-builder mock: each awaited builder shifts the next queued result.
 const h = vi.hoisted(() => {
   const queue: Array<{ data: unknown; error: unknown }> = [];
-  const calls = { from: [] as string[], range: [] as unknown[], is: [] as unknown[], insert: [] as unknown[], update: [] as unknown[] };
+  const calls = { from: [] as string[], range: [] as unknown[], is: [] as unknown[], in: [] as unknown[], eq: [] as unknown[], insert: [] as unknown[], update: [] as unknown[] };
   const builder: Record<string, unknown> = {};
-  const rec = (name: 'range' | 'is' | 'insert' | 'update') => (...a: unknown[]) => { calls[name].push(a.length === 1 ? a[0] : a); return builder; };
-  for (const n of ['select', 'order', 'eq', 'single']) builder[n] = () => builder;
-  builder.range = rec('range'); builder.is = rec('is'); builder.insert = rec('insert'); builder.update = rec('update');
+  const rec = (name: 'range' | 'is' | 'insert' | 'update' | 'in' | 'eq') => (...a: unknown[]) => { calls[name].push(a.length === 1 ? a[0] : a); return builder; };
+  for (const n of ['select', 'order', 'single']) builder[n] = () => builder;
+  builder.range = rec('range'); builder.is = rec('is'); builder.insert = rec('insert'); builder.update = rec('update'); builder.in = rec('in'); builder.eq = rec('eq');
   builder.then = (resolve: (v: unknown) => unknown) => resolve(queue.shift() ?? { data: [], error: null });
   const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
   const rpc = vi.fn(async () => queue.shift() ?? { data: null, error: null });
@@ -63,6 +63,21 @@ describe('stockMaster DAL', () => {
     const full = Array.from({ length: 500 }, (_, i) => ({ id: `r${i}` }));
     for (let i = 0; i < 41; i++) h.queue.push({ data: full, error: null });
     await expect(listStockItems()).rejects.toMatchObject({ code: 'STK_TOO_MANY' });
+  });
+
+  it('FR-STK-001 listStockItems applies tagIds filter and limit to range', async () => {
+    const rows = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `r${i}` }));
+    h.queue.push({ data: rows(500), error: null });
+    const out = await listStockItems({ tagIds: ['t1', 't2'], limit: 500 });
+    expect(out).toHaveLength(500);
+    expect(h.calls.in).toEqual([['tag_id', ['t1', 't2']]]);
+    expect(h.calls.range).toEqual([[0, 499]]);
+  });
+
+  it('FR-STK-001 listStockItems with empty tagIds returns empty array without querying database', async () => {
+    const out = await listStockItems({ tagIds: [] });
+    expect(out).toEqual([]);
+    expect(h.from).not.toHaveBeenCalledWith('stock_items');
   });
 
   it('FR-STK-002 creating an item trims text and never sends org_id', async () => {

@@ -1,0 +1,30 @@
+-- Reverses 1176_quantity_change_requests.sql. Requests and their history are deleted: this is a pre-production reversal.
+drop function if exists public.qcr_withdraw(uuid, text);
+drop function if exists public.qcr_submit(uuid);
+drop function if exists public.qcr_update_draft(uuid, jsonb, text);
+drop function if exists public.qcr_raise(uuid, uuid, jsonb, text);
+drop function if exists public.qcr_prepare_lines(uuid, uuid, uuid, jsonb);
+drop function if exists public.qcr_request_count(uuid);
+drop function if exists public.qcr_log(uuid, text, text, text, text);
+drop policy if exists storage_objects_qcr_orphan_delete on storage.objects;
+drop policy if exists storage_objects_qcr_file_write on storage.objects;
+drop policy if exists storage_objects_qcr_file_read on storage.objects;
+drop function if exists public.qcr_file_object_access(text);
+-- Supabase blocks direct deletes from storage tables unless the session allows it; the bucket must be empty first.
+set storage.allow_delete_query = 'true';
+delete from storage.buckets where id = 'quantity-change-files';
+reset storage.allow_delete_query;
+drop table if exists public.quantity_change_request_files;
+drop function if exists public.guard_qcr_file();
+drop function if exists public.can_add_qcr_file(uuid, text);
+drop function if exists public.qcr_file_kind_open(text, text);
+alter table public.boq_quantity_versions drop constraint if exists boq_quantity_versions_request_fkey;
+drop table if exists public.quantity_change_request_events;
+drop function if exists public.refuse_qcr_event_change();
+drop table if exists public.quantity_change_request_lines;
+drop table if exists public.quantity_change_requests;
+drop trigger if exists organizations_audit_quantity_change_limit on public.organizations;
+drop function if exists public.audit_org_quantity_change_limit();
+drop policy if exists organizations_update_quantity_change_limit on public.organizations;
+revoke update (quantity_change_limit) on public.organizations from authenticated;
+alter table public.organizations drop column if exists quantity_change_limit;

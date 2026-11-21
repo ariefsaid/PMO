@@ -282,4 +282,37 @@ describe('#2531 task proof / work-order rules surface their own sentence', () =>
     expect(out.headline).not.toBe('A task rule applies');
     expect(out.detail).not.toContain('violates check');
   });
+
+  it('AC-CTR-014 a direct Done on a tool task tells the person to close the report on Crews, Tools', () => {
+    const e = Object.assign(new Error('CTR_RESOLVE_REQUIRED: choose a resolution (replaced, repaired or written off) to close this tool report'), { code: '23514' });
+    expect(classifyMutationError(e).detail).toBe('This task is a tool report. Open Crews, Tools, and close the report there to finish it.');
+  });
+});
+
+describe('#2587 record-linked task refusals surface their own sentence (AC-RLT-002, AC-RLT-006)', () => {
+  const quiet = { suppressCapture: true } as const;
+  it('AC-RLT-002 the guard\'s 23505 and the unique-index backstop read the same', () => {
+    const guard = classifyMutationError(Object.assign(new Error('an open task already exists for this record'), { code: '23505' }), undefined, quiet);
+    const index = classifyMutationError(
+      Object.assign(new Error('duplicate key value violates unique constraint "tasks_expense_claim_open_uniq"'), { code: '23505' }), undefined, quiet);
+    expect(guard.headline).toBe('A task is already open');
+    expect(index.headline).toBe('A task is already open');
+    expect(index.detail).toBe(guard.detail);
+    expect(index.detail).not.toContain('duplicate key');
+  });
+  it('AC-RLT-006 a finished record shows its own sentence', () => {
+    const out = classifyMutationError(Object.assign(new Error('this record is already finished'), { code: '23514' }), undefined, quiet);
+    expect(out.headline).toBe('A task rule applies');
+    expect(out.detail).toBe('this record is already finished');
+  });
+  it('AC-RLT-001 "choose a record you can open" (42501) passes through, not the generic permission copy', () => {
+    const out = classifyMutationError(Object.assign(new Error('choose a record you can open'), { code: '42501' }), undefined, quiet);
+    expect(out.detail).toBe('choose a record you can open');
+  });
+  it('AC-RLT-009 two links or link plus proof give a plain sentence, not constraint text', () => {
+    const two = classifyMutationError(Object.assign(new Error('new row violates check constraint "tasks_one_record_link"'), { code: '23514' }), undefined, quiet);
+    const proof = classifyMutationError(Object.assign(new Error('new row violates check constraint "tasks_record_link_no_proof"'), { code: '23514' }), undefined, quiet);
+    expect(two.detail).toBe('A task can follow one record at a time.');
+    expect(proof.detail).toContain('requires proof');
+  });
 });

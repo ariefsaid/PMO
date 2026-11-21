@@ -1,0 +1,8 @@
+# #2585 (2585-client-requisitions), carried from the branch's own array at integration
+csr_cancel
+csr_create
+csr_record_pickup
+csr_record_release
+csr_record_reservation
+csr_send
+csr_update_draft
