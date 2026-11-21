@@ -1,4 +1,4 @@
--- Reverse of 1083: restores 0237's notify_task_assignment() body.
+-- Reverse of 1160: restores 0237's notify_task_assignment() body.
 create or replace function public.notify_task_assignment() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
 begin

@@ -1,6 +1,6 @@
 -- 1156_mrq_plan_precedence.sql — #2577 consumable needs from usage standards: the plan figure a material request is checked against.
 -- Spec docs/specs/consumable-usage-standards.spec.md (FR-CUS-011..013, OD-CUS-2/3) · plan docs/plans/2026-11-20-consumable-usage-standards.md (Migration C).
--- Proven by supabase/tests/cus_mrq_plan.test.sql (AC-CUS-008..010) and the existing mrq_* files. Tables in 1075/1076; 1001 is the base.
+-- Proven by supabase/tests/cus_mrq_plan.test.sql (AC-CUS-008..010) and the existing mrq_* files. Tables in 1154/1155; 1001 is the base.
 -- ⚑ APPROVAL PATH: ships alone. Reversible via supabase/migrations/rollback/1156_mrq_plan_precedence_down.sql.
 --
 -- Precedence (FR-CUS-011): the work order's consumable plan line for the item (planned = adjusted, else generated; a

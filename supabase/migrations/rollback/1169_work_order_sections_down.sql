@@ -1,4 +1,4 @@
--- Reverses 1169_work_order_sections.sql (#2576). Reverse 1099..1096 first: they reference this table.
+-- Reverses 1169_work_order_sections.sql (#2576). Reverse 1173..1170 first: they reference this table.
 drop table if exists public.work_order_section_readiness_events;
 drop table if exists public.work_order_sections;
 drop function if exists public.wos_events_append_only();

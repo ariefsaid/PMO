@@ -1,4 +1,4 @@
--- 1163_client_requisition_rpcs_down.sql — reverse 1087: drop the requisition functions (then rollback/1086, then 1085).
+-- 1163_client_requisition_rpcs_down.sql — reverse 1163: drop the requisition functions (then rollback/1162, then 1161).
 drop function if exists public.csr_work_order_rollup(uuid);
 drop function if exists public.csr_record_pickup(uuid, numeric, uuid, date, text, text, uuid);
 drop function if exists public.csr_record_release(uuid, numeric, text, uuid);

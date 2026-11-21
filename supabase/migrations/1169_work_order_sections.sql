@@ -5,17 +5,17 @@
 -- A section divides a work order. It carries no value, invoice, acceptance or status of its own. It names a code (unique
 -- per work order), a name, an optional note, an optional foreman (a user of the organisation), a held readiness value
 -- with a note, and a sort order. Archived (ADR-0018), never hard-deleted by anyone but an Admin, and only while
--- nothing references it (the foreign keys of 1096..1098 and 1099 block it, 23503).
+-- nothing references it (the foreign keys of 1170..1172 and 1173 block it, 23503).
 --
 -- Writers: Admin, Executive, Finance and Project Manager (the roles that write plan figures, 0997) write structure
 -- through RLS and column grants; the section's own foreman may update readiness and its note ONLY (a guard trigger
 -- refuses every other column from a caller who is not one of those roles). Readers: every active member of the org.
 --
--- Composite-key seam for the children (1096+): unique (id, work_order_id), so a child's
+-- Composite-key seam for the children (1170+): unique (id, work_order_id), so a child's
 -- (section_id, work_order_id) foreign key makes a section of another work order impossible whichever path writes.
 --
 -- ── REVERSE (also supabase/migrations/rollback/1169_work_order_sections_down.sql) ────────────────────────────
---   drop 1099..1096 first; then drop table work_order_section_readiness_events, work_order_sections and the guard functions.
+--   drop 1173..1170 first; then drop table work_order_section_readiness_events, work_order_sections and the guard functions.
 
 create table public.work_order_sections (
   id                uuid primary key default gen_random_uuid(),
@@ -78,7 +78,7 @@ create trigger work_order_section_readiness_events_append_only before update or 
   for each row execute function public.wos_events_append_only();
 
 -- What stops a section being archived. Null = nothing. Replaced by later migrations as each child table arrives
--- (1097: tasks; 1099: material requests). Definer: it reads rows whatever the caller's RLS. Never client-callable.
+-- (1171: tasks; 1173: material requests). Definer: it reads rows whatever the caller's RLS. Never client-callable.
 create function public.wos_archive_blockers(p_section_id uuid) returns text
   language sql stable security definer set search_path = public, pg_temp as $$
   select null::text

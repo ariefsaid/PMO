@@ -6,7 +6,7 @@
 --      naming the winner) and forecast E, per item; over-contract = strictly greater, never for a lump_sum line.
 --   §3 quantity_overrun_notices: the persisted "told once" row per (item, kind); qcr_evaluate_items opens / clears it and
 --      notifies the project's manager. Evaluation runs on the WRITES that can move P, E or C — never on a read.
---   §4 hooks on those writes; record_quantity_forecast (the guarded per-project read is in 1129).
+--   §4 hooks on those writes; record_quantity_forecast (the guarded per-project read is in 1178).
 
 -- ── §1 forecasts ────────────────────────────────────────────────────────────────────────────────────
 create table public.quantity_forecasts (

@@ -1,5 +1,5 @@
 -- 1160_crew_tool_task_notice.sql — #2581: one notification, not two, when a tool task is assigned to the coordinator.
--- report_crew_tool (1082) sends its own notice naming the tool, quantity, kind and crew in the reader's language
+-- report_crew_tool (1159) sends its own notice naming the tool, quantity, kind and crew in the reader's language
 -- (FR-CTR-013), so the generic "A task was assigned to you" notice of 0237 is skipped for the INSERT of a tool task.
 -- Later reassignments keep the generic notice. Body: 0237's verbatim plus one early return.
 -- Reversal: rollback/1160_crew_tool_task_notice_down.sql.

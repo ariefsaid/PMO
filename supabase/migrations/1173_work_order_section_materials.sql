@@ -1,21 +1,23 @@
 -- 1173_work_order_section_materials.sql — #2576: per-section material allocation, the request link and the section check.
 -- Spec docs/specs/work-order-sections.spec.md (FR-WOS-009, 012, 013, 014, 015, 005); plan docs/plans/2026-11-20-work-order-sections.md.
 -- Proven by supabase/tests/1173_work_order_section_materials.test.sql (AC-WOS-006, 008, 009, 010, 011 and the material
--- half of AC-WOS-002/003). THIS MIGRATION TOUCHES THE MATERIAL-REQUEST APPROVAL PATH (submit) AND SHIPS ALONE, AFTER 1095..1098: it
--- reuses the section master (1095), the archived-section trigger (1096) and the archive guard it extends (1097: tasks).
+-- half of AC-WOS-002/003). THIS MIGRATION TOUCHES THE MATERIAL-REQUEST APPROVAL PATH (submit) AND SHIPS ALONE, AFTER 1169..1172: it
+-- reuses the section master (1169), the archived-section trigger (1170) and the archive guard it extends (1171: tasks).
 --
 --   • work_order_section_material_plan: a planned quantity of one stock item on one section, an ALLOCATION of the work
 --     order's planned quantity for that item. That quantity is the shipped `mrq_plan_quantity` (1001; the BoQ material
 --     allowances prorated by the work order's lines) — never a second stored plan. The allocations of an item on a work
 --     order never exceed it (refused on write, with the plan figure); if the work order's plan later falls below the sum,
 --     `work_order_section_material_check` flags the item over-allocated and nothing is rewritten.
---   • material_requests.section_id (+ composite key (section_id, work_order_id), the archived-section trigger from 1096),
+--   • material_requests.section_id (+ composite key (section_id, work_order_id), the archived-section trigger from 1170),
 --     editable only while the request is a draft (a returned request is a draft again). Lines snapshot the section's plan
 --     and prior quantity beside the work order's.
 --   • mrq_submit restated: a line over its section's allocation needs the existing 1-to-500-character over-plan reason,
 --     checked here beside the work-order check; the stricter applies; a section with no allocation for the item is
 --     checked against the work order's plan only. mrq_save_draft restated: it takes `section_id` in the header.
---   • wos_archive_blockers restated: a section with a draft or pending request is not archived (and, as 1097, tasks).
+--     BOTH restated bodies run after 1101 (destination kinds: site, yard or staging) and 1156 (#2577: the plan figure and its
+--     source), so they carry those changes too: this migration must stay the last word on these two functions.
+--   • wos_archive_blockers restated: a section with a draft or pending request is not archived (and, as 1171, tasks).
 --   • reads: mrq_section_plan_for (form figures) and work_order_section_material_check (plan, requested, remaining per
 --     section and item, and for the unsectioned remainder).
 --
@@ -232,7 +234,7 @@ begin
    order by (k.sid is null), k.sid, k.item_id;
 end $$;
 
--- ── §4 the archive guard, restated: tasks (1097) and now draft or pending requests ─────────────────────────────
+-- ── §4 the archive guard, restated: tasks (1171) and now draft or pending requests ─────────────────────────────
 create or replace function public.wos_archive_blockers(p_section_id uuid) returns text
   language sql stable security definer set search_path = public, pg_temp as $$
   select nullif(concat_ws('; ',
@@ -274,8 +276,8 @@ begin
   if v_needed is null then raise exception 'MRQ_INVALID: a request needs a needed-by date' using errcode = 'P0001'; end if;
   v_to := nullif(p_header->>'to_warehouse_id', '')::uuid;
   if v_to is not null and not exists (select 1 from public.stock_warehouses w
-        where w.id = v_to and w.org_id = v_org and w.kind = 'site' and w.project_id = v_wo.project_id and w.archived_at is null) then
-    raise exception 'MRQ_DESTINATION: the destination must be a site warehouse of the work order''s project' using errcode = 'P0001'; end if;
+        where w.id = v_to and w.org_id = v_org and w.kind in ('site', 'yard', 'staging') and w.project_id = v_wo.project_id and w.archived_at is null) then
+    raise exception 'MRQ_DESTINATION: the destination must be a site, yard or staging location of the work order''s project' using errcode = 'P0001'; end if;
   if p_header->>'note' is not null and length(p_header->>'note') > 1000 then
     raise exception 'MRQ_INVALID: a note is 1000 characters at most' using errcode = 'P0001'; end if;
   -- #2576 FR-WOS-009: an optional section of THIS work order. A live one for a new or changed choice; a draft that
@@ -319,7 +321,7 @@ create or replace function public.mrq_submit(p_request_id uuid, p_client_request
   language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare
   v_org uuid; v_uid uuid := auth.uid(); r public.material_requests; v_wo_status public.work_order_status;
-  v_cutoff time; v_tz text; v_earliest date; l record; v_plan numeric; v_prior numeric; v_over boolean := false;
+  v_cutoff time; v_tz text; v_earliest date; l record; v_plan numeric; v_src text; v_prior numeric; v_over boolean := false;
   v_splan numeric; v_sprior numeric;
   v_round integer; v_steps integer;
 begin
@@ -353,7 +355,7 @@ begin
   -- Serialize submissions sharing a work order before reading prior quantities.
   perform pg_advisory_xact_lock(hashtextextended('mrq-plan:' || r.work_order_id::text, 0));
   for l in select * from public.material_request_lines x where x.request_id = r.id order by x.line_no for update loop
-    v_plan  := public.mrq_plan_quantity(r.work_order_id, l.item_id);
+    select f.plan_qty, f.plan_source into v_plan, v_src from public.mrq_plan_figure(r.work_order_id, l.item_id) f;
     v_prior := public.mrq_prior_quantity(r.work_order_id, l.item_id, r.id);
     if v_prior + l.quantity > v_plan then
       v_over := true;
@@ -379,7 +381,7 @@ begin
         end if;
       end if;
     end if;
-    update public.material_request_lines set plan_qty = v_plan, prior_qty = v_prior,
+    update public.material_request_lines set plan_qty = v_plan, plan_source = v_src, prior_qty = v_prior,
            section_plan_qty = v_splan, section_prior_qty = v_sprior where id = l.id;
   end loop;
 

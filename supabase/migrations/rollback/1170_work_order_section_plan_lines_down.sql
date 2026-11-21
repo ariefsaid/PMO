@@ -1,4 +1,4 @@
--- Reverses 1170_work_order_section_plan_lines.sql (#2576). Reverse 1097..1099 first.
+-- Reverses 1170_work_order_section_plan_lines.sql (#2576). Reverse 1171..1173 first.
 -- Refuses, with a clear message, when sectioned figures exist: dropping the column would merge them into the
 -- unsectioned figure (the 0997 one-per-kind index would collide, or silently change the work order's plan).
 do $$

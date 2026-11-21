@@ -1,4 +1,4 @@
--- Reverse of 1094: the two definers return to their pre-#2579 bodies.
+-- Reverse of 1168: the two definers return to their pre-#2579 bodies.
 CREATE OR REPLACE FUNCTION public.transition_document_status(p_doc_id uuid, p_to doc_status)
  RETURNS void
  LANGUAGE plpgsql

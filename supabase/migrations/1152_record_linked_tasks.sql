@@ -7,7 +7,7 @@
 --      close-column guard (a client can never write closed_by_*).
 --   §4 enforce_assignee_status_only gains exactly one exception: Done while the linked record is in an end state.
 --   §5 change-history registry.
--- The close function, its triggers and the read function are in 1071 / 1072.
+-- The close function, its triggers and the read function are in 1153.
 -- ── REVERSE: supabase/migrations/rollback/1152_record_linked_tasks_down.sql ─────────────────────────────
 
 -- ── §1 columns, checks, indexes ──────────────────────────────────────────────────────────────────────────

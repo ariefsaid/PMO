@@ -1,4 +1,4 @@
--- Reverse of 1092: policies first, then the helper. Visibility returns to "every active member of the organisation".
+-- Reverse of 1166: policies first, then the helper. Visibility returns to "every active member of the organisation".
 do $$
 declare c text;
 begin

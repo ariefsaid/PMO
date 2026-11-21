@@ -5,10 +5,10 @@
 -- Rollback: rollback/1185_subcontract_certificates_down.sql (refused while a certificate or backcharge exists).
 --
 -- A certificate is a calculation and approval record. It is one subcontract PO, one calendar month, the PO's work order.
--- draft / returned: lines are DERIVED on every read (spc_derive); nothing is reserved. submit (1137) FREEZES them: lines,
+-- draft / returned: lines are DERIVED on every read (spc_derive); nothing is reserved. submit (1186) FREEZES them: lines,
 -- claims on the measured work (one live claim per work order, date, contract line and crew — by the unique index, whatever
 -- the PO), the backcharges' claim and the totals. approved / billed are immutable by trigger, including for the table owner.
--- The state-change RPCs (1137) are the only writers; every child write is gated by a session setting only they set.
+-- The state-change RPCs (1186) are the only writers; every child write is gated by a session setting only they set.
 
 -- ── §1 tables ───────────────────────────────────────────────────────────────────────────────────────
 create table public.subcontract_certificates (

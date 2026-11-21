@@ -7,7 +7,7 @@
 alter table public.project_documents add column category_id uuid;
 
 -- Categories that exist only as free text in the register become custom categories (all roles), so no document changes audience.
--- A blank text is the fallback category. The system set was seeded by 1090, so 'Reference' is system, not discovered.
+-- A blank text is the fallback category. The system set was seeded by 1164, so 'Reference' is system, not discovered.
 insert into public.document_categories (org_id, name, sort_order)
 select d.org_id, min(btrim(d.category)), 1000 + (row_number() over (partition by d.org_id order by lower(btrim(d.category))))::int * 10
   from public.project_documents d
@@ -112,7 +112,7 @@ begin
   if public.actor_bypasses_rls() then return new; end if;
   if (new.title is distinct from old.title
       or new.category is distinct from old.category
-      or new.category_id is distinct from old.category_id                                     -- 1091
+      or new.category_id is distinct from old.category_id                                     -- 1165
       or new.code is distinct from old.code
       or new.doc_date is distinct from old.doc_date
       or new.revision is distinct from old.revision

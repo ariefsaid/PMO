@@ -1,4 +1,4 @@
--- 1156_mrq_plan_precedence_down.sql — reverses 1077: 1001's mrq_plan_quantity, mrq_submit and mrq_plan_for are restored
+-- 1156_mrq_plan_precedence_down.sql — reverses 1156: 1001's mrq_plan_quantity, mrq_submit and mrq_plan_for are restored
 -- verbatim and the plan_source column is dropped (the source label of past snapshots is lost; the plan figures are kept).
 begin;
 drop function if exists public.mrq_plan_for(uuid, uuid[], uuid);

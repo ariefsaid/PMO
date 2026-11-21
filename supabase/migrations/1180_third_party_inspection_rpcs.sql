@@ -1,7 +1,7 @@
 -- 1180_third_party_inspection_rpcs.sql — #2580: the writers of the tracker. One RPC per step (FR-TPI-002); the table has no
--- client write grant (1130), and the state rules live in guard_tpi_transition, so these only gate WHO and stamp date + actor.
+-- client write grant (1179), and the state rules live in guard_tpi_transition, so these only gate WHO and stamp date + actor.
 --   tpi_create · tpi_record_invitation · tpi_record_execution · tpi_record_report · tpi_waive · tpi_cancel
--- Each is audited through log_audit (FR-TPI-005) and by the record-history capture (1132). Proven by 1179_third_party_inspections.test.sql.
+-- Each is audited through log_audit (FR-TPI-005) and by the record-history capture (1181). Proven by 1179_third_party_inspections.test.sql.
 -- ── REVERSE (rollback/1180_third_party_inspection_rpcs_down.sql): drop the six functions and the helper.
 
 -- loads the inspection of the caller's org FOR UPDATE; another org's id reads as absent (SECURITY: no existence oracle)

@@ -1,4 +1,4 @@
--- Rollback for 1149_vendor_supply_risk_columns.sql (#2583). Revert 1066/1067 and the FE first. The recorded status,
+-- Rollback for 1149_vendor_supply_risk_columns.sql (#2583). Revert 1150/1151 and the FE first. The recorded status,
 -- reasons and stamps are lost with their columns; the audit events (company.supply_risk.change) keep from/to/reason.
 
 update public.record_history_config

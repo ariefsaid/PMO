@@ -1,5 +1,5 @@
 -- 1176_quantity_change_requests.sql — #2578: the request records, their files, the organisation limit, and raising / editing /
--- submitting / withdrawing a request. Approval, the client record and the decision are 1128; reads are 1129.
+-- submitting / withdrawing a request. Approval, the client record and the decision are 1177; reads are 1178.
 -- Spec: docs/specs/quantity-change-requests.spec.md (FR-QCR-004..010, 021, 023); AC-QCR-004..010, 022, 024.
 -- Reversal: rollback/1176_quantity_change_requests_down.sql.
 --   §1 organisations.quantity_change_limit (Admin only, audited before and after).

@@ -1,8 +1,8 @@
--- 1181_third_party_inspection_history_down.sql — reverse 1132 (#2580). Recorded change rows of the entity are removed with its registry row.
+-- 1181_third_party_inspection_history_down.sql — reverse 1181 (#2580). Recorded change rows of the entity are removed with its registry row.
 drop trigger if exists third_party_inspections_zz_record_change on public.third_party_inspections;
 delete from public.record_changes where entity_type = 'third_party_inspection';
 delete from public.record_history_config where entity_type = 'third_party_inspection';
--- restore 0448's record_history_visible (its arm list ends at 'project_stage_entry'):
+-- restore 1157's record_history_visible (0448's arms plus usage_standard and crew_tool_line):
 create or replace function public.record_history_visible(p_entity_type text,p_entity_id uuid) returns boolean
 language plpgsql stable security invoker set search_path=public as $$
 begin
@@ -24,6 +24,8 @@ begin
   when 'vendor_withholding_slip' then return exists(select 1 from public.vendor_withholding_slips where id=p_entity_id);
   when 'vendor_withholding_slip_bill' then return exists(select 1 from public.vendor_withholding_slip_bills where id=p_entity_id);
   when 'project_stage_entry' then return exists(select 1 from public.project_stage_entries where id=p_entity_id);
+  when 'usage_standard' then return exists(select 1 from public.consumable_usage_standards where id=p_entity_id);
+  when 'crew_tool_line' then return exists(select 1 from public.crew_tool_lines where id=p_entity_id);
   else raise exception 'record_history_visible: no visibility arm for entity type %',p_entity_type using errcode='P0001';
  end case;
 end $$;

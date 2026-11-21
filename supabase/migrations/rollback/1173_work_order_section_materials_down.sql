@@ -4,11 +4,11 @@ do $$
 begin
   if exists (select 1 from public.material_requests where section_id is not null)
      or exists (select 1 from public.work_order_section_material_plan) then
-    raise exception 'cannot reverse 1099: sectioned material requests or allocations exist; remove them first';
+    raise exception 'cannot reverse 1173: sectioned material requests or allocations exist; remove them first';
   end if;
 end $$;
 
--- 1001 bodies restored.
+-- The bodies this migration replaced: mrq_save_draft as 1101 left it, mrq_submit as 1156 left it.
 create or replace function public.mrq_save_draft(p_request_id uuid, p_header jsonb, p_lines jsonb, p_client_request_id uuid default null)
   returns uuid language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare
@@ -39,8 +39,8 @@ begin
   if v_needed is null then raise exception 'MRQ_INVALID: a request needs a needed-by date' using errcode = 'P0001'; end if;
   v_to := nullif(p_header->>'to_warehouse_id', '')::uuid;
   if v_to is not null and not exists (select 1 from public.stock_warehouses w
-        where w.id = v_to and w.org_id = v_org and w.kind = 'site' and w.project_id = v_wo.project_id and w.archived_at is null) then
-    raise exception 'MRQ_DESTINATION: the destination must be a site warehouse of the work order''s project' using errcode = 'P0001'; end if;
+        where w.id = v_to and w.org_id = v_org and w.kind in ('site', 'yard', 'staging') and w.project_id = v_wo.project_id and w.archived_at is null) then
+    raise exception 'MRQ_DESTINATION: the destination must be a site, yard or staging location of the work order''s project' using errcode = 'P0001'; end if;
   if p_header->>'note' is not null and length(p_header->>'note') > 1000 then
     raise exception 'MRQ_INVALID: a note is 1000 characters at most' using errcode = 'P0001'; end if;
   perform public.mrq_validate_lines(v_org, p_lines);
@@ -76,7 +76,7 @@ create or replace function public.mrq_submit(p_request_id uuid, p_client_request
   language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare
   v_org uuid; v_uid uuid := auth.uid(); r public.material_requests; v_wo_status public.work_order_status;
-  v_cutoff time; v_tz text; v_earliest date; l record; v_plan numeric; v_prior numeric; v_over boolean := false;
+  v_cutoff time; v_tz text; v_earliest date; l record; v_plan numeric; v_src text; v_prior numeric; v_over boolean := false;
   v_round integer; v_steps integer;
 begin
   perform public.assert_is_active_member();
@@ -109,7 +109,7 @@ begin
   -- Serialize submissions sharing a work order before reading prior quantities.
   perform pg_advisory_xact_lock(hashtextextended('mrq-plan:' || r.work_order_id::text, 0));
   for l in select * from public.material_request_lines x where x.request_id = r.id order by x.line_no for update loop
-    v_plan  := public.mrq_plan_quantity(r.work_order_id, l.item_id);
+    select f.plan_qty, f.plan_source into v_plan, v_src from public.mrq_plan_figure(r.work_order_id, l.item_id) f;
     v_prior := public.mrq_prior_quantity(r.work_order_id, l.item_id, r.id);
     if v_prior + l.quantity > v_plan then
       v_over := true;
@@ -118,7 +118,7 @@ begin
           using errcode = '23514';
       end if;
     end if;
-    update public.material_request_lines set plan_qty = v_plan, prior_qty = v_prior where id = l.id;
+    update public.material_request_lines set plan_qty = v_plan, plan_source = v_src, prior_qty = v_prior where id = l.id;
   end loop;
 
   v_round := r.round + 1;
@@ -138,7 +138,7 @@ begin
   values (v_org, r.id, 'submitted', 'draft', 'pending', v_uid, p_client_request_id);
 end $$;
 
--- 1097 archive guard restored (tasks only).
+-- 1171 archive guard restored (tasks only).
 create or replace function public.wos_archive_blockers(p_section_id uuid) returns text
   language sql stable security definer set search_path = public, pg_temp as $$
   select case when n > 0 then n::text || ' task(s) of this section are not done' end

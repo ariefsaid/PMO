@@ -1,12 +1,12 @@
 -- 1155_consumable_plan.sql — #2577 consumable needs from usage standards: the per-work-order consumable plan.
 -- Spec docs/specs/consumable-usage-standards.spec.md (FR-CUS-005..010, 014..016) · plan docs/plans/2026-11-20-consumable-usage-standards.md.
--- Proven by supabase/tests/cus_plan.test.sql (AC-CUS-001, 004..007, 011, 012, 014). Standards are in 1075.
+-- Proven by supabase/tests/cus_plan.test.sql (AC-CUS-001, 004..007, 011, 012, 014). Standards are in 1154.
 -- Reversible via supabase/migrations/rollback/1155_consumable_plan_down.sql.
 --
 -- The plan is a STORED SNAPSHOT (OD-CUS-6): generated from the work order's lines x the matching active standards,
 -- regenerated only on request, flagged "out of date" from a fingerprint of its inputs. Quantities of stock items only;
 -- it writes no cost plan (work_order_plan_lines, 0997, is a separate thing). Plan lines are written ONLY by the
--- security-definer functions below. The figure material requests read is changed in 1077, which ships alone.
+-- security-definer functions below. The figure material requests read is changed in 1156, which ships alone.
 
 -- §1 the table -------------------------------------------------------------------------------------------------
 create table public.work_order_consumable_plan_lines (
@@ -47,7 +47,7 @@ grant select on public.work_order_consumable_plan_lines to authenticated;   -- n
 -- §2 internals (never client-callable) ------------------------------------------------------------------------
 -- Which standard applies to which work-order line (FR-CUS matching): the standard's work unit equals the contract
 -- line's unit (trimmed, case-blind) and, when a prefix is set, boq_items.item_code starts with it (case-blind).
--- Per (line, item) the longest prefix wins; same-key standards cannot coexist (1075 unique index), so no tie.
+-- Per (line, item) the longest prefix wins; same-key standards cannot coexist (1154 unique index), so no tie.
 -- `result` keeps full precision; rounding happens once per item, at storage (NFR-CUS-002).
 create or replace function public.cus_plan_matches(p_work_order_id uuid)
   returns table (boq_item_id uuid, boq_code text, unit text, work_qty numeric, standard_id uuid, item_id uuid,

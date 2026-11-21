@@ -1,4 +1,4 @@
--- Reverse of 1158_crew_tool_reports.sql. Reverse 1083 and 1082 first. Loses report history; never touches lines.
+-- Reverse of 1158_crew_tool_reports.sql. Reverse 1160 and 1159 first. Loses report history; never touches lines.
 drop trigger if exists tasks_zz_crew_tool_guard on public.tasks;
 drop function if exists public.guard_crew_tool_task();
 update public.record_history_config set captured = captured - 'crew_tool_report_id' where entity_type = 'task';

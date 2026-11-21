@@ -10,7 +10,7 @@
 -- the work order (the shipped read already sums them), so sum(sections) + remainder = total by construction.
 --
 -- Also here: wos_check_child_section(), the one trigger every child of a section carries (refuses an archived section
--- on a new or moved record); 1097 and 1099 reuse it.
+-- on a new or moved record); 1171 and 1173 reuse it.
 --
 -- ── REVERSE (also supabase/migrations/rollback/1170_work_order_section_plan_lines_down.sql) ────────────────────
 

@@ -1,13 +1,13 @@
 -- 1179_third_party_inspections.sql — #2580: third-party inspection tracker (the table, its report files, the bucket).
 -- Spec docs/specs/third-party-inspections.spec.md (Review 20 Nov binding); plan docs/plans/2026-11-20-third-party-inspections.md.
--- Proven by supabase/tests/1179_third_party_inspections.test.sql (+ 1133 / 1134 files for the purchase link and the reads).
+-- Proven by supabase/tests/1179_third_party_inspections.test.sql (+ 1182 / 1183 files for the purchase link and the reads).
 --   §1 third_party_inspections: one row per external test of a work order. No client write grant at all: every change is an
---      RPC (1131) and every rule below is a table trigger, so a definer or fixture path cannot skip a gate.
+--      RPC (1180) and every rule below is a table trigger, so a definer or fixture path cannot skip a gate.
 --   §2 guard_tpi_transition: the state rules in ONE place (forward only; invite needs the purchase; execute not in the future;
 --      report needs a result + a live attachment; cancel only when required for no gate; waiver rules).
 --   §3 third_party_inspection_files: append-only once reported, at most 10 live files, org from the parent.
 --   §4 private bucket inspection-reports (15 MB; pdf, images, Office) + storage RLS.
--- No cost table, no cost writer: cost is read from the linked procurement case (1134).
+-- No cost table, no cost writer: cost is read from the linked procurement case (1183).
 --
 -- ── REVERSE (also rollback/1179_third_party_inspections_down.sql) ───────────────────────────────────
 --   drop policies on storage.objects for inspection-reports; delete from storage.buckets where id = 'inspection-reports';
@@ -60,8 +60,8 @@ create trigger third_party_inspections_stamp_org_id before insert on public.thir
 create policy third_party_inspections_select on public.third_party_inspections for select
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 
--- No INSERT/UPDATE/DELETE for any client role: the RPCs (1131/1133) are the only writers, so `status`, the waiver
--- and the cancel columns cannot be written from the client. SELECT excludes the planning estimate (money roles read it via 1134).
+-- No INSERT/UPDATE/DELETE for any client role: the RPCs (1180/1182) are the only writers, so `status`, the waiver
+-- and the cancel columns cannot be written from the client. SELECT excludes the planning estimate (money roles read it via 1183).
 revoke all on public.third_party_inspections from public, anon, authenticated;
 grant select (id, org_id, work_order_id, project_id, title, test_kind, planned_date, vendor_id, note, required_for, section_id,
               status, result, procurement_id, purchase_raised_at, purchase_raised_by, invited_on, invited_who, invited_how,

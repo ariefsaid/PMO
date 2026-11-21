@@ -1,4 +1,4 @@
--- Reverse of 1091 (revert 1092..1094 first). The text column already holds each category's name, so nothing is lost.
+-- Reverse of 1165 (revert 1166..1168 first). The text column already holds each category's name, so nothing is lost.
 drop trigger if exists project_documents_zc_category on public.project_documents;
 drop function if exists public.resolve_project_document_category();
 revoke insert (category_id), update (category_id) on public.project_documents from authenticated;

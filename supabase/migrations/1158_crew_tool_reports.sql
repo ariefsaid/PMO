@@ -1,6 +1,6 @@
 -- 1158_crew_tool_reports.sql — #2581: tool reports (damaged / lost), their photos, the coordinator setting, the task link.
 -- Spec: docs/specs/crew-tools-register.spec.md (FR-CTR-006..017, OD-CTR-5). Proven by supabase/tests/crew_tools.test.sql.
--- Every report write goes through the security-definer RPCs of 1082: these tables grant authenticated SELECT only
+-- Every report write goes through the security-definer RPCs of 1159: these tables grant authenticated SELECT only
 -- (plus photo rows, written under RLS while the report is open). org_id is stamped by trigger or copied from the
 -- parent, never sent by the client.
 -- Reversal: rollback/1158_crew_tool_reports_down.sql.

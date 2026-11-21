@@ -1,6 +1,6 @@
 -- 1163_client_requisition_rpcs.sql — #2585 client material requisitions: the ONLY writers, the pickup that posts a receipt.
--- Spec docs/specs/client-material-requisitions.spec.md · plan docs/plans/2026-11-20-client-material-requisitions.md · tables 1086,
--- cost attribution for a receive naming a work order 1085. Proven by supabase/tests/csr_requisition.test.sql and csr_pickup.test.sql.
+-- Spec docs/specs/client-material-requisitions.spec.md · plan docs/plans/2026-11-20-client-material-requisitions.md · tables 1162,
+-- cost attribution for a receive naming a work order 1161. Proven by supabase/tests/csr_requisition.test.sql and csr_pickup.test.sql.
 --
 -- Reuse, not a new engine (ADR-0097 single writer): csr_record_pickup creates the receipt through the shipped
 -- create_stock_document (unposted), names the work order on it as 1001 does for transfers, then posts it through
@@ -334,7 +334,7 @@ begin
                        'note', left('Client requisition ' || r.number || ' pickup' || coalesce(' - ' || v_collector, ''), 500)),
     jsonb_build_array(jsonb_build_object('item_id', l.stock_item_id, 'quantity', p_quantity, 'unit_cost', 0)),
     false, null);
-  -- Check 1085's rule trigger: the receiving location's project must be the work order's.
+  -- Check 1161's rule trigger: the receiving location's project must be the work order's.
   update public.stock_documents set work_order_id = r.work_order_id where id = v_doc;
   perform public.post_stock_document(v_doc);
   insert into public.client_requisition_pickups (org_id, requisition_id, line_id, quantity, picked_up_on, collector, paper_reference,

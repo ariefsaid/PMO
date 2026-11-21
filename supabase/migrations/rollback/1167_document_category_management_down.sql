@@ -1,4 +1,4 @@
--- Reverse of 1093.
+-- Reverse of 1167.
 drop function if exists public.refile_document_lineage(uuid, uuid);
 drop function if exists public.reorder_document_categories(uuid[]);
 drop function if exists public.restore_document_category(uuid);

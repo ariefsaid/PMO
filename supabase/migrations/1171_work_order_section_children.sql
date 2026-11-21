@@ -8,7 +8,7 @@
 --     The column is set on INSERT only (the UPDATE grant stays valid_from/valid_to).
 --   • tasks.section_id (#2531, 1038): a task of a work order may name one of its sections.
 --   Both carry the composite foreign key (section_id, work_order_id) → work_order_sections (id, work_order_id)
---   (MATCH SIMPLE: null always passes) and the archived-section trigger from 1096.
+--   (MATCH SIMPLE: null always passes) and the archived-section trigger from 1170.
 --   A task's work_order_id is nullable, and a MATCH SIMPLE key passes when ANY column is null, so tasks also carry a
 --   check: a section needs a work order.
 --   • The section's archive guard now also counts its tasks that are not Done (AC-WOS-006).

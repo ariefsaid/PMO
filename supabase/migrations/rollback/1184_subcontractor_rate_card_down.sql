@@ -8,10 +8,10 @@ drop policy if exists subcontractor_rate_lines_select on public.subcontractor_ra
 drop table if exists public.subcontractor_rate_lines;
 drop function if exists public.spc_may_read_rates(uuid);
 drop function if exists public.guard_subcontractor_rate_line();
--- the 1041 bodies, without the crew
+-- the 1171 bodies (sections, without the crew)
 create or replace function public.dsr_replace_lines(p_report public.daily_site_reports, p jsonb) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
-declare e jsonb; v_pos integer; v_qty numeric; v_unit text; v_min integer; v_line uuid; v_item uuid; v_reason uuid;
+declare e jsonb; v_pos integer; v_qty numeric; v_unit text; v_min integer; v_line uuid; v_item uuid; v_reason uuid; v_sec uuid;
 begin
   delete from public.dsr_progress_lines where report_id = p_report.id;
   delete from public.dsr_idle_periods where report_id = p_report.id;
@@ -30,8 +30,16 @@ begin
     if v_qty is null or v_qty <= 0 or v_qty >= 100000000000 or round(v_qty, 3) <> v_qty then
       raise exception 'progress line % needs a positive quantity with at most 3 decimals', v_pos using errcode = '22023';
     end if;
-    insert into public.dsr_progress_lines (org_id, report_id, position, work_order_line_id, sub_stage, quantity, unit)
-    values (p_report.org_id, p_report.id, v_pos, v_line, nullif(btrim(coalesce(e->>'sub_stage', '')), ''), v_qty, v_unit);
+    v_sec := null;
+    if nullif(e->>'section_id', '') is not null then
+      begin v_sec := (e->>'section_id')::uuid; exception when others then v_sec := null; end;
+      if not exists (select 1 from public.work_order_sections s
+                      where s.id = v_sec and s.work_order_id = p_report.work_order_id and s.org_id = p_report.org_id) then
+        raise exception 'progress line % names a section that is not on this work order', v_pos using errcode = '23514';
+      end if;
+    end if;
+    insert into public.dsr_progress_lines (org_id, report_id, position, work_order_line_id, section_id, sub_stage, quantity, unit)
+    values (p_report.org_id, p_report.id, v_pos, v_line, v_sec, nullif(btrim(coalesce(e->>'sub_stage', '')), ''), v_qty, v_unit);
   end loop;
 
   v_pos := 0;
@@ -85,8 +93,8 @@ begin
   values (v_org, r.project_id, r.work_order_id, r.work_date, r.version + 1, r.id, v_reason,
          auth.uid(), r.variant_id, r.start_time, r.end_time, r.weather_id, r.weather_note, r.note)
   returning * into n;
-  insert into public.dsr_progress_lines (org_id, report_id, position, work_order_line_id, sub_stage, quantity, unit)
-    select org_id, n.id, position, work_order_line_id, sub_stage, quantity, unit from public.dsr_progress_lines where report_id = r.id;
+  insert into public.dsr_progress_lines (org_id, report_id, position, work_order_line_id, section_id, sub_stage, quantity, unit)
+    select org_id, n.id, position, work_order_line_id, section_id, sub_stage, quantity, unit from public.dsr_progress_lines where report_id = r.id;
   insert into public.dsr_idle_periods (org_id, report_id, position, minutes, reason_id)
     select org_id, n.id, position, minutes, reason_id from public.dsr_idle_periods where report_id = r.id;
   insert into public.dsr_consumables (org_id, report_id, position, stock_item_id, quantity, unit)

@@ -14,6 +14,7 @@ create trigger third_party_inspections_zz_record_change after insert or update o
   for each row execute function public.record_change_capture();
 
 -- 0448's body verbatim plus one arm (invoker: the inspection's own RLS decides who sees its history).
+-- The record_history_visible body below also keeps the 'usage_standard' (1154) and 'crew_tool_line' (1157) arms (this migration restates the function whole and runs after both).
 create or replace function public.record_history_visible(p_entity_type text,p_entity_id uuid) returns boolean
 language plpgsql stable security invoker set search_path=public as $$
 begin
@@ -35,6 +36,8 @@ begin
   when 'vendor_withholding_slip' then return exists(select 1 from public.vendor_withholding_slips where id=p_entity_id);
   when 'vendor_withholding_slip_bill' then return exists(select 1 from public.vendor_withholding_slip_bills where id=p_entity_id);
   when 'project_stage_entry' then return exists(select 1 from public.project_stage_entries where id=p_entity_id);
+  when 'usage_standard' then return exists(select 1 from public.consumable_usage_standards where id=p_entity_id);
+  when 'crew_tool_line' then return exists(select 1 from public.crew_tool_lines where id=p_entity_id);
   when 'third_party_inspection' then return exists(select 1 from public.third_party_inspections where id=p_entity_id);
   else raise exception 'record_history_visible: no visibility arm for entity type %',p_entity_type using errcode='P0001';
  end case;

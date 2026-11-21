@@ -1,4 +1,4 @@
--- 1179_third_party_inspections_down.sql — reverse 1130 (#2580). Drops the tracker, its files and the bucket row.
+-- 1179_third_party_inspections_down.sql — reverse 1179 (#2580). Drops the tracker, its files and the bucket row.
 drop policy if exists storage_objects_tpi_orphan_delete on storage.objects;
 drop policy if exists storage_objects_tpi_file_write on storage.objects;
 drop policy if exists storage_objects_tpi_file_read on storage.objects;

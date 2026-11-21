@@ -1,10 +1,10 @@
 -- 1164_document_categories.sql — #2579 document categories with per-role visibility (spec docs/specs/document-category-visibility.spec.md).
--- Step 1 of 5: the two tables and the system seed. Nothing reads them yet; 1091 gives every register document a category
--- reference, 1092 enforces visibility, 1093 adds the Admin management functions, 1094 patches the two definers that read the register.
+-- Step 1 of 5: the two tables and the system seed. Nothing reads them yet; 1165 gives every register document a category
+-- reference, 1166 enforces visibility, 1167 adds the Admin management functions, 1168 patches the two definers that read the register.
 --
 -- document_categories   one row per category per organisation (name, order, system flag, archive state).
 -- document_category_roles  the viewer roles of a category (absence of a role = no access). Admin is always present.
--- Every write goes through the 1093 functions (no client write grant); reads are for any active member of the organisation
+-- Every write goes through the 1167 functions (no client write grant); reads are for any active member of the organisation
 -- (category names are not sensitive, the documents are).
 
 create table public.document_categories (

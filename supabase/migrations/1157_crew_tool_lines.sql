@@ -1,6 +1,6 @@
 -- 1157_crew_tool_lines.sql — #2581 (map #2516): the counted hand-tool register per crew.
 -- Spec: docs/specs/crew-tools-register.spec.md (FR-CTR-001..005, 016, 017). Plan: docs/plans/2026-11-20-crew-tools-register.md.
--- Proven by supabase/tests/crew_tools.test.sql. Reports, the task link and the RPCs follow in 1081..1083.
+-- Proven by supabase/tests/crew_tools.test.sql. Reports, the task link and the RPCs follow in 1158..1160.
 --
 -- A tool line is a named tool type held by one crew with a quantity and an optional serial. Hand tools are not
 -- equipment assets (usage, costing, availability) and not stock items (warehouse ledger): OD-CTR-1.
@@ -34,7 +34,7 @@ create trigger crew_tool_lines_stamp_org_id before insert on public.crew_tool_li
   for each row execute function public.stamp_org_id();
 
 -- Same-organisation crew (also on a move, FR-CTR-003) and the create/edit quantity rule. zz_: after the org stamp.
--- SECURITY: definer so it can see a foreign crew's org to refuse it. The close RPC (1082) sets pmo.crew_tool_rpc
+-- SECURITY: definer so it can see a foreign crew's org to refuse it. The close RPC (1159) sets pmo.crew_tool_rpc
 -- for the one write allowed to reach held 0.
 create function public.guard_crew_tool_line() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
@@ -156,6 +156,7 @@ create trigger crew_tool_lines_zz_record_change after insert or update on public
   for each row execute function public.record_change_capture();
 
 -- The catalog gate wants a visibility arm for every registered entity: 0448's body verbatim plus one arm.
+-- The record_history_visible body below also keeps the 'usage_standard' arm of 1154 (this migration restates the function whole and runs after it).
 create or replace function public.record_history_visible(p_entity_type text,p_entity_id uuid) returns boolean
 language plpgsql stable security invoker set search_path=public as $$
 begin
@@ -177,6 +178,7 @@ begin
   when 'vendor_withholding_slip' then return exists(select 1 from public.vendor_withholding_slips where id=p_entity_id);
   when 'vendor_withholding_slip_bill' then return exists(select 1 from public.vendor_withholding_slip_bills where id=p_entity_id);
   when 'project_stage_entry' then return exists(select 1 from public.project_stage_entries where id=p_entity_id);
+  when 'usage_standard' then return exists(select 1 from public.consumable_usage_standards where id=p_entity_id);
   when 'crew_tool_line' then return exists(select 1 from public.crew_tool_lines where id=p_entity_id);
   else raise exception 'record_history_visible: no visibility arm for entity type %',p_entity_type using errcode='P0001';
  end case;

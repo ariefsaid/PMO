@@ -1,5 +1,5 @@
--- Reverse of 1157_crew_tool_lines.sql. Reverse 1083, 1082 and 1081 first (they depend on this table).
--- Restores 1035's guard_crew_refs() body and 0448's record_history_visible() body.
+-- Reverse of 1157_crew_tool_lines.sql. Reverse 1160, 1159 and 1158 first (they depend on this table).
+-- Restores 1035's guard_crew_refs() body and 1154's record_history_visible() body (0448's arms plus usage_standard).
 drop trigger if exists crew_tool_lines_zz_record_change on public.crew_tool_lines;
 delete from public.record_history_config where entity_type = 'crew_tool_line';
 delete from public.record_changes where entity_type = 'crew_tool_line';
@@ -25,6 +25,7 @@ begin
   when 'vendor_withholding_slip' then return exists(select 1 from public.vendor_withholding_slips where id=p_entity_id);
   when 'vendor_withholding_slip_bill' then return exists(select 1 from public.vendor_withholding_slip_bills where id=p_entity_id);
   when 'project_stage_entry' then return exists(select 1 from public.project_stage_entries where id=p_entity_id);
+  when 'usage_standard' then return exists(select 1 from public.consumable_usage_standards where id=p_entity_id);
   else raise exception 'record_history_visible: no visibility arm for entity type %',p_entity_type using errcode='P0001';
  end case;
 end $$;
