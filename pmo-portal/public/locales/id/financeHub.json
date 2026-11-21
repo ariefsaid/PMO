@@ -90,7 +90,8 @@
         "openIntegrations": "Buka integrasi",
         "askAdmin": "Laporan keuangan berasal dari sistem akuntansi; Admin mengaturnya di Integrasi.",
         "notConnected": "akuntansi belum terhubung",
-        "setUp": "Atur"
+        "setUp": "Atur",
+        "seeManagement": "lihat laba rugi manajemen"
       },
       "finding": {
         "unknownBalance": "Saldo tidak diketahui"
