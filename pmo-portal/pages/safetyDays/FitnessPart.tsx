@@ -21,6 +21,7 @@ export const FitnessPart: React.FC<{ detail: SafetyDayDetail; roster: RosterWork
   const fail = (err: unknown) => { const { headline, detail: d } = classifyMutationError(err); toast(headline, d, 'warning'); };
   const typeLabel = (id: string | null) => types.data?.find((x) => x.id === id)?.label;
   const resultLabel = (r: SafetyFitnessCheck['result']) => t(`fitness.result.${r}`, { fit: 'Fit', not_fit: 'Not fit', not_checked: 'Not checked' }[r]);
+  const pickable = roster.filter((w) => !detail.fitness.some((f) => f.worker_id === w.worker_id));
   const canAdd = (workerId || visitor.trim()) && (result !== 'not_fit' || note.trim());
 
   const add = async () => {
@@ -48,9 +49,9 @@ export const FitnessPart: React.FC<{ detail: SafetyDayDetail; roster: RosterWork
       </ul>
       {editable && (
         <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); if (canAdd) void add(); }}>
-          {seePeople && roster.length > 0 && (
+          {seePeople && pickable.length > 0 && (
             <SelectField label={t('fitness.pickWorker', 'Worker on the roster')} value={workerId} onChange={setWorkerId}
-              options={[{ value: '', label: t('fitness.pickWorkerNone', 'Choose a worker') }, ...roster.map((w) => ({ value: w.worker_id, label: w.display_name }))]} />
+              options={[{ value: '', label: t('fitness.pickWorkerNone', 'Choose a worker') }, ...pickable.map((w) => ({ value: w.worker_id, label: w.display_name }))]} />
           )}
           {!workerId && <TextField label={t('fitness.visitor', 'Or a named visitor')} value={visitor} onChange={setVisitor} />}
           {(types.data?.length ?? 0) > 0 && (

@@ -188,7 +188,11 @@ declare
   v_wo record;
 begin
   if tg_op = 'DELETE' then
-    raise exception 'a safety day is never deleted' using errcode = '42501';
+    -- a client never deletes a day; the service role (auth.uid() null: retention, manual Admin removal, fixtures) may (OD-DSF-7)
+    if auth.uid() is not null then
+      raise exception 'a safety day is never deleted' using errcode = '42501';
+    end if;
+    return old;
   end if;
   if tg_op = 'UPDATE' then
     if old.status = 'locked' and not v_internal then
@@ -230,6 +234,7 @@ declare
   v_kind text;
   v_list uuid;
 begin
+  if tg_op = 'DELETE' and auth.uid() is null then return old; end if;   -- the service role removing a day takes its parts
   if tg_op = 'DELETE' then v_row := to_jsonb(old); else v_row := to_jsonb(new); end if;
   select * into v_day from public.safety_days where id = (v_row ->> 'day_id')::uuid;
   if not found then

@@ -1,6 +1,7 @@
 // @e2e-isolation: serial - evidence capture only (not committed).
 import { test } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
+import { SEED_PASSWORD } from '../helpers';
 import { loadEnv } from 'vite';
 import path from 'node:path';
 import { signIn, requireServiceRoleKey, pinEnglishLocale } from '../helpers';
@@ -15,6 +16,9 @@ test.setTimeout(240_000);
 test('capture safety screens', async ({ browser }) => {
   const admin = createClient(URL_, requireServiceRoleKey()!, { auth: { persistSession: false } });
   const ok = (s: string, e: { message: string } | null) => { if (e) throw new Error(`${s}: ${e.message}`); };
+  const anon = process.env.VITE_SUPABASE_ANON_KEY ?? VITE_ENV.VITE_SUPABASE_ANON_KEY ?? '';
+  const u = createClient(URL_, anon, { auth: { persistSession: false } });
+  ok('login', (await u.auth.signInWithPassword({ email: 'admin@acme.test', password: SEED_PASSWORD })).error);
   const tag = `Evidence ${Date.now()}`;
   ok('flag', (await admin.from('organizations').update({ safety_records_enabled: true }).eq('id', ORG_ID)).error);
   const now = new Date();
@@ -37,19 +41,19 @@ test('capture safety screens', async ({ browser }) => {
     org_id: ORG_ID, worker_id: x.id, work_order_id: w.id, project_id: p.id, work_date: dayIso(n), status: 'present', hours: 8, overtime_hours: n === 2 ? 2 : 0, source: 'manual_correction', locked_at: new Date().toISOString(),
   }))))).error);
   // two complete days (author: admin via service role is not an auth user; use the engineer's profile id as author)
-  const eng = (await admin.from('profiles').select('id').eq('email', 'engineer@acme.test').single()).data!;
   const mkDay = async (n: number, complete: boolean) => {
-    const d = (await admin.from('safety_days').insert({ org_id: ORG_ID, project_id: p.id, work_order_id: w.id, work_date: dayIso(n), status: 'draft', author_id: eng.id }).select('id').single());
+    const d = await u.from('safety_days').insert({ work_order_id: w.id, work_date: dayIso(n) }).select('id').single();
     ok('day', d.error);
     const id = d.data!.id;
-    const talk = (await admin.from('safety_toolbox_talks').insert({ org_id: ORG_ID, day_id: id, topic: 'Working at height', presenter: 'Site foreman', held_at: `${dayIso(n)}T07:00:00Z` }).select('id').single()).data!;
-    await admin.from('safety_toolbox_attendees').insert(people.map((x: { id: string }) => ({ org_id: ORG_ID, day_id: id, talk_id: talk.id, worker_id: x.id })));
-    if (complete) await admin.from('safety_toolbox_photos').insert({ org_id: ORG_ID, day_id: id, talk_id: talk.id, file_path: `${ORG_ID}/${id}/${crypto.randomUUID()}/talk.jpg` });
-    await admin.from('safety_fitness_checks').insert(people.map((x: { id: string }, i: number) => ({ org_id: ORG_ID, day_id: id, worker_id: x.id, result: i === 2 && !complete ? 'not_checked' : 'fit', check_type_id: items[0].id })));
-    await admin.from('safety_checklist_answers').update({ answer: 'yes' }).eq('day_id', id);
-    await admin.from('safety_permits').insert({ org_id: ORG_ID, day_id: id, permit_number: 'HW-0412', type_id: items[2].id, valid_from: `${dayIso(n)}T08:00:00Z`, valid_to: `${dayIso(n)}T16:00:00Z`, issued_by: 'Site supervisor' });
-    await admin.from('safety_officer_entries').insert({ org_id: ORG_ID, day_id: id, body: 'Housekeeping reminder given at the laydown area. One near miss with a swinging load, no injury.', near_misses: 1, observations: 3, author_id: eng.id });
-    if (complete) await admin.from('safety_days').update({ status: 'locked', submitted_at: new Date().toISOString() }).eq('id', id);
+    const talk = await u.rpc('safety_save_talk', { p_day: id, p_topic: 'Working at height', p_presenter: 'Site foreman', p_held_at: `${dayIso(n)}T07:00:00Z`,
+      p_attendees: people.map((x: { id: string }) => ({ worker_id: x.id })) });
+    ok('talk', talk.error);
+    if (complete) ok('photo', (await admin.from('safety_toolbox_photos').insert({ org_id: ORG_ID, day_id: id, talk_id: talk.data, file_path: `${ORG_ID}/${id}/${crypto.randomUUID()}/talk.jpg` })).error);
+    ok('fitness', (await u.from('safety_fitness_checks').insert(people.map((x: { id: string }, i: number) => ({ day_id: id, worker_id: x.id, result: i === 2 && !complete ? 'not_checked' : 'fit', check_type_id: items[0].id })))).error);
+    ok('checklist', (await u.from('safety_checklist_answers').update({ answer: 'yes' }).eq('day_id', id)).error);
+    ok('permit', (await u.from('safety_permits').insert({ day_id: id, permit_number: 'HW-0412', type_id: items[2].id, valid_from: `${dayIso(n)}T08:00:00Z`, valid_to: `${dayIso(n)}T16:00:00Z`, issued_by: 'Site supervisor' })).error);
+    ok('officer', (await u.from('safety_officer_entries').insert({ day_id: id, body: 'Housekeeping reminder given at the laydown area. One near miss with a swinging load, no injury.', near_misses: 1, observations: 3 })).error);
+    if (complete) ok('submit', (await u.rpc('submit_safety_day', { p_day: id })).error);
     return id;
   };
   const d1 = await mkDay(1, true);
