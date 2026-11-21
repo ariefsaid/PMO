@@ -80,7 +80,13 @@
         "leadTimeInvalid": "Isi hari bulat antara 0 dan 365.",
         "tag": "Label",
         "tagHelp": "Opsional. Terkunci setelah barang punya pergerakan.",
-        "noTag": "Tanpa label"
+        "noTag": "Tanpa label",
+        "similar": {
+          "title": "Barang serupa sudah ada",
+          "body": "Periksa dulu sebelum menambah duplikat. Barang ini tetap bisa dibuat.",
+          "checkUnavailable": "Tidak bisa memeriksa nama barang yang sudah ada. Barang ini tetap bisa dibuat.",
+          "listLabel": "Barang serupa"
+        }
       },
       "warehouse": {
         "newTitle": "Gudang baru",

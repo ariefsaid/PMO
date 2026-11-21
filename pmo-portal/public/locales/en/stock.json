@@ -80,7 +80,13 @@
         "leadTimeInvalid": "Enter whole days between 0 and 365.",
         "tag": "Tag",
         "tagHelp": "Optional. Fixed once the item has movements.",
-        "noTag": "No tag"
+        "noTag": "No tag",
+        "similar": {
+          "title": "A similar item already exists",
+          "body": "Check it before adding a duplicate. You can still create this one.",
+          "checkUnavailable": "Could not check existing item names. You can still create this one.",
+          "listLabel": "Similar items"
+        }
       },
       "warehouse": {
         "newTitle": "New warehouse",
