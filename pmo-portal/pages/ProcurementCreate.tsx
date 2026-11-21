@@ -16,6 +16,10 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
 import { LineItemsSection, type LineItemsSectionHandle } from './procurement/LineItemsSection';
+import { LinePlanningSection } from './procurement/LinePlanningSection';
+import type { LinePlanningValue } from './procurement/linePlanningValue';
+import { useLinePlanningEnabled, useLineCategories } from '@/src/hooks/usePurchaseLinePlanning';
+import { setProcurementLinePlanning } from '@/src/lib/db/procurementLinePlanning';
 import { readOrigin, readRestockLine, resolveFormOrigin } from '@/src/lib/stockRequestPurchase';
 import { useBudgetCategoryOptions } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
@@ -139,6 +143,10 @@ export default function ProcurementCreate() {
   const [addRowEdited, setAddRowEdited] = useState(false);
   const addRowDescriptionRef = useRef<HTMLInputElement>(null);
   const lineItemsRef = useRef<LineItemsSectionHandle | null>(null);
+  // #2696 — off unless the organisation turned line planning on; then each line may carry a category and a needed-by date.
+  const linePlanningOn = useLinePlanningEnabled();
+  const lineCategories = useLineCategories(linePlanningOn);
+  const [planning, setPlanning] = useState<Record<string, LinePlanningValue>>({});
   const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -291,6 +299,15 @@ export default function ProcurementCreate() {
     setAttempt({ input, have: attemptHave });
     try {
       const procurement = await create.mutateAsync(input);
+      if (linePlanningOn && attemptHave === 'need') {
+        // The draft exists; set category and date per filled line. A failure leaves the request saved and is reported once.
+        const filled = input.lines.filter((line) => planning[line.id]?.categoryId || planning[line.id]?.neededBy);
+        const results = await Promise.allSettled(filled.map((line) =>
+          setProcurementLinePlanning(line.id, planning[line.id].categoryId || null, planning[line.id].neededBy || null)));
+        if (results.some((r) => r.status === 'rejected')) {
+          toast(t('procurement:linePlanning.saveFailed', 'The category and date could not be saved for some lines. Open the request to set them.'), '', 'warning');
+        }
+      }
       if (attemptHave !== 'need') {
         navigate(`/procurement/${procurement.id}/timeline?record=${RECORD_KIND[attemptHave]}`, { replace: true });
       } else {
@@ -455,6 +472,15 @@ export default function ProcurementCreate() {
               currencyKnown={currencyKnown}
             />
           </fieldset>
+          {linePlanningOn && (
+            <LinePlanningSection
+              lines={lines}
+              values={planning}
+              onChange={(lineId, next) => setPlanning((current) => ({ ...current, [lineId]: next }))}
+              categories={lineCategories.data ?? []}
+              busy={saving || Boolean(attempt)}
+            />
+          )}
           </>
         )}
         {/* The ONE place for the primary action: form footer, Cancel left of the primary. */}

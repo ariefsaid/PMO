@@ -50,5 +50,11 @@ Both new line columns are nullable and every existing row keeps NULL. The settin
 ## Mutation checks (written here, run by the orchestrator)
 1. Drop the Admin check in `set_purchase_line_category`: AC-PLP-002 must go red. 2. Drop the OFF guard in the trigger: AC-PLP-004 red. 3. Drop the Draft check in `set_procurement_line_planning`: AC-PLP-006 red. 4. Drop `org_id` from the category foreign key / the RPC's org filter: AC-PLP-005 and 007 red. Restore each.
 
+## As built (deviations from the first draft)
+- The data seam is `src/lib/db/procurementLinePlanning.ts` with effect-based hooks (`src/hooks/usePurchaseLinePlanning.ts`), not a repository method: the repository key lists are pinned by existing tests, which stay untouched. The create page also has no query client in its existing tests, so the setting is read without one (a pending or failed read means OFF).
+- The line editor is a separate panel (`LinePlanningPanel`) under the Items tab, so `LineItemsSection` and its tests are unchanged.
+- `database.types.ts` gains the table, the RPCs and the optional Insert/Update columns; the `procurement_items` Row type is left alone until the next type regeneration (adding required Row fields breaks existing fixtures typed as the row).
+- The pgTAP file is `supabase/tests/1345_purchase_line_planning.test.sql` (29 assertions); the e2e journey is `pmo-portal/e2e/serial/AC-PLP-009-line-planning.spec.ts` (serial lane, it flips an organisation setting). Neither was run by the builder.
+
 ## Out of scope
 Rollups or reports by category, approval routing by category, a request-level needed-by date, ERP field mapping, and category history. Nothing here is deferred from the ticket.

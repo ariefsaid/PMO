@@ -27,7 +27,7 @@
 6. Strings: English and Bahasa Indonesia keys in the locale files (AC-PLP-012); no screenshots (gate change).
 
 ## Traceability
-AC-PLP-001..007 pgTAP `1345_purchase_line_planning.test.sql`; AC-PLP-008 `procurementLinePlanning.test.ts`; AC-PLP-009 `ProcurementCreate.linePlanning.test.tsx`; AC-PLP-010 `ProcurementDetails.linePlanning.test.tsx`; AC-PLP-011 `OrgPurchaseLines.test.tsx`; AC-PLP-012 existing locale-parity test. One e2e journey is deferred to the orchestrator's wave (written, not run): `pmo-portal/e2e/AC-PLP-009-line-planning.spec.ts`.
+AC-PLP-001..007 pgTAP `1345_purchase_line_planning.test.sql`; AC-PLP-008 `procurementLinePlanning.test.ts`; AC-PLP-009 `ProcurementCreate.linePlanning.test.tsx`; AC-PLP-010 `ProcurementDetails.linePlanning.test.tsx`; AC-PLP-011 `OrgPurchaseLines.test.tsx`; AC-PLP-012 existing locale-parity test. One e2e journey is deferred to the orchestrator's wave (written, not run): `pmo-portal/e2e/serial/AC-PLP-009-line-planning.spec.ts`.
 
 ## Gates (static only)
 `npm run check:guards`, `npm run typecheck`, `npx eslint --max-warnings=0 <changed>`, `npx vitest run <new and touched test files>`.

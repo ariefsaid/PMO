@@ -31,6 +31,7 @@ import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import OrgProcurementGates from './admin/OrgProcurementGates';
+import OrgPurchaseLines from './admin/OrgPurchaseLines';
 import SiteReportLists from './admin/SiteReportLists';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
@@ -272,6 +273,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgVendorTaxAccounts />
             <OrgDownPaymentItem />
             <OrgProcurementGates />
+            <OrgPurchaseLines />
             <BudgetAccountMap />
             <ExpenseAccountMap />
           </div>

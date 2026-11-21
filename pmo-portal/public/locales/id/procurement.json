@@ -902,5 +902,32 @@
     "exceedsProject": "pengadaan ini akan melampaui batas anggaran proyek, termasuk yang sudah dibelanjakan.",
     "spendingUnknown": "pengeluaran pada anggaran {{category}} proyek belum diketahui.",
     "spendingNotVisible": "kesesuaiannya dengan anggaran {{category}} proyek diperiksa saat diputuskan."
+  },
+  "linePlanning": {
+    "heading": "Perencanaan baris",
+    "intro": "Setiap baris permintaan dapat memuat kategori dan tanggal dibutuhkan.",
+    "enable": "Tampilkan kategori dan tanggal dibutuhkan pada setiap baris permintaan",
+    "categories": "Kategori",
+    "categoryName": "Nama kategori",
+    "addCategory": "Tambah kategori",
+    "rename": "Ubah nama",
+    "save": "Simpan",
+    "retire": "Nonaktifkan",
+    "retireTitle": "Nonaktifkan kategori ini?",
+    "retireBody": "Kategori tetap ada pada baris yang sudah memuatnya dan tidak dapat dipilih lagi.",
+    "retireConfirm": "Nonaktifkan kategori",
+    "loadError": "Perencanaan baris tidak dapat dimuat",
+    "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
+    "saving": "Menyimpan…",
+    "saved": "Tersimpan",
+    "noCategories": "Belum ada kategori.",
+    "retired": "Nonaktif",
+    "section": "Kategori dan dibutuhkan pada",
+    "category": "Kategori",
+    "neededBy": "Dibutuhkan pada",
+    "none": "Tidak ada",
+    "lineLabel": "Baris {{name}}",
+    "saveFailed": "Kategori dan tanggal tidak dapat disimpan untuk beberapa baris. Buka permintaan untuk mengaturnya.",
+    "columnEmpty": "—"
   }
 }

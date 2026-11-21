@@ -902,5 +902,32 @@
     "exceedsProject": "it would take the project's budget over its limit, counting what is already spent.",
     "spendingUnknown": "what is already spent on the project's {{category}} budget is not known yet.",
     "spendingNotVisible": "whether it fits the project's {{category}} budget is checked when it is decided."
+  },
+  "linePlanning": {
+    "heading": "Line planning",
+    "intro": "Each request line can carry a category and the date it is needed.",
+    "enable": "Show a category and a needed-by date on each request line",
+    "categories": "Categories",
+    "categoryName": "Category name",
+    "addCategory": "Add category",
+    "rename": "Rename",
+    "save": "Save",
+    "retire": "Retire",
+    "retireTitle": "Retire this category?",
+    "retireBody": "It stays on lines that already carry it and can no longer be chosen.",
+    "retireConfirm": "Retire category",
+    "loadError": "Couldn’t load line planning",
+    "onlyAdmin": "Only an Admin can change this.",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "noCategories": "No categories yet.",
+    "retired": "Retired",
+    "section": "Category and needed by",
+    "category": "Category",
+    "neededBy": "Needed by",
+    "none": "None",
+    "lineLabel": "Line {{name}}",
+    "saveFailed": "The category and date could not be saved for some lines. Open the request to set them.",
+    "columnEmpty": "—"
   }
 }
