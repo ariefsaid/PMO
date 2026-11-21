@@ -75,7 +75,7 @@ describe('AC-STC-012 day checkpoints', () => {
 
   it('offers no record action to a viewer who may not record (Executive, or another crew controller)', () => {
     h.rows = [row({ id: 'c1' })];
-    h.realRole = 'Executive';
+    h.realRole = 'Executive'; h.userId = 'exec';
     const { unmount } = view();
     expect(screen.queryByRole('button', { name: 'Record' })).toBeNull();
     unmount();

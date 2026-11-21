@@ -72,6 +72,7 @@ export const CORE_ROUTES = {
   '/equipment/assets/:assetId': 'equipment — not a catalogue module',
   '/site-reports': 'site reports (#1522) — not a catalogue module',
   '/site-reports/:reportId': 'site reports (#1522) — not a catalogue module',
+  '/site-reports/crews': 'site reports (#1522) timed checkpoints (#2594) — not a catalogue module',
   '/equipment/people/:personId': 'equipment — not a catalogue module',
   '/reports': 'redirect to /finance/reports',
   '/administration': 'administration — core',

@@ -58,7 +58,7 @@
       "not_started": "Belum mulai",
       "on_time": "Tepat waktu"
     },
-    "target": "Target {{time}}",
+    "target": "Sasaran {{time}}",
     "title": "Regu tepat waktu",
     "to": "Sampai",
     "toReports": "Kembali ke laporan lapangan",

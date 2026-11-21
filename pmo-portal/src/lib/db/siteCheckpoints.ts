@@ -60,7 +60,7 @@ const hhmm = (v: unknown): string => str(v, 'checkpoint time').slice(0, 5);
 
 export async function getCheckpointList(): Promise<CheckpointTemplateItem[]> {
   const { data, error } = await db.from('site_checkpoint_templates')
-    .select('position, name, marks_work_start, due_time, grace_minutes, photo_required').order('position', { ascending: true });
+    .select('position, name, marks_work_start, due_time, grace_minutes, photo_required').order('position', { ascending: true }).limit(12);
   if (error) fail(error);
   if (!Array.isArray(data)) return malformed('checkpoint list');
   return data.map((r: unknown) => {
@@ -100,7 +100,7 @@ export async function getWorkOrderFlag(workOrderId: string, date?: string | null
 }
 
 export function buildCheckpointPhotoPath(c: { org_id: string; work_order_id: string; crew_id: string; work_date: string; id: string }, file: File): string {
-  const ext = (file.name.split('.').pop() ?? '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5)
+  const ext = (file.name.includes('.') ? file.name.split('.').pop() ?? '' : '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5)
     || (file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg');
   return `${c.org_id}/${c.work_order_id}/${c.crew_id}/${c.work_date}/${c.id}.${ext}`;
 }

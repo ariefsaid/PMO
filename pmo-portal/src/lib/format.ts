@@ -502,6 +502,13 @@ export function formatDateOnlyNumeric(iso: string | null | undefined): string {
   }).format(parsed);
 }
 
+/** Clock time (24 h, HH:mm) of an ISO instant in the viewer's resolved timezone. */
+export function formatInstantTime(iso: string | null | undefined): string {
+  const parsed = parseInstant(iso);
+  if (!parsed) return '—';
+  return dateFormatterFor('instantTime', getDateLocale(), { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: getActiveLocale().timezone }).format(parsed);
+}
+
 /** Calendar date derived from an ISO instant, interpreted in the viewer's resolved timezone. */
 export function formatInstantDate(iso: string | null | undefined): string {
   const parsed = parseInstant(iso);
