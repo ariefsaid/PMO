@@ -53,8 +53,6 @@ const SalesInvoicePanelDrawer: React.FC<{
   loading,
 }) => {
   const { t } = useTranslation();
-  const payments = useIncomingPayments(undefined, Boolean(panelInvoice), panelInvoice?.id);
-  const { amount: paidAmount, date: paidDate } = salesInvoicePaymentFacts(panelInvoice, payments);
   return (
     <Drawer
       open={Boolean(panelInvoice)}
@@ -76,7 +74,27 @@ const SalesInvoicePanelDrawer: React.FC<{
       loading={loading}
       nestedOpen={nestedOpen}
     >
-      {panelInvoice && <div className="space-y-5 p-4 sm:p-5">
+      {panelInvoice && <SalesInvoicePanelContent invoice={panelInvoice} paymentsForTimeline={panelPayments} profileRows={profileRows}
+        projectManagerNameOf={projectManagerNameOf} deliveryLabelOf={deliveryLabelOf} odoo={odoo} />}
+    </Drawer>
+  );
+};
+
+
+/** Mount the invoice-specific read only while the drawer has an invoice. */
+function SalesInvoicePanelContent({ invoice: panelInvoice, paymentsForTimeline: panelPayments, profileRows, projectManagerNameOf, deliveryLabelOf, odoo }: {
+  invoice: SalesInvoiceRow;
+  paymentsForTimeline: IncomingPaymentRow[];
+  profileRows: ProfileRow[];
+  projectManagerNameOf: (invoice: SalesInvoiceRow) => string;
+  deliveryLabelOf: (invoice: SalesInvoiceRow) => string;
+  odoo: boolean;
+}) {
+  const { t } = useTranslation();
+  const payments = useIncomingPayments(undefined, true, panelInvoice.id);
+  const { amount: paidAmount, date: paidDate } = salesInvoicePaymentFacts(panelInvoice, payments);
+  return (
+    <div className="space-y-5 p-4 sm:p-5">
         {(() => {
           // C4: a field with nothing recorded is left out; an unknown open balance is said once, never shown as a dash.
           const due = deriveArDueDate(panelInvoice.invoice_date, panelInvoice.erp_payment_terms_days, panelInvoice.erp_due_date, panelInvoice.received_date);
@@ -103,9 +121,8 @@ const SalesInvoicePanelDrawer: React.FC<{
         })()}
         <InvoiceStatusTimeline invoice={panelInvoice} payments={panelPayments} profiles={profileRows} />
         <SalesInvoiceEvidenceWithPayments invoice={panelInvoice} odoo={odoo} payments={payments} />
-      </div>}
-    </Drawer>
+    </div>
   );
-};
+}
 
 export default SalesInvoicePanelDrawer;
