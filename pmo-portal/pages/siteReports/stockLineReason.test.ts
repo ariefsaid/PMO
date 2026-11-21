@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { TFunction } from 'i18next';
 import { stockLineReason } from './stockLineReason';
 import type { DsrStockLine } from '@/src/lib/db/dsrStockIssue';
 

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -115,8 +115,6 @@ describe('FitnessPart', () => {
     view(<FitnessPart detail={{ ...base, fitness: [{ id: 'f1', worker_id: 'w1', visitor_name: null, check_type_id: null, result: 'fit', note: null }] }} roster={h.roster} editable seePeople />);
     await user.click(screen.getByRole('button', { name: 'Remove Budi' }));
     await waitFor(() => expect(h.m.deleteFitness.mutateAsync).toHaveBeenCalledWith('f1'));
-    await new Promise((r) => setTimeout(r, 800));
-    require('node:fs').writeFileSync('/tmp/parts-dom.txt', document.body.innerHTML + '\nFAILLOG:' + JSON.stringify((globalThis as Record<string, unknown>).__failLog ?? null));
     expect((await screen.findAllByText('Update failed')).length).toBeGreaterThan(0);
   });
 });

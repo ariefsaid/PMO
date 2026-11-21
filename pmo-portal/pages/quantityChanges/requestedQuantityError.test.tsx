@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { TFunction } from 'i18next';
 import { useRequestedQuantityErrorText } from './requestedQuantityError';
 import { renderHook } from '@testing-library/react';
 
