@@ -37,6 +37,8 @@ vi.mock('@/src/hooks/useMyTasks', () => ({
   useMyTaskMutations: () => mutationsState,
 }));
 
+vi.mock('@/src/hooks/useTaskLinkedRecords', () => ({ useTaskLinkedRecords: () => ({ data: undefined }) }));
+
 import MyTasks from '../MyTasks';
 
 const makeTask = (id: string, endDate: string | null, status = 'To Do') => ({

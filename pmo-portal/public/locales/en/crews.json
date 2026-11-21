@@ -30,7 +30,7 @@
   "ended": "Placement ended",
   "error": "Couldn't load crews",
   "errors": {
-    "archiveInUse": "End this crew's current and future members and roster placements first.",
+    "archiveInUse": "End this crew's current and future members and roster placements, and archive or move its tool lines, first.",
     "ceiling": "This person already has {{hours}} hours on {{workOrder}} that day. A day holds at most 24.",
     "duplicateCode": "That code is already used by a live crew.",
     "future": "Attendance cannot be recorded for a future date.",
@@ -130,7 +130,8 @@
   "tabs": {
     "attendance": "Attendance",
     "crews": "Crews",
-    "roster": "Roster"
+    "roster": "Roster",
+    "tools": "Tools"
   },
   "tabsLabel": "Crew views",
   "tickErrors": {

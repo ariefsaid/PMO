@@ -56,6 +56,8 @@ export interface PlanLine {
   id: string;
   workOrderId: string;
   disciplineId: string | null;
+  /** #2576: the section the figure belongs to; null/absent = the unsectioned figure. A work order's plan is the sum of all of them. */
+  sectionId?: string | null;
   kind: PlanKind;
   /** Money kinds: scale-two decimal in the work order's currency. Hour kinds: a decimal number of hours. */
   value: string;

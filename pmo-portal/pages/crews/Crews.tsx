@@ -10,8 +10,9 @@ import { CrewImports } from './CrewImports';
 import { CrewLoans } from './CrewLoans';
 import { CheckInRequests } from './CheckInRequests';
 import { CheckInSettings } from './CheckInSettings';
+import { CrewTools } from './CrewTools';
 
-type View = 'crews' | 'roster' | 'attendance';
+type View = 'crews' | 'roster' | 'attendance' | 'tools';
 
 /**
  * Crews (#2528): the crew master, the roster per work order and the daily attendance tick, as three views of one page.
@@ -23,12 +24,13 @@ const CrewsPage: React.FC = () => {
   const { realRole, effectiveRole } = useEffectiveRole();
   const canManage = may('manage', 'crew', { record: { viewOnly: realRole !== effectiveRole } });
   const { values, setFilter } = useUrlFilters(['view']);
-  const view: View = values.view === 'roster' || values.view === 'attendance' ? values.view : 'crews';
+  const view: View = values.view === 'roster' || values.view === 'attendance' || values.view === 'tools' ? values.view : 'crews';
   const [creating, setCreating] = useState(false);
   const tabs = [
     { value: 'crews' as View, label: t('crews:tabs.crews', 'Crews') },
     { value: 'roster' as View, label: t('crews:tabs.roster', 'Roster') },
     { value: 'attendance' as View, label: t('crews:tabs.attendance', 'Attendance') },
+    { value: 'tools' as View, label: t('crews:tabs.tools', 'Tools') },
   ];
   return (
     <ListPage
@@ -46,6 +48,7 @@ const CrewsPage: React.FC = () => {
         {view === 'crews' && <CrewLoans />}
         {view === 'roster' && <><WorkOrderRoster /><CheckInSettings /></>}
         {view === 'attendance' && <AttendanceTick />}
+        {view === 'tools' && <CrewTools />}
       </div>
     </ListPage>
   );

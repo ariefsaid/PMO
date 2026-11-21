@@ -52,7 +52,16 @@ select set_eq(
             -- 1004 (#1522): daily_site_reports carries author_id AND validated_by, both -> profiles. New
             -- table: the DAL (src/lib/db/dailySiteReports.ts) embeds no profiles; names resolve by id.
             ('daily_site_reports -> profiles'),
+            -- 1185 (#2584): subcontract_certificates carries prepared_by, submitted_by, approved_by and cancelled_by, all ->
+            -- profiles. New table: the DAL (src/lib/db/subcontractCertificates.ts) selects explicit columns and embeds no profiles.
+            ('subcontract_certificates -> profiles'),
             ('credits -> profiles'),
+            -- 1158 (#2581): crew_tool_reports carries reported_by AND closed_by, org_crew_tool_settings carries
+            -- coordinator_id AND updated_by, all -> profiles. Checked before adding: no DAL, repository, edge fn or
+            -- e2e code embeds profiles from either (names resolve by id through the users list), so nothing broke.
+            -- The report DAL embeds tasks and crew_tool_lines, and qualifies both with !constraint_name.
+            ('crew_tool_reports -> profiles'),
+            ('org_crew_tool_settings -> profiles'),
             -- 0882 (#2195): erp_capture_invoice_assignments carries actor_id, undone_by and the two
             -- prior_mark_* columns, all -> profiles. Checked before adding: no DAL, repository,
             -- edge-function or e2e code embeds profiles from it (the command line reads placements
@@ -81,6 +90,11 @@ select set_eq(
             ('journal_entries -> profiles'),
             -- 0970: people has profile_id and manager_id; the expiry DAL uses an RPC, not a profiles embed.
             ('people -> profiles'),
+            -- 1176 (#2578): quantity_change_requests carries author_id, submitted_by, approved_by, returned_by, withdrawn_by,
+            -- sent_by and decided_by, all -> profiles. Checked before adding: the only embeds of profiles from it
+            -- (pmo-portal/src/lib/db/quantityChanges.ts) are qualified with !quantity_change_requests_author_id_fkey and
+            -- !quantity_change_requests_approved_by_fkey. Any future embed must name its constraint.
+            ('quantity_change_requests -> profiles'),
             ('platform_operators -> profiles'),
             ('procurements -> profiles'),
             ('projects -> profiles'),
@@ -101,6 +115,9 @@ select set_eq(
             -- tasks selects (`useMyTasks.ts:41`, `milestones.ts:230`, the ClickUp dispatch factory)
             -- embed no profile at all. So nothing broke; the pair is recorded, not waived.
             ('tasks -> profiles'),
+            -- 1179 (#2580): third_party_inspections carries created_by and the invited/executed/reported/waived/cancelled/purchase actors, all
+            -- -> profiles. Checked before adding: src/lib/db/thirdPartyInspections.ts embeds no profile from it; a future embed must name its constraint.
+            ('third_party_inspections -> profiles'),
             -- 0205 (#526): meeting_access_grants carries user_id AND granted_by, both -> profiles.
             -- The DAL shipped in the same branch and every profiles embed in it is
             -- constraint-qualified (src/lib/db/meetings.ts — `!meeting_access_grants_user_id_fkey`

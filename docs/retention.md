@@ -28,7 +28,10 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `erp_financial_statement_*` | keep: raw ERP response and cleaned copy kept on purpose as statement evidence; an unfinished capture is replaced by the next one |
 | `procurement_status_events` | keep: procurement status history shown on the record |
 | `material_request_events` | keep: material request approval history shown on the request (who decided, for whom, why) |
+| `work_order_section_readiness_events` | keep: a section's readiness history shown on its record (who, when, note; #2576); removed with the section |
+| `client_requisition_events` | keep: client requisition history and the reservations and releases the figures are derived from; never edited or deleted (#2585) |
 | `dsr_events` | keep: site report transition history and return reasons shown on the record (#1522) |
+| `quantity_change_request_events` | keep: quantity change request transition history, actors and reasons shown on the request (#2578); a change to a billable quantity is audit evidence |
 | `agent_automation_fires` | keep: owner decision pending (#1755); automation fire claims |
 | `procurement_import_runs` | keep: owner decision pending (#1755); import run history |
 | `erp_connect_runs` | keep: owner decision pending (#1755); ERP connect run history |
@@ -58,4 +61,5 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `m365-pkce-sweep` | keep: trigger only, stores no rows |
 | `incident-escalation` | keep: trigger only; each escalation writes one audit event, which the audit retention rule already governs |
 | `equipment-downtime-escalation` | keep: trigger only; its rows are the escalation log, listed above (0986) |
+| `tpi-overdue` | keep: trigger only; each notice is a `notifications` row (governed by `notifications-purge`) and one `overdue_notified_at` stamp on the inspection (1134) |
 | `plan-monthly-ai-allowance` | keep: trigger only, stores no rows (it writes one grant row per org per month, listed above) |

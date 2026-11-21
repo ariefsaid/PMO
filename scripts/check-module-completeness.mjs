@@ -73,6 +73,8 @@ export const CORE_ROUTES = {
   '/equipment/assets/:assetId': 'equipment — not a catalogue module',
   '/site-reports': 'site reports (#1522) — not a catalogue module',
   '/site-reports/:reportId': 'site reports (#1522) — not a catalogue module',
+  '/quantity-changes': 'quantity change requests (#2578) — part of contract billing, no catalogue switch of its own',
+  '/quantity-changes/:requestId': 'quantity change requests (#2578) — part of contract billing, no catalogue switch of its own',
   '/equipment/people/:personId': 'equipment — not a catalogue module',
   '/reports': 'redirect to /finance/reports',
   '/administration': 'administration — core',

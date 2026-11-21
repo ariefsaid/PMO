@@ -54,6 +54,11 @@ const { listState, childDocs, mutations, fileUploadState, revisionState, reposit
 
 const refresh = vi.hoisted(() => vi.fn());
 const destinationState = vi.hoisted(() => ({ value: { kind: 'private' } as { kind: 'private' | 'microsoft' | 'unknown' } }));
+const categoryState = vi.hoisted(() => ({ offered: null as null | Array<{ id: string; name: string; is_system: boolean; sort_order: number; archived_at: null; roles: string[] }> }));
+vi.mock('@/src/hooks/useDocumentCategories', async () => {
+  const { SYSTEM_CATEGORIES } = await import('./__tests__/categoryFixtures');
+  return { useViewableCategories: () => categoryState.offered ?? SYSTEM_CATEGORIES };
+});
 vi.mock('@/src/hooks/useUploadDestination', async (orig) => ({
   ...(await orig<typeof import('@/src/hooks/useUploadDestination')>()),
   useUploadDestination: () => destinationState.value,
@@ -120,7 +125,7 @@ const seed = [
   { id: 'd4', project_id: 'p1', code: null, category: 'Transmittal', title: 'Cover Note', revision: null, status: 'Rejected', author_id: 'pm-1', doc_date: null, org_id: 'org-1', file_path: null, parent_document_id: null, created_at: '2026-06-04T00:00:00Z' },
   { id: 'd5', project_id: 'p1', code: 'RPT-003', category: 'Report', title: 'Structural calculation report', revision: 'A', status: 'Superseded', author_id: 'pm-1', doc_date: '2026-04-20', org_id: 'org-1', file_path: 'org-1/p1/d5/structural-calc-rev-a.pdf', parent_document_id: null, created_at: '2026-04-20T00:00:00Z' },
   { id: 'd6', project_id: 'p1', code: 'RPT-003', category: 'Report', title: 'Structural calculation report', revision: 'B', status: 'Issued', author_id: 'pm-2', doc_date: '2026-05-20', org_id: 'org-1', file_path: 'org-1/p1/d6/structural-calc-rev-b.pdf', parent_document_id: 'd5', created_at: '2026-05-20T00:00:00Z' },
-];
+].map((d) => ({ ...d, category_id: `cat-${d.category.toLowerCase()}` }));
 
 const linkedFolder = {
   ...seed[0],
@@ -598,6 +603,36 @@ describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)
     );
   });
 
+  it('AC-DCV-018: the create form offers only the categories the caller may see and files by category id', async () => {
+    categoryState.offered = [
+      { id: 'cat-drawing', name: 'Drawing', is_system: true, sort_order: 10, archived_at: null, roles: ['Finance'] },
+      { id: 'cat-invoice', name: 'Invoice', is_system: false, sort_order: 20, archived_at: null, roles: ['Finance'] },
+    ];
+    try {
+      renderTab('Finance', 'fin-1');
+      await chooseAddOption(userEvent, 'Upload a document');
+      const dialog = screen.getByRole('dialog');
+      const select = within(dialog).getByLabelText(/Category/i);
+      expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Drawing', 'Invoice']);
+      expect(within(select).queryByRole('option', { name: 'Specification' })).not.toBeInTheDocument();
+      await userEvent.type(within(dialog).getByLabelText(/Title/i), 'Pay claim 7');
+      await userEvent.selectOptions(select, 'Invoice');
+      await userEvent.click(within(dialog).getByRole('button', { name: /^Add document$/i }));
+      await waitFor(() =>
+        expect(mutations.create.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ title: 'Pay claim 7', category_id: 'cat-invoice' })),
+      );
+    } finally {
+      categoryState.offered = null;
+    }
+  });
+
+  it('AC-DCV-018: a project whose documents are all hidden shows the ordinary empty state, with no hidden-count text', async () => {
+    listState.data = [];
+    renderTab('Engineer', 'eng-1');
+    expect(screen.queryByText(/hidden|restricted|withheld|locked|not visible/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/No documents yet|no documents/i)).toBeInTheDocument();
+  });
+
   it('AC-DOC-003: a create rejected by RLS (42501) surfaces a classified warning toast', async () => {
     mutations.create.mutateAsync.mockRejectedValue(new AppError('not permitted', '42501'));
     renderTab('Admin');
@@ -608,6 +643,26 @@ describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)
     await userEvent.click(within(dialog).getByRole('button', { name: /^Add document$/i }));
     const toast = await findToastAnnouncement('alert', /don't have permission/i);
     expect(toast).toHaveTextContent(/don't have permission/i);
+  });
+
+  it('AC-DCV-012: an unchanged category is not a re-file; a changed one moves the whole lineage after the edit', async () => {
+    renderTab('Admin');
+    await userEvent.click(within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Edit/i }));
+    await userEvent.type(screen.getByLabelText(/Title/i), ' v2');
+    await userEvent.click(screen.getByRole('button', { name: /^Save document$/i }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mutations.update.mutateAsync.mock.calls[0][0]).not.toHaveProperty('refileTo');
+
+    mutations.update.mutateAsync.mockClear();
+    await userEvent.click(within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Edit/i }));
+    await userEvent.selectOptions(within(screen.getByRole('dialog')).getByLabelText(/Category/i), 'Specification');
+    await userEvent.click(screen.getByRole('button', { name: /^Save document$/i }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mutations.update.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'd1', refileTo: 'cat-specification', input: expect.objectContaining({ category: 'Drawing' }) }),
+    );
   });
 
   it('AC-DOC-004: Edit pre-fills the row and submits an update', async () => {
@@ -847,7 +902,8 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     await userEvent.type(within(dialog).getByLabelText(/Title/i), 'Survey Report Rev B');
     await userEvent.clear(within(dialog).getByLabelText(/^Code/i));
     await userEvent.type(within(dialog).getByLabelText(/^Code/i), 'DOC-003B');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/Category/i), 'Specification');
+    // FR-DCV-009: the revision keeps the category of the document it revises, so the control is locked.
+    expect(within(dialog).getByLabelText(/Category/i)).toBeDisabled();
     await userEvent.type(within(dialog).getByLabelText(/Document date/i), '2026-06-12');
     await userEvent.click(within(dialog).getByRole('button', { name: /Create revision/i }));
     expect(revisionState.createRevision.mutate).toHaveBeenCalledWith(
@@ -855,7 +911,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
         parentId: 'd3',
         title: 'Survey Report Rev B',
         code: 'DOC-003B',
-        category: 'Specification',
+        category: 'Report',
         revision: 'B',
         doc_date: '2026-06-12',
       },

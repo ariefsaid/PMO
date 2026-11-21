@@ -30,7 +30,7 @@
   "ended": "Penempatan diakhiri",
   "error": "Tidak dapat memuat kru",
   "errors": {
-    "archiveInUse": "Akhiri dulu anggota dan penempatan jadwal kru ini yang sedang berjalan dan yang akan datang.",
+    "archiveInUse": "Akhiri dulu anggota dan penempatan roster kru ini yang berjalan dan mendatang, lalu arsipkan atau pindahkan baris alatnya.",
     "ceiling": "Orang ini sudah punya {{hours}} jam di {{workOrder}} pada hari itu. Satu hari paling banyak 24 jam.",
     "duplicateCode": "Kode itu sudah dipakai kru yang aktif.",
     "future": "Kehadiran tidak dapat dicatat untuk tanggal mendatang.",
@@ -130,7 +130,8 @@
   "tabs": {
     "attendance": "Kehadiran",
     "crews": "Kru",
-    "roster": "Jadwal kru"
+    "roster": "Jadwal kru",
+    "tools": "Alat"
   },
   "tabsLabel": "Tampilan kru",
   "tickErrors": {

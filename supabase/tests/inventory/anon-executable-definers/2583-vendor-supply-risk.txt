@@ -1,0 +1,2 @@
+# #2583 (2583-vendor-supply-risk), carried from the branch's own array at integration
+set_vendor_supply_status
