@@ -1,4 +1,4 @@
--- crew_tools.test.sql — #2581 (docs/specs/crew-tools-register.spec.md). Migrations under test: 1080..1083.
+-- crew_tools.test.sql — #2581 (docs/specs/crew-tools-register.spec.md). Migrations under test: 1157..1160.
 -- AC-CTR-001 usable quantity and the refused third report · AC-CTR-002 serial unique among live lines ·
 -- AC-CTR-003 one report, one task, one notification · AC-CTR-004 idempotent on the report id ·
 -- AC-CTR-005 no coordinator: Admin and Project Manager are notified · AC-CTR-006 a damaged report needs a photo ·
