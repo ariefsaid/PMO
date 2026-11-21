@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap;
 select plan(10);
 
--- Fixtures
+-- Fixtures (written as table owner before switching to authenticated)
 insert into organizations (id, name, default_currency, default_timezone) values
   ('26870000-0000-0000-0000-00000000000a', 'DNP Org A', 'IDR', 'Asia/Jakarta'),
   ('26870000-0000-0000-0000-00000000000b', 'DNP Org B', 'IDR', 'Asia/Jakarta');
@@ -21,6 +21,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('26870000-0000-0000-0000-0000000000a2', '26870000-0000-0000-0000-00000000000a', 'DNP User A',  'dnp-user-a@example.com',  'Engineer', 'active'),
   ('26870000-0000-0000-0000-0000000000b1', '26870000-0000-0000-0000-00000000000b', 'DNP Admin B', 'dnp-admin-b@example.com', 'Admin', 'active');
 
+insert into material_request_settings (org_id) values ('26870000-0000-0000-0000-00000000000a');
+
 create or replace function pg_temp._as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
 $$;
@@ -28,9 +30,8 @@ grant execute on function pg_temp._as(uuid) to authenticated;
 
 set local role authenticated;
 
--- 1. Default row or absence: when inserting default settings row, delivery_note_enabled defaults to false
+-- 1. Default row values: delivery_note_enabled defaults to false, signature blocks has default
 select pg_temp._as('26870000-0000-0000-0000-0000000000a1');
-insert into material_request_settings (org_id) values ('26870000-0000-0000-0000-00000000000a');
 
 select is(
   (select delivery_note_enabled from material_request_settings where org_id = '26870000-0000-0000-0000-00000000000a'),
@@ -86,7 +87,7 @@ select lives_ok(
 );
 
 -- 5. AC-DNP-004: org_terminology accepts 'deliveryNote'
-select pg_temp._as('26870000-0000-0000-0000-0000000000a1');
+select pg_temp._as('26870000-0000-0000-0000-00000000000a1');
 select lives_ok(
   $$ insert into public.org_terminology (org_id, term_key, locale, singular, plural)
      values ('26870000-0000-0000-0000-00000000000a', 'deliveryNote', 'en', 'Goods Issue Note', 'Goods Issue Notes') $$,
