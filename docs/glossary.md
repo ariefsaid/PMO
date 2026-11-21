@@ -1042,3 +1042,9 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+## Timed checkpoints (#2594)
+- **Checkpoint** — a named point in the working day, set by the organisation, with a local target time, a grace in minutes and a photo-required flag. Nothing about its name or time is built in.
+- **Day checkpoint** — a copy of a checkpoint for one work order, crew and date, with its due instant; once recorded it carries the server time, the person, an optional note and a photo, and never changes.
+- **Started on time** — the crew's `start` checkpoint was recorded at or before its due time plus grace. Reported as a count of days, not an average of minutes.
+- **Lost time by cause** — idle minutes of submitted or validated daily site reports, summed by the organisation's own lost-time cause list.
