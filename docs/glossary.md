@@ -424,6 +424,14 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Remaining work** — signed contract value less recognised revenue to date in the management pack; it follows the recognition basis (progress, earned value or invoiced) and is distinct from Left to bill. Formerly named "backlog" in the pack (DD-MMP-3).
 
+**Earned value (work order)** — validated daily-site-report progress at the frozen contract rate, to a date (#2597). Not Left to bill or Remaining work, which are invoice and recognition quantities: earned value exists before anything is invoiced.
+
+**Planned value (work order)** — the work order's net value (its closing value once closed) times the share of calendar days elapsed between its start and end dates (#2597). A straight-line plan; a front- or back-loaded job reads ahead or behind by the plan's shape alone.
+
+**Cost performance index** — earned value divided by actual direct cost counted to the work order, rounded half up to two decimals, as of a date (#2597). Earned value is on the revenue basis, so this is a margin-style ratio, not a ratio against a cost budget. A project's index is the ratio of sums over its issued and closed work orders, never an average of their indices. Reading bands (default 0.90 and 1.10) are organisation settings.
+
+**Schedule performance index** — earned value divided by planned value, rounded half up to two decimals, as of a date (#2597). Same bands and project rule as the cost performance index.
+
 **Cancelled invoice pair** — an invoice pair whose linked ERP invoice was later cancelled; Finance can review the pair and decide whether to undo it.
 
 **Incoming payment** — a customer payment record, optionally linked to a sales invoice, carrying amount, currency, status and receipt/withholding details.

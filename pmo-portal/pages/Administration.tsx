@@ -35,6 +35,7 @@ import OrgProcurementGates from './admin/OrgProcurementGates';
 import SiteReportLists from './admin/SiteReportLists';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
+import OrgPerformanceIndices from './admin/OrgPerformanceIndices';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
 import LabourCostSettings from './admin/LabourCostSettings';
@@ -298,6 +299,7 @@ const SelectedAdministrationPanel: React.FC<{
             <SiteReportLists />
             <RevenuePlanSettings />
             <CostDisciplines />
+            <OrgPerformanceIndices />
           </div>
         </div>
       );

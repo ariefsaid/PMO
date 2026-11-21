@@ -7175,6 +7175,9 @@ export type Database = {
           pph4_2_payable_account: string | null
           pph4_2_prepaid_account: string | null
           procurement_gates: Json
+          performance_band_high: number
+          performance_band_low: number
+          performance_indices_enabled: boolean
           project_number_pattern: string | null
           sector_options: string[]
           service_line_options: string[]
@@ -7200,6 +7203,9 @@ export type Database = {
           pph4_2_payable_account?: string | null
           pph4_2_prepaid_account?: string | null
           procurement_gates?: Json
+          performance_band_high?: number
+          performance_band_low?: number
+          performance_indices_enabled?: boolean
           project_number_pattern?: string | null
           sector_options?: string[]
           service_line_options?: string[]
@@ -7225,6 +7231,9 @@ export type Database = {
           pph4_2_payable_account?: string | null
           pph4_2_prepaid_account?: string | null
           procurement_gates?: Json
+          performance_band_high?: number
+          performance_band_low?: number
+          performance_indices_enabled?: boolean
           project_number_pattern?: string | null
           sector_options?: string[]
           service_line_options?: string[]
@@ -15674,6 +15683,10 @@ export type Database = {
       is_meeting_attendee: { Args: { p_meeting_id: string }; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
       is_unattributed_authority: { Args: never; Returns: boolean }
+      get_work_order_performance: {
+        Args: { p_as_of?: string; p_project_id: string }
+        Returns: Json
+      }
       is_valid_project_number_pattern: {
         Args: { p_pattern: string }
         Returns: boolean
