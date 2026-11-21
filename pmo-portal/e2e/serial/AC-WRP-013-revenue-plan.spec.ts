@@ -1,16 +1,25 @@
 // @e2e-isolation: serial — switches the organisation-wide revenue-plan setting on for the run (an org-global singleton) and restores it in finally.
 // AC-WRP-013 — Finance on a phone enters a month amount on a work order; the work-order page and the project roll-up show the same plan to date and gap.
 // Goal oracle: the plan figure the user typed is what both screens report as plan to date, and the gap reads as "behind plan".
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { pinEnglishLocale, requireServiceRoleKey, signIn } from '../helpers';
 import { formatExactMoney } from '../../src/lib/format';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 test.setTimeout(90_000);
-test.use({ viewport: { width: 390, height: 844 } });
+test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+const EVIDENCE = '../docs/evidence/1215/2671';
+// Two screenshots per screen (phone 390, desktop 1440); evidence only, no assertions.
+const shots = async (page: Page, locator: Locator, name: string) => {
+  for (const [label, width, height] of [['phone', 390, 844], ['desktop', 1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await locator.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${EVIDENCE}/${name}-${label}.png`, fullPage: true });
+  }
+};
 
-test('AC-WRP-013 a month plan entered on the work order shows the same plan to date and gap on the project page', async ({ page }) => {
+test('AC-WRP-013 a month plan entered on the work order shows the same plan to date and gap on the project page', async ({ page, browser }) => {
   const serviceKey = requireServiceRoleKey();
   if (!serviceKey) throw new Error('AC-WRP-013 requires the local fixture service client');
   const admin: SupabaseClient = createClient(requireMatchingLocalSupabaseUrls(undefined, undefined), serviceKey, { auth: { persistSession: false } });
@@ -58,6 +67,8 @@ test('AC-WRP-013 a month plan entered on the work order shows the same plan to d
     await expect(section).toBeVisible({ timeout: 15_000 });
     await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText('No plan entered');
     await section.getByRole('button', { name: 'Enter plan', exact: true }).click();
+    await shots(page, page.getByRole('dialog'), 'revenue-plan-entry-modal');
+    await page.setViewportSize({ width: 390, height: 844 });
     // The month list runs from six months back; index 5 is last month, wholly in the past, so plan to date is the whole amount.
     await page.locator('#wrp-month').selectOption({ index: 5 });
     await page.locator('#wrp-amount').fill('1000.00');
@@ -65,12 +76,27 @@ test('AC-WRP-013 a month plan entered on the work order shows the same plan to d
     const expectedPlan = formatExactMoney('1000.00', 'EUR', 'en-US') ?? 'unformattable';
     await expect(section.getByTestId('wo-revenue-plan-plan')).toHaveText(expectedPlan);
     await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText(expectedPlan + ' behind plan');
+    await shots(page, section, 'work-order-revenue-plan');
 
     await page.goto('/projects/' + projectId + '/contract');
     const row = page.getByTestId('revenue-plan-row-' + workOrderId);
     await expect(row).toBeVisible({ timeout: 15_000 });
     await expect(row).toContainText(expectedPlan);
     await expect(row).toContainText(expectedPlan + ' behind plan');
+    await shots(page, page.getByTestId('project-revenue-plan'), 'project-revenue-plan');
+
+    const adminContext = await browser.newContext({ deviceScaleFactor: 2 });
+    try {
+      const adminPage = await adminContext.newPage();
+      await pinEnglishLocale(adminPage);
+      await signIn(adminPage, 'admin@acme.test');
+      await adminPage.goto('/administration/projects');
+      const card = adminPage.locator('#revenue-plan-settings');
+      await expect(card).toBeVisible({ timeout: 15_000 });
+      await shots(adminPage, card, 'admin-revenue-plan-settings');
+    } finally {
+      await adminContext.close();
+    }
   } catch (e) {
     failure = e;
   } finally {
