@@ -7,7 +7,16 @@ import { pinEnglishLocale, requireServiceRoleKey, signIn } from './helpers';
 import { formatExactMoney } from '../src/lib/format';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
-test.setTimeout(60_000);
+test.setTimeout(120_000);
+test.use({ deviceScaleFactor: 2 });
+const EVIDENCE = '../docs/evidence/1215/2733';
+const shots = async (page: import('@playwright/test').Page, locator: import('@playwright/test').Locator, name: string) => {
+  for (const [label, width, height] of [['phone', 390, 844], ['desktop', 1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await locator.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${EVIDENCE}/${name}-${label}.png`, fullPage: true });
+  }
+};
 
 test('AC-EBR-011 the project tab and the pack show earned next to billed revenue, with the gap', async ({ page }) => {
   const serviceKey = requireServiceRoleKey();
@@ -99,6 +108,7 @@ test('AC-EBR-011 the project tab and the pack show earned next to billed revenue
     await expect(panel.getByTestId(key + '-billed')).toHaveText(fmt('50.00'));
     await expect(panel.getByTestId(key + '-gap')).toHaveText(fmt('75.00'));
     await expect(panel.getByTestId('earned-billed-EUR').getByTestId('earned-billed-row-total-gap')).toHaveText(fmt('75.00'));
+    await shots(page, panel, 'earned-billed-card');
 
     // AC-EBR-012: the pack shows the same project, with the same figures as the tab.
     await page.goto('/reports');
@@ -108,6 +118,7 @@ test('AC-EBR-011 the project tab and the pack show earned next to billed revenue
     await expect(pack.getByTestId(packKey + '-earned')).toHaveText(fmt('125.00'));
     await expect(pack.getByTestId(packKey + '-billed')).toHaveText(fmt('50.00'));
     await expect(pack.getByTestId(packKey + '-gap')).toHaveText(fmt('75.00'));
+    await shots(page, pack, 'pack-earned-table');
   } catch (e) {
     failure = e;
   } finally {
