@@ -2,7 +2,8 @@
 /**
  * JOB-H3 — people register (#2542b). HR adds a person with a job title to the register and opens the person's record.
  * Goal oracle: the register lists the person with a person code and job title, and the record opens.
- * Not built: ex-employees with active badges, candidates, and a former-staff filter, so the rehire half of the job is not asserted.
+ * Not built: ex-employees with active badges, candidates; the former-staff filter itself (#2703) is proved at the unit
+ * and pgTAP layers, so this journey does not assert the rehire half of the job.
  */
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';

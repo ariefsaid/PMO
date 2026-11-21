@@ -14,7 +14,11 @@ export interface PersonListRow {
   name: string;
   job_title: string | null;
   profile_id: string | null;
+  /** Set when the person has left; the row is then former staff (#2703). Never written by the register. */
+  archived_at: string | null;
 }
+/** The register's staff-status view (#2703). `active` is the default and the pre-existing read. */
+export type PeopleListStatus = 'active' | 'former' | 'all';
 /** The editable fields (the 0970 + 1008 grants). `code` is omitted/blank on create to have the database assign it. */
 export interface PersonInput {
   name: string;
@@ -23,15 +27,19 @@ export interface PersonInput {
   profile_id: string | null;
 }
 
-const COLUMNS = 'id, code, name, job_title, profile_id';
+const COLUMNS = 'id, code, name, job_title, profile_id, archived_at';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const table = (): any => supabase.from('people' as never);
 function fail(error: { message: string; code?: string }): never { throw new AppError(error.message, error.code); }
 
-/** Live people, ordered by code then id so the offset scan is total. */
-export async function listPeople(): Promise<PersonListRow[]> {
-  return fetchAllPages<PersonListRow>((from, to) =>
-    table().select(COLUMNS).is('archived_at', null).order('code', { ascending: true }).order('id', { ascending: true }).range(from, to));
+/** Live people by default (#2703 keeps this read unchanged); `former` reads archived people only, `all` both.
+ *  Ordered by code then id so the offset scan is total. */
+export async function listPeople(status: PeopleListStatus = 'active'): Promise<PersonListRow[]> {
+  return fetchAllPages<PersonListRow>((from, to) => {
+    const page = table().select(COLUMNS).order('code', { ascending: true }).order('id', { ascending: true });
+    const scoped = status === 'former' ? page.not('archived_at', 'is', null) : status === 'all' ? page : page.is('archived_at', null);
+    return scoped.range(from, to);
+  });
 }
 
 /** `job_title` and `profile_id` are optional on create (the people import sends only code and name). */

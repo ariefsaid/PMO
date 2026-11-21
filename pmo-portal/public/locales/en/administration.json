@@ -793,7 +793,12 @@
     "retry": "Retry",
     "empty": "No people yet. Add the first person to record their documents.",
     "archiveTitle": "Archive person",
-    "archiveBody": "They leave the register and the expiry list, and no more warnings are sent for their documents.",
+    "archiveBody": "They leave the active list and the expiry warnings, and stay on record under Former staff.",
+    "staffStatus": "Staff status",
+    "active": "Active",
+    "former": "Former staff",
+    "all": "All",
+    "formerEmpty": "No former staff. People you archive appear here.",
     "navLabel": "People"
   },
   "terminology": {
