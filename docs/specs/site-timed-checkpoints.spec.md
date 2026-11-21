@@ -13,9 +13,13 @@ Read against `origin/dev`: migrations 0245, 0275, 1028, 1035, 1036, 1040 and 104
 ## Scope rulings applied (OD-SCOPE, 21 Nov)
 
 - OD-SCOPE-1: ships for 15 December; at risk it drops to January rather than delay the release.
-- OD-SCOPE-2: no checkpoint name, time, kind label list or lost-time cause is coded. The checkpoint list and the lost-time causes (the existing `dsr_idle_reasons` list, 1040) are organisation settings. An organisation with an empty list sees no new screen content and gets no reminders (answers OQ-STC-2).
+- OD-SCOPE-2: no checkpoint name, time, checkpoint-kind list or lost-time cause is coded. The checkpoint list and the lost-time causes (the existing `dsr_idle_reasons` list, 1040) are organisation settings. An organisation with an empty list sees no new screen content and gets no reminders (answers OQ-STC-2).
 - OD-SCOPE-4: light accounts (Foreman, Field user) do not enter the daily report on 15 December. This feature adds no light-account entry or home screen. The crew's field controller records checkpoints from their full account; the database check is by identity (`crews.field_controller_id`), so a light account can be given the same path in Q1 2027 without a schema change.
 - Ticket scope adds one item the earlier spec lacked: a **lost-time breakdown by cause** (FR-STC-060), read from the idle periods of the daily site report, by the existing cause list. The missed-checkpoint view (FR-STC-040/041) is in scope.
+
+## Empty list means off
+
+- FR-STC-070 For an organisation whose list is empty, the materialise and reminder jobs shall create no row and send no notification, and the screens shall show no checkpoint content (covered in AC-STC-002 and AC-STC-006).
 
 ## Job story
 
@@ -32,15 +36,15 @@ When a crew is due on site, I want the day's checkpoints (arrival, pre-work chec
 
 ## Definitions
 
-- **Checkpoint** (template) = a named point in the day with a local time due, a kind (`arrival`, `pre_work`, `start`, `after_break`, `progress`, `other`), a grace in minutes (default 0) and a photo-required flag (default on). At most one `start` per list. The organisation's list has 0 to 12 checkpoints.
+- **Checkpoint** (template) = a named point in the day with a local time due, a work-start flag `marks_work_start` (default off; at most one per list; no fixed kinds, everything else about a checkpoint is its client-entered name), a grace in minutes (default 0) and a photo-required flag (default on). At most one checkpoint per list marks the work start. The organisation's list has 0 to 12 checkpoints.
 - **Day checkpoint** = a copy of a template item for one (work order, crew, date), with its due instant (`due_at` = local date + due time in the organisation's timezone), its grace, and, once recorded, the server time, the person, an optional note and the photo path.
 - **Late** = recorded after `due_at + grace`, or not recorded and `now() > due_at + grace`.
-- **Started on time** (crew, day) = the `start` checkpoint is recorded at or before `due_at + grace`. A day with no recorded `start` is **not started** (not "late" until the grace has passed, and never "on time").
+- **Started on time** (crew, day) = the work-start checkpoint is recorded at or before `due_at + grace`. A day with no recorded work-start checkpoint is **not started** (not "late" until the grace has passed, and never "on time").
 
 ## Requirements (EARS)
 
 **The organisation's list**
-- FR-STC-001 Admin shall be able to define the organisation's checkpoint list as one whole ordered list, each item with a name (1 to 120 characters), kind, local due time, grace minutes (0 to 120) and photo-required flag. Weekdays are not modelled; a list applies on every day a crew is rostered (OD-STC-3).
+- FR-STC-001 Admin shall be able to define the organisation's checkpoint list as one whole ordered list, each item with a name (1 to 120 characters), the work-start flag, local due time, grace minutes (0 to 120) and photo-required flag. Weekdays are not modelled; a list applies on every day a crew is rostered (OD-STC-3).
 - FR-STC-002 The list shall be replaced through one function (as `set_billing_stage_template` does), and editing it shall not change a day checkpoint already created.
 
 **The day**
@@ -60,7 +64,7 @@ When a crew is due on site, I want the day's checkpoints (arrival, pre-work chec
 - FR-STC-032 The daily site report page shall show the day's checkpoints for its work order, due time, recorded time, person, photo and late state. Validation and revenue shall not depend on them (OD-STC-4).
 
 **Crews on time**
-- FR-STC-040 The database shall return, per crew and day in a date range (optionally per work order or project), the `start` checkpoint's due time, recorded time, minutes late and a status `on_time`, `late` or `not_started`, with, per crew, the count of days and the share started on time. The share is a count of days, never an average of minutes.
+- FR-STC-040 The database shall return, per crew and day in a date range (optionally per work order or project), the work-start checkpoint's due time, recorded time, minutes late and a status `on_time`, `late` or `not_started`, with, per crew, the count of days and the share started on time. The share is a count of days, never an average of minutes.
 - FR-STC-041 The view shall list crews ordered by share on time ascending, then name, bounded to 200 crews and 92 days, and shall say when the bound truncates.
 
 **Lost time by cause**
@@ -81,20 +85,20 @@ When a crew is due on site, I want the day's checkpoints (arrival, pre-work chec
 
 | ID | Given / When / Then | Layer |
 |---|---|---|
-| AC-STC-001 | Given Admin has entered a valid list of four checkpoints, when the list is saved, then it is stored in order with kind, time, grace and photo flag. Given a list with a second `start`, grace over 120, a blank name, or a caller with Finance, Project Manager or Engineer role, when the list is saved, then it is refused (role refusal `42501`). | pgTAP |
-| AC-STC-002 | Given an Issued work order with two crews rostered today, when the materialisation job runs twice, then each crew has one copy of each list checkpoint. Given a Draft or Closed work order, or a crew outside its roster dates, when the job runs, then no checkpoint is created for it. | pgTAP |
+| AC-STC-001 | Given Admin has entered a valid list of four checkpoints, when the list is saved, then it is stored in order with the work-start flag, time, grace and photo flag. Given a list with a second work-start checkpoint, grace over 120, a blank name, or a caller with Finance, Project Manager or Engineer role, when the list is saved, then it is refused (role refusal `42501`). | pgTAP |
+| AC-STC-002 | Given an Issued work order with two crews rostered today, when the materialisation job runs twice, then each crew has one copy of each list checkpoint. Given a Draft or Closed work order, or a crew outside its roster dates, when the job runs, then no checkpoint is created for it. Given an organisation with an empty list, when the job runs, then it creates nothing. | pgTAP |
 | AC-STC-003 | Given a list edited after the day's checkpoints exist, when the materialisation job runs for the next day, then existing rows are unchanged and that next day uses the new list. | pgTAP |
-| AC-STC-004 | Given a crew's active field controller and an unrecorded `start` checkpoint requiring a photo, when the controller records it with a photo, then the database stamps its time and person and ignores any client-supplied time. Given a required-photo checkpoint without a photo, a different crew's controller, a Finance user or another organisation's user, when a record is attempted, then it is refused. | pgTAP |
+| AC-STC-004 | Given a crew's active field controller and an unrecorded work-start checkpoint requiring a photo, when the controller records it with a photo, then the database stamps its time and person and ignores any client-supplied time. Given a required-photo checkpoint without a photo, a different crew's controller, a Finance user or another organisation's user, when a record is attempted, then it is refused. | pgTAP |
 | AC-STC-005 | Given a recorded checkpoint, when anyone changes its recorded time, photo or person, then the change is refused. Given a future-day checkpoint or a checkpoint for a non-Issued work order, when recording is attempted, then it is refused. | pgTAP |
-| AC-STC-006 | Given an unrecorded checkpoint due at 07:00 with 10 minutes grace in a timezone ahead of UTC, when the job runs at 07:09 local, then no notification is sent; when it runs at 07:11, then the active field controller is notified once and `late_notified_at` is stamped; when it runs again, then no second notification is added. | pgTAP |
+| AC-STC-006 | Given an unrecorded checkpoint due at 07:00 with 10 minutes grace in a timezone ahead of UTC, when the job runs at 07:09 local, then no notification is sent; when it runs at 07:11, then the active field controller is notified once and `late_notified_at` is stamped; when it runs again, then no second notification is added. Given an organisation with an empty list, when the reminder job runs, then it notifies no one. | pgTAP |
 | AC-STC-007 | Given a crew with no active field controller and a work order with an active project manager, when the late-reminder job runs, then the project manager receives the reminder. Given no active project manager, when the job runs, then each active Admin receives it and another organisation's users receive none. | pgTAP |
 | AC-STC-008 | Given a late checkpoint today, when the work-order flag is read, then the work order is flagged. Given that late checkpoint has since been recorded late, when the flag is read again for that day, then it remains flagged; given no late checkpoint, when the flag is read, then the work order is not flagged. | pgTAP |
-| AC-STC-009 | Given three days for one crew (start on time, start 20 minutes late, start never recorded), when the crews view is read, then it shows 3 days, 1 on time, share one third, statuses `on_time`, `late`, `not_started`. | pgTAP |
+| AC-STC-009 | Given three days for one crew (work start on time, work start 20 minutes late, work start never recorded), when the crews view is read, then it shows 3 days, 1 on time, share one third, statuses `on_time`, `late`, `not_started`. | pgTAP |
 | AC-STC-010 | Given more than 200 crews or a range over 92 days, when the crews-view read runs, then it is bounded and reports truncation. | pgTAP |
 | AC-STC-014 | Given idle periods of 60 and 30 minutes against cause A and 45 against cause B across a submitted and a validated report, a draft report (45 against B) and a superseded report, when the breakdown is read for the range, then it returns A 90, B 45, total 135, counting neither the draft nor the superseded report; a Finance, Viewer or other-organisation caller gets no rows; a range over 92 days is refused. | pgTAP |
 | AC-STC-011 | Given a checkpoint due at 07:00 with 10 minutes grace, when it is recorded at 07:10, then its state is `on_time`; when it is recorded at 07:11, then its state is `late`; when it is still unrecorded at 07:11, then its state is `late`. | Unit (`pmo-portal/src/lib/siteCheckpoints.test.ts`) |
 | AC-STC-012 | Given a controller on a phone width, when they open the day's checkpoints, record one with a photo and see it as recorded with its time, then the next due one is current; a late one shows as late in words. | RTL (`SiteCheckpoints.test.tsx`) |
-| AC-STC-013 | Given a rostered crew and a due `start` checkpoint, when its controller records the checkpoint with a photo and opens the crews view and daily report page, then the crews view lists the crew's day as on time and the daily report page shows the checkpoint. | E2E (one journey, job invoked by a test hook) |
+| AC-STC-013 | Given a rostered crew and a due work-start checkpoint, when its controller records the checkpoint with a photo and opens the crews view and daily report page, then the crews view lists the crew's day as on time and the daily report page shows the checkpoint. | E2E (one journey, job invoked by a test hook) |
 
 ## Errors
 | Condition | Result |
