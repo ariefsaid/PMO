@@ -3,12 +3,22 @@
 // basis line; a work order's row opens its page with the same indices.
 // Goal oracle: validated progress 300,000 against 250,000 of direct cost reads cost performance index 1.20 on the project and on the
 // work order, the schedule index reads "Behind plan" (the work order is mid-schedule with a straight-line plan above the progress).
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { pinEnglishLocale, requireServiceRoleKey, signIn } from '../helpers';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
-test.setTimeout(90_000);
+test.setTimeout(120_000);
+test.use({ deviceScaleFactor: 2 });
+// Evidence for the brief: two screenshots per new or changed screen (phone 390 px, desktop 1440 px).
+const EVIDENCE = '../docs/evidence/1215/2597';
+const shots = async (page: Page, locator: Locator, name: string) => {
+  for (const [label, width, height] of [['phone', 390, 844], ['desktop', 1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await locator.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${EVIDENCE}/${name}-${label}.png`, fullPage: true });
+  }
+};
 
 const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
@@ -92,6 +102,7 @@ test('AC-CSP-016 the project and the work order show the same cost and schedule 
     await expect(panel).toContainText('validated progress at contract rate');
     const spi = await panel.getByTestId('project-performance-spi-value').innerText();
     expect(spi).toMatch(/^0\.\d{2}$/);
+    await shots(page, panel, 'project-performance');
 
     await panel.getByTestId('project-performance-row-' + ids.wo).getByRole('link').click();
     await expect(page).toHaveURL((url) => url.pathname === '/work-orders/' + ids.wo);
@@ -99,6 +110,14 @@ test('AC-CSP-016 the project and the work order show the same cost and schedule 
     await expect(woPanel).toBeVisible({ timeout: 20_000 });
     await expect(woPanel.getByTestId('wo-page-performance-cpi-value')).toHaveText('1.20');
     await expect(woPanel.getByTestId('wo-page-performance-spi-value')).toHaveText(spi);
+    await shots(page, woPanel, 'work-order-performance');
+
+    // The Admin card for the switch and the two limits.
+    await signIn(page, 'admin@acme.test');
+    await page.goto('/administration/projects');
+    const card = page.locator('#org-performance-indices');
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await shots(page, card, 'admin-performance-settings');
   } catch (e) {
     failure = e;
   } finally {
