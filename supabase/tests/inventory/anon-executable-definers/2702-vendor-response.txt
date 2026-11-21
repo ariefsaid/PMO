@@ -1,0 +1,3 @@
+# #2702 vendor response: client-callable writers (gated by equipment_can_set_status in the body)
+record_equipment_vendor_response
+clear_equipment_vendor_response
