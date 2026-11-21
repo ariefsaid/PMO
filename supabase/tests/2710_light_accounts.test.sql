@@ -178,7 +178,7 @@ select throws_ok($$ select public.org_seat_report() $$, '42501', null, 'AC-LA-00
 select pg_temp.act_as('27100000-0000-0000-0000-0000000000b1');
 select is(public.org_seat_report(), '{"full": 1, "light": 0, "total": 1}'::jsonb, 'AC-LA-007 another organization''s Admin sees only its own seats');
 
--- every table 1206 covers: restrictive per-command light_account_deny_* policies (select/insert/update; delete only where granted), no `for all`
+-- every table 1206 covers: restrictive per-command light_account_deny_* policies (select/insert/update; delete only where granted; select only on six tables whose write policies other guards pin), no `for all`
 select is((select count(*)::int from unnest(array[
     'projects','project_milestones','project_documents','project_stage_entries','project_progress_entries','project_shared_cost_splits',
     'boq_items','boq_material_allowances','budget_versions','budget_line_items','budget_projections','budget_year_distributions',
@@ -193,8 +193,9 @@ select is((select count(*)::int from unnest(array[
   where (select string_agg(cmd || ':' || permissive, ',' order by cmd) from pg_policies
           where schemaname = 'public' and tablename = x.t and policyname ~ '^light_account_deny(_|$)')
     is distinct from
-    case when has_table_privilege('authenticated', 'public.' || x.t, 'DELETE') then 'DELETE:RESTRICTIVE,' else '' end
-      || 'INSERT:RESTRICTIVE,SELECT:RESTRICTIVE,UPDATE:RESTRICTIVE'), 0,
+    case when x.t = any(array['sales_invoices','incoming_payments','payments','procurement_invoices','procurement_receipts','purchase_orders']) then 'SELECT:RESTRICTIVE'
+         else case when has_table_privilege('authenticated', 'public.' || x.t, 'DELETE') then 'DELETE:RESTRICTIVE,' else '' end
+              || 'INSERT:RESTRICTIVE,SELECT:RESTRICTIVE,UPDATE:RESTRICTIVE' end), 0,
   'AC-LA-005 every covered table has the restrictive light_account_deny_* per-command policies');
 
 select * from finish();
