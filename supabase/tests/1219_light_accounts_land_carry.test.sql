@@ -2,7 +2,7 @@
 -- Every listed table carries a restrictive light_account_deny policy; every overload of every listed function carries the guard;
 -- a light account reads no row of work_order_sections / crew_tool_lines while a full Engineer of the same organisation reads them.
 -- MUTATION NOTES (break the rule; the named assertion must go red; restore):
---   drop policy light_account_deny on work_order_sections ..... 'work_order_sections has a restrictive light_account_deny policy'
+--   drop policy light_account_deny_select on work_order_sections 'work_order_sections has the restrictive light_account_deny_* per-command policies'
 --                                                               and 'a light account reads no work_order_sections row'
 --   remove the guard line from tpi_costs ....................... 'tpi_costs: every overload carries assert_not_light'
 begin;
@@ -28,9 +28,12 @@ insert into work_order_sections (id, org_id, project_id, work_order_id, code, na
 insert into crew_tool_lines (id, org_id, crew_id, name, held_qty) values
   ('27190000-0000-0000-0000-000000000f01', '27190000-0000-0000-0000-00000000000a', '27190000-0000-0000-0000-000000000c01', 'LC tool', 1);
 
--- every listed table: a restrictive policy named light_account_deny
-select is((select permissive from pg_policies where schemaname = 'public' and tablename = x.t and policyname = 'light_account_deny'),
-  'RESTRICTIVE', x.t || ' has a restrictive light_account_deny policy')
+-- every listed table: restrictive per-command light_account_deny_* policies (select/insert/update; delete only where granted), no `for all`
+select is((select string_agg(cmd || ':' || permissive, ',' order by cmd) from pg_policies
+            where schemaname = 'public' and tablename = x.t and policyname ~ '^light_account_deny(_|$)'),
+  case when has_table_privilege('authenticated', 'public.' || x.t, 'DELETE') then 'DELETE:RESTRICTIVE,' else '' end
+    || 'INSERT:RESTRICTIVE,SELECT:RESTRICTIVE,UPDATE:RESTRICTIVE',
+  x.t || ' has the restrictive light_account_deny_* per-command policies')
   from unnest(array[
   'boq_quantity_versions',
   'client_requisition_events',

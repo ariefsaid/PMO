@@ -4,6 +4,7 @@
 -- AC-LA-005 writes outside own items refused · AC-LA-006 my_home carries no price/budget · AC-LA-007 seat report ·
 -- AC-LA-013 definer RPCs refuse a light account.
 -- MUTATION NOTES (break the rule; the named assertion must go red; restore):
+--   drop policy light_account_deny_insert on projects ............ 'AC-LA-005 every covered table has the restrictive light_account_deny_* per-command policies'
 --   drop policy light_account_scope_select on tasks .............. 'AC-LA-002 foreman reads only own tasks'
 --   make actor_is_light() return false ........................... every AC-LA-002/003/005/013 assertion
 --   is_light_role_key returns true for 'engineer' ................ 'AC-LA-001 an engineer is full'
@@ -11,7 +12,7 @@
 --   drop the guard line in org_credit_balance .................... 'AC-LA-013 org_credit_balance refuses a light account'
 begin;
 create extension if not exists pgtap;
-select plan(54);
+select plan(55);
 
 insert into organizations (id, name, default_currency, built_in_roles_enabled) values
   ('27100000-0000-0000-0000-00000000000a', 'LA Org',       'IDR', true),
@@ -176,6 +177,25 @@ select pg_temp.act_as('27100000-0000-0000-0000-0000000000a5');
 select throws_ok($$ select public.org_seat_report() $$, '42501', null, 'AC-LA-007 a light account cannot read the seat report');
 select pg_temp.act_as('27100000-0000-0000-0000-0000000000b1');
 select is(public.org_seat_report(), '{"full": 1, "light": 0, "total": 1}'::jsonb, 'AC-LA-007 another organization''s Admin sees only its own seats');
+
+-- every table 1206 covers: restrictive per-command light_account_deny_* policies (select/insert/update; delete only where granted), no `for all`
+select is((select count(*)::int from unnest(array[
+    'projects','project_milestones','project_documents','project_stage_entries','project_progress_entries','project_shared_cost_splits',
+    'boq_items','boq_material_allowances','budget_versions','budget_line_items','budget_projections','budget_year_distributions',
+    'budget_distribution_plans','companies','contacts','crm_activities','procurements','procurement_items','procurement_quotations',
+    'procurement_invoices','procurement_invoice_lines','procurement_receipts','procurement_receipt_lines','purchase_orders',
+    'purchase_order_lines','purchase_requests','rfqs','payments','incoming_payments','sales_invoices','expense_claims',
+    'expense_claim_lines','imprest_floats','journal_entries','journal_entry_lines','stock_items','stock_balances','stock_ledger',
+    'stock_documents','stock_document_lines','stock_warehouses','work_order_lines','work_order_acceptances','work_order_plan_lines',
+    'daily_site_reports','equipment_assets','tm_claims','progress_claims','subcontract_acceptances','contract_rate_lines',
+    'rate_catalogue_items','rate_catalogue_rates','erp_actuals_snapshot','erp_gl_entry_mirror','erp_ap_aging_snapshot',
+    'erp_ar_aging_snapshot','meetings','comments']) as x(t)
+  where (select string_agg(cmd || ':' || permissive, ',' order by cmd) from pg_policies
+          where schemaname = 'public' and tablename = x.t and policyname ~ '^light_account_deny(_|$)')
+    is distinct from
+    case when has_table_privilege('authenticated', 'public.' || x.t, 'DELETE') then 'DELETE:RESTRICTIVE,' else '' end
+      || 'INSERT:RESTRICTIVE,SELECT:RESTRICTIVE,UPDATE:RESTRICTIVE'), 0,
+  'AC-LA-005 every covered table has the restrictive light_account_deny_* per-command policies');
 
 select * from finish();
 rollback;
