@@ -994,6 +994,8 @@
     "savedToast": "Pengaturan pesanan pembelian disimpan"
   },
   "threeWayMatchSettings": {
+    "heading": "Pencocokan tiga arah",
+    "loadError": "Pengaturan pencocokan tiga arah tidak dapat dimuat",
     "switch": "Periksa tagihan vendor terhadap pesanan dan penerimaan sebelum pembayaran",
     "switchHelp": "Tagihan yang dicatat sebelum Anda mengaktifkan ini tidak dicocokkan.",
     "quantityTolerance": "Toleransi kuantitas (%)",
@@ -1004,12 +1006,17 @@
     "heldNotice_one": "{{count}} tagihan sedang ditahan. Mematikan pencocokan akan melepaskan penahanannya.",
     "heldNotice_other": "{{count}} tagihan sedang ditahan. Mematikan pencocokan akan melepaskan penahanannya.",
     "save": "Simpan",
+    "saved": "Tersimpan",
     "refusedRole": "Hanya Admin yang dapat mengubah pencocokan tiga arah."
   },
   "paymentChannel": {
+    "heading": "Kanal pembayaran",
     "intro": "Catat bagaimana setiap permintaan pembelian akan dibayar. Nonaktif sampai Anda mengaktifkannya.",
     "switchLabel": "Catat kanal pembayaran pada permintaan pembelian",
     "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
+    "loadError": "Kanal pembayaran tidak dapat dimuat",
+    "saving": "Menyimpan…",
+    "saved": "Tersimpan",
     "listLabel": "Kanal",
     "empty": "Belum ada kanal.",
     "nameLabel": "Nama kanal",
@@ -1031,6 +1038,7 @@
     "columnHeader": "Kanal pembayaran"
   },
   "linePlanning": {
+    "heading": "Perencanaan baris",
     "intro": "Setiap baris permintaan dapat memuat kategori dan tanggal dibutuhkan.",
     "enable": "Tampilkan kategori dan tanggal dibutuhkan pada setiap baris permintaan",
     "categories": "Kategori",
@@ -1042,7 +1050,10 @@
     "retireTitle": "Nonaktifkan kategori ini?",
     "retireBody": "Kategori tetap ada pada baris yang sudah memuatnya dan tidak dapat dipilih lagi.",
     "retireConfirm": "Nonaktifkan kategori",
+    "loadError": "Perencanaan baris tidak dapat dimuat",
     "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
+    "saving": "Menyimpan…",
+    "saved": "Tersimpan",
     "noCategories": "Belum ada kategori.",
     "retired": "Nonaktif",
     "section": "Kategori dan dibutuhkan pada",

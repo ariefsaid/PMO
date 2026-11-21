@@ -994,6 +994,8 @@
     "savedToast": "Purchase order settings saved"
   },
   "threeWayMatchSettings": {
+    "heading": "Three-way match",
+    "loadError": "Couldn’t load the three-way match setting",
     "switch": "Check vendor bills against the order and receipts before payment",
     "switchHelp": "Bills recorded before you switch this on are not matched.",
     "quantityTolerance": "Quantity tolerance (%)",
@@ -1004,12 +1006,17 @@
     "heldNotice_one": "{{count}} bill is held now. Switching the match off releases its hold.",
     "heldNotice_other": "{{count}} bills are held now. Switching the match off releases their holds.",
     "save": "Save",
+    "saved": "Saved",
     "refusedRole": "Only an Admin can change the three-way match."
   },
   "paymentChannel": {
+    "heading": "Payment channels",
     "intro": "Record how each purchase request will be paid. Off until you turn it on.",
     "switchLabel": "Record a payment channel on purchase requests",
     "onlyAdmin": "Only an Admin can change this.",
+    "loadError": "Couldn’t load payment channels",
+    "saving": "Saving…",
+    "saved": "Saved",
     "listLabel": "Channels",
     "empty": "No channels yet.",
     "nameLabel": "Channel name",
@@ -1031,6 +1038,7 @@
     "columnHeader": "Payment channel"
   },
   "linePlanning": {
+    "heading": "Line planning",
     "intro": "Each request line can carry a category and the date it is needed.",
     "enable": "Show a category and a needed-by date on each request line",
     "categories": "Categories",
@@ -1042,7 +1050,10 @@
     "retireTitle": "Retire this category?",
     "retireBody": "It stays on lines that already carry it and can no longer be chosen.",
     "retireConfirm": "Retire category",
+    "loadError": "Couldn’t load line planning",
     "onlyAdmin": "Only an Admin can change this.",
+    "saving": "Saving…",
+    "saved": "Saved",
     "noCategories": "No categories yet.",
     "retired": "Retired",
     "section": "Category and needed by",

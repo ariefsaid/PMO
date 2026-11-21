@@ -762,6 +762,7 @@
     }
   },
   "transfers": {
+    "title": "Transfers",
     "send": "Send transfer",
     "sendTitle": "Send a transfer",
     "off": {
@@ -793,6 +794,7 @@
     "notFound": "Transfer not found",
     "detailTitle": "Transfer",
     "back": "Back to transfers",
+    "summary": "Summary",
     "sentBy": "Sent by {{name}} on {{at}}",
     "addressedTo": "Addressed to {{name}}",
     "receivedBy": "Received by {{name}} on {{at}}",
@@ -834,6 +836,7 @@
     "proofAddedToast": "Proof recorded"
   },
   "handover": {
+    "title": "Handover confirmation",
     "proofType": "Kind of proof",
     "proofInApp": "Confirm in PMO",
     "proofPaper": "Photo of the signed paper",
@@ -894,6 +897,7 @@
     "qualityItems": "Items that need a quality check on receipt"
   },
   "workOrderTransfer": {
+    "title": "Move leftover between work orders",
     "detailTitle": "Work-order transfer",
     "intro": "Leftover material moves from one work order to another as one document. The first work order is credited and the second is charged; the stock stays where it is.",
     "off": {
@@ -923,9 +927,11 @@
       "description": "The material is returned from the first work order and issued to the second in one step. This cannot be edited afterwards; to correct it, move the material back."
     },
     "errors": {
+      "project": "Choose a project.",
       "from": "Choose the work order the material is on.",
       "to": "Choose the work order that receives it.",
       "same": "Choose a different work order.",
+      "location": "Choose where the material is.",
       "duplicate": "Each item can be on one line only.",
       "exceeds": "The work order holds only {{qty}} of this item."
     },
@@ -946,6 +952,7 @@
     "form": {
       "title": "Reserve stock",
       "submit": "Reserve",
+      "project": "Project",
       "projectPlaceholder": "Choose a project",
       "workOrder": "Work order",
       "workOrderPlaceholder": "Choose a work order",

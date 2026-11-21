@@ -9,7 +9,8 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useApprovalChain: () => ({ ...ok, data: [] }),
   useMaterialRequestCutoff: () => ({ ...ok, data: null }),
   useStandIns: () => ({ ...ok, data: [] }),
-  useMaterialRequestMutations: () => ({ setChain: { mutateAsync: vi.fn() }, setCutoff: { mutateAsync: vi.fn() }, setStandIn: { mutateAsync: vi.fn() }, revokeStandIn: { mutateAsync: vi.fn() } }),
+  useDeliveryNoteSettings: () => ({ data: { enabled: false, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] } }),
+  useMaterialRequestMutations: () => ({ setChain: { mutateAsync: vi.fn() }, setCutoff: { mutateAsync: vi.fn() }, setStandIn: { mutateAsync: vi.fn() }, revokeStandIn: { mutateAsync: vi.fn() }, setDeliveryNoteSettings: { mutateAsync: vi.fn() } }),
 }));
 vi.mock('@/src/hooks/useUsageThresholds', () => ({ useUsageThresholds: () => ({ thresholds: { pct1: null, pct2: null }, reload: vi.fn() }) }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [] }) }));

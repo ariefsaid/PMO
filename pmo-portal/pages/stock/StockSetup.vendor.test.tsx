@@ -75,7 +75,7 @@ describe('StockSetup vendor location (AC-SVL-010)', () => {
     expect(screen.queryByRole('combobox', { name: /Site project/ })).not.toBeInTheDocument();
     await userEvent.selectOptions(await screen.findByRole('combobox', { name: /Vendor company/ }), 'Pipe Supply');
     await userEvent.click(screen.getByRole('button', { name: 'Create warehouse' }));
-    await waitFor(() => expect(master.createWarehouse).toHaveBeenCalledWith({ code: 'COAT2', name: 'Second coater', kind: 'vendor', projectId: null, vendorCompanyId: 'c2' }));
+    await waitFor(() => expect(master.createWarehouse).toHaveBeenCalledWith({ code: 'COAT2', name: 'Second coater', kind: 'vendor', projectId: null, vendorCompanyId: 'c2', coverValue: null }));
   });
 
   it('AC-SVL-010 the Vendor kind reads in Bahasa Indonesia too', async () => {

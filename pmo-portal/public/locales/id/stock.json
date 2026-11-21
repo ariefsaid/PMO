@@ -762,6 +762,7 @@
     }
   },
   "transfers": {
+    "title": "Transfer",
     "send": "Kirim transfer",
     "sendTitle": "Kirim transfer",
     "off": {
@@ -793,6 +794,7 @@
     "notFound": "Transfer tidak ditemukan",
     "detailTitle": "Transfer",
     "back": "Kembali ke transfer",
+    "summary": "Ringkasan",
     "sentBy": "Dikirim oleh {{name}} pada {{at}}",
     "addressedTo": "Ditujukan kepada {{name}}",
     "receivedBy": "Diterima oleh {{name}} pada {{at}}",
@@ -834,6 +836,7 @@
     "proofAddedToast": "Bukti dicatat"
   },
   "handover": {
+    "title": "Konfirmasi serah terima",
     "proofType": "Jenis bukti",
     "proofInApp": "Konfirmasi di PMO",
     "proofPaper": "Foto kertas bertanda tangan",
@@ -894,6 +897,7 @@
     "qualityItems": "Barang yang perlu pemeriksaan mutu saat diterima"
   },
   "workOrderTransfer": {
+    "title": "Pindahkan sisa material antar perintah kerja",
     "detailTitle": "Transfer antar perintah kerja",
     "intro": "Sisa material berpindah dari satu perintah kerja ke perintah kerja lain dalam satu dokumen. Perintah kerja pertama dikreditkan dan yang kedua dibebani; stok tetap di tempatnya.",
     "off": {
@@ -923,9 +927,11 @@
       "description": "Material dikembalikan dari perintah kerja pertama dan dikeluarkan ke yang kedua dalam satu langkah. Ini tidak dapat diubah; untuk mengoreksi, pindahkan material kembali."
     },
     "errors": {
+      "project": "Pilih proyek.",
       "from": "Pilih perintah kerja tempat material berada.",
       "to": "Pilih perintah kerja penerima.",
       "same": "Pilih perintah kerja yang berbeda.",
+      "location": "Pilih lokasi material.",
       "duplicate": "Setiap barang hanya boleh di satu baris.",
       "exceeds": "Perintah kerja hanya memegang {{qty}} barang ini."
     },
@@ -946,6 +952,7 @@
     "form": {
       "title": "Cadangkan stok",
       "submit": "Cadangkan",
+      "project": "Proyek",
       "projectPlaceholder": "Pilih proyek",
       "workOrder": "Perintah kerja",
       "workOrderPlaceholder": "Pilih perintah kerja",
