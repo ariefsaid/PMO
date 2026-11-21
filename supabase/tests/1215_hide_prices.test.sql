@@ -7,7 +7,7 @@
 --   remove the helper from procurement_items_masked  -> AC-003 'hidden item rate/amount'
 --   drop the Admin check in set_hide_prices_enabled  -> AC-006 'Engineer cannot turn on'
 begin;
-select plan(21);
+select plan(22);
 
 insert into organizations (id, name) values
   ('26990000-0000-0000-0000-000000000001','HP Org A'),
@@ -36,6 +36,12 @@ insert into procurements (id, org_id, title, status, requested_by_id) values
   ('26990000-0000-0000-0000-000000000010','26990000-0000-0000-0000-000000000001','HP Case','Draft','26990000-0000-0000-0000-0000000000e1');
 insert into procurement_items (id, procurement_id, name, quantity, rate) values
   ('26990000-0000-0000-0000-000000000011','26990000-0000-0000-0000-000000000010','HP Item',2,12.50);
+
+-- The Buyer raised a case of their own, so they have the same access to it that the legacy Engineer has to the first one.
+insert into procurements (id, org_id, title, status, requested_by_id) values
+  ('26990000-0000-0000-0000-000000000012','26990000-0000-0000-0000-000000000001','HP Buyer Case','Draft','26990000-0000-0000-0000-0000000000f1');
+insert into procurement_items (id, procurement_id, name, quantity, rate) values
+  ('26990000-0000-0000-0000-000000000013','26990000-0000-0000-0000-000000000012','HP Buyer Item',2,12.50);
 
 -- AC-001 default and setter
 select is((select hide_prices_from_requesters from organizations where id = '26990000-0000-0000-0000-000000000001'), false, 'AC-006 the setting defaults to off');
@@ -86,7 +92,8 @@ select is((select rate from procurement_items_masked where id = '26990000-0000-0
 select is((select amount from procurement_items_masked where id = '26990000-0000-0000-0000-000000000011'), 25.00, 'AC-003 Finance reads the amount');
 select is((select stock_can_see_cost()), true, 'AC-004 Finance keeps the stock cost seam');
 set local request.jwt.claims = '{"sub":"26990000-0000-0000-0000-0000000000f1","role":"authenticated"}';
-select is((select rate from procurement_items_masked where id = '26990000-0000-0000-0000-000000000011'), 12.50, 'AC-003 a Buyer reads the rate');
+select is((select count(*)::int from procurement_items_masked where id = '26990000-0000-0000-0000-000000000013'), 1, 'AC-003 the Buyer can see the row');
+select is((select rate from procurement_items_masked where id = '26990000-0000-0000-0000-000000000013'), 12.50, 'AC-003 a Buyer reads the rate');
 reset role;
 
 -- structural: every masked view calls the helper (11 views)
