@@ -32,18 +32,18 @@ The approver also sees **budget used** on the request: the line's budget and the
 
 | Setting | Where | Default |
 |---|---|---|
-| `organizations.spend_approval_tiers_enabled boolean not null default false` | written only by Admin through `set_spend_approval_tiers_enabled(boolean)` (security definer, Admin gate) | **false: routing is byte-for-byte today's** |
+| `spend_approval_settings.tiers_enabled boolean not null default false` (one row per organisation; no row = off) | Admin-only insert/update by RLS and column grants; every change audited; no new security-definer client surface | **false: routing is byte-for-byte today's** |
 | `spend_approvers.min_amount numeric null check (min_amount >= 0)` | Admin adds a row with an amount (insert-only, like the rest of the table) | null = base tier; ignored while the flag is off |
 | Tier members | the existing Administration > Spend approvers lists, now with an amount per row | none |
 
-Org currency is `organizations.default_currency`. Tier amounts are in it. Not in `org_features` / the plan registry.
+Org currency is `organizations.default_currency`. Tier amounts are in it; a foreign-currency or unknown amount goes to the top tier, never converted (owner-confirmed). Not in `org_features` / the plan registry.
 Scope: purchases and expense claims (both call `spend_approval_route`). Imprest float records read the senior list directly
 (`0422`, `0426`) and are **not** tiered; stated, not changed.
 
 ## 4. Requirements (EARS)
 
-- **FR-TIER-001** The system shall add `spend_approvers.min_amount` (nullable, `>= 0`) and `organizations.spend_approval_tiers_enabled` (default false).
-- **FR-TIER-002** When a caller who is not an active Admin of the org calls `set_spend_approval_tiers_enabled`, the system shall refuse with `42501`; the setting shall change by no other path (column grant revoked from clients). The change shall write an `audit_events` row.
+- **FR-TIER-001** The system shall add `spend_approvers.min_amount` (nullable, `>= 0`) and the table `spend_approval_settings` (`tiers_enabled` default false).
+- **FR-TIER-002** When a caller who is not an active Admin of the org writes `spend_approval_settings`, the system shall refuse (RLS); the setting shall change by no other path. Each change shall write an `audit_events` row (`spend_approval_tiers.change`).
 - **FR-TIER-003** Where a caller inserts a `spend_approvers` row with `min_amount`, the system shall apply the existing insert rules (Admin, same org, active, approval rank) and shall accept `min_amount` only from an Admin.
 - **FR-TIER-004** While `spend_approval_tiers_enabled` is false, the system shall return the same route, reason, approvers, line budget and line used as before this change for every input.
 - **FR-TIER-005** While it is true, the system shall resolve the project list and the senior list to the tier of the request amount per §2, in `public.spend_approvers_for_amount(org, project, amount, currency)`, the one function every route read calls.
@@ -65,16 +65,16 @@ pgTAP in `supabase/tests/spend_approval_tiers.test.sql` unless stated.
 - **AC-TIER-005** *Given* tier C's only member is disabled, *when* a 1000000 request is routed, *then* route `admin`, not tier B. (FR-TIER-005)
 - **AC-TIER-006** *Given* a request with a NULL amount, a negative amount, or a foreign currency, *then* the highest tier. (FR-TIER-006)
 - **AC-TIER-007** *Given* a project list with tiers and an over-budget request, *then* the senior list's tier for the amount decides, and a within-budget request uses the project list's tier. (FR-TIER-005)
-- **AC-TIER-008** *Given* a PM, Finance user and Engineer, *when* each calls `set_spend_approval_tiers_enabled`, *then* only the Admin succeeds; direct `update organizations` of the column is refused; an audit row exists; org B's Admin cannot change org A. (FR-TIER-002)
+- **AC-TIER-008** *Given* a PM, Finance user and Engineer, *when* each calls `set_spend_approval_tiers_enabled`, *then* only the Admin succeeds; a PM update matches no row; an audit row exists; org B's Admin cannot change org A. (FR-TIER-002)
 - **AC-TIER-009** *Given* a PM inserts a row with `min_amount`, *then* `42501`; a negative amount is refused; Admin insert succeeds and the audit row holds the amount. (FR-TIER-003/009)
-- **AC-TIER-010** *Given* a Requested expense claim, *then* the claim route and decision follow the same tier as a purchase of that amount. (FR-TIER-007/008)
+- **AC-TIER-010** *Given* the claim route read, *then* it calls the same tiered route function as purchases (asserted on the function body); claim decisions then follow AC-TIER-002/003. (FR-TIER-007/008)
 - **AC-TIER-011** *Given* tiers on, *when* the routes are listed and a submit notifies, *then* listed approvers and recipients equal the enforced tier list. (FR-TIER-008)
 - **AC-TIER-012** (Vitest, `SpendApprovers.test.tsx`) *Given* an Admin, *then* the switch and From-amount field show and call the repository with the amount; a PM sees neither; strings exist in `en` and `id`. (FR-TIER-010)
 - **AC-TIER-013** (Vitest, `ProcurementDetails.approvalRoute.test.tsx`) *Given* a routed request whose route carries line budget and used, *then* the approver sees both; with null figures neither; the existing gates are unchanged. (FR-TIER-011)
 - **AC-TIER-014** (e2e `AC-TIER-014-amount-tier-approval.spec.ts`, one journey) *Given* tiers on, *when* the junior-tier approver opens a large request, *then* Approve is absent, the senior-tier approver approves it. (FR-TIER-007; UX)
 
-## 6. Not in scope / open questions
+## 6. Rulings and exclusions
 
-- OQ-TIER-1: tier amounts are in the organisation's currency; a foreign-currency request routes to the top tier rather than being converted. Confirm.
-- OQ-TIER-2: a tier is a minimum only (no maximum); a member of a higher tier does not also sit in lower tiers unless added there. Confirm that "add them to each tier" is acceptable.
-- Imprest float records are not tiered (separate rule, no amount-by-tier ask).
+Ruled (Director, 2026-11-21): tier amounts in the organisation's default currency, foreign or unknown goes to the top tier; a tier is a minimum only and membership is per tier (add a person to each tier they sit in).
+
+**Not in this ticket:** imprest float records read the senior list directly and are not tiered.
