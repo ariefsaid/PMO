@@ -463,9 +463,37 @@ describe('AC-ECX-040 the sweep keeps the ERP one fiscal year ahead', () => {
   });
 
   it('an ambiguous create outcome is held and never posted twice', async () => {
-    const w = world([{ ...CAL_2026, companies: [COMPANY] }, { name: 'ECX 2027 b', start: '2027-03-01', end: '2028-02-29', companies: [COMPANY] }]);
-    await withFetchMock(w.routes, async () => { await w.tick(DEC_1); await w.tick(DEC_1 + 3_600_000); });
+    // The next year PMO needs (2027-01-01..2027-12-31) does not overlap the later company year
+    // seeded here, so discovery still reaches create; the ambiguity comes from the POST itself.
+    // `transport` records the write attempt but never returns the ERP's answer, and the readback
+    // cannot prove the year landed — the one outcome PMO must never paper over by posting again.
+    // (`lost-response` is not this case: the fake applies the create and the readback adopts it.)
+    const w = world([{ ...CAL_2026, companies: [COMPANY] }, { name: 'ECX 2028 b', start: '2028-03-01', end: '2029-02-28', companies: [COMPANY] }]);
+    w.fake.failNextWrite('transport');
+    const posts = (calls: FetchCall[]) => calls.filter((c) => c.method === 'POST' && c.url.pathname === '/api/resource/Fiscal%20Year');
+    await withFetchMock(w.routes, async ({ calls }) => {
+      await w.tick(DEC_1);
+      assertEquals(posts(calls).length, 1);
+      assertEquals(w.fake.writes().length, 1);
+      assertEquals(w.binding.config.fiscal_year, {
+        state: 'needs-operator',
+        checked_on: '2026-12-01',
+        company: COMPANY,
+        reason: 'held',
+        intentId: '00000000-0000-0000-0000-000000000101',
+      });
+      // the uncertain outcome is alerted exactly once, never silently dropped
+      assertEquals(
+        calls.filter((c) => c.url.pathname === '/rest/v1/error_events').map((c) => (c.bodyJson as { error_code: string }).error_code),
+        ['ERP_FISCAL_YEAR_UNCONFIRMED'],
+      );
+      // the held intent is driven again, but no second create is issued
+      await w.tick(DEC_1 + 3_600_000);
+      assertEquals(posts(calls).length, 1);
+    });
     assertEquals(w.fake.writes().length, 1);
+    assertEquals(w.fake.years().map((y) => y.name), ['2026', 'ECX 2028 b']);
+    assertEquals(w.intents.length, 1);
     assertEquals((w.binding.config.fiscal_year as {reason:string}).reason, 'held');
     assertEquals(w.settled, ['done', 'done']);
   });
