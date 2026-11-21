@@ -1003,3 +1003,42 @@ which moves the organisation's own stock.
 ## Import templates (#2530)
 - **Import template** — a spreadsheet a person downloads from an import screen: the field labels as headers, one example row, dropdowns for closed lists and a Notes sheet saying what each column holds. It carries a version, and an upload of the current or the previous version is accepted.
 - **Failed-rows file** — the spreadsheet offered when an import ends with rows that did not go in: the original cells of those rows plus "Row in your file" and "Reason", so they can be fixed and uploaded again. Rows that already existed are on their own "Already there" sheet.
+
+## Contractor scope for the 15 December 2026 release (#2516, owner 2026-11-21)
+
+**Foreman** (*mandor*) — the field role that leads a crew. A light account: one phone home screen with its own tasks,
+clock-in at rostered work orders, deliveries addressed to it and its own reported issues; it also ticks its own crew's roster.
+See *Light account*.
+
+**Light account** — a cheaper seat counted separately from full accounts, for the two field roles **Foreman** and **Field user**.
+It reaches only what is assigned to it (access follows roster and assignment, with no cap on the number of projects) and has no
+project page, work-order page, list, dashboard, price or budget. Anyone who needs to look at a project has a full account.
+
+**Field user** — a field role (worker, courier, receiver) that is a light account: the phone home screen shows its tasks,
+clock-in where rostered, deliveries addressed to it, and issues it reported.
+
+**Reservation** (stock) — a held quantity of one item at one location for one work order. Nothing is physically locked: stock reads
+"x free + y reserved", and a work order's own request uses its reservation first. Distinct from a client's *reservation* inside a
+client material requisition, which is the client's confirmation that material is set aside.
+
+**Borrowing** — a material request that takes stock reserved for another work order. It is marked as borrowing and goes to an
+approval step; whether it approves or only warns is an organisation setting.
+
+**Delivery note** — the printable document generated from an approved material request, with signature blocks, for a handover of
+goods. A client may rename it. See *Handover proof*.
+
+**Handover proof** — the evidence that goods changed hands: the photographed signed paper, or a handover confirmed in PMO (the
+logged-in person's name, time and counted quantity, photos of the goods and of the receiver; a person with no account signs on
+an account holder's phone with their name typed). The organisation chooses which counts, per stock tag.
+
+**Daily target** — a figure entered per work order for a day or a month and spread evenly over working days unless edited. PMO does not
+calculate it from crews or productivity; the daily report's revenue is read against it.
+
+**Billing board** — a view over billing records: cards are claims, columns are the steps of the claim, with age on each card. It holds
+no data of its own. A step waiting on a role shows in that person's needs-you list and clears when the step completes.
+
+**Candidate work order** — a work order that starts as an offer under a contract and is assessed with a checklist before the project
+manager accepts or rejects it, with the reason recorded.
+
+**Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
+the material close-out: joint count, loss report, material completion report). The closer is recorded.
