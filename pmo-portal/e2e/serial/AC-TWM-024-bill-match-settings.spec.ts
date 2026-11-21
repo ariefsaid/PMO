@@ -83,7 +83,7 @@ test('AC-TWM-024 an Admin switches the match on and fixes a held bill\'s lines i
 
   // The receipt's quantities, then the bill's lines.
   // The ledger holds the receipt row and the bill row, each with its own Row actions menu: open the one on the receipt row.
-  const receiptRow = page.locator('tr, [role="row"], li').filter({ hasText: /\bGR\b/ }).filter({ has: page.getByRole('button', { name: 'Row actions' }) }).first();
+  const receiptRow = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'GR', exact: true }) });
   await receiptRow.getByRole('button', { name: 'Row actions' }).click();
   await page.getByRole('menuitem', { name: 'Record received quantities' }).click();
   await page.getByRole('dialog').locator('input[id^="match-qty-"]').first().fill('60');
