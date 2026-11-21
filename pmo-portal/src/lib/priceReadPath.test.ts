@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { maskSelection, priceEmbed, priceSource, setHidePricesActive } from './priceReadPath';
+import { maskSelection, priceEmbed, priceFn, priceSource, setHidePricesActive } from './priceReadPath';
 
 afterEach(() => setHidePricesActive(false));
 
@@ -9,6 +9,18 @@ describe('AC-001 (#2699) setting off: the read path is unchanged', () => {
     expect(priceSource('procurements')).toBe('procurements');
     expect(maskSelection(sel)).toBe(sel);
     expect(priceEmbed('payments', 'amount')).toBe('payments(amount)');
+  });
+});
+
+describe('AC-004 (#2699) derived-amount functions', () => {
+  it('calls the originals while the setting is off and the masked twins while it is on', () => {
+    expect(priceFn('project_committed_spend')).toBe('project_committed_spend');
+    expect(priceFn('procurement_open_commitments')).toBe('procurement_open_commitments');
+    expect(maskSelection('*, open_commitment:procurement_open_commitment')).toBe('*, open_commitment:procurement_open_commitment');
+    setHidePricesActive(true);
+    expect(priceFn('project_committed_spend')).toBe('project_committed_spend_masked');
+    expect(priceFn('procurement_open_commitments')).toBe('procurement_open_commitments_masked');
+    expect(maskSelection('*, open_commitment:procurement_open_commitment')).toBe('*, open_commitment:procurement_open_commitment_masked');
   });
 });
 

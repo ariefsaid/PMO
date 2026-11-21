@@ -46,5 +46,13 @@ const EMBED = new RegExp(`(^|[\\s,:])(${MASKABLE.join('|')})\\(`, 'g');
  *  `a:purchase_orders(*)` -> `a:purchase_orders_masked(*)`; `purchase_orders(amount)` -> `purchase_orders:purchase_orders_masked(amount)`. */
 export function maskSelection(selection: string): string {
   if (!hidePricesActive) return selection;
-  return selection.replace(EMBED, (_m, pre: string, table: string) => (pre === ':' ? `:${table}_masked(` : `${pre}${table}:${table}_masked(`));
+  return selection.replace(/procurement_open_commitment(?![\w])/g, 'procurement_open_commitment_masked').replace(EMBED, (_m, pre: string, table: string) => (pre === ':' ? `:${table}_masked(` : `${pre}${table}:${table}_masked(`));
+}
+
+export type MaskableFunction = 'project_committed_spend' | 'procurement_open_commitments';
+
+/** The function to call for a derived amount: its masked twin while the setting is on, the original otherwise. The originals are never
+ *  changed, so money and approval logic in the database keeps reading real values. */
+export function priceFn<T extends MaskableFunction>(name: T): T | `${T}_masked` {
+  return hidePricesActive ? (`${name}_masked` as `${T}_masked`) : name;
 }

@@ -18,7 +18,7 @@ Spec: `docs/specs/hide-prices.spec.md`. Branch stacked on `feat/2709-role-set`. 
 | 1215 | `1215_hide_prices_setting.sql` (+ rollback) | column `organizations.hide_prices_from_requesters`; `org_hide_prices_enabled(uuid)`, `get_hide_prices_enabled()`, `set_hide_prices_enabled(boolean)` (Admin), `actor_may_see_prices()` |
 | 1216 | `1216_hide_prices_procurement_views.sql` (+ rollback) | `security_invoker` masked views for S1-S4, price columns `case when (select actor_may_see_prices()) then col end`; grants to authenticated |
 | 1217 | `1217_hide_prices_stock_views.sql` (+ rollback) | S5, S6 views; stock valuation RPCs and S7 RPCs call the helper |
-| 1218 | `1218_hide_prices_derived_amounts.sql` (+ rollback) | S7b derived-amount wrappers; test `supabase/tests/1218_hide_prices_derived.test.sql` |
+| 1218 | `1218_hide_prices_derived_amounts.sql` (+ rollback) | S7b masked twins of the derived-amount reads (originals untouched); test `supabase/tests/1218_hide_prices_derived.test.sql` |
 | 1219 | spare | left unused |
 | inventories | `supabase/tests/inventory/anon-executable-definers/2699-hide-prices.txt`, `scripts/isolation-probe-denominator.d/2699-hide-prices.json` | new definers and views |
 | FE seam | `src/auth/priceVisibility.ts` (`canSeePrices`), `src/lib/priceReadPath.ts` (`priceSource`, `maskSelection`), `src/hooks/useHidePrices.ts`, `src/lib/repositories/hidePrices.ts` (new standalone module), `src/lib/db/hidePrices.ts` | no method added to an existing repository |

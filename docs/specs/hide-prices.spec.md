@@ -53,7 +53,7 @@ on a request they raised either. An inactive member sees nothing.
 | S5 | `stock_document_lines` | `unit_cost` | masked view |
 | S6 | `stock_ledger`, `stock_balances` (stock valuation reports, `stockReports.ts`) | `value_delta`, `value_after`, `value_on_hand` | masked views + report RPCs call the helper |
 | S7 | stock report RPCs (`get_stock_on_hand`, `get_stock_ledger`, `get_project_consumption`, work-order stock balance) | stock values | the stock cost seam `stock_can_see_cost()` now also requires `actor_may_see_prices()` |
-| S7b | procurement derived-amount reads: `procurement_open_commitment`, `procurement_open_commitments`, `project_committed_spend` | derived amounts | wrappers mask the money field through `actor_may_see_prices_now()` (1218); the approval-panel figures (`spend_approval_project_figures` and its routes) already return none below approval rank |
+| S7b | procurement derived-amount reads: `procurement_open_commitment`, `procurement_open_commitments`, `project_committed_spend` | derived amounts | masked twins (`*_masked`, 1218) the screens call while the setting is on; the originals are unchanged so money and approval logic reads real values; the approval-panel figures already return none below approval rank |
 | S8 | `material_request_lines` and the material-request RPCs | none (quantities only) | not covered: carries no price or amount |
 | S9 | `boq_items.rate`, budget and revenue screens | planning and revenue prices | out of scope: the ticket is about requesters and unit prices on request, procurement and stock screens |
 

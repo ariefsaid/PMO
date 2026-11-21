@@ -27,3 +27,16 @@ describe('AC-003 procurement read path', () => {
     expect(m.from).toHaveBeenCalledWith('procurements_masked');
   });
 });
+
+describe('AC-004 derived-amount calls', () => {
+  it('calls the originals while the setting is off and the masked twin while it is on', async () => {
+    const { getProjectCommittedSpend } = await import('./procurements');
+    const rpc = (await import('@/src/lib/supabase/client')).supabase.rpc as unknown as ReturnType<typeof vi.fn>;
+    rpc.mockClear();
+    await getProjectCommittedSpend('proj-1');
+    expect(rpc).toHaveBeenCalledWith('project_committed_spend', { p_project_id: 'proj-1' });
+    setHidePricesActive(true);
+    await getProjectCommittedSpend('proj-1');
+    expect(rpc).toHaveBeenCalledWith('project_committed_spend_masked', { p_project_id: 'proj-1' });
+  });
+});

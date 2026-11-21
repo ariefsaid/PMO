@@ -1,13 +1,14 @@
 -- 1218_hide_prices_derived.test.sql — #2699 derived-amount reads and the order/bill masked views, per-surface value assertions.
 -- Migration under test: 1218_hide_prices_derived_amounts (and 1216 views).
 -- Mutation notes (break, see the named assertion go red, restore):
---   drop the helper test in project_committed_spend wrapper      -> 'hidden committed spend amount is NULL'
---   drop the helper test in procurement_open_commitments wrapper -> 'hidden open commitment is NULL'
+--   make the ORIGINAL project_committed_spend mask                -> 'the original committed spend is real for a hidden actor'
+--   drop the helper test in project_committed_spend_masked       -> 'hidden committed spend amount is NULL'
+--   drop the helper test in procurement_open_commitments_masked -> 'hidden open commitment is NULL'
 --   drop the helper test in purchase_orders_masked               -> 'hidden purchase order amount is NULL'
 --   drop the helper test in procurement_invoices_masked          -> 'hidden bill amount is NULL'
 --   the approval-panel assertion fails if spend_approval_project_figures stops withholding below approval rank.
 begin;
-select plan(13);
+select plan(15);
 
 insert into organizations (id, name) values ('26991800-0000-0000-0000-000000000001','HPD Org');
 insert into auth.users (id, email) values
@@ -32,17 +33,21 @@ set local request.jwt.claims = '{"sub":"26991800-0000-0000-0000-0000000000e1","r
 select is((select amount from purchase_orders_masked where id = '26991800-0000-0000-0000-000000000020'), null, 'AC-003 hidden purchase order amount is NULL');
 select is((select po_number from purchase_orders_masked where id = '26991800-0000-0000-0000-000000000020'), 'HPD-PO-1', 'AC-003 the purchase order row stays visible');
 select is((select amount from procurement_invoices_masked where id = '26991800-0000-0000-0000-000000000030'), null, 'AC-003 hidden bill amount is NULL');
-select is((select count(*)::int from project_committed_spend('26991800-0000-0000-0000-0000000000d1') where amount is not null), 0, 'AC-004 hidden committed spend amount is NULL');
-select is((select procurement_id::text from procurement_open_commitments(array['26991800-0000-0000-0000-000000000010']::uuid[])), '26991800-0000-0000-0000-000000000010', 'AC-004 the open commitment row stays');
-select is((select amount from procurement_open_commitments(array['26991800-0000-0000-0000-000000000010']::uuid[])), null, 'AC-004 hidden open commitment is NULL');
+select is((select count(*)::int from project_committed_spend_masked('26991800-0000-0000-0000-0000000000d1') where amount is not null), 0, 'AC-004 hidden committed spend amount is NULL');
+select is((select procurement_id::text from procurement_open_commitments_masked(array['26991800-0000-0000-0000-000000000010']::uuid[])), '26991800-0000-0000-0000-000000000010', 'AC-004 the open commitment row stays');
+select is((select amount from procurement_open_commitments_masked(array['26991800-0000-0000-0000-000000000010']::uuid[])), null, 'AC-004 hidden open commitment is NULL');
 select is((select count(*)::int from spend_approval_project_figures(array['26991800-0000-0000-0000-0000000000d1']::uuid[]) where figures is not null and figures <> '{}'::jsonb), 0, 'AC-004 the approval-panel project figures are withheld below approval rank');
+
+-- Internal callers: the ORIGINAL functions return the real value to a hidden actor (money and approval logic never sees a mask).
+select is((select max(amount) from project_committed_spend('26991800-0000-0000-0000-0000000000d1')), 1000.00::numeric, 'AC-004 the original committed spend is real for a hidden actor');
+select is((select amount from procurement_open_commitments(array['26991800-0000-0000-0000-000000000010']::uuid[])), 1000.00::numeric, 'AC-004 the original open commitment is real for a hidden actor');
 
 -- Finance sees the values.
 set local request.jwt.claims = '{"sub":"26991800-0000-0000-0000-0000000000c1","role":"authenticated"}';
 select is((select amount from purchase_orders_masked where id = '26991800-0000-0000-0000-000000000020'), 700.00, 'AC-003 Finance reads the purchase order amount');
 select is((select amount from procurement_invoices_masked where id = '26991800-0000-0000-0000-000000000030'), 500.00, 'AC-003 Finance reads the bill amount');
-select is((select max(amount) from project_committed_spend('26991800-0000-0000-0000-0000000000d1')), 1000.00::numeric, 'AC-004 Finance reads the committed spend');
-select is((select amount from procurement_open_commitments(array['26991800-0000-0000-0000-000000000010']::uuid[])), 1000.00::numeric, 'AC-004 Finance reads the open commitment');
+select is((select max(amount) from project_committed_spend_masked('26991800-0000-0000-0000-0000000000d1')), 1000.00::numeric, 'AC-004 Finance reads the committed spend');
+select is((select amount from procurement_open_commitments_masked(array['26991800-0000-0000-0000-000000000010']::uuid[])), 1000.00::numeric, 'AC-004 Finance reads the open commitment');
 reset role;
 
 -- Setting off: the Engineer reads the value again.
@@ -50,7 +55,7 @@ update organizations set hide_prices_from_requesters = false where id = '2699180
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"26991800-0000-0000-0000-0000000000e1","role":"authenticated"}';
 select is((select amount from purchase_orders_masked where id = '26991800-0000-0000-0000-000000000020'), 700.00, 'AC-001 setting off: the Engineer reads the purchase order amount');
-select is((select max(amount) from project_committed_spend('26991800-0000-0000-0000-0000000000d1')), 1000.00::numeric, 'AC-001 setting off: the Engineer reads the committed spend');
+select is((select max(amount) from project_committed_spend_masked('26991800-0000-0000-0000-0000000000d1')), 1000.00::numeric, 'AC-001 setting off: the Engineer reads the committed spend');
 reset role;
 
 select * from finish();
