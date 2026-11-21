@@ -6994,6 +6994,12 @@ export type Database = {
           },
         ]
       }
+      idle_cost_settings: {
+        Row: { enabled: boolean; org_id: string; updated_at: string; updated_by: string | null }
+        Insert: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Update: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Relationships: []
+      }
       labour_cost_classes: {
         Row: { archived_at: string | null; code: string; created_at: string; id: string; name: string; org_id: string }
         Insert: { archived_at?: string | null; code: string; created_at?: string; id?: string; name: string; org_id?: string }
@@ -13526,6 +13532,14 @@ export type Database = {
       set_work_order_plan: { Args: { p_project_id: string; p_work_order_id: string; p_changes: Json }; Returns: number }
       set_shared_cost_split: { Args: { p_project_id: string; p_split: Json }; Returns: number }
       clear_shared_cost_split: { Args: { p_project_id: string }; Returns: number }
+      save_idle_cost_setting: { Args: { p_enabled: boolean }; Returns: undefined }
+      work_order_idle_cost: {
+        Args: { p_project_id: string }
+        Returns: {
+          work_order_id: string; reason_id: string; reason_label: string; minutes: number; hours: string
+          hourly_cost: string | null; amount: string | null; currency: string; reason: string
+        }[]
+      }
       save_labour_cost_settings: { Args: { p_enabled: boolean }; Returns: undefined }
       save_labour_cost_rate: { Args: { p: Json }; Returns: string }
       end_labour_cost_rate: { Args: { p_id: string; p_end: string }; Returns: undefined }

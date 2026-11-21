@@ -925,5 +925,13 @@
     "loadError": "Couldn't load the performance settings",
     "on": "On",
     "off": "Off"
+  },
+  "idleCost": {
+    "title": "Idle time as cost",
+    "intro": "Cost the idle hours recorded on daily site reports at the work order's average hourly cost, per idle reason. Shown apart from direct cost, which already includes those hours. Needs labour cost in money.",
+    "loadError": "Couldn't load this setting",
+    "switch": "Cost idle hours in money",
+    "adminOnly": "Only an Admin or Finance can change this setting.",
+    "needsLabour": "Nothing shows until labour cost in money is switched on."
   }
 }

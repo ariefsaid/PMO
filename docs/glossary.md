@@ -1078,3 +1078,5 @@ the material close-out: joint count, loss report, material completion report). T
 **Non-working date** (*hari tidak kerja*) — a calendar date an organisation does not work (a holiday or shutdown), listed by an Admin on top of its working weekdays. A working day is a working weekday that is not a non-working date. Adding a date changes later month spreads only; a target already entered on it stays and is marked (#2672).
 
 **Working days** (*hari kerja*) — the weekdays an organisation marks as working (default Monday to Friday). A month's revenue plan is spread over them; the same setting is the base for the daily target (#2672).
+
+**Idle cost** — the recorded idle hours of validated daily site reports, per idle reason, multiplied by the work order's hourly cost (priced labour amount divided by priced labour hours, a weighted average over its history). A lost-time view of cost already inside direct cost: shown apart, never added to it. OFF until an organisation switch and labour cost in money are both on (#2673).

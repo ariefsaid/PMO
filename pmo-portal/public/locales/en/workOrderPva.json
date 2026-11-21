@@ -233,5 +233,14 @@
     "withoutProgress": "{{count}} of {{total}} work orders have no validated progress yet.",
     "empty": "No Issued or Closed work orders yet.",
     "loadError": "Couldn't load earned and billed revenue"
+  },
+  "idle": {
+    "title": "Idle time cost by reason",
+    "reason": "Reason",
+    "hours": "Hours",
+    "cost": "Cost",
+    "total": "Total idle",
+    "noRate": "No rate",
+    "note": "Shown apart: this time was already paid, so it is part of the direct cost above and is not added again. Cost at the work order's average hourly cost."
   }
 }

@@ -925,5 +925,13 @@
     "loadError": "Tidak dapat memuat pengaturan kinerja",
     "on": "Aktif",
     "off": "Nonaktif"
+  },
+  "idleCost": {
+    "title": "Waktu menganggur sebagai biaya",
+    "intro": "Hitung jam menganggur yang tercatat pada laporan harian lapangan dengan biaya per jam rata-rata pekerjaan, per alasan. Ditampilkan terpisah dari biaya langsung, yang sudah mencakup jam tersebut. Memerlukan biaya tenaga kerja dalam uang.",
+    "loadError": "Pengaturan ini tidak dapat dimuat",
+    "switch": "Hitung jam menganggur dalam uang",
+    "adminOnly": "Hanya Admin atau Keuangan yang dapat mengubah pengaturan ini.",
+    "needsLabour": "Belum ada yang tampil sampai biaya tenaga kerja dalam uang diaktifkan."
   }
 }

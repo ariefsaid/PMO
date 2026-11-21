@@ -17,6 +17,7 @@ import type { Margin } from '@/src/lib/projectFinances';
 import WorkOrderPlanModal from './WorkOrderPlanModal';
 import SharedCostSplitModal from './SharedCostSplitModal';
 import { LabourByClass } from '../work-order-detail/LabourByClass';
+import { IdleCostBlock } from '../work-order-detail/IdleCostBlock';
 
 /**
  * Plan versus actual and profit per work order (#2519, spec docs/specs/work-order-plan-vs-actual.spec.md).
@@ -219,6 +220,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
               ))}</ul>
             )}
             {f.labour && f.labour.length > 0 && <LabourByClass labour={f.labour} currency={w.currency} testId={`wo-pva-labour-${w.id}`} />}
+            <IdleCostBlock projectId={projectId} workOrderId={w.id} testId={`wo-pva-idle-${w.id}`} />
             {f.pendingCrewHours > 0 && <p className="text-sm text-muted-foreground">{pendingText(f.pendingCrewHours)}</p>}
             {f.uncostedHours > 0 && <p className="text-sm text-muted-foreground">{t('uncosted', '{{hours}} h carry no rate and are not in the cost.', { hours: formatNumberExact(f.uncostedHours) })}</p>}
             {basisTable(f.lines, basisId)}

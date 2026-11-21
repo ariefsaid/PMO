@@ -1,0 +1,5 @@
+# #2673 idle hours as cost: client-called definers (1255, 1256). save_idle_cost_setting refuses unless the caller is an
+# active Admin or Finance of the org (labour_cost_gate); work_order_idle_cost refuses unless Admin, Executive, Finance or
+# Project Manager of the project's org. Proven by supabase/tests/1255_idle_cost.test.sql (AC-IHC-008, 009).
+save_idle_cost_setting
+work_order_idle_cost

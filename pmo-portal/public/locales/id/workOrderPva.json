@@ -233,5 +233,14 @@
     "withoutProgress": "{{count}} dari {{total}} perintah kerja belum punya progres tervalidasi.",
     "empty": "Belum ada perintah kerja berstatus Diterbitkan atau Ditutup.",
     "loadError": "Pendapatan yang dihasilkan dan ditagih tidak dapat dimuat"
+  },
+  "idle": {
+    "title": "Biaya waktu menganggur per alasan",
+    "reason": "Alasan",
+    "hours": "Jam",
+    "cost": "Biaya",
+    "total": "Total menganggur",
+    "noRate": "Tanpa tarif",
+    "note": "Ditampilkan terpisah: waktu ini sudah dibayar, jadi sudah termasuk dalam biaya langsung di atas dan tidak ditambahkan lagi. Dihitung dengan biaya per jam rata-rata pekerjaan."
   }
 }
