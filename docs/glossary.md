@@ -1054,3 +1054,11 @@ the material close-out: joint count, loss report, material completion report). T
 **Light account** — a person whose built-in role is Foreman or Field user. One phone home screen (own tasks, clock-in at work orders they are rostered on, deliveries addressed to them, issues they reported; the Foreman also ticks their own crew). No project page, work-order page, list, dashboard, price or budget. The database confines it with restrictive row policies; the organization sets nothing beyond who holds the role. (#2710, `docs/specs/light-accounts.spec.md`.)
 
 **Seat type** — `light` (a light account) or `full` (everyone else), derived from the built-in role. Seat reports split the two; price and counts stay the owner's.
+
+**Work-order area** — an optional point (latitude, longitude) and radius in metres on a work order. Where it is set, a phone check-in
+reads the person's position once and the database decides inside or outside; where it is empty no location is asked.
+
+**Check-in request** — a phone check-in that did not become attendance by itself (outside the area, not on the roster that day,
+or no position). It waits for the check-in supervisor, who approves (attendance is recorded) or rejects with a reason; the person
+who checked in never decides their own. The supervisor is the organisation's configured built-in role, or by default the crew's
+field controller or a crew manager.

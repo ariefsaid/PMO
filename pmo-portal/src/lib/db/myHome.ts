@@ -10,6 +10,8 @@ export interface MyHomeWorkOrder {
   work_order_id: string; title: string; project_name: string; crew_id: string; crew_name: string;
   /** The person's own record in the workforce register; null when they have none (no clock-in then). */
   my_worker_id: string | null; is_controller: boolean;
+  /** #2705: the work order has a check-in area, so a position is read on the tap. Absent or false = today's clock-in. */
+  has_area?: boolean;
 }
 export interface MyHomeIssue { id: string; type: string; severity: string; status: string; incident_date: string; description: string | null }
 export interface MyHome { today: string; tasks: MyHomeTask[]; work_orders: MyHomeWorkOrder[]; issues: MyHomeIssue[] }

@@ -145,5 +145,32 @@
   "weekSent": "Week sent for approval",
   "workOrder": "Work order",
   "workOrderNoun": "work order",
-  "workOrderNounPlural": "work orders"
+  "workOrderNounPlural": "work orders",
+  "checkIn": {
+    "requestsTitle": "Check-ins waiting for you",
+    "requestsHelper": "These people clocked in from their phone outside the work area, off the roster, or without a position. Approving records their attendance.",
+    "outcomeOutside": "Outside the work area",
+    "outcomeNotRostered": "Not on the roster today",
+    "outcomeNoPosition": "No position",
+    "distance": "{{metres}} m from the area",
+    "hours": "{{hours}} h",
+    "approve": "Approve",
+    "reject": "Reject",
+    "rejectSubject": "check-in",
+    "approvedToast": "Check-in approved",
+    "rejectedToast": "Check-in rejected",
+    "decideFailed": "The decision could not be saved",
+    "areaTitle": "Check-in area",
+    "areaHelper": "People clock in from their phone inside this area. Leave it empty to clock in without asking for a location.",
+    "areaLat": "Latitude",
+    "areaLng": "Longitude",
+    "areaRadius": "Radius (metres)",
+    "areaSave": "Save area",
+    "areaClear": "Clear area",
+    "areaSaved": "Area saved",
+    "areaInvalid": "Enter a latitude from -90 to 90, a longitude from -180 to 180 and a radius above 0",
+    "supervisorRole": "Who decides outside-area check-ins",
+    "supervisorRoleDefault": "The crew's field controller or a crew manager",
+    "supervisorRoleHelper": "Anyone holding this role decides. The person who checked in never decides their own."
+  }
 }
