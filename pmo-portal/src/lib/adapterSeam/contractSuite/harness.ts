@@ -164,6 +164,28 @@ export interface ConnectHarness {
   calls?(): { reads: number; writes: number };
   /** Rows the tier's `listMasters` returns per page; the match suites load more than this to prove paging. */
   pageSize?: number;
+  /** account.send: seed a chart of accounts in the fake ERP and name its parts. */
+  chart?(): AccountChart;
+  /** account.send: every account the fake ERP holds, normalised; `created` marks those a send made. */
+  accounts?(): ErpAccount[];
+  /** account.send: write requests that reached anything other than an account create (a send must make none). */
+  writesOutsideAccounts?(): string[];
+}
+
+/** One ERP account in PMO terms (account.send). */
+export interface ErpAccount { externalId: string; accountName: string; parent: string | null; company: string; isGroup: boolean; rootType: string; created: boolean }
+
+/** A seeded chart (account.send): the bound company, an expense group to file under, another expense group, a leaf, and a group
+ *  of another company. `place` adds an account the ERP already holds and answers its ERP id. */
+export interface AccountChart {
+  company: string;
+  expenseGroup: string;
+  otherExpenseGroup: string;
+  expenseLeaf: string;
+  otherCompanyGroup: string;
+  /** An expense group of the bound company that is turned off (the ERP itself still accepts a child under it). */
+  disabledExpenseGroup: string;
+  place(a: { accountName: string; parent: string; isGroup: boolean; rootType: 'Expense' | 'Asset' | 'Liability' | 'Income' | 'Equity' }): string;
 }
 
 /** An ERP invoice as the ERP states it, in PMO terms. `total` is the tax-inclusive grand total. */
@@ -223,6 +245,18 @@ export interface ErpHarness {
   revise?: () => ReviseHarness;
   /** company-defaults.set: each call starts a fresh fake ERP company with every default empty. Absent until the tier sets them (#1504). */
   companyDefaults?: () => CompanyDefaultsHarness;
+  /** fiscal-year.ensure: each call starts a fake ERP bound to one company. Absent until the tier discovers years. */
+  fiscalYear?: () => FiscalYearHarness;
+}
+
+/** fiscal-year.ensure: a fake ERP holding fiscal years, bound to one PMO company. Dates are ISO (YYYY-MM-DD). */
+export interface FiscalYearHarness {
+  readonly company: string;
+  seed(year: { name: string; start: string; end: string; companies: string[]; disabled?: boolean }): void;
+  discover(today: string): Promise<import('../fiscalYearEnsure.ts').FiscalYearDiscovery>;
+  years(): Array<{ name: string; start: string; end: string; companies: string[]; disabled?: boolean }>;
+  writes(): Array<Record<string, unknown>>;
+  denyRead(): void;
 }
 
 export interface ReviseHarness {

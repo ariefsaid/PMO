@@ -169,6 +169,102 @@ Deno.test("AC-SETUP-002 / RF-049 readiness lists actionable configuration and co
     assertEquals(body.unlinkedEmployeeCount, 1);
   });
 });
+
+Deno.test("AC-ECX-040 readiness maps all fiscal year states and handles malformed held data safely", async () => {
+  const cases: Array<{
+    stored: unknown;
+    expected: unknown;
+  }> = [
+    {
+      stored: { state: "ready", next: "2027", company: "Example Company" },
+      expected: { state: "ready", next: "2027" },
+    },
+    {
+      stored: { state: "not-due", company: "Example Company" },
+      expected: { state: "not-due" },
+    },
+    {
+      stored: { state: "needs-operator", reason: "missing-role", company: "Example Company" },
+      expected: { state: "needs-operator", reason: "missing-role" },
+    },
+    {
+      stored: { state: "needs-operator", reason: "no-current-year", company: "Example Company" },
+      expected: { state: "needs-operator", reason: "no-current-year" },
+    },
+    {
+      stored: { state: "needs-operator", reason: "disabled-year", year: "2027", company: "Example Company" },
+      expected: { state: "needs-operator", reason: "disabled-year", year: "2027" },
+    },
+    {
+      stored: { state: "needs-operator", reason: "held", intentId: "intent-123", company: "Example Company" },
+      expected: { state: "needs-operator", reason: "held", intentId: "intent-123" },
+    },
+    {
+      stored: { state: "needs-operator", reason: "held", company: "Example Company" },
+      expected: { state: "needs-operator", reason: "held", intentId: "" },
+    },
+    {
+      stored: { state: "refused", message: "User does not have access", company: "Example Company" },
+      expected: { state: "refused", message: "User does not have access" },
+    },
+    {
+      stored: { state: "refused", company: "Example Company" },
+      expected: { state: "refused", message: null },
+    },
+    {
+      stored: { state: "ready", next: "2027", company: "Other Company" },
+      expected: null,
+    },
+    {
+      stored: null,
+      expected: null,
+    },
+    {
+      stored: "not-an-object",
+      expected: null,
+    },
+    {
+      stored: ["array"],
+      expected: null,
+    },
+    {
+      stored: { state: "needs-operator", reason: "ambiguous-overlap", company: "Example Company" },
+      expected: { state: "needs-operator", reason: "ambiguous-overlap" },
+    },
+    {
+      stored: { state: "needs-operator", reason: "unknown-reason", company: "Example Company" },
+      expected: { state: "needs-operator", reason: "review-settings" },
+    },
+    {
+      stored: { state: "unknown-state", company: "Example Company" },
+      expected: null,
+    },
+  ];
+
+  for (const { stored, expected } of cases) {
+    const currentBinding = {
+      ...binding,
+      config: { ...binding.config, fiscal_year: stored },
+    };
+    await withFetchMock([
+      supabaseSelect("external_org_bindings", () => jsonResponse(currentBinding)),
+      ...base("Admin", true, false),
+      supabaseSelect("external_domain_ownership", () => jsonResponse([{ domain: "companies" }])),
+      supabaseSelect("projects", () => jsonResponse([])),
+      supabaseSelect("budget_category_account_map", () => jsonResponse([])),
+      supabaseSelect("budget_line_items", () => jsonResponse([])),
+      supabaseRpc("erp_setup_unlinked_participant_count", () => jsonResponse(0)),
+    ], async () => {
+      const response = await handleSetCompanyRequest(
+        await request({ tier: "erpnext", setupAction: "readiness" }),
+      );
+      assertEquals(response.status, 200);
+      const body = await response.json();
+      assertEquals(body.fiscalYear, expected);
+    });
+  }
+});
+
 Deno.test("AC-S09-001 readiness proposes only own, unlinked reviewable projects", async () => {
   const reviewableStatuses = [
     "Won, Pending KoM",

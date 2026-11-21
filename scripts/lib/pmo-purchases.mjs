@@ -405,3 +405,17 @@ export async function runImportHistory(api, rows, { dryRun }) {
   }
   return out;
 }
+
+/**
+ * `purchases undo-import` (#2321): take back one purchase brought in by `import-history`, by its import key. Every check lives in the
+ * `undo_imported_purchase` RPC (active Admin only; refused once anything outside the import exists). The call previews unless confirmed.
+ * The guard tier is `history_undo_rpcs` (migration 1046).
+ */
+export function validateUndoImport(importKey, reason) {
+  if (typeof importKey !== 'string' || !importKey.trim() || importKey.trim().length > 120) return 'purchases undo-import needs the import key of the row (1 to 120 characters)';
+  if (typeof reason !== 'string' || !reason.trim()) return 'purchases undo-import needs --reason <why the purchase is taken back>';
+  return null;
+}
+export async function runUndoImport(api, importKey, reason, { confirm }) {
+  return api.rpc('undo_imported_purchase', { p_import_key: importKey.trim(), p_reason: reason, p_dry_run: !confirm });
+}

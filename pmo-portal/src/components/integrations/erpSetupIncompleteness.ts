@@ -21,9 +21,27 @@ export function requiredBudgetCategories(setup: ErpSetupReadiness): string[] {
   );
 }
 
-/** FR-ECA-020: PMO never creates accounts, so a required category with no linked account is the accountant's task. */
+/** A required category with no linked account: created from PMO under an expense group the Admin or Finance user picks (#1599 ECX-4). */
 export function missingAccountCategories(setup: ErpSetupReadiness): string[] {
   return requiredBudgetCategories(setup).filter((category) => !setup.budgetMappedCategories.includes(category));
+}
+
+/** #1599 ECX-5: guidance for the fiscal-year check, outside the initial setup completion count. */
+export function fiscalYearOperatorTask(setup: ErpSetupReadiness):
+  | { kind: 'missing-role' | 'no-current-year' | 'ambiguous-overlap' | 'review-settings' }
+  | { kind: 'disabled-year'; year: string }
+  | { kind: 'held'; intentId: string }
+  | { kind: 'refused'; reason: string | null }
+  | null {
+  const fy = setup.fiscalYear;
+  if (!fy) return null;
+  if (fy.state === 'needs-operator') {
+    if (fy.reason === 'disabled-year') return { kind: 'disabled-year', year: fy.year };
+    if (fy.reason === 'held') return { kind: 'held', intentId: fy.intentId };
+    return { kind: fy.reason };
+  }
+  if (fy.state === 'refused') return { kind: 'refused', reason: fy.message };
+  return null;
 }
 
 export function getErpSetupIncompleteness(setup: ErpSetupReadiness) {

@@ -26,7 +26,7 @@ const WINDOW_MS = 5 * 60_000;
  *  (0095): a conditional transition into `committing` that only one caller can win per id, the
  *  quarantine of a stale `committing` row (F1 — never a blind re-POST), plus the `claim_generation`
  *  fencing token guarding every subsequent write-back. */
-function createFakeOutbox(opts: { reissueOnInconclusiveAbsence?: boolean } = {}) {
+export function createFakeOutbox(opts: { reissueOnInconclusiveAbsence?: boolean } = {}) {
   const rows = new Map<string, OutboxRow & { updatedAt: number; claimedAt: number | null; reconcileAfter: number | null }>();
   const byTuple = new Map<string, string>();
   const probes = new Map<string, { externalRecordId: string }>();

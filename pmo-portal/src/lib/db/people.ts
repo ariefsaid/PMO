@@ -34,9 +34,10 @@ export async function listPeople(): Promise<PersonListRow[]> {
     table().select(COLUMNS).is('archived_at', null).order('code', { ascending: true }).order('id', { ascending: true }).range(from, to));
 }
 
-export async function createPerson(input: PersonInput): Promise<PersonListRow> {
+/** `job_title` and `profile_id` are optional on create (the people import sends only code and name). */
+export async function createPerson(input: Omit<PersonInput, 'job_title' | 'profile_id'> & Partial<Pick<PersonInput, 'job_title' | 'profile_id'>>): Promise<PersonListRow> {
   const code = input.code?.trim();
-  const row = { name: input.name.trim(), job_title: input.job_title, profile_id: input.profile_id, ...(code ? { code } : {}) };
+  const row = { name: input.name.trim(), job_title: input.job_title ?? null, profile_id: input.profile_id ?? null, ...(code ? { code } : {}) };
   const { data, error } = await table().insert(row).select(COLUMNS).single();
   if (error) fail(error);
   return data as PersonListRow;
