@@ -16,6 +16,13 @@ Read against `origin/dev`: migrations 1021, 1022, 0237 and 1028; `billingStages.
 - OD-SCOPE-6 / #2680 moves to per-claim steps from a template (owner role, target date, documents, done mark). To avoid tearing out this work: the overdue test and the notification recipient each live in one SQL function (`billing_stage_due_on(stage)` = started day plus target days; `billing_stage_overdue_recipients(stage)`), so #2680 swaps the due date for a step's own target date and the recipient for the step's owner role without touching the job, the skip or the gate. `billing_stages_open` stays the single gate predicate. Skipped is recorded on the claim's own stage row, which is where #2680 keeps steps. This ticket adds no board, no needs-you pointer and no email (email ships with its own ticket).
 - Messages to the next step's owner are out of scope.
 
+## Build notes (#2592)
+
+- Migrations 1360 (columns), 1361 (list, copy, lock, complete, gate), 1362 (`skip_billing_stage`), 1363 (due-day and recipient seams, overdue job, cron). 1364 unused.
+- The overdue notice opens the claim's project (`project` entity), as claims have no page of their own; the body is the literal English form (OD-BSX-5): the 1025 message-key allow-list admits keys only from `service_role`, and the job runs as the function owner.
+- FR-BSX-011's project-wide "claim has an overdue stage" marker is not in this slice: the claim shows it on its own stage list; the claim list marker comes with the per-claim steps and needs-you list of #2680.
+- The stage tables are not in `record_history_config`, so no history entry was added (the plan's assumption was wrong); the skip is audited through `log_audit`.
+
 ## Job story
 
 When a progress claim is waiting on one of its billing steps, I want each step to carry a target number of days, to show as overdue once it passes the target and to tell the claim's project manager once, and I want a step that does not apply to this claim to be marked not needed with a reason, so that late steps are chased before the client's monthly cut-off and a claim is not held up by a step nobody needs.
