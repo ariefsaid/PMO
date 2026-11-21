@@ -405,7 +405,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
           const input: StockItemInput = { code: v.code, name: v.name, description: v.description || null, unitId: v.unitId, leadTimeDays: v.leadTime.trim() ? Number(v.leadTime) : null, ...(tagsEnabled ? { tagId: v.tagId || null } : {}) };
           if (row) await m.updateItem.mutateAsync({ id: row.id, input }); else await m.createItem.mutateAsync(input);
         } else {
-          const input: StockWarehouseInput = { code: v.code, name: v.name, kind: v.kind, projectId: v.kind === 'vendor' ? null : v.projectId || null, vendorCompanyId: v.kind === 'vendor' ? v.vendorCompanyId || null : null };
+          const input: StockWarehouseInput = { code: v.code, name: v.name, kind: v.kind, projectId: v.kind === 'vendor' ? null : v.projectId || null, ...(v.kind === 'vendor' ? { vendorCompanyId: v.vendorCompanyId || null } : whRow?.kind === 'vendor' ? { vendorCompanyId: null } : {}) };
           if (row) await m.updateWarehouse.mutateAsync({ id: row.id, input }); else await m.createWarehouse.mutateAsync(input);
         }
         onDone(isEdit);
