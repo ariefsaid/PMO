@@ -1,8 +1,8 @@
--- 1136_subcontract_certificates.sql — #2584 Slice 2: the subcontractor progress certificate, its derive, backcharges, claims.
+-- 1185_subcontract_certificates.sql — #2584 Slice 2: the subcontractor progress certificate, its derive, backcharges, claims.
 -- Spec docs/specs/subcontractor-progress-certificate.spec.md (FR-SPC-004..009, 011, 013, 018..021; NFR-SPC-001/002/005).
 -- Plan docs/plans/2026-11-20-subcontractor-progress-certificate.md. Proven by supabase/tests/subcontract_certificate_derive.test.sql
 -- and supabase/tests/subcontract_certificate_immutability.test.sql.
--- Rollback: rollback/1136_subcontract_certificates_down.sql (refused while a certificate or backcharge exists).
+-- Rollback: rollback/1185_subcontract_certificates_down.sql (refused while a certificate or backcharge exists).
 --
 -- A certificate is a calculation and approval record. It is one subcontract PO, one calendar month, the PO's work order.
 -- draft / returned: lines are DERIVED on every read (spc_derive); nothing is reserved. submit (1137) FREEZES them: lines,

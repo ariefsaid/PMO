@@ -1,5 +1,5 @@
 -- #2584 S2: the derive of a subcontractor progress certificate from validated daily reports at the agreed rates, and its snapshot
--- (AC-SPC-001, 002, 005, 008, 017 certificate rows; FR-SPC-004..009, 011). Migration under test: 1136_subcontract_certificates.sql.
+-- (AC-SPC-001, 002, 005, 008, 017 certificate rows; FR-SPC-004..009, 011). Migration under test: 1185_subcontract_certificates.sql.
 -- The hand calculation is the spec's "Definitions" table: A 40.000 x 10.00, B 12.500 x 8.40, C 3.333 x 9.99 = 538.30; backcharge 38.30; net 500.00.
 begin;
 create extension if not exists pgtap;

@@ -1,4 +1,4 @@
--- 1136_subcontract_certificates_down.sql — refused while a certificate or backcharge exists (NFR-SPC-005).
+-- 1185_subcontract_certificates_down.sql — refused while a certificate or backcharge exists (NFR-SPC-005).
 do $$ begin
   if exists (select 1 from public.subcontract_certificates) or exists (select 1 from public.subcontract_backcharges)
   then raise exception 'rollback refused: certificates or backcharges exist — export and remove them first'; end if;
