@@ -170,7 +170,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, actionsPending =
           {/* I-4: a PMO invoice states what the client owes in full, so Outstanding reconciles by eye. */}
           {inv.pmo_native && invoiceGross(inv) != null && invoiceGross(inv) !== inv.amount && (
             <span className="w-full text-right text-control text-muted-foreground md:basis-full">
-              {t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: listMoney(invoiceGross(inv)!, inv.currency) })}
+              {inv.status === 'Paid' ? t('finance:receivables.invoiceTotalAmount', 'Invoice total {{amount}}', { amount: listMoney(invoiceGross(inv)!, inv.currency) }) : t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: listMoney(invoiceGross(inv)!, inv.currency) })}
               <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />
             </span>
           )}
@@ -300,7 +300,7 @@ export function salesInvoiceColumns({ t, all, embedded, native, actionsPending =
         {statusColumn.cell(inv)}
         <span className="shrink-0 text-control text-muted-foreground">{due ? formatDay(due) : '—'}</span>
       </div>
-      <span className="text-right text-control tabular">{inv.tax_treatment === 'inclusive' ? t('finance:receivables.mobileInvoiceAmountInclusive', 'Invoice total incl. PPN') : inv.tax_treatment === 'exclusive' ? t('finance:receivables.mobileInvoiceAmount', 'Invoice total excl. PPN') : t('finance:receivables.mobileInvoiceAmountUnspecified', 'Invoice amount')}: {inv.amount == null ? '—' : listMoney(inv.amount, inv.currency)}{total != null && total !== inv.amount && <span className="block">{t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: listMoney(total, inv.currency) })}</span>}{unknown ? null : inv.erp_outstanding_amount != null && inv.status !== 'Paid' && inv.status !== 'Cancelled' && <span className="block text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}: {listMoney(inv.erp_outstanding_amount, inv.currency)}{partial && total != null && <span> {t('finance:receivables.ofTotal', 'of {{total}}', { total: listMoney(total, inv.currency) })}</span>}</span>}</span>
+      <span className="text-right text-control tabular">{inv.tax_treatment === 'inclusive' ? t('finance:receivables.mobileInvoiceAmountInclusive', 'Invoice total incl. PPN') : inv.tax_treatment === 'exclusive' ? t('finance:receivables.mobileInvoiceAmount', 'Invoice total excl. PPN') : t('finance:receivables.mobileInvoiceAmountUnspecified', 'Invoice amount')}: {inv.amount == null ? '—' : listMoney(inv.amount, inv.currency)}{total != null && total !== inv.amount && <span className="block">{inv.status === 'Paid' ? t('finance:receivables.invoiceTotalAmount', 'Invoice total {{amount}}', { amount: listMoney(total, inv.currency) }) : t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: listMoney(total, inv.currency) })}</span>}{unknown ? null : inv.erp_outstanding_amount != null && inv.status !== 'Paid' && inv.status !== 'Cancelled' && <span className="block text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}: {listMoney(inv.erp_outstanding_amount, inv.currency)}{partial && total != null && <span> {t('finance:receivables.ofTotal', 'of {{total}}', { total: listMoney(total, inv.currency) })}</span>}</span>}</span>
     </div>;
   };
 
