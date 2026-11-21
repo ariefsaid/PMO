@@ -1048,3 +1048,11 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+**Monthly plan** — one project's plan of equipment and services for one calendar month, in Draft, Submitted, Approved or Rejected status; approving it creates one Draft rental purchase per line, once (#2700).
+
+**Plan line** — one item of a monthly plan: what is needed, optionally a work order and a plan category, a vendor, a quantity, a rate and dates inside the month; after approval it links to the purchase it created (#2700).
+
+**Plan category** — an entry in the organisation's own list that a plan line can name (for example a kind of equipment or service); an Admin keeps it and retires rather than deletes (#2700).
+
+**Plan approval step** — the organisation setting that says who approves a monthly plan: the project's spend approvers (then the senior approvers, then an Admin) or anyone whose role can approve spend; the author may not approve their own plan unless the organisation allows it (#2700).

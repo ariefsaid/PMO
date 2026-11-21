@@ -104,6 +104,8 @@ const MaterialRequestNewPage = lazyWithPreload(() => import('./pages/MaterialReq
 const MaterialRequestDetailPage = lazyWithPreload(() => import('./pages/MaterialRequestDetail'));
 const MaterialRequestSettingsPage = lazyWithPreload(() => import('./pages/MaterialRequestSettings'));
 const PurchaseTypeSettingsPage = lazyWithPreload(() => import('./pages/PurchaseTypeSettings'));
+const EquipmentPlansPage = lazyWithPreload(() => import('./pages/EquipmentPlans'));
+const EquipmentPlanSettingsPage = lazyWithPreload(() => import('./pages/EquipmentPlanSettings'));
 const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
 const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAvailability'));
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
@@ -228,6 +230,8 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord', 'purchaseTypes'] },
   { path: '/procurement/:procurementId', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord', 'purchaseTypes'] },
   { path: '/purchase-types/settings', chunks: [PurchaseTypeSettingsPage], namespaces: ['purchaseTypes'] },
+  { path: '/equipment-plans', chunks: [EquipmentPlansPage], namespaces: ['equipmentPlans'] },
+  { path: '/equipment-plans/settings', chunks: [EquipmentPlanSettingsPage], namespaces: ['equipmentPlans'] },
   { path: '/timesheets', chunks: [TimesheetsPage], namespaces: ['timesheets'] },
   // The triage queue renders one section per approval domain; all four are static imports.
   { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance'] },
@@ -468,6 +472,8 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/material-requests/new', element: <MaterialRequestNewPage /> },
   { path: '/material-requests/settings', element: <MaterialRequestSettingsPage /> },
   { path: '/purchase-types/settings', element: gated('procurement', <PurchaseTypeSettingsPage />) },
+  { path: '/equipment-plans', element: gated('procurement', <EquipmentPlansPage />) },
+  { path: '/equipment-plans/settings', element: gated('procurement', <EquipmentPlanSettingsPage />) },
   { path: '/material-requests/:requestId/edit', element: <MaterialRequestNewPage /> },
   { path: '/material-requests/:requestId', element: <MaterialRequestDetailPage /> },
   { path: '/work-orders/:id', element: <WorkOrderDetailPage /> },

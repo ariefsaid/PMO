@@ -6426,6 +6426,34 @@ export type Database = {
         Update: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
         Relationships: []
       }
+      org_equipment_plan_settings: {
+        Row: { allow_self_approval: boolean; approval_step: string; enabled: boolean; org_id: string; updated_at: string; updated_by: string | null }
+        Insert: { allow_self_approval?: boolean; approval_step?: string; enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Update: { allow_self_approval?: boolean; approval_step?: string; enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Relationships: []
+      }
+      equipment_plan_categories: {
+        Row: { active: boolean; created_at: string; id: string; name: string; name_id: string | null; org_id: string; position: number }
+        Insert: { active?: boolean; created_at?: string; id?: string; name: string; name_id?: string | null; org_id?: string; position?: number }
+        Update: { active?: boolean; created_at?: string; id?: string; name?: string; name_id?: string | null; org_id?: string; position?: number }
+        Relationships: []
+      }
+      equipment_plans: {
+        Row: { approved_at: string | null; approved_by: string | null; created_at: string; created_by: string; id: string; org_id: string; plan_month: string; project_id: string; reject_reason: string | null; rejected_at: string | null; rejected_by: string | null; status: string; submitted_at: string | null }
+        Insert: { approved_at?: string | null; approved_by?: string | null; created_at?: string; created_by?: string; id?: string; org_id?: string; plan_month: string; project_id: string; reject_reason?: string | null; rejected_at?: string | null; rejected_by?: string | null; status?: string; submitted_at?: string | null }
+        Update: { approved_at?: string | null; approved_by?: string | null; created_at?: string; created_by?: string; id?: string; org_id?: string; plan_month?: string; project_id?: string; reject_reason?: string | null; rejected_at?: string | null; rejected_by?: string | null; status?: string; submitted_at?: string | null }
+        Relationships: [
+          { foreignKeyName: 'equipment_plans_project_id_fkey'; columns: ['project_id']; isOneToOne: false; referencedRelation: 'projects'; referencedColumns: ['id'] },
+        ]
+      }
+      equipment_plan_lines: {
+        Row: { category_id: string | null; created_at: string; date_from: string; date_to: string; description: string | null; equipment_asset_id: string | null; id: string; org_id: string; plan_id: string; procurement_id: string | null; quantity: number; rate: number; vendor_id: string; work_order_id: string | null }
+        Insert: { category_id?: string | null; created_at?: string; date_from: string; date_to: string; description?: string | null; equipment_asset_id?: string | null; id?: string; org_id?: string; plan_id: string; procurement_id?: string | null; quantity: number; rate: number; vendor_id: string; work_order_id?: string | null }
+        Update: { category_id?: string | null; created_at?: string; date_from?: string; date_to?: string; description?: string | null; equipment_asset_id?: string | null; id?: string; org_id?: string; plan_id?: string; procurement_id?: string | null; quantity?: number; rate?: number; vendor_id?: string; work_order_id?: string | null }
+        Relationships: [
+          { foreignKeyName: 'equipment_plan_lines_plan_id_fkey'; columns: ['plan_id']; isOneToOne: false; referencedRelation: 'equipment_plans'; referencedColumns: ['id'] },
+        ]
+      }
       purchase_types: {
         Row: { active: boolean; created_at: string; id: string; is_rental: boolean; name: string; name_id: string | null; org_id: string; position: number }
         Insert: { active?: boolean; created_at?: string; id?: string; is_rental?: boolean; name: string; name_id?: string | null; org_id?: string; position?: number }
@@ -14191,6 +14219,18 @@ export type Database = {
         Args: { p_org_id?: string | null }
         Returns: string
       }
+      set_equipment_plan_settings: { Args: { p_enabled: boolean; p_approval_step: string; p_allow_self_approval: boolean }; Returns: undefined }
+      upsert_equipment_plan_category: {
+        Args: { p_id: string | null; p_name: string; p_name_id: string | null; p_position: number }
+        Returns: Database['public']['Tables']['equipment_plan_categories']['Row']
+      }
+      set_equipment_plan_category_active: { Args: { p_id: string; p_active: boolean }; Returns: undefined }
+      save_equipment_plan: { Args: { p_id: string; p_project: string; p_month: string; p_lines: Json }; Returns: Database['public']['Tables']['equipment_plans']['Row'] }
+      submit_equipment_plan: { Args: { p_id: string }; Returns: Database['public']['Tables']['equipment_plans']['Row'] }
+      reopen_equipment_plan: { Args: { p_id: string }; Returns: Database['public']['Tables']['equipment_plans']['Row'] }
+      reject_equipment_plan: { Args: { p_id: string; p_reason: string }; Returns: Database['public']['Tables']['equipment_plans']['Row'] }
+      approve_equipment_plan: { Args: { p_id: string }; Returns: Database['public']['Tables']['equipment_plans']['Row'] }
+      equipment_plan_approver_ok: { Args: { p_plan_id: string }; Returns: boolean }
       set_purchase_types_enabled: { Args: { p_enabled: boolean }; Returns: undefined }
       set_purchase_type_active: { Args: { p_id: string; p_active: boolean }; Returns: undefined }
       upsert_purchase_type: {

@@ -1,6 +1,6 @@
 # Spec: Monthly equipment and service plan turned into rental orders (#2700)
 
-**Status:** draft for Director review. IDs `FR-EQP-###`, `NFR-EQP-###`, `AC-EQP-###`, `OQ-EQP-###`. Plan: `docs/plans/2026-11-21-monthly-equipment-service-plan.md`. Map #2516, target 15 December 2026, size M. Rulings that bind this spec: OD-SCOPE-2 (no client process in code; lists and steps are data), OD-SCOPE-12 (monthly equipment and service plan pulled forward), OD-SCOPE-16 (the monthly plan ships on 15 December; resource-conflict detection is Q1 2027). Stacked on #2697 (purchase types, `is_rental`, rental period, `create_procurement_with_items` with a type).
+**Status:** approved by the Director with the 2026-11-21 answers; built. IDs `FR-EQP-###`, `NFR-EQP-###`, `AC-EQP-###`, `OQ-EQP-###`. Plan: `docs/plans/2026-11-21-monthly-equipment-service-plan.md`. Map #2516, target 15 December 2026, size M. Rulings that bind this spec: OD-SCOPE-2 (no client process in code; lists and steps are data), OD-SCOPE-12 (monthly equipment and service plan pulled forward), OD-SCOPE-16 (the monthly plan ships on 15 December; resource-conflict detection is Q1 2027). Stacked on #2697 (purchase types, `is_rental`, rental period, `create_procurement_with_items` with a type).
 
 ## Job story
 
