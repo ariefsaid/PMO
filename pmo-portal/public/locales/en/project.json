@@ -410,8 +410,22 @@
           "notIssued": "Only an issued or approved document can be attached.",
           "noFile": "The document has no file.",
           "otherProject": "The document must be one of this project's documents.",
-          "generic": "The stage could not be saved. Try again."
-        }
+          "generic": "The stage could not be saved. Try again.",
+          "alreadySkipped": "This stage was marked not needed.",
+          "notSkippable": "This stage cannot be marked not needed.",
+          "skipReason": "Give a reason of 3 to 500 characters."
+        },
+        "overdue": "Overdue",
+        "overdueDetail": "{{age}} days, target {{target}}",
+        "skipped": "Not needed {{date}}",
+        "skippedReason": "Reason: {{reason}}",
+        "itemNotNeeded": "Not needed",
+        "skipNamed": "Mark {{stage}} as not needed",
+        "skip": "Not needed",
+        "skipTitle": "Mark {{stage}} as not needed",
+        "skipLabel": "Reason",
+        "skipHelp": "Kept with the claim. The invoice no longer waits for this stage, and it cannot be undone.",
+        "skipConfirm": "Mark not needed"
       },
       "terms": {
         "title": "Billing terms",
@@ -435,7 +449,10 @@
         "warnInvalid": "Enter 0 to 27 days.",
         "retention": "Retention (%)",
         "retentionInvalid": "Enter a percentage from 0 to under 100 with at most 2 decimal places.",
-        "retentionHelp": "Retention is held from each new progress claim; the invoice and its VAT stay at full value."
+        "retentionHelp": "Retention is held from each new progress claim; the invoice and its VAT stay at full value.",
+        "targetDays": "Target (days)",
+        "targetInvalid": "Enter 1 to 365 days, or leave it empty.",
+        "optionalStage": "Optional stage"
       },
       "reconciliation": {
         "title": "Billing reconciliation",

@@ -410,8 +410,22 @@
           "notIssued": "Hanya dokumen yang diterbitkan atau disetujui yang dapat dilampirkan.",
           "noFile": "Dokumen ini belum memiliki berkas.",
           "otherProject": "Dokumen harus milik proyek ini.",
-          "generic": "Tahap tidak dapat disimpan. Coba lagi."
-        }
+          "generic": "Tahap tidak dapat disimpan. Coba lagi.",
+          "alreadySkipped": "Tahap ini sudah ditandai tidak diperlukan.",
+          "notSkippable": "Tahap ini tidak dapat ditandai tidak diperlukan.",
+          "skipReason": "Berikan alasan 3 sampai 500 karakter."
+        },
+        "overdue": "Terlambat",
+        "overdueDetail": "{{age}} hari, target {{target}}",
+        "skipped": "Tidak diperlukan {{date}}",
+        "skippedReason": "Alasan: {{reason}}",
+        "itemNotNeeded": "Tidak diperlukan",
+        "skipNamed": "Tandai {{stage}} tidak diperlukan",
+        "skip": "Tidak diperlukan",
+        "skipTitle": "Tandai {{stage}} tidak diperlukan",
+        "skipLabel": "Alasan",
+        "skipHelp": "Disimpan bersama klaim. Faktur tidak lagi menunggu tahap ini, dan tidak dapat dibatalkan.",
+        "skipConfirm": "Tandai tidak diperlukan"
       },
       "terms": {
         "title": "Ketentuan penagihan",
@@ -435,7 +449,10 @@
         "warnInvalid": "Masukkan 0 sampai 27 hari.",
         "retention": "Retensi (%)",
         "retentionInvalid": "Masukkan persentase dari 0 sampai kurang dari 100 dengan maksimal 2 angka desimal.",
-        "retentionHelp": "Retensi ditahan dari setiap klaim progres baru; invoice dan PPN-nya tetap bernilai penuh."
+        "retentionHelp": "Retensi ditahan dari setiap klaim progres baru; invoice dan PPN-nya tetap bernilai penuh.",
+        "targetDays": "Target (hari)",
+        "targetInvalid": "Masukkan 1 sampai 365 hari, atau kosongkan.",
+        "optionalStage": "Tahap opsional"
       },
       "reconciliation": {
         "title": "Rekonsiliasi penagihan",

@@ -20,6 +20,10 @@ function fail(error: { message: string; code?: string; details?: string | null }
 export interface StageTemplateInput {
   name: string;
   clientSide: boolean;
+  /** Target whole days, 1 to 365 (#2592); null = no target, never overdue. */
+  targetDays?: number | null;
+  /** An optional stage may be marked not needed (#2592). */
+  optional?: boolean;
   documents: Array<{ name: string; required: boolean }>;
 }
 
@@ -36,8 +40,14 @@ export interface ClaimBillingStage {
   position: number;
   name: string;
   clientSide: boolean;
+  /** Copied from the project's list when the claim was made; null = no target (#2592). */
+  targetDays?: number | null;
+  optional?: boolean;
   startedOn: string | null;
   completedOn: string | null;
+  /** Marked not needed on this day, with a reason (#2592); counts as complete for the invoice. */
+  skippedOn?: string | null;
+  skippedReason?: string | null;
   clientReference: string | null;
   note: string | null;
   documents: StageChecklistItem[];
@@ -103,10 +113,16 @@ export interface RetentionReleaseRow {
 const num = (v: unknown): number => Number(v ?? 0);
 const numOrNull = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 
+const stagesPayload = (stages: StageTemplateInput[]) => stages.map((s) => ({
+  name: s.name, client_side: s.clientSide,
+  ...(s.targetDays != null ? { target_days: s.targetDays } : {}), ...(s.optional ? { optional: true } : {}),
+  documents: s.documents.map((d) => ({ name: d.name, required: d.required })),
+}));
+
 export async function setBillingStageTemplate(projectId: string, stages: StageTemplateInput[]): Promise<number> {
   const { data, error } = await supabase.rpc('set_billing_stage_template', {
     p_project: projectId,
-    p_stages: stages.map((s) => ({ name: s.name, client_side: s.clientSide, documents: s.documents.map((d) => ({ name: d.name, required: d.required })) })),
+    p_stages: stagesPayload(stages),
   });
   if (error) fail(error);
   return Number(data);
@@ -115,7 +131,7 @@ export async function setBillingStageTemplate(projectId: string, stages: StageTe
 export async function setProjectBillingTerms(projectId: string, stages: StageTemplateInput[], day: number | null, warnDays: number, pct: number): Promise<void> {
   const { error } = await supabase.rpc('set_project_billing_terms', {
     p_project: projectId,
-    p_stages: stages.map(s => ({ name: s.name, client_side: s.clientSide, documents: s.documents.map(d => ({ name: d.name, required: d.required })) })),
+    p_stages: stagesPayload(stages),
     p_day: day as number, p_warn_days: warnDays, p_pct: pct,
   });
   if (error) fail(error);
@@ -123,12 +139,14 @@ export async function setProjectBillingTerms(projectId: string, stages: StageTem
 
 export async function getBillingStageTemplate(projectId: string): Promise<StageTemplateInput[]> {
   const { data, error } = await supabase.from('billing_stage_templates')
-    .select('position,name,client_side,documents:billing_stage_template_documents(position,name,required)')
+    .select('position,name,client_side,target_days,optional,documents:billing_stage_template_documents(position,name,required)')
     .eq('project_id', projectId).order('position').limit(STAGE_LIMIT);
   if (error) fail(error);
   return (data ?? []).map((s) => ({
     name: s.name,
     clientSide: s.client_side,
+    targetDays: s.target_days,
+    optional: s.optional,
     documents: [...(s.documents ?? [])].sort((a, b) => a.position - b.position).map((d) => ({ name: d.name, required: d.required })),
   }));
 }
@@ -160,7 +178,7 @@ export async function setProjectRetention(projectId: string, pct: number): Promi
 export async function getClaimBillingTrace(claimId: string, projectId: string): Promise<ClaimBillingTrace> {
   const [stagesRes, retentionRes, projectRes] = await Promise.all([
     supabase.from('claim_billing_stages')
-      .select('id,position,name,client_side,started_on,completed_on,client_reference,note,documents:claim_billing_stage_documents(id,position,name,required,document_id)')
+      .select('id,position,name,client_side,target_days,optional,started_on,completed_on,skipped_on,skipped_reason,client_reference,note,documents:claim_billing_stage_documents(id,position,name,required,document_id)')
       .eq('claim_id', claimId).order('position').limit(STAGE_LIMIT),
     supabase.from('claim_retention').select('retention_pct,retention_amount,scheduled,released,held').eq('claim_id', claimId).maybeSingle(),
     supabase.from('projects').select('invoice_deadline_day,invoice_deadline_warn_days').eq('id', projectId).maybeSingle(),
@@ -173,8 +191,12 @@ export async function getClaimBillingTrace(claimId: string, projectId: string): 
     position: s.position,
     name: s.name,
     clientSide: s.client_side,
+    targetDays: s.target_days,
+    optional: s.optional,
     startedOn: s.started_on,
     completedOn: s.completed_on,
+    skippedOn: s.skipped_on,
+    skippedReason: s.skipped_reason,
     clientReference: s.client_reference,
     note: s.note,
     documents: [...(s.documents ?? [])].sort((a, b) => a.position - b.position).map((d) => ({
@@ -202,6 +224,12 @@ export async function completeBillingStage(input: CompleteStageInput): Promise<v
     p_client_reference: input.clientReference as string,
     p_note: input.note as string,
   });
+  if (error) fail(error);
+}
+
+/** Marks an optional current stage not needed, with a reason (#2592). Finance or an Admin; the database refuses anyone else. */
+export async function skipBillingStage(stageId: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('skip_billing_stage', { p_stage: stageId, p_reason: reason });
   if (error) fail(error);
 }
 
