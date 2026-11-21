@@ -2,7 +2,7 @@
 -- Migrations under test: 1410..1414. AC-DSF-001..007, 009..013, 017. (AC-DSF-008/014/018 are unit tests; 015/016 e2e.)
 begin;
 create extension if not exists pgtap;
-select plan(71);
+select plan(87);
 
 -- ── fixtures (table owner) ───────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
