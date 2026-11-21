@@ -109,7 +109,12 @@ export function earnedBilledProfit(rollup: ProjectRollup, rows: ReadonlyArray<Wo
   const currencies = [...new Set([...rows.map((r) => r.currency), ...rollup.totals.map((t) => t.currency)])].sort();
   return {
     restricted: false,
-    currencies: currencies.map((currency) => {
+    currencies: currencies.filter((currency) => {
+      // A currency the project has no work order, revenue or cost in (a default bucket) is not a panel of its own.
+      const t = rollup.totals.find((x) => x.currency === currency);
+      const nonZero = (v: ExactMoney | null | undefined) => v != null && moneyUnits(v) !== 0n;
+      return rows.some((r) => r.currency === currency) || nonZero(t?.revenue) || nonZero(t?.total);
+    }).map((currency) => {
       const mine = rows.filter((r) => r.currency === currency);
       const lines: EarnedBilledRow[] = mine.map((r) => {
         const fig = rollup.workOrders.find((w) => w.workOrderId === r.workOrderId);
