@@ -55,6 +55,7 @@ import { taskRepository } from './tasks';
 import { billingStagesRepository } from './billingStages';
 import { workInHandRepository } from './workInHand';
 import { taskProofRepository } from './taskProofs';
+import { thirdPartyInspectionRepository } from './thirdPartyInspections';
 import { commentRepository } from './comments';
 import { meetingRepository } from './meetings';
 import { incidentRepository } from './incidents';
@@ -127,6 +128,7 @@ export const repositories: Repositories = {
   budget: budgetRepository,
   task: taskRepository,
   taskProof: taskProofRepository,
+  thirdPartyInspection: thirdPartyInspectionRepository,
   incident: incidentRepository,
   comment: commentRepository,
   milestone: milestoneRepository,

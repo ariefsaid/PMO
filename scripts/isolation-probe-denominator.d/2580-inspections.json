@@ -1,0 +1,36 @@
+{
+  "tables": [
+    {
+      "table": "third_party_inspection_files",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "third_party_inspections",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ],
+  "definer_functions": [
+    "can_add_inspection_file(uuid)",
+    "run_tpi_overdue_sweep(date)",
+    "tpi_cancel(uuid,text)",
+    "tpi_costs(uuid)",
+    "tpi_create(uuid,text,text,date,uuid,numeric,text,text,text[],uuid)",
+    "tpi_load_for_update(uuid)",
+    "tpi_raise_purchase(uuid,uuid,text)",
+    "tpi_record_execution(uuid,date)",
+    "tpi_record_invitation(uuid,date,text,text)",
+    "tpi_record_report(uuid,text)",
+    "tpi_waive(uuid,text)"
+  ],
+  "buckets": [
+    "inspection-reports"
+  ]
+}

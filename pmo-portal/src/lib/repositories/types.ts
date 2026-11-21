@@ -1,4 +1,5 @@
 import type { TaskProofRepository } from './taskProofs';
+import type { ThirdPartyInspectionRepository } from './contracts/thirdPartyInspections';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
  *
@@ -146,6 +147,7 @@ export interface Repositories {
   budget: BudgetRepository;
   task: TaskRepository;
   taskProof: TaskProofRepository;
+  thirdPartyInspection: ThirdPartyInspectionRepository;
   incident: IncidentRepository;
   comment: CommentRepository;
   milestone: MilestoneRepository;
@@ -214,6 +216,7 @@ export type { TimesheetRepository } from './contracts/timesheets';
 export type { BudgetRepository } from './contracts/budget';
 export type { StockMasterRepository, StockRepository } from './contracts/stock';
 export type { IncidentRepository } from './contracts/incidents';
+export type { ThirdPartyInspectionRepository } from './contracts/thirdPartyInspections';
 export type { CommentRepository } from './contracts/comments';
 export type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
 export type { BillingStagesRepository } from './contracts/billingStages';

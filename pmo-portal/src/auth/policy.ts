@@ -58,7 +58,11 @@ export type Action =
   | 'set_readiness'
   | 'set_plan'
   | 'generate'
-  | 'adjust';
+  | 'adjust'
+  | 'advance'
+  | 'raise_purchase'
+  | 'waive'
+  | 'cancel';
 
 export type Entity =
   | 'project'
@@ -81,6 +85,7 @@ export type Entity =
   | 'approval'
   | 'milestone'
   | 'workOrder'
+  | 'thirdPartyInspection'
   | 'boqItem'
   | 'rateCatalogue'
   | 'dailySiteReport'
@@ -357,6 +362,39 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     setValue: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     transition: allow(MASTER_DATA),
+  },
+  /**
+   * Third-party inspections (#2580, migrations 1130-1134). UX ONLY: tpi_create / tpi_record_* / tpi_raise_purchase / tpi_waive /
+   * tpi_cancel and the guard_tpi_transition trigger are the authority (ADR-0016); this mirrors them.
+   *   view           every role reads (RLS: org + active member). Money is separate: tpi_costs nulls amounts outside
+   *                  Admin/Executive/Finance/Project Manager, so the screen is not the fence.
+   *   create/advance Admin, Project Manager, Finance, Engineer (the Engineer's scope is org-wide, OD-TPI-7).
+   *   raise_purchase Admin, Project Manager, Finance — never the Engineer (a purchase is procurement's money path).
+   *   waive          the same managers, and never the creator (TPI_WAIVE_SELF, OD-TPI-3); only where a gate exists to release.
+   *   cancel         tracked-only inspections only (TPI_CANCEL_REQUIRED, OD-TPI-8): managers any time, the creator
+   *                  (Engineer) only while `requested`.
+   */
+  thirdPartyInspection: {
+    view: allow(ALL),
+    create: allow(['Admin', 'Project Manager', 'Finance', 'Engineer']),
+    advance: (role, ctx) => has(['Admin', 'Project Manager', 'Finance', 'Engineer'], role)
+      && ctx.record?.status !== 'cancelled' && ctx.record?.status !== 'reported',
+    raise_purchase: (role, ctx) => has(['Admin', 'Project Manager', 'Finance'], role) && ctx.record?.status === 'requested',
+    waive: (role, ctx) => {
+      const gates = ctx.record?.required_for;
+      return has(['Admin', 'Project Manager', 'Finance'], role)
+        && Array.isArray(gates) && gates.length > 0
+        && ctx.record?.status !== 'cancelled' && !ctx.record?.waived_at
+        && !(ctx.currentUserId && ctx.record?.created_by === ctx.currentUserId);
+    },
+    cancel: (role, ctx) => {
+      const gates = ctx.record?.required_for;
+      if (!Array.isArray(gates) || gates.length > 0) return false;
+      const status = ctx.record?.status;
+      if (status === 'cancelled' || status === 'reported') return false;
+      if (has(['Admin', 'Project Manager', 'Finance'], role)) return true;
+      return role === 'Engineer' && status === 'requested' && Boolean(ctx.currentUserId) && ctx.record?.created_by === ctx.currentUserId;
+    },
   },
   /** Bill of quantities (#766) — mirrors 0250's boq_items policies: the work-order writer set. */
   rateCatalogue: { view: allow(MASTER_DATA), create: allowUnlessViewOnly(REVENUE_WRITE) },

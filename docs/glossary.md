@@ -603,6 +603,18 @@ work order's currency, or equipment hours or crew hours. It never changes an act
 naming the work order; hours on a Draft, Submitted or Rejected week are named apart as not yet approved and never
 counted. Crew size is the count of distinct people with approved hours (#2626).
 
+### Third-party inspections (#2580)
+
+**Third-party inspection** (*inspeksi pihak ketiga*) — one external test or inspection of a work order by an outside
+company, tracked from request through purchase, invitation, execution and report (Requested, Purchase raised, Invited,
+Executed, Reported; Cancelled only when it is required for no gate). Its cost is never entered on the inspection: it is
+read from the procurement case it links to. A re-test is a new inspection.
+
+**Inspection prerequisite** (*prasyarat inspeksi*) — the inspections a work order must have complete before a gate
+(readiness or billing). An inspection is **complete** when it is reported with a Pass or Conditional result, or when a
+manager other than its creator has recorded a **waiver** with a reason. Fail and Pending are not complete. The read only
+reports; the billing and readiness features own the block.
+
 ### Unit-rate catalogue (#2520)
 
 **Rate catalogue** (*daftar tarif*) — a contract's list of priced work items (category, class, item), each with a rate per

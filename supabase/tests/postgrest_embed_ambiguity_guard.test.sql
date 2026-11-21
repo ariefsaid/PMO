@@ -109,6 +109,9 @@ select set_eq(
             -- tasks selects (`useMyTasks.ts:41`, `milestones.ts:230`, the ClickUp dispatch factory)
             -- embed no profile at all. So nothing broke; the pair is recorded, not waived.
             ('tasks -> profiles'),
+            -- 1179 (#2580): third_party_inspections carries created_by and the invited/executed/reported/waived/cancelled/purchase actors, all
+            -- -> profiles. Checked before adding: src/lib/db/thirdPartyInspections.ts embeds no profile from it; a future embed must name its constraint.
+            ('third_party_inspections -> profiles'),
             -- 0205 (#526): meeting_access_grants carries user_id AND granted_by, both -> profiles.
             -- The DAL shipped in the same branch and every profiles embed in it is
             -- constraint-qualified (src/lib/db/meetings.ts — `!meeting_access_grants_user_id_fkey`

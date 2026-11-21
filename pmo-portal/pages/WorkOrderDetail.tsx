@@ -24,6 +24,7 @@ import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { QuantityChangesSection } from './work-order-detail/QuantityChangesSection';
 import { SectionsSection } from './work-order-detail/SectionsSection';
 import { ConsumablePlanSection } from './work-order-detail/ConsumablePlanSection';
+import { InspectionsSection } from './work-order-detail/InspectionsSection';
 import { IssuesSection } from './work-order-detail/IssuesSection';
 import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 
@@ -111,6 +112,7 @@ const WorkOrderDetail: React.FC = () => {
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
         {may('view', 'quantityChange') && <QuantityChangesSection workOrderId={row.id} projectId={row.project_id} status={row.status} />}
+        <InspectionsSection workOrderId={row.id} />
         <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
         {issuesOn && <IssuesSection issues={issues.data ?? []} isPending={issues.isPending} isError={issues.isError} onRetry={() => void issues.refetch()} />}
         <OpenTasksSection tasks={openTasks.data ?? []} isPending={openTasks.isPending} isError={openTasks.isError} onRetry={() => void openTasks.refetch()} />

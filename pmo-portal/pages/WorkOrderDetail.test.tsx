@@ -31,6 +31,8 @@ vi.mock('./work-order-detail/ConsumablePlanSection', () => ({
   ConsumablePlanSection: (p: { workOrderId: string; workOrderStatus: string; project: { project_manager_id: string | null } | null }) =>
     <section data-testid="consumable-plan-stub">{`${p.workOrderId}|${p.workOrderStatus}|${p.project?.project_manager_id ?? 'none'}`}</section>,
 }));
+// the inspections panel is proven by its own test (InspectionsSection.test.tsx); here only that the page carries it for THIS work order
+vi.mock('./work-order-detail/InspectionsSection', () => ({ InspectionsSection: ({ workOrderId }: { workOrderId: string }) => <div data-testid="inspections-section">{workOrderId}</div> }));
 
 import WorkOrderDetail from './WorkOrderDetail';
 
@@ -78,6 +80,10 @@ describe('WorkOrderDetail', () => {
   it('FR-CUS-014 and is absent when the stock module is off', () => {
     renderPage();
     expect(screen.queryByTestId('consumable-plan-stub')).toBeNull();
+  });
+  it('FR-TPI-017 carries the third-party inspections section for this work order', () => {
+    renderPage();
+    expect(screen.getByTestId('inspections-section').textContent).toBe('w1');
   });
   it('AC-WPVA-016 shows the plan-vs-actual panel for this work order, and hides it from a role that may not view plans', async () => {
     const { rollupProject } = await import('@/src/lib/workOrderPlanVsActual');
