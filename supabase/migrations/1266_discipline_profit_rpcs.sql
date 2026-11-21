@@ -8,6 +8,7 @@ returns uuid
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_project uuid; v_org uuid := public.auth_org_id();
 begin
+  perform public.assert_is_active_member();
   perform public.dsr_require_member();
   select b.project_id into v_project from public.boq_items b where b.id = p_item and b.org_id = v_org;
   if v_project is null then raise exception 'contract item not found' using errcode = 'P0002'; end if;

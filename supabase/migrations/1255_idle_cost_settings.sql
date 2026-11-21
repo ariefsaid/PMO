@@ -29,6 +29,7 @@ create function public.save_idle_cost_setting(p_enabled boolean) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.labour_cost_gate();   -- active Admin or Finance, else 42501
 begin
+  perform public.assert_is_active_member();
   if p_enabled is null then raise exception 'enabled is required' using errcode = '22023'; end if;
   insert into public.idle_cost_settings (org_id, enabled, updated_by) values (v_org, p_enabled, auth.uid())
     on conflict (org_id) do update set enabled = excluded.enabled, updated_at = now(), updated_by = auth.uid();

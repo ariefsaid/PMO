@@ -59,8 +59,8 @@ begin
   values (v_id, '25970000-0000-0000-0000-00000000000a', '25970000-0000-0000-0000-0000000000c1', ('25970000-0000-0000-0000-0000000000' || p_wo)::uuid, p_date, p_status, 1, '25970000-0000-0000-0000-0000000000a4',
           case when p_status = 'validated' then '25970000-0000-0000-0000-0000000000a2'::uuid end, case when p_status = 'validated' then now() end,
           case when p_super then now() end);
-  insert into dsr_progress_lines (org_id, report_id, position, work_order_line_id, quantity, unit, frozen_amount)
-  values ('25970000-0000-0000-0000-00000000000a', v_id, 1, ('25970000-0000-0000-0000-0000000000' || p_line)::uuid, 1, 'm', p_amount);
+  insert into dsr_progress_lines (org_id, report_id, work_order_id, position, work_order_line_id, quantity, unit, frozen_amount)
+  values ('25970000-0000-0000-0000-00000000000a', v_id, ('25970000-0000-0000-0000-0000000000' || p_wo)::uuid, 1, ('25970000-0000-0000-0000-0000000000' || p_line)::uuid, 1, 'm', p_amount);
 end $f$;
 -- hand calculation (WO-A): 100000 on day 1, 200000 on day 3, 50000 on day 5 (after as-of); status noise on other days
 select pg_temp.rep('01', 'e1', '2026-01-01', 'validated', 100000);

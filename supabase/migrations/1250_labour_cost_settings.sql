@@ -131,6 +131,7 @@ create function public.save_labour_cost_settings(p_enabled boolean) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.labour_cost_gate();
 begin
+  perform public.assert_is_active_member();
   if p_enabled is null then raise exception 'enabled is required' using errcode = '22023'; end if;
   insert into public.labour_cost_settings (org_id, enabled, updated_by) values (v_org, p_enabled, auth.uid())
     on conflict (org_id) do update set enabled = excluded.enabled, updated_at = now(), updated_by = auth.uid();
@@ -151,6 +152,7 @@ declare
   v_person uuid; v_role text; v_class uuid; v_basis text := p->>'basis';
   v_amount numeric; v_mult numeric; v_day numeric; v_month numeric; v_from date; v_to date; v_id uuid;
 begin
+  perform public.assert_is_active_member();
   if p is null or jsonb_typeof(p) <> 'object' then raise exception 'rate must be a JSON object' using errcode = '22023'; end if;
   if v_kind is null or v_kind not in ('person', 'role') then raise exception 'subject_kind must be person or role' using errcode = '22023'; end if;
   if v_basis is null or v_basis not in ('hourly', 'daily', 'monthly') then raise exception 'basis must be hourly, daily or monthly' using errcode = '22023'; end if;
@@ -197,6 +199,7 @@ create function public.end_labour_cost_rate(p_id uuid, p_end date) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.labour_cost_gate(); r public.labour_cost_rates;
 begin
+  perform public.assert_is_active_member();
   select * into r from public.labour_cost_rates where id = p_id and org_id = v_org and archived_at is null;
   if not found then raise exception 'rate not found' using errcode = 'P0002'; end if;
   if p_end is null or p_end < r.effective_from then raise exception 'end date is before the start date' using errcode = '22023'; end if;
@@ -213,6 +216,7 @@ create function public.archive_labour_cost_rate(p_id uuid) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.labour_cost_gate();
 begin
+  perform public.assert_is_active_member();
   if not exists (select 1 from public.labour_cost_rates where id = p_id and org_id = v_org and archived_at is null) then
     raise exception 'rate not found' using errcode = 'P0002';
   end if;

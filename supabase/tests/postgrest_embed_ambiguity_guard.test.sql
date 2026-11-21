@@ -55,6 +55,14 @@ select set_eq(
             -- 1185 (#2584): subcontract_certificates carries prepared_by, submitted_by, approved_by and cancelled_by, all ->
             -- profiles. New table: the DAL (src/lib/db/subcontractCertificates.ts) selects explicit columns and embeds no profiles.
             ('subcontract_certificates -> profiles'),
+            -- lane-b (1250, #2670): labour_cost_rates carries person_id AND created_by, both -> profiles. Checked
+            -- before adding: the only DAL embed of profiles from it is already qualified
+            -- (person:profiles!labour_cost_rates_person_id_fkey, src/lib/db/labourCost.ts). Any future embed must name its constraint.
+            ('labour_cost_rates -> profiles'),
+            -- lane-b (1275, #2671): work_order_revenue_plan carries created_by AND updated_by, both -> profiles. Checked
+            -- before adding: nothing reads the table through PostgREST (the reads go through the wrp_* RPCs), so no
+            -- embed exists. Any future embed must name its constraint.
+            ('work_order_revenue_plan -> profiles'),
             ('credits -> profiles'),
             -- 1158 (#2581): crew_tool_reports carries reported_by AND closed_by, org_crew_tool_settings carries
             -- coordinator_id AND updated_by, all -> profiles. Checked before adding: no DAL, repository, edge fn or

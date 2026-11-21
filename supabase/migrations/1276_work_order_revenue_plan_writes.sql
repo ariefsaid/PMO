@@ -52,6 +52,7 @@ create function public.wo_revenue_plan_set_day(p_work_order uuid, p_date date, p
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare w public.work_orders; v_old numeric;
 begin
+  perform public.assert_is_active_member();
   w := public.wrp_writable_work_order(p_work_order);
   perform public.wrp_check_amount(p_amount);
   if p_date is null or p_date not between date '2000-01-01' and date '2100-12-31' then
@@ -75,6 +76,7 @@ declare
   w public.work_orders; v_month date; v_end date; v_before numeric; v_kept numeric := 0; v_left bigint;
   v_days date[]; v_n integer; v_base bigint; v_rem bigint;
 begin
+  perform public.assert_is_active_member();
   w := public.wrp_writable_work_order(p_work_order);
   perform public.wrp_check_amount(p_amount);
   if p_month is null or p_month not between date '2000-01-01' and date '2100-12-31' then
@@ -118,6 +120,7 @@ create function public.wo_revenue_plan_clear(p_work_order uuid, p_from date, p_t
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare w public.work_orders; v_count integer; v_before numeric;
 begin
+  perform public.assert_is_active_member();
   w := public.wrp_writable_work_order(p_work_order);
   if p_from is null or p_to is null or p_to < p_from then
     raise exception 'WRP_DATE: enter a real date range' using errcode = '23514';
