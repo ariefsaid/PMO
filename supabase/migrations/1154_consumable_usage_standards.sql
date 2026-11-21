@@ -1,7 +1,7 @@
--- 1075_consumable_usage_standards.sql — #2577 consumable needs from usage standards: the standards table.
+-- 1154_consumable_usage_standards.sql — #2577 consumable needs from usage standards: the standards table.
 -- Spec docs/specs/consumable-usage-standards.spec.md (FR-CUS-001..004, 015, 016) · plan docs/plans/2026-11-20-consumable-usage-standards.md.
 -- Proven by supabase/tests/cus_standards.test.sql (AC-CUS-003, 011, 012, 014) and record_changes_catalog_gate.test.sql.
--- Reversible via supabase/migrations/rollback/1075_consumable_usage_standards_down.sql.
+-- Reversible via supabase/migrations/rollback/1154_consumable_usage_standards_down.sql.
 --
 -- A usage standard is the organisation's rule "this consumable, this much per unit of work" (welding rod per dia-inch).
 -- Reuse, not a new engine: stock items (0412), the stock master-data write rank (stock_master_writer, rank >= 20),

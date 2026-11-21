@@ -1,4 +1,4 @@
--- 1075_consumable_usage_standards_down.sql — reverses 1075. Loses the standards and their change history; no other business rows.
+-- 1154_consumable_usage_standards_down.sql — reverses 1075. Loses the standards and their change history; no other business rows.
 -- Run after 1076's rollback (plan lines do not reference standards by FK, but their basis cites them).
 begin;
 drop trigger if exists consumable_usage_standards_zz_record_change on public.consumable_usage_standards;
