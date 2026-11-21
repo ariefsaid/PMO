@@ -1,6 +1,8 @@
 # Spec: Monthly billing plan, candidates against a target (#2682)
 
-**Status:** phase 1, awaiting Director approval. Ships for the 15 December 2026 release (OD-SCOPE-1). Map #2516, money path, ships alone. IDs `FR-MBP-###`, `NFR-MBP-###`, `AC-MBP-###`, `OD-MBP-#`. Plan: `docs/plans/2026-11-21-monthly-billing-plan.md`. Stacked on #2681 (`billing-board.spec.md`) and #2680 (`claim-billing-steps.spec.md`). Next ticket #2675 (age of done-not-claimed on this screen) builds on it; this spec leaves its seams.
+**Ticket words to ours:** "progress not yet client-certified" = quantities the client has accepted (confirmed acceptance) that are not yet claimed, i.e. accepted quantity above claimed quantity (the Cascade's "Unclaimed"), plus money-only orders with a remaining amount.
+
+**Status:** approved by the Director (OD-MBP-2/4/5/8, currency-with-target, money-only orders, over-claim warning only: decided); phase 2 built. Ships for the 15 December 2026 release (OD-SCOPE-1). Map #2516, money path, ships alone. IDs `FR-MBP-###`, `NFR-MBP-###`, `AC-MBP-###`, `OD-MBP-#`. Plan: `docs/plans/2026-11-21-monthly-billing-plan.md`. Stacked on #2681 (`billing-board.spec.md`) and #2680 (`claim-billing-steps.spec.md`). Next ticket #2675 (age of done-not-claimed on this screen) builds on it; this spec leaves its seams.
 
 ## Owner ruling applied (OD-SCOPE-6, settled)
 The billing plan only **shows candidates**. Holding a claim to the next month can be deliberate, so the plan never raises a claim, never creates an invoice and never pushes anything to billing. The done-not-claimed reminder is information, **off as an alert by default**. Over-claim stays a **warning, not a block**. OD-SCOPE-2: no client process, name, threshold or month rule in code; the target and the reminder switch are organisation settings.
@@ -38,7 +40,7 @@ When I plan the month's billing, I want to see which items are worth billing aga
 
 ## Requirements (EARS)
 - **FR-MBP-001** The system shall provide `billing_plan_candidates(p_project uuid default null)` returning one row per candidate: kind (`line` or `order`), project id and name, currency, work order id and number, contract line id, item code and description, unit, rate, contract quantity, accepted quantity, claimed quantity, unclaimed quantity, value (`round(unclaimed quantity * rate, 2)` for a line; `remaining` for a money-only order), `accepted_on` (date of the latest confirmed acceptance of the order, null if none), and the organisation's today.
-- **FR-MBP-002** The function shall be `security invoker` and add no role check beyond RLS; an Engineer and a user of another organisation get no candidate of this organisation.
+- **FR-MBP-002** The function shall be `security invoker` (RLS decides visibility) and shall return rows only to Admin, Executive, Project Manager and Finance, because Engineers can read projects but not claim money (found when the pgTAP ran: RLS alone returned rows to an Engineer); a user of another organisation gets no candidate of this organisation.
 - **FR-MBP-003** A line shall be a candidate only when its accepted quantity is not null and exceeds its claimed quantity on a non-cancelled work order; a money-only order only when `line_count = 0`, `figures_complete` and `remaining > 0`. Archived projects shall not appear.
 - **FR-MBP-004** Its figures shall equal the Cascade's: unclaimed quantity per allocation and money-only remaining equal `get_project_billing` and `work_order_billing` for the same project.
 - **FR-MBP-005** When `p_project` is given, only that project's candidates return. At most 501 rows return.

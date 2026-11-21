@@ -3,7 +3,8 @@
 -- "Progress not yet client-certified" = accepted-not-yet-claimed (the Cascade's "Unclaimed"). ONE definition: quantity lines come from
 -- get_project_billing (accepted_quantity above claimed_quantity per work-order allocation, times the contract line rate) and money-only
 -- orders from work_order_billing (line_count = 0, figures_complete, remaining > 0). Nothing is recomputed here, nothing is written.
--- SECURITY INVOKER: RLS decides what a caller sees (an Engineer gets nothing). Bounded: 501 rows (the caller shows 500 and says so).
+-- SECURITY INVOKER: RLS decides what a caller sees; money is visible to Admin, Executive, Project Manager and Finance only, so the read
+-- also names those roles (an Engineer can read projects but not claim money and gets nothing). Bounded: 501 rows (the caller shows 500 and says so).
 -- Only projects with a confirmed acceptance are walked, so the per-project call stays proportional to billable work.
 -- ── REVERSE: rollback/1376_billing_plan_candidates_read_down.sql ─────────────────────────────────────────────────────
 
@@ -29,7 +30,8 @@ create function public.billing_plan_candidates(p_project uuid default null)
       cross join lateral jsonb_array_elements(coalesce(l.x -> 'allocations', '[]'::jsonb)) a(x)
       join public.boq_items b on b.id = (a.x ->> 'boq_item_id')::uuid
       join public.work_orders wo on wo.id = (a.x ->> 'work_order_id')::uuid
-     where pr.archived_at is null
+     where (select public.auth_role()) in ('Admin', 'Executive', 'Project Manager', 'Finance')
+       and pr.archived_at is null
        and (p_project is null or pr.id = p_project)
        and exists (select 1 from public.work_order_acceptances ac where ac.project_id = pr.id and ac.status = 'Confirmed')
        and (a.x ->> 'accepted_quantity') is not null
@@ -40,7 +42,8 @@ create function public.billing_plan_candidates(p_project uuid default null)
            null::numeric, null::numeric, null::numeric, null::numeric, b.remaining::numeric
       from public.work_order_billing b
       join public.projects pr on pr.id = b.project_id
-     where pr.archived_at is null
+     where (select public.auth_role()) in ('Admin', 'Executive', 'Project Manager', 'Finance')
+       and pr.archived_at is null
        and (p_project is null or pr.id = p_project)
        and b.line_count = 0 and b.figures_complete and b.remaining > 0 and b.status in ('Issued', 'Closed')
   ), pool as (
