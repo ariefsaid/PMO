@@ -19,7 +19,7 @@
   ],
   "definer_functions": [
     "dsr_stock_issue_on(uuid)",
-    "set_dsr_stock_issue(boolean,text)",
+    "set_dsr_stock_issue(boolean,text)", "set_work_order_site_location(uuid,uuid)",
     "dsr_stock_status(uuid)",
     "dsr_reverse_stock(uuid)",
     "dsr_post_stock(uuid)"

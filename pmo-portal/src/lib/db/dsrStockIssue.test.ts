@@ -60,10 +60,11 @@ describe('dsrStockIssue DAL', () => {
     expect([...(await listDsrStockFlags(['r1', 'r2']))]).toEqual(['r1']);
   });
 
-  it('AC-DRS-015 the site location is a plain column write; the database guard decides', async () => {
+  it('AC-DRS-015 the site location is written only through the RPC; the database guard decides', async () => {
     await setWorkOrderSiteLocation('wo', 'wh');
-    expect(h.update).toHaveBeenCalledWith({ site_warehouse_id: 'wh' });
+    expect(h.rpc).toHaveBeenCalledWith('set_work_order_site_location', { p_work_order_id: 'wo', p_warehouse_id: 'wh' });
     await setWorkOrderSiteLocation('wo', null);
-    expect(h.update).toHaveBeenLastCalledWith({ site_warehouse_id: null });
+    expect(h.rpc).toHaveBeenLastCalledWith('set_work_order_site_location', { p_work_order_id: 'wo', p_warehouse_id: null });
+    expect(h.update).not.toHaveBeenCalled();
   });
 });
