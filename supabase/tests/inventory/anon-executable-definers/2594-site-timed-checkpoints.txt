@@ -1,0 +1,4 @@
+# #2594: member-JWT definers; each re-asserts active membership, role and org. Proved by supabase/tests/1385_site_timed_checkpoints.test.sql.
+set_site_checkpoint_list
+record_site_checkpoint
+site_lost_time_by_cause

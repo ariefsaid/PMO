@@ -7,6 +7,31 @@
     "submit": "Kirim",
     "validate": "Validasi"
   },
+  "checkpoints": {
+    "confirm": "Catat sekarang",
+    "due": "Jatuh tempo {{time}}",
+    "file": "Berkas foto",
+    "flag": "Titik pemeriksaan terlambat hari ini",
+    "flagLink": "Lihat regu",
+    "loadError": "Titik pemeriksaan tidak dapat dimuat",
+    "next": "Berikutnya",
+    "note": "Catatan (opsional)",
+    "photoNeeded": "Foto wajib",
+    "photoOptional": "Foto tidak wajib",
+    "record": "Catat",
+    "recordedAt": "Dicatat {{time}}",
+    "retake": "Ambil ulang foto",
+    "state": {
+      "late": "Terlambat",
+      "onTime": "Tepat waktu",
+      "pending": "Jatuh tempo",
+      "recordedLate": "Dicatat terlambat"
+    },
+    "takePhoto": "Ambil foto",
+    "timezone": "Waktu ditampilkan dalam {{zone}}",
+    "title": "Titik pemeriksaan",
+    "viewPhoto": "Lihat foto"
+  },
   "consumables": {
     "add": "Tambah bahan habis pakai",
     "item": "Barang stok",
@@ -18,6 +43,27 @@
     "confirm": "Mulai koreksi",
     "label": "Alasan koreksi",
     "title": "Koreksi laporan ini"
+  },
+  "crews": {
+    "badRange": "Pilih rentang 1 sampai 92 hari.",
+    "empty": "Tidak ada hari regu dalam rentang ini",
+    "from": "Dari",
+    "help": "Menghitung hari ketika setiap regu mencatat titik pemeriksaan mulai kerja dalam waktu target. Persentase dihitung dari jumlah hari, bukan rata-rata menit.",
+    "link": "Regu tepat waktu dan waktu hilang",
+    "minutesLate": "terlambat {{n}} menit",
+    "missedTitle": "Melewati waktu target",
+    "share": "{{onTime}} dari {{days}} hari tepat waktu",
+    "status": {
+      "late": "Terlambat",
+      "not_started": "Belum mulai",
+      "on_time": "Tepat waktu"
+    },
+    "target": "Sasaran {{time}}",
+    "title": "Regu tepat waktu",
+    "to": "Sampai",
+    "toReports": "Kembali ke laporan lapangan",
+    "truncated": "Menampilkan 200 regu pertama, persentase tepat waktu terendah lebih dulu.",
+    "workOrder": "Perintah kerja"
   },
   "detail": {
     "correction": "Koreksi: {{reason}}",
@@ -75,6 +121,14 @@
     "previous": "Sebelumnya",
     "status": "Status",
     "title": "Laporan"
+  },
+  "lost": {
+    "archived": "Diarsipkan",
+    "none": "Tidak ada waktu menganggur dalam rentang ini",
+    "reports": "Dari {{n}} laporan",
+    "subline": "Waktu menganggur pada laporan lapangan yang dikirim dan divalidasi pada tanggal yang sama.",
+    "title": "Waktu hilang menurut penyebab",
+    "total": "Total"
   },
   "nav": "Laporan lapangan",
   "new": {

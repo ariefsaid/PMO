@@ -668,6 +668,31 @@
       "whoNow": "Yang dapat menyetujui sekarang",
       "helpRule": "Jika tidak ada yang terdaftar, {{roles}} dapat menyetujui kasus orang lain."
     },
+      "siteCheckpoints": {
+        "title": "Titik pemeriksaan harian",
+        "helper": "Titik pemeriksaan dalam satu hari kerja, beserta waktu jatuh temponya. Pengawas lapangan mencatat tiap titik dengan foto; yang terlambat mengingatkan pelapor dan menandai perintah kerja. Tanpa titik pemeriksaan, tidak ada yang dibuat atau diingatkan.",
+        "loadError": "Titik pemeriksaan tidak dapat dimuat",
+        "empty": "Belum ada titik pemeriksaan. Tidak ada yang dibuat atau diingatkan sampai Anda menambahkannya.",
+        "name": "Nama",
+        "time": "Waktu jatuh tempo",
+        "grace": "Toleransi (menit)",
+        "photo": "Foto wajib",
+        "photoLabel": "Foto wajib untuk {{name}}",
+        "start": "Menandai mulai kerja",
+        "startLabel": "Menandai mulai kerja untuk {{name}}",
+        "up": "Naikkan",
+        "down": "Turunkan",
+        "remove": "Hapus",
+        "add": "Tambah titik pemeriksaan",
+        "save": "Simpan titik pemeriksaan",
+        "saved": "Titik pemeriksaan disimpan",
+        "invalid": {
+          "name": "Setiap titik pemeriksaan perlu nama hingga 120 karakter",
+          "time": "Setiap titik pemeriksaan perlu waktu jatuh tempo",
+          "grace": "Toleransi adalah bilangan bulat 0 sampai 120 menit",
+          "start": "Hanya satu titik pemeriksaan yang boleh menandai mulai kerja"
+        }
+      },
     "siteReportLists": {
           "title": "Daftar laporan lapangan",
           "helper": "Pilihan yang tersedia pada laporan lapangan. Mengarsipkan menyembunyikan pilihan dari laporan baru; laporan yang sudah memakainya tetap menyimpannya.",

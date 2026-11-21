@@ -54,5 +54,7 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `m365-pkce-sweep` | keep: trigger only, stores no rows |
 | `incident-escalation` | keep: trigger only; each escalation writes one audit event, which the audit retention rule already governs |
 | `billing-stage-overdue` | keep: trigger only; stamps one column on the stage row once and writes one audit event per overdue stage, which the audit retention rule already governs |
+| `site-checkpoint-materialise` | keep: creates the day's checkpoint rows, which are the evidence and are kept with the work order |
+| `site-checkpoint-late` | keep: trigger only; each reminder writes one audit event, which the audit retention rule already governs |
 | `equipment-downtime-escalation` | keep: trigger only; its rows are the escalation log, listed above (0986) |
 | `plan-monthly-ai-allowance` | keep: trigger only, stores no rows (it writes one grant row per org per month, listed above) |

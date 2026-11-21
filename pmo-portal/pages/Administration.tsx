@@ -33,6 +33,7 @@ import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import WorkOrderCloseoutTemplate from './admin/WorkOrderCloseoutTemplate';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import SiteReportLists from './admin/SiteReportLists';
+import SiteCheckpointTemplate from './admin/SiteCheckpointTemplate';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
@@ -292,6 +293,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
             <SiteReportLists />
+            <SiteCheckpointTemplate />
             <CostDisciplines />
             <WorkOrderCloseoutTemplate />
           </div>

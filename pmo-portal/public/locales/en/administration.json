@@ -668,6 +668,31 @@
       "whoNow": "Who can approve now",
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
     },
+      "siteCheckpoints": {
+        "title": "Day checkpoints",
+        "helper": "The checkpoints of a working day, with the time each is due. The field controller records each with a photo; a late one reminds the reporter and flags the work order. With no checkpoints, nothing is created or reminded.",
+        "loadError": "Couldn't load the checkpoints",
+        "empty": "No checkpoints yet. Nothing is created or reminded until you add one.",
+        "name": "Name",
+        "time": "Due time",
+        "grace": "Grace (minutes)",
+        "photo": "Photo required",
+        "photoLabel": "Photo required for {{name}}",
+        "start": "Marks the start of work",
+        "startLabel": "Marks the start of work for {{name}}",
+        "up": "Move up",
+        "down": "Move down",
+        "remove": "Remove",
+        "add": "Add checkpoint",
+        "save": "Save checkpoints",
+        "saved": "Checkpoints saved",
+        "invalid": {
+          "name": "Every checkpoint needs a name of up to 120 characters",
+          "time": "Every checkpoint needs a due time",
+          "grace": "Grace is a whole number from 0 to 120 minutes",
+          "start": "Only one checkpoint can mark the start of work"
+        }
+      },
     "siteReportLists": {
           "title": "Site report lists",
           "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",
