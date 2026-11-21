@@ -1,6 +1,6 @@
 import {
   attachBillingStageDocument, cancelRetentionRelease, completeBillingStage, getBillingReconciliation, getBillingStageTemplate,
-  getClaimBillingTrace, getProjectBillingTerms, listRetentionReleases, noteBillingStage, releaseRetention, scheduleRetentionRelease, setBillingStageTemplate,
+  getClaimBillingTrace, getProjectBillingTerms, listRetentionReleases, noteBillingStage, skipBillingStage, releaseRetention, scheduleRetentionRelease, setBillingStageTemplate,
   setProjectInvoiceDeadline, setProjectRetention, setProjectBillingTerms,
 } from '@/src/lib/db/billingStages';
 import { wrap } from './repositoryErrors';
@@ -21,6 +21,7 @@ export const billingStagesRepository: BillingStagesRepository = {
   attachDocument: (itemId, documentId) => wrap(() => attachBillingStageDocument(itemId, documentId)),
   completeStage: (input) => wrap(() => completeBillingStage(input)),
   noteStage: (stageId, note) => wrap(() => noteBillingStage(stageId, note)),
+  skipStage: (stageId, reason) => wrap(() => skipBillingStage(stageId, reason)),
   reconciliation: (projectId, workOrderId) => wrap(() => getBillingReconciliation(projectId, workOrderId)),
   listReleases: (claimId) => wrap(() => listRetentionReleases(claimId)),
   scheduleRelease: (input) => wrap(() => scheduleRetentionRelease(input)),

@@ -13,16 +13,17 @@ import type { StageTemplateInput } from '@/src/lib/db/billingStages';
  * invoice deadline and the retention percentage. Finance/Admin only; the database refuses anyone else. Claims already made
  * keep the stage plan they were made with.
  */
-interface StageRow { key: number; name: string; clientSide: boolean; required: string; optional: string }
+interface StageRow { key: number; name: string; clientSide: boolean; required: string; optional: string; target: string; optionalStage: boolean }
 
 const toRow = (s: StageTemplateInput, key: number): StageRow => ({
-  key, name: s.name, clientSide: s.clientSide,
+  key, name: s.name, clientSide: s.clientSide, target: s.targetDays == null ? '' : String(s.targetDays), optionalStage: Boolean(s.optional),
   required: s.documents.filter((d) => d.required).map((d) => d.name).join('\n'),
   optional: s.documents.filter((d) => !d.required).map((d) => d.name).join('\n'),
 });
 const lines = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean);
 const toStage = (r: StageRow): StageTemplateInput => ({
   name: r.name.trim(), clientSide: r.clientSide,
+  ...(r.target.trim() === '' ? {} : { targetDays: Number(r.target) }), ...(r.optionalStage ? { optional: true } : {}),
   documents: [...lines(r.required).map((name) => ({ name, required: true })), ...lines(r.optional).map((name) => ({ name, required: false }))],
 });
 
@@ -35,7 +36,7 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
   const [day, setDay] = useState('');
   const [warn, setWarn] = useState('5');
   const [retention, setRetention] = useState('0');
-  const [errors, setErrors] = useState<{ day?: boolean; warn?: boolean; retention?: boolean; names?: boolean }>({});
+  const [errors, setErrors] = useState<{ day?: boolean; warn?: boolean; retention?: boolean; names?: boolean; targets?: boolean }>({});
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const [dirty, setDirty] = useState(false);
 
@@ -50,7 +51,7 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
   const update = (key: number, patch: Partial<StageRow>) => { setRows((rs) => (rs ?? []).map((r) => (r.key === key ? { ...r, ...patch } : r))); setDirty(true); };
   const move = (index: number) => { setRows((rs) => { const a = [...(rs ?? [])]; [a[index - 1], a[index]] = [a[index], a[index - 1]]; return a; }); setDirty(true); };
   const remove = (key: number) => { setRows((rs) => (rs ?? []).filter((r) => r.key !== key)); setDirty(true); };
-  const add = () => { setRows((rs) => [...(rs ?? []), { key: nextKey.current++, name: '', clientSide: false, required: '', optional: '' }]); setDirty(true); };
+  const add = () => { setRows((rs) => [...(rs ?? []), { key: nextKey.current++, name: '', clientSide: false, required: '', optional: '', target: '', optionalStage: false }]); setDirty(true); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,9 +63,10 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
       warn: !(Number.isInteger(warnNum) && warnNum >= 0 && warnNum <= 27),
       retention: !(Number.isFinite(pct) && pct >= 0 && pct < 100 && /^\d+(?:[.,]\d{1,2})?$/.test(retention.trim())),
       names: (rows ?? []).some((r) => r.name.trim() === ''),
+      targets: (rows ?? []).some((r) => r.target.trim() !== '' && !(/^\d+$/.test(r.target.trim()) && Number(r.target) >= 1 && Number(r.target) <= 365)),
     };
     setErrors(next);
-    if (next.day || next.warn || next.retention || next.names) return;
+    if (next.day || next.warn || next.retention || next.names || next.targets) return;
     try {
       await save.mutateAsync({ stages: (rows ?? []).map(toStage), deadlineDay: dayNum, warnDays: warnNum, retentionPct: pct });
       onClose();
@@ -97,6 +99,15 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
                 <Button type="button" variant="outline" size="sm" onClick={() => remove(row.key)}
                   aria-label={t('projectDetail.billing.terms.remove', 'Remove {{stage}}', { stage: row.name || index + 1 })}>{t('projectDetail.billing.terms.removeShort', 'Remove')}</Button>
               </span>
+            </div>
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <TextField inputMode="numeric" label={t('projectDetail.billing.terms.targetDays', 'Target (days)')} value={row.target} onChange={(v) => update(row.key, { target: v })}
+                error={errors.targets && row.target.trim() !== '' && !(/^\d+$/.test(row.target.trim()) && Number(row.target) >= 1 && Number(row.target) <= 365)
+                  ? t('projectDetail.billing.terms.targetInvalid', 'Enter 1 to 365 days, or leave it empty.') : undefined} />
+              <Checkbox checked={row.optionalStage} onChange={(v) => update(row.key, { optionalStage: v })}
+                label={t('projectDetail.billing.terms.optionalStage', 'Optional stage')}>
+                {t('projectDetail.billing.terms.optionalStage', 'Optional stage')}
+              </Checkbox>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <TextArea rows={2} label={t('projectDetail.billing.terms.required', 'Required documents, one per line')} value={row.required} onChange={(v) => update(row.key, { required: v })} />

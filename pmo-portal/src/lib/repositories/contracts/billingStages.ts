@@ -20,6 +20,7 @@ export interface BillingStagesRepository {
   attachDocument(itemId: string, documentId: string): Promise<void>;
   completeStage(input: CompleteStageInput): Promise<void>;
   noteStage(stageId: string, note: string): Promise<void>;
+  skipStage(stageId: string, reason: string): Promise<void>;
   reconciliation(projectId: string, workOrderId: string | null): Promise<ReconciliationRow[]>;
   listReleases(claimId: string): Promise<RetentionReleaseRow[]>;
   scheduleRelease(input: RetentionReleaseInput): Promise<string>;

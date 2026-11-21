@@ -79,6 +79,8 @@ export type Database = {
       }
       billing_stage_templates: {
         Row: {
+          optional: boolean
+          target_days: number | null
           client_side: boolean
           created_at: string
           id: string
@@ -89,6 +91,8 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          optional?: boolean
+          target_days?: number | null
           client_side?: boolean
           created_at?: string
           id?: string
@@ -98,6 +102,8 @@ export type Database = {
           project_id: string
         }
         Update: {
+          optional?: boolean
+          target_days?: number | null
           client_side?: boolean
           created_at?: string
           id?: string
@@ -201,6 +207,12 @@ export type Database = {
       }
       claim_billing_stages: {
         Row: {
+          optional: boolean
+          overdue_notified_at: string | null
+          skipped_by: string | null
+          skipped_on: string | null
+          skipped_reason: string | null
+          target_days: number | null
           claim_id: string
           client_reference: string | null
           client_side: boolean
@@ -217,6 +229,12 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          optional?: boolean
+          overdue_notified_at?: string | null
+          skipped_by?: string | null
+          skipped_on?: string | null
+          skipped_reason?: string | null
+          target_days?: number | null
           claim_id: string
           client_reference?: string | null
           client_side: boolean
@@ -232,6 +250,12 @@ export type Database = {
           started_on?: string | null
         }
         Update: {
+          optional?: boolean
+          overdue_notified_at?: string | null
+          skipped_by?: string | null
+          skipped_on?: string | null
+          skipped_reason?: string | null
+          target_days?: number | null
           claim_id?: string
           client_reference?: string | null
           client_side?: boolean
@@ -13669,6 +13693,10 @@ export type Database = {
           p_note?: string
         }
         Returns: string
+      }
+      skip_billing_stage: {
+        Args: { p_reason: string; p_stage: string }
+        Returns: undefined
       }
       set_billing_stage_template: {
         Args: { p_project: string; p_stages: Json }
