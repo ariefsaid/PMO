@@ -32,6 +32,7 @@ import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import OrgThreeWayMatch from './admin/OrgThreeWayMatch';
+import OrgPaymentChannels from './admin/OrgPaymentChannels';
 import SiteReportLists from './admin/SiteReportLists';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
@@ -274,6 +275,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgDownPaymentItem />
             <OrgProcurementGates />
             <OrgThreeWayMatch />
+            <OrgPaymentChannels />
             <BudgetAccountMap />
             <ExpenseAccountMap />
           </div>

@@ -951,5 +951,33 @@
     "save": "Simpan",
     "saved": "Tersimpan",
     "refusedRole": "Hanya Admin yang dapat mengubah pencocokan tiga arah."
+  },
+  "paymentChannel": {
+    "heading": "Kanal pembayaran",
+    "intro": "Catat bagaimana setiap permintaan pembelian akan dibayar. Nonaktif sampai Anda mengaktifkannya.",
+    "switchLabel": "Catat kanal pembayaran pada permintaan pembelian",
+    "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
+    "loadError": "Kanal pembayaran tidak dapat dimuat",
+    "saving": "Menyimpan…",
+    "saved": "Tersimpan",
+    "listLabel": "Kanal",
+    "empty": "Belum ada kanal.",
+    "nameLabel": "Nama kanal",
+    "add": "Tambah kanal",
+    "rename": "Ubah nama",
+    "renameSave": "Simpan nama",
+    "cancel": "Batal",
+    "archive": "Arsipkan",
+    "restore": "Pulihkan",
+    "archivedTag": "Diarsipkan",
+    "archiveTitle": "Arsipkan kanal",
+    "archiveDescription": "Permintaan yang sudah memakai kanal ini tetap memilikinya. Kanal ini tidak dapat dipilih lagi untuk permintaan baru.",
+    "archiveConfirm": "Arsipkan kanal",
+    "field": "Kanal pembayaran",
+    "notSet": "Belum diatur",
+    "choose": "Pilih kanal",
+    "saveChannel": "Simpan kanal",
+    "fieldSaved": "Kanal pembayaran tersimpan",
+    "columnHeader": "Kanal pembayaran"
   }
 }

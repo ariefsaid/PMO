@@ -77,6 +77,7 @@ import { PANEL_VISIBLE_STATUSES } from '@/src/lib/procurement/computeBudgetSigna
 import { ProcurementBudgetSignal, ProcurementStageTracker, ProcurementMoneySummary, ProcurementTimeline } from './procurement/detail/ProcurementDetailPanels';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { selectedQuotation } from '../components/procurement';
+import { PaymentChannelSection } from './procurement/PaymentChannelSection';
 import { ProcurementStatusPill } from '@/src/components/procurement/ProcurementStatusPill';
 import { stageForStatus } from '@/src/lib/procurement/stage';
 import {
@@ -424,6 +425,11 @@ const ProcurementDetails: React.FC = () => {
   // transition in the action zone. RLS remains the enforcement authority.
   const canEditHeader =
     (isDraft || isRejected) && (isRequester || realRole === 'Admin') && may('edit', 'procurement');
+  // #2698: the payment channel (shown only where the org switched it on). Requester or Admin while Draft/Rejected (the header
+  // rule), or Finance/Admin until Paid or Cancelled. UX only: set_procurement_payment_channel (1356) is the authority.
+  const canSetPaymentChannel =
+    ((isDraft || isRejected) && (isRequester || realRole === 'Admin'))
+    || ((realRole === 'Finance' || realRole === 'Admin') && p.status !== 'Paid' && p.status !== 'Cancelled');
   // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
   const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
   const canEditItems = ownershipReady && isDraft && (isRequester || may('edit', 'procItem'));
@@ -916,6 +922,7 @@ const ProcurementDetails: React.FC = () => {
 
         {tab === 'quotes' && <ProcurementQuotesTab p={p} selectedQuote={selectedQuote} vendorMap={vendorMap} mutations={mutations} crud={crud} canAddQuote={canAddQuote} canSelectQuote={canSelectQuote} canManageFiles={canManageFiles} currentUserId={currentUserId} onMutationError={onMutationError} />}
         {tab === 'details' && <ProcurementDetailsTab rows={detailRows} canEditHeader={canEditHeader} onEdit={() => setHeaderEditOpen(true)} />}
+        {tab === 'details' && <PaymentChannelSection procurementId={p.id} canSet={canSetPaymentChannel} />}
       </div>
 
       {captureKind && <RecordSection className="mt-[var(--space-section)]" data-testid="procurement-record-capture" title={recordKindLabels[captureKind]} actions={<Button variant="outline" size="sm" onClick={() => guardCaptureLeave(closeCapture)}>{t('procurementRecord:close', 'Close')}</Button>}>

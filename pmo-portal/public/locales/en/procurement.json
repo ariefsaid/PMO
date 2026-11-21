@@ -951,5 +951,33 @@
     "save": "Save",
     "saved": "Saved",
     "refusedRole": "Only an Admin can change the three-way match."
+  },
+  "paymentChannel": {
+    "heading": "Payment channels",
+    "intro": "Record how each purchase request will be paid. Off until you turn it on.",
+    "switchLabel": "Record a payment channel on purchase requests",
+    "onlyAdmin": "Only an Admin can change this.",
+    "loadError": "Couldn’t load payment channels",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "listLabel": "Channels",
+    "empty": "No channels yet.",
+    "nameLabel": "Channel name",
+    "add": "Add channel",
+    "rename": "Rename",
+    "renameSave": "Save name",
+    "cancel": "Cancel",
+    "archive": "Archive",
+    "restore": "Restore",
+    "archivedTag": "Archived",
+    "archiveTitle": "Archive channel",
+    "archiveDescription": "Requests that already use this channel keep it. It can no longer be chosen for new ones.",
+    "archiveConfirm": "Archive channel",
+    "field": "Payment channel",
+    "notSet": "Not set",
+    "choose": "Choose a channel",
+    "saveChannel": "Save channel",
+    "fieldSaved": "Payment channel saved",
+    "columnHeader": "Payment channel"
   }
 }
