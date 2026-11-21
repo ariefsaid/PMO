@@ -66,9 +66,12 @@ test.afterEach(async () => {
 });
 
 test('AC-CTR-012 a field controller reports a damaged tool with a photo; the crew screen shows the new usable count and the coordinator has the task and notification', async ({ page }) => {
-  // 1. The field controller opens the crew's tools (their own crew is preselected) and sees 6 usable.
+  // 1. The field controller opens the crew's tools and sees 6 usable. Other runs leave crews that name this same
+  // engineer as their field controller, so the page may open on one of those: a controller with several crews picks
+  // theirs from the combobox.
   await signIn(page, 'engineer@acme.test');
   await page.goto('/crews?view=tools');
+  await page.getByRole('combobox', { name: 'Crew' }).selectOption(crewId);
   // On a phone the table is a list of cards, one per tool.
   const card = page.getByRole('listitem').filter({ hasText: toolName });
   await expect(card).toBeVisible({ timeout: 20_000 });
