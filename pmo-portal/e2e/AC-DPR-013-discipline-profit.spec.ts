@@ -104,10 +104,10 @@ test('AC-DPR-013 the project tab shows revenue next to cost and margin per disci
     await expect(panel.getByTestId('discipline-profit-row-total')).toContainText(revenue);
     await shots(page, panel, 'discipline-profit-table');
 
-    // Evidence: the contract-line discipline picker (Edit contract lines > Edit a line) and the Admin setting card.
+    // Evidence: the contract-line discipline picker (Edit lines > Edit a line) and the Admin setting card.
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.getByRole('button', { name: 'Edit contract lines' }).click();
-    await page.getByRole('row', { name: /Tagged line/ }).getByRole('button', { name: 'Edit' }).first().click();
+    await page.getByRole('button', { name: 'Edit lines' }).click();
+    await page.getByRole('dialog').getByRole('row', { name: /Tagged line/ }).getByRole('button', { name: 'Edit', exact: true }).click();
     const picker = page.getByRole('combobox', { name: 'Discipline (for profit per discipline)' });
     await expect(picker).toBeVisible();
     await shots(page, picker, 'contract-line-discipline-picker');
