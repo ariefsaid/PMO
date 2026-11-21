@@ -41,10 +41,14 @@ test.beforeEach(async () => {
   ids.project = crypto.randomUUID(); ids.wo = crypto.randomUUID(); ids.crew = crypto.randomUUID();
   ids.report = crypto.randomUUID(); ids.checkpoint = crypto.randomUUID();
   crewName = `STC crew ${run.slice(0, 8)}`;
-  const tz = (await must('org', admin.from('organizations').select('default_timezone').eq('id', ORG_ID).single())).default_timezone ?? 'UTC';
+  const org = await must('org', admin.from('organizations').select('default_timezone').eq('id', ORG_ID).single());
+  if (!org) throw new Error('AC-STC-013 org not found');
+  const tz = org.default_timezone ?? 'UTC';
   today = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
-  savedList = await must('save list', admin.from('site_checkpoint_templates').select('*').eq('org_id', ORG_ID));
+  const saved = await must('save list', admin.from('site_checkpoint_templates').select('*').eq('org_id', ORG_ID));
+  if (!saved) throw new Error('AC-STC-013 could not read the current checkpoint list');
+  savedList = saved;
   await must('clear list', admin.from('site_checkpoint_templates').delete().eq('org_id', ORG_ID));
   await must('list', admin.from('site_checkpoint_templates').insert({
     org_id: ORG_ID, position: 1, name: 'Work start', marks_work_start: true, due_time: '23:59', grace_minutes: 0, photo_required: true,
