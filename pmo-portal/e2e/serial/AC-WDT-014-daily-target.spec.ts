@@ -8,7 +8,16 @@ import { pinEnglishLocale, requireServiceRoleKey, signIn } from '../helpers';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 test.setTimeout(90_000);
-test.use({ viewport: { width: 390, height: 844 } });
+test.use({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+const EVIDENCE = '../docs/evidence/1215/2672';
+const shots = async (page: import('@playwright/test').Page, locator: import('@playwright/test').Locator, name: string) => {
+  for (const [label, width, height] of [['phone', 390, 844], ['desktop', 1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await locator.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${EVIDENCE}/${name}-${label}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+};
 
 test('AC-WDT-014 a non-working date is left out of the month spread, and both screens agree on target to date', async ({ page }) => {
   const serviceKey = requireServiceRoleKey();
@@ -67,6 +76,7 @@ test('AC-WDT-014 a non-working date is left out of the month spread, and both sc
     await card.getByLabel('Label (optional)').fill('Closure ' + suffix);
     await card.getByRole('button', { name: 'Add date' }).click();
     await expect(card.getByTestId('nwd-' + listedDate)).toContainText('Closure ' + suffix);
+    await shots(page, card, 'non-working-dates');
 
     await page.context().clearCookies();
     await signIn(page, 'finance@acme.test');
@@ -82,6 +92,7 @@ test('AC-WDT-014 a non-working date is left out of the month spread, and both sc
     const listedRow = daily.getByTestId('wo-daily-row-' + listedDate);
     await expect(listedRow).toContainText('Non-working day: Closure ' + suffix);
     await expect(listedRow.locator('td').first()).toHaveText('—');
+    await shots(page, daily, 'work-order-daily-target');
     const mtdTarget = (await daily.getByTestId('wo-daily-mtd-target').textContent()) ?? '';
     expect(mtdTarget).not.toBe('');
 
@@ -89,6 +100,7 @@ test('AC-WDT-014 a non-working date is left out of the month spread, and both sc
     const row = page.getByTestId('daily-target-row-' + workOrderId);
     await expect(row).toBeVisible({ timeout: 15_000 });
     await expect(row).toContainText(mtdTarget);
+    await shots(page, page.getByTestId('project-daily-target'), 'project-daily-target');
   } catch (e) {
     failure = e;
   } finally {
