@@ -77,7 +77,7 @@ test('AC-M365DOC-058: a PM links a folder to a project-less case and it persists
   await picker.getByRole('button', { name: `Link this folder ${FOLDER_NAME}` }).click();
   await picker.getByRole('button', { name: 'Link from Microsoft 365' }).click();
 
-  const open = section.getByRole('button', { name: /Open folder in/ });
+  const open = section.getByRole('link', { name: /Open folder in/ });
   await expect(section.getByText(FOLDER_NAME)).toBeVisible({ timeout: 15_000 });
   await expect(open.first()).toBeEnabled();
 
@@ -88,5 +88,5 @@ test('AC-M365DOC-058: a PM links a folder to a project-less case and it persists
   await page.getByRole('tab', { name: 'Timeline', exact: true }).click();
   await page.getByRole('tab', { name: 'Files', exact: true }).click();
   await expect(page.getByRole('region', { name: 'SharePoint links for this case' }).getByText(FOLDER_NAME)).toBeVisible();
-  await expect(page.getByRole('region', { name: 'SharePoint links for this case' }).getByRole('button', { name: /Open folder in/ }).first()).toBeEnabled();
+  await expect(page.getByRole('region', { name: 'SharePoint links for this case' }).getByRole('link', { name: /Open folder in/ }).first()).toBeEnabled();
 });

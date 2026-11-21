@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import i18n from 'i18next';
 import idAdministration from '../../../public/locales/id/administration.json';
+import enAdministration from '../../../public/locales/en/administration.json';
 import type { ConnectProposal, ConnectStatus } from '@/src/lib/repositories/contracts/integrations';
 
 const repo = vi.hoisted(() => ({
@@ -12,7 +13,9 @@ const repo = vi.hoisted(() => ({
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: repo } }));
 
+import { accountUnusableText } from '@/src/lib/integrations/erpSendRefusal';
 import { ErpSendStates } from './ErpSendStates';
+import { AccountLinkNotes } from './DirectCostAccounts';
 
 const status = (waitingForSend: number): ConnectStatus => ({ run: null, census: [], waitingForSend });
 const proposal = (over: Partial<ConnectProposal>): ConnectProposal => ({
@@ -26,7 +29,7 @@ function answer(waiting: number, review: ConnectProposal[] = [], sends: ConnectP
 const renderIt = () => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ErpSendStates enabled /></QueryClientProvider>,
 );
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(async () => { cleanup(); vi.clearAllMocks(); await i18n.changeLanguage('en'); });
 
 describe('ECA3-T11 ErpSendStates', () => {
   it('NFR-ECA-004 an accepted send shows "Sending to the ERP" until the ERP confirms; a rejection returns as "Needs a decision" with the reason', async () => {
@@ -40,11 +43,77 @@ describe('ECA3-T11 ErpSendStates', () => {
     expect(screen.queryByText(/done|complete|sent/i)).toBeNull();   // a waiting row is never reported as finished
   });
 
+  it.each(['en', 'id'])('AC-ECX-030 identifies each account and gives truthful guidance in %s', async (language) => {
+    i18n.addResourceBundle('en', 'administration', enAdministration, true, true);
+    i18n.addResourceBundle('id', 'administration', idAdministration, true, true);
+    await i18n.changeLanguage(language);
+    answer(0, [
+      proposal({ id: 'a1', kind: 'account', reason: 'held', snapshot: { accountName: 'Site materials' }, reason_text: 'PMO could not confirm whether the account was created; your administrator has been told.' }),
+      proposal({ id: 'a2', kind: 'account', reason: 'rejected', snapshot: { accountName: 'Site labour' }, reason_text: 'PMO could not create the account; your administrator has been told.' }),
+    ]);
+    renderIt();
+    expect(await screen.findByText('Site materials')).toBeTruthy();
+    expect(screen.getByText('Site labour')).toBeTruthy();
+    expect(screen.queryByText(/administrator has been told|administrator Anda telah diberi tahu/i)).toBeNull();
+    expect(screen.getAllByText(language === 'en' ? /contact your administrator/i : /hubungi administrator/i)).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: /send it again|kirim lagi/i })).toBeNull();
+  });
+
+  it.each([['en', /already has an account named Site materials that cannot hold direct costs/], ['id', /ERP sudah memiliki akun dengan nama ini/]] as const)('AC-ECX-030 an account the ERP holds but PMO cannot use shows the sentence the adapter stores, in %s', async (language, expected) => {
+    const stored = accountUnusableText('Site materials');
+    answer(0, [proposal({ id: 'r3', kind: 'account', reason: 'rejected', snapshot: { name: 'Site materials' }, reason_text: stored })]);
+    await i18n.changeLanguage(language);
+    renderIt();
+    expect(await screen.findByText(expected)).toBeTruthy();
+    expect(screen.queryByText(/could not complete this account request|tidak dapat menyelesaikan permintaan akun/)).toBeNull();
+  });
+
   it('a send the ERP could not confirm is a decision with its plain reason, not a success', async () => {
     answer(0, [proposal({ id: 'r2', kind: 'project', reason: 'held', snapshot: { name: 'Jembatan' }, reason_text: 'We could not confirm whether the ERP created this record. Look for it in the ERP by name and tax id; if it is not there, send it again.' })]);
     renderIt();
     expect(await screen.findByText(/We could not confirm whether the ERP created this record/)).toBeTruthy();
     expect(screen.queryByText('Sending to the ERP')).toBeNull();
+  });
+
+  it('AC-ECX-030 an unconfirmed account waits for the administrator without an unsafe retry', async () => {
+    answer(0, [proposal({ id: 'a1', kind: 'account', reason: 'held', snapshot: { name: 'Materials' }, reason_text: 'PMO could not confirm whether the account was created; your administrator has been told.' })]);
+    renderIt();
+    expect(await screen.findByText('PMO could not confirm whether the account was created. Contact your administrator.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /send it again/i })).toBeNull();
+  });
+
+  it('AC-ECX-030 shows an unresolved account for administrator attention', async () => {
+    answer(0, [proposal({ id: 'a1', kind: 'account', reason: 'unresolved' as ConnectProposal['reason'], snapshot: { accountName: 'Materials' }, reason_text: 'PMO could not confirm this account. Contact your administrator.' })]);
+    renderIt();
+    expect(await screen.findByText('Materials')).toBeTruthy();
+    expect(screen.getByText(/could not confirm whether the account was created/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /send it again/i })).toBeNull();
+  });
+
+  it('AC-ECX-030 Finance can read an account hold even when the all-kinds list is forbidden', async () => {
+    repo.getConnectStatus.mockResolvedValue(status(0));
+    repo.listConnectProposals.mockImplementation(async (_tier, kind, outcome) => {
+      if (kind === null) throw new Error('Forbidden');
+      return { proposals: kind === 'account' && outcome === 'review' ? [proposal({ id: 'a1', kind: 'account', reason: 'held', snapshot: { name: 'Materials' }, reason_text: 'PMO could not confirm whether the account was created; your administrator has been told.' })] : [], nextAfterId: null };
+    });
+    renderIt();
+    expect(await screen.findByText('Materials')).toBeTruthy();
+    expect(screen.getByText('PMO could not confirm whether the account was created. Contact your administrator.')).toBeTruthy();
+  });
+
+  it('AC-ECX-030 a completed send refreshes the different-parent notice without a page reload', async () => {
+    let applied = false;
+    repo.getConnectStatus.mockResolvedValue(status(2));
+    repo.listConnectProposals.mockImplementation(async (_tier, kind, outcome) => ({
+      proposals: kind === 'account' && outcome === 'send' && applied ? [proposal({ id: 'a1', kind: 'account', outcome: 'send', state: 'applied', reason_text: 'Materials already exists under Indirect; linked there.' })] : [], nextAfterId: null,
+    }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><ErpSendStates enabled /><AccountLinkNotes /></QueryClientProvider>);
+    await screen.findByText('Sending to the ERP');
+    expect(screen.queryByText(/was already in the ERP under Indirect/)).toBeNull();
+    applied = true;
+    act(() => client.setQueryData(['integrations', 'connect-status', 'erpnext'], status(1)));
+    expect(await screen.findByText('Materials was already in the ERP under Indirect, so PMO linked it there.')).toBeTruthy();
   });
 
   it('I2 a held send has a way out: "It is not there: send it again" releases it and the list is read again; a refused send has no such button', async () => {
@@ -154,6 +223,15 @@ describe('#2429 ERP send refusals read in Bahasa', () => {
     'This row could not be applied',
     'Something the server said that we never mapped',
   ];
+  it('shows a held account in Bahasa without directing Finance into the ERP', async () => {
+    i18n.addResourceBundle('id', 'administration', idAdministration, true, true);
+    await i18n.changeLanguage('id');
+    answer(0, [proposal({ id: 'a1', kind: 'account', reason: 'held', snapshot: { name: 'Materials' }, reason_text: 'PMO could not confirm whether the account was created; your administrator has been told.' })]);
+    renderIt();
+    expect(await screen.findByText('PMO belum dapat memastikan akun telah dibuat. Hubungi administrator Anda.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /kirim lagi|send it again/i })).toBeNull();
+  });
+
   it('shows no English sentence for any known refusal, and one plain Bahasa line for an unmapped one', async () => {
     i18n.addResourceBundle('id', 'administration', idAdministration, true, true);
     await i18n.changeLanguage('id');

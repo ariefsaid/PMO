@@ -9,6 +9,7 @@ import { ToastProvider } from '@/src/components/ui';
 import ProjectDetailRail from '../ProjectDetailRail';
 // ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
+vi.mock('@/pages/project-detail/ProjectApprovalPins', () => ({ ProjectApprovalPins: () => null }));
 
 vi.mock('../../components/ProjectStatusControl', () => ({
   default: () => <div data-testid="status-control" />,

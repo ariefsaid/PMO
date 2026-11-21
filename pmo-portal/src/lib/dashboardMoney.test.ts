@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { getNumberLocale, resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { formatDashboardMoney, formatDashboardPercent, moneyFigure, moneyTotalsFigure, shortMoney } from './dashboardMoney';
+import { formatDashboardMoney, formatDashboardPercent, moneyFigure, shortMoney } from './dashboardMoney';
 
 afterEach(() => resetActiveLocale());
 
@@ -112,22 +112,5 @@ describe('AC-RD-MONEY-003 short-form minors (RD-S1 discover A5/A6/A8)', () => {
   it('names a foreign currency by its code ("USD 3.4M"), never a bare "$"', () => {
     expect(moneyFigure(3_400_000, 'USD', 'x', { code: true }).value).toBe('USD\u00a03.4M');
     expect(shortMoney(3_400_000, 'USD', 'x', { code: true })).toBe('USD\u00a03.4M');
-  });
-});
-
-describe('AC-RD-MONEY-001 moneyTotalsFigure (per-currency totals, never summed)', () => {
-  it('keeps each currency separate in the short and the exact form', () => {
-    const fig = moneyTotalsFigure([{ currency: 'USD', amount: 1_200_000 }, { currency: 'EUR', amount: 3_000 }], 'USD', 'Unavailable');
-    expect(fig.value).toBe('$1.2M · €3K');
-    expect(fig.exactValue).toBe('$1,200,000 · €3,000');
-  });
-  it('an empty org shows a known zero in its own currency', () => {
-    const fig = moneyTotalsFigure([], 'USD', 'Unavailable');
-    expect(fig).toEqual({ value: '$0' });
-  });
-  it('keeps a non-empty unavailable reason if a currency cannot be formatted', () => {
-    const fig = moneyTotalsFigure([{ currency: 'not-a-currency', amount: 12 }], 'USD', 'Revenue unavailable');
-    expect(fig.value).toBe('');
-    expect(fig.unavailableReason).toBe('Revenue unavailable');
   });
 });

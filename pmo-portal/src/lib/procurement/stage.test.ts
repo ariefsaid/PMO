@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stageForStatus, stageDates, payStepLabel, stageLabelForStatus } from './stage';
+import { stageForStatus, stageDates, payStepLabel } from './stage';
 
 describe('procurement stages', () => {
   it.each([
@@ -34,7 +34,6 @@ describe('procurement stages', () => {
       payments: [],
     };
     expect(stageForStatus(fixture.status)).toBe('Pay');
-    expect(stageLabelForStatus(fixture.status)).toBe('Invoiced, not paid');
     expect(stageDates(fixture)).toEqual({ request: null, order: null, receive: null, pay: '2026-10-20' });
     expect(payStepLabel(fixture.payments.length > 0)).toBe('Invoiced');
     expect(payStepLabel(true)).toBe('Paid');

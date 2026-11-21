@@ -29,6 +29,6 @@ test('AC-SIL-010: an Engineer raises an issue with a camera photo and finds it i
   await dialog.getByRole('button', { name: /^file incident$/i }).click();
 
   await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 20_000 });
-  await page.getByRole('button', { name: new RegExp(`open ${type}`, 'i') }).click();
+  await page.getByRole('link', { name: new RegExp(`open ${type}`, 'i') }).click();
   await expect(page.getByTestId('incident-evidence').getByText('rail.jpg')).toBeVisible({ timeout: 20_000 });
 });

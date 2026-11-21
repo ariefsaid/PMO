@@ -70,6 +70,7 @@ fi
 
 echo "[verify-main-pr] reset DB and run the complete pgTAP suite"
 supabase db reset --yes
+node scripts/anon-definer-inventory.mjs
 supabase test db
 
 eval "$(supabase status -o env)"

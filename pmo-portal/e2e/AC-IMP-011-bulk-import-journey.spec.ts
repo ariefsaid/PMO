@@ -21,11 +21,11 @@ async function waitReady(page: Page) {
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
 
-/** The DataTable activation button is the stable, exact per-row doorway (mirrors AC-CO-001).
- *  CW-4b: rows navigate to /companies/:id — the activation button reads "Open <name>". */
+/** The DataTable activation link is the stable, exact per-row doorway (mirrors AC-CO-001).
+ *  CW-4b: rows navigate to /companies/:id — the activation link reads "Open <name>". */
 function companyRow(page: Page, name: string) {
   return page.locator('table tbody tr').filter({
-    has: page.getByRole('button', { name: `Open ${name}`, exact: true }),
+    has: page.getByRole('link', { name: `Open ${name}`, exact: true }),
   });
 }
 

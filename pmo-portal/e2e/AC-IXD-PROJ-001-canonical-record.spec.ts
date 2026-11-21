@@ -36,7 +36,7 @@ async function waitProjectsReady(page: Page) {
 }
 
 function projectButton(page: Page, name: string) {
-  return page.getByTestId('projects-table-container').getByRole('button', { name, exact: true });
+  return page.getByTestId('projects-table-container').getByRole('link', { name, exact: true });
 }
 
 test(

@@ -51,7 +51,7 @@ test('AC-MMP-016: Finance records progress and exports the monthly management pa
     });
     await signIn(page, 'finance@acme.test');
 
-    await page.getByRole('link', { name: 'Reports' }).click();
+    await page.getByRole('link', { name: 'Reports', exact: true }).click();
     await expect(page).toHaveURL(/\/reports/);
     await page.getByLabel('As at').fill(ym);
     await expect(

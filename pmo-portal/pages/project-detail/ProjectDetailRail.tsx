@@ -7,6 +7,7 @@ import { Icon } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
+import { ProjectApprovalPins } from './ProjectApprovalPins';
 import { classificationValueLabel } from '@/src/lib/projectClassification';
 
 export interface ProjectDetailRailProps {
@@ -125,6 +126,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
 
         {detailSection}
         <ProjectErpLink projectId={project.id} managerId={project.project_manager_id ?? null} />
+        <ProjectApprovalPins projectId={project.id} managerId={project.project_manager_id ?? null} />
         </div>
       </details>
     </aside>

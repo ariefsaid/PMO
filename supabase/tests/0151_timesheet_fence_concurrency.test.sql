@@ -27,7 +27,7 @@
 begin;
 select plan(6);
 
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 
 insert into organizations (id, name) values
   ('01516000-0000-0000-0000-000000000001','TS Fence Concurrency Org');

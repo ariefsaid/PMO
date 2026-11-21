@@ -1,3 +1,4 @@
+import { likeAny } from '@/src/lib/postgrestLike';
 import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
@@ -86,10 +87,6 @@ export const USER_DIRECTORY_PAGE_SIZE = 50;
  * metacharacters, `\` is the escape character they are escaped with, and `"` would terminate the
  * quoted value. Without this, a search for `100%` would match every row.
  */
-function likeAny(value: string): string {
-  return `"%${value.replace(/[\\%_"]/g, '\\$&')}%"`;
-}
-
 /**
  * ONE server page of the caller's org directory, with the exact total and a name/email search
  * applied on the SERVER *before* the range (so a match on page 7 is found and counted).
