@@ -405,6 +405,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **PMO down payment item** — the one fixed item (`DOWN-PAYMENT`) a down-payment claim names while no ERP owns revenue and the organisation has set no down-payment item; the ERP raise refuses a claim that names it. Its lines read "Down payment" and "Down payment recovery" on the invoice.
 
 **Billing stage** — one ordered step a progress claim passes before its invoice can be raised (for example internal measurement, joint survey, client approval). A project lists its stages; each new progress claim takes a copy (its *stage plan*), and the invoice is refused while any stage is open (#2522).
+**Step owner role** — the role responsible for a billing step of a claim (from the existing role set); optional, set per step on the project's list, a template or the claim (#2680). **Step target date** — the date a step should be done by; when set it wins over the step's target days. **Step template** — an organisation's named list of billing steps (names, owner roles, target days, documents) that the client's team writes; loading it onto a project or claim copies it. **Waiting step pointer** — a needs-you entry for current steps owned by the viewer's role; derived on read, so it clears when the step completes.
 
 **Client-side stage** — a billing stage done in the client's own system; PMO records it by hand with the date, the client's document number and the proof document.
 
@@ -419,6 +420,16 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **Optional stage** — a billing stage the project's list marks as one that may not apply to a claim. Only an optional, current stage can be marked not needed (#2592).
 
 **Skipped stage** — an optional billing stage marked not needed by Finance or an Admin, with a date and a reason. It counts as complete for ordering and for the invoice gate, and it is not undone (#2592).
+
+**Billing board** — a read-only screen listing every open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with the days on that step and an overdue chip. It is a view over the claims' own steps: nothing is stored for it, and a claim moves on only by completing its step on the claim. Bahasa Indonesia: Papan penagihan (#2681).
+
+**Billing plan** — a screen at the Receivables header that lists billing candidates against a monthly target. Candidates only: ticks are view state, nothing is stored for them, and nothing raises a claim or an invoice. Over-claim shows as a warning, never a block. Bahasa Indonesia: Rencana penagihan (#2682).
+
+**Billing candidate** — accepted work that is not yet claimed: accepted quantity above claimed quantity on a work-order allocation (the Cascade's "Unclaimed"), or a money-only order with an amount left. "Progress not yet client-certified" in the ticket words (#2682).
+
+**Monthly target** — the amount the organisation aims to bill in a calendar month, with its currency; a default plus optional per-month overrides, set by Admin or Finance. Other currencies are listed apart, not converted (#2682).
+
+**Board column** — one step name on the billing board, ordered by the median position of that name across the claims; a final column, All steps done, holds claims ready to invoice (#2681).
 
 **Invoice deadline** — the project's monthly day (1–31, clamped to the month's end) by which its invoice must reach the client, with a warning window in days. A claim shows it while its stages are still open or it has no stage plan; it is hidden once every planned stage is complete (#2522).
 
@@ -617,6 +628,10 @@ adding to 100 and effective-dated.
 **Billing stage** (*tahap penagihan*) — one ordered step a progress claim passes before its invoice can be raised (for
 example internal measurement, joint survey, client approval). A project lists its stages; each new progress claim takes
 a copy (its *stage plan*), and the invoice is refused while any stage is open.
+
+**Step owner role** (*peran penanggung jawab langkah*), **Step target date** (*tanggal target langkah*), **Step template**
+(*templat langkah*) and **Waiting step pointer** (*penanda langkah menunggu*) — see the entry above (#2680). The pointer
+sits in the needs-you list of the person whose role owns a current step and goes away when the step completes.
 
 **Client-side stage** (*di sistem klien*) — a billing stage done in the client's own system; PMO records it by hand with
 the date, the client's document number and the proof document.
