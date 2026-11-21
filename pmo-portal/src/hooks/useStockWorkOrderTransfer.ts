@@ -9,10 +9,6 @@ export function useWoTransfersEnabled(): boolean {
   const q = useQuery({ queryKey: ['stock-wo-transfers-enabled', orgId], queryFn: () => repo.enabled(), enabled: Boolean(orgId), staleTime: 60_000, retry: false });
   return q.data === true;
 }
-export function useWoTransferSetting() {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-wo-transfers-enabled', orgId], queryFn: () => repo.enabled(), enabled: Boolean(orgId), staleTime: 60_000, retry: false });
-}
 export function useReturnable(workOrderId: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['wo-returnable', orgId, workOrderId], queryFn: () => repo.returnable(workOrderId!), enabled: Boolean(orgId) && Boolean(workOrderId) });

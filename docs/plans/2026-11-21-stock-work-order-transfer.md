@@ -54,7 +54,7 @@ Read both script headers when writing them.
   to work order (project fixed by the first pick), then lines (item combobox limited to what A holds, quantity with "available n" and a client-side cap, optional work item), note;
   one primary action "Move to <B>" with a `ConfirmDialog` stating the two effects. Shared primitives only (`useEntityForm`, `Combobox`, `FieldError`), `classifyMutationError`.
   Detail `StockWorkOrderTransferDetail.tsx` (route `/stock/work-order-transfer/:id`) shows both halves and links.
-- Entry: a link "Move leftover to another work order" on `StockDocuments.tsx`, shown only when the org setting `stock_wo_transfers` is on AND the user is a stock writer (`can('create','stockDocument',{record:{isKeeper}})`); the routes render the "off" empty state otherwise. Admin toggle on the Stock setup transfers panel. The "part of WOT-nnnn" link on `StockDocumentDetail.tsx` and the ledger row (FR-WOT-013).
+- Entry: a link "Move leftover to another work order" on `StockDocuments.tsx`, shown only when the org setting `stock_wo_transfers` is on AND the user is a stock writer (`can('create','stockDocument',{record:{isKeeper}})`); the routes render the "off" empty state otherwise. Admin toggle `WoTransferToggle` inside the Stock setup transfers panel (renders only once the setting has been read). The "part of WOT-nnnn" link on `StockDocumentDetail.tsx` and the ledger row (FR-WOT-013).
 - `src/auth/policy.ts` unchanged (existing `stockDocument.create`). `App.tsx`: two lazy routes (namespace `stock`).
 - Strings: `pmo-portal/public/locales/en/stock.json` and `id/stock.json` (keys `workOrderTransfer.*`), parity tested.
 - Glossary: `docs/glossary.md` adds "Work-order transfer (WOT)".
