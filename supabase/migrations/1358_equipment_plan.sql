@@ -85,7 +85,9 @@ create function public.equipment_plan_engineer_on_project(p_project uuid) return
   select exists (select 1 from public.procurements p
                   where p.project_id = p_project and p.requested_by_id = auth.uid() and p.org_id = public.auth_org_id())
 $$;
-revoke all on function public.equipment_plan_engineer_on_project(uuid) from public, anon, authenticated;
+-- Called by the equipment_planss select policy as the caller, so authenticated must hold execute. It answers only a boolean about auth.uid().
+revoke all on function public.equipment_plan_engineer_on_project(uuid) from public, anon;
+grant execute on function public.equipment_plan_engineer_on_project(uuid) to authenticated;
 
 create policy org_equipment_plan_settings_select on public.org_equipment_plan_settings for select
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
