@@ -1,0 +1,3 @@
+{
+  "definer_functions": ["skip_billing_stage(uuid,text)", "billing_stage_overdue_recipients(claim_billing_stages)", "notify_overdue_billing_stages()"]
+}
