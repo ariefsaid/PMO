@@ -55,6 +55,8 @@ test('AC-MRI-018: an approver is told and sees the request in the approvals inbo
     // They open it from the inbox and approve step 1.
     await section.getByRole('link').filter({ hasText: number }).click();
     await expect(page).toHaveURL(new RegExp(`/material-requests/${saved.data}$`));
+    // The router keeps /approvals on screen while the lazy detail route loads: act only once the request's own page is up.
+    await expect(page.getByTestId('mrq-chain')).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Approve', exact: true }).click();
     const dialog = page.getByRole('alertdialog').or(page.getByRole('dialog'));
     await dialog.getByRole('button', { name: 'Approve', exact: true }).click();
@@ -62,8 +64,10 @@ test('AC-MRI-018: an approver is told and sees the request in the approvals inbo
 
     // Decided: gone from their inbox and their bell.
     await page.goto('/approvals');
+    await page.waitForLoadState('networkidle');
     await expect(page.getByRole('region', { name: 'Material requests awaiting you' }).getByText(number)).toHaveCount(0);
     await page.getByRole('button', { name: /notifications/i }).click();
+    await page.waitForLoadState('networkidle');
     await expect(page.getByRole('button', { name: /material request awaiting your approval/i }).filter({ hasText: number })).toHaveCount(0);
     await page.keyboard.press('Escape');
 
