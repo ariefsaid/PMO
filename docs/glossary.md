@@ -1083,3 +1083,7 @@ since the start of attendance when there is none. Hidden with a reason when ther
 
 **Lost-time incident** — an incident marked as one that cost working time. Only an incident manager (Admin, Executive, Project
 Manager, Finance) sets the mark; it restarts the safe-hours count for the project.
+
+**Availability target / use target** — optional organisation settings (percent) the equipment availability screen compares each metric figure with; a figure below its target is marked. Unset means no marking.
+
+**Escalation limit** — the organisation setting (whole days, default 2) after which an open equipment downtime is flagged and notified: more than this many recorded down days.
