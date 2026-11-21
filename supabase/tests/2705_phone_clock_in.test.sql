@@ -73,7 +73,7 @@ insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values
 
 -- AC-PCI-001 area columns: all set or all NULL, in range
 select lives_ok($$ update work_orders set area_lat = 1, area_lng = 2, area_radius_m = 50 where id = '27050000-0000-0000-0000-000000000402' $$, 'AC-PCI-001 a full area is accepted');
-select throws_ok($$ update work_orders set area_lat = 3 where id = '27050000-0000-0000-0000-000000000402' $$, '23514', null, 'AC-PCI-001 a partial area is refused');
+select throws_ok($$ update work_orders set area_lat = null where id = '27050000-0000-0000-0000-000000000402' $$, '23514', null, 'AC-PCI-001 a partial area is refused');
 select throws_ok($$ update work_orders set area_lat = 91 where id = '27050000-0000-0000-0000-000000000402' $$, '23514', null, 'AC-PCI-001 a latitude out of range is refused');
 select throws_ok($$ update work_orders set area_radius_m = 0 where id = '27050000-0000-0000-0000-000000000402' $$, '23514', null, 'AC-PCI-001 a zero radius is refused');
 select lives_ok($$ update work_orders set area_lat = null, area_lng = null, area_radius_m = null where id = '27050000-0000-0000-0000-000000000402' $$, 'AC-PCI-001 clearing the area is accepted');
