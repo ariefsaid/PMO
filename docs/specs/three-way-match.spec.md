@@ -115,6 +115,93 @@ purchases already refuse a bill over the accepted quantity (`0472`, hard cap at 
 - **OQ-TWM-3** Screens. *Partly closed (#2622):* the match panel per bill (status, reasons, per-line ordered /
   received / billed, tolerances, the exception record), "Approve exception" (`can('approve','billMatch')`: Admin,
   Finance; SoD in the RPC) and the translated payment-hold refusal ship over `get_bill_match` and
-  `approve_bill_match_exception` (AC-TWM-014..016). Still open: the Admin on/off + tolerance setting and the receipt-
-  and bill-lines editors.
+  `approve_bill_match_exception` (AC-TWM-014..016). *Closed by #2634 (section 7):* the Admin on/off + tolerance setting and the receipt- and bill-lines editors.
 - **OQ-TWM-4** A sole-member organisation cannot approve an exception (no sole-operator escape, unlike the bill void).
+
+## 7. Follow-up #2634 — Admin setting screen and the line editors
+
+Status: draft for Director review · Map #2516 · Money path (ships alone) · Migration `1357_three_way_match_edit_states.sql`
+· Plan `docs/plans/2026-11-21-bill-match-settings.md`
+
+**Job story.** When a vendor bill is held for missing lines, I want to switch the match on, set its tolerance and fix
+the lines in the app, so a held bill clears without an exception.
+
+The database already carries the setting writer (`set_three_way_match_settings`, Admin only, 1018 section 8), the two line
+writers (`record_receipt_match_lines`, `record_bill_match_lines`, 1018 sections 9 and 10), tenancy and the gate. This
+follow-up adds the screens over them, one database change (edit states) and the proofs.
+
+### 7.1 Decisions taken (the Director may overturn any)
+
+| ID | Decision | Why |
+|---|---|---|
+| D-TWM-10 | The setting screen is a section of **Administration > Accounting setup**, beside the other procurement controls. No new tab or route. | The match is a purchasing control the Admin already configures there; the org settings shell is reused. |
+| D-TWM-11 | Lines may be edited only while money has not been posted on them: a **Paid** bill's lines, and the receipt lines of a **Paid** or **Cancelled** purchase, are refused in the database. Today 1018 allows both. | Editing the evidence under a paid bill would change what was matched after the money moved. The edit states belong to the writers, not the screen. |
+| D-TWM-12 | Re-recording a bill's lines keeps making the editor the recorder (1018 behaviour, D-TWM-7): whoever fixes a held bill can no longer approve its exception. Receipt edits carry no SoD (a receipt is a physical fact, written by the receipt roles) but are audited with the lines before and after. | Fixing is the intended path out of a hold; the exception is the reviewed path, so the fixer must not also approve. |
+| D-TWM-13 | Nothing is switched on by this change. The row is created only when an Admin saves the setting. | OD-SCOPE: new behaviour is off until an organisation setting turns it on. |
+
+### 7.2 Settings
+
+| Setting | Where | Default |
+|---|---|---|
+| Three-way match on or off | Administration > Accounting setup > Three-way match | Off (no row = off) |
+| Quantity tolerance, percent, 0-100 | same | 0 |
+| Amount tolerance, percent, 0-100 | same | 0 |
+
+### 7.3 Default-off statement
+
+An organisation that never saves the setting has no settings row; every bill evaluates `not_applicable`, no payment is
+held, and no existing screen, rule or test changes. The new editors are offered only while the match is on and the bill is
+in scope (FR-TWM-002). The new refusals of D-TWM-11 apply to the two line writers, which nothing calls today and which
+refuse an out-of-scope bill anyway, so an organisation without the match sees no difference.
+
+### 7.4 Functional requirements (EARS)
+
+- **FR-TWM-010** (settings screen) — Where the user is an Admin, the system shall show the match setting in Accounting
+  setup with on or off and the two tolerances, show the saved values, save through `set_three_way_match_settings`, and
+  explain that bills recorded before switching on are not matched. Any other role shall see the saved values read-only
+  or nothing, and the database shall refuse their write (FR-TWM-001).
+- **FR-TWM-011** (receipt-lines editor) — While the match is on and the purchase is in scope, the system shall let a
+  receipt writer set, per goods receipt, the quantity received per ordered item, showing the current lines, and send them
+  through `record_receipt_match_lines`; a refusal shall be explained in the user's language.
+- **FR-TWM-012** (bill-lines editor) — While the match is on and the bill is in scope and not Paid and has no approved
+  exception, the system shall let a bill writer set, per bill, the quantity and rate per ordered item (pre-filled from the
+  order), send them through `record_bill_match_lines`, and show the resulting match at once so a bill that now matches
+  clears its hold with no exception.
+- **FR-TWM-013** (edit states) — If a bill is Paid, then the system shall refuse to replace its match lines
+  (`23514`, detail `three-way-match-posted`); if a purchase is Paid or Cancelled, then the system shall refuse to
+  replace its receipts' lines (same code). An approved exception keeps freezing the bill's lines (FR-TWM-004).
+- **FR-TWM-014** (audit) — When lines are replaced, the system shall audit the lines before and after.
+
+### 7.5 Acceptance criteria
+
+- **AC-TWM-017** (pgTAP `supabase/tests/three_way_match_settings.test.sql`) Given an Executive, Project Manager, Finance
+  user and an Engineer, When any sets the match Then refused (`42501`) and the settings row is unchanged; When an Admin of
+  another organisation sets it Then only their own row changes; When an Admin saves it Then it is stored and audited.
+- **AC-TWM-018** (same file) Given a Paid bill, When its match lines are recorded Then refused (`three-way-match-posted`),
+  and the lines are unchanged; Given a Paid or Cancelled purchase, When a receipt's lines are recorded Then refused.
+- **AC-TWM-019** (same file) Given a held bill (over-received) and the match on, When the receipt lines are raised to
+  cover it, or the bill's lines are corrected, Then the bill is matched with no exception row and the purchase can be paid.
+- **AC-TWM-020** (same file) Given a bill whose lines a second user re-recorded, Then that user cannot approve its
+  exception and the first user can only if eligible (SoD follows the last recorder); an audit row holds the lines before and after.
+- **AC-TWM-021** (mutation, `supabase/tests/three_way_match_edit_mutation.test.sql`) With the Admin check removed from the
+  shipped settings writer a Finance user can set it; with the Paid-bill refusal removed from the shipped bill-lines
+  writer a Paid bill's lines change; with the Paid-or-Cancelled refusal removed from the receipt-lines writer a Paid
+  purchase's receipt lines change. The assertions of AC-TWM-017/018 therefore bind to the shipped code.
+- **AC-TWM-022** (RTL `pages/OrgThreeWayMatch.test.tsx`) Given an Admin, Then the section shows the saved state (off when
+  never saved) and saving sends on/off and both tolerances; invalid tolerances are refused before sending; a non-Admin
+  is offered no save; a refusal is explained; English and Bahasa Indonesia.
+- **AC-TWM-023** (RTL `pages/procurement/BillLinesEditor.test.tsx`, `ReceiptLinesEditor.test.tsx`) Given the match on, Then
+  the editors list the purchase's ordered items, validate (quantity above zero, no item twice, rate not negative), send
+  exactly the RPC payload, hide for roles without write, for a Paid bill and for an approved exception, and show the new match.
+- **AC-TWM-024** (curated e2e `pmo-portal/e2e/AC-TWM-024-bill-match-settings.spec.ts`) An Admin switches the match on in
+  Accounting setup, a held bill's lines are corrected in the app, and the bill clears with no exception.
+- **AC-TWM-025** (RTL, same files as AC-TWM-022/023) Both new surfaces render at phone and desktop width with no overflow;
+  checked by the saved captures under `docs/evidence/1215/2634/`.
+
+### 7.6 Open questions for the Director
+
+- **OQ-TWM-5** Receipt edits have no SoD: the person who entered a held bill could also raise the receipt to clear it.
+  Recommendation: leave it (the receipt roles are the physical-fact writers; the edit is audited with before and after) and
+  revisit if the owner wants a stricter rule; enforcing it would block a small team that enters both.
+- **OQ-TWM-6** Switching the match off while bills are held releases every hold at once. Recommendation: allow it
+  (Admin-only, audited, the owner's own control) and show a notice on the screen when bills are currently held.
