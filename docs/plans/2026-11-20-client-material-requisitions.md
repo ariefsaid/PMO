@@ -15,7 +15,7 @@ Built on the spec's recommended defaults; none was signed by the owner at build 
 - OQ-CSR-3: a wrong pickup is undone by a stock adjustment only; no reverse-pickup event.
 - OQ-CSR-4: reservation proof is optional and not built in this branch; a delivery paper on a pickup is a free-text reference (`paper_reference`), no file upload.
 - Cancel and reservation authority: who may create, send, cancel, reserve and release = Project Manager and above (rank >= 20) plus the requisition's creator for send and cancel; pickup = keeper of the receiving location or Admin (as `create_stock_document`).
-- Migration numbers used: 1085 (C, cost attribution), 1086 (A, tables), 1087 (B, RPCs and rollup read function).
+- Migration numbers used: 1161 (C, cost attribution), 1162 (A, tables), 1163 (B, RPCs and rollup read function).
 
 ## As built (20 Nov)
 - Migrations: `1161_receive_work_order_attribution.sql` (Migration C, also extends `guard_warehouse_move_with_work_orders` so a location holding a receive that names a work order cannot leave its project), `1162_client_requisitions.sql` (tables, append-only triggers on events and pickups, RLS + FORCE RLS, select-only grants), `1163_client_requisition_rpcs.sql` (the seven writers, internals, and `csr_work_order_rollup`). Rollbacks in `supabase/migrations/rollback/`.

@@ -1,5 +1,5 @@
 -- csr_pickup.test.sql — #2585 client material requisitions: the pickup that posts a zero-cost receipt (MONEY PATH).
--- Spec docs/specs/client-material-requisitions.spec.md · Migrations under test: 1086, 1087 (over 1085).
+-- Spec docs/specs/client-material-requisitions.spec.md · Migrations under test: 1162, 1163 (over 1161).
 -- AC-CSR-001 the rollup of the hand calculation (reserved 70, collected 50, still to collect 20, awaiting 30) ·
 -- AC-CSR-005 a release cannot take reserved below collected · AC-CSR-006 a pickup above still-to-collect is refused and
 -- writes nothing · AC-CSR-007 pickups serialise per line (lock wait + the second of two 15s is refused) · AC-CSR-008 one
