@@ -1,0 +1,100 @@
+{
+  "tables": [
+    {
+      "table": "safety_list_items",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "safety_days",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "safety_fitness_checks",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "safety_toolbox_talks",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "safety_toolbox_attendees",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "safety_toolbox_photos",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "safety_checklist_answers",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "safety_permits",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "safety_officer_entries",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ],
+  "definer_functions": [
+    "safety_records_enabled()",
+    "set_safety_records_enabled(boolean)",
+    "guard_incident_lost_time()",
+    "safety_may_enter(uuid)",
+    "safety_may_see_people(uuid)",
+    "safety_may_enter_day(uuid)",
+    "safety_day_writable(uuid)",
+    "safety_may_see_people_day(uuid)",
+    "safety_photo_stored(text)",
+    "safety_days_guard()",
+    "safety_part_guard()",
+    "safety_days_copy_checklist()",
+    "safety_save_talk(uuid,text,text,timestamp with time zone,jsonb)",
+    "safety_day_missing(uuid)",
+    "submit_safety_day(uuid)",
+    "correct_safety_day(uuid,text)",
+    "safety_work_order_days(uuid,date,date)",
+    "get_safety_summary(uuid,date)",
+    "get_safety_summary_detail(text,uuid,date)"
+  ],
+  "buckets": [
+    "safety-photos"
+  ]
+}

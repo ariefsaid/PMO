@@ -40,6 +40,7 @@ export type Action =
   | 'manage_external_bindings'
   | 'view_financial_directory'
   | 'manage'
+  | 'viewPeople'
   | 'push_timesheet'
   | 'confirm_employee_link'
   | 'upload'
@@ -80,6 +81,8 @@ export type Entity =
   | 'rateCatalogue'
   | 'dailySiteReport'
   | 'dailySiteReportRevenue'
+  | 'safetyDay'
+  | 'safetyLists'
   | 'progressClaim'
   | 'billingStage'
   | 'workOrderLine'
@@ -354,6 +357,19 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     revise: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_VALIDATE, role) || isOwnProjectPm(role, ctx)),
   },
   dailySiteReportRevenue: { view: (role, ctx) => has(DSR_REVENUE, role) || isOwnProjectPm(role, ctx) },
+  /**
+   * Daily safety records (#2596, 1410-1414). UX ONLY. Mirrors safety_may_enter: Admin, Engineer, or the project's own PM
+   * enter, submit and correct; every active member reads counts; worker names and photos follow OD-DSF-6
+   * (`viewPeople`). The database refuses everything else.
+   */
+  safetyDay: {
+    view: allow(ALL),
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_ENTER, role) || isOwnProjectPm(role, ctx)),
+    edit: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_ENTER, role) || isOwnProjectPm(role, ctx)),
+    viewPeople: (role, ctx) => has(['Admin', 'Executive', 'Engineer'], role) || isOwnProjectPm(role, ctx),
+  },
+  /** The check types, permit types and pre-work checklist: Admin-only rows (1410) and the switch (set_safety_records_enabled). */
+  safetyLists: { manage: allow(ADMIN) },
   boqItem: {
     view: allow(MASTER_DATA),
     create: allow(MASTER_DATA),

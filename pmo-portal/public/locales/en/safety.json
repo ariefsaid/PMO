@@ -1,0 +1,174 @@
+{
+  "actions": {
+    "correct": "Correct",
+    "submit": "Submit and lock"
+  },
+  "admin": {
+    "add": "Add",
+    "addLabel": "New {{list}} entry",
+    "archive": "Archive",
+    "archived": "Archived",
+    "cancel": "Cancel",
+    "checkTypes": "Fitness check types",
+    "checklist": "Pre-work checklist",
+    "duplicate": "That entry is already in the list",
+    "empty": "Nothing listed yet",
+    "enable": "Record daily safety on work orders",
+    "helper": "Daily safety records per work order. The check types, permit types and checklist items are yours: add what your sites use. Archiving hides an entry from new days; days that already use it keep it.",
+    "loadError": "Couldn't load the list",
+    "permitTypes": "Permit types",
+    "rename": "Rename",
+    "renameFor": "Name for {{name}}",
+    "restore": "Restore",
+    "save": "Save",
+    "saved": "List saved",
+    "title": "Safety records"
+  },
+  "checklist": {
+    "answer": {
+      "no": "No",
+      "not_applicable": "Not applicable",
+      "yes": "Yes"
+    },
+    "answerLabel": "Answer for {{item}}",
+    "none": "No checklist is set up for this organisation",
+    "note": "Note (required when no)",
+    "noteLabel": "Note for {{item}}",
+    "title": "Pre-work checklist",
+    "unanswered": "Not answered"
+  },
+  "correct": {
+    "confirm": "Start correction",
+    "label": "Reason for the correction",
+    "title": "Correct this safety day"
+  },
+  "day": {
+    "complete": "Complete",
+    "date": "Date",
+    "draft": "Draft",
+    "locked": "Locked",
+    "missing": "Missing: {{parts}}",
+    "noRecord": "Worked without a safety record",
+    "open": "Open",
+    "present": "{{count}} present",
+    "record": "Record safety day",
+    "recordShort": "Record"
+  },
+  "fitness": {
+    "add": "Add check",
+    "none": "No fitness checks recorded",
+    "note": "Note (required when not fit)",
+    "pickWorker": "Worker on the roster",
+    "pickWorkerNone": "Choose a worker",
+    "result": {
+      "fit": "Fit",
+      "not_checked": "Not checked",
+      "not_fit": "Not fit"
+    },
+    "resultLabel": "Result",
+    "title": "Fitness check",
+    "type": "Check",
+    "typeNone": "No specific check",
+    "visitor": "Or a named visitor",
+    "worker": "Worker"
+  },
+  "form": {
+    "back": "Back",
+    "correction": "Correction: {{reason}}",
+    "error": "Couldn't load this safety day",
+    "notFound": "Safety day not found",
+    "remove": "Remove",
+    "stillNeeded": "Still needed: {{parts}}",
+    "title": "Safety day",
+    "version": "Version {{n}}",
+    "workOrder": "Work order"
+  },
+  "officer": {
+    "add": "Add entry",
+    "body": "Report",
+    "counts": "{{near}} near misses · {{obs}} observations",
+    "near": "Near misses",
+    "none": "No report entered",
+    "number": "A whole number",
+    "obs": "Observations",
+    "title": "Safety officer’s report"
+  },
+  "parts": {
+    "checklist": "Pre-work checklist",
+    "fitness_check": "Fitness check",
+    "safety_record": "Safety record",
+    "toolbox_talk_photo": "Toolbox talk photo"
+  },
+  "permits": {
+    "add": "Add permit",
+    "close": "Close",
+    "closed": "Closed",
+    "issuedBy": "Issued by {{name}}",
+    "issuer": "Issued by",
+    "none": "No permit recorded",
+    "number": "Permit number",
+    "open": "Open",
+    "order": "Valid-to must not be before valid-from",
+    "reopen": "Reopen",
+    "title": "Permit to work",
+    "type": "Permit type",
+    "typeNone": "No type",
+    "validFrom": "Valid from",
+    "validTo": "Valid to"
+  },
+  "section": {
+    "empty": "No safety days in the last 30 days",
+    "error": "Couldn't load the safety records",
+    "subline": "Fitness check, toolbox talk, pre-work checklist, permit to work and the safety officer’s report, per day.",
+    "summary": "Monthly summary",
+    "title": "Daily safety records"
+  },
+  "summary": {
+    "allProjects": "All projects",
+    "backToFull": "Back to the full summary",
+    "clientSubtitle": "Figures for the month",
+    "clientView": "Client view",
+    "detailError": "Couldn't load the rows",
+    "error": "Couldn't load the summary",
+    "figure": {
+      "completeDays": "Complete days",
+      "daysWithoutRecord": "Days worked without a safety record",
+      "lostTimeIncidents": "Lost-time incidents",
+      "nearMisses": "Near misses",
+      "recordableIncidents": "Recordable incidents",
+      "safeMinutes": "Safe hours",
+      "toolboxTalks": "Toolbox talks held",
+      "workedMinutes": "Worked hours"
+    },
+    "hiddenDefault": "cannot be computed for this period",
+    "month": "Month",
+    "off": "Safety records are not switched on for this organisation",
+    "print": "Print",
+    "project": "Project",
+    "showRows": "Show the rows",
+    "subtitle": "Hours, incidents and safety records for a month.",
+    "title": "Safety summary",
+    "workOrder": "Work order"
+  },
+  "toast": {
+    "corrected": "Correction started",
+    "submitted": "Safety day submitted and locked"
+  },
+  "toolbox": {
+    "addPhoto": "Add attendance photo",
+    "attendeeCount": "{{count}} attendees",
+    "attendees": "Attendees from the roster",
+    "noRoster": "No one is rostered on this work order for this date",
+    "none": "No toolbox talk recorded",
+    "photoCount": "{{count}} photos",
+    "photoInput": "Attendance photo",
+    "presentedBy": "Presented by {{name}}",
+    "presenter": "Presenter",
+    "save": "Save toolbox talk",
+    "time": "Held at",
+    "title": "Toolbox talk",
+    "topic": "Topic",
+    "viewPhoto": "Attendance photo {{n}}",
+    "visitor": "Named visitor (optional)"
+  }
+}

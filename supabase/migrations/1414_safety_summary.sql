@@ -129,22 +129,34 @@ begin
         having not exists (select 1 from public.safety_days s where s.work_order_id = a.work_order_id and s.work_date = a.work_date
                               and s.status = 'locked' and s.org_id = v_org)
          order by a.work_date desc, a.work_order_id limit 500) d;
-  else
+  elsif p_kind = 'toolbox_talks' then
     select coalesce(jsonb_agg(jsonb_build_object('date', c.work_date, 'work_order_id', c.work_order_id, 'ref_id', c.id,
-                                                 'label', c.label) order by c.work_date desc, c.id), '[]')
+                                                 'label', c.topic) order by c.work_date desc, c.id), '[]')
       into v_rows from (
-        select s.id, s.work_date, s.work_order_id,
-               case p_kind when 'toolbox_talks' then (select string_agg(t.topic, ', ' order by t.held_at) from public.safety_toolbox_talks t where t.day_id = s.id)
-                           when 'near_misses' then (select sum(e.near_misses)::text from public.safety_officer_entries e where e.day_id = s.id)
-                           else 'complete' end as label
-          from public.safety_days s
+        select t.id, s.work_date, s.work_order_id, t.topic from public.safety_toolbox_talks t join public.safety_days s on s.id = t.day_id
          where s.org_id = v_org and s.status = 'locked' and s.work_date >= v_from and s.work_date < v_to
            and (p_project is null or s.project_id = p_project)
            and not exists (select 1 from public.safety_days n where n.supersedes_id = s.id)
-           and (case p_kind
-                  when 'complete_days' then coalesce(cardinality(public.safety_day_missing(s.id)), 0) = 0
-                  when 'toolbox_talks' then exists (select 1 from public.safety_toolbox_talks t where t.day_id = s.id)
-                  else coalesce((select sum(e.near_misses) from public.safety_officer_entries e where e.day_id = s.id), 0) > 0 end)
+         order by s.work_date desc, t.id limit 500) c;
+  elsif p_kind = 'near_misses' then
+    -- one row per officer entry that reported any; the labels add up to the count
+    select coalesce(jsonb_agg(jsonb_build_object('date', c.work_date, 'work_order_id', c.work_order_id, 'ref_id', c.id,
+                                                 'label', c.near_misses::text) order by c.work_date desc, c.id), '[]')
+      into v_rows from (
+        select e.id, s.work_date, s.work_order_id, e.near_misses from public.safety_officer_entries e join public.safety_days s on s.id = e.day_id
+         where s.org_id = v_org and s.status = 'locked' and s.work_date >= v_from and s.work_date < v_to
+           and (p_project is null or s.project_id = p_project)
+           and not exists (select 1 from public.safety_days n where n.supersedes_id = s.id) and e.near_misses > 0
+         order by s.work_date desc, e.id limit 500) c;
+  else
+    select coalesce(jsonb_agg(jsonb_build_object('date', c.work_date, 'work_order_id', c.work_order_id, 'ref_id', c.id,
+                                                 'label', 'complete') order by c.work_date desc, c.id), '[]')
+      into v_rows from (
+        select s.id, s.work_date, s.work_order_id from public.safety_days s
+         where s.org_id = v_org and s.status = 'locked' and s.work_date >= v_from and s.work_date < v_to
+           and (p_project is null or s.project_id = p_project)
+           and not exists (select 1 from public.safety_days n where n.supersedes_id = s.id)
+           and coalesce(cardinality(public.safety_day_missing(s.id)), 0) = 0
          order by s.work_date desc, s.id limit 500) c;
   end if;
   return v_rows;

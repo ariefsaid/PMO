@@ -53,6 +53,8 @@ export const CORE_ROUTES = {
   '/projects/new': 'projects — core',
   '/projects/:projectId/:tab': 'projects — core',
   '/projects/:projectId': 'projects — core',
+  '/safety-days/:dayId': 'daily safety record (#2596) — a part of the work order, shown only when the organisation setting is on; no catalogue switch',
+  '/safety': 'monthly safety summary (#2596) — gated by the organisation setting safety_records_enabled; no catalogue switch',
   '/work-orders/:id': 'work-order record page (#2518) — part of Projects, read-only, no switch key',
   '/approvals': 'approvals — core',
   '/home': 'my-queue home — a composition of core tasks + core approvals, no switch key of its own (#2061)',

@@ -137,7 +137,7 @@ begin
          (select count(*)::int from public.attendance_days a
            where a.work_order_id = p_work_order_id and a.work_date = x.work_date and a.status = 'present'),
          case when c.id is null then array['safety_record']::text[] else public.safety_day_missing(c.id) end,
-         (c.status = 'locked' and coalesce(cardinality(public.safety_day_missing(c.id)), 0) = 0)
+         coalesce(c.status = 'locked' and coalesce(cardinality(public.safety_day_missing(c.id)), 0) = 0, false)
     from dates x left join cur c on c.work_date = x.work_date
    order by x.work_date desc;
 end $$;
