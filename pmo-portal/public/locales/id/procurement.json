@@ -946,6 +946,7 @@
     "quantityHelp": "Seberapa jauh kuantitas yang ditagih boleh melebihi kuantitas yang diterima atau dipesan.",
     "amountHelp": "Seberapa jauh tarif atau total tagihan boleh melebihi pesanan.",
     "toleranceError": "Masukkan persentase dari 0 sampai 100 dengan paling banyak 2 angka desimal.",
+    "heldNotice_one": "{{count}} tagihan sedang ditahan. Mematikan pencocokan akan melepaskan penahanannya.",
     "heldNotice_other": "{{count}} tagihan sedang ditahan. Mematikan pencocokan akan melepaskan penahanannya.",
     "save": "Simpan",
     "saved": "Tersimpan",

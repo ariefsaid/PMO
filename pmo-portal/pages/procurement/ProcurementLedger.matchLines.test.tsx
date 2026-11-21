@@ -40,12 +40,6 @@ const row = (id: string, number: string): LedgerRow => ({
 });
 const invoice = (id: string, number: string, extra: Partial<ProcurementInvoiceRow> = {}) => ({ id, vi_number: number, reference_number: null, voided_at: null, ...extra }) as ProcurementInvoiceRow;
 
-function renderLedger(invoices: ProcurementInvoiceRow[]) {
-  return render(<MemoryRouter><QueryClientProvider client={new QueryClient()}>
-    <ProcurementLedger detail={detail} rows={invoices.map((i) => row(i.id, i.vi_number ?? ''))} procurementId="proc-1" uploadedById={null} canWrite={false} invoices={invoices} />
-  </QueryClientProvider></MemoryRouter>);
-}
-
 beforeEach(() => { h.role = 'Finance'; h.on = true; h.statuses = {}; h.matchIds = []; });
 
 
@@ -98,11 +92,11 @@ describe('ProcurementLedger — match line editors (#2634)', () => {
       unmount();
     }
     h.on = false;
-    let view = renderFull([], {}, [receiptRow('r-1', 'GR-1')]);
+    const off = renderFull([], {}, [receiptRow('r-1', 'GR-1')]);
     expect(screen.queryByRole('button', { name: 'Row actions' })).toBeNull();
-    view.unmount();
+    off.unmount();
     h.on = true; h.role = 'Engineer';
-    view = renderFull([], {}, [receiptRow('r-1', 'GR-1')]);
+    renderFull([], {}, [receiptRow('r-1', 'GR-1')]);
     expect(screen.queryByRole('button', { name: 'Row actions' })).toBeNull();
   });
 });

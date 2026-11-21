@@ -187,13 +187,13 @@ refuse an out-of-scope bill anyway, so an organisation without the match sees no
   shipped settings writer a Finance user can set it; with the Paid-bill refusal removed from the shipped bill-lines
   writer a Paid bill's lines change; with the Paid-or-Cancelled refusal removed from the receipt-lines writer a Paid
   purchase's receipt lines change. The assertions of AC-TWM-017/018 therefore bind to the shipped code.
-- **AC-TWM-022** (RTL `pages/OrgThreeWayMatch.test.tsx`) Given an Admin, Then the section shows the saved state (off when
+- **AC-TWM-022** (RTL `pages/admin/OrgThreeWayMatch.test.tsx`) Given an Admin, Then the section shows the saved state (off when
   never saved) and saving sends on/off and both tolerances; invalid tolerances are refused before sending; a non-Admin
   is offered no save; a refusal is explained; English and Bahasa Indonesia.
-- **AC-TWM-023** (RTL `pages/procurement/BillLinesEditor.test.tsx`, `ReceiptLinesEditor.test.tsx`) Given the match on, Then
+- **AC-TWM-023** (RTL `pages/procurement/MatchLinesEditor.test.tsx`, `ProcurementLedger.matchLines.test.tsx`) Given the match on, Then
   the editors list the purchase's ordered items, validate (quantity above zero, no item twice, rate not negative), send
   exactly the RPC payload, hide for roles without write, for a Paid bill and for an approved exception, and show the new match.
-- **AC-TWM-024** (curated e2e `pmo-portal/e2e/AC-TWM-024-bill-match-settings.spec.ts`) An Admin switches the match on in
+- **AC-TWM-024** (curated e2e `pmo-portal/e2e/serial/AC-TWM-024-bill-match-settings.spec.ts` (serial lane: it switches the org-wide match on)) An Admin switches the match on in
   Accounting setup, a held bill's lines are corrected in the app, and the bill clears with no exception.
 - **AC-TWM-025** (RTL, same files as AC-TWM-022/023) Both new surfaces render at phone and desktop width with no overflow;
   checked by the saved captures under `docs/evidence/1215/2634/`.

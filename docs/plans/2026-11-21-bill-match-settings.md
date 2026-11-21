@@ -10,8 +10,9 @@ the #2622 panel (`BillMatchDrawer`, `useThreeWayMatch`, `src/lib/db/threeWayMatc
 from 1018 with: (a) bill-lines writer refuses a Paid bill (`23514`, detail `three-way-match-posted`); (b) receipt-lines
 writer refuses a receipt of a Paid or Cancelled purchase (same code); (c) the audit row also carries the lines before.
 Grants re-stated (revoke from public/anon/authenticated, grant to authenticated). The settings writer is unchanged.
-No table, no policy, no new client-callable function, so no new inventory or isolation-denominator fragment (the 0178
-test is re-run). Rollback: `supabase/migrations/rollback/1357_three_way_match_edit_states_down.sql` restores the 1018 bodies.
+One new client-callable definer `three_way_match_held_count()` (Admin only, own org; D-TWM-15): fragments
+`supabase/tests/inventory/anon-executable-definers/1357-three-way-match-edit.txt` and
+`scripts/isolation-probe-denominator.d/1357-three-way-match-edit.json`; 0178 is re-run. Rollback: `supabase/migrations/rollback/1357_three_way_match_edit_states_down.sql` restores the 1018 bodies.
 
 ## Tasks (test first, each 2-5 min)
 
@@ -23,14 +24,14 @@ test is re-run). Rollback: `supabase/migrations/rollback/1357_three_way_match_ed
 3. DAL `src/lib/db/threeWayMatch.ts`: `setThreeWayMatchSettings`, `getReceiptLines`, `getBillLines`, `recordReceiptLines`,
    `recordBillLines`, `listOrderedItems`; repository `src/lib/repositories/threeWayMatch.ts`; hooks in
    `src/hooks/useThreeWayMatch.ts` (invalidate settings, `['bill-match', org, id]` and the purchase queries). Unit tests beside them.
-4. `pmo-portal/pages/OrgThreeWayMatch.tsx` (+ test, AC-TWM-022), mounted in `pages/Administration.tsx` accounting panel after
+4. `pmo-portal/pages/admin/OrgThreeWayMatch.tsx` (+ test, AC-TWM-022), mounted in `pages/Administration.tsx` accounting panel after
    `OrgProcurementGates`; shared primitives (`TextField`, `Button`, toast, `classifyMutationError`), Admin gate via
    `usePermission` on a new `threeWayMatchSettings` entity (`src/auth/policy.ts`, Admin only; policy test).
-5. `pages/procurement/BillLinesEditor.tsx`, `ReceiptLinesEditor.tsx` (+ tests, AC-TWM-023, AC-TWM-025): opened from
-   `BillMatchDrawer` ("Edit lines") and from the purchase's receipt row; gate with `can('write', 'billMatchLines')` (Admin,
+5. `pages/procurement/MatchLinesEditor.tsx` (one editor, bill or receipt; + tests, AC-TWM-023, AC-TWM-025): opened from the
+   ledger's held-bill notice and bill row menu and from the receipt row menu (`ProcurementLedger.matchLines.test.tsx`); gate with `can('edit', 'billMatch')` (Admin,
    Executive, Project Manager, Finance, matching the RPC); `EntityFormModal`-style rows; refusal messages through `threeWayMatchError.ts`.
 6. i18n: `administration.json` and `procurement.json` in `public/locales/en` and `id` (completeness gate must pass).
-7. e2e `pmo-portal/e2e/AC-TWM-024-bill-match-settings.spec.ts` (one curated journey; read `docs/e2e-parallel-conventions.md`, add the `@e2e-isolation` tag).
+7. e2e `pmo-portal/e2e/serial/AC-TWM-024-bill-match-settings.spec.ts` (one curated journey, serial lane because it switches the org-wide match on; `@e2e-isolation: serial`).
 8. Glossary: terms "match tolerance", "match lines" in `docs/glossary.md`. Screenshots: phone 390 and desktop 1440 (scale 2) of the
    setting section and each editor, `docs/evidence/1215/2634/`.
 
@@ -40,9 +41,9 @@ test is re-run). Rollback: `supabase/migrations/rollback/1357_three_way_match_ed
 |---|---|---|
 | AC-TWM-017..020 | pgTAP | `supabase/tests/three_way_match_settings.test.sql` |
 | AC-TWM-021 | pgTAP mutation | `supabase/tests/three_way_match_edit_mutation.test.sql` |
-| AC-TWM-022 | RTL | `pages/OrgThreeWayMatch.test.tsx` |
-| AC-TWM-023, 025 | RTL | `pages/procurement/BillLinesEditor.test.tsx`, `ReceiptLinesEditor.test.tsx` |
-| AC-TWM-024 | e2e | `e2e/AC-TWM-024-bill-match-settings.spec.ts` |
+| AC-TWM-022 | RTL | `pages/admin/OrgThreeWayMatch.test.tsx` |
+| AC-TWM-023, 025 | RTL | `pages/procurement/MatchLinesEditor.test.tsx`, `ProcurementLedger.matchLines.test.tsx` |
+| AC-TWM-024 | e2e | `e2e/serial/AC-TWM-024-bill-match-settings.spec.ts` |
 
 ## Gates
 
