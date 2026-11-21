@@ -50,7 +50,7 @@ For a period `[from, to]` and a crew:
 
 | AC | Owning test |
 |---|---|
-| AC-ATR-001 | `supabase/tests/attendance_rate.test.sql` + `pages/crews/AttendanceRate.test.tsx` |
+| AC-ATR-001 | `supabase/tests/attendance_rate.test.sql` + `pages/crews/Crews.test.tsx` + `pages/crews/AttendanceRate.test.tsx` |
 | AC-ATR-002 | `supabase/tests/attendance_rate.test.sql` |
 | AC-ATR-003 | `supabase/tests/attendance_rate.test.sql` |
 | AC-ATR-004 | `supabase/tests/attendance_rate.test.sql` |
@@ -63,4 +63,28 @@ For a period `[from, to]` and a crew:
 
 ## Deviations recorded while building
 
-- none yet
+- **AC-ATR-004 was re-cut.** The first draft asked for a crew rostered on two work orders on one day; the shipped
+  exclusion constraint (1035, OD-CRW-2) forbids that. The criterion is now placement attribution across two crews,
+  which is the real risk of double or missing member-days, and `expected` still de-duplicates defensively.
+- **The journey is in the serial lane** (`pmo-portal/e2e/serial/AC-ATR-010-attendance-rate.spec.ts`): it sets and
+  restores the organisation's target, an org-global singleton. It was not executed locally — the shared local database
+  must not be reset and does not carry migrations 1436/1437 — so its first run is the release PR's `integration` job.
+- **Type-check scope:** `npx vitest related --run <changed sources>` was attempted and exceeded 20 minutes under the
+  parallel worker load on this machine, so the directly touched files were run instead (DAL, both panels, the Crews
+  page, and the policy/permission suites they depend on).
+
+## Build record
+
+Migrations `1436_attendance_target_rate` (column, check, column grant) and `1437_attendance_rate_by_crew` (the read),
+each with its rollback file. Migrations 1438/1439 are unused by this ticket.
+
+Gate evidence (2026-11-21, this branch):
+
+| Gate | Result |
+|---|---|
+| `npm run check:guards` | passed — i18n parity (en+id) passed, plain words 12468 strings clean, unpaged reads OK (39 allowlisted, 0 new), layout baseline none grew, migrations/ADRs/anon-definer/retention/module/ui-system self-tests green |
+| `npm run typecheck` | passed (app, server, test, tooling projects) |
+| `npx eslint --max-warnings=0 <changed files>` | passed, no output |
+| `npx vitest run` on the touched files | 24 new tests + Crews page tests 4 + `policy`/`usePermission`/crew-list/tick/site-lists 200 — all passed |
+| pgTAP on the spare runner (`vps-pgtap.sh feat/2706-attendance-rate supabase/tests/attendance_rate.test.sql`) | `All tests successful. Files=1, Tests=29 ... Result: PASS` |
+| Mutation check (role gate) | allowing `Engineer` in the RPC's role list reddens exactly test 25 (AC-ATR-007, "caught: no exception / wanted 42501"); restored |
