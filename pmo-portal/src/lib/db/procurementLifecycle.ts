@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { maskSelection, priceSource } from '@/src/lib/priceReadPath';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcurementRow, ProcurementWithRefs } from './procurements';
 import { attachApprovalRoutes } from './approvalRoutes';
@@ -203,8 +204,8 @@ const DETAIL_SELECT = [
  */
 export async function getProcurementDetail(id: string): Promise<ProcurementDetail> {
   const { data, error } = await supabase
-    .from('procurements')
-    .select(DETAIL_SELECT)
+    .from(priceSource('procurements') as 'procurements')
+    .select(maskSelection(DETAIL_SELECT))
     .eq('id', id)
     .single();
   if (error) throwRpc(error);

@@ -3534,6 +3534,71 @@ export type Database = {
           },
         ]
       }
+      crew_loans: {
+        Row: {
+          created_at: string
+          home_crew_id: string
+          host_crew_id: string
+          id: string
+          org_id: string
+          valid_from: string
+          valid_to: string
+          version: number
+          worker_id: string
+        }
+        Insert: {
+          created_at?: string
+          home_crew_id: string
+          host_crew_id: string
+          id?: string
+          org_id?: string
+          valid_from: string
+          valid_to: string
+          version?: number
+          worker_id: string
+        }
+        Update: {
+          created_at?: string
+          home_crew_id?: string
+          host_crew_id?: string
+          id?: string
+          org_id?: string
+          valid_from?: string
+          valid_to?: string
+          version?: number
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crew_loans_home_crew_id_fkey"
+            columns: ["home_crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_loans_host_crew_id_fkey"
+            columns: ["host_crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_loans_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_loans_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crew_members: {
         Row: {
           created_at: string
@@ -7724,6 +7789,48 @@ export type Database = {
         Update: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
         Relationships: []
       }
+      org_role_names: {
+        Row: {
+          locale: string
+          name: string
+          org_id: string
+          role_key: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          locale: string
+          name: string
+          org_id?: string
+          role_key: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          locale?: string
+          name?: string
+          org_id?: string
+          role_key?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_role_names_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_role_names_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_terminology: {
         Row: {
           locale: string
@@ -7855,7 +7962,9 @@ export type Database = {
           attendance_backdate_days: number
           attendance_conflict_tolerance_hours: number
           attendance_target_rate: number | null
+          built_in_roles_enabled: boolean
           created_at: string
+          crew_loans_enabled: boolean
           discipline_profit_enabled: boolean
           default_currency: string
           default_locale: string
@@ -7885,7 +7994,9 @@ export type Database = {
           attendance_backdate_days?: number
           attendance_conflict_tolerance_hours?: number
           attendance_target_rate?: number | null
+          built_in_roles_enabled?: boolean
           created_at?: string
+          crew_loans_enabled?: boolean
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
@@ -7914,7 +8025,9 @@ export type Database = {
           attendance_backdate_days?: number
           attendance_conflict_tolerance_hours?: number
           attendance_target_rate?: number | null
+          built_in_roles_enabled?: boolean
           created_at?: string
+          crew_loans_enabled?: boolean
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
@@ -9596,6 +9709,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          built_in_role?: string | null
           company_id: string | null
           created_at: string
           email: string
@@ -9616,6 +9730,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          built_in_role?: string | null
           company_id?: string | null
           created_at?: string
           email: string
@@ -9636,6 +9751,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          built_in_role?: string | null
           company_id?: string | null
           created_at?: string
           email?: string
@@ -16035,6 +16151,7 @@ export type Database = {
         }[]
       }
       work_order_issue_eligibility: { Args: { p_ids: string[] }; Returns: { work_order_id: string; reason: string }[] }
+      worker_effective_crew: { Args: { p_date: string; p_worker_id: string }; Returns: string }
       work_order_roster: {
         Args: { p_date: string; p_work_order_id: string }
         Returns: {
@@ -16907,6 +17024,7 @@ export type Database = {
           draft: number
         }[]
       }
+      get_built_in_roles_enabled: { Args: never; Returns: boolean }
       get_org_discipline_profit_enabled: { Args: never; Returns: boolean }
       get_org_fiscal_year_setting: {
         Args: never
@@ -18511,6 +18629,8 @@ export type Database = {
         Args: { p_discipline: string | null; p_item: string }
         Returns: string
       }
+      set_built_in_roles_enabled: { Args: { p_enabled: boolean }; Returns: boolean }
+      set_org_crew_loans_enabled: { Args: { p_enabled: boolean }; Returns: boolean }
       set_org_discipline_profit_enabled: {
         Args: { p_enabled: boolean }
         Returns: boolean

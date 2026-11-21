@@ -13,7 +13,7 @@ import { FALLBACK_LOCALE, isUsableLocaleTag } from '@/src/lib/locale/resolveLoca
  */
 
 /** Feature namespaces. Each maps to `public/locales/<lng>/<ns>.json`. */
-export const NAMESPACES = ['common', 'auth', 'import', 'crm', 'sales', 'projectTabs', 'projects', 'finance', 'financeHub', 'dashboard', 'project', 'procurement', 'expenseClaims', 'meetingCreate', 'recordFolders', 'documentViewer', 'costAttribution', 'procurementRecord', 'procurementList', 'procurementCreate', 'assistantPanel', 'viewBuilder', 'profilePreferences', 'stock', 'imprest', 'equipment', 'timeAndMaterials', 'boardDrag', 'lostReason', 'administration', 'plans', 'tasks', 'calendar', 'meetings', 'timesheets', 'status', 'home', 'oauthConsent', 'legal', 'journals', 'incidents', 'workOrderCost', 'workOrderPva', 'workOrderSections', 'workOrderRevenuePlan', 'materialRequests', 'workOrders', 'siteReport', 'quantityChanges', 'crews', 'crewTools', 'subcontractCertificates', 'notifications', 'supplyRisk', 'usageStandards', 'workInHand'] as const;
+export const NAMESPACES = ['common', 'auth', 'import', 'crm', 'sales', 'projectTabs', 'projects', 'finance', 'financeHub', 'dashboard', 'project', 'procurement', 'expenseClaims', 'meetingCreate', 'recordFolders', 'documentViewer', 'costAttribution', 'procurementRecord', 'procurementList', 'procurementCreate', 'assistantPanel', 'viewBuilder', 'profilePreferences', 'stock', 'imprest', 'equipment', 'timeAndMaterials', 'boardDrag', 'lostReason', 'administration', 'plans', 'tasks', 'calendar', 'meetings', 'timesheets', 'status', 'home', 'oauthConsent', 'legal', 'journals', 'incidents', 'workOrderCost', 'workOrderPva', 'workOrderSections', 'workOrderRevenuePlan', 'materialRequests', 'workOrders', 'siteReport', 'quantityChanges', 'crews', 'crewTools', 'subcontractCertificates', 'notifications', 'supplyRisk', 'usageStandards', 'workInHand', 'emailNotifications', 'myHome'] as const;
 export const DEFAULT_NS = 'common';
 
 /**
@@ -104,7 +104,7 @@ export const orgTermsPlugin = {
               const number = typeof hints.workOrder === 'string' ? hints.workOrder : reference === 'work orders' ? 'plural' : 'singular';
               return `$t(common:terms.clientWorkOrder, {"orgTermNumber":"${number}"})`;
             }
-            return /^(?:\{\{|\$t\(|<)/.test(part) ? part : applyOrgTerms(part, locale, terms, { englishReference: typeof english === 'string' ? english.replace(/<[^>]*>|\{\{[^}]*\}\}/g, '') : undefined, cursor, numberOverrides: hints, protect });
+            return /^(?:\{\{|\$t\(|<)/.test(part) ? part : applyOrgTerms(part, locale, terms, { englishReference: typeof english === 'string' ? english.replace(/<[^>]*>|\{\{[^}]*\}\}/g, '') : undefined, cursor, numberOverrides: hints, protect, namespace: resolved.usedNS });
           }).join('');
       }
       const result = original.call(this, value, keys, options, ...rest);

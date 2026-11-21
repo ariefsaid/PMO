@@ -5,6 +5,7 @@
 import * as crews from '@/src/lib/db/crews';
 import * as attendance from '@/src/lib/db/attendance';
 import * as attendanceRate from '@/src/lib/db/attendanceRate';
+import * as crewLoans from '@/src/lib/db/crewLoans';
 import { wrap } from './repositoryErrors';
 
 export type {
@@ -15,6 +16,7 @@ export type {
   AttendanceRowInput, AttendanceDayRow, AttendanceSource, AttendanceStatus, GenerateWeekResult, AwaitingWeekRow,
 } from '@/src/lib/db/attendance';
 export type { CrewAttendanceRateRow } from '@/src/lib/db/attendanceRate';
+export type { CrewLoanRow, CrewLoanInput } from '@/src/lib/db/crewLoans';
 export { STALE_VERSION_CODE } from '@/src/lib/db/crews';
 
 export const crewRepository = {
@@ -60,4 +62,14 @@ export const attendanceRateRepository = {
   target: () => wrap(() => attendanceRate.getAttendanceTarget()),
   setTarget: (value: number | null) => wrap(() => attendanceRate.setAttendanceTarget(value)),
   byCrew: (from: string, to: string) => wrap(() => attendanceRate.listAttendanceRateByCrew(from, to)),
+};
+
+/** Crew loans (#2704) and the setting that shows them. */
+export const crewLoanRepository = {
+  enabled: () => wrap(() => crewLoans.getCrewLoansEnabled()),
+  setEnabled: (enabled: boolean) => wrap(() => crewLoans.setCrewLoansEnabled(enabled)),
+  list: () => wrap(() => crewLoans.listAllCrewLoans()),
+  create: (input: crewLoans.CrewLoanInput) => wrap(() => crewLoans.createCrewLoan(input)),
+  correct: (id: string, version: number, patch: Pick<crewLoans.CrewLoanInput, 'valid_from' | 'valid_to'>) =>
+    wrap(() => crewLoans.correctCrewLoan(id, version, patch)),
 };

@@ -13,6 +13,7 @@
  * 2-col → 1-col; the side slot is `lg:sticky` (static on mobile). Single DOM branch per
  * breakpoint — no dual a11y tree. Token-pure (DESIGN.md §6).
  */
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, StatTiles, type StatTile } from '@/src/components/ui';
@@ -62,6 +63,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
   currency,
 }) => {
   const { t } = useTranslation('procurement');
+  const maySeePrices = useMaySeePrices(); // #2699
   return (
   <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
     {/* ── ov-main (left 2/3) ─────────────────────────────────────────────── */}
@@ -71,7 +73,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
       <StatTiles tiles={tiles} columns={2} variant="bare" className="mb-4" />
 
       {/* Budget signal — renders only when project_id is set (no empty card). */}
-      <DecisionSupportPanel
+      {maySeePrices && <DecisionSupportPanel
         projectId={projectId}
         totalValue={totalValue}
         projectName={projectName ?? null}
@@ -79,7 +81,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
         projectStatus={projectStatus}
         status={status}
         currency={currency}
-      />
+      />}
 
       {/* Detail <dl> — the Field grammar (overline dt + dd). 2-col on desktop,
           1-col below the rail-collapse breakpoint. */}

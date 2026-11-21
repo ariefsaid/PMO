@@ -16,6 +16,8 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `clickup_webhook_inbox` | purge, 30 days, processed (done) rows only (`clickup-webhook-inbox-purge`, 0565) |
 | `alert_send_log` | purge, 90 days (`alert-send-log-purge`, 0565) |
 | `notifications` | purge, 180 days, read ones only (`notifications-purge`, 0565) |
+| `email_outbox` | keep: delivery record, one row per emailed notification; removed with its notification (`notifications-purge`) |
+| `scheduled_report_runs` | purge, 90 days (`scheduled-report-tick`, 1227); finished scheduled-report `email_outbox` rows follow the same 90 days |
 | `agent_runs` | keep: owner decision pending (#1755) |
 | `agent_events` | keep: owner decision pending (#1755) |
 | `agent_usage` | keep: owner decision pending (#1755); proposal 13 months for billing |
@@ -50,6 +52,8 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `notifications-purge` | keep: purge job, stores no rows |
 | `agent-dispatch-tick` | keep: trigger only, stores no rows |
 | `telegram-notify-tick` | keep: trigger only, stores no rows |
+| `email-notify-tick` | keep: trigger only, stores no rows |
+| `scheduled-report-tick` | keep: queues scheduled reports and purges its own 90-day-old rows (1227) |
 | `clickup-sweep-tick` | keep: trigger only, stores no rows |
 | `clickup-webhook-worker-tick` | keep: trigger only, stores no rows |
 | `erpnext-sweep-tick` | keep: trigger only, stores no rows |

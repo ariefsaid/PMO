@@ -624,6 +624,20 @@
       "fallbackHint": "Receipts without their own account post to the default."
     },
     "users": {
+      "builtIn": {
+        "tier": {
+          "manager": "Managers",
+          "officer": "Officers",
+          "field": "Field"
+        },
+        "none": "No built-in role (access level only)",
+        "label": "Built-in role",
+        "helper": "A built-in role starts from one access level and sets what this person sees and does for their job.",
+        "baseLevel": "Access level: {{level}} (set by the built-in role)"
+      },
+      "roleConfirm": {
+        "clearTitle": "Remove {{name}}'s built-in role?"
+      },
       "pager": {
         "label": "Pages",
         "range": "{{from}}–{{to}} of {{total}}",
@@ -679,23 +693,45 @@
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
     },
     "siteReportLists": {
-          "title": "Site report lists",
-          "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",
-          "idle": "Idle reasons",
-          "weather": "Weather conditions",
-          "add": "Add",
-          "addLabel": "New {{list}} entry",
-          "rename": "Rename",
-          "renameFor": "Name for {{name}}",
-          "save": "Save",
-          "cancel": "Cancel",
-          "archive": "Archive",
-          "restore": "Restore",
-          "archived": "Archived",
-          "empty": "Nothing listed yet",
-          "loadError": "Couldn't load the list",
-          "saved": "List saved",
-          "duplicate": "That name is already in the list"
+      "title": "Site report lists",
+      "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",
+      "idle": "Idle reasons",
+      "weather": "Weather conditions",
+      "add": "Add",
+      "addLabel": "New {{list}} entry",
+      "rename": "Rename",
+      "renameFor": "Name for {{name}}",
+      "save": "Save",
+      "cancel": "Cancel",
+      "archive": "Archive",
+      "restore": "Restore",
+      "archived": "Archived",
+      "empty": "Nothing listed yet",
+      "loadError": "Couldn't load the list",
+      "saved": "List saved",
+      "duplicate": "That name is already in the list"
+    },
+    "builtInRoles": {
+      "title": "Built-in roles",
+      "loadError": "Couldn't load the built-in roles setting",
+      "saved": "Built-in roles setting saved",
+      "helper": "Offer 28 roles across the functions of a contractor, in three levels. Each starts from one of the five access levels, so turning this on changes nothing until someone is given a role. People already given a role keep it if you turn this off.",
+      "on": "On",
+      "off": "Off",
+      "adminOnly": "Only an Admin can change this.",
+      "turnOn": "Turn on built-in roles",
+      "turnOff": "Turn off built-in roles"
+    },
+    "hidePrices": {
+      "title": "Hide prices from requesters",
+      "loadError": "Couldn't load the hide prices setting",
+      "saved": "Hide prices setting saved",
+      "helper": "Hide unit prices and amounts from people who only request items: field and officer roles outside purchasing and finance, and Engineers without a built-in role. Quantities and statuses stay visible. Everyone else sees prices as before.",
+      "on": "On",
+      "off": "Off",
+      "adminOnly": "Only an Admin can change this.",
+      "turnOn": "Hide prices from requesters",
+      "turnOff": "Show prices to requesters again"
     },
     "fiscalYear": {
       "title": "Fiscal year",
@@ -720,6 +756,13 @@
       "saved": "Attendance target saved",
       "title": "Attendance target",
       "turnOff": "Turn off"
+      },
+    "crewLoans": {
+      "title": "Crew loans",
+      "label": "Allow lending workers between crews",
+      "helper": "A lent worker follows the host crew on its roster and attendance for the loan period. Off, the Crews page shows no loans.",
+      "loadError": "Couldn't load the crew loans setting",
+      "adminOnly": "Only an Admin can change this."
     }
   },
   "exchangeRates": {
@@ -823,6 +866,13 @@
     "all": "All",
     "formerEmpty": "No former staff. People you archive appear here.",
     "navLabel": "People"
+  },
+  "roleNames": {
+    "title": "Role names",
+    "intro": "Rename the built-in roles to match your organisation. Only the displayed name changes; what each role can do stays the same.",
+    "name": "Name",
+    "saved": "Role name saved",
+    "resetDone": "Back to the default name"
   },
   "terminology": {
     "default": "Default",
@@ -1015,5 +1065,87 @@
     "saved": "Settings saved",
     "groupSaved": "Department group saved",
     "groupDeleted": "Department group deleted"
+    },
+  "clearance": {
+    "items": {
+      "errName": "Enter the item name",
+      "saved": "Item saved",
+      "dupName": "An item with that name already exists",
+      "editTitle": "Edit item",
+      "addTitle": "Add item",
+      "save": "Save item",
+      "name": "Item name",
+      "required": "Required to be cleared",
+      "heading": "Checklist items",
+      "add": "Add item",
+      "loadError": "Couldn’t load the checklist items",
+      "emptyTitle": "No checklist items yet",
+      "emptySub": "List what a person needs before going to site. An Admin adds each item once; every person then gets the same checklist.",
+      "requiredTag": "Required",
+      "optionalTag": "Optional",
+      "edit": "Edit",
+      "archive": "Archive",
+      "archiveTitle": "Archive this item?",
+      "archiveBody": "It leaves every checklist and no longer counts toward being cleared. Dates already recorded are kept.",
+      "archived": "Item archived",
+      "editLabel": "Edit {{name}}",
+      "archiveLabel": "Archive {{name}}"
+    },
+    "cancel": "Cancel",
+    "people": {
+      "heading": "Who is cleared",
+      "loadError": "Couldn’t load the people",
+      "emptyTitle": "No people in the register",
+      "emptySub": "Add people under People first; then their checklist appears here.",
+      "progress": "{{done}} of {{total}} required"
+    },
+    "cleared": "Cleared",
+    "notCleared": "Not cleared",
+    "setting": {
+      "loadError": "Couldn’t load this setting",
+      "heading": "Cleared-for-site checklist",
+      "label": "Track who is cleared to go to site",
+      "help": "Adds a Clearance section where you list what each person needs and record when it is done. Nothing else changes.",
+      "onlyAdmin": "Only an Admin can change this."
+    },
+    "off": {
+      "title": "The clearance checklist is not turned on",
+      "sub": "An Admin can turn it on under People."
+    },
+    "person": {
+      "errDone": "Enter the date it was done",
+      "errExpiry": "The expiry date cannot be before the date done",
+      "saved": "Saved",
+      "save": "Save",
+      "doneOn": "Date done",
+      "expiresOn": "Expires on (optional)",
+      "note": "Note (optional)",
+      "noteHelp": "Keep it short. Do not record medical detail here.",
+      "loadError": "Couldn’t load this checklist",
+      "notFound": "This person was not found",
+      "notFoundSub": "They may have been archived, or you may not have access.",
+      "back": "Back to Clearance",
+      "heading": "Cleared-for-site checklist",
+      "emptyTitle": "No checklist items yet",
+      "emptySub": "An Admin lists what a person needs under Clearance; the items then appear here.",
+      "doneLine": "Done {{date}}",
+      "expiresLine": "Expires {{date}}",
+      "edit": "Edit",
+      "record": "Record",
+      "remove": "Remove",
+      "removeTitle": "Remove this date?",
+      "removeBody": "The item goes back to not done for this person.",
+      "removed": "Date removed",
+      "link": "Cleared-for-site checklist",
+      "editLabel": "{{action}} {{name}}",
+      "removeLabel": "Remove {{name}}"
+    },
+    "state": {
+      "done": "Done",
+      "expiring": "Expiring soon",
+      "expired": "Expired",
+      "missing": "Not done"
+    },
+    "navLabel": "Clearance"
   }
 }

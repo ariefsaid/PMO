@@ -1,6 +1,11 @@
 /** Organisation terminology (#2529): rewrite shipped app copy using the active org's terms. */
 
-export const TERM_KEYS = ['workOrder', 'project', 'clientSuppliedStock', 'purchaseRequest', 'discipline', 'materialRequest', 'deliveryNote'] as const;
+export const TERM_KEYS = [
+  'workOrder', 'project', 'clientSuppliedStock', 'purchaseRequest', 'discipline', 'materialRequest',
+  // #2712 expansion
+  'billOfQuantities', 'contractItem', 'dailyRevenue', 'acceptedQuantity', 'costVariation', 'deliveryNote',
+  'stockCount', 'imprest', 'standIn', 'progressClaim',
+] as const;
 export type TermKey = (typeof TERM_KEYS)[number];
 export const TERM_LOCALES = ['en', 'id'] as const;
 export type TermLocale = (typeof TERM_LOCALES)[number];
@@ -21,7 +26,16 @@ export const SHIPPED_FORMS: Record<TermLocale, Record<TermKey, { singular: strin
     purchaseRequest: { singular: ['purchase request'], plural: ['purchase requests'] },
     discipline: { singular: ['discipline'], plural: ['disciplines'] },
     materialRequest: { singular: ['material request'], plural: ['material requests'] },
+    billOfQuantities: { singular: ['bill of quantities'], plural: ['bill of quantities'] },
+    contractItem: { singular: ['contract item'], plural: ['contract items'] },
+    dailyRevenue: { singular: ['day revenue'], plural: ['day revenue'] },
+    acceptedQuantity: { singular: ['accepted quantity'], plural: ['accepted quantities'] },
+    costVariation: { singular: ['cost variation'], plural: ['cost variations'] },
     deliveryNote: { singular: ['delivery note'], plural: ['delivery notes'] },
+    stockCount: { singular: ['stock count'], plural: ['stock counts'] },
+    imprest: { singular: ['imprest'], plural: ['imprests'] },
+    standIn: { singular: ['stand-in'], plural: ['stand-ins'] },
+    progressClaim: { singular: ['progress claim'], plural: ['progress claims'] },
   },
   id: {
     workOrder: { singular: ['work order', 'SPK', 'Work Order / SPK'], plural: ['work order', 'SPK', 'Work Order / SPK'] },
@@ -30,8 +44,26 @@ export const SHIPPED_FORMS: Record<TermLocale, Record<TermKey, { singular: strin
     purchaseRequest: { singular: ['permintaan pembelian'], plural: ['permintaan pembelian'] },
     discipline: { singular: ['disiplin'], plural: ['disiplin'] },
     materialRequest: { singular: ['permintaan material'], plural: ['permintaan material'] },
+    billOfQuantities: { singular: ['bill of quantities', 'daftar kuantitas'], plural: ['bill of quantities', 'daftar kuantitas'] },
+    contractItem: { singular: ['item kontrak'], plural: ['item kontrak'] },
+    dailyRevenue: { singular: ['pendapatan hari itu'], plural: ['pendapatan hari itu'] },
+    acceptedQuantity: { singular: ['kuantitas yang diterima', 'kuantitas diterima'], plural: ['kuantitas yang diterima', 'kuantitas diterima'] },
+    costVariation: { singular: ['variasi biaya'], plural: ['variasi biaya'] },
     deliveryNote: { singular: ['surat jalan', 'nota pengiriman'], plural: ['surat jalan', 'nota pengiriman'] },
+    stockCount: { singular: ['stok opname'], plural: ['stok opname'] },
+    imprest: { singular: ['kas lapangan'], plural: ['kas lapangan'] },
+    standIn: { singular: ['pengganti'], plural: ['pengganti'] },
+    progressClaim: { singular: ['klaim progres'], plural: ['klaim progres'] },
   },
+};
+
+/**
+ * Terms whose shipped word also appears in unrelated sentences (Bahasa "pengganti" = any replacement) are
+ * rewritten only in these i18next namespaces. Text built outside i18next (no namespace) is never rewritten
+ * for a scoped term. Terms absent here apply everywhere.
+ */
+export const TERM_SCOPE: Partial<Record<TermKey, readonly string[]>> = {
+  standIn: ['materialRequests'],
 };
 
 /** Human-readable shipped name per term, for the settings screen's defaults. */
@@ -69,10 +101,12 @@ export interface TermRenderContext {
   cursor?: Partial<Record<TermKey, number>>;
   numberOverrides?: TermNumberHints;
   protect?: (value: string) => string;
+  /** The i18next namespace the text came from; scoped terms (TERM_SCOPE) apply only inside their namespaces. */
+  namespace?: string;
 }
 
 export function applyOrgTerms(text: string, locale: string, terms: OrgTerms, context: TermRenderContext = {}): string {
-  const { englishReference, cursor = {}, numberOverrides = {}, protect = (value: string) => value } = context;
+  const { englishReference, cursor = {}, numberOverrides = {}, protect = (value: string) => value, namespace } = context;
   if (!text) return text;
   const loc: TermLocale = locale.startsWith('id') ? 'id' : 'en';
   const overrides = terms[loc];
@@ -80,6 +114,8 @@ export function applyOrgTerms(text: string, locale: string, terms: OrgTerms, con
   const replacements = new Map<string, { key: TermKey; number: 'singular' | 'plural' }>();
   for (const key of TERM_KEYS) {
     if (!overrides[key]) continue;
+    const scope = TERM_SCOPE[key];
+    if (scope && (!namespace || !scope.includes(namespace))) continue;
     const shipped = SHIPPED_FORMS[loc][key];
     for (const number of ['plural', 'singular'] as const) {
       for (const form of shipped[number]) {

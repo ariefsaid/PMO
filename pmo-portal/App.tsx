@@ -58,6 +58,8 @@ import { AccessDenied, ToastProvider, TOOLTIP_OPEN_DELAY_MS } from '@/src/compon
 import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 import { EnvBadge } from '@/src/components/EnvBadge';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
+import { isLightAccount } from '@/src/auth/lightAccount';
+import { LightShell } from '@/src/components/shell/LightShell';
 import { DocumentViewerProvider } from '@/src/components/documents';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { useFeature } from '@/src/auth/useFeature';
@@ -83,6 +85,7 @@ import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { AccountMenu } from '@/src/components/shell/AccountMenu';
+import { usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
 
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
@@ -116,6 +119,7 @@ const SiteReportDetailPage = lazyWithPreload(() => import('./pages/siteReports/S
 const QuantityChangesPage = lazyWithPreload(() => import('./pages/quantityChanges/QuantityChanges'));
 const QuantityChangeDetailPage = lazyWithPreload(() => import('./pages/quantityChanges/QuantityChangeDetail'));
 const CrewsPage = lazyWithPreload(() => import('./pages/crews/Crews'));
+const LeaveRequestsPage = lazyWithPreload(() => import('./pages/leave/LeaveRequests'));
 const SubcontractCertificatesPage = lazyWithPreload(() => import('./pages/subcontractCertificates/SubcontractCertificates'));
 const SubcontractCertificateDetailPage = lazyWithPreload(() => import('./pages/subcontractCertificates/SubcontractCertificateDetail'));
 const ApprovalsPage = lazyWithPreload(() => import('./pages/Approvals'));
@@ -128,6 +132,7 @@ const IncidentsPage = lazyWithPreload(() => import('./pages/Incidents'));
 const ClosingTimeReportPage = lazyWithPreload(() => import('./pages/incidents/ClosingTimeReport'));
 const IncidentDetailPage = lazyWithPreload(() => import('./pages/IncidentDetail'));
 const AdministrationPage = lazyWithPreload(() => import('./pages/Administration'));
+const PersonClearancePage = lazyWithPreload(() => import('./pages/admin/PersonClearance'));
 const IntegrationsPage = lazyWithPreload(() => import('./pages/Integrations'));
 const MyTasksPage = lazyWithPreload(() => import('./pages/MyTasks'));
 const CalendarPage = lazyWithPreload(() => import('./pages/Calendar'));
@@ -277,8 +282,10 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/crews', chunks: [CrewsPage], namespaces: ['crews', 'crewTools'] },
   { path: '/subcontract-certificates', chunks: [SubcontractCertificatesPage], namespaces: ['subcontractCertificates'] },
   { path: '/subcontract-certificates/:certificateId', chunks: [SubcontractCertificateDetailPage], namespaces: ['subcontractCertificates'] },
+  { path: '/leave', chunks: [LeaveRequestsPage], namespaces: ['crews'] },
   { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/administration/clearance/:personId', chunks: [PersonClearancePage], namespaces: ['administration'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
   { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
   { path: '/finance', chunks: [FinanceHubPage], namespaces: ['finance', 'financeHub'] },
@@ -506,6 +513,8 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/quantity-changes/:requestId', element: <QuantityChangeDetailPage /> },
   // #2528: crews, the roster per work order and the daily attendance tick.
   { path: '/crews', element: <CrewsPage /> },
+  // #2708: leave and sick requests; the rail entry appears only where the organisation switched them on.
+  { path: '/leave', element: <LeaveRequestsPage /> },
   // #2584: subcontractor progress certificates and the subcontractor rate card (gated by the procurement plan switch).
   { path: '/subcontract-certificates', element: gated('procurement', <SubcontractCertificatesPage />) },
   { path: '/subcontract-certificates/:certificateId', element: gated('procurement', <SubcontractCertificateDetailPage />) },
@@ -514,6 +523,8 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
   { path: '/administration/people', element: <AdministrationPage /> },
+  { path: '/administration/clearance', element: <AdministrationPage /> },
+  { path: '/administration/clearance/:personId', element: <PersonClearancePage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },
   { path: '/administration/accounting', element: <AdministrationPage /> },
   { path: '/administration/projects', element: <AdministrationPage /> },
@@ -585,6 +596,7 @@ export const ShellChrome: React.FC = () => {
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
+  usePriceVisibilitySync();
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
 
   // #1834: route entry fires the route's — and its late in-page chunks' —
@@ -953,6 +965,15 @@ const Shell: React.FC = () => {
   );
 };
 
+/**
+ * #2710: a light account (Foreman, Field user) gets its one phone home screen instead of the full shell. Everyone else renders the
+ * same `Shell` as before. The database enforces the limit; this only chooses the surface.
+ */
+const ShellGate: React.FC = () => {
+  const { currentUser } = useAuth();
+  return isLightAccount(currentUser) ? <LightShell /> : <Shell />;
+};
+
 // ── Router (data router — enables router-level Back/Forward blocking) ──────
 /**
  * The application's router, as DATA (#1525). `createBrowserRouter` replaces the plain
@@ -986,7 +1007,7 @@ export const createAppRouter = (): DataRouter => createBrowserRouter([
               // #728: Supabase's OAuth server sends the browser here to approve an outside
               // client (the PMO CLI). Signed-in only, but outside the app shell.
               { path: '/oauth/consent', element: <OAuthConsentPage /> },
-              { path: '/*', element: <Shell /> },
+              { path: '/*', element: <ShellGate /> },
             ],
           },
         ],

@@ -5,6 +5,7 @@ import {
   useMoneyInputMask,
   type Column,
 } from '@/src/components/ui';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import {
   currencySymbol, formatCurrency, formatCurrencyCents, formatMoneyInputValue, moneyInputErrorKind, numberSymbols, parseMoneyInputAtScale,
@@ -81,6 +82,7 @@ type LineTableRow =
 
 export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineItemsSectionProps>(function LineItemsSection({ items, editable, createFormLayout = false, onAddRowInputChange, addRowDescriptionRef, valuesEditable = true, initialDraft, onAdd, onUpdate, onDelete, onError, busy, currency, currencyKnown = true, erpItems }, ref) {
   const { t } = useTranslation('procurement');
+  const maySeePrices = useMaySeePrices(); // #2699: false only when the server says this person may not see amounts
   const isDesktop = useIsDesktop();
   const [draft, setDraft] = useState<ItemDraft>(() => ({ ...EMPTY_DRAFT, ...initialDraft }));
   const draftRef = useRef(draft);
@@ -275,14 +277,14 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
       const it = row.item;
       return editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : currencyKnown ? formatCurrency(Number(it.rate), currency) : unknownAmount;
     } },
-    { key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: createFormLayout ? 146 : 150, cell: (row) => {
+    ...(!maySeePrices ? [] : [{ key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: createFormLayout ? 146 : 150, cell: (row) => {
       if (row.kind === 'add') return <span data-add-cell aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular inline-flex h-[var(--control-height)] items-center text-muted-foreground">{addLineAmountLabel}</span>;
       const it = row.item;
       const amount = editable && editingId === it.id
         ? itemsNetTotal([{ quantity: parseMoneyInputAtScale(editDraft.quantity, 2), rate: parseMoneyInputAtScale(editDraft.rate, 2) }])
         : itemsNetTotal([{ quantity: it.quantity, rate: it.rate }]);
       return <span className="font-medium">{amount === null ? '—' : !currencyKnown ? unknownAmount : formatCurrency(amount, currency)}</span>;
-    } },
+    } }] as Column<LineTableRow>[]),
   ];
   if (editable) columns.push({ key: 'actions', header: createFormLayout ? <span className="sr-only">{t('lineItems.rowActions', 'Row actions')}</span> : t('lineItems.rowActions', 'Row actions'), kind: 'actions', size: createFormLayout ? 120 : 150, cell: (row) => {
     if (row.kind === 'add') return <div className="flex flex-col gap-1" data-add-cell><div className="flex h-[var(--control-height)] items-center"><Button size="sm" variant="outline" aria-label={t('lineItems.addLineItem', 'Add line item')} disabled={!draft.name.trim()} loading={busy} onClick={() => void submitAdd()}><Icon name="plus" />{t('lineItems.add', 'Add')}</Button></div>{addMutationError && <p role="alert" className="text-sm text-destructive-text">{addMutationError.headline}. {addMutationError.detail}</p>}</div>;
@@ -312,9 +314,9 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     <CardHead className={createFormLayout && isDesktop ? 'px-[var(--table-cell-inset)]!' : undefined}>{t('lineItems.heading', 'Line items')}{!createFormLayout && <span className="ml-2 text-sm font-normal text-muted-foreground">{t('lineItems.formula', 'qty × unit price → line total')}</span>}</CardHead>
     <DataTable embedded rows={tableRows} columns={columns} rowKey={(row) => row.id} tableId="procurement-line-items" accessibleName={t('lineItems.heading', 'Line items')}
       state={items.length === 0 && !addRowInTable ? 'empty' : undefined} emptyTitle={editable ? t('lineItems.emptyEditable', 'No line items yet. Add one below.') : t('lineItems.empty', 'No line items yet.')}
-      totals={isDesktop ? [{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }] : undefined}
+      totals={isDesktop && maySeePrices ? [{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }] : undefined}
       mobileCardDetails={mobileCardDetails} />
-    {!isDesktop && <div role="group" aria-label={t('lineItems.estimatedTotal', 'Estimated total')} className="flex min-h-[var(--table-row-min-height)] items-center justify-between border-t-[1.5px] border-border bg-secondary/40 px-[var(--table-cell-inset)] py-3 text-control font-semibold tabular">
+    {!isDesktop && maySeePrices && <div role="group" aria-label={t('lineItems.estimatedTotal', 'Estimated total')} className="flex min-h-[var(--table-row-min-height)] items-center justify-between border-t-[1.5px] border-border bg-secondary/40 px-[var(--table-cell-inset)] py-3 text-control font-semibold tabular">
       <span className="text-muted-foreground">{t('lineItems.estimatedTotal', 'Estimated total')}</span>
       <span className="text-right">{estimatedTotalValue}</span>
     </div>}

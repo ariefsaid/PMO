@@ -59,8 +59,9 @@ select is(
   -- changes nothing about them. Any column NOT in this list — an ERP-driven one included — still
   -- fails this assertion, which is the AC's goal. The list is the oracle; growing it deliberately is
   -- not the same as loosening it, and a `like`/count check would have been the weakening.
-  'avatar_url,company_id,created_at,email,full_name,id,locale,location,manager_id,number_locale,org_id,role,skills,status,timezone,title,updated_at,utilization',
-  'AC-TSP-004: profiles column set unchanged on a flipped org (0198 preference columns included)');
+  -- #2709 built-in role column: a local access-level key (nothing reads external_domain_ownership), so the flip stays inert.
+  'avatar_url,built_in_role,company_id,created_at,email,full_name,id,locale,location,manager_id,number_locale,org_id,role,skills,status,timezone,title,updated_at,utilization',
+  'AC-TSP-004: profiles column set unchanged on a flipped org (0198 preference columns, #2709 built-in role column included)');
 
 select is(
   (select string_agg(policyname, ',' order by policyname)

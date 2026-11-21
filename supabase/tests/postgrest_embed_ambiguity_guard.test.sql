@@ -226,7 +226,17 @@ select set_eq(
             -- 0997 (#2519): work_order_plan_lines carries created_by AND updated_by -> profiles. CHECKED BEFORE ADDING:
             -- the only DAL read (workOrderFinance.ts) selects plain columns, no profiles embed. Whatever ships first
             -- MUST qualify it with !constraint_name.
-            ('work_order_plan_lines -> profiles') $$,
+            ('work_order_plan_lines -> profiles'),
+            -- 1245 (#2704): crew_loans carries home_crew_id AND host_crew_id, both -> crews. CHECKED BEFORE ADDING: the DAL
+            -- (src/lib/db/crewLoans.ts) embeds no crews from it; whatever ships first MUST qualify it with !constraint_name.
+            ('crew_loans -> crews'),
+            -- 1211 (#2705): phone_check_ins carries requester_id AND decided_by, both -> profiles. CHECKED BEFORE ADDING: no DAL,
+            -- repository, edge-function or e2e code embeds profiles from it; whatever ships first MUST qualify it with !constraint_name.
+            ('phone_check_ins -> profiles'),
+            -- 1240 (#2708): leave_requests carries entered_by AND decided_by, both -> profiles. CHECKED BEFORE ADDING: the leave DAL
+            -- (src/lib/db/leave.ts) reads through the leave_requests_visible RPC and embeds nothing; whatever ships first MUST
+            -- qualify it with !constraint_name.
+            ('leave_requests -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

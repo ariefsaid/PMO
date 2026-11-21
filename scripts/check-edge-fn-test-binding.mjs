@@ -47,6 +47,7 @@ const REQUIRED = {
   'supabase/functions/erpnext-onboard/onboard.test.ts': 'handleOnboardRequest',
   'supabase/functions/erpnext-onboard/findRecordIds.test.ts': 'handleOnboardRequest',
   'supabase/functions/telegram-notify/index.test.ts': 'handleTelegramNotifyRequest',
+  'supabase/functions/email-notify/index.test.ts': 'handleEmailNotifyRequest',
   'supabase/functions/m365-token-custody/documentLinking.test.ts': 'handler',
   'supabase/functions/m365-token-custody/recordFolders.test.ts': 'handler',
   'supabase/functions/m365-token-custody/recordFolderWrite.test.ts': 'handler',

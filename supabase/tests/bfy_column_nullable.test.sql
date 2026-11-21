@@ -68,8 +68,9 @@ select policies_are('public', 'budget_version_erp_mirror',
   array['budget_version_erp_mirror_select'],
   'AC-BFY-017 (partial) the mirror stays MACHINE-ONLY — the witness columns add no write policy');
 select policies_are('public', 'budget_line_items',
-  array['budget_line_items_select', 'budget_line_items_write'],
-  'AC-BFY-017 (partial) budget_line_items'' policy set is unchanged — the new column inherits it');
+  array['budget_line_items_select', 'budget_line_items_write',
+        'light_account_deny_select', 'light_account_deny_insert', 'light_account_deny_update', 'light_account_deny_delete'],
+  'AC-BFY-017 (partial) budget_line_items'' policy set is unchanged apart from the light-account restrictive policies (1206/1229) — the new column inherits it');
 
 select finish();
 rollback;

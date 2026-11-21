@@ -3934,3 +3934,7 @@ pack's cost and billed are the project tab's own plan-versus-actual roll-up (com
 and the tab never disagree · a management view; statutory recognition and ledger posting are out.
 
 - **DD-NEF-1 (#2734, 2026-11-21) Statements with no accounting system.** "No accounting system" is derived (no externally-owned domain, no active binding, both reads settled; unknown fails closed to today's screen), never stored. Such an organisation sees a Management profit and loss card on Statements and the hub tile linking to Reports instead of "set up accounting"; Admin also gets a pointer to the Profit per discipline setting, whose default is unchanged. No ledger statements in PMO.
+
+### Design record: base levels of the 28 built-in roles (#2709, 2026-11-21)
+A record of the design as built, not a new owner ruling; the owner's scope ruling is OD-SCOPE-3.
+Managers sit at Project Manager rank or above (Finance Manager at Finance, Executive and Administrator at their own level); officers at Engineer, except Billing Officer and Finance Officer at Finance; Foreman and Field user at Engineer. Project Administrator is Engineer (requests, no approval). Deputy Project Manager is a manager; Site Supervisor an officer; medical documents are held by HR Manager, HR Officer and Administrator only. Assignment is gated by one organization setting, default off, enforced in the database. Full table: `docs/specs/builtin-role-set.spec.md` section 2.

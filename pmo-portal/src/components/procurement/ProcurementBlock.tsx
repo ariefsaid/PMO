@@ -42,6 +42,7 @@ import { formatQuantity } from '@/src/lib/stockFormat';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import { formatCurrency, formatDay, formatPercent, formatShortMoney } from '@/src/lib/format';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -285,7 +286,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     .filter((row) => !rowFilter || rowFilter(row))
     .sort(rowOrder ?? ((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())),
   [scopedRows, rowFilter, rowOrder]);
-  const canSeeMoney = may('view', 'procurement');
+  const maySeePrices = useMaySeePrices(); // #2699: false only when the server says this person may not see amounts
+  const canSeeMoney = may('view', 'procurement') && maySeePrices;
   const canApprove = may('transition', 'procurement');
   const canCreate = may('create', 'procurement');
   const canAttachDocument = may('create', 'procDoc');

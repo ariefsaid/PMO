@@ -44,6 +44,7 @@ export type Action =
   | 'confirm_employee_link'
   | 'upload'
   | 'withdraw'
+  | 'cancel'
   | 'post'
   | 'confirm'
   | 'resolve'
@@ -120,6 +121,7 @@ export type Entity =
   | 'integration'
   | 'orgAccounting'
   | 'orgFeedback'
+  | 'orgEmailNotifications'
   | 'costAttribution'
   | 'workOrderPlan'
   | 'workOrderSection'
@@ -176,6 +178,8 @@ export type Entity =
   | 'documentCategory'
   | 'documentType'
   | 'person'
+  | 'clearanceItem'
+  | 'personClearance'
   | 'maintenance'
   | 'tmRate'
   | 'tmClaim'
@@ -184,7 +188,8 @@ export type Entity =
   | 'attendance'
   | 'crewTool'
   | 'attendanceRate'
-  | 'attendanceTarget';
+  | 'attendanceTarget'
+  | 'leaveRequest';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -1000,6 +1005,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   documentCategory: { manage: allow(ADMIN) },
   // #1532 S9: the org's feedback-and-surveys switch. Mirrors admin_set_feedback_surveys (0419: active Admin). UX ONLY.
   orgFeedback: { manage: allow(ADMIN) },
+  // #2711: which events send email, the extra roles copied, the email language. Mirrors set_email_* (1223: active Admin). UX ONLY.
+  orgEmailNotifications: { manage: allow(ADMIN) },
   // #1271: cost attribution rules — mirrors save/end/preview_cost_attribution (0376: active Admin or Finance).
   // UX ONLY — the RPCs are the authority (ADR-0016).
   costAttribution: { manage: allow(COST_ATTRIBUTION_WRITE) },
@@ -1082,6 +1089,21 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    *                 approve (a no-login week) = a crew manager who recorded none of it (`record.recorder_ids`, the SoD
    *                 mirror of 0990). A login's week is approved on the timesheet, whose own gate applies.
    */
+  /**
+   * Leave and sick requests (#2708, migrations 1240-1243). UX ONLY — `leave_request_submit/decide/cancel` and
+   * `set_leave_settings` are the authority (ADR-0016); the FE may be stricter, never looser.
+   *   request / cancel ← every member; the database narrows to the person, their line manager or an office user.
+   *   decide           ← any role (the line manager can be any role); the screen also needs the database's `can_decide`
+   *                      for the row, which carries line manager, approver role and the self-decide refusal (LV_SOD).
+   *   manage           ← Admin: the on/off switch, the approver role and the leave type list (`set_leave_settings`).
+   *   A view-as session may do none of them.
+   */
+  leaveRequest: {
+    request: allowUnlessViewOnly(ALL),
+    cancel: allowUnlessViewOnly(ALL),
+    decide: allowUnlessViewOnly(ALL),
+    manage: allowUnlessViewOnly(ADMIN),
+  },
   crew: { view: allow(ALL), create: allowUnlessViewOnly(DELIVERY), manage: allowUnlessViewOnly(DELIVERY) },
   attendance: {
     create: (role, ctx) => ctx.record?.viewOnly !== true && (
@@ -1148,6 +1170,18 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allowUnlessViewOnly(['Admin', 'Project Manager']),
     edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
     archive: allowUnlessViewOnly(ADMIN),
+  },
+  /**
+   * Cleared-for-site checklist (#2707, migrations 1235-1237). UX ONLY — RLS is the authority (ADR-0016). Admin defines the items and
+   * switches the feature on; Admin and Project Manager record a person's state; Finance and Executive read. View-as is view-only.
+   */
+  clearanceItem: {
+    view: allow(['Admin', 'Project Manager', 'Finance', 'Executive']),
+    manage: allowUnlessViewOnly(ADMIN),
+  },
+  personClearance: {
+    view: allow(['Admin', 'Project Manager', 'Finance', 'Executive']),
+    edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
   },
   maintenance: {
     view: allow(ALL),

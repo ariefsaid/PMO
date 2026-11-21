@@ -8,6 +8,9 @@ import { CrewList } from './CrewList';
 import { WorkOrderRoster } from './WorkOrderRoster';
 import { AttendanceTick } from './AttendanceTick';
 import { CrewImports } from './CrewImports';
+import { CrewLoans } from './CrewLoans';
+import { CheckInRequests } from './CheckInRequests';
+import { CheckInSettings } from './CheckInSettings';
 import { CrewTools } from './CrewTools';
 import AttendanceRate from './AttendanceRate';
 
@@ -47,11 +50,13 @@ const CrewsPage: React.FC = () => {
         ? <Button variant="primary" onClick={() => { setFilter('view', ''); setCreating(true); }}><Icon name="plus" />{t('crews:new', 'New crew')}</Button>
         : undefined}
     >
+      <CheckInRequests />
       <Tabs items={tabs} value={view} onChange={(v) => setFilter('view', v === 'crews' ? '' : v)}
         ariaLabel={t('crews:tabsLabel', 'Crew views')} idBase="crews" className="mb-4" />
       <div id={tabPanelId('crews', view)} role="tabpanel" aria-labelledby={tabId('crews', view)}>
         {view === 'crews' && <CrewList creating={creating} onCreate={() => setCreating(true)} onCloseCreate={() => setCreating(false)} />}
-        {view === 'roster' && <WorkOrderRoster />}
+        {view === 'crews' && <CrewLoans />}
+        {view === 'roster' && <><WorkOrderRoster /><CheckInSettings /></>}
         {view === 'attendance' && <AttendanceTick />}
         {view === 'tools' && <CrewTools />}
         {view === 'rate' && <AttendanceRate />}

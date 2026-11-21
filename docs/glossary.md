@@ -272,6 +272,13 @@ in at most one crew on any day. A correction is versioned and audited and never 
 
 **Roster (crew)** — which crews serve a work order on which dates; a crew serves one work order on any day.
 
+**Crew loan** — a worker lent from their home crew to a host crew for an inclusive date range (#2704). On those days the
+worker is on the host crew's roster and not the home crew's, and attendance lands on the host crew's work order; hours
+already submitted or approved never move. A worker has at most one loan on any day.
+
+**Effective crew** — the crew a worker is in on a date: the host crew on a loan day, otherwise the crew they are placed in.
+One database function answers it, so the roster and attendance agree.
+
 **Field controller** — the user who records a crew's daily attendance; may not approve the hours they recorded.
 
 **Attendance record** — one person's attendance for one day on one work order (present, absent, leave or off
@@ -1066,8 +1073,12 @@ The workforce register: anyone who holds expiring documents, whether or not they
 
 ## Organisation terminology
 **Term override** — an org Admin's replacement display name (singular and plural, per language) for one of
-six fixed terms: work order, project, client-supplied stock, purchase request, discipline, material request. It changes the
-wording shown, never the data or the code identifier. Generic terms are not overridable.
+sixteen fixed terms: work order, project, client-supplied stock, purchase request, discipline, material request, bill of quantities,
+contract item, day revenue, accepted quantity, cost variation, delivery note, stock count, imprest, stand-in, progress claim (#2712). It changes
+the wording shown, never the data or the code identifier. Generic terms are not overridable. A term whose word is ordinary language elsewhere
+(stand-in) is rewritten only inside its own screens' namespaces.
+**Role name override** — an org Admin's own display name, per language, for one of the 28 built-in roles (#2712). Display only: the role key,
+access level and stored data never change; with none, the catalogue default name shows.
 **Usage standard** — an organisation rule of how much of a consumable stock item one unit of planned work uses (for example welding rod per dia-inch), matched on the contract line's unit, with an optional code prefix and a waste margin (#2577).
 
 **Consumable plan** — a work order's stored list of consumable quantities, generated from its work-order lines and the usage standards and adjustable with a reason; material requests are checked against it before the contract allowances (#2577).
@@ -1125,6 +1136,46 @@ manager accepts or rejects it, with the reason recorded.
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
 
+**Built-in role** — one of 28 stable roles (key such as `storekeeper`) in three tiers, offered once an organization turns the set on. Each starts from exactly one **base access level** and adds only the narrower rules listed for it as **role capabilities**. A person with no built-in role behaves exactly as before. Names are defaults a client may rename. (#2709, `docs/specs/builtin-role-set.spec.md`.)
+
+**Base access level** — one of today's five levels (Executive, Project Manager, Finance, Engineer, Admin) that every existing rule reads from `profiles.role`. While a person holds a built-in role it is set to that role's base level and moves only with it.
+
+**Role tier** — manager, officer or field. Managers approve, officers prepare, field roles are light accounts; a manager stands in for a manager, never upward.
+
+**Role capability** — a narrow difference from the base level held by named built-in roles only (for example posting stock, validating a daily report, running billing stages). Other features read it through `actor_has_role_capability`.
+## Leave requests (#2708)
+
+**Leave request** — a request by or for a person to be away for an inclusive range of days, of a type from the organisation's own list.
+It is Pending until the person's line manager, or a user holding the organisation's approver role, approves or rejects it. Nobody
+decides a request they made, are the subject of, or entered, whatever their role.
+
+**Leave type** — an entry on the organisation's own list of reasons for being away (leave, sickness, and so on). PMO ships none.
+
+**Leave approver role** — the organisation setting naming which role decides leave requests besides the line manager; empty means Admin.
+
+**On leave (roster marker)** — a chip beside a rostered person who has approved leave on the day shown. It is information only and does
+not stop attendance being ticked.
+
+**Scheduled report** — an organisation-defined record that emails a report of one kind to a list of people and roles on a daily or weekly
+schedule, at a local send time in the organisation's timezone. Nothing exists until an Admin creates one.
+
+**Report kind** — one of a small fixed set of generic reports a scheduled report can send: the daily progress summary (from the day's site
+reports) and overdue tasks. The body is computed per recipient, so a figure the recipient's role may not see is left out.
+
+**Light account** — a person whose built-in role is Foreman or Field user. One phone home screen (own tasks, clock-in at work orders they are rostered on, deliveries addressed to them, issues they reported; the Foreman also ticks their own crew). No project page, work-order page, list, dashboard, price or budget. The database confines it with restrictive row policies; the organization sets nothing beyond who holds the role. (#2710, `docs/specs/light-accounts.spec.md`.)
+
+**Seat type** — `light` (a light account) or `full` (everyone else), derived from the built-in role. Seat reports split the two; price and counts stay the owner's.
+
+**Hide prices setting** — the organisation setting (`hide_prices_from_requesters`, default off) that hides unit prices and amounts from a **requester**. While off, nothing changes for anyone. (#2699.)
+
+**Requester (price visibility)** — a person with no purchasing or finance authority: a built-in officer or field role without price right (every one except Buyer, Finance Officer, Billing Officer), or a legacy Engineer who holds no built-in role. Judged per person on the real signed-in role, not per request and never on the view-as role. Prices read as empty for them through the masked views. (#2699.)
+**Work-order area** — an optional point (latitude, longitude) and radius in metres on a work order. Where it is set, a phone check-in
+reads the person's position once and the database decides inside or outside; where it is empty no location is asked.
+
+**Check-in request** — a phone check-in that did not become attendance by itself (outside the area, not on the roster that day,
+or no position). It waits for the check-in supervisor, who approves (attendance is recorded) or rejects with a reason; the person
+who checked in never decides their own. The supervisor is the organisation's configured built-in role, or by default the crew's
+field controller or a crew manager.
 ## Work-order sections (#2576)
 **Section** — an optional child of one work order: a place or scope with a code (unique per work order, reserved for its life), a name, an optional note and foreman, a held readiness and a sort order. It carries no value, invoice, acceptance or status of its own, and is neither a discipline (the organisation-wide cost list) nor a work-order line (a contract quantity). The organisation's word for it is the shared term `terms.section` ("Section" / "Bagian"); no screen spells it. Not the record page's layout regions, which are *panels*.
 **Unsectioned remainder** — the records of a work order that name no section; shown as "Not in a section". A work order with no section has none and reads exactly as before.
