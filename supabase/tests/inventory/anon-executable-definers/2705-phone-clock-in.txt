@@ -1,0 +1,7 @@
+# #2705 phone clock-in: client-callable SECURITY DEFINER names (authenticated only; anon revoked in 1210-1213).
+get_phone_check_in_supervisor_role  # 1210: active member read of the caller org's setting
+set_phone_check_in_supervisor_role  # 1210: active Admin of the caller org
+phone_check_in_is_supervisor  # 1211: the caller's own supervisor flag, used by the position read policy
+phone_check_in  # 1212: the caller's own check-in; light accounts may call it
+phone_check_in_decide  # 1213: eligible non-requester, not a light account; decides once
+phone_check_in_requests  # 1213: pending requests the caller may decide

@@ -226,5 +226,32 @@
     "typeName": "Jenis baru",
     "typesHeading": "Jenis cuti",
     "waiting": "Menunggu keputusan Anda ({{count}})"
+  },
+  "checkIn": {
+    "requestsTitle": "Absen menunggu Anda",
+    "requestsHelper": "Orang-orang ini absen dari ponsel di luar area kerja, di luar jadwal, atau tanpa posisi. Menyetujui akan mencatat kehadiran mereka.",
+    "outcomeOutside": "Di luar area kerja",
+    "outcomeNotRostered": "Tidak terdaftar hari ini",
+    "outcomeNoPosition": "Tanpa posisi",
+    "distance": "{{metres}} m dari area",
+    "hours": "{{hours}} jam",
+    "approve": "Setujui",
+    "reject": "Tolak",
+    "rejectSubject": "absen",
+    "approvedToast": "Absen disetujui",
+    "rejectedToast": "Absen ditolak",
+    "decideFailed": "Keputusan tidak dapat disimpan",
+    "areaTitle": "Area absen",
+    "areaHelper": "Orang absen dari ponsel di dalam area ini. Kosongkan agar absen tanpa meminta lokasi.",
+    "areaLat": "Lintang",
+    "areaLng": "Bujur",
+    "areaRadius": "Radius (meter)",
+    "areaSave": "Simpan area",
+    "areaClear": "Hapus area",
+    "areaSaved": "Area disimpan",
+    "areaInvalid": "Isi lintang -90 sampai 90, bujur -180 sampai 180, dan radius di atas 0",
+    "supervisorRole": "Siapa yang memutuskan absen di luar area",
+    "supervisorRoleDefault": "Pengendali lapangan kru atau pengelola kru",
+    "supervisorRoleHelper": "Pemegang peran ini yang memutuskan. Orang yang absen tidak pernah memutuskan absennya sendiri."
   }
 }

@@ -16,7 +16,17 @@
     "saved": "Sudah absen masuk",
     "action": "Absen masuk",
     "clockedIn": "Sudah absen masuk",
-    "offRoster": "Tidak ada di daftar ini? Minta pengawas Anda menambahkan Anda ke perintah kerja."
+    "offRoster": "Tidak ada di daftar ini? Minta pengawas Anda menambahkan Anda ke perintah kerja.",
+    "locating": "Membaca posisi Anda…",
+    "pendingOutside": "Anda berada di luar area kerja. Supervisor diminta menyetujui absen ini.",
+    "pendingNotRostered": "Anda tidak terdaftar pada perintah kerja ini hari ini. Supervisor diminta menyetujui absen ini.",
+    "pendingNoPosition": "Dikirim ke supervisor untuk disetujui.",
+    "positionDenied": "Lokasi diblokir untuk situs ini. Izinkan di peramban Anda, atau minta supervisor menyetujui absen Anda.",
+    "positionUnavailable": "Posisi Anda tidak dapat dibaca. Coba lagi, atau minta supervisor menyetujui absen Anda.",
+    "positionTimeout": "Membaca posisi Anda terlalu lama. Coba lagi, atau minta supervisor menyetujui absen Anda.",
+    "askSupervisor": "Minta supervisor saya",
+    "reloading": "Membuka halaman absen untuk membaca posisi Anda…",
+    "reloadFailed": "Muat ulang halaman ini, lalu ketuk Absen masuk lagi."
   },
   "roster": {
     "title": "Regu saya hari ini",

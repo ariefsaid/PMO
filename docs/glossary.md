@@ -1087,3 +1087,10 @@ reports) and overdue tasks. The body is computed per recipient, so a figure the 
 **Hide prices setting** — the organisation setting (`hide_prices_from_requesters`, default off) that hides unit prices and amounts from a **requester**. While off, nothing changes for anyone. (#2699.)
 
 **Requester (price visibility)** — a person with no purchasing or finance authority: a built-in officer or field role without price right (every one except Buyer, Finance Officer, Billing Officer), or a legacy Engineer who holds no built-in role. Judged per person on the real signed-in role, not per request and never on the view-as role. Prices read as empty for them through the masked views. (#2699.)
+**Work-order area** — an optional point (latitude, longitude) and radius in metres on a work order. Where it is set, a phone check-in
+reads the person's position once and the database decides inside or outside; where it is empty no location is asked.
+
+**Check-in request** — a phone check-in that did not become attendance by itself (outside the area, not on the roster that day,
+or no position). It waits for the check-in supervisor, who approves (attendance is recorded) or rejects with a reason; the person
+who checked in never decides their own. The supervisor is the organisation's configured built-in role, or by default the crew's
+field controller or a crew manager.
