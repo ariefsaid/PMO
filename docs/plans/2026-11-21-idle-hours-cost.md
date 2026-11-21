@@ -34,3 +34,10 @@ amounts; `labour_cost_enabled(org)` (1250); labour cost Administration section (
 | 8 | Glossary entry, screenshots (orchestrator runs), evidence path `docs/evidence/1215/2673/` | `docs/glossary.md` | n/a |
 
 Gates (builder): `npm run check:guards`, `npm run typecheck`, eslint on changed files, touched vitest files.
+
+## Build notes (2026-11-21)
+- Task 5 (rollup) dropped: idle rows come from their own read (`work_order_idle_cost`), so direct cost and totals cannot change by construction; AC-IHC-010 is proven by `IdleCostBlock.test.tsx` (shown apart, note says not added again).
+- The idle block loads only with a project id and a session (`IdleCostBlock`), so existing screens' tests are untouched.
+- The switch lives in `pages/admin/IdleCostSwitch.tsx`, rendered under the Labour cost section (Administration, cost attribution).
+- Inventory fragment `supabase/tests/inventory/anon-executable-definers/2673-idle-cost.txt`; denominator fragment `scripts/isolation-probe-denominator.d/2673-idle-cost.json`.
+- Mutation plan (not run): (a) make `idle_cost_enabled` ignore labour cost, AC-IHC-002 reverse case must go red; (b) drop `status = 'validated'`, AC-IHC-006 red; (c) remove the gate in `save_idle_cost_setting`, AC-IHC-008 red.
