@@ -4,11 +4,15 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App, { createAppRouter, preloadForPath } from './App';
 import { installChunkReloadGuard } from '@/src/lib/chunkReload';
+import { registerServiceWorker } from '@/src/lib/pwa';
 
 // A stale lazy-route chunk (old tab, new deploy) auto-reloads ONCE — 2026-07-13
 // hardening fix (root cause: live PostHog captured
 // "Failed to fetch dynamically imported module" with no recovery).
 installChunkReloadGuard();
+
+// #2713: Minimal service worker for PWA home-screen icon installability (NO offline caching).
+registerServiceWorker();
 
 // Suppress MetaMask extension errors and ResizeObserver errors from the preview overlay
 window.addEventListener('unhandledrejection', (event) => {

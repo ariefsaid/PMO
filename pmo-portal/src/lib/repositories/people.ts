@@ -4,7 +4,7 @@ import { wrap } from './repositoryErrors';
 import type { PeopleRepository } from './contracts/people';
 
 export const peopleRepository: PeopleRepository = {
-  list: () => wrap(() => dal.listPeople()),
+  list: (status) => wrap(() => dal.listPeople(status)),
   create: (input) => wrap(() => dal.createPerson(input)),
   update: (id, input) => wrap(() => dal.updatePerson(id, input)),
   archive: (id) => wrap(() => dal.archivePerson(id)),

@@ -102,6 +102,8 @@ const ImprestFloatDetailPage = lazyWithPreload(() => import('./pages/ImprestFloa
 const MaterialRequestsPage = lazyWithPreload(() => import('./pages/MaterialRequests'));
 const MaterialRequestNewPage = lazyWithPreload(() => import('./pages/MaterialRequestNew'));
 const MaterialRequestDetailPage = lazyWithPreload(() => import('./pages/MaterialRequestDetail'));
+const DeliveryNotePrintPage = lazyWithPreload(() => import('./pages/DeliveryNotePrint'));
+const PurchaseOrderPrintPage = lazyWithPreload(() => import('./pages/PurchaseOrderPrint'));
 const MaterialRequestSettingsPage = lazyWithPreload(() => import('./pages/MaterialRequestSettings'));
 const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
 const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAvailability'));
@@ -123,6 +125,7 @@ const CompanyDetailPage = lazyWithPreload(() => import('./pages/CompanyDetail'))
 const ContactsPage = lazyWithPreload(() => import('./pages/Contacts'));
 const ContactDetailPage = lazyWithPreload(() => import('./pages/ContactDetail'));
 const IncidentsPage = lazyWithPreload(() => import('./pages/Incidents'));
+const ClosingTimeReportPage = lazyWithPreload(() => import('./pages/incidents/ClosingTimeReport'));
 const IncidentDetailPage = lazyWithPreload(() => import('./pages/IncidentDetail'));
 const AdministrationPage = lazyWithPreload(() => import('./pages/Administration'));
 const IntegrationsPage = lazyWithPreload(() => import('./pages/Integrations'));
@@ -158,6 +161,7 @@ const StockMovementFormPage = lazyWithPreload(() => import('./pages/stock/StockM
 const StockCountPage = lazyWithPreload(() => import('./pages/stock/StockCount'));
 const StockReorderPage = lazyWithPreload(() => import('./pages/stock/StockReorder'));
 const UsageStandardsPage = lazyWithPreload(() => import('./pages/stock/UsageStandards'));
+const StockAtRiskPage = lazyWithPreload(() => import('./pages/stock/StockAtRisk'));
 
 // ── Route-entry + nav-link preloads (#1834) ──────────────────────────────────
 /** Anything with the lazyWithPreload preload() handle (structural — the rules
@@ -230,6 +234,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/sales/:opportunityId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
   { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList'] },
   { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate'] },
+  { path: '/procurement/:procurementId/purchase-orders/:orderId/print', chunks: [PurchaseOrderPrintPage], namespaces: ['procurement'] },
   { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
   { path: '/procurement/:procurementId', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
   { path: '/timesheets', chunks: [TimesheetsPage], namespaces: ['timesheets'] },
@@ -241,6 +246,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/contacts', chunks: [ContactsPage], namespaces: ['crm'] },
   { path: '/contacts/:contactId', chunks: [ContactDetailPage], namespaces: ['crm'] },
   { path: '/incidents', chunks: [IncidentsPage], namespaces: ['incidents'] },
+  { path: '/incidents/closing-time', chunks: [ClosingTimeReportPage], namespaces: ['incidents'] },
   { path: '/incidents/:incidentId', chunks: [IncidentDetailPage], namespaces: ['incidents'] },
   { path: '/my-tasks', chunks: [MyTasksPage], namespaces: ['tasks'] },
   { path: '/calendar', chunks: [CalendarPage], namespaces: ['calendar'] },
@@ -253,6 +259,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/material-requests/settings', chunks: [MaterialRequestSettingsPage], namespaces: ['materialRequests'] },
   { path: '/material-requests/new', chunks: [MaterialRequestNewPage], namespaces: ['materialRequests'] },
   { path: '/material-requests/:requestId/edit', chunks: [MaterialRequestNewPage], namespaces: ['materialRequests'] },
+  { path: '/material-requests/:requestId/delivery-note', chunks: [DeliveryNotePrintPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests/:requestId', chunks: [MaterialRequestDetailPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests', chunks: [MaterialRequestsPage], namespaces: ['materialRequests'] },
   { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk'] },
@@ -303,6 +310,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/stock/ledger', chunks: [StockLedgerPage], namespaces: ['stock'] },
   { path: '/stock/reorder', chunks: [StockReorderPage], namespaces: ['stock'] },
   { path: '/stock/usage-standards', chunks: [UsageStandardsPage], namespaces: ['stock', 'usageStandards'] },
+  { path: '/stock/at-risk', chunks: [StockAtRiskPage], namespaces: ['stock'] },
   { path: '/stock/new/:kind', chunks: [StockMovementFormPage], namespaces: ['stock'] },
   { path: '/stock', chunks: [StockOnHandPage], namespaces: ['stock'] },
   { path: '*', chunks: [NotFoundPage] },
@@ -441,6 +449,7 @@ export const appRouteConfig: RouteObject[] = [
     )),
   },
   { path: '/procurement/new', element: gated('procurement', <ProcurementCreate />) },
+  { path: '/procurement/:procurementId/purchase-orders/:orderId/print', element: gated('procurement', <PurchaseOrderPrintPage />) },
   // Tabbed record shell (mirrors /projects/:id/:tab). The bare /procurement/:id keeps working
   //   (defaults to the Overview tab); :tab deep-links a panel.
   { path: '/procurement/:procurementId', element: gated('procurement', <ProcurementDetails />) },
@@ -459,6 +468,7 @@ export const appRouteConfig: RouteObject[] = [
   //   FeatureRoute renders the page when enabled, else redirects deep-links to home instead of
   //   404. CW-4a: /incidents/:id is the routable detail page when the module is on.
   { path: '/incidents', element: <FeatureRoute feature="incidents" element={<IncidentsPage />} /> },
+  { path: '/incidents/closing-time', element: <FeatureRoute feature="incidents" element={<ClosingTimeReportPage />} /> },
   { path: '/incidents/:incidentId', element: <FeatureRoute feature="incidents" element={<IncidentDetailPage />} /> },
   // B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list.
   { path: '/my-tasks', element: <MyTasksPage /> },
@@ -478,6 +488,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/material-requests/new', element: <MaterialRequestNewPage /> },
   { path: '/material-requests/settings', element: <MaterialRequestSettingsPage /> },
   { path: '/material-requests/:requestId/edit', element: <MaterialRequestNewPage /> },
+  { path: '/material-requests/:requestId/delivery-note', element: <DeliveryNotePrintPage /> },
   { path: '/material-requests/:requestId', element: <MaterialRequestDetailPage /> },
   { path: '/work-orders/:id', element: <WorkOrderDetailPage /> },
   { path: '/imprest', element: gated('imprest', <ImprestFloatsPage />) },
@@ -556,6 +567,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/stock/ledger', element: gated('stock', <StockLedgerPage />) },
   { path: '/stock/reorder', element: gated('stock', <StockReorderPage />) },
   { path: '/stock/usage-standards', element: gated('stock', <UsageStandardsPage />) },
+  { path: '/stock/at-risk', element: gated('stock', <StockAtRiskPage />) },
   { path: '/stock/new/:kind', element: gated('stock', <StockMovementFormPage />) },
   { path: '*', element: <NotFoundPage /> },
 ];

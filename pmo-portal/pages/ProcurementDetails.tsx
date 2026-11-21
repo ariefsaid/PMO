@@ -49,6 +49,7 @@ import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementLedger } from './procurement/ProcurementLedger';
 import { OdooCaseStatus } from './procurement/OdooCaseStatus';
 import { useProcurementGates } from '@/src/hooks/useProcurementGates';
+import { usePurchaseOrderSettings } from '@/src/hooks/usePurchaseOrderSettings';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { purchaseHasValue } from '@/src/lib/procurement/purchaseValue';
 import { formatCurrency } from '@/src/lib/format';
@@ -148,6 +149,7 @@ const ProcurementDetails: React.FC = () => {
   const linkedErpQuery = useLinkedErpDocuments(procurementId);
   const linkedDocs = linkedErpQuery.data ?? [];
   const gates = useProcurementGates().data;
+  const poSettingsQuery = usePurchaseOrderSettings();
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
   const recordMutations = useProcurementRecordMutations(procurementId ?? '');
@@ -626,6 +628,9 @@ const ProcurementDetails: React.FC = () => {
     URL.revokeObjectURL(link.href);
   };
 
+  const poPrintEnabled = poSettingsQuery.data?.enabled ?? false;
+  const primaryPo = p.purchase_orders?.[0];
+
   // Menu data for the record header and the phone action bar. `narrowOnly` rows repeat verbs the
   // desktop header already shows elsewhere (the Record another document menu).
   const recordMenuItems: RecordMenuItem[] = [
@@ -637,6 +642,7 @@ const ProcurementDetails: React.FC = () => {
   const moreMenuItems: RecordMenuItem[] = [
     ...(isNarrow ? recordMenuItems : []),
     ...(canEditHeader ? [{ key: 'edit-header', testId: 'edit-header', label: t('procurementRecord:editDetails', 'Edit details'), onSelect: () => setHeaderEditOpen(true) }] : []),
+    ...(poPrintEnabled && primaryPo ? [{ key: 'print-po', testId: 'print-purchase-order', label: t('procurement:purchaseOrderPrint.printAction', 'Print purchase order'), onSelect: () => navigate(`/procurement/${p.id}/purchase-orders/${primaryPo.id}/print`) }] : []),
     { key: 'history', label: t('procurementRecord:timeline.fullHistory', 'Full history'), onSelect: () => { setHistoryOpen(true); setTab('timeline'); } },
     ...secondaryTransitionActions.map((action) => ({ key: `to-${action.to}`, label: action.label, onSelect: () => onActionClick(action) })),
     { key: 'export', label: t('procurementRecord:export', 'Export'), onSelect: exportCurrentProcurement },

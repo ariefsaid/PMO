@@ -1,0 +1,6 @@
+# #2687 (1420 delivery-note print settings), integration r1-local: the branch shipped the RPC with the
+# correct grants (revoke public/anon, grant authenticated) but no declaration fragment, so 0178's
+# AC-ACL-004 sweep named it on the spare machine. Pairing per the 0178 header: the app calls it via
+# .rpc under an Admin's authenticated JWT (pmo-portal/src/lib/db/materialRequests.ts), the body
+# re-asserts assert_is_active_member() + Admin + org, and mrq_delivery_note_settings.test.sql proves it.
+mrq_set_delivery_note_settings

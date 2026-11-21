@@ -2,10 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Combobox, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListState, TextField, useToast,
+  Button, Combobox, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListState, StatusPill, TextField, ViewToggle, useToast,
   type Column, type SubmitError,
 } from '@/src/components/ui';
 
+import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -15,7 +16,7 @@ import { ImportButton } from '@/src/components/import';
 import { makePeopleImportDescriptor } from '@/src/lib/import';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import type { PersonListRow } from '@/src/lib/db/people';
+import type { PersonListRow, PeopleListStatus } from '@/src/lib/db/people';
 
 interface FormValues { name: string; code: string; job_title: string; profile_id: string }
 
@@ -80,14 +81,18 @@ const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, s
 };
 
 /** The People register (#2542 follow-up): everyone who holds expiring documents, app user or not. Writes are gated by
- *  `can()` (UX only; RLS and the column grants decide). A row opens the person record, where documents are added. */
+ *  `can()` (UX only; RLS and the column grants decide). A row opens the person record, where documents are added.
+ *  A staff-status filter (#2703) keeps former staff out of the way while leaving them on record: Active is the
+ *  default and the pre-#2703 read; Former staff and All are opt-in views, held in the URL. */
 const People: React.FC = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { realRole, effectiveRole } = useEffectiveRole();
   const may = usePermission();
   const ctx = useMemo(() => ({ record: { viewOnly: realRole !== effectiveRole } }), [realRole, effectiveRole]);
-  const q = usePeople();
+  const { values: filters, setFilter } = useUrlFilters(['staff']);
+  const staffView: PeopleListStatus = filters.staff === 'former' ? 'former' : filters.staff === 'all' ? 'all' : 'active';
+  const q = usePeople(staffView);
   const { archive } = usePeopleMutations();
   const [editing, setEditing] = useState<PersonListRow | 'new' | null>(null);
   const [archiving, setArchiving] = useState<PersonListRow | null>(null);
@@ -98,6 +103,7 @@ const People: React.FC = () => {
   const importDescriptor = useMemo(() => makePeopleImportDescriptor(async () => (await repositories.people.list()).map((p) => p.code), t), [t]);
   const canEdit = may('edit', 'person', ctx);
   const canArchive = may('archive', 'person', ctx);
+  const setStaffView = (next: typeof staffView) => setFilter('staff', next === 'active' ? '' : next);
 
   React.useEffect(() => {
     let live = true;
@@ -117,10 +123,16 @@ const People: React.FC = () => {
       cell: (p) => <Link className="font-semibold text-foreground underline-offset-2 hover:underline" to={`/equipment/people/${p.id}`}>{p.name}</Link> },
     { key: 'code', header: t('administration:people.code', 'Person code'), cell: (p) => <span className="record-id">{p.code}</span> },
     { key: 'title', header: t('administration:people.jobTitle', 'Job title'), cell: (p) => (p.job_title ? <span>{p.job_title}</span> : null) },
+    ...(staffView === 'active' ? [] : [{
+      key: 'status', header: t('administration:people.staffStatus', 'Staff status'),
+      cell: (p: PersonListRow) => (p.archived_at
+        ? <StatusPill variant="neutral">{t('administration:people.former', 'Former staff')}</StatusPill>
+        : <span className="text-sm text-muted-foreground">{t('administration:people.active', 'Active')}</span>),
+    } as Column<PersonListRow>]),
     { key: 'user', header: t('administration:people.user', 'App user (optional)'),
       cell: (p) => (p.profile_id ? <span>{profileNames.get(p.profile_id) ?? '…'}</span> : null) },
     { key: 'actions', header: <span className="sr-only">{t('administration:people.actions', 'Actions')}</span>,
-      cell: (p) => (canEdit || canArchive) ? (
+      cell: (p) => (!p.archived_at && (canEdit || canArchive)) ? (
         <span className="flex gap-1">
           {canEdit && <Button variant="ghost" size="sm" aria-label={t('administration:people.editLabel', 'Edit {{name}}', { name: p.name })} onClick={() => setEditing(p)}>{t('administration:people.edit', 'Edit')}</Button>}
           {canArchive && <Button variant="ghost" size="sm" aria-label={t('administration:people.archiveLabel', 'Archive {{name}}', { name: p.name })} onClick={() => setArchiving(p)}>{t('administration:people.archive', 'Archive')}</Button>}
@@ -129,18 +141,32 @@ const People: React.FC = () => {
 
   return (
     <div>
-      <div className="mb-[var(--space-group)] flex flex-wrap items-center justify-end gap-[var(--space-group)]">
+      <div className={`flex flex-wrap items-center justify-between gap-[var(--space-group)] ${rows.length ? 'mb-[var(--space-group)]' : ''}`}>
+        <div className="w-full min-w-0 md:w-auto">
+          <ViewToggle<PeopleListStatus> semantics="toggle" ariaLabel={t('administration:people.staffStatus', 'Staff status')}
+            value={staffView} onChange={setStaffView} className="w-full flex-wrap md:w-auto"
+            options={[
+              { value: 'active', label: t('administration:people.active', 'Active') },
+              { value: 'former', label: t('administration:people.former', 'Former staff') },
+              { value: 'all', label: t('administration:people.all', 'All') },
+            ]} />
+        </div>
         <CanWrite entity="person" action="create" ctx={ctx}>
-          <ImportButton entity="person" descriptor={importDescriptor} onImported={() => void q.refetch()} />
-          <Button variant="primary" onClick={() => setEditing('new')}><Icon name="plus" />{t('administration:people.add', 'Add person')}</Button>
+          <div className="flex flex-wrap items-center gap-[var(--space-group)]">
+            <ImportButton entity="person" descriptor={importDescriptor} onImported={() => void q.refetch()} />
+            <Button variant="primary" onClick={() => setEditing('new')}><Icon name="plus" />{t('administration:people.add', 'Add person')}</Button>
+          </div>
         </CanWrite>
       </div>
       {q.isPending && <ListState variant="loading" shape="table" rows={4} />}
       {!q.isPending && q.isError && <ListState variant="error" title={t('administration:people.error', "Couldn't load people")}
         sub={t('administration:people.errorSub', 'The request failed. Check your connection and try again.')} onRetry={() => void q.refetch()} retryLabel={t('administration:people.retry', 'Retry')} />}
       {!q.isPending && !q.isError && (rows.length === 0
-        ? <ListState variant="empty" title={t('administration:people.empty', 'No people yet. Add the first person to record their documents.')}
-            action={canEdit ? { label: t('administration:people.add', 'Add person'), onClick: () => setEditing('new') } : undefined} />
+        ? <ListState variant="empty"
+            title={staffView === 'former'
+              ? t('administration:people.formerEmpty', 'No former staff. People you archive appear here.')
+              : t('administration:people.empty', 'No people yet. Add the first person to record their documents.')}
+            action={staffView === 'active' && canEdit ? { label: t('administration:people.add', 'Add person'), onClick: () => setEditing('new') } : undefined} />
         : <DataTable<PersonListRow> rows={rows} columns={columns} rowKey={(p) => p.id} tableId="people-register" />)}
       {editing && <PersonForm person={editing === 'new' ? undefined : editing} profileNames={profileNames} onClose={() => setEditing(null)} />}
       <ConfirmDialog open={archiving !== null} tone="destructive" title={t('administration:people.archiveTitle', 'Archive person')}

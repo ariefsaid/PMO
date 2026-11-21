@@ -18,6 +18,8 @@ import {
 } from '@/src/hooks/useStock';
 import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { StockTagsPanel } from './StockTagsPanel';
+import { SimilarItemNotice, type SimilarCheckState } from '@/src/components/stock/SimilarItemNotice';
+import { findNearDuplicateItems, indexStockItems, type IndexedStockItem } from '@/src/lib/stockSimilarity';
 import { isOwnershipCacheSynced, routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseStockError } from '@/src/lib/stockErrors';
@@ -101,6 +103,10 @@ const StockSetup: React.FC = () => {
 
   const query = tab === 'units' ? units : tab === 'items' ? items : warehouses;
   const rows = (query.data ?? []) as Array<StockUnitRow | StockItemRow | StockWarehouseRow>;
+  // #2692: the active items already loaded for this tab are the near-duplicate index — no extra read.
+  // Archived rows are dropped inside the index, so the answer is the same with the archived filter either way.
+  const itemIndex = useMemo<IndexedStockItem[]>(() => indexStockItems(items.data ?? []), [items.data]);
+  const itemListState: SimilarCheckState = items.isError ? 'failed' : items.data ? 'ready' : 'loading';
   // A tab's cells read lookups too (unit names, keepers, people, projects): any failed lookup is an error, never a blank or a zero.
   const needed = tab === 'items' ? [query, allUnits, onHand, ...(tagsEnabled ? [itemTags] : [])] : tab === 'warehouses' ? [query, keepers, people, projects] : [query];
   const state: 'loading' | 'empty' | 'error' | undefined = needed.some((q) => q.isError) ? 'error' : needed.some((q) => q.isPending) ? 'loading' : rows.length === 0 ? 'empty' : undefined;
@@ -274,6 +280,8 @@ const StockSetup: React.FC = () => {
           row={form.row}
           units={(units.data ?? []).filter((u) => !u.archived_at)}
           projects={projects.data ?? []}
+          itemIndex={itemIndex}
+          itemListState={itemListState}
           onClose={() => setForm(null)}
           onDone={(isEdit) => { toast(isEdit ? t('setup.toast.updated') : t('setup.toast.created'), undefined, 'success'); setForm(null); }}
         />
@@ -335,12 +343,15 @@ interface FormProps {
   row: StockUnitRow | StockItemRow | StockWarehouseRow | null;
   units: StockUnitRow[];
   projects: Array<{ id: string; name: string }>;
+  /** #2692: active items already in memory, plus whether that list loaded at all. */
+  itemIndex: IndexedStockItem[];
+  itemListState: SimilarCheckState;
   onClose: () => void;
   onDone: (isEdit: boolean) => void;
 }
-interface Values { code: string; name: string; wholeOnly: boolean; description: string; unitId: string; leadTime: string; kind: 'central' | 'site' | 'yard' | 'staging'; projectId: string; tagId: string }
+interface Values { code: string; name: string; wholeOnly: boolean; description: string; unitId: string; leadTime: string; kind: 'central' | 'site' | 'yard' | 'staging'; projectId: string; tagId: string; cover: string }
 
-const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tagsEnabled, onClose, onDone }) => {
+const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tagsEnabled, itemIndex, itemListState, onClose, onDone }) => {
   const { t } = useTranslation('stock');
   const m = useStockMasterMutations();
   const tagQuery = useStockTags(true, which === 'items' && tagsEnabled);
@@ -360,6 +371,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
       if (!v.unitId) e.unitId = t('setup.form.item.unitRequired');
       if (v.leadTime.trim() && !(/^\d+$/.test(v.leadTime.trim()) && Number(v.leadTime) <= 365)) e.leadTime = t('setup.form.item.leadTimeInvalid');
     }
+    if (which === 'warehouses' && v.cover.trim() && !/^\d+(\.\d{1,2})?$/.test(v.cover.trim())) e.cover = t('setup.form.warehouse.coverInvalid');
     return e;
   };
   const form = useEntityForm<Values>({
@@ -367,6 +379,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
       code: row ? (row as { code: string }).code : '', name: row ? (row as { name: string }).name : '',
       wholeOnly: unitRow?.whole_only ?? false, description: itemRow?.description ?? '', unitId: itemRow?.unit_id ?? '',
       leadTime: itemRow?.lead_time_days == null ? '' : String(itemRow.lead_time_days), kind: (whRow?.kind as Values['kind'] | undefined) ?? 'site', projectId: whRow?.project_id ?? '', tagId: itemRow?.tag_id ?? '',
+      cover: whRow?.cover_value == null ? '' : String(whRow.cover_value),
     },
     validate,
     idPrefix: `stock-${k}-form`,
@@ -382,6 +395,13 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
   const kind = form.fieldProps('kind');
   const projectId = form.fieldProps('projectId');
   const tagId = form.fieldProps('tagId');
+  const cover = form.fieldProps('cover');
+
+  // #2692: advisory only — computed while typing, never fed into validation or the submit payload.
+  const nearDuplicates = useMemo(
+    () => (which === 'items' && !isEdit ? findNearDuplicateItems(form.values.name, itemIndex) : []),
+    [which, isEdit, form.values.name, itemIndex],
+  );
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -394,7 +414,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
           const input: StockItemInput = { code: v.code, name: v.name, description: v.description || null, unitId: v.unitId, leadTimeDays: v.leadTime.trim() ? Number(v.leadTime) : null, ...(tagsEnabled ? { tagId: v.tagId || null } : {}) };
           if (row) await m.updateItem.mutateAsync({ id: row.id, input }); else await m.createItem.mutateAsync(input);
         } else {
-          const input: StockWarehouseInput = { code: v.code, name: v.name, kind: v.kind, projectId: v.projectId || null };
+          const input: StockWarehouseInput = { code: v.code, name: v.name, kind: v.kind, projectId: v.projectId || null, coverValue: v.cover.trim() ? v.cover.trim() : null };
           if (row) await m.updateWarehouse.mutateAsync({ id: row.id, input }); else await m.createWarehouse.mutateAsync(input);
         }
         onDone(isEdit);
@@ -424,6 +444,9 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
       <FormGrid>
         <TextField id={code.id} label={t(`setup.form.${k}.code`)} required value={code.value} onChange={code.onChange} onBlur={code.onBlur} error={code.error} code fullWidth />
         <TextField id={name.id} label={t(`setup.form.${k}.name`)} required value={name.value} onChange={name.onChange} onBlur={name.onBlur} error={name.error} fullWidth />
+        {which === 'items' && !isEdit && (
+          <SimilarItemNotice matches={nearDuplicates} checkState={itemListState} className="col-span-full" />
+        )}
         {which === 'units' && (
           <div className="flex items-start gap-2">
             <Checkbox checked={form.values.wholeOnly} onChange={(v) => form.setValue('wholeOnly', v)} label={t('setup.form.unit.wholeOnly')} describedBy="stock-unit-whole-help" />
@@ -449,6 +472,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
               options={(['central', 'site', 'yard', 'staging'] as const).map((k2) => ({ value: k2, label: t(`setup.kinds.${k2}`) }))} />
             <SelectField id={projectId.id} label={t('setup.form.warehouse.project')} helper={t('setup.form.warehouse.projectHelp')} value={projectId.value} onChange={projectId.onChange} onBlur={projectId.onBlur}
               placeholder={t('setup.form.warehouse.noProject')} options={projects.map((p) => ({ value: p.id, label: p.name }))} />
+            <TextField id={cover.id} label={t('setup.form.warehouse.cover')} helper={t('setup.form.warehouse.coverHelp')} value={cover.value} onChange={cover.onChange} onBlur={cover.onBlur} error={cover.error} inputMode="decimal" />
           </>
         )}
       </FormGrid>

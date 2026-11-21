@@ -33,11 +33,14 @@ import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import OrgProcurementGates from './admin/OrgProcurementGates';
+import PurchaseOrderSettingsSection from './admin/PurchaseOrderSettingsSection';
 import SiteReportLists from './admin/SiteReportLists';
+import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
 import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import OrgPerformanceIndices from './admin/OrgPerformanceIndices';
+import OrgAttendanceTarget from './admin/OrgAttendanceTarget';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
 import LabourCostSettings from './admin/LabourCostSettings';
@@ -283,6 +286,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgVendorTaxAccounts />
             <OrgDownPaymentItem />
             <OrgProcurementGates />
+            <PurchaseOrderSettingsSection />
             <BudgetAccountMap />
             <ExpenseAccountMap />
           </div>
@@ -308,6 +312,8 @@ const SelectedAdministrationPanel: React.FC<{
             <NonWorkingDatesCard />
             <CostDisciplines />
             <OrgPerformanceIndices />
+            <OrgAttendanceTarget />
+            <IssueClosingReportSettings />
           </div>
         </div>
       );

@@ -279,6 +279,14 @@ rotation, with hours), whatever the capture method (roster tick, phone check-in,
 person's timesheet line, or, for a person with no login, holds their approved hours itself. Approved attendance is
 locked; it changes only by re-opening the timesheet (the correction path).
 
+**Attendance rate** — a crew's present member-days over its countable member-days for a period, as a percentage. A
+member-day is expected when the person was placed in the crew and the crew was rostered on a work order that day; leave
+and off rotation are excused, and a day nobody recorded counts against the rate and is shown apart. It is a review
+figure, not a payroll rule.
+
+**Attendance target** — the organisation-wide percentage an attendance rate is measured against. It is a setting the
+client owns: unset means the rate is not offered, and PMO writes no default.
+
 **Incident report** — a dated report of an incident with a type, severity, location, description
 and status, optionally linked to a project.
 
@@ -508,6 +516,11 @@ procurement line (`procurement_items` is free text) and not a BoQ line.
 
 **Keeper** — a user assigned to a warehouse who may record its stock movements.
 
+**Near duplicate** (stock item) — an active item whose name reads the same as a newly typed name once case, spacing,
+punctuation and accents are ignored, or whose name is one or two small typing mistakes away (the allowance grows with
+name length and is none for very short names). The new-item form names each match and links to it; it is information,
+never a rule — the item can still be created (#2692).
+
 **Stock document** — one recorded movement event with a system-assigned number: **Receive**, **Transfer**, **Issue**,
 **Return**, **Adjustment**, **Count**. Posted documents are immutable; a mistake is corrected by a later document, never
 an edit. Distinct from the **Goods Receipt** procurement record, whose only lines are the quantities a three-way match reads.
@@ -691,6 +704,11 @@ project, so a work order lists its open tasks.
 **Stock location** — a place that holds stock: a warehouse, a **site**, a **yard** or **staging** location. A yard or
 staging location may name a project and behaves as any location for every posting rule.
 
+**Site cover** (#2694) — the protection value an organisation records on a stock location (`stock_warehouses.cover_value`).
+A plain recorded figure the client controls: PMO never computes, insures or enforces it, and blank means not recorded.
+**Stock at risk** (the #2694 report) — the value held at a location above its cover: `max(held − cover, 0)`; with no cover
+recorded the whole held value counts as at risk. The report lists every location holding stock, exposure first.
+
 **Yard** (*halaman proyek*) — a stock location on or near a project's site where deliveries wait before use.
 **Staging** (*area penyiapan*) — a stock location where materials are made ready for a work order, between the yard and the
 point of use.
@@ -794,6 +812,14 @@ rotation, with hours), whatever the capture method (roster tick, phone check-in,
 person's timesheet line, or, for a person with no login, holds their approved hours itself. Approved attendance is locked
 and changes only by re-opening the timesheet.
 
+**Attendance rate** (*tingkat kehadiran*) — a crew's present member-days over its countable member-days for a period, as a
+percentage. A member-day is expected when the person was placed in the crew and the crew was rostered on a work order that
+day; leave and off rotation are excused, and a day nobody recorded counts against the rate and is shown apart. It is a
+review figure, not a payroll rule.
+
+**Attendance target** (*target kehadiran*) — the organisation-wide percentage an attendance rate is measured against. It is
+a setting the client owns: unset means the rate is not offered, and PMO writes no default.
+
 ### Crew tools (#2581)
 
 **Tool line** (*baris alat*) - a named hand tool held by one crew, with a quantity and an optional serial number. Machines
@@ -816,6 +842,10 @@ medical type holds a status (fit / unfit) and dates only. Distinct from a projec
 app (a person may optionally link to an app user profile). Kept under Administration by Admin; app users are never added
 automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, ... per organisation when
 left blank, editable and unique among live people. Archiving hides a person and their warnings (soft, ADR-0018).
+
+**Former staff** (*mantan personel*) — a person on the register who has left, recorded by archiving them. They stay on
+record with their code and documents, leave the default active list and the expiry warnings, and appear only under the
+register's Former staff view (#2703). Restoring is a separate, later capability.
 
 ### Terminology and imports (#2529, #2530)
 
@@ -1032,7 +1062,7 @@ one **work order** of its own project, so a work order lists its open tasks.
 A certificate, permit or similar record with an expiry date that belongs to a person or an equipment asset, of an org-defined document type. Added, edited and archived on the subject's record (#2542); warned about at the org's thresholds and listed on the expiring-documents screen (#2527). A medical type holds a status (fit / unfit) and dates only.
 
 ## People register
-The workforce register: anyone who holds expiring documents, whether or not they use the app (a person may optionally link to an app user profile). Kept under Administration › People by Admin (HR maps to Admin); app users are never added automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, … per organisation when left blank, editable, unique among live people. Archiving hides a person and their warnings (soft, ADR-0018).
+The workforce register: anyone who holds expiring documents, whether or not they use the app (a person may optionally link to an app user profile). Kept under Administration › People by Admin (HR maps to Admin); app users are never added automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, … per organisation when left blank, editable, unique among live people. Archiving hides a person and their warnings (soft, ADR-0018); **former staff** (*mantan personel*, #2703) are those archived people, kept on record and shown only in the register's Former staff view.
 
 ## Organisation terminology
 **Term override** — an org Admin's replacement display name (singular and plural, per language) for one of

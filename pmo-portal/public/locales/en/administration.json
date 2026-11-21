@@ -707,6 +707,19 @@
       "loadError": "Couldn't load the fiscal year",
       "accountingSystem": "Your accounting system sets the fiscal year.",
       "adminOnly": "Only an Admin can change this."
+    },
+    "attendanceTarget": {
+      "helper": "The attendance rate each crew is measured against, as a percentage. Leave it empty to keep the attendance-rate view off.",
+      "label": "Target rate (%)",
+      "loadError": "Couldn't load the target",
+      "off": "Off: the attendance-rate view is not offered.",
+      "on": "Crews are measured against this target.",
+      "precision": "Give the target at most two decimals.",
+      "range": "The target runs from 0 to 100.",
+      "save": "Save target",
+      "saved": "Attendance target saved",
+      "title": "Attendance target",
+      "turnOff": "Turn off"
     }
   },
   "exchangeRates": {
@@ -803,7 +816,12 @@
     "retry": "Retry",
     "empty": "No people yet. Add the first person to record their documents.",
     "archiveTitle": "Archive person",
-    "archiveBody": "They leave the register and the expiry list, and no more warnings are sent for their documents.",
+    "archiveBody": "They leave the active list and the expiry warnings, and stay on record under Former staff.",
+    "staffStatus": "Staff status",
+    "active": "Active",
+    "former": "Former staff",
+    "all": "All",
+    "formerEmpty": "No former staff. People you archive appear here.",
     "navLabel": "People"
   },
   "terminology": {
@@ -974,5 +992,28 @@
     "switch": "Cost idle hours in money",
     "adminOnly": "Only an Admin or Finance can change this setting.",
     "needsLabour": "Nothing shows until labour cost in money is switched on."
+  },
+  "issueClosingReport": {
+    "title": "Issue closing-time report",
+    "helper": "Enable the closing-time report and configure department groupings.",
+    "enableLabel": "Enable closing-time report",
+    "enableHelper": "Makes the closing-time report available on the Incidents register.",
+    "groupingMode": "Default grouping",
+    "modeType": "By issue type",
+    "modeDepartmentGroups": "By custom department groups",
+    "groupsTitle": "Department groups",
+    "groupsHelper": "Map issue types to named departments for reporting.",
+    "addGroup": "Add department group",
+    "groupName": "Department name",
+    "groupNamePlaceholder": "e.g. Civil & Earthworks",
+    "issueTypes": "Issue types (comma-separated)",
+    "issueTypesPlaceholder": "e.g. Civil, Excavation, Concrete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "saved": "Settings saved",
+    "groupSaved": "Department group saved",
+    "groupDeleted": "Department group deleted"
   }
 }

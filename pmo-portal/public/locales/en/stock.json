@@ -80,7 +80,13 @@
         "leadTimeInvalid": "Enter whole days between 0 and 365.",
         "tag": "Tag",
         "tagHelp": "Optional. Fixed once the item has movements.",
-        "noTag": "No tag"
+        "noTag": "No tag",
+        "similar": {
+          "title": "A similar item already exists",
+          "body": "Check it before adding a duplicate. You can still create this one.",
+          "checkUnavailable": "Could not check existing item names. You can still create this one.",
+          "listLabel": "Similar items"
+        }
       },
       "warehouse": {
         "newTitle": "New warehouse",
@@ -94,7 +100,10 @@
         "projectHelp": "Optional. Only a default for issues; it does not restrict them.",
         "noProject": "No default project",
         "codeRequired": "Code is required.",
-        "nameRequired": "Name is required."
+        "nameRequired": "Name is required.",
+        "cover": "Cover value",
+        "coverHelp": "The protection recorded for this location. Stock value above it shows as at risk.",
+        "coverInvalid": "A cover is 0 or more, 2 decimals at most."
       }
     },
     "states": {
@@ -201,7 +210,8 @@
     "ledger": "Ledger",
     "setup": "Setup",
     "reorder": "Reorder",
-    "usageStandards": "Usage standards"
+    "usageStandards": "Usage standards",
+    "atRisk": "At risk"
   },
   "onHand": {
     "title": "Stock",
@@ -686,6 +696,30 @@
       "unassigned": "Not assigned to a work order",
       "noValue": "—",
       "zeroCost": "Client-supplied, no cost"
+    }
+  },
+  "atRisk": {
+    "title": "Stock at risk",
+    "count": "{{count}} locations",
+    "countOne": "1 location",
+    "columns": {
+      "location": "Location",
+      "kind": "Kind",
+      "project": "Project",
+      "stockValue": "Stock value",
+      "cover": "Cover",
+      "atRisk": "At risk"
+    },
+    "summary": {
+      "held": "Stock value held",
+      "atRisk": "Value at risk",
+      "exposed": "{{count}} above cover",
+      "exposedOne": "1 above cover"
+    },
+    "notRecorded": "Not recorded",
+    "states": {
+      "emptyTitle": "No location holds stock",
+      "emptySub": "Locations with stock appear here against the cover recorded on them."
     }
   }
 }

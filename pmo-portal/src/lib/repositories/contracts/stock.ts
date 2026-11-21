@@ -6,7 +6,7 @@ import type {
 import type {
   IssuableWorkItem, IssueLineRow, StockDocumentDetail, StockErpState, StockDocumentFilters, StockDocumentInput, StockDocumentListRow, StockLineCost,
 } from '@/src/lib/db/stockDocuments';
-import type { ProjectConsumption, StockLedgerFilters, StockLedgerPage, StockLedgerRow, StockOnHandRow } from '@/src/lib/db/stockReports';
+import type { ProjectConsumption, StockAtRiskRow, StockLedgerFilters, StockLedgerPage, StockLedgerRow, StockOnHandRow } from '@/src/lib/db/stockReports';
 import type { MaterialAllowance, MaterialAllowanceInput } from '@/src/lib/db/stockAllowances';
 import type { BelowReorderRow, ReorderSuggestion } from '@/src/lib/db/stockReorder';
 
@@ -54,6 +54,7 @@ export interface StockReportsRepository {
   onHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }): Promise<StockOnHandRow[]>;
   ledgerPage(f: StockLedgerFilters & { beforeSeq?: number; limit?: number }): Promise<StockLedgerPage>;
   ledgerAll(f: StockLedgerFilters): Promise<StockLedgerRow[]>;
+  atRisk(): Promise<StockAtRiskRow[]>;
 }
 
 /** Project consumption vs allowance (#1512 S5): aggregated in SQL; value keys absent below Project Manager rank. */

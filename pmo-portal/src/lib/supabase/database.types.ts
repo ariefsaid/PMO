@@ -6952,6 +6952,76 @@ export type Database = {
           },
         ]
       }
+      issue_closing_report_settings: {
+        Row: {
+          created_at: string | null
+          enabled: boolean
+          grouping_mode: 'type' | 'department_groups'
+          id: string
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean
+          grouping_mode?: 'type' | 'department_groups'
+          id?: string
+          org_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean
+          grouping_mode?: 'type' | 'department_groups'
+          id?: string
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_closing_report_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      issue_department_groups: {
+        Row: {
+          created_at: string
+          id: string
+          issue_types: string[]
+          name: string
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          issue_types?: string[]
+          name: string
+          org_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          issue_types?: string[]
+          name?: string
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_department_groups_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       material_request_events: {
         Row: {
           acted_for: string | null
@@ -7041,18 +7111,24 @@ export type Database = {
       material_request_settings: {
         Row: {
           cutoff_time: string | null
+          delivery_note_enabled: boolean
+          delivery_note_signature_blocks: string[]
           org_id: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           cutoff_time?: string | null
+          delivery_note_enabled?: boolean
+          delivery_note_signature_blocks?: string[]
           org_id?: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           cutoff_time?: string | null
+          delivery_note_enabled?: boolean
+          delivery_note_signature_blocks?: string[]
           org_id?: string
           updated_at?: string
           updated_by?: string | null
@@ -7778,6 +7854,7 @@ export type Database = {
         Row: {
           attendance_backdate_days: number
           attendance_conflict_tolerance_hours: number
+          attendance_target_rate: number | null
           created_at: string
           discipline_profit_enabled: boolean
           default_currency: string
@@ -7807,6 +7884,7 @@ export type Database = {
         Insert: {
           attendance_backdate_days?: number
           attendance_conflict_tolerance_hours?: number
+          attendance_target_rate?: number | null
           created_at?: string
           default_currency?: string
           default_locale?: string
@@ -7835,6 +7913,7 @@ export type Database = {
         Update: {
           attendance_backdate_days?: number
           attendance_conflict_tolerance_hours?: number
+          attendance_target_rate?: number | null
           created_at?: string
           default_currency?: string
           default_locale?: string
@@ -10727,6 +10806,33 @@ export type Database = {
           },
         ]
       }
+      purchase_order_settings: {
+        Row: {
+          authorised_collectors: string[]
+          org_id: string
+          print_enabled: boolean
+          signature_blocks: string[]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          authorised_collectors?: string[]
+          org_id?: string
+          print_enabled?: boolean
+          signature_blocks?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          authorised_collectors?: string[]
+          org_id?: string
+          print_enabled?: boolean
+          signature_blocks?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       purchase_request_files: {
         Row: {
           archived_at: string | null
@@ -12332,6 +12438,7 @@ export type Database = {
         Row: {
           archived_at: string | null
           code: string
+          cover_value: number | null
           created_at: string
           id: string
           kind: string
@@ -12342,6 +12449,7 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           code: string
+          cover_value?: number | null
           created_at?: string
           id?: string
           kind: string
@@ -12352,6 +12460,7 @@ export type Database = {
         Update: {
           archived_at?: string | null
           code?: string
+          cover_value?: number | null
           created_at?: string
           id?: string
           kind?: string
@@ -14883,6 +14992,10 @@ export type Database = {
       }
       mrq_set_chain: { Args: { p_steps: Json }; Returns: undefined }
       mrq_set_cutoff: { Args: { p_cutoff: string | null }; Returns: undefined }
+      mrq_set_delivery_note_settings: {
+        Args: { p_enabled: boolean; p_signature_blocks: string[] }
+        Returns: undefined
+      }
       mrq_set_stand_in: {
         Args: { p_delegator_id: string; p_ends_on: string; p_stand_in_id: string; p_starts_on: string }
         Returns: string
@@ -15812,6 +15925,24 @@ export type Database = {
         }
         Returns: number
       }
+      attendance_rate_by_crew: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          crew_id: string
+          crew_code: string
+          crew_name: string
+          expected_days: number
+          present_days: number
+          absent_days: number
+          leave_days: number
+          off_rotation_days: number
+          no_record_days: number
+          countable_days: number
+          rate: number | null
+          target_rate: number | null
+          meets_target: boolean | null
+        }[]
+      }
       attendance_generate_timesheet: {
         Args: { p_week_start: string; p_worker_id: string }
         Returns: Json
@@ -16352,6 +16483,14 @@ export type Database = {
         }
         Returns: string
       }
+      po_set_print_settings: {
+        Args: {
+          p_authorised_collectors: string[]
+          p_enabled: boolean
+          p_signature_blocks: string[]
+        }
+        Returns: undefined
+      }
       create_purchase_order: {
         Args: {
           p_amount: number
@@ -16713,6 +16852,22 @@ export type Database = {
           replenishment_in_flight: number
         }[]
       }
+      get_issue_closing_time_report: {
+        Args: {
+          p_date_from?: string | null
+          p_date_to?: string | null
+          p_grouping_mode?: string | null
+        }
+        Returns: {
+          department: string
+          total_issues: number
+          closed_issues: number
+          open_issues: number
+          overdue_issues: number
+          avg_closing_hours: number | null
+          median_closing_hours: number | null
+        }[]
+      }
       get_loss_breakdown: {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
@@ -16894,6 +17049,10 @@ export type Database = {
           p_to?: string
           p_warehouse_id?: string
         }
+        Returns: Json
+      }
+      get_stock_at_risk: {
+        Args: Record<string, never>
         Returns: Json
       }
       get_stock_on_hand: {

@@ -80,7 +80,13 @@
         "leadTimeInvalid": "Isi hari bulat antara 0 dan 365.",
         "tag": "Label",
         "tagHelp": "Opsional. Terkunci setelah barang punya pergerakan.",
-        "noTag": "Tanpa label"
+        "noTag": "Tanpa label",
+        "similar": {
+          "title": "Barang serupa sudah ada",
+          "body": "Periksa dulu sebelum menambah duplikat. Barang ini tetap bisa dibuat.",
+          "checkUnavailable": "Tidak bisa memeriksa nama barang yang sudah ada. Barang ini tetap bisa dibuat.",
+          "listLabel": "Barang serupa"
+        }
       },
       "warehouse": {
         "newTitle": "Gudang baru",
@@ -94,7 +100,10 @@
         "projectHelp": "Opsional. Hanya sebagai usulan awal untuk pengeluaran; tidak membatasi.",
         "noProject": "Tanpa proyek bawaan",
         "codeRequired": "Kode wajib diisi.",
-        "nameRequired": "Nama wajib diisi."
+        "nameRequired": "Nama wajib diisi.",
+        "cover": "Nilai perlindungan",
+        "coverHelp": "Perlindungan yang dicatat untuk lokasi ini. Nilai stok di atasnya ditampilkan sebagai berisiko.",
+        "coverInvalid": "Perlindungan adalah 0 atau lebih, paling banyak 2 desimal."
       }
     },
     "states": {
@@ -201,7 +210,8 @@
     "ledger": "Buku stok",
     "setup": "Pengaturan",
     "reorder": "Pemesanan ulang",
-    "usageStandards": "Standar pemakaian"
+    "usageStandards": "Standar pemakaian",
+    "atRisk": "Risiko"
   },
   "onHand": {
     "title": "Stok",
@@ -686,6 +696,30 @@
       "unassigned": "Tidak terkait $t(common:terms.clientWorkOrder)",
       "noValue": "—",
       "zeroCost": "Dari klien, tanpa biaya"
+    }
+  },
+  "atRisk": {
+    "title": "Stok berisiko",
+    "count": "{{count}} lokasi",
+    "countOne": "1 lokasi",
+    "columns": {
+      "location": "Lokasi",
+      "kind": "Jenis",
+      "project": "Proyek",
+      "stockValue": "Nilai stok",
+      "cover": "Perlindungan",
+      "atRisk": "Berisiko"
+    },
+    "summary": {
+      "held": "Total nilai stok",
+      "atRisk": "Nilai berisiko",
+      "exposed": "{{count}} di atas perlindungan",
+      "exposedOne": "1 di atas perlindungan"
+    },
+    "notRecorded": "Belum dicatat",
+    "states": {
+      "emptyTitle": "Belum ada lokasi yang menyimpan stok",
+      "emptySub": "Lokasi yang menyimpan stok muncul di sini bersama perlindungan yang dicatat untuknya."
     }
   }
 }

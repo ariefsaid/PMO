@@ -139,6 +139,49 @@
   },
   "projectScope": "Project incidents",
   "allIncidents": "All incidents",
+  "viewList": "Register",
+  "viewClosingReport": "Closing-time report",
+  "closingReport": {
+    "title": "Issue closing-time report",
+    "subtitle": "Average and median time to close issues by department, highlighting where site issues stall.",
+    "backToRegister": "Back to register",
+    "dateRange": "Date range",
+    "preset30d": "Last 30 days",
+    "preset90d": "Last 90 days",
+    "presetYtd": "Year to date",
+    "presetAll": "All time",
+    "presetCustom": "Custom",
+    "from": "From",
+    "to": "To",
+    "grouping": "Department grouping",
+    "groupByType": "By issue type",
+    "groupByGroups": "By department groups",
+    "cards": {
+      "totalIssues": "Total issues",
+      "closedIssues": "Closed issues",
+      "avgClosingTime": "Avg time to close",
+      "stalledIssues": "Stalled issues",
+      "stalledSub": "Overdue and open",
+      "closedRate": "{{percent}}% of total"
+    },
+    "col": {
+      "department": "Department",
+      "total": "Total",
+      "closed": "Closed",
+      "open": "Open",
+      "stalled": "Stalled",
+      "avgClosing": "Avg closing time",
+      "medianClosing": "Median closing time"
+    },
+    "empty": {
+      "title": "No issue data in this period",
+      "sub": "Try expanding the date range or selecting another department grouping."
+    },
+    "durationDays": "{{days}} days",
+    "durationHours": "{{count}} hrs",
+    "durationMinutes": "{{count}} mins",
+    "disabledMessage": "The closing-time report is not enabled for this organisation. An administrator can enable it in Administration."
+  },
   "notification": {
     "overdue": "Issue is overdue"
   }

@@ -7,6 +7,7 @@ import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({
   req: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   waiting: { data: [] as unknown[] },
+  dnSettings: { data: { enabled: false, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] } },
   userId: 'u-approver',
   keepers: [{ warehouse_id: 'w1', user_id: 'u-approver' }] as unknown[],
   decide: { mutateAsync: vi.fn(), isPending: false },
@@ -15,6 +16,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useMaterialRequest: () => h.req,
   useWaitingForMe: () => h.waiting,
+  useDeliveryNoteSettings: () => h.dnSettings,
   useMaterialRequestMutations: () => ({
     decide: h.decide, cancel: { mutateAsync: vi.fn(), isPending: false }, retryTransfer: { mutateAsync: vi.fn(), isPending: false },
   }),
@@ -162,5 +164,43 @@ describe('material request detail', () => {
     h.req = { data: request({ status: 'approved', transferDocumentId: 'doc-9', transferCancelled: true, steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] }), isPending: false, isError: false, refetch: vi.fn() };
     renderPage();
     expect(screen.queryByRole('button', { name: 'Create the transfer again' })).not.toBeInTheDocument();
+  });
+
+  describe('#2687 printable delivery note action', () => {
+    it('AC-DNP-001 shows print action when delivery notes are enabled and request is approved', () => {
+      h.dnSettings = { data: { enabled: true, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] } };
+      h.req = {
+        data: request({ status: 'approved', steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] }),
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      };
+      renderPage();
+      expect(screen.getByRole('button', { name: 'Print delivery note' })).toBeInTheDocument();
+    });
+
+    it('AC-DNP-002 hides print action when delivery notes are disabled', () => {
+      h.dnSettings = { data: { enabled: false, signatureBlocks: [] } };
+      h.req = {
+        data: request({ status: 'approved', steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] }),
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      };
+      renderPage();
+      expect(screen.queryByRole('button', { name: 'Print delivery note' })).not.toBeInTheDocument();
+    });
+
+    it('AC-DNP-003 hides print action when request is pending even if enabled', () => {
+      h.dnSettings = { data: { enabled: true, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] } };
+      h.req = {
+        data: request({ status: 'pending', steps: [step(1, 'approved'), step(2, 'open'), step(3, 'waiting')] }),
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      };
+      renderPage();
+      expect(screen.queryByRole('button', { name: 'Print delivery note' })).not.toBeInTheDocument();
+    });
   });
 });

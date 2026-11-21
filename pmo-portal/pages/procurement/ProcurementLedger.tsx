@@ -23,6 +23,7 @@
  * affordance for canWrite rows with no file.
  */
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -63,6 +64,7 @@ import { BillMatchDrawer } from './BillMatchDrawer';
 import { useBillMatches, useThreeWayMatchOn } from '@/src/hooks/useThreeWayMatch';
 import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
+import { usePurchaseOrderSettings } from '@/src/hooks/usePurchaseOrderSettings';
 
 // ---------------------------------------------------------------------------
 // Date formatting — a ledger row's date is a BUSINESS DATE: its calendar day never moves with the
@@ -394,6 +396,9 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   itemsNet,
   gates,
 }) => {
+  const navigate = useNavigate();
+  const poSettingsQuery = usePurchaseOrderSettings();
+  const poPrintEnabled = poSettingsQuery.data?.enabled ?? false;
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
   const [voidTarget, setVoidTarget] = useState<LedgerRow | null>(null);
@@ -608,17 +613,24 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         rowKey={(row) => row.id}
         rowTarget={(row) => row.type === 'Invoice' && row.recordId === targetInvoiceId ? `invoice-${row.recordId}` : undefined}
         rowMenu={(row): RowMenuItem[] | undefined => {
-          if (row.type !== 'Invoice') return undefined;
           const items: RowMenuItem[] = [];
-          if (canRecordEfaktur && onSetEfaktur && !row.efakturLocked) items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) });
-          if (canVoidBill && row.voidable) items.push({ label: t('procurement:voidBill.action', 'Void bill'), onClick: () => setVoidTarget(row) });
-          const coverage = withholdingCoverage[row.recordId];
-          const invoice = invoices.find((item) => item.id === row.recordId);
-          if (coverage?.active_slip_id) items.push({ label: t('bupot.view', 'View bukti potong'), onClick: () => onViewWithholdingSlip?.(coverage.active_slip_id!) });
-          else if (coverage?.coverage_state === 'not-recorded' && invoice && vendorMissing && onSetVendor) items.push({ label: t('bupot.setVendor', 'Set supplier'), onClick: onSetVendor });
-          else if (canWriteWithholdingSlip && coverage?.coverage_state === 'not-recorded' && invoice && !vendorMissing) items.push({ label: t('bupot.record', 'Record bukti potong'), onClick: () => onRecordWithholdingSlip?.(invoice) });
-          items.push({ label: t('bupot.history', 'Bukti potong history'), onClick: () => onWithholdingHistory?.(row.recordId) });
-          if (canViewMatch && matchOn && invoice && !invoice.voided_at) items.push({ label: t('procurement:threeWayMatch.menu', 'Three-way match'), onClick: () => setMatchFor({ id: invoice.id, label: billLabel(invoice) }) });
+          if (row.type === 'PO' && poPrintEnabled) {
+            items.push({
+              label: t('procurement:purchaseOrderPrint.printAction', 'Print purchase order'),
+              onClick: () => navigate(`/procurement/${procurementId}/purchase-orders/${row.recordId}/print`),
+            });
+          }
+          if (row.type === 'Invoice') {
+            if (canRecordEfaktur && onSetEfaktur && !row.efakturLocked) items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) });
+            if (canVoidBill && row.voidable) items.push({ label: t('procurement:voidBill.action', 'Void bill'), onClick: () => setVoidTarget(row) });
+            const coverage = withholdingCoverage[row.recordId];
+            const invoice = invoices.find((item) => item.id === row.recordId);
+            if (coverage?.active_slip_id) items.push({ label: t('bupot.view', 'View bukti potong'), onClick: () => onViewWithholdingSlip?.(coverage.active_slip_id!) });
+            else if (coverage?.coverage_state === 'not-recorded' && invoice && vendorMissing && onSetVendor) items.push({ label: t('bupot.setVendor', 'Set supplier'), onClick: onSetVendor });
+            else if (canWriteWithholdingSlip && coverage?.coverage_state === 'not-recorded' && invoice && !vendorMissing) items.push({ label: t('bupot.record', 'Record bukti potong'), onClick: () => onRecordWithholdingSlip?.(invoice) });
+            items.push({ label: t('bupot.history', 'Bukti potong history'), onClick: () => onWithholdingHistory?.(row.recordId) });
+            if (canViewMatch && matchOn && invoice && !invoice.voided_at) items.push({ label: t('procurement:threeWayMatch.menu', 'Three-way match'), onClick: () => setMatchFor({ id: invoice.id, label: billLabel(invoice) }) });
+          }
           return items.length ? items : undefined;
         }}
         state={tableState}

@@ -94,6 +94,24 @@
   "placedCount": "{{placed}} of {{headcount}}",
   "placedOf": "Placed",
   "placements": "Roster placements",
+  "rate": {
+    "absent": "Absent",
+    "belowTarget": "Below target",
+    "crew": "Crew",
+    "empty": "No crew has attendance in this period.",
+    "error": "Couldn't load the attendance rate",
+    "expected": "Expected days",
+    "from": "From",
+    "helper": "Expected counts a person placed in the crew on a day it was rostered. Leave and off rotation are excused; a day nobody recorded counts against the rate.",
+    "leave": "Leave",
+    "noRecord": "No record",
+    "offRotation": "Off rotation",
+    "present": "Present",
+    "rangeError": "The end date is before the start date.",
+    "rate": "Attendance rate",
+    "target": "Target",
+    "to": "To"
+  },
   "reason": "Reason",
   "reasonFor": "Reason for {{name}}",
   "retry": "Retry",
@@ -127,7 +145,8 @@
     "attendance": "Attendance",
     "crews": "Crews",
     "roster": "Roster",
-    "tools": "Tools"
+    "tools": "Tools",
+    "rate": "Rate"
   },
   "tabsLabel": "Crew views",
   "tickErrors": {

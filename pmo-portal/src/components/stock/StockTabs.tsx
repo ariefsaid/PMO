@@ -20,6 +20,7 @@ export const StockTabs: React.FC = () => {
     { to: '/stock/ledger', label: t('tabs.ledger'), end: true },
     { to: '/stock/reorder', label: t('tabs.reorder'), end: true },
     { to: '/stock/usage-standards', label: t('tabs.usageStandards', 'Usage standards'), end: true },
+    { to: '/stock/at-risk', label: t('tabs.atRisk'), end: true },
     ...(may('create', 'stockItem') ? [{ to: '/stock/setup', label: t('tabs.setup'), end: true }] : []),
   ];
   // F10: the grey rule under the strip IS this nav's own bottom border, so a permanent right-edge mask

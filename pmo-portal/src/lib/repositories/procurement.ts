@@ -59,6 +59,7 @@ import {
   getSignedDownloadUrl as getProcurementFileSignedUrl,
   cleanupStorageObject as cleanupProcurementFileObject,
 } from '@/src/lib/db/procurementFiles';
+import { getPurchaseOrderSettings, setPurchaseOrderSettings } from '@/src/lib/db/purchaseOrderSettings';
 import { wrap } from './repositoryErrors';
 import { dispatchCreate } from './repositoryDispatch';
 import type { ProcurementFileRepository, ProcurementListOptions, ProcurementRepository } from './contracts/procurement';
@@ -259,6 +260,9 @@ export const procurementRepository: ProcurementRepository = {
       () => wrap(() => createPayment(procurementId, invoiceId, referenceNumber, status, date, amount)),
       invoiceId ?? undefined,
     ),
+  purchaseOrderSettings: () => wrap(() => getPurchaseOrderSettings()),
+  setPurchaseOrderSettings: (enabled, signatureBlocks, collectors) =>
+    wrap(() => setPurchaseOrderSettings(enabled, signatureBlocks, collectors)),
 };
 
 export const procurementFilesRepository: ProcurementFileRepository = {

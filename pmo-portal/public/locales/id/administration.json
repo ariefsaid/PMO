@@ -707,6 +707,19 @@
       "loadError": "Tidak dapat memuat tahun fiskal",
       "accountingSystem": "Sistem akuntansi Anda yang menetapkan tahun fiskal.",
       "adminOnly": "Hanya Admin yang dapat mengubah ini."
+    },
+    "attendanceTarget": {
+      "helper": "Tingkat kehadiran yang menjadi ukuran setiap kru, dalam persen. Kosongkan agar tampilan tingkat kehadiran tidak ditawarkan.",
+      "label": "Tingkat target (%)",
+      "loadError": "Tidak bisa memuat target",
+      "off": "Mati: tampilan tingkat kehadiran tidak ditawarkan.",
+      "on": "Kru diukur terhadap target ini.",
+      "precision": "Beri target paling banyak dua angka desimal.",
+      "range": "Target dari 0 sampai 100.",
+      "save": "Simpan target",
+      "saved": "Target kehadiran disimpan",
+      "title": "Target kehadiran",
+      "turnOff": "Matikan"
     }
   },
   "exchangeRates": {
@@ -791,7 +804,12 @@
     "archive": "Arsipkan",
     "archiveLabel": "Arsipkan {{name}}",
     "archiveTitle": "Arsipkan personel",
-    "archiveBody": "Personel ini keluar dari daftar dan daftar kedaluwarsa, dan tidak ada lagi peringatan untuk dokumennya.",
+    "archiveBody": "Personel ini keluar dari daftar aktif dan peringatan kedaluwarsa, dan tetap tercatat sebagai mantan personel.",
+    "staffStatus": "Status personel",
+    "active": "Aktif",
+    "former": "Mantan personel",
+    "all": "Semua",
+    "formerEmpty": "Belum ada mantan personel. Personel yang Anda arsipkan muncul di sini.",
     "archived": "Personel diarsipkan",
     "actions": "Tindakan",
     "errName": "Isi nama",
@@ -974,5 +992,28 @@
     "switch": "Hitung jam menganggur dalam uang",
     "adminOnly": "Hanya Admin atau Keuangan yang dapat mengubah pengaturan ini.",
     "needsLabour": "Belum ada yang tampil sampai biaya tenaga kerja dalam uang diaktifkan."
+  },
+  "issueClosingReport": {
+    "title": "Laporan waktu penyelesaian isu",
+    "helper": "Aktifkan laporan waktu penyelesaian dan atur pengelompokan departemen.",
+    "enableLabel": "Aktifkan laporan waktu penyelesaian",
+    "enableHelper": "Menampilkan laporan waktu penyelesaian pada daftar insiden.",
+    "groupingMode": "Pengelompokan bawaan",
+    "modeType": "Berdasarkan jenis isu",
+    "modeDepartmentGroups": "Berdasarkan grup departemen kustom",
+    "groupsTitle": "Grup departemen",
+    "groupsHelper": "Petakan jenis isu ke nama departemen untuk pelaporan.",
+    "addGroup": "Tambah grup departemen",
+    "groupName": "Nama departemen",
+    "groupNamePlaceholder": "mis. Sipil & Pekerjaan Tanah",
+    "issueTypes": "Jenis isu (pisahkan dengan koma)",
+    "issueTypesPlaceholder": "mis. Civil, Excavation, Concrete",
+    "save": "Simpan",
+    "cancel": "Batal",
+    "edit": "Ubah",
+    "delete": "Hapus",
+    "saved": "Pengaturan disimpan",
+    "groupSaved": "Grup departemen disimpan",
+    "groupDeleted": "Grup departemen dihapus"
   }
 }

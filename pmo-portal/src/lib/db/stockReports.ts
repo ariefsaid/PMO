@@ -19,6 +19,13 @@ export interface StockLedgerFilters {
 }
 export interface StockLedgerPage { rows: StockLedgerRow[]; nextBeforeSeq: number | null }
 
+/** #2694: one row per location holding stock; money keys exist only when the server sent them (rank >= 20). */
+export interface StockAtRiskRow {
+  warehouseId: string; warehouseCode: string; warehouseName: string; warehouseKind: 'central' | 'site' | 'yard' | 'staging';
+  projectId: string | null; projectName: string | null;
+  stockValue?: string; coverValue?: string | null; atRisk?: string;
+}
+
 /** The project consumption report (#1512 S5, FR-STK-042/043). Per-month rows carry consumption only; allowances are cumulative to `to`. */
 interface ConsumptionKey { boqItemId: string; boqItemCode: string; boqDescription: string; itemId: string; itemCode: string; itemName: string; unitCode: string }
 export interface ConsumptionMonthRow extends ConsumptionKey {
@@ -53,6 +60,19 @@ export async function getStockOnHand(f: { warehouseId?: string; itemId?: string;
     };
     optional(r, 'value_on_hand', 'valueOnHand', out); optional(r, 'avg_cost', 'avgCost', out);
     return out as StockOnHandRow;
+  });
+}
+
+export async function getStockAtRisk(): Promise<StockAtRiskRow[]> {
+  const { data, error } = await supabase.rpc('get_stock_at_risk');
+  if (error) throw toAppError(error);
+  return ((data ?? []) as Json[]).map((r) => {
+    const out: Json = {
+      warehouseId: r.warehouse_id, warehouseCode: r.warehouse_code, warehouseName: r.warehouse_name, warehouseKind: r.warehouse_kind,
+      projectId: r.project_id ?? null, projectName: r.project_name ?? null,
+    };
+    optional(r, 'stock_value', 'stockValue', out); optional(r, 'cover_value', 'coverValue', out); optional(r, 'at_risk', 'atRisk', out);
+    return out as StockAtRiskRow;
   });
 }
 
