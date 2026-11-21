@@ -27,6 +27,7 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 /** #1505 P8: one goods-receipt line the user entered: the order line's name and the quantity received. */
 export interface ReceiptLineInput { itemRef: string; quantity: number }
 import type { ProcPhase, ProcurementFileRow, ProcurementFileParent } from '@/src/lib/db/procurementFiles';
+import type { PurchaseOrderSettings } from '@/src/lib/db/purchaseOrderSettings';
 
 /**
  * The lean `list()` row: exactly the columns the default select returns (the row, the project / vendor /
@@ -193,6 +194,10 @@ export interface ProcurementRepository {
     /** #1505 P8: the Odoo payment journal the user chose; omitted = the organisation's default. Never used on the PMO path. */
     journalId?: string,
   ): Promise<PaymentRow>;
+  /** Read purchase order print settings (#2688) */
+  purchaseOrderSettings(): Promise<PurchaseOrderSettings>;
+  /** Save purchase order print settings (#2688) */
+  setPurchaseOrderSettings(enabled: boolean, signatureBlocks: string[], collectors: string[]): Promise<void>;
 }
 
 export interface ProcurementFileRepository {

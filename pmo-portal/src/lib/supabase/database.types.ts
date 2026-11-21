@@ -10751,6 +10751,33 @@ export type Database = {
           },
         ]
       }
+      purchase_order_settings: {
+        Row: {
+          authorised_collectors: string[]
+          org_id: string
+          print_enabled: boolean
+          signature_blocks: string[]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          authorised_collectors?: string[]
+          org_id?: string
+          print_enabled?: boolean
+          signature_blocks?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          authorised_collectors?: string[]
+          org_id?: string
+          print_enabled?: boolean
+          signature_blocks?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       purchase_request_files: {
         Row: {
           archived_at: string | null
@@ -16345,6 +16372,14 @@ export type Database = {
           p_work_order_id?: string
         }
         Returns: string
+      }
+      po_set_print_settings: {
+        Args: {
+          p_authorised_collectors: string[]
+          p_enabled: boolean
+          p_signature_blocks: string[]
+        }
+        Returns: undefined
       }
       create_purchase_order: {
         Args: {

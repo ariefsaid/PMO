@@ -55,6 +55,14 @@ vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => mutState,
 }));
 
+const poSettingsMock = vi.hoisted(() => ({
+  data: { enabled: false, signatureBlocks: [], authorisedCollectors: [] },
+}));
+
+vi.mock('@/src/hooks/usePurchaseOrderSettings', () => ({
+  usePurchaseOrderSettings: () => poSettingsMock,
+}));
+
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = await orig<typeof import('@/src/components/ui')>();
   return { ...actual, useToast: () => ({ toast: vi.fn() }) };
@@ -660,5 +668,41 @@ describe('the ledger derives withholding coverage from the hook itself', () => {
     wrap(<ProcurementLedger {...BASE_PROPS} {...invoiceProps} rows={[SAMPLE_ROWS[1]]} canWriteWithholdingSlip onRecordWithholdingSlip={onRecordWithholdingSlip} />);
     fireEvent.click(screen.getByRole('button', { name: 'Record bukti potong' }));
     await waitFor(() => expect(onRecordWithholdingSlip).toHaveBeenCalledWith(expect.objectContaining({ id: 'vi-1' })));
+  });
+});
+
+describe('AC-POP-001 / AC-POP-002: purchase order print action in ledger', () => {
+  const PO_ROW: LedgerRow = {
+    id: 'po-1',
+    date: '2026-05-01',
+    type: 'PO',
+    systemNumber: 'PO-2026-0010',
+    externalRef: 'PO-EXT-01',
+    amount: 500000,
+    status: 'Issued',
+    statusVariant: 'progress',
+    fileHref: null,
+    fileTitle: null,
+    fileCount: 0,
+    financial: true,
+    recordId: 'po-rec-1',
+    currency: 'IDR',
+    taxTreatment: null,
+  };
+
+  it('AC-POP-002: when print setting is disabled, PO row has no print action in row menu', () => {
+    poSettingsMock.data = { enabled: false, signatureBlocks: [], authorisedCollectors: [] };
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={[PO_ROW]} />);
+    expect(screen.queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/print purchase order/i)).not.toBeInTheDocument();
+  });
+
+  it('AC-POP-001: when print setting is enabled, PO row provides print purchase order action', async () => {
+    poSettingsMock.data = { enabled: true, signatureBlocks: [], authorisedCollectors: [] };
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={[PO_ROW]} />);
+    const trigger = screen.getByRole('button', { name: /row actions/i });
+    expect(trigger).toBeInTheDocument();
+    fireEvent.click(trigger);
+    expect(await screen.findByRole('menuitem', { name: /print purchase order/i })).toBeInTheDocument();
   });
 });
