@@ -5907,6 +5907,48 @@ export type Database = {
           },
         ]
       }
+      incident_tasks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          incident_id: string
+          org_id: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          incident_id: string
+          org_id?: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          incident_id?: string
+          org_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_tasks_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incident_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_tasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incident_files: {
         Row: {
           archived_at: string | null
@@ -5977,6 +6019,7 @@ export type Database = {
           closed_by: string | null
           due_at: string | null
           escalated_at: string | null
+          root_cause?: string | null
           task_id: string | null
           work_order_id: string | null
           created_at: string
@@ -5999,6 +6042,7 @@ export type Database = {
           closed_by?: string | null
           due_at?: string | null
           escalated_at?: string | null
+          root_cause?: string | null
           task_id?: string | null
           work_order_id?: string | null
           created_at?: string
@@ -6021,6 +6065,7 @@ export type Database = {
           closed_by?: string | null
           due_at?: string | null
           escalated_at?: string | null
+          root_cause?: string | null
           task_id?: string | null
           work_order_id?: string | null
           created_at?: string
@@ -13494,6 +13539,10 @@ export type Database = {
           source: string
           work_order_id: string | null
         }[]
+      }
+      add_task_to_incident: {
+        Args: { p_incident: string; p_name: string; p_assignee?: string; p_due_date?: string }
+        Returns: string
       }
       create_task_from_incident: {
         Args: { p_incident: string }

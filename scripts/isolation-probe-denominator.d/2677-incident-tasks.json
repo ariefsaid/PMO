@@ -2,5 +2,5 @@
   "tables": [
     {"table":"incident_tasks","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
   ],
-  "definer_functions": ["add_task_to_incident(uuid,text,uuid,date)", "mirror_incident_task()"]
+  "definer_functions": ["add_task_to_incident(uuid,text,uuid,date)"]
 }

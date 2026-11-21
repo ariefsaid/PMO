@@ -141,5 +141,27 @@
   "allIncidents": "Semua insiden",
   "notification": {
     "overdue": "Insiden melewati tenggat"
+  },
+  "tasks": {
+    "heading": "Tugas",
+    "none": "Belum ada tugas.",
+    "hidden": "Tugas yang tidak dapat Anda lihat",
+    "add": "Tambah tugas",
+    "addTitle": "Tambah tugas",
+    "name": "Tugas",
+    "namePlaceholder": "mis. Pesan suku cadang pengganti",
+    "due": "Tenggat",
+    "dueOn": "Tenggat {{date}}",
+    "nameRequired": "Beri nama tugas."
+  },
+  "rootCause": {
+    "heading": "Akar masalah",
+    "none": "Akar masalah belum dicatat.",
+    "add": "Catat akar masalah",
+    "edit": "Ubah akar masalah",
+    "label": "Akar masalah",
+    "placeholder": "Mengapa ini terjadi, terpisah dari hambatan yang terlihat.",
+    "save": "Simpan",
+    "cancel": "Batal"
   }
 }

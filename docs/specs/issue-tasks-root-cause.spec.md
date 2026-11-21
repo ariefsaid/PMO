@@ -1,6 +1,6 @@
 # Spec: Several tasks per issue and a root-cause field (#2677)
 
-**Status:** proposed (phase 1). IDs `FR-ITR-###`, `AC-ITR-###`. Plan: `docs/plans/2026-11-21-issue-tasks-root-cause.md`. Size S. Extends `docs/specs/site-issue-log.spec.md` (FR-SIL-030/031) and the shipped site issue log (#2521; migrations 1026-1028, 1112). Task creation is a permission rule, so it stays database-enforced (security-definer RPC, pgTAP, mutation check). Not a money path.
+**Status:** built (phase 2); owner-approved design. IDs `FR-ITR-###`, `AC-ITR-###`. Plan: `docs/plans/2026-11-21-issue-tasks-root-cause.md`. Size S. Extends `docs/specs/site-issue-log.spec.md` (FR-SIL-030/031) and the shipped site issue log (#2521; migrations 1026-1028, 1112). Task creation is a permission rule, so it stays database-enforced (security-definer RPC, pgTAP, mutation check). Not a money path.
 
 ## Job story
 

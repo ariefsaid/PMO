@@ -1042,3 +1042,7 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+**Issue task** — a task linked to a site issue through `incident_tasks`; one issue has many, one task serves one issue (#2677).
+
+**Root cause** — the cause of an issue, recorded apart from the visible problem (description) and the close note (#2677).
