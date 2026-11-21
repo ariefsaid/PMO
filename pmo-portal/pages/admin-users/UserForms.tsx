@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { UserDirectoryRow, UserManagerChoice, UserRole } from '@/src/lib/db/adminUsers';
 import { useRoleLabels } from './roleLabels';
+import { BUILT_IN_ROLES, BUILT_IN_ROLE_TIERS, baseLevelOf, builtInRoleName } from '@/src/auth/builtInRoles';
 import { initialsOf } from './avatar';
 
 /**
@@ -121,6 +122,8 @@ export const InviteFormModal: React.FC<{
 
 interface RoleFormValues {
   role: UserRole;
+  /** '' = no built-in role (the access level alone applies). */
+  builtIn: string;
 }
 
 export const RoleFormModal: React.FC<{
@@ -129,22 +132,51 @@ export const RoleFormModal: React.FC<{
   submitError: SubmitError | null;
   onClose: () => void;
   onSubmit: (user: UserDirectoryRow, role: UserRole) => void;
-}> = ({ user, submitError, onClose, onSubmit }) => {
-  const { t } = useTranslation();
+  /** #2709: true once the organization has turned the built-in role set on. False (default) = the form is unchanged. */
+  builtInEnabled?: boolean;
+  onSubmitBuiltIn?: (user: UserDirectoryRow, key: string | null) => void;
+}> = ({ user, submitError, onClose, onSubmit, builtInEnabled = false, onSubmitBuiltIn }) => {
+  const { t, i18n } = useTranslation();
   const roleNames = useRoleLabels();
   const form = useEntityForm<RoleFormValues>({
-    initialValues: { role: user.role },
+    initialValues: { role: user.role, builtIn: user.built_in_role ?? '' },
     idPrefix: 'role-form',
     module: 'administration',
   });
   const roleField = form.fieldProps('role');
+  const builtInField = form.fieldProps('builtIn');
+  const heldKey = user.built_in_role ?? '';
+
+  const builtInOptions = useMemo(() => {
+    const tierLabel = {
+      manager: t('administration:admin.users.builtIn.tier.manager', 'Managers'),
+      officer: t('administration:admin.users.builtIn.tier.officer', 'Officers'),
+      field: t('administration:admin.users.builtIn.tier.field', 'Field'),
+    } as const;
+    return [
+      { value: '', label: t('administration:admin.users.builtIn.none', 'No built-in role (access level only)') },
+      ...BUILT_IN_ROLE_TIERS.flatMap((tier) => [
+        { value: `__${tier}`, label: tierLabel[tier], disabled: true },
+        ...BUILT_IN_ROLES.filter((role) => role.tier === tier).map((role) => ({
+          value: role.key,
+          label: builtInRoleName(role.key, i18n.language),
+        })),
+      ]),
+    ];
+  }, [t, i18n.language]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit((values) => {
+      if (builtInEnabled && onSubmitBuiltIn && values.builtIn !== heldKey) {
+        onSubmitBuiltIn(user, values.builtIn === '' ? null : values.builtIn);
+        return;
+      }
       onSubmit(user, values.role);
     });
   };
+
+  const chosenBase = baseLevelOf(builtInField.value || null);
 
   return (
     <EntityFormModal
@@ -157,20 +189,44 @@ export const RoleFormModal: React.FC<{
       dirty={form.isDirty}
     >
       <FormSection legend={t('admin.users.columns.role', 'Role')}>
-        <SelectField
-          id={roleField.id}
-          label={t('admin.users.columns.role', 'Role')}
-          required
-          value={roleField.value}
-          onChange={(v) => roleField.onChange(v as UserRole)}
-          onBlur={roleField.onBlur}
-          options={roleNames.options}
-          helper={t(
-            'admin.users.roleForm.helper',
-            'Determines what this user can see and do. Changes take effect immediately and are confirmed first.',
-          )}
-          fullWidth
-        />
+        {builtInEnabled && (
+          <SelectField
+            id={builtInField.id}
+            label={t('administration:admin.users.builtIn.label', 'Built-in role')}
+            value={builtInField.value}
+            onChange={(v) => builtInField.onChange(v)}
+            onBlur={builtInField.onBlur}
+            options={builtInOptions}
+            helper={t(
+              'administration:admin.users.builtIn.helper',
+              'A built-in role starts from one access level and sets what this person sees and does for their job.',
+            )}
+            fullWidth
+          />
+        )}
+        {builtInEnabled && chosenBase ? (
+          <p id="role-form-base-level" className="text-control text-muted-foreground">
+            {t('administration:admin.users.builtIn.baseLevel', {
+              defaultValue: 'Access level: {{level}} (set by the built-in role)',
+              level: roleNames.label(chosenBase),
+            })}
+          </p>
+        ) : (
+          <SelectField
+            id={roleField.id}
+            label={t('admin.users.columns.role', 'Role')}
+            required
+            value={roleField.value}
+            onChange={(v) => roleField.onChange(v as UserRole)}
+            onBlur={roleField.onBlur}
+            options={roleNames.options}
+            helper={t(
+              'admin.users.roleForm.helper',
+              'Determines what this user can see and do. Changes take effect immediately and are confirmed first.',
+            )}
+            fullWidth
+          />
+        )}
       </FormSection>
     </EntityFormModal>
   );

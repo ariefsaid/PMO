@@ -624,6 +624,20 @@
       "fallbackHint": "Penerimaan tanpa akun sendiri diposting ke akun bawaan."
     },
     "users": {
+      "builtIn": {
+        "tier": {
+          "manager": "Manajer",
+          "officer": "Petugas",
+          "field": "Lapangan"
+        },
+        "none": "Tanpa peran bawaan (hanya tingkat akses)",
+        "label": "Peran bawaan",
+        "helper": "Peran bawaan berawal dari satu tingkat akses dan menentukan apa yang dilihat dan dilakukan orang ini untuk pekerjaannya.",
+        "baseLevel": "Tingkat akses: {{level}} (ditentukan oleh peran bawaan)"
+      },
+      "roleConfirm": {
+        "clearTitle": "Hapus peran bawaan {{name}}?"
+      },
       "pager": {
         "label": "Halaman",
         "range": "{{from}}–{{to}} dari {{total}}",
@@ -686,6 +700,17 @@
           "loadError": "Daftar tidak dapat dimuat",
           "saved": "Daftar disimpan",
           "duplicate": "Nama itu sudah ada dalam daftar"
+    },
+    "builtInRoles": {
+      "title": "Peran bawaan",
+      "loadError": "Pengaturan peran bawaan tidak dapat dimuat",
+      "saved": "Pengaturan peran bawaan disimpan",
+      "helper": "Tawarkan 28 peran untuk fungsi-fungsi kontraktor, dalam tiga tingkat. Masing-masing berawal dari satu dari lima tingkat akses, sehingga mengaktifkannya tidak mengubah apa pun sampai seseorang diberi peran. Orang yang sudah diberi peran tetap memilikinya jika Anda menonaktifkannya.",
+      "on": "Aktif",
+      "off": "Nonaktif",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
+      "turnOn": "Aktifkan peran bawaan",
+      "turnOff": "Nonaktifkan peran bawaan"
     },
     "fiscalYear": {
       "title": "Tahun fiskal",

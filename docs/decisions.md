@@ -3919,3 +3919,7 @@ from items bought.
 - Batch and lot tracking and material close-out (#2538): batch and lot Q1 2027; material close-out with the close-out checklist on 15 December.
 - User count and service terms (#2539): stays open; the light seat type is decided and counted separately, price and counts remain the owner's.
 - Custom roles (#2540): the 28 built-in roles and light accounts on 15 December; custom roles Q1 2027.
+
+### Design record: base levels of the 28 built-in roles (#2709, 2026-11-21)
+A record of the design as built, not a new owner ruling; the owner's scope ruling is OD-SCOPE-3.
+Managers sit at Project Manager rank or above (Finance Manager at Finance, Executive and Administrator at their own level); officers at Engineer, except Billing Officer and Finance Officer at Finance; Foreman and Field user at Engineer. Project Administrator is Engineer (requests, no approval). Deputy Project Manager is a manager; Site Supervisor an officer; medical documents are held by HR Manager, HR Officer and Administrator only. Assignment is gated by one organization setting, default off, enforced in the database. Full table: `docs/specs/builtin-role-set.spec.md` section 2.

@@ -59,7 +59,7 @@ export async function listUsers(): Promise<UserRow[]> {
  * would silently render "No manager" for every manager past the page boundary.
  */
 export const USER_DIRECTORY_COLUMNS =
-  'id,full_name,email,role,status,org_id,manager_id,manager:profiles!manager_id(full_name)';
+  'id,full_name,email,role,built_in_role,status,org_id,manager_id,manager:profiles!manager_id(full_name)';
 
 /** Why the projection is not `UserRow`: the directory never receives the columns it does not read. */
 export interface UserDirectoryRow {
@@ -67,6 +67,8 @@ export interface UserDirectoryRow {
   full_name: string;
   email: string;
   role: UserRole;
+  /** #2709: the built-in role key the person holds, or null (every person in an organization that has not turned the set on). */
+  built_in_role?: string | null;
   status: UserRow['status'];
   org_id: string;
   manager_id: string | null;
@@ -231,6 +233,16 @@ export async function findUserPage(input: { userId: string; pageSize: number }):
  */
 export async function updateUserRole(id: string, role: UserRole): Promise<void> {
   const { data, error } = await supabase.from('profiles').update({ role }).eq('id', id).select('id');
+  if (error) throwWrite(error);
+  assertWriteLanded(data, 'User not found or you do not have permission to change their role.');
+}
+
+/**
+ * Give a person a built-in role, or clear it with null (#2709). The database moves the access level to the key's base level
+ * and applies the profile-administration rule to the result; it refuses while the organization setting is off and for oneself.
+ */
+export async function updateUserBuiltInRole(id: string, key: string | null): Promise<void> {
+  const { data, error } = await supabase.from('profiles').update({ built_in_role: key }).eq('id', id).select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'User not found or you do not have permission to change their role.');
 }

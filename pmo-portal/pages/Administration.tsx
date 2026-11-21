@@ -26,6 +26,7 @@ import { IntegrationsView } from '@/src/components/integrations/IntegrationsView
 import { AccountingHelp } from './admin/AccountingHelp';
 import OrgTaxDefault from './admin/OrgTaxDefault';
 import OrgFiscalYearStart from './admin/OrgFiscalYearStart';
+import OrgBuiltInRoles from './admin/OrgBuiltInRoles';
 import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
@@ -250,6 +251,7 @@ const SelectedAdministrationPanel: React.FC<{
           <SectionName name={label('people')} />
           <People />
           <DocumentTypes />
+          <OrgBuiltInRoles />
         </div>
       );
     case 'integrations':

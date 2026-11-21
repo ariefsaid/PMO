@@ -1042,3 +1042,11 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+**Built-in role** — one of 28 stable roles (key such as `storekeeper`) in three tiers, offered once an organization turns the set on. Each starts from exactly one **base access level** and adds only the narrower rules listed for it as **role capabilities**. A person with no built-in role behaves exactly as before. Names are defaults a client may rename. (#2709, `docs/specs/builtin-role-set.spec.md`.)
+
+**Base access level** — one of today's five levels (Executive, Project Manager, Finance, Engineer, Admin) that every existing rule reads from `profiles.role`. While a person holds a built-in role it is set to that role's base level and moves only with it.
+
+**Role tier** — manager, officer or field. Managers approve, officers prepare, field roles are light accounts; a manager stands in for a manager, never upward.
+
+**Role capability** — a narrow difference from the base level held by named built-in roles only (for example posting stock, validating a daily report, running billing stages). Other features read it through `actor_has_role_capability`.

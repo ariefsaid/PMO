@@ -7118,6 +7118,7 @@ export type Database = {
         Row: {
           attendance_backdate_days: number
           attendance_conflict_tolerance_hours: number
+          built_in_roles_enabled: boolean
           created_at: string
           default_currency: string
           default_locale: string
@@ -7143,6 +7144,7 @@ export type Database = {
         Insert: {
           attendance_backdate_days?: number
           attendance_conflict_tolerance_hours?: number
+          built_in_roles_enabled?: boolean
           created_at?: string
           default_currency?: string
           default_locale?: string
@@ -7168,6 +7170,7 @@ export type Database = {
         Update: {
           attendance_backdate_days?: number
           attendance_conflict_tolerance_hours?: number
+          built_in_roles_enabled?: boolean
           created_at?: string
           default_currency?: string
           default_locale?: string
@@ -8841,6 +8844,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          built_in_role?: string | null
           company_id: string | null
           created_at: string
           email: string
@@ -8861,6 +8865,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          built_in_role?: string | null
           company_id?: string | null
           created_at?: string
           email: string
@@ -8881,6 +8886,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          built_in_role?: string | null
           company_id?: string | null
           created_at?: string
           email?: string
@@ -15316,6 +15322,7 @@ export type Database = {
           draft: number
         }[]
       }
+      get_built_in_roles_enabled: { Args: never; Returns: boolean }
       get_org_fiscal_year_setting: {
         Args: never
         Returns: { source: string; start_month: number | null }[]
@@ -16871,6 +16878,7 @@ export type Database = {
         Args: { p_account_ref: string; p_actor_id: string; p_org_id: string }
         Returns: undefined
       }
+      set_built_in_roles_enabled: { Args: { p_enabled: boolean }; Returns: boolean }
       set_org_fiscal_year_start_month: {
         Args: { p_month: number | null }
         Returns: number | null
