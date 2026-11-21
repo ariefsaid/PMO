@@ -3,6 +3,7 @@ import type { RowMenuItem } from './RowMenu';
 
 interface LiveRowCallbacks<Row, Col> {
   onActivate?: (row: Row) => void;
+  rowHref?: (row: Row) => string | undefined;
   rowMenu?: (row: Row) => RowMenuItem[] | undefined;
   accessibleRowLabel: (row: Row) => string | undefined;
   selectionLabel: (row: Row, primaryColumn?: Col) => string;
@@ -20,6 +21,7 @@ export function useLiveRowProps<Row, Col>(p: LiveRowCallbacks<Row, Col>) {
   live.current = p;
   const stable = useMemo(() => ({
     onActivate: (row: Row) => live.current.onActivate?.(row),
+    rowHref: (row: Row) => live.current.rowHref?.(row),
     rowMenu: (row: Row): RowMenuItem[] | undefined =>
       live.current.rowMenu?.(row)?.map((item, index) => ({
         ...item,
@@ -38,5 +40,5 @@ export function rowContentKey<Row, Col>(
   primaryColumn?: Col,
 ): string {
   const menu = p.rowMenu?.(row)?.map((i) => `${i.label}\u0001${i.disabled ? 1 : 0}${i.danger ? 1 : 0}`).join('\u0002') ?? '';
-  return [p.accessibleRowLabel(row) ?? '', p.selectionLabel(row, primaryColumn), p.rowTarget?.(row) ?? '', menu].join('\u0003');
+  return [p.accessibleRowLabel(row) ?? '', p.selectionLabel(row, primaryColumn), p.rowTarget?.(row) ?? '', p.rowHref?.(row) ?? '', menu].join('\u0003');
 }

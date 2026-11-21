@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import type { TFunction } from 'i18next';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -15,10 +15,10 @@ const project = {
   client: { id: 'company-figure-client', name: 'Cascade Foods Processing' },
   end_client: { id: 'company-end', name: 'Harbour Authority' },
 } as unknown as ProjectWithRefs;
-const columnsFor = (rows: ProjectWithRefs[]) => projectTableColumns({
+const columnsFor = (rows: ProjectWithRefs[], onOpen = vi.fn(), onPrefetch = vi.fn()) => projectTableColumns({
   filtered: rows, deliverySummary: {}, deliveryPending: false, deliveryError: false,
   projectMoney: {}, moneyPending: false, moneyError: false, canViewMoney: true,
-  viewerId: null, isAtRiskActual: () => false, onOpen: vi.fn(), t,
+  viewerId: null, isAtRiskActual: () => false, onOpen, onPrefetch, t,
 });
 
 describe('Projects list columns', () => {
@@ -42,5 +42,40 @@ describe('Projects list columns', () => {
     render(<>{tableColumns.find((column) => column.key === 'contract')!.header}</>);
     expect(document.body.textContent?.replace(/\s+/gu, ' ')).toContain('Contract (excl. PPN)');
     expect(exportColumns.find((column) => column.key === 'contract')?.header).toBe('Contract (excl. PPN)');
+  });
+
+  it('AC-2077 project name is a real record link while plain click preserves the existing list-return action', () => {
+    const onOpen = vi.fn();
+    const onPrefetch = vi.fn();
+    const projectColumn = columnsFor([project], onOpen, onPrefetch).tableColumns.find((column) => column.key === 'project')!;
+    const { container } = render(
+      <MemoryRouter initialEntries={['/projects']}>
+        <div>{projectColumn.cell(project)}</div>
+        <div>{projectColumn.secondaryCell!(project)}</div>
+      </MemoryRouter>,
+    );
+
+    const nameLink = container.querySelector<HTMLAnchorElement>(`a[href="/projects/${project.id}"]`)!;
+    expect(nameLink).toBeInTheDocument();
+    expect(nameLink).toHaveAttribute('data-list-return-focus', `projects:${project.id}`);
+    expect(nameLink.querySelector('a')).toBeNull();
+    expect(container.querySelector(`a[href="/companies/${project.client_id}"]`)).not.toBeNull();
+    expect(nameLink.contains(container.querySelector(`a[href="/companies/${project.client_id}"]`))).toBe(false);
+
+    fireEvent.pointerEnter(nameLink);
+    fireEvent.focus(nameLink);
+    expect(onPrefetch).toHaveBeenNthCalledWith(1, project.id);
+    expect(onPrefetch).toHaveBeenNthCalledWith(2, project.id);
+
+    const click = createEvent.click(nameLink, { button: 0 });
+    fireEvent(nameLink, click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith(project);
+
+    const modified = createEvent.click(nameLink, { button: 0, metaKey: true });
+    fireEvent(nameLink, modified);
+    expect(modified.defaultPrevented).toBe(false);
+    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 });

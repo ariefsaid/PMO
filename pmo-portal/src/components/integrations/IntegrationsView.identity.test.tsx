@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useLocation } from 'react-router';
 
-import { screen, waitFor, within } from '@testing-library/react';
+import { createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react';
 
 import type { IntegrationsRepository } from '@/src/lib/repositories/types';
 
@@ -71,7 +72,7 @@ describe('AC-M365SEP-017 — M365 organisation approval on the admin surface', (
     expect(
       screen.getByRole('button', { name: /approve in microsoft 365/i }),
     ).toBeInTheDocument();
-    expect(screen.getByTestId('m365-org-approval')).toHaveTextContent(/only if microsoft asks/i);
+    expect(screen.getByTestId('m365-org-approval')).toHaveTextContent(/microsoft 365/i);
     // It is NOT a TIERS entry — no data-tier attribute, no credential Connect form. M365 is its own
     // block (a mutation here guards against someone forcing it into the TIERS array).
     const m365Card = screen.getByTestId('m365-org-approval');
@@ -104,14 +105,25 @@ describe('IntegrationsView — organization ownership scope label (AC-ADMIA-006)
   });
 
   it('AC-ADMIA-006: the org scope copy names the personal surface by label, never a raw route string', async () => {
-    wrapWithRole('Admin', <IntegrationsView />);
+    wrapWithRole('Admin', <><LocationProbe /><IntegrationsView /></>);
     const scope = await screen.findByTestId('integrations-owner-scope');
     // The personal surface is referenced by its user-facing name "My integrations"…
     expect(screen.getByRole('link', { name: /my integrations/i })).toHaveAttribute('href', '/integrations');
     // The personal surface is a real navigation destination, not a route string in prose.
     expect(scope.textContent).not.toContain('/integrations');
+    // #2077: following it is handled by the router (in-app), not a full document reload.
+    const link = screen.getByRole('link', { name: /my integrations/i });
+    const click = createEvent.click(link, { button: 0 });
+    fireEvent(link, click);
+    expect(click.defaultPrevented).toBe(true);
+    expect(screen.getByTestId('location')).toHaveTextContent('/integrations');
   });
 })
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}</output>;
+}
 
 // ============================================================================
 // #680 — Readable organization connector identity (AC-ICI-001..004)

@@ -1,0 +1,4 @@
+# 1046: the CLI may create or reverse opening balances for stock and work orders.
+load_stock_opening
+load_work_order_opening
+reverse_opening_balance

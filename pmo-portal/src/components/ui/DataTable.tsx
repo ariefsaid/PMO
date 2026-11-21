@@ -110,14 +110,16 @@ interface DataTablePropsBase<Row> {
   rowKey: (row: Row) => string;
   /** Click/Enter on a row (drill-down). */
   onActivate?: (row: Row) => void;
+  /** Destination for the row-open control. When set, browser link actions remain available. */
+  rowHref?: (row: Row) => string | undefined;
   /**
    * Accessible name for the row's activation control. When provided alongside
    * `onActivate`, the first column's content is wrapped in a real focusable
-   * `<button>` carrying this name — so each row has a keyboard- and
+   * focusable control carrying this name — so each row has a keyboard- and
    * screen-reader-reachable affordance WITHOUT overriding the `<tr>`'s implicit
    * `role="row"`. Omit when the first cell already renders its own focusable
    * control (e.g. a name button) to avoid nesting interactive elements.
-   * Answer '' for a row that does not open: it gets no button and no pointer.
+   * Answer '' for a row that does not open: it gets no open control and no pointer.
    */
   rowLabel?: (row: Row) => string;
   /** Optional accessible name for the active table or mobile list structure. */
@@ -239,6 +241,7 @@ export function DataTable<Row>({
   columns: allColumns,
   rowKey,
   onActivate,
+  rowHref,
   rowLabel,
   rowTarget,
   selectedKey,
@@ -469,6 +472,7 @@ export function DataTable<Row>({
           caveatId={caveatId}
           accessibleName={accessibleName}
           onActivate={onActivate}
+          rowHref={rowHref}
           rowLabel={rowLabel}
           accessibleRowLabel={accessibleRowLabel}
           rowTarget={rowTarget}
@@ -500,6 +504,7 @@ export function DataTable<Row>({
           tableInstanceId={tableInstanceId}
           accessibleName={accessibleName}
           onActivate={onActivate}
+          rowHref={rowHref}
           rowLabel={rowLabel}
           accessibleRowLabel={accessibleRowLabel}
           rowTarget={rowTarget}

@@ -91,5 +91,8 @@
     "idleReasonShort": "Idle {{days}}d",
     "staleReasonShort": "Stage {{days}}d",
     "showAllAttention": "Show all {{n}}"
+  },
+  "funnel": {
+    "unavailable": "Not available"
   }
 }

@@ -49,23 +49,18 @@ export function useDsrValidationQueue(enabled: boolean) {
   return useQuery({ queryKey: dsrKeys.queue(orgId), queryFn: () => repo().queue(), enabled: Boolean(orgId) && enabled });
 }
 
-export function useDsrLookups(workOrderId: string | undefined, workDate: string | undefined) {
+export function useDsrLookups(workOrderId: string | undefined, reportId: string | undefined) {
   const orgId = useOrg();
   const on = Boolean(orgId);
   const idle = useQuery({ queryKey: dsrKeys.lookups(orgId, 'idle'), queryFn: () => repo().listIdleReasons(), enabled: on, staleTime: 300_000 });
   const weather = useQuery({ queryKey: dsrKeys.lookups(orgId, 'weather'), queryFn: () => repo().listWeatherConditions(), enabled: on, staleTime: 300_000 });
   const items = useQuery({ queryKey: dsrKeys.lookups(orgId, 'items', workOrderId), queryFn: () => repo().listContractItems(workOrderId as string), enabled: on && Boolean(workOrderId) });
-  const equipment = useQuery({
-    queryKey: dsrKeys.lookups(orgId, 'equipment', workOrderId, workDate),
-    queryFn: () => repo().listEquipmentHours(workOrderId as string, workDate as string),
-    enabled: on && Boolean(workOrderId && workDate),
+  const hours = useQuery({
+    queryKey: dsrKeys.lookups(orgId, 'hours', reportId),
+    queryFn: () => repo().reportHours(reportId as string),
+    enabled: on && Boolean(reportId),
   });
-  const people = useQuery({
-    queryKey: dsrKeys.lookups(orgId, 'people', workOrderId, workDate),
-    queryFn: () => repo().listPeopleHours(workOrderId as string, workDate as string),
-    enabled: on && Boolean(workOrderId && workDate),
-  });
-  return { idle, weather, items, equipment, people };
+  return { idle, weather, items, hours };
 }
 
 export function useDailySiteReportMutations() {

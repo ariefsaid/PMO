@@ -21,10 +21,11 @@ const SDK_CONSENT_KEY = `__ph_opt_in_out_${POSTHOG_KEY}`;
 async function countPosthogRequests(
   page: import('@playwright/test').Page,
   run: (hits: string[]) => Promise<void>,
+  counts: (url: string) => boolean = () => true,
 ) {
   const hits: string[] = [];
   await page.route(PH_HOST, async (route) => {
-    hits.push(route.request().url());
+    if (counts(route.request().url())) hits.push(route.request().url());
     await route.abort();
   });
   await run(hits);
@@ -101,17 +102,41 @@ test('AC-CON-003 (in-session): opting out immediately flips the REAL SDK\'s own 
 test('AC-CON-003: after opting out, navigation makes ZERO PostHog requests and the choice survives a reload', async ({ page }) => {
   await page.goto('/privacy');
   const toggle = page.getByRole('checkbox', { name: /usage analytics/i });
-  await toggle.check();
-  await expect(toggle).toBeChecked();
 
+  // From the opt-out on, nothing about the user's activity may reach PostHog. The allowed exception
+  // before the reload: the page open at opt-out ran init() while still opted in, and posthog-js may
+  // still fetch its remote settings (config.js, then the /config JSON fallback) and, from that answer,
+  // its own extension scripts (/static/*.js). Neither carries event data, and opt_out_capturing() does
+  // not stop them. Once the reloaded document commits, init() never runs, so no request of any kind.
+  const SETTINGS_OR_SCRIPT = /^\/(array\/[^/]+\/config(\.js)?|static\/[\w.-]+\.js)$/;
+  let optedOut = false;
+  let armed = false;
+  let reloaded = false;
+  page.on('framenavigated', (frame) => { if (armed && frame === page.mainFrame()) reloaded = true; });
+  const beforeReload: string[] = [];
   const hits = await countPosthogRequests(page, async () => {
+    await toggle.check();
+    optedOut = true; // the opt-out runs synchronously in the click handler
+    await expect(toggle).toBeChecked();
+    await page.getByRole('link', { name: /^Terms$/ }).click();
+    await expect(page).toHaveURL(/\/terms$/);
+    await page.getByRole('link', { name: /^Privacy$/ }).click();
+    await expect(page.getByRole('checkbox', { name: /usage analytics/i })).toBeChecked();
+    // The reload's commit is the first main-frame navigation from here; the SPA clicks above are done.
+    armed = true;
     await page.reload();
     await expect(page.getByRole('checkbox', { name: /usage analytics/i })).toBeChecked();
     await page.goto('/terms');
     await page.goto('/privacy');
     await page.waitForTimeout(2000);
+  }, (url) => {
+    if (reloaded) return true;
+    if (optedOut) beforeReload.push(url);
+    return false;
   });
 
-  expect(hits, `expected no PostHog traffic, got: ${hits.join(', ')}`).toEqual([]);
+  expect(beforeReload.filter((url) => !SETTINGS_OR_SCRIPT.test(new URL(url).pathname)),
+    `expected no PostHog traffic after opt-out other than settings and SDK scripts, got: ${beforeReload.join(', ')}`).toEqual([]);
+  expect(hits, `expected no PostHog traffic after the reload, got: ${hits.join(', ')}`).toEqual([]);
   await expect(page.getByRole('checkbox', { name: /usage analytics/i })).toBeChecked();
 });

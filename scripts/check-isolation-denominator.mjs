@@ -14,11 +14,13 @@
  *   • a manifest entry absent from the real surface is STALE (the `check-e2e-skips.mjs` rule: a stale
  *     allowlist entry is itself a defect).
  *
- * Run with `--self-test` to prove it can redden on both. Same shape as check-e2e-skips.mjs.
+ * Run with `--self-test` to prove it can redden on both, and that probe A-row ids must match each
+ * table's real primary-key type (#2636). Same shape as check-e2e-skips.mjs.
  *
  * Usage:  node scripts/check-isolation-denominator.mjs
  *         node scripts/check-isolation-denominator.mjs --self-test
- *         node scripts/check-isolation-denominator.mjs --denominator <path>   (self-test internal)
+ *         node scripts/check-isolation-denominator.mjs --denominator <path>   (self-test internal; a fragment dir or one file)
+ *         node scripts/check-isolation-denominator.mjs --emit <outfile>       (union of the fragments as one JSON, for the shell probes)
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,7 +29,10 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const DENOMINATOR_PATH = path.join(ROOT, 'scripts', 'isolation-probe-denominator.json');
+// #2589: the manifest is a DIRECTORY of fragments (one JSON file per feature, same shape as the old
+// single file, any subset of categories). Parallel PRs add separate files, so they never conflict.
+// Readers always see the union; a duplicate entry across fragments is a hard failure.
+export const DENOMINATOR_PATH = path.join(ROOT, 'scripts', 'isolation-probe-denominator.d');
 export const FUNCTIONS_ROOT = path.join(ROOT, 'supabase', 'functions');
 const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 
@@ -217,8 +222,36 @@ function validateExactRpcProbeCoverage(rpcs) {
   }
 }
 
+/**
+ * Union every `*.json` fragment in `dir` into one manifest object. Fragments are read in sorted file
+ * order; each may carry any subset of CATEGORIES (a missing one is empty) and nothing else. A fragment
+ * that is not valid JSON, not an object, or carries an unknown key fails. Cross-fragment duplicates
+ * are NOT collapsed here: they survive into the union, where validateDenominator rejects them.
+ */
+export function unionDenominatorFragments(dir = DENOMINATOR_PATH) {
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).sort();
+  if (!files.length) throw new Error(`invalid denominator: no fragments in ${dir}`);
+  const union = Object.fromEntries(CATEGORIES.map((c) => [c, []]));
+  for (const f of files) {
+    let frag;
+    try { frag = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (err) { throw new Error(`invalid denominator fragment ${f}: ${err.message}`, { cause: err }); }
+    if (!frag || typeof frag !== 'object' || Array.isArray(frag)) throw new Error(`invalid denominator fragment ${f}: expected an object`);
+    for (const k of Object.keys(frag)) {
+      if (!CATEGORIES.includes(k)) throw new Error(`invalid denominator fragment ${f}: unexpected key ${k}`);
+      if (!Array.isArray(frag[k])) throw new Error(`invalid denominator fragment ${f}: "${k}" must be an array`);
+      union[k].push(...frag[k]);
+    }
+  }
+  return union;
+}
+
+/** A path to a fragment directory or to a single manifest file (self-test internal). */
+function loadRaw(p) {
+  return fs.statSync(p).isDirectory() ? unionDenominatorFragments(p) : JSON.parse(fs.readFileSync(p, 'utf8'));
+}
+
 export function readDenominator(filePath) {
-  const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  const raw = loadRaw(filePath);
   // Preserve the exact-coverage diagnostic for otherwise well-formed RPC name lists before
   // checking source citations. Invalid or duplicate names still go through the structural validator.
   if (Array.isArray(raw?.rpcs) && raw.rpcs.every((r, i, all) =>
@@ -239,6 +272,13 @@ export function readDenominator(filePath) {
   return parsed;
 }
 
+// Tables whose primary key is an integer rather than a uuid (#2636). The probe's A-row id must
+// match the table's REAL pk type: a positive integer for these, a uuid everywhere else. Keep in
+// step with the denominator — today only stock_ledger (seq bigint identity, 0413_stock_posting_engine.sql).
+// Exported: fixture generators (and the probe driver) must derive id shapes from this map, not
+// assume uuid.
+export const INTEGER_PK_TABLES = new Set(['stock_ledger']);
+
 export function validateProbeInputs(env = process.env) {
   const d = readDenominator(DENOMINATOR_PATH);
   if (Object.hasOwn(env, 'TABLES_JSON')) {
@@ -253,7 +293,10 @@ export function validateProbeInputs(env = process.env) {
   if (!Array.isArray(rows)) throw new Error('A_ROWS_JSON must contain an array');
   for (const row of rows) {
     const t = d.tables.find(t => t.table === row?.table);
-    if (!t || t.by_id !== 'applicable' || row.pk !== t.pk || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(row.id) || seen.has(row.table)) throw new Error('A_ROWS_JSON must contain unique applicable {table,pk,id} records matching the denominator');
+    const idMatchesPk = INTEGER_PK_TABLES.has(t?.table)
+      ? Number.isInteger(row?.id) && row.id > 0
+      : /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(row?.id);
+    if (!t || t.by_id !== 'applicable' || row.pk !== t.pk || !idMatchesPk || seen.has(row.table)) throw new Error('A_ROWS_JSON must contain unique applicable {table,pk,id} records matching the denominator');
     seen.add(row.table);
   }
   return d;
@@ -299,15 +342,15 @@ export function readActualCatalog({
 }
 
 /** Render the denominator object with stable category order, sorted arrays, one entry per line. */
-export function formatDenominator(d) {
+export function formatDenominator(d, cats = CATEGORIES) {
   const lines = ['{'];
-  CATEGORIES.forEach((cat, i) => {
+  cats.forEach((cat, i) => {
     const entries = cat === 'tables'
       ? d[cat].map((t) => formatEntry('tables', t)).sort()
       : d[cat].map((e) => JSON.stringify(e)).sort();
     lines.push(`  "${cat}": [`);
     entries.forEach((e, j) => lines.push(`    ${e}${j < entries.length - 1 ? ',' : ''}`));
-    const isLast = i === CATEGORIES.length - 1;
+    const isLast = i === cats.length - 1;
     lines.push(`  ]${isLast ? '' : ','}`);
   });
   lines.push('}');
@@ -344,6 +387,34 @@ export function runCli(denominatorPath) {
   return 0;
 }
 
+/**
+ * Redistribute a merged manifest across the existing fragments: each fragment keeps the entries that
+ * are still in `merged` (stale ones drop out, table tuples refresh); surface the fragments did not
+ * hold goes to `written.json`, so `--write` never rewrites one big file.
+ */
+function writeFragments(merged, dir = DENOMINATOR_PATH) {
+  const key = (cat, e) => (cat === 'tables' ? e.table : cat === 'rpcs' ? e.name : e);
+  const remaining = Object.fromEntries(CATEGORIES.map((c) => [c, new Map(merged[c].map((e) => [key(c, e), e]))]));
+  const out = {};
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.json')).sort()) {
+    const frag = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+    const next = {};
+    for (const cat of CATEGORIES) {
+      if (!frag[cat]) continue;
+      next[cat] = frag[cat].map((e) => key(cat, e)).filter((k) => remaining[cat].has(k)).map((k) => { const e = remaining[cat].get(k); remaining[cat].delete(k); return e; });
+    }
+    out[f] = next;
+  }
+  const extra = {};
+  for (const cat of CATEGORIES) if (remaining[cat].size) extra[cat] = [...remaining[cat].values()];
+  if (Object.keys(extra).length) out['written.json'] = extra;
+  for (const [f, frag] of Object.entries(out)) {
+    const cats = CATEGORIES.filter((c) => frag[c]?.length);
+    if (!cats.length) { fs.rmSync(path.join(dir, f), { force: true }); continue; }
+    fs.writeFileSync(path.join(dir, f), `${formatDenominator(Object.fromEntries(CATEGORIES.map((c) => [c, frag[c] ?? []])), cats)}\n`);
+  }
+}
+
 function selfTest() {
   const child = (args) => spawnSync(process.execPath, [fileURLToPath(import.meta.url), ...args], { encoding: 'utf8' });
 
@@ -360,7 +431,7 @@ function selfTest() {
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'iso-denom-self-test-'));
   try {
-    const base = JSON.parse(fs.readFileSync(DENOMINATOR_PATH, 'utf8'));
+    const base = unionDenominatorFragments(DENOMINATOR_PATH);
 
     // Defect 1 — MISSING: remove an existing table from a copy of the manifest. The live catalog
     // still has it, so the guard must report it as unlisted surface.
@@ -388,6 +459,34 @@ function selfTest() {
     }
     console.log('✓ self-test caught STALE entry (diagnostics echoed from the child CLI):');
     for (const line of diagnosticsOf(s)) console.log(`    ${line.trim()}`);
+
+    // Defect 3 — PK-TYPE (#2636): an A-row id must match its table's REAL primary-key type —
+    // stock_ledger's pk is `seq` (bigint identity), not a uuid; every other by-id-applicable
+    // table has a uuid pk. In-process: the validator reads the checked-in manifest, no database.
+    const aRowsPath = (rows) => {
+      const p = path.join(dir, 'a-rows.json');
+      fs.writeFileSync(p, JSON.stringify(rows));
+      return p;
+    };
+    const probeFindings = (rows) => {
+      try { validateProbeInputs({ A_ROWS_JSON: aRowsPath(rows) }); return null; }
+      catch (err) { return err.message; }
+    };
+    if (probeFindings([{ table: 'stock_ledger', pk: 'seq', id: 42 }]) !== null) {
+      throw new Error('self-test: integer-pk A-row (stock_ledger.seq) NOT accepted');
+    }
+    for (const bad of [0, 1.5, '42']) {
+      if (probeFindings([{ table: 'stock_ledger', pk: 'seq', id: bad }]) === null) {
+        throw new Error(`self-test: non-integer A-row id ${JSON.stringify(bad)} NOT rejected for stock_ledger`);
+      }
+    }
+    if (probeFindings([{ table: 'companies', pk: 'id', id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d' }]) !== null) {
+      throw new Error('self-test: uuid A-row id NOT accepted for a uuid-pk table');
+    }
+    if (probeFindings([{ table: 'companies', pk: 'id', id: 42 }]) === null) {
+      throw new Error('self-test: integer A-row id NOT rejected for a uuid-pk table');
+    }
+    console.log('✓ self-test: probe A-row ids must match the real pk type (positive integer for stock_ledger.seq, uuid elsewhere).');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -413,14 +512,19 @@ if (isRunAsMain) {
     const recorded = readDenominator(DENOMINATOR_PATH);
     const merged = { ...actual, tables: preserveTableExpectations(actual.tables, recorded.tables), rpcs: recorded.rpcs };
     validateDenominator(merged); // New surfaces need reviewed expectations, never inferred defaults.
-    fs.writeFileSync(DENOMINATOR_PATH, `${formatDenominator(merged)}\n`);
-    console.log(`wrote ${path.relative(ROOT, DENOMINATOR_PATH)} from the live catalog — review the diff, then commit it with the surface it names`);
+    writeFragments(merged);
+    console.log(`wrote ${path.relative(ROOT, DENOMINATOR_PATH)}/ from the live catalog — review the diff, then commit it with the surface it names`);
     process.exit(0);
+  }
+  if (args[0] === '--emit') {
+    // Materialise the union as one JSON file for the shell probes (jq) — they never read fragments directly.
+    if (args.length !== 2) { console.error('usage: check-isolation-denominator.mjs --emit <outfile>'); process.exit(2); }
+    try { fs.writeFileSync(args[1], JSON.stringify(unionDenominatorFragments())); process.exit(0); } catch (err) { console.error(`✗ ${err.message}`); process.exit(1); }
   }
   if (args[0] === '--denominator') {
     if (args.length !== 2) { console.error('usage: check-isolation-denominator.mjs --denominator <path>'); process.exit(2); }
     process.exit(runCli(args[1]));
   }
-  if (args.length !== 0) { console.error('usage: check-isolation-denominator.mjs [--self-test | --write | --denominator <path>]'); process.exit(2); }
+  if (args.length !== 0) { console.error('usage: check-isolation-denominator.mjs [--self-test | --write | --emit <outfile> | --denominator <path>]'); process.exit(2); }
   process.exit(runCli(DENOMINATOR_PATH));
 }

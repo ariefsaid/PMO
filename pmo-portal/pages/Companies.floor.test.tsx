@@ -144,7 +144,7 @@ describe('Companies floor controls', () => {
     await userEvent.click(within(gate).getByRole('button', { name: /^dismiss$/i }));
 
     expect(screen.queryByTestId('company-delete-gate')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open Client Atlas' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Client Atlas' })).toBeInTheDocument();
     expect(h.mutations.remove.mutateAsync).toHaveBeenCalledOnce();
     expect(h.mutations.archive.mutateAsync).not.toHaveBeenCalled();
   });

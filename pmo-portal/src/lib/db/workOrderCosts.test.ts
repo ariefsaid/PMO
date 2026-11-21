@@ -8,10 +8,10 @@ import { AppError } from '@/src/lib/appError';
  */
 const h = vi.hoisted(() => {
   const result = { value: {} as { data: unknown; error: unknown } };
-  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, select: [] as unknown[], eq: [] as unknown[], is: [] as unknown[], order: [] as unknown[], gt: [] as unknown[], limit: [] as unknown[] };
+  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, select: [] as unknown[], eq: [] as unknown[], is: [] as unknown[], order: [] as unknown[], gt: [] as unknown[], limit: [] as unknown[], insert: [] as unknown[], update: [] as unknown[], single: [] as unknown[] };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...a: unknown[]) => { (calls[name] as unknown[]).push(a.length === 1 ? a[0] : a); return builder; };
-  for (const k of ['select', 'eq', 'is', 'order', 'gt', 'limit'] as const) builder[k] = chain(k);
+  for (const k of ['select', 'eq', 'is', 'order', 'gt', 'limit', 'insert', 'update', 'single'] as const) builder[k] = chain(k);
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
   const rpc = vi.fn((n: string, a?: unknown) => { calls.rpc.push([n, a]); return Promise.resolve(result.value); });
@@ -93,5 +93,31 @@ describe('disciplines', () => {
     expect((await dal.listCostDisciplines()).map((d) => d.code)).toEqual(['CIV', 'MEC']);
     expect(h.calls.from).toEqual(['cost_disciplines']);
     expect(h.calls.is).toEqual([['archived_at', null]]);
+  });
+});
+
+describe('AC-WCA-017 the discipline list is kept through the DAL (#2623)', () => {
+  it('adds a discipline with only its code and name — org_id and author are stamped by the database', async () => {
+    h.result.value = { data: { id: 'd9' }, error: null };
+    await expect(dal.createCostDiscipline({ code: 'ELE', name: 'Electrical' })).resolves.toBe('d9');
+    expect(h.calls.from).toEqual(['cost_disciplines']);
+    expect(h.calls.insert).toEqual([{ code: 'ELE', name: 'Electrical' }]);
+  });
+  it('renames a live discipline by id', async () => {
+    h.result.value = { data: [{ id: 'd1' }], error: null };
+    await dal.updateCostDiscipline('d1', { code: 'CIV', name: 'Civil works' });
+    expect(h.calls.update).toEqual([{ code: 'CIV', name: 'Civil works' }]);
+    expect(h.calls.eq).toContainEqual(['id', 'd1']);
+  });
+  it('archives (never deletes) a discipline, and an update RLS hid is an error, never a silent success', async () => {
+    h.result.value = { data: [{ id: 'd1' }], error: null };
+    await dal.archiveCostDiscipline('d1');
+    expect(Object.keys(h.calls.update[0] as object)).toEqual(['archived_at']);
+    h.result.value = { data: [], error: null };
+    await expect(dal.archiveCostDiscipline('d1')).rejects.toMatchObject({ code: '42501' });
+  });
+  it('a duplicate live code keeps its code (23505) for the form to explain', async () => {
+    h.result.value = { data: null, error: { message: 'duplicate key', code: '23505' } };
+    await expect(dal.createCostDiscipline({ code: 'CIV', name: 'Civil' })).rejects.toMatchObject({ code: '23505' });
   });
 });

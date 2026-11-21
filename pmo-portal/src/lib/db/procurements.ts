@@ -25,7 +25,7 @@ export type ProcurementWithRefs = ProcurementRow & {
   purchase_requests?: Pick<Tables<'purchase_requests'>, 'amount' | 'date' | 'created_at' | 'external_ref'>[];
   purchase_orders?: Pick<Tables<'purchase_orders'>, 'amount' | 'date' | 'created_at' | 'external_ref'>[];
   receipts?: Pick<Tables<'procurement_receipts'>, 'receipt_date' | 'created_at'>[];
-  procurement_invoices?: Pick<Tables<'procurement_invoices'>, 'amount' | 'invoice_date' | 'created_at' | 'erp_outstanding_amount' | 'external_ref'>[];
+  procurement_invoices?: (Pick<Tables<'procurement_invoices'>, 'amount' | 'invoice_date' | 'created_at' | 'erp_outstanding_amount' | 'external_ref'> & { voided_at?: string | null })[];
   payments?: Pick<Tables<'payments'>, 'amount' | 'date' | 'created_at' | 'status'>[];
 };
 
@@ -49,7 +49,7 @@ const PROCUREMENT_LIST_DETAILS = [
   'purchase_requests(amount,date,created_at,external_ref)',
   'purchase_orders(amount,date,created_at,external_ref)',
   'receipts:procurement_receipts(receipt_date,created_at)',
-  'procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref)',
+  'procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref,voided_at)',
   'payments(amount,date,created_at,status)',
 ].join(', ');
 

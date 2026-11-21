@@ -6,7 +6,6 @@ import {
   type MeetingInput,
   type MeetingPatch,
   type MeetingListParams,
-  type MeetingListPage,
   type MeetingAttendeeWithRefs,
   type MeetingAttendeeInput,
   type MeetingGrantWithRefs,
@@ -20,19 +19,6 @@ import { useAuth } from '@/src/auth/useAuth';
  * rows the server admits, and no hook widens that. queryKeys include org_id so caches are
  * tenant-scoped (FR-QRY).
  */
-export function useMeetings(params?: MeetingListParams) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<MeetingListPage>({
-    queryKey: ['meetings', orgId, params?.projectId ?? 'all', params?.search ?? '', params?.includeArchived ? 'archived' : 'active'],
-    queryFn: () => repositories.meeting.list(params),
-    enabled: Boolean(orgId),
-    // Keep the previous rows on screen while a search/filter keystroke refetches — the list
-    // must not flash its loading skeleton (and unmount the search box) on every character.
-    placeholderData: (prev: MeetingListPage | undefined) => prev,
-  });
-}
-
 /** Paged Meetings index read; the shared table footer owns the visible continuation action. */
 export function useMeetingsPages(params?: MeetingListParams) {
   const { currentUser } = useAuth();

@@ -46,7 +46,7 @@ test('UIP-003: classify same-prefix records, open them, and retain classificatio
       }
       await expect.poll(() => new URL(page.url()).searchParams.get('location')).toBe(location);
       const intended = route === 'projects'
-        ? page.getByTestId('projects-table-container').getByRole('button', { name: names[1], exact: true })
+        ? page.getByTestId('projects-table-container').getByRole('link', { name: names[1], exact: true })
         : page.getByRole('table').getByRole('button', { name: `Open ${names[1]}`, exact: true });
       await expect(intended).toBeVisible();
       if (route === 'projects') {

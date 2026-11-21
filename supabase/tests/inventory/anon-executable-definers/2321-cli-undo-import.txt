@@ -1,0 +1,2 @@
+# 1045 (#2321): authenticated Admin write RPC; anon is explicitly revoked and tested in AC-CLUI-005.
+undo_imported_purchase

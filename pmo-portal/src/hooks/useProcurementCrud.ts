@@ -4,7 +4,6 @@ import { useAuth } from '@/src/auth/useAuth';
 import type { AppError } from '@/src/lib/appError';
 import {
   repositories,
-  type NewProcurementInput,
   type AtomicProcurementInput,
   type ProcurementHeaderPatch,
   type ProcurementItemInput,
@@ -12,7 +11,6 @@ import {
   type ProcurementItemRow,
 } from '@/src/lib/repositories';
 import {
-  procurementDetailKey,
   cachedProcurementProjectId,
   invalidateProcurementCase,
 } from '@/src/hooks/procurementQueryKeys';
@@ -29,30 +27,6 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 // All errors propagate as AppError (code preserved) for classifyMutationError.
 // ---------------------------------------------------------------------------
 
-/**
- * Raise a new Purchase Request (AC-PROC-001). The requester id is supplied from
- * the auth context (`currentUser.id`) — the FE form never carries it, and the
- * requester widening RLS (migration 0015) keys off this exact id. Invalidates
- * the `['procurements', …]` list family so the index refetches.
- */
-export function useCreateProcurement() {
-  const qc = useQueryClient();
-  const { currentUser } = useAuth();
-  const startRecordFolder = useStartRecordFolder();
-  return useMutation<Tables<'procurements'>, AppError, NewProcurementInput>({
-    mutationFn: async (input) => {
-      const row = await repositories.procurement.create(input, currentUser?.id ?? '');
-      // #1020: link/create the case's SharePoint folder. The folder name needs the case's request
-      // number (`pr_number`, else the imported `code`), so a number-less Draft starts nothing here —
-      // it gets its folder when it is submitted to Requested (useProcurementMutations.transition).
-      // Fire-and-forget: the saved case is returned unchanged whatever the folder does.
-      if (row.pr_number || row.code) startRecordFolder({ kind: 'procurement', id: row.id });
-      return row;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['procurements'] }),
-  });
-}
-
 /** Create the complete draft at a single transactional boundary. */
 export function useCreateProcurementWithItems() {
   const qc = useQueryClient();
@@ -64,17 +38,6 @@ export function useCreateProcurementWithItems() {
       return row;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['procurements'] }),
-  });
-}
-
-/** Create a line on a newly-created Draft through the procurement repository seam. */
-export function useCreateProcurementItem() {
-  const qc = useQueryClient();
-  const { currentUser } = useAuth();
-  return useMutation<ProcurementItemRow, AppError, { procurementId: string; input: ProcurementItemInput }>({
-    mutationFn: ({ procurementId, input }) => repositories.procurement.createItem(procurementId, input),
-    onSuccess: (_row, { procurementId }) =>
-      qc.invalidateQueries({ queryKey: procurementDetailKey(currentUser?.org_id, procurementId) }),
   });
 }
 

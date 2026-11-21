@@ -24,7 +24,7 @@ let realRole: Role = 'Engineer';
 let effectiveRole: Role = 'Engineer';
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole }) }));
 
-vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({ CostAttributionFields: ({ projectId }: { projectId: string | null }) => <div data-testid="cost-attribution-stub" data-project={projectId ?? ''} /> }));
+vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({ CostAttributionFields: ({ projectId, value }: { projectId: string | null; value?: { workOrderId: string | null } }) => <div data-testid="cost-attribution-stub" data-project={projectId ?? ''} data-wo={value?.workOrderId ?? ''} /> }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-01' }) }));
 
 import StockMovementForm from './StockMovementForm';
@@ -81,6 +81,16 @@ describe('StockMovementForm', () => {
     renderForm('return');
     expect(await screen.findByLabelText(/^Project/)).toBeInTheDocument();
     expect(screen.getByTestId('cost-attribution-stub')).toBeInTheDocument();
+  });
+
+  it('#2612 citing an issue line prefills the work order that issue was for', async () => {
+    documents.issueLines.mockResolvedValue([{ id: 'il1', item_id: 'i1', quantity: '5', boq_item_id: null, item: { code: 'CEM', name: 'Cement', unit: { code: 'bag' } }, boq: null,
+      document: { id: 'd1', number: 'ISS-1', occurred_on: '2026-11-01', warehouse_id: 'w1', work_order_id: 'wo-7' } }]);
+    renderForm('return', 'Admin');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Project/), 'p1');
+    expect(screen.getByTestId('cost-attribution-stub')).toHaveAttribute('data-wo', '');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Issue to return/), 'il1');
+    expect(screen.getByTestId('cost-attribution-stub')).toHaveAttribute('data-wo', 'wo-7');
   });
 
   it('AC-STK-030 every field has a label, the item picker finds by code or name, and axe reports no violation', async () => {

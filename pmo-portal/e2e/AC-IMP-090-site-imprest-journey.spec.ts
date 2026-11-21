@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates its own uniquely-named project, budget, float, plan and claims each run and deletes them afterwards; the org procurement limit is inserted only when absent and removed only if this run inserted it. Shared-row dependency: the org-wide imprest settings row and the org senior approver set are read, not owned; the journey assumes the seed's senior set excludes the Executive.
+// @e2e-isolation: self-isolated — creates its own uniquely-named project, budget, float, plan and claims each run and deletes them afterwards; the org procurement limit is inserted when absent (removed afterwards) or raised to the journey's 5,000,000 when lower (restored afterwards). Shared-row dependency: the org-wide imprest settings row and the org senior approver set are read, not owned; the journey assumes the seed's senior set excludes the Executive.
 /**
  * AC-IMP-090 — site imprest (#1515): the cross-stack journey. A float is funded, planned and charged; its custodian asks for
  * a replenishment, a second person approves it and a third pays it. Goal oracle: after payment the float page shows the cash
@@ -34,6 +34,7 @@ let admin: SupabaseClient | undefined;
 let projectId = '';
 let floatId = '';
 let limitInserted = false;
+let limitRestore: number | null = null;
 let tag = '';
 
 /** A client signed in as a seed user, so setup goes through the same RPCs and RLS the app does. */
@@ -70,10 +71,14 @@ test.beforeEach(async () => {
   ok('budget line', await admin.from('budget_line_items').insert({ org_id: ORG_ID, budget_version_id: version.id, category: 'Vehicle', budgeted_amount: 20_000_000 }));
   ok('budget activate', await admin.from('budget_versions').update({ status: 'Active' }).eq('id', version.id));
   ok('approver', await admin.from('spend_approvers').insert({ org_id: ORG_ID, project_id: projectId, profile_id: EXEC_ID }));
-  const existing = ok('limit read', await admin.from('org_imprest_settings').select('org_id').eq('org_id', ORG_ID).maybeSingle());
+  // The seed's record fixtures set a 25,000 org limit (USD float); the claims here are rupiah-scale, so the journey owns the limit for its run.
+  const existing = ok('limit read', await admin.from('org_imprest_settings').select('procurement_limit').eq('org_id', ORG_ID).maybeSingle());
   if (!existing) {
     ok('limit', await admin.from('org_imprest_settings').insert({ org_id: ORG_ID, procurement_limit: 5_000_000, updated_by: ADMIN_ID }));
     limitInserted = true;
+  } else if (Number(existing.procurement_limit) < 5_000_000) {
+    ok('limit raise', await admin.from('org_imprest_settings').update({ procurement_limit: 5_000_000 }).eq('org_id', ORG_ID));
+    limitRestore = Number(existing.procurement_limit);
   }
 
   // Float: Finance establishes it, the Admin (senior route: no set is configured) decides the amount, the custodian asks for
@@ -123,7 +128,8 @@ test.afterEach(async () => {
   fail('versions', (await admin.from('budget_versions').delete().eq('project_id', projectId)).error);
   fail('project', (await admin.from('projects').delete().eq('id', projectId)).error);
   if (limitInserted) fail('limit', (await admin.from('org_imprest_settings').delete().eq('org_id', ORG_ID)).error);
-  projectId = ''; floatId = ''; limitInserted = false;
+  if (limitRestore !== null) fail('limit restore', (await admin.from('org_imprest_settings').update({ procurement_limit: limitRestore }).eq('org_id', ORG_ID)).error);
+  projectId = ''; floatId = ''; limitInserted = false; limitRestore = null;
 });
 
 test('AC-IMP-090 site imprest: replenish settled receipts and route an out-of-plan claim', async ({ page }) => {
