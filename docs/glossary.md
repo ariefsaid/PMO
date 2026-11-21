@@ -498,6 +498,11 @@ procurement line (`procurement_items` is free text) and not a BoQ line.
 
 **Keeper** — a user assigned to a warehouse who may record its stock movements.
 
+**Near duplicate** (stock item) — an active item whose name reads the same as a newly typed name once case, spacing,
+punctuation and accents are ignored, or whose name is one or two small typing mistakes away (the allowance grows with
+name length and is none for very short names). The new-item form names each match and links to it; it is information,
+never a rule — the item can still be created (#2692).
+
 **Stock document** — one recorded movement event with a system-assigned number: **Receive**, **Transfer**, **Issue**,
 **Return**, **Adjustment**, **Count**. Posted documents are immutable; a mistake is corrected by a later document, never
 an edit. Distinct from the **Goods Receipt** procurement record, whose only lines are the quantities a three-way match reads.
