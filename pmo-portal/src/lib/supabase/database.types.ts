@@ -4576,6 +4576,7 @@ export type Database = {
           claimant_id: string
           created_at: string
           currency: string
+          discipline_id: string | null
           id: string
           imprest_float_id: string | null
           imprest_month: string | null
@@ -4597,6 +4598,7 @@ export type Database = {
           submitted_at: string | null
           title: string
           updated_at: string
+          work_order_id: string | null
         }
         Insert: {
           advance_applied?: number
@@ -4613,6 +4615,7 @@ export type Database = {
           claimant_id?: string
           created_at?: string
           currency?: string
+          discipline_id?: string | null
           id?: string
           imprest_float_id?: string | null
           imprest_month?: string | null
@@ -4634,6 +4637,7 @@ export type Database = {
           submitted_at?: string | null
           title: string
           updated_at?: string
+          work_order_id?: string | null
         }
         Update: {
           advance_applied?: number
@@ -4650,6 +4654,7 @@ export type Database = {
           claimant_id?: string
           created_at?: string
           currency?: string
+          discipline_id?: string | null
           id?: string
           imprest_float_id?: string | null
           imprest_month?: string | null
@@ -4671,6 +4676,7 @@ export type Database = {
           submitted_at?: string | null
           title?: string
           updated_at?: string
+          work_order_id?: string | null
         }
         Relationships: [
           {

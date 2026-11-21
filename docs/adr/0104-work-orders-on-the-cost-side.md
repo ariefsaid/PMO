@@ -65,3 +65,16 @@ stock issues, timesheets and equipment usage linked only to the project.
 - A site warehouse cannot change project or kind while an attributed transfer would cease to match its work order.
 - The ERP mirrors never set these columns, so an inbound mirror write is never refused by this rule.
 - Reversal: `supabase/migrations/rollback/0952_…_down.sql`, `0951_…_down.sql`, `0950_…_down.sql`, in that order.
+
+## Addendum (2026-11-21, #2732) — expense claims and site cash
+
+An eighth cost source joins the seven: `expense_claims` (migrations 1260-1263). Spending from a site cash float is a claim
+row (`imprest_float_id`), so it needs no extra column. The same rule trigger, the same `set_cost_attribution` write path
+(source `expense_claim`) and the same read seam (`work_order_cost_lines`) apply.
+
+- Only `kind = claim` is a cost; a cash advance refuses a work order or discipline (`COST_ADVANCE`).
+- Money is counted once and never inferred. An Approved or Paid claim that names a work order is a direct cost line in
+  `work_order_cost_amounts`. In PMO mode it is added to the project figure (claims were never in the PMO-mode actual); in
+  ERP-ledger mode it moves out of "Not assigned" only once its approval posting is `pushed`, otherwise it is listed
+  `not-posted` with no amount. A claim that names no work order keeps its existing treatment, so no existing figure moves.
+- No change to routing, approval, posting or the content freeze: the only writer is a definer.
