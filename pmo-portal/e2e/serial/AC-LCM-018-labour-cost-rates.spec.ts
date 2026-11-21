@@ -33,7 +33,9 @@ test('AC-LCM-018 Admin switches labour cost on and adds a role rate', async ({ p
   const section = page.getByTestId('labour-cost-settings');
   const toggle = section.getByRole('checkbox', { name: 'Cost approved hours in money' });
   await expect(toggle).not.toBeChecked();
-  await toggle.check();
+  // The switch flips after the save round-trip (a controlled checkbox), so click and wait for the saved state.
+  await toggle.click();
+  await expect(toggle).toBeChecked();
   await expect(section.getByRole('button', { name: 'Add rate' })).toBeVisible();
   await expect(section.getByTestId('labour-classes').getByText('Direct')).toBeVisible();
 
@@ -58,9 +60,12 @@ test('AC-LCM-019 the work-order page shows priced labour by class', async ({ pag
   const ids = { project: crypto.randomUUID(), wo: crypto.randomUUID(), sheet: crypto.randomUUID(), entry: crypto.randomUUID() };
   const { data: eng } = await admin.from('profiles').select('id').eq('email', 'engineer@acme.test').single();
   if (!eng) throw new Error('AC-LCM-019: seed engineer missing');
+  // Labour is priced in the organisation currency, so the fixture's project and work order use it (another currency lists apart).
+  const { data: org } = await admin.from('organizations').select('default_currency').eq('id', ORG_ID).single();
+  const currency = org?.default_currency ?? 'USD';
   try {
-    await admin.from('projects').insert({ id: ids.project, org_id: ORG_ID, name: `LCM 2670 ${ids.project}`, status: 'Ongoing Project', currency: 'IDR' }).throwOnError();
-    await admin.from('work_orders').insert({ id: ids.wo, org_id: ORG_ID, project_id: ids.project, wo_number: 'WO-LCM', title: 'Labour cost sample', status: 'Issued', order_value: 10000000, tax_treatment: 'exclusive', tax_amount: 0, currency: 'IDR' }).throwOnError();
+    await admin.from('projects').insert({ id: ids.project, org_id: ORG_ID, name: `LCM 2670 ${ids.project}`, status: 'Ongoing Project', currency }).throwOnError();
+    await admin.from('work_orders').insert({ id: ids.wo, org_id: ORG_ID, project_id: ids.project, wo_number: 'WO-LCM', title: 'Labour cost sample', status: 'Issued', order_value: 10000000, tax_treatment: 'exclusive', tax_amount: 0, currency }).throwOnError();
     await admin.from('timesheets').insert({ id: ids.sheet, org_id: ORG_ID, user_id: eng.id, week_start_date: '2031-01-06', status: 'Approved' }).throwOnError();
     await admin.from('timesheet_entries').insert([
       { id: ids.entry, org_id: ORG_ID, timesheet_id: ids.sheet, project_id: ids.project, work_order_id: ids.wo, entry_date: '2031-01-06', hours: 10 },
@@ -73,8 +78,8 @@ test('AC-LCM-019 the work-order page shows priced labour by class', async ({ pag
     await page.goto(`/work-orders/${ids.wo}`);
     const block = page.getByTestId('wo-page-pva-labour');
     await expect(block).toBeVisible();
-    // 8 h at 50000 + 2 h overtime at 1.5 = 475000.
-    await expect(block).toContainText('475,000');
+    // 8 h at 50000 + 2 h overtime at 50000 x 1.5 = 550000.
+    await expect(block).toContainText('550,000');
     await expect(block).toContainText('10');
     await shots(page, block, 'work-order-labour-by-class');
   } finally {
