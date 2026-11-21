@@ -1,7 +1,7 @@
--- 1127_quantity_change_requests.sql — #2578: the request records, their files, the organisation limit, and raising / editing /
+-- 1176_quantity_change_requests.sql — #2578: the request records, their files, the organisation limit, and raising / editing /
 -- submitting / withdrawing a request. Approval, the client record and the decision are 1128; reads are 1129.
 -- Spec: docs/specs/quantity-change-requests.spec.md (FR-QCR-004..010, 021, 023); AC-QCR-004..010, 022, 024.
--- Reversal: rollback/1127_quantity_change_requests_down.sql.
+-- Reversal: rollback/1176_quantity_change_requests_down.sql.
 --   §1 organisations.quantity_change_limit (Admin only, audited before and after).
 --   §2 quantity_change_requests / _lines / _events: clients read, only the functions write. `editor_ids` is the EDITOR SET
 --      (everyone who ever changed the request) that approval separation of duties reads; `is_open` + a partial unique index make

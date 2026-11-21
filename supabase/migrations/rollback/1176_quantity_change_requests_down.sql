@@ -1,4 +1,4 @@
--- Reverses 1127_quantity_change_requests.sql. Requests and their history are deleted: this is a pre-production reversal.
+-- Reverses 1176_quantity_change_requests.sql. Requests and their history are deleted: this is a pre-production reversal.
 drop function if exists public.qcr_withdraw(uuid, text);
 drop function if exists public.qcr_submit(uuid);
 drop function if exists public.qcr_update_draft(uuid, jsonb, text);
