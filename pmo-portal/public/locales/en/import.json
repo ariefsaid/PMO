@@ -247,9 +247,10 @@
       "codeLong": "Location code is too long.",
       "name": "Name is required.",
       "nameLong": "Name is too long.",
-      "kind": "Kind must be central, site, yard or staging.",
+      "kind": "Kind must be central, site, yard, staging or vendor.",
       "projectNeeded": "A project is required for this kind of location.",
-      "projectNotAllowed": "A central location has no project."
+      "projectNotAllowed": "A central location has no project.",
+      "projectNotAllowedVendor": "A vendor location has no project."
     }
   },
   "equipment": {

@@ -1,3 +1,4 @@
+import { useCompanies } from '@/src/hooks/useCompanies';
 import React, { useMemo, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -20,6 +21,8 @@ import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { StockTagsPanel } from './StockTagsPanel';
 import { SimilarItemNotice, type SimilarCheckState } from '@/src/components/stock/SimilarItemNotice';
 import { findNearDuplicateItems, indexStockItems, type IndexedStockItem } from '@/src/lib/stockSimilarity';
+import { WorkOrderIssueThresholdPanel } from './WorkOrderIssueThresholdPanel';
+import { StockTransferSettings } from './StockTransferSettings';
 import { isOwnershipCacheSynced, routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseStockError } from '@/src/lib/stockErrors';
@@ -64,6 +67,7 @@ const StockSetup: React.FC = () => {
   const ownership = useSyncExternalStore(subscribeOwnershipCache, () => isOwnershipCacheSynced() ? routeDomainWrite('inventory') : 'unknown');
   const tagsEnabled = ownership === 'pmo';
   const [tagsOpen, setTagsOpen] = useState(false);
+  const [thresholdOpen, setThresholdOpen] = useState(false);
   const [form, setForm] = useState<{ tab: Tab; row: StockUnitRow | StockItemRow | StockWarehouseRow | null } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<{ tab: Tab; id: string; archived: boolean } | null>(null);
   const [keepersFor, setKeepersFor] = useState<StockWarehouseRow | null>(null);
@@ -89,6 +93,8 @@ const StockSetup: React.FC = () => {
   const unitName = useMemo(() => new Map((allUnits.data ?? []).map((u) => [u.id, u.name])), [allUnits.data]);
   const tagName = useMemo(() => new Map((itemTags.data ?? []).map((tag) => [tag.id, tag.name])), [itemTags.data]);
   const projectName = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p.name])), [projects.data]);
+  const vendorList = useCompanies('Vendor', { enabled: tab === 'warehouses' });
+  const vendorName = useMemo(() => new Map((vendorList.data ?? []).map((c) => [c.id, c.name])), [vendorList.data]);
   const personName = useMemo(() => new Map((people.data ?? []).map((p) => [p.id, p.full_name ?? ''])), [people.data]);
   const onHandByItem = useMemo(() => {
     const quantities = new Map<string, string[]>();
@@ -141,7 +147,7 @@ const StockSetup: React.FC = () => {
     return [
       code,
       { key: 'kind', header: t('setup.columns.kind'), cell: (r) => <StatusPill variant={categoryVariant((r as StockWarehouseRow).kind, 'central')}>{t(`setup.kinds.${(r as StockWarehouseRow).kind}`)}</StatusPill> },
-      { key: 'project', header: t('setup.columns.project'), cell: (r) => <span className={dim(r)}>{projectName.get((r as StockWarehouseRow).project_id ?? '') ?? ''}</span> },
+      { key: 'project', header: t('setup.columns.project'), cell: (r) => <span className={dim(r)}>{(r as StockWarehouseRow).kind === 'vendor' ? vendorName.get((r as StockWarehouseRow).vendor_company_id ?? '') ?? '' : projectName.get((r as StockWarehouseRow).project_id ?? '') ?? ''}</span> },
       {
         key: 'keepers', header: t('setup.columns.keepers'),
         cell: (r) => {
@@ -226,6 +232,10 @@ const StockSetup: React.FC = () => {
       {canKeepers && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={tagsOpen} onClick={() => setTagsOpen(!tagsOpen)}>{t('siteWork.tags.manage')}</Button>
         {tagsOpen && <StockTagsPanel />}
       </div>}
+      {realRole === 'Admin' && !ctx.record.viewOnly && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={thresholdOpen} onClick={() => setThresholdOpen(!thresholdOpen)}>{t('siteWork.materialProgress.setting.manage')}</Button>
+        {thresholdOpen && <WorkOrderIssueThresholdPanel />}
+      </div>}
+      {canKeepers && tagsEnabled && <StockTransferSettings />}
       <div className="mb-4 flex flex-col items-stretch border-b border-border sm:flex-row sm:items-center">
         <Tabs<Tab>
           className="mb-0 w-full min-w-0 border-b-0 sm:w-auto sm:flex-1 [&>[role=tab]:first-child]:pl-0"
@@ -349,13 +359,14 @@ interface FormProps {
   onClose: () => void;
   onDone: (isEdit: boolean) => void;
 }
-interface Values { code: string; name: string; wholeOnly: boolean; description: string; unitId: string; leadTime: string; kind: 'central' | 'site' | 'yard' | 'staging'; projectId: string; tagId: string; cover: string }
+interface Values { code: string; name: string; wholeOnly: boolean; description: string; unitId: string; leadTime: string; kind: 'central' | 'site' | 'yard' | 'staging' | 'vendor'; projectId: string; tagId: string; cover: string; vendorCompanyId: string }
 
 const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tagsEnabled, itemIndex, itemListState, onClose, onDone }) => {
   const { t } = useTranslation('stock');
   const m = useStockMasterMutations();
   const tagQuery = useStockTags(true, which === 'items' && tagsEnabled);
   const tags = (tagQuery.data ?? []).filter((tag) => !tag.archived_at || tag.id === (row as StockItemRow | null)?.tag_id);
+  const vendors = useCompanies('Vendor', { enabled: which === 'warehouses' });
   const errorCopy = useErrorCopy();
   const isEdit = !!row;
   const k = which === 'units' ? 'unit' : which === 'items' ? 'item' : 'warehouse';
@@ -378,7 +389,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
     initialValues: {
       code: row ? (row as { code: string }).code : '', name: row ? (row as { name: string }).name : '',
       wholeOnly: unitRow?.whole_only ?? false, description: itemRow?.description ?? '', unitId: itemRow?.unit_id ?? '',
-      leadTime: itemRow?.lead_time_days == null ? '' : String(itemRow.lead_time_days), kind: (whRow?.kind as Values['kind'] | undefined) ?? 'site', projectId: whRow?.project_id ?? '', tagId: itemRow?.tag_id ?? '',
+      leadTime: itemRow?.lead_time_days == null ? '' : String(itemRow.lead_time_days), kind: (whRow?.kind as Values['kind'] | undefined) ?? 'site', projectId: whRow?.project_id ?? '', tagId: itemRow?.tag_id ?? '', vendorCompanyId: whRow?.vendor_company_id ?? '',
       cover: whRow?.cover_value == null ? '' : String(whRow.cover_value),
     },
     validate,
@@ -394,6 +405,8 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
   const description = form.fieldProps('description');
   const kind = form.fieldProps('kind');
   const projectId = form.fieldProps('projectId');
+  const vendorCompanyId = form.fieldProps('vendorCompanyId');
+  const isVendor = kind.value === 'vendor';
   const tagId = form.fieldProps('tagId');
   const cover = form.fieldProps('cover');
 
@@ -414,7 +427,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
           const input: StockItemInput = { code: v.code, name: v.name, description: v.description || null, unitId: v.unitId, leadTimeDays: v.leadTime.trim() ? Number(v.leadTime) : null, ...(tagsEnabled ? { tagId: v.tagId || null } : {}) };
           if (row) await m.updateItem.mutateAsync({ id: row.id, input }); else await m.createItem.mutateAsync(input);
         } else {
-          const input: StockWarehouseInput = { code: v.code, name: v.name, kind: v.kind, projectId: v.projectId || null, coverValue: v.cover.trim() ? v.cover.trim() : null };
+          const input: StockWarehouseInput = { code: v.code, name: v.name, kind: v.kind, projectId: v.kind === 'vendor' ? null : v.projectId || null, coverValue: v.cover.trim() ? v.cover.trim() : null, ...(v.kind === 'vendor' ? { vendorCompanyId: v.vendorCompanyId || null } : whRow?.kind === 'vendor' ? { vendorCompanyId: null } : {}) };
           if (row) await m.updateWarehouse.mutateAsync({ id: row.id, input }); else await m.createWarehouse.mutateAsync(input);
         }
         onDone(isEdit);
@@ -469,9 +482,14 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
         {which === 'warehouses' && (
           <>
             <SelectField id={kind.id} label={t('setup.form.warehouse.kind')} required value={kind.value} onChange={(v) => kind.onChange(v as Values['kind'])} onBlur={kind.onBlur}
-              options={(['central', 'site', 'yard', 'staging'] as const).map((k2) => ({ value: k2, label: t(`setup.kinds.${k2}`) }))} />
-            <SelectField id={projectId.id} label={t('setup.form.warehouse.project')} helper={t('setup.form.warehouse.projectHelp')} value={projectId.value} onChange={projectId.onChange} onBlur={projectId.onBlur}
-              placeholder={t('setup.form.warehouse.noProject')} options={projects.map((p) => ({ value: p.id, label: p.name }))} />
+              options={(['central', 'site', 'yard', 'staging', 'vendor'] as const).map((k2) => ({ value: k2, label: t(`setup.kinds.${k2}`) }))} />
+            {isVendor ? (
+              <SelectField id={vendorCompanyId.id} label={t('setup.form.warehouse.vendorCompany')} helper={t('setup.form.warehouse.vendorCompanyHelp')} value={vendorCompanyId.value} onChange={vendorCompanyId.onChange} onBlur={vendorCompanyId.onBlur}
+                placeholder={t('setup.form.warehouse.noVendorCompany')} options={(vendors.data ?? []).map((c) => ({ value: c.id, label: c.name }))} />
+            ) : (
+              <SelectField id={projectId.id} label={t('setup.form.warehouse.project')} helper={t('setup.form.warehouse.projectHelp')} value={projectId.value} onChange={projectId.onChange} onBlur={projectId.onBlur}
+                placeholder={t('setup.form.warehouse.noProject')} options={projects.map((p) => ({ value: p.id, label: p.name }))} />
+            )}
             <TextField id={cover.id} label={t('setup.form.warehouse.cover')} helper={t('setup.form.warehouse.coverHelp')} value={cover.value} onChange={cover.onChange} onBlur={cover.onBlur} error={cover.error} inputMode="decimal" />
           </>
         )}

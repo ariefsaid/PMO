@@ -1,0 +1,71 @@
+{
+  "nav": {
+    "settings": "Jenis pembelian"
+  },
+  "panel": {
+    "title": "Jenis pembelian",
+    "extend": "Perpanjang sewa",
+    "extends": "Memperpanjang",
+    "extensions": "Perpanjangan"
+  },
+  "create": {
+    "type": "Jenis pembelian",
+    "noType": "Tanpa jenis",
+    "rentalFrom": "Sewa dari",
+    "rentalTo": "Sewa sampai",
+    "periodRequired": "Isi masa sewa.",
+    "periodOrder": "Tanggal akhir tidak boleh sebelum tanggal mulai."
+  },
+  "extend": {
+    "title": "Perpanjang sewa",
+    "submit": "Buat pesanan perpanjangan",
+    "intro": "{{title}} berjalan {{from}} sampai {{to}}. Ini membuat pesanan baru untuk masa tambahan. Pesanan ini melalui persetujuan seperti pesanan lain.",
+    "periodLegend": "Masa sewa baru",
+    "from": "Dari",
+    "to": "Sampai",
+    "linesLegend": "Baris yang dibawa",
+    "quantity": "Jumlah",
+    "rate": "Tarif",
+    "fromRequired": "Pilih awal masa baru.",
+    "toRequired": "Pilih akhir masa baru.",
+    "toBeforeFrom": "Tanggal akhir tidak boleh sebelum tanggal mulai.",
+    "afterEnd": "Masa baru harus dimulai setelah {{end}}.",
+    "lineInvalid": "Isi jumlah dan tarif 0 atau lebih.",
+    "refused": "Sewa tidak dapat diperpanjang",
+    "created": "Pesanan perpanjangan dibuat",
+    "createdSub": "Ini masih draf. Ajukan untuk persetujuan seperti pesanan lain."
+  },
+  "settings": {
+    "title": "Jenis pembelian",
+    "back": "Pengadaan",
+    "link": "Jenis pembelian",
+    "switchTitle": "Gunakan jenis pembelian",
+    "switchSub": "Jika aktif, permintaan dapat diberi jenis seperti barang, jasa atau sewa. Jika mati, semua layar tetap seperti semula.",
+    "enabled": "Jenis pembelian aktif",
+    "save": "Simpan",
+    "saved": "Jenis pembelian diperbarui",
+    "listTitle": "Jenis",
+    "listSub": "Ini jenis milik Anda sendiri. Ubah nama, tambah atau nonaktifkan. Hanya jenis yang memiliki masa sewa yang dapat diperpanjang.",
+    "empty": "Belum ada jenis.",
+    "name": "Nama",
+    "nameId": "Nama dalam Bahasa Indonesia",
+    "isRental": "Jenis ini memiliki masa sewa",
+    "position": "Urutan",
+    "add": "Tambah jenis",
+    "retire": "Nonaktifkan",
+    "restore": "Aktifkan lagi",
+    "retired": "Nonaktif",
+    "loadError": "Jenis pembelian tidak dapat dimuat",
+    "adminOnly": "Hanya Admin yang dapat mengubah jenis pembelian."
+  },
+  "refusal": {
+    "ADMIN_ONLY": "Hanya Admin yang dapat mengubah jenis pembelian.",
+    "OFF": "Jenis pembelian belum diaktifkan.",
+    "UNAVAILABLE": "Jenis itu tidak tersedia.",
+    "PERIOD_REQUIRED": "Pembelian sewa memerlukan masa sewa.",
+    "PERIOD_NOT_ALLOWED": "Hanya pembelian sewa yang memiliki masa sewa.",
+    "IN_USE": "Pembelian memakai jenis ini. Nonaktifkan dan tambahkan yang baru.",
+    "INVALID": "Periksa nama: 1 sampai 60 karakter.",
+    "FIXED": "Jenis dan masa sewa ditetapkan saat pembelian dibuat."
+  }
+}

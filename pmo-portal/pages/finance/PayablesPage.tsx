@@ -14,6 +14,7 @@ import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { moneyTileProps } from '@/src/components/finance/moneyTile';
 import { initials } from '@/src/lib/initials';
+import { usePaymentChannelNames, usePaymentChannelsOn } from '@/src/hooks/usePaymentChannels';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { usePayablesPagePosition } from '@/src/hooks/usePayablesPagePosition';
 
@@ -86,6 +87,10 @@ const PayablesPage: React.FC = () => {
   const tableError = isError || (overdueFilter && ageError);
   const overdueCountAvailable = !isPending && !isError && !agePending && !ageError;
 
+  // #2698: the request's payment channel, beside its payment state. Only where the org switched the feature on.
+  const { on: channelsOn } = usePaymentChannelsOn();
+  const channelNames = usePaymentChannelNames(payablesPosition.payables.map((row) => row.procurement.id), channelsOn && canView);
+
   const columns = useMemo<Column<PayableRow>[]>(() => [
     {
       key: 'supplier',
@@ -115,6 +120,14 @@ const PayablesPage: React.FC = () => {
       },
       exportValue: (row) => row.procurement.project ? projectDisplayName(row.procurement.project) : '',
     },
+    ...(channelsOn ? [{
+      key: 'paymentChannel',
+      header: t('procurement:paymentChannel.columnHeader', 'Payment channel'),
+      kind: 'text' as const,
+      size: 150,
+      cell: (row: PayableRow) => <span className="min-w-0 truncate text-muted-foreground">{channelNames.data?.[row.procurement.id] ?? '—'}</span>,
+      exportValue: (row: PayableRow) => channelNames.data?.[row.procurement.id] ?? '',
+    }] : []),
     {
       key: 'age',
       header: t('financeHub:hub.invoiceAge', 'Invoice age'),
@@ -143,7 +156,7 @@ const PayablesPage: React.FC = () => {
       cell: (row) => row.amount === null ? null : formatTableMoney(row.amount / 100, row.procurement.currency),
       exportValue: (row) => (row.amount === null ? '' : row.amount / 100),
     },
-  ], [ageError, agePending, lateRows, projectManagers, t]);
+  ], [ageError, agePending, channelNames.data, channelsOn, lateRows, projectManagers, t]);
 
   const totalValues = useMemo(() => currencyTotals(visibleRows), [visibleRows]);
   const totals = (isPending || isError ? [] : Object.entries(totalValues)).map(([currency, amount]) => ({

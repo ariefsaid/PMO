@@ -54,6 +54,7 @@ const ENTITY_ROUTE_BASE: Record<string, string> = {
   opportunity: '/sales',
   expense_claim: '/expenses',
   sales_invoice: '/sales-invoices',
+  material_request: '/material-requests',
   quantity_change_request: '/quantity-changes',
 };
 

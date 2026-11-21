@@ -71,7 +71,20 @@
     "noDue": "Tanpa batas waktu",
     "overdue": "Terlambat"
   },
-  "openPage": "Buka halaman",
+  "openTasks": {
+    "title": "Tugas terbuka",
+    "error": "Tugas terbuka tidak dapat dimuat",
+    "empty": "Tidak ada tugas terbuka yang menyebut $t(common:terms.clientWorkOrder) ini.",
+    "unassigned": "Belum ditugaskan",
+    "noDue": "Tanpa tenggat"
+  },
+  "siteLocation": {
+    "title": "Lokasi lapangan",
+    "label": "Material laporan harian diambil dari",
+    "none": "Belum diatur",
+    "help": "Laporan harian yang divalidasi mengeluarkan materialnya dari sini ke perintah kerja ini.",
+    "error": "Lokasi lapangan tidak dapat disimpan"
+  },
   "inspections": {
     "title": "Inspeksi pihak ketiga",
     "error": "Inspeksi tidak dapat dimuat",
@@ -141,13 +154,6 @@
       "type": "Jenis berkas itu tidak dapat dilampirkan."
     },
     "historyKind": "Inspeksi pihak ketiga"
-  },
-  "openTasks": {
-    "title": "Tugas terbuka",
-    "error": "Tugas terbuka tidak dapat dimuat",
-    "empty": "Tidak ada tugas terbuka yang menyebut $t(common:terms.clientWorkOrder) ini.",
-    "unassigned": "Belum ditugaskan",
-    "noDue": "Tanpa tenggat"
   },
   "lists": {
     "areaTitle": "Wilayah $t(common:terms.clientWorkOrder)",

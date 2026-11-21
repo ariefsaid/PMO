@@ -34,7 +34,8 @@
       "central": "Pusat",
       "site": "Lokasi proyek",
       "yard": "Halaman proyek",
-      "staging": "Area penyiapan"
+      "staging": "Area penyiapan",
+      "vendor": "Vendor luar"
     },
     "noKeepers": "Belum ada penjaga",
     "active": "Aktif",
@@ -99,6 +100,9 @@
         "project": "Proyek lokasi",
         "projectHelp": "Opsional. Hanya sebagai usulan awal untuk pengeluaran; tidak membatasi.",
         "noProject": "Tanpa proyek bawaan",
+        "vendorCompany": "Perusahaan vendor",
+        "vendorCompanyHelp": "Opsional. Vendor luar yang memegang material di lokasi ini.",
+        "noVendorCompany": "Tanpa perusahaan vendor",
         "codeRequired": "Kode wajib diisi.",
         "nameRequired": "Nama wajib diisi.",
         "cover": "Nilai perlindungan",
@@ -193,7 +197,23 @@
     "STK_OWNERSHIP": "Stok tidak dikelola di Odoo untuk organisasi ini.",
     "STK_PENDING": "Dokumen ini sedang diposting di Odoo, sehingga tidak dapat diubah sekarang.",
     "STK_COMMANDS_LIVE": "Posting stok masih berjalan di Odoo. Tunggu sampai selesai.",
-    "STK_DRAFTS_EXIST": "Posting atau batalkan draf dokumen stok sebelum menghubungkan stok ke Odoo."
+    "STK_DRAFTS_EXIST": "Posting atau batalkan draf dokumen stok sebelum menghubungkan stok ke Odoo.",
+    "STK_TWO_STEP": "Organisasi Anda mengirim transfer dalam dua langkah: kirim, lalu terima.",
+    "STK_TWO_STEP_OFF": "Transfer dua langkah belum diaktifkan untuk organisasi Anda.",
+    "STK_TRANSIT_LOCATION": "Lokasi dalam perjalanan dikelola oleh transfernya dan tidak bisa dipakai manual.",
+    "STK_QUALITY": "Barang ini perlu pemeriksaan mutu: catat lulus atau gagal.",
+    "STK_SELF_RECEIVE": "Orang yang mengirim transfer tidak boleh menjadi penerimanya.",
+    "STK_NOT_RECEIVER": "Anda bukan penjaga tujuan dan transfer ini tidak ditujukan kepada Anda.",
+    "STK_PROOF_REQUIRED": "Transfer ini membutuhkan buktinya sebelum bisa diterima.",
+    "STK_PROOF_MODE": "Konfirmasi serah terima hanya bisa diwajibkan bila transfer dua langkah.",
+    "STK_MODE_BLOCKED": "Ini tidak bisa diubah selama ada transfer dalam perjalanan, kurang, berstatus draf, atau terikat aturan konfirmasi.",
+    "STK_FORBIDDEN": "Hanya Admin yang dapat melakukan ini.",
+    "STK_WOT_OFF": "Transfer antar perintah kerja belum diaktifkan untuk organisasi Anda.",
+    "STK_WOT_EXCEEDS": "Perintah kerja itu tidak memiliki material sebanyak itu.",
+    "STK_WOT_PROJECT": "Kedua perintah kerja harus berada di proyek yang sama.",
+    "STK_WOT_LOCATION": "Stok harus berada di lokasi lapangan, yard, atau staging milik proyek perintah kerja tersebut.",
+    "STK_WOT_INCOMPLETE": "Transfer antar perintah kerja ini tidak lengkap dan tidak disimpan.",
+    "STK_WOT_SYSTEM": "Dokumen ini hanya ditulis oleh transfer antar perintah kerja."
   },
   "actions": {
     "cancel": "Batal",
@@ -211,9 +231,12 @@
     "setup": "Pengaturan",
     "reorder": "Pemesanan ulang",
     "usageStandards": "Standar pemakaian",
-    "atRisk": "Risiko"
+    "atRisk": "Risiko",
+    "transfers": "Transfer"
   },
   "onHand": {
+    "atVendor": "Di vendor",
+    "atVendorNamed": "Di {{name}}",
     "title": "Stok",
     "columns": {
       "item": "Barang",
@@ -653,6 +676,22 @@
     "rowLabel": "Ajukan pembelian untuk {{item}}"
   },
   "siteWork": {
+    "materialProgress": {
+      "banner": {
+        "title": "Barang dikeluarkan melebihi progres: {{count}}",
+        "body": "Porsi yang dikeluarkan dari jumlah rencana lebih dari {{threshold}} poin di atas progres perintah kerja ({{progress}}%). Ini hanya peringatan.",
+        "row": "{{name}}: dikeluarkan {{issued}}% dari rencana, progres {{progress}}%, lebih {{gap}} poin"
+      },
+      "setting": {
+        "manage": "Peringatan pengeluaran terhadap progres",
+        "label": "Beri peringatan bila pengeluaran melebihi progres sebesar (poin persentase)",
+        "help": "Per barang: jumlah dikeluarkan sebagai porsi dari jumlah rencana, dibandingkan dengan progres perintah kerja. Kosongkan untuk mematikan peringatan. Tidak pernah memblokir pengeluaran.",
+        "save": "Simpan",
+        "saved": "Tersimpan.",
+        "range": "Isi angka 0 sampai 100, atau kosongkan.",
+        "saveError": "Tidak dapat menyimpan ambang."
+      }
+    },
     "files": {
       "unknownUploader": "Pengunggah tidak diketahui",
       "title": "Lampiran",
@@ -721,5 +760,242 @@
       "emptyTitle": "Belum ada lokasi yang menyimpan stok",
       "emptySub": "Lokasi yang menyimpan stok muncul di sini bersama perlindungan yang dicatat untuknya."
     }
+  },
+  "transfers": {
+    "send": "Kirim transfer",
+    "sendTitle": "Kirim transfer",
+    "off": {
+      "title": "Transfer dua langkah belum aktif",
+      "sub": "Administrator dapat mengaktifkannya di Pengaturan stok."
+    },
+    "empty": {
+      "title": "Belum ada transfer",
+      "sub": "Kirim material dari satu lokasi ke lokasi lain; penerima menghitungnya saat tiba."
+    },
+    "groups": {
+      "inTransit": "Dalam perjalanan",
+      "short": "Kurang, menunggu keputusan",
+      "closed": "Selesai"
+    },
+    "status": {
+      "Sent": "Dalam perjalanan",
+      "Received": "Diterima, selisih terbuka",
+      "Closed": "Selesai",
+      "Cancelled": "Ditarik kembali"
+    },
+    "shortOpen_one": "{{count}} selisih terbuka",
+    "shortOpen_other": "{{count}} selisih terbuka",
+    "sentToast": "Transfer terkirim",
+    "receiver": "Penerima (opsional)",
+    "receiverNone": "Siapa pun penjaga tujuan",
+    "receiverHelp": "Sebutkan orang yang dituju pengiriman ini.",
+    "viewOnly": "Anda melihat sebagai peran lain, jadi tidak ada yang bisa dikirim.",
+    "notFound": "Transfer tidak ditemukan",
+    "detailTitle": "Transfer",
+    "back": "Kembali ke transfer",
+    "sentBy": "Dikirim oleh {{name}} pada {{at}}",
+    "addressedTo": "Ditujukan kepada {{name}}",
+    "receivedBy": "Diterima oleh {{name}} pada {{at}}",
+    "recalled": "Ditarik kembali: {{reason}}",
+    "receiveTitle": "Hitung barang yang tiba",
+    "sentQty": "Dikirim {{qty}}",
+    "counted": "Dihitung",
+    "accepted": "Diterima",
+    "rejectReason": "Mengapa sebagian ditolak?",
+    "quality": "Pemeriksaan mutu",
+    "qualityPass": "Lulus",
+    "qualityFail": "Gagal",
+    "qualityChoose": "Pilih lulus atau gagal",
+    "shortNote": "Kurang {{qty}}: tetap dalam perjalanan sampai Anda memutuskan apa yang terjadi.",
+    "receiveAction": "Konfirmasi penerimaan",
+    "lines": "Baris",
+    "countedQty": "dihitung {{qty}}",
+    "acceptedQty": "diterima {{qty}}",
+    "rejectedQty": "ditolak {{qty}}: {{reason}}",
+    "resolution": {
+      "delivered": "Selisih tiba kemudian",
+      "returned": "Selisih dikembalikan ke asal",
+      "written_off": "Selisih dihapuskan"
+    },
+    "shortfalls": "Selisih",
+    "shortReason": "Alasan (wajib untuk menghapuskan)",
+    "shortQty": "Kurang {{qty}}",
+    "resolveAs": {
+      "delivered": "Sudah tiba",
+      "returned": "Kembalikan",
+      "written_off": "Hapuskan"
+    },
+    "resolvedToast": "Selisih diselesaikan",
+    "recallTitle": "Tarik kembali transfer ini",
+    "recallReason": "Alasan penarikan",
+    "recallAction": "Tarik kembali",
+    "recalledToast": "Transfer ditarik kembali",
+    "receivedToast": "Penerimaan dicatat",
+    "proofAddedToast": "Bukti dicatat"
+  },
+  "handover": {
+    "proofType": "Jenis bukti",
+    "proofInApp": "Konfirmasi di PMO",
+    "proofPaper": "Foto kertas bertanda tangan",
+    "guestToggle": "Penanda tangan tidak punya akun",
+    "guestName": "Nama penanda tangan",
+    "guestHelp": "Mereka menandatangani di ponsel {{host}}. Ketik nama mereka.",
+    "signingAs": "Menandatangani sebagai {{name}}",
+    "goodsPhoto": "Foto barang",
+    "personPhoto": "Foto orang yang menerima",
+    "paperPhoto": "Foto kertas bertanda tangan",
+    "confirmNow": "Konfirmasi serah terima di PMO sekarang",
+    "recorded": "Konfirmasi serah terima",
+    "none": "Belum ada konfirmasi tercatat.",
+    "guestBadge": "tanpa akun",
+    "stage": {
+      "send": "Pengiriman",
+      "receive": "Penerimaan"
+    },
+    "recordedBy": "dicatat oleh {{name}}"
+  },
+  "proof": {
+    "outstanding": "Bukti belum lengkap",
+    "complete": "Bukti lengkap",
+    "outstandingMissing": "Bukti belum lengkap: {{missing}}",
+    "rule": {
+      "none": "Tanpa bukti",
+      "paper": "Kertas bertanda tangan",
+      "confirmation": "Dikonfirmasi di PMO",
+      "either": "Kertas bertanda tangan atau dikonfirmasi di PMO",
+      "mixed": "Beberapa aturan"
+    },
+    "requiredNow": "Bukti dibutuhkan sebelum menerima: {{rules}}.",
+    "mayFollow": "Bukti boleh menyusul: transfer tetap berstatus bukti belum lengkap sampai ditambahkan.",
+    "addTitle": "Tambahkan bukti yang kurang",
+    "addAction": "Catat bukti",
+    "chase": {
+      "title": "Menunggu bukti ({{count}})",
+      "updated": "Diperbarui {{time}}",
+      "waiting_one": "menunggu {{count}} hari",
+      "waiting_other": "menunggu {{count}} hari",
+      "missing": "Belum ada: {{what}}",
+      "showAll": "Tampilkan semua {{count}}",
+      "showFewer": "Tampilkan lebih sedikit",
+      "go": "Tambah bukti"
+    }
+  },
+  "transferSettings": {
+    "manage": "Transfer dan bukti",
+    "mode": "Cara transfer dilakukan",
+    "oneStep": "Satu langkah: langsung diposting",
+    "twoStep": "Dua langkah: kirim, lalu terima dengan penghitungan",
+    "modeHelp": "Dua langkah menjaga barang dalam perjalanan sampai penerima menghitungnya.",
+    "timing": "Kapan bukti diwajibkan",
+    "beforePosting": "Sebelum pergerakan diposting atau diterima",
+    "mayFollow": "Boleh menyusul (pergerakan tetap berstatus bukti belum lengkap)",
+    "timingHelp": "Berlaku untuk tag yang mewajibkan bukti.",
+    "proofPerTag": "Bukti yang berlaku, per tag",
+    "qualityItems": "Barang yang perlu pemeriksaan mutu saat diterima"
+  },
+  "workOrderTransfer": {
+    "detailTitle": "Transfer antar perintah kerja",
+    "intro": "Sisa material berpindah dari satu perintah kerja ke perintah kerja lain dalam satu dokumen. Perintah kerja pertama dikreditkan dan yang kedua dibebani; stok tetap di tempatnya.",
+    "off": {
+      "title": "Transfer antar perintah kerja nonaktif",
+      "sub": "Administrator dapat mengaktifkannya di Pengaturan stok."
+    },
+    "project": "Proyek",
+    "projectPlaceholder": "Pilih proyek",
+    "from": "Dari perintah kerja",
+    "to": "Ke perintah kerja",
+    "woPlaceholder": "Pilih perintah kerja",
+    "location": "Lokasi material",
+    "locationHelp": "Lokasi lapangan, yard, atau staging proyek ini yang Anda kelola.",
+    "itemPlaceholder": "Pilih barang",
+    "available": "Dipegang perintah kerja: {{qty}} {{unit}}",
+    "nothingHeld": "Perintah kerja ini tidak memegang material yang dapat dipindahkan.",
+    "move": "Pindahkan ke perintah kerja lain",
+    "entry": "Pindahkan sisa ke perintah kerja lain",
+    "postedToast": "Material dipindahkan antar perintah kerja",
+    "notFound": "Transfer antar perintah kerja ini tidak ditemukan.",
+    "halves": "Dokumen dalam transfer ini",
+    "returnHalf": "Pengembalian dari perintah kerja pertama",
+    "issueHalf": "Pengeluaran ke perintah kerja kedua",
+    "partOf": "Bagian dari transfer antar perintah kerja",
+    "confirm": {
+      "title": "Pindahkan ke {{to}}",
+      "description": "Material dikembalikan dari perintah kerja pertama dan dikeluarkan ke yang kedua dalam satu langkah. Ini tidak dapat diubah; untuk mengoreksi, pindahkan material kembali."
+    },
+    "errors": {
+      "from": "Pilih perintah kerja tempat material berada.",
+      "to": "Pilih perintah kerja penerima.",
+      "same": "Pilih perintah kerja yang berbeda.",
+      "duplicate": "Setiap barang hanya boleh di satu baris.",
+      "exceeds": "Perintah kerja hanya memegang {{qty}} barang ini."
+    },
+    "setting": "Transfer antar perintah kerja",
+    "settingHelp": "Memungkinkan penjaga gudang memindahkan sisa material antar perintah kerja dalam satu proyek dengan satu dokumen."
+  },
+  "reservations": {
+    "column": "Bebas dan dicadangkan",
+    "freePlusReserved": "{{free}} bebas + {{reserved}} dicadangkan",
+    "shortBy": "Dicadangkan, kurang {{n}}",
+    "reserve": "Cadangkan",
+    "showHolders_one": "Tampilkan perintah kerja",
+    "showHolders_other": "Tampilkan {{count}} perintah kerja",
+    "hideHolders": "Sembunyikan perintah kerja",
+    "holders": "Perintah kerja yang memegang cadangan",
+    "until": "sampai {{date}}",
+    "heldByWorkOrder": "Dicadangkan untuk perintah kerja ini",
+    "form": {
+      "title": "Cadangkan stok",
+      "submit": "Cadangkan",
+      "projectPlaceholder": "Pilih proyek",
+      "workOrder": "Perintah kerja",
+      "workOrderPlaceholder": "Pilih perintah kerja",
+      "quantity": "Jumlah",
+      "expires": "Tahan sampai (opsional)",
+      "expiresHelp": "Setelah tanggal ini stok bebas kembali.",
+      "note": "Catatan (opsional)",
+      "errWorkOrder": "Pilih perintah kerja yang memerlukan stok ini",
+      "errQuantity": "Isi jumlah di atas nol, maksimal tiga desimal",
+      "saved": "Stok dicadangkan"
+    },
+    "borrowing": {
+      "title": "Meminjam.",
+      "body": "{{n}} dari permintaan ini diambil dari stok yang dicadangkan untuk perintah kerja lain, jadi perlu persetujuan peminjaman."
+    },
+    "settings": {
+      "enable": "Cadangkan stok untuk perintah kerja",
+      "enableHelp": "Perintah kerja dapat menahan sejumlah barang di suatu lokasi. Tidak ada yang dikunci: stok tampil sebagai bebas dan dicadangkan. Nonaktif secara bawaan.",
+      "mode": "Bila permintaan meminjam stok cadangan",
+      "modeApprove": "Perlu langkah persetujuan tambahan",
+      "modeWarn": "Hanya tampilkan peringatan",
+      "modeHelp": "Meminjam berarti permintaan mengambil stok yang dicadangkan untuk perintah kerja lain.",
+      "role": "Siapa yang menyetujui peminjaman",
+      "roleNone": "Belum dipilih",
+      "roleHelp": "Peran ini memutuskan langkah terakhir permintaan yang meminjam.",
+      "label": "Nama langkah persetujuan",
+      "labelDefault": "Persetujuan peminjaman"
+    },
+    "errors": {
+      "RSV_OFF": "Pencadangan belum diaktifkan.",
+      "RSV_FORBIDDEN": "Hanya penjaga lokasi, perencana stok, atau Admin yang dapat melakukan ini.",
+      "RSV_INVALID": "Periksa isian: jumlah maksimal tiga desimal, bilangan bulat untuk barang satuan utuh, dan alasan bila diminta.",
+      "RSV_NOT_FOUND": "Perintah kerja, barang, lokasi, atau cadangan itu tidak ditemukan.",
+      "RSV_WORK_ORDER": "Perintah kerja sudah ditutup atau dibatalkan.",
+      "RSV_LOCATION": "Stok dapat dicadangkan di lokasi pusat, lokasi kerja, yard, dan staging yang tidak diarsipkan.",
+      "RSV_EXCEEDS_FREE": "Hanya {{n}} yang bebas di lokasi ini.",
+      "RSV_EXCEEDS_REMAINING": "Hanya {{n}} yang tersisa pada cadangan ini.",
+      "RSV_NOT_ACTIVE": "Cadangan ini sudah tidak aktif.",
+      "RSV_NO_BORROW_APPROVER": "Permintaan ini mengambil stok cadangan perintah kerja lain dan belum ada yang ditetapkan menyetujuinya. Hubungi Admin.",
+      "RSV_BORROW_CHANGED": "Stok cadangan yang dipinjam kini lebih banyak dari yang disetujui. Kembalikan permintaan dan ajukan lagi.",
+      "RSV_OVERDRAW": "Cadangan lebih sedikit dari yang dipakai permintaan.",
+      "RSV_IMMUTABLE": "Cadangan tidak dapat dihapus; lepaskan saja."
+    }
+  },
+  "dsrIssue": {
+    "setting": "Laporan harian yang divalidasi mengeluarkan materialnya dari stok",
+    "settingHelp": "Mati secara bawaan. Bila hidup, validasi laporan harian mengeluarkan baris material dari lokasi lapangan perintah kerja; stok kurang diberi tanda dan tidak menghalangi laporan.",
+    "items": "Barang yang dikeluarkan",
+    "itemsAll": "Semua barang pada baris material",
+    "itemsConsumables": "Hanya barang bertanda habis pakai",
+    "flagList": "Barang yang dihitung habis pakai"
   }
 }

@@ -245,7 +245,18 @@ select set_eq(
             -- qualifies both profiles embeds from work_order_closeout_items by column (profiles!done_by, profiles!closed_by).
             ('work_order_candidates -> profiles'),
             ('work_order_closeout_items -> profiles'),
-            ('claim_billing_stages -> users') $$,
+            ('claim_billing_stages -> users'),
+            -- Stock-and-purchasing lane (stock_transfers 1306, stock_handover_confirmations 1307, stock_wo_transfers 1310,
+            -- dsr_stock_postings 1321, equipment_plans 1358). CHECKED BEFORE ADDING: no DAL, repository, page or edge-function
+            -- code embeds profiles, stock_warehouses, stock_documents or work_orders from these tables (stockTransfers.ts embeds only
+            -- stock_transfer_lines; equipmentPlans.ts only equipment_plan_lines; names and locations resolve by id), so no unqualified
+            -- embed exists. Any future embed must name its constraint with !constraint_name.
+            ('dsr_stock_postings -> stock_documents'),
+            ('stock_handover_confirmations -> profiles'),
+            ('equipment_plans -> profiles'),
+            ('stock_wo_transfers -> work_orders'),
+            ('stock_transfers -> profiles'),
+            ('stock_transfers -> stock_warehouses') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

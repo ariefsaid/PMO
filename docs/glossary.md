@@ -107,9 +107,17 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Procurement (case)** — one procure-to-pay effort, modeled as a **case folder**: the thing that carries a title, an optional project link, a requester, a type, and a current lifecycle status. It is **not** itself a Purchase Request or any single document — it is the folder those documents hang under. The UI speaks of a **purchase** (and of the **supplier**, not vendor) for the case; case-directed copy should prefer "purchase" or "procurement case" for the aggregate — "**Procurement record**" always means a typed child document. (ADR-0033.)
 
+**Line planning** — an organisation setting (off by default) that lets each request line carry a **line category** and a **needed-by** date. The categories are the organisation's own list (an Admin adds, renames or retires them; two general starter rows are seeded when the setting is first turned on). A retired category stays on the lines that already carry it. A needed-by date is per line; there is no request-level date. (#2696.)
+
 **Procurement record** — a real document that hangs under a Procurement case: a **Purchase Request, RFQ, Quotation, Purchase Order, Goods Receipt, Vendor Invoice,** or **Payment**. Each is its own typed entity, of which a case may have **many** (e.g. several partial Goods Receipts, multiple Vendor Invoices, progress Payments). A record is **evidence** of where the case stands: document evidence advances the case to its furthest evidenced step, alongside explicit lifecycle decisions (ADR-0093). The kinds are defined below. (ADR-0033.)
 
 **Purchase request** — a numbered, dated request record under a procurement case, with a status and amount; the case's opening document.
+
+**Purchase type** (#2697) — one of the organisation's own list of kinds of purchase (goods, service and rental are the starter rows an Admin gets when switching the feature on; the Admin renames, adds or retires them). A purchase carries at most one, chosen when it is raised and never changed after. The list is data: no rule reads a type's name. Off by default; a purchase with no type behaves exactly as before.
+
+**Rental purchase** (#2697) — a purchase whose type is flagged `is_rental` ("has a rental period"). It carries a rental period (from and to dates). The flag, not the type's name, makes a purchase a rental.
+
+**Rental extension** (#2697) — the guided "Extend rental" step on a live rental purchase: it creates a NEW purchase (its own order, in Draft) for a later period, linked to the original, and takes the normal approval and spend routing. The original is not changed. The extension starts after the original's end, never overlaps another extension of the same original, and can itself be extended.
 
 **Purchase order** — a numbered, dated order record under a procurement case, with a status and amount.
 
@@ -118,6 +126,8 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 **Vendor invoice** (UI: **Supplier invoice**) — a supplier billing record under a procurement case, optionally linked to a purchase order, carrying an amount, date, status and tax details.
 
 **Void (vendor bill)** — in an organisation with no ERP, an Admin or Finance user marks a mistyped PMO-native subcontract bill as voided, with a reason. Soft: the bill and its lines stay, it stops counting against the PO and the purchase's payments, and it can never be paid or un-voided. The person who captured the bill cannot void it unless they are the organisation's only active member. Distinct from an ERP cancel, which comes from the ERP (#1671).
+
+**Payment channel** — how a purchase request will be paid (for example bank transfer or cash), one optional field on the request, shown beside its payment status. The list of channels is the organisation's own data, managed by an Admin; an Admin turning the feature on for the first time gets four general starter channels to edit. Off for every organisation until an Admin turns it on. The requester or an Admin sets it while the request is Draft or Rejected; Finance or an Admin can set or change it until the request is Paid or Cancelled. No code treats one channel differently from another (#2698).
 
 **Three-way match** — an organisation switches it on (Admin) with a quantity and an amount tolerance in percent. From then, each PMO-native bill on a goods purchase is checked line by line against the purchase's ordered items (the order) and what its goods receipts received: the quantity billed so far may not pass what was received or ordered beyond the quantity tolerance, the billed rate may not pass the order rate beyond the amount tolerance, and the bill's pre-tax amount must agree with its lines. A bill that fails, or states no lines, is **held**: nothing on its purchase moves to payment. Subcontract bills (capped by acceptance), ERP-mirrored bills, bills recorded before the switch and organisations whose ERP owns purchasing are not matched (#2525).
 
@@ -556,6 +566,12 @@ an edit. Distinct from the **Goods Receipt** procurement record, whose only line
 **Stock ledger entry** — one signed quantity-and-value line per item and warehouse written when a document posts.
 Append-only. The ledger is the trace.
 
+**Issued share** — for one item on one work order: its net issued quantity (issues less returns) as a percent of the quantity planned for that work order (the BoQ material allowance, prorated by the work order's share of the line). Per item, by quantity. #2674.
+
+**Progress share** — a work order's progress as one percent, value-weighted over its allocated contract lines; each line counts the greater of its Confirmed accepted quantity and its validated daily-report quantity, capped at the allocated quantity. #2674.
+
+**Issue-progress gap** — issued share minus progress share, in percentage points. An item warns when the gap is strictly greater than the organisation's threshold; the threshold is unset (no warning) until an Admin sets it. A warning never blocks. #2674.
+
 **On hand** — quantity and value of an item at a warehouse now: the sum of its ledger entries (kept in a balance row).
 
 **Moving-average cost** — value on hand ÷ quantity on hand at the moment of a stock-out.
@@ -605,6 +621,15 @@ that project's work orders, only that person, or their in-window stand-in, may d
 rule (order, not the author, one step per person) still holds. The pinned person must be an active member holding
 the step's role; an Admin or the project's manager sets the pin on the project screen, and a step with no pin stays
 role-level (#2598).
+
+**Approver notification (material request)** — an in-app notification to each person who can decide the open step of a
+material request now (the step's role holders, or the live pin, plus in-window stand-ins; never the author, never
+someone who already decided another step). It is written by the database, removed when the step is decided, and exists
+only while the organisation's approvals-inbox setting is on (default off) (#2685).
+
+**Approvals inbox (material-request section)** — the "Material requests awaiting you" part of the Approvals page: the
+open steps the viewer may decide, from the same queue as the material-requests screen. Shown only while the
+organisation's setting is on (#2685).
 
 **Pin needing attention** — a pinned approver whose person is no longer an active member or no longer holds the
 step's role: the pin stops binding, the step falls back to its role rule (and stand-ins for role holders), and the
@@ -808,6 +833,8 @@ receipts received: billed quantity may not pass received or ordered beyond the q
 pass the order rate beyond the amount tolerance, and the bill's pre-tax amount must agree with its lines. A bill that
 fails, or states no lines, is **held**: nothing on its purchase moves to payment. Subcontract bills, ERP-mirrored bills,
 bills recorded before the switch and organisations whose ERP owns purchasing are not matched.
+
+**Match lines** — what the three-way match reads: per ordered item, the quantity a goods receipt received and the quantity and rate a bill charges. Both are edited in the app (#2634) while no money has posted on them: a Paid bill's lines, and the receipt lines of a Paid or Cancelled purchase, are refused. Whoever last records a bill's lines can no longer approve its exception; receipt edits carry no separation of duties, and are audited with the lines before and after (small teams enter both). An Admin may switch the match off while bills are held; the setting screen names how many are held now.
 
 **Match exception** — the release of a held bill: an Admin or Finance user approves it with a reason and the purchase may
 be paid again. Never the person who recorded the bill or its match lines. Permanent, and it freezes the bill's lines.
@@ -1252,6 +1279,37 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 - **Done-not-claimed age** (#2675): whole days from the latest confirmed acceptance of a candidate's work order to the organisation's today. Information, shown on every candidate line of the billing plan.
 - **Done-not-claimed alert** (#2675): off by default; when an organisation switches the reminder on and sets a day limit, lines older than the limit are flagged and Finance is told once per line. It never raises a claim or an invoice.
+
+**Vendor location** (stock) — a stock location of kind `vendor`: material held at an outside vendor, e.g. sent out for a process. Optionally linked to a Vendor company; it names no project, takes only transfers (out and back), adjustments and counts, and is not a project location for the work-order balance. A send-out to it is not usage for reorder suggestions. Created by the organisation in Stock setup; none exists by default. (#2683, `docs/specs/stock-vendor-location.spec.md`.)
+**Usage threshold** (*ambang pemakaian*) — one of two percentages of a work order's planned material quantity, set per organisation by an Admin on the material-request settings (empty = off). When a submitted material request takes an item's use (already used plus the request's quantity) to or past a threshold, the request shows a warning and the project's manager gets one notification for that work order, item and threshold. A warning never blocks a request (#2686).
+**Monthly plan** — one project's plan of equipment and services for one calendar month, in Draft, Submitted, Approved or Rejected status; approving it creates one Draft rental purchase per line, once (#2700).
+
+**Plan line** — one item of a monthly plan: what is needed, optionally a work order and a plan category, a vendor, a quantity, a rate and dates inside the month; after approval it links to the purchase it created (#2700).
+
+**Plan category** — an entry in the organisation's own list that a plan line can name (for example a kind of equipment or service); an Admin keeps it and retires rather than deletes (#2700).
+
+**Plan approval step** — the organisation setting that says who approves a monthly plan: the project's spend approvers (then the senior approvers, then an Admin) or anyone whose role can approve spend; the author may not approve their own plan unless the organisation allows it (#2700).
+
+**Two-step transfer** (stock) — a transfer made in two steps: *send* moves the goods out of the source into an *in-transit* location (one per transfer, made and archived by the system); *receive* records the counted quantity, accepts or rejects it (with a quality check where the item is flagged) and posts it to the destination. Off by default; an organisation setting turns it on. The one-step transfer is unchanged while it is off.
+
+**In transit** — goods that left the source and are not yet counted at the destination. They stay on the books in the transfer's own in-transit location, so quantity and value are never lost on the road.
+
+**Shortfall** — the sent quantity minus the counted quantity of a two-step transfer. It stays in transit, open, until someone resolves it: it arrived later, it is returned to the source, or an Admin writes it off with a reason. Rejected quantity (counted but refused) goes straight back to the source with a reason.
+
+**Handover confirmation** — one way to give *Handover proof* in PMO: at send or receive, the logged-in person confirms the handover with their name, the time, the counted quantities, a photo of the goods and a photo of the person receiving. A person with no account signs on the logged-in person's phone with their name typed. It cannot be changed afterwards.
+
+**Proof rule** (per stock tag) — which proof counts for items of that tag: none, signed paper, a handover confirmation in PMO, or either. A separate organisation setting says whether the proof must come *before* the movement posts or may *follow* it; a movement whose proof has not arrived reads "proof outstanding" and "proof complete" once it has.
+
+**Proof chase list** (*daftar bukti tertunda*) — the card on the stock home listing movements whose required proof has not arrived, oldest first, with the days waiting and the missing proof. It is read live (never a stored snapshot), shown only while the organisation lets proof follow, and only to an Admin or a keeper of one of the movement's locations. See *Proof rule*.
+
+
+**Work-order transfer (WOT)** — one document that moves leftover material from one work order to another of the same project: a return from the first work order and an issue to the second, both at one project location, posted together or not at all. The stock does not leave the location; the first work order is relieved of its cost and the second is charged at the location's moving average. It is off until an Admin turns on the organisation setting "work-order transfers"; a posted one is corrected by a transfer the other way. Not a *Transfer* between locations. (#2691)
+
+**Free stock** — on hand at a location minus the active reservations there, never shown below zero; when on hand falls below what is reserved the screen says "reserved, short by n". It is computed on read, so it cannot drift from the ledger. A reservation is active until released, expired or consumed, or until its work order closes.
+
+**Material line** (daily report) — a stock item and a quantity used, entered on the daily report (the "consumables used" rows), optionally naming the contract item it went into. While the organisation setting "validated daily reports issue their material from stock" is on, validating the report issues each in-stock line from the work order's *site location* to the work order. A line the stock cannot cover is left out whole and flagged (short, no site location, no contract item, refused), never part-issued and never blocking the report; correcting the report returns the earlier issue once and issues the corrected lines. Off by default. (#2676)
+
+**Site location** (work order) — the site, yard or staging location of the work order's project that its daily reports take material from. Client data on the work order; empty means reports flag their material "no site location". (#2676)
 ## Work-order sections (#2576)
 **Section** — an optional child of one work order: a place or scope with a code (unique per work order, reserved for its life), a name, an optional note and foreman, a held readiness and a sort order. It carries no value, invoice, acceptance or status of its own, and is neither a discipline (the organisation-wide cost list) nor a work-order line (a contract quantity). The organisation's word for it is the shared term `terms.section` ("Section" / "Bagian"); no screen spells it. Not the record page's layout regions, which are *panels*.
 **Unsectioned remainder** — the records of a work order that name no section; shown as "Not in a section". A work order with no section has none and reads exactly as before.

@@ -71,7 +71,20 @@
     "noDue": "No due time",
     "overdue": "Overdue"
   },
-  "openPage": "Open page",
+  "openTasks": {
+    "title": "Open tasks",
+    "error": "Couldn't load the open tasks",
+    "empty": "No open tasks name this work order.",
+    "unassigned": "Unassigned",
+    "noDue": "No due date"
+  },
+  "siteLocation": {
+    "title": "Site location",
+    "label": "Material for daily reports comes from",
+    "none": "Not set",
+    "help": "A validated daily report issues its material from here to this work order.",
+    "error": "Couldn't save the site location"
+  },
   "inspections": {
     "title": "Third-party inspections",
     "error": "Couldn't load the inspections",
@@ -141,13 +154,6 @@
       "type": "That file type cannot be attached."
     },
     "historyKind": "Third-party inspection"
-  },
-  "openTasks": {
-    "title": "Open tasks",
-    "error": "Couldn't load the open tasks",
-    "empty": "No open tasks name this work order.",
-    "unassigned": "Unassigned",
-    "noDue": "No due date"
   },
   "lists": {
     "areaTitle": "Work order areas",

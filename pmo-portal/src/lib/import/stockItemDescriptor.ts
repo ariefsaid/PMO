@@ -44,7 +44,7 @@ export function makeStockItemImportDescriptor(
   };
 }
 
-const KINDS = ['central', 'site', 'yard', 'staging'] as const;
+const KINDS = ['central', 'site', 'yard', 'staging', 'vendor'] as const;
 
 /** Stock locations (warehouses) import (#2530): code, name, kind and, for site, yard and staging, the project. */
 export function makeStockLocationImportDescriptor(
@@ -63,7 +63,7 @@ export function makeStockLocationImportDescriptor(
     fields: [
       F('code', 'Location code', 'Kode lokasi', true, requiredText(L('import:stockLocation.error.code', 'Location code is required.'), 40, L('import:stockLocation.error.codeLong', 'Location code is too long.')), { inRowTitle: true }),
       F('name', 'Name', 'Nama', true, requiredText(L('import:stockLocation.error.name', 'Name is required.'), 200, L('import:stockLocation.error.nameLong', 'Name is too long.')), { inRowTitle: true }),
-      F('kind', 'Kind', 'Jenis', true, (raw) => ((KINDS as readonly string[]).includes(raw.trim().toLowerCase()) ? null : L('import:stockLocation.error.kind', 'Kind must be central, site, yard or staging.'))),
+      F('kind', 'Kind', 'Jenis', true, (raw) => ((KINDS as readonly string[]).includes(raw.trim().toLowerCase()) ? null : L('import:stockLocation.error.kind', 'Kind must be central, site, yard, staging or vendor.'))),
       F('project', 'Project', 'Proyek', false, refValidate(project, false), { hint: L('import:stockLocation.projectHint', 'Required for site, yard and staging; leave blank for central.') }),
     ],
     validateRow: (c: Cells) => {
@@ -71,6 +71,7 @@ export function makeStockLocationImportDescriptor(
       const needs = kind === 'site' || kind === 'yard' || kind === 'staging';
       const has = (c.project ?? '').trim() !== '';
       if (needs && !has) return { project: L('import:stockLocation.error.projectNeeded', 'A project is required for this kind of location.') } as never;
+      if (kind === 'vendor' && has) return { project: L('import:stockLocation.error.projectNotAllowedVendor', 'A vendor location has no project.') } as never;
       if (kind === 'central' && has) return { project: L('import:stockLocation.error.projectNotAllowed', 'A central location has no project.') } as never;
       return {};
     },

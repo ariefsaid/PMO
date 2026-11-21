@@ -1,0 +1,8 @@
+# 2690: client-callable security-definer writers of the two-step transfer (authenticated only; each checks membership and its own role rule).
+set_stock_transfer_mode
+set_stock_proof_timing
+send_stock_transfer
+receive_stock_transfer
+recall_stock_transfer
+resolve_stock_transfer_shortfall
+record_stock_handover

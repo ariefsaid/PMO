@@ -43,6 +43,9 @@ import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import WorkOrderCloseoutTemplate from './admin/WorkOrderCloseoutTemplate';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import PurchaseOrderSettingsSection from './admin/PurchaseOrderSettingsSection';
+import OrgThreeWayMatch from './admin/OrgThreeWayMatch';
+import OrgPaymentChannels from './admin/OrgPaymentChannels';
+import OrgPurchaseLines from './admin/OrgPurchaseLines';
 import SiteReportLists from './admin/SiteReportLists';
 import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
@@ -316,6 +319,9 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgDownPaymentItem />
             <OrgProcurementGates />
             <PurchaseOrderSettingsSection />
+            <OrgThreeWayMatch />
+            <OrgPaymentChannels />
+            <OrgPurchaseLines />
             <BudgetAccountMap />
             <ExpenseAccountMap />
           </div>

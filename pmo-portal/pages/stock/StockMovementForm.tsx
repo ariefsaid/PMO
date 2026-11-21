@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, PageHeader, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
@@ -14,6 +14,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
+import { useIsTwoStep } from '@/src/hooks/useStockTransfers';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import {
   useIssuableProjects, useIssuableWorkItems, useProjectIssueLines, useStockDocumentMutations, useStockItems, useStockKeepers, useStockUnits, useStockWarehouses,
@@ -66,6 +67,7 @@ const StockMovementForm: React.FC = () => {
   const notify = useStockFailureNotice();
   const today = useFxOrgDay(true).day; // org-timezone today: the server refuses a later date (stock_assert_dates)
   const { create } = useStockDocumentMutations();
+  const twoStep = useIsTwoStep(); // #2690: a two-step organisation sends a transfer instead of posting it
 
   const warehouses = useStockWarehouses(false);
   const keepers = useStockKeepers();
@@ -102,6 +104,7 @@ const StockMovementForm: React.FC = () => {
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);
   const wholeByUnit = useMemo(() => new Map((units.data ?? []).map((u) => [u.id, u.whole_only])), [units.data]);
 
+  if (kind === 'transfer' && twoStep) return <Navigate to="/stock/transfers/new" replace />;
   if (!kind) {
     return <div className="p-4"><ListState variant="empty" icon="folder" title={t('form.unknownKind')} sub={t('form.unknownKindSub')} /></div>;
   }

@@ -1,0 +1,8 @@
+{
+  "definer_functions": [
+    "mrq_approver_inbox_on(uuid)",
+    "mrq_set_approver_inbox(boolean)",
+    "mrq_step_recipients(uuid)",
+    "mrq_sync_step_notifications(uuid)"
+  ]
+}

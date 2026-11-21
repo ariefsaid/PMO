@@ -20,9 +20,9 @@ export function useMaterialRequest(id: string | undefined) {
 }
 
 /** FR-MRQ-017: the caller's open steps. The server already applies role, stand-in window and one-step-per-person. */
-export function useWaitingForMe() {
+export function useWaitingForMe(enabled = true) {
   const orgId = useOrgId();
-  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'waiting'], queryFn: () => repo.waitingForMe(), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'waiting'], queryFn: () => repo.waitingForMe(), enabled: enabled && Boolean(orgId) });
 }
 
 /** FR-MRQ-002: plan and already-requested figures for the lines being drafted. */
@@ -47,6 +47,11 @@ export function useMaterialRequestCutoff() {
 export function useDeliveryNoteSettings() {
   const orgId = useOrgId();
   return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'delivery-note-settings'], queryFn: () => repo.deliveryNoteSettings(), enabled: Boolean(orgId) });
+}
+
+export function useUsageThresholds() {
+  const orgId = useOrgId();
+  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'usage-thresholds'], queryFn: () => repo.usageThresholds(), enabled: Boolean(orgId) });
 }
 export function useStandIns() {
   const orgId = useOrgId();
@@ -82,6 +87,7 @@ export function useMaterialRequestMutations() {
       mutationFn: (a: { enabled: boolean; signatureBlocks: string[] }) => repo.setDeliveryNoteSettings(a.enabled, a.signatureBlocks),
       ...opts,
     }),
+    setUsageThresholds: useMutation({ mutationFn: (th: { pct1: number | null; pct2: number | null }) => repo.setUsageThresholds(th), ...opts }),
     setStandIn: useMutation({ mutationFn: (s: { delegatorId: string; standInId: string; startsOn: string; endsOn: string }) => repo.setStandIn(s), ...opts }),
     setStepPin: useMutation({ mutationFn: (a: { projectId: string; position: number; approverId: string | null }) => repo.setStepPin(a.projectId, a.position, a.approverId), ...opts }),
     revokeStandIn: useMutation({ mutationFn: (id: string) => repo.revokeStandIn(id), ...opts }),

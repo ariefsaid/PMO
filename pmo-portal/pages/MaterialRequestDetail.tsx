@@ -1,3 +1,5 @@
+import { ReservationsSlot } from '@/src/components/stock/ReservationsSlot';
+import { RequestBorrowingNotice } from '@/src/components/stock/RequestBorrowingNotice';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -11,12 +13,16 @@ import { useStockItems, useStockKeepers, useStockWarehouses } from '@/src/hooks/
 import { formatDay } from '@/src/lib/format';
 import { RequestStatusPill, RequestWorkOrder, StepStatusPill } from './materialRequests/shared';
 import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
+import { UsageWarning } from './materialRequests/UsageWarning';
+import { useUsageThresholds } from '@/src/hooks/useUsageThresholds';
 
 type Dialog = null | { kind: 'return' | 'reject' } | { kind: 'approve' } | { kind: 'withdraw' } | { kind: 'retry' };
 
 /** One request: the chain and who acted, the lines against plan, the decision controls, and the link to the transfer draft. */
 const MaterialRequestDetailPage: React.FC = () => {
-  const { t } = useTranslation('materialRequests');
+  // Both catalogues load before first paint: the approve dialog and the stock pickers render `stock` text, and a namespace that is
+  // still loading when the dialog opens suspends the route and re-mounts this page, losing the open dialog (#2685, SPA arrival).
+  const { t } = useTranslation(['materialRequests', 'stock']);
   const { requestId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -26,6 +32,7 @@ const MaterialRequestDetailPage: React.FC = () => {
   const name = useUserNames();
   const labels = useLabels();
   const q = useMaterialRequest(requestId);
+  const usage = useUsageThresholds();
   const waiting = useWaitingForMe();
   const { data: dnSettings } = useDeliveryNoteSettings();
   const { data: items } = useStockItems(true);
@@ -94,6 +101,7 @@ const MaterialRequestDetailPage: React.FC = () => {
       </RecordHeader>
 
       <RecordStack>
+        <ReservationsSlot><RequestBorrowingNotice requestId={req.id} /></ReservationsSlot>
         {req.transferDocumentId && (
           <RecordSection title={t('detail.transfer', 'Delivery')}>
             <p>
@@ -135,6 +143,7 @@ const MaterialRequestDetailPage: React.FC = () => {
               <li key={l.id} className="py-2" data-testid="mrq-detail-line">
                 <div className="flex flex-wrap justify-between gap-2"><span className="font-medium">{itemName(l.itemId)}</span><span className="tabular-nums">{l.quantity}</span></div>
                 {l.planQty !== null && <div className="text-control text-muted-foreground">{t('form.planLine', 'Plan {{plan}} · already requested {{prior}} · new total {{total}}', { plan: l.planQty, prior: l.priorQty ?? 0, total: (l.priorQty ?? 0) + l.quantity })}{l.planSource && <span className="ml-2" data-testid="mrq-detail-plan-source">{t(`form.planSource.${l.planSource}`, { standard: 'From usage standards', adjusted: 'Adjusted by the planner', allowance: 'From material allowance', none: 'No plan' }[l.planSource])}</span>}</div>}
+                {l.planQty !== null && <UsageWarning line={{ planQty: l.planQty, priorQty: l.priorQty ?? 0, quantity: l.quantity }} thresholds={usage.thresholds} />}
                 {l.overPlanReason && <div className="text-control">{t('detail.overPlanReason', 'Over plan: {{reason}}', { reason: l.overPlanReason })}</div>}
               </li>
             ))}

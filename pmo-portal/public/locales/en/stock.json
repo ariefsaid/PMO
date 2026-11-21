@@ -34,7 +34,8 @@
       "central": "Central",
       "site": "Site",
       "yard": "Yard",
-      "staging": "Staging"
+      "staging": "Staging",
+      "vendor": "Vendor"
     },
     "noKeepers": "No keeper",
     "active": "Active",
@@ -99,6 +100,9 @@
         "project": "Site project",
         "projectHelp": "Optional. Only a default for issues; it does not restrict them.",
         "noProject": "No default project",
+        "vendorCompany": "Vendor company",
+        "vendorCompanyHelp": "Optional. The outside vendor that holds material at this location.",
+        "noVendorCompany": "No vendor company",
         "codeRequired": "Code is required.",
         "nameRequired": "Name is required.",
         "cover": "Cover value",
@@ -193,7 +197,23 @@
     "STK_OWNERSHIP": "Stock is not managed in Odoo for this organisation.",
     "STK_PENDING": "This document is being posted in Odoo, so it cannot change right now.",
     "STK_COMMANDS_LIVE": "Stock postings are still in progress in Odoo. Wait for them to finish first.",
-    "STK_DRAFTS_EXIST": "Post or cancel the draft stock documents before connecting stock to Odoo."
+    "STK_DRAFTS_EXIST": "Post or cancel the draft stock documents before connecting stock to Odoo.",
+    "STK_TWO_STEP": "Your organisation sends transfers in two steps: send, then receive.",
+    "STK_TWO_STEP_OFF": "Two-step transfers are not turned on for your organisation.",
+    "STK_TRANSIT_LOCATION": "An in-transit location is managed by its transfer and cannot be used by hand.",
+    "STK_QUALITY": "This item needs a quality check: record pass or fail.",
+    "STK_SELF_RECEIVE": "The person who sent a transfer cannot be the one who receives it.",
+    "STK_NOT_RECEIVER": "You do not keep the destination and this transfer is not addressed to you.",
+    "STK_PROOF_REQUIRED": "This transfer needs its proof before it can be received.",
+    "STK_PROOF_MODE": "A handover confirmation can only be required when transfers are two-step.",
+    "STK_MODE_BLOCKED": "This cannot change while transfers are in transit, short, drafted or tied to a confirmation rule.",
+    "STK_FORBIDDEN": "Only an Admin can do this.",
+    "STK_WOT_OFF": "Work-order transfers are not turned on for your organisation.",
+    "STK_WOT_EXCEEDS": "That work order does not hold that much of the item.",
+    "STK_WOT_PROJECT": "Both work orders must belong to the same project.",
+    "STK_WOT_LOCATION": "The stock must be at a site, yard or staging location of the work orders' project.",
+    "STK_WOT_INCOMPLETE": "This work-order transfer is incomplete and was not saved.",
+    "STK_WOT_SYSTEM": "This document is written only by a work-order transfer."
   },
   "actions": {
     "cancel": "Cancel",
@@ -211,9 +231,12 @@
     "setup": "Setup",
     "reorder": "Reorder",
     "usageStandards": "Usage standards",
-    "atRisk": "At risk"
+    "atRisk": "At risk",
+    "transfers": "Transfers"
   },
   "onHand": {
+    "atVendor": "At vendor",
+    "atVendorNamed": "At {{name}}",
     "title": "Stock",
     "columns": {
       "item": "Item",
@@ -653,6 +676,22 @@
     "rowLabel": "Request purchase for {{item}}"
   },
   "siteWork": {
+    "materialProgress": {
+      "banner": {
+        "title": "Items issued ahead of progress: {{count}}",
+        "body": "Issued as a share of the planned quantity is more than {{threshold}} points above the work order's progress ({{progress}}%). This is a warning only.",
+        "row": "{{name}}: issued {{issued}}% of planned, progress {{progress}}%, {{gap}} points ahead"
+      },
+      "setting": {
+        "manage": "Issued-versus-progress warning",
+        "label": "Warn when issued exceeds progress by (percentage points)",
+        "help": "Per item: issued quantity as a share of the planned quantity, against the work order's progress. Leave empty to turn the warning off. It never blocks an issue.",
+        "save": "Save",
+        "saved": "Saved.",
+        "range": "Enter a number from 0 to 100, or leave empty.",
+        "saveError": "Could not save the threshold."
+      }
+    },
     "files": {
       "unknownUploader": "Unknown uploader",
       "title": "Attachments",
@@ -721,5 +760,242 @@
       "emptyTitle": "No location holds stock",
       "emptySub": "Locations with stock appear here against the cover recorded on them."
     }
+  },
+  "transfers": {
+    "send": "Send transfer",
+    "sendTitle": "Send a transfer",
+    "off": {
+      "title": "Two-step transfers are off",
+      "sub": "An administrator can turn them on in Stock setup."
+    },
+    "empty": {
+      "title": "No transfers yet",
+      "sub": "Send material from one location to another; the receiver counts it on arrival."
+    },
+    "groups": {
+      "inTransit": "In transit",
+      "short": "Short, waiting for a decision",
+      "closed": "Closed"
+    },
+    "status": {
+      "Sent": "In transit",
+      "Received": "Received, shortfall open",
+      "Closed": "Closed",
+      "Cancelled": "Recalled"
+    },
+    "shortOpen_one": "{{count}} shortfall open",
+    "shortOpen_other": "{{count}} shortfalls open",
+    "sentToast": "Transfer sent",
+    "receiver": "Receiver (optional)",
+    "receiverNone": "Anyone who keeps the destination",
+    "receiverHelp": "Name the person the delivery is addressed to.",
+    "viewOnly": "You are viewing as another role, so nothing can be sent.",
+    "notFound": "Transfer not found",
+    "detailTitle": "Transfer",
+    "back": "Back to transfers",
+    "sentBy": "Sent by {{name}} on {{at}}",
+    "addressedTo": "Addressed to {{name}}",
+    "receivedBy": "Received by {{name}} on {{at}}",
+    "recalled": "Recalled: {{reason}}",
+    "receiveTitle": "Count what arrived",
+    "sentQty": "Sent {{qty}}",
+    "counted": "Counted",
+    "accepted": "Accepted",
+    "rejectReason": "Why is some rejected?",
+    "quality": "Quality check",
+    "qualityPass": "Pass",
+    "qualityFail": "Fail",
+    "qualityChoose": "Choose pass or fail",
+    "shortNote": "{{qty}} short: it stays in transit until you decide what happened to it.",
+    "receiveAction": "Confirm receipt",
+    "lines": "Lines",
+    "countedQty": "counted {{qty}}",
+    "acceptedQty": "accepted {{qty}}",
+    "rejectedQty": "rejected {{qty}}: {{reason}}",
+    "resolution": {
+      "delivered": "Shortfall delivered later",
+      "returned": "Shortfall returned to the source",
+      "written_off": "Shortfall written off"
+    },
+    "shortfalls": "Shortfalls",
+    "shortReason": "Reason (needed to write off)",
+    "shortQty": "{{qty}} short",
+    "resolveAs": {
+      "delivered": "It arrived",
+      "returned": "Send back",
+      "written_off": "Write off"
+    },
+    "resolvedToast": "Shortfall resolved",
+    "recallTitle": "Recall this transfer",
+    "recallReason": "Reason for recalling",
+    "recallAction": "Recall",
+    "recalledToast": "Transfer recalled",
+    "receivedToast": "Receipt recorded",
+    "proofAddedToast": "Proof recorded"
+  },
+  "handover": {
+    "proofType": "Kind of proof",
+    "proofInApp": "Confirm in PMO",
+    "proofPaper": "Photo of the signed paper",
+    "guestToggle": "The person signing has no account",
+    "guestName": "Name of the person signing",
+    "guestHelp": "They sign on {{host}}'s phone. Type their name.",
+    "signingAs": "Signing as {{name}}",
+    "goodsPhoto": "Photo of the goods",
+    "personPhoto": "Photo of the person receiving",
+    "paperPhoto": "Photo of the signed paper",
+    "confirmNow": "Confirm the handover in PMO now",
+    "recorded": "Handover confirmations",
+    "none": "No confirmation recorded yet.",
+    "guestBadge": "no account",
+    "stage": {
+      "send": "Sending",
+      "receive": "Receiving"
+    },
+    "recordedBy": "recorded by {{name}}"
+  },
+  "proof": {
+    "outstanding": "Proof outstanding",
+    "complete": "Proof complete",
+    "outstandingMissing": "Proof outstanding: {{missing}}",
+    "rule": {
+      "none": "No proof",
+      "paper": "Signed paper",
+      "confirmation": "Confirmed in PMO",
+      "either": "Signed paper or confirmed in PMO",
+      "mixed": "Several rules"
+    },
+    "requiredNow": "Proof needed before receiving: {{rules}}.",
+    "mayFollow": "Proof may follow: the transfer stays proof outstanding until it is added.",
+    "addTitle": "Add the missing proof",
+    "addAction": "Record proof",
+    "chase": {
+      "title": "Waiting for proof ({{count}})",
+      "updated": "Updated {{time}}",
+      "waiting_one": "waiting {{count}} day",
+      "waiting_other": "waiting {{count}} days",
+      "missing": "Missing: {{what}}",
+      "showAll": "Show all {{count}}",
+      "showFewer": "Show fewer",
+      "go": "Add proof"
+    }
+  },
+  "transferSettings": {
+    "manage": "Transfers and proof",
+    "mode": "How transfers are made",
+    "oneStep": "One step: post at once",
+    "twoStep": "Two steps: send, then receive with a count",
+    "modeHelp": "Two steps keep the goods in transit until the receiver counts them.",
+    "timing": "When proof is demanded",
+    "beforePosting": "Before the movement is posted or received",
+    "mayFollow": "It may follow later (the movement stays proof outstanding)",
+    "timingHelp": "Applies to tags that require proof.",
+    "proofPerTag": "Proof that counts, per tag",
+    "qualityItems": "Items that need a quality check on receipt"
+  },
+  "workOrderTransfer": {
+    "detailTitle": "Work-order transfer",
+    "intro": "Leftover material moves from one work order to another as one document. The first work order is credited and the second is charged; the stock stays where it is.",
+    "off": {
+      "title": "Work-order transfers are off",
+      "sub": "An administrator can turn them on in Stock setup."
+    },
+    "project": "Project",
+    "projectPlaceholder": "Choose a project",
+    "from": "From work order",
+    "to": "To work order",
+    "woPlaceholder": "Choose a work order",
+    "location": "Where the material is",
+    "locationHelp": "A site, yard or staging location of this project that you keep.",
+    "itemPlaceholder": "Choose an item",
+    "available": "Held by the work order: {{qty}} {{unit}}",
+    "nothingHeld": "This work order holds no material that can be moved.",
+    "move": "Move to the other work order",
+    "entry": "Move leftover to another work order",
+    "postedToast": "Material moved between work orders",
+    "notFound": "This work-order transfer was not found.",
+    "halves": "Documents in this transfer",
+    "returnHalf": "Return from the first work order",
+    "issueHalf": "Issue to the second work order",
+    "partOf": "Part of work-order transfer",
+    "confirm": {
+      "title": "Move to {{to}}",
+      "description": "The material is returned from the first work order and issued to the second in one step. This cannot be edited afterwards; to correct it, move the material back."
+    },
+    "errors": {
+      "from": "Choose the work order the material is on.",
+      "to": "Choose the work order that receives it.",
+      "same": "Choose a different work order.",
+      "duplicate": "Each item can be on one line only.",
+      "exceeds": "The work order holds only {{qty}} of this item."
+    },
+    "setting": "Work-order transfers",
+    "settingHelp": "Lets stock keepers move leftover material between work orders of one project in a single document."
+  },
+  "reservations": {
+    "column": "Free and reserved",
+    "freePlusReserved": "{{free}} free + {{reserved}} reserved",
+    "shortBy": "Reserved, short by {{n}}",
+    "reserve": "Reserve",
+    "showHolders_one": "Show work order",
+    "showHolders_other": "Show {{count}} work orders",
+    "hideHolders": "Hide work orders",
+    "holders": "Work orders holding a reservation",
+    "until": "until {{date}}",
+    "heldByWorkOrder": "Held in reserve for this work order",
+    "form": {
+      "title": "Reserve stock",
+      "submit": "Reserve",
+      "projectPlaceholder": "Choose a project",
+      "workOrder": "Work order",
+      "workOrderPlaceholder": "Choose a work order",
+      "quantity": "Quantity",
+      "expires": "Hold until (optional)",
+      "expiresHelp": "After this date the stock is free again.",
+      "note": "Note (optional)",
+      "errWorkOrder": "Choose the work order the stock is for",
+      "errQuantity": "Enter a quantity above zero, with up to three decimals",
+      "saved": "Stock reserved"
+    },
+    "borrowing": {
+      "title": "Borrowing.",
+      "body": "{{n}} of this request comes from stock reserved for another work order, so it needs the borrowing approval."
+    },
+    "settings": {
+      "enable": "Reserve stock for work orders",
+      "enableHelp": "A work order can hold a quantity of an item at a location. Nothing is locked: stock shows as free and reserved. Off by default.",
+      "mode": "When a request borrows reserved stock",
+      "modeApprove": "Needs an extra approval step",
+      "modeWarn": "Only show a warning",
+      "modeHelp": "Borrowing is when a request takes stock reserved for another work order.",
+      "role": "Who approves borrowing",
+      "roleNone": "Nobody chosen",
+      "roleHelp": "This role decides the last step of a borrowing request.",
+      "label": "Name of the approval step",
+      "labelDefault": "Borrowing approval"
+    },
+    "errors": {
+      "RSV_OFF": "Reservations are not turned on.",
+      "RSV_FORBIDDEN": "Only the location's keeper, a stock planner or an Admin can do this.",
+      "RSV_INVALID": "Check the values: the quantity needs up to three decimals, a whole number for whole-unit items, and a reason where asked.",
+      "RSV_NOT_FOUND": "That work order, item, location or reservation was not found.",
+      "RSV_WORK_ORDER": "The work order is closed or cancelled.",
+      "RSV_LOCATION": "Stock can be reserved at central, site, yard and staging locations that are not archived.",
+      "RSV_EXCEEDS_FREE": "Only {{n}} is free at this location.",
+      "RSV_EXCEEDS_REMAINING": "Only {{n}} remains on this reservation.",
+      "RSV_NOT_ACTIVE": "This reservation is no longer active.",
+      "RSV_NO_BORROW_APPROVER": "This request takes another work order's reserved stock and nobody is set to approve that. Ask an Admin.",
+      "RSV_BORROW_CHANGED": "More reserved stock would be borrowed than was approved. Send the request back and submit it again.",
+      "RSV_OVERDRAW": "The reservation holds less than the request uses.",
+      "RSV_IMMUTABLE": "A reservation cannot be deleted; release it instead."
+    }
+  },
+  "dsrIssue": {
+    "setting": "Validated daily reports issue their material from stock",
+    "settingHelp": "Off by default. When on, validating a daily report issues its material lines from the work order's site location; short stock is flagged, never blocks the report.",
+    "items": "Which items are issued",
+    "itemsAll": "Every item on a material line",
+    "itemsConsumables": "Only items marked as consumables",
+    "flagList": "Items counted as consumables"
   }
 }

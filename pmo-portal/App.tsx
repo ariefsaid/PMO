@@ -108,6 +108,9 @@ const MaterialRequestDetailPage = lazyWithPreload(() => import('./pages/Material
 const DeliveryNotePrintPage = lazyWithPreload(() => import('./pages/DeliveryNotePrint'));
 const PurchaseOrderPrintPage = lazyWithPreload(() => import('./pages/PurchaseOrderPrint'));
 const MaterialRequestSettingsPage = lazyWithPreload(() => import('./pages/MaterialRequestSettings'));
+const PurchaseTypeSettingsPage = lazyWithPreload(() => import('./pages/PurchaseTypeSettings'));
+const EquipmentPlansPage = lazyWithPreload(() => import('./pages/EquipmentPlans'));
+const EquipmentPlanSettingsPage = lazyWithPreload(() => import('./pages/EquipmentPlanSettings'));
 const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
 const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAvailability'));
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
@@ -170,6 +173,11 @@ const StockLedgerPage = lazyWithPreload(() => import('./pages/stock/StockLedger'
 const StockMovementFormPage = lazyWithPreload(() => import('./pages/stock/StockMovementForm'));
 const StockCountPage = lazyWithPreload(() => import('./pages/stock/StockCount'));
 const StockReorderPage = lazyWithPreload(() => import('./pages/stock/StockReorder'));
+const StockTransfersPage = lazyWithPreload(() => import('./pages/stock/StockTransfers'));
+const StockTransferSendPage = lazyWithPreload(() => import('./pages/stock/StockTransferSend'));
+const StockTransferDetailPage = lazyWithPreload(() => import('./pages/stock/StockTransferDetail'));
+const StockWorkOrderTransferPage = lazyWithPreload(() => import('./pages/stock/StockWorkOrderTransfer'));
+const StockWorkOrderTransferDetailPage = lazyWithPreload(() => import('./pages/stock/StockWorkOrderTransferDetail'));
 const UsageStandardsPage = lazyWithPreload(() => import('./pages/stock/UsageStandards'));
 const StockAtRiskPage = lazyWithPreload(() => import('./pages/stock/StockAtRisk'));
 
@@ -243,13 +251,16 @@ const PRELOAD_RULES: PreloadRule[] = [
   // /sales/:id redirects to /projects/:projectId — start that download now.
   { path: '/sales/:opportunityId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
   { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList'] },
-  { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate'] },
+  { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate', 'purchaseTypes'] },
   { path: '/procurement/:procurementId/purchase-orders/:orderId/print', chunks: [PurchaseOrderPrintPage], namespaces: ['procurement'] },
-  { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
-  { path: '/procurement/:procurementId', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
+  { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord', 'purchaseTypes'] },
+  { path: '/procurement/:procurementId', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord', 'purchaseTypes'] },
+  { path: '/purchase-types/settings', chunks: [PurchaseTypeSettingsPage], namespaces: ['purchaseTypes'] },
+  { path: '/equipment-plans', chunks: [EquipmentPlansPage], namespaces: ['equipmentPlans'] },
+  { path: '/equipment-plans/settings', chunks: [EquipmentPlanSettingsPage], namespaces: ['equipmentPlans'] },
   { path: '/timesheets', chunks: [TimesheetsPage], namespaces: ['timesheets'] },
   // The triage queue renders one section per approval domain; all four are static imports.
-  { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance'] },
+  { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance', 'materialRequests'] },
   { path: '/companies', chunks: [CompaniesPage], namespaces: ['crm'] },
   { path: '/master-data/:kind', chunks: [MasterDataPage], namespaces: ['administration'] },
   { path: '/companies/:companyId', chunks: [CompanyDetailPage], namespaces: ['crm', 'supplyRisk'] },
@@ -326,6 +337,11 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/stock/documents', chunks: [StockDocumentsPage], namespaces: ['stock'] },
   { path: '/stock/ledger', chunks: [StockLedgerPage], namespaces: ['stock'] },
   { path: '/stock/reorder', chunks: [StockReorderPage], namespaces: ['stock'] },
+  { path: '/stock/transfers/new', chunks: [StockTransferSendPage], namespaces: ['stock'] },
+  { path: '/stock/transfers/:transferId', chunks: [StockTransferDetailPage], namespaces: ['stock'] },
+  { path: '/stock/transfers', chunks: [StockTransfersPage], namespaces: ['stock'] },
+  { path: '/stock/work-order-transfer/:transferId', chunks: [StockWorkOrderTransferDetailPage], namespaces: ['stock', 'workOrders'] },
+  { path: '/stock/work-order-transfer', chunks: [StockWorkOrderTransferPage], namespaces: ['stock'] },
   { path: '/stock/usage-standards', chunks: [UsageStandardsPage], namespaces: ['stock', 'usageStandards'] },
   { path: '/stock/at-risk', chunks: [StockAtRiskPage], namespaces: ['stock'] },
   { path: '/stock/new/:kind', chunks: [StockMovementFormPage], namespaces: ['stock'] },
@@ -504,6 +520,9 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/material-requests', element: <MaterialRequestsPage /> },
   { path: '/material-requests/new', element: <MaterialRequestNewPage /> },
   { path: '/material-requests/settings', element: <MaterialRequestSettingsPage /> },
+  { path: '/purchase-types/settings', element: gated('procurement', <PurchaseTypeSettingsPage />) },
+  { path: '/equipment-plans', element: gated('procurement', <EquipmentPlansPage />) },
+  { path: '/equipment-plans/settings', element: gated('procurement', <EquipmentPlanSettingsPage />) },
   { path: '/material-requests/:requestId/edit', element: <MaterialRequestNewPage /> },
   { path: '/material-requests/:requestId/delivery-note', element: <DeliveryNotePrintPage /> },
   { path: '/material-requests/:requestId', element: <MaterialRequestDetailPage /> },
@@ -593,6 +612,11 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/stock/documents/:documentId/edit', element: gated('stock', <StockCountPage />) },
   { path: '/stock/ledger', element: gated('stock', <StockLedgerPage />) },
   { path: '/stock/reorder', element: gated('stock', <StockReorderPage />) },
+  { path: '/stock/transfers', element: gated('stock', <StockTransfersPage />) },
+  { path: '/stock/transfers/new', element: gated('stock', <StockTransferSendPage />) },
+  { path: '/stock/transfers/:transferId', element: gated('stock', <StockTransferDetailPage />) },
+  { path: '/stock/work-order-transfer', element: gated('stock', <StockWorkOrderTransferPage />) },
+  { path: '/stock/work-order-transfer/:transferId', element: gated('stock', <StockWorkOrderTransferDetailPage />) },
   { path: '/stock/usage-standards', element: gated('stock', <UsageStandardsPage />) },
   { path: '/stock/at-risk', element: gated('stock', <StockAtRiskPage />) },
   { path: '/stock/new/:kind', element: gated('stock', <StockMovementFormPage />) },

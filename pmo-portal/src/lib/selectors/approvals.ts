@@ -1,7 +1,7 @@
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 
-export type ApprovalKind = 'procurement' | 'timesheets' | 'expense' | 'invoice';
+export type ApprovalKind = 'procurement' | 'timesheets' | 'expense' | 'invoice' | 'material';
 export type ApprovalScope = 'all' | ApprovalKind;
 
 export interface ApprovalPopulationEntry<T = unknown> {

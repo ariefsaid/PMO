@@ -67,6 +67,9 @@ select ok(
 -- Also the four stock tables (0413, ADR-0097 §1): append-only ledger, single-writer balances and the
 -- RPC-written documents/lines; service_role's writes are revoked on purpose. Proof:
 -- stock_immutability_idempotency.test.sql (service role cannot insert/update/delete/truncate them).
+-- Also the lane stock tables whose migrations revoke service_role writes on purpose (definer-RPC-written only):
+-- stock_transfers + stock_transfer_lines (1306), stock_handover_confirmations (1307), stock_wo_transfers (1310),
+-- stock_reservations + stock_reservation_events (1315).
 -- Also imprest_cash_counts (0424): write-once cash counts, written only by record_imprest_count; service_role's
 -- writes are revoked on purpose.
 -- m365_org_apps (0817) is definer-only: no API-role grant at all, the secret reference never leaves the definers.
@@ -92,6 +95,12 @@ select is(
         'stock_document_lines',
         'stock_ledger',
         'stock_balances',
+        'stock_transfers',
+        'stock_transfer_lines',
+        'stock_handover_confirmations',
+        'stock_wo_transfers',
+        'stock_reservations',
+        'stock_reservation_events',
         'imprest_cash_counts',
         'org_features',
         'm365_org_apps',

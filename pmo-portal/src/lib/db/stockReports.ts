@@ -4,8 +4,10 @@ import { AppError, toAppError } from '@/src/lib/appError';
 /** Quantities and money arrive as decimal strings from the read RPCs and stay strings (NFR-STK-007). Cost keys are absent below rank 20. */
 export interface StockOnHandRow {
   itemId: string; itemCode: string; itemName: string; unitCode: string; wholeOnly: boolean;
-  warehouseId: string; warehouseCode: string; warehouseName: string; warehouseKind: 'central' | 'site' | 'yard' | 'staging';
+  warehouseId: string; warehouseCode: string; warehouseName: string; warehouseKind: 'central' | 'site' | 'yard' | 'staging' | 'vendor';
   qtyOnHand: string; valueOnHand?: string; avgCost?: string;
+  /** Only on a vendor location: the linked vendor company's name, when it has one. */
+  vendorName?: string;
 }
 export interface StockLedgerRow {
   seq: number; id: string; documentId: string; documentNumber: string; documentStatus: string; kind: string;
@@ -59,6 +61,7 @@ export async function getStockOnHand(f: { warehouseId?: string; itemId?: string;
       qtyOnHand: r.qty_on_hand,
     };
     optional(r, 'value_on_hand', 'valueOnHand', out); optional(r, 'avg_cost', 'avgCost', out);
+    if (r.vendor_name != null) out.vendorName = r.vendor_name;
     return out as StockOnHandRow;
   });
 }

@@ -7407,30 +7407,79 @@ export type Database = {
         }
         Relationships: []
       }
+      org_purchase_type_settings: {
+        Row: { enabled: boolean; org_id: string; updated_at: string; updated_by: string | null }
+        Insert: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Update: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Relationships: []
+      }
+      org_equipment_plan_settings: {
+        Row: { allow_self_approval: boolean; approval_step: string; enabled: boolean; org_id: string; updated_at: string; updated_by: string | null }
+        Insert: { allow_self_approval?: boolean; approval_step?: string; enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Update: { allow_self_approval?: boolean; approval_step?: string; enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Relationships: []
+      }
+      equipment_plan_categories: {
+        Row: { active: boolean; created_at: string; id: string; name: string; name_id: string | null; org_id: string; position: number }
+        Insert: { active?: boolean; created_at?: string; id?: string; name: string; name_id?: string | null; org_id?: string; position?: number }
+        Update: { active?: boolean; created_at?: string; id?: string; name?: string; name_id?: string | null; org_id?: string; position?: number }
+        Relationships: []
+      }
+      equipment_plans: {
+        Row: { approved_at: string | null; approved_by: string | null; created_at: string; created_by: string; id: string; org_id: string; plan_month: string; project_id: string; reject_reason: string | null; rejected_at: string | null; rejected_by: string | null; status: string; submitted_at: string | null }
+        Insert: { approved_at?: string | null; approved_by?: string | null; created_at?: string; created_by?: string; id?: string; org_id?: string; plan_month: string; project_id: string; reject_reason?: string | null; rejected_at?: string | null; rejected_by?: string | null; status?: string; submitted_at?: string | null }
+        Update: { approved_at?: string | null; approved_by?: string | null; created_at?: string; created_by?: string; id?: string; org_id?: string; plan_month?: string; project_id?: string; reject_reason?: string | null; rejected_at?: string | null; rejected_by?: string | null; status?: string; submitted_at?: string | null }
+        Relationships: [
+          { foreignKeyName: 'equipment_plans_project_id_fkey'; columns: ['project_id']; isOneToOne: false; referencedRelation: 'projects'; referencedColumns: ['id'] },
+        ]
+      }
+      equipment_plan_lines: {
+        Row: { category_id: string | null; created_at: string; date_from: string; date_to: string; description: string | null; equipment_asset_id: string | null; id: string; org_id: string; plan_id: string; procurement_id: string | null; quantity: number; rate: number; vendor_id: string; work_order_id: string | null }
+        Insert: { category_id?: string | null; created_at?: string; date_from: string; date_to: string; description?: string | null; equipment_asset_id?: string | null; id?: string; org_id?: string; plan_id: string; procurement_id?: string | null; quantity: number; rate: number; vendor_id: string; work_order_id?: string | null }
+        Update: { category_id?: string | null; created_at?: string; date_from?: string; date_to?: string; description?: string | null; equipment_asset_id?: string | null; id?: string; org_id?: string; plan_id?: string; procurement_id?: string | null; quantity?: number; rate?: number; vendor_id?: string; work_order_id?: string | null }
+        Relationships: [
+          { foreignKeyName: 'equipment_plan_lines_plan_id_fkey'; columns: ['plan_id']; isOneToOne: false; referencedRelation: 'equipment_plans'; referencedColumns: ['id'] },
+        ]
+      }
+      purchase_types: {
+        Row: { active: boolean; created_at: string; id: string; is_rental: boolean; name: string; name_id: string | null; org_id: string; position: number }
+        Insert: { active?: boolean; created_at?: string; id?: string; is_rental?: boolean; name: string; name_id?: string | null; org_id?: string; position?: number }
+        Update: { active?: boolean; created_at?: string; id?: string; is_rental?: boolean; name?: string; name_id?: string | null; org_id?: string; position?: number }
+        Relationships: []
+      }
       material_request_settings: {
         Row: {
+          approver_inbox: boolean
           cutoff_time: string | null
           delivery_note_enabled: boolean
           delivery_note_signature_blocks: string[]
           org_id: string
           updated_at: string
           updated_by: string | null
+          usage_warn_pct_1: number | null
+          usage_warn_pct_2: number | null
         }
         Insert: {
+          approver_inbox?: boolean
           cutoff_time?: string | null
           delivery_note_enabled?: boolean
           delivery_note_signature_blocks?: string[]
           org_id?: string
           updated_at?: string
           updated_by?: string | null
+          usage_warn_pct_1?: number | null
+          usage_warn_pct_2?: number | null
         }
         Update: {
+          approver_inbox?: boolean
           cutoff_time?: string | null
           delivery_note_enabled?: boolean
           delivery_note_signature_blocks?: string[]
           org_id?: string
           updated_at?: string
           updated_by?: string | null
+          usage_warn_pct_1?: number | null
+          usage_warn_pct_2?: number | null
         }
         Relationships: []
       }
@@ -9314,12 +9363,14 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          category_id?: string | null
           description?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: number | null
           erp_modified?: string | null
           id?: string
           name: string
+          needed_by?: string | null
           org_id?: string
           procurement_id: string
           quantity?: number
@@ -9327,12 +9378,14 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          category_id?: string | null
           description?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: number | null
           erp_modified?: string | null
           id?: string
           name?: string
+          needed_by?: string | null
           org_id?: string
           procurement_id?: string
           quantity?: number
@@ -9818,7 +9871,11 @@ export type Database = {
           import_key: string | null
           import_normalized_ref: string | null
           imported_at: string | null
+          extends_procurement_id: string | null
           is_subcontract: boolean
+          purchase_type_id: string | null
+          rental_from: string | null
+          rental_to: string | null
           org_id: string
           origin: string | null
           po_number: string | null
@@ -9849,7 +9906,11 @@ export type Database = {
           import_key?: string | null
           import_normalized_ref?: string | null
           imported_at?: string | null
+          extends_procurement_id?: string | null
           is_subcontract?: boolean
+          purchase_type_id?: string | null
+          rental_from?: string | null
+          rental_to?: string | null
           org_id?: string
           origin?: string | null
           po_number?: string | null
@@ -9880,7 +9941,11 @@ export type Database = {
           import_key?: string | null
           import_normalized_ref?: string | null
           imported_at?: string | null
+          extends_procurement_id?: string | null
           is_subcontract?: boolean
+          purchase_type_id?: string | null
+          rental_from?: string | null
+          rental_to?: string | null
           org_id?: string
           origin?: string | null
           po_number?: string | null
@@ -11262,6 +11327,41 @@ export type Database = {
             columns: ["uploaded_by_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_line_categories: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+          position: number
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          org_id: string
+          position?: number
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_line_categories_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -12795,6 +12895,7 @@ export type Database = {
           name: string
           org_id: string
           project_id: string | null
+          vendor_company_id: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -12806,6 +12907,7 @@ export type Database = {
           name: string
           org_id?: string
           project_id?: string | null
+          vendor_company_id?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -12817,6 +12919,7 @@ export type Database = {
           name?: string
           org_id?: string
           project_id?: string | null
+          vendor_company_id?: string | null
         }
         Relationships: [
           {
@@ -12831,6 +12934,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_warehouses_vendor_company_id_fkey"
+            columns: ["vendor_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -15375,6 +15485,7 @@ export type Database = {
       save_billing_step_template: { Args: { p_name: string; p_steps: Json; p_template: string | null }; Returns: string }
       update_claim_billing_step: { Args: { p_patch: Json; p_stage: string }; Returns: undefined }
       retention_held: { Args: { "": Database["public"]["Tables"]["sales_invoices"]["Row"] }; Returns: number }
+      set_work_order_issue_threshold: { Args: { p_threshold_pct: number }; Returns: number }
       mrq_section_plan_for: {
         Args: { p_work_order_id: string; p_section_id: string; p_item_ids: string[]; p_exclude_request?: string }
         Returns: { item_id: string; section_plan_qty: number | null; section_prior_qty: number | null }[]
@@ -15441,6 +15552,7 @@ export type Database = {
         Args: { p_incident: string }
         Returns: string
       }
+      archive_purchase_line_category: { Args: { p_id: string }; Returns: boolean }
       archive_stock_document_file: {
         Args: { p_file_id: string; p_reason: string }
         Returns: undefined
@@ -15511,12 +15623,14 @@ export type Database = {
         Args: { p_client_request_id?: string; p_header: Json; p_lines: Json; p_request_id: string | null }
         Returns: string
       }
+      mrq_set_approver_inbox: { Args: { p_on: boolean }; Returns: undefined }
       mrq_set_chain: { Args: { p_steps: Json }; Returns: undefined }
       mrq_set_cutoff: { Args: { p_cutoff: string | null }; Returns: undefined }
       mrq_set_delivery_note_settings: {
         Args: { p_enabled: boolean; p_signature_blocks: string[] }
         Returns: undefined
       }
+      mrq_set_usage_thresholds: { Args: { p_pct_1: number | null; p_pct_2: number | null }; Returns: undefined }
       mrq_set_stand_in: {
         Args: { p_delegator_id: string; p_ends_on: string; p_stand_in_id: string; p_starts_on: string }
         Returns: string
@@ -16206,6 +16320,28 @@ export type Database = {
       start_procurement_import_run: {
         Args: { p_org_id?: string | null }
         Returns: string
+      }
+      set_equipment_plan_settings: { Args: { p_enabled: boolean; p_approval_step: string; p_allow_self_approval: boolean }; Returns: undefined }
+      upsert_equipment_plan_category: {
+        Args: { p_id: string | null; p_name: string; p_name_id: string | null; p_position: number }
+        Returns: Database['public']['Tables']['equipment_plan_categories']['Row']
+      }
+      set_equipment_plan_category_active: { Args: { p_id: string; p_active: boolean }; Returns: undefined }
+      save_equipment_plan: { Args: { p_id: string; p_project: string; p_month: string; p_lines: Json }; Returns: Database['public']['Tables']['equipment_plans']['Row'] }
+      submit_equipment_plan: { Args: { p_id: string }; Returns: Database['public']['Tables']['equipment_plans']['Row'] }
+      reopen_equipment_plan: { Args: { p_id: string }; Returns: Database['public']['Tables']['equipment_plans']['Row'] }
+      reject_equipment_plan: { Args: { p_id: string; p_reason: string }; Returns: Database['public']['Tables']['equipment_plans']['Row'] }
+      approve_equipment_plan: { Args: { p_id: string }; Returns: Database['public']['Tables']['equipment_plans']['Row'] }
+      equipment_plan_approver_ok: { Args: { p_plan_id: string }; Returns: boolean }
+      set_purchase_types_enabled: { Args: { p_enabled: boolean }; Returns: undefined }
+      set_purchase_type_active: { Args: { p_id: string; p_active: boolean }; Returns: undefined }
+      upsert_purchase_type: {
+        Args: { p_id: string | null; p_name: string; p_name_id: string | null; p_is_rental: boolean; p_position: number }
+        Returns: Database['public']['Tables']['purchase_types']['Row']
+      }
+      extend_rental_procurement: {
+        Args: { p_id: string; p_original: string; p_from: string; p_to: string; p_items?: Json }
+        Returns: Database['public']['Tables']['procurements']['Row']
       }
       create_procurement_with_items: { Args: { p_id: string; p_header: Json; p_items: Json }; Returns: Database['public']['Tables']['procurements']['Row'] }
       subcontract_cap_exceptions: {
@@ -17428,6 +17564,7 @@ export type Database = {
           route: string
         }[]
       }
+      get_purchase_line_planning: { Args: never; Returns: boolean }
       get_procurement_gates: { Args: never; Returns: Json }
       get_project_billing: { Args: { p_project_id: string }; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
@@ -17603,6 +17740,7 @@ export type Database = {
         Returns: Json
       }
       get_unbilled_work_orders: { Args: { p_limit?: number }; Returns: Json }
+      get_work_order_material_vs_progress: { Args: { p_work_order_id: string }; Returns: Json }
       get_work_order_stock_balance: {
         Args: { p_project_id?: string; p_work_order_id?: string }
         Returns: Json
@@ -19060,6 +19198,15 @@ export type Database = {
         Args: { p_month: number | null }
         Returns: number | null
       }
+      set_procurement_line_planning: {
+        Args: { p_category: string; p_item: string; p_needed_by: string }
+        Returns: boolean
+      }
+      set_purchase_line_category: {
+        Args: { p_id: string; p_name: string; p_position: number }
+        Returns: string
+      }
+      set_purchase_line_planning: { Args: { p_enabled: boolean }; Returns: boolean }
       set_procurement_gates: { Args: { p_gates: Json }; Returns: Json }
       set_procurement_invoice_efaktur: {
         Args: {

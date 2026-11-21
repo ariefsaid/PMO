@@ -34,10 +34,12 @@
   },
   "consumables": {
     "add": "Tambah bahan habis pakai",
+    "anyItem": "Tidak disebut",
     "item": "Barang stok",
     "pickItem": "Pilih barang",
     "quantity": "Jumlah",
-    "title": "Bahan habis pakai"
+    "title": "Bahan habis pakai",
+    "workItem": "Dipakai pada butir kontrak"
   },
   "correct": {
     "confirm": "Mulai koreksi",
@@ -179,6 +181,30 @@
   "revenue": {
     "day": "Pendapatan hari itu",
     "toDate": "Tervalidasi sampai kini"
+  },
+  "stock": {
+    "title": "Stok",
+    "flag": "Stok bermasalah",
+    "issued": "Dikeluarkan dari stok: {{number}} pada {{date}}",
+    "reversed": "Pengeluaran versi sebelumnya dikembalikan ke stok.",
+    "warning": "Sebagian material belum dikeluarkan dari stok",
+    "fix": "Laporan sudah divalidasi. Koreksi laporan setelah stok atau lokasi lapangan diperbaiki, maka material dikeluarkan lagi.",
+    "reason": {
+      "short": "kurang {{n}} di {{location}}",
+      "noLocation": "perintah kerja ini belum punya lokasi lapangan",
+      "noWorkItem": "belum ada butir kontrak yang disebut untuk material ini",
+      "failed": "ditolak oleh stok ({{reason}})",
+      "notStocked": "tidak dilacak di stok"
+    },
+    "state": {
+      "posted": "Dikeluarkan",
+      "short": "Kurang",
+      "no_location": "Tanpa lokasi lapangan",
+      "no_work_item": "Tanpa butir kontrak",
+      "not_stocked": "Tidak dilacak",
+      "failed": "Ditolak",
+      "pending": "Menunggu"
+    }
   },
   "title": "Laporan lapangan",
   "toast": {

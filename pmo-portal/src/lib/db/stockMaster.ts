@@ -8,7 +8,7 @@ export type StockWarehouseRow = Tables<'stock_warehouses'>;
 export type StockKeeperRow = Tables<'stock_warehouse_keepers'>;
 export interface StockUnitInput { code: string; name: string; wholeOnly: boolean }
 export interface StockItemInput { code: string; name: string; description: string | null; unitId: string; leadTimeDays: number | null; tagId?: string | null }
-export interface StockWarehouseInput { code: string; name: string; kind: 'central' | 'site' | 'yard' | 'staging'; projectId: string | null; coverValue: string | null }
+export interface StockWarehouseInput { code: string; name: string; kind: 'central' | 'site' | 'yard' | 'staging' | 'vendor'; projectId: string | null; coverValue: string | null; vendorCompanyId?: string | null }
 export interface StockItemFilters { includeArchived?: boolean; tagId?: string; tagIds?: string[]; limit?: number }
 
 const PAGE = 500;                 // below PostgREST max_rows (1000); a 1,203-row list is three pages, never truncated
@@ -86,12 +86,12 @@ export async function updateStockItem(id: string, i: StockItemInput): Promise<vo
   assertWriteLanded(data, 'You cannot change this item.');
 }
 export async function createStockWarehouse(i: StockWarehouseInput): Promise<StockWarehouseRow> {
-  const { data, error } = await supabase.from('stock_warehouses').insert({ code: i.code.trim(), name: i.name.trim(), kind: i.kind, project_id: i.projectId, cover_value: i.coverValue as unknown as number }).select('*').single();
+  const { data, error } = await supabase.from('stock_warehouses').insert({ code: i.code.trim(), name: i.name.trim(), kind: i.kind, project_id: i.projectId, cover_value: i.coverValue as unknown as number, ...(i.vendorCompanyId !== undefined ? { vendor_company_id: i.vendorCompanyId } : {}) }).select('*').single();
   if (error) throw toAppError(error);
   return data;
 }
 export async function updateStockWarehouse(id: string, i: StockWarehouseInput): Promise<void> {
-  const { data, error } = await supabase.from('stock_warehouses').update({ code: i.code.trim(), name: i.name.trim(), kind: i.kind, project_id: i.projectId, cover_value: i.coverValue as unknown as number }).eq('id', id).select('id');
+  const { data, error } = await supabase.from('stock_warehouses').update({ code: i.code.trim(), name: i.name.trim(), kind: i.kind, project_id: i.projectId, cover_value: i.coverValue as unknown as number, ...(i.vendorCompanyId !== undefined ? { vendor_company_id: i.vendorCompanyId } : {}) }).eq('id', id).select('id');
   if (error) throw toAppError(error);
   assertWriteLanded(data, 'You cannot change this warehouse.');
 }
