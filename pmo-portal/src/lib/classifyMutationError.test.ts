@@ -282,6 +282,11 @@ describe('#2531 task proof / work-order rules surface their own sentence', () =>
     expect(out.headline).not.toBe('A task rule applies');
     expect(out.detail).not.toContain('violates check');
   });
+
+  it('AC-CTR-014 a direct Done on a tool task tells the person to close the report on Crews, Tools', () => {
+    const e = Object.assign(new Error('CTR_RESOLVE_REQUIRED: choose a resolution (replaced, repaired or written off) to close this tool report'), { code: '23514' });
+    expect(classifyMutationError(e).detail).toBe('This task is a tool report. Open Crews, Tools, and close the report there to finish it.');
+  });
 });
 
 describe('#2587 record-linked task refusals surface their own sentence (AC-RLT-002, AC-RLT-006)', () => {

@@ -1,0 +1,18 @@
+{
+  "definer_functions": [
+    "csr_assert_author(uuid)",
+    "csr_assert_recorder()",
+    "csr_cancel(uuid,text)",
+    "csr_create(jsonb,jsonb,uuid)",
+    "csr_insert_lines(uuid,uuid,jsonb)",
+    "csr_line_figures(uuid)",
+    "csr_lock_line(uuid,uuid)",
+    "csr_log(uuid,uuid,uuid,text,numeric,text,date,text,uuid,uuid)",
+    "csr_record_pickup(uuid,numeric,uuid,date,text,text,uuid)",
+    "csr_record_release(uuid,numeric,text,uuid)",
+    "csr_record_reservation(uuid,numeric,text,date,text,uuid)",
+    "csr_send(uuid,uuid)",
+    "csr_update_draft(uuid,jsonb,jsonb)",
+    "csr_validate_lines(uuid,uuid,jsonb)"
+  ]
+}

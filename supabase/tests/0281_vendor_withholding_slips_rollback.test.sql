@@ -78,7 +78,8 @@ ALTER TABLE public.procurement_invoices DROP CONSTRAINT IF EXISTS bupot_invoices
 NOTIFY pgrst,'reload schema';
 select ok(to_regclass('public.vendor_withholding_slips') is null and to_regclass('public.vendor_withholding_slip_bills') is null,'rollback removes only the feature tables');
 select ok(to_regprocedure('public.record_vendor_withholding_slip(uuid,uuid,text,date,date,text,numeric,numeric,uuid[],uuid[])') is null,'rollback removes the three writer RPCs');
-select ok((select count(*)=16 from public.record_history_config),'rollback restores the prior history catalog');
+-- 15 + usage standards (1154) + crew_tool_line (1157) + third_party_inspection (1181): the entries 0281 added are the only ones its rollback removes.
+select ok((select count(*)=18 from public.record_history_config),'rollback restores the prior history catalog');
 select ok(has_function_privilege('authenticated','public.set_procurement_invoice_efaktur(uuid,text,date)','EXECUTE'),'rollback leaves the incumbent e-Faktur writer grant intact');
 select * from finish();
 rollback;

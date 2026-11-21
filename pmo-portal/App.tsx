@@ -267,7 +267,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/site-reports/:reportId', chunks: [SiteReportDetailPage], namespaces: ['siteReport'] },
   { path: '/quantity-changes', chunks: [QuantityChangesPage], namespaces: ['quantityChanges', 'status'] },
   { path: '/quantity-changes/:requestId', chunks: [QuantityChangeDetailPage], namespaces: ['quantityChanges', 'status'] },
-  { path: '/crews', chunks: [CrewsPage], namespaces: ['crews'] },
+  { path: '/crews', chunks: [CrewsPage], namespaces: ['crews', 'crewTools'] },
   { path: '/subcontract-certificates', chunks: [SubcontractCertificatesPage], namespaces: ['subcontractCertificates'] },
   { path: '/subcontract-certificates/:certificateId', chunks: [SubcontractCertificateDetailPage], namespaces: ['subcontractCertificates'] },
   { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },

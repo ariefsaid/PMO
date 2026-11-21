@@ -25,6 +25,7 @@ function makeTask(overrides: Partial<TaskWithRefs>): TaskWithRefs {
     proof_required: false,
     procurement_id: null, expense_claim_id: null, material_request_id: null,
     closed_by_record_type: null, closed_by_record_status: null, closed_by_record_at: null,
+    crew_tool_report_id: null,
     meeting_id: null,
     source_updated_at: null,
     description: null,

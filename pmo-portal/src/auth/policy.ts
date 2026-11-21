@@ -62,7 +62,10 @@ export type Action =
   | 'advance'
   | 'raise_purchase'
   | 'waive'
-  | 'cancel';
+  | 'cancel'
+  | 'report'
+  | 'close'
+  | 'configure';
 
 export type Entity =
   | 'project'
@@ -166,7 +169,8 @@ export type Entity =
   | 'tmClaim'
   | 'tmSignoff'
   | 'crew'
-  | 'attendance';
+  | 'attendance'
+  | 'crewTool';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -1035,6 +1039,24 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
     approve: (role, ctx) => ctx.record?.viewOnly !== true && has(DELIVERY, role) && !(
       !!ctx.currentUserId && Array.isArray(ctx.record?.recorder_ids) && (ctx.record.recorder_ids as unknown[]).includes(ctx.currentUserId)),
+  },
+  /**
+   * Crew hand-tools register and damage/loss reports (#2581, migrations 1080-1083). UX ONLY — RLS, the column grants and the
+   * `report_crew_tool` / `correct_crew_tool_report` / `close_crew_tool_report` / `set_crew_tool_settings` RPCs are the authority.
+   *   view      ← every active member (the crew master's own read rule, OQ-CTR-4).
+   *   manage    ← add, edit, move, archive lines, and correct a report: a crew manager (`crew_can_manage`: Admin, Executive, PM).
+   *   report    ← a crew manager, or the crew's field controller (`record.field_controller_id`).
+   *   close     ← a crew manager, or the report task's assignee (`record.assignee_id`); never the reporter by that fact alone.
+   *   configure ← the equipment coordinator and due days: Admin and Project Manager (the equipment register write set).
+   */
+  crewTool: {
+    view: allow(ALL),
+    manage: allowUnlessViewOnly(DELIVERY),
+    report: (role, ctx) => ctx.record?.viewOnly !== true && (
+      has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+    close: (role, ctx) => ctx.record?.viewOnly !== true && (
+      has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.assignee_id === ctx.currentUserId)),
+    configure: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),
   },
   /**
    * The Odoo fleet and maintenance register (#1511 F5). UX ONLY — the `adapter-dispatch` `equipment` domain's role

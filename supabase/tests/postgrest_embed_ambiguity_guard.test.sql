@@ -56,6 +56,12 @@ select set_eq(
             -- profiles. New table: the DAL (src/lib/db/subcontractCertificates.ts) selects explicit columns and embeds no profiles.
             ('subcontract_certificates -> profiles'),
             ('credits -> profiles'),
+            -- 1158 (#2581): crew_tool_reports carries reported_by AND closed_by, org_crew_tool_settings carries
+            -- coordinator_id AND updated_by, all -> profiles. Checked before adding: no DAL, repository, edge fn or
+            -- e2e code embeds profiles from either (names resolve by id through the users list), so nothing broke.
+            -- The report DAL embeds tasks and crew_tool_lines, and qualifies both with !constraint_name.
+            ('crew_tool_reports -> profiles'),
+            ('org_crew_tool_settings -> profiles'),
             -- 0882 (#2195): erp_capture_invoice_assignments carries actor_id, undone_by and the two
             -- prior_mark_* columns, all -> profiles. Checked before adding: no DAL, repository,
             -- edge-function or e2e code embeds profiles from it (the command line reads placements
