@@ -98,8 +98,8 @@ remove a price-key from the `my_home` exclusion test (AC-LA-006).
 | `crews`, `crew_members`, `work_order_crews` | rostered work orders; Foreman: own crews, members |
 | `attendance_days` | unchanged (already own / own-crew) |
 
-Final table list is inventoried in the plan from `pg_policies` at head and carried into `2710-light-accounts.json`. A table left
-uncovered needs a stated reason (no org data, or already own-only); each is listed in the migration header.
+Not narrowed: profile names and organisation reference data (the shell needs them), and per-person tables whose existing policies are
+already own-row.
 
 ## 6. Settings
 
@@ -115,8 +115,7 @@ Who holds a light role is set in the existing Edit role form; the seat report is
 5. Definer RPCs (FR-013, AC-LA-013): see below.
 
 **FR-013** Where a security-definer RPC returns project, budget, price, billing or list data to `authenticated`, it shall refuse a light account first (`assert_not_light()`, SQLSTATE 42501, message `LIGHT_ACCOUNT: ...`). Security-INVOKER reads (executive dashboard, projects delivery, sales pipeline, win rate, finance budget review, budget projection, project milestones and milestone dates, budget distribution gaps, fiscal years, project budget, budget push status) need no guard: restrictive RLS makes them return zero rows to a light account.
-Guarded in 1209: `get_budget_archive_targets`, `list_account_reconciliation`, `list_tm_claim_source_details`, `equipment_rental_check`, `approved_timesheet_for_push`, `org_usage_summary`, `org_agent_run_stats`, `org_credit_balance`, `preview_task_reminders`. pgTAP proves six (AC-LA-013).
-Not guarded (write-side definers reachable by an Engineer-base person: create_*, save_*, transition_*, set_*, record_*, approve_* and the like). Each already refuses an Engineer by an internal role check or by RLS inside; they return no list data, and a light account holds the Engineer base level only. Listed for follow-up in the build report.
+Guarded in 1209: every security-definer function that returns data to `authenticated` (the 78 names listed in the migration), except the helpers the shell and the home path call (`auth_role`, `actor_authorization_state`), the attendance path (`attendance_record`, `attendance_generate_timesheet`, which the crew tick uses), `my_home`, and the operator functions, which have their own gate. A name that cannot be rewritten fails the migration. pgTAP checks every guarded body carries the guard, the exempt ones do not, and a light account can still record attendance (AC-LA-013).
 
 ## 7. Not in this ticket
 

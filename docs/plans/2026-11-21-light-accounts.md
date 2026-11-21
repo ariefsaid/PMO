@@ -9,7 +9,7 @@ Spec: `docs/specs/light-accounts.spec.md`. Branch `feat/2710-light-accounts` (st
 | 1206 | `1206_light_accounts_restrictive_policies.sql` | one restrictive policy per covered table (spec section 5): `as restrictive for all to authenticated using ((select actor_is_light()) is not true or <own>) with check (same)` (select-only where the table is read-only to Engineers). Table list finalised from `pg_policies`/`role_table_grants` at head. |
 | 1207 | `1207_light_accounts_my_home.sql` | `my_home()` definer RPC (own tasks, rostered work orders today, reported issues, foreman crew roster); no price/budget fields; execute to authenticated only. |
 | 1208 | `1208_light_accounts_seat_report.sql` | `org_seat_report()` (Admin/Executive of own org): active seats split full/light plus `seat_limit`. |
-| 1209 | `1209_light_accounts_definer_guards.sql`: `assert_not_light()` at the top of nine read-side definer RPCs (plpgsql: first statement; sql: wrapped body) plus own-row indexes. |
+| 1209 | `1209_light_accounts_definer_guards.sql`: `assert_not_light()` at the top of every data-returning definer RPC (plpgsql: first statement; sql: wrapped body; an unmatched name fails the migration) plus own-row indexes. |
 
 Settings: none; default behaviour unchanged. Inventory files: `supabase/tests/inventory/anon-executable-definers/2710-light-accounts.txt`
 (`actor_is_light`, three `light_can_see_*`, `my_home`, `org_seat_report`), `scripts/isolation-probe-denominator.d/2710-light-accounts.json`.

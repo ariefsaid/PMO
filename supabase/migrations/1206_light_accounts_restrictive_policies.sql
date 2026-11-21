@@ -8,12 +8,8 @@
 -- COVERED (deny every row and every write to a light account): project and delivery tables, budgets, the CRM lists, procurement,
 --   invoices and payments, journals, stock quantity and price tables, daily reports, equipment, rate and cost tables, ERP mirrors.
 -- COVERED WITH OWN-ROW TEST: tasks, incident_reports, work_orders, crews, crew_members, work_order_crews.
--- LEFT UNCOVERED, with the reason: profiles (the signed-in shell reads its own and colleagues' names; no money or project data),
---   organizations, org_features, org_terminology, notifications (own rows by existing policy), attendance_days and
---   attendance_photos (existing policy is already own / own-crew only), timesheets and timesheet_entries (own by existing policy,
---   the person's own hours), people (the people_directory view is owner-run and shows basic names only; fixing it is a view change),
---   built_in_roles catalogue (reference data), plans and global_features (reference data), user_views and agent_* tables
---   (per-person), audit_events and error_events (platform).
+-- Not narrowed: profile names and organisation reference data (the shell needs them), and per-person tables whose existing
+--   policies are already own-row.
 
 do $$
 declare t text;

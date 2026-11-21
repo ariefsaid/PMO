@@ -11,7 +11,7 @@
 --   drop the guard line in org_credit_balance .................... 'AC-LA-013 org_credit_balance refuses a light account'
 begin;
 create extension if not exists pgtap;
-select plan(46);
+select plan(51);
 
 insert into organizations (id, name, default_currency, built_in_roles_enabled) values
   ('27100000-0000-0000-0000-00000000000a', 'LA Org',       'IDR', true),
@@ -132,8 +132,28 @@ select throws_ilike($$ select public.org_credit_balance('27100000-0000-0000-0000
 select throws_ilike($$ select * from public.get_budget_archive_targets('27100000-0000-0000-0000-0000000000d1') $$, 'LIGHT_ACCOUNT%', 'AC-LA-013 get_budget_archive_targets refuses a light account');
 select throws_ilike($$ select public.preview_task_reminders(array['27100000-0000-0000-0000-000000000a01']::uuid[]) $$, 'LIGHT_ACCOUNT%', 'AC-LA-013 preview_task_reminders refuses a light account');
 
+-- AC-LA-013 a Foreman still ticks their crew (existing attendance path, not guarded)
+select lives_ok($$ select public.attendance_record('27100000-0000-0000-0000-000000000401', current_date - 1, 'roster_tick',
+  '[{"worker_id":"27100000-0000-0000-0000-000000000f01","status":"present","hours":8}]'::jsonb) $$,
+  'AC-LA-013 a Foreman ticks the crew they lead through attendance_record');
+
+-- AC-LA-013 every data-returning definer function carries the guard; the shell and attendance path do not.
+select is((select count(*)::int from pg_proc p where p.pronamespace = 'public'::regnamespace
+            and p.proname = any(array['accept_connect_proposals', 'accept_equipment_asset_matches', 'account_send_groups', 'apply_native_receipt', 'attach_erp_journal_lines', 'capture_subcontract_vendor_invoice', 'capture_vendor_invoice', 'connect_proposal_counts', 'correct_vendor_withholding_slip', 'cost_attribution_org_actuals', 'cost_attribution_project_actuals', 'dsr_report_hours', 'dsr_report_revenue', 'dsr_validation_queue', 'end_contract_rate_line', 'end_cost_attribution_rule', 'end_equipment_costing', 'equipment_charge_org_actuals', 'equipment_charge_project_actuals', 'equipment_charge_project_actuals_between', 'equipment_metrics', 'equipment_rental_check', 'get_bill_match', 'get_budget_archive_targets', 'get_process_gates', 'get_procurement_gates', 'get_project_consumption', 'get_project_vat_editability', 'get_projects_money_collection', 'get_reorder_suggestions', 'get_stock_below_reorder', 'get_stock_document_costs', 'get_stock_erp_value', 'get_stock_ledger', 'get_stock_on_hand', 'get_work_order_stock_balance', 'imprest_float_choices', 'journal_ledger_setup', 'list_account_reconciliation', 'list_equipment_allocations', 'list_equipment_costing', 'list_equipment_downtime_flags', 'list_equipment_proofs', 'list_equipment_usage_totals', 'list_journals', 'list_tm_claim_source_details', 'list_tm_claims', 'list_unlinkable_connect_matches', 'mark_erp_purchase_documents', 'mrq_plan_for', 'mrq_waiting_for_me', 'odoo_project_ledger', 'opening_balance_report', 'org_agent_run_stats', 'org_credit_balance', 'org_usage_summary', 'preview_cost_attribution', 'preview_equipment_costing', 'preview_task_reminders', 'preview_tm_claim', 'procurement_ledger_held', 'procurement_ledger_held_many', 'procurement_payment_within_ceiling', 'project_erp_journal_lines', 'purchase_capture_assignment_report', 'purchase_capture_feed_health', 'purchase_capture_ledger_page', 'purchase_capture_source_page', 'rate_catalogue_upsert_item', 'search_connect_staged', 'switch_odoo_ledger_basis', 'undo_captured_purchase', 'undo_imported_purchase', 'work_order_cost_amounts', 'work_order_issue_eligibility', 'work_order_validated_revenue', 'approved_timesheet_for_push']) and p.prosrc not like '%assert_not_light%'),
+  0, 'AC-LA-013 every listed definer function body contains assert_not_light');
+select is((select count(distinct p.proname)::int from pg_proc p where p.pronamespace = 'public'::regnamespace
+            and p.proname = any(array['accept_connect_proposals', 'accept_equipment_asset_matches', 'account_send_groups', 'apply_native_receipt', 'attach_erp_journal_lines', 'capture_subcontract_vendor_invoice', 'capture_vendor_invoice', 'connect_proposal_counts', 'correct_vendor_withholding_slip', 'cost_attribution_org_actuals', 'cost_attribution_project_actuals', 'dsr_report_hours', 'dsr_report_revenue', 'dsr_validation_queue', 'end_contract_rate_line', 'end_cost_attribution_rule', 'end_equipment_costing', 'equipment_charge_org_actuals', 'equipment_charge_project_actuals', 'equipment_charge_project_actuals_between', 'equipment_metrics', 'equipment_rental_check', 'get_bill_match', 'get_budget_archive_targets', 'get_process_gates', 'get_procurement_gates', 'get_project_consumption', 'get_project_vat_editability', 'get_projects_money_collection', 'get_reorder_suggestions', 'get_stock_below_reorder', 'get_stock_document_costs', 'get_stock_erp_value', 'get_stock_ledger', 'get_stock_on_hand', 'get_work_order_stock_balance', 'imprest_float_choices', 'journal_ledger_setup', 'list_account_reconciliation', 'list_equipment_allocations', 'list_equipment_costing', 'list_equipment_downtime_flags', 'list_equipment_proofs', 'list_equipment_usage_totals', 'list_journals', 'list_tm_claim_source_details', 'list_tm_claims', 'list_unlinkable_connect_matches', 'mark_erp_purchase_documents', 'mrq_plan_for', 'mrq_waiting_for_me', 'odoo_project_ledger', 'opening_balance_report', 'org_agent_run_stats', 'org_credit_balance', 'org_usage_summary', 'preview_cost_attribution', 'preview_equipment_costing', 'preview_task_reminders', 'preview_tm_claim', 'procurement_ledger_held', 'procurement_ledger_held_many', 'procurement_payment_within_ceiling', 'project_erp_journal_lines', 'purchase_capture_assignment_report', 'purchase_capture_feed_health', 'purchase_capture_ledger_page', 'purchase_capture_source_page', 'rate_catalogue_upsert_item', 'search_connect_staged', 'switch_odoo_ledger_basis', 'undo_captured_purchase', 'undo_imported_purchase', 'work_order_cost_amounts', 'work_order_issue_eligibility', 'work_order_validated_revenue', 'approved_timesheet_for_push'])), 77,
+  'AC-LA-013 every listed function exists');
+select is((select count(*)::int from pg_proc p where p.pronamespace = 'public'::regnamespace
+            and p.proname in ('attendance_record', 'attendance_generate_timesheet', 'my_home', 'auth_role', 'actor_authorization_state')
+            and p.prosrc like '%assert_not_light%'),
+  0, 'AC-LA-013 the shell, home and attendance functions are not guarded');
+
 -- AC-LA-003 the Field user
 select pg_temp.act_as('27100000-0000-0000-0000-0000000000a6');
+select lives_ok($$ select public.attendance_record('27100000-0000-0000-0000-000000000401', current_date - 2, 'phone_check_in',
+  '[{"worker_id":"27100000-0000-0000-0000-000000000f01","status":"present","hours":8}]'::jsonb) $$,
+  'AC-LA-013 a Field user clocks in through attendance_record');
 select is((select array_agg(name) from tasks), array['LA task field'], 'AC-LA-003 field user reads only own tasks');
 select is((select count(*)::int from crew_members), 1, 'AC-LA-003 field user reads only their own crew row');
 select is((select array_agg(title) from work_orders), array['LA WO rostered'], 'AC-LA-003 field user reads only the rostered work order');
