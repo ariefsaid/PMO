@@ -40,7 +40,7 @@ select is(pg_temp._audits('26740000-0000-0000-0000-00000000010a'), 1, 'AC-MIP-00
 select throws_ok('select public.set_work_order_issue_threshold(-1)', '22023', null, 'AC-MIP-002 -1 is refused');
 select throws_ok('select public.set_work_order_issue_threshold(101)', '22023', null, 'AC-MIP-002 101 is refused');
 select is(public.set_work_order_issue_threshold(null), null::numeric, 'AC-MIP-002 an Admin clears it');
-select is(pg_temp._thr('26740000-0000-0000-0000-00000000010a'), null, 'AC-MIP-002 the figure is null again (off)');
+select is((select issue_progress_threshold_pct from work_order_stock_settings where org_id = '26740000-0000-0000-0000-00000000010a'), null, 'AC-MIP-002 the figure is null again (off)');
 
 select pg_temp._as('26740000-0000-0000-0000-0000000001a2');
 select throws_ok('select public.set_work_order_issue_threshold(30)', '42501', 'only an Admin sets the issued-versus-progress threshold', 'AC-MIP-003 Finance is refused');
