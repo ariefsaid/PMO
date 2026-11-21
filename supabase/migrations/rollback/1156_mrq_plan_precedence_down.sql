@@ -1,53 +1,22 @@
--- 1077_mrq_plan_precedence.sql — #2577 consumable needs from usage standards: the plan figure a material request is checked against.
--- Spec docs/specs/consumable-usage-standards.spec.md (FR-CUS-011..013, OD-CUS-2/3) · plan docs/plans/2026-11-20-consumable-usage-standards.md (Migration C).
--- Proven by supabase/tests/cus_mrq_plan.test.sql (AC-CUS-008..010) and the existing mrq_* files. Tables in 1075/1076; 1001 is the base.
--- ⚑ APPROVAL PATH: ships alone. Reversible via supabase/migrations/rollback/1077_mrq_plan_precedence_down.sql.
---
--- Precedence (FR-CUS-011): the work order's consumable plan line for the item (planned = adjusted, else generated; a
--- line adjusted to 0 is a decision, not a gap), else the BoQ allowance figure exactly as 1001 computed it, else 0.
--- The over-plan test and the MRQ_OVER_PLAN_REASON raise in mrq_submit are 1001's, byte for byte; only the figure
--- they compare against, and the snapshot of its source, change (OD-CUS-3: warn and require a reason, never block).
--- A submitted line keeps the figure it snapshotted (FR-CUS-013): only mrq_submit writes plan_qty / plan_source.
-
--- 1. the source beside the snapshot; null on requests submitted before this feature (no label shown for null).
-alter table public.material_request_lines
-  add column plan_source text constraint material_request_lines_plan_source_check check (plan_source in ('standard','adjusted','allowance','none'));
-
--- 2. the precedence, in one internal place.
-create or replace function public.mrq_plan_figure(p_work_order_id uuid, p_item_id uuid)
-  returns table (plan_qty numeric, plan_source text)
-  language sql stable security definer set search_path = public, pg_temp as $$
-  select p.pq, p.src from (
-    select coalesce(pl.adjusted_qty, pl.generated_qty) as pq,
-           case when pl.adjusted_qty is not null then 'adjusted' else 'standard' end as src, 1 as ord
-      from public.work_order_consumable_plan_lines pl
-     where pl.work_order_id = p_work_order_id and pl.item_id = p_item_id                                 -- mut:plan_first
-    union all
-    select a.q, 'allowance', 2
-      from (select round(sum(al.planned_quantity
-                             * case when b.quantity > 0 then least(wl.quantity / b.quantity, 1) else 1 end), 3) as q
-              from public.work_order_lines wl
-              join public.boq_items b on b.id = wl.boq_item_id and b.org_id = wl.org_id
-              join public.boq_material_allowances al on al.boq_item_id = b.id and al.item_id = p_item_id and al.org_id = wl.org_id
-             where wl.work_order_id = p_work_order_id
-            having count(al.id) > 0) a
-    union all
-    select 0.000::numeric, 'none', 3
-  ) p order by p.ord limit 1
-$$;
-
--- 3. same signature and result as 1001 for every caller that does not need the source.
+-- 1156_mrq_plan_precedence_down.sql — reverses 1077: 1001's mrq_plan_quantity, mrq_submit and mrq_plan_for are restored
+-- verbatim and the plan_source column is dropped (the source label of past snapshots is lost; the plan figures are kept).
+begin;
+drop function if exists public.mrq_plan_for(uuid, uuid[], uuid);
 create or replace function public.mrq_plan_quantity(p_work_order_id uuid, p_item_id uuid) returns numeric
   language sql stable security definer set search_path = public, pg_temp as $$
-  select f.plan_qty from public.mrq_plan_figure(p_work_order_id, p_item_id) f
+  select round(coalesce(sum(a.planned_quantity
+                            * case when b.quantity > 0 then least(wl.quantity / b.quantity, 1) else 1 end), 0), 3)
+    from public.work_order_lines wl
+    join public.boq_items b on b.id = wl.boq_item_id and b.org_id = wl.org_id
+    join public.boq_material_allowances a on a.boq_item_id = b.id and a.item_id = p_item_id and a.org_id = wl.org_id
+   where wl.work_order_id = p_work_order_id
 $$;
 
--- 4. mrq_submit: 1001's body with the figure and its source read from mrq_plan_figure and the source snapshotted.
 create or replace function public.mrq_submit(p_request_id uuid, p_client_request_id uuid default null) returns void
   language plpgsql volatile security definer set search_path = public, pg_temp as $$
 declare
   v_org uuid; v_uid uuid := auth.uid(); r public.material_requests; v_wo_status public.work_order_status;
-  v_cutoff time; v_tz text; v_earliest date; l record; v_plan numeric; v_src text; v_prior numeric; v_over boolean := false;
+  v_cutoff time; v_tz text; v_earliest date; l record; v_plan numeric; v_prior numeric; v_over boolean := false;
   v_round integer; v_steps integer;
 begin
   perform public.assert_is_active_member();
@@ -80,7 +49,7 @@ begin
   -- Serialize submissions sharing a work order before reading prior quantities.
   perform pg_advisory_xact_lock(hashtextextended('mrq-plan:' || r.work_order_id::text, 0));
   for l in select * from public.material_request_lines x where x.request_id = r.id order by x.line_no for update loop
-    select f.plan_qty, f.plan_source into v_plan, v_src from public.mrq_plan_figure(r.work_order_id, l.item_id) f;
+    v_plan  := public.mrq_plan_quantity(r.work_order_id, l.item_id);
     v_prior := public.mrq_prior_quantity(r.work_order_id, l.item_id, r.id);
     if v_prior + l.quantity > v_plan then
       v_over := true;
@@ -89,7 +58,7 @@ begin
           using errcode = '23514';
       end if;
     end if;
-    update public.material_request_lines set plan_qty = v_plan, plan_source = v_src, prior_qty = v_prior where id = l.id;
+    update public.material_request_lines set plan_qty = v_plan, prior_qty = v_prior where id = l.id;
   end loop;
 
   v_round := r.round + 1;
@@ -109,10 +78,8 @@ begin
   values (v_org, r.id, 'submitted', 'draft', 'pending', v_uid, p_client_request_id);
 end $$;
 
--- 5. mrq_plan_for returns the source with the figure; a changed result type cannot be create-or-replaced.
-drop function if exists public.mrq_plan_for(uuid, uuid[], uuid);
 create or replace function public.mrq_plan_for(p_work_order_id uuid, p_item_ids uuid[], p_exclude_request uuid default null)
-  returns table (item_id uuid, plan_qty numeric, prior_qty numeric, plan_source text)
+  returns table (item_id uuid, plan_qty numeric, prior_qty numeric)
   language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.auth_org_id();
 begin
@@ -121,15 +88,15 @@ begin
   if coalesce(array_length(p_item_ids, 1), 0) > 200 then
     raise exception 'MRQ_INVALID: 200 items at most' using errcode = 'P0001'; end if;
   return query
-  select i.id, f.plan_qty,
-         public.mrq_prior_quantity(p_work_order_id, i.id, coalesce(p_exclude_request, '00000000-0000-0000-0000-000000000000'::uuid)),
-         f.plan_source
+  select i.id, public.mrq_plan_quantity(p_work_order_id, i.id),
+         public.mrq_prior_quantity(p_work_order_id, i.id, coalesce(p_exclude_request, '00000000-0000-0000-0000-000000000000'::uuid))
     from public.stock_items i
-    cross join lateral public.mrq_plan_figure(p_work_order_id, i.id) f
    where i.id = any(p_item_ids) and i.org_id = v_org;
 end $$;
 
-revoke all on function public.mrq_plan_figure(uuid, uuid), public.mrq_plan_quantity(uuid, uuid)
-  from public, anon, authenticated, service_role;
+alter table public.material_request_lines drop column if exists plan_source;
+drop function if exists public.mrq_plan_figure(uuid, uuid);
+revoke all on function public.mrq_plan_quantity(uuid, uuid) from public, anon, authenticated, service_role;
 revoke all on function public.mrq_plan_for(uuid, uuid[], uuid) from public, anon;
 grant execute on function public.mrq_plan_for(uuid, uuid[], uuid) to authenticated;
+commit;
