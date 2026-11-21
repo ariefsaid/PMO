@@ -52,6 +52,11 @@ vi.mock('@/src/hooks/useThreeWayMatch', () => ({
   useApproveBillMatchException: () => ({ mutateAsync: () => Promise.reject(new Error('not mocked')), isPending: false }),
 }));
 
+// #2688: the purchase-order print action reads the org's print setting, which the procurement page/ledger suites do not
+// provide a query client (or an authenticated session) for. Default: printing off, as for an org that never turned it on.
+// The hook's own suite and the settings-section suite unmock it; the print-action tests register their own value.
+vi.mock('@/src/hooks/usePurchaseOrderSettings', () => import('@/pages/__tests__/helpers/purchaseOrderSettingsMock'));
+
 // The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not
 // provide. Its parts have their own suites; the view suites need only know it is mounted.
 vi.mock('@/src/components/integrations/odoo/OdooIntegrationSection', () => ({

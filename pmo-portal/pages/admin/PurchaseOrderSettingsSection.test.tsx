@@ -29,6 +29,8 @@ vi.mock('@/src/auth/usePermission', () => ({
     h.canManage && action === 'manage' && entity === 'orgAccounting',
 }));
 
+vi.unmock('@/src/hooks/usePurchaseOrderSettings'); // test/setup.ts stubs it for the procurement page suites
+
 import PurchaseOrderSettingsSection from './PurchaseOrderSettingsSection';
 
 const DEFAULT_SETTINGS = {

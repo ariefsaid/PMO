@@ -8,6 +8,8 @@ import {
 } from './usePurchaseOrderSettings';
 import { repositories } from '@/src/lib/repositories';
 
+vi.unmock('@/src/hooks/usePurchaseOrderSettings'); // test/setup.ts stubs it for the procurement page suites
+
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { org_id: 'org-test-1' } }),
 }));
