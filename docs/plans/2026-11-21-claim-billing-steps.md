@@ -1,6 +1,6 @@
 # Claim Billing Steps Implementation Plan (#2680)
 
-> Fresh Orca worker; Director-dispatched, ships alone (money path). Spec: `docs/specs/claim-billing-steps.spec.md`. Stacked on `feat/2592-billing-stage-targets`; OD-SCOPE-6/2 applied; OD-CBS-1..5 recommended defaults. Gate change: the builder writes pgTAP/e2e but does not run db reset, pgTAP, e2e, screenshots or mutations; the wave run does.
+> Status: built, awaiting the wave run (pgTAP, e2e, denominator, mutations, screenshots). Fresh Orca worker; Director-dispatched, ships alone (money path). Spec: `docs/specs/claim-billing-steps.spec.md`. Stacked on `feat/2592-billing-stage-targets`; OD-SCOPE-6/2 applied; OD-CBS-1..5 recommended defaults. Gate change: the builder writes pgTAP/e2e but does not run db reset, pgTAP, e2e, screenshots or mutations; the wave run does.
 
 ## Migrations (1365-1369, all five used; each has `supabase/migrations/rollback/<n>_..._down.sql`)
 - **1365 `claim_billing_steps_columns`**: `billing_stage_templates.owner_role user_role`; `claim_billing_stages.owner_role user_role`, `target_on date`; partial index `claim_billing_stages_waiting_idx (org_id, owner_role) where completed_on is null and skipped_on is null and started_on is not null and owner_role is not null`; replace the #2592 overdue index with one covering `target_on` as well. New tables `billing_step_templates` (id, org_id default `auth_org_id()`, name unique per org among live, archived_at, created_at) and `billing_step_template_steps` (template_id, position 1-20, name, owner_role, target_days 1-365, client_side, optional) and `billing_step_template_documents` (step_id, position, name, required). RLS enabled and forced; select policy `org_id = (select auth_org_id())` and active member; no write grant. `instantiate_claim_billing_stages` replaced to copy `owner_role` (everything else unchanged).
@@ -24,8 +24,8 @@
 | AC | Layer | File |
 |---|---|---|
 | AC-CBS-001..011 | pgTAP | `supabase/tests/1365_claim_billing_steps.test.sql` |
-| AC-CBS-012 | Unit | `pmo-portal/src/lib/waitingSteps.test.ts`, `useNeedsYou.waitingSteps.test.tsx` |
-| AC-CBS-013 | RTL | `pmo-portal/pages/project-detail/tabs/__tests__/BillingTabOverdueMarker.test.tsx` |
+| AC-CBS-012 | Unit | `pmo-portal/src/lib/waitingSteps.test.ts`, `pmo-portal/src/components/dashboard/restructure/useNeedsYou.waitingSteps.test.ts` |
+| AC-CBS-013 | RTL | `pmo-portal/pages/project-detail/tabs/__tests__/ClaimOverdueMarker.test.tsx` |
 | AC-CBS-014 | RTL | `pmo-portal/pages/project-detail/tabs/__tests__/ClaimBillingStagesEdit.test.tsx` |
 | AC-CBS-015 | E2E | `pmo-portal/e2e/AC-CBS-015-claim-steps-needs-you.spec.ts` |
 | AC-CBS-016 | existing suites | untouched |

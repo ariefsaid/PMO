@@ -16,6 +16,8 @@ Read against `origin/dev`: migrations 1021, 1022, 0237 and 1028; `billingStages.
 - OD-SCOPE-6 / #2680 moves to per-claim steps from a template (owner role, target date, documents, done mark). To avoid tearing out this work: the overdue test and the notification recipient each live in one SQL function (`billing_stage_due_on(stage)` = started day plus target days; `billing_stage_overdue_recipients(stage)`), so #2680 swaps the due date for a step's own target date and the recipient for the step's owner role without touching the job, the skip or the gate. `billing_stages_open` stays the single gate predicate. Skipped is recorded on the claim's own stage row, which is where #2680 keeps steps. This ticket adds no board, no needs-you pointer and no email (email ships with its own ticket).
 - Messages to the next step's owner are out of scope.
 
+- **Shipped by #2680** (`docs/specs/claim-billing-steps.spec.md`): the due-day and recipient seams were swapped for a step's own target date and owner role; the claim list marker and the needs-you pointer are `ClaimOverdueMarker` and the `billing-steps-waiting` item.
+
 ## Build notes (#2592)
 
 - Migrations 1360 (columns), 1361 (list, copy, lock, complete, gate), 1362 (`skip_billing_stage`), 1363 (due-day and recipient seams, overdue job, cron). 1364 unused.

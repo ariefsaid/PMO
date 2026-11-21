@@ -8,6 +8,7 @@ import type {
   RetentionReleaseRow,
   StageTemplateInput,
 } from '@/src/lib/db/billingStages';
+import type { OverdueClaimStep, StepInput, StepPatch, StepTemplate, WaitingStep } from '@/src/lib/db/billingSteps';
 
 export interface BillingStagesRepository {
   getTemplate(projectId: string): Promise<StageTemplateInput[]>;
@@ -26,4 +27,16 @@ export interface BillingStagesRepository {
   scheduleRelease(input: RetentionReleaseInput): Promise<string>;
   release(releaseId: string, releasedOn: string, reference: string | null, documentId: string | null): Promise<void>;
   cancelRelease(releaseId: string): Promise<void>;
+  // Per-claim billing steps and templates (#2680)
+  listStepTemplates(): Promise<StepTemplate[]>;
+  saveStepTemplate(templateId: string | null, name: string, steps: StepInput[]): Promise<string>;
+  archiveStepTemplate(templateId: string): Promise<void>;
+  loadTemplateOntoProject(projectId: string, templateId: string): Promise<number>;
+  loadTemplateOntoClaim(claimId: string, templateId: string): Promise<number>;
+  updateStep(stageId: string, patch: StepPatch): Promise<void>;
+  addStep(claimId: string, afterPosition: number, step: StepInput): Promise<string>;
+  removeStep(stageId: string, reason: string): Promise<void>;
+  moveStep(stageId: string, newPosition: number): Promise<void>;
+  waitingSteps(): Promise<WaitingStep[]>;
+  overdueStepsByClaim(projectId: string): Promise<OverdueClaimStep[]>;
 }

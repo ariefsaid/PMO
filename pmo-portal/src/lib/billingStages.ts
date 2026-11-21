@@ -63,3 +63,16 @@ export function nextInvoiceDeadline(today: string, day: number | null, warnDays:
   const daysLeft = dayNumber(date) - dayNumber(today);
   return { date, daysLeft, warn: daysLeft <= warnDays };
 }
+
+/**
+ * #2680 — days past a step's own target date, or null: no target date, completed, skipped, or not yet past it. The step's target
+ * date wins over its target days (the server's `billing_stage_due_on`), so a step with a date is judged by it alone.
+ */
+export function stageDaysPastTargetDate(
+  stage: { completedOn: string | null; skippedOn?: string | null; targetOn?: string | null },
+  today: string,
+): number | null {
+  if (!stage.targetOn || stage.completedOn || stage.skippedOn) return null;
+  const over = dayNumber(today) - dayNumber(stage.targetOn);
+  return over > 0 ? over : null;
+}

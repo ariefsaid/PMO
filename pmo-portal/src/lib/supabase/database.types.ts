@@ -79,6 +79,7 @@ export type Database = {
       }
       billing_stage_templates: {
         Row: {
+          owner_role: Database["public"]["Enums"]["user_role"] | null
           optional: boolean
           target_days: number | null
           client_side: boolean
@@ -91,6 +92,7 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          owner_role?: Database["public"]["Enums"]["user_role"] | null
           optional?: boolean
           target_days?: number | null
           client_side?: boolean
@@ -102,6 +104,7 @@ export type Database = {
           project_id: string
         }
         Update: {
+          owner_role?: Database["public"]["Enums"]["user_role"] | null
           optional?: boolean
           target_days?: number | null
           client_side?: boolean
@@ -128,6 +131,52 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      billing_step_template_documents: {
+        Row: { id: string; name: string; org_id: string; position: number; required: boolean; step_id: string }
+        ComputedFields: never
+        Insert: { id?: string; name: string; org_id: string; position: number; required?: boolean; step_id: string }
+        Update: { id?: string; name?: string; org_id?: string; position?: number; required?: boolean; step_id?: string }
+        Relationships: [
+          {
+            foreignKeyName: "billing_step_template_documents_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "billing_step_template_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_step_template_steps: {
+        Row: {
+          client_side: boolean; id: string; name: string; optional: boolean; org_id: string
+          owner_role: Database["public"]["Enums"]["user_role"] | null; position: number; target_days: number | null; template_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          client_side?: boolean; id?: string; name: string; optional?: boolean; org_id: string
+          owner_role?: Database["public"]["Enums"]["user_role"] | null; position: number; target_days?: number | null; template_id: string
+        }
+        Update: {
+          client_side?: boolean; id?: string; name?: string; optional?: boolean; org_id?: string
+          owner_role?: Database["public"]["Enums"]["user_role"] | null; position?: number; target_days?: number | null; template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_step_template_steps_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "billing_step_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_step_templates: {
+        Row: { archived_at: string | null; created_at: string; created_by: string | null; id: string; name: string; org_id: string }
+        ComputedFields: never
+        Insert: { archived_at?: string | null; created_at?: string; created_by?: string | null; id?: string; name: string; org_id: string }
+        Update: { archived_at?: string | null; created_at?: string; created_by?: string | null; id?: string; name?: string; org_id?: string }
+        Relationships: []
       }
       claim_billing_stage_documents: {
         Row: {
@@ -207,6 +256,8 @@ export type Database = {
       }
       claim_billing_stages: {
         Row: {
+          owner_role: Database["public"]["Enums"]["user_role"] | null
+          target_on: string | null
           optional: boolean
           overdue_notified_at: string | null
           skipped_by: string | null
@@ -229,6 +280,8 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          owner_role?: Database["public"]["Enums"]["user_role"] | null
+          target_on?: string | null
           optional?: boolean
           overdue_notified_at?: string | null
           skipped_by?: string | null
@@ -250,6 +303,8 @@ export type Database = {
           started_on?: string | null
         }
         Update: {
+          owner_role?: Database["public"]["Enums"]["user_role"] | null
+          target_on?: string | null
           optional?: boolean
           overdue_notified_at?: string | null
           skipped_by?: string | null
@@ -13497,6 +13552,22 @@ export type Database = {
       }
     }
     Functions: {
+      add_claim_billing_step: { Args: { p_after_position: number; p_claim: string; p_step: Json }; Returns: string }
+      archive_billing_step_template: { Args: { p_template: string }; Returns: undefined }
+      load_billing_step_template_onto_claim: { Args: { p_claim: string; p_template: string }; Returns: number }
+      load_billing_step_template_onto_project: { Args: { p_project: string; p_template: string }; Returns: number }
+      move_claim_billing_step: { Args: { p_new_position: number; p_stage: string }; Returns: undefined }
+      my_waiting_billing_steps: {
+        Args: never
+        Returns: { claim_id: string; days_over: number; due_on: string | null; project_id: string; project_name: string; stage_id: string; step_name: string }[]
+      }
+      overdue_billing_steps_by_claim: {
+        Args: { p_project: string }
+        Returns: { claim_id: string; days_over: number; step_name: string }[]
+      }
+      remove_claim_billing_step: { Args: { p_reason: string; p_stage: string }; Returns: undefined }
+      save_billing_step_template: { Args: { p_name: string; p_steps: Json; p_template?: string }; Returns: string }
+      update_claim_billing_step: { Args: { p_patch: Json; p_stage: string }; Returns: undefined }
       retention_held: { Args: { "": Database["public"]["Tables"]["sales_invoices"]["Row"] }; Returns: number }
       set_work_order_plan: { Args: { p_project_id: string; p_work_order_id: string; p_changes: Json }; Returns: number }
       set_shared_cost_split: { Args: { p_project_id: string; p_split: Json }; Returns: number }

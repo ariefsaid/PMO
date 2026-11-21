@@ -9,10 +9,12 @@ import { DateField } from '@/src/components/ui/DateField';
 import { usePermission } from '@/src/auth/usePermission';
 import { useBillingStageMutations, useClaimBillingTrace } from '@/src/hooks/useBillingStages';
 import { useDocuments } from '@/src/hooks/useDocuments';
-import { currentStageIndex, nextInvoiceDeadline, stageAgeDays, stageOverdue } from '@/src/lib/billingStages';
+import { currentStageIndex, nextInvoiceDeadline, stageAgeDays, stageDaysPastTargetDate, stageOverdue } from '@/src/lib/billingStages';
 import { formatIsoDay, formatNumberExact, formatTableMoney } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
 import { RetentionReleases } from './RetentionReleases';
+import { ClaimStepsPanel } from './ClaimStepsPanel';
+import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import type { ClaimBillingStage } from '@/src/lib/db/billingStages';
 
 /**
@@ -73,6 +75,7 @@ const SkipStageDialog: React.FC<{ claimId: string; projectId: string; stage: Cla
 export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId, projectId, currency, invoiced, withdrawn, today = localToday() }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
+  const roles = useRoleOptions();
   const traceQuery = useClaimBillingTrace(claimId, projectId);
   const documents = useDocuments(projectId);
   const { attachDocument, completeStage } = useBillingStageMutations(claimId, projectId);
@@ -158,7 +161,8 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
       {trace.stages.map((stage, index) => {
         const age = stageAgeDays(stage, today);
         const isCurrent = index === current;
-        const overdue = open ? stageOverdue(stage, today) : null;
+        const overdue = open ? stageOverdue({ ...stage, targetDays: stage.targetOn ? null : stage.targetDays }, today) : null;
+        const pastDate = open ? stageDaysPastTargetDate(stage, today) : null;
         const skipped = Boolean(stage.skippedOn);
         return <li key={stage.id} aria-label={stage.name} className="py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -167,9 +171,12 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
               {stage.clientSide && <span className="ml-2 text-sm font-normal text-muted-foreground">{t('projectDetail.billing.stages.clientSide', "In the client's system")}</span>}
             </span>
             <span className="flex items-center gap-2 text-sm">
-              {age !== null && !skipped && !overdue && <span className="tabular-nums text-muted-foreground">{t('projectDetail.billing.stages.age', '{{count}} days', { count: age })}</span>}
+              {age !== null && !skipped && !overdue && pastDate === null && <span className="tabular-nums text-muted-foreground">{t('projectDetail.billing.stages.age', '{{count}} days', { count: age })}</span>}
               {overdue && <StatusPill variant="overdue" wrap={false}>
                 {t('projectDetail.billing.stages.overdue', 'Overdue')} · {t('projectDetail.billing.stages.overdueDetail', '{{age}} days, target {{target}}', { age: overdue.age, target: overdue.target })}
+              </StatusPill>}
+              {pastDate !== null && <StatusPill variant="overdue" wrap={false}>
+                {t('projectDetail.billing.stages.overdue', 'Overdue')} · {t('projectDetail.billing.steps.pastTargetDate', '{{count}} days past the target date', { count: pastDate })}
               </StatusPill>}
               <StatusPill variant={stage.completedOn ? 'won' : isCurrent ? 'progress' : 'neutral'} wrap={false}>
                 {stage.completedOn
@@ -179,6 +186,12 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
               </StatusPill>
             </span>
           </div>
+          {(stage.ownerRole || stage.targetOn) && <p className="mt-1 text-sm text-muted-foreground">
+            {[
+              stage.ownerRole ? t('projectDetail.billing.steps.ownerLine', 'Owner: {{role}}', { role: roles.label(stage.ownerRole) }) : null,
+              stage.targetOn ? t('projectDetail.billing.steps.targetLine', 'Target date {{date}}', { date: formatIsoDay(stage.targetOn) }) : null,
+            ].filter(Boolean).join(' · ')}
+          </p>}
           {skipped && stage.skippedReason && <p className="mt-1 text-sm text-muted-foreground">
             {t('projectDetail.billing.stages.skippedReason', 'Reason: {{reason}}', { reason: stage.skippedReason })}
           </p>}
@@ -229,6 +242,7 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
         </li>;
       })}
     </ol>}
+    {trace.stages.length > 0 && <ClaimStepsPanel claimId={claimId} projectId={projectId} stages={trace.stages} open={open} />}
     {skipping && <SkipStageDialog claimId={claimId} projectId={projectId} stage={skipping} onClose={() => setSkipping(null)} />}
   </section>;
 };

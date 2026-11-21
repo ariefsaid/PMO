@@ -1,6 +1,6 @@
 # Spec: Billing steps per claim, loaded from a template (#2680)
 
-**Status:** phase 1 (spec for approval). Ships for the 15 December 2026 release (OD-SCOPE-1). Map #2516. IDs `FR-CBS-###`, `NFR-CBS-###`, `AC-CBS-###`, `OD-CBS-#`. Plan: `docs/plans/2026-11-21-claim-billing-steps.md`. Executor: Orca worker, **Director-dispatched, ships alone**: it changes who may edit the invoice gate's inputs (ADR-0019, `docs/money-path-primer.md`). Builds on `billing-stages.spec.md` (#2522, 1021/1022) and `billing-stage-targets.spec.md` (#2592, 1360-1363). Terms Billing stage, Stage target, Skipped stage, Overdue stage are used as defined there. In this spec the word **step** means a claim's billing stage; no new table is invented for it.
+**Status:** built (phase 2), awaiting the wave run; OD-CBS-1..5 decided by the Director on 21 Nov (see Decisions). Ships for the 15 December 2026 release (OD-SCOPE-1). Map #2516. IDs `FR-CBS-###`, `NFR-CBS-###`, `AC-CBS-###`, `OD-CBS-#`. Plan: `docs/plans/2026-11-21-claim-billing-steps.md`. Executor: Orca worker, **Director-dispatched, ships alone**: it changes who may edit the invoice gate's inputs (ADR-0019, `docs/money-path-primer.md`). Builds on `billing-stages.spec.md` (#2522, 1021/1022) and `billing-stage-targets.spec.md` (#2592, 1360-1363). Terms Billing stage, Stage target, Skipped stage, Overdue stage are used as defined there. In this spec the word **step** means a claim's billing stage; no new table is invented for it.
 
 ## Owner ruling applied (OD-SCOPE-6, settled)
 One billing record, no task copies. Steps live on the claim (owner role, target date, documents, done mark). A step waiting on a role shows in that person's needs-you list as a pointer and clears itself when the step completes. Ordinary tasks can still be attached to a claim (#2587, unmerged; this ticket neither depends on it nor blocks it: no step row is a task, and no table here references `tasks`). Over-claim stays a warning (untouched). OD-SCOPE-2: step names, owner roles, target days, documents and templates are client data; nothing about any client's process is written in code or seed. Roles come from the existing role set (`user_role`); no role name is coded beyond the two the code already knows (Admin, Finance, Project Manager, which gate editing).
@@ -92,14 +92,23 @@ When a claim starts, I want its list of steps (owner role, target date, document
 | Remove reason invalid | `23514`, detail `step-reason-invalid` |
 | Role not allowed | `42501` |
 
-## Owner decisions (recommended defaults taken, none a ruling)
-| ID | Decision and default | If wrong, what breaks |
+## Decisions (OD-CBS-1..5 decided, Director, 21 Nov 2026: taken as proposed)
+| ID | Decision | If wrong, what breaks |
 |---|---|---|
 | OD-CBS-1 | Editing the step list (add, remove, reorder, rename) is Finance or Admin; a Project Manager sets only owner role and target date. Removing a step is audited with a reason. | Too wide: a PM waives a control step on their own claim by deleting it. Too narrow: a PM must ask Finance to add a step, slower but safe. |
 | OD-CBS-2 | A step's owner is a **role**, not a named person; the pointer goes to everyone holding the role (a Project Manager only for their own projects). | If a named assignee is wanted, a second column is added later; nothing here blocks it. |
 | OD-CBS-3 | The pointer is derived on read, never stored, so it cannot go stale and clears itself. | A stored pointer would need clearing on every completion path. |
 | OD-CBS-4 | The claim keeps its own copy of a template (loading never links); editing a template later changes new claims and projects only. | Linked templates would move live claims under their teams. |
 | OD-CBS-5 | An owner role with no active holder notifies the Admins and shows no pointer. | Silent steps nobody is told about. |
+
+## Build notes (#2680)
+- Migrations 1365 (columns, deferrable position uniqueness, org template tables, claim copy of owner role), 1366 (template RPCs, `billing_claim_invoiced`, `set_billing_stage_template` reads owner role), 1367 (edit RPCs and two shared helpers), 1368 (the two seams and the overdue job), 1369 (needs-you reads). `billing_stages_open` and both gate triggers are untouched.
+- A step's overdue state uses the seam: target date wins over target days (`billing_stage_due_on`). Changing a step's target resets its once-only overdue stamp, so a moved date can warn again once.
+- A PM loading a template onto an untouched claim (FR-CBS-003) replaces the claim's steps, which can shorten the list. Templates are written only by Finance or Admin, so a PM chooses among lists Finance already vetted; an empty template is refused for a claim (`template-empty`).
+- A claim whose steps carry an attached checklist document is not "untouched" and refuses a template (`claim-steps-started`), so no evidence link is silently dropped.
+- The pointer read gives Admin, Executive, Finance and Project Manager results; an Engineer gets none because the stage tables are not readable by an Engineer (1021). A needs-you read that fails adds no item and does not block the list (a deliberate narrowing of "shown as unknown": the list's own error state is not touched, so existing needs-you behaviour is unchanged).
+- Screens: the claim's step editor is a collapsible panel in the claim's step list (`ClaimStepsPanel`); templates are managed from the project billing terms editor (`BillingStepTemplatesModal`, opened by "Manage templates"; no new route); the claim list marker is `ClaimOverdueMarker`. All three render nothing outside a data layer, so existing screens and tests are unchanged. The project billing terms editor now keeps and edits each stage's owner role (before this ticket a save would have dropped it).
+- Owner roles are the shared role list (`src/auth/coarseRoles.ts`); the wider role set is picked up when that list grows.
 
 ## Delivery checklist
 - [ ] Glossary: Step owner role, Step target date, Step template, Waiting step pointer (`docs/glossary.md`, EN and ID).
