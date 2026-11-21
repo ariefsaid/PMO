@@ -39,7 +39,7 @@ async function fixture() {
   if (foreman.error) throw new Error('foreman: ' + foreman.error.message);
   // The journey's own delivery location. With it the seed project always has several, so the form asks where the
   // material goes and the journey answers — instead of relying on no other test having added a location (they do).
-  const site = await admin.from('stock_warehouses').insert({ code: `E2E-WS${sfx}`, name: `E2E site ${sfx}`, kind: 'site', org_id: orgId, project_id: SEED_PROJECT_ID }).select('id, code, name').single();
+  const site = await admin.from('stock_warehouses').insert({ code: `E2E-WS${sfx}`, name: `E2E site ${sfx}`, kind: 'site', project_id: SEED_PROJECT_ID }).select('id, code, name').single();
   if (site.error) throw new Error('site: ' + site.error.message);
   return { sfx, admin, item, wo: wo.data, foreman: foreman.data, site: site.data };
 }
