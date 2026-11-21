@@ -124,6 +124,40 @@ export interface StepPin {
   approverId: string;
 }
 
+/** #2686: the organisation's two usage thresholds, percent of plan; null = off. */
+export interface UsageThresholds { pct1: number | null; pct2: number | null }
+
+export interface UsageWarning { slot: 1 | 2; threshold: number; reachedPct: number }
+
+/**
+ * #2686 FR-MUT-002: the highest usage threshold a line has reached, or null. Use is prior plus this request's quantity (the
+ * FR-MRQ-002 measure); plan 0 with any use crosses every set threshold. Advisory only: it never blocks, the server records the crossing.
+ */
+export function lineUsageWarning(l: { planQty: number; priorQty: number; quantity: number }, th: UsageThresholds | undefined | null): UsageWarning | null {
+  if (!th) return null;
+  const use = milli(l.priorQty) + milli(l.quantity);
+  const plan = milli(l.planQty);
+  const reached = plan > 0 ? Math.round((use * 1000) / plan) / 10 : (use > 0 ? Infinity : 0);
+  const hit = (pct: number | null): pct is number => pct !== null && use > 0 && (plan === 0 || use * 100 >= pct * plan);
+  const slot: 1 | 2 | null = hit(th.pct2) ? 2 : hit(th.pct1) ? 1 : null;
+  if (!slot) return null;
+  return { slot, threshold: (slot === 2 ? th.pct2 : th.pct1) as number, reachedPct: reached };
+}
+
+/** AC-MUT-008, client side: empty = off; each from 1 to 1000; the second above the first. The server re-checks. */
+export function parseUsageThresholds(a: string, b: string): { ok: true; value: UsageThresholds } | { ok: false; error: 'range' | 'order' } {
+  const one = (v: string): number | null | undefined => {
+    const t = v.trim();
+    if (t === '') return null;
+    const n = Number(t);
+    return Number.isFinite(n) && n >= 1 && n <= 1000 ? Math.round(n * 100) / 100 : undefined;
+  };
+  const pct1 = one(a); const pct2 = one(b);
+  if (pct1 === undefined || pct2 === undefined) return { ok: false, error: 'range' };
+  if (pct1 !== null && pct2 !== null && pct2 <= pct1) return { ok: false, error: 'order' };
+  return { ok: true, value: { pct1, pct2 } };
+}
+
 export interface LinePlan {
   itemId: string;
   planQty: number;
@@ -294,6 +328,13 @@ export async function getMaterialRequestCutoff(): Promise<string | null> {
   return data?.[0]?.cutoff_time ?? null;
 }
 
+export async function getUsageThresholds(): Promise<UsageThresholds> {
+  const { data, error } = await (supabase.from('material_request_settings').select('usage_warn_pct_1, usage_warn_pct_2').limit(1) as unknown as DbResult<Array<{ usage_warn_pct_1: number | string | null; usage_warn_pct_2: number | string | null }>>);
+  if (error) fail(error);
+  const n = (v: number | string | null | undefined) => (v === null || v === undefined ? null : Number(v));
+  return { pct1: n(data?.[0]?.usage_warn_pct_1), pct2: n(data?.[0]?.usage_warn_pct_2) };
+}
+
 export async function listStandIns(): Promise<StandIn[]> {
   const { data, error } = await (supabase.from('approval_stand_ins').select('id, delegator_id, stand_in_id, starts_on, ends_on, revoked_at')
     .order('starts_on', { ascending: false }).order('id', { ascending: true }).limit(200) as unknown as DbResult<Array<Record<string, string | null>>>);
@@ -364,6 +405,11 @@ export async function setApprovalChain(steps: ChainStepInput[]): Promise<void> {
 
 export async function setMaterialRequestCutoff(cutoff: string | null): Promise<void> {
   const { error } = await supabase.rpc('mrq_set_cutoff', { p_cutoff: cutoff });
+  if (error) fail(error);
+}
+
+export async function setUsageThresholds(th: UsageThresholds): Promise<void> {
+  const { error } = await supabase.rpc('mrq_set_usage_thresholds', { p_pct_1: th.pct1, p_pct_2: th.pct2 });
   if (error) fail(error);
 }
 

@@ -9,9 +9,9 @@ import { wrap } from './repositoryErrors';
 export type {
   MaterialRequestStatus, StepStatus, StepDecision, MaterialRequestHeader, MaterialRequestLineInput, MaterialRequestRow,
   MaterialRequestLine, MaterialRequestStep, MaterialRequestEvent, MaterialRequestDetail, WaitingStep, ChainStep,
-  ChainStepInput, StandIn, StepPin, LinePlan, MaterialRequestFilter, MaterialRequestRefusal, DraftLineError,
+  ChainStepInput, StandIn, StepPin, LinePlan, UsageThresholds, UsageWarning, MaterialRequestFilter, MaterialRequestRefusal, DraftLineError,
 } from '@/src/lib/db/materialRequests';
-export { linePlanStatus, draftLineErrors, materialRequestRefusal, MATERIAL_REQUEST_PAGE_SIZE } from '@/src/lib/db/materialRequests';
+export { linePlanStatus, lineUsageWarning, parseUsageThresholds, draftLineErrors, materialRequestRefusal, MATERIAL_REQUEST_PAGE_SIZE } from '@/src/lib/db/materialRequests';
 
 export const materialRequestRepository = {
   list: (f: dal.MaterialRequestFilter) => wrap(() => dal.listMaterialRequests(f)),
@@ -30,6 +30,8 @@ export const materialRequestRepository = {
   setChain: (steps: dal.ChainStepInput[]) => wrap(() => dal.setApprovalChain(steps)),
   cutoff: () => wrap(() => dal.getMaterialRequestCutoff()),
   setCutoff: (cutoff: string | null) => wrap(() => dal.setMaterialRequestCutoff(cutoff)),
+  usageThresholds: () => wrap(() => dal.getUsageThresholds()),
+  setUsageThresholds: (th: dal.UsageThresholds) => wrap(() => dal.setUsageThresholds(th)),
   standIns: () => wrap(() => dal.listStandIns()),
   setStandIn: (s: { delegatorId: string; standInId: string; startsOn: string; endsOn: string }) => wrap(() => dal.setStandIn(s)),
   stepPins: (projectId: string) => wrap(() => dal.listStepPins(projectId)),

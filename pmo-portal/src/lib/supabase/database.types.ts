@@ -6426,18 +6426,24 @@ export type Database = {
           org_id: string
           updated_at: string
           updated_by: string | null
+          usage_warn_pct_1: number | null
+          usage_warn_pct_2: number | null
         }
         Insert: {
           cutoff_time?: string | null
           org_id?: string
           updated_at?: string
           updated_by?: string | null
+          usage_warn_pct_1?: number | null
+          usage_warn_pct_2?: number | null
         }
         Update: {
           cutoff_time?: string | null
           org_id?: string
           updated_at?: string
           updated_by?: string | null
+          usage_warn_pct_1?: number | null
+          usage_warn_pct_2?: number | null
         }
         Relationships: []
       }
@@ -13553,6 +13559,7 @@ export type Database = {
       }
       mrq_set_chain: { Args: { p_steps: Json }; Returns: undefined }
       mrq_set_cutoff: { Args: { p_cutoff: string | null }; Returns: undefined }
+      mrq_set_usage_thresholds: { Args: { p_pct_1: number | null; p_pct_2: number | null }; Returns: undefined }
       mrq_set_stand_in: {
         Args: { p_delegator_id: string; p_ends_on: string; p_stand_in_id: string; p_starts_on: string }
         Returns: string

@@ -208,5 +208,18 @@
     "returned": "Sent back",
     "superseded": "Replaced",
     "waiting": "Not yet"
+  },
+  "usage": {
+    "title": "Usage warnings",
+    "sub": "Warn when a work order's material use reaches these percentages of plan. Leave a field empty to switch that warning off. Warnings never block a request.",
+    "first": "First warning (% of plan)",
+    "second": "Second warning (% of plan)",
+    "save": "Save warnings",
+    "saved": "Usage warnings saved",
+    "loadError": "Couldn't load the usage warnings",
+    "invalidRange": "Enter a percentage from 1 to 1000.",
+    "invalidOrder": "The second warning must be higher than the first.",
+    "reached": "Use reaches {{reached}}% of plan, past the {{threshold}}% warning.",
+    "planZero": "No plan is set, so any use is past the {{threshold}}% warning."
   }
 }

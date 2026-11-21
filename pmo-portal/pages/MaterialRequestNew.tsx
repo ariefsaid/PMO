@@ -15,6 +15,8 @@ import { draftLineErrors, linePlanStatus } from '@/src/lib/repositories/material
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useRefusalText } from './materialRequests/useMaterialRequestText';
+import { UsageWarning } from './materialRequests/UsageWarning';
+import { useUsageThresholds } from '@/src/hooks/useUsageThresholds';
 
 interface FormLine { key: string; itemId: string; quantity: string; reason: string }
 /** A typed quantity (dot or decimal comma, 3 decimals at most) as the number to send; 0 when it is not a positive quantity. */
@@ -70,6 +72,7 @@ const MaterialRequestNewPage: React.FC = () => {
   const destination = locations.length > 1 ? (locations.some((o) => o.value === toWarehouseId) ? toWarehouseId : '') : '';
   const itemIds = lines.map((l) => l.itemId).filter(Boolean);
   const plans = useLinePlans(workOrderId || undefined, itemIds, requestId);
+  const usage = useUsageThresholds();
   const planOf = (itemId: string) => plans.data?.find((p) => p.itemId === itemId);
 
   const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
@@ -173,6 +176,7 @@ const MaterialRequestNewPage: React.FC = () => {
                     {st?.overPlan && <strong className="ml-2 text-warning-foreground">{t('form.overPlan', 'Over plan')}</strong>}
                   </p>
                 )}
+                {l.itemId && p && !plans.isPending && <UsageWarning line={{ planQty: p.planQty, priorQty: p.priorQty, quantity: quantityOf(l.quantity) }} thresholds={usage.thresholds} />}
                 {st?.overPlan && (
                   <TextArea label={t('form.reason', 'Why do you need more than the plan?')} required maxLength={500} rows={2}
                     value={l.reason} onChange={(v) => patch(l.key, { reason: v })}
