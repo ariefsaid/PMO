@@ -108,6 +108,8 @@ export type Entity =
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
   | 'siteReportLists'
+  | 'workOrderRevenuePlan'
+  | 'revenuePlanSettings'
   | 'costDiscipline'
   | 'billMatch'
   | 'employeeLink'
@@ -841,6 +843,10 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   orgProjectClassification: { manage: allow(ADMIN) },
   // #2621: the site report idle-reason and weather lists. Mirrors the Admin-only insert/update policies of 1040. UX ONLY.
   siteReportLists: { manage: allow(ADMIN) },
+  // #2671 dated revenue plan per work order. UX ONLY — wo_revenue_plan_* (1276) and the reads (1277) are the authority
+  // (ADR-0016): the project's own Project Manager only, Admin/Executive/Finance on any project.
+  workOrderRevenuePlan: { view: allow(['Admin', 'Executive', 'Finance', 'Project Manager']), manage: allow(['Admin', 'Executive', 'Finance', 'Project Manager']) },
+  revenuePlanSettings: { manage: allow(ADMIN) },
   // #2623 (FR-WCA-011): the organisation's cost disciplines. Mirrors 0950's RLS (insert/update/delete: active Admin). UX ONLY.
   costDiscipline: { create: allow(ADMIN), edit: allow(ADMIN), archive: allow(ADMIN) },
   // #2622 (1018): a bill's three-way match. get_bill_match reads for Admin/Executive/PM/Finance; approve_bill_match_exception

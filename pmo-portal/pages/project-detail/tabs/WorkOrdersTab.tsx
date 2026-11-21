@@ -58,6 +58,7 @@ import {
 } from './WorkOrdersDrawers';
 import WorkOrdersModals from './WorkOrdersModals';
 import WorkOrderPlanVsActual from '../WorkOrderPlanVsActual';
+import RevenuePlanRollup from '../RevenuePlanRollup';
 
 /**
  * The work-order surface for one project (#566) — the client's inbound POs and the drawdown they
@@ -895,6 +896,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
       {/* #2519: plan vs actual and profit per work order — renders nothing for a role that cannot read work-order money. */}
       <WorkOrderPlanVsActual projectId={projectId} />
+
+      {/* #2671: dated revenue plan roll-up — renders nothing while the organisation's switch is off. */}
+      <RevenuePlanRollup projectId={projectId} />
     </div>
   );
 };
