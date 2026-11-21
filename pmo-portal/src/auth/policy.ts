@@ -104,6 +104,7 @@ export type Entity =
   | 'costAttribution'
   | 'workOrderPlan'
   | 'sharedCostSplit'
+  | 'labourCost'
   | 'vendorTaxDefault'
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
@@ -858,6 +859,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // and work_order_cost_amounts (0999) are the authority (ADR-0016).
   workOrderPlan: { view: allow(WORK_ORDER_MONEY), manage: allow(WORK_ORDER_MONEY) },
   sharedCostSplit: { manage: allow(['Admin', 'Executive', 'Finance']) },
+  // #2670: labour cost rates, classes and the switch. Mirrors save_labour_cost_*/RLS of 1250 (Admin, Finance write; Executive also reads). UX ONLY.
+  labourCost: { view: allow(['Admin', 'Finance', 'Executive']), manage: allow(['Admin', 'Finance']) },
   /**
    * Equipment usage and allocation (#1519, migrations 0447/0460/0471). UX ONLY — transition_equipment_usage,
    * save_equipment_costing and the reads are the authority (ADR-0016); the FE may be stricter, never looser.

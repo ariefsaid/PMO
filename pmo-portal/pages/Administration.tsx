@@ -35,6 +35,7 @@ import SiteReportLists from './admin/SiteReportLists';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
+import LabourCostSettings from './admin/LabourCostSettings';
 import ExpenseAccountMap from './admin/ExpenseAccountMap';
 import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 
@@ -281,6 +282,7 @@ const SelectedAdministrationPanel: React.FC<{
       return (
         <div data-testid="administration-panel-cost-attribution" className="min-w-0">
           <CostAttribution />
+          <div className="mt-6 border-t border-border pt-6"><LabourCostSettings /></div>
         </div>
       );
     case 'projects':

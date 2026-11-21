@@ -34,7 +34,7 @@ function num(v: unknown): number | null {
 interface CostAmountRow {
   source: string; record_id: string; project_id: string | null; work_order_id: string | null; discipline_id: string | null;
   occurred_on: string | null; reference: string | null; currency: string | null; amount: string | null; reason: string;
-  quantity: number | string | null; quantity_unit: string | null; person_id: string | null;
+  quantity: number | string | null; quantity_unit: string | null; person_id: string | null; labour_class_id?: string | null;
 }
 
 /** Every cost record of one project with what it costs. A malformed row is an error, never a plausible figure. */
@@ -62,6 +62,7 @@ export async function listProjectCostAmounts(projectId: string): Promise<CostAmo
       quantity: num(r.quantity),
       quantityUnit: r.quantity_unit,
       personId: r.person_id,
+      ...(r.labour_class_id ? { labourClassId: r.labour_class_id } : {}),
     };
   });
 }

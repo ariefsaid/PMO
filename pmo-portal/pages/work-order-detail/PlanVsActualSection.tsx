@@ -7,6 +7,7 @@ import { planVariance } from '@/src/lib/workOrderPlanVsActual';
 import type { Margin } from '@/src/lib/projectFinances';
 import type { ProjectPlanVsActual } from '@/src/lib/repositories/workOrderFinance';
 import type { CostDiscipline } from '@/src/lib/db/workOrderCosts';
+import { LabourByClass } from './LabourByClass';
 
 interface Props {
   workOrderId: string;
@@ -86,6 +87,7 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
         {figure('wo-page-pva-result', t('col.result', 'After shared cost'), marginText(f.result))}
         {f.otherCurrency.map((o) => figure(`wo-page-pva-other-${o.currency}`, t('otherCurrency', 'Cost in {{currency}}, listed apart', { currency: o.currency }), money(o.amount, o.currency)))}
       </dl>
+      {f.labour && f.labour.length > 0 && <LabourByClass labour={f.labour} currency={cur} testId="wo-page-pva-labour" />}
       {f.disciplines.length > 0 && (
         <div className="mt-4 overflow-x-auto" data-testid="wo-page-pva-disciplines">
           <table className="w-full text-control">
