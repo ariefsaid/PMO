@@ -21,8 +21,13 @@ export function closeoutRemaining(items: ReadonlyArray<Pick<CloseoutItemLike, 'r
   return items.filter((i) => i.required && !i.doneOn).length;
 }
 
-/** Index of the first item not done (the current one), or null when every item is done. */
-export function currentCloseoutIndex(items: ReadonlyArray<Pick<CloseoutItemLike, 'doneOn'>>): number | null {
-  const i = items.findIndex((x) => !x.doneOn);
-  return i === -1 ? null : i;
+/**
+ * Whether an item can be recorded now: not done yet, and (when required) every earlier REQUIRED item is done. An optional
+ * item never waits and never holds the items after it (FR-WCO-011).
+ */
+export function closeoutItemActionable(items: ReadonlyArray<Pick<CloseoutItemLike, 'required' | 'doneOn'>>, index: number): boolean {
+  const item = items[index];
+  if (!item || item.doneOn) return false;
+  if (!item.required) return true;
+  return items.slice(0, index).every((i) => !i.required || Boolean(i.doneOn));
 }

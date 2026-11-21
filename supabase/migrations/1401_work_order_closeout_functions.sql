@@ -105,7 +105,7 @@ end; $$;
 revoke all on function public.attach_closeout_item_document(uuid, uuid) from public, anon;
 grant execute on function public.attach_closeout_item_document(uuid, uuid) to authenticated, service_role;
 
--- ── mark an item done ───────────────────────────────────────────────────────────────────────────────────────────────────
+-- ── mark an item done (a required item waits only on earlier required items) ───────────────────────────────────────────────────────────────────────────────────────────────────
 create or replace function public.complete_closeout_item(p_item uuid, p_done_on date) returns void
   language plpgsql security definer set search_path = public as $$
 declare
@@ -114,8 +114,10 @@ declare
 begin
   if p_item is null then raise exception 'close-out item not found' using errcode = 'P0002'; end if;
   v_i := public.lock_closeout_item(p_item);
-  if exists (select 1 from public.work_order_closeout_items i
-              where i.work_order_id = v_i.work_order_id and i.position < v_i.position and i.done_on is null) then
+  -- Order applies across REQUIRED items only: an optional item never holds the items after it, and an optional item itself
+  -- can be marked done whenever its document is attached.
+  if v_i.required and exists (select 1 from public.work_order_closeout_items i
+              where i.work_order_id = v_i.work_order_id and i.required and i.position < v_i.position and i.done_on is null) then
     raise exception 'complete the earlier close-out items first' using errcode = '55000', detail = 'item-out-of-order';
   end if;
   if v_i.document_id is null then
@@ -125,17 +127,20 @@ begin
     raise exception 'the done date cannot be in the future' using errcode = '22023', detail = 'item-date-invalid';
   end if;
   select max(i.done_on) into v_prev from public.work_order_closeout_items i
-   where i.work_order_id = v_i.work_order_id and i.position < v_i.position;
+   where i.work_order_id = v_i.work_order_id and i.required and v_i.required and i.position < v_i.position;
   if p_done_on < coalesce(v_prev, v_i.started_on) then
     raise exception 'an item cannot be done before the previous one' using errcode = '22023', detail = 'item-date-invalid';
   end if;
   update public.work_order_closeout_items i
      set done_on = p_done_on, done_by = auth.uid(), done_at = now()
    where i.id = v_i.id;
-  update public.work_order_closeout_items i set started_on = p_done_on
-   where i.work_order_id = v_i.work_order_id
-     and i.position = (select min(i2.position) from public.work_order_closeout_items i2
-                        where i2.work_order_id = v_i.work_order_id and i2.position > v_i.position);
+  -- A done required item starts the next required item; an optional item has been current since the work order was issued.
+  if v_i.required then
+    update public.work_order_closeout_items i set started_on = p_done_on
+     where i.work_order_id = v_i.work_order_id
+       and i.position = (select min(i2.position) from public.work_order_closeout_items i2
+                          where i2.work_order_id = v_i.work_order_id and i2.required and i2.position > v_i.position);
+  end if;
   perform public.log_audit('closeout_item.complete', v_i.org_id, auth.uid(), v_i.work_order_id,
     jsonb_build_object('item_id', v_i.id, 'position', v_i.position, 'done_on', p_done_on));
 end; $$;

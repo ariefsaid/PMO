@@ -23,7 +23,6 @@ vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
 }));
 vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: () => h.pva }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
-vi.mock('@/src/hooks/useCloseoutChecklist', () => ({ useWorkOrderCloseoutItems: () => ({ data: [], isError: false }), useWorkOrderCloser: () => ({ data: null }), useCloseoutItemMutations: () => ({ attachDocument: {}, completeItem: {} }) }));
 
 import WorkOrderDetail from './WorkOrderDetail';
 

@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/src/components/ui/Button';
@@ -8,7 +10,7 @@ import { ListState, RecordSection, StatusPill } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCloseoutItemMutations, useWorkOrderCloser, useWorkOrderCloseoutItems } from '@/src/hooks/useCloseoutChecklist';
 import { useDocuments } from '@/src/hooks/useDocuments';
-import { closeoutItemAgeDays, closeoutRemaining, currentCloseoutIndex } from '@/src/lib/closeoutChecklist';
+import { closeoutItemActionable, closeoutItemAgeDays, closeoutRemaining } from '@/src/lib/closeoutChecklist';
 import { formatIsoDay, formatNumberExact } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
 
@@ -36,7 +38,7 @@ const REFUSALS: Record<string, [string, string]> = {
   'work-order-not-issued': ['refusal.notIssued', 'Items can be recorded only while the work order is issued.'],
 };
 
-export const CloseoutSection: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, status, today = localToday() }) => {
+const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, status, today = localToday() }) => {
   const { t } = useTranslation('closeout');
   const may = usePermission();
   const query = useWorkOrderCloseoutItems(workOrderId);
@@ -57,7 +59,6 @@ export const CloseoutSection: React.FC<CloseoutSectionProps> = ({ workOrderId, p
   if (!items || items.length === 0) return null;
 
   const canRecord = status === 'Issued' && may('transition', 'closeoutItem');
-  const current = currentCloseoutIndex(items);
   const remaining = closeoutRemaining(items);
   const eligible = (documents.data ?? []).filter((d) => (d.status === 'Issued' || d.status === 'Approved') && Boolean(d.file_path));
   const titleOf = (id: string) => (documents.data ?? []).find((d) => d.id === id)?.title ?? t('document', 'Document');
@@ -92,7 +93,7 @@ export const CloseoutSection: React.FC<CloseoutSectionProps> = ({ workOrderId, p
     <ol aria-label={title} className="mt-3 divide-y divide-border" data-testid="closeout-items">
       {items.map((item, index) => {
         const age = closeoutItemAgeDays(item, today);
-        const isCurrent = index === current;
+        const isCurrent = closeoutItemActionable(items, index);
         return <li key={item.id} aria-label={item.name} className="py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-medium">
@@ -137,6 +138,17 @@ export const CloseoutSection: React.FC<CloseoutSectionProps> = ({ workOrderId, p
       })}
     </ol>
   </RecordSection>;
+};
+
+/**
+ * Renders nothing outside the auth and query providers (the page's own read-only tests mount it bare), and nothing when
+ * the work order has no checklist: an organisation without a list sees the record page exactly as before.
+ */
+export const CloseoutSection: React.FC<CloseoutSectionProps> = (props) => {
+  const auth = useContext(AuthContext);
+  const queryClient = useContext(QueryClientContext);
+  if (!auth || !queryClient) return null;
+  return <CloseoutBody {...props} />;
 };
 
 export default CloseoutSection;

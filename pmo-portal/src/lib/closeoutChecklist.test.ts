@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { closeoutItemAgeDays, closeoutRemaining, currentCloseoutIndex } from './closeoutChecklist';
+import { closeoutItemActionable, closeoutItemAgeDays, closeoutRemaining } from './closeoutChecklist';
 
 describe('closeout checklist derivations', () => {
   it('AC-WCO-008 an open first item counts from the issue date to today', () => {
@@ -22,8 +22,14 @@ describe('closeout checklist derivations', () => {
     expect(closeoutRemaining(items)).toBe(2);
     expect(closeoutRemaining([])).toBe(0);
   });
-  it('the current item is the first one not done', () => {
-    expect(currentCloseoutIndex([{ doneOn: '2026-03-02' }, { doneOn: null }, { doneOn: null }])).toBe(1);
-    expect(currentCloseoutIndex([{ doneOn: '2026-03-02' }])).toBeNull();
+  it('AC-WCO-004 a required item waits only on earlier required items; an optional item never waits', () => {
+    const items = [
+      { required: false, doneOn: null },
+      { required: true, doneOn: null },
+      { required: true, doneOn: null },
+      { required: false, doneOn: null },
+    ];
+    expect(items.map((_, i) => closeoutItemActionable(items, i))).toEqual([true, true, false, true]);
+    expect(closeoutItemActionable([{ required: true, doneOn: '2026-03-02' }], 0)).toBe(false);
   });
 });

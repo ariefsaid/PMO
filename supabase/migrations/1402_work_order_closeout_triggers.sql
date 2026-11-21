@@ -7,8 +7,7 @@ create or replace function public.instantiate_work_order_closeout_items() return
 begin
   insert into public.work_order_closeout_items (org_id, work_order_id, project_id, position, name, required, started_on)
   select new.org_id, new.id, new.project_id, t.position, t.name, t.required,
-         case when t.position = (select min(t2.position) from public.closeout_checklist_templates t2 where t2.org_id = new.org_id)
-              then public.native_org_today(new.org_id) end
+         public.native_org_today(new.org_id)   -- every item is current from the issue day; a done required item restarts the next required one
     from public.closeout_checklist_templates t
    where t.org_id = new.org_id;
   return new;

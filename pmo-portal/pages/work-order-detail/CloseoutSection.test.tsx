@@ -3,6 +3,8 @@ import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { AppError } from '@/src/lib/appError';
 import type { WorkOrderCloseoutItem } from '@/src/lib/db/closeoutChecklist';
 
@@ -44,7 +46,7 @@ function items(): WorkOrderCloseoutItem[] {
 }
 
 function renderIt(props: Partial<React.ComponentProps<typeof CloseoutSection>> = {}) {
-  render(<MemoryRouter><CloseoutSection workOrderId="w1" projectId="p1" status="Issued" today="2026-03-11" {...props} /></MemoryRouter>);
+  render(<QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{} as AuthContextValue}><MemoryRouter><CloseoutSection workOrderId="w1" projectId="p1" status="Issued" today="2026-03-11" {...props} /></MemoryRouter></AuthContext.Provider></QueryClientProvider>);
   return userEvent.setup();
 }
 
@@ -70,7 +72,7 @@ describe('CloseoutSection', () => {
     expect(within(rows[1]).getByText('Current')).toBeInTheDocument();
     expect(within(rows[1]).getByText('7 days')).toBeInTheDocument();
     expect(within(rows[2]).getByText('optional')).toBeInTheDocument();
-    expect(within(rows[2]).getByText('Waiting')).toBeInTheDocument();
+    expect(within(rows[2]).getByText('Current')).toBeInTheDocument(); // an optional item never waits
     expect(screen.getByTestId('closeout-summary')).toHaveTextContent('Required items not done: 1');
   });
 
@@ -121,6 +123,11 @@ describe('CloseoutSection', () => {
     renderIt({ status: 'Closed' });
     expect(screen.queryByRole('button', { name: /Mark/ })).toBeNull();
     expect(screen.queryByRole('combobox')).toBeNull();
+  });
+
+  it('NFR-WCO-001 outside the auth and query providers it renders nothing', () => {
+    render(<MemoryRouter><CloseoutSection workOrderId="w1" projectId="p1" status="Issued" /></MemoryRouter>);
+    expect(screen.queryByText('Close-out checklist')).toBeNull();
   });
 
   it('NFR-WCO-001 a work order with no checklist shows no section at all', () => {
