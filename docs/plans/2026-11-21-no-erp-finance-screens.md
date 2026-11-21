@@ -41,4 +41,4 @@ changed files, touched vitest files. Test first.
 | AC-NEF-008 | i18n parity test + screenshots |
 
 ## Build notes
-E2E is two files (`AC-NEF-001-statements-leads-to-pack`, `AC-NEF-010-no-erp-screens` holding AC-NEF-010..022 as one test each). `FinanceHub` takes an optional `noAccounting` prop from the new `pages/finance/FinanceHubRoute.tsx` (App lazy import), so existing FinanceHub tests are untouched.
+E2E is two serial-lane files under `e2e/serial/` (the seed org has an active accounting binding; `noErpOrg.ts` disconnects it for the run, asserts the no-ERP precondition, restores it) (`AC-NEF-001-statements-leads-to-pack`, `AC-NEF-010-no-erp-screens` holding AC-NEF-010..022 as one test each). `FinanceHub` takes an optional `noAccounting` prop from the new `pages/finance/FinanceHubRoute.tsx` (App lazy import), so existing FinanceHub tests are untouched.
