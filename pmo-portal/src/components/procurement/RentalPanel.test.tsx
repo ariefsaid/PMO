@@ -15,11 +15,11 @@ vi.mock('@/src/hooks/usePurchaseTypes', () => ({
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.mayCreate }));
 
-import RentalPanel from './RentalPanel';
+import RentalPanel, { type RentalPanelProps } from './RentalPanel';
 
-const props = { procurementId: 'p1', title: 'Crane hire', status: 'Approved', purchaseTypeId: 'rent', rentalFrom: '2026-01-01', rentalTo: '2026-01-31', extendsId: null,
+const props: RentalPanelProps = { procurementId: 'p1', title: 'Crane hire', status: 'Approved', purchaseTypeId: 'rent', rentalFrom: '2026-01-01', rentalTo: '2026-01-31', extendsId: null,
   lines: [{ id: 'l1', name: 'Crane', description: null, quantity: 1, rate: 1000 }] };
-const view = (over: Partial<typeof props> = {}) => render(<MemoryRouter><ToastProvider><RentalPanel {...props} {...over} /></ToastProvider></MemoryRouter>);
+const view = (over: Partial<RentalPanelProps> = {}) => render(<MemoryRouter><ToastProvider><RentalPanel {...props} {...over} /></ToastProvider></MemoryRouter>);
 
 describe('rental panel and the guided extension (#2697)', () => {
   beforeEach(() => { h.mayCreate = true; h.extend.mockReset(); h.links = { extends: null, extensions: [] }; });

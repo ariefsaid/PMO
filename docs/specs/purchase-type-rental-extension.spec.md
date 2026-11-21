@@ -78,6 +78,14 @@ An existing organisation has no `org_purchase_type_settings` row and no `purchas
 | AC-PTR-016 | Given an Admin on the purchase types screen, when they rename, add, flag rental, retire or reorder, then the list updates; a non-Admin does not see the screen. English and Bahasa Indonesia strings exist. | Unit |
 | AC-PTR-017 | Given a requester on a phone, when they raise a rental purchase and extend it, then the new purchase is a separate Draft linked both ways. | E2E (one journey) |
 
+## Mutation checks (to be run by the Director on the integration branch; written, not run by the builder)
+Each breaks one rule in the database, runs the named pgTAP file, and must turn red; restoring the rule must turn it green again.
+| ID | Break | File that must go red |
+|---|---|---|
+| AC-PTR-003 | Remove the `auth_role() is distinct from 'Admin'` refusal from `set_purchase_types_enabled`, `upsert_purchase_type` and `set_purchase_type_active` | `supabase/tests/purchase_types.test.sql` (the two non-Admin refusals) |
+| AC-PTR-004 | In `guard_procurement_purchase_type`, replace `coalesce(v_type.is_rental, false)` with `coalesce(lower(v_type.name) = 'rental', false)` | `supabase/tests/procurement_purchase_type.test.sql` (the two AC-PTR-004 cases and the period cases) |
+| AC-PTR-009 | Delete the `if new.rental_from <= v_parent.rental_to` refusal in `guard_procurement_purchase_type` | `supabase/tests/rental_extension.test.sql` (the PTYPE_EXT_ORDER case) |
+
 ## Errors
 | Condition | Result |
 |---|---|

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
@@ -58,7 +58,7 @@ describe('purchase type settings (#2697)', () => {
     renderPage();
     const row = screen.getAllByTestId('purchase-type-row')[0];
     await userEvent.click(row.querySelector('input[type="checkbox"]') as HTMLElement);
-    await userEvent.click(screen.getAllByRole('button', { name: 'Save' })[0]);
+    await userEvent.click(within(row).getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Purchases use this type. Retire it and add a new one instead.')).toBeInTheDocument();
   });
 

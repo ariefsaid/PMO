@@ -8,12 +8,19 @@ import { usePermission } from '@/src/auth/usePermission';
 import { usePurchaseTypeMutations, usePurchaseTypes, usePurchaseTypesEnabled } from '@/src/hooks/usePurchaseTypes';
 import { purchaseTypeRefusal, type PurchaseType } from '@/src/lib/repositories/purchaseTypes';
 
+const REFUSAL_DEFAULTS: Record<string, string> = {
+  ADMIN_ONLY: 'Only an Admin can change purchase types.', OFF: 'Purchase types are not turned on.', UNAVAILABLE: 'That type is not available.',
+  PERIOD_REQUIRED: 'A rental purchase needs a rental period.', PERIOD_NOT_ALLOWED: 'Only a rental purchase has a rental period.',
+  IN_USE: 'Purchases use this type. Retire it and add a new one instead.', INVALID: 'Check the name: 1 to 60 characters.',
+  FIXED: 'The type and rental period are set when the purchase is created.',
+};
+
 /** The text of a refusal in the user's language; falls back to the server's own message for a code we have no string for. */
 const useRefusalText = () => {
   const { t } = useTranslation('purchaseTypes');
   return (error: unknown): string => {
     const r = purchaseTypeRefusal(error);
-    return r ? t(`refusal.${r.key}`, r.message) : (error instanceof Error ? error.message : String(error));
+    return r ? t(`refusal.${r.key}`, REFUSAL_DEFAULTS[r.key] ?? r.message) : (error instanceof Error ? error.message : String(error));
   };
 };
 
