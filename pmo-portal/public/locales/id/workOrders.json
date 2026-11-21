@@ -77,5 +77,31 @@
     "empty": "Tidak ada tugas terbuka yang menyebut $t(common:terms.clientWorkOrder) ini.",
     "unassigned": "Belum ditugaskan",
     "noDue": "Tanpa tenggat"
+  },
+  "lists": {
+    "areaTitle": "Wilayah $t(common:terms.clientWorkOrder)",
+    "groupTitle": "Grup $t(common:terms.clientWorkOrder)",
+    "add": "Tambah",
+    "addTitle": "Tambah entri",
+    "editTitle": "Ubah entri",
+    "save": "Simpan",
+    "saved": "Disimpan",
+    "archived": "Diarsipkan",
+    "code": "Kode",
+    "name": "Nama",
+    "actions": "Tindakan",
+    "edit": "Ubah",
+    "editLabel": "Ubah {{name}}",
+    "archive": "Arsipkan",
+    "archiveLabel": "Arsipkan {{name}}",
+    "confirmArchiveTitle": "Arsipkan {{name}}?",
+    "confirmArchiveDescription": "Entri ini keluar dari pilihan. $t(common:terms.clientWorkOrder) yang sudah menyebutnya tetap memakainya.",
+    "confirmArchive": "Arsipkan",
+    "empty": "Belum ada",
+    "loadError": "Daftar tidak dapat dimuat",
+    "duplicateCode": "Entri aktif lain sudah memakai kode ini.",
+    "adminOnly": "Hanya Admin yang dapat mengubah daftar ini.",
+    "tooLong": "Gunakan paling banyak {{max}} karakter.",
+    "hint": "Daftar milik organisasi Anda sendiri. $t(common:terms.clientWorkOrder) dapat menyebutnya; daftar dapat dikelompokkan menurutnya."
   }
 }

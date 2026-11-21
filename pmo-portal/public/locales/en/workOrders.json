@@ -77,5 +77,31 @@
     "empty": "No open tasks name this work order.",
     "unassigned": "Unassigned",
     "noDue": "No due date"
+  },
+  "lists": {
+    "areaTitle": "Work order areas",
+    "groupTitle": "Work order groups",
+    "add": "Add",
+    "addTitle": "Add an entry",
+    "editTitle": "Edit entry",
+    "save": "Save",
+    "saved": "Saved",
+    "archived": "Archived",
+    "code": "Code",
+    "name": "Name",
+    "actions": "Actions",
+    "edit": "Edit",
+    "editLabel": "Edit {{name}}",
+    "archive": "Archive",
+    "archiveLabel": "Archive {{name}}",
+    "confirmArchiveTitle": "Archive {{name}}?",
+    "confirmArchiveDescription": "It leaves the pickers. Work orders that already name it keep it.",
+    "confirmArchive": "Archive",
+    "empty": "None yet",
+    "loadError": "Couldn't load the list",
+    "duplicateCode": "Another live entry already uses this code.",
+    "adminOnly": "Only an Admin can change this list.",
+    "tooLong": "Use {{max}} characters or fewer.",
+    "hint": "Your organisation’s own list. Work orders can name one; the work-order list can be grouped by it."
   }
 }
