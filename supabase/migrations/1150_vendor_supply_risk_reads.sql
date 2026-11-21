@@ -1,4 +1,4 @@
--- 1066_vendor_supply_risk_reads.sql — #2583 slice 3: the supplier's payables-age SUGGESTION and EXPOSURE (read-only).
+-- 1150_vendor_supply_risk_reads.sql — #2583 slice 3: the supplier's payables-age SUGGESTION and EXPOSURE (read-only).
 --
 --   §1 vendor_supply_risk_suggestion(company)  SECURITY INVOKER (RLS applies; an other-org company reads nothing).
 --        PMO basis  = the shipped payables figure at CASE level, mirroring src/lib/procurement/procurementMoney.ts
@@ -20,7 +20,7 @@
 --      least one open order names it (purchase_orders.work_order_id, 0951). Orders naming no work order come back as
 --      kind 'project' rows (FR-VSR-015), listed only, never warned individually.
 --
--- Rollback: supabase/migrations/rollback/1066_vendor_supply_risk_reads_down.sql.
+-- Rollback: supabase/migrations/rollback/1150_vendor_supply_risk_reads_down.sql.
 
 create or replace function public.vendor_supply_risk_suggestion(p_company_id uuid) returns jsonb
   language plpgsql stable security invoker set search_path = public as $$
