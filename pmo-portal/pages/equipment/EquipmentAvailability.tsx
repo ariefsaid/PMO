@@ -10,12 +10,14 @@ import { useEquipmentAssetPages } from '@/src/hooks/useEquipment';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
 import {
-  useAttachProof, useDowntimeFlags, useEquipmentMetrics, useEquipmentWorkingHours, useEquipmentTargets, useSetEquipmentTargets, useSetStatusBulk, useStatusDays, useLatestStatusDays, useEquipmentProofs,
+  useAttachProof, useDowntimeFlags, useEquipmentMetrics, useEquipmentWorkingHours, useSetStatusBulk, useStatusDays, useLatestStatusDays, useEquipmentProofs,
 } from '@/src/hooks/useEquipmentAvailability';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { isDownStatus, type EquipmentStatus } from '@/src/lib/equipmentMetrics';
 import { monthStart } from './equipmentWeek';
 import RentalInvoiceCheck from './RentalInvoiceCheck';
+import { EquipmentTargetSettings, EquipmentTargetsProvider } from './EquipmentTargets';
+import { useEquipmentTargetValues } from '@/src/hooks/useEquipmentTargets';
 
 const STATUSES: EquipmentStatus[] = ['ready', 'standby', 'broken', 'at_vendor', 'waiting_parts'];
 
@@ -41,7 +43,7 @@ function ProofUpload({ code, onFile }: { code: string; onFile: (file: File | und
 
 /** Equipment → Availability (#2526): set today's status for every machine (phone-first), see availability and utilisation,
  *  with organisation-scoped terms and working hours. UX only; the RPCs enforce. */
-const EquipmentAvailabilityPage: React.FC = () => {
+const EquipmentAvailabilityScreen: React.FC = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const may = usePermission();
@@ -116,17 +118,10 @@ const EquipmentAvailabilityPage: React.FC = () => {
   const [metricAssets, setMetricAssets] = useState<string[]>([]);
   const [hours, setHours] = useState('');
   const workingHours = useEquipmentWorkingHours();
-  const targetsQuery = useEquipmentTargets();
-  const saveTargets = useSetEquipmentTargets();
-  const escalationLimit = targetsQuery.data?.escalation_down_days ?? 2;
-  const availabilityTarget = targetsQuery.data?.availability_target_pct ?? null;
-  const utilisationTarget = targetsQuery.data?.utilisation_target_pct ?? null;
-  const [chosenAvTarget, setAvTarget] = useState<string | null>(null);
-  const [chosenUtTarget, setUtTarget] = useState<string | null>(null);
-  const [chosenLimit, setLimit] = useState<string | null>(null);
-  const avTargetInput = chosenAvTarget ?? (availabilityTarget != null ? String(availabilityTarget) : '');
-  const utTargetInput = chosenUtTarget ?? (utilisationTarget != null ? String(utilisationTarget) : '');
-  const limitInput = chosenLimit ?? String(escalationLimit);
+  const targets = useEquipmentTargetValues();
+  const escalationLimit = targets.escalation_down_days;
+  const availabilityTarget = targets.availability_target_pct;
+  const utilisationTarget = targets.utilisation_target_pct;
   const belowTarget = (value: string | number | null | undefined, target: number | null) => target != null && value != null && Number(value) < Number(target);
   const metrics = useEquipmentMetrics(metricAssets.length ? rows.filter((a) => metricAssets.includes(a.id)).map((a) => a.id) : rows.map((a) => a.id), metricFrom, metricTo, grain, canMetrics && rows.length > 0);
   const byAsset = new Map(rows.map((a) => [a.id, a]));
@@ -213,12 +208,7 @@ const EquipmentAvailabilityPage: React.FC = () => {
             <TextField label={t('equipment:availability.workingHours', 'Working hours per day')} inputMode="decimal" value={hours} onChange={setHours} />
             <Button variant="outline" disabled={!hours || workingHours.isPending} onClick={() => { void workingHours.mutateAsync(hours).then(() => { setHours(''); toast(t('equipment:availability.hoursSaved', 'Working hours saved'), undefined, 'success'); }).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.saveHours', 'Save working hours')}</Button>
           </div>}
-          {realRole === 'Admin' && realRole === effectiveRole && <div className="mb-3 flex flex-wrap items-end gap-2">
-            <TextField label={t('equipment:availability.availabilityTarget', 'Availability target (%)')} inputMode="decimal" value={avTargetInput} onChange={setAvTarget} />
-            <TextField label={t('equipment:availability.utilisationTarget', 'Use target (%)')} inputMode="decimal" value={utTargetInput} onChange={setUtTarget} />
-            <TextField label={t('equipment:availability.escalationLimit', 'Escalate after more than (days down)')} inputMode="numeric" value={limitInput} onChange={setLimit} />
-            <Button variant="outline" disabled={saveTargets.isPending || !limitInput} onClick={() => { void saveTargets.mutateAsync({ availability: avTargetInput.trim() || null, utilisation: utTargetInput.trim() || null, escalationDays: limitInput.trim() }).then(() => { setAvTarget(null); setUtTarget(null); setLimit(null); toast(t('equipment:availability.targetsSaved', 'Targets saved'), undefined, 'success'); }).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.saveTargets', 'Save targets')}</Button>
-          </div>}
+          {realRole === 'Admin' && realRole === effectiveRole && <EquipmentTargetSettings onProblem={setProblem} />}
           {metrics.isError && <p role="alert">{t('equipment:availability.metricsError', 'Could not load metrics for this period.')}</p>}
           <table className="w-full text-sm">
             <thead><tr className="text-left">
@@ -254,4 +244,5 @@ const EquipmentAvailabilityPage: React.FC = () => {
     </ListPage>
   );
 };
+const EquipmentAvailabilityPage: React.FC = () => <EquipmentTargetsProvider><EquipmentAvailabilityScreen /></EquipmentTargetsProvider>;
 export default EquipmentAvailabilityPage;

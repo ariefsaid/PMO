@@ -7,6 +7,8 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 
 const h = vi.hoisted(() => ({
   role: 'Admin' as string,
@@ -33,15 +35,20 @@ vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useEquipmentOwnership: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useChangeRentalRate: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useEquipmentWorkingHours: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useEquipmentTargets: () => ({ data: h.targets }),
-  useSetEquipmentTargets: () => ({ mutateAsync: h.save, isPending: false }),
+}));
+vi.mock('@/src/lib/repositories', () => ({
+  repositories: { equipmentAvailability: { getTargets: () => Promise.resolve(h.targets), setTargets: (v: unknown) => h.save(v) } },
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
 vi.mock('@/src/auth/policy', async (orig) => ({ ...(await orig<typeof import('@/src/auth/policy')>()), can: () => true }));
 
 import EquipmentAvailabilityPage from './EquipmentAvailability';
 
-const renderPage = () => render(<MemoryRouter><ToastProvider><EquipmentAvailabilityPage /></ToastProvider></MemoryRouter>);
+const auth = { currentUser: { org_id: 'org-1' } } as unknown as AuthContextValue;
+const renderPage = () => render(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <AuthContext.Provider value={auth}><MemoryRouter><ToastProvider><EquipmentAvailabilityPage /></ToastProvider></MemoryRouter></AuthContext.Provider>
+  </QueryClientProvider>);
 
 beforeEach(() => {
   h.role = 'Admin';
@@ -50,11 +57,11 @@ beforeEach(() => {
 });
 
 describe('equipment target settings (#2701)', () => {
-  it('AC-ETS-007 marks only the figure below a set target and shows the target', () => {
+  it('AC-ETS-007 marks only the figure below a set target and shows the target', async () => {
     h.targets = { availability_target_pct: 90, utilisation_target_pct: 60, escalation_down_days: 2 };
     renderPage();
+    expect(await screen.findByText('(target 90%)')).toBeInTheDocument();
     expect(screen.getAllByText('Below target')).toHaveLength(1);
-    expect(screen.getByText('(target 90%)')).toBeInTheDocument();
     expect(screen.getByText('(target 60%)')).toBeInTheDocument();
   });
 
@@ -64,15 +71,15 @@ describe('equipment target settings (#2701)', () => {
     expect(screen.queryByText(/\(target/)).not.toBeInTheDocument();
   });
 
-  it('AC-ETS-008 the flag label names the organisation limit', () => {
+  it('AC-ETS-008 the flag label names the organisation limit', async () => {
     h.targets = { availability_target_pct: null, utilisation_target_pct: null, escalation_down_days: 5 };
     renderPage();
-    expect(screen.getByText('Down more than 5 days')).toBeInTheDocument();
+    expect(await screen.findByText('Down more than 5 days')).toBeInTheDocument();
   });
 
   it('AC-ETS-009 an Admin saves the typed settings; empty targets are sent as null', async () => {
     renderPage();
-    await userEvent.type(screen.getByLabelText('Availability target (%)'), '92.5');
+    await userEvent.type(await screen.findByLabelText('Availability target (%)'), '92.5');
     await userEvent.clear(screen.getByLabelText('Escalate after more than (days down)'));
     await userEvent.type(screen.getByLabelText('Escalate after more than (days down)'), '4');
     await userEvent.click(screen.getByRole('button', { name: 'Save targets' }));

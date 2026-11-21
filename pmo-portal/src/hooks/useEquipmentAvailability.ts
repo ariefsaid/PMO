@@ -75,15 +75,6 @@ export function useEquipmentWorkingHours() {
   return useMutation({ mutationFn: repositories.equipmentAvailability.setWorkingHours, onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }) });
 }
 
-export function useEquipmentTargets() {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [KEY, orgId, 'targets'], queryFn: () => repositories.equipmentAvailability.getTargets(), enabled: Boolean(orgId) });
-}
-export function useSetEquipmentTargets() {
-  const qc = useQueryClient();
-  return useMutation({ mutationFn: repositories.equipmentAvailability.setTargets, onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }) });
-}
-
 export function useRentalCheck() {
   return useMutation({ mutationFn: (v: { assetId: string; from: string; to: string; invoice?: string; reason?: string }) =>
     repositories.equipmentAvailability.rentalCheck(v.assetId, v.from, v.to, v.invoice || null, v.reason || null) });

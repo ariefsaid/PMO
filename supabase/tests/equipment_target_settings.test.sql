@@ -81,6 +81,9 @@ select is(pg_temp.targets(), '-/-/2', 'AC-ETS-005 refused input stored nothing')
 select lives_ok($$ select set_equipment_targets(90.5, 60, 5) $$, 'AC-ETS-003 an Admin saves the settings');
 select is(pg_temp.targets(), '90.5/60.0/5', 'AC-ETS-003 the saved values read back');
 reset role;
+-- the notice never goes to the acting user (notify_workflow_user), and request.jwt.claims outlives `reset role`: the job runs
+-- as Finance (not a recipient), as the existing 1033 test does, so the Admin and the Project Manager are both notified
+select pg_temp.act_as('27010000-0000-0000-0000-0000000000a2');
 select is((select count(*)::int from equipment_downtime_escalations('27010000-0000-0000-0000-00000000000a', '2026-09-23')), 0,
   'AC-ETS-003 with limit 5 the 3-day downtime is not flagged');
 select is(run_equipment_downtime_escalations('2026-09-23'), 0, 'AC-ETS-003 with limit 5 the job sends nothing for 3 days');
@@ -88,8 +91,8 @@ insert into equipment_status_days (org_id, asset_id, status_date, status)
 select '27010000-0000-0000-0000-00000000000a', '27010000-0000-0000-0000-0000000000d1', d::date, 'broken'
   from generate_series('2026-09-24'::date, '2026-09-26'::date, interval '1 day') d;
 select is(run_equipment_downtime_escalations('2026-09-26'), 1, 'AC-ETS-003 at 6 down days the job escalates once');
-select ok((select count(*) from notifications where title = 'Equipment down more than 5 days' and org_id = '27010000-0000-0000-0000-00000000000a') >= 1,
-  'AC-ETS-003 the notice title names the organisation''s limit');
+select is((select count(*)::int from notifications where title = 'Equipment down more than 5 days' and org_id = '27010000-0000-0000-0000-00000000000a'), 2,
+  'AC-ETS-003 the notice title names the organisation''s limit (Admin and Project Manager)');
 select is((select count(*)::int from notifications where title = 'Equipment down more than 2 days' and org_id = '27010000-0000-0000-0000-00000000000a'), 0,
   'AC-ETS-003 no notice carries the old constant');
 
