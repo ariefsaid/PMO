@@ -6,6 +6,8 @@ import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
   tz: 'Asia/Jakarta',
+  sections: [] as Array<{ id: string; code: string; name: string }>,
+  sectionPlans: [] as Array<{ itemId: string; sectionPlanQty: number | null; sectionPriorQty: number | null }>,
   warehouses: [{ id: 'wh1', code: 'S1', name: 'Site one', kind: 'site', archived_at: null, project_id: 'p1' }] as unknown[],
   warehouseQuery: { isPending: false, isError: false, refetch: vi.fn() },
   saveDraft: { mutateAsync: vi.fn().mockResolvedValue('r1'), isPending: false },
@@ -18,6 +20,10 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
   }),
   useMaterialRequestMutations: () => ({ saveDraft: h.saveDraft, submit: h.submit }),
   useLinePlans: () => ({ data: [{ itemId: 'i1', planQty: 10, priorQty: 4 }], isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useWorkOrderSectionMaterials', () => ({
+  useLiveSections: () => ({ data: h.sections, isPending: false, isError: false }),
+  useSectionLinePlans: () => ({ data: h.sectionPlans, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Site Alpha', short_name: null }] }) }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'w1', title: 'Slab', wo_number: 'WO-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() }) }));
@@ -35,6 +41,49 @@ const pick = async (label: RegExp, option: string) => {
   await userEvent.click(screen.getByRole('combobox', { name: label }));
   await userEvent.click(await screen.findByRole('option', { name: option }));
 };
+
+describe('raise a material request on a section (#2576)', () => {
+  afterEach(() => { h.sections = []; h.sectionPlans = []; vi.clearAllMocks(); });
+
+  it('FR-WOS-009 offers no section picker for a work order with none', async () => {
+    render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+    await pick(/^project/i, 'Site Alpha');
+    await pick(/^work order/i, 'WO-1 · Slab');
+    expect(screen.queryByLabelText('Section')).not.toBeInTheDocument();
+  });
+
+  it('FR-WOS-015 a line within the work order\'s plan but over its section\'s allocation asks for a reason, and the header carries the section', async () => {
+    h.sections = [{ id: 's1', code: 'A', name: 'North' }];
+    h.sectionPlans = [{ itemId: 'i1', sectionPlanQty: 6, sectionPriorQty: 4 }];
+    render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+    await pick(/^project/i, 'Site Alpha');
+    await pick(/^work order/i, 'WO-1 · Slab');
+    await userEvent.selectOptions(screen.getByLabelText('Section'), 's1');
+    await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
+    await userEvent.type(screen.getByLabelText(/^quantity/i), '3');
+    // work order: plan 10, prior 4, new total 7 (within); section: plan 6, prior 4, new total 7 (over)
+    expect(screen.getByTestId('mrq-plan')).toHaveTextContent('Plan 10 · already requested 4 · new total 7');
+    expect(screen.getByTestId('mrq-section-plan')).toHaveTextContent('Section plan 6 · already requested 4');
+    await userEvent.click(screen.getByRole('button', { name: 'Send for approval' }));
+    expect(await screen.findByText(/Give a reason/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Why do you need more/), 'Extra run');
+    await userEvent.click(screen.getByRole('button', { name: 'Send for approval' }));
+    expect(h.saveDraft.mutateAsync.mock.calls[0][0].header.sectionId).toBe('s1');
+  });
+
+  it('a section with no allocation for the item is checked against the work order only', async () => {
+    h.sections = [{ id: 's1', code: 'A', name: 'North' }];
+    h.sectionPlans = [{ itemId: 'i1', sectionPlanQty: null, sectionPriorQty: 0 }];
+    render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
+    await pick(/^project/i, 'Site Alpha');
+    await pick(/^work order/i, 'WO-1 · Slab');
+    await userEvent.selectOptions(screen.getByLabelText('Section'), 's1');
+    await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
+    await userEvent.type(screen.getByLabelText(/^quantity/i), '3');
+    expect(screen.queryByTestId('mrq-section-plan')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Why do you need more/)).not.toBeInTheDocument();
+  });
+});
 
 describe('raise a material request', () => {
   it('AC-MRQ-001 an over-plan line asks for a reason and cannot be sent without one', async () => {

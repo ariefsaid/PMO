@@ -255,6 +255,10 @@ from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
 insert into public.project_shared_cost_splits (org_id, project_id, work_order_id, percent)
 select w.org_id, w.project_id, w.id, 100
 from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+-- #2576: a section on the isolation work order (its guard trigger writes the first readiness event, so both tables hold an A row).
+insert into public.work_order_sections (id, org_id, project_id, work_order_id, code, name)
+select 'a6120000-0000-4000-8000-0000000000d7', w.org_id, w.project_id, w.id, 'ISO-1', 'iso section'
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
 -- Give the new evidence table an A row so the cross-organization probes exercise it.
 insert into storage.objects (id, bucket_id, name)
 select 'a6120000-0000-4000-8000-000000000f92', 'incident-files',

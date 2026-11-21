@@ -1045,6 +1045,13 @@ manager accepts or rejects it, with the reason recorded.
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
 
+## Work-order sections (#2576)
+**Section** — an optional child of one work order: a place or scope with a code (unique per work order, reserved for its life), a name, an optional note and foreman, a held readiness and a sort order. It carries no value, invoice, acceptance or status of its own, and is neither a discipline (the organisation-wide cost list) nor a work-order line (a contract quantity). The organisation's word for it is the shared term `terms.section` ("Section" / "Bagian"); no screen spells it. Not the record page's layout regions, which are *panels*.
+**Unsectioned remainder** — the records of a work order that name no section; shown as "Not in a section". A work order with no section has none and reads exactly as before.
+**Roll-up invariant** — for every work order and every measure, the sum over its sections plus the unsectioned remainder equals the work-order total exactly (exact decimals, no rounding in between). It holds by construction: every record keeps its work order, and the roll-up is a group by section over the same records.
+**Section readiness** — one held value per section (`not ready`, `ready`, `blocked`) with a note, who set it and when, each change kept in history. The work order shows counts over its live sections and "all ready"; readiness gates no transition, approval or posting.
+**Section allocation** — a planned material quantity for one stock item on one section, taken from the work order's planned quantity for that item (never a second stored plan); the allocations of an item never exceed the work order's plan (#2576).
+
 ### Subcontractor progress certificate (#2584)
 
 **Subcontractor progress certificate** — a month's measured work of one subcontractor on one subcontract purchase order and its work order, priced at the subcontractor's agreed rates, less backcharges, approved by a different person and then turned into one vendor bill. It is a calculation and approval record: it never posts or pays.

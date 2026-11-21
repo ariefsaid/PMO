@@ -704,6 +704,45 @@ it('AC-WPVA-001/015 work-order plan figures: four money roles; the shared-cost s
   expect(can('manage', 'sharedCostSplit', { realRole: 'Project Manager' })).toBe(false);
 });
 
+describe('can() — work-order sections (#2576)', () => {
+  const open = (extra = {}) => ({ record: { status: 'Issued', ...extra } });
+  it('AC-WOS-016 structure and plan: the four plan-writing roles only; an Engineer or a null role never', () => {
+    for (const role of ['Admin', 'Executive', 'Finance', 'Project Manager'] as const) {
+      for (const action of ['create', 'edit', 'archive', 'set_plan'] as const) {
+        expect(can(action, 'workOrderSection', { realRole: role, ...open() })).toBe(true);
+      }
+    }
+    for (const action of ['create', 'edit', 'archive', 'set_plan', 'delete', 'set_readiness'] as const) {
+      expect(can(action, 'workOrderSection', { realRole: 'Engineer', ...open() })).toBe(false);
+      expect(can(action, 'workOrderSection', { realRole: null, ...open() })).toBe(false);
+    }
+    expect(allowedRoles('view', 'workOrderSection')).toEqual(ALL_ROLES);
+  });
+  it('AC-WOS-007 delete is Admin only', () => {
+    expect(can('delete', 'workOrderSection', { realRole: 'Admin', ...open() })).toBe(true);
+    expect(can('delete', 'workOrderSection', { realRole: 'Project Manager', ...open() })).toBe(false);
+  });
+  it('AC-WOS-015 the foreman may set readiness on their own section only', () => {
+    const asForeman = (foreman: string) => ({ realRole: 'Engineer' as const, currentUserId: 'u1', ...open({ foreman_id: foreman }) });
+    expect(can('set_readiness', 'workOrderSection', asForeman('u1'))).toBe(true);
+    expect(can('set_readiness', 'workOrderSection', asForeman('u2'))).toBe(false);
+    expect(can('edit', 'workOrderSection', asForeman('u1'))).toBe(false);
+    expect(can('set_plan', 'workOrderSection', asForeman('u1'))).toBe(false);
+  });
+  it('AC-WOS-005 a cancelled work order freezes everything; a closed one allows readiness and archive only', () => {
+    const cancelled = { realRole: 'Project Manager' as const, ...open({ status: 'Cancelled' }) };
+    const closed = { realRole: 'Project Manager' as const, ...open({ status: 'Closed' }) };
+    for (const action of ['create', 'edit', 'archive', 'set_plan', 'set_readiness'] as const) expect(can(action, 'workOrderSection', cancelled)).toBe(false);
+    expect(can('create', 'workOrderSection', closed)).toBe(false);
+    expect(can('edit', 'workOrderSection', closed)).toBe(false);
+    expect(can('archive', 'workOrderSection', closed)).toBe(true);
+    expect(can('set_readiness', 'workOrderSection', closed)).toBe(true);
+  });
+  it('view-as is view-only: no write affordance', () => {
+    expect(can('edit', 'workOrderSection', { realRole: 'Admin', record: { status: 'Issued', viewOnly: true } })).toBe(false);
+  });
+});
+
 describe('can() — JISDOR FX maintenance authority', () => {
   it('AC-FX-009/010 Finance and Admin may view/upload; only Admin may manually create/edit', () => {
     expect(allowedRoles('view', 'fxRate')).toEqual(['Admin', 'Finance']);

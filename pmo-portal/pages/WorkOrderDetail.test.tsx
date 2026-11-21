@@ -25,6 +25,8 @@ vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual:
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
 // #2578: the quantity-changes section has its own test (QuantityChangesSection.test.tsx); this file pins the existing sections.
 vi.mock('./work-order-detail/QuantityChangesSection', () => ({ QuantityChangesSection: () => null }));
+// The sections block (#2576) has its own tests (SectionsSection.test.tsx); this page test only places it.
+vi.mock('./work-order-detail/SectionsSection', () => ({ SectionsSection: (p: { workOrder: { id: string } }) => <div data-testid="sections-stub">{p.workOrder.id}</div> }));
 
 import WorkOrderDetail from './WorkOrderDetail';
 
@@ -58,6 +60,10 @@ beforeEach(async () => {
 });
 
 describe('WorkOrderDetail', () => {
+  it('AC-WOS-001 places the sections block for this work order', () => {
+    renderPage();
+    expect(screen.getByTestId('sections-stub').textContent).toBe('w1');
+  });
   it('AC-WPVA-016 shows the plan-vs-actual panel for this work order, and hides it from a role that may not view plans', async () => {
     const { rollupProject } = await import('@/src/lib/workOrderPlanVsActual');
     const workOrders = [{ id: 'w1', woNumber: 'WO-0007', title: 'Pump install', status: 'Issued', currency: 'IDR', revenue: '1000.00', revenueComplete: true }];

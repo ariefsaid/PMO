@@ -32,6 +32,25 @@ beforeEach(() => {
   h.result.value = { data: null, error: null };
 });
 
+describe('FR-WOS-015 the section\'s allocation is a second plan check (unit half)', () => {
+  it('a line within the work order\'s plan but over its section\'s allocation is over plan', () => {
+    expect(dal.linePlanStatus({ planQty: 100, priorQty: 70, quantity: 25, sectionPlanQty: 60, sectionPriorQty: 40 })).toEqual({ newTotal: 95, overPlan: true });
+  });
+  it('a section with no allocation (null) is checked against the work order only', () => {
+    expect(dal.linePlanStatus({ planQty: 100, priorQty: 70, quantity: 25, sectionPlanQty: null, sectionPriorQty: 0 })).toEqual({ newTotal: 95, overPlan: false });
+  });
+  it('the work-order check applies on its own, whatever the section allows', () => {
+    expect(dal.linePlanStatus({ planQty: 100, priorQty: 90, quantity: 20, sectionPlanQty: 60, sectionPriorQty: 10 })).toEqual({ newTotal: 110, overPlan: true });
+  });
+  it('the draft form asks for a reason on a section-only overrun', () => {
+    expect(dal.draftLineErrors([{ itemId: 'i', quantity: 25, overPlanReason: null, planQty: 100, priorQty: 70, sectionPlanQty: 60, sectionPriorQty: 40 }])).toEqual({ 0: 'reasonRequired' });
+  });
+  it('the database refusals for a section have stable keys', () => {
+    expect(dal.materialRequestRefusal({ message: 'MRQ_SECTION_LOCKED: x' })).toBe('sectionLocked');
+    expect(dal.materialRequestRefusal({ message: 'MRQ_SECTION: x' })).toBe('section');
+  });
+});
+
 describe('AC-MRQ-001 line plan status (unit half)', () => {
   it('AC-MRQ-001 a line within plan needs no reason', () => {
     expect(dal.linePlanStatus({ planQty: 100, priorQty: 50, quantity: 50 })).toEqual({ newTotal: 100, overPlan: false });
