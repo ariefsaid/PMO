@@ -52,6 +52,8 @@ vi.mock('@/pages/project-detail/WorkOrderPlanVsActual', () => ({
 // #2669: profit per discipline and the contract-line discipline field read their own queries (setting, revenue, auth),
 // which the contract-area suites do not provide; both render nothing while the setting is off. Their own tests unmock them.
 vi.mock('@/pages/project-detail/DisciplineProfit', () => ({ default: () => null }));
+vi.mock('@/pages/project-detail/EarnedBilledProfit', () => ({ default: () => null })); // #2733
+vi.mock('@/pages/ManagementPackEarned', () => ({ default: () => null })); // #2733
 vi.mock('@/pages/project-detail/BoqDisciplinePicker', () => ({ default: () => null }));
 vi.mock('@/pages/admin/OrgDisciplineProfit', () => ({ default: () => null }));
 

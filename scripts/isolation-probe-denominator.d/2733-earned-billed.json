@@ -1,0 +1,6 @@
+{
+  "definer_functions": [
+    "management_pack_earned()",
+    "project_work_order_earned_billed(uuid)"
+  ]
+}

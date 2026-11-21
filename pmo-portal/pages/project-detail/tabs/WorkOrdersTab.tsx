@@ -60,6 +60,7 @@ import WorkOrdersModals from './WorkOrdersModals';
 import WorkOrderPlanVsActual from '../WorkOrderPlanVsActual';
 import DisciplineProfit from '../DisciplineProfit';
 import RevenuePlanRollup from '../RevenuePlanRollup';
+import EarnedBilledProfit from '../EarnedBilledProfit';
 
 /**
  * The work-order surface for one project (#566) — the client's inbound POs and the drawdown they
@@ -902,6 +903,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
       {/* #2671: dated revenue plan roll-up — renders nothing while the organisation's switch is off. */}
       <RevenuePlanRollup projectId={projectId} />
+      {/* #2733: earned and billed revenue side by side; renders nothing while the organisation setting is off. */}
+      <EarnedBilledProfit projectId={projectId} />
     </div>
   );
 };

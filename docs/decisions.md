@@ -3923,3 +3923,12 @@ from items bought.
 ## DD-DPR-1 — Revenue per discipline comes from the contract line (2026-11-21, #2669)
 
 A discipline is set on the contract line (`boq_items.discipline_id`, from the organisation's own list) and validated progress reaches it through the work-order line. Revenue per discipline is the amount frozen at validation, so a later rate change never re-prices history. The headline margin is after shared cost, with the margin before shared cost beside it; cost is exactly what the plan-versus-actual tab already shows, joined and not re-summed. Revenue rows carry a `basis`, so another revenue basis can be added beside validated progress. The view is an organisation setting, off by default, written only by an Admin. Spec: [discipline-profit](specs/discipline-profit.spec.md). This closes the "discipline revenue is not apportioned" line of DD-WPVA-1.
+
+## DD-EBR-1 — earned and billed revenue side by side (Director, 2026-11-21, #2733)
+
+Ruled in `docs/specs/earned-billed-revenue.spec.md`: behind the existing `discipline_profit_enabled` setting (off by default, no
+new setting) · earned is validated progress at the frozen rate, billed is claims and invoices excluding tax, never blended across
+currencies · earned with no validated progress reads "not available", never zero, and a project with some work orders lacking it
+reads "incomplete" with the count · per-discipline billed comes from claim lines, the rest is "Not itemised" · the management
+pack's cost and billed are the project tab's own plan-versus-actual roll-up (computed in the app from the same function), so the pack
+and the tab never disagree · a management view; statutory recognition and ledger posting are out.
