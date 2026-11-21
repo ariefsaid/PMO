@@ -20,8 +20,8 @@ When an issue needs actions from different departments, I want several tasks on 
 ## Requirements (EARS)
 
 **Several tasks**
-- FR-ITR-001 The system shall store the issue-to-task link in a new table `incident_tasks (incident_id, task_id, org_id, created_by, created_at)`, primary key `(incident_id, task_id)`, `task_id` unique (a task serves one issue), both foreign keys `on delete cascade`; `org_id` stamped by the existing org-default/trigger, never sent by a client.
-- FR-ITR-002 When a manager (Admin, Executive, Project Manager, Finance) in an organisation with the `incidents` entitlement on calls the new RPC `add_task_to_incident(p_incident, p_name, p_assignee, p_due_date)`, the system shall create one task in the issue's project and link it, in one transaction, any number of times per issue (up to 25, a technical cap with a clear refusal, not a client setting).
+- FR-ITR-001 The system shall store the issue-to-task link in a new table `incident_tasks (incident_id, task_id, org_id, created_by, created_at)`, surrogate `id` primary key, `(incident_id, task_id)` unique, `task_id` unique (a task serves one issue), both foreign keys `on delete cascade`; `org_id` stamped by the existing org-default/trigger, never sent by a client.
+- FR-ITR-002 When a manager (Admin, Executive, Project Manager, Finance) in an organisation with the `incidents` entitlement on calls the new RPC `add_task_to_incident(p_incident, p_name, p_assignee, p_due_date)`, the system shall create one task in the issue's project and link it, in one transaction, any number of times per issue (up to 100 per issue: a technical abuse bound with a clear refusal, not a client process limit and not a setting).
 - FR-ITR-003 If the caller is not a manager, the issue is not in the caller's organisation (same message as missing), the entitlement is off, the issue has no project, the name is empty, or the assignee is not an active member of the organisation, then the RPC shall refuse and create nothing. Closed issues accept no new task.
 - FR-ITR-004 No client role shall hold insert, update or delete on `incident_tasks`; rows are written only by the RPC and the trigger in FR-ITR-005, so a client cannot link or unlink a task.
 - FR-ITR-005 Where an issue already has a legacy `incident_reports.task_id`, the system shall keep it readable and unchanged, backfill one `incident_tasks` row per such issue at migration time, and add the same row whenever `create_task_from_incident` sets `task_id` (an after-update trigger on `incident_reports`). `create_task_from_incident` and its "second attempt refused" rule stay exactly as they are; additional tasks go through the new RPC only. What an existing issue shows is unchanged (the one task it had).
@@ -41,21 +41,21 @@ When an issue needs actions from different departments, I want several tasks on 
 - FR-ITR-013 `incident_tasks` carries RLS and an isolation-probe fragment; every new definer function revokes execute from `public` and `anon`, and the RPC is granted to `authenticated` only. Every policy wraps helpers in `(select helper())` (`0646_rls_initplan`).
 
 ## Settings
-None added. The existing per-organisation `incidents` entitlement and its plan defaults govern availability. The 25-task cap is a technical guard, not client process.
+None added. The existing per-organisation `incidents` entitlement and its plan defaults govern availability. The 100-task cap is a technical abuse bound, not client process.
 
 ## Acceptance criteria and owning layer
 
 | ID | Given / When / Then | Layer |
 |---|---|---|
 | AC-ITR-001 | Given an issue with a project, when a manager calls `add_task_to_incident` twice, then two tasks exist in the issue's project, each linked once, with the given names, assignee and due day. | pgTAP |
-| AC-ITR-002 | Given an Engineer, a Viewer and a user of another organisation, when they call the RPC, then 42501 and no task; given the entitlement off, a Closed issue, an issue with no project, an empty name, a foreign or inactive assignee, or a 26th task, then refused and nothing created. | pgTAP (mutation: drop the role check, the test goes red) |
+| AC-ITR-002 | Given an Engineer and a user of another organisation, when they call the RPC, then 42501 and no task; given the entitlement off, a Closed issue, an issue with no project, an empty name, a foreign or inactive assignee, or a 101st task, then refused and nothing created. | pgTAP (mutation: drop the role check, the test goes red) |
 | AC-ITR-003 | Given a client role, when it inserts, updates or deletes `incident_tasks` directly, then denied; the link survives. | pgTAP |
 | AC-ITR-004 | Given an issue made before this change with a legacy `task_id`, then after migration its task is in `incident_tasks`, `task_id` is unchanged, and `create_task_from_incident` on a new issue adds its row; `supabase/tests/0979_site_issue_log.test.sql` passes untouched. | pgTAP |
 | AC-ITR-005 | Given an issue with three tasks, when a reader of the issue lists them, then three rows in creation order; given a user of another organisation, none; given the entitlement off, none. | pgTAP |
-| AC-ITR-006 | Given an issue, when a manager and then its assignee set the root cause, then each saves; when the non-assignee reporter (Engineer) or a viewer does, then refused; over 1000 characters refused; a Closed issue still accepts it. | pgTAP (mutation: let any role write it, the test goes red) |
+| AC-ITR-006 | Given an issue, when a manager and then its assignee set the root cause, then each saves; when the non-assignee reporter (Engineer) or a non-assignee Engineer does, then refused; over 1000 characters refused; a Closed issue still accepts it. | pgTAP (mutation: let any role write it, the test goes red) |
 | AC-ITR-007 | Given an issue with tasks, when the issue is closed, or a task is Done, then the other is unchanged. | pgTAP |
 | AC-ITR-008 | Given legacy issues with a null root cause and one task, then the detail, register and print render as before (existing tests stay green untouched). | Unit |
-| AC-ITR-009 | Given an issue with two tasks, when the detail renders, then both are listed with status and link; given a manager, "Add a task" shows and calls the repository; given an Engineer or Viewer, it is hidden. | Unit |
+| AC-ITR-009 | Given an issue with two tasks, when the detail renders, then both are listed with status and link; given a manager, "Add a task" shows and calls the repository; given an Engineer, it is hidden. | Unit |
 | AC-ITR-010 | Given a manager or the assignee, when they edit the root cause and save, then the repository receives it and the value shows; given the reporter-only Engineer, the field is read-only. | Unit |
 | AC-ITR-011 | Given the journey: manager opens an issue, adds a second task and records a root cause, closes the blocker, then both tasks and the root cause are still shown. | E2E (one journey) |
 
@@ -65,7 +65,7 @@ None added. The existing per-organisation `incidents` entitlement and its plan d
 | Not a manager / foreign issue / entitlement off | 42501, one message, no existence hint |
 | Issue has no project | 23514 "name the issue's project before making a task" (as today) |
 | Issue Closed | 23514 "a closed issue takes no new task" |
-| 26th task | 23514 "this issue has the most tasks it can take" |
+| 101st task | 23514 "this issue has the most tasks it can take" |
 | Root cause over 1000 | 23514 (check constraint) |
 | Reporter-only writes root cause | 42501 (guard) |
 
