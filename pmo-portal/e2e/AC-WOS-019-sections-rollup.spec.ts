@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — creates its own uniquely named item, unit, BoQ line, work order, sections and requests each run (stock, request and section history are append-only or referenced, so none is deleted); sets the org's material-request chain (read only by this feature) to one Project Manager step.
+// @e2e-isolation: self-isolated — creates its own uniquely named item, unit, BoQ line, work order, site location, sections and requests each run (stock, request and section history are append-only or referenced, so none is deleted); sets the org's material-request chain (read only by this feature) to one Project Manager step.
 /** AC-WOS-019 — goal: a project manager splits a work order into sections with foremen and planned amounts, a field controller requests material on one, the manager sets it ready, and the page's figures add up to the work order's (400 + 350 + 250 = 1,000; cable 40 + 10 + 20 = 70). */
 import { test, expect, type Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
@@ -37,7 +37,11 @@ async function fixture() {
   if (chain.error) throw new Error('chain: ' + chain.error.message);
   const foreman = await admin.from('profiles').select('id, full_name').eq('email', 'engineer@acme.test').single();
   if (foreman.error) throw new Error('foreman: ' + foreman.error.message);
-  return { sfx, admin, item, wo: wo.data, foreman: foreman.data };
+  // The journey's own delivery location. With it the seed project always has several, so the form asks where the
+  // material goes and the journey answers — instead of relying on no other test having added a location (they do).
+  const site = await admin.from('stock_warehouses').insert({ code: `E2E-WS${sfx}`, name: `E2E site ${sfx}`, kind: 'site', project_id: SEED_PROJECT_ID }).select('id, code, name').single();
+  if (site.error) throw new Error('site: ' + site.error.message);
+  return { sfx, admin, item, wo: wo.data, foreman: foreman.data, site: site.data };
 }
 
 async function pick(page: Page, label: RegExp, option: string) {
@@ -46,7 +50,7 @@ async function pick(page: Page, label: RegExp, option: string) {
 }
 
 test('AC-WOS-019: sections with foremen and planned amounts, a request on one, readiness, and a roll-up that adds up', async ({ page }) => {
-  const { admin, item, wo, foreman } = await fixture();
+  const { admin, item, wo, foreman, site } = await fixture();
   const money = (v: string) => formatExactMoney(v, wo.currency, 'en-US', { wholeUnits: true }) as string;
 
   // The project manager adds two sections, each with a foreman, from the work-order page.
@@ -113,6 +117,7 @@ test('AC-WOS-019: sections with foremen and planned amounts, a request on one, r
   await pick(page, /^project/i, SEED_PROJECT_NAME);
   await pick(page, /^work order/i, `${wo.wo_number} · ${wo.title}`);
   await page.getByLabel('Section', { exact: true }).selectOption({ label: 'A · North block' });
+  await page.getByLabel('Deliver to').selectOption({ label: `${site.code} · ${site.name}` });
   await page.getByLabel(/^item/i).selectOption({ label: `${item.code} · ${item.name}` });
   await page.getByLabel(/^quantity/i).fill('40');
   await expect(page.getByTestId('mrq-section-plan')).toContainText('Section plan 60');
