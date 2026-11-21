@@ -47,9 +47,9 @@ test.describe('phone', () => {
     await dialog.getByRole('button', { name: 'Create extension order' }).click();
 
     // The extension is a different purchase, in Draft, that says what it extends.
-    await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]{36}$/, { timeout: 20_000 });
-    expect(page.url()).not.toBe(originalUrl);
-    await expect(page.getByTestId('rental-extends')).toContainText(title);
+    await expect(page).not.toHaveURL(originalUrl, { timeout: 20_000 });
+    await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]{36}$/);
+    await expect(page.getByTestId('rental-extends')).toContainText(title, { timeout: 20_000 });
     await expect(page.getByText('Draft').first()).toBeVisible();
 
     // And the original lists it back.
