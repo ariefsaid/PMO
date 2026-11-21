@@ -1,7 +1,7 @@
 -- 1270_earned_billed_revenue.test.sql — #2733. AC-EBR-001..007, see docs/specs/earned-billed-revenue.spec.md.
 begin;
 create extension if not exists pgtap;
-select plan(25);
+select plan(30);
 
 -- ── fixtures (table owner) ───────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -92,6 +92,11 @@ select is((select earned from public.project_work_order_earned_billed('27330000-
   100.00::numeric, 'AC-EBR-003 WO one earned 100.00 (the draft report is not counted: AC-EBR-005)');
 select is((select billed from public.project_work_order_earned_billed('27330000-0000-0000-0000-0000000000c1') where work_order_id = '27330000-0000-0000-0000-0000000000e1'),
   60.00::numeric, 'AC-EBR-003 WO one billed 60.00 excl. tax');
+select is((select earned_lines from public.project_work_order_earned_billed('27330000-0000-0000-0000-0000000000c1') where work_order_id = '27330000-0000-0000-0000-0000000000e1'),
+  1, 'AC-EBR-005 WO one counts one validated line: the draft report''s line is not counted');
+select is((select unrated_lines from public.project_work_order_earned_billed('27330000-0000-0000-0000-0000000000c1') where work_order_id = '27330000-0000-0000-0000-0000000000e1'),
+  0, 'AC-EBR-005 WO one has no unrated line: the draft line (no rate) is not counted');
+
 select is((select earned - billed from public.project_work_order_earned_billed('27330000-0000-0000-0000-0000000000c1') where work_order_id = '27330000-0000-0000-0000-0000000000e1'),
   40.00::numeric, 'AC-EBR-003 the gap is 40.00');
 select is((select earned from public.project_work_order_earned_billed('27330000-0000-0000-0000-0000000000c1') where work_order_id = '27330000-0000-0000-0000-0000000000e2'),
@@ -118,6 +123,12 @@ select is((select sum(revenue) from public.project_discipline_revenue('27330000-
   100.00::numeric, 'the validated_progress rows are unchanged by the billed basis');
 select is((select earned from public.management_pack_earned() where project_id = '27330000-0000-0000-0000-0000000000c1'),
   100.00::numeric, 'AC-EBR-012 the pack read returns the project''s earned revenue');
+select is((select earned_lines from public.management_pack_earned() where project_id = '27330000-0000-0000-0000-0000000000c1'),
+  1, 'AC-EBR-005 the pack read counts only the validated line, not the draft report''s');
+select is((select unrated_lines from public.management_pack_earned() where project_id = '27330000-0000-0000-0000-0000000000c1'),
+  0, 'AC-EBR-005 the pack read counts no unrated line from a draft report');
+select is((select validated_lines from public.project_discipline_revenue('27330000-0000-0000-0000-0000000000c1') where basis = 'validated_progress' and discipline_id = '27330000-0000-0000-0000-0000000000d1'),
+  1, 'AC-EBR-005 the discipline read counts one validated line for civil: the draft is not counted');
 select is((select work_orders_without_progress from public.management_pack_earned() where project_id = '27330000-0000-0000-0000-0000000000c1'),
   1, 'AC-EBR-004 the pack read counts work orders without validated progress');
 

@@ -98,7 +98,7 @@ test('AC-EBR-011 the project tab and the pack show earned next to billed revenue
     await expect(panel.getByTestId(key + '-earned')).toHaveText(fmt('125.00'));
     await expect(panel.getByTestId(key + '-billed')).toHaveText(fmt('50.00'));
     await expect(panel.getByTestId(key + '-gap')).toHaveText(fmt('75.00'));
-    await expect(panel.getByTestId('earned-billed-row-total-gap')).toHaveText(fmt('75.00'));
+    await expect(panel.getByTestId('earned-billed-EUR').getByTestId('earned-billed-row-total-gap')).toHaveText(fmt('75.00'));
 
     // AC-EBR-012: the pack shows the same project, with the same figures as the tab.
     await page.goto('/reports');

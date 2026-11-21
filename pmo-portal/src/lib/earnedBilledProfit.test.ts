@@ -84,4 +84,10 @@ describe('earnedBilledProfit', () => {
     expect(t.marginEarned.reason).toBe('cost-unknown');
     expect(t.marginBilled.reason).toBe('cost-unknown');
   });
+
+  it('a currency with no work order, revenue or cost is not listed (no empty panel)', () => {
+    const r = rollupProject({ workOrders: [wo('A')], lines: [line({})], plans: [], split: null, restricted: false,
+      projectRevenue: [{ currency: 'USD', work_revenue: '60.00', missing_work: 0 }, { currency: 'EUR', work_revenue: '0.00', missing_work: 0 }] });
+    expect(earnedBilledProfit(r, [row()]).currencies.map((c) => c.currency)).toEqual(['USD']);
+  });
 });
