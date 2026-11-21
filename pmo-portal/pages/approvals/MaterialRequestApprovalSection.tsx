@@ -10,26 +10,21 @@ import { RequestWorkOrder } from '../materialRequests/shared';
 const Row: React.FC<{ step: WaitingStep }> = ({ step }) => {
   const { t } = useTranslation('materialRequests');
   const request = useMaterialRequest(step.requestId).data;
+  // One link per row (the request number). The work order is its own link, so no anchor sits inside another.
   return (
-    <li>
-      <Link
-        to={`/material-requests/${step.requestId}`}
-        aria-label={t('inbox.open', 'Open request')}
-        className="flex min-h-11 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 hover:bg-muted/50"
-      >
-        <span className="min-w-0">
-          <span className="block font-semibold text-foreground">{request?.number ?? '—'}</span>
-          <span className="block text-control text-muted-foreground">
-            {t('inbox.step', 'Step {{n}}: {{label}}', { n: step.stepPosition, label: step.label })}
-            {step.actingFor && <span className="ml-2">{t('inbox.standingIn', 'standing in')}</span>}
-          </span>
-          {request && <span className="block text-control text-muted-foreground"><RequestWorkOrder workOrderId={request.workOrderId} projectId={request.projectId} /></span>}
+    <li className="flex min-h-11 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
+      <span className="min-w-0">
+        <Link to={`/material-requests/${step.requestId}`} className="block font-semibold text-primary-text hover:underline">{request?.number ?? '—'}</Link>
+        <span className="block text-control text-muted-foreground">
+          {t('inbox.step', 'Step {{n}}: {{label}}', { n: step.stepPosition, label: step.label })}
+          {step.actingFor && <span className="ml-2">{t('inbox.standingIn', 'standing in')}</span>}
         </span>
-        <span className="text-control text-muted-foreground">
-          {request && <span className="block">{t('inbox.neededBy', 'Needed by {{date}}', { date: formatDay(request.neededBy) })}</span>}
-          <span className="block">{t('inbox.sent', 'Sent {{date}}', { date: formatDay(step.submittedAt) })}</span>
-        </span>
-      </Link>
+        {request && <span className="block text-control text-muted-foreground"><RequestWorkOrder workOrderId={request.workOrderId} projectId={request.projectId} /></span>}
+      </span>
+      <span className="text-control text-muted-foreground">
+        {request && <span className="block">{t('inbox.neededBy', 'Needed by {{date}}', { date: formatDay(request.neededBy) })}</span>}
+        <span className="block">{t('inbox.sent', 'Sent {{date}}', { date: formatDay(step.submittedAt) })}</span>
+      </span>
     </li>
   );
 };
