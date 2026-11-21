@@ -1,5 +1,5 @@
 -- Reverse of 1299: restore the 1250 bodies of labour_rate_locked, save_labour_cost_settings, end_labour_cost_rate
--- and archive_labour_cost_rate exactly.
+-- and archive_labour_cost_rate exactly — with the literal active-member gate merge r1 added to every definer writer.
 create or replace function public.labour_rate_locked(p_org uuid, p_rate uuid, p_kind text, p_person uuid, p_role text, p_from date)
 returns boolean language sql stable security definer set search_path = public, pg_temp as $$
   select public.labour_cost_enabled(p_org) and exists (
@@ -19,6 +19,7 @@ create or replace function public.save_labour_cost_settings(p_enabled boolean) r
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.labour_cost_gate();
 begin
+  perform public.assert_is_active_member();
   if p_enabled is null then raise exception 'enabled is required' using errcode = '22023'; end if;
   insert into public.labour_cost_settings (org_id, enabled, updated_by) values (v_org, p_enabled, auth.uid())
     on conflict (org_id) do update set enabled = excluded.enabled, updated_at = now(), updated_by = auth.uid();
@@ -34,6 +35,7 @@ create or replace function public.end_labour_cost_rate(p_id uuid, p_end date) re
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.labour_cost_gate(); r public.labour_cost_rates;
 begin
+  perform public.assert_is_active_member();
   select * into r from public.labour_cost_rates where id = p_id and org_id = v_org and archived_at is null;
   if not found then raise exception 'rate not found' using errcode = 'P0002'; end if;
   if p_end is null or p_end < r.effective_from then raise exception 'end date is before the start date' using errcode = '22023'; end if;
@@ -49,6 +51,7 @@ create or replace function public.archive_labour_cost_rate(p_id uuid) returns vo
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.labour_cost_gate();
 begin
+  perform public.assert_is_active_member();
   if not exists (select 1 from public.labour_cost_rates where id = p_id and org_id = v_org and archived_at is null) then
     raise exception 'rate not found' using errcode = 'P0002';
   end if;

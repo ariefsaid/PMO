@@ -7,6 +7,9 @@
 --      span is priced; it and archive_labour_cost_rate write an audit row through the existing log_audit helper.
 --   3. save_labour_cost_settings writes an audit row for every switch write.
 -- Proven by supabase/tests/1299_labour_rate_history_lock.test.sql.
+-- Merge note (land/1215-r1): the three writer restatements carry the literal active-member gate
+-- (`perform public.assert_is_active_member();`) that merge r1 added as the first statement of every
+-- definer writer (0173 sweep); labour_rate_locked is a stable read and stays without it.
 -- Reverse: supabase/migrations/rollback/1299_labour_rate_history_lock_down.sql.
 create or replace function public.labour_rate_locked(p_org uuid, p_rate uuid, p_kind text, p_person uuid, p_role text, p_from date)
 returns boolean language sql stable security definer set search_path = public, pg_temp as $$
@@ -27,6 +30,7 @@ create or replace function public.save_labour_cost_settings(p_enabled boolean) r
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.labour_cost_gate();
 begin
+  perform public.assert_is_active_member();
   if p_enabled is null then raise exception 'enabled is required' using errcode = '22023'; end if;
   insert into public.labour_cost_settings (org_id, enabled, updated_by) values (v_org, p_enabled, auth.uid())
     on conflict (org_id) do update set enabled = excluded.enabled, updated_at = now(), updated_by = auth.uid();
@@ -43,6 +47,7 @@ create or replace function public.end_labour_cost_rate(p_id uuid, p_end date) re
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.labour_cost_gate(); r public.labour_cost_rates;
 begin
+  perform public.assert_is_active_member();
   select * into r from public.labour_cost_rates where id = p_id and org_id = v_org and archived_at is null;
   if not found then raise exception 'rate not found' using errcode = 'P0002'; end if;
   if p_end is null or p_end < r.effective_from then raise exception 'end date is before the start date' using errcode = '22023'; end if;
@@ -75,6 +80,7 @@ create or replace function public.archive_labour_cost_rate(p_id uuid) returns vo
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.labour_cost_gate(); r public.labour_cost_rates;
 begin
+  perform public.assert_is_active_member();
   select * into r from public.labour_cost_rates where id = p_id and org_id = v_org and archived_at is null;
   if not found then raise exception 'rate not found' using errcode = 'P0002'; end if;
   if public.labour_rate_locked(v_org, p_id, null, null, null, date '0001-01-01') then
