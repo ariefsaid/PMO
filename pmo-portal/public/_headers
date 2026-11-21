@@ -12,3 +12,6 @@
 # year and skip revalidation. index.html is not matched here, so it keeps revalidating and picks up new hashes.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+# Service worker must revalidate immediately so updates take effect without delay
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
