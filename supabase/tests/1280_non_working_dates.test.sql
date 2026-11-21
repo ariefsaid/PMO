@@ -80,9 +80,12 @@ select is((select count(*) from public.work_order_revenue_plan where plan_date =
 select lives_ok($$ select public.non_working_date_remove('2026-12-24') $$, 'Admin removes it again');
 select is((select count(*) from public.org_non_working_dates), 1::bigint, 'only that date is removed');
 select is((select count(*) from audit_events where action = 'non_working_date.remove'), 1::bigint, 'the removal is audited');
+-- org_is_working_day is internal (not executable by clients): assert it as the owner role.
+reset role;
 select is(public.org_is_working_day('26728000-0000-0000-0000-00000000000a', date '2026-12-25'), false, 'a listed weekday is not a working day');
 select is(public.org_is_working_day('26728000-0000-0000-0000-00000000000a', date '2026-12-24'), true, 'an unlisted weekday still is');
 select is(public.org_is_working_day('26728000-0000-0000-0000-00000000000a', date '2026-12-26'), false, 'a Saturday is still not (2671 weekday rule intact)');
+set local role authenticated;
 
 -- ── AC-WDT-011: another organisation ──────────────────────────────────────────────────────────────────
 select pg_temp.act_as('26728000-0000-0000-0000-0000000000b1');
