@@ -1,5 +1,5 @@
--- 1134_third_party_inspection_reads.test.sql — #2580 (docs/specs/third-party-inspections.spec.md), the spec's hand-worked example.
--- Migration under test: 1134_third_party_inspection_reads.sql (tpi_costs, work_order_inspection_prerequisites, run_tpi_overdue_sweep).
+-- 1183_third_party_inspection_reads.test.sql — #2580 (docs/specs/third-party-inspections.spec.md), the spec's hand-worked example.
+-- Migration under test: 1183_third_party_inspection_reads.sql (tpi_costs, work_order_inspection_prerequisites, run_tpi_overdue_sweep).
 -- AC-TPI-001 cost per inspection per currency, Draft orders and other cases' records excluded, Engineer sees no amounts ·
 -- AC-TPI-007 the prerequisite and the completeness rule · AC-TPI-011 the overdue notice fires once per recipient.
 -- Every denial asserts the errcode AND the message. Fixtures are written as the table owner.

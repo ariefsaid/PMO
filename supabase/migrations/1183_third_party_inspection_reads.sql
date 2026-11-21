@@ -1,12 +1,12 @@
--- 1134_third_party_inspection_reads.sql — #2580: the cost read, the prerequisite read and the overdue notice.
--- Spec FR-TPI-008/016/018. Proven by supabase/tests/1134_third_party_inspection_reads.test.sql.
+-- 1183_third_party_inspection_reads.sql — #2580: the cost read, the prerequisite read and the overdue notice.
+-- Spec FR-TPI-008/016/018. Proven by supabase/tests/1183_third_party_inspection_reads.test.sql.
 --   tpi_costs(work_order)                  committed + billed per inspection per currency, from the LINKED case's records already
 --                                          attributed to the work order (work_order_cost_lines, 0951). Server-side fence: a caller outside
 --                                          Admin/Executive/Finance/Project Manager gets the rows with NULL amounts (the planning estimate
 --                                          included: it is a figure, shown beside the real cost, never added to it). Writes nothing.
 --   work_order_inspection_prerequisites()  the blocking inspections + one `complete` boolean, for #2522 / #2576 to call (a read only).
 --   run_tpi_overdue_sweep(date)            one notice per recipient per inspection, from stored dates, through public.notifications.
--- ── REVERSE (rollback/1134_third_party_inspection_reads_down.sql): unschedule 'tpi-overdue', drop the three functions and tpi_is_complete.
+-- ── REVERSE (rollback/1183_third_party_inspection_reads_down.sql): unschedule 'tpi-overdue', drop the three functions and tpi_is_complete.
 
 -- The one definition of "complete" (FR-TPI-016, OD-TPI-2): reported with pass/conditional, or waived.
 create function public.tpi_is_complete(p_status text, p_result text, p_waived_at timestamptz) returns boolean
