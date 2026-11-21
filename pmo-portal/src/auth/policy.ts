@@ -149,7 +149,9 @@ export type Entity =
   | 'tmClaim'
   | 'tmSignoff'
   | 'crew'
-  | 'attendance';
+  | 'attendance'
+  | 'attendanceRate'
+  | 'attendanceTarget';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -915,6 +917,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     approve: (role, ctx) => ctx.record?.viewOnly !== true && has(DELIVERY, role) && !(
       !!ctx.currentUserId && Array.isArray(ctx.record?.recorder_ids) && (ctx.record.recorder_ids as unknown[]).includes(ctx.currentUserId)),
   },
+  /**
+   * #2706 attendance rate against a target. UX ONLY — the RPC `attendance_rate_by_crew` (1437) re-asserts the active
+   * membership, the caller's org and these four roles, mirroring attendance_days_select (1036): a crew-level reader
+   * would see a figure built from rows they cannot read. `attendanceTarget` mirrors the Admin-only organizations
+   * update policy (0207/0231) and the column grant of 1436.
+   */
+  attendanceRate: { view: allow(['Admin', 'Executive', 'Project Manager', 'Finance']) },
+  attendanceTarget: { manage: allow(ADMIN) },
   /**
    * The Odoo fleet and maintenance register (#1511 F5). UX ONLY — the `adapter-dispatch` `equipment` domain's role
    * gates and 0797's RPC/RLS are the authority (ADR-0016); the FE may be stricter, never looser.

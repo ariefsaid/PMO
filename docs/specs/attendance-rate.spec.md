@@ -43,7 +43,7 @@ When I review a crew, I want its attendance rate against a target, so absence is
 |---|---|---|
 | AC-ATR-001 | Given an organisation that never set a target, when its settings are read, then the target is empty and the Crews page offers no rate view. | pgTAP + Unit |
 | AC-ATR-002 | Given an Admin sets the target to 95.5, when a Project Manager or a Finance user tries to change it, then refused; the Admin's saved value stands. | pgTAP |
-| AC-ATR-003 | Given a crew of three people serving a work order on five days, when nine member-days are present, two absent, one leave, one off rotation and two have no record, then expected is 15, the rate is 75.00 % (9 ÷ 12) and no-record is 2. | pgTAP |
+| AC-ATR-003 | Given a crew of three people serving a work order on five days, when nine member-days are present, two absent, one leave, one off rotation and two have no record, then expected is 15, the rate is 69.23 % (9 ÷ 13) and no-record is 2. | pgTAP |
 | AC-ATR-004 | Given one person in a crew that is rostered on two work orders on the same date, when the period covers that date, then the person adds one expected member-day, not two. | pgTAP |
 | AC-ATR-005 | Given a crew with no roster on a date, when the period covers that date, then no expected member-day is counted for it. | pgTAP |
 | AC-ATR-006 | Given a period whose end is before its start, or one longer than 366 days, when the report is read, then refused and nothing is returned. | pgTAP |

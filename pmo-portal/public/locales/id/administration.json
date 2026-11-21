@@ -697,6 +697,19 @@
       "loadError": "Tidak dapat memuat tahun fiskal",
       "accountingSystem": "Sistem akuntansi Anda yang menetapkan tahun fiskal.",
       "adminOnly": "Hanya Admin yang dapat mengubah ini."
+    },
+    "attendanceTarget": {
+      "helper": "Tingkat kehadiran yang menjadi ukuran setiap kru, dalam persen. Kosongkan agar tampilan tingkat kehadiran tidak ditawarkan.",
+      "label": "Tingkat target (%)",
+      "loadError": "Tidak bisa memuat target",
+      "off": "Mati: tampilan tingkat kehadiran tidak ditawarkan.",
+      "on": "Kru diukur terhadap target ini.",
+      "precision": "Beri target paling banyak dua angka desimal.",
+      "range": "Target dari 0 sampai 100.",
+      "save": "Simpan target",
+      "saved": "Target kehadiran disimpan",
+      "title": "Target kehadiran",
+      "turnOff": "Matikan"
     }
   },
   "exchangeRates": {

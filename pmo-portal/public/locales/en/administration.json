@@ -697,6 +697,19 @@
       "loadError": "Couldn't load the fiscal year",
       "accountingSystem": "Your accounting system sets the fiscal year.",
       "adminOnly": "Only an Admin can change this."
+    },
+    "attendanceTarget": {
+      "helper": "The attendance rate each crew is measured against, as a percentage. Leave it empty to keep the attendance-rate view off.",
+      "label": "Target rate (%)",
+      "loadError": "Couldn't load the target",
+      "off": "Off: the attendance-rate view is not offered.",
+      "on": "Crews are measured against this target.",
+      "precision": "Give the target at most two decimals.",
+      "range": "The target runs from 0 to 100.",
+      "save": "Save target",
+      "saved": "Attendance target saved",
+      "title": "Attendance target",
+      "turnOff": "Turn off"
     }
   },
   "exchangeRates": {

@@ -94,6 +94,24 @@
   "placedCount": "{{placed}} dari {{headcount}}",
   "placedOf": "Ditempatkan",
   "placements": "Penempatan jadwal kru",
+  "rate": {
+    "absent": "Absen",
+    "belowTarget": "Di bawah target",
+    "crew": "Kru",
+    "empty": "Tidak ada kru yang punya kehadiran pada periode ini.",
+    "error": "Tidak bisa memuat tingkat kehadiran",
+    "expected": "Hari yang diharapkan",
+    "from": "Dari",
+    "helper": "Satu hari dihitung sebagai harapan bila kru dijadwalkan dan orangnya ditempatkan di kru itu. Cuti dan libur rotasi dikecualikan; hari yang tidak dicatat siapa pun mengurangi tingkat kehadiran.",
+    "leave": "Cuti",
+    "noRecord": "Tidak tercatat",
+    "offRotation": "Libur rotasi",
+    "present": "Hadir",
+    "rangeError": "Tanggal akhir sebelum tanggal mulai.",
+    "rate": "Tingkat kehadiran",
+    "target": "Target",
+    "to": "Sampai"
+  },
   "reason": "Alasan",
   "reasonFor": "Alasan untuk {{name}}",
   "retry": "Coba lagi",
@@ -126,7 +144,8 @@
   "tabs": {
     "attendance": "Kehadiran",
     "crews": "Kru",
-    "roster": "Jadwal kru"
+    "roster": "Jadwal kru",
+    "rate": "Tingkat"
   },
   "tabsLabel": "Tampilan kru",
   "tickErrors": {
