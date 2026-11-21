@@ -268,6 +268,13 @@ in at most one crew on any day. A correction is versioned and audited and never 
 
 **Roster (crew)** — which crews serve a work order on which dates; a crew serves one work order on any day.
 
+**Crew loan** — a worker lent from their home crew to a host crew for an inclusive date range (#2704). On those days the
+worker is on the host crew's roster and not the home crew's, and attendance lands on the host crew's work order; hours
+already submitted or approved never move. A worker has at most one loan on any day.
+
+**Effective crew** — the crew a worker is in on a date: the host crew on a loan day, otherwise the crew they are placed in.
+One database function answers it, so the roster and attendance agree.
+
 **Field controller** — the user who records a crew's daily attendance; may not approve the hours they recorded.
 
 **Attendance record** — one person's attendance for one day on one work order (present, absent, leave or off

@@ -683,23 +683,23 @@
       "helpRule": "Jika tidak ada yang terdaftar, {{roles}} dapat menyetujui kasus orang lain."
     },
     "siteReportLists": {
-          "title": "Daftar laporan lapangan",
-          "helper": "Pilihan yang tersedia pada laporan lapangan. Mengarsipkan menyembunyikan pilihan dari laporan baru; laporan yang sudah memakainya tetap menyimpannya.",
-          "idle": "Alasan menganggur",
-          "weather": "Kondisi cuaca",
-          "add": "Tambah",
-          "addLabel": "Entri {{list}} baru",
-          "rename": "Ubah nama",
-          "renameFor": "Nama untuk {{name}}",
-          "save": "Simpan",
-          "cancel": "Batal",
-          "archive": "Arsipkan",
-          "restore": "Pulihkan",
-          "archived": "Diarsipkan",
-          "empty": "Belum ada isi",
-          "loadError": "Daftar tidak dapat dimuat",
-          "saved": "Daftar disimpan",
-          "duplicate": "Nama itu sudah ada dalam daftar"
+      "title": "Daftar laporan lapangan",
+      "helper": "Pilihan yang tersedia pada laporan lapangan. Mengarsipkan menyembunyikan pilihan dari laporan baru; laporan yang sudah memakainya tetap menyimpannya.",
+      "idle": "Alasan menganggur",
+      "weather": "Kondisi cuaca",
+      "add": "Tambah",
+      "addLabel": "Entri {{list}} baru",
+      "rename": "Ubah nama",
+      "renameFor": "Nama untuk {{name}}",
+      "save": "Simpan",
+      "cancel": "Batal",
+      "archive": "Arsipkan",
+      "restore": "Pulihkan",
+      "archived": "Diarsipkan",
+      "empty": "Belum ada isi",
+      "loadError": "Daftar tidak dapat dimuat",
+      "saved": "Daftar disimpan",
+      "duplicate": "Nama itu sudah ada dalam daftar"
     },
     "builtInRoles": {
       "title": "Peran bawaan",
@@ -721,6 +721,13 @@
       "saved": "Tahun fiskal disimpan",
       "loadError": "Tidak dapat memuat tahun fiskal",
       "accountingSystem": "Sistem akuntansi Anda yang menetapkan tahun fiskal.",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini."
+    },
+    "crewLoans": {
+      "title": "Pinjaman kru",
+      "label": "Izinkan meminjamkan pekerja antar kru",
+      "helper": "Pekerja yang dipinjamkan mengikuti jadwal dan kehadiran kru tujuan selama masa pinjaman. Jika mati, halaman Kru tidak menampilkan pinjaman.",
+      "loadError": "Tidak dapat memuat pengaturan pinjaman kru",
       "adminOnly": "Hanya Admin yang dapat mengubah ini."
     }
   },

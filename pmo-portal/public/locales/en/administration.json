@@ -683,23 +683,23 @@
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
     },
     "siteReportLists": {
-          "title": "Site report lists",
-          "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",
-          "idle": "Idle reasons",
-          "weather": "Weather conditions",
-          "add": "Add",
-          "addLabel": "New {{list}} entry",
-          "rename": "Rename",
-          "renameFor": "Name for {{name}}",
-          "save": "Save",
-          "cancel": "Cancel",
-          "archive": "Archive",
-          "restore": "Restore",
-          "archived": "Archived",
-          "empty": "Nothing listed yet",
-          "loadError": "Couldn't load the list",
-          "saved": "List saved",
-          "duplicate": "That name is already in the list"
+      "title": "Site report lists",
+      "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",
+      "idle": "Idle reasons",
+      "weather": "Weather conditions",
+      "add": "Add",
+      "addLabel": "New {{list}} entry",
+      "rename": "Rename",
+      "renameFor": "Name for {{name}}",
+      "save": "Save",
+      "cancel": "Cancel",
+      "archive": "Archive",
+      "restore": "Restore",
+      "archived": "Archived",
+      "empty": "Nothing listed yet",
+      "loadError": "Couldn't load the list",
+      "saved": "List saved",
+      "duplicate": "That name is already in the list"
     },
     "builtInRoles": {
       "title": "Built-in roles",
@@ -721,6 +721,13 @@
       "saved": "Fiscal year saved",
       "loadError": "Couldn't load the fiscal year",
       "accountingSystem": "Your accounting system sets the fiscal year.",
+      "adminOnly": "Only an Admin can change this."
+    },
+    "crewLoans": {
+      "title": "Crew loans",
+      "label": "Allow lending workers between crews",
+      "helper": "A lent worker follows the host crew on its roster and attendance for the loan period. Off, the Crews page shows no loans.",
+      "loadError": "Couldn't load the crew loans setting",
       "adminOnly": "Only an Admin can change this."
     }
   },

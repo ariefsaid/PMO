@@ -48,7 +48,11 @@
     "weekEmpty": "Orang ini tidak punya hari hadir di minggu itu.",
     "window": "Tanggal paling awal yang terbuka untuk kehadiran adalah {{date}}.",
     "linkedUser": "Pengguna itu sudah terhubung dengan seseorang. Pilih orang tersebut.",
-    "duplicateRole": "Peran standar itu sudah ada di kru ini."
+    "duplicateRole": "Peran standar itu sudah ada di kru ini.",
+    "loanOverlap": "Orang ini sudah dipinjamkan pada sebagian hari ini.",
+    "loanCrew": "Pilih dua kru aktif yang berbeda di organisasi ini.",
+    "loanHome": "Orang itu harus ditempatkan di kru asal selama seluruh masa pinjaman.",
+    "loanLocked": "Jam pada {{date}} sudah dikirim untuk persetujuan atau disetujui, sehingga kru untuk hari itu tidak dapat berubah."
   },
   "from": "Dari",
   "headcount": "Jumlah orang",
@@ -145,5 +149,22 @@
   "weekSent": "Minggu dikirim untuk persetujuan",
   "workOrder": "$t(common:terms.clientWorkOrder)",
   "workOrderNoun": "$t(common:terms.clientWorkOrder)",
-  "workOrderNounPlural": "$t(common:terms.clientWorkOrder)"
+  "workOrderNounPlural": "$t(common:terms.clientWorkOrder)",
+  "loans": {
+    "chooseCrew": "Pilih kru",
+    "choosePerson": "Pilih orang",
+    "empty": "Belum ada pinjaman kru",
+    "end": "Akhiri pinjaman",
+    "endBody": "{{name}} kembali ke kru asal setelah hari ini. Kehadiran yang tercatat tetap ada.",
+    "endTitle": "Akhiri pinjaman ini?",
+    "ended": "Pinjaman diakhiri",
+    "error": "Tidak dapat memuat pinjaman kru",
+    "hostCrew": "Kru tujuan",
+    "homeCrew": "Kru asal",
+    "lend": "Pinjamkan pekerja",
+    "lendTitle": "Pinjamkan pekerja ke kru lain",
+    "lent": "Pekerja dipinjamkan",
+    "title": "Pinjaman kru",
+    "toBeforeFrom": "Tanggal akhir tidak boleh sebelum tanggal mulai"
+  }
 }

@@ -1,0 +1,6 @@
+{
+  "tables": [
+    {"table": "crew_loans", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"}
+  ],
+  "definer_functions": ["set_org_crew_loans_enabled(boolean)"]
+}

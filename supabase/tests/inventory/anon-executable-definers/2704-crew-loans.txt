@@ -1,0 +1,1 @@
+set_org_crew_loans_enabled  # 1249: active Admin, scoped to caller org; 1245_crew_loans pgTAP
