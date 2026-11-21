@@ -113,3 +113,57 @@ export async function getThreeWayMatchSettings(): Promise<ThreeWayMatchSettings 
   if (!data) return null;
   return { enabled: data.enabled === true, quantityTolerancePct: String(data.quantity_tolerance_pct), amountTolerancePct: String(data.amount_tolerance_pct) };
 }
+
+// ── #2634: the Admin setting and the line editors (1357 over 1018). Nothing here sends org_id, an actor or a stamp.
+
+/** Save the organisation's match setting (Admin only; the database refuses anyone else with 42501). */
+export async function setThreeWayMatchSettings(input: { enabled: boolean; quantityTolerancePct: number; amountTolerancePct: number }): Promise<ThreeWayMatchSettings> {
+  const { data, error } = await rpc('set_three_way_match_settings', {
+    p_enabled: input.enabled, p_quantity_tolerance_pct: input.quantityTolerancePct, p_amount_tolerance_pct: input.amountTolerancePct,
+  });
+  if (error) fail(error);
+  const r = data as Record<string, unknown>;
+  return { enabled: r.enabled === true, quantityTolerancePct: String(r.quantity_tolerance_pct), amountTolerancePct: String(r.amount_tolerance_pct) };
+}
+
+/** How many bills of the organisation are held now (Admin only), shown before the match is switched off. */
+export async function getThreeWayMatchHeldCount(): Promise<number> {
+  const { data, error } = await rpc('three_way_match_held_count', {});
+  if (error) fail(error);
+  return Number(data ?? 0);
+}
+
+/** A purchase's ordered items: the order lines the receipt and bill lines are keyed on (D-TWM-1). */
+export interface OrderedItem { id: string; name: string; quantity: string; rate: string }
+export async function listOrderedItems(procurementId: string): Promise<OrderedItem[]> {
+  const { data, error } = await table('procurement_items').select('id,name,quantity,rate').eq('procurement_id', procurementId).order('name');
+  if (error) fail(error);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({ id: String(r.id), name: String(r.name ?? ''), quantity: String(r.quantity), rate: String(r.rate) }));
+}
+
+/** The lines already recorded for a receipt (kind `receipt`) or a bill (kind `bill`), for the editor to start from. */
+export interface MatchLineInput { itemId: string; quantity: string; rate?: string }
+export async function getRecordedMatchLines(kind: 'receipt' | 'bill', id: string): Promise<MatchLineInput[]> {
+  const receipt = kind === 'receipt';
+  const { data, error } = await table(receipt ? 'procurement_receipt_lines' : 'procurement_bill_match_lines')
+    .select(receipt ? 'item_id,quantity' : 'item_id,quantity,rate').eq(receipt ? 'receipt_id' : 'invoice_id', id);
+  if (error) fail(error);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    itemId: String(r.item_id), quantity: String(r.quantity), ...(receipt ? {} : { rate: String(r.rate) }),
+  }));
+}
+
+/** Replace a receipt's lines (receipt roles). Returns nothing the screen needs; it refreshes the bills' matches. */
+export async function recordReceiptMatchLines(receiptId: string, lines: Array<{ itemId: string; quantity: number }>): Promise<void> {
+  const { error } = await rpc('record_receipt_match_lines', { p_receipt_id: receiptId, p_lines: lines.map((l) => ({ item_id: l.itemId, quantity: l.quantity })) });
+  if (error) fail(error);
+}
+
+/** Replace a bill's match lines (bill roles); returns the match as it now stands so a cleared hold shows at once. */
+export async function recordBillMatchLines(invoiceId: string, lines: Array<{ itemId: string; quantity: number; rate: number }>): Promise<BillMatch> {
+  const { data, error } = await rpc('record_bill_match_lines', {
+    p_invoice_id: invoiceId, p_lines: lines.map((l) => ({ item_id: l.itemId, quantity: l.quantity, rate: l.rate })),
+  });
+  if (error) fail(error);
+  return parseBillMatch(data);
+}

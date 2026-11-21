@@ -198,10 +198,13 @@ refuse an out-of-scope bill anyway, so an organisation without the match sees no
 - **AC-TWM-025** (RTL, same files as AC-TWM-022/023) Both new surfaces render at phone and desktop width with no overflow;
   checked by the saved captures under `docs/evidence/1215/2634/`.
 
-### 7.6 Open questions for the Director
+### 7.6 Owner rulings on the open questions (closed)
 
-- **OQ-TWM-5** Receipt edits have no SoD: the person who entered a held bill could also raise the receipt to clear it.
-  Recommendation: leave it (the receipt roles are the physical-fact writers; the edit is audited with before and after) and
-  revisit if the owner wants a stricter rule; enforcing it would block a small team that enters both.
-- **OQ-TWM-6** Switching the match off while bills are held releases every hold at once. Recommendation: allow it
-  (Admin-only, audited, the owner's own control) and show a notice on the screen when bills are currently held.
+- **OQ-TWM-5 closed (D-TWM-14).** Receipt edits carry **no separation of duties**; the audit of the lines before and
+  after is the control. Reason: small teams enter both the bill and the receipt, and a rule would block them; the
+  exception (the reviewed path) keeps its SoD.
+- **OQ-TWM-6 closed (D-TWM-15).** An Admin may switch the match off while bills are held (Admin-only, audited by the
+  settings writer). The screen shows a notice naming how many bills are held now, before the Admin confirms. The count
+  comes from `three_way_match_held_count()` (security-definer read, Admin only, own organisation), added in 1357 (FR-TWM-015).
+- **FR-TWM-015** (held count) — Where the user is an Admin, the system shall return how many bills of the organisation
+  are held now, and refuse any other role (`42501`). Proven by AC-TWM-017 and bound by the mutation check AC-TWM-021.
