@@ -18,10 +18,8 @@
     }
   ],
   "definer_functions": [
-    "assert_work_order_closeout_complete()",
     "attach_closeout_item_document(uuid,uuid)",
     "complete_closeout_item(uuid,date)",
-    "instantiate_work_order_closeout_items()",
     "lock_closeout_item(uuid)",
     "set_closeout_checklist(jsonb)"
   ]

@@ -1,0 +1,4 @@
+# 1401: close-out checklist writers; each re-asserts active membership and role, anon/PUBLIC revoked; 1400_work_order_closeout pgTAP.
+set_closeout_checklist
+attach_closeout_item_document
+complete_closeout_item
