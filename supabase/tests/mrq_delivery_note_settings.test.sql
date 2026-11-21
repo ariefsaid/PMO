@@ -102,5 +102,5 @@ select throws_ok(
   'AC-DNP-004 org_terminology still enforces allowed term_keys check'
 );
 
-finish();
+select * from finish();
 rollback;
