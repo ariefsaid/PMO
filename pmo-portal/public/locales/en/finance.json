@@ -1145,5 +1145,26 @@
   "snapshotProvenance": {
     "empty": "No snapshot available yet"
   },
+  "billingBoard": {
+    "title": "Billing board",
+    "filterProject": "Project",
+    "allProjects": "All projects",
+    "projectNoun": "project",
+    "allDone": "All steps done",
+    "allDoneHint": "Ready to invoice. Age counts from the last step.",
+    "workOrder": "Work order {{number}}",
+    "progress": "{{done}} of {{total}} steps",
+    "holder": "Waiting on {{role}}",
+    "notStarted": "Not started",
+    "age_one": "{{count}} day on this step",
+    "age_other": "{{count}} days on this step",
+    "overdue_one": "{{count}} day past target",
+    "overdue_other": "{{count}} days past target",
+    "truncated": "Showing the {{count}} oldest. Filter by project to see the rest.",
+    "error": "The billing board could not be loaded",
+    "empty": "No claims to show",
+    "emptySub": "Claims appear here once they have billing steps.",
+    "entryLink": "Billing board"
+  },
   "workOrderReference": "Work order"
 }

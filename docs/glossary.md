@@ -419,6 +419,10 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Skipped stage** — an optional billing stage marked not needed by Finance or an Admin, with a date and a reason. It counts as complete for ordering and for the invoice gate, and it is not undone (#2592).
 
+**Billing board** — a read-only screen listing every open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with the days on that step and an overdue chip. It is a view over the claims' own steps: nothing is stored for it, and a claim moves on only by completing its step on the claim. Bahasa Indonesia: Papan penagihan (#2681).
+
+**Board column** — one step name on the billing board, ordered by the median position of that name across the claims; a final column, All steps done, holds claims ready to invoice (#2681).
+
 **Invoice deadline** — the project's monthly day (1–31, clamped to the month's end) by which its invoice must reach the client, with a warning window in days. A claim shows it while its stages are still open or it has no stage plan; it is hidden once every planned stage is complete (#2522).
 
 **Measured quantity** — quantity on progress claims that are not withdrawn and whose invoice, if any, is not cancelled. **Billed quantity** — quantity on progress claims with an invoice that is not cancelled. Per bill-of-quantities item the reconciliation reads unbilled, partly billed, fully billed or surplus.

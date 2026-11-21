@@ -142,6 +142,7 @@ const JournalsPage = lazyWithPreload(() => import('./pages/Journals'));
 const ManagementPackPage = lazyWithPreload(() => import('./pages/ManagementPack'));
 const FinanceHubPage = lazyWithPreload(() => import('./pages/finance/FinanceHub'));
 const ReceivablesPage = lazyWithPreload(() => import('./pages/finance/ReceivablesPage'));
+const BillingBoardPage = lazyWithPreload(() => import('./pages/BillingBoard'));
 const PayablesPage = lazyWithPreload(() => import('./pages/finance/PayablesPage'));
 const ProfileSettingsPage = lazyWithPreload(() => import('./pages/ProfileSettings'));
 const StockSetupPage = lazyWithPreload(() => import('./pages/stock/StockSetup'));
@@ -266,6 +267,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
   { path: '/finance', chunks: [FinanceHubPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/receivables', chunks: [ReceivablesPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/finance/billing-board', chunks: [BillingBoardPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/payables', chunks: [PayablesPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/statements', chunks: [FinancialStatementsPage], namespaces: ['finance'] },
@@ -501,6 +503,7 @@ export const appRouteConfig: RouteObject[] = [
   // Finance section. Each area has one canonical URL; Statements keeps its existing page.
   { path: '/finance', element: <FinanceAccessRoute><FinanceHubPage /></FinanceAccessRoute> },
   { path: '/finance/receivables', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<ReceivablesPage />} /></FinanceAccessRoute> },
+  { path: '/finance/billing-board', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<BillingBoardPage />} /></FinanceAccessRoute> },
   { path: '/finance/payables', element: <FinanceAccessRoute><FeatureRoute feature="procurement" element={<PayablesPage />} /></FinanceAccessRoute> },
   { path: '/finance/reports', element: <FinanceAccessRoute><FeatureRoute feature="management_pack" element={<ManagementPackPage />} /></FinanceAccessRoute> },
   { path: '/finance/statements', element: <FinanceAccessRoute>{gated('financial_statements', <FinancialStatementsPage />)}</FinanceAccessRoute> },

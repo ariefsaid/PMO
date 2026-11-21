@@ -1145,5 +1145,26 @@
   "snapshotProvenance": {
     "empty": "Belum ada snapshot"
   },
+  "billingBoard": {
+    "title": "Papan penagihan",
+    "filterProject": "Proyek",
+    "allProjects": "Semua proyek",
+    "projectNoun": "proyek",
+    "allDone": "Semua langkah selesai",
+    "allDoneHint": "Siap ditagihkan. Umur dihitung sejak langkah terakhir.",
+    "workOrder": "Work Order {{number}}",
+    "progress": "{{done}} dari {{total}} langkah",
+    "holder": "Menunggu {{role}}",
+    "notStarted": "Belum dimulai",
+    "age_one": "{{count}} hari di langkah ini",
+    "age_other": "{{count}} hari di langkah ini",
+    "overdue_one": "{{count}} hari lewat target",
+    "overdue_other": "{{count}} hari lewat target",
+    "truncated": "Menampilkan {{count}} yang tertua. Saring menurut proyek untuk melihat sisanya.",
+    "error": "Papan penagihan tidak dapat dimuat",
+    "empty": "Tidak ada klaim untuk ditampilkan",
+    "emptySub": "Klaim muncul di sini setelah memiliki langkah penagihan.",
+    "entryLink": "Papan penagihan"
+  },
   "workOrderReference": "Work Order / SPK"
 }

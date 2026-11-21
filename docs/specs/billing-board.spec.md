@@ -1,6 +1,6 @@
 # Spec: Billing board, all claims by step and age (#2681)
 
-**Status:** spec (phase 1), awaiting Director approval. Ships for the 15 December 2026 release (OD-SCOPE-1). Map #2516, size S. IDs `FR-BBD-###`, `NFR-BBD-###`, `AC-BBD-###`, `OD-BBD-#`. Plan: `docs/plans/2026-11-21-billing-board.md`. Stacked on #2680 (`claim-billing-steps.spec.md`, migrations 1365-1369) and #2592 (`billing-stage-targets.spec.md`). Terms Billing stage, Stage target, Skipped stage, Overdue stage as defined there; **step** = a claim's billing stage row, as in #2680.
+**Status:** approved by the Director (OD-BBD-1..7 decided as stated); built (phase 2), awaiting the wave run. Ships for the 15 December 2026 release (OD-SCOPE-1). Map #2516, size S. IDs `FR-BBD-###`, `NFR-BBD-###`, `AC-BBD-###`, `OD-BBD-#`. Plan: `docs/plans/2026-11-21-billing-board.md`. Stacked on #2680 (`claim-billing-steps.spec.md`, migrations 1365-1369) and #2592 (`billing-stage-targets.spec.md`). Terms Billing stage, Stage target, Skipped stage, Overdue stage as defined there; **step** = a claim's billing stage row, as in #2680.
 
 ## Owner ruling applied (OD-SCOPE-6, settled)
 One billing record, no task copies. The board is a view: cards are claims, columns are steps. No board table, no board setting, no stored position: a card sits where the claim's own step rows put it. OD-SCOPE-2: no step name, role or day count is written in code; the columns come from whatever step names the organisation's claims carry.
@@ -76,7 +76,14 @@ When I chase billing across work orders, I want one view of every claim by step 
 | Role without access (Engineer) | The function returns nothing; the screen shows the empty state with the plain words "No claims to show" |
 | Unknown `?project=` | Filter ignored with the project chip cleared |
 
-## Build notes for phase 2 (not yet built)
+## Build notes (#2681, as built)
+- **Route access (deviation from the phase-1 wording):** `/finance/billing-board` sits under Finance and uses the same gate as Receivables (`FinanceAccessRoute` + the `revenue` feature): Finance, Executive and Admin. A Project Manager reaches their claims from the project's billing tab, as before; the board does not widen who sees the Finance area.
+- **Invoiced test:** `billing_claim_invoiced` is not callable by `authenticated`, so the invoker read tests `sales_invoices` rows the caller can see (claim id = invoice id, 0250). For Finance, Executive and Admin that is every invoice of the organisation.
+- **Entry link:** `BillingBoardLink` renders on the Receivables header; it carries its own silent boundary so a failed read hides the link and never blocks Receivables.
+- **Breadcrumb:** a `finance-billing-board` entry in `routeMatch.ts`; no Rail item (OD-BBD-6).
+- Two reads when a project is chosen: the unfiltered board (kept for the project list) and the filtered one (so a truncated board still shows a project's own claims).
+
+## Build plan notes (phase 1)
 - Migrations **1370** `billing_board_read` (the function, `security invoker`, `set search_path = public`, `revoke all ... from public, anon; grant execute ... to authenticated`) and its rollback `rollback/1370_billing_board_read_down.sql`. **1371 is reserved and unused** unless the invoice lookup needs a supporting index.
 - Invoiced test: use the same lookup `billing_stages_open` / the 1021 triggers use (an invoice row for the claim); the builder confirms the join by reading 1021 and 0250 first.
 - pgTAP `supabase/tests/1370_billing_board.test.sql`; fixtures as `1360_billing_stage_targets.test.sql`.

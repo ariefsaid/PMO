@@ -10,7 +10,11 @@ import type {
 } from '@/src/lib/db/billingStages';
 import type { OverdueClaimStep, StepInput, StepPatch, StepTemplate, WaitingStep } from '@/src/lib/db/billingSteps';
 
+import type { BillingBoardResult } from '@/src/lib/db/billingBoard';
+
 export interface BillingStagesRepository {
+  /** #2681: the billing board's rows (a read-only view over the claims' own steps). */
+  readBoard(projectId: string | null): Promise<BillingBoardResult>;
   getTemplate(projectId: string): Promise<StageTemplateInput[]>;
   setTemplate(projectId: string, stages: StageTemplateInput[]): Promise<number>;
   setTerms(projectId: string, stages: StageTemplateInput[], day: number | null, warnDays: number, pct: number): Promise<void>;

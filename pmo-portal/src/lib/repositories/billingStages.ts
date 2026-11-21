@@ -7,6 +7,7 @@ import {
   addClaimStep, archiveStepTemplate, getOverdueStepsByClaim, getWaitingSteps, listStepTemplates, loadStepTemplateOntoClaim,
   loadStepTemplateOntoProject, moveClaimStep, removeClaimStep, saveStepTemplate, updateClaimStep,
 } from '@/src/lib/db/billingSteps';
+import { getBillingBoard } from '@/src/lib/db/billingBoard';
 import { wrap } from './repositoryErrors';
 import type { BillingStagesRepository } from './contracts/billingStages';
 
@@ -15,6 +16,7 @@ import type { BillingStagesRepository } from './contracts/billingStages';
  * carries what a person decides. Nothing here dispatches to an ERP: the claim's invoice is raised by progressBilling.
  */
 export const billingStagesRepository: BillingStagesRepository = {
+  readBoard: (projectId) => wrap(() => getBillingBoard(projectId)),
   getTemplate: (projectId) => wrap(() => getBillingStageTemplate(projectId)),
   setTemplate: (projectId, stages) => wrap(() => setBillingStageTemplate(projectId, stages)),
   setTerms: (projectId, stages, day, warnDays, pct) => wrap(() => setProjectBillingTerms(projectId, stages, day, warnDays, pct)),

@@ -13565,6 +13565,10 @@ export type Database = {
         Args: { p_project: string }
         Returns: { claim_id: string; days_over: number; step_name: string }[]
       }
+      billing_board: {
+        Args: { p_project?: string }
+        Returns: { all_done: boolean; claim_created_at: string; claim_id: string; current_name: string | null; current_position: number | null; current_stage_id: string | null; due_on: string | null; last_completed_on: string | null; owner_role: Database["public"]["Enums"]["user_role"] | null; project_id: string; project_name: string; started_on: string | null; step_count: number; steps_done: number; target_days: number | null; target_on: string | null; today: string; wo_number: string | null; work_order_id: string | null }[]
+      }
       remove_claim_billing_step: { Args: { p_reason: string; p_stage: string }; Returns: undefined }
       save_billing_step_template: { Args: { p_name: string; p_steps: Json; p_template?: string }; Returns: string }
       update_claim_billing_step: { Args: { p_patch: Json; p_stage: string }; Returns: undefined }
