@@ -96,6 +96,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const archiveAsync = archive.mutateAsync;
   const { data: milestones } = useMilestones(projectId);
   const { data: taskGroupRows } = useTaskGroups(projectId);
+  // #2679: the group manager stays out of the tab until the project has a group or a manager asks for it from the menu.
+  const [groupsRequested, setGroupsRequested] = useState(false);
   const activeTaskGroups = useMemo(() => (taskGroupRows ?? []).filter((g) => !g.archived_at), [taskGroupRows]);
   const { data: workOrders } = useProjectWorkOrders(projectId);
   // #2531: the work-order link and proof flag are structure edits (migration 0991 refuses any other writer).
@@ -474,6 +476,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         setShowArchived={setShowArchived}
         onClearSelection={clearSelection}
         integrationsRef={integrationsRef}
+        onManageTaskGroups={may('edit', 'milestone') ? () => setGroupsRequested(true) : undefined}
         canCreate={canCreate}
         onNewTask={() => setFormTarget({ task: null })}
         scope={scope}
@@ -561,7 +564,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         action={{ label: t('projectDetail.tasks.clearFilters', 'Clear filters'), onClick: () => { setStatusFilter('all'); setAssigneeFilter('all'); setSearchText(''); clearSelection(); } }}
       />}
 
-      {state === undefined && <TaskGroupsPanel projectId={projectId} tasks={all} milestones={milestoneList} />}
+      {state === undefined && <TaskGroupsPanel projectId={projectId} tasks={all} milestones={milestoneList} requested={groupsRequested} />}
 
       {state === undefined && (filteredTasks.length > 0 || milestoneList.length > 0) && view === 'list' && (
         <MilestoneGroupedList

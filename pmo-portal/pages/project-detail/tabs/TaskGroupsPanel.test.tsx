@@ -38,9 +38,15 @@ beforeEach(() => {
 });
 
 describe('TaskGroupsPanel', () => {
-  it('AC-TGM-010: renders nothing for a non-manager while the project has no group', () => {
-    h.may.mockReturnValue(false);
+  it('AC-TGM-010: renders nothing while the project has no group, even for a manager, until asked from the menu', () => {
+    h.may.mockReturnValue(true);
     const { container } = render(<TaskGroupsPanel projectId="p" tasks={tasks} milestones={phases} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('AC-TGM-010: a non-manager never gets the empty manager, even when asked', () => {
+    h.may.mockReturnValue(false);
+    const { container } = render(<TaskGroupsPanel projectId="p" tasks={tasks} milestones={phases} requested />);
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -58,8 +64,7 @@ describe('TaskGroupsPanel', () => {
   it('AC-TGM-010: a manager creates a group and links it to a phase', async () => {
     h.may.mockImplementation((action: string, entity: string) => action === 'edit' && entity === 'milestone');
     h.groups = [{ id: 'G1', name: 'Foundations', milestone_id: null, archived_at: null }];
-    render(<TaskGroupsPanel projectId="p" tasks={tasks} milestones={phases} />);
-    await userEvent.click(screen.getByRole('button', { name: /task groups/i }));
+    render(<TaskGroupsPanel projectId="p" tasks={tasks} milestones={phases} requested />);
     await userEvent.type(screen.getByLabelText(/new group name/i), 'Roofing');
     await userEvent.click(screen.getByRole('button', { name: /add group/i }));
     await waitFor(() => expect(h.create).toHaveBeenCalledWith({ name: 'Roofing' }));

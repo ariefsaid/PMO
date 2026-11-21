@@ -1163,7 +1163,8 @@
         "toast": {
           "created": "Grup tugas dibuat",
           "deleted": "Grup tugas dihapus"
-        }
+        },
+        "menu": "Grup tugas"
       }
     },
     "workOrders": {

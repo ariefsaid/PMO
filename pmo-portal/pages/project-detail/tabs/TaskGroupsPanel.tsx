@@ -2,9 +2,9 @@
  * Task groups (#2679): per-project groups of tasks. A group linked to a phase rolls its tasks up to that phase
  * (the phase percentage comes from get_project_milestones, migration 1396). Managers (the milestone writers) add,
  * rename-by-recreate is out of scope, link, archive and delete; everyone else only sees groups that exist.
- * The panel is invisible to a non-manager while the project has no group.
+ * The panel renders nothing while the project has no group, unless a manager opened it from the toolbar menu.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, ProgressBar, SelectField, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -19,6 +19,8 @@ interface TaskGroupsPanelProps {
   projectId: string;
   tasks: TaskWithRefs[];
   milestones: MilestoneWithProgress[];
+  /** A manager asked for the manager from the toolbar menu; without it the panel shows only once a group exists. */
+  requested?: boolean;
 }
 
 const toRollup = (t: TaskWithRefs & WithTaskGroup): RollupTask => ({
@@ -30,14 +32,15 @@ const toRollup = (t: TaskWithRefs & WithTaskGroup): RollupTask => ({
   archived_at: t.archived_at ?? null,
 });
 
-const TaskGroupsPanel: React.FC<TaskGroupsPanelProps> = ({ projectId, tasks, milestones }) => {
+const TaskGroupsPanel: React.FC<TaskGroupsPanelProps> = ({ projectId, tasks, milestones, requested = false }) => {
   const { t } = useTranslation('project');
   const { toast } = useToast();
   const may = usePermission();
   const canManage = may('edit', 'milestone');
   const { data } = useTaskGroups(projectId);
   const { create, update, remove } = useTaskGroupMutations(projectId);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(requested);
+  useEffect(() => { if (requested) setOpen(true); }, [requested]);
   const [name, setName] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<TaskGroupRow | null>(null);
 
@@ -48,7 +51,8 @@ const TaskGroupsPanel: React.FC<TaskGroupsPanelProps> = ({ projectId, tasks, mil
     [milestones],
   );
 
-  if (!canManage && groups.length === 0) return null;
+  // Tasks tab stays identical for an organisation with no groups unless a manager opens the manager from the menu.
+  if (groups.length === 0 && !(canManage && requested)) return null;
 
   const fail = (err: unknown) => {
     const { headline, detail } = classifyMutationError(err);

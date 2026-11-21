@@ -102,4 +102,5 @@ Nested groups, group weights, drag to reorder, group-level due dates, a Gantt ro
   valid; code reads it through `WithTaskGroup` (`src/lib/db/taskGroups.ts`).
 - Group CRUD rides on the existing milestone repository (`repositories.milestone.*TaskGroup*`) instead of a new
   aggregate key, so the repository registry tests stay unchanged.
+- The Tasks tab is unchanged for a project with no group: the manager opens from the toolbar overflow menu ("Task groups", managers only) and stays until a group exists.
 - Rename of a group is not offered in the panel (create, link, archive, delete only); `updateTaskGroup` supports it.
