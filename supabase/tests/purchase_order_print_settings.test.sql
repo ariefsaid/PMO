@@ -130,7 +130,7 @@ select throws_ok(
   $$ update public.purchase_order_settings
         set authorised_collectors = array_fill('Collector'::text, array[51])
       where org_id = '26880000-0000-0000-0000-00000000000a' $$,
-  '23514',
+  '23514', null,
   'AC-POP-011 the table constraint refuses more than 50 collectors on a direct write'
 );
 
@@ -138,7 +138,7 @@ select throws_ok(
   $$ update public.purchase_order_settings
         set authorised_collectors = array[repeat('A', 101)]
       where org_id = '26880000-0000-0000-0000-00000000000a' $$,
-  '23514',
+  '23514', null,
   'AC-POP-011 the table constraint refuses a 101-character collector on a direct write'
 );
 
@@ -151,13 +151,14 @@ select is(
   'AC-POP-012 Admin B cannot read Org A purchase order settings'
 );
 
+with touched as (
+  update public.purchase_order_settings
+     set print_enabled = false
+   where org_id = '26880000-0000-0000-0000-00000000000a'
+   returning 1
+)
 select is(
-  (with touched as (
-     update public.purchase_order_settings
-        set print_enabled = false
-      where org_id = '26880000-0000-0000-0000-00000000000a'
-      returning 1
-   ) select count(*)::int from touched),
+  (select count(*)::int from touched),
   0,
   'AC-POP-012 a cross-org update touches no rows'
 );
