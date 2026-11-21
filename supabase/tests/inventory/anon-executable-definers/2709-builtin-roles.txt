@@ -1,0 +1,7 @@
+# #2709 built-in roles: client-callable SECURITY DEFINER names (authenticated only; anon revoked in 1201/1203).
+get_built_in_roles_enabled  # 1201: active member read of the caller org's setting
+set_built_in_roles_enabled  # 1201: active Admin of the caller org; 1202 pgTAP
+actor_built_in_role  # 1203: reads the caller's own key
+actor_has_role_capability  # 1203: caller's own capability
+actor_sees_prices  # 1203: caller's own price visibility
+actor_holds_built_in_role  # 1203: caller's own role key

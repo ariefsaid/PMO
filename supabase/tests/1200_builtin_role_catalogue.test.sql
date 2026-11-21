@@ -2,7 +2,7 @@
 -- Migration under test: supabase/migrations/1200_builtin_role_catalogue.sql
 -- Expectations are INDEPENDENT literals written here, never derived from the tables under test.
 begin;
-select plan(48);
+select plan(66);
 
 select is((select count(*)::int from built_in_roles), 28, 'AC-001 28 built-in roles');
 select is((select count(*)::int from built_in_roles where tier = 'manager'), 12, 'AC-001 12 managers');

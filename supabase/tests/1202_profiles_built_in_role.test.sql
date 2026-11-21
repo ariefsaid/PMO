@@ -2,7 +2,7 @@
 -- profile-administration rule on the resulting level, no self-assignment, legacy people unchanged, actor helpers.
 -- Migrations under test: 1201_built_in_roles_setting, 1202_profiles_built_in_role, 1203_role_capability_actor_helpers.
 begin;
-select plan(40);
+select plan(36);
 
 insert into organizations (id, name) values
   ('12020000-0000-0000-0000-000000000001','BIR Org A'),
@@ -15,7 +15,9 @@ insert into auth.users (id, email) values
   ('12020000-0000-0000-0000-0000000000d2','bir-eng2@example.com'),
   ('12020000-0000-0000-0000-0000000000d3','bir-inactive@example.com'),
   ('12020000-0000-0000-0000-0000000000b1','bir-admin-b@example.com'),
-  ('12020000-0000-0000-0000-0000000000b2','bir-eng-b@example.com');
+  ('12020000-0000-0000-0000-0000000000b2','bir-eng-b@example.com'),
+  ('12020000-0000-0000-0000-0000000000f1','bir-new1@example.com'),
+  ('12020000-0000-0000-0000-0000000000f2','bir-new2@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('12020000-0000-0000-0000-0000000000a1','12020000-0000-0000-0000-000000000001','BIR Admin','bir-admin@example.com','Admin','active'),
   ('12020000-0000-0000-0000-0000000000e1','12020000-0000-0000-0000-000000000001','BIR Exec','bir-exec@example.com','Executive','active'),
@@ -41,8 +43,9 @@ select throws_ok($$ update profiles set built_in_role = 'planner' where id = '12
 select is((select built_in_role from profiles where id = '12020000-0000-0000-0000-0000000000d1'), null,
   'AC-013 and the persisted key is still NULL');
 select throws_ok($$ insert into profiles (id, org_id, full_name, email, role, status, built_in_role)
-  values ('12020000-0000-0000-0000-0000000000d1','12020000-0000-0000-0000-000000000001','x','x@example.com','Engineer','active','planner') $$,
-  null, null, 'AC-013 an insert carrying a key is refused while the setting is off (any error, here a duplicate id or the gate)');
+  values ('12020000-0000-0000-0000-0000000000f1','12020000-0000-0000-0000-000000000001','New','bir-new1@example.com','Engineer','active','planner') $$,
+  'P0001', null, 'AC-013 an insert carrying a key is refused while the setting is off');
+select is((select count(*)::int from profiles where id = '12020000-0000-0000-0000-0000000000f1'), 0, 'AC-013 and no row was created');
 
 -- Setting RPC: Admin only.
 set local role authenticated;
@@ -54,6 +57,12 @@ select is(set_built_in_roles_enabled(true), true, 'AC-013 an Admin turns the set
 reset role;
 select is((select built_in_roles_enabled from organizations where id = '12020000-0000-0000-0000-000000000001'), true, 'AC-013 the setting persisted');
 select is((select built_in_roles_enabled from organizations where id = '12020000-0000-0000-0000-000000000002'), false, 'AC-013 the other organization is unchanged');
+
+-- AC-004 insert with a key: the level follows the base.
+insert into profiles (id, org_id, full_name, email, role, status, built_in_role)
+  values ('12020000-0000-0000-0000-0000000000f2','12020000-0000-0000-0000-000000000001','New2','bir-new2@example.com','Engineer','active','finance_officer');
+select is((select role::text from profiles where id = '12020000-0000-0000-0000-0000000000f2'), 'Finance',
+  'AC-004 an insert with a key gets the base level (the written level is overridden)');
 
 -- AC-004 sync: setting a key sets the base level; a role-only change while held is refused.
 set local role authenticated;
@@ -76,7 +85,8 @@ update profiles set role = 'Engineer' where id = '12020000-0000-0000-0000-000000
 -- AC-006 who may assign: the existing profile-administration rule on the resulting base level.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"12020000-0000-0000-0000-0000000000e1","role":"authenticated"}';
-update profiles set built_in_role = 'administrator' where id = '12020000-0000-0000-0000-0000000000d1';
+select throws_ok($$ update profiles set built_in_role = 'administrator' where id = '12020000-0000-0000-0000-0000000000d1' $$,
+  '42501', null, 'AC-006 the post-image check refuses it (new row violates row-level security)');
 reset role;
 select is((select built_in_role from profiles where id = '12020000-0000-0000-0000-0000000000d1'), null,
   'AC-006 an Executive cannot give the Administrator role (result would be Admin); persisted key still NULL');
