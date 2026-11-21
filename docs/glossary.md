@@ -1065,3 +1065,6 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+- **Done-not-claimed age** (#2675): whole days from the latest confirmed acceptance of a candidate's work order to the organisation's today. Information, shown on every candidate line of the billing plan.
+- **Done-not-claimed alert** (#2675): off by default; when an organisation switches the reminder on and sets a day limit, lines older than the limit are flagged and Finance is told once per line. It never raises a claim or an invoice.

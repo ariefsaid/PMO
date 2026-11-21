@@ -21,7 +21,7 @@ export interface PlanSettings {
   /** Done-not-claimed reminder switch. Off by default. */
   reminderOn: boolean;
   /** #2675: lines older than this many days are flagged while the reminder is on. Null = no limit set (no default). */
-  doneNotClaimedAfterDays: number | null;
+  doneNotClaimedAfterDays?: number | null;
   monthTargets: Array<{ month: string; target: number }>;
 }
 

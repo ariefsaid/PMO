@@ -1,6 +1,6 @@
 # Spec: Done but not yet claimed, age on the billing plan (#2675)
 
-**Status:** phase 1 (awaiting Director approval). IDs `FR-DNC-###`, `AC-DNC-###`, `OD-DNC-#`. Map #2516, money path adjacent (information only), ships alone. Plan: `docs/plans/2026-11-21-done-not-claimed-age.md`. Stacked on #2682 (`monthly-billing-plan.spec.md`), which left the seams used here: `accepted_on` on every candidate, the hidden `billing-plan-age-slot` on each line row, and the setting `done_not_claimed_reminder_on` (default false).
+**Status:** approved by the Director; built (migrations 1380, 1381). Decided: Admin fallback recipients only when the organisation has no active Finance user (as #2592). IDs `FR-DNC-###`, `AC-DNC-###`, `OD-DNC-#`. Map #2516, money path adjacent (information only), ships alone. Plan: `docs/plans/2026-11-21-done-not-claimed-age.md`. Stacked on #2682 (`monthly-billing-plan.spec.md`), which left the seams used here: `accepted_on` on every candidate, the hidden `billing-plan-age-slot` on each line row, and the setting `done_not_claimed_reminder_on` (default false).
 
 ## Owner ruling applied (OD-SCOPE-6, settled)
 The done-not-claimed reminder is **information, off as an alert by default**. The plan only shows; it never creates a claim or an invoice and never pushes to bill (holding a claim to next month can be deliberate). OD-SCOPE-2: no client day count in code; whether the alert is on and after how many days are organisation settings.
