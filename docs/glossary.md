@@ -1044,3 +1044,14 @@ manager accepts or rejects it, with the reason recorded.
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
 
 **Vendor location** (stock) — a stock location of kind `vendor`: material held at an outside vendor, e.g. sent out for a process. Optionally linked to a Vendor company; it names no project, takes only transfers (out and back), adjustments and counts, and is not a project location for the work-order balance. A send-out to it is not usage for reorder suggestions. Created by the organisation in Stock setup; none exists by default. (#2683, `docs/specs/stock-vendor-location.spec.md`.)
+
+**Two-step transfer** (stock) — a transfer made in two steps: *send* moves the goods out of the source into an *in-transit* location (one per transfer, made and archived by the system); *receive* records the counted quantity, accepts or rejects it (with a quality check where the item is flagged) and posts it to the destination. Off by default; an organisation setting turns it on. The one-step transfer is unchanged while it is off.
+
+**In transit** — goods that left the source and are not yet counted at the destination. They stay on the books in the transfer's own in-transit location, so quantity and value are never lost on the road.
+
+**Shortfall** — the sent quantity minus the counted quantity of a two-step transfer. It stays in transit, open, until someone resolves it: it arrived later, it is returned to the source, or an Admin writes it off with a reason. Rejected quantity (counted but refused) goes straight back to the source with a reason.
+
+**Handover confirmation** — one way to give *Handover proof* in PMO: at send or receive, the logged-in person confirms the handover with their name, the time, the counted quantities, a photo of the goods and a photo of the person receiving. A person with no account signs on the logged-in person's phone with their name typed. It cannot be changed afterwards.
+
+**Proof rule** (per stock tag) — which proof counts for items of that tag: none, signed paper, a handover confirmation in PMO, or either. A separate organisation setting says whether the proof must come *before* the movement posts or may *follow* it; a movement whose proof has not arrived reads "proof outstanding" and "proof complete" once it has.
+

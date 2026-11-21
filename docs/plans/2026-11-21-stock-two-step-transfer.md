@@ -57,6 +57,8 @@ Spec: `docs/specs/stock-two-step-transfer.spec.md`. Money path (stock ledger): s
    - `get_stock_movement_proof_status(p_only_missing boolean default false, p_from date default null, p_to date default null)` returns table (definer, `assert_is_active_member`, org-scoped, stable).
    - `create or replace get_reorder_suggestions` (copy 1300's body; the `dw.kind in (...)` clause reads the transfer's final destination kind when the leg's destination is a transit location).
    - `get_stock_on_hand` is not edited (it already returns `warehouse_kind`).
+   - `create or replace stock_post_core` (copy of 1030) with the paper clause also requiring `stock_proof_timing_of(d.org_id) = 'before_posting'` (`-- mut:timing_block`); rollback restores 1030.
+   - `record_stock_handover` is in 1308 with the other RPCs; `set_stock_proof_timing` and `organizations.stock_proof_timing` are in 1305.
    - Inventory fragment `supabase/tests/inventory/anon-executable-definers/2690_two_step_transfer.txt` (the client-callable functions) and isolation fragment under `scripts/isolation-probe-denominator.d/` (read both script headers first).
 
 ## Tests (written first; run by the orchestrator on the integration branch)
@@ -85,3 +87,11 @@ Spec: `docs/specs/stock-two-step-transfer.spec.md`. Money path (stock ledger): s
 - Material-request draft transfers (1001/1101) read the draft's destination and work order; sending in place moves `to_warehouse_id`: check 1100's "prior quantity posted" read still matches.
 - `check_cost_attribution` runs on the leg that reaches a site/yard/staging destination only; the send leg never names a work order.
 - Archiving a transit location must pass the stock-guard (balance zero) and the `STK_ARCHIVED` check in later posts.
+
+## Build notes (phase 2, deviations from the plan above)
+- `send_stock_transfer` takes `(header, lines, draft id, client request id)`: a send-stage confirmation is recorded after the send with `record_stock_handover`, because the photo path names the transfer.
+- The front end reaches the new tables and RPCs through one narrow loose client in `src/lib/db/stockTransfers.ts`; regenerate `database.types.ts` after the migrations and tighten it.
+- The send screen has no work-order field: a work order travels only on a sent material-request draft (kept on the transfer, stamped on the receiving leg).
+- Settings UI is one Admin-only section in Stock setup (`StockTransferSettings.tsx`): mode, proof timing, proof rule per tag, quality-check items. `StockTagsPanel` is untouched.
+- Breadcrumb for `/stock/transfers/:id` falls back to the generic label; the list and send routes are mapped.
+- Not run here (gate change): every pgTAP file, the e2e journey, the mutation checks, the screenshots under `docs/evidence/1215/2690/`.
