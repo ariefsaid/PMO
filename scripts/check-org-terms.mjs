@@ -37,6 +37,17 @@ export const TERM_PATTERNS = {
   purchaseRequest: /\bpurchase requests?\b/i,
   discipline: /\bdisciplines?\b/i,
   materialRequest: /\bmaterial requests?\b/i,
+  // #2712 expansion
+  billOfQuantities: /\bbill of quantities\b/i,
+  contractItem: /\bcontract items?\b/i,
+  dailyRevenue: /\bday revenue\b/i,
+  acceptedQuantity: /\baccepted quantit(?:y|ies)\b/i,
+  costVariation: /\bcost variations?\b/i,
+  deliveryNote: /\bdelivery notes?\b/i,
+  stockCount: /\bstock counts?\b/i,
+  imprest: /\bimprests?\b/i,
+  standIn: /\bstand-ins?\b/i,
+  progressClaim: /\bprogress claims?\b/i,
 };
 const ATTRS = new Set(['title', 'label', 'placeholder', 'aria-label', 'alt', 'description', 'sub', 'heading', 'aria-description', 'aria-valuetext', 'helperText', 'emptyTitle', 'emptyMessage', 'ariaLabel', 'ariaDescription', 'tooltip', 'caption', 'subtitle']);
 const PROPS = new Set(['label', 'title', 'description', 'message', 'placeholder', 'heading', 'ariaLabel', 'ariaDescription', 'emptyTitle', 'emptyMessage', 'helperText', 'tooltip', 'caption', 'subtitle']);
@@ -123,6 +134,10 @@ const extra = { ariaLabel: 'Project', emptyTitle: 'Work orders' };`;
   const hits = scanSource(bad);
   const terms = hits.map((h) => h.term).sort().join(',');
   if (terms !== 'project,project,purchaseRequest,workOrder,workOrder') throw new Error(`planted cases: got ${terms}`);
+  const expansion = `const A = () => <div title="Bill of quantities"><p>Delivery note</p><p>Accepted quantities</p></div>;
+const c = { label: 'Cost variation', description: 'Stock count', title: 'Stand-in', message: 'Imprest', heading: 'Progress claims', placeholder: 'Contract item', tooltip: 'Day revenue' };`;
+  const expTerms = scanSource(expansion).map((h) => h.term).sort().join(',');
+  if (expTerms !== 'acceptedQuantity,billOfQuantities,contractItem,costVariation,dailyRevenue,deliveryNote,imprest,progressClaim,standIn,stockCount') throw new Error(`expansion terms: got ${expTerms}`);
   const ok = `export const A = () => <p>{t('a.b', 'Work order')}</p>;\nconst x = { key: 'work order' };`;
   if (scanSource(ok).length) throw new Error('t() default or non-label property was flagged');
   if (compare({ a: 2 }, { a: 1 }).length !== 1) throw new Error('growth not caught');

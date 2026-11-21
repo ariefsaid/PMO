@@ -1,0 +1,13 @@
+{
+  "definer_functions": [],
+  "tables": [
+    {
+      "table": "org_role_names",
+      "has_org": true,
+      "pk": "org_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "n/a: pk is the org id with role key and locale, not a row uuid; the blind read covers the declared B visibility"
+    }
+  ]
+}

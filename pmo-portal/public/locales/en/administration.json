@@ -828,6 +828,13 @@
     "archiveBody": "They leave the register and the expiry list, and no more warnings are sent for their documents.",
     "navLabel": "People"
   },
+  "roleNames": {
+    "title": "Role names",
+    "intro": "Rename the built-in roles to match your organisation. Only the displayed name changes; what each role can do stays the same.",
+    "name": "Name",
+    "saved": "Role name saved",
+    "resetDone": "Back to the default name"
+  },
   "terminology": {
     "default": "Default",
     "intro": "Rename these terms to match how your organisation talks. The new wording replaces the default everywhere it is shown, in each language.",

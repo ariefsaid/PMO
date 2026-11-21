@@ -828,6 +828,13 @@
     "empty": "Belum ada personel. Tambahkan personel pertama untuk mencatat dokumennya.",
     "navLabel": "Personel"
   },
+  "roleNames": {
+    "title": "Nama peran",
+    "intro": "Ganti nama peran bawaan sesuai organisasi Anda. Hanya nama yang tampil yang berubah; hak akses setiap peran tetap sama.",
+    "name": "Nama",
+    "saved": "Nama peran disimpan",
+    "resetDone": "Kembali ke nama bawaan"
+  },
   "terminology": {
     "default": "Bawaan",
     "intro": "Ganti istilah ini sesuai bahasa organisasi Anda. Kata baru menggantikan kata bawaan di semua tempat, untuk setiap bahasa.",

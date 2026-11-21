@@ -16,7 +16,8 @@ import { USER_DIRECTORY_PAGE_SIZE } from '@/src/lib/db/adminUsers';
 import type { UserDirectoryRow, UserRole } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
 import { useBuiltInRolesEnabled, useBuiltInRoleMutation } from '@/src/hooks/useBuiltInRoles';
-import { baseLevelOf, builtInRoleName } from '@/src/auth/builtInRoles';
+import { baseLevelOf } from '@/src/auth/builtInRoles';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { useTranslation } from 'react-i18next';
 import { UserDirectory } from './admin-users/UserDirectory';
 import { InviteFormModal, RoleFormModal, ManagerFormModal } from './admin-users/UserForms';
@@ -42,8 +43,9 @@ import { useRoleLabels } from './admin-users/roleLabels';
  */
 
 const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const roleNames = useRoleLabels();
+  const roleDisplayName = useBuiltInRoleName();
   const may = usePermission();
   const isOperator = useIsOperator();
   const { toast } = useToast();
@@ -221,7 +223,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
         t('admin.users.toast.roleUpdatedDetail', {
           defaultValue: '{{name}} is now {{role}}.',
           name: user.full_name,
-          role: builtIn ? builtInRoleName(builtIn, i18n.language) : roleNames.label(role),
+          role: builtIn ? roleDisplayName(builtIn) : roleNames.label(role),
         }),
         'success',
       );
@@ -456,7 +458,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
               : t('admin.users.roleConfirm.title', {
                   defaultValue: "Change {{name}}'s role to {{role}}?",
                   name: pendingRole.user.full_name,
-                  role: pendingRole.builtIn ? builtInRoleName(pendingRole.builtIn, i18n.language) : roleNames.label(pendingRole.role),
+                  role: pendingRole.builtIn ? roleDisplayName(pendingRole.builtIn) : roleNames.label(pendingRole.role),
                 })
             : t('admin.users.roleConfirm.fallbackTitle', 'Change role?')
         }

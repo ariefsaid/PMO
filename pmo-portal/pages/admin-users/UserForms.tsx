@@ -14,7 +14,8 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { UserDirectoryRow, UserManagerChoice, UserRole } from '@/src/lib/db/adminUsers';
 import { useRoleLabels } from './roleLabels';
-import { BUILT_IN_ROLES, BUILT_IN_ROLE_TIERS, baseLevelOf, builtInRoleName } from '@/src/auth/builtInRoles';
+import { BUILT_IN_ROLES, BUILT_IN_ROLE_TIERS, baseLevelOf } from '@/src/auth/builtInRoles';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { initialsOf } from './avatar';
 
 /**
@@ -136,8 +137,9 @@ export const RoleFormModal: React.FC<{
   builtInEnabled?: boolean;
   onSubmitBuiltIn?: (user: UserDirectoryRow, key: string | null) => void;
 }> = ({ user, submitError, onClose, onSubmit, builtInEnabled = false, onSubmitBuiltIn }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const roleNames = useRoleLabels();
+  const roleDisplayName = useBuiltInRoleName();
   const form = useEntityForm<RoleFormValues>({
     initialValues: { role: user.role, builtIn: user.built_in_role ?? '' },
     idPrefix: 'role-form',
@@ -159,11 +161,11 @@ export const RoleFormModal: React.FC<{
         { value: `__${tier}`, label: tierLabel[tier], disabled: true },
         ...BUILT_IN_ROLES.filter((role) => role.tier === tier).map((role) => ({
           value: role.key,
-          label: builtInRoleName(role.key, i18n.language),
+          label: roleDisplayName(role.key),
         })),
       ]),
     ];
-  }, [t, i18n.language]);
+  }, [t, roleDisplayName]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

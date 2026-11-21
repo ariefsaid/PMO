@@ -991,8 +991,12 @@ The workforce register: anyone who holds expiring documents, whether or not they
 
 ## Organisation terminology
 **Term override** — an org Admin's replacement display name (singular and plural, per language) for one of
-six fixed terms: work order, project, client-supplied stock, purchase request, discipline, material request. It changes the
-wording shown, never the data or the code identifier. Generic terms are not overridable.
+sixteen fixed terms: work order, project, client-supplied stock, purchase request, discipline, material request, bill of quantities,
+contract item, day revenue, accepted quantity, cost variation, delivery note, stock count, imprest, stand-in, progress claim (#2712). It changes
+the wording shown, never the data or the code identifier. Generic terms are not overridable. A term whose word is ordinary language elsewhere
+(stand-in) is rewritten only inside its own screens' namespaces.
+**Role name override** — an org Admin's own display name, per language, for one of the 28 built-in roles (#2712). Display only: the role key,
+access level and stored data never change; with none, the catalogue default name shows.
 **Usage standard** — an organisation rule of how much of a consumable stock item one unit of planned work uses (for example welding rod per dia-inch), matched on the contract line's unit, with an optional code prefix and a waste margin (#2577).
 
 **Consumable plan** — a work order's stored list of consumable quantities, generated from its work-order lines and the usage standards and adjustable with a reason; material requests are checked against it before the contract allowances (#2577).
