@@ -1,4 +1,4 @@
--- csr_cost_attribution.test.sql — #2585 client material requisitions, Migration C (1085_receive_work_order_attribution.sql).
+-- csr_cost_attribution.test.sql — #2585 client material requisitions, Migration C (1161_receive_work_order_attribution.sql).
 -- Spec docs/specs/client-material-requisitions.spec.md · plan docs/plans/2026-11-20-client-material-requisitions.md (Slice 2a).
 -- AC-CSR-020 a receive into a site, yard or staging location of project P may name a work order of P; another
 --   project's work order is refused COST_WO_PROJECT; a Draft receive cannot be re-pointed (save_stock_draft) to a

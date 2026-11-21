@@ -1,4 +1,4 @@
--- 1085_receive_work_order_attribution.sql — #2585 client material requisitions, Migration C (MONEY PATH, ships alone).
+-- 1161_receive_work_order_attribution.sql — #2585 client material requisitions, Migration C (MONEY PATH, ships alone).
 -- Spec docs/specs/client-material-requisitions.spec.md (FR-CSR-014, OD-CSR-6) · plan docs/plans/2026-11-20-client-material-requisitions.md.
 -- Proven by supabase/tests/csr_cost_attribution.test.sql (AC-CSR-020, 021, 023) and, unchanged,
 -- supabase/tests/0950_work_order_cost_attribution.test.sql (AC-CSR-022).
@@ -13,7 +13,7 @@
 -- A receive is NOT a cost line: the view work_order_cost_lines (0951) selects stock documents only where
 -- kind in ('issue','return','transfer') and is not touched here (AC-CSR-023).
 -- Nothing here writes the ledger.
--- ── REVERSE: supabase/migrations/rollback/1085_receive_work_order_attribution_down.sql
+-- ── REVERSE: supabase/migrations/rollback/1161_receive_work_order_attribution_down.sql
 
 -- §1 ---------------------------------------------------------------------------------------------------
 create or replace function public.check_cost_attribution() returns trigger

@@ -1,4 +1,4 @@
--- 1085_receive_work_order_attribution_down.sql — reverse 1085: restore 1029's check_cost_attribution (no receive
+-- 1161_receive_work_order_attribution_down.sql — reverse 1085: restore 1029's check_cost_attribution (no receive
 -- branch), the original trigger column list and 1029's warehouse-move guard.
 create or replace function public.check_cost_attribution() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
