@@ -48,7 +48,9 @@ test('AC-MAP-011 a transfer posted without its paper is listed, and leaves the l
     await expect(page.getByRole('button', { name: 'signed-paper.png', exact: true })).toBeVisible();
 
     await page.goto('/stock');
-    await expect(page.getByRole('heading', { name: 'On hand' }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /balances?/i })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('navigation', { name: 'Stock sections' })).toBeVisible();
+    await expect(page.getByRole('table')).toBeVisible();
     await expect(page.locator(`a[href="${documentPath}"]`)).toHaveCount(0);
   } finally {
     await admin.rpc('set_stock_proof_timing', { p_timing: 'before_posting' });
