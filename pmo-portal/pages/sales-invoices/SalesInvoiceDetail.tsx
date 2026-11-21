@@ -134,10 +134,12 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                 { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={viewTarget.project_id} name={projectName} className="text-control" /> },
                 { label: t('uxs17.invoiceDate', 'Invoice date'), value: viewTarget.invoice_date ? formatDayYear(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded') },
                 ...(isPaid ? [
-                  { label: t('finance:receivables.paidDate', 'Paid date'), value: paidDate ? formatDayYear(paidDate) : t('finance:receivables.paymentDateUnavailable', 'Payment date not available') },
+                  // #2442: one name for the fact in both languages, the app's established "Payment date".
+                  { label: t('financeCopy.paymentDateLabel', 'Payment date'), value: paidDate ? formatDayYear(paidDate) : t('finance:receivables.paymentDateUnavailable', 'Payment date not available') },
                   {
                     label: t('finance:receivables.paidAmount', 'Amount paid'),
-                    value: paidAmount == null ? t('finance:receivables.paidAmountUnavailable', 'Amount not available') : <>
+                    // #2442: a neutral statement, never "missing" — the settlement may live in the accounting system.
+                    value: paidAmount == null ? t('finance:receivables.paidAmountUnavailable', 'Not available in this view') : <>
                       {formatCurrency(paidAmount, viewTarget.currency, { precision: 'minor' })}
                       <FxEquivalent amount={paidAmount} currency={viewTarget.currency} date="latest" />
                     </>,
@@ -166,22 +168,18 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                 className="[&_[data-testid=stepper-scroll-container]>[role=list]]:gap-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep]:min-w-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep>span:first-child]:rounded-none [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:first-child>span:first-child]:rounded-l-full [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:last-child>span:first-child]:rounded-r-full [&_[data-testid=stepper-fade]]:hidden"
               /> : undefined}
             >
-              {/* #2345 row 2 + #2442: a Paid invoice never prompts "Ready to send", showing its paid note instead. */}
-              {deliveryStep ? (
+              {/* #2345 row 2 + #2442: the delivery band carries the delivery fact only — a Paid invoice never prompts
+                  "Ready to send", and its paid amount/date live in the key facts above, never repeated here. A Paid
+                  invoice with no recorded receipt has no delivery fact to state, so the band stays empty. */}
+              {deliveryStep && (viewTarget.received_date || viewTarget.status !== 'Paid') ? (
                 <p data-testid="invoice-delivery-note">
-                  {!isPaid && <>
-                    <span className="font-medium text-foreground">
-                      {viewTarget.received_date
-                        ? t('uxs17.receivedByClient', 'Received by client')
-                        : t('uxs17.readyToSend', 'Ready to send')}
-                    </span>
-                    <span aria-hidden="true"> · </span>
-                  </>}
-                  <span>{isPaid
-                    ? (paidAmount != null && paidDate
-                      ? t('finance:receivables.paidSummary', 'Paid {{amount}} on {{date}}.', { amount: formatCurrency(paidAmount, viewTarget.currency, { precision: 'minor' }), date: formatDayYear(paidDate) })
-                      : paidAmount != null ? t('financeCopy.paidToDateAmount', 'Paid {{amount}}', { amount: formatCurrency(paidAmount, viewTarget.currency, { precision: 'minor' }) }) : t('finance:receivables.paidDetailsUnavailable', 'Payment details not available.'))
-                    : viewTarget.received_date
+                  <span className="font-medium text-foreground">
+                    {viewTarget.received_date
+                      ? t('uxs17.receivedByClient', 'Received by client')
+                      : t('uxs17.readyToSend', 'Ready to send')}
+                  </span>
+                  <span aria-hidden="true"> · </span>
+                  <span>{viewTarget.received_date
                     ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDayYear(viewTarget.received_date) })
                     : t('uxs17.manualHandoffHelp', 'Download the PDF and send it to your client yourself.')}</span>
                 </p>

@@ -16,11 +16,8 @@ import { OdooCaseStatus } from '../procurement/OdooCaseStatus';
 type Payments = ReturnType<typeof useIncomingPayments>;
 type EvidenceProps = { invoice: SalesInvoiceRow; odoo?: boolean; totals?: React.ReactNode };
 
-export const SalesInvoiceEvidenceSection: React.FC<EvidenceProps> = (props) => {
-  const payments = useIncomingPayments(undefined, true, props.invoice.id);
-  return <SalesInvoiceEvidenceWithPayments {...props} payments={payments} />;
-};
-
+// One receipt read per surface: the record page and the drawer each own the invoice-scoped
+// `useIncomingPayments` call and hand it down, so this panel never mounts a second read.
 export const SalesInvoiceEvidenceWithPayments: React.FC<EvidenceProps & { payments: Payments }> = ({ invoice, odoo = false, totals, payments }) => {
   const { t } = useTranslation();
   // The ERP evidence read serves the ERP tier only; an Odoo invoice has no lines to fetch, so it never shows a load error.

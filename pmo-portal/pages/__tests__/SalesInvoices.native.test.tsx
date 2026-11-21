@@ -21,6 +21,8 @@ const h = vi.hoisted(() => ({
   payments: [] as IncomingPaymentRow[],
   paymentPending: false,
   paymentError: false,
+  /** #2442: the args every `useIncomingPayments` call received, so an unscoped read cannot hide. */
+  paymentReads: [] as unknown[][],
   evidencePending: false,
   route: 'pmo' as 'pmo' | 'external',
   /** null = ownership still loading; otherwise derived from `route`. */
@@ -51,7 +53,10 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-
 vi.mock('@/src/hooks/useFxRates', () => ({ useFxRate: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoiceEvidence: () => ({ data: null, isPending: h.evidencePending, isError: false, refetch: vi.fn() }),
-  useIncomingPayments: () => ({ data: h.payments, isPending: h.paymentPending, isError: h.paymentError }),
+  useIncomingPayments: (...args: unknown[]) => {
+    h.paymentReads.push(args);
+    return { data: h.payments, isPending: h.paymentPending, isError: h.paymentError };
+  },
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => h.invoices,
   useRevenueMutations: () => ({
@@ -171,6 +176,7 @@ beforeEach(async () => {
   h.payments = [];
   h.paymentPending = false;
   h.paymentError = false;
+  h.paymentReads = [];
   h.evidencePending = false;
   h.route = 'pmo';
   h.ownershipLoaded = true;
@@ -968,7 +974,7 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     expect(rowFor('PAID-LIST')).toHaveTextContent(/IDR\s*0/);
   });
 
-  it('a paid drawer shows the known native payment and its receipt date, without due or outstanding fields', () => {
+  it('a paid drawer shows the known native payment and its receipt date, without due or outstanding fields (#2442)', () => {
     h.invoices.data = [nativeInvoice({ status: 'Paid', pmo_number: 'PAID-1', invoice_date: '2026-10-01', received_date: '2026-10-12', erp_payment_terms_days: 30, erp_outstanding_amount: 0 })];
     h.payments = [{ id: 'payment-1', pmo_native: true, status: 'Paid', currency: 'IDR', date: '2026-10-20', cancelled_at: null, erp_cancelled_at: null,
       allocations: [{ id: 'a1', sales_invoice_id: 'si-n1', amount: 1110000, cash_amount: 1110000, withheld_amount: 0, currency: 'IDR' }] } as IncomingPaymentRow];
@@ -978,21 +984,29 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     expect(within(facts).queryByText('Outstanding · tax included')).not.toBeInTheDocument();
     expect(within(facts).queryByText('Due date')).not.toBeInTheDocument();
     expect(within(facts).getByText('Amount paid').parentElement).toHaveTextContent(/1,110,000/);
-    expect(within(facts).getByText('Paid date').parentElement).toHaveTextContent('20 Oct 2026');
+    expect(within(facts).getByText('Payment date').parentElement).toHaveTextContent('20 Oct 2026');
+    // #2442 one date format per surface: this drawer's facts and timeline both carry the year.
+    expect(within(facts).getByText('Invoice date').parentElement).toHaveTextContent('1 Oct 2026');
+    expect(within(facts).getByText('Delivery').parentElement).toHaveTextContent('Delivered 12 Oct 2026');
+    expect(within(drawer).getByText(/Delivered to client 12 Oct 2026/)).toBeInTheDocument();
     expect(within(drawer).getAllByText('Paid').length).toBeGreaterThan(0);
+    // #2442 the drawer reads receipts for the invoice it shows — once, and scoped — and shares that read.
+    expect(within(drawer).getByRole('heading', { name: 'Applied receipts' })).toBeInTheDocument();
+    expect(h.paymentReads.filter((args) => args[2] === 'si-n1')).toEqual([[undefined, true, 'si-n1']]);
   });
 
   it.each([
     { pmo_native: false, amount: 1000000, erp_outstanding_amount: 0 },
     { pmo_native: true, amount: null, erp_outstanding_amount: 0 },
     { pmo_native: true, amount: 1000000, erp_outstanding_amount: null },
-  ])('a paid drawer leaves unknown payment facts unavailable %#', (facts) => {
+  ])('a paid drawer leaves unknown payment facts unavailable, in plain words %#', (facts) => {
     h.invoices.data = [nativeInvoice({ ...facts, status: 'Paid', pmo_number: 'PAID-1', invoice_date: '2026-10-01', received_date: '2026-10-12', erp_payment_terms_days: 30 })];
     renderPage('/finance/receivables?open=si-n1', true);
     const drawer = screen.getByRole('dialog');
-    const field = within(drawer).getByText('Paid date').closest('dl') as HTMLElement;
+    const field = within(drawer).getByText('Payment date').closest('dl') as HTMLElement;
     expect(within(field).getByText('Payment date not available')).toBeInTheDocument();
-    expect(within(field).getByText('Amount not available')).toBeInTheDocument();
+    expect(within(field).getByText('Not available in this view')).toBeInTheDocument();
+    expect(within(field).queryByText('Amount not available')).not.toBeInTheDocument();
     expect(within(field).queryByText('Outstanding · tax included')).not.toBeInTheDocument();
     expect(within(field).queryByText('Due date')).not.toBeInTheDocument();
   });
@@ -1003,7 +1017,7 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     const drawer = screen.getByRole('dialog');
     expect(within(drawer).getByText('Outstanding · tax included')).toBeInTheDocument();
     expect(within(drawer).getByText('Due date')).toBeInTheDocument();
-    expect(within(drawer).queryByText('Paid date')).not.toBeInTheDocument();
+    expect(within(drawer).queryByText('Payment date')).not.toBeInTheDocument();
   });
 
   it.each(['missing', 'pending', 'error', 'multiple'])('a paid drawer describes a %s date as unavailable', (state) => {
@@ -1014,7 +1028,7 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     h.paymentPending = state === 'pending';
     h.paymentError = state === 'error';
     renderPage('/finance/receivables?open=si-n1', true);
-    const facts = within(screen.getByRole('dialog')).getByText('Paid date').closest('dl') as HTMLElement;
+    const facts = within(screen.getByRole('dialog')).getByText('Payment date').closest('dl') as HTMLElement;
     expect(within(facts).getByText('Payment date not available')).toBeInTheDocument();
     expect(within(facts).queryByText('20 Oct 2026')).not.toBeInTheDocument();
   });
@@ -1024,8 +1038,9 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     h.invoices.data = [nativeInvoice({ status: 'Paid', pmo_number: 'PAID-1', pmo_native: false, invoice_date: '2026-10-01', received_date: '2026-10-12', erp_payment_terms_days: 30, erp_outstanding_amount: 0 })];
     renderPage('/finance/receivables?open=si-n1', true);
     const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByText('Tanggal pembayaran')).toBeInTheDocument();
     expect(within(drawer).getByText('Tanggal pembayaran tidak tersedia')).toBeInTheDocument();
-    expect(within(drawer).getByText('Jumlah tidak tersedia')).toBeInTheDocument();
+    expect(within(drawer).getByText('Tidak tersedia di tampilan ini')).toBeInTheDocument();
   });
 
   it('AC-RET-005 the drawer shows the retention still held and what is due now (outstanding less retention) (#2625)', () => {

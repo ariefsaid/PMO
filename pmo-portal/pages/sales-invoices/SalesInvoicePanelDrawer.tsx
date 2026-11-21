@@ -10,7 +10,7 @@ import {
   type RowMenuItem,
   type StatusVariant,
 } from '@/src/components/ui';
-import { formatCurrency, formatDay, formatDayYear } from '@/src/lib/format';
+import { formatCurrency, formatDayYear } from '@/src/lib/format';
 import { clientInvoiceDueNowCents, deriveArDueDate, retentionHeldCents } from '@/src/lib/repositories/revenueDisplay';
 import { invoiceNumber } from '@/src/lib/revenue/nativeInvoice';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -107,14 +107,18 @@ function SalesInvoicePanelContent({ invoice: panelInvoice, paymentsForTimeline: 
               {/* #2625 (ADR-0105): the retention still held is owed but not due until released; due now is the rest. */}
               {(retentionHeldCents(panelInvoice) ?? 0) > 0 && field('retentionHeld', t('finance:receivables.retentionHeldField', 'Retention held'), <span className="tabular">{formatCurrency((retentionHeldCents(panelInvoice) ?? 0) / 100, panelInvoice.currency, { precision: 'minor' })}</span>)}
               {(retentionHeldCents(panelInvoice) ?? 0) > 0 && field('dueNow', t('finance:receivables.dueNow', 'Due now'), <span className="tabular">{formatCurrency((clientInvoiceDueNowCents(panelInvoice) ?? 0) / 100, panelInvoice.currency, { precision: 'minor' })}</span>)}
-              {panelInvoice.status === 'Paid' && field('paidAmount', t('finance:receivables.paidAmount', 'Amount paid'), paidAmount == null ? t('finance:receivables.paidAmountUnavailable', 'Amount not available') : formatCurrency(paidAmount, panelInvoice.currency, { precision: 'minor' }))}
-              {panelInvoice.status === 'Paid' && field('paidDate', t('finance:receivables.paidDate', 'Paid date'), paidDate ? formatDayYear(paidDate) : t('finance:receivables.paymentDateUnavailable', 'Payment date not available'))}
-              {panelInvoice.status !== 'Paid' && due && field('due', t('finance:receivables.dueDate', 'Due date'), formatDay(due))}
-              {panelInvoice.invoice_date && field('invoiceDate', t('finance:receivables.invoiceDate', 'Invoice date'), formatDay(panelInvoice.invoice_date))}
+              {panelInvoice.status === 'Paid' && field('paidAmount', t('finance:receivables.paidAmount', 'Amount paid'), paidAmount == null ? t('finance:receivables.paidAmountUnavailable', 'Not available in this view') : formatCurrency(paidAmount, panelInvoice.currency, { precision: 'minor' }))}
+              {panelInvoice.status === 'Paid' && field('paidDate', t('financeCopy.paymentDateLabel', 'Payment date'), paidDate ? formatDayYear(paidDate) : t('finance:receivables.paymentDateUnavailable', 'Payment date not available'))}
+              {panelInvoice.status !== 'Paid' && due && field('due', t('finance:receivables.dueDate', 'Due date'), formatDayYear(due))}
+              {panelInvoice.invoice_date && field('invoiceDate', t('finance:receivables.invoiceDate', 'Invoice date'), formatDayYear(panelInvoice.invoice_date))}
               {panelInvoice.erp_payment_terms_days != null && field('terms', t('finance:receivables.paymentTerms', 'Terms'), t('finance:receivables.paymentTermsDays', '{{count}} days', { count: panelInvoice.erp_payment_terms_days }))}
               {field('projectManager', t('finance:receivables.projectManager', 'Project manager'), projectManagerNameOf(panelInvoice))}
-              {field('delivery', t('finance:receivables.delivery', 'Delivery'), deliveryLabelOf(panelInvoice))}
-              {panelInvoice.efaktur_number && field('efaktur', t('finance:receivables.eFaktur', 'e-Faktur'), `${panelInvoice.efaktur_number}${panelInvoice.efaktur_date ? ` · ${formatDay(panelInvoice.efaktur_date)}` : ''}`)}
+              {/* #2442: this drawer states every date with its year (the list keeps the short form), so the
+                  delivery date matches its neighbours; the non-date delivery states come from the shared label. */}
+              {field('delivery', t('finance:receivables.delivery', 'Delivery'), panelInvoice.received_date
+                ? t('finance:receivables.deliveryReceived', 'Delivered {{date}}', { date: formatDayYear(panelInvoice.received_date) })
+                : deliveryLabelOf(panelInvoice))}
+              {panelInvoice.efaktur_number && field('efaktur', t('finance:receivables.eFaktur', 'e-Faktur'), `${panelInvoice.efaktur_number}${panelInvoice.efaktur_date ? ` · ${formatDayYear(panelInvoice.efaktur_date)}` : ''}`)}
             </dl>
             {outstandingUnknown && <p className="mt-3 text-control text-muted-foreground">{t('finance:receivables.outstandingUnknown', 'The outstanding balance is not known yet: the accounting system has not reported it for this invoice.')}</p>}
           </div>;
