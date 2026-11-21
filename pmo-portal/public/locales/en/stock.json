@@ -198,7 +198,13 @@
     "STK_PROOF_REQUIRED": "This transfer needs its proof before it can be received.",
     "STK_PROOF_MODE": "A handover confirmation can only be required when transfers are two-step.",
     "STK_MODE_BLOCKED": "This cannot change while transfers are in transit, short, drafted or tied to a confirmation rule.",
-    "STK_FORBIDDEN": "Only an Admin can do this."
+    "STK_FORBIDDEN": "Only an Admin can do this.",
+    "STK_WOT_OFF": "Work-order transfers are not turned on for your organisation.",
+    "STK_WOT_EXCEEDS": "That work order does not hold that much of the item.",
+    "STK_WOT_PROJECT": "Both work orders must belong to the same project.",
+    "STK_WOT_LOCATION": "The stock must be at a site, yard or staging location of the work orders' project.",
+    "STK_WOT_INCOMPLETE": "This work-order transfer is incomplete and was not saved.",
+    "STK_WOT_SYSTEM": "This document is written only by a work-order transfer."
   },
   "actions": {
     "cancel": "Cancel",
@@ -854,5 +860,47 @@
     "timingHelp": "Applies to tags that require proof.",
     "proofPerTag": "Proof that counts, per tag",
     "qualityItems": "Items that need a quality check on receipt"
+  },
+  "workOrderTransfer": {
+    "title": "Move leftover between work orders",
+    "detailTitle": "Work-order transfer",
+    "intro": "Leftover material moves from one work order to another as one document. The first work order is credited and the second is charged; the stock stays where it is.",
+    "off": {
+      "title": "Work-order transfers are off",
+      "sub": "An administrator can turn them on in Stock setup."
+    },
+    "project": "Project",
+    "projectPlaceholder": "Choose a project",
+    "from": "From work order",
+    "to": "To work order",
+    "woPlaceholder": "Choose a work order",
+    "location": "Where the material is",
+    "locationHelp": "A site, yard or staging location of this project that you keep.",
+    "itemPlaceholder": "Choose an item",
+    "available": "Held by the work order: {{qty}} {{unit}}",
+    "nothingHeld": "This work order holds no material that can be moved.",
+    "move": "Move to the other work order",
+    "entry": "Move leftover to another work order",
+    "postedToast": "Material moved between work orders",
+    "notFound": "This work-order transfer was not found.",
+    "halves": "Documents in this transfer",
+    "returnHalf": "Return from the first work order",
+    "issueHalf": "Issue to the second work order",
+    "partOf": "Part of work-order transfer",
+    "confirm": {
+      "title": "Move to {{to}}",
+      "description": "The material is returned from the first work order and issued to the second in one step. This cannot be edited afterwards; to correct it, move the material back."
+    },
+    "errors": {
+      "project": "Choose a project.",
+      "from": "Choose the work order the material is on.",
+      "to": "Choose the work order that receives it.",
+      "same": "Choose a different work order.",
+      "location": "Choose where the material is.",
+      "duplicate": "Each item can be on one line only.",
+      "exceeds": "The work order holds only {{qty}} of this item."
+    },
+    "setting": "Work-order transfers",
+    "settingHelp": "Lets stock keepers move leftover material between work orders of one project in a single document."
   }
 }

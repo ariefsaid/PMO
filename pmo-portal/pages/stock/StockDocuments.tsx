@@ -9,6 +9,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useStockDocuments, useStockKeepers } from '@/src/hooks/useStock';
+import { useWoTransfersEnabled } from '@/src/hooks/useStockWorkOrderTransfer';
 import { formatDay } from '@/src/lib/format';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import type { StockDocumentKind, StockDocumentListRow, StockDocumentStatus } from '@/src/lib/db/stockDocuments';
@@ -38,6 +39,8 @@ const StockDocuments: React.FC = () => {
   const keepers = useStockKeepers();
   const isKeeper = (keepers.data ?? []).some((keeper) => keeper.user_id === me);
   const canMove = may('create', 'stockDocument', { record: { isKeeper, viewOnly: realRole !== effectiveRole } });
+  // #2691: the work-order transfer entry shows only when an Admin turned the setting on AND the person is a stock writer.
+  const woTransfers = useWoTransfersEnabled();
   // R2: kind/status are URL-owned so Back/refresh (and a shared link) keep them; defaults stay
   // out of the URL (empty = all).
   const { values, setFilter } = useUrlFilters(['kind', 'status']);
@@ -120,6 +123,11 @@ const StockDocuments: React.FC = () => {
                     {t(`kinds.${documentKind}`)}
                   </Menu.Item>
                 ))}
+                {woTransfers && (
+                  <Menu.Item className={cn(menuItemClass, 'min-h-11')} onClick={() => navigate('/stock/work-order-transfer')}>
+                    {t('workOrderTransfer.entry')}
+                  </Menu.Item>
+                )}
               </Menu.Popup>
             </Menu.Positioner>
           </Menu.Portal>

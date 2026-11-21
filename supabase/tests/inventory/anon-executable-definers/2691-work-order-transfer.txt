@@ -1,0 +1,3 @@
+# 2691: client-callable security-definer writers of the work-order transfer (authenticated only; each checks membership and its own role rule).
+set_stock_wo_transfers
+post_stock_wo_transfer

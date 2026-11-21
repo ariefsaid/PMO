@@ -8,6 +8,7 @@ import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { useTransferRefresh, useTransferSettings } from '@/src/hooks/useStockTransfers';
 import { stockTransfersRepository as repo, type ProofRule, type ProofTiming, type TransferMode } from '@/src/lib/repositories/stockTransfers';
 import { useQueryClient } from '@tanstack/react-query';
+import { WoTransferToggle } from '@/src/components/stock/WoTransferToggle';
 
 const ruleOf = (tag: { proof_required?: string; paper_required: boolean }): ProofRule => (tag.proof_required as ProofRule | undefined) ?? (tag.paper_required ? 'paper' : 'none');
 
@@ -39,6 +40,7 @@ export const StockTransferSettings: React.FC = () => {
             options={[{ value: 'one_step', label: t('transferSettings.oneStep') }, { value: 'two_step', label: t('transferSettings.twoStep') }]} helper={t('transferSettings.modeHelp')} />
           <SelectField label={t('transferSettings.timing')} value={settings.data.proofTiming} onChange={(v) => change.mutate(() => repo.settings.setTiming(v as ProofTiming))}
             options={[{ value: 'before_posting', label: t('transferSettings.beforePosting') }, { value: 'may_follow', label: t('transferSettings.mayFollow') }]} helper={t('transferSettings.timingHelp')} />
+          <WoTransferToggle />
           {(tags.data ?? []).length > 0 && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">{t('transferSettings.proofPerTag')}</h3>
