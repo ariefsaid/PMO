@@ -83,7 +83,7 @@ export async function getWorkOrderSiteLocation(workOrderId: string): Promise<str
   return (data?.site_warehouse_id as string | null | undefined) ?? null;
 }
 export async function setWorkOrderSiteLocation(workOrderId: string, warehouseId: string | null): Promise<void> {
-  const { error } = await db.from('work_orders').update({ site_warehouse_id: warehouseId }).eq('id', workOrderId);
+  const { error } = await db.rpc('set_work_order_site_location', { p_work_order_id: workOrderId, p_warehouse_id: warehouseId });
   if (error) throw toAppError(error);
 }
 

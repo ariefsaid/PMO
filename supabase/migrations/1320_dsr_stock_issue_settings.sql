@@ -41,8 +41,6 @@ grant execute on function public.set_dsr_stock_issue(boolean, text) to authentic
 alter table public.stock_items add column consumable boolean not null default false;
 
 alter table public.work_orders add column site_warehouse_id uuid references public.stock_warehouses(id);
--- work_orders has column-level UPDATE grants only (0197): without this line no client can write the column, whatever the policy says.
-grant update (site_warehouse_id) on public.work_orders to authenticated;
 create index work_orders_site_warehouse_idx on public.work_orders (site_warehouse_id) where site_warehouse_id is not null;
 
 create or replace function public.guard_work_order_site_location() returns trigger
@@ -60,5 +58,22 @@ end $$;
 revoke all on function public.guard_work_order_site_location() from public, anon, authenticated;
 create trigger work_orders_zzzzz_site_location before insert or update of site_warehouse_id on public.work_orders
   for each row execute function public.guard_work_order_site_location();
+
+-- The client UPDATE column list on work_orders is a pinned control surface (0193 test), so the location is written by this RPC, never by a column grant.
+-- Same who-may rule as work_orders_update (0193): Admin, Executive, Project Manager, Finance. The guard trigger above validates the location (DRS_LOCATION).
+create or replace function public.set_work_order_site_location(p_work_order_id uuid, p_warehouse_id uuid) returns void
+  language plpgsql volatile security definer set search_path = public, pg_temp as $$
+declare v_org uuid;
+begin
+  perform public.assert_is_active_member();
+  v_org := public.auth_org_id();
+  if public.auth_role() not in ('Admin', 'Executive', 'Project Manager', 'Finance') then            -- mut:drs_location_role
+    raise exception 'DRS_FORBIDDEN: your role cannot set a work order''s site location' using errcode = '42501'; end if;
+  perform 1 from public.work_orders w where w.id = p_work_order_id and w.org_id = v_org for update;  -- mut:drs_location_org
+  if not found then raise exception 'work order not found' using errcode = 'P0002'; end if;
+  update public.work_orders set site_warehouse_id = p_warehouse_id where id = p_work_order_id and org_id = v_org;
+end $$;
+revoke all on function public.set_work_order_site_location(uuid, uuid) from public, anon;
+grant execute on function public.set_work_order_site_location(uuid, uuid) to authenticated;
 
 alter table public.dsr_consumables add column work_order_line_id uuid references public.work_order_lines(id);

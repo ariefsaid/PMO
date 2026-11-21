@@ -108,13 +108,20 @@ select throws_ok($$update work_orders set site_warehouse_id = '26760000-0000-000
 select throws_ok($$update work_orders set site_warehouse_id = '26760000-0000-0000-0000-000000000033' where id = '26760000-0000-0000-0000-0000000000e3'$$, '23514', null, 'AC-DRS-015 a central location is refused');
 select throws_ok($$update work_orders set site_warehouse_id = '26760000-0000-0000-0000-000000000039' where id = '26760000-0000-0000-0000-0000000000e3'$$, '23514', null, 'AC-DRS-015 another organisation''s location is refused');
 
--- the client write path: an Admin sets and clears the column through the column grant, a good location sticks
+-- the client write path is the RPC (the work_orders UPDATE column list is pinned)
 select drs_as('26760000-0000-0000-0000-0000000000a1');
-select lives_ok($$update work_orders set site_warehouse_id = '26760000-0000-0000-0000-000000000031' where id = '26760000-0000-0000-0000-0000000000e3'$$, 'AC-DRS-015 an Admin sets the site location through the client grant');
-select is((select site_warehouse_id from work_orders where id = '26760000-0000-0000-0000-0000000000e3'), '26760000-0000-0000-0000-000000000031'::uuid, 'AC-DRS-015 and it is saved');
-select throws_ok($$update work_orders set site_warehouse_id = '26760000-0000-0000-0000-000000000032' where id = '26760000-0000-0000-0000-0000000000e3'$$, '23514', null, 'AC-DRS-015 a client cannot set another project''s location either');
+select lives_ok($$select public.set_work_order_site_location('26760000-0000-0000-0000-0000000000e3', '26760000-0000-0000-0000-000000000031')$$, 'AC-DRS-015 an Admin sets the site location through the RPC');
 reset role;
-update work_orders set site_warehouse_id = null where id = '26760000-0000-0000-0000-0000000000e3';
+select is((select site_warehouse_id from work_orders where id = '26760000-0000-0000-0000-0000000000e3'), '26760000-0000-0000-0000-000000000031'::uuid, 'AC-DRS-015 and it is saved');
+select drs_as('26760000-0000-0000-0000-0000000000a1');
+select throws_ok($$select public.set_work_order_site_location('26760000-0000-0000-0000-0000000000e3', '26760000-0000-0000-0000-000000000032')$$, '23514', null, 'AC-DRS-015 a location of another project gets DRS_LOCATION');
+select lives_ok($$select public.set_work_order_site_location('26760000-0000-0000-0000-0000000000e3', null)$$, 'AC-DRS-015 null clears it');
+select drs_as('26760000-0000-0000-0000-0000000000a2');
+select throws_ok($$select public.set_work_order_site_location('26760000-0000-0000-0000-0000000000e3', '26760000-0000-0000-0000-000000000031')$$, '42501', null, 'AC-DRS-015 a member without edit rights is refused');
+select drs_as('26760000-0000-0000-0000-0000000000b1');
+select throws_ok($$select public.set_work_order_site_location('26760000-0000-0000-0000-0000000000e3', null)$$, 'P0002', null, 'AC-DRS-015 another organisation''s work order is not found');
+reset role;
+select is((select site_warehouse_id from work_orders where id = '26760000-0000-0000-0000-0000000000e3'), null, 'AC-DRS-015 nothing was written by the refused calls');
 
 -- ── AC-DRS-001 default off: validation behaves as today, nothing is written ────────────────────────────────
 insert into ids select 'off', drs_make('26760000-0000-0000-0000-0000000000e2', (now() at time zone 'UTC')::date - 1, jsonb_build_array(drs_cons('26760000-0000-0000-0000-000000000022', 2)));
