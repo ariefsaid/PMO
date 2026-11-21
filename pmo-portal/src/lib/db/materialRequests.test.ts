@@ -163,7 +163,7 @@ describe('material request detail read', () => {
     const head = { id: 'mr1', number: 'MR-1', work_order_id: 'wo1', project_id: 'p1', to_warehouse_id: null, needed_by: '2026-11-25', note: null, status: 'pending', round: 2, created_by: 'u1', created_at: '2026-11-18T00:00:00Z', submitted_at: null, transfer_document_id: null, transfer_cancelled: false };
     const queue: unknown[] = [
       [head],
-      [{ id: 'l1', line_no: '1', item_id: 'i1', quantity: '12.5', plan_qty: null, prior_qty: '3', over_plan_reason: null }],
+      [{ id: 'l1', line_no: '1', item_id: 'i1', quantity: '12.5', plan_qty: null, plan_source: null, prior_qty: '3', over_plan_reason: null }],
       [{ id: 's1', round: 2, position: 1, role: 'Engineer', label: 'Plan check', status: 'open', decided_by: null, acted_for: null, decided_at: null, reason: null }],
       [{ id: 'e1', action: 'returned', from_status: 'pending', to_status: 'draft', step_position: 1, actor_id: 'u2', acted_for: 'u3', reason: 'split it', created_at: '2026-11-19T00:00:00Z' }],
     ];
@@ -173,7 +173,7 @@ describe('material request detail read', () => {
     const d = await dal.getMaterialRequest('mr1');
     Object.defineProperty(h.result, 'value', { configurable: true, writable: true, value: { data: null, error: null } });
     expect(d?.round).toBe(2);
-    expect(d?.lines).toEqual([{ id: 'l1', lineNo: 1, itemId: 'i1', quantity: 12.5, planQty: null, priorQty: 3, overPlanReason: null }]);
+    expect(d?.lines).toEqual([{ id: 'l1', lineNo: 1, itemId: 'i1', quantity: 12.5, planQty: null, planSource: null, priorQty: 3, overPlanReason: null }]);
     expect(d?.steps[0]).toMatchObject({ position: 1, role: 'Engineer', status: 'open', decidedBy: null });
     expect(d?.events[0]).toMatchObject({ action: 'returned', actorId: 'u2', actedFor: 'u3', reason: 'split it', stepPosition: 1 });
   });
@@ -197,6 +197,12 @@ describe('AC-MRQ-003 refusal keys', () => {
   ])('%s maps to %s', (message, key) => {
     expect(dal.materialRequestRefusal(new Error(message))).toBe(key);
   });
+  it('FR-CUS-012 an unknown or missing plan source reads as null, never as a made-up label', async () => {
+    h.result.value = { data: [{ item_id: 'i1', plan_qty: '1', prior_qty: '0', plan_source: 'banana' }, { item_id: 'i2', plan_qty: '1', prior_qty: '0' }], error: null };
+    await expect(dal.getLinePlans('wo1', ['i1', 'i2'])).resolves.toEqual([
+      { itemId: 'i1', planQty: 1, priorQty: 0, planSource: null }, { itemId: 'i2', planQty: 1, priorQty: 0, planSource: null },
+    ]);
+  });
   it('a non-error value is unknown, not a crash', () => {
     expect(dal.materialRequestRefusal(null)).toBe('unknown');
   });
@@ -206,8 +212,8 @@ describe('material request reads and the rest of the writes', () => {
   it('FR-MRQ-002 plans are asked per item, excluding the request being edited, and skipped when no items', async () => {
     await expect(dal.getLinePlans('wo1', [])).resolves.toEqual([]);
     expect(h.calls.rpc).toEqual([]);
-    h.result.value = { data: [{ item_id: 'i1', plan_qty: '100', prior_qty: '40' }], error: null };
-    await expect(dal.getLinePlans('wo1', ['i1'], 'mr9')).resolves.toEqual([{ itemId: 'i1', planQty: 100, priorQty: 40 }]);
+    h.result.value = { data: [{ item_id: 'i1', plan_qty: '100', prior_qty: '40', plan_source: 'standard' }], error: null };
+    await expect(dal.getLinePlans('wo1', ['i1'], 'mr9')).resolves.toEqual([{ itemId: 'i1', planQty: 100, priorQty: 40, planSource: 'standard' }]);
     await dal.getLinePlans('wo1', ['i1']);
     expect(h.calls.rpc).toEqual([
       ['mrq_plan_for', { p_work_order_id: 'wo1', p_item_ids: ['i1'], p_exclude_request: 'mr9' }],

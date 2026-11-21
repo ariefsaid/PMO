@@ -56,7 +56,9 @@ export type Action =
   | 'approve'
   | 'bill'
   | 'set_readiness'
-  | 'set_plan';
+  | 'set_plan'
+  | 'generate'
+  | 'adjust';
 
 export type Entity =
   | 'project'
@@ -137,6 +139,8 @@ export type Entity =
   | 'standIn'
   | 'approvalStepPin'
   | 'materialAllowance'
+  | 'usageStandard'
+  | 'consumablePlan'
   | 'reorderLevel'
   | 'subcontractLines'
   | 'subcontractAcceptance'
@@ -415,6 +419,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: (role, ctx) => allowanceWriter(role, ctx),
     delete: (role, ctx) => allowanceWriter(role, ctx),
   },
+  /** Consumable usage standards (#2577, 1075): mirrors `stock_master_writer()` - rank >= 20 (PM, Finance, Executive, Admin) writes;
+   *  archive, never delete (ADR-0018). UX only; RLS is the authority. */
+  usageStandard: { view: allow(ALL), create: allowUnlessViewOnly(MASTER_DATA), edit: allowUnlessViewOnly(MASTER_DATA), archive: allowUnlessViewOnly(MASTER_DATA) },
+  /** Work-order consumable plan (#2577, 1076): generate and adjust follow the allowance write rule (`may_record_project_progress`):
+   *  Admin, Executive, Finance on any project, a PM only on their own. Pass the work order's PROJECT row as `ctx.record`
+   *  (a work order has no `project_manager_id`). UX only; the RPCs are the authority. */
+  consumablePlan: { view: allow(ALL), generate: allowanceWriter, adjust: allowanceWriter },
   /** Reorder levels (#1512 S6, PQ-6): everyone reads; rank >= 20 sets, edits or clears. UX only; the RPC is the authority. */
   reorderLevel: { view: allow(ALL), edit: allowUnlessViewOnly(MASTER_DATA) },
   /** Stock documents (#1512 S3): mirrors FR-STK-061/062. `isKeeper` is supplied by the screen from the keeper list. UX only; RLS/RPC is the authority. */

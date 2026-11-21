@@ -200,7 +200,8 @@
     "documents": "Dokumen",
     "ledger": "Buku stok",
     "setup": "Pengaturan",
-    "reorder": "Pemesanan ulang"
+    "reorder": "Pemesanan ulang",
+    "usageStandards": "Standar pemakaian"
   },
   "onHand": {
     "title": "Stok",
@@ -642,8 +643,31 @@
     "rowLabel": "Ajukan pembelian untuk {{item}}"
   },
   "siteWork": {
-    "files": {"unknownUploader": "Pengunggah tidak diketahui", "title": "Lampiran", "choose": "Pilih berkas", "label": "Label (opsional)", "upload": "Unggah lampiran", "remove": "Hapus", "reason": "Alasan pengarsipan", "loading": "Memuat lampiran…", "loadError": "Lampiran tidak dapat dimuat.", "error": "Lampiran tidak dapat diubah."},
-    "tags": {"connectedUnavailable": "Label stok tidak tersedia saat inventaris terhubung.", "confirmTitle": "Arsipkan label stok ini?", "confirmDescription": "Barang tetap memiliki labelnya, tetapi label tidak lagi ditawarkan untuk barang baru.", "manage": "Kelola label stok", "name": "Nama label", "zero": "Tanpa biaya", "paper": "Dokumen wajib", "add": "Tambah label", "save": "Simpan label", "loadError": "Label stok tidak dapat dimuat.", "loading": "Memuat label stok…"},
+    "files": {
+      "unknownUploader": "Pengunggah tidak diketahui",
+      "title": "Lampiran",
+      "choose": "Pilih berkas",
+      "label": "Label (opsional)",
+      "upload": "Unggah lampiran",
+      "remove": "Hapus",
+      "reason": "Alasan pengarsipan",
+      "loading": "Memuat lampiran…",
+      "loadError": "Lampiran tidak dapat dimuat.",
+      "error": "Lampiran tidak dapat diubah."
+    },
+    "tags": {
+      "connectedUnavailable": "Label stok tidak tersedia saat inventaris terhubung.",
+      "confirmTitle": "Arsipkan label stok ini?",
+      "confirmDescription": "Barang tetap memiliki labelnya, tetapi label tidak lagi ditawarkan untuk barang baru.",
+      "manage": "Kelola label stok",
+      "name": "Nama label",
+      "zero": "Tanpa biaya",
+      "paper": "Dokumen wajib",
+      "add": "Tambah label",
+      "save": "Simpan label",
+      "loadError": "Label stok tidak dapat dimuat.",
+      "loading": "Memuat label stok…"
+    },
     "balance": {
       "connectedUnavailable": "Sisa stok $t(common:terms.clientWorkOrder) tidak tersedia untuk inventaris yang terhubung.",
       "issuedValue": "Nilai terpakai",

@@ -10,9 +10,9 @@ const q = (data: unknown, over: Record<string, unknown> = {}) => ({ data, isPend
 const viewerOpen = vi.hoisted(() => vi.fn());
 vi.mock('@/src/components/documents/viewerContext', () => ({ useViewerOnDemand: () => ({ open: viewerOpen }) }));
 const h = vi.hoisted(() => ({ wo: null as unknown, alloc: null as unknown, boq: null as unknown, basts: null as unknown, billing: null as unknown,
-  docs: null as unknown, issues: null as unknown, tasks: null as unknown, issuesOn: true, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown }));
+  docs: null as unknown, issues: null as unknown, tasks: null as unknown, issuesOn: true, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, stock: false, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown }));
 vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, useWorkOrderAllocations: () => h.alloc, useWorkOrderClaimDocuments: () => h.claimDocs, useWorkOrderIssues: () => h.issues, useWorkOrderOpenTasks: () => h.tasks }));
-vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => h.issuesOn }));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: (f: string) => f === 'stock' ? h.stock : f === 'incidents' ? h.issuesOn : false }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts }));
@@ -27,6 +27,10 @@ vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBil
 vi.mock('./work-order-detail/QuantityChangesSection', () => ({ QuantityChangesSection: () => null }));
 // The sections block (#2576) has its own tests (SectionsSection.test.tsx); this page test only places it.
 vi.mock('./work-order-detail/SectionsSection', () => ({ SectionsSection: (p: { workOrder: { id: string } }) => <div data-testid="sections-stub">{p.workOrder.id}</div> }));
+vi.mock('./work-order-detail/ConsumablePlanSection', () => ({
+  ConsumablePlanSection: (p: { workOrderId: string; workOrderStatus: string; project: { project_manager_id: string | null } | null }) =>
+    <section data-testid="consumable-plan-stub">{`${p.workOrderId}|${p.workOrderStatus}|${p.project?.project_manager_id ?? 'none'}`}</section>,
+}));
 
 import WorkOrderDetail from './WorkOrderDetail';
 
@@ -42,6 +46,7 @@ const renderPage = () => render(<MemoryRouter initialEntries={['/work-orders/w1'
 beforeEach(async () => {
   await i18n.changeLanguage('en');
   h.canBilling = true;
+  h.stock = false;
   h.pva = { data: undefined, isPending: true, isError: false, refetch: () => undefined };
   h.wo = q(WO); h.project = q({ name: 'Plant A', client: { name: 'Acme' } });
   h.alloc = q([{ id: 'l1', boq_item_id: 'b1', quantity: 10 }]);
@@ -63,6 +68,16 @@ describe('WorkOrderDetail', () => {
   it('AC-WOS-001 places the sections block for this work order', () => {
     renderPage();
     expect(screen.getByTestId('sections-stub').textContent).toBe('w1');
+  });
+  it('FR-CUS-014 the consumable plan section is mounted for a stock-enabled organisation, with the work order\'s PROJECT as the permission record', () => {
+    h.stock = true;
+    h.project = q({ name: 'Plant A', client: { name: 'Acme' }, project_manager_id: 'pm-1' });
+    renderPage();
+    expect(screen.getByTestId('consumable-plan-stub').textContent).toBe('w1|Issued|pm-1');
+  });
+  it('FR-CUS-014 and is absent when the stock module is off', () => {
+    renderPage();
+    expect(screen.queryByTestId('consumable-plan-stub')).toBeNull();
   });
   it('AC-WPVA-016 shows the plan-vs-actual panel for this work order, and hides it from a role that may not view plans', async () => {
     const { rollupProject } = await import('@/src/lib/workOrderPlanVsActual');

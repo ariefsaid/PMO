@@ -71,6 +71,12 @@
     "note": "Catatan (opsional)",
     "overPlan": "Melebihi rencana",
     "planLine": "Rencana {{plan}} · sudah diminta {{prior}} · total baru {{total}}",
+    "planSource": {
+      "standard": "Dari standar pemakaian",
+      "adjusted": "Disesuaikan oleh perencana",
+      "allowance": "Dari alokasi material",
+      "none": "Tidak ada rencana"
+    },
     "planUnknown": "Angka rencana tidak tersedia",
     "project": "Proyek",
     "projectNoun": "proyek",

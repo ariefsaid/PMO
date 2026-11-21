@@ -535,9 +535,11 @@ Pending (waiting for approval), Approved, Rejected, Cancelled or Fulfilled. An a
 named when the project has several); a keeper posts it, which marks the request Fulfilled. Not a purchase
 request: it moves stock the organisation already holds.
 
-**Planned quantity (material request)** — the material allowances of the contract lines a work order carries, in
-proportion to the share of each line the work order holds. A line whose already-requested quantity plus the new
-quantity exceeds it is **over plan** and carries a reason.
+**Planned quantity (material request)** — for an item on a work order: the work order's **consumable plan** quantity
+when it has a plan line for that item (adjusted if adjusted, else generated), otherwise the material allowances of the
+contract lines the work order carries, in proportion to the share of each line the work order holds, otherwise zero.
+Each request line keeps the figure it was submitted against and where it came from (standard, adjusted, allowance,
+none). A line whose already-requested quantity plus the new quantity exceeds it is **over plan** and carries a reason.
 
 **Approval chain** — the organisation's ordered list of approval steps for material requests, each naming a role and
 a purpose; a step may apply only to over-plan requests. A submitted request keeps a copy of the chain as it was, and
@@ -560,6 +562,17 @@ clears it; the pin row is kept (#2605).
 
 **Cut-off (material request)** — an optional time of day after which a request needed by the next day is refused;
 later dates are not affected. Checked on the server clock in the organisation's time zone.
+
+**Usage standard** (*standar pemakaian*) — the organisation's rule "this consumable, this much per unit of work", for
+example welding rod per dia-inch welded. Names a consumable stock item, a work unit (matched to the contract line's unit,
+ignoring case and spaces), an optional contract-line code prefix, a quantity per unit in the item's own unit and a waste
+margin %. Where several standards of one item match a line, the longest prefix wins. Archived, never deleted.
+
+**Consumable plan** (*rencana bahan habis pakai*) — the stock items a work order is expected to use, generated on request
+from its contract-line allocations and the active usage standards, and stored as a snapshot with the basis of each quantity.
+A planner may adjust a quantity, or add an item no standard covers, with a reason. It goes **out of date** when the work or
+the standards change after it was made and is regenerated only on request. Quantities of stock items only: it is not the
+cost plan of a work order.
 
 ## Work orders down to the cost line (#2516)
 

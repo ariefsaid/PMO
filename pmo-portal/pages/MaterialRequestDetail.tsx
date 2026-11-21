@@ -129,7 +129,7 @@ const MaterialRequestDetailPage: React.FC = () => {
             {req.lines.map((l) => (
               <li key={l.id} className="py-2" data-testid="mrq-detail-line">
                 <div className="flex flex-wrap justify-between gap-2"><span className="font-medium">{itemName(l.itemId)}</span><span className="tabular-nums">{l.quantity}</span></div>
-                {l.planQty !== null && <div className="text-control text-muted-foreground">{t('form.planLine', 'Plan {{plan}} · already requested {{prior}} · new total {{total}}', { plan: l.planQty, prior: l.priorQty ?? 0, total: (l.priorQty ?? 0) + l.quantity })}</div>}
+                {l.planQty !== null && <div className="text-control text-muted-foreground">{t('form.planLine', 'Plan {{plan}} · already requested {{prior}} · new total {{total}}', { plan: l.planQty, prior: l.priorQty ?? 0, total: (l.priorQty ?? 0) + l.quantity })}{l.planSource && <span className="ml-2" data-testid="mrq-detail-plan-source">{t(`form.planSource.${l.planSource}`, { standard: 'From usage standards', adjusted: 'Adjusted by the planner', allowance: 'From material allowance', none: 'No plan' }[l.planSource])}</span>}</div>}
                 {l.overPlanReason && <div className="text-control">{t('detail.overPlanReason', 'Over plan: {{reason}}', { reason: l.overPlanReason })}</div>}
               </li>
             ))}

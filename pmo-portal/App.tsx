@@ -157,6 +157,7 @@ const StockLedgerPage = lazyWithPreload(() => import('./pages/stock/StockLedger'
 const StockMovementFormPage = lazyWithPreload(() => import('./pages/stock/StockMovementForm'));
 const StockCountPage = lazyWithPreload(() => import('./pages/stock/StockCount'));
 const StockReorderPage = lazyWithPreload(() => import('./pages/stock/StockReorder'));
+const UsageStandardsPage = lazyWithPreload(() => import('./pages/stock/UsageStandards'));
 
 // ── Route-entry + nav-link preloads (#1834) ──────────────────────────────────
 /** Anything with the lazyWithPreload preload() handle (structural — the rules
@@ -254,7 +255,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/material-requests/:requestId/edit', chunks: [MaterialRequestNewPage], namespaces: ['materialRequests'] },
   { path: '/material-requests/:requestId', chunks: [MaterialRequestDetailPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests', chunks: [MaterialRequestsPage], namespaces: ['materialRequests'] },
-  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderSections', 'status'] },
+  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderSections', 'status', 'usageStandards'] },
   { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
   { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage], namespaces: ['imprest'] },
   { path: '/equipment', chunks: [EquipmentUsagePage], namespaces: ['equipment'] },
@@ -301,6 +302,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/stock/documents', chunks: [StockDocumentsPage], namespaces: ['stock'] },
   { path: '/stock/ledger', chunks: [StockLedgerPage], namespaces: ['stock'] },
   { path: '/stock/reorder', chunks: [StockReorderPage], namespaces: ['stock'] },
+  { path: '/stock/usage-standards', chunks: [UsageStandardsPage], namespaces: ['stock', 'usageStandards'] },
   { path: '/stock/new/:kind', chunks: [StockMovementFormPage], namespaces: ['stock'] },
   { path: '/stock', chunks: [StockOnHandPage], namespaces: ['stock'] },
   { path: '*', chunks: [NotFoundPage] },
@@ -553,6 +555,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/stock/documents/:documentId/edit', element: gated('stock', <StockCountPage />) },
   { path: '/stock/ledger', element: gated('stock', <StockLedgerPage />) },
   { path: '/stock/reorder', element: gated('stock', <StockReorderPage />) },
+  { path: '/stock/usage-standards', element: gated('stock', <UsageStandardsPage />) },
   { path: '/stock/new/:kind', element: gated('stock', <StockMovementFormPage />) },
   { path: '*', element: <NotFoundPage /> },
 ];

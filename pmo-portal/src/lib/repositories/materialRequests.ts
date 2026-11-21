@@ -9,7 +9,7 @@ import { wrap } from './repositoryErrors';
 export type {
   MaterialRequestStatus, StepStatus, StepDecision, MaterialRequestHeader, MaterialRequestLineInput, MaterialRequestRow,
   MaterialRequestLine, MaterialRequestStep, MaterialRequestEvent, MaterialRequestDetail, WaitingStep, ChainStep,
-  ChainStepInput, StandIn, StepPin, LinePlan, MaterialRequestFilter, MaterialRequestRefusal, DraftLineError,
+  ChainStepInput, StandIn, StepPin, LinePlan, PlanSource, MaterialRequestFilter, MaterialRequestRefusal, DraftLineError,
 } from '@/src/lib/db/materialRequests';
 export { linePlanStatus, draftLineErrors, materialRequestRefusal, MATERIAL_REQUEST_PAGE_SIZE } from '@/src/lib/db/materialRequests';
 

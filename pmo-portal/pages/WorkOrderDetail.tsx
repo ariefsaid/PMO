@@ -23,6 +23,7 @@ import { PlanVsActualSection } from './work-order-detail/PlanVsActualSection';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { QuantityChangesSection } from './work-order-detail/QuantityChangesSection';
 import { SectionsSection } from './work-order-detail/SectionsSection';
+import { ConsumablePlanSection } from './work-order-detail/ConsumablePlanSection';
 import { IssuesSection } from './work-order-detail/IssuesSection';
 import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 
@@ -36,6 +37,7 @@ const WorkOrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const may = usePermission();
+  const stockOn = useFeature('stock');
   const wo = useWorkOrder(id);
   const projectId = wo.data?.project_id ?? '';
   const project = useProject(projectId || undefined);
@@ -104,6 +106,7 @@ const WorkOrderDetail: React.FC = () => {
         <SectionsSection workOrder={{ id: row.id, project_id: row.project_id, status: row.status, currency: row.currency }} />
         <CostSection labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
           onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
+        {stockOn && <ConsumablePlanSection workOrderId={row.id} workOrderStatus={row.status} project={project.data} />}
         {canPlanView && <PlanVsActualSection workOrderId={row.id} query={pva} disciplines={disciplines.data ?? []} />}
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />

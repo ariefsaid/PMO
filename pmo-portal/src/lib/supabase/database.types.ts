@@ -2407,6 +2407,60 @@ export type Database = {
           },
         ]
       }
+      consumable_usage_standards: {
+        Row: {
+          archived_at: string | null
+          boq_code_prefix: string | null
+          created_at: string
+          id: string
+          item_id: string
+          margin_pct: number
+          org_id: string
+          qty_per_unit: number
+          updated_at: string
+          work_unit: string
+        }
+        Insert: {
+          archived_at?: string | null
+          boq_code_prefix?: string | null
+          created_at?: string
+          id?: string
+          item_id: string
+          margin_pct?: number
+          org_id?: string
+          qty_per_unit: number
+          updated_at?: string
+          work_unit: string
+        }
+        Update: {
+          archived_at?: string | null
+          boq_code_prefix?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string
+          margin_pct?: number
+          org_id?: string
+          qty_per_unit?: number
+          updated_at?: string
+          work_unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consumable_usage_standards_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consumable_usage_standards_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cost_attribution_rule_targets: {
         Row: {
           org_id: string
@@ -6486,6 +6540,7 @@ export type Database = {
           org_id: string
           over_plan_reason: string | null
           plan_qty: number | null
+          plan_source: string | null
           prior_qty: number | null
           quantity: number
           request_id: string
@@ -6499,6 +6554,7 @@ export type Database = {
           org_id?: string
           over_plan_reason?: string | null
           plan_qty?: number | null
+          plan_source?: string | null
           prior_qty?: number | null
           quantity: number
           request_id: string
@@ -6510,6 +6566,7 @@ export type Database = {
           org_id?: string
           over_plan_reason?: string | null
           plan_qty?: number | null
+          plan_source?: string | null
           prior_qty?: number | null
           quantity?: number
           request_id?: string
@@ -13263,6 +13320,82 @@ export type Database = {
           },
         ]
       }
+      work_order_consumable_plan_lines: {
+        Row: {
+          adjust_reason: string | null
+          adjusted_at: string | null
+          adjusted_by: string | null
+          adjusted_qty: number | null
+          basis: Json
+          created_at: string
+          generated_at: string | null
+          generated_by: string | null
+          generated_qty: number
+          id: string
+          input_fingerprint: string | null
+          item_id: string
+          org_id: string
+          updated_at: string
+          work_order_id: string
+        }
+        Insert: {
+          adjust_reason?: string | null
+          adjusted_at?: string | null
+          adjusted_by?: string | null
+          adjusted_qty?: number | null
+          basis?: Json
+          created_at?: string
+          generated_at?: string | null
+          generated_by?: string | null
+          generated_qty?: number
+          id?: string
+          input_fingerprint?: string | null
+          item_id: string
+          org_id?: string
+          updated_at?: string
+          work_order_id: string
+        }
+        Update: {
+          adjust_reason?: string | null
+          adjusted_at?: string | null
+          adjusted_by?: string | null
+          adjusted_qty?: number | null
+          basis?: Json
+          created_at?: string
+          generated_at?: string | null
+          generated_by?: string | null
+          generated_qty?: number
+          id?: string
+          input_fingerprint?: string | null
+          item_id?: string
+          org_id?: string
+          updated_at?: string
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_order_consumable_plan_lines_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_consumable_plan_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_consumable_plan_lines_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_order_crews: {
         Row: {
           created_at: string
@@ -14048,7 +14181,7 @@ export type Database = {
       }
       mrq_plan_for: {
         Args: { p_exclude_request?: string; p_item_ids: string[]; p_work_order_id: string }
-        Returns: { item_id: string; plan_qty: number; prior_qty: number }[]
+        Returns: { item_id: string; plan_qty: number; plan_source: string; prior_qty: number }[]
       }
       mrq_retry_transfer: { Args: { p_request_id: string; p_source_warehouse_id: string }; Returns: string }
       mrq_revoke_stand_in: { Args: { p_id: string }; Returns: undefined }
@@ -15579,6 +15712,13 @@ export type Database = {
         Returns: string
       }
       crew_can_manage: { Args: Record<PropertyKey, never>; Returns: boolean }
+      cus_adjust_plan_line: {
+        Args: { p_adjusted_qty: number | null; p_item_id: string; p_reason: string | null; p_work_order_id: string }
+        Returns: undefined
+      }
+      cus_generate_plan: { Args: { p_work_order_id: string }; Returns: number }
+      cus_get_plan: { Args: { p_work_order_id: string }; Returns: Json }
+      cus_standard_match_counts: { Args: never; Returns: { match_lines: number; standard_id: string }[] }
       deactivate_external_binding: {
         Args: { p_actor_id: string; p_external_tier: string; p_org_id: string }
         Returns: number
