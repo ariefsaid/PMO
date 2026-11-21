@@ -32,6 +32,7 @@ import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import SiteReportLists from './admin/SiteReportLists';
+import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
@@ -292,6 +293,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectClassificationOptions />
             <SiteReportLists />
             <CostDisciplines />
+            <IssueClosingReportSettings />
           </div>
         </div>
       );

@@ -56,6 +56,7 @@ import { taskProofRepository } from './taskProofs';
 import { commentRepository } from './comments';
 import { meetingRepository } from './meetings';
 import { incidentRepository } from './incidents';
+import { issueClosingReportRepository } from './issueClosingReport';
 import { procurementRepository, procurementFilesRepository } from './procurement';
 import { subcontractRepository } from './subcontracts';
 import { revenueRepository } from './revenue';
@@ -123,6 +124,7 @@ export const repositories: Repositories = {
   task: taskRepository,
   taskProof: taskProofRepository,
   incident: incidentRepository,
+  issueClosingReport: issueClosingReportRepository,
   comment: commentRepository,
   milestone: milestoneRepository,
   workOrder: workOrderRepository,

@@ -844,5 +844,28 @@
     "daysLabel": "Warn this many days before expiry",
     "daysHelp": "Up to 5 values, for example 30, 14, 7.",
     "daysSave": "Save warning days"
+  },
+  "issueClosingReport": {
+    "title": "Issue closing-time report",
+    "helper": "Enable the closing-time report and configure department groupings.",
+    "enableLabel": "Enable closing-time report",
+    "enableHelper": "Makes the closing-time report available on the Incidents register.",
+    "groupingMode": "Default grouping",
+    "modeType": "By issue type",
+    "modeDepartmentGroups": "By custom department groups",
+    "groupsTitle": "Department groups",
+    "groupsHelper": "Map issue types to named departments for reporting.",
+    "addGroup": "Add department group",
+    "groupName": "Department name",
+    "groupNamePlaceholder": "e.g. Civil & Earthworks",
+    "issueTypes": "Issue types (comma-separated)",
+    "issueTypesPlaceholder": "e.g. Civil, Excavation, Concrete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "saved": "Settings saved",
+    "groupSaved": "Department group saved",
+    "groupDeleted": "Department group deleted"
   }
 }

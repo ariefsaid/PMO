@@ -20,6 +20,7 @@ import { ExportAllButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useIncidentsPage, useIncidentsExportAll, useIncidentMutations, useAssigneeOptions } from '@/src/hooks/useIncidents';
+import { useIssueClosingReportSettings } from '@/src/hooks/useIssueClosingReport';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { INCIDENTS_PAGE_SIZE, type IncidentRow, type IncidentStatus } from '@/src/lib/db/incidents';
@@ -60,6 +61,7 @@ const Incidents: React.FC = () => {
   const { create, update, transition, remove } = useIncidentMutations();
   const exportAll = useIncidentsExportAll();
   const { data: assigneeOptions } = useAssigneeOptions();
+  const { data: closingReportSettings } = useIssueClosingReportSettings();
 
   // R2: page joins q/status in the URL so Back/refresh return to the same page; page 1 (the
   // default) stays out of the URL. Filter resets ride the filter's own history entry (replace)
@@ -258,12 +260,29 @@ const Incidents: React.FC = () => {
     <ListPage
       title={t('title', 'Incidents')}
       primaryAction={
-        canCreate && (
+        closingReportSettings?.enabled ? (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/incidents/closing-time')}
+              data-testid="incidents-closing-report-btn"
+            >
+              <Icon name="reports" />
+              {t('viewClosingReport', 'Closing-time report')}
+            </Button>
+            {canCreate && (
+              <Button variant="primary" onClick={() => setFormTarget({ incident: null })}>
+                <Icon name="plus" />
+                {t('file', 'File incident')}
+              </Button>
+            )}
+          </div>
+        ) : canCreate ? (
           <Button variant="primary" onClick={() => setFormTarget({ incident: null })}>
             <Icon name="plus" />
             {t('file', 'File incident')}
           </Button>
-        )
+        ) : null
       }
       filters={
         state !== 'loading' && (
