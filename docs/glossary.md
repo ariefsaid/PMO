@@ -830,7 +830,7 @@ A person who cannot read the record sees only its type and "cannot view".
 **End state** — a status after which a record cannot continue, per record type (for example Paid or Cancelled for a
 purchase). Reaching it closes the linked task.
 
-**System close** — the database setting a linked task to Done when its record reaches an end state, with no person acting.
+**System close** — the database setting a linked task to Done when its record reaches an end state, with a stored closing reason; the history names whoever moved the record (or no one for a service sync), and a task a person closed carries no such reason.
 
 **Open task** — a task that is not Done, archived or tombstoned.
 ### Work-order sections (#2576)

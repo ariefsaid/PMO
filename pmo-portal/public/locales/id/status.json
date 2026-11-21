@@ -38,6 +38,14 @@
     "paid": "Dibayar",
     "cancelled": "Dibatalkan"
   },
+  "materialRequest": {
+    "draft": "Draf",
+    "pending": "Menunggu persetujuan",
+    "approved": "Disetujui",
+    "rejected": "Ditolak",
+    "cancelled": "Ditarik",
+    "fulfilled": "Terkirim"
+  },
   "imprest": {
     "draft": "Draf",
     "submitted": "Diajukan",

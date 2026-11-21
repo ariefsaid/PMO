@@ -33,6 +33,8 @@ vi.mock('@/src/hooks/useMyTasks', () => ({
   }),
 }));
 
+vi.mock('@/src/hooks/useTaskLinkedRecords', () => ({ useTaskLinkedRecords: () => ({ data: undefined }) }));
+
 import MyTasks from '../MyTasks';
 
 const renderMyTasks = () =>

@@ -23,7 +23,7 @@ import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useTaskRouteState } from '@/src/hooks/useOwnershipCacheSync';
 import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
-import type { TaskWithRefs, TaskStatus, TaskPatch } from '@/src/lib/db/tasks';
+import { recordLinkOf, type TaskWithRefs, type TaskStatus, type TaskPatch } from '@/src/lib/db/tasks';
 import ProjectGantt from '../ProjectGantt';
 
 // The ReUI calendar is ~100 KB; only the Calendar view pays for it.
@@ -219,6 +219,12 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       record: { created_by: task.created_by, assignee_id: task.assignee_id, externallyOwned },
     }), [currentUserId, externallyOwned, may, routeKnown]);
   const canDelete = routeKnown && may('delete', 'task');
+  // #2587 FR-RLT-004: clearing a record link follows the same per-row scope the database enforces.
+  const canLinkTask = useCallback((task: TaskWithRefs): boolean =>
+    routeKnown && may('link', 'task', {
+      currentUserId,
+      record: { created_by: task.created_by, assignee_id: task.assignee_id, externallyOwned },
+    }), [currentUserId, externallyOwned, may, routeKnown]);
 
   // ADR-0056: the per-task pending-push badge wires in ONLY when task writes route externally
   // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
@@ -335,6 +341,16 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       return false;
     }
   }, [canEditTask, classifyWriteError, toast, updateAsync]);
+
+  const onUnlink = useCallback(async (task: TaskWithRefs) => {
+    if (!canLinkTask(task)) return;
+    try {
+      await updateAsync({ id: task.id, patch: { procurement_id: null, expense_claim_id: null, material_request_id: null } });
+    } catch (err) {
+      const { headline, detail } = classifyWriteError(err);
+      toast(headline, detail, 'warning');
+    }
+  }, [canLinkTask, classifyWriteError, toast, updateAsync]);
 
   const onArchive = useCallback(async (task: TaskWithRefs) => {
     if (!canArchive || externallyOwned) return;
@@ -638,6 +654,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         onDelete={(task) => setDeleteTarget(task)}
         openTask={openTask}
         onClose={closeTask}
+        onUnlink={selectedTask && recordLinkOf(selectedTask) && canLinkTask(selectedTask) ? onUnlink : undefined}
         nestedOpen={!!(formTarget && (formTarget.task ? canEditTask(formTarget.task) : canCreate)) || (!!deleteTarget && canDelete)}
         proof={selectedTask ? {
           canAttach: !externallyOwned && (canStructure || (!!currentUserId && selectedTask.assignee_id === currentUserId)),

@@ -16,6 +16,8 @@ import {
   unarchiveTask,
   addDependency,
   removeDependency,
+  taskLinkedRecords,
+  findOpenTaskForRecord,
 } from '@/src/lib/db/tasks';
 import { wrap } from './repositoryErrors';
 import type { TaskRepository } from './contracts/tasks';
@@ -38,6 +40,8 @@ export const taskRepository: TaskRepository = {
   archive: (id, projectId) => wrap(() => (projectId === undefined ? archiveTask(id) : archiveTask(id, projectId))),
   unarchive: (id, projectId) =>
     wrap(() => (projectId === undefined ? unarchiveTask(id) : unarchiveTask(id, projectId))),
+  linkedRecords: (taskIds) => wrap(() => taskLinkedRecords(taskIds)),
+  findOpenForRecord: (type, recordId) => wrap(() => findOpenTaskForRecord(type, recordId)),
   addDependency: (taskId, dependsOnId) => wrap(() => addDependency(taskId, dependsOnId)),
   removeDependency: (taskId, dependsOnId) => wrap(() => removeDependency(taskId, dependsOnId)),
 };

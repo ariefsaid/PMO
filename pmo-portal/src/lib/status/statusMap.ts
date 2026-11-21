@@ -66,6 +66,15 @@ export const STATUS_MAP = {
     Paid: e('done', (t) => t('status:expense.paid', 'Paid')),
     Cancelled: e('neutral', (t) => t('status:expense.cancelled', 'Cancelled')),
   },
+  // #2587: a linked task shows the request's status; the words match the request's own screen (materialRequests:status).
+  materialRequest: {
+    draft: e('neutral', (t) => t('status:materialRequest.draft', 'Draft')),
+    pending: e('waiting', (t) => t('status:materialRequest.pending', 'Waiting for approval')),
+    approved: e('done', (t) => t('status:materialRequest.approved', 'Approved')),
+    rejected: e('exception', (t) => t('status:materialRequest.rejected', 'Rejected')),
+    cancelled: e('neutral', (t) => t('status:materialRequest.cancelled', 'Withdrawn')),
+    fulfilled: e('done', (t) => t('status:materialRequest.fulfilled', 'Delivered')),
+  },
   imprest: {
     Draft: e('neutral', (t) => t('status:imprest.draft', 'Draft')),
     Submitted: e('waiting', (t) => t('status:imprest.submitted', 'Submitted')),

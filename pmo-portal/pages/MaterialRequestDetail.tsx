@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
 import { Button, ConfirmDialog, ListState, ReasonDialog, RecordHeader, RecordSection, RecordStack, SelectField, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
@@ -84,6 +85,7 @@ const MaterialRequestDetailPage: React.FC = () => {
         ]} menuLabel={t('detail.moreActions', 'More actions')}>
         <p><span className="text-muted-foreground">{t('list.columns.workOrder', 'Work order')}: </span><RequestWorkOrder workOrderId={req.workOrderId} projectId={req.projectId} /></p>
         {req.note && <p>{req.note}</p>}
+        <div><FollowUpTaskButton type="material_request" recordId={req.id} projectId={req.projectId} defaultName={req.number} finished={['fulfilled', 'rejected', 'cancelled'].includes(req.status)} /></div>
       </RecordHeader>
 
       <RecordStack>
