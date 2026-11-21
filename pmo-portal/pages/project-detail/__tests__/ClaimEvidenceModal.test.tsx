@@ -7,7 +7,7 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
 
 const doc = (id: string, title: string, status: ProjectDocumentRow['status'], filePath: string | null): ProjectDocumentRow => ({
-  id, org_id: 'o', project_id: 'p', code: null, category: 'Report', title, revision: 'A',
+  id, org_id: 'o', project_id: 'p', code: null, category: 'Report', category_id: 'cat-report', title, revision: 'A',
   status, doc_date: null, author_id: null, file_path: filePath, created_at: '', parent_document_id: null,
   source: filePath ? 'upload' : null,
   ms_drive_id: null, ms_item_id: null, ms_web_url: null, ms_item_name: null, ms_item_kind: null,

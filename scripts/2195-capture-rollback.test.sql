@@ -1,10 +1,19 @@
 \set ON_ERROR_STOP on
 begin;
 create extension if not exists pgtap;
-select plan(45);
+select plan(46);
 -- These references are exact function definitions from origin/dev, created with current
 -- default ACL and the explicit origin/dev grants. This is not a deployed predecessor snapshot.
 -- @REFS@
+
+-- 1209 (above this proof's window: 0866 + 0873 + 0874) puts the light-account refusal at the top of three of the
+-- catalog's read RPCs, and its rollback strips no body (its header: re-apply the latest migration that defines the
+-- function). The round trip below can only restore the level's own bodies, so the guard is proven HERE, at head,
+-- and the catalog's expected body for those three is the head body without that one injected line.
+select ok((select bool_and(p.prosrc like '%perform public.assert_not_light();%') from pg_proc p
+             join pg_namespace n on n.oid=p.pronamespace
+            where n.nspname='public' and p.proname in ('purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health')),
+          'the three capture read RPCs carry 1209''s light-account guard at head');
 
 -- Each newer migration's down restores the previous function bodies exactly (the 0866 text, as references).
 savepoint partial_down;
@@ -19,7 +28,13 @@ select is((select count(*)::int from pg_trigger where tgname='capture_census_fen
 rollback to savepoint partial_down;
 
 create temporary table f2_forward as
-select proname, pg_get_functiondef(p.oid) body, proowner, proconfig, proacl, prosecdef, provolatile, proparallel, prorettype, proargtypes, pronargdefaults
+select proname,
+       -- The level's own body for the three read RPCs 1209 guarded above this window: the head definition without
+       -- the one injected guard line (asserted present just above). Every other catalog entry is compared verbatim.
+       case when proname in ('purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health')
+            then replace(pg_get_functiondef(p.oid), E'\n  perform public.assert_not_light();', '')
+            else pg_get_functiondef(p.oid) end as body,
+       proowner, proconfig, proacl, prosecdef, provolatile, proparallel, prorettype, proargtypes, pronargdefaults
 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
 where n.nspname='public' and proname in ('undo_captured_purchase','unlink_erp_purchase_document',
 'purchase_capture_source_page','purchase_capture_ledger_page','purchase_capture_feed_health','capture_source_kind','capture_source_evidence',

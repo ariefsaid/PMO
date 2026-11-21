@@ -20,7 +20,11 @@ import { recordHistoryRepository } from './recordHistory';
 import { projectStageRepository } from './projectStages';
 import { rateCatalogueRepository } from './rateCatalogue';
 import { dailySiteReportRepository } from './dailySiteReports';
+import { workOrderCandidateRepository } from './workOrderCandidates';
+import { safetyDayRepository } from './safetyDays';
+import { quantityChangeRepository } from './quantityChanges';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
+import { supplyRiskRepository } from './supplyRisk';
 import { fxRatesRepository } from './fxRates';
 import { financialStatementsRepository } from './financialStatements';
 import { expensePostingsRepository } from './expensePostings';
@@ -52,12 +56,17 @@ import {
 } from './admin';
 import { taskRepository } from './tasks';
 import { billingStagesRepository } from './billingStages';
+import { closeoutChecklistRepository } from './closeoutChecklist';
+import { workInHandRepository } from './workInHand';
 import { taskProofRepository } from './taskProofs';
+import { thirdPartyInspectionRepository } from './thirdPartyInspections';
 import { commentRepository } from './comments';
 import { meetingRepository } from './meetings';
 import { incidentRepository } from './incidents';
+import { issueClosingReportRepository } from './issueClosingReport';
 import { procurementRepository, procurementFilesRepository } from './procurement';
 import { subcontractRepository } from './subcontracts';
+import { subcontractCertificateRepository } from './subcontractCertificates';
 import { revenueRepository } from './revenue';
 import { timesheetRepository } from './timesheets';
 import { stockRepository } from './stock';
@@ -73,6 +82,7 @@ import { imprestRepository } from './imprest';
 import { journalRepository } from './journals';
 import { equipmentRepository } from './equipment';
 import { documentExpiryRepository } from './documentExpiry';
+import { documentCategoryRepository } from './documentCategories';
 import { equipmentAvailabilityRepository } from './equipmentAvailability';
 import { peopleRepository } from './people';
 import { timeAndMaterialsRepository } from './timeAndMaterials';
@@ -104,6 +114,7 @@ export const repositories: Repositories = {
   m365RecordFolders: m365RecordFoldersRepository,
   recordHistory: recordHistoryRepository,
   vendorWithholdingSlips: vendorWithholdingSlipsRepository,
+  supplyRisk: supplyRiskRepository,
   project: projectRepository,
   projectStage: projectStageRepository,
   projectMoney: projectMoneyRepository,
@@ -117,19 +128,27 @@ export const repositories: Repositories = {
   profile: profileRepository,
   procurement: procurementRepository,
   subcontracts: subcontractRepository,
+  subcontractCertificates: subcontractCertificateRepository,
   revenue: revenueRepository,
   timesheet: timesheetRepository,
   budget: budgetRepository,
   task: taskRepository,
   taskProof: taskProofRepository,
+  thirdPartyInspection: thirdPartyInspectionRepository,
   incident: incidentRepository,
+  issueClosingReport: issueClosingReportRepository,
   comment: commentRepository,
   milestone: milestoneRepository,
   workOrder: workOrderRepository,
   progressBilling: progressBillingRepository,
   rateCatalogue: rateCatalogueRepository,
   billingStages: billingStagesRepository,
+  closeoutChecklist: closeoutChecklistRepository,
   dailySiteReport: dailySiteReportRepository,
+  workOrderCandidate: workOrderCandidateRepository,
+  safetyDay: safetyDayRepository,
+  workInHand: workInHandRepository,
+  quantityChange: quantityChangeRepository,
   stock: stockRepository,
   workOrderAcceptance: workOrderAcceptanceRepository,
   procurementFiles: procurementFilesRepository,
@@ -138,6 +157,7 @@ export const repositories: Repositories = {
   journal: journalRepository,
   equipment: equipmentRepository,
   documentExpiry: documentExpiryRepository,
+  documentCategory: documentCategoryRepository,
   equipmentAvailability: equipmentAvailabilityRepository,
   people: peopleRepository,
   timeAndMaterials: timeAndMaterialsRepository,

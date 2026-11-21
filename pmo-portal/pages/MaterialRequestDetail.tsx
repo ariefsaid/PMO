@@ -1,21 +1,28 @@
+import { ReservationsSlot } from '@/src/components/stock/ReservationsSlot';
+import { RequestBorrowingNotice } from '@/src/components/stock/RequestBorrowingNotice';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
 import { Button, ConfirmDialog, ListState, ReasonDialog, RecordHeader, RecordSection, RecordStack, SelectField, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
-import { useMaterialRequest, useMaterialRequestMutations, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
+import { useDeliveryNoteSettings, useMaterialRequest, useMaterialRequestMutations, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
 import { useStockItems, useStockKeepers, useStockWarehouses } from '@/src/hooks/useStock';
 import { formatDay } from '@/src/lib/format';
 import { RequestStatusPill, RequestWorkOrder, StepStatusPill } from './materialRequests/shared';
 import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
+import { UsageWarning } from './materialRequests/UsageWarning';
+import { useUsageThresholds } from '@/src/hooks/useUsageThresholds';
 
 type Dialog = null | { kind: 'return' | 'reject' } | { kind: 'approve' } | { kind: 'withdraw' } | { kind: 'retry' };
 
 /** One request: the chain and who acted, the lines against plan, the decision controls, and the link to the transfer draft. */
 const MaterialRequestDetailPage: React.FC = () => {
-  const { t } = useTranslation('materialRequests');
+  // Both catalogues load before first paint: the approve dialog and the stock pickers render `stock` text, and a namespace that is
+  // still loading when the dialog opens suspends the route and re-mounts this page, losing the open dialog (#2685, SPA arrival).
+  const { t } = useTranslation(['materialRequests', 'stock']);
   const { requestId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -25,7 +32,9 @@ const MaterialRequestDetailPage: React.FC = () => {
   const name = useUserNames();
   const labels = useLabels();
   const q = useMaterialRequest(requestId);
+  const usage = useUsageThresholds();
   const waiting = useWaitingForMe();
+  const { data: dnSettings } = useDeliveryNoteSettings();
   const { data: items } = useStockItems(true);
   const { data: warehouses } = useStockWarehouses();
   const { data: keepers } = useStockKeepers();
@@ -58,6 +67,7 @@ const MaterialRequestDetailPage: React.FC = () => {
   const canRetryTransfer = req.status === 'approved' && (!req.transferDocumentId || req.transferCancelled) &&
     req.createdBy !== currentUser?.id && retrySourceOptions.length > 0;
   const noApprover = req.status === 'pending' && !open;
+  const canPrintDeliveryNote = Boolean(dnSettings?.enabled) && (req.status === 'approved' || req.status === 'fulfilled');
 
   const close = () => { setDialog(null); setDialogError(null); };
   const run = async (work: () => Promise<unknown>, success: string) => {
@@ -75,18 +85,23 @@ const MaterialRequestDetailPage: React.FC = () => {
       <RecordHeader panelInset name={req.number} status={<RequestStatusPill status={req.status} />}
         meta={<span>{t('detail.meta', 'Raised by {{name}} · needed by {{date}}', { name: name(req.createdBy), date: formatDay(req.neededBy) })}</span>}
         primaryAction={canDecide ? <Button variant="primary" onClick={() => setDialog({ kind: 'approve' })}>{t('detail.approve', 'Approve')}</Button>
-          : canEdit ? <Button variant="primary" onClick={() => navigate(`/material-requests/${req.id}/edit`)}>{t('detail.edit', 'Edit and send')}</Button> : undefined}
+          : canEdit ? <Button variant="primary" onClick={() => navigate(`/material-requests/${req.id}/edit`)}>{t('detail.edit', 'Edit and send')}</Button>
+          : canPrintDeliveryNote ? <Button variant="outline" onClick={() => navigate(`/material-requests/${req.id}/delivery-note`)}>{t('detail.printDeliveryNote', 'Print delivery note')}</Button>
+          : undefined}
         menuItems={[
           ...(canDecide ? [
             { key: 'return', label: t('detail.return', 'Send back'), onSelect: () => setDialog({ kind: 'return' }) },
             { key: 'reject', label: t('detail.reject', 'Reject'), onSelect: () => setDialog({ kind: 'reject' }) }] : []),
           ...(canWithdraw ? [{ key: 'withdraw', label: t('detail.withdraw', 'Withdraw request'), onSelect: () => setDialog({ kind: 'withdraw' }) }] : []),
+          ...(canPrintDeliveryNote ? [{ key: 'printDeliveryNote', label: t('detail.printDeliveryNote', 'Print delivery note'), onSelect: () => navigate(`/material-requests/${req.id}/delivery-note`) }] : []),
         ]} menuLabel={t('detail.moreActions', 'More actions')}>
         <p><span className="text-muted-foreground">{t('list.columns.workOrder', 'Work order')}: </span><RequestWorkOrder workOrderId={req.workOrderId} projectId={req.projectId} /></p>
         {req.note && <p>{req.note}</p>}
+        <div><FollowUpTaskButton type="material_request" recordId={req.id} projectId={req.projectId} defaultName={req.number} finished={['fulfilled', 'rejected', 'cancelled'].includes(req.status)} /></div>
       </RecordHeader>
 
       <RecordStack>
+        <ReservationsSlot><RequestBorrowingNotice requestId={req.id} /></ReservationsSlot>
         {req.transferDocumentId && (
           <RecordSection title={t('detail.transfer', 'Delivery')}>
             <p>
@@ -127,7 +142,8 @@ const MaterialRequestDetailPage: React.FC = () => {
             {req.lines.map((l) => (
               <li key={l.id} className="py-2" data-testid="mrq-detail-line">
                 <div className="flex flex-wrap justify-between gap-2"><span className="font-medium">{itemName(l.itemId)}</span><span className="tabular-nums">{l.quantity}</span></div>
-                {l.planQty !== null && <div className="text-control text-muted-foreground">{t('form.planLine', 'Plan {{plan}} · already requested {{prior}} · new total {{total}}', { plan: l.planQty, prior: l.priorQty ?? 0, total: (l.priorQty ?? 0) + l.quantity })}</div>}
+                {l.planQty !== null && <div className="text-control text-muted-foreground">{t('form.planLine', 'Plan {{plan}} · already requested {{prior}} · new total {{total}}', { plan: l.planQty, prior: l.priorQty ?? 0, total: (l.priorQty ?? 0) + l.quantity })}{l.planSource && <span className="ml-2" data-testid="mrq-detail-plan-source">{t(`form.planSource.${l.planSource}`, { standard: 'From usage standards', adjusted: 'Adjusted by the planner', allowance: 'From material allowance', none: 'No plan' }[l.planSource])}</span>}</div>}
+                {l.planQty !== null && <UsageWarning line={{ planQty: l.planQty, priorQty: l.priorQty ?? 0, quantity: l.quantity }} thresholds={usage.thresholds} />}
                 {l.overPlanReason && <div className="text-control">{t('detail.overPlanReason', 'Over plan: {{reason}}', { reason: l.overPlanReason })}</div>}
               </li>
             ))}

@@ -7,7 +7,7 @@ import {
 import {
   cancelStockDocument, countStockDocuments, createStockDocument, getStockDocument, getStockDocumentCosts, getStockErpState, releaseStockHold, listIssuableWorkItems, listProjectIssueLines, listStockDocuments, postStockDocument, saveStockDraft,
 } from '@/src/lib/db/stockDocuments';
-import { getProjectConsumption, getStockLedgerAll, getStockLedgerPage, getStockOnHand } from '@/src/lib/db/stockReports';
+import { getProjectConsumption, getStockAtRisk, getStockLedgerAll, getStockLedgerPage, getStockOnHand } from '@/src/lib/db/stockReports';
 import { clearAllowance, listAllowances, setAllowance } from '@/src/lib/db/stockAllowances';
 import { getBelowReorder, getReorderSuggestion, setReorderLevel } from '@/src/lib/db/stockReorder';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
@@ -82,6 +82,7 @@ export const stockRepository: StockRepository = {
     onHand: (f) => wrap(() => getStockOnHand(f)),
     ledgerPage: (f) => wrap(() => getStockLedgerPage(f)),
     ledgerAll: (f) => wrap(() => getStockLedgerAll(f)),
+    atRisk: () => wrap(() => getStockAtRisk()),
   },
   consumption: {
     report: (p, from, to) => wrap(() => getProjectConsumption(p, from, to)),

@@ -1,0 +1,109 @@
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { I18nextProvider } from 'react-i18next';
+import { createInstance } from 'i18next';
+import idRp from '../../public/locales/id/workOrderRevenuePlan.json';
+import enRp from '../../public/locales/en/workOrderRevenuePlan.json';
+import { formatExactMoney } from '@/src/lib/format';
+import { setActiveLocale } from '@/src/lib/locale/activeLocale';
+import type { DailyTarget, DailyTargetDay } from '@/src/lib/dailyTarget';
+import { DailyTargetView } from './DailyTargetView';
+
+const state = vi.hoisted(() => ({ query: {} as Record<string, unknown>, asked: [] as unknown[] }));
+vi.mock('@/src/hooks/useWorkOrderDailyTarget', () => ({
+  useWorkOrderDailyTarget: (...args: unknown[]) => { state.asked.push(args); return state.query; },
+}));
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-12-03' }));
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual<typeof import('recharts')>('recharts');
+  return { ...actual, ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div>{children}</div> };
+});
+
+const day = (extra: Partial<DailyTargetDay>): DailyTargetDay => ({ date: '2026-12-01', working: true, listed: false, nonWorkingLabel: null, hasTarget: true, target: '100.00', actual: '80.00', gap: '-20.00', pendingReports: 0, ...extra });
+const target = (extra: Partial<DailyTarget> = {}): DailyTarget => ({
+  workOrderId: 'w', currency: 'IDR', asOf: '2026-12-03', month: '2026-12-01', hasTarget: true, monthTarget: '230.00', mtdTarget: '200.00', mtdActual: '80.00', mtdGap: '-120.00',
+  elapsedWorkingDays: 3, remainingWorkingDays: 19, projection: '613.33', projectedGap: '383.33',
+  days: [day({}), day({ date: '2026-12-02', actual: '0.00', gap: '-100.00', pendingReports: 1 }), day({ date: '2026-12-25', working: false, listed: true, nonWorkingLabel: 'Holiday', target: '30.00', actual: '0.00', gap: '-30.00' })], ...extra,
+});
+const ok = (d: DailyTarget | null) => ({ data: d, isPending: false, isError: false, error: null, refetch: vi.fn() });
+const money = (v: string) => formatExactMoney(v, 'IDR', 'en-US');
+
+beforeEach(() => { setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' }); state.asked = []; });
+
+describe('DailyTargetView (#2672)', () => {
+  it('shows target to date, actual to date, the gap in words and the projection', () => {
+    state.query = ok(target());
+    render(<DailyTargetView workOrderId="w" />);
+    expect(screen.getByTestId('wo-daily-mtd-target').textContent).toBe(money('200.00'));
+    expect(screen.getByTestId('wo-daily-mtd-actual').textContent).toBe(money('80.00'));
+    expect(screen.getByTestId('wo-daily-mtd-gap').textContent).toBe(`${money('120.00')} behind target`);
+    expect(screen.getByTestId('wo-daily-projection').textContent).toBe(money('613.33'));
+    expect(screen.getByTestId('wo-daily-projected-gap').textContent).toContain('ahead of target');
+  });
+  it('AC-WDT-007 a null projection reads "not enough working days", never 0', () => {
+    state.query = ok(target({ projection: null, projectedGap: null }));
+    render(<DailyTargetView workOrderId="w" />);
+    expect(screen.getByTestId('wo-daily-projection').textContent).toBe('Not enough working days yet');
+    expect(screen.queryByTestId('wo-daily-projected-gap')).toBeNull();
+  });
+  it('AC-WDT-006 names reports not yet validated apart from actual', () => {
+    state.query = ok(target());
+    render(<DailyTargetView workOrderId="w" />);
+    expect(screen.getByTestId('wo-daily-pending')).toBeTruthy();
+    expect(screen.getByTestId('wo-daily-row-2026-12-02').textContent).toContain('1 not yet validated');
+  });
+  it('AC-WDT-008 a month with no target says "No target entered", not a zero gap', () => {
+    state.query = ok(target({ hasTarget: false, mtdTarget: '0.00', mtdGap: '80.00', monthTarget: '0.00', days: [day({ hasTarget: false, target: '0.00', gap: '80.00' })] }));
+    render(<DailyTargetView workOrderId="w" />);
+    expect(screen.getByTestId('wo-daily-mtd-target').textContent).toBe('No target entered');
+    expect(screen.getByTestId('wo-daily-mtd-gap').textContent).toBe('No target entered');
+  });
+  it('AC-WDT-009 a refused caller sees "restricted", never a zero', () => {
+    state.query = { data: undefined, isPending: false, isError: true, error: { code: '42501' }, refetch: vi.fn() };
+    render(<DailyTargetView workOrderId="w" />);
+    expect(screen.getByText('The revenue plan is restricted for your role.')).toBeTruthy();
+    expect(screen.queryByTestId('wo-daily-mtd-actual')).toBeNull();
+  });
+  it('AC-WDT-012 a target on a listed date carries a non-working marker and its amount', () => {
+    state.query = ok(target());
+    render(<DailyTargetView workOrderId="w" />);
+    expect(screen.getByTestId('wo-daily-nonworking-2026-12-25').textContent).toBe('Non-working day: Holiday');
+    expect(screen.getByTestId('wo-daily-row-2026-12-25').textContent).toContain(money('30.00') as string);
+  });
+  it('browses months: the current month asks for today (null), the previous month for its last day', async () => {
+    state.query = ok(target());
+    render(<DailyTargetView workOrderId="w" />);
+    expect(state.asked.at(-1)).toEqual(['w', null]);
+    await userEvent.click(screen.getByRole('button', { name: 'Previous month' }));
+    expect(state.asked.at(-1)).toEqual(['w', '2026-11-30']);
+    await userEvent.click(screen.getByRole('button', { name: 'Next month' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next month' }));
+    expect(state.asked.at(-1)).toEqual(['w', '2027-01-01']);
+  });
+  it('shows loading and error states', () => {
+    state.query = { data: undefined, isPending: true, isError: false, error: null, refetch: vi.fn() };
+    const { unmount } = render(<DailyTargetView workOrderId="w" />);
+    expect(screen.getByTestId('wo-page-daily-target')).toBeTruthy();
+    unmount();
+    state.query = { data: undefined, isPending: false, isError: true, error: { code: 'XX' }, refetch: vi.fn() };
+    render(<DailyTargetView workOrderId="w" />);
+    expect(screen.getByText("Couldn't load the daily target")).toBeTruthy();
+  });
+  it('AC-WDT-013 renders Bahasa Indonesia strings', () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
+    const i18n = createInstance();
+    void i18n.init({ lng: 'id', fallbackLng: 'en', defaultNS: 'workOrderRevenuePlan', ns: ['workOrderRevenuePlan'], initImmediate: false, interpolation: { escapeValue: false },
+      resources: { id: { workOrderRevenuePlan: idRp }, en: { workOrderRevenuePlan: enRp } }, react: { useSuspense: false } });
+    state.query = ok(target());
+    render(<I18nextProvider i18n={i18n}><DailyTargetView workOrderId="w" /></I18nextProvider>);
+    expect(screen.getAllByText('Target sampai hari ini').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('wo-daily-mtd-gap').textContent).toMatch(/di bawah target/);
+    expect(screen.getByTestId('wo-daily-nonworking-2026-12-25').textContent).toBe('Hari tidak kerja: Holiday');
+  });
+  it('AC-WDT-013 every English key has an Indonesian translation', () => {
+    const keys = (o: Record<string, unknown>, p = ''): string[] => Object.entries(o).flatMap(([k, v]) => (typeof v === 'object' && v !== null ? keys(v as Record<string, unknown>, `${p}${k}.`) : [`${p}${k}`]));
+    expect(keys(idRp).sort()).toEqual(keys(enRp).sort());
+  });
+});

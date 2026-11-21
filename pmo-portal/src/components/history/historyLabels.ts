@@ -60,6 +60,7 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     pay_number: t('history.field.pay_number', 'Payment number'),
     assignee_id: t('history.field.assignee_id', 'Assignee'),
     milestone_id: t('history.field.milestone_id', 'Phase'),
+    task_group_id: t('project:projectDetail.tasks.form.taskGroup', 'Task group'),
     parent_task_id: t('history.field.parent_task_id', 'Parent task'),
     meeting_id: t('history.field.meeting_id', 'Meeting'),
     priority: t('history.field.priority', 'Priority'),
@@ -124,6 +125,7 @@ export function kindLabels(t: TFunction): Record<string, string> {
     vendor_withholding_slip: t('history.kind.vendor_withholding_slip', 'Bukti potong'),
     vendor_withholding_slip_bill: t('history.kind.vendor_withholding_slip_bill', 'Bukti potong bill link'),
     project_stage_entry: t('history.kind.project_stage_entry', 'Stage entry'),
+    third_party_inspection: t('workOrders:inspections.historyKind', 'Third-party inspection'),
   };
 }
 

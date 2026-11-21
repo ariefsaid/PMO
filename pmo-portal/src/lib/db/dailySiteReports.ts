@@ -41,7 +41,7 @@ export interface DsrReport {
 export interface DsrReportListRow extends DsrReport { work_order_label: string; author_name: string | null }
 export interface DsrProgressLine { id: string; position: number; work_order_line_id: string; sub_stage: string | null; quantity: number; unit: string }
 export interface DsrIdlePeriod { id: string; position: number; minutes: number; reason_id: string }
-export interface DsrConsumable { id: string; position: number; stock_item_id: string; quantity: number; unit: string }
+export interface DsrConsumable { id: string; position: number; stock_item_id: string; quantity: number; unit: string; work_order_line_id?: string | null }
 export interface DsrPhoto { id: string; kind: 'paper_form' | 'other'; file_path: string; created_at: string }
 export interface DsrEvent { id: string; action: string; actor_id: string | null; reason: string | null; at: string }
 export interface DsrWorkOrderRef { label: string; currency: string; orderValue: number }
@@ -72,7 +72,7 @@ export interface DsrDraftInput {
   note?: string | null;
   progress: { workOrderLineId: string; subStage?: string | null; quantity: string }[];
   idle: { minutes: number; reasonId: string }[];
-  consumables: { stockItemId: string; quantity: string }[];
+  consumables: { stockItemId: string; quantity: string; workOrderLineId?: string }[];
 }
 
 export interface DsrListFilter { projectId?: string; workOrderId?: string; from?: string; to?: string; status?: DsrStatus }
@@ -128,7 +128,7 @@ export async function getReport(id: string): Promise<DsrReportDetail | null> {
   const [progress, idle, consumables, photos, events] = await Promise.all([
     fetchAllPages<DsrProgressLine>((f, t) => db.from('dsr_progress_lines').select('id, position, work_order_line_id, sub_stage, quantity, unit').eq('report_id', id).order('position').range(f, t)),
     fetchAllPages<DsrIdlePeriod>((f, t) => db.from('dsr_idle_periods').select('id, position, minutes, reason_id').eq('report_id', id).order('position').range(f, t)),
-    fetchAllPages<DsrConsumable>((f, t) => db.from('dsr_consumables').select('id, position, stock_item_id, quantity, unit').eq('report_id', id).order('position').range(f, t)),
+    fetchAllPages<DsrConsumable>((f, t) => db.from('dsr_consumables').select('id, position, stock_item_id, quantity, unit, work_order_line_id').eq('report_id', id).order('position').range(f, t)),
     fetchAllPages<DsrPhoto>((f, t) => db.from('dsr_photos').select('id, kind, file_path, created_at').eq('report_id', id).order('created_at').order('id').range(f, t)),
     fetchAllPages<DsrEvent>((f, t) => db.from('dsr_events').select('id, action, actor_id, reason, at').eq('report_id', id).order('at').order('id').range(f, t)),
   ]);
@@ -203,7 +203,7 @@ export async function saveDraft(input: DsrDraftInput): Promise<string> {
       note: input.note ?? null,
       progress: input.progress.map((l) => ({ work_order_line_id: l.workOrderLineId, sub_stage: l.subStage || null, quantity: l.quantity })),
       idle: input.idle.map((l) => ({ minutes: l.minutes, reason_id: l.reasonId })),
-      consumables: input.consumables.map((l) => ({ stock_item_id: l.stockItemId, quantity: l.quantity })),
+      consumables: input.consumables.map((l) => ({ stock_item_id: l.stockItemId, quantity: l.quantity, ...(l.workOrderLineId ? { work_order_line_id: l.workOrderLineId } : {}) })),
     },
   });
   if (error) fail(error);

@@ -18,6 +18,9 @@ import { ListState } from '@/src/components/ui/ListState';
 import { OdooStatementsSection } from '@/src/components/financial-statements/OdooStatementsSection';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
 import { useOdooLedgerMode } from '@/src/hooks/useOdooLedger';
+import { useNoAccountingSystem } from '@/src/hooks/useNoAccountingSystem';
+import { useFeature } from '@/src/auth/useFeature';
+import { ManagementProfitLossCard } from '@/src/components/financial-statements/ManagementProfitLossCard';
 import { LedgerModeNotice } from '@/src/components/odoo-ledger/LedgerModeNotice';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead, FinancialStatementScope } from '@/src/lib/financialStatements';
@@ -75,6 +78,9 @@ const FinancialStatements: React.FC = () => {
   const companyReadAllowed = identityReady && may('view', 'financialStatements');
   // #1507 S7: an Odoo organisation reads its statements from the Odoo ledger; the saved-report path below is not asked for them.
   const odooMode = useOdooLedgerMode(companyReadAllowed);
+  // #2734: no accounting system connected: Statements leads to the management profit and loss instead of "set up accounting".
+  const noAccounting = useNoAccountingSystem(companyReadAllowed);
+  const hasReports = useFeature('management_pack');
   const catalogueQuery = useFinancialStatementCatalogue({ kind: 'company' }, companyReadAllowed && !odooMode.odoo);
   const catalogue = catalogueQuery.data;
 
@@ -300,6 +306,26 @@ const FinancialStatements: React.FC = () => {
     return (
       <ListPage title={t('financeHub:hub.statements', 'Statements')} className="min-w-0">
         <OdooStatementsSection />
+      </ListPage>
+    );
+  }
+
+  if (noAccounting === true && sectionState.kind === 'unavailable') {
+    return (
+      <ListPage title={t('financeHub:hub.statements', 'Statements')} className="min-w-0">
+        <ManagementProfitLossCard
+          labels={{
+            title: tf('statements.managementTitle', 'Management profit and loss'),
+            line: tf('statements.managementLine', 'Ledger statements (trial balance, profit and loss, balance sheet) come from an accounting system when one is connected.'),
+            openReports: tf('statements.openReports', 'Open reports'),
+            setUp: tf('statements.setUp', 'Set up accounting'),
+            marginHint: tf('statements.marginHint', 'To add cost and margin to the report, turn on the setting:'),
+            marginSetting: tf('statements.marginSetting', 'Profit per discipline'),
+          }}
+          onOpenReports={hasReports ? () => navigate('/finance/reports') : undefined}
+          onSetUp={may('manage', 'integration') ? () => navigate('/administration/integrations') : undefined}
+          onOpenMarginSetting={may('manage', 'orgAccounting') ? () => navigate('/administration/accounting') : undefined}
+        />
       </ListPage>
     );
   }

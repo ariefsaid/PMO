@@ -63,7 +63,7 @@
     "empty": "No equipment yet",
     "emptySub": "Add assets under Equipment → Assets, then set their daily status here.",
     "todayHeading": "Today's status",
-    "flagged": "Down more than 2 days",
+    "flagged": "Down more than {{n}} days",
     "last": "Last: {{status}}",
     "unrecorded": "Not recorded",
     "statusFor": "Status of {{code}}",
@@ -142,7 +142,14 @@
     "ownershipSaved": "Ownership saved",
     "rateChanged": "Rate changed",
     "openProof": "Open {{name}}",
-    "unprovenIncluded": "Unproven — included with reason"
+    "unprovenIncluded": "Unproven — included with reason",
+    "availabilityTarget": "Availability target (%)",
+    "utilisationTarget": "Use target (%)",
+    "escalationLimit": "Escalate after more than (days down)",
+    "saveTargets": "Save targets",
+    "targetsSaved": "Targets saved",
+    "targetNote": "(target {{target}}%)",
+    "belowTarget": "Below target"
   },
   "basis": {
     "actual_cost": "Actual cost by usage",
@@ -391,5 +398,33 @@
     "error": "Couldn't load this person",
     "notFound": "This person was not found",
     "notFoundSub": "They may have been archived, or you may not have access."
+  },
+  "vendorResponse": {
+    "title": "Vendor response to breakdowns",
+    "summaryTitle": "Vendor response time, last 12 months",
+    "noVendor": "No rental vendor",
+    "awaiting": "Awaiting response",
+    "record": "Record response",
+    "edit": "Edit",
+    "remove": "Remove",
+    "removeTitle": "Remove this response?",
+    "removeBody": "The breakdown goes back to awaiting a response.",
+    "removed": "Response removed",
+    "recordTitle": "Vendor response, breakdown from {{date}}",
+    "save": "Save response",
+    "saved": "Vendor response saved",
+    "respondedAt": "Vendor responded",
+    "reportedAt": "Reported (optional, defaults to the start of the first day)",
+    "note": "Note (optional)",
+    "vendor": "Vendor",
+    "breakdowns": "Breakdowns",
+    "responded": "Responded",
+    "awaitingCount": "Awaiting",
+    "median": "Median",
+    "average": "Average",
+    "slowest": "Slowest",
+    "days": "{{count}} d",
+    "hours": "{{count}} h",
+    "minutes": "{{count}} min"
   }
 }

@@ -87,7 +87,7 @@ disciplines make or lose money while there is still time to act.
 **Roll-ups**
 - FR-WPVA-030 The system shall roll planned and actual cost up to discipline (within a project), and shall show
   revenue and profit at work-order, project and contract level, where billing is recorded. Discipline revenue is not
-  apportioned. Project and contract cost totals equal the sum of their work orders plus cost with no work order and no
+  apportioned here; it is shown by the opt-in view of [discipline-profit](discipline-profit.spec.md). Project and contract cost totals equal the sum of their work orders plus cost with no work order and no
   allocation (shown as "Not assigned"). Under the one-contract-per-project model, the contract roll-up equals the
   project roll-up and uses project-finance work revenue. Non-contract billing is included and stated separately as
   Other revenue within that total.

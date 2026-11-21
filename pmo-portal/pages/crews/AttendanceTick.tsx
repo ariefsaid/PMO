@@ -21,7 +21,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const STATUSES: AttendanceStatus[] = ['present', 'absent', 'leave', 'off_rotation'];
 
 /** The tick form for one crew on one day (FR-CRW-009/010). Keyed by crew, date and held records, so it starts fresh. */
-const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; held: AttendanceDayRow[]; canRecord: boolean }> = ({
+export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; held: AttendanceDayRow[]; canRecord: boolean }> = ({
   crew, workOrderId, date, held, canRecord,
 }) => {
   const { t } = useTranslation('crews');

@@ -78,6 +78,20 @@ describe('listProjectCostAmounts', () => {
     h.queue.push({ data: [row({ reason: 'whatever' })], error: null });
     await expect(dal.listProjectCostAmounts('p1')).rejects.toBeInstanceOf(AppError);
   });
+
+  it('labour money for a Project Manager is aggregate: no record id or date, the amounts stay (migration 1298)', async () => {
+    h.queue.push({ data: [row({ source: 'timesheet_entry', record_id: null, occurred_on: null, person_id: null,
+      labour_class_id: 'cls-direct', amount: '700000.00', quantity: 14, quantity_unit: 'hours', work_order_id: 'A' })], error: null });
+    const lines = await dal.listProjectCostAmounts('p1');
+    expect(lines[0]).toMatchObject({ source: 'timesheet_entry', recordId: null, labourClassId: 'cls-direct', amount: '700000.00' });
+  });
+
+  it('a row without a record id outside the aggregate labour shape is an error, never a figure', async () => {
+    h.queue.push({ data: [row({ record_id: null })], error: null });
+    await expect(dal.listProjectCostAmounts('p1')).rejects.toBeInstanceOf(AppError);
+    h.queue.push({ data: [row({ source: 'timesheet_entry', reason: 'no-rate', record_id: null, labour_class_id: 'cls-direct' })], error: null });
+    await expect(dal.listProjectCostAmounts('p1')).rejects.toBeInstanceOf(AppError);
+  });
 });
 
 describe('plan figures', () => {
@@ -85,7 +99,7 @@ describe('plan figures', () => {
     h.queue.push({ data: [{ id: 'p', work_order_id: 'A', discipline_id: null, kind: 'direct_budget', value: '99999999999999.99', note: null }], error: null });
     const plans = await dal.listProjectPlanLines('p1');
     expect(plans[0].value).toBe('99999999999999.99');
-    expect(h.calls.select).toContain('id, work_order_id, discipline_id, kind, value::text, note');
+    expect(h.calls.select).toContain('id, work_order_id, section_id, discipline_id, kind, value::text, note');
   });
 });
 

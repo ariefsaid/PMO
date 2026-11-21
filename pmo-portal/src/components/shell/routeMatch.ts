@@ -169,6 +169,9 @@ export const MODULES: ModuleDef[] = [
   // #2528: Crews — every role reads; the tick and the manage actions gate inside the page.
   { module: 'crews', icon: 'user', label: 'Crews', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'crews:nav.crews', path: '/crews' },
+  // #2708: Leave — every role reads its own; the decide actions gate on the database's answer.
+  { module: 'leave', icon: 'clock', label: 'Leave', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'crews:leave.title', path: '/leave' },
   // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Finance, Engineers and Admins
   // (Finance works assigned tasks like an Engineer, owner 2026-10-23).
   // Project-level Tasks remain available for oversight; Executive navigation is unchanged.
@@ -328,6 +331,8 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   // #2061: the phone Home (my queue) is a composition of already-modular surfaces, not a module
   // of its own — register its title so the breadcrumb reads "Home", never "Not found".
   '/home': 'Home',
+  // #2596: the monthly safety summary is a routable page behind the organisation setting, not a rail module.
+  '/safety': 'Safety summary',
 };
 
 /**
@@ -341,7 +346,11 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/stock/documents': '/stock',
   '/stock/ledger': '/stock',
   '/stock/reorder': '/stock',
+  '/stock/at-risk': '/stock',
   '/stock/setup': '/stock',
+  '/stock/transfers': '/stock',
+  '/stock/transfers/new': '/stock',
+  '/stock/work-order-transfer': '/stock',
   '/stock/new/receive': '/stock',
   '/stock/new/transfer': '/stock',
   '/stock/new/issue': '/stock',
@@ -352,6 +361,9 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/equipment/assets': '/equipment',
   '/equipment/expiring': '/equipment',
   '/equipment/availability': '/equipment',
+  // #2681, #2682: the billing board and the billing plan are pages of the Receivables area, not rail modules.
+  '/finance/billing-board': '/finance/receivables',
+  '/finance/billing-plan': '/finance/receivables',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
@@ -359,6 +371,8 @@ export function railParentForPath(pathname: string): string | undefined {
   if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
   // #2518: a work order's page belongs to Projects.
   if (/^\/work-orders\/[^/]+$/.test(pathname)) return '/projects';
+  // #2596: a safety day belongs to its work order, so to Projects.
+  if (/^\/safety-days\/[^/]+$/.test(pathname)) return '/projects';
   return RAIL_PARENT_FOR_PATH[pathname];
 }
 
@@ -368,6 +382,9 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/stock/ledger': { label: 'Ledger', i18nKey: 'stock:tabs.ledger' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/reorder': { label: 'Reorder', i18nKey: 'stock:tabs.reorder' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/setup': { label: 'Setup', i18nKey: 'stock:tabs.setup' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/transfers': { label: 'Transfers', i18nKey: 'stock:tabs.transfers' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/transfers/new': { label: 'Send transfer', i18nKey: 'stock:transfers.sendTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/work-order-transfer': { label: 'Move leftover', i18nKey: 'stock:workOrderTransfer.title' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/receive': { label: 'Receive', i18nKey: 'stock:kinds.receive' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/transfer': { label: 'Transfer', i18nKey: 'stock:kinds.transfer' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/issue': { label: 'Issue to project', i18nKey: 'stock:kinds.issue' }, // i18n-exempt: fallback label is replaced from i18nKey at render
@@ -377,6 +394,8 @@ export const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }
   '/equipment/availability': { label: 'Availability', i18nKey: 'equipment:availability.title' }, // i18n-exempt: translated at render
   '/equipment/assets': { label: 'Assets', i18nKey: 'equipment:nav.assets' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/equipment/expiring': { label: 'Expiring documents', i18nKey: 'equipment:nav.expiring' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/finance/billing-board': { label: 'Billing board', i18nKey: 'finance:billingBoard.title' }, // i18n-exempt: translated at render
+  '/finance/billing-plan': { label: 'Billing plan', i18nKey: 'finance:billingPlan.title' }, // i18n-exempt: translated at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
@@ -503,6 +522,14 @@ export function breadcrumbForPath(
       { label: 'Receivables', // i18n-exempt: translated from i18nKey by Breadcrumb
         i18nKey: 'financeHub:hub.receivables', href: paymentRecord ? '/finance/receivables?view=payments' : '/finance/receivables', onClick: () => navigate?.(paymentRecord ? '/finance/receivables?view=payments' : '/finance/receivables') },
       { label: paymentRecord ? 'Payment record' : 'Invoice record', i18nKey: paymentRecord ? 'financeHub:nav.paymentRecord' : 'shell.nav.invoiceRecord' },
+    ];
+  }
+  if (pathname === '/finance/work-in-hand') {
+    return [
+      { label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:hub.title', href: '/finance', onClick: () => navigate?.('/finance') },
+      { label: 'Work in hand', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'workInHand:title' },
     ];
   }
   const financeArea = pathname.match(/^\/finance\/(receivables|payables|reports|statements)$/)?.[1];

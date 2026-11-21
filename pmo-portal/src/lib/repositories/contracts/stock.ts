@@ -1,19 +1,19 @@
 /** Stock repository contract (#1512 S1). */
 import type { CostAttribution } from '@/src/lib/db/workOrderCosts';
 import type {
-  StockItemInput, StockItemRow, StockKeeperRow, StockUnitInput, StockUnitRow, StockWarehouseInput, StockWarehouseRow,
+  StockItemFilters, StockItemInput, StockItemRow, StockKeeperRow, StockUnitInput, StockUnitRow, StockWarehouseInput, StockWarehouseRow,
 } from '@/src/lib/db/stockMaster';
 import type {
   IssuableWorkItem, IssueLineRow, StockDocumentDetail, StockErpState, StockDocumentFilters, StockDocumentInput, StockDocumentListRow, StockLineCost,
 } from '@/src/lib/db/stockDocuments';
-import type { ProjectConsumption, StockLedgerFilters, StockLedgerPage, StockLedgerRow, StockOnHandRow } from '@/src/lib/db/stockReports';
+import type { ProjectConsumption, StockAtRiskRow, StockLedgerFilters, StockLedgerPage, StockLedgerRow, StockOnHandRow } from '@/src/lib/db/stockReports';
 import type { MaterialAllowance, MaterialAllowanceInput } from '@/src/lib/db/stockAllowances';
 import type { BelowReorderRow, ReorderSuggestion } from '@/src/lib/db/stockReorder';
 
 /** Stock master data (#1512 S1): units, items, warehouses and keepers.  */
 export interface StockMasterRepository {
   listUnits(includeArchived?: boolean): Promise<StockUnitRow[]>;
-  listItems(includeArchived?: boolean): Promise<StockItemRow[]>;
+  listItems(filters?: boolean | StockItemFilters): Promise<StockItemRow[]>;
   listWarehouses(includeArchived?: boolean): Promise<StockWarehouseRow[]>;
   listKeepers(): Promise<StockKeeperRow[]>;
   createUnit(input: StockUnitInput): Promise<StockUnitRow>;
@@ -54,6 +54,7 @@ export interface StockReportsRepository {
   onHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }): Promise<StockOnHandRow[]>;
   ledgerPage(f: StockLedgerFilters & { beforeSeq?: number; limit?: number }): Promise<StockLedgerPage>;
   ledgerAll(f: StockLedgerFilters): Promise<StockLedgerRow[]>;
+  atRisk(): Promise<StockAtRiskRow[]>;
 }
 
 /** Project consumption vs allowance (#1512 S5): aggregated in SQL; value keys absent below Project Manager rank. */

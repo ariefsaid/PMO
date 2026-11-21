@@ -3,8 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { EntityFormModal, type SubmitError } from '@/src/components/ui/EntityFormModal';
 import { Button } from '@/src/components/ui/Button';
 import { Checkbox } from '@/src/components/ui/Checkbox';
-import { TextArea, TextField, FieldError } from '@/src/components/ui/FormFields';
+import { SelectField, TextArea, TextField, FieldError } from '@/src/components/ui/FormFields';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { QueryClientGate } from '@/src/components/billing/QueryClientGate';
+import { useLoadTemplateOntoProject, useStepTemplates } from '@/src/hooks/useBillingSteps';
+import { useRoleOptions } from '@/src/hooks/useRoleOptions';
+import { BillingStepTemplatesModal } from './BillingStepTemplatesModal';
 import { useProjectBillingTerms, useSaveBillingTerms } from '@/src/hooks/useBillingStages';
 import type { StageTemplateInput } from '@/src/lib/db/billingStages';
 
@@ -13,21 +17,45 @@ import type { StageTemplateInput } from '@/src/lib/db/billingStages';
  * invoice deadline and the retention percentage. Finance/Admin only; the database refuses anyone else. Claims already made
  * keep the stage plan they were made with.
  */
-interface StageRow { key: number; name: string; clientSide: boolean; required: string; optional: string }
+interface StageRow { key: number; ownerRole: string; name: string; clientSide: boolean; required: string; optional: string; target: string; optionalStage: boolean }
 
 const toRow = (s: StageTemplateInput, key: number): StageRow => ({
-  key, name: s.name, clientSide: s.clientSide,
+  key, ownerRole: s.ownerRole ?? '', name: s.name, clientSide: s.clientSide, target: s.targetDays == null ? '' : String(s.targetDays), optionalStage: Boolean(s.optional),
   required: s.documents.filter((d) => d.required).map((d) => d.name).join('\n'),
   optional: s.documents.filter((d) => !d.required).map((d) => d.name).join('\n'),
 });
 const lines = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean);
 const toStage = (r: StageRow): StageTemplateInput => ({
-  name: r.name.trim(), clientSide: r.clientSide,
+  name: r.name.trim(), clientSide: r.clientSide, ...(r.ownerRole ? { ownerRole: r.ownerRole } : {}),
+  ...(r.target.trim() === '' ? {} : { targetDays: Number(r.target) }), ...(r.optionalStage ? { optional: true } : {}),
   documents: [...lines(r.required).map((name) => ({ name, required: true })), ...lines(r.optional).map((name) => ({ name, required: false }))],
 });
 
+/** Load an organisation template onto the project's list, or open the template manager (#2680). Absent without a data layer. */
+const TemplateTools: React.FC<{ projectId: string; onLoaded: () => void }> = ({ projectId, onLoaded }) => {
+  const { t } = useTranslation('project');
+  const templates = useStepTemplates();
+  const load = useLoadTemplateOntoProject(projectId);
+  const [picked, setPicked] = useState('');
+  const [managing, setManaging] = useState(false);
+  const [failed, setFailed] = useState(false);
+  return <div className="mt-3 flex flex-wrap items-end gap-2">
+    <SelectField compact label={t('projectDetail.billing.steps.template', 'Template')} value={picked} onChange={setPicked}
+      placeholder={t('projectDetail.billing.steps.pickTemplate', 'Choose a template')}
+      options={(templates.data ?? []).map((tpl) => ({ value: tpl.id, label: tpl.name }))} />
+    <Button type="button" variant="outline" size="sm" disabled={!picked || load.isPending}
+      onClick={() => { setFailed(false); load.mutateAsync(picked).then(() => { setPicked(''); onLoaded(); }).catch(() => setFailed(true)); }}>
+      {t('projectDetail.billing.steps.loadTemplateTerms', 'Replace stages with template')}
+    </Button>
+    <Button type="button" variant="outline" size="sm" onClick={() => setManaging(true)}>{t('projectDetail.billing.templates.manage', 'Manage templates')}</Button>
+    {failed && <p role="alert" className="w-full text-sm text-destructive">{t('projectDetail.billing.steps.loadTemplateError', 'The template could not be loaded.')}</p>}
+    {managing && <BillingStepTemplatesModal onClose={() => setManaging(false)} />}
+  </div>;
+};
+
 export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => void }> = ({ projectId, onClose }) => {
   const { t } = useTranslation('project');
+  const roles = useRoleOptions();
   const query = useProjectBillingTerms(projectId);
   const save = useSaveBillingTerms(projectId);
   const nextKey = useRef(0);
@@ -35,7 +63,7 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
   const [day, setDay] = useState('');
   const [warn, setWarn] = useState('5');
   const [retention, setRetention] = useState('0');
-  const [errors, setErrors] = useState<{ day?: boolean; warn?: boolean; retention?: boolean; names?: boolean }>({});
+  const [errors, setErrors] = useState<{ day?: boolean; warn?: boolean; retention?: boolean; names?: boolean; targets?: boolean }>({});
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const [dirty, setDirty] = useState(false);
 
@@ -50,7 +78,7 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
   const update = (key: number, patch: Partial<StageRow>) => { setRows((rs) => (rs ?? []).map((r) => (r.key === key ? { ...r, ...patch } : r))); setDirty(true); };
   const move = (index: number) => { setRows((rs) => { const a = [...(rs ?? [])]; [a[index - 1], a[index]] = [a[index], a[index - 1]]; return a; }); setDirty(true); };
   const remove = (key: number) => { setRows((rs) => (rs ?? []).filter((r) => r.key !== key)); setDirty(true); };
-  const add = () => { setRows((rs) => [...(rs ?? []), { key: nextKey.current++, name: '', clientSide: false, required: '', optional: '' }]); setDirty(true); };
+  const add = () => { setRows((rs) => [...(rs ?? []), { key: nextKey.current++, ownerRole: '', name: '', clientSide: false, required: '', optional: '', target: '', optionalStage: false }]); setDirty(true); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,9 +90,10 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
       warn: !(Number.isInteger(warnNum) && warnNum >= 0 && warnNum <= 27),
       retention: !(Number.isFinite(pct) && pct >= 0 && pct < 100 && /^\d+(?:[.,]\d{1,2})?$/.test(retention.trim())),
       names: (rows ?? []).some((r) => r.name.trim() === ''),
+      targets: (rows ?? []).some((r) => r.target.trim() !== '' && !(/^\d+$/.test(r.target.trim()) && Number(r.target) >= 1 && Number(r.target) <= 365)),
     };
     setErrors(next);
-    if (next.day || next.warn || next.retention || next.names) return;
+    if (next.day || next.warn || next.retention || next.names || next.targets) return;
     try {
       await save.mutateAsync({ stages: (rows ?? []).map(toStage), deadlineDay: dayNum, warnDays: warnNum, retentionPct: pct });
       onClose();
@@ -80,6 +109,7 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
     {query.isError && <p className="text-sm text-muted-foreground" role="status">{t('projectDetail.billing.terms.loadError', 'The billing terms could not be loaded.')}</p>}
     <h3 className="text-group font-semibold">{t('projectDetail.billing.terms.stagesTitle', 'Billing stages')}</h3>
     <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.billing.terms.stagesHelp', 'Each new progress claim must complete these stages, in order, before its invoice can be raised.')}</p>
+    <QueryClientGate><TemplateTools projectId={projectId} onLoaded={() => { setRows(null); setDirty(false); }} /></QueryClientGate>
     <ol className="mt-3 space-y-4">
       {(rows ?? []).map((row, index) => (
         <li key={row.key}>
@@ -97,6 +127,18 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
                 <Button type="button" variant="outline" size="sm" onClick={() => remove(row.key)}
                   aria-label={t('projectDetail.billing.terms.remove', 'Remove {{stage}}', { stage: row.name || index + 1 })}>{t('projectDetail.billing.terms.removeShort', 'Remove')}</Button>
               </span>
+            </div>
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <TextField inputMode="numeric" label={t('projectDetail.billing.terms.targetDays', 'Target (days)')} value={row.target} onChange={(v) => update(row.key, { target: v })}
+                error={errors.targets && row.target.trim() !== '' && !(/^\d+$/.test(row.target.trim()) && Number(row.target) >= 1 && Number(row.target) <= 365)
+                  ? t('projectDetail.billing.terms.targetInvalid', 'Enter 1 to 365 days, or leave it empty.') : undefined} />
+              <SelectField compact label={t('projectDetail.billing.steps.owner', 'Owner role')} value={row.ownerRole}
+                options={[{ value: '', label: t('projectDetail.billing.steps.noOwner', 'Nobody in particular') }, ...roles.options]}
+                onChange={(v) => update(row.key, { ownerRole: v })} />
+              <Checkbox checked={row.optionalStage} onChange={(v) => update(row.key, { optionalStage: v })}
+                label={t('projectDetail.billing.terms.optionalStage', 'Optional stage')}>
+                {t('projectDetail.billing.terms.optionalStage', 'Optional stage')}
+              </Checkbox>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <TextArea rows={2} label={t('projectDetail.billing.terms.required', 'Required documents, one per line')} value={row.required} onChange={(v) => update(row.key, { required: v })} />

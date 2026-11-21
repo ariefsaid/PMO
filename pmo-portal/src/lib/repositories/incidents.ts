@@ -12,6 +12,8 @@ import {
   uploadIncidentFile,
   getIncidentFileUrl,
   createTaskFromIncident,
+  addTaskToIncident,
+  setIncidentRootCause,
 } from '@/src/lib/db/incidents';
 import { wrap } from './repositoryErrors';
 import type { IncidentRepository } from './contracts/incidents';
@@ -28,5 +30,7 @@ export const incidentRepository: IncidentRepository = {
   uploadFile: (input) => wrap(() => uploadIncidentFile(input)),
   fileUrl: (filePath) => wrap(() => getIncidentFileUrl(filePath)),
   createTask: (incidentId) => wrap(() => createTaskFromIncident(incidentId)),
+  addTask: (incidentId, input) => wrap(() => addTaskToIncident(incidentId, input)),
+  setRootCause: (id, rootCause) => wrap(() => setIncidentRootCause(id, rootCause)),
   delete: (id) => wrap(() => deleteIncident(id)),
 };

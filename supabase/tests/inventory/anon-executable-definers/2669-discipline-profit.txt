@@ -1,0 +1,5 @@
+# Client-callable SECURITY DEFINER RPC names added by #2669 (profit per discipline), one proname per line.
+# Each is refused to anon and re-checks the caller inside the body; proven by supabase/tests/1265_discipline_profit.test.sql.
+set_org_discipline_profit_enabled  # 1265: active Admin only; audited
+set_boq_item_discipline  # 1266: revenue-reader roles of the item's project (Admin, Finance, Executive, own Project Manager); same-org active discipline
+project_discipline_revenue  # 1266: revenue-reader roles of the project; empty while the org setting is off

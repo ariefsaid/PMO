@@ -1,3 +1,4 @@
+import { useDsrStockFlags, useDsrStockSettings } from '@/src/hooks/useDsrStockIssue';
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +10,7 @@ import { useDailySiteReports, useDsrValidationQueue } from '@/src/hooks/useDaily
 import { formatDay } from '@/src/lib/format';
 import type { DsrStatus } from '@/src/lib/db/dailySiteReports';
 import { NewSiteReportDialog } from './NewSiteReportDialog';
+import { CrewsLink } from './CrewsLink';
 
 const STATUSES: DsrStatus[] = ['draft', 'submitted', 'returned', 'validated'];
 
@@ -33,6 +35,8 @@ const SiteReports: React.FC = () => {
   const filter = useMemo(() => (status ? { status } : {}), [status]);
   const list = useDailySiteReports(filter, page);
   const queue = useDsrValidationQueue(mayValidate);
+  const stockOn = useDsrStockSettings().data?.enabled === true;
+  const stockFlags = useDsrStockFlags((list.data?.rows ?? []).filter((r) => r.status === 'validated').map((r) => r.id), stockOn).data;
 
   const setParam = (key: string, value: string | null) => {
     const next = new URLSearchParams(params);
@@ -48,6 +52,7 @@ const SiteReports: React.FC = () => {
         title={t('title', 'Site reports')}
         action={mayEnter ? <Button variant="primary" onClick={() => setNewOpen(true)}>{t('newReport', 'New report')}</Button> : undefined}
       />
+      <CrewsLink />
 
       {mayValidate && queueRows.length > 0 && (
         <section aria-labelledby="dsr-queue" className="rounded-lg border border-warning/30 bg-waiting-surface p-4" data-testid="dsr-queue">
@@ -98,6 +103,7 @@ const SiteReports: React.FC = () => {
                     <span className="tabular-nums text-foreground">{formatDay(r.work_date)}</span>
                     <span className="min-w-0 flex-1 truncate font-medium text-foreground">{r.work_order_label}</span>
                     <span className="text-muted-foreground">{r.author_name ?? '—'}</span>
+                    {stockFlags?.has(r.id) && <StatusPill variant="warn" data-testid="dsr-stock-flag">{t('stock.flag', 'Stock flagged')}</StatusPill>}
                     <StatusPill record="siteReport" state={r.status} />
                   </Link>
                 </li>

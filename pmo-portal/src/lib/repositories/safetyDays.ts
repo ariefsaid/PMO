@@ -1,0 +1,32 @@
+import * as dal from '@/src/lib/db/safetyDays';
+import type { SafetyDayRepository } from './contracts/safetyDays';
+
+export const safetyDayRepository: SafetyDayRepository = {
+  isEnabled: dal.isEnabled,
+  setEnabled: dal.setEnabled,
+  listItems: dal.listItems,
+  addItem: dal.addItem,
+  renameItem: dal.renameItem,
+  setItemArchived: dal.setItemArchived,
+  workOrderDays: dal.workOrderDays,
+  createDay: dal.createDay,
+  getDay: dal.getDay,
+  rosterWorkers: dal.rosterWorkers,
+  saveFitness: dal.saveFitness,
+  updateFitness: dal.updateFitness,
+  deleteFitness: dal.deleteFitness,
+  answerChecklist: dal.answerChecklist,
+  saveTalk: dal.saveTalk,
+  deleteTalk: dal.deleteTalk,
+  savePermit: dal.savePermit,
+  setPermitState: dal.setPermitState,
+  deletePermit: dal.deletePermit,
+  addOfficerEntry: dal.addOfficerEntry,
+  submitDay: dal.submitDay,
+  correctDay: dal.correctDay,
+  uploadTalkPhoto: dal.uploadTalkPhoto,
+  deletePhoto: dal.deletePhoto,
+  photoUrl: dal.photoUrl,
+  getSummary: dal.getSummary,
+  getSummaryDetail: dal.getSummaryDetail,
+};

@@ -49,6 +49,7 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { ErpOrphansSection } from './procurement/ErpOrphansSection';
 import { needsYou, type NeedsYouResult } from './procurement/blocks/needsYou';
 import type { StageKey } from '@/src/lib/procurement/stage';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import { matchesSearch, matchesStage, orphanTotals, shownAmount, totalsByCurrency, type CurrencyTotal, type ProcurementListRole } from '@/src/lib/procurement/listModel';
 import { ProcurementGroupedView } from './procurement/list/ProcurementGroupedView';
 import { tabId, tabPanelId } from '@/src/components/ui/tabIds';
@@ -308,17 +309,18 @@ const ProcurementPage: React.FC = () => {
   }, [openRecord]);
 
   // The list itself renders through ProcurementBlock; these columns only describe the export.
+  const maySeePrices = useMaySeePrices();
   const exportColumns: Column<ProcurementWithRefs>[] = useMemo(() => [
     ...withCurrencyColumn<ProcurementWithRefs>([
       { key: 'request', header: t('column.procurement', 'Procurement'), cell: noCell, exportValue: (row) => row.title },
       { key: 'project', header: t('column.project', 'Project'), cell: noCell, exportValue: (row) => row.project?.name ?? '' },
       { key: 'requester', header: t('column.raisedBy', 'Raised by'), cell: noCell, exportValue: (row) => row.requested_by?.full_name ?? '' },
-      { key: 'value', header: t('column.value', 'Value'), align: 'num', cell: noCell, exportValue: (row) => row.total_value },
+      ...(maySeePrices ? [{ key: 'value', header: t('column.value', 'Value'), align: 'num' as const, cell: noCell, exportValue: (row: ProcurementWithRefs) => row.total_value }] : []),
       { key: 'lifecycle', header: t('column.lifecycle', 'Lifecycle'), cell: noCell, exportValue: (row) => statusLabel(row.status as ProcurementStatus) },
       { key: 'status', header: t('column.status', 'Status'), cell: noCell, exportValue: (row) => statusLabel(row.status as ProcurementStatus) },
     ], 'value', (row) => row.currency),
     { key: 'external-refs', header: t('column.externalReferences', 'External references'), cell: noCell, exportValue: (row) => externalRefsOf(row).join(', ') },
-  ], [statusLabel, t]);
+  ], [statusLabel, t, maySeePrices]);
 
   const projectFilters = useMemo(() => distinctOptions(all.map((row) => ({ value: row.project_id, label: row.project ? projectDisplayName(row.project) : null }))), [all]);
   const supplierFilters = useMemo(() => distinctOptions(all.map((row) => ({ value: row.vendor_id, label: row.vendor?.name }))), [all]);
@@ -441,10 +443,10 @@ const ProcurementPage: React.FC = () => {
   const needsYouMoney = useMemo(() => tabMoney(totalsByCurrency(needsYouRows.map(({ row }) => row), realRole as ProcurementListRole, 'needs-you', new Map(needsYouRows.map(({ row, result }) => [row.id, result.reason]))), home), [needsYouRows, realRole, home]);
   const orphanMoney = useMemo(() => (canViewOrphans ? tabMoney(orphanTotals(orphanRows), home) : ''), [canViewOrphans, orphanRows, home]);
   const tabs: Array<{ key: ProcurementTab; label: string; count: number; money: string }> = useMemo(() => [
-    { key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: needsYouRows.length, money: needsYouMoney },
+    { key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: needsYouRows.length, money: maySeePrices ? needsYouMoney : '' },
     { key: 'all', label: t('tab.all', 'All'), count: all.length, money: '' },
-    ...(canSeeOrphans ? [{ key: 'orphans' as const, label: t('tab.orphans', 'Not in a procurement'), count: orphanRows.length, money: orphanMoney }] : []),
-  ], [all.length, canSeeOrphans, needsYouMoney, needsYouRows.length, orphanMoney, orphanRows.length, t]);
+    ...(canSeeOrphans ? [{ key: 'orphans' as const, label: t('tab.orphans', 'Not in a procurement'), count: orphanRows.length, money: maySeePrices ? orphanMoney : '' }] : []),
+  ], [all.length, canSeeOrphans, maySeePrices, needsYouMoney, needsYouRows.length, orphanMoney, orphanRows.length, t]);
 
   return (
     // L6: the All tab carries the total, so the title has no second count.

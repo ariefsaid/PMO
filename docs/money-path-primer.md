@@ -134,6 +134,15 @@ the order's captured purchase; each untagged invoice is an ordinary B1 placement
 counts through `capture_assigned_gl` exactly as B1's do, and the commitment comes only from the canonical readers
 (`procurement_ledger_held(_many)`, `procurement_open_commitments`). Nothing is written to the ERP.
 
+**Closing a work order (#2593, migrations 1400-1402).** A work order reaches `Closed` by two routes: `transition_work_order`
+(only when it has no contract lines) and `confirm_work_order_acceptance` for a final acceptance, which also stamps the closing
+value. One `before update of status` trigger, `work_orders_zzzzzz_closeout_guard`, covers both: it refuses with detail
+`closeout-incomplete` while a required item of the work order's close-out checklist is not done, and stamps `closed_by` from the
+caller. The refusal rolls back the whole statement, so a final acceptance stays unconfirmed and no closing value is stamped.
+Neither function is edited. A work order that has no checklist (the organisation had no list when it was issued, or it was
+issued before 1402) closes exactly as before. The checklist is copied at issue, so editing the organisation's list never
+re-gates a work order already issued.
+
 ## Numeric relationships that MUST hold (a whole round was lost to one of these)
 
 These constants live in different files and nothing type-checks their relationship. If you change one,

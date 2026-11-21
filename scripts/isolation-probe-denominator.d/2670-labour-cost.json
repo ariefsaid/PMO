@@ -1,0 +1,19 @@
+{
+  "tables": [
+    {"table":"labour_cost_settings","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"n/a: pk is the org id, not a row uuid; the blind read covers the declared B visibility"},
+    {"table":"labour_cost_classes","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"labour_cost_rates","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ],
+  "definer_functions": [
+    "labour_cost_enabled(uuid)",
+    "labour_rate_for(uuid,uuid,date)",
+    "labour_rate_locked(uuid,uuid,text,uuid,text,date)",
+    "labour_cost_gate()",
+    "save_labour_cost_settings(boolean)",
+    "save_labour_cost_rate(jsonb)",
+    "end_labour_cost_rate(uuid,date)",
+    "archive_labour_cost_rate(uuid)",
+    "labour_cost_priced_lines(uuid)",
+    "work_order_cost_amounts_pre_labour(uuid)"
+  ]
+}

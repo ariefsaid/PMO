@@ -1,0 +1,6 @@
+{
+  "tables": [
+    {"table":"work_order_stock_settings","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"n/a: pk is org_id (one settings row per org), not a row uuid; the blind read covers own-org-only"}
+  ],
+  "definer_functions": ["set_work_order_issue_threshold(numeric)", "get_work_order_material_vs_progress(uuid)"]
+}

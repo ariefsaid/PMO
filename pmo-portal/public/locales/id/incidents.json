@@ -139,7 +139,72 @@
   },
   "projectScope": "Insiden proyek",
   "allIncidents": "Semua insiden",
+  "viewList": "Daftar",
+  "viewClosingReport": "Laporan waktu penyelesaian",
+  "closingReport": {
+    "title": "Laporan waktu penyelesaian isu",
+    "subtitle": "Waktu rata-rata dan median penutupan isu per departemen, menandai isu yang terhenti.",
+    "backToRegister": "Kembali ke daftar",
+    "dateRange": "Rentang tanggal",
+    "preset30d": "30 hari terakhir",
+    "preset90d": "90 hari terakhir",
+    "presetYtd": "Tahun berjalan",
+    "presetAll": "Semua waktu",
+    "presetCustom": "Kustom",
+    "from": "Dari",
+    "to": "Sampai",
+    "grouping": "Pengelompokan departemen",
+    "groupByType": "Berdasarkan jenis isu",
+    "groupByGroups": "Berdasarkan grup departemen",
+    "cards": {
+      "totalIssues": "Total isu",
+      "closedIssues": "Isu ditutup",
+      "avgClosingTime": "Rata-rata waktu penyelesaian",
+      "stalledIssues": "Isu terhenti",
+      "stalledSub": "Melewati tenggat dan terbuka",
+      "closedRate": "{{percent}}% dari total"
+    },
+    "col": {
+      "department": "Departemen",
+      "total": "Total",
+      "closed": "Ditutup",
+      "open": "Terbuka",
+      "stalled": "Terhenti",
+      "avgClosing": "Rata-rata waktu tutup",
+      "medianClosing": "Median waktu tutup"
+    },
+    "empty": {
+      "title": "Tidak ada data isu pada periode ini",
+      "sub": "Coba perluas rentang tanggal atau pilih pengelompokan departemen lain."
+    },
+    "durationDays": "{{days}} hari",
+    "durationHours": "{{count}} jam",
+    "durationMinutes": "{{count}} menit",
+    "disabledMessage": "Laporan waktu penyelesaian tidak diaktifkan untuk organisasi ini. Administrator dapat mengaktifkannya di menu Administrasi."
+  },
   "notification": {
     "overdue": "Insiden melewati tenggat"
+  },
+  "tasks": {
+    "heading": "Tugas",
+    "none": "Belum ada tugas.",
+    "hidden": "Tugas yang tidak dapat Anda lihat",
+    "add": "Tambah tugas",
+    "addTitle": "Tambah tugas",
+    "name": "Tugas",
+    "namePlaceholder": "mis. Pesan suku cadang pengganti",
+    "due": "Tenggat",
+    "dueOn": "Tenggat {{date}}",
+    "nameRequired": "Beri nama tugas."
+  },
+  "rootCause": {
+    "heading": "Akar masalah",
+    "none": "Akar masalah belum dicatat.",
+    "add": "Catat akar masalah",
+    "edit": "Ubah akar masalah",
+    "label": "Akar masalah",
+    "placeholder": "Mengapa ini terjadi, terpisah dari hambatan yang terlihat.",
+    "save": "Simpan",
+    "cancel": "Batal"
   }
 }

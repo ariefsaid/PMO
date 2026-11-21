@@ -93,6 +93,8 @@ When a crew works a day on a work order, I want its attendance recorded once, by
 | OD-CRW-4 | Group photo is recommended, required only when OQ-CRW-1 selects tick-only. | Without proof, roster tick hours are unverifiable. |
 | OD-CRW-5 | Back-date limit 7 days. | Too short blocks late site reporting; too long weakens control. |
 
+Crew loans (a worker lent to another crew for a period) are specified in `docs/specs/crew-loan.spec.md` (#2704).
+
 ## Workforce register access ruling (2026-11-20)
 
 Crew membership references the shared `people` workforce register. Active organisation members can read only basic person fields (ID, name, code, job title and archive status) through an org-scoped directory for rosters and pickers. The base register retains its narrower read policy for profile links, manager links and worker ID references; Admin and Project Manager can create and edit people. Person documents retain their existing, narrower access rules.

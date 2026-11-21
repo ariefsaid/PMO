@@ -4,8 +4,10 @@ import { AppError, toAppError } from '@/src/lib/appError';
 /** Quantities and money arrive as decimal strings from the read RPCs and stay strings (NFR-STK-007). Cost keys are absent below rank 20. */
 export interface StockOnHandRow {
   itemId: string; itemCode: string; itemName: string; unitCode: string; wholeOnly: boolean;
-  warehouseId: string; warehouseCode: string; warehouseName: string; warehouseKind: 'central' | 'site' | 'yard' | 'staging';
+  warehouseId: string; warehouseCode: string; warehouseName: string; warehouseKind: 'central' | 'site' | 'yard' | 'staging' | 'vendor';
   qtyOnHand: string; valueOnHand?: string; avgCost?: string;
+  /** Only on a vendor location: the linked vendor company's name, when it has one. */
+  vendorName?: string;
 }
 export interface StockLedgerRow {
   seq: number; id: string; documentId: string; documentNumber: string; documentStatus: string; kind: string;
@@ -18,6 +20,13 @@ export interface StockLedgerFilters {
   itemId?: string; warehouseId?: string; projectId?: string; boqItemId?: string; documentId?: string; from?: string; to?: string;
 }
 export interface StockLedgerPage { rows: StockLedgerRow[]; nextBeforeSeq: number | null }
+
+/** #2694: one row per location holding stock; money keys exist only when the server sent them (rank >= 20). */
+export interface StockAtRiskRow {
+  warehouseId: string; warehouseCode: string; warehouseName: string; warehouseKind: 'central' | 'site' | 'yard' | 'staging';
+  projectId: string | null; projectName: string | null;
+  stockValue?: string; coverValue?: string | null; atRisk?: string;
+}
 
 /** The project consumption report (#1512 S5, FR-STK-042/043). Per-month rows carry consumption only; allowances are cumulative to `to`. */
 interface ConsumptionKey { boqItemId: string; boqItemCode: string; boqDescription: string; itemId: string; itemCode: string; itemName: string; unitCode: string }
@@ -52,7 +61,21 @@ export async function getStockOnHand(f: { warehouseId?: string; itemId?: string;
       qtyOnHand: r.qty_on_hand,
     };
     optional(r, 'value_on_hand', 'valueOnHand', out); optional(r, 'avg_cost', 'avgCost', out);
+    if (r.vendor_name != null) out.vendorName = r.vendor_name;
     return out as StockOnHandRow;
+  });
+}
+
+export async function getStockAtRisk(): Promise<StockAtRiskRow[]> {
+  const { data, error } = await supabase.rpc('get_stock_at_risk');
+  if (error) throw toAppError(error);
+  return ((data ?? []) as Json[]).map((r) => {
+    const out: Json = {
+      warehouseId: r.warehouse_id, warehouseCode: r.warehouse_code, warehouseName: r.warehouse_name, warehouseKind: r.warehouse_kind,
+      projectId: r.project_id ?? null, projectName: r.project_name ?? null,
+    };
+    optional(r, 'stock_value', 'stockValue', out); optional(r, 'cover_value', 'coverValue', out); optional(r, 'at_risk', 'atRisk', out);
+    return out as StockAtRiskRow;
   });
 }
 

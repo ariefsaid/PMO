@@ -18,6 +18,7 @@ import type { UserDirectoryRow } from '@/src/lib/db/adminUsers';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { initialsOf } from './avatar';
 import { useRoleLabels } from './roleLabels';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 
 /**
  * The Administration › Users directory (CROSS-65 / XG01-002): the body block — toolbar + search,
@@ -91,6 +92,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
 }) => {
   const { t } = useTranslation();
   const roleNames = useRoleLabels();
+  const roleDisplayName = useBuiltInRoleName();
   const tableRef = useRef<HTMLDivElement>(null);
   // The input stays local and responsive; the SERVER query is only issued after the person stops
   // typing (300 ms), so one keystroke never becomes one whole-org read.
@@ -159,7 +161,8 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
       header: t('admin.users.columns.role', 'Role'),
       cell: (u) => (
         <span>
-          <StatusPill variant={roleVariant(u.role)}>{roleNames.label(u.role)}</StatusPill>
+          <StatusPill variant={roleVariant(u.role)}>{u.built_in_role ? roleDisplayName(u.built_in_role) : roleNames.label(u.role)}</StatusPill>
+          {u.built_in_role && <span className="ml-2 text-muted-foreground">{roleNames.label(u.role)}</span>}
           {isSoleAdmin(u) && <span className="ml-2 text-muted-foreground">{t('administration:onlyActiveAdmin', 'The only active Admin cannot be disabled')}</span>}
         </span>
       ),

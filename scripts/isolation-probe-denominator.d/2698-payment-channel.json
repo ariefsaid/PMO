@@ -1,0 +1,13 @@
+{
+  "tables": [
+    {"table":"org_payment_channel_settings","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"org_payment_channels","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ],
+  "definer_functions": [
+    "set_payment_channel_settings(boolean)",
+    "save_payment_channel(uuid,text)",
+    "archive_payment_channel(uuid,boolean)",
+    "set_procurement_payment_channel(uuid,uuid)",
+    "payment_channel_on(uuid)"
+  ]
+}

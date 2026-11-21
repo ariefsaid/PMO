@@ -10,6 +10,7 @@ import { resolveLocale } from '@/src/lib/locale/resolveLocale';
 import { isValidTimeZone, listTimeZoneIds } from '@/src/lib/locale/timezones';
 import { formatMoneyInputValue } from '@/src/lib/format';
 import { Button, Combobox, PageHeader, SelectField, UnsavedChangesDialog, type ComboboxOption } from '@/src/components/ui';
+import { EmailOptOutSetting } from '@/src/components/emailNotifications/EmailOptOutSetting';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 
 type LocaleChoice = 'inherit' | 'id' | 'en';
@@ -365,6 +366,7 @@ const ProfileSettings: React.FC = () => {
           </p>
         )}
       </div>
+      <EmailOptOutSetting />
       <UnsavedChangesDialog
         open={pendingLeave !== null}
         onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}

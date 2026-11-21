@@ -1,0 +1,4 @@
+# 1223: email settings writers; Admin (events, language) or the signed-in user (own opt-out); 1220_email_notifications pgTAP
+set_email_event_setting
+set_email_locale
+set_my_email_opt_out

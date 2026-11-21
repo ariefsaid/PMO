@@ -77,3 +77,30 @@ describe('view ownership projection', () => {
     expect(can(action, 'userView', { realRole: 'Engineer', currentUserId: null, record: { user_id: null } })).toBe(false);
   });
 });
+
+// #2587 FR-RLT-004 / AC-RLT-016: the record-link control follows the task's own edit scope, never wider.
+describe('can() — link a task to a record (AC-RLT-016)', () => {
+  const me = 'eng-1';
+  const other = 'user-2';
+
+  it('AC-RLT-016 a delivery role may link any task', () => {
+    for (const realRole of ['Admin', 'Executive', 'Project Manager'] as const) {
+      expect(can('link', 'task', { realRole, currentUserId: me, record: { created_by: other, assignee_id: other } })).toBe(true);
+    }
+  });
+
+  it('AC-RLT-016 an Engineer or Finance member may link only a task they created', () => {
+    for (const realRole of ['Engineer', 'Finance'] as const) {
+      expect(can('link', 'task', { realRole, currentUserId: me, record: { created_by: me } })).toBe(true);
+      // the assignee of someone else's task may not (the database column pin refuses it)
+      expect(can('link', 'task', { realRole, currentUserId: me, record: { created_by: other, assignee_id: me } })).toBe(false);
+      expect(can('link', 'task', { realRole, currentUserId: me })).toBe(false);
+    }
+  });
+
+  it('AC-RLT-016 nobody links an externally-owned task, and no one without a session may', () => {
+    expect(can('link', 'task', { realRole: 'Engineer', currentUserId: me, record: { created_by: me, externallyOwned: true } })).toBe(false);
+    expect(can('link', 'task', { realRole: 'Engineer', currentUserId: null, record: { created_by: me } })).toBe(false);
+    expect(can('link', 'task', { realRole: null, currentUserId: me, record: { created_by: me } })).toBe(false);
+  });
+});

@@ -1,0 +1,9 @@
+{
+  "tables": [
+    {"table":"issue_closing_report_settings","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"n\/a: pk is the org id, not a row uuid; the blind read covers the declared B visibility"},
+    {"table":"issue_department_groups","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ],
+  "definer_functions": [
+    "get_issue_closing_time_report(date,date,text)"
+  ]
+}

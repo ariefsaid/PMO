@@ -37,7 +37,8 @@ test('JOB-F17 an open issue made into a task links back and lands in the owner\'
 
   await page.getByRole('link', { name: new RegExp(`open ${run} issue`, 'i') }).click();
   await page.getByTestId('incident-make-task').click();
-  await expect(page.getByTestId('incident-task-linked')).toBeVisible({ timeout: 20_000 });
+  // #2677: the issue lists its tasks; the new task is a link back to it
+  await expect(page.getByRole('link', { name: `${run} replace the guard rail` })).toBeVisible({ timeout: 20_000 });
 
   await signIn(page, 'engineer@acme.test');
   await page.goto('/my-tasks');

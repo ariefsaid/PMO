@@ -4,14 +4,21 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
-const h = vi.hoisted(() => ({ revoke: vi.fn(), role: 'Engineer' }));
+const h = vi.hoisted(() => ({
+  revoke: vi.fn(),
+  setDeliveryNoteSettings: vi.fn().mockResolvedValue(undefined),
+  role: 'Engineer',
+  dnSettings: { data: { enabled: false, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] }, isPending: false, isError: false, refetch: vi.fn() },
+}));
 const ok = { isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useApprovalChain: () => ({ ...ok, data: [] }),
   useMaterialRequestCutoff: () => ({ ...ok, data: null }),
+  useDeliveryNoteSettings: () => h.dnSettings,
   useStandIns: () => ({ ...ok, data: [{ id: 's1', delegatorId: 'u1', standInId: 'u2', startsOn: '2026-11-20', endsOn: '2026-11-22', revokedAt: null }] }),
   useMaterialRequestMutations: () => ({
     setChain: { mutateAsync: vi.fn(), isPending: false }, setCutoff: { mutateAsync: vi.fn(), isPending: false },
+    setDeliveryNoteSettings: { mutateAsync: h.setDeliveryNoteSettings, isPending: false },
     setStandIn: { mutateAsync: vi.fn(), isPending: false }, revokeStandIn: { mutateAsync: h.revoke },
   }),
 }));
@@ -46,5 +53,46 @@ describe('material request approval settings', () => {
     expect(screen.getByText('Daily cut-off')).toBeInTheDocument();
     expect(screen.getByLabelText(/^Time \(24-hour/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save cut-off' })).toBeInTheDocument();
+  });
+
+  describe('#2687 printable delivery note settings', () => {
+    it('a non-Admin does not see delivery note settings', () => {
+      h.role = 'Engineer';
+      render(<MemoryRouter><ToastProvider><MaterialRequestSettingsPage /></ToastProvider></MemoryRouter>);
+      expect(screen.queryByTestId('delivery-note-settings-editor')).not.toBeInTheDocument();
+    });
+
+    it('AC-DNP-006 an Admin sees delivery note settings and can enable and save signature blocks', async () => {
+      h.role = 'Admin';
+      h.dnSettings = {
+        data: { enabled: false, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] },
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      };
+      render(<MemoryRouter><ToastProvider><MaterialRequestSettingsPage /></ToastProvider></MemoryRouter>);
+
+      expect(screen.getByTestId('delivery-note-settings-editor')).toBeInTheDocument();
+      const checkbox = screen.getByRole('checkbox', { name: /Enable printable delivery note/i });
+      expect(checkbox).not.toBeChecked();
+
+      // Click enable
+      await userEvent.click(checkbox);
+      expect(checkbox).toBeChecked();
+
+      // Check signature block inputs exist
+      expect(screen.getByTestId('signature-block-input-0')).toBeInTheDocument();
+      expect(screen.getByTestId('signature-block-input-1')).toBeInTheDocument();
+      expect(screen.getByTestId('signature-block-input-2')).toBeInTheDocument();
+
+      // Save
+      const saveBtn = screen.getByTestId('save-delivery-note-settings-button');
+      await userEvent.click(saveBtn);
+
+      expect(h.setDeliveryNoteSettings).toHaveBeenCalledWith({
+        enabled: true,
+        signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'],
+      });
+    });
   });
 });

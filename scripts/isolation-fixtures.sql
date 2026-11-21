@@ -225,6 +225,8 @@ insert into public.spend_approvers (id, org_id, project_id, profile_id)
 select 'a6120000-0000-4000-8000-0000000000b4', w.org_id, w.project_id, p.id
 from public.work_orders w join lateral (select id from public.profiles where org_id = w.org_id order by id limit 1) p on true
 where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.spend_approval_settings (id, org_id, tiers_enabled)
+values ('a6120000-0000-4000-8000-0000000000fa', 'a6120000-0000-4000-8000-00000000000a', false);
 insert into public.project_progress_entries (id, org_id, project_id, month, pct_complete)
 select 'a6120000-0000-4000-8000-0000000000b5', org_id, project_id, date '2001-01-01', 0
 from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2';
@@ -237,8 +239,9 @@ insert into public.daily_site_reports (id, org_id, project_id, work_order_id, wo
 select 'a6120000-0000-4000-8000-0000000000c3', w.org_id, w.project_id, w.id, current_date,
        (select id from public.profiles where org_id = w.org_id order by id limit 1)
   from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
-insert into public.dsr_progress_lines (id, org_id, report_id, position, work_order_line_id, quantity, unit)
-values ('a6120000-0000-4000-8000-0000000000c4', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 1, 'a6120000-0000-4000-8000-0000000000d4', 1, 'each');
+-- work_order_id is NOT NULL since #2576 (a trigger stamps it from the report, but triggers are off in replica mode).
+insert into public.dsr_progress_lines (id, org_id, report_id, work_order_id, position, work_order_line_id, quantity, unit)
+values ('a6120000-0000-4000-8000-0000000000c4', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 'a6120000-0000-4000-8000-0000000000d2', 1, 'a6120000-0000-4000-8000-0000000000d4', 1, 'each');
 insert into public.dsr_idle_periods (id, org_id, report_id, position, minutes, reason_id)
 values ('a6120000-0000-4000-8000-0000000000c5', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 1, 10, 'a6120000-0000-4000-8000-0000000000c1');
 insert into public.dsr_consumables (id, org_id, report_id, position, stock_item_id, quantity, unit)
@@ -255,6 +258,48 @@ from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
 insert into public.project_shared_cost_splits (org_id, project_id, work_order_id, percent)
 select w.org_id, w.project_id, w.id, 100
 from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+-- #2576: a section on the isolation work order (its guard trigger writes the first readiness event, so both tables hold an A row).
+insert into public.work_order_sections (id, org_id, project_id, work_order_id, code, name)
+select 'a6120000-0000-4000-8000-0000000000d7', w.org_id, w.project_id, w.id, 'ISO-1', 'iso section'
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+-- Integration of the after-go-live features (#2575 to #2587): one A row for each of their tables, so the by-id and update probes run
+-- instead of skipping (the proof's skip ceiling only falls). Ids a6120000-...-0200 to 02ff; parents need not exist (FK triggers are off here).
+insert into public.client_requisitions (id, org_id, number, work_order_id, project_id, created_by)
+values ('a6120000-0000-4000-8000-000000000201', 'a6120000-0000-4000-8000-00000000000a', 'CSR-ISO-1', 'a6120000-0000-4000-8000-0000000000d2', (select project_id from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2'), (select id from public.profiles where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1));
+insert into public.client_requisition_lines (id, org_id, requisition_id, line_no, stock_item_id, takeoff_quantity, requested_quantity, unit_code)
+values ('a6120000-0000-4000-8000-000000000202', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000201', 1, (select id from public.stock_items where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1), 1, 1, 'each');
+insert into public.client_requisition_events (id, org_id, requisition_id, kind) values ('a6120000-0000-4000-8000-000000000203', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000201', 'created');
+insert into public.client_requisition_pickups (id, org_id, requisition_id, line_id, quantity, picked_up_on, warehouse_id, stock_document_id, recorded_by)
+values ('a6120000-0000-4000-8000-000000000204', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000201', 'a6120000-0000-4000-8000-000000000202', 1, current_date, 'a6120000-0000-4000-8000-0000000002f1', 'a6120000-0000-4000-8000-0000000002f2', (select id from public.profiles where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1));
+insert into public.consumable_usage_standards (id, org_id, item_id, work_unit, qty_per_unit) values ('a6120000-0000-4000-8000-000000000205', 'a6120000-0000-4000-8000-00000000000a', (select id from public.stock_items where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1), 'iso', 1);
+insert into public.work_order_consumable_plan_lines (id, org_id, work_order_id, item_id) values ('a6120000-0000-4000-8000-000000000206', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000d2', (select id from public.stock_items where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1));
+insert into public.crew_tool_lines (id, org_id, crew_id, name, held_qty) values ('a6120000-0000-4000-8000-000000000207', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000101', 'iso tool', 1);
+insert into public.crew_tool_reports (id, org_id, line_id, kind, qty, reported_on, due_on)
+values ('a6120000-0000-4000-8000-000000000208', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000207', 'lost', 1, current_date, current_date + 3);
+insert into public.crew_tool_report_files (id, org_id, report_id, file_path) values ('a6120000-0000-4000-8000-000000000209', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000208', 'iso/none/none/none.jpg');
+insert into public.quantity_change_requests (id, org_id, project_id, work_order_id, author_id, editor_ids)
+values ('a6120000-0000-4000-8000-000000000210', 'a6120000-0000-4000-8000-00000000000a', (select project_id from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2'), 'a6120000-0000-4000-8000-0000000000d2', (select id from public.profiles where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1), array[(select id from public.profiles where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1)]);
+insert into public.quantity_change_request_lines (id, org_id, request_id, boq_item_id, requested_quantity, reason, trigger_kind, trigger_figure, base_quantity, base_version_no)
+values ('a6120000-0000-4000-8000-000000000211', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000210', 'a6120000-0000-4000-8000-0000000000d3', 2, 'iso', 'forecast', 1, 1, 1);
+insert into public.quantity_change_request_events (id, org_id, request_id, action) values ('a6120000-0000-4000-8000-000000000212', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000210', 'created');
+insert into public.quantity_change_request_files (id, org_id, request_id, kind, file_path) values ('a6120000-0000-4000-8000-000000000213', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000210', 'supporting', 'iso/none/none/none.pdf');
+insert into public.quantity_forecasts (id, org_id, boq_item_id, quantity) values ('a6120000-0000-4000-8000-000000000214', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000d3', 1);
+insert into public.subcontract_backcharges (id, org_id, vendor_company_id, project_id, currency, amount, reason_code, created_by)
+values ('a6120000-0000-4000-8000-000000000215', 'a6120000-0000-4000-8000-00000000000a', (select id from public.companies where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1), (select project_id from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2'), 'IDR', 1, 'other', (select id from public.profiles where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1));
+insert into public.subcontract_certificates (id, org_id, procurement_id, po_id, project_id, work_order_id, vendor_company_id, currency, period_start, period_end, prepared_by)
+values ('a6120000-0000-4000-8000-000000000216', 'a6120000-0000-4000-8000-00000000000a', (select id from public.procurements where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1), 'a6120000-0000-4000-8000-0000000002f3', (select project_id from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2'), 'a6120000-0000-4000-8000-0000000000d2', (select id from public.companies where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1), 'IDR', '2026-03-01', '2026-03-31', (select id from public.profiles where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1));
+insert into public.subcontract_certificate_claims (id, org_id, certificate_id, work_order_id, work_date, work_order_line_id, crew_id, boq_item_id, quantity)
+values ('a6120000-0000-4000-8000-000000000217', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000216', 'a6120000-0000-4000-8000-0000000000d2', '2026-03-10', 'a6120000-0000-4000-8000-0000000000d4', 'a6120000-0000-4000-8000-000000000101', 'a6120000-0000-4000-8000-0000000000d3', 1);
+insert into public.subcontract_certificate_lines (id, org_id, certificate_id, boq_item_id, item_code, unit, measured_quantity, rate, po_rate)
+values ('a6120000-0000-4000-8000-000000000218', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000216', 'a6120000-0000-4000-8000-0000000000d3', 'iso', 'each', 1, 1, 1);
+insert into public.subcontractor_rate_lines (id, org_id, vendor_company_id, boq_item_id, unit, rate, currency, effective_from, version)
+values ('a6120000-0000-4000-8000-000000000219', 'a6120000-0000-4000-8000-00000000000a', (select id from public.companies where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1), 'a6120000-0000-4000-8000-0000000000d3', 'each', 1, 'IDR', '2026-03-01', 1);
+insert into public.third_party_inspections (id, org_id, work_order_id, project_id, title, planned_date)
+values ('a6120000-0000-4000-8000-00000000021a', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000d2', (select project_id from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2'), 'iso inspection', current_date);
+insert into public.third_party_inspection_files (id, org_id, inspection_id, file_path)
+values ('a6120000-0000-4000-8000-00000000021b', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-00000000021a', 'iso/none/none/none.pdf');
+insert into public.work_order_section_material_plan (id, org_id, work_order_id, section_id, item_id, quantity) values ('a6120000-0000-4000-8000-00000000021c', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000d2', 'a6120000-0000-4000-8000-0000000000d7', (select id from public.stock_items where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1), 1);
+insert into public.work_order_section_readiness_events (id, org_id, work_order_id, section_id, readiness) values ('a6120000-0000-4000-8000-00000000021d', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000d2', 'a6120000-0000-4000-8000-0000000000d7', 'not_ready');
 -- Give the new evidence table an A row so the cross-organization probes exercise it.
 insert into storage.objects (id, bucket_id, name)
 select 'a6120000-0000-4000-8000-000000000f92', 'incident-files',
@@ -317,6 +362,183 @@ from public.agent_threads t where t.id = 'a6120000-0000-4000-8000-000000000113';
 insert into public.agent_automations (id, org_id, owner_id, kind, prompt, schedule)
 select 'a6120000-0000-4000-8000-000000000118', p.org_id, p.id, 'schedule', 'Isolation automation', '0 0 * * *'
 from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+-- issue_department_groups (#2678, integration merge 2): the only by_id-applicable table of the r1-local
+-- features with no seed row; without it its by-id read/update probes skip.
+insert into public.issue_department_groups (id, org_id, name, issue_types)
+values ('a6120000-0000-4000-8000-0000000000b6', 'a6120000-0000-4000-8000-00000000000a', 'Isolation department group', '{}');
+-- Round 1 integration (the #2519..#2733 merge): one real tenant-A row for every by_id-applicable table the
+-- seed-copy cannot fill, so each table's by-id read and update probe RUNS instead of skipping twice per mode
+-- (r0 run-1 line-14). Ids a6120000-...-0301..0332; parents are A's own rows (work order -d2, its project,
+-- a profile, crew -101, person -f1, report -c3, section -d7); FK triggers are off in this transaction.
+-- A second crew and a second work order, both created here: the seed carries neither, and two probes need
+-- two distinct rows (crew_loans host≠home; stock_wo_transfers from≠to).
+insert into public.crews (id, org_id, code, name)
+values ('a6120000-0000-4000-8000-000000000333', 'a6120000-0000-4000-8000-00000000000a', 'iso-crew-2', 'Isolation crew two');
+insert into public.work_orders (id, org_id, project_id, title, currency, tax_treatment, tax_amount)
+select 'a6120000-0000-4000-8000-000000000334', w.org_id, w.project_id, 'Isolation work order two', w.currency, w.tax_treatment, w.tax_amount
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+create temp table _iso_a on commit drop as
+select (select id from public.profiles where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1) as profile,
+       (select id from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2') as wo,
+       (select project_id from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2') as project,
+       'a6120000-0000-4000-8000-000000000334'::uuid as wo2,
+       (select id from public.crews where id = 'a6120000-0000-4000-8000-000000000101') as crew,
+       'a6120000-0000-4000-8000-000000000333'::uuid as crew2,
+       (select id from public.people where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1) as person,
+       (select id from public.daily_site_reports where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1) as report,
+       (select id from public.stock_items where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1) as item,
+       (select id from public.dsr_consumables where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1) as consumable,
+       (select id from public.companies where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1) as company,
+       (select id from public.equipment_assets where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1) as asset,
+       (select id from public.incident_reports where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1) as incident,
+       (select id from public.tasks where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1) as task,
+       (select id from public.stock_warehouses where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1) as wh1,
+       (select id from public.stock_warehouses where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1 offset 1) as wh2,
+       (select id from public.stock_warehouses where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1 offset 2) as wh3;
+insert into public.billing_plan_month_targets (org_id, month, target, updated_by)
+  select 'a6120000-0000-4000-8000-00000000000a', date_trunc('month', current_date)::date, 1, profile from _iso_a;
+insert into public.billing_step_templates (id, org_id, name, created_by)
+  select 'a6120000-0000-4000-8000-000000000301', 'a6120000-0000-4000-8000-00000000000a', 'Isolation billing steps', profile from _iso_a;
+insert into public.billing_step_template_steps (id, org_id, template_id, position, name)
+  values ('a6120000-0000-4000-8000-000000000302', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000301', 1, 'Isolation step');
+insert into public.billing_step_template_documents (id, org_id, step_id, position, name)
+  values ('a6120000-0000-4000-8000-000000000303', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000302', 1, 'Isolation document');
+insert into public.clearance_items (id, org_id, name, created_by)
+  select 'a6120000-0000-4000-8000-000000000304', 'a6120000-0000-4000-8000-00000000000a', 'Isolation clearance', profile from _iso_a;
+insert into public.closeout_checklist_templates (id, org_id, position, name)
+  values ('a6120000-0000-4000-8000-000000000305', 'a6120000-0000-4000-8000-00000000000a', 1, 'Isolation closeout item');
+insert into public.crew_loans (id, org_id, worker_id, home_crew_id, host_crew_id, valid_from, valid_to)
+  select 'a6120000-0000-4000-8000-000000000306', 'a6120000-0000-4000-8000-00000000000a',
+         person, crew, crew2, current_date - 1, current_date + 1 from _iso_a;
+insert into public.done_not_claimed_notices (id, org_id, work_order_id)
+  select 'a6120000-0000-4000-8000-000000000307', 'a6120000-0000-4000-8000-00000000000a', wo from _iso_a;
+insert into public.dsr_stock_postings (id, org_id, report_id, state)
+  select 'a6120000-0000-4000-8000-000000000308', 'a6120000-0000-4000-8000-00000000000a', report, 'posted' from _iso_a;
+insert into public.dsr_stock_posting_lines (id, org_id, posting_id, consumable_id, item_id, quantity, state)
+  select 'a6120000-0000-4000-8000-000000000309', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-000000000308', consumable, item, 1, 'posted' from _iso_a;
+insert into public.equipment_plan_categories (id, org_id, name)
+  select 'a6120000-0000-4000-8000-00000000030a', 'a6120000-0000-4000-8000-00000000000a', 'Isolation category' from _iso_a;
+insert into public.equipment_plans (id, org_id, project_id, plan_month, created_by)
+  select 'a6120000-0000-4000-8000-00000000030b', 'a6120000-0000-4000-8000-00000000000a',
+         project, date_trunc('month', current_date)::date, profile from _iso_a;
+insert into public.equipment_plan_lines (id, org_id, plan_id, work_order_id, category_id, equipment_asset_id,
+  description, quantity, rate, vendor_id, date_from, date_to)
+  select 'a6120000-0000-4000-8000-00000000030c', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-00000000030b', wo, 'a6120000-0000-4000-8000-00000000030a', asset,
+         'Isolation plan line', 1, 1, company, current_date, current_date + 1 from _iso_a;
+insert into public.equipment_vendor_responses (id, org_id, asset_id, period_start, vendor_id, reported_at, responded_at)
+  select 'a6120000-0000-4000-8000-00000000030d', 'a6120000-0000-4000-8000-00000000000a',
+         asset, date_trunc('month', current_date)::date, company, now(), now() from _iso_a;
+insert into public.incident_tasks (id, org_id, incident_id, task_id)
+  select 'a6120000-0000-4000-8000-00000000030e', 'a6120000-0000-4000-8000-00000000000a', incident, task from _iso_a;
+insert into public.labour_cost_classes (id, org_id, code, name)
+  select 'a6120000-0000-4000-8000-00000000030f', 'a6120000-0000-4000-8000-00000000000a', 'isolation_class', 'Isolation class' from _iso_a;
+insert into public.labour_cost_rates (id, org_id, subject_kind, person_id, class_id, basis, amount, effective_from)
+  select 'a6120000-0000-4000-8000-000000000310', 'a6120000-0000-4000-8000-00000000000a',
+         'person', person, 'a6120000-0000-4000-8000-00000000030f', 'hourly', 1, current_date from _iso_a;
+insert into public.leave_types (id, org_id, name)
+  select 'a6120000-0000-4000-8000-000000000311', 'a6120000-0000-4000-8000-00000000000a', 'Isolation leave' from _iso_a;
+insert into public.leave_requests (id, org_id, person_id, leave_type_id, start_date, end_date, entered_by)
+  select 'a6120000-0000-4000-8000-000000000312', 'a6120000-0000-4000-8000-00000000000a',
+         person, 'a6120000-0000-4000-8000-000000000311', current_date, current_date + 1, profile from _iso_a;
+insert into public.material_request_usage_alerts (id, org_id, work_order_id, item_id, slot, pct, use_qty, plan_qty)
+  select 'a6120000-0000-4000-8000-000000000313', 'a6120000-0000-4000-8000-00000000000a',
+         wo, item, 1, 50, 1, 2 from _iso_a;
+insert into public.org_billing_plan_settings (org_id, updated_by)
+  select 'a6120000-0000-4000-8000-00000000000a', profile from _iso_a;
+insert into public.org_payment_channel_settings (org_id, enabled, updated_by)
+  select 'a6120000-0000-4000-8000-00000000000a', false, profile from _iso_a;
+insert into public.org_payment_channels (id, org_id, name, created_by)
+  select 'a6120000-0000-4000-8000-000000000314', 'a6120000-0000-4000-8000-00000000000a', 'Isolation channel', profile from _iso_a;
+insert into public.org_revenue_plan_settings (org_id, enabled, updated_by)
+  select 'a6120000-0000-4000-8000-00000000000a', true, profile from _iso_a;
+insert into public.person_clearances (id, org_id, person_id, item_id, done_on, updated_by)
+  select 'a6120000-0000-4000-8000-000000000315', 'a6120000-0000-4000-8000-00000000000a',
+         person, 'a6120000-0000-4000-8000-000000000304', current_date, profile from _iso_a;
+insert into public.phone_check_ins (id, org_id, work_order_id, worker_id, requester_id, crew_id, work_date, hours, outcome, status)
+  select 'a6120000-0000-4000-8000-000000000316', 'a6120000-0000-4000-8000-00000000000a',
+         wo, person, profile, crew, current_date, 1, 'inside', 'recorded' from _iso_a;
+insert into public.purchase_line_categories (id, org_id, name)
+  select 'a6120000-0000-4000-8000-000000000317', 'a6120000-0000-4000-8000-00000000000a', 'Isolation line category' from _iso_a;
+insert into public.purchase_types (id, org_id, name)
+  select 'a6120000-0000-4000-8000-000000000318', 'a6120000-0000-4000-8000-00000000000a', 'Isolation purchase type' from _iso_a;
+insert into public.safety_days (id, org_id, project_id, work_order_id, work_date, author_id)
+  select 'a6120000-0000-4000-8000-000000000319', 'a6120000-0000-4000-8000-00000000000a',
+         project, wo, current_date, profile from _iso_a;
+insert into public.safety_checklist_answers (id, org_id, day_id, label, answer)
+  values ('a6120000-0000-4000-8000-00000000031a', 'a6120000-0000-4000-8000-00000000000a',
+          'a6120000-0000-4000-8000-000000000319', 'Isolation check', 'yes');
+insert into public.safety_fitness_checks (id, org_id, day_id, worker_id, result)
+  select 'a6120000-0000-4000-8000-00000000031b', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-000000000319', person, 'fit' from _iso_a;
+insert into public.safety_list_items (id, org_id, kind, label)
+  select 'a6120000-0000-4000-8000-00000000031c', 'a6120000-0000-4000-8000-00000000000a', 'checklist_item', 'Isolation list item' from _iso_a;
+insert into public.safety_officer_entries (id, org_id, day_id, body, author_id)
+  select 'a6120000-0000-4000-8000-00000000031d', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-000000000319', 'Isolation safety note', profile from _iso_a;
+insert into public.safety_permits (id, org_id, day_id, permit_number, valid_from, valid_to)
+  values ('a6120000-0000-4000-8000-00000000031e', 'a6120000-0000-4000-8000-00000000000a',
+          'a6120000-0000-4000-8000-000000000319', 'ISO-PERMIT-1', now(), now() + interval '1 hour');
+insert into public.safety_toolbox_talks (id, org_id, day_id, topic, presenter, held_at)
+  values ('a6120000-0000-4000-8000-00000000031f', 'a6120000-0000-4000-8000-00000000000a',
+          'a6120000-0000-4000-8000-000000000319', 'Isolation toolbox topic', 'Isolation presenter', now());
+insert into public.safety_toolbox_attendees (id, org_id, day_id, talk_id, worker_id)
+  select 'a6120000-0000-4000-8000-000000000320', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-000000000319', 'a6120000-0000-4000-8000-00000000031f', person from _iso_a;
+insert into public.safety_toolbox_photos (id, org_id, day_id, talk_id, file_path)
+  select 'a6120000-0000-4000-8000-000000000321', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-000000000319', 'a6120000-0000-4000-8000-00000000031f',
+         'iso/none/none/toolbox.jpg' from _iso_a;
+insert into public.site_checkpoint_templates (id, org_id, position, name, due_time)
+  select 'a6120000-0000-4000-8000-000000000322', 'a6120000-0000-4000-8000-00000000000a', 1, 'Isolation checkpoint', '08:00' from _iso_a;
+insert into public.site_checkpoints (id, org_id, work_order_id, crew_id, work_date, position, name, due_at)
+  select 'a6120000-0000-4000-8000-000000000323', 'a6120000-0000-4000-8000-00000000000a',
+         wo, crew, current_date, 1, 'Isolation checkpoint', now() + interval '1 hour' from _iso_a;
+insert into public.stock_reservations (id, org_id, work_order_id, item_id, warehouse_id, quantity, created_by)
+  select 'a6120000-0000-4000-8000-000000000324', 'a6120000-0000-4000-8000-00000000000a',
+         wo, item, wh1, 1, profile from _iso_a;
+insert into public.stock_reservation_events (id, org_id, reservation_id, action, qty, actor_id)
+  values ('a6120000-0000-4000-8000-000000000325', 'a6120000-0000-4000-8000-00000000000a',
+          'a6120000-0000-4000-8000-000000000324', 'reserve', 1, null);
+insert into public.stock_transfers (id, org_id, number, from_warehouse_id, to_warehouse_id, transit_warehouse_id, sent_by)
+  select 'a6120000-0000-4000-8000-000000000326', 'a6120000-0000-4000-8000-00000000000a', 'ISO-TR-1',
+         wh1, wh2, wh3, profile from _iso_a;
+insert into public.stock_transfer_lines (id, org_id, transfer_id, line_no, item_id, qty_sent)
+  select 'a6120000-0000-4000-8000-000000000327', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-000000000326', 1, item, 1 from _iso_a;
+insert into public.stock_handover_confirmations (id, org_id, transfer_id, stage, proof_type, signer_kind, signer_name,
+  recorded_by, counts, paper_photo_path)
+  select 'a6120000-0000-4000-8000-000000000328', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-000000000326', 'send', 'paper', 'guest', 'Isolation visitor', profile,
+         '[]'::jsonb, 'iso/none/none/handover.jpg' from _iso_a;
+insert into public.stock_wo_transfers (id, org_id, number, project_id, warehouse_id, from_work_order_id,
+  to_work_order_id, occurred_on, created_by)
+  select 'a6120000-0000-4000-8000-000000000329', 'a6120000-0000-4000-8000-00000000000a', 'ISO-WOT-1',
+         project, wh1, wo, wo2, current_date, profile from _iso_a;
+insert into public.task_groups (id, org_id, project_id, name)
+  select 'a6120000-0000-4000-8000-00000000032a', 'a6120000-0000-4000-8000-00000000000a', project, 'Isolation task group' from _iso_a;
+insert into public.work_order_areas (id, org_id, code, name)
+  select 'a6120000-0000-4000-8000-00000000032b', 'a6120000-0000-4000-8000-00000000000a', 'ISO-AREA', 'Isolation area' from _iso_a;
+insert into public.work_order_candidates (id, org_id, project_id, title, offered_on, created_by)
+  select 'a6120000-0000-4000-8000-00000000032c', 'a6120000-0000-4000-8000-00000000000a',
+         project, 'Isolation candidate work order', current_date, profile from _iso_a;
+insert into public.work_order_candidate_items (id, org_id, candidate_id, label)
+  select 'a6120000-0000-4000-8000-00000000032d', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-00000000032c', 'Isolation candidate item' from _iso_a;
+insert into public.work_order_candidate_proofs (id, org_id, item_id, file_path)
+  select 'a6120000-0000-4000-8000-00000000032e', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-00000000032d', 'iso/none/none/candidate.jpg' from _iso_a;
+insert into public.work_order_checklist_items (id, org_id, label)
+  select 'a6120000-0000-4000-8000-00000000032f', 'a6120000-0000-4000-8000-00000000000a', 'Isolation checklist item' from _iso_a;
+insert into public.work_order_closeout_items (id, org_id, work_order_id, project_id, position, name, required)
+  select 'a6120000-0000-4000-8000-000000000330', 'a6120000-0000-4000-8000-00000000000a',
+         wo, project, 1, 'Isolation closeout', true from _iso_a;
+insert into public.work_order_groups (id, org_id, code, name)
+  select 'a6120000-0000-4000-8000-000000000331', 'a6120000-0000-4000-8000-00000000000a', 'ISO-GROUP', 'Isolation group' from _iso_a;
+insert into public.work_order_revenue_plan (id, org_id, project_id, work_order_id, plan_date, amount, created_by)
+  select 'a6120000-0000-4000-8000-000000000332', 'a6120000-0000-4000-8000-00000000000a',
+         project, wo, current_date, 1, profile from _iso_a;
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 

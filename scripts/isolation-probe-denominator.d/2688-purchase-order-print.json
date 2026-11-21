@@ -1,0 +1,8 @@
+{
+  "tables": [
+    {"table":"purchase_order_settings","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"n\/a: pk is the org id, not a row uuid; the blind read covers the declared B visibility"}
+  ],
+  "definer_functions": [
+    "po_set_print_settings(boolean,text[],text[])"
+  ]
+}

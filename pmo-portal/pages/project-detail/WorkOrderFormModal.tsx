@@ -20,6 +20,8 @@ import { validateWorkOrderAmount } from './workOrderAmountValidation';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import type { WorkOrderRow, WorkOrderInput, WorkOrderPatch } from '@/src/lib/db/workOrders';
 import { DateField } from '@/src/components/ui/DateField';
+import { useWorkOrderLists } from '@/src/hooks/useWorkOrderLists';
+import type { WorkOrderListEntry } from '@/src/lib/db/workOrderLists';
 
 /**
  * Create / edit a work order's BODY (#566).
@@ -50,7 +52,13 @@ interface FormValues {
   orderDate: string;
   startDate: string;
   endDate: string;
+  areaId: string;
+  groupId: string;
 }
+
+/** Live entries, plus the one the work order already names (archived or not) so it never silently drops. */
+const pickerOptions = (all: WorkOrderListEntry[], current: string | null | undefined) =>
+  all.filter((e) => !e.archived_at || e.id === current).map((e) => ({ value: e.id, label: e.name }));
 
 const validate = (
   v: FormValues,
@@ -125,6 +133,8 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
       orderDate: workOrder?.order_date ?? '',
       startDate: workOrder?.start_date ?? '',
       endDate: workOrder?.end_date ?? '',
+      areaId: workOrder?.area_id ?? '',
+      groupId: workOrder?.group_id ?? '',
     },
     validate: validateWithT,
     idPrefix: 'work-order-form',
@@ -142,6 +152,14 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
   const orderDateField = form.fieldProps('orderDate');
   const startField = form.fieldProps('startDate');
   const endField = form.fieldProps('endDate');
+  const areaField = form.fieldProps('areaId');
+  const groupField = form.fieldProps('groupId');
+  // #2668: the pickers exist only while the organisation keeps such a list (FR-WAG-007).
+  const lists = useWorkOrderLists();
+  const showAreas = lists.liveAreas.length > 0 || Boolean(workOrder?.area_id);
+  const showGroups = lists.liveGroups.length > 0 || Boolean(workOrder?.group_id);
+  const areaOptions = pickerOptions(lists.areas, workOrder?.area_id);
+  const groupOptions = pickerOptions(lists.groups, workOrder?.group_id);
 
   // Domain + prose from the one shared source, so this form, the value modal and the
   // contract-value editor cannot drift apart on what the two treatments are or say.
@@ -176,6 +194,8 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
             orderDate: blankToNull(values.orderDate),
             startDate: blankToNull(values.startDate),
             endDate: blankToNull(values.endDate),
+            ...(showAreas ? { areaId: blankToNull(values.areaId) } : {}),
+            ...(showGroups ? { groupId: blankToNull(values.groupId) } : {}),
           });
           return;
         }
@@ -194,6 +214,8 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
           orderDate: blankToNull(values.orderDate),
           startDate: blankToNull(values.startDate),
           endDate: blankToNull(values.endDate),
+          ...(showAreas ? { areaId: blankToNull(values.areaId) } : {}),
+          ...(showGroups ? { groupId: blankToNull(values.groupId) } : {}),
         });
       } catch (err) {
         const { headline, detail } = classifyMutationError(err);
@@ -272,6 +294,28 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
             onChange={endField.onChange}
             onBlur={endField.onBlur}
           />
+          {showAreas && (
+            <SelectField
+              id={areaField.id}
+              label={t('projectDetail.workOrderForm.area', 'Area')}
+              value={areaField.value}
+              onChange={areaField.onChange}
+              onBlur={areaField.onBlur}
+              options={[{ value: '', label: t('projectDetail.workOrderForm.noArea', 'No area') }, ...areaOptions]}
+              data-testid="wo-area"
+            />
+          )}
+          {showGroups && (
+            <SelectField
+              id={groupField.id}
+              label={t('projectDetail.workOrderForm.group', 'Group')}
+              value={groupField.value}
+              onChange={groupField.onChange}
+              onBlur={groupField.onBlur}
+              options={[{ value: '', label: t('projectDetail.workOrderForm.noGroup', 'No group') }, ...groupOptions]}
+              data-testid="wo-group"
+            />
+          )}
           <TextArea
             id={descField.id}
             label={t('projectDetail.workOrderForm.description', 'Scope')}

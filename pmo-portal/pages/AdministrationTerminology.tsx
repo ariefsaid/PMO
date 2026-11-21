@@ -6,6 +6,7 @@ import { Button, Card, ListState, TextField, useToast } from '@/src/components/u
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { resetOrgTerm, saveOrgTerm, validateOverride } from '@/src/lib/db/orgTerminology';
 import { ORG_TERMINOLOGY_KEY, useOrgTerminology } from '@/src/hooks/useOrgTerminology';
+import AdministrationRoleNames from './AdministrationRoleNames';
 import { shippedTerm, TERM_KEYS, TERM_LOCALES, type TermForms, type TermKey, type TermLocale } from '@/src/lib/i18n/orgTerms';
 
 /**
@@ -113,6 +114,7 @@ const AdministrationTerminology: React.FC = () => {
         ))}
         </>
       ) : null}
+      <AdministrationRoleNames />
     </div>
   );
 };

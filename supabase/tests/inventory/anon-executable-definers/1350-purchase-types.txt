@@ -1,0 +1,5 @@
+# 1350-1352 (#2697): an Admin switches purchase types on and keeps the list; any member extends a live rental.
+set_purchase_types_enabled
+upsert_purchase_type
+set_purchase_type_active
+extend_rental_procurement

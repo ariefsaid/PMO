@@ -1,0 +1,3 @@
+# 2676: client-callable security-definer writer (authenticated only; Admin role rule inside).
+set_dsr_stock_issue
+set_work_order_site_location

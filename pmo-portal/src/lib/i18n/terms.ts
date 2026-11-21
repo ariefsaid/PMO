@@ -13,5 +13,8 @@ export function useTerms() {
     supplier: t('terms.supplier', 'Supplier'),
     timesheet: t('terms.timesheet', 'Timesheet'),
     clientWorkOrder: t('terms.clientWorkOrder', 'Work order'),
+    /** #2576: a section of a work order. The one place the word is spelled; no screen types it. */
+    section: t('terms.section', 'Section'),
+    sections: t('terms.sections', 'Sections'),
   };
 }

@@ -15,7 +15,9 @@ import { ProjectAttention } from './ProjectAttention';
 import { useOverdueReceivables, useProjectAttention } from '@/src/hooks/useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
 import { BillingMilestonesBlock } from './BillingMilestonesBlock';
+import { ProjectPerformance } from './ProjectPerformance';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
+import { CandidateWorkOrders } from './tabs/CandidateWorkOrders';
 import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity';
 
 import { AREAS, type Area } from './projectDetailAreas';
@@ -116,7 +118,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
             A short list takes a third beside the wide timeline, not a full-width card. */}
         {/* A role that cannot see the milestones leaves the slot empty: it takes no gap, and the timeline spans the row like its neighbours. */}
         <div className="grid min-w-0 items-start gap-[var(--space-section)] xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:has-[>[data-near-viewport=seen]:empty]:grid-cols-1 [&>[data-near-viewport=seen]:empty]:hidden">
-          <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
+          <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock><ProjectPerformance projectId={project.id} /></div>
           <WhenNearViewport>
             <BillingMilestonesBlock projectId={project.id} />
           </WhenNearViewport>
@@ -135,7 +137,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           {canSeeMoney && <div className="min-w-0"><MoneyBlock project={project} footer={<BillingMilestonesBlock projectId={project.id} empty="line" />} /></div>}
         </div>
         <CostBlock project={project} onOpenBudget={openBudget} showUnit={!canSeeMoney} />
-        <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock></div>
+        <div className={BELOW_FOLD}><DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock><ProjectPerformance projectId={project.id} /></div>
         {/* An empty milestones slot (its line lives in Money position) takes no gap. */}
         <WhenNearViewport>
           <BillingMilestonesBlock projectId={project.id} empty={canSeeMoney ? 'none' : 'panel'} />
@@ -163,6 +165,7 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
           timeAndMaterials={<BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
             projectManagerId={project.project_manager_id ?? null} mode="contract-time-materials" />}>
           <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+            <CandidateWorkOrders projectId={project.id} projectManagerId={project.project_manager_id ?? null} />
             <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
               focusWorkOrderId={new URLSearchParams(window.location.search).get('wo')}
               autoInvoiceWorkOrderId={new URLSearchParams(window.location.search).get('invoice') === '1' ? new URLSearchParams(window.location.search).get('wo') : null}

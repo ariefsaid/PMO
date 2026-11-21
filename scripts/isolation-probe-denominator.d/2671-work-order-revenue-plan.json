@@ -1,0 +1,20 @@
+{
+  "tables": [
+    {"table":"org_revenue_plan_settings","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"work_order_revenue_plan","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ],
+  "definer_functions": [
+    "org_is_working_day(uuid,date)",
+    "project_revenue_plan_vs_actual(uuid,date)",
+    "revenue_plan_enabled(uuid)",
+    "set_revenue_plan_settings(boolean,smallint[])",
+    "wo_revenue_plan_clear(uuid,date,date)",
+    "wo_revenue_plan_set_day(uuid,date,numeric)",
+    "wo_revenue_plan_set_month(uuid,date,numeric,boolean)",
+    "wo_revenue_plan_vs_actual(uuid,date,date,date)",
+    "wrp_audit(work_orders,text,jsonb)",
+    "wrp_figures(uuid,date)",
+    "wrp_org_today(uuid)",
+    "wrp_writable_work_order(uuid)"
+  ]
+}

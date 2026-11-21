@@ -27,6 +27,8 @@ const TasksToolbar: React.FC<{
   setShowArchived: React.Dispatch<React.SetStateAction<boolean>>;
   onClearSelection: () => void;
   integrationsRef: React.RefObject<HTMLDivElement | null>;
+  /** #2679: offered only to a manager; opens the task group manager (the panel is otherwise hidden until a group exists). */
+  onManageTaskGroups?: () => void;
   canCreate: boolean;
   onNewTask: () => void;
   scope: TaskScope;
@@ -70,6 +72,7 @@ const TasksToolbar: React.FC<{
   setShowArchived,
   onClearSelection,
   integrationsRef,
+  onManageTaskGroups,
   canCreate,
   onNewTask,
   scope,
@@ -126,6 +129,11 @@ const TasksToolbar: React.FC<{
                     <Menu.Item onClick={() => integrationsRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })} className={menuItemClass}>
                       {t('projectDetail.tasks.clickUpSettings', 'ClickUp list and sync')}
                     </Menu.Item>
+                    {onManageTaskGroups && (
+                      <Menu.Item onClick={onManageTaskGroups} className={menuItemClass}>
+                        {t('projectDetail.tasks.taskGroups.menu', 'Task groups')}
+                      </Menu.Item>
+                    )}
                   </Menu.Popup>
                 </Menu.Positioner>
               </Menu.Portal>

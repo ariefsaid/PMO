@@ -3919,3 +3919,22 @@ from items bought.
 - Batch and lot tracking and material close-out (#2538): batch and lot Q1 2027; material close-out with the close-out checklist on 15 December.
 - User count and service terms (#2539): stays open; the light seat type is decided and counted separately, price and counts remain the owner's.
 - Custom roles (#2540): the 28 built-in roles and light accounts on 15 December; custom roles Q1 2027.
+
+## DD-DPR-1 — Revenue per discipline comes from the contract line (2026-11-21, #2669)
+
+A discipline is set on the contract line (`boq_items.discipline_id`, from the organisation's own list) and validated progress reaches it through the work-order line. Revenue per discipline is the amount frozen at validation, so a later rate change never re-prices history. The headline margin is after shared cost, with the margin before shared cost beside it; cost is exactly what the plan-versus-actual tab already shows, joined and not re-summed. Revenue rows carry a `basis`, so another revenue basis can be added beside validated progress. The view is an organisation setting, off by default, written only by an Admin. Spec: [discipline-profit](specs/discipline-profit.spec.md). This closes the "discipline revenue is not apportioned" line of DD-WPVA-1.
+
+## DD-EBR-1 — earned and billed revenue side by side (Director, 2026-11-21, #2733)
+
+Ruled in `docs/specs/earned-billed-revenue.spec.md`: behind the existing `discipline_profit_enabled` setting (off by default, no
+new setting) · earned is validated progress at the frozen rate, billed is claims and invoices excluding tax, never blended across
+currencies · earned with no validated progress reads "not available", never zero, and a project with some work orders lacking it
+reads "incomplete" with the count · per-discipline billed comes from claim lines, the rest is "Not itemised" · the management
+pack's cost and billed are the project tab's own plan-versus-actual roll-up (computed in the app from the same function), so the pack
+and the tab never disagree · a management view; statutory recognition and ledger posting are out.
+
+- **DD-NEF-1 (#2734, 2026-11-21) Statements with no accounting system.** "No accounting system" is derived (no externally-owned domain, no active binding, both reads settled; unknown fails closed to today's screen), never stored. Such an organisation sees a Management profit and loss card on Statements and the hub tile linking to Reports instead of "set up accounting"; Admin also gets a pointer to the Profit per discipline setting, whose default is unchanged. No ledger statements in PMO.
+
+### Design record: base levels of the 28 built-in roles (#2709, 2026-11-21)
+A record of the design as built, not a new owner ruling; the owner's scope ruling is OD-SCOPE-3.
+Managers sit at Project Manager rank or above (Finance Manager at Finance, Executive and Administrator at their own level); officers at Engineer, except Billing Officer and Finance Officer at Finance; Foreman and Field user at Engineer. Project Administrator is Engineer (requests, no approval). Deputy Project Manager is a manager; Site Supervisor an officer; medical documents are held by HR Manager, HR Officer and Administrator only. Assignment is gated by one organization setting, default off, enforced in the database. Full table: `docs/specs/builtin-role-set.spec.md` section 2.

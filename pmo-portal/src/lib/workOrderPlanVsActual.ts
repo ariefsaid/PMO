@@ -24,7 +24,8 @@ export const MONEY_PLAN_KINDS: readonly PlanKind[] = ['direct_budget', 'indirect
 /** One cost record with what it costs (null when not money, or when the amount cannot be read). */
 export interface CostAmountLine {
   source: FinanceCostSource;
-  recordId: string;
+  /** Null only on a Project Manager's aggregated labour money row (one row per work order, discipline and class). */
+  recordId: string | null;
   projectId: string | null;
   workOrderId: string | null;
   disciplineId: string | null;
@@ -37,7 +38,12 @@ export interface CostAmountLine {
   quantityUnit: string | null;
   /** Timesheet lines only: whose hours they are (crew size is a count of distinct people). */
   personId: string | null;
+  /** #2670: the labour class of a priced timesheet line (null/absent for every other line). */
+  labourClassId?: string | null;
 }
+
+/** #2670: priced labour of one work order for one class, in the work order's currency. */
+export interface LabourFigure { classId: string; hours: number; amount: ExactMoney }
 
 export interface PvaWorkOrder {
   id: string;
@@ -56,6 +62,8 @@ export interface PlanLine {
   id: string;
   workOrderId: string;
   disciplineId: string | null;
+  /** #2576: the section the figure belongs to; null/absent = the unsectioned figure. A work order's plan is the sum of all of them. */
+  sectionId?: string | null;
   kind: PlanKind;
   /** Money kinds: scale-two decimal in the work order's currency. Hour kinds: a decimal number of hours. */
   value: string;
@@ -180,6 +188,8 @@ export interface WorkOrderFigures {
   uncostedHours: number;
   plan: { direct_budget: ExactMoney | null; indirect_budget: ExactMoney | null; equipment_hours: number | null; crew_hours: number | null };
   lines: CostAmountLine[];
+  /** #2670: priced labour by class; absent unless the work order has priced labour (a part of `direct`, never added again). */
+  labour?: LabourFigure[];
 }
 
 export interface CurrencyTotals { currency: string; planDirect: ExactMoney | null; planIndirect: ExactMoney | null; direct: ExactMoney | null; total: ExactMoney | null; notAssigned: ExactMoney | null; revenue: ExactMoney | null; otherRevenue: ExactMoney | null; hasOtherRevenue: boolean; directMargin: Margin; result: Margin }
@@ -394,6 +404,17 @@ export function rollupProject(input: RollupInput): ProjectRollup {
     }
     disciplines.forEach((x) => addProjectDiscipline(x.disciplineId, w.currency, moneyUnits(x.direct), moneyUnits(x.allocated), moneyUnits(x.planDirect), moneyUnits(x.planIndirect)));
 
+    const labourByClass = new Map<string, { hours: number; cents: bigint }>();
+    for (const l of own) {
+      if (l.source !== 'timesheet_entry' || !l.labourClassId) continue;
+      const cur = labourByClass.get(l.labourClassId) ?? { hours: 0, cents: 0n };
+      cur.hours += l.quantity ?? 0;
+      cur.cents += moneyUnits(l.amount) ?? 0n;
+      labourByClass.set(l.labourClassId, cur);
+    }
+    const labour: LabourFigure[] = [...labourByClass.entries()].sort(([x], [y]) => x.localeCompare(y))
+      .map(([classId, v]) => ({ classId, hours: sumHours([v.hours]), amount: moneyText(v.cents) }));
+
     const comparable = others.length === 0;
     const directMargin = marginOf(w.currency, w.revenue, w.revenueComplete, d, comparable);
     const result = marginOf(w.currency, w.revenue, w.revenueComplete, d === null || a === null ? null : d + a, comparable);
@@ -401,6 +422,7 @@ export function rollupProject(input: RollupInput): ProjectRollup {
     return {
       workOrderId: w.id, currency: w.currency, direct: text(d), directBySource, otherCurrency, allocated: text(a),
       disciplines, revenue: w.revenue, directMargin, result, ...hourFigures(woLines), plan: planFor(w.id), lines: woLines,
+      ...(labour.length > 0 ? { labour } : {}),
     };
   });
 

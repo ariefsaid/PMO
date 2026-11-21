@@ -64,6 +64,7 @@ function createPage(initialUrl = 'about:blank') {
     storageClears: 0,
     routeHandlerCalls: 0,
     failNextBootstrapNavigation: false,
+    landingPath: '' as string,
     routeMatchers: [] as ((url: URL) => boolean)[],
     navigationPaths: [] as string[],
     appStorageAtNavigation: [] as Record<string, string>[],
@@ -112,7 +113,7 @@ function createPage(initialUrl = 'about:blank') {
         });
       }
 
-      state.url = target.href;
+      state.url = !fulfilled && state.landingPath && target.pathname === '/' ? new URL(state.landingPath, ORIGIN).href : target.href;
       state.navigationPaths.push(target.pathname);
       if (!fulfilled) {
         state.appNavigations += 1;
@@ -178,6 +179,17 @@ describe('e2e signIn fixture bootstrap', () => {
     expect(browser.state.navigationPaths).toEqual(['/','/','/projects']);
     expect(browser.state.routeHandlerCalls).toBe(1);
     expect(browser.state.appNavigations).toBe(2);
+  });
+
+  it('expects the phone home only when the journey says a light account lands there', async () => {
+    setFixture(ALPHA_EMAIL, [{ name: 'session-marker', value: 'fixture-alpha-session' }]);
+    const browser = createPage();
+    browser.state.landingPath = '/my';
+
+    await expect(signIn(browser.page, ALPHA_EMAIL)).rejects.toThrow('/my to match');
+    await signIn(browser.page, ALPHA_EMAIL, { home: '/my' });
+
+    expect(signInMocks.rootUrlAssertions).toHaveBeenLastCalledWith(browser.page, /\/my$/);
   });
 
   it('removes the temporary route when the bootstrap navigation rejects', async () => {

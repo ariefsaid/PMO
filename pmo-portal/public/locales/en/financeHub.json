@@ -90,7 +90,8 @@
         "openIntegrations": "Open integrations",
         "askAdmin": "Statements come from the accounting system; an Admin sets this up in Integrations.",
         "notConnected": "accounting disconnected",
-        "setUp": "Set up"
+        "setUp": "Set up",
+        "seeManagement": "see management profit and loss"
       },
       "finding": {
         "unknownBalance": "Balance unknown"
@@ -174,7 +175,8 @@
     "openReports": "Open reports",
     "netProfit": "Net profit",
     "helpAges": "Client balances by age count days past due, tax included. Supplier invoice age counts calendar days from the invoice date; invoices without a date have no age.",
-    "payablesHelp": "Invoice age is counted from the supplier invoice date."
+    "payablesHelp": "Invoice age is counted from the supplier invoice date.",
+    "workInHand": "Work in hand"
   },
   "nav": {
     "finance": "Finance",

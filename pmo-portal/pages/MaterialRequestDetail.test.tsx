@@ -7,6 +7,7 @@ import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({
   req: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   waiting: { data: [] as unknown[] },
+  dnSettings: { data: { enabled: false, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] } },
   userId: 'u-approver',
   keepers: [{ warehouse_id: 'w1', user_id: 'u-approver' }] as unknown[],
   decide: { mutateAsync: vi.fn(), isPending: false },
@@ -15,6 +16,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useMaterialRequest: () => h.req,
   useWaitingForMe: () => h.waiting,
+  useDeliveryNoteSettings: () => h.dnSettings,
   useMaterialRequestMutations: () => ({
     decide: h.decide, cancel: { mutateAsync: vi.fn(), isPending: false }, retryTransfer: { mutateAsync: vi.fn(), isPending: false },
   }),
@@ -41,7 +43,7 @@ const step = (position: number, status: string, extra: Record<string, unknown> =
 const request = (over: Record<string, unknown> = {}) => ({
   id: 'r1', number: 'MRQ-0001', workOrderId: 'w', projectId: 'p', toWarehouseId: null, neededBy: '2026-11-25', note: null, status: 'pending', round: 1,
   createdBy: 'u-author', createdAt: '2026-11-19T08:00:00Z', submittedAt: '2026-11-19T08:05:00Z', transferDocumentId: null, transferCancelled: false,
-  lines: [{ id: 'l1', lineNo: 1, itemId: 'i1', quantity: 12, planQty: 10, priorQty: 0, overPlanReason: 'Extra slab' }],
+  lines: [{ id: 'l1', lineNo: 1, itemId: 'i1', quantity: 12, planQty: 10, planSource: null, priorQty: 0, overPlanReason: 'Extra slab' }],
   steps: [step(1, 'approved', { decidedBy: 'u-away', decidedAt: '2026-11-19T09:00:00Z' }), step(2, 'open'), step(3, 'waiting')],
   events: [],
   ...over,
@@ -58,6 +60,18 @@ describe('material request detail', () => {
     h.waiting = { data: [{ requestId: 'r1', stepPosition: 2, role: 'Project Manager', label: 'Check 2', actingFor: null, submittedAt: '2026-11-19T08:05:00Z' }] };
     h.req = { data: request(), isPending: false, isError: false, refetch: vi.fn() };
     h.decide.mutateAsync = vi.fn().mockResolvedValue(undefined);
+  });
+
+  it.each([
+    ['standard', 'From usage standards'], ['adjusted', 'Adjusted by the planner'], ['allowance', 'From material allowance'], ['none', 'No plan'],
+  ])('AC-CUS-008 the approver sees the source of the snapshotted plan figure: %s', (source, label) => {
+    h.req = { data: request({ lines: [{ id: 'l1', lineNo: 1, itemId: 'i1', quantity: 12, planQty: 10, planSource: source, priorQty: 0, overPlanReason: null }] }), isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByTestId('mrq-detail-plan-source')).toHaveTextContent(label);
+  });
+  it('FR-CUS-012 a request submitted before plan sources existed shows no label', () => {
+    renderPage();
+    expect(screen.queryByTestId('mrq-detail-plan-source')).not.toBeInTheDocument();
   });
 
   it('shows the chain with who acted and the line against plan', () => {
@@ -150,5 +164,43 @@ describe('material request detail', () => {
     h.req = { data: request({ status: 'approved', transferDocumentId: 'doc-9', transferCancelled: true, steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] }), isPending: false, isError: false, refetch: vi.fn() };
     renderPage();
     expect(screen.queryByRole('button', { name: 'Create the transfer again' })).not.toBeInTheDocument();
+  });
+
+  describe('#2687 printable delivery note action', () => {
+    it('AC-DNP-001 shows print action when delivery notes are enabled and request is approved', () => {
+      h.dnSettings = { data: { enabled: true, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] } };
+      h.req = {
+        data: request({ status: 'approved', steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] }),
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      };
+      renderPage();
+      expect(screen.getByRole('button', { name: 'Print delivery note' })).toBeInTheDocument();
+    });
+
+    it('AC-DNP-002 hides print action when delivery notes are disabled', () => {
+      h.dnSettings = { data: { enabled: false, signatureBlocks: [] } };
+      h.req = {
+        data: request({ status: 'approved', steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] }),
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      };
+      renderPage();
+      expect(screen.queryByRole('button', { name: 'Print delivery note' })).not.toBeInTheDocument();
+    });
+
+    it('AC-DNP-003 hides print action when request is pending even if enabled', () => {
+      h.dnSettings = { data: { enabled: true, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] } };
+      h.req = {
+        data: request({ status: 'pending', steps: [step(1, 'approved'), step(2, 'open'), step(3, 'waiting')] }),
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      };
+      renderPage();
+      expect(screen.queryByRole('button', { name: 'Print delivery note' })).not.toBeInTheDocument();
+    });
   });
 });

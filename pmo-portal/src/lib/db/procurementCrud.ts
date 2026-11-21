@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { isHidePricesActive } from '@/src/lib/priceReadPath';
 import { assertWriteLanded } from '@/src/lib/appError';
 import { ProcurementError } from './procurementLifecycle';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
@@ -117,7 +118,8 @@ export async function createProcurement(
 
 export interface AtomicProcurementInput {
   id: string;
-  header: NewProcurementInput;
+  /** #2697: `purchaseTypeId`/`rentalFrom`/`rentalTo` are sent only when the organisation has purchase types on. */
+  header: NewProcurementInput & { purchaseTypeId?: string | null; rentalFrom?: string | null; rentalTo?: string | null };
   lines: (ProcurementItemInput & { id: string })[];
 }
 
@@ -130,6 +132,9 @@ export async function createProcurementWithItems(input: AtomicProcurementInput):
       project_id: input.header.projectId,
       vendor_id: input.header.vendorId,
       ...(input.header.budgetCategory !== undefined ? { budget_category: input.header.budgetCategory } : {}),
+      ...(input.header.purchaseTypeId ? { purchase_type_id: input.header.purchaseTypeId } : {}),
+      ...(input.header.rentalFrom ? { rental_from: input.header.rentalFrom } : {}),
+      ...(input.header.rentalTo ? { rental_to: input.header.rentalTo } : {}),
     },
     p_items: input.lines.map((line) => ({
       id: line.id, name: line.name, quantity: line.quantity, rate: line.rate,
@@ -262,7 +267,14 @@ export async function createProcurementItem(
     throw new ProcurementError(RECONCILE_LINE_MESSAGE, '23505');
   }
   if (error) throwWrite(error);
-  return data as ProcurementItemRow;
+  return maskedItemAfterWrite(data as ProcurementItemRow);
+}
+
+/** #2699: while the organisation hides prices, the write response carries no price: the row is read back through the masked view. */
+async function maskedItemAfterWrite(row: ProcurementItemRow): Promise<ProcurementItemRow> {
+  if (!isHidePricesActive()) return row;
+  const { data } = await supabase.from('procurement_items_masked' as 'procurement_items').select().eq('id', row.id).maybeSingle();
+  return (data as ProcurementItemRow | null) ?? { ...row, rate: null as unknown as number, amount: null as unknown as number, erp_line_amount: null };
 }
 
 /** Patch for an existing line item — name/quantity/rate (+ optional description). */

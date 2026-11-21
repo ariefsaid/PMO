@@ -39,6 +39,68 @@
     "actual": "Aktual"
   },
   "projectDetail": {
+    "candidates": {
+      "status": {
+        "open": "Terbuka",
+        "passed": "Lulus",
+        "failed": "Gagal",
+        "notApplicable": "Tidak berlaku"
+      },
+      "noItems": "Kandidat ini tidak memiliki butir pemeriksaan.",
+      "checklist": "Daftar pemeriksaan penilaian",
+      "addCheck": "Tambah pemeriksaan",
+      "add": "Tambah",
+      "optional": "Opsional",
+      "overdue": "Terlambat",
+      "statusLabel": "Hasil",
+      "owner": "Penanggung jawab",
+      "noOwner": "Belum ada penanggung jawab",
+      "target": "Tanggal target",
+      "note": "Catatan",
+      "needNote": "Tambahkan catatan untuk menandai tidak berlaku.",
+      "proof": "Bukti",
+      "removeProof": "Hapus {{name}}",
+      "noProof": "Belum ada bukti",
+      "attach": "Lampirkan bukti",
+      "title": "Kandidat perintah kerja",
+      "new": "Kandidat baru",
+      "loadError": "Kandidat tidak dapat dimuat",
+      "empty": "Belum ada kandidat. Buka satu untuk menilai pekerjaan sebelum perintah kerja dibuat.",
+      "accepted": "Diterima",
+      "rejected": "Ditolak",
+      "assessing": "Dinilai",
+      "acceptedToast": "Kandidat diterima. Draf perintah kerja telah dibuat.",
+      "rejectedToast": "Kandidat ditolak.",
+      "offered": "Ditawarkan {{date}}",
+      "ready": "{{ready}} dari {{required}} pemeriksaan wajib siap",
+      "overdueCount": "{{n}} terlambat",
+      "hide": "Sembunyikan pemeriksaan",
+      "show": "Tampilkan pemeriksaan",
+      "acceptedBecause": "Diterima karena",
+      "rejectedBecause": "Ditolak karena",
+      "openDraft": "Buka draf perintah kerja",
+      "reopen": "Buka kandidat baru untuk tawaran ini",
+      "notReady": "Belum siap diterima: {{names}}",
+      "reject": "Tolak",
+      "accept": "Terima",
+      "rejectTitle": "Tolak kandidat ini",
+      "acceptTitle": "Terima kandidat ini",
+      "reasonLabel": "Alasan",
+      "acceptHelp": "Menerima akan membuat draf perintah kerja. Draf itu belum diterbitkan dan belum bernilai.",
+      "rejectHelp": "Alasan tetap tercatat.",
+      "newFor": "Kandidat baru untuk tawaran ini",
+      "create": "Buka kandidat",
+      "created": "Kandidat dibuka",
+      "errCreate": "Hanya administrator, insinyur, atau manajer proyek ini yang dapat membuka kandidat.",
+      "titleLabel": "Judul",
+      "referenceLabel": "Referensi klien",
+      "offeredLabel": "Ditawarkan pada",
+      "descriptionLabel": "Deskripsi",
+      "errNotReady": "Pemeriksaan wajib berikut belum siap: {{names}}",
+      "errDecided": "Kandidat ini sudah diputuskan.",
+      "errReason": "Berikan alasan sepanjang 1 sampai 500 karakter.",
+      "errReplaces": "Hanya kandidat proyek ini yang ditolak yang dapat digantikan."
+    },
     "cascade": {
       "error": "Kontrak tidak dapat dimuat.",
       "title": "Kontrak",
@@ -410,8 +472,92 @@
           "notIssued": "Hanya dokumen yang diterbitkan atau disetujui yang dapat dilampirkan.",
           "noFile": "Dokumen ini belum memiliki berkas.",
           "otherProject": "Dokumen harus milik proyek ini.",
-          "generic": "Tahap tidak dapat disimpan. Coba lagi."
+          "generic": "Tahap tidak dapat disimpan. Coba lagi.",
+          "alreadySkipped": "Tahap ini sudah ditandai tidak diperlukan.",
+          "notSkippable": "Tahap ini tidak dapat ditandai tidak diperlukan.",
+          "skipReason": "Berikan alasan 3 sampai 500 karakter."
+        },
+        "overdue": "Terlambat",
+        "overdueDetail": "{{age}} hari, target {{target}}",
+        "skipped": "Tidak diperlukan {{date}}",
+        "skippedReason": "Alasan: {{reason}}",
+        "itemNotNeeded": "Tidak diperlukan",
+        "skipNamed": "Tandai {{stage}} tidak diperlukan",
+        "skip": "Tidak diperlukan",
+        "skipTitle": "Tandai {{stage}} tidak diperlukan",
+        "skipLabel": "Alasan",
+        "skipHelp": "Disimpan bersama klaim. Invoice tidak lagi menunggu tahap ini, dan tidak dapat dibatalkan.",
+        "skipConfirm": "Tandai tidak diperlukan"
+      },
+      "steps": {
+        "edit": "Ubah langkah",
+        "hide": "Sembunyikan editor langkah",
+        "editorLabel": "Ubah langkah penagihan",
+        "help": "Perubahan hanya berlaku untuk klaim ini. Langkah yang sudah selesai tidak berubah.",
+        "helpAssign": "Tentukan siapa yang bertanggung jawab atas suatu langkah dan tanggal targetnya. Daftar langkah diubah oleh Finance atau Admin.",
+        "template": "Templat",
+        "pickTemplate": "Pilih templat",
+        "load": "Ganti langkah dengan templat",
+        "loadTemplateTerms": "Ganti tahap dengan templat",
+        "loadTemplateError": "Templat tidak dapat dimuat.",
+        "name": "Nama langkah",
+        "newName": "Langkah baru",
+        "add": "Tambah langkah",
+        "owner": "Peran penanggung jawab",
+        "noOwner": "Tidak ada yang tertentu",
+        "targetDate": "Tanggal target",
+        "ownerLine": "Penanggung jawab: {{role}}",
+        "targetLine": "Tanggal target {{date}}",
+        "up": "Naik",
+        "down": "Turun",
+        "moveUp": "Naikkan {{step}}",
+        "moveDown": "Turunkan {{step}}",
+        "remove": "Hapus",
+        "removeNamed": "Hapus {{step}}",
+        "removeTitle": "Hapus {{step}}",
+        "removeLabel": "Alasan",
+        "removeHelp": "Tercatat pada klaim. Invoice tidak lagi menunggu langkah ini, dan tidak dapat dibatalkan.",
+        "removeConfirm": "Hapus langkah",
+        "overdueMarker_one": "{{step}} terlambat {{count}} hari",
+        "overdueMarker_other": "{{step}} terlambat {{count}} hari",
+        "pastTargetDate_one": "{{count}} hari melewati tanggal target",
+        "pastTargetDate_other": "{{count}} hari melewati tanggal target",
+        "refusal": {
+          "generic": "Langkah tidak dapat disimpan. Coba lagi.",
+          "notEditable": "Langkah yang sudah selesai tidak dapat diubah.",
+          "invoiced": "Klaim ini sudah memiliki invoice; daftar langkahnya tidak dapat diubah lagi.",
+          "started": "Klaim ini sudah memiliki langkah selesai, sehingga templat tidak dapat menggantinya lagi.",
+          "withdrawn": "Klaim ini sudah ditarik.",
+          "templateGone": "Templat itu tidak tersedia lagi.",
+          "templateEmpty": "Templat itu tidak memiliki langkah.",
+          "reason": "Berikan alasan sepanjang 3 sampai 500 karakter.",
+          "name": "Beri nama langkah.",
+          "shape": "Satu klaim paling banyak memiliki 20 langkah."
         }
+      },
+      "templates": {
+        "title": "Templat langkah penagihan",
+        "help": "Templat adalah daftar langkah yang dipakai tim Anda. Muat ke proyek atau klaim; templat disalin, jadi perubahan templat berikutnya tidak mengubah yang sudah dibuat.",
+        "manage": "Kelola templat",
+        "new": "Templat baru",
+        "newTitle": "Templat baru",
+        "editTitle": "Ubah templat",
+        "edit": "Ubah",
+        "editNamed": "Ubah {{name}}",
+        "archive": "Arsipkan",
+        "archiveNamed": "Arsipkan {{name}}",
+        "archiveError": "Templat tidak dapat diarsipkan.",
+        "done": "Selesai",
+        "empty": "Belum ada templat.",
+        "loadError": "Templat tidak dapat dimuat.",
+        "steps_one": "{{count}} langkah",
+        "steps_other": "{{count}} langkah",
+        "name": "Nama templat",
+        "nameMissing": "Beri nama templat.",
+        "stepName": "Nama langkah",
+        "addStep": "Tambah langkah",
+        "stepsMissing": "Tambahkan minimal satu langkah dan beri nama setiap langkah.",
+        "save": "Simpan templat"
       },
       "terms": {
         "title": "Ketentuan penagihan",
@@ -435,7 +581,10 @@
         "warnInvalid": "Masukkan 0 sampai 27 hari.",
         "retention": "Retensi (%)",
         "retentionInvalid": "Masukkan persentase dari 0 sampai kurang dari 100 dengan maksimal 2 angka desimal.",
-        "retentionHelp": "Retensi ditahan dari setiap klaim progres baru; invoice dan PPN-nya tetap bernilai penuh."
+        "retentionHelp": "Retensi ditahan dari setiap klaim progres baru; invoice dan PPN-nya tetap bernilai penuh.",
+        "targetDays": "Target (hari)",
+        "targetInvalid": "Masukkan 1 sampai 365 hari, atau kosongkan.",
+        "optionalStage": "Tahap opsional"
       },
       "reconciliation": {
         "title": "Rekonsiliasi penagihan",
@@ -1051,7 +1200,11 @@
     "tasks": {
       "selectTask": "Pilih tugas {{name}}",
       "form": {
-        "noAssignees": "Belum ada orang yang dapat ditugaskan. Tambahkan atau aktifkan pengguna di Administrasi."
+        "noAssignees": "Belum ada orang yang dapat ditugaskan. Tambahkan atau aktifkan pengguna di Administrasi.",
+        "taskGroup": "Grup tugas",
+        "noTaskGroup": "Tanpa grup",
+        "searchTaskGroups": "Cari grup…",
+        "taskGroupNoun": "grup"
       },
       "addTask": "Tambah tugas",
       "bulk": {
@@ -1138,7 +1291,30 @@
       "noMilestone": "Tanpa fase",
       "drawerMoreActions": "Tindakan tugas lainnya",
       "statusMix": "Tugas menurut status",
-      "statusMixOther": "Lainnya"
+      "statusMixOther": "Lainnya",
+      "taskGroups": {
+        "title": "Grup tugas",
+        "count_one": "{{count}} grup",
+        "count_other": "{{count}} grup",
+        "empty": "Belum ada grup tugas. Grup yang ditautkan ke fase menggerakkan progres fase itu bersama tugasnya.",
+        "archived": "Diarsipkan",
+        "progressAria": "Progres {{name}}",
+        "done": "{{done}} dari {{total}} selesai",
+        "phase": "Fase",
+        "noPhase": "Belum ditautkan",
+        "restore": "Pulihkan",
+        "archive": "Arsipkan",
+        "delete": "Hapus",
+        "name": "Nama grup baru",
+        "add": "Tambah grup",
+        "deleteTitle": "Hapus grup tugas?",
+        "deleteBody": "Tugas tetap ada di proyek; hanya keluar dari grup ini.",
+        "toast": {
+          "created": "Grup tugas dibuat",
+          "deleted": "Grup tugas dihapus"
+        },
+        "menu": "Grup tugas"
+      }
     },
     "workOrders": {
       "acceptanceAge": "Hari sejak BAST, belum ditagih: {{days}}",
@@ -1188,7 +1364,17 @@
       "description": "Deskripsi",
       "closingValue": "Nilai penutupan",
       "orderValue": "Nilai order",
-      "orderValueSource": "Sumber: nilai pesanan pelanggan yang ditetapkan oleh peninjau berwenang."
+      "orderValueSource": "Sumber: nilai pesanan pelanggan yang ditetapkan oleh peninjau berwenang.",
+      "groupBy": {
+        "label": "Kelompokkan menurut",
+        "none": "Tidak ada",
+        "area": "Wilayah",
+        "group": "Grup",
+        "noArea": "Tanpa wilayah",
+        "noGroup": "Tanpa grup"
+      },
+      "areaLabel": "Wilayah",
+      "groupLabel": "Grup"
     },
     "contract": {
       "orders": "Pesanan pelanggan",
@@ -1255,7 +1441,13 @@
       "stuck": "{{name}} tidak dapat lagi memutuskan langkah ini. Siapa pun dengan peran ini dapat memutuskannya sampai Anda memilih orang lain.",
       "retry": "Coba lagi"
     },
-    "projectIncidents": "Insiden proyek"
+    "projectIncidents": "Insiden proyek",
+    "workOrderForm": {
+      "area": "Wilayah",
+      "group": "Grup",
+      "noArea": "Tanpa wilayah",
+      "noGroup": "Tanpa grup"
+    }
   },
   "common": {
     "retry": "Coba lagi",
@@ -1321,7 +1513,8 @@
     "fieldCategory": "Kategori",
     "fieldRevision": "Revisi",
     "revisionPlaceholder": "mis. B",
-    "fieldDate": "Tanggal dokumen"
+    "fieldDate": "Tanggal dokumen",
+    "categoryLocked": "Revisi tetap berada di kategori dokumen yang direvisinya."
   },
   "fileCell": {
     "progress": "Progres unggah untuk {{title}}",

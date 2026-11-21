@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { buttonClasses, Button, Checkbox, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, useUrlFilters, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
+import { ProofChaseCard } from '@/src/components/stock/ProofChaseCard';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -13,6 +14,9 @@ import { formatQuantity, formatStockValue, sumDecimal } from '@/src/lib/stockFor
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { parseStockError } from '@/src/lib/stockErrors';
 import type { StockOnHandRow } from '@/src/lib/db/stockReports';
+import { ReservedCell } from '@/src/components/stock/ReservedCell';
+import { ReservationForm } from '@/src/components/stock/ReservationForm';
+import { mayReserve, useFreeReserved, useReservationsEnabled } from '@/src/hooks/useStockReservations';
 
 const NEW_KINDS = ['receive', 'transfer', 'issue', 'return', 'count', 'adjustment'] as const;
 
@@ -57,6 +61,14 @@ const StockOnHand: React.FC = () => {
   const below = useBelowReorder(belowOnly);
   const onHand = useStockOnHand({ ...(warehouseId ? { warehouseId } : {}), ...(includeZero || belowOnly ? { includeZero: true } : {}) });
 
+  // Reservations (#2693): off until an Admin turns them on; while off nothing below renders or loads.
+  const rsvOn = useReservationsEnabled();
+  const figures = useFreeReserved(rsvOn);
+  const [reserving, setReserving] = useState<StockOnHandRow | null>(null);
+  const figureOf = useMemo(() => new Map((figures.data ?? []).map((f) => [`${f.itemId}:${f.warehouseId}`, f])), [figures.data]);
+  const mayReserveAt = useCallback((r: StockOnHandRow): boolean => r.warehouseKind !== 'vendor'
+    && mayReserve(realRole, realRole !== effectiveRole, (keepers.data ?? []).some((k) => k.user_id === me && k.warehouse_id === r.warehouseId)),
+  [realRole, effectiveRole, keepers.data, me]);
   const isKeeper = (keepers.data ?? []).some((k) => k.user_id === me);
   const canMove = may('create', 'stockDocument', { record: { isKeeper, viewOnly: realRole !== effectiveRole } });
 
@@ -70,7 +82,7 @@ const StockOnHand: React.FC = () => {
         const w = (warehouses.data ?? []).find((x) => x.id === b.warehouseId);
         if (have.has(`${b.itemId}:${b.warehouseId}`) || !w || (warehouseId && warehouseId !== b.warehouseId)) continue;
         all.push({ itemId: b.itemId, itemCode: b.itemCode, itemName: b.itemName, unitCode: b.unitCode, wholeOnly: false,
-          warehouseId: b.warehouseId, warehouseCode: b.warehouseCode, warehouseName: w.name, warehouseKind: w.kind as 'central' | 'site', qtyOnHand: b.qtyOnHand });
+          warehouseId: b.warehouseId, warehouseCode: b.warehouseCode, warehouseName: w.name, warehouseKind: w.kind as 'central' | 'site' | 'vendor', qtyOnHand: b.qtyOnHand });
       }
     }
     return all;
@@ -107,7 +119,7 @@ const StockOnHand: React.FC = () => {
         key: 'warehouse', header: t('onHand.columns.warehouse'),
         cell: (r) => (
           <span className="block truncate text-sm">
-            {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="record-id"> · {r.warehouseCode}</span>}
+            {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="record-id"> · {r.warehouseCode}</span>}{r.warehouseKind === 'vendor' && <span className="text-muted-foreground"> · {r.vendorName ? t('onHand.atVendorNamed', { name: r.vendorName }) : t('onHand.atVendor')}</span>}
           </span>
         ),
         exportValue: (r) => r.warehouseName,
@@ -118,6 +130,13 @@ const StockOnHand: React.FC = () => {
         exportValue: (r) => r.qtyOnHand,
       },
     ];
+    if (rsvOn) {
+      cols.push({
+        key: 'reserved', header: t('reservations.column'),
+        cell: (r) => <ReservedCell figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} onReserve={mayReserveAt(r) ? () => setReserving(r) : undefined} />,
+        exportValue: (r) => figureOf.get(`${r.itemId}:${r.warehouseId}`)?.freeQty ?? '',
+      });
+    }
     if (showCost) {
       cols.push(
         { key: 'avg', header: t('onHand.columns.avgCost'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.avgCost, currency, loc)}</span>, exportValue: (r) => r.avgCost ?? '' },
@@ -135,7 +154,7 @@ const StockOnHand: React.FC = () => {
       });
     }
     return cols;
-  }, [t, loc, currency, showCost, sharedNames, belowOnly, canRequest, below.data, requestPurchase]);
+  }, [t, loc, currency, showCost, sharedNames, belowOnly, canRequest, below.data, requestPurchase, rsvOn, figureOf, mayReserveAt]);
 
   const lookupError = warehouses.isError || keepers.isError || (belowOnly && below.isError);
   const state: 'loading' | 'empty' | 'error' | undefined =
@@ -180,6 +199,7 @@ const StockOnHand: React.FC = () => {
       )}
     >
       <StockTabs />
+      <ProofChaseCard />
       <StockFilters>
         {/* One row of fields on a phone (the labels are hidden), then the two boxes on one line,
             so the four filters take two rows instead of half of the first screen. */}
@@ -269,12 +289,18 @@ const StockOnHand: React.FC = () => {
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 text-control">
               <dt className="text-muted-foreground">{t('onHand.columns.warehouse')}</dt>
               <dd className="min-w-0">
-                {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="record-id"> · {r.warehouseCode}</span>}
+                {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="record-id"> · {r.warehouseCode}</span>}{r.warehouseKind === 'vendor' && <span className="text-muted-foreground"> · {r.vendorName ? t('onHand.atVendorNamed', { name: r.vendorName }) : t('onHand.atVendor')}</span>}
               </dd>
               <dt className="text-muted-foreground">{t('onHand.columns.quantity')}</dt>
               <dd className="tabular-nums font-semibold">
                 {formatQuantity(r.qtyOnHand, loc)} <span className="font-normal text-muted-foreground">{r.unitCode}</span>
               </dd>
+              {rsvOn && (
+                <>
+                  <dt className="text-muted-foreground">{t('reservations.column')}</dt>
+                  <dd className="min-w-0"><ReservedCell figures={figureOf.get(`${r.itemId}:${r.warehouseId}`)} unitCode={r.unitCode} onReserve={mayReserveAt(r) ? () => setReserving(r) : undefined} /></dd>
+                </>
+              )}
               {showCost && (
                 <>
                   {/* Average cost is blank for a zero balance (the read computes it only above zero): the
@@ -288,6 +314,10 @@ const StockOnHand: React.FC = () => {
             </dl>
           )}
         />
+      )}
+      {reserving && (
+        <ReservationForm itemId={reserving.itemId} itemLabel={`${reserving.itemCode} - ${reserving.itemName}`} warehouseId={reserving.warehouseId}
+          warehouseLabel={reserving.warehouseName} onClose={() => setReserving(null)} />
       )}
     </ListPage>
   );

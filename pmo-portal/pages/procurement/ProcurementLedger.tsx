@@ -23,6 +23,7 @@
  * affordance for canWrite rows with no file.
  */
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -60,9 +61,11 @@ import { VendorWithholdingSlipCell } from './VendorWithholdingSlipCell';
 import { VendorInvoiceIdentity } from '@/src/components/procurement/VendorInvoiceIdentity';
 import { voidBillErrorText } from './subcontractBillError';
 import { BillMatchDrawer } from './BillMatchDrawer';
+import { MatchLinesEditor } from './MatchLinesEditor';
 import { useBillMatches, useThreeWayMatchOn } from '@/src/hooks/useThreeWayMatch';
 import type { VendorInvoiceContext } from '@/src/components/procurement/vendorInvoiceIdentityLabels';
 import { recordStatusLabel } from '@/src/lib/procurement/recordStatusLabel';
+import { usePurchaseOrderSettings } from '@/src/hooks/usePurchaseOrderSettings';
 
 // ---------------------------------------------------------------------------
 // Date formatting — a ledger row's date is a BUSINESS DATE: its calendar day never moves with the
@@ -394,6 +397,9 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   itemsNet,
   gates,
 }) => {
+  const navigate = useNavigate();
+  const poSettingsQuery = usePurchaseOrderSettings();
+  const poPrintEnabled = poSettingsQuery.data?.enabled ?? false;
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
   const [voidTarget, setVoidTarget] = useState<LedgerRow | null>(null);
@@ -422,6 +428,15 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const billMatches = useBillMatches(matchedBills.map((invoice) => invoice.id), canViewMatch && matchOn);
   const heldBills = matchedBills.filter((_, i) => billMatches[i]?.data?.status === 'held');
   const [matchFor, setMatchFor] = useState<{ id: string; label: string } | null>(null);
+  // #2634: the receipt-lines and bill-lines editors (mounted only when opened). The database decides who may write and
+  // which bills and purchases are still editable; this only offers the editor where a person could use it.
+  const [linesFor, setLinesFor] = useState<{ kind: 'receipt' | 'bill'; id: string; label: string } | null>(null);
+  const canEditLines = may('edit', 'billMatch') && matchOn;
+  const purchaseOpen = detail.status !== 'Paid' && detail.status !== 'Cancelled';
+  const billLinesEditable = (invoice: ProcurementInvoiceRow | undefined, index: number) => {
+    const status = billMatches[index]?.data?.status;
+    return canEditLines && !!invoice && !invoice.voided_at && invoice.status !== 'Paid' && (status === 'held' || status === 'matched');
+  };
   const billLabel = (invoice: Pick<ProcurementInvoiceRow, 'vi_number' | 'reference_number'>) => invoice.vi_number ?? invoice.reference_number ?? t('procurement:threeWayMatch.menu', 'Three-way match');
   const withholdingCoverage = useMemo(
     () => Object.fromEntries((coverageQuery.data ?? []).map((row) => [row.invoice_id, row])),
@@ -608,17 +623,29 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
         rowKey={(row) => row.id}
         rowTarget={(row) => row.type === 'Invoice' && row.recordId === targetInvoiceId ? `invoice-${row.recordId}` : undefined}
         rowMenu={(row): RowMenuItem[] | undefined => {
-          if (row.type !== 'Invoice') return undefined;
+          if (row.type === 'GR') {
+            if (!canEditLines || !purchaseOpen || detail.is_subcontract) return undefined;
+            return [{ label: t('procurement:threeWayMatch.lines.receiptAction', 'Record received quantities'), onClick: () => setLinesFor({ kind: 'receipt', id: row.recordId, label: row.systemNumber ?? t('procurement:threeWayMatch.lines.receiptFallback', 'Goods receipt') }) }];
+          }
           const items: RowMenuItem[] = [];
-          if (canRecordEfaktur && onSetEfaktur && !row.efakturLocked) items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) });
-          if (canVoidBill && row.voidable) items.push({ label: t('procurement:voidBill.action', 'Void bill'), onClick: () => setVoidTarget(row) });
-          const coverage = withholdingCoverage[row.recordId];
-          const invoice = invoices.find((item) => item.id === row.recordId);
-          if (coverage?.active_slip_id) items.push({ label: t('bupot.view', 'View bukti potong'), onClick: () => onViewWithholdingSlip?.(coverage.active_slip_id!) });
-          else if (coverage?.coverage_state === 'not-recorded' && invoice && vendorMissing && onSetVendor) items.push({ label: t('bupot.setVendor', 'Set supplier'), onClick: onSetVendor });
-          else if (canWriteWithholdingSlip && coverage?.coverage_state === 'not-recorded' && invoice && !vendorMissing) items.push({ label: t('bupot.record', 'Record bukti potong'), onClick: () => onRecordWithholdingSlip?.(invoice) });
-          items.push({ label: t('bupot.history', 'Bukti potong history'), onClick: () => onWithholdingHistory?.(row.recordId) });
-          if (canViewMatch && matchOn && invoice && !invoice.voided_at) items.push({ label: t('procurement:threeWayMatch.menu', 'Three-way match'), onClick: () => setMatchFor({ id: invoice.id, label: billLabel(invoice) }) });
+          if (row.type === 'PO' && poPrintEnabled) {
+            items.push({
+              label: t('procurement:purchaseOrderPrint.printAction', 'Print purchase order'),
+              onClick: () => navigate(`/procurement/${procurementId}/purchase-orders/${row.recordId}/print`),
+            });
+          }
+          if (row.type === 'Invoice') {
+            if (canRecordEfaktur && onSetEfaktur && !row.efakturLocked) items.push({ label: t('efaktur.record', 'Record e-Faktur'), onClick: () => setEfakturTarget(row) });
+            if (canVoidBill && row.voidable) items.push({ label: t('procurement:voidBill.action', 'Void bill'), onClick: () => setVoidTarget(row) });
+            const coverage = withholdingCoverage[row.recordId];
+            const invoice = invoices.find((item) => item.id === row.recordId);
+            if (coverage?.active_slip_id) items.push({ label: t('bupot.view', 'View bukti potong'), onClick: () => onViewWithholdingSlip?.(coverage.active_slip_id!) });
+            else if (coverage?.coverage_state === 'not-recorded' && invoice && vendorMissing && onSetVendor) items.push({ label: t('bupot.setVendor', 'Set supplier'), onClick: onSetVendor });
+            else if (canWriteWithholdingSlip && coverage?.coverage_state === 'not-recorded' && invoice && !vendorMissing) items.push({ label: t('bupot.record', 'Record bukti potong'), onClick: () => onRecordWithholdingSlip?.(invoice) });
+            items.push({ label: t('bupot.history', 'Bukti potong history'), onClick: () => onWithholdingHistory?.(row.recordId) });
+            if (canViewMatch && matchOn && invoice && !invoice.voided_at) items.push({ label: t('procurement:threeWayMatch.menu', 'Three-way match'), onClick: () => setMatchFor({ id: invoice.id, label: billLabel(invoice) }) });
+            if (invoice && billLinesEditable(invoice, matchedBills.indexOf(invoice))) items.push({ label: t('procurement:threeWayMatch.lines.billAction', 'Edit bill lines'), onClick: () => setLinesFor({ kind: 'bill', id: invoice.id, label: billLabel(invoice) }) });
+          }
           return items.length ? items : undefined;
         }}
         state={tableState}
@@ -649,6 +676,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       )}
 
       {matchFor && <BillMatchDrawer invoiceId={matchFor.id} billLabel={matchFor.label} onClose={() => setMatchFor(null)} />}
+      {linesFor && <MatchLinesEditor kind={linesFor.kind} targetId={linesFor.id} procurementId={procurementId} label={linesFor.label} onClose={() => setLinesFor(null)} />}
 
       {canVoidBill && voidTarget && (
         <VoidBillDialog
@@ -698,6 +726,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           <div key={invoice.id} role="status" data-testid={`bill-match-held-${invoice.id}`} className="mt-3 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-destructive-text">{t('procurement:threeWayMatch.heldNotice', '{{bill}} is held by the three-way match, so payments wait.', { bill: billLabel(invoice) })}</span>
             <Button variant="outline" size="sm" onClick={() => setMatchFor({ id: invoice.id, label: billLabel(invoice) })}>{t('procurement:threeWayMatch.review', 'Review match')}</Button>
+            {billLinesEditable(invoice, matchedBills.indexOf(invoice)) && <Button variant="outline" size="sm" onClick={() => setLinesFor({ kind: 'bill', id: invoice.id, label: billLabel(invoice) })}>{t('procurement:threeWayMatch.lines.billAction', 'Edit bill lines')}</Button>}
           </div>
         ))}
         {billsHiddenForRole && (

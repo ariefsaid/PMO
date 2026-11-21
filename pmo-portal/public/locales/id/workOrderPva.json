@@ -44,6 +44,7 @@
   "overPlan": "Melebihi rencana {{amount}}",
   "overPlanHours": "Melebihi rencana {{hours}} jam",
   "pageEmpty": "Belum ada rencana atau realisasi untuk $t(common:terms.clientWorkOrder) ini.",
+  "pendingCrewHours": "{{hours}} jam pada timesheet yang belum disetujui tidak dihitung.",
   "plan": {
     "crewHours": "Jam kru",
     "direct": "Anggaran langsung ({{currency}})",
@@ -54,6 +55,48 @@
     "title": "Rencana untuk {{number}}"
   },
   "planLabel": "Rencana",
+  "profit": {
+    "title": "Laba per disiplin",
+    "col": {
+      "discipline": "Disiplin",
+      "revenue": "Pendapatan",
+      "direct": "Biaya langsung",
+      "shared": "Biaya bersama",
+      "after": "Margin setelah biaya bersama",
+      "before": "Margin sebelum biaya bersama"
+    },
+    "noDiscipline": "Tanpa disiplin",
+    "notAssigned": "Belum dialokasikan",
+    "total": "Total proyek",
+    "loss": "Rugi {{amount}}",
+    "incomplete": "Belum lengkap: pekerjaan tervalidasi tanpa tarif",
+    "notComparable": "Tidak dapat dibandingkan (mata uang lain)",
+    "costUnknown": "Biaya tidak diketahui",
+    "restricted": "Dibatasi",
+    "unknown": "Tidak diketahui",
+    "empty": "Belum ada pendapatan tervalidasi atau biaya per disiplin.",
+    "loadError": "Laba per disiplin tidak dapat dimuat",
+    "retry": "Coba lagi",
+    "archivedDiscipline": "Disiplin diarsipkan",
+    "revenueNote": "Pendapatan adalah progres tervalidasi pada tarif kontrak.",
+    "picker": {
+      "label": "Disiplin (untuk laba per disiplin)",
+      "none": "Tanpa disiplin",
+      "saved": "Disiplin disimpan",
+      "error": "Disiplin tidak dapat disimpan"
+    },
+    "setting": {
+      "title": "Laba per disiplin",
+      "label": "Tampilkan pendapatan di samping biaya per disiplin",
+      "helper": "Menambah tabel pada bagian rencana vs aktual proyek dan kolom disiplin pada baris kontrak. Nonaktif secara default.",
+      "save": "Simpan",
+      "saved": "Pengaturan disimpan",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
+      "loadError": "Pengaturan tidak dapat dimuat",
+      "on": "Aktif",
+      "off": "Nonaktif"
+    }
+  },
   "projectHours": "Jam proyek dan kontrak",
   "projectTotal": "Total proyek dan kontrak",
   "reason": {
@@ -100,9 +143,104 @@
   "splitStale": "Pembagian yang disimpan sudah usang: ada $t(common:terms.clientWorkOrder) yang ditambah atau dibatalkan. Pembagian bawaan dipakai sampai ada yang menyimpannya lagi.",
   "title": "Rencana vs aktual",
   "uncosted": "{{hours}} jam tanpa tarif dan tidak masuk biaya.",
-  "pendingCrewHours": "{{hours}} jam pada timesheet yang belum disetujui tidak dihitung.",
   "underPlan": "Sisa {{amount}}",
   "underPlanHours": "Sisa {{hours}} jam",
   "unknown": "Tidak diketahui",
-  "unknownDiscipline": "Disiplin diarsipkan"
+  "unknownDiscipline": "Disiplin diarsipkan",
+  "labour": {
+    "title": "Biaya tenaga kerja per kelas",
+    "class": "Kelas",
+    "hours": "Jam",
+    "cost": "Biaya",
+    "unknownClass": "Kelas lain",
+    "note": "Bagian dari biaya langsung di atas, dari jam yang disetujui dengan tarif biaya tiap orang."
+  },
+  "performance": {
+    "title": "Kinerja biaya dan jadwal",
+    "basis": "Nilai yang diperoleh adalah progres laporan harian yang telah divalidasi pada tarif kontrak. Nilai rencana berjalan lurus antara tanggal mulai dan selesai perintah kerja. Biaya aktual adalah biaya langsung yang tercatat pada perintah kerja.",
+    "projectBasis": "Perintah kerja yang diterbitkan atau ditutup, dijumlahkan. Nilai yang diperoleh adalah progres tervalidasi pada tarif kontrak; rencana linear menurut kalender.",
+    "asOf": "Per {{date}}",
+    "cpi": "Indeks kinerja biaya",
+    "spi": "Indeks kinerja jadwal",
+    "reading": {
+      "cpi": {
+        "below": "Biaya aktual melebihi nilai yang diperoleh",
+        "within": "Dalam kisaran",
+        "above": "Nilai yang diperoleh melebihi biaya aktual"
+      },
+      "spi": {
+        "below": "Tertinggal dari rencana",
+        "within": "Dalam kisaran",
+        "above": "Lebih cepat dari rencana"
+      }
+    },
+    "band": "Dalam kisaran adalah {{low}} sampai {{high}}.",
+    "ev": "Nilai yang diperoleh",
+    "pv": "Nilai rencana",
+    "ac": "Biaya aktual",
+    "costVariance": {
+      "positive": "Nilai yang diperoleh melebihi biaya aktual sebesar {{amount}}",
+      "negative": "Biaya aktual melebihi nilai yang diperoleh sebesar {{amount}}",
+      "zero": "Nilai yang diperoleh sama dengan biaya aktual"
+    },
+    "scheduleVariance": {
+      "positive": "Lebih cepat dari rencana sebesar {{amount}}",
+      "negative": "Tertinggal dari rencana sebesar {{amount}}",
+      "zero": "Sesuai rencana"
+    },
+    "hidden": {
+      "noCost": "Belum ada biaya tercatat",
+      "noDates": "Isi tanggal mulai dan selesai untuk melihat indeks jadwal",
+      "noPlanYet": "Pekerjaan yang direncanakan belum dimulai",
+      "unrated_one": "1 baris progres tervalidasi belum bertarif, sehingga indeks tidak ditampilkan",
+      "unrated_other": "{{count}} baris progres tervalidasi belum bertarif, sehingga indeks tidak ditampilkan",
+      "acIncomplete": "Biaya belum dapat dijumlahkan: ada baris biaya tanpa tanggal atau jumlah",
+      "acIncompleteUndated_one": "Biaya belum dapat dijumlahkan: 1 baris biaya tanpa tanggal",
+      "acIncompleteUndated_other": "Biaya belum dapat dijumlahkan: {{count}} baris biaya tanpa tanggal",
+      "notComparable": "Tidak dapat dibandingkan: sebagian biaya dalam mata uang lain",
+      "excluded": "Tidak ada angka untuk perintah kerja draf atau dibatalkan"
+    },
+    "unknown": "Tidak diketahui",
+    "counted": "{{included}} perintah kerja dihitung, {{excluded}} tidak disertakan karena angkanya belum lengkap atau belum diterbitkan atau ditutup",
+    "truncated": "500 perintah kerja pertama ditampilkan; {{count}} lainnya tidak disertakan.",
+    "nothing": "Belum ada yang tercatat untuk perintah kerja ini.",
+    "loadError": "Tidak dapat memuat kinerja biaya dan jadwal",
+    "retry": "Coba lagi",
+    "workOrders": "Per perintah kerja",
+    "col": {
+      "workOrder": "Perintah kerja"
+    }
+  },
+  "earnedBilled": {
+    "title": "Pendapatan yang dihasilkan dan yang ditagih",
+    "packTitle": "Pendapatan yang dihasilkan dan yang ditagih per proyek",
+    "note": "Dihasilkan adalah progres harian tervalidasi pada tarif kontrak. Ditagih adalah klaim dan invoice, tanpa pajak.",
+    "packNote": "Dihasilkan adalah progres harian tervalidasi sampai saat ini; biaya dan nilai tagihan sama dengan tab proyek, sehingga keduanya cocok.",
+    "col": {
+      "workOrder": "Perintah kerja",
+      "project": "Proyek",
+      "earned": "Dihasilkan",
+      "billed": "Ditagih",
+      "gap": "Dihasilkan, belum ditagih",
+      "marginEarned": "Margin atas yang dihasilkan",
+      "marginBilled": "Margin atas yang ditagih"
+    },
+    "byWorkOrder": "Per perintah kerja",
+    "byDiscipline": "Per disiplin",
+    "notItemised": "Tidak dirinci",
+    "notAvailable": "Tidak tersedia",
+    "incompleteWorkOrders": "Belum lengkap: sebagian perintah kerja belum punya progres tervalidasi atau tarif",
+    "withoutProgress": "{{count}} dari {{total}} perintah kerja belum punya progres tervalidasi.",
+    "empty": "Belum ada perintah kerja berstatus Diterbitkan atau Ditutup.",
+    "loadError": "Pendapatan yang dihasilkan dan ditagih tidak dapat dimuat"
+  },
+  "idle": {
+    "title": "Biaya waktu menganggur per alasan",
+    "reason": "Alasan",
+    "hours": "Jam",
+    "cost": "Biaya",
+    "total": "Total menganggur",
+    "noRate": "Tanpa tarif",
+    "note": "Ditampilkan terpisah: waktu ini sudah dibayar, jadi sudah termasuk dalam biaya langsung di atas dan tidak ditambahkan lagi. Dihitung dengan biaya per jam rata-rata pekerjaan."
+  }
 }

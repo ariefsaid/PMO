@@ -1,0 +1,10 @@
+{
+  "tables": [
+    {"table":"equipment_vendor_responses","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ],
+  "definer_functions": [
+    "record_equipment_vendor_response(uuid,date,timestamp with time zone,timestamp with time zone,text)",
+    "clear_equipment_vendor_response(uuid,date)",
+    "list_equipment_breakdowns(uuid[],date,date)"
+  ]
+}

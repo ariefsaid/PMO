@@ -1,0 +1,2 @@
+# 1335: an Admin turns the material-request approvals inbox and notifications on or off.
+mrq_set_approver_inbox

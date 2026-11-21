@@ -1,0 +1,35 @@
+{
+  "tables": [
+    {
+      "table": "site_checkpoint_templates",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "site_checkpoints",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ],
+  "definer_functions": [
+    "site_checkpoint_today()",
+    "site_checkpoint_may_read(uuid,uuid)",
+    "site_checkpoint_may_record(uuid,uuid)",
+    "site_checkpoint_photo_stored(text)",
+    "site_checkpoint_photo_path_ok(text,boolean)",
+    "set_site_checkpoint_list(jsonb)",
+    "record_site_checkpoint(uuid,text,text)",
+    "materialise_site_checkpoints(timestamp with time zone)",
+    "remind_late_site_checkpoints(timestamp with time zone)",
+    "site_lost_time_by_cause(date,date,uuid,uuid)"
+  ],
+  "buckets": [
+    "site-checkpoint-photos"
+  ]
+}

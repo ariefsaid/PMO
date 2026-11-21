@@ -1,0 +1,71 @@
+{
+  "nav": {
+    "settings": "Purchase types"
+  },
+  "panel": {
+    "title": "Purchase type",
+    "extend": "Extend rental",
+    "extends": "Extends",
+    "extensions": "Extensions"
+  },
+  "create": {
+    "type": "Purchase type",
+    "noType": "No type",
+    "rentalFrom": "Rental from",
+    "rentalTo": "Rental to",
+    "periodRequired": "Enter the rental period.",
+    "periodOrder": "The end cannot be before the start."
+  },
+  "extend": {
+    "title": "Extend rental",
+    "submit": "Create extension order",
+    "intro": "{{title}} runs {{from}} to {{to}}. This creates a new order for the extra period. It goes through approval like any other order.",
+    "periodLegend": "New rental period",
+    "from": "From",
+    "to": "To",
+    "linesLegend": "Lines carried over",
+    "quantity": "Quantity",
+    "rate": "Rate",
+    "fromRequired": "Choose the start of the new period.",
+    "toRequired": "Choose the end of the new period.",
+    "toBeforeFrom": "The end cannot be before the start.",
+    "afterEnd": "The new period must start after {{end}}.",
+    "lineInvalid": "Enter a quantity and a rate of 0 or more.",
+    "refused": "The rental could not be extended",
+    "created": "Extension order created",
+    "createdSub": "It is a draft. Send it for approval like any other order."
+  },
+  "settings": {
+    "title": "Purchase types",
+    "back": "Procurement",
+    "link": "Purchase types",
+    "switchTitle": "Use purchase types",
+    "switchSub": "When on, a request can be marked with a type such as goods, service or rental. Off keeps every screen as it is.",
+    "enabled": "Purchase types are on",
+    "save": "Save",
+    "saved": "Purchase types updated",
+    "listTitle": "Types",
+    "listSub": "These are your own types. Rename, add or retire them. Only types marked as having a rental period can be extended.",
+    "empty": "No types yet.",
+    "name": "Name",
+    "nameId": "Name in Bahasa Indonesia",
+    "isRental": "This type has a rental period",
+    "position": "Order",
+    "add": "Add type",
+    "retire": "Retire",
+    "restore": "Restore",
+    "retired": "Retired",
+    "loadError": "Couldn't load purchase types",
+    "adminOnly": "Only an Admin can change purchase types."
+  },
+  "refusal": {
+    "ADMIN_ONLY": "Only an Admin can change purchase types.",
+    "OFF": "Purchase types are not turned on.",
+    "UNAVAILABLE": "That type is not available.",
+    "PERIOD_REQUIRED": "A rental purchase needs a rental period.",
+    "PERIOD_NOT_ALLOWED": "Only a rental purchase has a rental period.",
+    "IN_USE": "Purchases use this type. Retire it and add a new one instead.",
+    "INVALID": "Check the name: 1 to 60 characters.",
+    "FIXED": "The type and rental period are set when the purchase is created."
+  }
+}

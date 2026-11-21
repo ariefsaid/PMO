@@ -1,0 +1,46 @@
+{
+  "title": "Risiko pasokan",
+  "hint": "Apakah supplier ini dapat diandalkan. Status ditetapkan oleh orang; usia invoice belum dibayar hanya memberi saran.",
+  "status": {
+    "active": "Aktif",
+    "at_risk": "Berisiko",
+    "inactive": "Tidak aktif"
+  },
+  "setBy": "Ditetapkan oleh {{name}} pada {{date}}",
+  "setOn": "Ditetapkan pada {{date}}",
+  "reasonShown": "Alasan: {{reason}}",
+  "saved": "Status supplier disimpan",
+  "setToSuggested": "Gunakan saran",
+  "onlyRoles": "Hanya Admin atau Keuangan yang dapat mengubah ini.",
+  "suggestion": {
+    "loading": "Membaca invoice belum dibayar…",
+    "unavailable": "Tidak ada saran yang tersedia.",
+    "noData": "Tidak ada data umur utang untuk supplier ini di sistem akuntansi.",
+    "atRiskErp": "Saran: berisiko, {{amount}} lebih dari 60 hari",
+    "atRiskPmo_one": "Saran: berisiko, {{count}} invoice lebih dari 60 hari, {{amount}}",
+    "atRiskPmo_other": "Saran: berisiko, {{count}} invoice lebih dari 60 hari, {{amount}}",
+    "active": "Saran: aktif, tidak ada saldo belum dibayar yang lebih dari 60 hari",
+    "unknown_one": "{{count}} pembelian memiliki jumlah belum dibayar yang tidak diketahui dan tidak dihitung.",
+    "unknown_other": "{{count}} pembelian memiliki jumlah belum dibayar yang tidak diketahui dan tidak dihitung.",
+    "differs": "Status tersimpan adalah {{status}}; berbeda dari saran."
+  },
+  "form": {
+    "status": "Status",
+    "reason": "Alasan",
+    "reasonHelper": "Jelaskan alasannya. Wajib untuk Berisiko dan Tidak aktif.",
+    "reasonError": "Jelaskan alasannya",
+    "save": "Simpan status"
+  },
+  "exposure": {
+    "title": "Work Order / SPK dengan pesanan terbuka dari supplier ini",
+    "loading": "Memuat…",
+    "empty": "Tidak ada Work Order / SPK yang memiliki pesanan terbuka dari supplier ini.",
+    "orders_one": "{{count}} pesanan terbuka",
+    "orders_other": "{{count}} pesanan terbuka",
+    "projectLevel": "Pesanan tingkat proyek (tanpa Work Order / SPK)"
+  },
+  "warning": {
+    "lead": "Peringatan supplier",
+    "body": "berstatus {{status}} dan memiliki pesanan terbuka pada Work Order / SPK ini."
+  }
+}

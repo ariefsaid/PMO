@@ -32,6 +32,8 @@ import { isIncidentOverdue } from '@/src/lib/incidents/overdue';
 import { IncidentFormModal } from '@/components/IncidentFormModal';
 import { IncidentCloseDialog } from '@/components/IncidentCloseDialog';
 import { IncidentEvidence } from '@/components/IncidentEvidence';
+import { IncidentTasks } from '@/components/IncidentTasks';
+import { IncidentRootCause } from '@/components/IncidentRootCause';
 
 /**
  * IncidentDetail — the routable `/incidents/:id` record page (CW-4a).
@@ -53,7 +55,7 @@ const IncidentDetail: React.FC = () => {
 
   const query = useIncident(incidentId);
   const { update, transition } = useIncidentMutations();
-  const { makeTask } = useIncidentEvidenceMutations();
+  const { makeTask, addTask, saveRootCause } = useIncidentEvidenceMutations();
   const { currentUser } = useAuth();
   const files = useIncidentFiles(incidentId);
   const { data: assigneeOptions } = useAssigneeOptions();
@@ -63,6 +65,7 @@ const IncidentDetail: React.FC = () => {
   const { data: projectOptions } = useProjectOptions();
 
   const [editOpen, setEditOpen] = useState(false);
+  const [rootCauseOpen, setRootCauseOpen] = useState(false);
   const [transitionTo, setTransitionTo] = useState<AdvanceStatus | null>(null);
 
   // Manager-only investigate/close + edit (FE clarity projection; the incident_reports RLS
@@ -73,6 +76,8 @@ const IncidentDetail: React.FC = () => {
   // The person in charge may move their own issue forward (status, note, photos) — the database limits them to that.
   const isAssignee = Boolean(currentUser?.id && query.data?.assignee_id === currentUser.id);
   const canMakeTask = canEdit;
+  // The root cause may be written by a manager or the person in charge (the issue guard decides).
+  const canEditRootCause = canEdit || isAssignee;
 
   const goBack = () => navigate('/incidents');
 
@@ -160,6 +165,9 @@ const IncidentDetail: React.FC = () => {
     setTransitionTo(null);
   };
 
+  const taskLines = incident.incident_tasks ?? [];
+  const showTaskList = taskLines.length > 0;
+
   const onMakeTask = async () => {
     try {
       await makeTask.mutateAsync(incident.id);
@@ -192,10 +200,19 @@ const IncidentDetail: React.FC = () => {
         }
         meta={<span className="tabular">{t('reported', 'Reported {{date}}', { date: formatDay(incident.incident_date) })}</span>}
         actions={
-          canEdit ? (
-            <Button variant="outline" size="sm" data-testid="incident-edit" onClick={() => setEditOpen(true)}>
-              {t('action.edit', 'Edit')}
-            </Button>
+          canEdit || (canEditRootCause && !incident.root_cause) ? (
+            <span className="flex items-center gap-2">
+              {canEditRootCause && !incident.root_cause && !rootCauseOpen && (
+                <Button variant="outline" size="sm" data-testid="incident-root-cause-add" onClick={() => setRootCauseOpen(true)}>
+                  {t('rootCause.add', 'Record the root cause')}
+                </Button>
+              )}
+              {canEdit && (
+                <Button variant="outline" size="sm" data-testid="incident-edit" onClick={() => setEditOpen(true)}>
+                  {t('action.edit', 'Edit')}
+                </Button>
+              )}
+            </span>
           ) : undefined
         }
       />
@@ -255,23 +272,62 @@ const IncidentDetail: React.FC = () => {
             <Field label={t('form.action', 'What must be done')} value={incident.action || '—'} />
             {incident.closed_at && <Field label={t('detail.closedOn', 'Closed on')} value={formatDay(incident.closed_at)} />}
             {incident.close_note && <Field label={t('close.note', 'Close note')} value={incident.close_note} />}
-            <Field
-              label={t('detail.task', 'Task')}
-              value={
-                incident.task_id ? (
-                  <IncidentTaskLink taskId={incident.task_id} />
-                ) : canMakeTask && incident.project_id ? (
-                  <Button variant="outline" size="sm" data-testid="incident-make-task" loading={makeTask.isPending} onClick={() => void onMakeTask()}>
-                    {t('detail.makeTask', 'Make a task')}
-                  </Button>
-                ) : (
-                  '—'
-                )
-              }
-            />
+            {taskLines.length === 0 && (
+              <Field
+                label={t('detail.task', 'Task')}
+                value={
+                  incident.task_id ? (
+                    <IncidentTaskLink taskId={incident.task_id} />
+                  ) : canMakeTask && incident.project_id ? (
+                    <Button variant="outline" size="sm" data-testid="incident-make-task" loading={makeTask.isPending} onClick={() => void onMakeTask()}>
+                      {t('detail.makeTask', 'Make a task')}
+                    </Button>
+                  ) : (
+                    '—'
+                  )
+                }
+              />
+            )}
           </dl>
         </CardPad>
       </Card>
+
+      {showTaskList && (
+        <Card variant="bare" className="mb-4">
+          <CardHead>{t('tasks.heading', 'Tasks')}</CardHead>
+          <CardPad>
+            <IncidentTasks
+              lines={taskLines}
+              assigneeOptions={assigneeOptions ?? []}
+              canAdd={canMakeTask && Boolean(incident.project_id) && incident.status !== 'Closed'}
+              onAdd={async (input) => {
+                await addTask.mutateAsync({ incidentId: incident.id, ...input });
+                toast(t('toast.taskMade', 'Task created'), incident.type, 'success');
+              }}
+              onError={onMutationError}
+            />
+          </CardPad>
+        </Card>
+      )}
+
+      {(incident.root_cause || rootCauseOpen) && (
+        <Card variant="bare" className="mb-4">
+          <CardHead>{t('rootCause.heading', 'Root cause')}</CardHead>
+          <CardPad>
+            <IncidentRootCause
+              value={incident.root_cause ?? null}
+              canEdit={canEditRootCause}
+              startEditing={rootCauseOpen && !incident.root_cause}
+              onDone={() => setRootCauseOpen(false)}
+              onSave={async (text) => {
+                await saveRootCause.mutateAsync({ id: incident.id, rootCause: text });
+                toast(t('toast.updated', 'Incident updated'), incident.type, 'success');
+              }}
+              onError={onMutationError}
+            />
+          </CardPad>
+        </Card>
+      )}
 
       <Card variant="bare" className="mb-4">
         <CardHead>{t('detail.photos', 'Photos')}</CardHead>

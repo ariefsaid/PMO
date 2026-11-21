@@ -15,6 +15,9 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { USER_DIRECTORY_PAGE_SIZE } from '@/src/lib/db/adminUsers';
 import type { UserDirectoryRow, UserRole } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
+import { useBuiltInRolesEnabled, useBuiltInRoleMutation } from '@/src/hooks/useBuiltInRoles';
+import { baseLevelOf } from '@/src/auth/builtInRoles';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { useTranslation } from 'react-i18next';
 import { UserDirectory } from './admin-users/UserDirectory';
 import { InviteFormModal, RoleFormModal, ManagerFormModal } from './admin-users/UserForms';
@@ -42,6 +45,7 @@ import { useRoleLabels } from './admin-users/roleLabels';
 const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { t } = useTranslation();
   const roleNames = useRoleLabels();
+  const roleDisplayName = useBuiltInRoleName();
   const may = usePermission();
   const isOperator = useIsOperator();
   const { toast } = useToast();
@@ -51,6 +55,9 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [search, setSearch] = useState('');
   const directory = useUsersPage({ page, pageSize: USER_DIRECTORY_PAGE_SIZE, search });
   const { updateRole, assignManager, invite, setStatus } = useUserMutations();
+  const updateBuiltInRole = useBuiltInRoleMutation();
+  // #2709: the built-in role picker is offered only once the organization has turned the set on (default off = screen unchanged).
+  const builtInRolesEnabled = useBuiltInRolesEnabled().data === true;
   const { currentUser } = useAuth();
   // AC-JR-W3B-E1 manager jump: { userId, name, fromPage, fromSearch } while we are showing someone
   // else's page for a manager click; `null` when the directory is where the user left it. The
@@ -66,7 +73,8 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   // Active modal: { mode:'role', user } | { mode:'manager', user } | null.
   const [editTarget, setEditTarget] = useState<{ mode: 'role' | 'manager'; user: UserDirectoryRow } | null>(null);
   // Pending high-impact role change awaiting the confirm step.
-  const [pendingRole, setPendingRole] = useState<{ user: UserDirectoryRow; role: UserRole } | null>(null);
+  // `builtIn` is set only for a built-in role change (a key, or null to clear it); undefined = the plain access-level change.
+  const [pendingRole, setPendingRole] = useState<{ user: UserDirectoryRow; role: UserRole; builtIn?: string | null } | null>(null);
   // Invite modal open/closed.
   const [inviteOpen, setInviteOpen] = useState(false);
   // #559 / AC-ERR-001: this page's forms fire-and-forget — the PAGE owns the mutation and its
@@ -198,17 +206,24 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     setEditTarget(null);
   };
 
+  const submitBuiltInRole = (user: UserDirectoryRow, key: string | null) => {
+    setRoleError(null);
+    setPendingRole({ user, role: baseLevelOf(key) ?? user.role, builtIn: key });
+    setEditTarget(null);
+  };
+
   const confirmRole = async () => {
     if (!pendingRole) return;
-    const { user, role } = pendingRole;
+    const { user, role, builtIn } = pendingRole;
     try {
-      await updateRole.mutateAsync({ id: user.id, role });
+      if (builtIn !== undefined) await updateBuiltInRole.mutateAsync({ id: user.id, key: builtIn });
+      else await updateRole.mutateAsync({ id: user.id, role });
       toast(
         t('admin.users.toast.roleUpdated', 'Role updated'),
         t('admin.users.toast.roleUpdatedDetail', {
           defaultValue: '{{name}} is now {{role}}.',
           name: user.full_name,
-          role: roleNames.label(role),
+          role: builtIn ? roleDisplayName(builtIn) : roleNames.label(role),
         }),
         'success',
       );
@@ -410,6 +425,8 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
           submitError={roleError}
           onClose={() => setEditTarget(null)}
           onSubmit={submitRole}
+          builtInEnabled={builtInRolesEnabled}
+          onSubmitBuiltIn={submitBuiltInRole}
         />
       )}
 
@@ -433,11 +450,16 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
         tone="default"
         title={
           pendingRole
-            ? t('admin.users.roleConfirm.title', {
-                defaultValue: "Change {{name}}'s role to {{role}}?",
-                name: pendingRole.user.full_name,
-                role: roleNames.label(pendingRole.role),
-              })
+            ? pendingRole.builtIn === null
+              ? t('administration:admin.users.roleConfirm.clearTitle', {
+                  defaultValue: "Remove {{name}}'s built-in role?",
+                  name: pendingRole.user.full_name,
+                })
+              : t('admin.users.roleConfirm.title', {
+                  defaultValue: "Change {{name}}'s role to {{role}}?",
+                  name: pendingRole.user.full_name,
+                  role: pendingRole.builtIn ? roleDisplayName(pendingRole.builtIn) : roleNames.label(pendingRole.role),
+                })
             : t('admin.users.roleConfirm.fallbackTitle', 'Change role?')
         }
         description={t(
@@ -445,7 +467,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
           'This changes what they can see and do across the whole workspace, effective immediately. The change is recorded against your account.',
         )}
         confirmLabel={t('admin.users.roleConfirm.confirm', 'Change role')}
-        loading={updateRole.isPending}
+        loading={updateRole.isPending || updateBuiltInRole.isPending}
         onConfirm={confirmRole}
         onCancel={() => setPendingRole(null)}
       />

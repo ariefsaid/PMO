@@ -1,0 +1,8 @@
+# #2580 (2580-inspections), carried from the branch's own array at integration
+tpi_cancel
+tpi_create
+tpi_raise_purchase
+tpi_record_execution
+tpi_record_invitation
+tpi_record_report
+tpi_waive

@@ -1,0 +1,87 @@
+{
+  "asOf": "Per {{date}}",
+  "attention": {
+    "noRate": "Belum ada laju penagihan",
+    "over": "Penagihan melebihi nilai",
+    "title": "Perlu dicek"
+  },
+  "col": {
+    "backlog": "Bulan backlog",
+    "billed": "Sudah ditagih",
+    "item": "Kontrak atau perintah kerja",
+    "left": "Sisa tagihan",
+    "months": "Bulan",
+    "rate": "Laju penagihan per bulan",
+    "value": "Nilai"
+  },
+  "empty": {
+    "action": "Buka proyek",
+    "title": "Belum ada kontrak dalam pekerjaan dalam tangan"
+  },
+  "error": {
+    "retry": "Coba lagi",
+    "title": "Gagal memuat pekerjaan dalam tangan"
+  },
+  "help": {
+    "backlog": "Bulan backlog adalah Sisa tagihan dibagi laju penagihan. Kontrak dan perintah kerjanya ditampilkan bersama dan tidak dijumlahkan.",
+    "leftToBill": "Sisa tagihan adalah nilai yang belum ditagih: nilai kontrak atau perintah kerja dikurangi pekerjaan yang sudah ditagih, sebelum pajak. Invoice draf dan invoice batal tidak dihitung.",
+    "rate": "Laju penagihan per bulan adalah pekerjaan yang ditagih dalam 6 bulan penuh terakhir, dibagi jumlah bulan sejak penagihan dimulai (paling banyak 6)."
+  },
+  "hidden": {
+    "incomplete": "Sisa tagihan",
+    "incompleteReason_one": "{{count}} baris memiliki invoice yang tidak dapat dijumlahkan",
+    "incompleteReason_other": "{{count}} baris memiliki invoice yang tidak dapat dijumlahkan",
+    "noValue": "Kontrak tanpa nilai",
+    "noValueFix": "Isi nilai",
+    "noValueReason_one": "{{count}} kontrak belum memiliki nilai",
+    "noValueReason_other": "{{count}} kontrak belum memiliki nilai",
+    "truncated": "Baris di luar batas",
+    "truncatedReason": "daftar dipotong pada 500 kontrak dan 3.000 perintah kerja",
+    "undated": "Invoice tanpa tanggal",
+    "undatedFix": "Buka invoice",
+    "undatedReason_one": "{{count}} invoice tidak bertanggal dan tidak dihitung",
+    "undatedReason_other": "{{count}} invoice tidak bertanggal dan tidak dihitung"
+  },
+  "incomplete": {
+    "foreign_one": "{{count}} invoice dalam mata uang lain",
+    "foreign_other": "{{count}} invoice dalam mata uang lain",
+    "title": "Angka belum lengkap",
+    "unknown": "Sebagian invoice tidak dapat dijumlahkan",
+    "unpriced_one": "{{count}} invoice tanpa jumlah",
+    "unpriced_other": "{{count}} invoice tanpa jumlah"
+  },
+  "loading": "Memuat pekerjaan dalam tangan",
+  "row": {
+    "hideMonths": "Sembunyikan bulan untuk {{name}}",
+    "monthsCounted_one": "{{count}} bulan dihitung",
+    "monthsCounted_other": "{{count}} bulan dihitung",
+    "noRate": "Belum ada laju penagihan",
+    "noRateNothing": "Tidak ada penagihan dalam 6 bulan",
+    "noRateThisMonth": "Penagihan baru mulai bulan ini",
+    "open": "Buka {{name}}",
+    "over": "Penagihan melebihi nilai",
+    "showMonths": "Tampilkan bulan untuk {{name}}",
+    "workOrder": "Perintah kerja"
+  },
+  "sort": {
+    "backlog": "Bulan backlog",
+    "label": "Urutkan menurut",
+    "leftToBill": "Sisa tagihan"
+  },
+  "status": {
+    "Close Out": "Penutupan",
+    "Issued": "Diterbitkan",
+    "On Hold": "Ditahan",
+    "Ongoing Project": "Berjalan",
+    "Won, Pending KoM": "Menang, menunggu KoM"
+  },
+  "tile": {
+    "backlog": "Bulan backlog",
+    "backlogCaption_one": "{{count}} baris belum punya laju",
+    "backlogCaption_other": "{{count}} baris belum punya laju",
+    "left": "Sisa tagihan",
+    "rate": "Laju penagihan per bulan",
+    "rateUnknown": "belum ada baris dengan laju penagihan"
+  },
+  "title": "Pekerjaan dalam tangan"
+}

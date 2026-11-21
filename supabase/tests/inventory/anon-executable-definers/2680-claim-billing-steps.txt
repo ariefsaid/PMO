@@ -1,0 +1,9 @@
+# Client-callable SECURITY DEFINER writers added by #2680 (migrations 1366, 1367). Each is revoked from public and anon, checks active membership and role in the body, and is proven by 1365_claim_billing_steps.test.sql.
+add_claim_billing_step
+archive_billing_step_template
+load_billing_step_template_onto_claim
+load_billing_step_template_onto_project
+move_claim_billing_step
+remove_claim_billing_step
+save_billing_step_template
+update_claim_billing_step

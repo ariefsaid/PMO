@@ -1,6 +1,6 @@
 # Spec: Candidate work orders with an assessment checklist (#2595)
 
-**Status:** proposed; owner decisions below need sign-off before build. Map #2516 (contractor field operations), after the December go-live. Target Q2 2027. IDs `FR-CWO-###`, `NFR-CWO-###`, `AC-CWO-###`. Plan: `docs/plans/2026-11-21-candidate-work-orders.md`. Executor: Orca worker. **Money-adjacent, not money-path:** a candidate carries no billable value and posts nothing. Accepting it creates an ordinary **Draft** work order and stops there; the existing `Draft -> Issued` gate (witness, over-commit acknowledgement, 0193) is untouched. Because the accept step writes `work_orders`, the accept RPC ships alone with the three reviewers.
+**Status:** approved scope for the 15 December 2026 release (OD-SCOPE-12; pulled forward from Q2 2027). Owner rulings OD-SCOPE-2 (no client process in code) and the choices under "Build decisions" below replace the open owner decisions. Map #2516 (contractor field operations). IDs `FR-CWO-###`, `NFR-CWO-###`, `AC-CWO-###`. Plan: `docs/plans/2026-11-21-candidate-work-orders.md`. Executor: Orca worker. **Money-adjacent, not money-path:** a candidate carries no billable value and posts nothing. Accepting it creates an ordinary **Draft** work order and stops there; the existing `Draft -> Issued` gate (witness, over-commit acknowledgement, 0193) is untouched. Because the accept step writes `work_orders`, the accept RPC ships alone with the three reviewers.
 
 ## Review 20 Nov
 
@@ -9,6 +9,13 @@ Read against `origin/dev`: migrations 0193, 0250, 0260, 0337, 0955, 0997 and 099
 - The shipped work-order reference column is `client_po_number`; the candidate's optional `client_reference` now maps to it when acceptance creates a Draft. The plan names the actual work-order currency/tax fields and leaves `wo_number` for the existing issue transition.
 - Candidate entry is placed in the existing Contract tab composition and Admin settings route; the RTL path follows the shipped tab test layout. Creation/decision roles are now explicit and match the access requirements.
 - Acceptance criteria use Given/When/Then and each ID has one owning layer in the plan traceability table.
+
+## Build decisions (21 Nov, OD-SCOPE applied; the recommended defaults below are taken)
+
+- **OD-SCOPE-2: no checklist item is coded.** The eight items named in the ticket and job story are examples only. The organisation fills its own assessment items in Admin settings; the system ships **no default items**. FR-CWO-008 and AC-CWO-003 are replaced: with no saved template, a candidate is created with no items (nothing to assess) and the Draft can be accepted with a reason alone. Seed or demo data may carry sample items; migrations do not.
+- **Invisible until used:** the project page shows the candidate section only when the organisation has at least one template item or the project already has a candidate. An organisation with neither sees no change to any screen; `work_orders`, its lists and its statuses are untouched (OD-CWO-1).
+- OD-CWO-1..6 take their recommended defaults. OQ-CWO-1: internal reason only. OQ-CWO-2: one candidate per offer. OQ-CWO-3: Bahasa wording of the item labels is client data, so no label needs translating; only the screen strings are translated.
+- Migrations 1405 to 1408 are used (1409 stayed unused). Built deviations from the first plan, all small: (1) the change trail (FR-CWO-018) is the shared audit trail (`audit_events`, who and when, before and after), not the record-history catalogue, which needs per-entity read arms and a gate for a four-table family; (2) there is no Viewer role in the database (roles: Executive, Project Manager, Finance, Engineer, Admin), so AC-CWO-008 uses Finance and another project's Project Manager as the refused callers; (3) screen strings live in the existing `project` and `administration` namespaces, not a new one; (4) the journey sits in `e2e/serial/` because the checklist is an organisation-wide setting.
 
 ## Job story
 
@@ -28,7 +35,7 @@ When an organisation considers a piece of work under a contract, I want to open 
 - **Candidate** = a row in `work_order_candidates`: project, title, description, offered date, optional client reference, status `assessing | accepted | rejected`.
 - **Assessment checklist** = the org's active **checklist template** (ordered list of item definitions) copied onto a candidate when it is created, so a later template edit never changes an open or decided assessment.
 - **Assessment item** = one copied template line on one candidate: `key`, label, `required` flag, `owner_id` (a member), `target_date`, `status` (`open | passed | failed | not_applicable`), `note`, and zero or more proof files.
-- **Default template items** (editable by the organisation): site check, quantities priced at contract rates, material availability, schedule, resources, location, local issues, cost against revenue.
+- **Example items** an organisation may enter as its own template (never coded): site check, quantities priced at contract rates, material availability, schedule, resources, location, local issues, cost against revenue.
 - **Ready to accept** = every `required` item is `passed` or `not_applicable` (a `not_applicable` needs a note).
 - **Decision** = `accepted` or `rejected`, with `decided_by`, `decided_at` and a non-empty reason (1 to 500 characters), written only by the decision RPC.
 
@@ -44,7 +51,7 @@ When an organisation considers a piece of work under a contract, I want to open 
 
 **Template**
 - FR-CWO-007 The system shall let Admin edit the organisation's checklist template (add, rename, reorder, set required, archive an item). Archived items stay on candidates that already copied them.
-- FR-CWO-008 Where no template has been saved, the system shall use the default items above, so a new organisation can assess a candidate on day one.
+- FR-CWO-008 Where no template item has been saved, the system shall create the candidate with no items and shall not supply any item of its own (OD-SCOPE-2).
 
 **Decision**
 - FR-CWO-009 The system shall record an accept or reject decision only through one security-definer RPC; direct updates to the decision columns shall be refused by the database.
@@ -72,7 +79,7 @@ When an organisation considers a piece of work under a contract, I want to open 
 |---|---|---|
 | AC-CWO-001 | Given an organisation with a saved template of 3 items, when a candidate is created, then it has exactly those 3 items, each `open`. | pgTAP |
 | AC-CWO-002 | Given an open candidate, when Admin renames and archives a template item, then the candidate's items are unchanged. | pgTAP |
-| AC-CWO-003 | Given an organisation with no saved template, when a candidate is created, then it has the eight default items. | pgTAP |
+| AC-CWO-003 | Given an organisation with no saved template, when a candidate is created, then it has no items and no item text is supplied by the system. | pgTAP |
 | AC-CWO-004 | Given a candidate with one required item `open`, when the Project Manager accepts, then it is refused naming that item and no work order exists. | pgTAP |
 | AC-CWO-005 | Given all required items `passed` or `not_applicable` with a note, when the Project Manager accepts with a reason, then the candidate is `accepted`, one Draft work order exists on the same project, and the candidate holds its id. | pgTAP |
 | AC-CWO-006 | Given an accepted candidate, when accept is called again, then the same work order id returns and the project has one work order from it. | pgTAP |
@@ -82,6 +89,7 @@ When an organisation considers a piece of work under a contract, I want to open 
 | AC-CWO-010 | Given an authenticated user, when they directly update candidate `status` or any decision column, then the database refuses the write. | pgTAP |
 | AC-CWO-011 | Given a decided candidate, when an item or proof is edited, then it is refused. | pgTAP |
 | AC-CWO-012 | Given the accepted Draft work order, when its order value or status is read, then value is 0 and status is `Draft`; no `wo_number` is minted. | pgTAP |
+| AC-CWO-018 | Given an organisation with no template items and no candidates, when the project Contract tab opens, then no candidate section appears; given one template item, the section appears. | Unit (RTL) |
 | AC-CWO-013 | Given a caller in another organisation, when candidates are read, then none appear. | pgTAP |
 | AC-CWO-014 | Given a proof upload of a disallowed type or over the size limit, when the upload is attempted, then it is refused; given a member of another organisation, when they request the file, then it is unreadable. | pgTAP (storage policy) |
 | AC-CWO-015 | Given items with target dates, when the list is derived, then passed-of-required and the overdue count use the organisation-local date. | Unit (pure function) |
@@ -111,7 +119,7 @@ Mutation check (ships alone): in the decision RPC, remove the Project Manager ch
 | OD-CWO-6 | Candidate creation and assessment are available to Admin, Engineer and the project's Project Manager; only Admin or the Project Manager decides. | Too narrow: the people with technical or commercial facts cannot complete their checks, delaying acceptance. Too wide: unauthorised staff can change an assessment or make a commercial decision. |
 | OQ-CWO-1 | Does a rejected candidate need an external note or only an internal reason? Default internal only. | If an external note is expected, the decision record alone leaves the offeror without an approved response; if it is internal, exposing the reason could disclose internal assessment comments. |
 | OQ-CWO-2 | Can one candidate represent multiple offers? Default one candidate per offer. | One checklist could be marked ready for a feasible offer while being used to create a Draft for a different scope, leaving the Draft without the right assessment. |
-| OQ-CWO-3 | Bahasa Indonesia wording for the eight default items. Default: adapt the existing project and work-order terminology and have the owner confirm it before build. | Labels that do not match the team's usage make the checklist harder to apply consistently. |
+| OQ-CWO-3 | Resolved: item labels are client data; only screen strings are translated. | n/a |
 
 ## Delivery checklist
 - [ ] Owner signs OD-CWO-1..6 and answers OQ-CWO-1..3.
