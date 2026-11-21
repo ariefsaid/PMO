@@ -8,6 +8,7 @@ import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey } from './helpers';
+import { inDays } from './support/jobJourney';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -46,7 +47,7 @@ test.beforeEach(async () => {
   }).select('id').single();
   if (claim.error) throw new Error(`AC-BBD-016 fixture claim: ${claim.error.message}`);
   claimId = claim.data.id;
-  const started = new Date(Date.now() - 4 * 86_400_000).toISOString().slice(0, 10);
+  const started = inDays(-4); // the organisation's calendar day, as the board counts age
   const steps = await admin.from('claim_billing_stages').insert([
     { org_id: ORG_ID, claim_id: claimId, project_id: projectId, position: 1, name: `${tag} first`, client_side: false, started_on: started, completed_on: started, completed_by: finance.data.id },
     { org_id: ORG_ID, claim_id: claimId, project_id: projectId, position: 2, name: `${tag} second`, client_side: false, started_on: started },

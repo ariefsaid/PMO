@@ -166,7 +166,8 @@ export async function signIn(page: Page, email: string, password = SEED_PASSWORD
   // authenticated (session now in localStorage) and lands deterministically on the dashboard.
   await page.goto('/');
 
-  await expect(page).toHaveURL(/\/$/);
+  // a light account (field user, foreman) is sent on to its phone home, /my
+  await expect(page).toHaveURL(/\/(my)?$/);
 }
 
 /** Open an app path; the dashboard at `/` is the home at every viewport size. */
