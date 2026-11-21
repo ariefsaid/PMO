@@ -16,7 +16,7 @@ create or replace function public.stock_wo_issue_sources(p_org uuid, p_work_orde
    where sd.org_id = p_org and sd.kind = 'issue' and sd.status = 'Posted' and sd.work_order_id = p_work_order_id
      and (p_item_id is null or sl.item_id = p_item_id)
      and (-e.qty_delta) - coalesce(r.q, 0) > 0
-   order by sd.posted_at, sd.id, sl.line_no, sl.id
+   order by e.seq                                                     -- the ledger identity follows posting order; posted_at ties inside one transaction
 $$;
 revoke all on function public.stock_wo_issue_sources(uuid, uuid, uuid) from public, anon, authenticated;
 
