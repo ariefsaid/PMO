@@ -1,4 +1,4 @@
--- 1093_document_category_management.sql — #2579 step 4 of 5: the Admin management functions (FR-DCV-003..006, 009, AC-DCV-008..012, 023).
+-- 1167_document_category_management.sql — #2579 step 4 of 5: the Admin management functions (FR-DCV-003..006, 009, AC-DCV-008..012, 023).
 -- Every write to document_categories / document_category_roles goes through these (no client write grant). Each is SECURITY DEFINER,
 -- re-asserts active membership and the Admin role, and takes the organisation from the caller, never from an argument.
 -- Changes are recorded in audit_events (actor, time, old and new), readable by an Admin or an operator.
