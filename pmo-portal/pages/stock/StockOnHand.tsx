@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { buttonClasses, Button, Checkbox, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, useUrlFilters, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
+import { ProofChaseCard } from '@/src/components/stock/ProofChaseCard';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -180,6 +181,7 @@ const StockOnHand: React.FC = () => {
       )}
     >
       <StockTabs />
+      <ProofChaseCard />
       <StockFilters>
         {/* One row of fields on a phone (the labels are hidden), then the two boxes on one line,
             so the four filters take two rows instead of half of the first screen. */}

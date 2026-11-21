@@ -1090,3 +1090,5 @@ the material close-out: joint count, loss report, material completion report). T
 
 **Proof rule** (per stock tag) — which proof counts for items of that tag: none, signed paper, a handover confirmation in PMO, or either. A separate organisation setting says whether the proof must come *before* the movement posts or may *follow* it; a movement whose proof has not arrived reads "proof outstanding" and "proof complete" once it has.
 
+**Proof chase list** (*daftar bukti tertunda*) — the card on the stock home listing movements whose required proof has not arrived, oldest first, with the days waiting and the missing proof. It is read live (never a stored snapshot), shown only while the organisation lets proof follow, and only to an Admin or a keeper of one of the movement's locations. See *Proof rule*.
+
