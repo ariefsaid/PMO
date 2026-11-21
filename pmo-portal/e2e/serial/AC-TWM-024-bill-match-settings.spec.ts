@@ -59,11 +59,13 @@ test('AC-TWM-024 an Admin switches the match on and fixes a held bill\'s lines i
 
   await login(page, 'admin@acme.test');
   await page.goto('/administration/accounting');
-  const toggle = page.getByRole('switch', { name: 'Check vendor bills against the order and receipts before payment' });
+  // Accounting setup carries several sections with their own Save and Saved: scope every step to this one.
+  const section = page.getByTestId('org-three-way-match');
+  const toggle = section.getByRole('switch', { name: 'Check vendor bills against the order and receipts before payment' });
   await expect(toggle).toHaveAttribute('aria-checked', 'false');
   await toggle.click();
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await section.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(section.getByText('Saved', { exact: true })).toBeVisible();
 
   // A bill recorded after the switch-on is in scope and, with no lines, held.
   const bill = await db.from('procurement_invoices').insert({
@@ -77,18 +79,20 @@ test('AC-TWM-024 an Admin switches the match on and fixes a held bill\'s lines i
   await expect(held).toBeVisible();
 
   // The receipt's quantities, then the bill's lines.
-  await page.getByRole('button', { name: 'Row actions' }).first().click();
+  // The ledger holds the receipt row and the bill row, each with its own Row actions menu: open the one on the receipt row.
+  const receiptRow = page.locator('tr, [role="row"], li').filter({ hasText: /\bGR\b/ }).filter({ has: page.getByRole('button', { name: 'Row actions' }) }).first();
+  await receiptRow.getByRole('button', { name: 'Row actions' }).click();
   await page.getByRole('menuitem', { name: 'Record received quantities' }).click();
-  await page.locator('input[id^="match-qty-"]').first().fill('60');
-  await page.getByRole('button', { name: 'Save lines' }).click();
+  await page.getByRole('dialog').locator('input[id^="match-qty-"]').first().fill('60');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save lines' }).click();
   await expect(page.getByTestId('match-lines-result')).toContainText('Receipt lines saved');
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
 
   await held.getByRole('button', { name: 'Edit bill lines' }).click();
-  await page.locator('input[id^="match-qty-"]').first().fill('60');
-  await page.getByRole('button', { name: 'Save lines' }).click();
+  await page.getByRole('dialog').locator('input[id^="match-qty-"]').first().fill('60');
+  await page.getByRole('dialog').getByRole('button', { name: 'Save lines' }).click();
   await expect(page.getByTestId('match-lines-result')).toContainText('This bill now matches');
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click();
 
   // Goal: the hold is gone, and it was not cleared by an exception.
   await expect(page.getByTestId(`bill-match-held-${invoiceId}`)).toHaveCount(0);
