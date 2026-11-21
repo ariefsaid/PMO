@@ -1,7 +1,7 @@
 -- 1220_email_notifications.test.sql — #2711. AC-EML-001..007, 013, 015.
 begin;
 create extension if not exists pgtap;
-select plan(35);
+select plan(36);
 
 insert into organizations (id, name) values
   ('27110000-0000-0000-0000-00000000000a', 'EML Org A'),
@@ -112,6 +112,10 @@ select public.notify_workflow_user('27110000-0000-0000-0000-00000000000a', '2711
 select is(pg_temp.rows('billing_step'), 1, 'AC-EML-006 the generic hook: a producer passing billing_step is queued');
 select pg_temp.notify('27110000-0000-0000-0000-0000000000a3', 'Work permit expires in 7 days', 'expiry_document');
 select is(pg_temp.rows('document_expiry'), 1, 'AC-EML-006 the expiry run notification is queued as document_expiry');
+
+insert into email_event_settings (org_id, event_key, enabled) values ('27110000-0000-0000-0000-00000000000a', 'overdue_item', false);
+select pg_temp.notify('27110000-0000-0000-0000-0000000000a3', 'Reminder: a task is overdue');
+select is(pg_temp.rows('overdue_item'), 0, 'AC-EML-002 an event switched off explicitly queues nothing');
 
 -- AC-EML-007: claim is single-holder; a claimed row is not claimed again; completion
 select is((select count(*)::int from claim_email_outbox(2, interval '5 minutes')), 2, 'AC-EML-007 a claim takes at most the limit');

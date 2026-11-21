@@ -1,0 +1,26 @@
+{
+  "title": "Notifikasi email",
+  "intro": "Kirim email selain notifikasi di dalam aplikasi. Setiap kejadian nonaktif sampai Anda mengaktifkannya. Setiap orang dapat berhenti menerima email di profilnya.",
+  "loading": "Memuat pengaturan email",
+  "loadError": "Pengaturan email tidak dapat dimuat.",
+  "retry": "Coba lagi",
+  "saveError": "Perubahan tidak tersimpan",
+  "on": "Aktif",
+  "off": "Nonaktif",
+  "saved": "Tersimpan",
+  "language": "Bahasa email",
+  "languageEn": "Inggris",
+  "languageId": "Bahasa Indonesia",
+  "extraRoles": "Kirim juga ke peran ini",
+  "events": {
+    "approval_request": { "title": "Permintaan persetujuan", "description": "Ada yang menunggu persetujuan seseorang." },
+    "billing_step": { "title": "Langkah penagihan", "description": "Pemilik berikutnya dari sebuah langkah penagihan." },
+    "overdue_item": { "title": "Item terlambat", "description": "Tugas atau masalah melewati tanggalnya." },
+    "document_expiry": { "title": "Dokumen akan kedaluwarsa", "description": "Dokumen mendekati tanggal kedaluwarsa." }
+  },
+  "optOut": {
+    "title": "Notifikasi email",
+    "description": "Matikan email dari PMO tentang persetujuan, item terlambat, dan dokumen yang akan kedaluwarsa. Notifikasi di dalam aplikasi tidak terpengaruh.",
+    "label": "Kirim notifikasi email kepada saya"
+  }
+}

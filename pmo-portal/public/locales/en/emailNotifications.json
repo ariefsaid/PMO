@@ -1,0 +1,26 @@
+{
+  "title": "Email notifications",
+  "intro": "Send an email as well as the in-app notification. Every event is off until you turn it on. Each person can opt out in their profile.",
+  "loading": "Loading email settings",
+  "loadError": "Email settings could not be loaded.",
+  "retry": "Try again",
+  "saveError": "The change was not saved",
+  "on": "On",
+  "off": "Off",
+  "saved": "Saved",
+  "language": "Email language",
+  "languageEn": "English",
+  "languageId": "Indonesian",
+  "extraRoles": "Also email these roles",
+  "events": {
+    "approval_request": { "title": "Approval requests", "description": "Something is waiting for a person to approve." },
+    "billing_step": { "title": "Billing steps", "description": "The next owner of a billing step." },
+    "overdue_item": { "title": "Overdue items", "description": "A task or issue is past its date." },
+    "document_expiry": { "title": "Expiring documents", "description": "A document is close to its expiry date." }
+  },
+  "optOut": {
+    "title": "Email notifications",
+    "description": "Turn off the emails PMO sends about approvals, overdue items and expiring documents. In-app notifications are not affected.",
+    "label": "Send me email notifications"
+  }
+}
