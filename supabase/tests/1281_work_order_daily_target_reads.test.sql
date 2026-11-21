@@ -43,7 +43,7 @@ insert into daily_site_reports (id, org_id, project_id, work_order_id, work_date
   ('26729000-0000-0000-0000-000000000813', '26729000-0000-0000-0000-00000000000a', '26729000-0000-0000-0000-0000000000d1', '26729000-0000-0000-0000-000000000402', '2026-12-03', 'validated', '26729000-0000-0000-0000-0000000000a4', '26729000-0000-0000-0000-0000000000a2', now(), now(), null, 1, null, null);
 -- Each line carries its report's work order (NOT NULL on dsr_progress_lines since 1171).
 insert into dsr_progress_lines (id, org_id, report_id, position, work_order_id, work_order_line_id, quantity, unit, frozen_rate, frozen_amount, frozen_at)
-select v.id, v.org_id, v.report_id, v.position, d.work_order_id, v.wo_line, v.quantity, v.unit, v.frozen_rate, v.frozen_amount, v.frozen_at
+select v.id::uuid, v.org_id::uuid, v.report_id::uuid, v.position, d.work_order_id, v.wo_line::uuid, v.quantity, v.unit, v.frozen_rate, v.frozen_amount, v.frozen_at
   from (values
     ('26729000-0000-0000-0000-000000000901', '26729000-0000-0000-0000-00000000000a', '26729000-0000-0000-0000-000000000801', 1, gen_random_uuid(), 8, 'm', 10, 80.00, now()),
     ('26729000-0000-0000-0000-000000000902', '26729000-0000-0000-0000-00000000000a', '26729000-0000-0000-0000-000000000802', 1, gen_random_uuid(), 4, 'm', 10, 40.00, now()),
@@ -52,7 +52,7 @@ select v.id, v.org_id, v.report_id, v.position, d.work_order_id, v.wo_line, v.qu
     ('26729000-0000-0000-0000-000000000912', '26729000-0000-0000-0000-00000000000a', '26729000-0000-0000-0000-000000000812', 1, gen_random_uuid(), 20, 'm', 10, 200.00, now()),
     ('26729000-0000-0000-0000-000000000913', '26729000-0000-0000-0000-00000000000a', '26729000-0000-0000-0000-000000000813', 1, gen_random_uuid(), 20, 'm', 10, 200.00, now())
   ) as v(id, org_id, report_id, position, wo_line, quantity, unit, frozen_rate, frozen_amount, frozen_at)
-  join daily_site_reports d on d.id = v.report_id;
+  join daily_site_reports d on d.id = v.report_id::uuid;
 set local session_replication_role = origin;
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
