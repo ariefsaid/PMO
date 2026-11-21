@@ -36,7 +36,8 @@ An existing organisation has no `org_purchase_type_settings` row and no `purchas
 - FR-PTR-005 Where purchase types are on, the create form shall offer the active types; choosing none is allowed and behaves as today.
 - FR-PTR-006 When the chosen type is rental, the form shall require a rental period (from and to dates, to not before from). A purchase of a non-rental type or no type shall carry no rental period (server-enforced).
 - FR-PTR-007 The type and rental period are set when the purchase is created through `create_procurement_with_items` (the single creation path; #2700 uses it) and change only through the extension step; a direct update of them is refused for every role including Admin.
-- FR-PTR-008 The purchase screen shall show the type and, for rental, the period; the list shall filter by type.
+- FR-PTR-008 The purchase screen shall show the type and, for rental, the period. **Shipped.**
+- FR-PTR-008b The purchase list shall filter by type, and the Procurement list shall link an Admin to `/purchase-types/settings`. **Deferred, not in this branch:** the ticket's "What ships" (a purchase type and a guided rental extension) does not require them. The settings screen is reached at `/purchase-types/settings`; the Administration area is a set of tabs, not a list of settings screens, so no link was added there.
 
 **Guided rental extension**
 - FR-PTR-009 Where a purchase is of a rental type and is not Cancelled or Rejected, the system shall offer a guided "Extend rental" step: new period (defaulting to the day after the current end, one period long), vendor, project, budget category and lines carried over and editable.
