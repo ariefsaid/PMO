@@ -1,4 +1,4 @@
--- 1097_work_order_section_children.sql — #2576: a crew placement and a task may name a section of their work order.
+-- 1171_work_order_section_children.sql — #2576: a crew placement and a task may name a section of their work order.
 -- Spec docs/specs/work-order-sections.spec.md (FR-WOS-010, 011 tasks, 012, 005); plan 2026-11-20-work-order-sections.md.
 -- Proven by supabase/tests/1169_work_order_sections.test.sql (AC-WOS-003, 006, 017).
 --
@@ -15,7 +15,7 @@
 --
 -- Also built here: daily-report progress lines (#1522, 1040/1041): see the section at the end of this file.
 --
--- ── REVERSE (also supabase/migrations/rollback/1097_work_order_section_children_down.sql) ─────────────────────
+-- ── REVERSE (also supabase/migrations/rollback/1171_work_order_section_children_down.sql) ─────────────────────
 
 alter table public.work_order_crews add column section_id uuid;
 alter table public.work_order_crews

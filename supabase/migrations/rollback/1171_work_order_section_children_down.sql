@@ -1,4 +1,4 @@
--- Reverses 1097_work_order_section_children.sql (#2576). Reverse 1099 and 1098 first.
+-- Reverses 1171_work_order_section_children.sql (#2576). Reverse 1099 and 1098 first.
 -- daily-report link: put the 1041 writers back first (they do not name section_id), then drop the column.
 create or replace function public.dsr_replace_lines(p_report public.daily_site_reports, p jsonb) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
