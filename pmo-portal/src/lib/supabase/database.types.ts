@@ -6988,6 +6988,39 @@ export type Database = {
           },
         ]
       }
+      labour_cost_classes: {
+        Row: { archived_at: string | null; code: string; created_at: string; id: string; name: string; org_id: string }
+        Insert: { archived_at?: string | null; code: string; created_at?: string; id?: string; name: string; org_id?: string }
+        Update: { archived_at?: string | null; code?: string; created_at?: string; id?: string; name?: string; org_id?: string }
+        Relationships: []
+      }
+      labour_cost_rates: {
+        Row: {
+          amount: number; archived_at: string | null; basis: string; class_id: string; created_at: string; created_by: string | null
+          day_hours: number; effective_from: string; effective_to: string | null; id: string; month_hours: number; org_id: string
+          overtime_multiplier: number; person_id: string | null; role_key: string | null; subject_kind: string
+        }
+        Insert: {
+          amount: number; archived_at?: string | null; basis: string; class_id: string; created_at?: string; created_by?: string | null
+          day_hours?: number; effective_from: string; effective_to?: string | null; id?: string; month_hours?: number; org_id?: string
+          overtime_multiplier?: number; person_id?: string | null; role_key?: string | null; subject_kind: string
+        }
+        Update: {
+          amount?: number; archived_at?: string | null; basis?: string; class_id?: string; created_at?: string; created_by?: string | null
+          day_hours?: number; effective_from?: string; effective_to?: string | null; id?: string; month_hours?: number; org_id?: string
+          overtime_multiplier?: number; person_id?: string | null; role_key?: string | null; subject_kind?: string
+        }
+        Relationships: [
+          { foreignKeyName: "labour_cost_rates_person_id_fkey"; columns: ["person_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "labour_cost_rates_class_id_fkey"; columns: ["class_id"]; isOneToOne: false; referencedRelation: "labour_cost_classes"; referencedColumns: ["id"] },
+        ]
+      }
+      labour_cost_settings: {
+        Row: { enabled: boolean; org_id: string; updated_at: string; updated_by: string | null }
+        Insert: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Update: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Relationships: []
+      }
       org_terminology: {
         Row: {
           locale: string
@@ -13477,12 +13510,17 @@ export type Database = {
       set_work_order_plan: { Args: { p_project_id: string; p_work_order_id: string; p_changes: Json }; Returns: number }
       set_shared_cost_split: { Args: { p_project_id: string; p_split: Json }; Returns: number }
       clear_shared_cost_split: { Args: { p_project_id: string }; Returns: number }
+      save_labour_cost_settings: { Args: { p_enabled: boolean }; Returns: undefined }
+      save_labour_cost_rate: { Args: { p: Json }; Returns: string }
+      end_labour_cost_rate: { Args: { p_id: string; p_end: string }; Returns: undefined }
+      archive_labour_cost_rate: { Args: { p_id: string }; Returns: undefined }
       work_order_cost_amounts: {
         Args: { p_project_id: string }
         Returns: {
           amount: string | null
           currency: string | null
           discipline_id: string | null
+          labour_class_id: string | null
           occurred_on: string | null
           person_id: string | null
           project_id: string
