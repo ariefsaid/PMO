@@ -111,3 +111,18 @@ false reds and false greens. pgTAP fixtures: namespaced UUIDs, `begin;`/`rollbac
 grep gate output for `Parse errors` (an aborted file reports zero tests and looks green).
 Heavy local processes (the Supabase stack, vitest, browsers) are the Mac's real RAM cost:
 `supabase stop` when not testing the DB.
+
+## Cloud sessions
+
+- **Start:** `claude --cloud "<brief>" [--environment <id>]` from the repo, on a pushed branch. One
+  command per session; they show in the owner's session list. Never create a routine for one-off
+  work (`.claude/hooks/cloud-launch-gate.sh` denies it): routines are for work that recurs.
+- **Message a running session:** `claude -p "<message>" --cloud session_<id> < /dev/null`. The
+  Director sends mid-run changes itself; never ask the owner to paste.
+- **Watch:** done refs (`git ls-remote origin 'refs/heads/cloud/done/*'`) and pushed branches.
+- **One database per sandbox.** Builders inside a session share it, so per-ticket database or
+  browser runs queue behind each other (30–47 minutes a turn with five builders, 2026-11-21).
+  Builders run the static gates and their touched test files only, and write the pgTAP and e2e
+  without running them. The session's orchestrator accepts on a code read, merges each wave of
+  about five tickets into one lane branch and runs reset, pgTAP and e2e once per wave.
+- Rules every cloud session follows: `docs/cloud-session-rules.md`.

@@ -21,6 +21,17 @@
         ]
       },
       {
+        "matcher": "RemoteTrigger",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/cloud-launch-gate.sh\"",
+            "timeout": 5,
+            "statusMessage": "Cloud launch check\u2026"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {

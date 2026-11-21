@@ -166,6 +166,7 @@ Dev remains the ceiling. This supersedes older per-slice browser and single-disp
 **Browser e2e runs on the PR to main, not on dev PRs (owner, 2026-10-30; replaces the 2026-10-23 and v0.23 browser cadences):**
 merge a PR to dev once its `verify`, `unit` and (when run) `pgtap` checks are green. CI's `integration` job runs the browser suite on the release PR
 to `main`; a red run there is fixed on `dev`. `scripts/ci-e2e.sh` on a dev branch only to diagnose.
+**Exception (owner, 2026-11-21):** a batch round's integration branch gets one manual browser run (`scripts/ci-e2e.sh <branch>`) per round, before its PR to dev.
 
 **Hotfixes to main (owner, 2026-11-04):** a hotfix with no frontend change (no `pmo-portal/**` app code) merges on `verify` + affected `unit` + `pgtap` (as a dev PR); admin-merge without waiting for `integration`. Frontend hotfixes keep the full run. The next release runs the full suite.
 
