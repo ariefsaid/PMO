@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DateField, ListState, RecordSection, StatusPill, useToast } from '@/src/components/ui';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useAuth } from '@/src/auth/useAuth';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { useProject } from '@/src/hooks/useProjects';
 import { useSafetyEnabled, useSafetyMutations, useSafetyWorkOrderDays } from '@/src/hooks/useSafetyDays';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -20,7 +22,14 @@ const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), 
  * records on (AC-DSF-018): per day in the last 30 days whether it is complete, what is missing, and which days workers
  * were present with no locked record. `can()` is UX; the database enforces who may record (ADR-0016).
  */
-export const SafetySection: React.FC<{ workOrderId: string; projectId: string; status: string }> = ({ workOrderId, projectId, status }) => {
+export const SafetySection: React.FC<{ workOrderId: string; projectId: string; status: string }> = (props) => {
+  // Rendered outside the app's auth and query providers (an isolated page test), the section is simply omitted.
+  const auth = useContext(AuthContext);
+  const queries = useContext(QueryClientContext);
+  return auth && queries ? <SafetySectionGate {...props} /> : null;
+};
+
+const SafetySectionGate: React.FC<{ workOrderId: string; projectId: string; status: string }> = ({ workOrderId, projectId, status }) => {
   const enabled = useSafetyEnabled();
   if (!enabled.data) return null;
   return <SafetySectionBody workOrderId={workOrderId} projectId={projectId} status={status} />;

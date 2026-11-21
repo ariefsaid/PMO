@@ -11,16 +11,27 @@ vi.mock('@/src/hooks/useSafetyDays', () => ({
   useSafetyMutations: () => ({ createDay: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { project_manager_id: 'pm1' } }) }));
-vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'o1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { SafetySection } from './SafetySection';
 
-const renderIt = () => render(<ToastProvider><MemoryRouter><SafetySection workOrderId="w1" projectId="p1" status="Issued" /></MemoryRouter></ToastProvider>);
+const auth = { currentUser: { id: 'u1', org_id: 'o1' } } as never;
+const renderIt = () => render(
+  <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={auth}><ToastProvider><MemoryRouter>
+    <SafetySection workOrderId="w1" projectId="p1" status="Issued" />
+  </MemoryRouter></ToastProvider></AuthContext.Provider></QueryClientProvider>);
 beforeEach(() => { h.enabled = false; h.role = 'Engineer'; h.days = []; });
 
 describe('SafetySection', () => {
+  it('is omitted when rendered outside the app providers (an isolated page test)', () => {
+    h.enabled = true;
+    render(<MemoryRouter><SafetySection workOrderId="w1" projectId="p1" status="Issued" /></MemoryRouter>);
+    expect(screen.queryByTestId('safety-section')).toBeNull();
+  });
+
   it('AC-DSF-018 renders nothing while the organisation has safety records off', () => {
     renderIt();
     expect(screen.queryByTestId('safety-section')).toBeNull();

@@ -1,6 +1,6 @@
 # Spec: Daily safety records per work order (#2596)
 
-**Status:** approved scope; built for the 15 December 2026 release (OD-SCOPE-12). Owner decisions OD-DSF-1..7 and OQ-DSF-1..3 take their recommended defaults below (list in the build report); OD-SCOPE-2 and OD-SCOPE-4 applied. Map #2516 (contractor field operations). IDs `FR-DSF-###`, `NFR-DSF-###`, `AC-DSF-###`. Plan: `docs/plans/2026-11-21-daily-safety-records.md`. Executor: Orca worker. **Not a money path:** no posting, no ERP write, no billing or payroll effect, no change to any separation-of-duties rule. It is a records feature with a read-only monthly summary. Photos are personal data of site workers, so storage access is part of the tested behaviour.
+**Status:** built for the 15 December 2026 release (OD-SCOPE-12). Owner decisions OD-DSF-1..7 and OQ-DSF-1..3 take their recommended defaults below (list in the build report); OD-SCOPE-2 and OD-SCOPE-4 applied. Map #2516 (contractor field operations). IDs `FR-DSF-###`, `NFR-DSF-###`, `AC-DSF-###`. Plan: `docs/plans/2026-11-21-daily-safety-records.md`. Executor: Orca worker. **Not a money path:** no posting, no ERP write, no billing or payroll effect, no change to any separation-of-duties rule. It is a records feature with a read-only monthly summary. Photos are personal data of site workers, so storage access is part of the tested behaviour.
 
 ## Review 20 Nov
 
