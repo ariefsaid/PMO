@@ -12,10 +12,11 @@ import { statusLabel } from '@/src/lib/status/statusMap';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { clientInvoiceOverdueDays, deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
-import { invoiceGross, invoiceNumber, isPartlyPaid, paidToDate } from '@/src/lib/revenue/nativeInvoice';
+import { invoiceNumber, isPartlyPaid, paidToDate } from '@/src/lib/revenue/nativeInvoice';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
-import { SalesInvoiceEvidenceSection } from './SalesInvoiceEvidence';
+import { SalesInvoiceEvidenceWithPayments } from './SalesInvoiceEvidence';
+import { useIncomingPayments } from '@/src/hooks/useRevenue';
 import { cn } from '@/src/components/ui/cn';
 
 function WorkOrderReference({ id }: { id: string }) {
@@ -53,8 +54,19 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
   const { t } = useTranslation();
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
   const isPaid = viewTarget?.status === 'Paid';
-  const paidAmount = viewTarget ? (paidToDate(viewTarget) ?? invoiceGross(viewTarget) ?? viewTarget.amount ?? 0) : 0;
-  const paidDate = viewTarget ? ((viewTarget as { paid_date?: string | null }).paid_date ?? viewTarget.received_date ?? viewTarget.invoice_date) : null;
+  const payments = useIncomingPayments(undefined, Boolean(viewTarget), viewTarget?.id);
+  const paidAmount = viewTarget ? paidToDate(viewTarget) : null;
+  // A single live native allocation tied to a single dated receipt gives an unambiguous receipt date.
+  const matchingReceipts = viewTarget?.pmo_native && !payments.isPending && !payments.isError
+    ? (payments.data ?? []).filter((payment) => payment.pmo_native && payment.status === 'Paid'
+      && !payment.cancelled_at && !payment.erp_cancelled_at
+      && payment.allocations?.some((allocation) => allocation.sales_invoice_id === viewTarget.id))
+    : [];
+  const receipt = matchingReceipts.length === 1 ? matchingReceipts[0] : null;
+  const allocations = receipt?.allocations?.filter((allocation) => allocation.sales_invoice_id === viewTarget?.id) ?? [];
+  const paidDate = receipt && paidAmount != null && allocations.length === 1
+    && allocations[0].currency === viewTarget?.currency && allocations[0].amount === paidAmount
+    ? receipt.date : null;
   const dueDate = viewTarget ? deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date) : null;
   // #1457: the one shared overdue rule gates the stat and supplies the day count.
   const overdueDays = viewTarget ? clientInvoiceOverdueDays(viewTarget, organizationToday) : null;
@@ -96,7 +108,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                   <span style={{ whiteSpace: 'nowrap' }}>{viewTargetNumber}</span>
                 </>
               ) : invoiceDisplayLabel(viewTarget)}
-              status={receiptAwaitingOdoo
+              status={receiptAwaitingOdoo && !isPaid
                 ? <StatusPill variant="progress">{t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo')}</StatusPill>
                 : isPartlyPaid(viewTarget)
                 ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{statusLabel('salesInvoice', 'PartlyPaid', t)}</StatusPill>
@@ -132,10 +144,10 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                 { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={viewTarget.project_id} name={projectName} className="text-control" /> },
                 { label: t('uxs17.invoiceDate', 'Invoice date'), value: viewTarget.invoice_date ? formatDayYear(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded') },
                 ...(isPaid ? [
-                  { label: t('finance:receivables.paidDate', 'Paid date'), value: paidDate ? formatDayYear(paidDate) : t('uxs17.dateNotRecorded', 'Not recorded') },
+                  { label: t('finance:receivables.paidDate', 'Paid date'), value: paidDate ? formatDayYear(paidDate) : t('finance:receivables.paymentDateNotRecorded', 'Payment date not recorded') },
                   {
-                    label: t('finance:receivables.paidAmount', 'Paid'),
-                    value: <>
+                    label: t('finance:receivables.paidAmount', 'Amount paid'),
+                    value: paidAmount == null ? t('finance:receivables.paidAmountUnavailable', 'Amount not available') : <>
                       {formatCurrency(paidAmount, viewTarget.currency, { precision: 'minor' })}
                       <FxEquivalent amount={paidAmount} currency={viewTarget.currency} date="latest" />
                     </>,
@@ -167,18 +179,18 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
               {/* #2345 row 2 + #2442: a Paid invoice never prompts "Ready to send", showing its paid note instead. */}
               {deliveryStep ? (
                 <p data-testid="invoice-delivery-note">
-                  <span className="font-medium text-foreground">
-                    {isPaid
-                      ? t('finance:receivables.paidAmount', 'Paid')
-                      : viewTarget.received_date
-                      ? t('uxs17.receivedByClient', 'Received by client')
-                      : t('uxs17.readyToSend', 'Ready to send')}
-                  </span>
-                  <span aria-hidden="true"> · </span>
+                  {!isPaid && <>
+                    <span className="font-medium text-foreground">
+                      {viewTarget.received_date
+                        ? t('uxs17.receivedByClient', 'Received by client')
+                        : t('uxs17.readyToSend', 'Ready to send')}
+                    </span>
+                    <span aria-hidden="true"> · </span>
+                  </>}
                   <span>{isPaid
-                    ? (paidDate
+                    ? (paidAmount != null && paidDate
                       ? t('finance:receivables.paidSummary', 'Paid {{amount}} on {{date}}.', { amount: formatCurrency(paidAmount, viewTarget.currency, { precision: 'minor' }), date: formatDayYear(paidDate) })
-                      : t('financeCopy.paidToDateAmount', 'Paid {{amount}}', { amount: formatCurrency(paidAmount, viewTarget.currency, { precision: 'minor' }) }))
+                      : paidAmount != null ? t('financeCopy.paidToDateAmount', 'Paid {{amount}}', { amount: formatCurrency(paidAmount, viewTarget.currency, { precision: 'minor' }) }) : t('finance:receivables.paidDetailsUnavailable', 'Payment details not available.'))
                     : viewTarget.received_date
                     ? t('uxs17.receivedDateSummary', 'Client receipt was recorded for {{date}}.', { date: formatDayYear(viewTarget.received_date) })
                     : t('uxs17.manualHandoffHelp', 'Download the PDF and send it to your client yourself.')}</span>
@@ -188,7 +200,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
             {/* hideLines: the Bill evidence section is the record page's single lines render (AC-991-001's accessible
                 "Line items" list lives there); its totals close the same panel, under the lines they sum. The approvals
                 panel keeps the preview as its own lines surface. */}
-            <SalesInvoiceEvidenceSection invoice={viewTarget} odoo={odoo} totals={(
+            <SalesInvoiceEvidenceWithPayments invoice={viewTarget} odoo={odoo} payments={payments} totals={(
               <SalesInvoiceApprovalPreview
                 inv={viewTarget}
                 showFx

@@ -6,11 +6,12 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
-const orderState = vi.hoisted(() => ({ visible: true }));
+const orderState = vi.hoisted(() => ({ visible: true, payments: [] as unknown[] }));
 vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => ({ data: orderState.visible ? { id: 'wo1', wo_number: 'WO-1', title: 'Install' } : null }) }));
-vi.mock('./SalesInvoiceEvidence', () => ({ SalesInvoiceEvidenceSection: () => null }));
+vi.mock('./SalesInvoiceEvidence', () => ({ SalesInvoiceEvidenceWithPayments: () => null }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoiceEvidence: () => ({ data: { lines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  useIncomingPayments: () => ({ data: orderState.payments, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useInvoiceProjectOptions: () => ({ data: [{ value: 'project-1', label: 'Northwind Build', contractualName: 'Northwind Build' }] }),
@@ -36,6 +37,7 @@ const target: SalesInvoiceRow = {
 afterEach(async () => {
   cleanup();
   orderState.visible = true;
+  orderState.payments = [];
   await financeTestI18n.changeLanguage('en');
 });
 
@@ -232,88 +234,76 @@ it('does not expose an unreadable work order on the invoice', () => {
 });
 
 describe('#2442 paid sales invoice wording', () => {
-  it('shows paid wording, paid amount and paid date in English, with no due date or outstanding or send prompt', async () => {
-    await financeTestI18n.changeLanguage('en');
-    const paidTarget: SalesInvoiceRow = {
-      ...target,
-      status: 'Paid',
-      erp_outstanding_amount: 0,
-      received_date: '2026-10-15',
-    };
-    render(
-      <FinanceI18nTestProvider>
-        <MemoryRouter>
-          <SalesInvoiceDetail
-            viewTarget={paidTarget}
-            projectName="Northwind Build"
-            isPending={false}
-            isError={false}
-            data={[paidTarget]}
-            organizationToday="2026-10-16"
-            onBack={vi.fn()}
-            refetch={vi.fn()}
-            recordPrimaryAction={null}
-            invoiceDisplayLabel={() => 'SI-2026-0001'}
-            may={mayDownload}
-            pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
-            dialogs={null}
-          />
-        </MemoryRouter>
-      </FinanceI18nTestProvider>,
-    );
+  const renderInvoice = (invoice: SalesInvoiceRow) => render(<FinanceI18nTestProvider><MemoryRouter>
+    <SalesInvoiceDetail viewTarget={invoice} projectName="Northwind Build" isPending={false} isError={false}
+      data={[invoice]} organizationToday="2026-10-16" onBack={vi.fn()} refetch={vi.fn()} recordPrimaryAction={null}
+      invoiceDisplayLabel={() => 'SI-2026-0001'} may={mayDownload}
+      pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never} dialogs={null} />
+  </MemoryRouter></FinanceI18nTestProvider>);
 
+  it('shows a native receipt date and known paid amount from a live allocation', () => {
+    orderState.payments = [{ id: 'receipt-1', pmo_native: true, status: 'Paid', date: '2026-10-20', cancelled_at: null, erp_cancelled_at: null,
+      allocations: [{ id: 'alloc-1', sales_invoice_id: 'invoice-1', amount: 1110000, cash_amount: 1110000, withheld_amount: 0, currency: 'IDR' }] }];
+    renderInvoice({ ...target, pmo_native: true, status: 'Paid', erp_outstanding_amount: 0, received_date: '2026-10-15' });
     const header = screen.getByTestId('record-header');
-    expect(within(header).getByText('Paid date')).toBeInTheDocument();
-    expect(within(header).getByText('15 Oct 2026')).toBeInTheDocument();
-    expect(within(header).queryByText('Due date')).not.toBeInTheDocument();
-    expect(within(header).queryByText('Outstanding')).not.toBeInTheDocument();
+    expect(within(header).getByText('20 Oct 2026')).toBeInTheDocument();
+    expect(within(header).getByText('Amount paid')).toBeInTheDocument();
+    expect(within(screen.getByTestId('invoice-delivery-note')).queryByText('Paid', { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByTestId('invoice-delivery-note')).toHaveTextContent(/1,110,000.*20 Oct 2026/);
     expect(within(header).queryByText('Ready to send')).not.toBeInTheDocument();
-    expect(within(header).queryByText('Download the PDF and send it to your client yourself.')).not.toBeInTheDocument();
-
-    const note = screen.getByTestId('invoice-delivery-note');
-    expect(within(note).getByText('Paid')).toBeInTheDocument();
-    expect(note).toHaveTextContent(/Paid.*1,110,000.*15 Oct 2026/);
   });
 
-  it('shows paid wording, paid amount and paid date in Bahasa, with no due date or outstanding or send prompt', async () => {
-    await financeTestI18n.changeLanguage('id');
-    const paidTarget: SalesInvoiceRow = {
-      ...target,
-      status: 'Paid',
-      erp_outstanding_amount: 0,
-      received_date: '2026-10-15',
-    };
-    render(
-      <FinanceI18nTestProvider>
-        <MemoryRouter>
-          <SalesInvoiceDetail
-            viewTarget={paidTarget}
-            projectName="Northwind Build"
-            isPending={false}
-            isError={false}
-            data={[paidTarget]}
-            organizationToday="2026-10-16"
-            onBack={vi.fn()}
-            refetch={vi.fn()}
-            recordPrimaryAction={null}
-            invoiceDisplayLabel={() => 'SI-2026-0001'}
-            may={mayDownload}
-            pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
-            dialogs={null}
-          />
-        </MemoryRouter>
-      </FinanceI18nTestProvider>,
-    );
-
+  it.each([
+    { pmo_native: false, amount: 1110000, erp_outstanding_amount: 0 },
+    { pmo_native: true, amount: null, erp_outstanding_amount: 0 },
+    { pmo_native: true, amount: 1110000, erp_outstanding_amount: null },
+  ])('does not fabricate a payment amount or date from invoice facts %#', (facts) => {
+    renderInvoice({ ...target, ...facts, status: 'Paid', received_date: '2026-10-15' });
     const header = screen.getByTestId('record-header');
-    expect(within(header).getByText('Tanggal dibayar')).toBeInTheDocument();
-    expect(within(header).queryByText('Tanggal jatuh tempo')).not.toBeInTheDocument();
-    expect(within(header).queryByText('Belum dibayar')).not.toBeInTheDocument();
-    expect(within(header).queryByText('Siap dikirim')).not.toBeInTheDocument();
+    expect(within(header).getByText('Payment date not recorded')).toBeInTheDocument();
+    expect(within(header).getByText('Amount not available')).toBeInTheDocument();
+    expect(screen.getByTestId('invoice-delivery-note')).not.toHaveTextContent(/15 Oct 2026|1 Oct 2026|1,110,000|IDR\s*0/);
+    expect(within(header).queryByText('Ready to send')).not.toBeInTheDocument();
+  });
 
-    const note = screen.getByTestId('invoice-delivery-note');
-    expect(within(note).getByText('Dibayar')).toBeInTheDocument();
-    expect(note).toHaveTextContent(/Dibayar.*1,110,000.*pada 15 Oct 2026/);
+  it('does not choose between multiple receipt dates', () => {
+    const allocation = { id: 'alloc', sales_invoice_id: 'invoice-1', amount: 555000, cash_amount: 555000, withheld_amount: 0, currency: 'IDR' };
+    orderState.payments = ['2026-10-20', '2026-10-21'].map((date, index) => ({ id: String(index), pmo_native: true, status: 'Paid', date, cancelled_at: null, erp_cancelled_at: null, allocations: [allocation] }));
+    renderInvoice({ ...target, pmo_native: true, status: 'Paid', erp_outstanding_amount: 0 });
+    expect(within(screen.getByTestId('record-header')).getByText('Payment date not recorded')).toBeInTheDocument();
+  });
+
+  it('does not present a receipt date as the settlement date when the allocation covers only part', () => {
+    orderState.payments = [{ id: 'receipt-1', pmo_native: true, status: 'Paid', date: '2026-10-20', cancelled_at: null, erp_cancelled_at: null,
+      allocations: [{ id: 'alloc-1', sales_invoice_id: 'invoice-1', amount: 100, cash_amount: 100, withheld_amount: 0, currency: 'IDR' }] }];
+    renderInvoice({ ...target, pmo_native: true, status: 'Paid', erp_outstanding_amount: 0 });
+    expect(within(screen.getByTestId('record-header')).getByText('Payment date not recorded')).toBeInTheDocument();
+  });
+
+  it('shows the unavailable facts in Bahasa', async () => {
+    await financeTestI18n.changeLanguage('id');
+    renderInvoice({ ...target, status: 'Paid', erp_outstanding_amount: 0, received_date: '2026-10-15' });
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Tanggal pembayaran belum dicatat')).toBeInTheDocument();
+    expect(within(header).getByText('Jumlah tidak tersedia')).toBeInTheDocument();
+    expect(within(header).queryByText('Siap dikirim')).not.toBeInTheDocument();
+  });
+
+  it('keeps the Paid status when a receipt is awaiting ERP confirmation', () => {
+    const paid = { ...target, status: 'Paid' as const, erp_outstanding_amount: 0 };
+    render(<FinanceI18nTestProvider><MemoryRouter><SalesInvoiceDetail viewTarget={paid} isPending={false} isError={false}
+      data={[paid]} organizationToday="2026-10-16" onBack={vi.fn()} refetch={vi.fn()} recordPrimaryAction={null}
+      invoiceDisplayLabel={() => 'INV'} may={mayDownload} pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
+      receiptAwaitingOdoo dialogs={null} /></MemoryRouter></FinanceI18nTestProvider>);
+    expect(within(screen.getByTestId('record-header')).queryByText('Receipt sent, awaiting Odoo')).not.toBeInTheDocument();
+  });
+
+  it('keeps partly paid invoices in the unpaid state', () => {
+    renderInvoice({ ...target, pmo_native: true, status: 'Unpaid', erp_outstanding_amount: 500000 });
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Partly paid')).toBeInTheDocument();
+    expect(within(header).getByText('Due date')).toBeInTheDocument();
+    expect(within(header).queryByText('Paid date')).not.toBeInTheDocument();
   });
 
   it('shows due date, outstanding, and send prompt for an unpaid invoice in English and Bahasa', async () => {
