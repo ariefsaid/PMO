@@ -1,4 +1,5 @@
--- Reverse of 1298: restore the work_order_cost_amounts (1252) and work_order_idle_cost (1256) bodies exactly.
+-- Reverse of 1298: restore the work_order_cost_amounts (1252) and work_order_idle_cost (1256) bodies exactly —
+-- work_order_cost_amounts with the light-account guard lane A's 1209 injected into its predecessor (see 1298).
 drop function if exists public.work_order_cost_amounts(uuid);
 create function public.work_order_cost_amounts(p_project_id uuid)
 returns table(source text, record_id uuid, project_id uuid, work_order_id uuid, discipline_id uuid, occurred_on date,
@@ -10,6 +11,7 @@ declare
   v_cur text;
   v_pm boolean;
 begin
+  perform public.assert_not_light();
   if not public.is_active_member() or public.auth_role() is null
      or public.auth_role() not in ('Admin', 'Executive', 'Finance', 'Project Manager') then
     raise exception 'not authorized' using errcode = '42501';

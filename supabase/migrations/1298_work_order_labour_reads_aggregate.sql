@@ -4,6 +4,10 @@
 -- summed hours and summed amount, and no record id, no date and no person (the ruling: a Project Manager reads
 -- amounts, never a rate or a person — docs/specs/labour-cost-money.spec.md FR-LCM-013, FR-IHC-005 for the idle
 -- hourly cost). Every other role reads exactly what 1252/1256 returned. No gate, grant or column changes.
+-- Merge note (land/1215-r1): work_order_cost_amounts carries the light-account guard that lane A's 1209 injected at
+-- apply time into the then-existing wrapper — the profit lane's 1252 renamed that function to
+-- work_order_cost_amounts_pre_labour and created a new one, and 1298 restated it, so the injected guard must be
+-- restated here (first statement, 1209's idiom; 2710_light_accounts AC-LA-013 sweeps it).
 -- Proven by supabase/tests/1298_work_order_labour_reads.test.sql.
 -- Reverse: supabase/migrations/rollback/1298_work_order_labour_reads_aggregate_down.sql.
 create or replace function public.work_order_cost_amounts(p_project_id uuid)
@@ -16,6 +20,7 @@ declare
   v_cur text;
   v_pm boolean;
 begin
+  perform public.assert_not_light();
   if not public.is_active_member() or public.auth_role() is null
      or public.auth_role() not in ('Admin', 'Executive', 'Finance', 'Project Manager') then
     raise exception 'not authorized' using errcode = '42501';
