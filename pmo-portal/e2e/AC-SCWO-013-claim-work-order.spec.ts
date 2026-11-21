@@ -62,9 +62,10 @@ test('AC-SCWO-013 an expense claim names its work order and discipline on the sa
   await page.getByLabel('Budget category').selectOption({ index: 1 });
 
   await page.getByRole('combobox', { name: 'Work order' }).click();
-  await page.getByRole('option', { name: new RegExp(tag) }).click();
+  // The popup's rows are <div role=option>; the Project select's native <option> carries the same text, so pick by element.
+  await page.locator('div[role="option"]', { hasText: tag }).click();
   await page.getByRole('combobox', { name: 'Discipline' }).click();
-  await page.getByRole('option', { name: new RegExp(`${tag} Civil`) }).click();
+  await page.locator('div[role="option"]', { hasText: `${tag} Civil` }).click();
   await page.getByRole('button', { name: 'Save draft' }).click();
   await expect(page).toHaveURL(/\/expenses\/[0-9a-f-]{36}$/, { timeout: 15_000 });
 
