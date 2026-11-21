@@ -25,7 +25,7 @@ Spec: `docs/specs/stock-reservations.spec.md`. Stock-ledger and approval rules; 
    (`mut:rsv_borrow_recheck`, `RSV_BORROW_CHANGED`), consume own then lend (`mut:rsv_consume`). Both `security definer`, org-bounded. Must be proven to fire under the latest lane `mrq_submit` (1332): they depend only on the status transition.
 5. **`1319_stock_reservation_hardening.sql`** - reserved for review fixes (deferred check that no reservation's consumed + released exceeds quantity; none if unused, then the number stays unused).
 
-Rollbacks drop in reverse; `mrq_submit` and `mrq_set_chain` rollbacks restore the head bodies.
+Rollbacks drop in reverse (triggers, functions, tables, columns); no shipped function body is restored because none is re-created.
 
 ## Tests (written now, run by the orchestrator)
 - pgTAP `supabase/tests/1315_stock_reservations.test.sql` (AC-001..007, 015), `1318_mrq_borrowing.test.sql` (AC-008..014, 016 smoke); existing material-request and stock files re-run unedited.
