@@ -494,7 +494,7 @@ async function claimAndCommit(
       result = await adapter.commit({
         ...command,
         commitDeadlineAtMs: opts.claimStartedAtMs + MONEY_COMMIT_CLAIM_BUDGET_MS,
-        ...(isRangeBudget ? {
+        ...(isRangeBudget || command.domain === 'fiscal_year_setup' ? {
           outboxCommit: {
             id: claimed.id,
             generation: token,

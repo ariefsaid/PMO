@@ -1,0 +1,18 @@
+{
+  "tables": [
+    {
+      "table": "erp_fiscal_year_intents",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: no client SELECT grant (service-only fiscal year intents); the blind read proves the denial"
+    }
+  ],
+  "definer_functions": [
+    "begin_fiscal_year_post(uuid,uuid,uuid,bigint)",
+    "prepare_fiscal_year_intent(uuid,uuid,text,text,timestamp with time zone,date,date,text)",
+    "record_fiscal_year_observation(uuid,uuid,text,text,timestamp with time zone,timestamp with time zone,jsonb)",
+    "record_fiscal_year_status(uuid,uuid,text,text,timestamp with time zone,uuid,uuid,bigint,jsonb)"
+  ]
+}

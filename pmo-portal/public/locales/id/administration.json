@@ -488,6 +488,17 @@
       "nounEmployee": "orang",
       "nounAccount": "akun"
     },
+    "fiscalYear": {
+      "label": "Tahun fiskal berikutnya",
+      "missingRole": "Minta Admin memberikan izin Baca dan Buat pada jenis dokumen Fiscal Year kepada pengguna integrasi di ERPNext. PMO memeriksa kembali pada sinkronisasi berikutnya.",
+      "noCurrentYear": "Minta Admin menambahkan atau mengaktifkan Fiscal Year yang mencakup hari ini di ERPNext dan menetapkannya ke perusahaan yang terhubung. PMO memeriksa kembali pada sinkronisasi berikutnya.",
+      "disabledYear": "Minta Admin meninjau Fiscal Year {{year}} yang nonaktif di ERPNext dan mengaktifkannya hanya jika periodenya sesuai. PMO memeriksa kembali pada sinkronisasi berikutnya.",
+      "held": "Perhatian Operator diperlukan karena PMO tidak dapat mengonfirmasi tahun fiskal berikutnya.",
+      "refused": "Perhatian Operator diperlukan karena PMO tidak dapat membuat tahun fiskal berikutnya.",
+      "refusedNoReason": "Perhatian Operator diperlukan karena PMO tidak dapat membuat tahun fiskal berikutnya.",
+      "ambiguousOverlap": "Minta Admin memperbaiki rentang tanggal dan penetapan perusahaan Fiscal Year di ERPNext agar hanya satu tahun aktif yang berlaku. PMO memeriksa kembali pada sinkronisasi berikutnya.",
+      "reviewSettings": "Minta Admin meninjau pengaturan Fiscal Year di ERPNext untuk perusahaan yang terhubung. PMO memeriksa kembali pada sinkronisasi berikutnya."
+    },
     "m365App": {
       "heading": "Aplikasi Microsoft 365",
       "readOnly": "Administrator Anda mengelola aplikasi ini.",
