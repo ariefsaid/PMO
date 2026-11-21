@@ -30,6 +30,8 @@ export const materialRequestRepository = {
   setChain: (steps: dal.ChainStepInput[]) => wrap(() => dal.setApprovalChain(steps)),
   cutoff: () => wrap(() => dal.getMaterialRequestCutoff()),
   setCutoff: (cutoff: string | null) => wrap(() => dal.setMaterialRequestCutoff(cutoff)),
+  usageThresholds: () => wrap(() => dal.getUsageThresholds()),
+  setUsageThresholds: (th: dal.UsageThresholds) => wrap(() => dal.setUsageThresholds(th)),
   standIns: () => wrap(() => dal.listStandIns()),
   setStandIn: (s: { delegatorId: string; standInId: string; startsOn: string; endsOn: string }) => wrap(() => dal.setStandIn(s)),
   stepPins: (projectId: string) => wrap(() => dal.listStepPins(projectId)),
