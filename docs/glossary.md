@@ -1050,3 +1050,7 @@ the material close-out: joint count, loss report, material completion report). T
 **Role tier** — manager, officer or field. Managers approve, officers prepare, field roles are light accounts; a manager stands in for a manager, never upward.
 
 **Role capability** — a narrow difference from the base level held by named built-in roles only (for example posting stock, validating a daily report, running billing stages). Other features read it through `actor_has_role_capability`.
+
+**Light account** — a person whose built-in role is Foreman or Field user. One phone home screen (own tasks, clock-in at work orders they are rostered on, deliveries addressed to them, issues they reported; the Foreman also ticks their own crew). No project page, work-order page, list, dashboard, price or budget. The database confines it with restrictive row policies; the organization sets nothing beyond who holds the role. (#2710, `docs/specs/light-accounts.spec.md`.)
+
+**Seat type** — `light` (a light account) or `full` (everyone else), derived from the built-in role. Seat reports split the two; price and counts stay the owner's.

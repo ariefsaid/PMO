@@ -1,0 +1,40 @@
+{
+  "title": "My work",
+  "signOut": "Sign out",
+  "error": "Couldn't load your work",
+  "tasks": {
+    "title": "My tasks",
+    "empty": "No tasks assigned to you",
+    "start": "Start",
+    "done": "Mark done"
+  },
+  "clockIn": {
+    "title": "Clock in",
+    "empty": "You are not rostered on a work order today",
+    "hours": "Hours today",
+    "hoursRange": "Hours run from 0 to 24",
+    "saved": "Clocked in",
+    "action": "Clock in",
+    "clockedIn": "Clocked in",
+    "offRoster": "Not on this list? Ask your supervisor to add you to the work order."
+  },
+  "roster": {
+    "title": "My crew today",
+    "error": "Couldn't load the crew",
+    "empty": "No crew on this work order today"
+  },
+  "deliveries": {
+    "title": "Deliveries to confirm"
+  },
+  "issues": {
+    "title": "Issues I reported",
+    "empty": "You have not reported an issue"
+  },
+  "seats": {
+    "title": "Seats",
+    "full": "Full accounts",
+    "light": "Light accounts (Foreman, Field user)",
+    "total": "Active seats",
+    "helper": "A light account has one phone home screen. Price and seat counts are agreed with the owner."
+  }
+}

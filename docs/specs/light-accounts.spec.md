@@ -1,6 +1,6 @@
 # Light accounts: Foreman and Field user on one phone home screen
 
-Ticket #2710 (map #902). Status: DRAFT for Director sign-off. Rulings: OD-SCOPE-4 (binding), OD-SCOPE-3, OD-SCOPE-2.
+Ticket #2710 (map #902). Status: Approved by the Director 2026-11-21 (rulings below applied), built. Rulings: OD-SCOPE-4 (binding), OD-SCOPE-3, OD-SCOPE-2.
 Builds on `builtin-role-set.spec.md` (#2709). Clock-in at the work location is #2705; handover with count and photo is the handover ticket.
 
 **Job story.** When a foreman or a field worker uses PMO only for their own jobs, I want a light account with one phone home screen,
@@ -78,6 +78,7 @@ delivery note, attendance, roster.
 | AC-LA-010 | A light account at any route is redirected to `/my`; the nav is not rendered; a full account is not redirected. | vitest |
 | AC-LA-011 | `/my` shows four sections; Foreman also the roster; Field user not; clock-in lists rostered work orders and calls `attendance_record` with `phone_check_in`; deliveries shows the empty seam; EN and ID strings. | vitest |
 | AC-LA-012 | Seat report on Administration shows full and light counts; unchanged when no light roles. | vitest |
+| AC-LA-013 | Given a light account, each of six guarded definer RPCs refuses with `LIGHT_ACCOUNT`. | pgTAP |
 | AC-LA-E2E | A Foreman signs in, lands on `/my`, ticks crew attendance, and a typed URL for a project returns to `/my`. | E2E (curated, serial) |
 
 Mutation checks (named, not run by the builder): drop the `tasks` restrictive policy (AC-LA-002 red); make `actor_is_light()` return false
@@ -104,6 +105,18 @@ uncovered needs a stated reason (no org data, or already own-only); each is list
 
 None new. Activation is `built_in_roles_enabled` (#2709) plus someone holding a light key. Seat price and counts remain the owner's (#2539).
 Who holds a light role is set in the existing Edit role form; the seat report is read-only.
+
+## 6a. Director rulings applied
+
+1. Deliveries: section plus `useMyDeliveries` seam returning an empty list; no table, no stock write; the section renders nothing while empty; the handover ticket (OD-SCOPE-10) is the source.
+2. Covered tables: the list in section 5, named in migration 1206 (60 deny tables + 6 own-row tables). Predicate is `(select actor_is_light()) is not true or <own-row>`.
+3. Off-roster clock-in: a plain "ask your supervisor" note until #2705 routes it.
+4. Own incident reports read plus insert; own tasks read plus status-only update (restrictive policies + trigger `aa_tasks_light_status_only`).
+5. Definer RPCs (FR-013, AC-LA-013): see below.
+
+**FR-013** Where a security-definer RPC returns project, budget, price, billing or list data to `authenticated`, it shall refuse a light account first (`assert_not_light()`, SQLSTATE 42501, message `LIGHT_ACCOUNT: ...`). Security-INVOKER reads (executive dashboard, projects delivery, sales pipeline, win rate, finance budget review, budget projection, project milestones and milestone dates, budget distribution gaps, fiscal years, project budget, budget push status) need no guard: restrictive RLS makes them return zero rows to a light account.
+Guarded in 1209: `get_budget_archive_targets`, `list_account_reconciliation`, `list_tm_claim_source_details`, `equipment_rental_check`, `approved_timesheet_for_push`, `org_usage_summary`, `org_agent_run_stats`, `org_credit_balance`, `preview_task_reminders`. pgTAP proves six (AC-LA-013).
+Not guarded (write-side definers reachable by an Engineer-base person: create_*, save_*, transition_*, set_*, record_*, approve_* and the like). Each already refuses an Engineer by an internal role check or by RLS inside; they return no list data, and a light account holds the Engineer base level only. Listed for follow-up in the build report.
 
 ## 7. Not in this ticket
 
