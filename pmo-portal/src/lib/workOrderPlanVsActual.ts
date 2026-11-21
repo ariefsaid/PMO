@@ -24,7 +24,8 @@ export const MONEY_PLAN_KINDS: readonly PlanKind[] = ['direct_budget', 'indirect
 /** One cost record with what it costs (null when not money, or when the amount cannot be read). */
 export interface CostAmountLine {
   source: FinanceCostSource;
-  recordId: string;
+  /** Null only on a Project Manager's aggregated labour money row (one row per work order, discipline and class). */
+  recordId: string | null;
   projectId: string | null;
   workOrderId: string | null;
   disciplineId: string | null;

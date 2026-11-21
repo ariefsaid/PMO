@@ -55,17 +55,22 @@ select is((select count(*)::int from before_rows where source = 'timesheet_entry
 select is((select count(*)::int from public.work_order_cost_amounts('26710000-0000-0000-0000-0000000000d1') where labour_class_id is not null), 0,
   'AC-LCM-001 no labour class on any row while off');
 
--- Enable classes without enabling pricing: rates saved while the switch is off.
+-- Enable classes without enabling pricing: rates present while the switch is off (fixture rows, as the seed can
+-- only add rates that do not touch priced hours once the lock holds). Then the switch goes on.
 select public.save_labour_cost_settings(true);
 create temp table cls as select code, id from public.labour_cost_classes;
 grant select on cls to authenticated;
 select public.save_labour_cost_settings(false);
-select public.save_labour_cost_rate(jsonb_build_object('subject_kind','role','role_key','Engineer','class_id',(select id from cls where code='direct'),
-  'basis','hourly','amount',50000,'overtime_multiplier',1.5,'day_hours',8,'effective_from','2026-11-01','effective_to','2026-11-04'));
-select public.save_labour_cost_rate(jsonb_build_object('subject_kind','person','person_id','26710000-0000-0000-0000-0000000000a4',
-  'class_id',(select id from cls where code='guard'),'basis','daily','amount',800000,'day_hours',8,'effective_from','2026-11-01'));
+reset role;
+insert into public.labour_cost_rates (org_id, subject_kind, role_key, class_id, basis, amount, overtime_multiplier, day_hours, effective_from, effective_to) values
+  ('26710000-0000-0000-0000-00000000000a', 'role', 'Engineer', (select id from public.labour_cost_classes where code = 'direct'),
+   'hourly', 50000, 1.5, 8, '2026-11-01', '2026-11-04');
+insert into public.labour_cost_rates (org_id, subject_kind, person_id, class_id, basis, amount, day_hours, effective_from) values
+  ('26710000-0000-0000-0000-00000000000a', 'person', '26710000-0000-0000-0000-0000000000a4', (select id from public.labour_cost_classes where code = 'guard'),
+   'daily', 800000, 8, '2026-11-01');
+set local role authenticated;
 select is((select count(*)::int from public.work_order_cost_amounts('26710000-0000-0000-0000-0000000000d1') where reason = 'counted' and source = 'timesheet_entry'), 0,
-  'AC-LCM-002 rates saved with the switch off price nothing');
+  'AC-LCM-002 rates present with the switch off price nothing');
 
 select public.save_labour_cost_settings(true);
 create temp table rows_on as select * from public.work_order_cost_amounts('26710000-0000-0000-0000-0000000000d1');
@@ -122,12 +127,13 @@ select pg_temp.act_as('26710000-0000-0000-0000-0000000000a1');
 select is((select reason || ':' || coalesce(amount, 'null') from public.work_order_cost_amounts('26710000-0000-0000-0000-0000000000d1') where record_id = '26710000-0000-0000-0000-000000000721'), 'not-posted:null',
   'AC-LCM-010 reopening a week removes its cost');
 
--- Project Manager: amounts, no person.
+-- Project Manager: amounts in aggregate, no person, no entry.
 select pg_temp.act_as('26710000-0000-0000-0000-0000000000a2');
-select is((select amount from public.work_order_cost_amounts('26710000-0000-0000-0000-0000000000d1') where record_id = '26710000-0000-0000-0000-000000000711'), '400000.00',
-  'AC-LCM-015 a Project Manager sees the same amount');
-select is((select person_id from public.work_order_cost_amounts('26710000-0000-0000-0000-0000000000d1') where record_id = '26710000-0000-0000-0000-000000000711'), null,
-  'AC-LCM-015 but no person on a labour row');
+select is((select sum(amount::numeric)::text from public.work_order_cost_amounts('26710000-0000-0000-0000-0000000000d1') where source = 'timesheet_entry' and reason = 'counted'), '800000.00',
+  'AC-LCM-015 a Project Manager sees the same labour amounts (in aggregate)');
+select is((select count(*)::int from public.work_order_cost_amounts('26710000-0000-0000-0000-0000000000d1') where source = 'timesheet_entry' and reason = 'counted'
+   and (record_id is not null or person_id is not null or occurred_on is not null)), 0,
+  'AC-LCM-015 but no person, no record id and no date on a labour row');
 
 select * from finish();
 rollback;
