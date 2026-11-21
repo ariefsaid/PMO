@@ -24,6 +24,8 @@ import {
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { isAccountUnusableText } from '@/src/lib/integrations/erpSendRefusal';
+import { Link } from 'react-router';
 
 export interface ConnectProposalReviewProps {
   tier?: ConnectTier;
@@ -746,7 +748,11 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
                       )}
                       <p className='text-control text-muted-foreground'>
                         {actionName(proposal)}
-                        {proposal.outcome === 'review' && proposal.reason_text ? ` · ${proposal.reason_text}` : ''}
+                        {proposal.outcome === 'review' && proposal.reason_text ? ` · ${proposal.kind === 'account' && (proposal.reason === 'held' || proposal.reason === 'unresolved')
+                          ? t('administration:integrations.accounts.held', 'PMO could not confirm whether the account was created. Contact your administrator.')
+                          : proposal.kind === 'account' && isAccountUnusableText(proposal.reason_text)
+                            ? t('administration:integrations.accounts.unusable', 'The ERP already has an account with this name that cannot hold direct costs. Choose another name.')
+                            : proposal.reason_text}` : ''}
                       </p>
                     </div>
                   </div>
@@ -866,12 +872,12 @@ export function ConnectProposalReview({ tier = 'erpnext', open = true, onClose }
           ) : (
             <span>
               {t('integrations.connect.purchaseDocs', '{{n}} purchase documents are in your connected system.', { n: purchaseRow.erp_count })}{' '}
-              <a
-                href='/procurement#erp-documents'
+              <Link
+                to='/procurement#erp-documents'
                 className='font-medium text-primary underline underline-offset-4 hover:text-primary/80'
               >
                 {t('integrations.connect.purchaseLink', 'Link them to PMO purchases')}
-              </a>
+              </Link>
             </span>
           )}
         </div>

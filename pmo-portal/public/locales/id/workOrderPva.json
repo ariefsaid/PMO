@@ -2,7 +2,7 @@
   "basis": "Dasar",
   "basisCaption": "Catatan biaya di balik angka ini",
   "basisCustom": "Biaya bersama memakai pembagian yang disimpan.",
-  "basisDirect": "Biaya bersama dibagi menurut porsi biaya langsung tiap perintah kerja.",
+  "basisDirect": "Biaya bersama dibagi menurut porsi biaya langsung tiap $t(common:terms.clientWorkOrder).",
   "basisNone": "Biaya bersama belum dialokasikan sampai pembagian khusus disimpan.",
   "byDiscipline": "Per disiplin",
   "col": {
@@ -18,7 +18,7 @@
     "result": "Setelah biaya bersama",
     "revenue": "Pendapatan ditagih",
     "shared": "Biaya bersama",
-    "workOrder": "Perintah kerja"
+    "workOrder": "$t(common:terms.clientWorkOrder)"
   },
   "costUnknown": "Biaya tidak diketahui",
   "crewHours": "Jam kru",
@@ -28,7 +28,7 @@
   "draftNumber": "Draf",
   "editPlan": "Rencana",
   "editSplit": "Pembagian biaya bersama",
-  "empty": "Belum ada perintah kerja di proyek ini.",
+  "empty": "Belum ada $t(common:terms.clientWorkOrder) di proyek ini.",
   "equipmentDays": "Hari alat (dipisahkan)",
   "equipmentHours": "Jam alat",
   "hours": "jam",
@@ -43,7 +43,7 @@
   "otherCurrency": "Biaya dalam {{currency}}, dicatat terpisah",
   "overPlan": "Melebihi rencana {{amount}}",
   "overPlanHours": "Melebihi rencana {{hours}} jam",
-  "pageEmpty": "Belum ada rencana atau realisasi untuk perintah kerja ini.",
+  "pageEmpty": "Belum ada rencana atau realisasi untuk $t(common:terms.clientWorkOrder) ini.",
   "plan": {
     "crewHours": "Jam kru",
     "direct": "Anggaran langsung ({{currency}})",
@@ -61,16 +61,16 @@
     "counted": "Dihitung",
     "noRate": "Hanya jam, tarif belum diatur",
     "notPosted": "Belum diposting atau disetujui",
-    "unassigned": "Belum ditetapkan ke perintah kerja",
+    "unassigned": "Belum ditetapkan ke $t(common:terms.clientWorkOrder)",
     "splitWhenCustom": "Dibagi hanya saat pembagian khusus ditetapkan",
     "outsideBasis": "Tidak termasuk dalam realisasi proyek",
-    "unresolvedDirect": "Biaya perintah kerja belum dapat ditentukan",
+    "unresolvedDirect": "Biaya $t(common:terms.clientWorkOrder) belum dapat ditentukan",
     "otherRevenue": "Pekerjaan tertagih lainnya",
     "stocked": "Dibeli ke stok, dihitung saat dikeluarkan",
     "transfer": "Dipindah ke lokasi, masih tersedia"
   },
   "restricted": "Dibatasi",
-  "restrictedNote": "Biaya dan margin perintah kerja dibatasi untuk peran Anda.",
+  "restrictedNote": "Biaya dan margin $t(common:terms.clientWorkOrder) dibatasi untuk peran Anda.",
   "retry": "Coba lagi",
   "revenueUnknown": "Pendapatan tidak diketahui",
   "sharedBasis": "Catatan biaya bersama",
@@ -85,7 +85,7 @@
     "purchase_request": "Permintaan pembelian",
     "stock_document": "Pergerakan stok",
     "timesheet_entry": "Lembar waktu",
-    "vendor_bill": "Tagihan pemasok"
+    "vendor_bill": "Invoice supplier"
   },
   "split": {
     "clear": "Pakai pembagian bawaan",
@@ -96,10 +96,11 @@
     "sumUnreadable": "Tiap persentase 0 sampai 100, paling banyak 4 desimal.",
     "title": "Pembagian biaya bersama"
   },
-  "splitMixed": "Perintah kerja memakai lebih dari satu mata uang, jadi biaya bersama dibagi dalam tiap mata uang.",
-  "splitStale": "Pembagian yang disimpan sudah usang: ada perintah kerja yang ditambah atau dibatalkan. Pembagian bawaan dipakai sampai ada yang menyimpannya lagi.",
+  "splitMixed": "$t(common:terms.clientWorkOrder) memakai lebih dari satu mata uang, jadi biaya bersama dibagi dalam tiap mata uang.",
+  "splitStale": "Pembagian yang disimpan sudah usang: ada $t(common:terms.clientWorkOrder) yang ditambah atau dibatalkan. Pembagian bawaan dipakai sampai ada yang menyimpannya lagi.",
   "title": "Rencana vs aktual",
   "uncosted": "{{hours}} jam tanpa tarif dan tidak masuk biaya.",
+  "pendingCrewHours": "{{hours}} jam pada timesheet yang belum disetujui tidak dihitung.",
   "underPlan": "Sisa {{amount}}",
   "underPlanHours": "Sisa {{hours}} jam",
   "unknown": "Tidak diketahui",

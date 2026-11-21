@@ -721,6 +721,7 @@ describe('external-set-company — ERPNext branch', () => {
         assert(body.message.includes('Timesheet'), body.message);
         assert(body.message.includes('GL Entry'), body.message);
         assert(!body.message.includes('Employee'), 'a readable doctype is not named');
+        assert(/operator will fix/i.test(body.message) && !/grant/i.test(body.message), body.message);
         // The structured reason the Company dialog renders in the viewer's language.
         assertEquals(body.reason, 'erpnext-missing-read-permissions');
         assertEquals(body.missing, ['Timesheet', 'GL Entry']);

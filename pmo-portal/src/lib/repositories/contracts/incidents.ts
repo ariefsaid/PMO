@@ -3,7 +3,7 @@ import type { IncidentRow, IncidentInput, IncidentStatus, IncidentFileRow, Incid
 
 export interface IncidentRepository {
   /** All incidents in the org (newest first), optionally filtered by workflow status. */
-  list(params?: { status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string }): Promise<IncidentRow[]>;
+  list(params?: { status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string; workOrderId?: string }): Promise<IncidentRow[]>;
   /** One server page (status filter + type/location search applied before the range) with the filtered total. */
   listPage(params: { page: number; pageSize: number; status?: IncidentStatus; search?: string; overdue?: boolean; projectId?: string }): Promise<{ rows: IncidentRow[]; total: number }>;
   /** Exact count of every readable incident (head request). */

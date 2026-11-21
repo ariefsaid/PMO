@@ -31,14 +31,14 @@ async function waitReady(page: Page) {
 }
 
 /**
- * Locate the DataTable row whose first cell contains the activation button for `name`.
- * CW-4b retired the drawer-as-record: the first cell's activation button now reads
+ * Locate the DataTable row whose first cell contains the record link for `name`.
+ * CW-4b retired the drawer-as-record: the first cell's link now reads
  * "Open <name>" (it navigates to the routable `/companies/:id` page) — the locator filters
  * by that button so it stays stable + exact per row (e.g. "E2E-Co-123" vs "E2E-Co-123-EDITED").
  */
 function companyRow(page: Page, name: string) {
   return page.locator('table tbody tr').filter({
-    has: page.getByRole('button', { name: `Open ${name}`, exact: true }),
+    has: page.getByRole('link', { name: `Open ${name}`, exact: true }),
   });
 }
 
@@ -144,7 +144,7 @@ test(
     await expect(row).toBeVisible({ timeout: 15_000 });
 
     // ── Open the record page (the drawer-as-record is retired — rows navigate) ──
-    await row.getByRole('button', { name: `Open ${coName}`, exact: true }).click();
+    await row.getByRole('link', { name: `Open ${coName}`, exact: true }).click();
 
     // GOAL ORACLE: the URL is the routable record route and the RecordHeader shows the name.
     await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/i, { timeout: 15_000 });
@@ -163,5 +163,29 @@ test(
     await expect(page).toHaveURL(/\/companies$/, { timeout: 10_000 });
     await waitReady(page);
     await expect(companyRow(page, coName)).toBeVisible({ timeout: 15_000 });
+  },
+);
+
+test(
+  'AC-2077: middle-clicking a company record opens its detail in a new tab and leaves the original directory in place',
+  async ({ page, context }) => {
+    await login(page, 'admin@acme.test');
+    await page.goto('/companies');
+    await waitReady(page);
+
+    const link = page.getByRole('link', { name: /^Open / }).first();
+    await expect(link).toBeVisible();
+    const href = await link.getAttribute('href');
+    expect(href).toMatch(/^\/companies\/[0-9a-f-]+$/i);
+
+    const openedPage = context.waitForEvent('page');
+    await link.click({ button: 'middle' });
+    const detailTab = await openedPage;
+    await expect(detailTab).toHaveURL(new URL(href!, page.url()).toString(), { timeout: 15_000 });
+    await expect(detailTab.getByTestId('record-header')).toBeVisible({ timeout: 10_000 });
+
+    await expect(page).toHaveURL(/\/companies$/);
+    await expect(link).toBeVisible();
+    await detailTab.close();
   },
 );

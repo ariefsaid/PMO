@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Cross-org probes use the reviewed expectations in isolation-probe-denominator.json.
+# Cross-org probes use the reviewed expectations in the isolation-probe-denominator.d/ fragments (unioned).
 # Writes require a dedicated disposable tenant A; never use a client org.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DENOMINATOR="$SCRIPT_DIR/isolation-probe-denominator.json"
 for name in BASE ANON SERVICE JWT_B A_ORG B_ORG A_ROWS_JSON; do
   [ -n "${!name:-}" ] || { echo "isolation-probe: required input missing: $name" >&2; exit 2; }
 done
@@ -11,6 +10,8 @@ node "$SCRIPT_DIR/check-isolation-denominator.mjs" --validate-inputs || exit $?
 [ "$A_ORG" != "$B_ORG" ] || { echo 'isolation-probe: tenant A and B must differ' >&2; exit 2; }
 _work=$(mktemp -d "${TMPDIR:-/tmp}/isolation-probe.XXXXXX") || exit 2
 trap 'rm -rf "$_work"' EXIT
+DENOMINATOR="$_work/denominator.json"
+node "$SCRIPT_DIR/check-isolation-denominator.mjs" --emit "$DENOMINATOR" || exit 2
 jq '.tables' "$DENOMINATOR" > "$_work/tables"
 TABLES_JSON="$_work/tables"
 BODY="$_work/body"
@@ -128,7 +129,9 @@ rpc(){
         if [ "$shape" = must-deny ]; then flag "rpc $fn unexpectedly returned cross-tenant read data"; return; fi
         if [ "$shape" = own-org-no-foreign-ids ]; then
           # Own-org read: B legitimately gets a body, but it must hold no id or org id of tenant A.
-          jq -e --arg a_org "$A_ORG" --slurpfile rows "$A_ROWS_JSON" 'tojson as $t | ($rows[0] | map(.id)) + [$a_org] | all(.[]; . as $id | ($t | contains($id)) | not)' "$BODY" >/dev/null || { flag "rpc $fn returned other-tenant ids"; return; }
+          # Ids are stringified before containment so integer pks (stock_ledger.seq, #2636) compare
+          # by their decimal form; uuid ids are unchanged.
+          jq -e --arg a_org "$A_ORG" --slurpfile rows "$A_ROWS_JSON" 'tojson as $t | ($rows[0] | map(.id | tostring)) + [$a_org] | all(.[]; . as $id | ($t | contains($id)) | not)' "$BODY" >/dev/null || { flag "rpc $fn returned other-tenant ids"; return; }
           say "  PASS  rpc $fn (own-org read, no other-tenant ids)" >&2; return
         fi
         if [ "$shape" = null ]; then

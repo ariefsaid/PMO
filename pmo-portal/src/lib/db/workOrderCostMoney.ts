@@ -30,6 +30,47 @@ export async function listWorkOrderCostMoney(lines: readonly WorkOrderCostLine[]
     }
     out[source] = readableCount < new Set(ids).size ? null : found;
   }
+
+  const equipmentLines = lines.filter((line) => line.source === 'equipment_usage');
+  if (equipmentLines.length > 0) {
+    const found: Record<string, { amount: number; currency: string }> = {};
+    const foundIds = new Set<string>();
+    const projects = new Map<string, Set<string>>();
+    for (const line of equipmentLines) {
+      if (!line.projectId) {
+        out.equipment_usage = null;
+        return out;
+      }
+      const ids = projects.get(line.projectId) ?? new Set<string>();
+      ids.add(line.recordId);
+      projects.set(line.projectId, ids);
+    }
+
+    for (const [projectId, ids] of projects) {
+      const { data, error } = await supabase.rpc('work_order_cost_amounts', { p_project_id: projectId }) as unknown as {
+        data: { source: string; record_id: string; currency: string | null; amount: string | null }[] | null;
+        error: { message: string; code?: string } | null;
+      };
+      if (error) {
+        if (error.code === '42501') {
+          out.equipment_usage = null;
+          return out;
+        }
+        throw new AppError(error.message, error.code);
+      }
+
+      for (const row of data ?? []) {
+        if (row.source !== 'equipment_usage' || !ids.has(row.record_id)) continue;
+        foundIds.add(row.record_id);
+        const amount = row.amount == null ? null : Number(row.amount);
+        if (row.currency && amount != null && Number.isFinite(amount)) {
+          found[row.record_id] = { amount, currency: row.currency };
+        }
+      }
+    }
+
+    out.equipment_usage = foundIds.size === new Set(equipmentLines.map((line) => line.recordId)).size ? found : null;
+  }
   return out;
 }
 

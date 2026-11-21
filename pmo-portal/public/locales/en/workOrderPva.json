@@ -100,6 +100,7 @@
   "splitStale": "The saved split is stale: a work order was added or cancelled since. The default is used until someone saves it again.",
   "title": "Plan vs actual",
   "uncosted": "{{hours}} h carry no rate and are not in the cost.",
+  "pendingCrewHours": "{{hours}} h on timesheets not yet approved are not counted.",
   "underPlan": "{{amount}} left",
   "underPlanHours": "{{hours}} h left",
   "unknown": "Unknown",

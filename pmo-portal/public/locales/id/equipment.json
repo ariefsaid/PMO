@@ -54,6 +54,7 @@
     "unitLine": "Dicatat dalam {{unit}}"
   },
   "availability": {
+    "amountInvalid": "Masukkan jumlah sebagai angka dengan paling banyak 2 desimal",
     "noProof": "Belum ada bukti",
     "views": "Tampilan ketersediaan",
     "otherAssetActions": "Tindakan aset lainnya",
@@ -81,7 +82,7 @@
     "rentedAsset": "Alat sewaan",
     "from": "Periode tagihan dari",
     "to": "Periode tagihan sampai",
-    "invoiceAmount": "Jumlah tagihan vendor",
+    "invoiceAmount": "Jumlah invoice supplier",
     "runCheck": "Periksa tagihan",
     "result": "Hasil pemeriksaan",
     "rentalAmount": "Jumlah sewa",
@@ -97,7 +98,7 @@
       "ready": "Siap",
       "standby": "Siaga",
       "broken": "Rusak",
-      "at_vendor": "Di vendor",
+      "at_vendor": "Di supplier",
       "waiting_parts": "Menunggu suku cadang"
     },
     "interval": "Interval metrik",
@@ -110,7 +111,7 @@
     "period": "Periode",
     "terms": "Ketentuan sewa",
     "termAsset": "Aset untuk ketentuan sewa",
-    "vendor": "Penyedia",
+    "vendor": "Supplier",
     "rate": "Tarif",
     "basis": "Dasar tarif",
     "currency": "Mata uang",

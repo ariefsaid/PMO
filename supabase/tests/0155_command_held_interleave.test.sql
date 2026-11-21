@@ -37,7 +37,7 @@
 begin;
 select plan(4);
 
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 
 -- ── The concurrent session (loopback connect: same pattern as 0151_timesheet_fence_concurrency; built
 -- from this server's own address; password=postgres is the Supabase LOCAL default; this file only runs

@@ -3,13 +3,13 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
-import { ToastProvider } from '@/src/components/ui';
+import { buttonClasses, ToastProvider } from '@/src/components/ui';
 
 /**
  * Ruling 1 (expenses fix round): the empty state keeps its New claim, but as the quiet OUTLINE
  * variant, so the view shows exactly one filled action — the header's. The variant is read the
  * same way the shared ListState tests read it: the Button primitive records the variant it is
- * handed, and the assertion is about the variant a person receives, never a class string.
+ * handed, and the header Link retains the exact shared primary Button class composition.
  */
 const recorded = vi.hoisted(() => ({ buttons: [] as Array<{ variant: string; label: string }> }));
 
@@ -101,19 +101,19 @@ beforeEach(() => {
 });
 
 describe('ExpenseClaims empty state (ruling 1)', () => {
-  it('ruling 1: the view keeps one filled action and the empty-state New claim is the quiet outline', async () => {
+  it('ruling 1: the header link keeps primary styling and the empty-state action keeps outline styling', async () => {
     renderPage();
 
-    const secondary = recorded.buttons.filter((button) => button.variant === 'outline');
-    const filled = recorded.buttons.filter((button) => button.variant === 'primary');
-    expect(filled).toHaveLength(1);
-    expect(filled[0].label).toBe('New claim');
-    expect(secondary.map((button) => button.label)).toEqual(['Request advance', 'New claim']);
-
-    const [headerAction, emptyAction] = screen.getAllByRole('button', { name: 'New claim' });
-    await userEvent.click(headerAction);
+    const headerAction = screen.getByRole('link', { name: 'New claim' });
+    expect(headerAction).toHaveAttribute('href', '/expenses/new');
+    expect(headerAction).toHaveClass(buttonClasses('primary'));
+    const emptyAction = screen.getByRole('button', { name: 'New claim' });
+    expect(recorded.buttons.filter((button) => button.variant === 'primary')).toEqual([]);
+    expect(recorded.buttons.filter((button) => button.variant === 'outline')).toEqual([
+      { variant: 'outline', label: 'Request advance' },
+      { variant: 'outline', label: 'New claim' },
+    ]);
     await userEvent.click(emptyAction);
-    expect(mockNavigate).toHaveBeenNthCalledWith(1, '/expenses/new');
-    expect(mockNavigate).toHaveBeenNthCalledWith(2, '/expenses/new');
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
   });
 });

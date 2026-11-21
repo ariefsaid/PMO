@@ -60,7 +60,7 @@ test(
     const scrolledTop = await main.evaluate((el) => el.scrollTop);
 
     // ── Open a record; capture its canonical URL for the direct-visit check below ───────────
-    await page.getByTestId('projects-table-container').getByRole('button', { name: 'Innovate Corp HQ Fit-Out', exact: true }).click();
+    await page.getByTestId('projects-table-container').getByRole('link', { name: 'Innovate Corp HQ Fit-Out', exact: true }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
     const recordUrl = page.url();
     await expect(page.getByTestId('record-header')).toContainText('Innovate Corp HQ Fit-Out');
@@ -77,9 +77,9 @@ test(
     await expect(search).toHaveValue('Innovate');
     // The narrowed set came back: the current Projects presentation exposes each record as a card action.
     const projects = page.getByTestId('projects-table-container');
-    await expect(projects.getByRole('button', { name: 'Innovate Corp HQ Fit-Out', exact: true })).toBeVisible();
-    await expect(projects.getByRole('button', { name: 'Acme Internal Platform', exact: true })).toHaveCount(0);
-    await expect(projects.getByRole('button', { name: 'Northwind ERP Rollout', exact: true })).toHaveCount(0);
+    await expect(projects.getByRole('link', { name: 'Innovate Corp HQ Fit-Out', exact: true })).toBeVisible();
+    await expect(projects.getByRole('link', { name: 'Acme Internal Platform', exact: true })).toHaveCount(0);
+    await expect(projects.getByRole('link', { name: 'Northwind ERP Rollout', exact: true })).toHaveCount(0);
     await expectScrollRestored(main, scrolledTop);
 
     // ── Mobile BackBar return ────────────────────────────────────────────────────────────────
@@ -90,16 +90,16 @@ test(
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
     await page.getByText('Innovate Corp HQ Fit-Out').scrollIntoViewIfNeeded();
     const mobileScrolledTop = await main.evaluate((el) => el.scrollTop);
-    await page.getByTestId('projects-table-container').getByRole('button', { name: 'Innovate Corp HQ Fit-Out', exact: true }).click();
+    await page.getByTestId('projects-table-container').getByRole('link', { name: 'Innovate Corp HQ Fit-Out', exact: true }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
     await page.getByRole('button', { name: 'Back to Projects', exact: true }).click();
     await expect(page).toHaveURL(/[?&]filter=Ongoing/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=Innovate/);
     await waitReady(page);
-    // Below `md` a row's title renders as a card `<button>` (not plain text like the desktop
+    // Below `md` a row's title renders as a card `<Link>` (not plain text like the desktop
     // table); scope to that role so the locator can't transiently match the breadcrumb/heading
     // of the just-departed detail page during the return transition (strict-mode ambiguity).
-    await expect(page.getByRole('button', { name: 'Innovate Corp HQ Fit-Out' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Innovate Corp HQ Fit-Out' })).toBeVisible();
     await expect(page.getByText('Acme Internal Platform')).not.toBeVisible();
     await expectScrollRestored(main, mobileScrolledTop);
 

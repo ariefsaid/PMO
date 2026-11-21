@@ -39,7 +39,7 @@ export const Card: React.FC<CardProps> = ({
       clip && 'overflow-hidden',
       seam && 'panel-card-seam',
       interactive &&
-        'transition-colors duration-150 hover:bg-surface-hover',
+        'transition-colors hover:bg-surface-hover',
       className
     )}
     {...rest}
@@ -104,16 +104,6 @@ export const CardPad: React.FC<CardPadProps> = ({
   ...rest
 }) => (
   <div className={cn(flush ? 'p-0' : 'p-[var(--panel-inset)]', className)} {...rest}>
-    {children}
-  </div>
-);
-
-export const CardFoot: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
-  className,
-  children,
-  ...rest
-}) => (
-  <div className={cn('border-t border-border px-[var(--panel-inset)] py-3', className)} {...rest}>
     {children}
   </div>
 );

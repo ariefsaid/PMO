@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { unionDenominatorFragments } from './check-isolation-denominator.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const migration = (file) => fs.readFileSync(path.join(root, 'supabase/migrations', file), 'utf8');
@@ -26,7 +27,7 @@ test('0320 native attempt status is exact, service-only and fenced to the active
   assert.match(up, /grant execute on function public\.mark_erp_statement_report_refresh_attempt\(uuid,uuid,jsonb\) to service_role/i);
   assert.match(down.trim(), /^drop function if exists public\.mark_erp_statement_report_refresh_attempt\(uuid,uuid,jsonb\);$/i);
   assert.doesNotMatch(down, /external_org_bindings|erp_financial_statement_snapshot|report_pending/i);
-  const denominator = JSON.parse(fs.readFileSync(path.join(root, 'scripts/isolation-probe-denominator.json'), 'utf8'));
+  const denominator = unionDenominatorFragments();
   assert.ok(denominator.definer_functions.includes('mark_erp_statement_report_refresh_attempt(uuid,uuid,jsonb)'));
   assert.ok(denominator.rpcs.some((rpc) => rpc.name === 'mark_erp_statement_report_refresh_attempt' && rpc.class === 'write'));
 });
@@ -120,7 +121,7 @@ test('0319 native report batch is reversible, exact, fenced and service-only', (
   assert.match(down, /erp_financial_statement_report_batch/);
   assert.match(down, /mark_erp_statement_replay_for_missing_accounts/);
   assert.doesNotMatch(down, /external_org_bindings.*statement_report_batch/i);
-  const denominator = JSON.parse(fs.readFileSync(path.join(root, 'scripts/isolation-probe-denominator.json'), 'utf8'));
+  const denominator = unionDenominatorFragments();
   for (const table of ['erp_financial_statement_report_batch', 'erp_financial_statement_report_pending']) {
     assert.ok(denominator.tables.some((entry) => entry.table === table));
   }
@@ -165,7 +166,7 @@ test('0318 financial statement read surfaces are exact, invoker-only and reversi
 });
 
 test('denominator declares new source table and lock RPCs', () => {
-  const denominator = JSON.parse(fs.readFileSync(path.join(root, 'scripts/isolation-probe-denominator.json'), 'utf8'));
+  const denominator = unionDenominatorFragments();
   assert.ok(denominator.tables.some((entry) => entry.table === 'erp_account_mirror'));
   assert.ok(denominator.tables.some((entry) => entry.table === 'erp_sweep_lock'));
   assert.ok(denominator.tables.some((entry) => entry.table === 'erp_financial_statement_snapshot'));

@@ -95,7 +95,7 @@ describe('AC-M365DOC-058/059 case references on the Documents tab', () => {
     expect(screen.getByRole('heading', { name: 'SharePoint links for this case' })).toBeInTheDocument();
     expect(screen.getByText('Synthetic folder')).toBeInTheDocument();
     expect(screen.getByText('Synthetic file')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /Open folder in/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: /Open folder in/ }).length).toBeGreaterThan(0);
     const legacy = screen.getAllByRole('link', { name: 'Open linked document' })[0];
     expect(legacy).toHaveAttribute('href', 'https://legacy.invalid/q.pdf');
     expect(legacy).toHaveAttribute('rel', 'noopener noreferrer');
@@ -139,7 +139,7 @@ describe('AC-M365DOC-060 permissions (real-role procDoc matrix)', () => {
     expect(screen.queryByRole('button', { name: 'Link from Microsoft 365' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Unlink/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Clear link/ })).toBeNull();
-    expect(screen.getAllByRole('button', { name: /Open folder in/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: /Open folder in/ }).length).toBeGreaterThan(0);
   });
 
   it('create without edit shows only the header link action', () => {
@@ -286,7 +286,7 @@ describe('F8: the case register is a plain list of SharePoint links, not a secon
     expect(screen.queryByText('No file linked')).toBeNull();
     expect(within(items[0]).getByText('Spec folder')).toBeInTheDocument();
     expect(within(items[0]).getByText(/^Linked 2 Oct/)).toBeInTheDocument();
-    expect(within(items[0]).getByRole('button', { name: /Open folder in/ })).toBeInTheDocument();
+    expect(within(items[0]).getByRole('link', { name: /Open folder in/ })).toBeInTheDocument();
     expect(within(items[0]).getByRole('button', { name: 'Unlink Spec folder' })).toBeInTheDocument();
   });
 

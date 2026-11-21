@@ -626,6 +626,11 @@ jobs:
         run: scripts/isolation-proof.sh --self-test
 
       # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
+      # #2589: the 0178 client-callable inventory lives in fragments; union them into the include the test reads.
+      - name: Anon-definer inventory include
+        run: |
+          node scripts/anon-definer-inventory.mjs --self-test
+          node scripts/anon-definer-inventory.mjs
       - name: pgTAP integration tests
         run: supabase test db
 
@@ -690,6 +695,8 @@ jobs:
         run: scripts/with-db-lock.sh node --test scripts/stock-connect-race.test.mjs
       - name: AI credit allocation two-session race
         run: scripts/with-db-lock.sh node --test scripts/credit-allocation-race.test.mjs
+      - name: Fiscal year ensure script tests
+        run: scripts/with-db-lock.sh node --test --test-concurrency=1 scripts/fiscal-year-ensure-mutation.test.mjs scripts/fiscal-year-ensure-race.test.mjs
 
       # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
       # which merge it ran on (a squash merge's subject ends in the PR number).
@@ -934,6 +941,9 @@ jobs:
 
       # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs. Skipped on a dispatch: the PR's
       # `pgtap` job already ran it (ci-e2e.sh sets run_pgtap when there is no PR).
+      - name: Anon-definer inventory include
+        if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap
+        run: node scripts/anon-definer-inventory.mjs
       - name: pgTAP integration tests
         if: github.event_name != 'workflow_dispatch' || inputs.run_pgtap
         run: supabase test db

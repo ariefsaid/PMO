@@ -12,7 +12,7 @@
 begin;
 select plan(61);
 
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 
 insert into organizations (id, name, default_currency) values ('03720000-0000-0000-0000-00000000000a','PLI A','IDR');
 insert into auth.users (id, email) values

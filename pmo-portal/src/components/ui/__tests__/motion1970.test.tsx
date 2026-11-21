@@ -47,6 +47,88 @@ describe('#1970 motion', () => {
     }
   });
 
+  it('#2124 vendored popups use the shared transition, not dead tw-animate classes', () => {
+    const popups: Array<[string, ...string[]]> = [
+      ['src/components/shadcn/popover.tsx', 'popup-anim'],
+      ['src/components/shadcn/dropdown-menu.tsx', 'popup-anim'],
+      ['src/components/shadcn/context-menu.tsx', 'popup-anim'],
+      ['src/components/shadcn/tooltip.tsx', 'tooltip-anim'],
+      ['src/components/reui/cascader/cascader.tsx', 'popup-anim'],
+      ['src/components/reui/cascader/cascader-footer.tsx', 'popup-anim'],
+      ['src/components/reui/event-calendar/event-calendar-ui.tsx', 'popup-anim', 'tooltip-anim'],
+    ];
+    for (const [file, ...classes] of popups) {
+      const src = readFileSync(file, 'utf8');
+      expect(src, file).not.toMatch(/animate-(in|out)/);
+      for (const className of classes) expect(src, file).toContain(className);
+    }
+    expect(readFileSync('src/components/shadcn/button.tsx', 'utf8')).not.toContain('transition-all');
+    expect(css).toContain('.popup-anim {');
+    expect(css).toContain('transition: transform var(--motion-menu-in) var(--ease-out);');
+    expect(css).toContain('.popup-anim[data-starting-style], .popup-anim[data-ending-style] { transform: scale(0.96); }');
+    const popupMotion = css.slice(css.indexOf('.popup-anim {'), css.indexOf('.tooltip-anim {'));
+    expect(popupMotion).not.toContain('opacity');
+    expect(css).toContain('.popup-anim[data-ending-style] { transition-duration: var(--motion-menu-out); }');
+    expect(css).toMatch(/--motion-menu-out:\s*96ms/);
+    // Reduced motion: the global rule zeroes every transition, and .popup-anim has no override that beats it.
+    const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce) {\n    *, *::before'));
+    expect(reduced).toContain('transition-duration: 0.001ms !important;');
+    expect(css).not.toMatch(/\.popup-anim[^{]*\{[^}]*!important/);
+    // Keyboard-opened popups (data-instant) skip the transition.
+    expect(css).toContain('.popup-anim[data-instant] { transition-duration: 0ms; }');
+  });
+
+  it('#2128 every entrance and exit eases on the house token, not a keyword', () => {
+    expect(css).not.toMatch(/ease-in forwards/);
+    expect(css).toContain('.confirm-anim { animation: confirmIn var(--motion-dialog-in) var(--ease-out); }');
+    expect(css).toContain('.confirm-scrim-anim { animation: confirmScrimIn var(--motion-dialog-in) var(--ease-out); }');
+    expect(css).toContain('animation: confirmOut var(--motion-dialog-out) var(--ease-out) forwards;');
+    expect(css).toContain('animation: confirmScrimOut var(--motion-dialog-out) var(--ease-out) forwards;');
+    expect(css).toContain('animation: confirmSheetOut var(--motion-sheet-out) var(--ease-out) forwards;');
+    expect(css).not.toContain('transition: transform 120ms cubic-bezier');
+    expect(css).toContain('transition: transform var(--ds-ease);');
+  });
+
+  it('#2128 Tailwind default transitions settle on the hover token and the house curve', () => {
+    expect(css).toMatch(/--motion-hover:\s*120ms/);
+    expect(css).toContain('--default-transition-duration: var(--motion-hover)');
+    expect(css).toContain('--default-transition-timing-function: var(--ease-out)');
+  });
+
+  it('#2128 the listed hover surfaces carry no literal duration utility', () => {
+    const surfaces = [
+      'pages/project-detail/ProjectBlocks.tsx',
+      'src/auth/authFormPrimitives.tsx',
+      'components/ProjectCardShell.tsx',
+      'src/components/ui/KPITile.tsx',
+      'src/components/ui/Kanban.tsx',
+      'src/components/ui/Card.tsx',
+      'src/components/ui/MobileToolbarDisclosure.tsx',
+      'src/components/reui/gantt/gantt-view.tsx',
+    ];
+    for (const file of surfaces) {
+      const src = readFileSync(file, 'utf8');
+      expect(src, file).not.toMatch(/duration-1[05]0/);
+      expect(src, file).not.toContain('duration-150 ease-out');
+    }
+  });
+
+  it('#2128 Crossfade holds the old child for the --motion-icon-swap token', () => {
+    document.documentElement.style.setProperty('--motion-icon-swap', '400ms');
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(<Crossfade swapKey="a"><i>old</i></Crossfade>);
+      rerender(<Crossfade swapKey="b"><i>new</i></Crossfade>);
+      act(() => { vi.advanceTimersByTime(250); });
+      expect(screen.getByText('old')).toBeTruthy();
+      act(() => { vi.advanceTimersByTime(200); });
+      expect(screen.queryByText('old')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+      document.documentElement.style.removeProperty('--motion-icon-swap');
+    }
+  });
+
   it('Crossfade keeps the old child while the new one fades in, then drops it', () => {
     vi.useFakeTimers();
     const { rerender } = render(<Crossfade swapKey="a"><i>old</i></Crossfade>);

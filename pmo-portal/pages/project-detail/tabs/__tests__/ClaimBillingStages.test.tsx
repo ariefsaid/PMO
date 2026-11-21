@@ -122,6 +122,13 @@ describe('ClaimBillingStages', () => {
     expect(screen.queryByText('Complete every stage before raising the invoice.')).toBeNull();
   });
 
+  it('FR-BST-032 hides the invoice deadline once every billing stage is complete', () => {
+    const current = trace();
+    h.trace = { ...current, stages: current.stages.map((stage) => ({ ...stage, completedOn: '2026-03-20' })) };
+    renderIt();
+    expect(screen.queryByText(/Invoice deadline/)).not.toBeInTheDocument();
+  });
+
   it('shows deadline and retention without a stage plan', () => {
     h.trace = { ...trace(), stages: [] };
     renderIt();

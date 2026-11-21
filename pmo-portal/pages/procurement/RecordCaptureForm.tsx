@@ -1,3 +1,4 @@
+import { threeWayMatchHeldMessage } from './threeWayMatchError';
 import { useVendorInvoiceCapture } from './useVendorInvoiceCapture';
 import { PaymentCaptureFields } from './PaymentCaptureFields';
 import { VendorInvoiceCaptureFields } from './VendorInvoiceCaptureFields';
@@ -429,7 +430,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             ),
           }
         : null;
-      const { headline, detail } = odooActionError(err, odooProcurement, t) ?? paymentConflict ?? classifyMutationError(err);
+      const { headline, detail } = odooActionError(err, odooProcurement, t) ?? paymentConflict ?? threeWayMatchHeldMessage(err, t) ?? classifyMutationError(err);
       setCaptureError({ headline, detail });
       toast(headline, detail, 'warning');
     } finally {
@@ -445,7 +446,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       data-testid={cfg.formTestId}
       onSubmit={(e) => void handleSubmit(e)}
       onChangeCapture={markDirty}
-      className="flex flex-col gap-3 rounded-md border border-border/60 bg-card p-3"
+      className="flex flex-col gap-3 py-1"
       aria-label={t('procurementDetail.captureForm', 'Capture {{record}}', { record: label })}
     >
       <p className="text-sm font-semibold text-muted-foreground">
@@ -460,7 +461,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       )}
 
       {/* Reference number — bounded at 64 chars (NFR-PR-SEC-003) */}
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-2">
         <label
           htmlFor={`${formId}-ref`}
           className="text-sm font-semibold text-muted-foreground"
@@ -481,7 +482,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
 
       {/* #769: the parent group's own number — PR / PO / vendor invoice only; bounded at 100 chars */}
       {hasGroupRef && (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2">
           <label
             htmlFor={`${formId}-group-ref`}
             className="text-sm font-semibold text-muted-foreground"
@@ -581,7 +582,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         />
       )}
       {showsAmount && (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2">
           <label
             htmlFor={`${formId}-amount`}
             className="text-sm font-semibold text-muted-foreground"
