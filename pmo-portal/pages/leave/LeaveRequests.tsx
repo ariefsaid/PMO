@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, Icon, ListPage, ListState } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useLeaveEnabled, useLeaveRequests, useLeaveSettings } from '@/src/hooks/useLeave';
 import { LeaveRequestList } from './LeaveRequestList';
 import { LeaveRequestForm } from './LeaveRequestForm';
+import LeaveSettingsPage from './LeaveSettings';
 
 /** /leave (#2708): my requests, and the requests waiting for my decision. Off until the organisation switches it on. */
 const LeaveRequestsPage: React.FC = () => {
@@ -15,6 +16,8 @@ const LeaveRequestsPage: React.FC = () => {
   const requests = useLeaveRequests();
   const isAdmin = useAuth().currentUser?.role === 'Admin';
   const [creating, setCreating] = useState(false);
+  const [params] = useSearchParams();
+  if (params.get('view') === 'settings') return <LeaveSettingsPage />;
   const rows = requests.data ?? [];
   const waiting = rows.filter((r) => r.can_decide);
   const mine = rows.filter((r) => !r.can_decide);
@@ -25,7 +28,7 @@ const LeaveRequestsPage: React.FC = () => {
       {!settings.isPending && !enabled && (
         <p className="text-sm text-muted-foreground">
           {t('crews:leave.off', 'Leave requests are not switched on for your organisation.')}{' '}
-          {isAdmin && <Link className="text-primary-text hover:underline" to="/leave/settings">{t('crews:leave.openSettings', 'Open leave settings')}</Link>}
+          {isAdmin && <Link className="text-primary-text hover:underline" to="/leave?view=settings">{t('crews:leave.openSettings', 'Open leave settings')}</Link>}
         </p>
       )}
       {enabled && requests.isError && (
@@ -40,7 +43,7 @@ const LeaveRequestsPage: React.FC = () => {
             </Card>
           )}
           <Card seam>
-            <CardHead actions={isAdmin ? <Link className="text-sm text-primary-text hover:underline" to="/leave/settings">{t('crews:leave.settings', 'Leave settings')}</Link> : undefined}>
+            <CardHead actions={isAdmin ? <Link className="text-sm text-primary-text hover:underline" to="/leave?view=settings">{t('crews:leave.settings', 'Leave settings')}</Link> : undefined}>
               {t('crews:leave.mine', 'Requests')}
             </CardHead>
             {mine.length === 0

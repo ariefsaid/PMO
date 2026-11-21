@@ -31,7 +31,7 @@ export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[] }> = ({ rows }
       <ul className="divide-y divide-border">
         {rows.map((r) => (
           <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-sm" aria-label={`${r.person_name}, ${r.type_name}`}>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
               <div className="font-medium text-foreground">{r.person_name} · {r.type_name}</div>
               <div className="text-muted-foreground">
                 {r.start_date === r.end_date ? formatDay(r.start_date) : `${formatDay(r.start_date)} – ${formatDay(r.end_date)}`}

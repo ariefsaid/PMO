@@ -91,7 +91,7 @@ test('AC-LV-015 a person requests leave, their line manager approves it, and the
 
   // 4. Admin settings screen.
   await signIn(page, 'admin@acme.test');
-  await page.goto('/leave/settings');
+  await page.goto('/leave?view=settings');
   await expect(page.getByRole('heading', { name: 'Leave settings' })).toBeVisible({ timeout: 20_000 });
   await shot(page, 'leave-settings');
 });

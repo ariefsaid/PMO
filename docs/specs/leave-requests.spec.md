@@ -70,4 +70,4 @@ When I cannot work, I want to request leave or report sickness, so my manager ap
 - OQ-LV-2 (settled) Where a person has no line manager and the setting is empty, Admin decides, never on their own or an entered request.
 - Settings write path (settled): there is no generic Admin-checked organisation-settings write route, so `set_leave_settings` (migration 1242) is an Admin-only security-definer setter, audited, with pgTAP (non-Admin refused, other organisation untouched).
 - Needs-you pointer: the Approvals page section and the decision list on /leave carry the pointer; the dashboard needs-you list is not changed.
-- The Admin settings page is at /leave/settings (not in the Administration section list, to keep that screen unchanged for every existing organisation); it is linked from /leave for an Admin.
+- The Admin settings page is at /leave?view=settings (not in the Administration section list, to keep that screen unchanged for every existing organisation); it is linked from /leave for an Admin.

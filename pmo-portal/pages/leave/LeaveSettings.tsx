@@ -9,7 +9,7 @@ import { leaveErrorMessage } from './leaveErrors';
 /** Base roles an organisation can name as the leave approver today; a built-in role key can be added to this list later. */
 const APPROVER_ROLES = ['Admin', 'Executive', 'Finance', 'Project Manager'] as const;
 
-/** /leave/settings (#2708, Admin): switch the feature on, pick the approver role, and keep the leave type list. */
+/** /leave?view=settings (#2708, Admin): switch the feature on, pick the approver role, and keep the leave type list. */
 const LeaveSettingsPage: React.FC = () => {
   const { t } = useTranslation('crews');
   const { toast } = useToast();
@@ -47,7 +47,7 @@ const LeaveSettingsPage: React.FC = () => {
             <div className="mt-4">
               <Button variant="primary" loading={save.isPending}
                 onClick={() => void guard(() => save.mutateAsync({ enabled, approver_role: role || null }), t('crews:leave.saved', 'Settings saved'))}>
-                {t('crews:save', 'Save')}
+                {t('crews:leave.saveSettings', 'Save settings')}
               </Button>
             </div>
           </CardPad>

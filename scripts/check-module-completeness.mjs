@@ -67,7 +67,6 @@ export const CORE_ROUTES = {
   '/equipment': 'equipment — not a catalogue module',
   '/crews': 'crews (#2528) — not a catalogue module, like equipment',
   '/leave': 'leave requests (#2708) — switched on per organisation by an org setting, not a catalogue module',
-  '/leave/settings': 'leave requests (#2708) — Admin settings page of the same module',
   '/equipment/assets': 'equipment — not a catalogue module',
   '/equipment/expiring': 'equipment — not a catalogue module',
   '/equipment/availability': 'equipment — not a catalogue module',
