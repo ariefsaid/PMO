@@ -108,6 +108,8 @@ export type Entity =
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
   | 'siteReportLists'
+  | 'workOrderCandidate'
+  | 'workOrderCandidateTemplate'
   | 'costDiscipline'
   | 'billMatch'
   | 'employeeLink'
@@ -839,6 +841,16 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // tax posture is an accounting judgement, the same class as the budget→ERP account map (0137).
   // UX ONLY — RLS is the enforcement authority (ADR-0016), and the FE may be stricter, never looser.
   orgProjectClassification: { manage: allow(ADMIN) },
+  // #2595: candidate work orders. Open and assess: Admin, Engineer, or the project's own Project Manager (mirrors create_work_order_candidate and
+  // the item policies of 1405); decide: Admin or the project's Project Manager (decide_work_order_candidate, 1407). The checklist template is Admin-only
+  // (set_work_order_candidate_template). Pass the project's manager id as ctx.record.project_manager_id. UX ONLY; the database decides.
+  workOrderCandidate: {
+    view: allow(ALL),
+    create: (role, ctx) => has(['Admin', 'Engineer'], role) || isOwnProjectPm(role, ctx),
+    edit: (role, ctx) => has(['Admin', 'Engineer'], role) || isOwnProjectPm(role, ctx),
+    approve: (role, ctx) => role === 'Admin' || isOwnProjectPm(role, ctx),
+  },
+  workOrderCandidateTemplate: { manage: allow(ADMIN) },
   // #2621: the site report idle-reason and weather lists. Mirrors the Admin-only insert/update policies of 1040. UX ONLY.
   siteReportLists: { manage: allow(ADMIN) },
   // #2623 (FR-WCA-011): the organisation's cost disciplines. Mirrors 0950's RLS (insert/update/delete: active Admin). UX ONLY.

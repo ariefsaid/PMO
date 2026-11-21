@@ -611,6 +611,23 @@
     "retry": "Coba lagi"
   },
   "admin": {
+    "candidateTemplate": {
+      "saved": "Daftar pemeriksaan disimpan",
+      "title": "Daftar pemeriksaan kandidat perintah kerja",
+      "helper": "Pemeriksaan yang dilakukan sebelum kandidat perintah kerja diterima. Kandidat menyalin daftar ini saat dibuka, sehingga perubahan berikutnya tidak mengubah kandidat yang sudah terbuka.",
+      "loadError": "Daftar pemeriksaan tidak dapat dimuat",
+      "empty": "Belum ada pemeriksaan. Tanpa pemeriksaan, kandidat dapat langsung diterima.",
+      "itemLabel": "Pemeriksaan {{n}}",
+      "requiredFor": "Wajib: {{name}}",
+      "required": "Wajib",
+      "up": "Naikkan {{name}}",
+      "down": "Turunkan {{name}}",
+      "remove": "Hapus {{name}}",
+      "removeShort": "Hapus",
+      "add": "Tambah pemeriksaan",
+      "save": "Simpan daftar",
+      "discard": "Buang perubahan"
+    },
     "accountMap": {
       "adminOnly": "Hanya Admin yang dapat mengubah ini."
     },

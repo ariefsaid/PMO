@@ -1040,5 +1040,10 @@ no data of its own. A step waiting on a role shows in that person's needs-you li
 **Candidate work order** — a work order that starts as an offer under a contract and is assessed with a checklist before the project
 manager accepts or rejects it, with the reason recorded.
 
+**Assessment checklist** — the organisation's own list of checks made on a candidate work order (the system supplies none); each candidate
+copies it when opened, and every check there has an owner, a target date, a result (open, passed, failed or not applicable), a note and proof files.
+
+**Ready to accept** — a candidate whose required checks are all passed or not applicable. Only then can it be accepted; rejecting is always possible.
+
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.

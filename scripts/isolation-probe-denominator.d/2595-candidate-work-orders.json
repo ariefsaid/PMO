@@ -1,18 +1,44 @@
 {
   "tables": [
-    {"table": "work_order_checklist_items", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"},
-    {"table": "work_order_candidates", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"},
-    {"table": "work_order_candidate_items", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"},
-    {"table": "work_order_candidate_proofs", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"}
+    {
+      "table": "work_order_checklist_items",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "work_order_candidates",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "work_order_candidate_items",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "work_order_candidate_proofs",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
   ],
   "definer_functions": [
-    "audit_work_order_candidate_row()",
-    "check_work_order_candidate_item()",
-    "check_work_order_candidate_proof()",
-    "check_work_order_candidate_update()",
     "create_work_order_candidate(uuid,text,text,text,date,uuid)",
     "decide_work_order_candidate(uuid,text,text)",
     "set_work_order_candidate_template(jsonb)"
   ],
-  "buckets": ["work-order-candidate-proofs"]
+  "buckets": [
+    "work-order-candidate-proofs"
+  ]
 }

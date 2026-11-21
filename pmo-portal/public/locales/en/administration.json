@@ -611,6 +611,23 @@
     "retry": "Retry"
   },
   "admin": {
+    "candidateTemplate": {
+      "saved": "Checklist saved",
+      "title": "Candidate work order checklist",
+      "helper": "The checks to make before a candidate work order is accepted. A candidate copies this list when it is opened, so later changes do not alter candidates already open.",
+      "loadError": "Couldn't load the checklist",
+      "empty": "No checks yet. Without any, a candidate can be accepted straight away.",
+      "itemLabel": "Check {{n}}",
+      "requiredFor": "Required: {{name}}",
+      "required": "Required",
+      "up": "Move {{name}} up",
+      "down": "Move {{name}} down",
+      "remove": "Remove {{name}}",
+      "removeShort": "Remove",
+      "add": "Add a check",
+      "save": "Save checklist",
+      "discard": "Discard changes"
+    },
     "accountMap": {
       "adminOnly": "Only an Admin can change this."
     },

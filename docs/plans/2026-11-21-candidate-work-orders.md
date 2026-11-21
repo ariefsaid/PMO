@@ -10,7 +10,7 @@
 - RLS: read = the work-order readers via `(select helper())`; candidate creation through its RPC only; item and proof writes require an active candidate and the allowed assessment roles, with the item's owner allowed to update their item; **no client UPDATE grant on candidate status or decision columns** (column-grant surgery follows `work_orders` in 0193 §5). Template writes go through the Admin-only function below.
 - Functions: `create_work_order_candidate(project, title, description, client_reference)` `security definer`, `set search_path = public, pg_temp`, re-asserts active membership and Admin/Engineer/project-Manager role, verifies the project is in the caller's org, and copies the organisation's active template items (possibly none) in one transaction; `set_work_order_candidate_template(p_items jsonb)` `security definer`, Admin only, whole-list validation and audit; `decide_work_order_candidate(candidate, decision, reason)` `security definer`, `set search_path = public, pg_temp`: gate (Project Manager of that project or Admin, `is_active_member()`), lock the row `for update`, return the existing work order on a repeat accept, refuse a blank reason, refuse accept when a required item is not `passed`/`not_applicable`, create the Draft work order through the same insert the origination guard permits (`project_id`, project `currency`, project `tax_treatment`, `tax_amount = 0`, `tax_rate = null`, `tax_template = null`, `order_value = 0`, `status = 'Draft'`, no `wo_number`), map `client_reference` to `work_orders.client_po_number`, stamp the candidate; `revoke all ... from public, anon; grant execute ... to authenticated`.
 - Storage: private bucket `work-order-candidate-proofs` (image/png, jpeg, webp, application/pdf; 10 MB), policies keyed on the candidate's org, in the style of `attendance-photos` (1036).
-- Record history: register the candidate, item, proof and template tables in `record_history_config`, attach their `*_zz_record_change` triggers, and add their entity arms to `record_history_visible` so assessment and organisation-owned checklist changes are attributable; keep the history catalog gate green.
+- Record history: each of the four tables writes to the shared audit trail (`audit_events`: actor, time, before and after) through one trigger function (FR-CWO-018).
 - **Rollback:** `supabase/migrations/rollback/<number>_candidate_work_orders_down.sql` drops the functions, policies, tables and bucket in reverse order.
 - ADR: only if the owner rules OD-CWO-1 differently (a status on `work_orders` is architectural and cross-cutting).
 
@@ -27,8 +27,8 @@
 ## Slice 3: screen (ui-implementer; `restructure` skill and `docs/ux/screen-rules.md`)
 - [ ] Owner sketch-glance first (directional layout only).
 - [ ] `pmo-portal/pages/project-detail/tabs/CandidateWorkOrders.tsx` mounted in the Contract area by `pmo-portal/pages/project-detail/ProjectSections.tsx` on `/projects/:projectId/contract`: list, create dialog (`EntityFormModal`/`useEntityForm`), checklist with owner, target, proof upload, accept/reject `ConfirmDialog` with a required reason field; decided candidates read-only with a link to the Draft work order (`/work-orders/:id`). Admin template editor `pmo-portal/pages/admin/WorkOrderCandidateTemplate.tsx` in the existing `/administration/projects` section rendered by `pmo-portal/pages/Administration.tsx`.
-- [ ] Strings: `pmo-portal/public/locales/en/workOrderCandidates.json` and `.../id/workOrderCandidates.json`; add `workOrderCandidates` to the `contract` entry in `PROJECT_TAB_NAMESPACES` in `pmo-portal/App.tsx`. Bahasa wording per OQ-CWO-3.
-- [ ] E2E `pmo-portal/e2e/AC-CWO-016-candidate-to-draft-work-order.spec.ts` (Project Manager journey). Read `docs/e2e-parallel-conventions.md` first and tag the isolation class.
+- [ ] Strings: built into the existing `project` (`projectDetail.candidates.*`) and `administration` (`admin.candidateTemplate.*`) namespaces, English and Bahasa Indonesia; no new namespace. Bahasa wording per OQ-CWO-3.
+- [ ] E2E `pmo-portal/e2e/serial/AC-CWO-016-candidate-to-draft-work-order.spec.ts` (Project Manager journey). Read `docs/e2e-parallel-conventions.md` first and tag the isolation class.
 - [ ] Unit/RTL `pmo-portal/pages/project-detail/tabs/__tests__/CandidateWorkOrders.test.tsx`: blocked-accept message names the items; buttons absent for a Viewer; behaviour only, no look-pinning.
 - [ ] `scripts/ux-proof.sh` on the project page route. Phone (390) and desktop (1440) screenshots in `docs/evidence/1215/2595/`.
 
@@ -39,7 +39,7 @@
 | AC-CWO-001..014, 017 | pgTAP | `supabase/tests/work_order_candidates.test.sql` |
 | AC-CWO-015 | Unit | `pmo-portal/src/lib/candidateAssessment.test.ts` |
 | AC-CWO-018 | Unit (RTL) | `pmo-portal/pages/project-detail/tabs/__tests__/CandidateWorkOrders.test.tsx` |
-| AC-CWO-016 | E2E | `pmo-portal/e2e/AC-CWO-016-candidate-to-draft-work-order.spec.ts` |
+| AC-CWO-016 | E2E | `pmo-portal/e2e/serial/AC-CWO-016-candidate-to-draft-work-order.spec.ts` |
 
 ## Glossary and docs
 - [ ] `docs/glossary.md`: candidate work order, assessment checklist, ready to accept.
