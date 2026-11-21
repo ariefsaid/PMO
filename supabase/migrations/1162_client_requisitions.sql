@@ -1,4 +1,4 @@
--- 1086_client_requisitions.sql — #2585 client material requisitions per work order: SCHEMA.
+-- 1162_client_requisitions.sql — #2585 client material requisitions per work order: SCHEMA.
 -- Spec docs/specs/client-material-requisitions.spec.md · plan docs/plans/2026-11-20-client-material-requisitions.md.
 -- The RPCs that are the ONLY writers live in 1087_client_requisition_rpcs.sql. Proven by supabase/tests/csr_requisition.test.sql
 -- and supabase/tests/csr_pickup.test.sql.
@@ -14,7 +14,7 @@
 -- RLS + FORCE RLS on every table; reads are same-org active members (as material_requests, 1000).
 -- Secondary profile references (sent_by, cancelled_by, recorded_by) carry no FK on purpose: a second profiles FK on one
 -- table makes every unqualified PostgREST `profiles` embed ambiguous (the 1000 precedent).
--- REVERSE: supabase/migrations/rollback/1086_client_requisitions_down.sql (drops the four tables; 1087 first).
+-- REVERSE: supabase/migrations/rollback/1162_client_requisitions_down.sql (drops the four tables; 1087 first).
 
 create table public.client_requisitions (
   id                uuid primary key default gen_random_uuid(),

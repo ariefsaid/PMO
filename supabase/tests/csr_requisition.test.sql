@@ -1,6 +1,6 @@
 -- csr_requisition.test.sql — #2585 client material requisitions: header, lines, send, cancel, reservations, access.
 -- Spec docs/specs/client-material-requisitions.spec.md · plan docs/plans/2026-11-20-client-material-requisitions.md.
--- Migrations under test: 1086_client_requisitions.sql (tables), 1087_client_requisition_rpcs.sql (RPCs).
+-- Migrations under test: 1162_client_requisitions.sql (tables), 1087_client_requisition_rpcs.sql (RPCs).
 -- AC-CSR-004 reserved may not exceed requested · AC-CSR-013 send freezes lines and is replay-safe; a cancelled
 -- requisition takes no reservation or release · AC-CSR-014 an allocation row of another work order, or a closed work
 -- order, is refused · AC-CSR-015 a reservation notifies the creator · AC-CSR-016 no client role writes any of the four
