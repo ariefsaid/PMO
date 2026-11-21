@@ -15,6 +15,7 @@ declare
   v public.third_party_inspections; v_uid uuid := auth.uid(); v_org uuid := public.auth_org_id();
   v_case public.procurements; v_pid uuid; r record;
 begin
+  perform public.assert_is_active_member(); -- also inside tpi_load_for_update; named here so the standing AC-AMG-001 sweep sees the gate
   v := public.tpi_load_for_update(p_id);
   if public.auth_role() not in ('Admin','Project Manager','Finance') then
     raise exception 'you cannot raise the purchase of an inspection' using errcode = '42501';

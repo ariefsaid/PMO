@@ -286,20 +286,20 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
                 'application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation'])
   on conflict (id) do nothing;
 
-create policy storage_objects_tpi_file_read on storage.objects for select
+create policy storage_objects_tpi_file_read on storage.objects for select to authenticated
   using (
     bucket_id = 'inspection-reports' and (select auth.uid()) is not null
     and split_part(name, '/', 1) = (select public.auth_org_id())::text
     and array_length(string_to_array(name, '/'), 1) = 4
     and exists (select 1 from public.third_party_inspections i
                  where i.id::text = split_part(name, '/', 2) and i.org_id = (select public.auth_org_id())));
-create policy storage_objects_tpi_file_write on storage.objects for insert
+create policy storage_objects_tpi_file_write on storage.objects for insert to authenticated
   with check (
     bucket_id = 'inspection-reports' and (select auth.uid()) is not null
     and split_part(name, '/', 1) = (select public.auth_org_id())::text
     and array_length(string_to_array(name, '/'), 1) = 4
     and public.can_add_inspection_file(nullif(split_part(name, '/', 2), '')::uuid));
-create policy storage_objects_tpi_orphan_delete on storage.objects for delete
+create policy storage_objects_tpi_orphan_delete on storage.objects for delete to authenticated
   using (
     bucket_id = 'inspection-reports' and (select public.is_active_member())
     and owner_id = (select auth.uid())::text

@@ -55,6 +55,7 @@ create function public.tpi_record_invitation(p_id uuid, p_invited_on date, p_inv
   returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare v public.third_party_inspections; v_uid uuid := auth.uid();
 begin
+  perform public.assert_is_active_member(); -- also inside tpi_load_for_update; named here so the standing AC-AMG-001 sweep sees the gate
   v := public.tpi_load_for_update(p_id);
   if public.auth_role() not in ('Admin','Project Manager','Finance','Engineer') then
     raise exception 'you cannot advance an inspection' using errcode = '42501';
@@ -68,6 +69,7 @@ create function public.tpi_record_execution(p_id uuid, p_executed_on date)
   returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare v public.third_party_inspections; v_uid uuid := auth.uid();
 begin
+  perform public.assert_is_active_member(); -- also inside tpi_load_for_update; named here so the standing AC-AMG-001 sweep sees the gate
   v := public.tpi_load_for_update(p_id);
   if public.auth_role() not in ('Admin','Project Manager','Finance','Engineer') then
     raise exception 'you cannot advance an inspection' using errcode = '42501';
@@ -81,6 +83,7 @@ create function public.tpi_record_report(p_id uuid, p_result text)
   returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare v public.third_party_inspections; v_uid uuid := auth.uid();
 begin
+  perform public.assert_is_active_member(); -- also inside tpi_load_for_update; named here so the standing AC-AMG-001 sweep sees the gate
   v := public.tpi_load_for_update(p_id);
   if public.auth_role() not in ('Admin','Project Manager','Finance','Engineer') then
     raise exception 'you cannot advance an inspection' using errcode = '42501';
@@ -94,6 +97,7 @@ create function public.tpi_waive(p_id uuid, p_reason text)
   returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare v public.third_party_inspections; v_uid uuid := auth.uid();
 begin
+  perform public.assert_is_active_member(); -- also inside tpi_load_for_update; named here so the standing AC-AMG-001 sweep sees the gate
   v := public.tpi_load_for_update(p_id);
   if public.auth_role() not in ('Admin','Project Manager','Finance') then
     raise exception 'you cannot waive an inspection' using errcode = '42501';
@@ -108,6 +112,7 @@ create function public.tpi_cancel(p_id uuid, p_reason text)
   returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare v public.third_party_inspections; v_uid uuid := auth.uid(); v_role public.user_role := public.auth_role();
 begin
+  perform public.assert_is_active_member(); -- also inside tpi_load_for_update; named here so the standing AC-AMG-001 sweep sees the gate
   v := public.tpi_load_for_update(p_id);
   if not (v_role in ('Admin','Project Manager','Finance')
           or (v.created_by = v_uid and v.status = 'requested' and v_role = 'Engineer')) then
