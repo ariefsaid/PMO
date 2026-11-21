@@ -20,9 +20,9 @@ export function useMaterialRequest(id: string | undefined) {
 }
 
 /** FR-MRQ-017: the caller's open steps. The server already applies role, stand-in window and one-step-per-person. */
-export function useWaitingForMe() {
+export function useWaitingForMe(enabled = true) {
   const orgId = useOrgId();
-  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'waiting'], queryFn: () => repo.waitingForMe(), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'waiting'], queryFn: () => repo.waitingForMe(), enabled: enabled && Boolean(orgId) });
 }
 
 /** FR-MRQ-002: plan and already-requested figures for the lines being drafted. */

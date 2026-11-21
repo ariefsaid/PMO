@@ -6422,18 +6422,21 @@ export type Database = {
       }
       material_request_settings: {
         Row: {
+          approver_inbox: boolean
           cutoff_time: string | null
           org_id: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          approver_inbox?: boolean
           cutoff_time?: string | null
           org_id?: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          approver_inbox?: boolean
           cutoff_time?: string | null
           org_id?: string
           updated_at?: string
@@ -13541,6 +13544,7 @@ export type Database = {
         Args: { p_client_request_id?: string; p_header: Json; p_lines: Json; p_request_id: string | null }
         Returns: string
       }
+      mrq_set_approver_inbox: { Args: { p_on: boolean }; Returns: undefined }
       mrq_set_chain: { Args: { p_steps: Json }; Returns: undefined }
       mrq_set_cutoff: { Args: { p_cutoff: string | null }; Returns: undefined }
       mrq_set_stand_in: {

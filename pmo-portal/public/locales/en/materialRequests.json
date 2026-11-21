@@ -89,6 +89,18 @@
     "workOrder": "Work order",
     "workOrderNoun": "work order"
   },
+  "inbox": {
+    "scope": "Material requests",
+    "heading": "Material requests awaiting you ({{count}})",
+    "label": "Material requests awaiting you",
+    "errorTitle": "Couldn't load material requests awaiting you",
+    "errorSub": "Other approvals are unaffected.",
+    "step": "Step {{n}}: {{label}}",
+    "standingIn": "standing in",
+    "neededBy": "Needed by {{date}}",
+    "sent": "Sent {{date}}",
+    "open": "Open request"
+  },
   "list": {
     "all": "All requests",
     "anyStatus": "Any status",
@@ -159,6 +171,11 @@
   "settings": {
     "addStandIn": "Add stand-in",
     "addStep": "Add step",
+    "approverInbox": "Approvals inbox and notifications",
+    "approverInboxError": "Couldn't load this setting",
+    "approverInboxLabel": "Show material request approvals in the approvals inbox and notify approvers",
+    "approverInboxSaved": "Approvals inbox setting saved",
+    "approverInboxSub": "When on, each approver is notified when a request step becomes theirs, and the step is listed on the Approvals page. Off by default.",
     "chain": "Approval chain",
     "chainError": "Couldn't load the chain",
     "chainSaved": "Approval chain saved",

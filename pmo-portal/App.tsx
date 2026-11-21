@@ -228,7 +228,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/procurement/:procurementId', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
   { path: '/timesheets', chunks: [TimesheetsPage], namespaces: ['timesheets'] },
   // The triage queue renders one section per approval domain; all four are static imports.
-  { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance'] },
+  { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance', 'materialRequests'] },
   { path: '/companies', chunks: [CompaniesPage], namespaces: ['crm'] },
   { path: '/master-data/:kind', chunks: [MasterDataPage], namespaces: ['administration'] },
   { path: '/companies/:companyId', chunks: [CompanyDetailPage], namespaces: ['crm'] },
