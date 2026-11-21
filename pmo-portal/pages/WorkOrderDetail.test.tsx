@@ -34,6 +34,11 @@ vi.mock('./work-order-detail/ConsumablePlanSection', () => ({
 // the inspections panel is proven by its own test (InspectionsSection.test.tsx); here only that the page carries it for THIS work order
 vi.mock('./work-order-detail/InspectionsSection', () => ({ InspectionsSection: ({ workOrderId }: { workOrderId: string }) => <div data-testid="inspections-section">{workOrderId}</div> }));
 
+vi.mock('./work-order-detail/ClientMaterialSection', () => ({
+  ClientMaterialSection: (p: { workOrderId: string; allocationOptions: Array<{ value: string; label: string }> }) =>
+    <div data-testid="client-material-stub" data-wo={p.workOrderId}>{p.allocationOptions.map((o) => o.label).join('|')}</div>,
+}));
+
 import WorkOrderDetail from './WorkOrderDetail';
 
 const CurrentLocation: React.FC = () => {
@@ -104,6 +109,15 @@ describe('WorkOrderDetail', () => {
     expect(screen.getByText('Pump install')).toBeTruthy();
     expect(screen.getByText('Plant A').closest('a')?.getAttribute('href')).toBe('/projects/p1');
     expect(screen.getByTestId('wo-order-value').textContent).toMatch(/1\.500\.000|1,500,000/);
+  });
+  it('FR-CSR-018 mounts the Client material section for this work order, with its allocation rows as options, only for a role that may view it', () => {
+    const { unmount } = renderPage();
+    expect(screen.getByTestId('client-material-stub').getAttribute('data-wo')).toBe('w1');
+    expect(screen.getByTestId('client-material-stub').textContent).toBe('A1 · Pipe');
+    unmount();
+    h.canBilling = false;
+    renderPage();
+    expect(screen.queryByTestId('client-material-stub')).toBeNull();
   });
   it('AC-WORP-001 a Draft shows "not yet numbered"', () => {
     h.wo = q({ ...WO, wo_number: null, status: 'Draft' });

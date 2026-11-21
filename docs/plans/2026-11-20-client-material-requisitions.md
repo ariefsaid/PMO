@@ -2,6 +2,27 @@
 
 > Fresh Orca worker per slice; Slice 2a (cost-attribution trigger, money rule) and Slice 2b (stock posting path) are each Director-dispatched, through Orca workers, and each ships alone, 2a first. Spec: `docs/specs/client-material-requisitions.spec.md` (sign OD-CSR-1..6, answer OQ-CSR-1..4 first). Blocked by #2523 (built on `feat/2523-stock-site-work`; landing on `dev` from `land/1215-r1` as **1029–1031**, 0982–0984 before renumbering; `stock_tags.zero_cost`, `stock_items.tag_id`, `guard_stock_line_zero_cost`, yard/staging kinds, and the `check_cost_attribution` body all come from the same 1029). Do not start Slice 2a until those are on `dev`. `stock_documents.work_order_id` (0951) is already on `dev`. Reuse, don't re-invent: `create_stock_document` / `post_stock_document` and `stock_write_entry` (0413, 0534), `stock_assert_keeper`, `stock_assert_standalone`, `work_order_lines` (0337, the allocation row to a `boq_items` line), `next_procurement_doc_number`, `notify_workflow_user` (0237), record history (0260), the material-request RPC style (1000/1001).
 
+## Built on defaults (owner to confirm)
+Built on the spec's recommended defaults; none was signed by the owner at build time.
+- OD-CSR-1: status is only `draft | open | cancelled`; progress is derived from events.
+- OD-CSR-2: a pickup is accepted only for an item whose tag is `zero_cost`; the RPC writes unit cost 0 itself and takes no cost parameter.
+- OD-CSR-3: reserved may not exceed requested.
+- OD-CSR-4: the pickup records and posts the receipt in one step by the receiving location's keeper (or Admin); no separate Draft receipt.
+- OD-CSR-5: take-off is typed or imported; no calculation from drawings.
+- OD-CSR-6: Migration C extends `check_cost_attribution` for `receive` into a site, yard or staging location and adds `warehouse_id` to the trigger column list; central receives stay refused; receives stay out of `work_order_cost_lines`. It also extends `guard_warehouse_move_with_work_orders` so a location cannot be moved away from the project of a receive that names a work order.
+- OQ-CSR-1: no cap of requested at the allocation row's quantity.
+- OQ-CSR-2: an ERP-owned inventory domain refuses the pickup.
+- OQ-CSR-3: a wrong pickup is undone by a stock adjustment only; no reverse-pickup event.
+- OQ-CSR-4: reservation proof is optional and not built in this branch; a delivery paper on a pickup is a free-text reference (`paper_reference`), no file upload.
+- Cancel and reservation authority: who may create, send, cancel, reserve and release = Project Manager and above (rank >= 20) plus the requisition's creator for send and cancel; pickup = keeper of the receiving location or Admin (as `create_stock_document`).
+- Migration numbers used: 1161 (C, cost attribution), 1162 (A, tables), 1163 (B, RPCs and rollup read function).
+
+## As built (20 Nov)
+- Migrations: `1161_receive_work_order_attribution.sql` (Migration C, also extends `guard_warehouse_move_with_work_orders` so a location holding a receive that names a work order cannot leave its project), `1162_client_requisitions.sql` (tables, append-only triggers on events and pickups, RLS + FORCE RLS, select-only grants), `1163_client_requisition_rpcs.sql` (the seven writers, internals, and `csr_work_order_rollup`). Rollbacks in `supabase/migrations/rollback/`.
+- The pickup serialises per line with `pg_advisory_xact_lock('csr-line:' || line_id)` plus a shared row lock on the requisition (cancel takes it exclusive). Collected is summed from the pickup rows; reserved from the event log. The Slice 2a trigger-column mutation is proved by a direct `update ... set warehouse_id` test because `save_stock_draft` also sets other watched columns.
+- Screens: the "Client material" section is `pages/work-order-detail/ClientMaterialSection.tsx` (#2518 is on `dev`); the take-off import button sits in the section header (a sheet's rows become the lines of one new draft requisition).
+- Not built: proof attachment on a reservation (OQ-CSR-4), the delivery paper is a free-text reference.
+
 ## Design summary
 Four tables and a read function. A requisition (header, `draft|open|cancelled`) has lines (item, take-off, requested, optional allocation row). Reservations and releases are append-only events. A pickup row links a line to the stock receipt that `create_stock_document` made (unposted, `p_post = false`) and the RPC then posted in the same transaction; the cost is hard-coded 0 by the RPC. Reserved, collected, still to collect and awaiting reservation are computed, never stored. The ledger stays single-writer: the RPC only calls the existing creation path. The same hand-worked month of numbers lives in a pure TypeScript function and the SQL read function so both are tested against AC-CSR-001.
 
@@ -45,8 +66,8 @@ Four tables and a read function. A requisition (header, `draft|open|cancelled`) 
 |---|---|
 | AC-CSR-001 | Vitest `clientRequisitionRollup.test.ts` + pgTAP `csr_pickup.test.sql` |
 | AC-CSR-002, 003 | Vitest `clientRequisitionRollup.test.ts` |
-| AC-CSR-004, 005, 013, 014, 015, 016, 017 | pgTAP `csr_requisition.test.sql` |
-| AC-CSR-006..012, 018 | pgTAP `csr_pickup.test.sql` |
+| AC-CSR-004, 013, 014, 015, 016, 017 | pgTAP `csr_requisition.test.sql` |
+| AC-CSR-005, 006..012, 018 | pgTAP `csr_pickup.test.sql` (AC-CSR-005 needs a posted pickup to make collected non-zero, so it lives with the pickup proof) |
 | AC-CSR-020, 021, 023 | pgTAP `csr_cost_attribution.test.sql` |
 | AC-CSR-022 | pgTAP `0950_work_order_cost_attribution.test.sql` (unchanged) + the mutation runs on `csr_cost_attribution.test.sql` |
 | FR-CSR-003 (no AC; unit) | Vitest `clientTakeoffDescriptor.test.ts` |

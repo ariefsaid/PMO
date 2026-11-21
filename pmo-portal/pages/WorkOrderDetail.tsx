@@ -26,6 +26,7 @@ import { QuantityChangesSection } from './work-order-detail/QuantityChangesSecti
 import { SectionsSection } from './work-order-detail/SectionsSection';
 import { ConsumablePlanSection } from './work-order-detail/ConsumablePlanSection';
 import { InspectionsSection } from './work-order-detail/InspectionsSection';
+import { ClientMaterialSection } from './work-order-detail/ClientMaterialSection';
 import { IssuesSection } from './work-order-detail/IssuesSection';
 import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 
@@ -61,6 +62,14 @@ const WorkOrderDetail: React.FC = () => {
   const disciplines = useCostDisciplines(Boolean(wo.data));
   const canPlanView = may('view', 'workOrderPlan');
   const pva = useProjectPlanVsActual(projectId, canPlanView && Boolean(wo.data));
+
+  const allocationOptions = useMemo(
+    () => (allocations.data ?? []).map((a) => {
+      const item = (boq.data ?? []).find((b) => b.id === a.boq_item_id);
+      return { value: a.id, label: item ? `${item.item_code} · ${item.description}` : a.boq_item_id };
+    }),
+    [allocations.data, boq.data],
+  );
 
   const backLabel = t('back', 'Work orders');
   const goBack = () => navigate(projectId ? `/projects/${projectId}/work-orders` : '/projects');
@@ -110,6 +119,7 @@ const WorkOrderDetail: React.FC = () => {
         <CostSection labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}
           onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
         {stockOn && <ConsumablePlanSection workOrderId={row.id} workOrderStatus={row.status} project={project.data} />}
+        {may('view', 'clientRequisition') && <ClientMaterialSection workOrderId={row.id} projectId={row.project_id} workOrderStatus={row.status} allocationOptions={allocationOptions} />}
         {canPlanView && <PlanVsActualSection workOrderId={row.id} query={pva} disciplines={disciplines.data ?? []} />}
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
