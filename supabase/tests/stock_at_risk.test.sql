@@ -69,7 +69,7 @@ select public.sar_t_as_user('26940000-0000-0000-0000-0000000000a1');
 update public.stock_warehouses set cover_value = 2500 where id = '26940000-0000-0000-0000-000000002002';
 update public.stock_warehouses set cover_value = 1000 where id = '26940000-0000-0000-0000-000000002003';
 
-select plan(17);
+select plan(18);
 
 -- AC-SAR-101: one row per location holding stock; the value held is the sum over the location's items.
 select is(public.sar_t_codes(public.get_stock_at_risk()),
@@ -127,6 +127,8 @@ select is((select cover_value from public.stock_warehouses where id = '26940000-
 select throws_like(
   $$ update public.stock_warehouses set cover_value = -1 where id = '26940000-0000-0000-0000-000000002002' $$,
   '%stock_warehouses_cover_value_check%', 'AC-SAR-106 a negative cover is refused');
-
+select lives_ok(
+  $$ insert into public.stock_warehouses (code, name, kind, cover_value) values ('SITE-E', 'Site E', 'site', null) $$,
+  'AC-SAR-106 a location is created with the cover field in the insert, as the form sends it');
 select * from finish();
 rollback;
