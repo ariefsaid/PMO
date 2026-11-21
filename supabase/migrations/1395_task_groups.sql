@@ -20,6 +20,9 @@ create index task_groups_org_idx on public.task_groups (org_id);
 create index task_groups_milestone_idx on public.task_groups (milestone_id) where milestone_id is not null;
 
 alter table public.tasks add column task_group_id uuid;
+-- tasks is record-history tracked: classify the new column like milestone_id (captured, a reference).
+update public.record_history_config set captured = captured || '{"task_group_id":"ref"}'::jsonb
+ where table_name = 'tasks' and not (captured ? 'task_group_id');
 alter table public.tasks add constraint tasks_task_group_id_fkey foreign key (project_id, task_group_id)
   references public.task_groups (project_id, id) match simple on delete set null (task_group_id);
 alter table public.tasks add constraint tasks_task_group_needs_project check (task_group_id is null or project_id is not null);
