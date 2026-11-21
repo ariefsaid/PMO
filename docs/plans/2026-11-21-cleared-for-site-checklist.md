@@ -7,7 +7,7 @@ Spec: `docs/specs/cleared-for-site-checklist.spec.md`. Migrations 1235-1239 only
 |---|---|
 | `1235_clearance_items.sql` | `clearance_items` (org_id stamp trigger, name, is_required, sort_order, archived_at, live-name unique index); RLS read Admin/PM/Finance/Executive, write Admin; `(select helper())` wrapping; revoke-then-grant |
 | `1236_person_clearances.sql` | `person_clearances` (person_id, item_id, done_on, expires_on, note, updated_by/at; unique person+item; same-org guard trigger; expiry>=done check); RLS read the four roles, write Admin/PM |
-| `1237_person_clearance_status.sql` | `person_clearance_items(p_person)` per-item state and `person_clearance_summary()` per-person cleared; both SECURITY INVOKER (RLS applies), search_path pinned, today from `field_org_today` |
+| `1237_person_clearance_status.sql` | `person_clearance_items(p_person)` per-item state and `person_clearance_summary()` per-person cleared; both SECURITY INVOKER (RLS applies), search_path pinned, today from the organisation timezone |
 | (1235 also adds `organizations.clearance_checklist_enabled boolean not null default false` + Admin-only column grant) | the setting |
 | 1238, 1239 | unused (the isolation manifest is `scripts/isolation-probe-denominator.d/2707-cleared-for-site.json`) |
 Rollbacks: `rollback/1235..1237_*_down.sql` (refuse to drop tables holding rows).

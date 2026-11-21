@@ -8,9 +8,11 @@ import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({
   enabled: vi.fn(), checklist: vi.fn(), summary: vi.fn(), saveState: vi.fn(), items: vi.fn(), canEdit: true,
 }));
+vi.mock('@/src/lib/repositories/clearance', () => ({
+  clearanceRepository: { enabled: h.enabled, checklist: h.checklist, summary: h.summary, saveState: h.saveState, clearState: vi.fn(), items: h.items, setEnabled: vi.fn(), createItem: vi.fn(), updateItem: vi.fn() },
+}));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
-    clearance: { enabled: h.enabled, checklist: h.checklist, summary: h.summary, saveState: h.saveState, clearState: vi.fn(), items: h.items, setEnabled: vi.fn(), createItem: vi.fn(), updateItem: vi.fn() },
     documentExpiry: { getPerson: vi.fn().mockResolvedValue({ id: 'p1', name: 'Test Person', code: 'P-0001' }) },
     people: { list: vi.fn().mockResolvedValue([]) },
   },

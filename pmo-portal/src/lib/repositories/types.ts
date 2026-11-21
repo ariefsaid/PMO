@@ -73,7 +73,6 @@ import type { JournalRepository } from './contracts/journals';
 import type { EquipmentRepository } from './contracts/equipment';
 import type { DocumentExpiryRepository } from './contracts/documentExpiry';
 import type { PeopleRepository } from './contracts/people';
-import type { ClearanceRepository } from './contracts/clearance';
 import type { TimeAndMaterialsRepository } from './contracts/timeAndMaterials';
 import type {
   IncidentRepository,
@@ -157,7 +156,6 @@ export interface Repositories {
   documentExpiry: DocumentExpiryRepository;
   equipmentAvailability: EquipmentAvailabilityRepository;
   people: PeopleRepository;
-  clearance: ClearanceRepository;
   timeAndMaterials: TimeAndMaterialsRepository;
   expenseReceipts: ExpenseReceiptRepository;
   expensePostings: ExpensePostingRepository;

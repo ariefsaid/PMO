@@ -1,4 +1,4 @@
-/** repositories/clearance.ts (#2707) — the seam over the cleared-for-site checklist (ADR-0017). Errors keep their Postgres code via `wrap`. */
+/** repositories/clearance.ts (#2707) — the seam over the cleared-for-site checklist (ADR-0017). Standalone module like `crews.ts`: imported directly by its hooks, not listed on the `repositories` aggregate. Errors keep their Postgres code via `wrap`. */
 import * as clearance from '@/src/lib/db/clearance';
 import { wrap } from './repositoryErrors';
 import type { ClearanceRepository } from './contracts/clearance';
