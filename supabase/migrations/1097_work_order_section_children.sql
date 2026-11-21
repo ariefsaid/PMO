@@ -1,6 +1,6 @@
 -- 1097_work_order_section_children.sql — #2576: a crew placement and a task may name a section of their work order.
 -- Spec docs/specs/work-order-sections.spec.md (FR-WOS-010, 011 tasks, 012, 005); plan 2026-11-20-work-order-sections.md.
--- Proven by supabase/tests/1095_work_order_sections.test.sql (AC-WOS-003, 006, 017).
+-- Proven by supabase/tests/1169_work_order_sections.test.sql (AC-WOS-003, 006, 017).
 --
 --   • work_order_crews.section_id (#2528, 1035): a crew works one section over the placement's date range. The shipped
 --     no-overlap rule (a crew serves one work order on any day, `work_order_crews_no_overlap`) already stops one crew

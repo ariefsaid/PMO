@@ -1,6 +1,6 @@
--- 1095_work_order_sections.sql — #2576 (map #2516): the section master, an optional child of one work order.
+-- 1169_work_order_sections.sql — #2576 (map #2516): the section master, an optional child of one work order.
 -- Spec docs/specs/work-order-sections.spec.md (FR-WOS-001..007, 019, 023, 024); plan docs/plans/2026-11-20-work-order-sections.md.
--- Proven by supabase/tests/1095_work_order_sections.test.sql.
+-- Proven by supabase/tests/1169_work_order_sections.test.sql.
 --
 -- A section divides a work order. It carries no value, invoice, acceptance or status of its own. It names a code (unique
 -- per work order), a name, an optional note, an optional foreman (a user of the organisation), a held readiness value
@@ -14,7 +14,7 @@
 -- Composite-key seam for the children (1096+): unique (id, work_order_id), so a child's
 -- (section_id, work_order_id) foreign key makes a section of another work order impossible whichever path writes.
 --
--- ── REVERSE (also supabase/migrations/rollback/1095_work_order_sections_down.sql) ────────────────────────────
+-- ── REVERSE (also supabase/migrations/rollback/1169_work_order_sections_down.sql) ────────────────────────────
 --   drop 1099..1096 first; then drop table work_order_section_readiness_events, work_order_sections and the guard functions.
 
 create table public.work_order_sections (

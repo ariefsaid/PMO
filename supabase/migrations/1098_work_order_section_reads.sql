@@ -1,6 +1,6 @@
 -- 1098_work_order_section_reads.sql — #2576: the roll-up read and the readiness roll-up.
 -- Spec docs/specs/work-order-sections.spec.md (FR-WOS-014 plan part, 016, 017, 020, 021; NFR-WOS-001/003);
--- plan docs/plans/2026-11-20-work-order-sections.md. Proven by supabase/tests/1095_work_order_sections.test.sql
+-- plan docs/plans/2026-11-20-work-order-sections.md. Proven by supabase/tests/1169_work_order_sections.test.sql
 -- (AC-WOS-001, 002, 012, 014). Not a money path: both reads are security INVOKER, so every row is read under the
 -- caller's own RLS (a role that may not read plan figures sees them as null).
 --

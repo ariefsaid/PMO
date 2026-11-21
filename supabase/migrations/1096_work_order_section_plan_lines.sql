@@ -1,6 +1,6 @@
 -- 1096_work_order_section_plan_lines.sql — #2576: a plan figure may name a section of its work order.
 -- Spec docs/specs/work-order-sections.spec.md (FR-WOS-008, 012); plan docs/plans/2026-11-20-work-order-sections.md.
--- Proven by supabase/tests/1095_work_order_sections.test.sql (AC-WOS-003, 012).
+-- Proven by supabase/tests/1169_work_order_sections.test.sql (AC-WOS-003, 012).
 --
 -- work_order_plan_lines gains section_id and the composite foreign key (section_id, work_order_id) →
 -- work_order_sections (id, work_order_id). MATCH SIMPLE: a null section always passes, a section of another work order
