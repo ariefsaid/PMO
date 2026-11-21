@@ -9,8 +9,13 @@
  */
 import path from 'node:path';
 
-// The app's category list: the register's select reads this same file (pmo-portal/src/lib/documentCategories.ts).
-import CATEGORIES from '../../pmo-portal/src/lib/documentCategories.json' with { type: 'json' };
+// The seven names every organisation starts with (the app's offline seed, pmo-portal/src/lib/documentCategories.json). Categories are
+// the organisation's own since #2579, so this list is NOT a check: the database resolves the name against the organisation's live
+// categories (case-insensitively), and an unknown or blank name is filed under Other. It is kept only for the usage hint.
+import SEED_CATEGORIES from '../../pmo-portal/src/lib/documentCategories.json' with { type: 'json' };
+
+export const CATEGORY_SEED_HINT = SEED_CATEGORIES.join(', ');
+const MAX_CATEGORY_LENGTH = 120;
 
 /** The request-guard tier these commands use — keep in step with the guard's `document_write_tables` (0884). */
 export const DOCUMENT_WRITE_TABLES = Object.freeze(['project_documents']);
@@ -61,7 +66,7 @@ export function planEntry({ project, category, title, code, revision, date }, is
   const problems = [];
   if (!project || !isUuid(String(project))) problems.push('--project <uuid> is required');
   if (typeof category !== 'string' || !category.trim()) problems.push('--category is required');
-  else if (!CATEGORIES.includes(category.trim())) problems.push(`--category must be one of: ${CATEGORIES.join(', ')}`);
+  else if (category.trim().length > MAX_CATEGORY_LENGTH) problems.push(`--category must be at most ${MAX_CATEGORY_LENGTH} characters`);
   if (typeof title !== 'string' || !title.trim()) problems.push('--title is required');
   if (date !== undefined && !isDate(String(date))) problems.push('--date must be a real date, YYYY-MM-DD');
   if (problems.length) return { problems };
@@ -85,4 +90,14 @@ export function uploadRefusal(doc) {
   if (doc.status !== 'Draft') return { code: 'document_not_draft', message: `Only a Draft document takes a file; this one is ${doc.status}.` };
   if (doc.source === 'onedrive') return { code: 'document_has_microsoft_reference', message: 'This document already has a Microsoft reference; unlink it in the app first.' };
   return null;
+}
+
+/**
+ * The note for a created entry whose category the database did not file as asked (#2579): the name matched none of the organisation's
+ * live categories, so the entry sits under Other. Null when it was filed as asked (compared case-insensitively, as the database does).
+ */
+export function categoryResolutionNote(requested, document) {
+  const filed = typeof document?.category === 'string' ? document.category : null;
+  if (!filed || String(requested).trim().toLowerCase() === filed.toLowerCase()) return null;
+  return `"${String(requested).trim()}" is not one of this organisation's document categories, so the entry was filed under "${filed}". Change its category in the app, or create the category in Administration first.`;
 }

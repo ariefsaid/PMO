@@ -142,6 +142,7 @@ export type Entity =
   | 'equipmentAvailability'
   | 'equipmentRegister'
   | 'expiryDocument'
+  | 'documentCategory'
   | 'documentType'
   | 'person'
   | 'maintenance'
@@ -857,6 +858,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   orgAccounting: {
     manage: allow(ADMIN),
   },
+  // #2579: document categories and their viewer roles. Mirrors the management functions of migration 1093 (active Admin). UX ONLY — they are the authority (ADR-0016).
+  documentCategory: { manage: allow(ADMIN) },
   // #1532 S9: the org's feedback-and-surveys switch. Mirrors admin_set_feedback_surveys (0419: active Admin). UX ONLY.
   orgFeedback: { manage: allow(ADMIN) },
   // #1271: cost attribution rules — mirrors save/end/preview_cost_attribution (0376: active Admin or Finance).
