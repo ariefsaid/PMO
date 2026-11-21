@@ -1,0 +1,12 @@
+{
+  "tables": [
+    {"table":"purchase_line_categories","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ],
+  "definer_functions": [
+    "archive_purchase_line_category(uuid)",
+    "get_purchase_line_planning()",
+    "set_procurement_line_planning(uuid,uuid,date)",
+    "set_purchase_line_category(uuid,text,integer)",
+    "set_purchase_line_planning(boolean)"
+  ]
+}

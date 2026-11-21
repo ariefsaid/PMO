@@ -1,0 +1,48 @@
+// @e2e-isolation: serial - flips an organisation setting (purchase line planning) and creates a request; the afterEach turns the setting off again.
+import { test, expect } from '@playwright/test';
+import { login } from '../helpers';
+
+// AC-PLP-009 (#2696) - an Admin turns on line planning, a requester gives a request line a category and a needed-by date, and the
+// request's line list shows both. With the setting off, no such field exists anywhere on the create form.
+//
+// Written for the orchestrator's wave run; not executed by the builder (no database in the builder's gate).
+
+async function setPlanning(page: import('@playwright/test').Page, on: boolean) {
+  await page.goto('/administration#accounting');
+  const toggle = page.getByRole('switch', { name: 'Show a category and a needed-by date on each request line' });
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  if ((await toggle.getAttribute('aria-checked')) !== String(on)) await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-checked', String(on));
+}
+
+test.afterEach(async ({ page }) => {
+  await login(page, 'admin@acme.test');
+  await setPlanning(page, false);
+});
+
+test('AC-PLP-009 line planning is hidden by default and works once an Admin turns it on', async ({ page }) => {
+  await login(page, 'admin@acme.test');
+  await page.goto('/procurement/new?have=need');
+  await expect(page.getByLabel('New item description')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Needed by')).toHaveCount(0);
+
+  await setPlanning(page, true);
+  await expect(page.getByTestId('line-category-list')).toBeVisible();
+  await expect(page.getByText('Project', { exact: true })).toBeVisible();
+
+  await page.goto('/procurement/new?have=need');
+  await page.getByLabel(/title/i).fill('Line planning journey');
+  await page.getByLabel('New item description').fill('Cable');
+  await page.getByLabel('New item quantity').fill('2');
+  await page.getByLabel('New item unit price').fill('10');
+  await page.getByRole('button', { name: 'Add line item' }).click();
+  await page.getByLabel('Category').selectOption({ label: 'Project' });
+  await page.getByLabel('Needed by').fill('2026-12-31');
+  await page.getByRole('button', { name: 'Save draft' }).click();
+
+  await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]{36}/, { timeout: 15_000 });
+  await page.getByRole('tab', { name: /items/i }).click();
+  const panel = page.getByTestId('line-planning-panel');
+  await expect(panel.getByLabel('Category')).toHaveValue(/.+/);
+  await expect(panel.getByLabel('Needed by')).toHaveValue('2026-12-31');
+});

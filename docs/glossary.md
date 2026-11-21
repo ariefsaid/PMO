@@ -105,6 +105,8 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Procurement (case)** — one procure-to-pay effort, modeled as a **case folder**: the thing that carries a title, an optional project link, a requester, a type, and a current lifecycle status. It is **not** itself a Purchase Request or any single document — it is the folder those documents hang under. The UI speaks of a **purchase** (and of the **supplier**, not vendor) for the case; case-directed copy should prefer "purchase" or "procurement case" for the aggregate — "**Procurement record**" always means a typed child document. (ADR-0033.)
 
+**Line planning** — an organisation setting (off by default) that lets each request line carry a **line category** and a **needed-by** date. The categories are the organisation's own list (an Admin adds, renames or retires them; two general starter rows are seeded when the setting is first turned on). A retired category stays on the lines that already carry it. A needed-by date is per line; there is no request-level date. (#2696.)
+
 **Procurement record** — a real document that hangs under a Procurement case: a **Purchase Request, RFQ, Quotation, Purchase Order, Goods Receipt, Vendor Invoice,** or **Payment**. Each is its own typed entity, of which a case may have **many** (e.g. several partial Goods Receipts, multiple Vendor Invoices, progress Payments). A record is **evidence** of where the case stands: document evidence advances the case to its furthest evidenced step, alongside explicit lifecycle decisions (ADR-0093). The kinds are defined below. (ADR-0033.)
 
 **Purchase request** — a numbered, dated request record under a procurement case, with a status and amount; the case's opening document.

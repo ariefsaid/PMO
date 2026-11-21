@@ -1,0 +1,6 @@
+# 2696 purchase line planning: client-callable definers
+get_purchase_line_planning
+set_purchase_line_planning
+set_purchase_line_category
+archive_purchase_line_category
+set_procurement_line_planning

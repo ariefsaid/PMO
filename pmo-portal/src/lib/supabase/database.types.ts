@@ -8233,12 +8233,14 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          category_id?: string | null
           description?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: number | null
           erp_modified?: string | null
           id?: string
           name: string
+          needed_by?: string | null
           org_id?: string
           procurement_id: string
           quantity?: number
@@ -8246,12 +8248,14 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          category_id?: string | null
           description?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: number | null
           erp_modified?: string | null
           id?: string
           name?: string
+          needed_by?: string | null
           org_id?: string
           procurement_id?: string
           quantity?: number
@@ -10153,6 +10157,41 @@ export type Database = {
             columns: ["uploaded_by_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_line_categories: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+          position: number
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          org_id: string
+          position?: number
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_line_categories_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -13543,6 +13582,7 @@ export type Database = {
         Args: { p_incident: string }
         Returns: string
       }
+      archive_purchase_line_category: { Args: { p_id: string }; Returns: boolean }
       archive_stock_document_file: {
         Args: { p_file_id: string; p_reason: string }
         Returns: undefined
@@ -15355,6 +15395,7 @@ export type Database = {
           route: string
         }[]
       }
+      get_purchase_line_planning: { Args: never; Returns: boolean }
       get_procurement_gates: { Args: never; Returns: Json }
       get_project_billing: { Args: { p_project_id: string }; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
@@ -16932,6 +16973,15 @@ export type Database = {
         Args: { p_month: number | null }
         Returns: number | null
       }
+      set_procurement_line_planning: {
+        Args: { p_category: string; p_item: string; p_needed_by: string }
+        Returns: boolean
+      }
+      set_purchase_line_category: {
+        Args: { p_id: string; p_name: string; p_position: number }
+        Returns: string
+      }
+      set_purchase_line_planning: { Args: { p_enabled: boolean }; Returns: boolean }
       set_procurement_gates: { Args: { p_gates: Json }; Returns: Json }
       set_procurement_invoice_efaktur: {
         Args: {
