@@ -41,6 +41,8 @@ grant execute on function public.set_dsr_stock_issue(boolean, text) to authentic
 alter table public.stock_items add column consumable boolean not null default false;
 
 alter table public.work_orders add column site_warehouse_id uuid references public.stock_warehouses(id);
+-- work_orders has column-level UPDATE grants only (0197): without this line no client can write the column, whatever the policy says.
+grant update (site_warehouse_id) on public.work_orders to authenticated;
 create index work_orders_site_warehouse_idx on public.work_orders (site_warehouse_id) where site_warehouse_id is not null;
 
 create or replace function public.guard_work_order_site_location() returns trigger
