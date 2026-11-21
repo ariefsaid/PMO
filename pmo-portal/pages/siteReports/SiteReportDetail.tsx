@@ -24,6 +24,8 @@ import {
   siteReportDraftInput, siteReportFormFromDetail, validateSiteReportForm, workingMinutes, type SiteReportForm,
 } from './siteReportForm';
 import { SiteReportPhotos } from './SiteReportPhotos';
+import { SiteReportStock } from './SiteReportStock';
+import { useDsrStockSettings } from '@/src/hooks/useDsrStockIssue';
 
 type Dialog = 'return' | 'correct' | null;
 
@@ -67,6 +69,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const revenue = useDailySiteReportRevenue(report.id, seeRevenue);
   const woRevenue = useWorkOrderValidatedRevenue(report.work_order_id, seeRevenue);
   const m = useDailySiteReportMutations();
+  const stockOn = useDsrStockSettings().data?.enabled === true;
 
   const [form, setForm] = useState<SiteReportForm>(() => siteReportFormFromDetail(detail));
   const [dirty, setDirty] = useState(false);
@@ -242,12 +245,17 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
         {(editable || form.consumables.length > 0) && <RecordSection title={t('consumables.title', 'Consumables used')}>
           {form.consumables.length > 0 && <ul className="space-y-3">
             {form.consumables.map((c, i) => (
-              <li key={i} className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] sm:items-end">
+              <li key={i} className={stockOn && items.length > 1 ? 'grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.5fr)_auto] sm:items-end' : 'grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] sm:items-end'}>
                 <SelectField label={t('consumables.item', 'Stock item')} value={c.stockItemId} disabled={!editable} error={errText(`consumables.${i}.item`)}
                   onChange={(v) => update({ consumables: form.consumables.map((p, j) => (j === i ? { ...p, stockItemId: v } : p)) })}
                   options={[{ value: '', label: t('consumables.pickItem', 'Choose an item') }, ...(stock.data ?? []).map((s) => ({ value: s.id, label: `${s.code} · ${s.name}` }))]} />
                 <TextField label={t('consumables.quantity', 'Quantity')} inputMode="decimal" value={c.quantity} disabled={!editable} error={errText(`consumables.${i}.quantity`)}
                   onChange={(v) => update({ consumables: form.consumables.map((p, j) => (j === i ? { ...p, quantity: v } : p)) })} />
+                {stockOn && items.length > 1 && (
+                  <SelectField label={t('consumables.workItem', 'Used on contract item')} value={c.workOrderLineId ?? ''} disabled={!editable}
+                    onChange={(v) => update({ consumables: form.consumables.map((p, j) => (j === i ? { ...p, workOrderLineId: v || undefined } : p)) })}
+                    options={[{ value: '', label: t('consumables.anyItem', 'Not named') }, ...items.map((it) => ({ value: it.id, label: `${it.item_code} · ${it.description}` }))]} />
+                )}
                 {editable && <Button variant="ghost" onClick={() => update({ consumables: form.consumables.filter((_, j) => j !== i) })}>{t('form.remove', 'Remove')}</Button>}
               </li>
             ))}
@@ -256,6 +264,8 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
             <Button variant="outline" className="mt-3" onClick={() => update({ consumables: [...form.consumables, { stockItemId: '', quantity: '' }] })}>{t('consumables.add', 'Add consumable')}</Button>
           )}
         </RecordSection>}
+
+        {report.status === 'validated' && <SiteReportStock reportId={report.id} enabled={stockOn} />}
 
         <RecordSection title={t('equipment.title', 'Equipment hours')} data-testid="dsr-equipment"
           actions={editable ? <Link to="/equipment" className="text-primary-text hover:underline">{t('equipment.add', 'Add usage')}</Link> : undefined}>

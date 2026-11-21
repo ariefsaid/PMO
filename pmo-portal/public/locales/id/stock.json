@@ -961,5 +961,13 @@
       "RSV_OVERDRAW": "Cadangan lebih sedikit dari yang dipakai permintaan.",
       "RSV_IMMUTABLE": "Cadangan tidak dapat dihapus; lepaskan saja."
     }
+  },
+  "dsrIssue": {
+    "setting": "Laporan harian yang divalidasi mengeluarkan materialnya dari stok",
+    "settingHelp": "Mati secara bawaan. Bila hidup, validasi laporan harian mengeluarkan baris material dari lokasi lapangan perintah kerja; stok kurang diberi tanda dan tidak menghalangi laporan.",
+    "items": "Barang yang dikeluarkan",
+    "itemsAll": "Semua barang pada baris material",
+    "itemsConsumables": "Hanya barang bertanda habis pakai",
+    "flagList": "Barang yang dihitung habis pakai"
   }
 }

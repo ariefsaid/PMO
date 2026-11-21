@@ -1,0 +1,27 @@
+{
+  "tables": [
+    {
+      "table": "dsr_stock_postings",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "dsr_stock_posting_lines",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ],
+  "definer_functions": [
+    "dsr_stock_issue_on(uuid)",
+    "set_dsr_stock_issue(boolean,text)",
+    "dsr_stock_status(uuid)",
+    "dsr_reverse_stock(uuid)",
+    "dsr_post_stock(uuid)"
+  ]
+}
