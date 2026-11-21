@@ -9,7 +9,7 @@ import { signIn, pinEnglishLocale } from '../helpers';
  * directory, and while the setting is off the Edit role form is the plain five-level form.
  * Also writes the two evidence screenshots per new screen (phone 390 and desktop 1440) under docs/evidence/1215/2709/.
  */
-test.setTimeout(420_000);
+test.setTimeout(240_000);
 
 const EVIDENCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../docs/evidence/1215/2709');
 const SIZES = [{ name: 'phone-390', width: 390, height: 844 }, { name: 'desktop-1440', width: 1440, height: 900 }] as const;
@@ -19,10 +19,21 @@ async function shoot(page: Page, screen: string) {
   if (process.env.EVIDENCE_SHOTS !== '1') return;
   for (const size of SIZES) {
     await page.setViewportSize({ width: size.width, height: size.height });
-    await page.waitForTimeout(250);
+    const heading = page.getByRole('heading', { name: 'Built-in roles' });
+    if (screen.startsWith('setting')) await heading.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await page.waitForTimeout(400);
     await page.screenshot({ path: path.join(EVIDENCE, `${screen}-${size.name}.png`), fullPage: false });
   }
   await page.setViewportSize({ width: 1280, height: 800 });
+}
+
+/** Search for the seeded Engineer and return their row once the directory has narrowed to it (the search is debounced). */
+async function engineerRow(page: Page) {
+  await page.getByRole('searchbox').first().fill('engineer@acme.test');
+  const row = page.getByRole('row').filter({ hasText: 'engineer@acme.test' });
+  await expect(page.getByRole('row').filter({ hasText: '@' })).toHaveCount(1);
+  await expect(row).toBeVisible();
+  return row;
 }
 
 test('AC-BIR-001: setting off keeps the plain form; on offers 28 roles; a role is given and shown', async ({ page }) => {
@@ -44,8 +55,7 @@ test('AC-BIR-001: setting off keeps the plain form; on offers 28 roles; a role i
 
     // Give the seeded Engineer the Planner role.
     await page.goto('/administration/users');
-    await page.getByRole('searchbox').first().fill('engineer@acme.test');
-    const menu = page.getByRole('button', { name: 'Row actions' }).first();
+    const menu = (await engineerRow(page)).getByRole('button', { name: 'Row actions' });
     await menu.click();
     await page.getByRole('menuitem', { name: 'Edit role' }).click();
     const picker = page.getByLabel('Built-in role');
@@ -56,25 +66,36 @@ test('AC-BIR-001: setting off keeps the plain form; on offers 28 roles; a role i
     await shoot(page, 'edit-role-picker');
     await page.getByRole('button', { name: 'Save role' }).click();
     await page.getByRole('button', { name: 'Change role' }).click();
-    await expect(page.getByText('Billing Officer').first()).toBeVisible();
+    await expect((await engineerRow(page)).getByText('Billing Officer')).toBeVisible();
 
-    // Clear it again so the seed person is back to the plain level.
-    await menu.click();
+    // Clear it. Clearing keeps the access level the role had set (Finance); the plain form then puts the seeded Engineer back.
+    await (await engineerRow(page)).getByRole('button', { name: 'Row actions' }).click();
     await page.getByRole('menuitem', { name: 'Edit role' }).click();
     await page.getByLabel('Built-in role').selectOption('');
     await page.getByRole('button', { name: 'Save role' }).click();
     await page.getByRole('button', { name: 'Change role' }).click();
-    await expect(page.getByText('Billing Officer')).toHaveCount(0);
+    await expect((await engineerRow(page)).getByText('Billing Officer')).toHaveCount(0); // the toast also names it, so look only in the row
+    await expect((await engineerRow(page)).getByText('Finance')).toBeVisible();
+    await (await engineerRow(page)).getByRole('button', { name: 'Row actions' }).click();
+    await page.getByRole('menuitem', { name: 'Edit role' }).click();
+    await page.getByRole('combobox', { name: /^Role/ }).selectOption('Engineer');
+    await page.getByRole('button', { name: 'Save role' }).click();
+    await page.getByRole('button', { name: 'Change role' }).click();
+    await expect((await engineerRow(page)).getByText('Engineer', { exact: true })).toBeVisible();
   } finally {
     await page.goto('/administration/people');
+    const toggle = page.getByRole('button', { name: /^Turn (on|off) built-in roles$/ });
+    await expect(toggle).toBeVisible();
     const off = page.getByRole('button', { name: 'Turn off built-in roles' });
-    if (await off.isVisible().catch(() => false)) await off.click();
+    if (await off.isVisible()) {
+      await off.click();
+      await expect(page.getByRole('button', { name: 'Turn on built-in roles' })).toBeVisible();
+    }
   }
 
   // Off again: the Edit role form is the plain one.
   await page.goto('/administration/users');
-  await page.getByRole('searchbox').first().fill('engineer@acme.test');
-  await page.getByRole('button', { name: 'Row actions' }).first().click();
+  await (await engineerRow(page)).getByRole('button', { name: 'Row actions' }).click();
   await page.getByRole('menuitem', { name: 'Edit role' }).click();
   await expect(page.getByLabel('Built-in role')).toHaveCount(0);
 });
