@@ -134,9 +134,18 @@ export function roleMayStandIn(actorKey: string | null | undefined, absentKey: s
   return LEVEL_RANK[actor] >= LEVEL_RANK[absent];
 }
 
-/** Default display name; a client's own name (#2712) replaces it. */
-export function builtInRoleName(key: string, language: string): string {
+/** A client's own role names: locale -> role key -> name (#2712). Absent = the catalogue default. */
+export type RoleNameOverrides = Partial<Record<'en' | 'id', Partial<Record<string, string>>>>;
+
+/**
+ * Display name of a built-in role: the organisation's override for the viewer's language, else the catalogue default.
+ * Display only; the key, `profiles.role` and every enum value are untouched. An unknown key resolves to the key itself.
+ */
+export function builtInRoleName(key: string, language: string, overrides?: RoleNameOverrides): string {
   const role = BY_KEY.get(key);
   if (!role) return key;
-  return language.toLowerCase().startsWith('id') ? role.nameId : role.nameEn;
+  const id = language.toLowerCase().startsWith('id');
+  const custom = overrides?.[id ? 'id' : 'en']?.[key]?.trim();
+  if (custom) return custom;
+  return id ? role.nameId : role.nameEn;
 }

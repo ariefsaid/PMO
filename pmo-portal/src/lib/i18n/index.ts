@@ -104,7 +104,7 @@ export const orgTermsPlugin = {
               const number = typeof hints.workOrder === 'string' ? hints.workOrder : reference === 'work orders' ? 'plural' : 'singular';
               return `$t(common:terms.clientWorkOrder, {"orgTermNumber":"${number}"})`;
             }
-            return /^(?:\{\{|\$t\(|<)/.test(part) ? part : applyOrgTerms(part, locale, terms, { englishReference: typeof english === 'string' ? english.replace(/<[^>]*>|\{\{[^}]*\}\}/g, '') : undefined, cursor, numberOverrides: hints, protect });
+            return /^(?:\{\{|\$t\(|<)/.test(part) ? part : applyOrgTerms(part, locale, terms, { englishReference: typeof english === 'string' ? english.replace(/<[^>]*>|\{\{[^}]*\}\}/g, '') : undefined, cursor, numberOverrides: hints, protect, namespace: resolved.usedNS });
           }).join('');
       }
       const result = original.call(this, value, keys, options, ...rest);
