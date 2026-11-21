@@ -1,4 +1,4 @@
--- vendor_supply_risk.test.sql — #2583 (1065 columns + guard, 1066 reads, 1067 set function).
+-- vendor_supply_risk.test.sql — #2583 (1149 columns + guard, 1150 reads, 1151 set function).
 -- Owns AC-VSR-001, 002 (Paid-case half; the voided-bill half is deferred, #2600), 004, 006..012, 014, 016, 017, 018.
 begin;
 select plan(66);

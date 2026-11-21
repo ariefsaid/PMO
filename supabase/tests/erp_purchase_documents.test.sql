@@ -168,7 +168,7 @@ select ok(
                        -- it reports come from capture_assigned_gl and the commitment readers, never from the documents' faces as actuals.
                        -- The stage helper reads the linked invoices' ERP status to set a captured purchase's stage; no amount.
                        'capture_assignment_family','capture_family_stage',
-                       -- AMENDED BY 1066 (#2583): the supplier supply-risk suggestion reads a case's linked ERP invoice/payment documents
+                       -- AMENDED BY 1150 (#2583): the supplier supply-risk suggestion reads a case's linked ERP invoice/payment documents
                        -- (the view) to state the SAME unpaid figure /finance/payables shows; it ages a supplier's balance, never feeds actuals.
                        'vendor_supply_risk_suggestion'))
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'

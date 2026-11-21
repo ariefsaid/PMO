@@ -15,7 +15,7 @@ Built to the spec's recommended defaults; the owner has not yet signed the decis
 - **OQ-VSR-4** moving back to `active` notifies nobody.
 - The flag stays a `companies` column (readable by every active member of the org); `supplyRisk.view` is a screen affordance only.
 
-Build notes: migrations were renumbered to this branch's range (1065 columns + guard, 1066 reads, 1067 set function); the read functions return `jsonb` / a table so the screen and the unit mirror share one shape; the suggestion's `invoice_count` counts the PMO invoices of the counted over-60 cases; a case with only linked ERP invoices has no PMO invoice date, so it carries unpaid but no age (the shipped payables rule ages by PMO `invoice_date` only).
+Build notes: migrations were renumbered to this branch's range (1149 columns + guard, 1150 reads, 1151 set function); the read functions return `jsonb` / a table so the screen and the unit mirror share one shape; the suggestion's `invoice_count` counts the PMO invoices of the counted over-60 cases; a case with only linked ERP invoices has no PMO invoice date, so it carries unpaid but no age (the shipped payables rule ages by PMO `invoice_date` only).
 
 
 > Fresh Orca worker per slice; Slice 2 (the governed status write) is Director-dispatched. Spec: `docs/specs/vendor-supply-risk.spec.md`. Sign OD-VSR and answer OQ-VSR first.
