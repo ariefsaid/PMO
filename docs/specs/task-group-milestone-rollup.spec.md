@@ -1,6 +1,6 @@
 # Task groups roll up to a milestone
 
-Issue #2679 (OD-SCOPE-12, map #2516). Status: **Draft, 2026-11-21**. Size S. Not money path. Settings: none.
+Issue #2679 (OD-SCOPE-12, map #2516). Status: **Approved 2026-11-21; built**. Size S. Not money path. Settings: none.
 Plan: `docs/plans/2026-11-21-task-group-milestone-rollup.md`. Migrations: 1395, 1396.
 
 **Job story.** When tasks are grouped, I want the group's progress to roll up to a milestone, so the milestone
@@ -53,8 +53,10 @@ deletes its tasks (FK `on delete set null`).
 - **FR-TGM-006** The roll-up shall be one pure function `milestoneProgress(tasks, groups)` in
   `pmo-portal/src/lib/delivery/milestoneRollup.ts`, mirrored by the SQL, with a parity test over shared fixtures.
 - **FR-TGM-007** While the caller is not Admin or Project Manager, the system shall give no create, edit, link or
-  assign affordance, and the database shall refuse the write (OD-DEL-7). An assignee Engineer shall not be able to
-  change `task_group_id` (pinned like `milestone_id`, `0202`/`0532` rule).
+  assign affordance, and the database shall refuse the write (OD-DEL-7). An assignee or creator Engineer shall not be able to
+  change `task_group_id`: on update the existing column allow-lists (0355 body of `enforce_assignee_status_only`)
+  already exclude it; on insert a new trigger (`guard_task_group_write`, 1395) refuses it. Executive keeps the same
+  task write as for `milestone_id` (the group table itself is Admin and Project Manager only).
 - **FR-TGM-008** Every read and write shall be scoped to the caller's organisation (RLS, `org_id` stamped by default).
 - **FR-TGM-009** All new text shall exist in English and Bahasa Indonesia; the word is "Task group".
 
@@ -77,8 +79,9 @@ deletes its tasks (FK `on delete set null`).
 - **AC-TGM-008 (Unit)** `milestoneProgress` returns the section 3 results for: no group (equals today), group only,
   overlap, archived/subtask/ungrouped, empty (null), all done (100).
 - **AC-TGM-009 (Unit)** TS and SQL parity: the same fixtures give the same percentages.
-- **AC-TGM-010 (Unit, RTL)** The Tasks tab shows the group manager and the task group selector only for a user who
-  `can()` write; the milestone strip shows the rolled-up % once a group is linked and is unchanged otherwise.
+- **AC-TGM-010 (Unit, RTL)** The task group manager (and the task form's group select) is offered only to a user who
+  `can()` edit a milestone, and renders nothing for anyone else while the project has no group. The rolled-up phase
+  % itself comes from the database (AC-TGM-002), so the milestone strip needs no change.
 
 ## 6. Out of scope
 
@@ -87,8 +90,16 @@ Nested groups, group weights, drag to reorder, group-level due dates, a Gantt ro
 
 ## 7. Owner questions
 
-- **OQ-TGM-1** No task group exists today; confirm a new per-project group record (recommended) rather than treating a
+- **OQ-TGM-1 (DECIDED: new record, approved)** No task group exists today; confirm a new per-project group record (recommended) rather than treating a
   parent task with subtasks as the group. Subtasks never move a percentage (OD-INT-9), so a parent-task group would
   change that rule.
-- **OQ-TGM-2** A task directly on milestone A whose group is linked to milestone B counts toward both (the union
+- **OQ-TGM-2 (DECIDED: union rule, approved)** A task directly on milestone A whose group is linked to milestone B counts toward both (the union
   rule). Recommended; the alternative (group link wins) would change today's counts for tasks that carry both.
+
+## 8. Built as (deviations noted)
+
+- `tasks.task_group_id` is deliberately left out of the generated `tasks` Row type so existing task fixtures stay
+  valid; code reads it through `WithTaskGroup` (`src/lib/db/taskGroups.ts`).
+- Group CRUD rides on the existing milestone repository (`repositories.milestone.*TaskGroup*`) instead of a new
+  aggregate key, so the repository registry tests stay unchanged.
+- Rename of a group is not offered in the panel (create, link, archive, delete only); `updateTaskGroup` supports it.

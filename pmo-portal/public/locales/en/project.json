@@ -1051,7 +1051,11 @@
     "tasks": {
       "selectTask": "Select task {{name}}",
       "form": {
-        "noAssignees": "No assignable people are available. Add or activate a user in Administration."
+        "noAssignees": "No assignable people are available. Add or activate a user in Administration.",
+        "taskGroup": "Task group",
+        "noTaskGroup": "No group",
+        "searchTaskGroups": "Search groups…",
+        "taskGroupNoun": "group"
       },
       "addTask": "Add task",
       "bulk": {
@@ -1138,7 +1142,29 @@
       "noMilestone": "No phase",
       "drawerMoreActions": "More task actions",
       "statusMix": "Tasks by status",
-      "statusMixOther": "Other"
+      "statusMixOther": "Other",
+      "taskGroups": {
+        "title": "Task groups",
+        "count_one": "{{count}} group",
+        "count_other": "{{count}} groups",
+        "empty": "No task groups yet. A group linked to a phase moves that phase's progress with its tasks.",
+        "archived": "Archived",
+        "progressAria": "{{name}} progress",
+        "done": "{{done}} of {{total}} done",
+        "phase": "Phase",
+        "noPhase": "Not linked",
+        "restore": "Restore",
+        "archive": "Archive",
+        "delete": "Delete",
+        "name": "New group name",
+        "add": "Add group",
+        "deleteTitle": "Delete task group?",
+        "deleteBody": "The tasks stay in the project; they just leave this group.",
+        "toast": {
+          "created": "Task group created",
+          "deleted": "Task group deleted"
+        }
+      }
     },
     "workOrders": {
       "acceptanceAge": "Days since acceptance, not invoiced: {{days}}",

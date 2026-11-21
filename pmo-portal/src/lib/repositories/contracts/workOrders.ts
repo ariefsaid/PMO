@@ -1,4 +1,5 @@
 /** Delivery contracts: milestones, work orders, progress billing, acceptances. */
+import type { TaskGroupRow, TaskGroupInput, TaskGroupPatch } from '@/src/lib/db/taskGroups';
 import type { CommandIntent } from './commandIntent';
 import type {
   BoqItemInput,
@@ -43,6 +44,11 @@ export interface MilestoneRepository {
   update: (id: string, patch: MilestonePatch) => Promise<void>;
   delete: (id: string) => Promise<void>;
   setTaskMilestone: (taskId: string, milestoneId: string | null) => Promise<void>;
+  /** Task groups (#2679): per-project groups of tasks that can be linked to a milestone (phase). */
+  listTaskGroups: (projectId: string) => Promise<TaskGroupRow[]>;
+  createTaskGroup: (input: TaskGroupInput, projectId: string) => Promise<void>;
+  updateTaskGroup: (id: string, patch: TaskGroupPatch) => Promise<void>;
+  deleteTaskGroup: (id: string) => Promise<void>;
 }
 
 /**

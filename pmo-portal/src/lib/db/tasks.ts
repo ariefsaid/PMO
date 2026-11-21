@@ -31,6 +31,8 @@ export interface TaskInput {
   end_date?: string | null;
   /** Optional milestone grouping (FR-DEL-016). null = Ungrouped. */
   milestone_id?: string | null;
+  /** Optional task group (#2679). A group linked to a phase rolls its tasks up to that phase. Managers only (DB-enforced). */
+  task_group_id?: string | null;
   /**
    * Optional parent task (OD-INT-9 subtask model). null = top-level (the default). A non-null
    * id makes this task a subtask; subtasks render nested under their parent and never
@@ -64,6 +66,8 @@ export interface TaskPatch {
   end_date?: string | null;
   /** Milestone re-assignment (FR-DEL-016). null explicitly ungroups the task. */
   milestone_id?: string | null;
+  /** Task group re-assignment (#2679). null removes the task from its group. */
+  task_group_id?: string | null;
   /** Parent re-assignment (OD-INT-9). null explicitly promotes the subtask back to top-level. */
   parent_task_id?: string | null;
   /** Description edit (OD-INT-9). null explicitly clears it. */
@@ -354,6 +358,7 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       // #2531: PMO-native structure fields, sent only when stated so every other creator's payload is unchanged.
       ...(input.work_order_id ? { work_order_id: input.work_order_id } : {}),
       ...(input.proof_required ? { proof_required: true } : {}),
+      ...(input.task_group_id ? { task_group_id: input.task_group_id } : {}), // #2679, managers only (DB-enforced)
     })
     .select()
     .single();
@@ -383,6 +388,7 @@ export async function updateTask(id: string, patch: TaskPatch, projectId?: strin
   if (patch.start_date !== undefined) next.start_date = patch.start_date || null;
   if (patch.end_date !== undefined) next.end_date = patch.end_date || null;
   if (patch.milestone_id !== undefined) next.milestone_id = patch.milestone_id; // null ungroups
+  if (patch.task_group_id !== undefined) next.task_group_id = patch.task_group_id; // null leaves the group (#2679)
   if (patch.parent_task_id !== undefined) next.parent_task_id = patch.parent_task_id; // null promotes
   if (patch.description !== undefined) next.description = patch.description || null; // OD-INT-9: "" → null
   if (patch.priority !== undefined) next.priority = patch.priority; // null clears

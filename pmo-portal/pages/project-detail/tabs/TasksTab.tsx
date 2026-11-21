@@ -18,6 +18,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useMilestones } from '@/src/hooks/useMilestones';
+import { useTaskGroups } from '@/src/hooks/useTaskGroups';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
@@ -32,6 +33,7 @@ import TaskBoard from './TaskBoard';
 import TaskFormModal from './TaskFormModal';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import MilestoneGroupedList from './MilestoneGroupedList';
+import TaskGroupsPanel from './TaskGroupsPanel';
 import { useProjectTaskColumns } from './TaskList';
 import TaskRecordDrawer from './TaskRecordDrawer';
 import TasksToolbar from './TasksToolbar';
@@ -93,6 +95,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const updateAsync = update.mutateAsync;
   const archiveAsync = archive.mutateAsync;
   const { data: milestones } = useMilestones(projectId);
+  const { data: taskGroupRows } = useTaskGroups(projectId);
+  const activeTaskGroups = useMemo(() => (taskGroupRows ?? []).filter((g) => !g.archived_at), [taskGroupRows]);
   const { data: workOrders } = useProjectWorkOrders(projectId);
   // #2531: the work-order link and proof flag are structure edits (migration 0991 refuses any other writer).
   const canStructure = realRole === 'Admin' || realRole === 'Executive' || realRole === 'Project Manager';
@@ -557,6 +561,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         action={{ label: t('projectDetail.tasks.clearFilters', 'Clear filters'), onClick: () => { setStatusFilter('all'); setAssigneeFilter('all'); setSearchText(''); clearSelection(); } }}
       />}
 
+      {state === undefined && <TaskGroupsPanel projectId={projectId} tasks={all} milestones={milestoneList} />}
+
       {state === undefined && (filteredTasks.length > 0 || milestoneList.length > 0) && view === 'list' && (
         <MilestoneGroupedList
           milestones={milestoneList}
@@ -655,6 +661,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           allTasks={all}
           defaultMilestoneId={formTarget.defaultMilestoneId ?? null}
           milestones={milestoneList}
+          taskGroups={activeTaskGroups}
           workOrders={workOrders ?? []}
           canStructure={canStructure && !externallyOwned}
           pendingPushState={

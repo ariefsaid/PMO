@@ -11775,6 +11775,54 @@ export type Database = {
           },
         ]
       }
+      task_groups: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          id: string
+          milestone_id: string | null
+          name: string
+          org_id: string
+          project_id: string
+          sort_order: number
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          milestone_id?: string | null
+          name: string
+          org_id?: string
+          project_id: string
+          sort_order?: number
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          milestone_id?: string | null
+          name?: string
+          org_id?: string
+          project_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_groups_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_groups_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_dependencies: {
         Row: {
           depends_on_id: string
@@ -11883,6 +11931,7 @@ export type Database = {
           project_id?: string | null
           source_updated_at?: string | null
           start_date?: string | null
+          task_group_id?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           tombstoned_at?: string | null
           work_order_id?: string | null
@@ -11906,6 +11955,7 @@ export type Database = {
           project_id?: string | null
           source_updated_at?: string | null
           start_date?: string | null
+          task_group_id?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           tombstoned_at?: string | null
           work_order_id?: string | null

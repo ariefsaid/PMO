@@ -1042,3 +1042,7 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+**Task group** — a named set of a project's tasks, optionally linked to one phase (milestone). While linked and not archived, the group's
+top-level, non-archived tasks count toward the phase's calculated progress, once each, together with the tasks placed directly on the
+phase. A phase with no linked group is measured exactly as before. Only Admin and Project Manager manage groups (#2679).
