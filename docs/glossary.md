@@ -1054,3 +1054,9 @@ the material close-out: joint count, loss report, material completion report). T
 **Discipline revenue** — the validated progress of a project at the contract rate frozen at validation, grouped by the discipline of the contract line it was recorded against. A contract line with no discipline rolls under "No discipline". Only current, validated reports count; a validated line frozen without a rate is named as unrated and makes that discipline's revenue incomplete, never zero.
 
 **Discipline margin** — discipline revenue less the discipline's direct cost and its allocated shared cost. Shown after shared cost (the headline) and, beside it, before shared cost. A loss reads "Loss of X". Revenue and cost in different currencies are never blended. The Admin turns the view on with the organisation setting **Profit per discipline** (off by default).
+
+**Revenue plan** (*rencana pendapatan*) — per work order, an amount of revenue entered for each plan date, in the work order's own currency, by date or by month spread evenly over the organisation's working days (the extra cents go to the earliest dates). Off until an Admin switches it on. It never changes an actual, a budget or an invoice (#2671).
+
+**Plan to date** — the sum of a work order's revenue-plan amounts dated on or before the as-of date. **Actual to date** is validated daily revenue (validated, non-superseded daily site reports, by report date) on or before the same date; submitted reports are named apart as not yet validated and never counted. **Gap** is actual to date less plan to date; negative reads "behind plan". The project roll-up totals per currency, over the work orders that have a plan, and never blends currencies.
+
+**Working days** (*hari kerja*) — the weekdays an organisation marks as working (default Monday to Friday). A month's revenue plan is spread over them; the same setting is the base for the daily target (#2672).
