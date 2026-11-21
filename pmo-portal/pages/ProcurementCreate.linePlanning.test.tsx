@@ -73,7 +73,7 @@ describe('AC-PLP-009 create form line planning', () => {
     mocks.planningOn = true;
     renderCreate();
     await addLine();
-    await userEvent.selectOptions(screen.getByLabelText('Category'), 'c1');
+    await userEvent.selectOptions(screen.getByLabelText('Line category'), 'c1');
     fireEvent.change(screen.getByLabelText('Needed by'), { target: { value: '2026-12-31' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(mocks.setLine).toHaveBeenCalledTimes(1));

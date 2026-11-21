@@ -42,7 +42,7 @@ export const LinePlanningSection: React.FC<LinePlanningSectionProps> = ({ lines,
                 ) : (
                   <>
                     <SelectField
-                      label={t('linePlanning.category', 'Category')}
+                      label={t('linePlanning.category', 'Line category')}
                       value={value.categoryId}
                       onChange={(categoryId) => onChange(line.id, { ...value, categoryId })}
                       options={rowOptions}

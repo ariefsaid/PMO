@@ -47,7 +47,7 @@ describe('AC-PLP-010 LinePlanningPanel', () => {
     h.get.mockResolvedValue(true);
     renderIt(true);
     await screen.findAllByRole('option', { name: 'Alpha' });
-    const selects = screen.getAllByRole('combobox', { name: 'Category' });
+    const selects = screen.getAllByRole('combobox', { name: 'Line category' });
     await userEvent.selectOptions(selects[0], 'c1');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(h.setLine).toHaveBeenCalledTimes(1));
