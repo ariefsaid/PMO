@@ -1,6 +1,6 @@
 # Spec: Vendor response time on an equipment breakdown (#2702)
 
-**Status:** draft for Director approval (2026-11-21). IDs `FR-EVR-###`, `AC-EVR-###`. Plan: `docs/plans/2026-11-21-equipment-vendor-response.md`. Size S. Map #2516. Extends `docs/specs/equipment-availability.spec.md` (#2526, migrations 1032-1034); does not change its status, escalation or rental-check rules.
+**Status:** approved by the Director; built (2026-11-21). IDs `FR-EVR-###`, `AC-EVR-###`. Plan: `docs/plans/2026-11-21-equipment-vendor-response.md`. Size S. Map #2516. Extends `docs/specs/equipment-availability.spec.md` (#2526, migrations 1032-1034); does not change its status, escalation or rental-check rules.
 
 ## Job story
 
@@ -38,7 +38,7 @@ When a rented machine breaks, I want to see how long the vendor took to respond,
 - AC-EVR-003 Given a response time before the reported time, or in the future, then the call fails with 22023 and no row is written. (pgTAP)
 - AC-EVR-004 Given a reported time before the breakdown's first day, then the call fails with 22023. (pgTAP)
 - AC-EVR-005 Given an owned asset, or a rented asset with no term on the period start, then the call fails with 22023. (pgTAP)
-- AC-EVR-006 Given a Finance, Executive or Viewer-level caller, then record and remove fail with 42501, and a direct insert/update/delete on the table is refused. (pgTAP)
+- AC-EVR-006 Given a Finance or Executive caller, then record and remove fail with 42501, and a direct insert/update/delete on the table is refused. (pgTAP)
 - AC-EVR-007 Given a caller in another organisation, then it can neither read nor record on this org's breakdowns. (pgTAP)
 - AC-EVR-008 Given three breakdowns of one vendor with responses of 30, 90 and 600 minutes and one awaiting, then the summary reads responded 3, awaiting 1, median 90, average 240, slowest 600. (pgTAP at the read, mirrored by the unit test)
 - AC-EVR-009 Given an even count (30 and 91 minutes), then median is 61 (mean 60.5 rounded half up); given zero responses, median and average are absent. (unit)
@@ -47,7 +47,7 @@ When a rented machine breaks, I want to see how long the vendor took to respond,
 
 ## Non-functional
 - NFR-EVR-001 Reads are bounded: at most 200 assets and 400 days per call, as `equipment_metrics`.
-- NFR-EVR-002 The pure function is exact integer arithmetic (BigInt-free; minutes are safe integers) and is the oracle the SQL read must agree with.
+- NFR-EVR-002 The pure function is exact integer arithmetic (integer minutes) and is the oracle the SQL read must agree with.
 
 ## Owner questions
 None blocking. Choices taken (to list in the report): who records = the status-setting roles (vendor chasing is field and manager work, not money); a breakdown is the derived downtime period (no new breakdown table); reported time defaults to the start of the first day and may be entered.

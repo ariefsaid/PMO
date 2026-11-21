@@ -12,6 +12,7 @@ import { useCreateAsset, useDeleteAsset, useEquipmentAssetPages, useUpdateAsset 
 import { LIST_LIMIT, type EquipmentAssetRow } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { unitLabel } from './equipmentLabels';
+import { VendorResponseSummaryCard } from './VendorResponseSummary';
 
 const NewAssetModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { t } = useTranslation();
@@ -140,6 +141,7 @@ const EquipmentAssetsPage: React.FC = () => {
               ? { label: t('equipment:assets.new', 'New asset'), onClick: () => setCreating(true) }
               : undefined}
             emptyActionVariant="outline" />
+          <VendorResponseSummaryCard assets={rows} />
         </>
       )}
       {creating && <NewAssetModal onClose={() => setCreating(false)} />}
