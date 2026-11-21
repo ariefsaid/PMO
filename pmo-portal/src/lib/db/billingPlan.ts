@@ -18,8 +18,10 @@ export interface PlanCandidatesResult {
 export interface PlanSettings {
   monthlyTarget: number | null;
   targetCurrency: string | null;
-  /** Done-not-claimed reminder switch. Off by default; #2675 reads it. */
+  /** Done-not-claimed reminder switch. Off by default. */
   reminderOn: boolean;
+  /** #2675: lines older than this many days are flagged while the reminder is on. Null = no limit set (no default). */
+  doneNotClaimedAfterDays?: number | null;
   monthTargets: Array<{ month: string; target: number }>;
 }
 
@@ -64,7 +66,7 @@ export async function getPlanCandidates(projectId: string | null): Promise<PlanC
 
 export async function getPlanSettings(): Promise<PlanSettings> {
   const [settings, months] = await Promise.all([
-    supabase.from('org_billing_plan_settings').select('monthly_target, target_currency, done_not_claimed_reminder_on').maybeSingle(),
+    supabase.from('org_billing_plan_settings').select('monthly_target, target_currency, done_not_claimed_reminder_on, done_not_claimed_after_days').maybeSingle(),
     supabase.from('billing_plan_month_targets').select('month, target').order('month', { ascending: true }).limit(120),
   ]);
   if (settings.error) throw new AppError(settings.error.message, settings.error.code);
@@ -73,6 +75,7 @@ export async function getPlanSettings(): Promise<PlanSettings> {
     monthlyTarget: num(settings.data?.monthly_target ?? null),
     targetCurrency: settings.data?.target_currency ?? null,
     reminderOn: settings.data?.done_not_claimed_reminder_on ?? false,
+    doneNotClaimedAfterDays: settings.data?.done_not_claimed_after_days ?? null,
     monthTargets: (months.data ?? []).map((m) => ({ month: m.month, target: Number(m.target) })),
   };
 }
@@ -81,6 +84,12 @@ export async function savePlanSettings(input: { monthlyTarget: number | null; ta
   const { error } = await supabase.rpc('set_billing_plan_settings', {
     p_target: input.monthlyTarget, p_currency: input.targetCurrency, p_reminder_on: input.reminderOn,
   });
+  if (error) fail(error);
+}
+
+/** #2675: the reminder switch and its day limit (null = no limit). Admin/Finance only, enforced by the definer. */
+export async function savePlanReminder(input: { reminderOn: boolean; afterDays: number | null }): Promise<void> {
+  const { error } = await supabase.rpc('set_billing_plan_reminder', { p_reminder_on: input.reminderOn, p_after_days: input.afterDays });
   if (error) fail(error);
 }
 

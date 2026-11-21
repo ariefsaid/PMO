@@ -78,10 +78,10 @@ export type Database = {
         ]
       }
       org_billing_plan_settings: {
-        Row: { org_id: string; monthly_target: number | null; target_currency: string | null; done_not_claimed_reminder_on: boolean; updated_by: string; updated_at: string }
+        Row: { org_id: string; monthly_target: number | null; target_currency: string | null; done_not_claimed_reminder_on: boolean; done_not_claimed_after_days: number | null; updated_by: string; updated_at: string }
         ComputedFields: never
-        Insert: { org_id: string; monthly_target?: number | null; target_currency?: string | null; done_not_claimed_reminder_on?: boolean; updated_by: string; updated_at?: string }
-        Update: { org_id?: string; monthly_target?: number | null; target_currency?: string | null; done_not_claimed_reminder_on?: boolean; updated_by?: string; updated_at?: string }
+        Insert: { org_id: string; monthly_target?: number | null; target_currency?: string | null; done_not_claimed_reminder_on?: boolean; done_not_claimed_after_days?: number | null; updated_by: string; updated_at?: string }
+        Update: { org_id?: string; monthly_target?: number | null; target_currency?: string | null; done_not_claimed_reminder_on?: boolean; done_not_claimed_after_days?: number | null; updated_by?: string; updated_at?: string }
         Relationships: []
       }
       billing_plan_month_targets: {
@@ -13868,6 +13868,7 @@ export type Database = {
         Args: { p_project?: string }
         Returns: { kind: string; project_id: string; project_name: string; currency: string; work_order_id: string | null; wo_number: string | null; boq_item_id: string | null; item_code: string | null; description: string | null; unit: string | null; earning_basis: string | null; rate: number | null; contract_quantity: number | null; accepted_quantity: number | null; claimed_quantity: number | null; unclaimed_quantity: number | null; value: number; accepted_on: string | null; today: string }[]
       }
+      set_billing_plan_reminder: { Args: { p_reminder_on: boolean; p_after_days: number | null }; Returns: Database["public"]["Tables"]["org_billing_plan_settings"]["Row"] }
       set_billing_plan_settings: { Args: { p_target: number | null; p_currency: string | null; p_reminder_on: boolean }; Returns: Database["public"]["Tables"]["org_billing_plan_settings"]["Row"] }
       set_billing_plan_month_target: { Args: { p_month: string; p_target: number | null }; Returns: undefined }
       remove_claim_billing_step: { Args: { p_reason: string; p_stage: string }; Returns: undefined }

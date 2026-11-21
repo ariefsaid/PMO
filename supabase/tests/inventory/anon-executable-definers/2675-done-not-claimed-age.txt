@@ -1,0 +1,2 @@
+# Client-callable SECURITY DEFINER writer added by #2675 (migration 1380). Revoked from public and anon, checks active membership and the Admin/Finance role in the body, proven by 1380_done_not_claimed_setting.test.sql.
+set_billing_plan_reminder

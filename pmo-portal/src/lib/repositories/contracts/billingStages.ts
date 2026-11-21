@@ -21,6 +21,8 @@ export interface BillingStagesRepository {
   /** #2682: the plan's target, its currency, the month overrides and the done-not-claimed reminder switch (off by default). */
   getPlanSettings(): Promise<PlanSettings>;
   savePlanSettings(input: { monthlyTarget: number | null; targetCurrency: string | null; reminderOn: boolean }): Promise<void>;
+  /** #2675: the done-not-claimed reminder switch and its day limit (null = none). Admin/Finance, DB enforced. */
+  savePlanReminder(input: { reminderOn: boolean; afterDays: number | null }): Promise<void>;
   saveMonthTarget(month: string, target: number | null): Promise<void>;
   getTemplate(projectId: string): Promise<StageTemplateInput[]>;
   setTemplate(projectId: string, stages: StageTemplateInput[]): Promise<number>;

@@ -1115,3 +1115,6 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 - **Breakdown** — an equipment downtime period: from the first down status until the next ready or standby status. Identified by asset and start date; never stored.
 - **Response time** (vendor) — whole minutes from the reported time of a breakdown to the recorded time the rental vendor responded; a breakdown with no recorded response is awaiting, not zero.
+
+- **Done-not-claimed age** (#2675): whole days from the latest confirmed acceptance of a candidate's work order to the organisation's today. Information, shown on every candidate line of the billing plan.
+- **Done-not-claimed alert** (#2675): off by default; when an organisation switches the reminder on and sets a day limit, lines older than the limit are flagged and Finance is told once per line. It never raises a claim or an invoice.
