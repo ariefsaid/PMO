@@ -1,8 +1,13 @@
-// @e2e-isolation: read-only — signs in as seed users and only navigates; the seed organisation has no accounting system connected in this lane.
+// @e2e-isolation: serial - disconnects the seed organisation's accounting binding for the run (org-wide state other specs must see unchanged) and restores it in afterAll; the no-ERP precondition is asserted first.
 // AC-NEF-010..021 — one journey per finance and profit screen, opened as an organisation with no accounting system connected.
 // Goal oracle: each screen renders its own PMO records (a heading, no error state) and never ends in "set up accounting" or ERP-only wording.
 import { test, expect, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn } from '../helpers';
+import { disconnectSeedOrgErp, type NoErpHandle } from './noErpOrg';
+
+let noErp: NoErpHandle;
+test.beforeAll(async () => { noErp = await disconnectSeedOrgErp(); });
+test.afterAll(async () => { await noErp?.restore(); });
 
 const SET_UP = /Set up accounting|Siapkan akuntansi|Atur akuntansi/i;
 const FAILED = /Couldn.t load|Tidak dapat memuat|Gagal memuat/i;
