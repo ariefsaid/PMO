@@ -1047,4 +1047,10 @@ the material close-out: joint count, loss report, material completion report). T
 
 **Discipline revenue** — the validated progress of a project at the contract rate frozen at validation, grouped by the discipline of the contract line it was recorded against. A contract line with no discipline rolls under "No discipline". Only current, validated reports count; a validated line frozen without a rate is named as unrated and makes that discipline's revenue incomplete, never zero.
 
+**Earned revenue** — a work order's validated daily progress at the contract rate frozen at validation (the same figure as discipline revenue, taken per work order or project). A work order with no validated progress has earned revenue "not available", never zero; a project where only some work orders have it reads "incomplete", with the count of those without (#2733).
+
+**Billed revenue** — claims and invoices excluding tax, as the work-order billing derivation gives them: a down payment bills zero, a withdrawn claim and a cancelled invoice do not count. Per discipline it is the amount of live claim lines by the contract item's discipline; billed work no claim line itemises is shown as "Not itemised" (#2733).
+
+**Gap between earned and billed** — earned less billed: positive is work done and not yet billed, negative is billed ahead of validated work. Shown only when both figures exist in one currency. Margin is shown on each basis (earned, billed) with the same cost; it is a management view, not revenue recognition (#2733).
+
 **Discipline margin** — discipline revenue less the discipline's direct cost and its allocated shared cost. Shown after shared cost (the headline) and, beside it, before shared cost. A loss reads "Loss of X". Revenue and cost in different currencies are never blended. The Admin turns the view on with the organisation setting **Profit per discipline** (off by default).

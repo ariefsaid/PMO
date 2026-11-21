@@ -146,5 +146,28 @@
   "underPlan": "Sisa {{amount}}",
   "underPlanHours": "Sisa {{hours}} jam",
   "unknown": "Tidak diketahui",
-  "unknownDiscipline": "Disiplin diarsipkan"
+  "unknownDiscipline": "Disiplin diarsipkan",
+  "earnedBilled": {
+    "title": "Pendapatan yang dihasilkan dan yang ditagih",
+    "packTitle": "Pendapatan yang dihasilkan dan yang ditagih per proyek",
+    "note": "Dihasilkan adalah progres harian tervalidasi pada tarif kontrak. Ditagih adalah klaim dan faktur, tanpa pajak.",
+    "packNote": "Dihasilkan adalah progres harian tervalidasi sampai saat ini; biaya dan nilai tagihan sama dengan tab proyek, sehingga keduanya cocok.",
+    "col": {
+      "workOrder": "Perintah kerja",
+      "project": "Proyek",
+      "earned": "Dihasilkan",
+      "billed": "Ditagih",
+      "gap": "Dihasilkan, belum ditagih",
+      "marginEarned": "Margin atas yang dihasilkan",
+      "marginBilled": "Margin atas yang ditagih"
+    },
+    "byWorkOrder": "Per perintah kerja",
+    "byDiscipline": "Per disiplin",
+    "notItemised": "Tidak dirinci",
+    "notAvailable": "Tidak tersedia",
+    "incompleteWorkOrders": "Belum lengkap: sebagian perintah kerja belum punya progres tervalidasi atau tarif",
+    "withoutProgress": "{{count}} dari {{total}} perintah kerja belum punya progres tervalidasi.",
+    "empty": "Belum ada perintah kerja berstatus Diterbitkan atau Ditutup.",
+    "loadError": "Pendapatan yang dihasilkan dan ditagih tidak dapat dimuat"
+  }
 }

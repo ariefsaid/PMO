@@ -146,5 +146,28 @@
   "underPlan": "{{amount}} left",
   "underPlanHours": "{{hours}} h left",
   "unknown": "Unknown",
-  "unknownDiscipline": "Archived discipline"
+  "unknownDiscipline": "Archived discipline",
+  "earnedBilled": {
+    "title": "Earned and billed revenue",
+    "packTitle": "Earned and billed revenue by project",
+    "note": "Earned is validated daily progress at the contract rate. Billed is claims and invoices, excluding tax.",
+    "packNote": "Earned is validated daily progress to date; cost and billed are the project tab's figures, so they agree.",
+    "col": {
+      "workOrder": "Work order",
+      "project": "Project",
+      "earned": "Earned",
+      "billed": "Billed",
+      "gap": "Earned, not yet billed",
+      "marginEarned": "Margin on earned",
+      "marginBilled": "Margin on billed"
+    },
+    "byWorkOrder": "By work order",
+    "byDiscipline": "By discipline",
+    "notItemised": "Not itemised",
+    "notAvailable": "Not available",
+    "incompleteWorkOrders": "Incomplete: some work orders have no validated progress or a missing rate",
+    "withoutProgress": "{{count}} of {{total}} work orders have no validated progress yet.",
+    "empty": "No Issued or Closed work orders yet.",
+    "loadError": "Couldn't load earned and billed revenue"
+  }
 }

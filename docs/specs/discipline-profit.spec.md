@@ -100,7 +100,7 @@ filter) and AC-DPR-005/006/007 go red; make `set_boq_item_discipline` skip the r
 2. The headline margin is after shared cost; before shared cost is the second column.
 3. A picker on the contract line form, shown only while the setting is on and only when editing an existing line (a new line has no id until saved). The contract-line import carries no discipline column, so the picker is the only way.
 4. The setting follows the organisation-setting pattern of the fiscal-year start (a column, a getter, an Admin-only audited setter RPC), not `org_features`.
-5. The revenue read returns a `basis` column (`validated_progress`) so a second basis (billed) can be added beside it without rewriting the read or the join.
+5. The revenue read returns a `basis` column (`validated_progress`) so a second basis (billed) can be added beside it without rewriting the read or the join. Shipped in [earned-billed-revenue](earned-billed-revenue.spec.md) (#2733).
 
 ## 8. Out of scope
 Forecast to completion, tax, per-discipline billing, re-pricing validated lines, new cost sources.

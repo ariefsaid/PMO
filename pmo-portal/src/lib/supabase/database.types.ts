@@ -15335,6 +15335,30 @@ export type Database = {
           project_id: string
         }[]
       }
+      project_work_order_earned_billed: {
+        Args: { p_project: string }
+        Returns: {
+          billed: number
+          billed_complete: boolean
+          currency: string
+          earned: number | null
+          earned_lines: number
+          unrated_lines: number
+          work_order_id: string
+        }[]
+      }
+      management_pack_earned: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          currency: string
+          earned: number
+          earned_lines: number
+          project_id: string
+          unrated_lines: number
+          work_orders: number
+          work_orders_without_progress: number
+        }[]
+      }
       project_discipline_revenue: {
         Args: { p_project: string }
         Returns: {

@@ -89,7 +89,7 @@ No new setting, rate or list. Existing organisations see no change.
 payment / withdrawn claim) and AC-EBR-003/005/007 go red; skip the role gate and AC-EBR-002 goes red; make
 `billed_unitemised` return 0 and AC-EBR-006 goes red; restore.
 
-## 7. Open questions (for the orchestrator)
+## 7. Rulings (coordinator, 2026-11-21) — supersede the open questions below where they differ
 1. The pack has no cost today. Default here: `management_pack_earned` also returns the project's cost per currency summed
    from `work_order_cost_lines` (the #2517 read), null when any restricted row exists, so pack margin uses the same cost as
    the project tab. Alternative: pack shows earned, billed and gap only and defers margin. Confirm.
@@ -99,3 +99,6 @@ payment / withdrawn claim) and AC-EBR-003/005/007 go red; skip the role gate and
 
 ## 8. Out of scope
 Statutory recognition, ledger posting, re-pricing, forecast, tax, a second setting.
+
+**Rulings applied:** (1) pack margin ships; project cost is the SAME roll-up the project tab uses (direct + allocated shared), computed in the app by `rollupProject` — so migration 1272 returns earned only (no SQL cost sum); a restricted source makes it "restricted". (2) "Not itemised" accepted. (3) "Incomplete" accepted, with the count of work orders lacking validated progress shown. `project_discipline_revenue` keeps #2669's signature and its `validated_progress` rows exactly (1270 appends billed rows).
+The pack shows a separate "Earned and billed revenue by project" table (`pages/ManagementPackEarned.tsx`) so the existing pack columns and totals are untouched; its earned figure is all validated work to date, equal to the tab.

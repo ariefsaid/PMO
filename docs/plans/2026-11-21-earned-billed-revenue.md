@@ -15,7 +15,7 @@ Gate change: DB, e2e and screenshots are written but not run; run only guards, t
    returns `(work_order_id, currency, earned numeric null, earned_lines int, unrated_lines int, billed numeric,
    billed_complete bool)`; earned null when no validated line; billed from `work_order_billing` (invoiced + pending).
    Definer, `dsr_require_member`, `dsr_may_see_revenue`, setting-off returns nothing, revoke anon.
-4. `supabase/migrations/1272_management_pack_earned.sql` (+ rollback): `management_pack_earned(p_to date)` returns per
+4. `supabase/migrations/1272_management_pack_earned.sql` (+ rollback): `management_pack_earned()` returns per
    project and currency: earned to date, project cost (open question 1), restricted flag. Setting-off returns nothing;
    `get_management_pack` is untouched. Register the three RPCs in the isolation denominator
    (`scripts/check-isolation-denominator.mjs`, run its tests).
