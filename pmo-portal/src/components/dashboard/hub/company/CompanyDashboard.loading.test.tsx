@@ -6,8 +6,9 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui/Toast';
 
 const dash = {
@@ -22,7 +23,7 @@ const dash = {
 };
 const month = `${new Date().getFullYear()}-01`;
 const pack = { from: `${month}-01`, to: `${month}-01`, timezone: 'UTC', undatedInvoiceCount: 0, months: [`${month}-01`], rows: [], totals: [{ currency: 'USD', months: [{ month: `${month}-01`, invoiced: 120_000_000 }] }] };
-const invoice = { id: 'i1', status: 'Unpaid', currency: 'USD', invoice_date: '2026-01-01', erp_due_date: '2026-01-31', received_date: null, erp_outstanding_amount: 40_000, erp_payment_terms_days: 30 };
+const invoice = { id: 'i1', customer_name: 'Client One', si_number: 'INV-1', status: 'Unpaid', currency: 'USD', invoice_date: '2026-01-01', erp_due_date: '2026-01-31', received_date: null, erp_outstanding_amount: 40_000, erp_payment_terms_days: 30 };
 
 type Read = { data: unknown; isPending: boolean; isError: boolean };
 const ok = (data: unknown): Read => ({ data, isPending: false, isError: false });
@@ -36,7 +37,7 @@ vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useUnbilledWorkOrders: () =>
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useOrgCurrencyState: () => ({ currency: 'USD', isResolved: true, isError: false }) }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({
-  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useSalesInvoices: () => read('salesInvoices'),
   useIncomingPayments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useOverdueInvoiceFacts: () => read('invoices'),
   usePaidPaymentFacts: () => read('payments'),
@@ -69,15 +70,34 @@ import { CompanyDashboard } from './CompanyDashboard';
 
 const renderExec = () => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <MemoryRouter><ToastProvider><CompanyDashboard role="Executive" /></ToastProvider></MemoryRouter>
+    <MemoryRouter><LocationProbe /><ToastProvider><CompanyDashboard role="Executive" /></ToastProvider></MemoryRouter>
   </QueryClientProvider>,
 );
+const renderFinance = () => render(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter><LocationProbe /><ToastProvider><CompanyDashboard role="Finance" /></ToastProvider></MemoryRouter>
+  </QueryClientProvider>,
+);
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="dashboard-location">{location.pathname}{location.search}</output>;
+}
 const band = () => screen.getByRole('region', { name: 'Company figures' });
 const tile = (label: string) => within(band()).getByText(label, { exact: true }).closest('div[class*="flex-col"]') as HTMLElement;
 
 beforeEach(() => {
   localStorage.removeItem('home-layout');
-  h.reads = { dashboard: ok(dash), pack: ok(pack), invoices: ok([invoice]), payments: ok([]), procurements: ok([]) };
+  h.reads = { dashboard: ok(dash), pack: ok(pack), invoices: ok([invoice]), salesInvoices: ok([]), payments: ok([]), procurements: ok([]) };
+});
+
+it('AC-2077 finance company-home overdue rows keep the existing list destination as real links', async () => {
+  h.reads.salesInvoices = ok([invoice]);
+  renderFinance();
+
+  const link = await screen.findByRole('link', { name: 'Open overdue invoice for Client One' });
+  expect(link).toHaveAttribute('href', '/finance/receivables?overdue=true');
+  await userEvent.click(link);
+  expect(screen.getByTestId('dashboard-location')).toHaveTextContent('/finance/receivables?overdue=true');
 });
 
 describe('company home loading gates: one read pending', () => {

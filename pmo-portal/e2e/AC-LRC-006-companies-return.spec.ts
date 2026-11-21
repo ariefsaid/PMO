@@ -52,7 +52,7 @@ test(
     await search.fill('r');
     await expect(page).toHaveURL(/[?&]q=r(&|$)/);
     await expect(page.getByText('SunVolt Modules Co.')).not.toBeVisible();
-    await expect(page.getByRole('button', OPEN_CABLECORE)).toBeVisible();
+    await expect(page.getByRole('link', OPEN_CABLECORE)).toBeVisible();
 
     const main = page.locator('.main-scroll');
     await expect(main).toBeVisible();
@@ -60,12 +60,12 @@ test(
     // Capture where the user IS when they open the record: the row must be on screen to be
     // clicked, and Playwright's click would otherwise scroll it into view AFTER this reading
     // (with one more matching row, CableCore sits above the fold at max scroll).
-    await page.getByRole('button', OPEN_CABLECORE).scrollIntoViewIfNeeded();
+    await page.getByRole('link', OPEN_CABLECORE).scrollIntoViewIfNeeded();
     const scrolledTop = await main.evaluate((el) => el.scrollTop);
     expect(scrolledTop).toBeGreaterThan(0);
 
     // ── Open a record; capture its canonical URL for the direct-visit check below ───────────
-    await page.getByRole('button', OPEN_CABLECORE).click();
+    await page.getByRole('link', OPEN_CABLECORE).click();
     await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/i, { timeout: 15_000 });
     const recordUrl = page.url();
     await expect(page.getByTestId('record-header')).toContainText('CableCore Electrical');
@@ -81,7 +81,7 @@ test(
     await expect(page.getByRole('tab', { name: /^Supplier$/i })).toHaveAttribute('aria-selected', 'true');
     await expect(search).toHaveValue('r');
     // The narrowed SET came back, not just the URL: the searched-out and filtered-out rows stay out.
-    await expect(page.getByRole('button', OPEN_CABLECORE)).toBeVisible();
+    await expect(page.getByRole('link', OPEN_CABLECORE)).toBeVisible();
     await expect(page.getByText('SunVolt Modules Co.')).not.toBeVisible();
     await expect(page.getByText('Meridian Steelworks')).not.toBeVisible();
     await expectScrollRestored(main, scrolledTop);
@@ -92,16 +92,16 @@ test(
     await page.setViewportSize({ width: 390, height: 420 });
     await waitReady(page);
     await main.evaluate((el) => el.scrollTo(0, el.scrollHeight));
-    await page.getByRole('button', OPEN_CABLECORE).scrollIntoViewIfNeeded();
+    await page.getByRole('link', OPEN_CABLECORE).scrollIntoViewIfNeeded();
     const mobileScrolledTop = await main.evaluate((el) => el.scrollTop);
     expect(mobileScrolledTop).toBeGreaterThan(0);
-    await page.getByRole('button', OPEN_CABLECORE).click();
+    await page.getByRole('link', OPEN_CABLECORE).click();
     await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/i, { timeout: 15_000 });
     await page.getByRole('button', { name: 'Back to Companies', exact: true }).click();
     await expect(page).toHaveURL(/[?&]type=Vendor/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=r(&|$)/);
     await waitReady(page);
-    await expect(page.getByRole('button', OPEN_CABLECORE)).toBeVisible();
+    await expect(page.getByRole('link', OPEN_CABLECORE)).toBeVisible();
     await expect(page.getByText('SunVolt Modules Co.')).not.toBeVisible();
     await expectScrollRestored(main, mobileScrolledTop);
 

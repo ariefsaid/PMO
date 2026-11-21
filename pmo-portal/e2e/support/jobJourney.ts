@@ -3,6 +3,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { requireServiceRoleKey } from '../helpers';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
+import { formatCalendarDayInTimeZone } from '../../src/lib/format';
+import { addDays } from '../../src/lib/reports/months';
 
 /** Seed ids (supabase/seed.sql): the org, the Project Manager and the Engineer. */
 export const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -26,7 +28,11 @@ export const need = (who: string) => <D>(step: string, r: { data: D; error: { me
 
 export const pad = (n: number) => String(n).padStart(2, '0');
 export const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-export const inDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return iso(d); };
+// The app and its scheduled jobs count days from the org's calendar day, not the runner's: between 17:00 and 24:00 UTC
+// the runner's UTC date is a day behind Jakarta. ponytail: the seed org's default_timezone; read it if a spec changes it.
+export const ORG_TIMEZONE = 'Asia/Jakarta';
+export const orgToday = () => formatCalendarDayInTimeZone(new Date(), ORG_TIMEZONE);
+export const inDays = (n: number) => addDays(orgToday(), n);
 
 /** Runs SQL as the database owner in the local container, for jobs no role may call (the scheduled jobs). */
 export function sql(statement: string): string {

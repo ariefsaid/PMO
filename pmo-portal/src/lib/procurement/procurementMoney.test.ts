@@ -123,6 +123,20 @@ describe('supplierUnpaid (SEC-RS-2: the one owed-to-suppliers figure)', () => {
     expect(supplierUnpaid({ procurement_invoices: [{ amount: null }], payments: [] })).toEqual({ amount: null, unknown: true });
   });
 
+  it('#2600 a voided bill never counts: only the live bill is owed', () => {
+    const input = {
+      procurement_invoices: [{ amount: 900, voided_at: '2026-11-01T00:00:00Z' }, { amount: 300, voided_at: null }],
+      payments: [],
+    };
+    expect(supplierUnpaid(input)).toEqual({ amount: 300, unknown: false });
+    expect(procurementMoney(input).invoiced).toEqual({ amount: 300, unknown: false });
+  });
+
+  it('#2600 a procurement whose only bill is voided has no supplier invoice on record (unknown, not owed)', () => {
+    expect(supplierUnpaid({ procurement_invoices: [{ amount: 900, voided_at: '2026-11-01T00:00:00Z' }], payments: [] }))
+      .toEqual({ amount: null, unknown: true });
+  });
+
   it('is zero when the invoice is fully paid', () => {
     expect(supplierUnpaid({ procurement_invoices: [{ amount: 500 }], payments: [{ amount: 500, status: 'Paid' }] })).toEqual({ amount: 0, unknown: false });
   });

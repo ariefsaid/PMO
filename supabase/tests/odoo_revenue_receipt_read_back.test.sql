@@ -26,7 +26,7 @@
 begin;
 select plan(14);
 
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 
 -- ── The concurrent session (loopback connect, 0155's pattern; password=postgres is the Supabase LOCAL
 -- default; this file only runs against the local/CI `supabase test db`). ────────────────────────────

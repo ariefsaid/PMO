@@ -1,4 +1,5 @@
 import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
+import CostDisciplines from './admin/CostDisciplines';
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -12,6 +13,7 @@ import { GateNotice, ListState, PageHeader } from '@/src/components/ui';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import AdminUsers from './AdminUsers';
 import People from './admin/People';
+import DocumentTypes from './admin/DocumentTypes';
 import AdministrationCredits from './AdministrationCredits';
 import { AdministrationUsage } from './AdministrationUsage';
 import AdministrationFeatures from './AdministrationFeatures';
@@ -30,6 +32,7 @@ import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import OrgProcurementGates from './admin/OrgProcurementGates';
+import SiteReportLists from './admin/SiteReportLists';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
@@ -250,6 +253,7 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-people" className="min-w-0">
           <SectionName name={label('people')} />
           <People />
+          <DocumentTypes />
         </div>
       );
     case 'integrations':
@@ -290,6 +294,8 @@ const SelectedAdministrationPanel: React.FC<{
           <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
+            <SiteReportLists />
+            <CostDisciplines />
           </div>
         </div>
       );

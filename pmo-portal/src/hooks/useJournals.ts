@@ -1,13 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import { useAuth } from '@/src/auth/useAuth';
+import { useOrgId } from '@/src/hooks/useOrgId';
 import type { JournalDraftInput } from '@/src/lib/db/journals';
 import { ApprovedSendFailure } from '@/src/lib/journals/approvedSendFailure';
 
 /** Manual journals (#895) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
 export const JOURNAL_QUERY_ROOTS = ['journals', 'journal', 'journal-ledger-setup'] as const;
 
-const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 
 export function useJournals(from: string, to: string) {
   const orgId = useOrgId();

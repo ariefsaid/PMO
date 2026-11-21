@@ -155,8 +155,9 @@ code=$(curl -sS -o "$work/login" -w '%{http_code}' -H "apikey: $ANON_KEY" -H 'Co
   -d "$(jq -nc --arg p "$b_password" '{email:"isolation-proof-b@example.invalid",password:$p}')" "$API_URL/auth/v1/token?grant_type=password")
 [ "$code" = 200 ] || { echo "isolation-proof: B sign-in failed (HTTP $code)" >&2; exit 2; }
 JWT_B=$(jq -er .access_token "$work/login") || exit 2
+node "$SCRIPT_DIR/check-isolation-denominator.mjs" --emit "$work/denominator.json" || exit 2
 # One A row id per applicable table the fixtures filled; the probe verifies each belongs to A before using it.
-rows_sql=$(jq -r --arg a "$A_ORG" '[.tables[]|select(.by_id=="applicable" and .has_org)|"select jsonb_build_object('"'"'table'"'"','"'"'\(.table)'"'"','"'"'pk'"'"','"'"'\(.pk)'"'"','"'"'id'"'"',(select \"\(.pk)\" from public.\"\(.table)\" where org_id='"'"'\($a)'"'"' limit 1)) as r"]|join(" union all ")' "$SCRIPT_DIR/isolation-probe-denominator.json")
+rows_sql=$(jq -r --arg a "$A_ORG" '[.tables[]|select(.by_id=="applicable" and .has_org)|"select jsonb_build_object('"'"'table'"'"','"'"'\(.table)'"'"','"'"'pk'"'"','"'"'\(.pk)'"'"','"'"'id'"'"',(select \"\(.pk)\" from public.\"\(.table)\" where org_id='"'"'\($a)'"'"' limit 1)) as r"]|join(" union all ")' "$work/denominator.json")
 sql -c "select coalesce(jsonb_agg(r), '[]') from ($rows_sql) q where r->>'id' is not null" > "$work/rows" || exit 2
 [ -s "$work/rows" ] && jq -e 'length>0' "$work/rows" >/dev/null || { echo 'isolation-proof: fixtures produced no tenant A rows' >&2; exit 2; }
 echo "isolation-proof: tenant A rows for $(jq length "$work/rows") tables"

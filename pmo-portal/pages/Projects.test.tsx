@@ -363,14 +363,14 @@ describe('Projects index — IA-3 (real data)', () => {
     projectsState.data = [withAlias, seed[1], seed[2]] as ProjectWithRefs[];
     renderPage();
     const search = screen.getByRole('searchbox', { name: /search projects/i });
-    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toHaveAttribute('title', 'Innovate Corp HQ Fit-Out');
-    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toHaveAccessibleDescription('Innovate Corp HQ Fit-Out');
+    expect(screen.getByRole('link', { name: 'Harbor Operations' })).toHaveAttribute('title', 'Innovate Corp HQ Fit-Out');
+    expect(screen.getByRole('link', { name: 'Harbor Operations' })).toHaveAccessibleDescription('Innovate Corp HQ Fit-Out');
     await userEvent.type(search, 'Harbor Operations');
-    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Harbor Operations' })).toBeVisible();
     expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
     await userEvent.clear(search);
     await userEvent.type(search, 'Innovate Corp HQ Fit-Out');
-    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Harbor Operations' })).toBeVisible();
   });
 
   it('filters by search (AC-404)', async () => {
@@ -1349,7 +1349,7 @@ describe('Projects — which project is off track, and how far (#design-1115)', 
     const clause = within(finding).getByRole('button', { name: '1 of 3 at risk' });
     await userEvent.click(clause);
     await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toContain('filter=at-risk'));
-    expect(screen.getAllByRole('button', { name: /^(Innovate Corp HQ Fit-Out|Northwind ERP Rollout|Regional Services Program)$/ }).map((b) => b.textContent))
+    expect(screen.getAllByRole('link', { name: /^(Innovate Corp HQ Fit-Out|Northwind ERP Rollout|Regional Services Program)$/ }).map((b) => b.textContent))
       .toEqual(['Northwind ERP Rollout']);
   });
 
@@ -1363,7 +1363,7 @@ describe('Projects — which project is off track, and how far (#design-1115)', 
   it("an internal project's contract is a dash, never an amount, and the dash is explained once", () => {
     projectsState.data = [seed[0], { ...seed[2], status: 'Internal Project' }] as unknown as ProjectWithRefs[];
     renderPage();
-    const internalRow = screen.getByRole('button', { name: 'Regional Services Program' }).closest('tr')!;
+    const internalRow = screen.getByRole('link', { name: 'Regional Services Program' }).closest('tr')!;
     const contractIndex = [...document.querySelectorAll('thead th')].findIndex((h) => h.textContent?.startsWith('Contract'));
     expect((internalRow as HTMLTableRowElement).cells[contractIndex]).toHaveTextContent(/^—$/);
     expect(within(internalRow).queryByText('$800,000')).not.toBeInTheDocument();

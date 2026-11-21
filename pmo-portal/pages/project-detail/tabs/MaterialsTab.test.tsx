@@ -43,7 +43,10 @@ describe('Project Materials tab', () => {
   it('FR-STK-064 Issue material shows for a keeper and Admin, links to the issue form with the project, and is absent for a non-keeper', async () => {
     master.listKeepers.mockResolvedValue([]);
     const a = renderTab('Admin');
-    expect(await screen.findByRole('link', { name: /Issue material/ })).toHaveAttribute('href', '/stock/new/issue?project=p1');
+    const issue = await screen.findByRole('link', { name: /Issue material/ });
+    expect(issue).toHaveAttribute('href', '/stock/new/issue?project=p1');
+    // One tab stop (#2077): the link is the control; no button nested inside it.
+    expect(issue.querySelector('button')).toBeNull();
     a.unmount();
     renderTab('Engineer');
     await screen.findByText('Nothing posted yet');

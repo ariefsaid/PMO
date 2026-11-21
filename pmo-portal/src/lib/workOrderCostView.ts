@@ -13,7 +13,7 @@ export interface CostMoney { amount: number; currency: string }
 export type MoneyBySource = Partial<Record<CostSource, Record<string, CostMoney> | null>>;
 
 export interface DisciplineGroup { disciplineId: string; lines: WorkOrderCostLine[]; total: CostMoney | null; totals: CostMoney[] }
-export interface SourceGroup { source: CostSource; lines: WorkOrderCostLine[]; disciplines: DisciplineGroup[]; total: CostMoney | null; totals: CostMoney[]; restricted: boolean }
+export interface SourceGroup { source: CostSource; lines: WorkOrderCostLine[]; disciplines: DisciplineGroup[]; total: CostMoney | null; totals: CostMoney[]; restricted: boolean; moneyByRecord: Record<string, CostMoney> | null }
 
 function sum(lines: WorkOrderCostLine[], money: Record<string, CostMoney>): CostMoney | null {
   let amount = 0;
@@ -53,7 +53,7 @@ export function buildCostView(lines: readonly WorkOrderCostLine[], moneyBySource
     const disciplines = [...byDiscipline.entries()]
       .sort(([a], [b]) => (a === NO_DISCIPLINE ? 1 : b === NO_DISCIPLINE ? -1 : a.localeCompare(b)))
       .map(([disciplineId, ls]) => ({ disciplineId, lines: ls, total: readable ? sum(ls, readable) : null, totals: readable ? sums(ls, readable) : [] }));
-    out.push({ source, lines: own, disciplines, total: readable ? sum(own, readable) : null, totals: readable ? sums(own, readable) : [], restricted: money === null });
+    out.push({ source, lines: own, disciplines, total: readable ? sum(own, readable) : null, totals: readable ? sums(own, readable) : [], restricted: money === null, moneyByRecord: readable });
   }
   return out;
 }

@@ -12,6 +12,8 @@
  *   pmo create <table> <json | @file | ->
  *   pmo update <table> --filter col=op.value [...] <json | @file | ->
  *   pmo rpc <name> [<json | @file | ->]
+ *   pmo rpc list_account_reconciliation
+ *   pmo rpc dispose_account_reconciliation '{"p_id":"<id>","p_reason":"<reason>","p_absent":true}'
  *   pmo load <file.json | -> [--dry-run]   (active Admin only — #796)
  *   pmo correct project|contract-line|budget-line … --set <field>=<value> [--dry-run]   (active Admin only — #1858)
  *   pmo stages <project> | stage-date <project> <stage> <YYYY-MM-DD> (active Admin — #1835)
@@ -61,7 +63,7 @@ import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, ex
 import { EQUIPMENT_READ_RPCS, EQUIPMENT_USAGE_RPCS, EQUIPMENT_WRITE_RPCS, EquipmentFileError, EquipmentUsageError, explainError as explainEquipmentError, formatAllocations, previewSettings, readSettings, setSettings, validateUsageList } from './lib/pmo-equipment.mjs';
 import { RECEIPT_STATUSES, isReceiptDate, parseLineFlags, receiptCommand, receiptHint, receiptLineTierRefusal } from './lib/pmo-receipts.mjs';
 import { captureHistory, runCaptureAssignments, sourceSettingsNote, MAX_ASSIGN_ROWS } from './lib/pmo-capture.mjs';
-import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory } from './lib/pmo-purchases.mjs';
+import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runAttachJournals, readJournalPages, runLink, runSetAside, setAsideRowsFromCsv, validateJournalRows, validateLinkRows, validateSetAsideRows, validateRecordOnlyGroups, runRecordOnly, runUndoRecordOnly, validateHistoryRows, runImportHistory, validateUndoImport, runUndoImport } from './lib/pmo-purchases.mjs';
 import { TmOutcomeUnknown, assembleClaim, claimSources, deselectSources, explainWriteError, prepareSignoff, setAssignees, setRates, withdrawClaim, writerRefusal } from './lib/pmo-tm-write.mjs';
 import { TM_READ_RPCS, TmQueryError, explainError as explainTmError, formatClaims, formatPreview as formatTmPreview, formatRateCard, listClaims, previewClaim, readRateCard } from './lib/pmo-tm.mjs';
 import { OPERATOR_ORG_RPCS, classifyOrgReadiness, orgAdd } from './lib/pmo-org.mjs';
@@ -129,8 +131,10 @@ export const STAGE_ADMIN_RPCS = Object.freeze(['redate_stage_entry']);
  * Admin's OAuth token, POST only; each RPC still re-checks role, membership and org itself.
  * recategorise_budget_lines: move Draft Special-expenses budget lines to Travel & accommodation or Vehicle,
  * e.g. `pmo rpc recategorise_budget_lines '{"p_line_ids":["…"],"p_category":"Vehicle"}'`.
+ * load_work_order_opening, load_stock_opening, reverse_opening_balance, opening_balance_report: go-live opening
+ * balances (#2588, migrations 1046/1047; docs/specs/opening-balances.spec.md).
  */
-export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines']);
+export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report']);
 
 /** The cost attribution tiers (#1271, migration 0376), used only by `pmo attribution`: preview/save/end for active Admin/Finance, list also for Executive/PM. */
 export { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS };
@@ -819,6 +823,8 @@ const USAGE = `usage:
   pmo create <table> <json | @file | ->
   pmo update <table> --filter col=op.value [...] <json | @file | ->
   pmo rpc <name> [<json | @file | ->]
+  pmo rpc list_account_reconciliation
+  pmo rpc dispose_account_reconciliation '{"p_id":"<id>","p_reason":"<reason>","p_absent":true}'
   pmo load <file.json | -> [--dry-run]   (active Admin: companies, projects, draft budgets, contract lines)
   pmo correct project (--code <code> | --name <name> --client <legal name>) --set <field>=<value> ... [--dry-run]
                                                     (active Admin: fix a loaded project header field; the preview shows before → after)
@@ -841,6 +847,7 @@ ${BID_USAGE}
   pmo purchases pay-captured <purchase-uuid> --invoice-document <uuid> --amount <decimal> --date <YYYY-MM-DD> --intent <uuid> [--confirm]
   pmo purchases capture-report (--all | --project <uuid>)
   pmo purchases import-history <history.json|-> [--dry-run]   (Admin; PMO-native history, no ERP)
+  pmo purchases undo-import <import-key> --reason <text> [--confirm]   (Admin; takes back one imported purchase; previews unless --confirm)
   pmo purchases record-only <history.json|-> [--dry-run] | undo-record-only <purchase> [--attach <request>] --reason <text> [--dry-run]
   pmo purchases journals --project <id>   (the project's accounting-system journal cost lines)
   pmo purchases attach-journals <file.json | -> [--dry-run]   (Admin, Executive, Project Manager, Finance; rows of
@@ -1462,7 +1469,9 @@ async function readUploadTarget(ctx, documentId) {
 /**
  * Store the object, then record it on the entry (the app's order: prepareUpload, then confirmUpload), then remove the
  * replaced object. The path comes from the row the server returned. A record step that fails or lands on no row removes
- * the object just stored (best effort, as the app does), so a rerun is not blocked by it.
+ * the object just stored (best effort, as the app does), so a rerun is not blocked by it. When the record step's reply
+ * is lost (no HTTP answer, or a 5xx), the entry is read back first: if it names the new path the object is kept and the
+ * upload reported complete; if the read-back also fails the object is kept and the command exits non-zero (#2337).
  */
 async function storeDocumentFile(ctx, documentId, upload, known) {
   const doc = known ?? (await readUploadTarget(ctx, documentId));
@@ -1472,12 +1481,30 @@ async function storeDocumentFile(ctx, documentId, upload, known) {
     raw: upload.bytes,
   });
   const removeStored = () => authed(ctx, 'DELETE', `/storage/v1/object/${DOCUMENT_BUCKET}`, { body: { prefixes: [target] } }).then(() => true, () => false);
+  let confirmedByReadBack = false;
   let updated;
   try {
     updated = await authed(ctx, 'PATCH', `/rest/v1/project_documents?id=eq.${doc.id}`, { headers: { prefer: 'return=representation' }, body: { file_path: target, source: 'upload' } });
   } catch (e) {
-    await removeStored();
-    throw e;
+    // A refusal (4xx) means the record did not commit. A dropped connection or a 5xx may have lost the reply of a record
+    // step that did commit, and removing the object then would leave the entry naming a file that is gone (#2337).
+    if (e instanceof CliError && e.status !== undefined && e.status < 500) {
+      await removeStored();
+      throw e;
+    }
+    let named;
+    try {
+      named = (await readUploadTarget(ctx, doc.id)).file_path;
+    } catch {
+      throw new CliError(`The record step's reply was lost and the entry could not be read back, so it is not known whether the entry names the new file. The file is kept at ${target}. Check the entry in the app, then run the upload again.`, { code: 'document_upload_unconfirmed' });
+    }
+    if (named !== target) {
+      await removeStored();
+      throw e;
+    }
+    // The record step committed: keep the object, and finish as a success below.
+    updated = [{ id: doc.id }];
+    confirmedByReadBack = true;
   }
   if (!Array.isArray(updated) || updated.length !== 1) {
     const where = (await removeStored()) ? 'the stored file was removed' : `the file is still stored at ${target}`;
@@ -1491,7 +1518,7 @@ async function storeDocumentFile(ctx, documentId, upload, known) {
       // non-fatal, as in the app: the entry already points at the new file
     }
   }
-  return { path: target, bytes: upload.bytes.length, replaced };
+  return { path: target, bytes: upload.bytes.length, replaced, ...(confirmedByReadBack ? { note: 'The record step reply was lost; the entry was read back and names the new file, so the upload is complete.' } : {}) };
 }
 
 async function m365(ctx, positionals) {
@@ -1733,6 +1760,21 @@ async function purchases(ctx, positionals, flags) {
     const report = await runImportHistory(api, rows, { dryRun: Boolean(flags['dry-run']) });
     return report.error ? new Reported(report, report.denied ? 2 : 1) : report.counts.refused && !flags['dry-run'] ? new Reported(report, 1) : report;
   }
+  if (sub === 'undo-import') {
+    const bad = validateUndoImport(arg, flags.reason);
+    if (bad) throw usage(bad);
+    const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+    // A preview unless --confirm; --dry-run is accepted and always previews.
+    let result;
+    try {
+      result = await runUndoImport(api, arg, flags.reason, { confirm: Boolean(flags.confirm) && !flags['dry-run'] });
+    } catch (error) {
+      // A definite refusal (not an Admin): nothing was changed. Exit 2, as for import-history.
+      if (error?.status === 403 || error?.code === '42501') throw new CliError(error.message ?? 'Only an active Admin can undo an imported purchase.', { exit: 2, code: 'forbidden' });
+      throw error;
+    }
+    return result?.outcome === 'refused' ? new Reported(result, 1) : result;
+  }
   if (sub === 'undo-record-only') {
     if (!UUID.test(String(arg ?? '')) || typeof flags.reason !== 'string' || !flags.reason.trim()) throw usage('purchases undo-record-only needs a purchase UUID and --reason');
     if (flags.attach !== undefined && !UUID.test(String(flags.attach))) throw usage('purchases undo-record-only --attach needs the request_id (a UUID) of the order-family row that attached the invoices');
@@ -1749,7 +1791,7 @@ async function purchases(ctx, positionals, flags) {
       body: { p_procurement_id: body.procurement_id, p_record_kind: body.record_kind ?? null, p_record_id: body.record_id ?? null, p_item: body.item },
     });
   }
-  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside, journals, attach-journals, record-only, import-history, receive or link-file.`);
+  throw usage(`Unknown purchases command '${sub ?? ''}'. Use orphans, link, set-aside, journals, attach-journals, record-only, import-history, undo-import, receive or link-file.`);
 }
 
 /**

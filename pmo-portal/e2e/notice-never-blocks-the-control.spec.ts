@@ -187,7 +187,7 @@ for (const viewport of VIEWPORTS) {
       await pinEnglishLocale(page);
       await signIn(page, 'pm@acme.test');
       await page.goto('/projects');
-      await page.getByTestId('projects-table-container').getByRole('button', { name: SEED_PROJECT_NAME, exact: true }).click();
+      await page.getByTestId('projects-table-container').getByRole('link', { name: SEED_PROJECT_NAME, exact: true }).click();
       await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
       await waitForFonts(page);
 

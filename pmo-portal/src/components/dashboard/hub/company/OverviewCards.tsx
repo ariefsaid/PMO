@@ -10,13 +10,11 @@ import { useFigureReport } from '@/src/components/ui/useFigureScope';
 import { PROCUREMENT_STAGES, type ProcurementStage } from '@/src/lib/procurement/stage';
 import { formatMonthShort, formatTileMoney } from '@/src/lib/format';
 import { tileMoneyLines } from '@/src/components/dashboard/restructure/currencyOrder';
-import type { BudgetReviewRow, PipelineProject, PipelineStage, TopProject } from '@/src/lib/db/dashboard';
+import type { PipelineProject, PipelineStage } from '@/src/lib/db/dashboard';
 import type { AgeingBuckets } from '@/src/lib/finance/financePosition';
-import { BarList, ChartCard, MonthColumns, SeriesKey, type BarRow, type ChartTone } from '@/src/components/dashboard/charts';
+import { BarList, ChartCard, MonthColumns, type BarRow, type ChartTone } from '@/src/components/dashboard/charts';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { useLossBreakdown, type WinRateRange } from '@/src/hooks/useDashboard';
-import { budgetSpendKnown } from './financeData';
-import { budgetVsSpentRows } from './overviewData';
 import { openPipelineStages, stageCurrencyState } from './pipelineStages';
 
 const linkClass = 'inline-flex items-center gap-1 text-control font-medium text-primary-text hover:underline pointer-coarse:min-h-11 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
@@ -27,21 +25,6 @@ export const CardLink: React.FC<{ to: string; children: React.ReactNode }> = ({ 
 const money = (amount: number, currency: string) => formatTileMoney(amount, currency) ?? '';
 const cnJoin = (...parts: Array<string | undefined>) => parts.filter(Boolean).join(' ');
 
-/** Budget against spending per project, worst first. Spending nobody recorded draws no bar; with none recorded the chart is left out. */
-export const BudgetVsSpentCard: React.FC<{ projects: TopProject[]; currency: string; pending: boolean; error: boolean; retry: () => void; className?: string }> = ({ projects, currency, pending, error, retry, className }) => {
-  const { t } = useTranslation('dashboard');
-  const rows = budgetVsSpentRows(projects, currency);
-  const spentName = t('home.chartSpent', 'Spent');
-  const budgetName = t('home.chartBudget', 'Budget');
-  return (
-    <ChartCard title={t('home.budgetVsSpent', 'Budget and spending by project')} actions={<CardLink to="/projects">{t('dashboard:hub.company.openProjects', 'Open projects')}</CardLink>}
-      known={rows.some((row) => row.value2 != null)} hiddenReason={rows.length === 0 ? t('home.reasonNoBudgets', 'no project has an active budget') : t('home.reasonBudgetSpend', 'project spending is not recorded')}
-      pending={pending} error={error ? { title: t('dashboard:hub.company.projectsError', "Couldn't load delivery projects"), retry } : undefined} testId="chart-budget-vs-spent" className={className}>
-      <SeriesKey items={[{ label: budgetName, tone: 'neutral' }, { label: spentName, tone: 'accent' }]} />
-      <BarList rows={rows} ariaLabel={t('home.budgetVsSpent', 'Budget and spending by project')} seriesNames={[budgetName, spentName]} />
-    </ChartCard>
-  );
-};
 
 /** The weighted pipeline: total, the open stages as descending bars on one scale, what was won, and the win rates. */
 export const SalesOverviewCard: React.FC<{
@@ -312,23 +295,6 @@ export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets
         : <BarList rows={rows} ariaLabel={title} rowPitch={rowPitch} />}
       {noDueDateCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('finance:area.ageingNoDueDateSummary', { count: noDueDateCount, defaultValue_one: '{{count}} invoice with no due date', defaultValue_other: '{{count}} invoices with no due date' })}</p>}
       {unknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('dashboard:home.ageingUnknown', { count: unknownCount, defaultValue_one: '{{count}} invoice with an unknown balance is not drawn', defaultValue_other: '{{count}} invoices with unknown balances are not drawn' })}</p>}
-    </ChartCard>
-  );
-};
-
-/** Budget used per project (spending known only), largest first; over 100% is red. */
-export const BudgetUsedCard: React.FC<{ rows: BudgetReviewRow[]; name: (row: BudgetReviewRow) => string; pending: boolean; error: boolean; retry: () => void; className?: string }> = ({ rows, name, pending, error, retry, className }) => {
-  const { t } = useTranslation('dashboard');
-  const used = rows.filter((row) => budgetSpendKnown(row) && row.budget > 0 && row.budget_currency === row.currency)
-    .map((row) => ({ row, pct: Math.round((row.spent as number) / row.budget * 100) })).sort((a, b) => b.pct - a.pct).slice(0, 8);
-  const title = t('home.budgetUsedByProject', 'Budget used by project');
-  const bars: BarRow[] = used.map(({ row, pct }) => ({ id: row.id, name: name(row), value: pct, label: `${pct}%`, tone: pct > 100 ? 'bad' : 'accent' }));
-  if (!pending && !error && rows.length === 0) return null;
-  return (
-    <ChartCard title={title} actions={<CardLink to="/projects">{t('dashboard:hub.company.openProjects', 'Open projects')}</CardLink>}
-      known={bars.length > 0} hiddenReason={t('home.reasonBudgetSpend', 'project spending is not recorded')}
-      pending={pending} error={error ? { title: t('dashboard:hub.company.budgetReviewError', "Couldn't load budget review"), retry } : undefined} testId="chart-budget-used" className={className}>
-      <BarList rows={bars} ariaLabel={title} domainMax={Math.max(100, ...used.map((item) => item.pct))} />
     </ChartCard>
   );
 };

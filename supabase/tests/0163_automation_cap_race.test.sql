@@ -49,7 +49,7 @@
 -- (Stripping the anon/authenticated EXECUTE grants here as extra insurance was tried and reverted:
 -- `revoke ... on function dblink_connect_u` raises 42501 for the non-superuser `postgres` role this
 -- suite runs as, which aborts the transaction before `plan()`. The end-of-file drop is the whole fix.)
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 
 begin;
 select plan(7);

@@ -755,6 +755,56 @@
     "waitingDays_other": "{{count}} days waiting",
     "waitingOnYou": "waiting on your decision"
   },
+  "threeWayMatch": {
+    "title": "Three-way match · {{bill}}",
+    "approve": "Approve exception",
+    "loadError": "Couldn't load this bill's match",
+    "heldLine": "Payments on this purchase are held until this bill matches or an exception is approved.",
+    "notApplicableLine": "This bill is outside the three-way match.",
+    "reasons": "Why it is held",
+    "tolerances": "Tolerance: quantity {{qty}}% · amount {{amount}}%",
+    "exceptionLine": "Exception approved {{date}}: {{reason}}",
+    "confirmTitle": "Approve an exception for {{bill}}?",
+    "confirmDescription": "Payments on this purchase can then go ahead. The approval is permanent and recorded with your reason. You cannot approve a bill you recorded or whose lines you recorded.",
+    "reasonLabel": "Reason",
+    "review": "Review match",
+    "menu": "Three-way match",
+    "heldNotice": "{{bill}} is held by the three-way match, so payments wait.",
+    "paymentHeld": {
+      "title": "Payment held by the three-way match",
+      "detail": "A bill on this purchase does not match its order and receipts. Open the bill's three-way match to see why, record the missing receipt, or ask Finance to approve an exception."
+    },
+    "status": {
+      "held": "Held",
+      "matched": "Matched",
+      "exceptionApproved": "Exception approved",
+      "notApplicable": "Not matched"
+    },
+    "reason": {
+      "noLines": "No match lines recorded",
+      "amountMismatch": "Bill amount differs from its lines",
+      "notOnOrder": "Not on the order",
+      "overReceived": "Billed more than received",
+      "overOrdered": "Billed more than ordered",
+      "priceVariance": "Rate above the order rate"
+    },
+    "refusal": {
+      "ownBill": "You recorded this bill or its lines. A different Admin or Finance user approves its exception.",
+      "authorUnknown": "This bill's author is not recorded, so no exception can be approved.",
+      "alreadyApproved": "An exception was already approved for this bill.",
+      "notHeld": "This bill is not held, so there is nothing to approve.",
+      "reason": "Give a reason of up to 1,000 characters.",
+      "role": "Only an Admin or Finance user approves an exception."
+    },
+    "col": {
+      "item": "Item",
+      "ordered": "Ordered",
+      "received": "Received",
+      "billedToDate": "Billed to date",
+      "orderRate": "Order rate",
+      "billRate": "Bill rate"
+    }
+  },
   "voidBill": {
     "action": "Void bill",
     "title": "Void this bill?",

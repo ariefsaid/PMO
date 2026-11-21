@@ -189,7 +189,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
     <div
       data-testid="project-card"
       className={cn(
-        'flex h-full flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(var(--foreground)/0.06)]',
+        'flex h-full flex-col gap-3 rounded-lg border border-border bg-card p-4 transition-shadow hover:shadow-[0_2px_10px_hsl(var(--foreground)/0.06)]',
         className,
       )}
     >

@@ -5,6 +5,7 @@ import { wrap } from './repositoryErrors';
 export interface EquipmentAvailabilityRepository {
   rentalCheck: typeof dal.rentalCheck;
   proofUrl: typeof dal.proofUrl;
+  createRentedAsset: typeof dal.createRentedAsset;
   listStatusDays: typeof dal.listStatusDays;
   listLatestStatusDays: typeof dal.listLatestStatusDays;
   listEquipmentProofs: typeof dal.listEquipmentProofs;
@@ -27,6 +28,7 @@ export const equipmentAvailabilityRepository: EquipmentAvailabilityRepository = 
   listStatusDays: (from, to, ids) => wrap(() => dal.listStatusDays(from, to, ids)),
   listLatestStatusDays: (ids, asOf) => wrap(() => dal.listLatestStatusDays(ids, asOf)),
   listEquipmentProofs: (ids, date) => wrap(() => dal.listEquipmentProofs(ids, date)),
+  createRentedAsset: (input) => wrap(() => dal.createRentedAsset(input)),
   setStatusBulk: (date, items) => wrap(() => dal.setStatusBulk(date, items)),
   setStatus: (a, d, s, n) => wrap(() => dal.setStatus(a, d, s, n)),
   addProof: (a, d, f, n) => wrap(() => dal.addProof(a, d, f, n)),

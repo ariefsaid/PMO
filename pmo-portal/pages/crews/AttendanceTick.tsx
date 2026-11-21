@@ -108,6 +108,7 @@ const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; 
             <th scope="col" className="py-2 font-normal">{t('crews:person', 'Person')}</th>
             <th scope="col" className="py-2 font-normal">{t('crews:statusHeader', 'Status')}</th>
             <th scope="col" className="w-24 py-2 font-normal">{t('crews:hours', 'Hours')}</th>
+            <th scope="col" className="w-24 py-2 font-normal">{t('crews:overtime', 'Overtime')}</th>
             <th scope="col" className="py-2 font-normal">{t('crews:reason', 'Reason')}</th>
           </tr></thead>
           <tbody>
@@ -130,6 +131,13 @@ const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; 
                     <TextField label={t('crews:hoursFor', 'Hours for {{name}}', { name: m.display_name })} hideLabel inputMode="decimal"
                       value={p.hours} placeholder={state.defaultHours} onChange={(v) => setPerson(m.worker_id, { hours: v })}
                       disabled={!canRecord || busy || p.status !== 'present'} />
+                  </td>
+                  <td className="py-2 pr-2">
+                    {p.status === 'present' && (
+                      <TextField label={t('crews:overtimeFor', 'Overtime for {{name}}', { name: m.display_name })} hideLabel inputMode="decimal"
+                        value={p.overtime} placeholder="0" onChange={(v) => setPerson(m.worker_id, { overtime: v })}
+                        disabled={!canRecord || busy} />
+                    )}
                   </td>
                   <td className="py-2">
                     <TextField label={t('crews:reasonFor', 'Reason for {{name}}', { name: m.display_name })} hideLabel

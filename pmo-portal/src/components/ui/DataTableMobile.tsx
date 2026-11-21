@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { rowContentKey, useLiveRowProps } from './useLiveRowProps';
+import { RowOpenControl } from './RowOpenControl';
 import { useTranslation } from 'react-i18next';
 import type { Row as TableRow } from '@tanstack/react-table';
 import { cn } from './cn';
@@ -44,6 +45,7 @@ interface DataTableMobileCardProps<Row> {
   isSelected: boolean;
   accessibleRowLabel: (row: Row) => string | undefined;
   onActivate?: (row: Row) => void;
+  rowHref?: string;
   canActivate: boolean;
   rowMenu?: (row: Row) => RowMenuItem[] | undefined;
   selection?: DataTableSelection<Row>;
@@ -64,6 +66,7 @@ function mobileCardPropsEqual<Row>(a: Readonly<DataTableMobileCardProps<Row>>, b
   return a.row === b.row
     && a.rowId === b.rowId
     && a.targetId === b.targetId
+    && a.rowHref === b.rowHref
     && a.selected === b.selected
     && a.isSelected === b.isSelected
     && a.columns === b.columns
@@ -89,6 +92,7 @@ function DataTableMobileCardInner<Row>({
   isSelected,
   accessibleRowLabel,
   onActivate: tableOnActivate,
+  rowHref,
   canActivate,
   rowMenu,
   selection,
@@ -134,14 +138,9 @@ function DataTableMobileCardInner<Row>({
           </span>}
           <div className="min-w-0 flex-1 break-words font-semibold [&_.truncate]:block [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal">
             {canActivate && onActivate ? (
-              <button
-                type="button"
-                aria-label={accessibleRowLabel(row)}
-                onClick={() => onActivate(row)}
-                className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
-              >
+              <RowOpenControl href={rowHref} label={accessibleRowLabel(row) ?? ''} onActivate={() => onActivate(row)}>
                 {mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
-              </button>
+              </RowOpenControl>
             ) : (
               mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
             )}
@@ -210,6 +209,7 @@ export interface DataTableMobileProps<Row> {
   tableInstanceId: string;
   accessibleName?: string;
   onActivate?: (row: Row) => void;
+  rowHref?: (row: Row) => string | undefined;
   rowLabel?: (row: Row) => string;
   accessibleRowLabel: (row: Row) => string | undefined;
   rowTarget?: (row: Row) => string | undefined;
@@ -237,6 +237,7 @@ export function DataTableMobile<Row>({
   tableInstanceId,
   accessibleName,
   onActivate,
+  rowHref,
   rowLabel,
   accessibleRowLabel,
   rowTarget,
@@ -258,7 +259,7 @@ export function DataTableMobile<Row>({
   // Locale stamp for the list's own t()-built labels (select-all, activation aria-labels);
   // semantic column changes propagate through the `columns` identity comparison instead.
   const cardFingerprint = i18n.language;
-  const live = useLiveRowProps({ onActivate, rowMenu, accessibleRowLabel, selectionLabel });
+  const live = useLiveRowProps({ onActivate, rowHref, rowMenu, accessibleRowLabel, selectionLabel });
 
   return (
     /* ── Mobile card branch (<768px — only branch in the DOM) ─────────────
@@ -309,11 +310,12 @@ export function DataTableMobile<Row>({
               isSelected={modelRow.getIsSelected()}
               accessibleRowLabel={live.accessibleRowLabel}
               onActivate={onActivate ? live.onActivate : undefined}
+              rowHref={rowHref?.(modelRow.original)}
               canActivate={Boolean(onActivate && rowLabel)}
               rowMenu={rowMenu ? live.rowMenu : undefined}
               selection={selection}
               selectionLabel={live.selectionLabel}
-              contentKey={rowContentKey(modelRow.original, { onActivate, rowMenu, accessibleRowLabel, selectionLabel, rowTarget }, columns[0])}
+              contentKey={rowContentKey(modelRow.original, { onActivate, rowHref, rowMenu, accessibleRowLabel, selectionLabel, rowTarget }, columns[0])}
               mobileCardTitle={mobileCardTitle}
               mobileCardDetails={mobileCardDetails}
               cardValuesEnd={cardValuesEnd}

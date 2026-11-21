@@ -31,6 +31,7 @@ async function fake(handlers = {}) {
     requests.push({ method: req.method, path: url.pathname, search: url.search, headers: req.headers, raw, body: json });
     const answer = handlers[`${req.method} ${url.pathname}`];
     const [status, body] = typeof answer === 'function' ? answer(url) : answer ?? [404, { message: `unexpected ${req.method} ${url.pathname}` }];
+    if (status === 0) { req.socket.destroy(); return; } // a lost reply: the request was handled, the answer never arrives
     res.writeHead(status, { 'content-type': 'application/json' });
     res.end(JSON.stringify(body));
   });
@@ -239,6 +240,62 @@ test('AC-DOC-CLI-016 a failed removal after a failed record step still reports w
     assert.equal(r.code, 1);
     assert.equal(r.error.code, 'document_not_updated');
     assert.match(r.error.message, new RegExp(want));
+  } finally { await s.close(); }
+});
+
+test('AC-DOC-CLI-024 a lost record-step reply that read-back shows committed keeps the stored file and reports success', async () => {
+  const file = tmpFile('plan.pdf', 'x');
+  const want = `${ORG}/${PROJECT}/${DOC}/plan.pdf`;
+  let reads = 0;
+  const s = await fake({
+    'GET /rest/v1/project_documents': () => draft(++reads === 1 ? {} : { source: 'upload', file_path: want }),
+    [`POST /storage/v1/object/project-documents/${want}`]: [200, { Key: want }],
+    'PATCH /rest/v1/project_documents': [0, null],
+    'DELETE /storage/v1/object/project-documents': [200, [{ name: want }]],
+  });
+  try {
+    const r = await cli(['documents', 'upload', DOC, file, '--confirm'], s);
+    assert.equal(r.code, 0, r.err);
+    assert.equal(writes(s).filter((q) => q.method === 'DELETE').length, 0, 'the object the entry now names is kept');
+    assert.equal(r.json.file.path, want);
+    assert.match(r.json.file.note, /read back/);
+  } finally { await s.close(); }
+});
+
+test('AC-DOC-CLI-024 a lost record-step reply that read-back shows not committed removes the stored file and reports the error', async () => {
+  const file = tmpFile('plan.pdf', 'x');
+  const want = `${ORG}/${PROJECT}/${DOC}/plan.pdf`;
+  const s = await fake({
+    'GET /rest/v1/project_documents': draft(),
+    [`POST /storage/v1/object/project-documents/${want}`]: [200, { Key: want }],
+    'PATCH /rest/v1/project_documents': [0, null],
+    'DELETE /storage/v1/object/project-documents': [200, [{ name: want }]],
+  });
+  try {
+    const r = await cli(['documents', 'upload', DOC, file, '--confirm'], s);
+    assert.equal(r.code, 1);
+    const dels = writes(s).filter((q) => q.method === 'DELETE');
+    assert.equal(dels.length, 1);
+    assert.deepEqual(dels[0].body, { prefixes: [want] });
+  } finally { await s.close(); }
+});
+
+test('AC-DOC-CLI-024 a lost record-step reply whose read-back also fails keeps the stored file and exits non-zero asking for a rerun', async () => {
+  const file = tmpFile('plan.pdf', 'x');
+  const want = `${ORG}/${PROJECT}/${DOC}/plan.pdf`;
+  let reads = 0;
+  const s = await fake({
+    'GET /rest/v1/project_documents': () => (++reads === 1 ? draft() : [500, { message: 'down' }]),
+    [`POST /storage/v1/object/project-documents/${want}`]: [200, { Key: want }],
+    'PATCH /rest/v1/project_documents': [0, null],
+    'DELETE /storage/v1/object/project-documents': [200, [{ name: want }]],
+  });
+  try {
+    const r = await cli(['documents', 'upload', DOC, file, '--confirm'], s);
+    assert.equal(r.code, 1);
+    assert.equal(r.error.code, 'document_upload_unconfirmed');
+    assert.match(r.error.message, /run the upload again/);
+    assert.equal(writes(s).filter((q) => q.method === 'DELETE').length, 0, 'ambiguous: the object is kept');
   } finally { await s.close(); }
 });
 

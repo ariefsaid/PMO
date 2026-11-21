@@ -65,7 +65,9 @@ describe('#2544 ReadyToPayCard export rows', () => {
 describe('#2544 ReadyToPayCard navigation', () => {
   it('#2544 opening a ready-to-pay row goes to that procurement', async () => {
     withRouter(<ReadyToPayCard rows={[proc('pr7'), proc('pr8')]} pending={false} error={false} retry={() => {}} unpaidOf={() => 1} today="2026-10-27" />);
-    await userEvent.click(screen.getByRole('button', { name: 'Open Case pr8' }));
+    const link = screen.getByRole('link', { name: 'Open Case pr8' });
+    expect(link).toHaveAttribute('href', '/procurement/pr8');
+    await userEvent.click(link);
     expect(screen.getByTestId('where')).toHaveTextContent('/procurement/pr8');
   });
 
@@ -80,7 +82,9 @@ describe('#2544 ReadyToPayCard navigation', () => {
 describe('#2544 BudgetReviewCard navigation and export', () => {
   it('#2544 opening a budget row goes to that project\'s budget', async () => {
     withRouter(<BudgetReviewCard rows={[budget('p1'), budget('p2')]} pending={false} error={false} retry={() => {}} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Open budget for Project p2' }));
+    const link = screen.getByRole('link', { name: 'Open budget for Project p2' });
+    expect(link).toHaveAttribute('href', '/projects/p2/budget');
+    await userEvent.click(link);
     expect(screen.getByTestId('where')).toHaveTextContent('/projects/p2/budget');
   });
 

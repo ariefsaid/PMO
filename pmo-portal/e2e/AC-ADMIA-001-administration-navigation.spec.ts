@@ -51,6 +51,8 @@ const ORGANIZATION_SECTIONS = [
 const EXPECTED_ORGANIZATION_LINKS = [
   ...ORGANIZATION_SECTIONS.map(({ name }) => name),
   'Your plan',
+  // #2529 deliberately adds the org terminology settings.
+  'Terminology',
   'Document categories', // #2579: an Admin-only destination, shown to this Admin
   'Cost attribution',
 ];

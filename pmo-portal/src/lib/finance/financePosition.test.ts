@@ -244,6 +244,22 @@ describe('buildFinancePosition', () => {
     expect(position.payablesUnknownCount).toBe(0);
   });
 
+  it('#2600 a voided bill is left out of both the Payables and Procurement list totals', () => {
+    const rows = [
+      procurement('mixed', 5, {
+        procurement_invoices: [
+          { amount: 900, invoice_date: '2026-10-20', voided_at: '2026-11-01T00:00:00Z' },
+          { amount: 300, invoice_date: '2026-10-22', voided_at: null },
+        ],
+      }),
+    ];
+    const position = calculate([], rows);
+    expect(position.payablesTotals).toEqual({ IDR: 30_000 });
+    expect(totalsByCurrency(rows, 'Finance', 'pay')).toEqual([
+      { currency: 'IDR', amount: 300, unknown: false, knownAmount: 300, unknownCount: 0 },
+    ]);
+  });
+
   it('SEC-RS-2: an unknown supplier balance stays unknown, never zero, and is left out of known totals', () => {
     const rows = [
       procurement('known', 5, { procurement_invoices: [{ amount: 300, invoice_date: '2026-10-22' }] }),
@@ -280,5 +296,22 @@ describe('ageing buckets (#1459: one bucket rule for receivables and payables)',
     expect(ageingBucket(31, 'payables')).toBe('d31_60');
     expect(ageingBucket(61, 'payables')).toBe('d61_90');
     expect(ageingBucket(120, 'payables')).toBe('over90');
+  });
+
+  it('AC-RET-005 keeps retention held out of overdue and ageing, as its own figure (#2625)', () => {
+    const position = calculate([
+      // paid net of 5% retention: only the retention is left, and it is not due yet
+      invoice('net-of-retention', '2026-09-01', { amount: 1_000_000, erp_outstanding_amount: 50_000, retention_held: 50_000 }),
+      // half paid: 450,000 is due now and overdue, 50,000 is retention
+      invoice('half-paid', '2026-09-01', { amount: 1_000_000, erp_outstanding_amount: 500_000, retention_held: 50_000 }),
+      // no retention: unchanged
+      invoice('plain', '2026-10-01', { erp_outstanding_amount: 100 }),
+    ]);
+    expect(position.overdue.map((o) => [o.invoice.id, o.outstanding])).toEqual([['half-paid', 45_000_000], ['plain', 10_000]]);
+    expect(position.overdueTotals).toEqual({ IDR: 45_010_000 });
+    expect(position.receivablesRetentionHeld).toEqual({ IDR: 10_000_000 });
+    const ageing = position.receivablesAgeing.IDR;
+    expect(ageing.d31_60).toBe(45_000_000);
+    expect(Object.values(ageing).reduce((t, v) => t + v, 0) + (position.receivablesRetentionHeld?.IDR ?? 0)).toBe(55_010_000);
   });
 });

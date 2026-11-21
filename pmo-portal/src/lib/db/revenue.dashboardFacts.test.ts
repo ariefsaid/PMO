@@ -60,6 +60,21 @@ describe('listOverdueInvoiceFacts', () => {
   });
 });
 
+describe('AC-RET-005 retention held on an overdue invoice (#2625)', () => {
+  it('the narrow read carries retention_held, and the overdue tile counts only what is due now', async () => {
+    tableRows.sales_invoices = [
+      { ...invoice('net', 'Unpaid', '2026-02-01', null, 50), retention_held: '50.00' },
+      { ...invoice('part', 'Unpaid', '2026-02-01', null, 300.25), retention_held: 50.1 },
+    ];
+    const facts = await listOverdueInvoiceFacts();
+    expect(calls[0].select).toContain('retention_held');
+    expect(facts.map((f) => f.retention_held)).toEqual([50, 50.1]);
+    const tile = selectOverdueInvoices(facts, '2026-06-01');
+    expect(tile).toMatchObject({ count: 1, unknownBalances: 0 });
+    expect(JSON.stringify(tile)).toContain('250.15');
+  });
+});
+
 describe('listPaidPaymentFacts', () => {
   it('is one incoming_payments read: Paid only, four columns, no customer join and no receipt-command read', async () => {
     tableRows.incoming_payments = [];

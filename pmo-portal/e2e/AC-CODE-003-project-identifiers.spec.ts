@@ -40,11 +40,11 @@ test('AC-CODE-003: PMO Project Number and Client Project Code are separately vis
     await search.fill(value);
     await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe(value);
     const projectCard = page.getByTestId('projects-table-container').getByRole('listitem')
-      .filter({ has: page.getByRole('button', { name: projectName, exact: true }) });
+      .filter({ has: page.getByRole('link', { name: projectName, exact: true }) });
     await expect(projectCard).toBeVisible({ timeout: 15_000 });
     await expect(projectCard).toContainText(pmoNumber);
     await expect(projectCard).toContainText(clientCode);
-    await projectCard.getByRole('button', { name: projectName, exact: true }).click();
+    await projectCard.getByRole('link', { name: projectName, exact: true }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
     await expect(page.getByRole('heading', { name: projectName })).toBeVisible({ timeout: 15_000 });
     return page.url();
