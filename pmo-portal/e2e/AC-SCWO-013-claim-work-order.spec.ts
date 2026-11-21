@@ -19,6 +19,15 @@ const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
 );
 
 test.setTimeout(120_000);
+test.use({ deviceScaleFactor: 2 });
+const EVIDENCE = '../docs/evidence/1215/2732';
+const shots = async (page: import('@playwright/test').Page, locator: import('@playwright/test').Locator, name: string) => {
+  for (const [label, width, height] of [['phone', 390, 844], ['desktop', 1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await locator.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${EVIDENCE}/${name}-${label}.png`, fullPage: true });
+  }
+};
 
 let admin: SupabaseClient | undefined;
 let projectId = '';
@@ -66,11 +75,13 @@ test('AC-SCWO-013 an expense claim names its work order and discipline on the sa
   await page.locator('div[role="option"]', { hasText: tag }).click();
   await page.getByRole('combobox', { name: 'Discipline' }).click();
   await page.locator('div[role="option"]', { hasText: `${tag} Civil` }).click();
+  await shots(page, page.getByRole('combobox', { name: 'Work order' }), 'claim-form');
   await page.getByRole('button', { name: 'Save draft' }).click();
   await expect(page).toHaveURL(/\/expenses\/[0-9a-f-]{36}$/, { timeout: 15_000 });
 
   await expect(page.getByTestId('expense-work-order')).toContainText('WO-');
   await expect(page.getByTestId('expense-discipline')).toContainText(`${tag} Civil`);
+  await shots(page, page.getByTestId('expense-work-order'), 'claim-detail');
   const row = await admin!.from('expense_claims').select('work_order_id, discipline_id').eq('project_id', projectId).single();
   expect(row.error).toBeNull();
   expect(row.data).toEqual({ work_order_id: workOrderId, discipline_id: disciplineId });
