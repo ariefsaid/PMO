@@ -8,6 +8,7 @@ import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { useProjectBudget } from '@/src/hooks/useBudget';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
 import { wholeBudgetInputs } from '@/src/lib/budget/wholeBudgetInputs';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
@@ -61,6 +62,7 @@ export interface ProcurementStageTrackerProps {
 
 export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = ({ procurement, linkedDocuments, isEngineer = false }) => {
   const { t } = useTranslation('procurementRecord');
+  const maySeePrices = useMaySeePrices(); // #2699
   const dates = stageDates(procurement, linkedDocuments.map((doc) => ({ doctype: doc.doctype, docDate: doc.docDate })));
   const current = STAGES.findIndex((stage) => stage.label === stageForStatus(procurement.status));
   const requests = procurement.purchase_requests.map((row) => row.amount);
@@ -128,7 +130,7 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
                     : '';
             const meta = [date ? showDate(date, t('timeline.dateMissing', 'Date not recorded')) : null, state].filter(Boolean).join(' · ');
             // The stage's amount reads on its own line, so it never wraps behind a dot.
-            const stageAmount = count > 0 && !partial && !(isEngineer && stage.key === 'pay') ? amountByStage[stage.key] : null;
+            const stageAmount = maySeePrices && count > 0 && !partial && !(isEngineer && stage.key === 'pay') ? amountByStage[stage.key] : null;
             return (
               <li key={stage.key} aria-current={isCurrent ? 'step' : undefined} className="min-w-0">
                 <div>
@@ -221,6 +223,7 @@ const moneySources: Record<ProcurementMoneyKind, string> = {
 
 export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = ({ procurement, linkedDocuments, isEngineer, budgetSignal, omitRequestedEqualTo }) => {
   const { t } = useTranslation('procurementRecord');
+  const maySeePrices = useMaySeePrices(); // #2699
   const figureScope = useFigureScope();
   const money = procurementMoney({
     total_value: procurement.total_value,
@@ -272,6 +275,7 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   // The record's one hidden-figures line lives here, so any figure hidden on the record keeps this block.
   const anyHidden = shown.some((entry) => entry.hidden) || (figureScope?.hidden.length ?? 0) > 0;
   // No figure, no hidden figure and no budget line: no empty block.
+  if (!maySeePrices) return null; // #2699: no price figures, no block
   if (visible.length === 0 && !anyHidden && !budgetSignal && !isEngineer) return null;
 
   // Header band content (after the stage track): label, budget line, figures, then the hidden-figures line it reports.
@@ -351,6 +355,7 @@ export interface ProcurementTimelineProps {
 
 export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procurement, ledgerRows, linkedDocuments, isEngineer, canWriteFiles, uploadedById, onFullHistory, focusedRecordId, workOrderLinks = {} }) => {
   const { t } = useTranslation('procurementRecord');
+  const maySeePrices = useMaySeePrices(); // #2699
   const [filter, setFilter] = useState<'all' | 'financial' | 'has-file'>('all');
   useEffect(() => { if (focusedRecordId) document.getElementById(`cost-${focusedRecordId}`)?.scrollIntoView?.({ block: 'center' }); }, [focusedRecordId]);
   const entries = useMemo(() => {
@@ -386,7 +391,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
       .map((row) => ({
         id: row.id, date: row.date, label: t(`timeline.record.${row.type}`, typeLabel[row.type]), number: row.systemNumber,
         facts: [recordStatusLabel(t, row.status), row.externalRef, row.groupRef, row.fileCount ? `${row.fileCount} ${t('timeline.files', 'files')}` : null].filter((fact): fact is string => Boolean(fact)),
-        amount: isEngineer && (row.type === 'Invoice' || row.type === 'Payment') ? null : row.amount,
+        amount: !maySeePrices || (isEngineer && (row.type === 'Invoice' || row.type === 'Payment')) ? null : row.amount,
         currency: row.currency, source: 'procurement', ledger: row,
         icon: row.type === 'PO' ? 'cart' : row.type === 'GR' ? 'inbox' : row.type === 'Invoice' ? 'invoices' : row.type === 'Payment' ? 'payments' : 'doc',
       }));
@@ -395,13 +400,13 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
       .map((doc) => ({
         id: `erp-${doc.id}`, date: doc.docDate, label: doc.doctype === 'Purchase Invoice' ? t('timeline.supplierInvoice', 'Supplier invoice') : doc.doctype === 'Purchase Receipt' ? t('timeline.receipt', 'Receipt') : doc.doctype === 'Purchase Order' ? t('timeline.order', 'Order') : t('timeline.payment', 'Payment'), number: doc.name,
         facts: [doc.supplier, /^overdue$/i.test(doc.erpStatus ?? '') ? null : doc.erpStatus, doc.billNo ? `${t('timeline.supplierReference', 'Supplier reference')} ${doc.billNo}` : null].filter((fact): fact is string => Boolean(fact)),
-        amount: isEngineer ? null : doc.grandTotal,
+        amount: isEngineer || !maySeePrices ? null : doc.grandTotal,
         currency: doc.currency, source: 'accounting-system', erp: doc, overdueDays: (doc.outstanding ?? 0) > 0 ? overdueDays(doc.dueDate) : 0,
         icon: doc.doctype === 'Purchase Order' ? 'cart' : doc.doctype === 'Purchase Receipt' ? 'inbox' : doc.doctype === 'Purchase Invoice' ? 'invoices' : 'payments',
       }));
     return [raisedEntry, ...statusEntries, ...recordEntries, ...erpEntries]
       .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.id.localeCompare(b.id));
-  }, [procurement.created_at, procurement.id, procurement.requested_by?.full_name, procurement.statusEvents, ledgerRows, linkedDocuments, isEngineer, t]);
+  }, [procurement.created_at, procurement.id, procurement.requested_by?.full_name, procurement.statusEvents, ledgerRows, linkedDocuments, isEngineer, maySeePrices, t]);
   const visible = entries.filter((entry) => filter === 'all'
     || (filter === 'financial' ? Boolean(entry.ledger?.financial || entry.erp) : (entry.ledger?.fileCount ?? 0) > 0));
   // #2106: React mounts a closed <details>' children too, so a files read inside every entry fired one request per
@@ -448,7 +453,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                         {entry.source === 'accounting-system' && <span>{t('timeline.fromAccounting', 'from accounting system')}</span>}
                       </span>
                     </span>
-                    {entry.amount != null && entry.currency && !isEngineer && (
+                    {entry.amount != null && entry.currency && !isEngineer && maySeePrices && (
                       <span className="text-right max-[640px]:col-start-3 max-[640px]:row-start-1">
                         <span className="whitespace-nowrap text-sm font-medium tabular-nums">{formatCurrency(Number(entry.amount), entry.currency)}</span>
                       </span>

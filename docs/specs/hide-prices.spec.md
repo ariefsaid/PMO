@@ -53,7 +53,7 @@ on a request they raised either. An inactive member sees nothing.
 | S5 | `stock_document_lines` | `unit_cost` | masked view |
 | S6 | `stock_ledger`, `stock_balances` (stock valuation reports, `stockReports.ts`) | `value_delta`, `value_after`, `value_on_hand` | masked views + report RPCs call the helper |
 | S7 | stock report RPCs (`get_stock_on_hand`, `get_stock_ledger`, `get_project_consumption`, work-order stock balance) | stock values | the stock cost seam `stock_can_see_cost()` now also requires `actor_may_see_prices()` |
-| S7b | procurement derived-amount RPCs (open commitment, committed spend, approval panel figures) | derived amounts | not covered here: the screens hide them from a requester; Director to rule |
+| S7b | procurement derived-amount reads: `procurement_open_commitment`, `procurement_open_commitments`, `project_committed_spend` | derived amounts | wrappers mask the money field through `actor_may_see_prices_now()` (1218); the approval-panel figures (`spend_approval_project_figures` and its routes) already return none below approval rank |
 | S8 | `material_request_lines` and the material-request RPCs | none (quantities only) | not covered: carries no price or amount |
 | S9 | `boq_items.rate`, budget and revenue screens | planning and revenue prices | out of scope: the ticket is about requesters and unit prices on request, procurement and stock screens |
 
@@ -71,7 +71,7 @@ Write responses are read back through the masked view. If an embed through a vie
 | AC-001 | Given the setting off, every actor class (legacy five, built-in managers, officers, field) reads every S1-S7 price unchanged. | pgTAP |
 | AC-002 | Given the setting on, `actor_may_see_prices()` is false for a built-in officer/field without price right, and for a legacy Engineer without key; true for Buyer, Finance Officer, Billing Officer, every manager, and legacy PM, Finance, Admin, Executive; false for an inactive member. | pgTAP |
 | AC-003 | Given the setting on, a hidden actor reading each of S1-S6 gets NULL in each price column and the row, quantity and status intact; a purchasing or finance actor gets the value (one test per surface). | pgTAP |
-| AC-004 | Given the setting on, a hidden actor calling each S7 RPC gets NULL derived amounts; a finance actor gets the value. | pgTAP |
+| AC-004 | Given the setting on, a hidden actor calling each S7 and S7b RPC gets NULL derived amounts; a finance actor gets the value. | pgTAP |
 | AC-005 | Given the setting on in organisation A, an actor of organisation B (setting off) is unaffected, and A's setting never changes B's reads. | pgTAP |
 | AC-006 | Given an Admin, the setting turns on and off; given a non-Admin or another organisation's Admin, `set_hide_prices_enabled` is refused (42501) and the value is unchanged; default reads false. | pgTAP |
 | AC-007 | Given a hidden actor inserting or updating a procurement line, the write follows existing rules and the response carries no price. | pgTAP |
