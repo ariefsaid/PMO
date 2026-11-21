@@ -44,6 +44,7 @@
   "overPlan": "Over plan by {{amount}}",
   "overPlanHours": "Over plan by {{hours}} h",
   "pageEmpty": "No plan or actuals for this work order yet.",
+  "pendingCrewHours": "{{hours}} h on timesheets not yet approved are not counted.",
   "plan": {
     "crewHours": "Crew hours",
     "direct": "Direct budget ({{currency}})",
@@ -54,6 +55,48 @@
     "title": "Plan for {{number}}"
   },
   "planLabel": "Plan",
+  "profit": {
+    "title": "Profit per discipline",
+    "col": {
+      "discipline": "Discipline",
+      "revenue": "Revenue",
+      "direct": "Direct cost",
+      "shared": "Shared cost",
+      "after": "Margin after shared cost",
+      "before": "Margin before shared cost"
+    },
+    "noDiscipline": "No discipline",
+    "notAssigned": "Not assigned",
+    "total": "Project total",
+    "loss": "Loss of {{amount}}",
+    "incomplete": "Incomplete: validated work without a rate",
+    "notComparable": "Not comparable (other currency)",
+    "costUnknown": "Cost unknown",
+    "restricted": "Restricted",
+    "unknown": "Unknown",
+    "empty": "No validated revenue or cost per discipline yet.",
+    "loadError": "Couldn't load profit per discipline",
+    "retry": "Try again",
+    "archivedDiscipline": "Archived discipline",
+    "revenueNote": "Revenue is validated progress at the contract rate.",
+    "picker": {
+      "label": "Discipline (for profit per discipline)",
+      "none": "No discipline",
+      "saved": "Discipline saved",
+      "error": "Couldn't save the discipline"
+    },
+    "setting": {
+      "title": "Profit per discipline",
+      "label": "Show revenue next to cost per discipline",
+      "helper": "Adds a table to the project's plan-vs-actual section and a discipline field on contract lines. Off by default.",
+      "save": "Save",
+      "saved": "Setting saved",
+      "adminOnly": "Only an Admin can change this.",
+      "loadError": "Couldn't load the setting",
+      "on": "On",
+      "off": "Off"
+    }
+  },
   "projectHours": "Project and contract hours",
   "projectTotal": "Project and contract total",
   "reason": {
@@ -100,7 +143,6 @@
   "splitStale": "The saved split is stale: a work order was added or cancelled since. The default is used until someone saves it again.",
   "title": "Plan vs actual",
   "uncosted": "{{hours}} h carry no rate and are not in the cost.",
-  "pendingCrewHours": "{{hours}} h on timesheets not yet approved are not counted.",
   "underPlan": "{{amount}} left",
   "underPlanHours": "{{hours}} h left",
   "unknown": "Unknown",

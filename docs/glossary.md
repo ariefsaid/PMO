@@ -1042,3 +1042,9 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+## Profit per discipline (#2669)
+
+**Discipline revenue** — the validated progress of a project at the contract rate frozen at validation, grouped by the discipline of the contract line it was recorded against. A contract line with no discipline rolls under "No discipline". Only current, validated reports count; a validated line frozen without a rate is named as unrated and makes that discipline's revenue incomplete, never zero.
+
+**Discipline margin** — discipline revenue less the discipline's direct cost and its allocated shared cost. Shown after shared cost (the headline) and, beside it, before shared cost. A loss reads "Loss of X". Revenue and cost in different currencies are never blended. The Admin turns the view on with the organisation setting **Profit per discipline** (off by default).

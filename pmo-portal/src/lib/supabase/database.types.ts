@@ -7119,6 +7119,7 @@ export type Database = {
           attendance_backdate_days: number
           attendance_conflict_tolerance_hours: number
           created_at: string
+          discipline_profit_enabled: boolean
           default_currency: string
           default_locale: string
           default_number_locale: string | null
@@ -15316,6 +15317,7 @@ export type Database = {
           draft: number
         }[]
       }
+      get_org_discipline_profit_enabled: { Args: never; Returns: boolean }
       get_org_fiscal_year_setting: {
         Args: never
         Returns: { source: string; start_month: number | null }[]
@@ -15331,6 +15333,17 @@ export type Database = {
           has_active_budget: boolean
           ledger_basis: string
           project_id: string
+        }[]
+      }
+      project_discipline_revenue: {
+        Args: { p_project: string }
+        Returns: {
+          basis: string
+          currency: string
+          discipline_id: string | null
+          revenue: number
+          unrated_lines: number
+          validated_lines: number
         }[]
       }
       project_budget_positions: {
@@ -16870,6 +16883,14 @@ export type Database = {
       set_odoo_customer_advance_account: {
         Args: { p_account_ref: string; p_actor_id: string; p_org_id: string }
         Returns: undefined
+      }
+      set_boq_item_discipline: {
+        Args: { p_discipline: string | null; p_item: string }
+        Returns: string
+      }
+      set_org_discipline_profit_enabled: {
+        Args: { p_enabled: boolean }
+        Returns: boolean
       }
       set_org_fiscal_year_start_month: {
         Args: { p_month: number | null }

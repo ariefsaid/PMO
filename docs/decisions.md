@@ -3919,3 +3919,7 @@ from items bought.
 - Batch and lot tracking and material close-out (#2538): batch and lot Q1 2027; material close-out with the close-out checklist on 15 December.
 - User count and service terms (#2539): stays open; the light seat type is decided and counted separately, price and counts remain the owner's.
 - Custom roles (#2540): the 28 built-in roles and light accounts on 15 December; custom roles Q1 2027.
+
+## DD-DPR-1 — Revenue per discipline comes from the contract line (2026-11-21, #2669)
+
+A discipline is set on the contract line (`boq_items.discipline_id`, from the organisation's own list) and validated progress reaches it through the work-order line. Revenue per discipline is the amount frozen at validation, so a later rate change never re-prices history. The headline margin is after shared cost, with the margin before shared cost beside it; cost is exactly what the plan-versus-actual tab already shows, joined and not re-summed. Revenue rows carry a `basis`, so another revenue basis can be added beside validated progress. The view is an organisation setting, off by default, written only by an Admin. Spec: [discipline-profit](specs/discipline-profit.spec.md). This closes the "discipline revenue is not apportioned" line of DD-WPVA-1.

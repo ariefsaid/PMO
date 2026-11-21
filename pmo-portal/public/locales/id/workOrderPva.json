@@ -44,6 +44,7 @@
   "overPlan": "Melebihi rencana {{amount}}",
   "overPlanHours": "Melebihi rencana {{hours}} jam",
   "pageEmpty": "Belum ada rencana atau realisasi untuk $t(common:terms.clientWorkOrder) ini.",
+  "pendingCrewHours": "{{hours}} jam pada timesheet yang belum disetujui tidak dihitung.",
   "plan": {
     "crewHours": "Jam kru",
     "direct": "Anggaran langsung ({{currency}})",
@@ -54,6 +55,48 @@
     "title": "Rencana untuk {{number}}"
   },
   "planLabel": "Rencana",
+  "profit": {
+    "title": "Laba per disiplin",
+    "col": {
+      "discipline": "Disiplin",
+      "revenue": "Pendapatan",
+      "direct": "Biaya langsung",
+      "shared": "Biaya bersama",
+      "after": "Margin setelah biaya bersama",
+      "before": "Margin sebelum biaya bersama"
+    },
+    "noDiscipline": "Tanpa disiplin",
+    "notAssigned": "Belum dialokasikan",
+    "total": "Total proyek",
+    "loss": "Rugi {{amount}}",
+    "incomplete": "Belum lengkap: pekerjaan tervalidasi tanpa tarif",
+    "notComparable": "Tidak dapat dibandingkan (mata uang lain)",
+    "costUnknown": "Biaya tidak diketahui",
+    "restricted": "Dibatasi",
+    "unknown": "Tidak diketahui",
+    "empty": "Belum ada pendapatan tervalidasi atau biaya per disiplin.",
+    "loadError": "Laba per disiplin tidak dapat dimuat",
+    "retry": "Coba lagi",
+    "archivedDiscipline": "Disiplin diarsipkan",
+    "revenueNote": "Pendapatan adalah progres tervalidasi pada tarif kontrak.",
+    "picker": {
+      "label": "Disiplin (untuk laba per disiplin)",
+      "none": "Tanpa disiplin",
+      "saved": "Disiplin disimpan",
+      "error": "Disiplin tidak dapat disimpan"
+    },
+    "setting": {
+      "title": "Laba per disiplin",
+      "label": "Tampilkan pendapatan di samping biaya per disiplin",
+      "helper": "Menambah tabel pada bagian rencana vs aktual proyek dan kolom disiplin pada baris kontrak. Nonaktif secara default.",
+      "save": "Simpan",
+      "saved": "Pengaturan disimpan",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
+      "loadError": "Pengaturan tidak dapat dimuat",
+      "on": "Aktif",
+      "off": "Nonaktif"
+    }
+  },
   "projectHours": "Jam proyek dan kontrak",
   "projectTotal": "Total proyek dan kontrak",
   "reason": {
@@ -100,7 +143,6 @@
   "splitStale": "Pembagian yang disimpan sudah usang: ada $t(common:terms.clientWorkOrder) yang ditambah atau dibatalkan. Pembagian bawaan dipakai sampai ada yang menyimpannya lagi.",
   "title": "Rencana vs aktual",
   "uncosted": "{{hours}} jam tanpa tarif dan tidak masuk biaya.",
-  "pendingCrewHours": "{{hours}} jam pada timesheet yang belum disetujui tidak dihitung.",
   "underPlan": "Sisa {{amount}}",
   "underPlanHours": "Sisa {{hours}} jam",
   "unknown": "Tidak diketahui",

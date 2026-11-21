@@ -58,6 +58,7 @@ import {
 } from './WorkOrdersDrawers';
 import WorkOrdersModals from './WorkOrdersModals';
 import WorkOrderPlanVsActual from '../WorkOrderPlanVsActual';
+import DisciplineProfit from '../DisciplineProfit';
 
 /**
  * The work-order surface for one project (#566) — the client's inbound POs and the drawdown they
@@ -895,6 +896,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
       {/* #2519: plan vs actual and profit per work order — renders nothing for a role that cannot read work-order money. */}
       <WorkOrderPlanVsActual projectId={projectId} />
+      {/* #2669: revenue next to cost per discipline; renders nothing while the organisation setting is off. */}
+      <DisciplineProfit projectId={projectId} />
     </div>
   );
 };

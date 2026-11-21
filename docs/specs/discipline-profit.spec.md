@@ -95,13 +95,12 @@ discipline makes or loses money.
 **Mutation check (required):** make `project_discipline_revenue` count every status (or drop the `superseded_at is null`
 filter) and AC-DPR-005/006/007 go red; make `set_boq_item_discipline` skip the role gate and AC-DPR-003 goes red; restore.
 
-## 7. Open questions
-1. **Where a progress line's discipline comes from.** Proposed: the BoQ item (one discipline per item; the client tags
-   items). Alternative: the work order's discipline, but work orders here carry none. Confirm.
-2. **Allocation of shared cost** is shown as a second column (after shared cost) reusing the existing allocation;
-   confirm the headline margin is "after shared cost".
-3. **Cost basis** is exactly what the plan-versus-actual tab shows today (no new cost source).
-4. **BoQ edit UI**: add a discipline picker to the existing BoQ item form, or tag by import only? Proposed: picker.
+## 7. Rulings (coordinator, 2026-11-21)
+1. The discipline sits on the contract item (`boq_items.discipline_id`); progress lines reach it through `work_order_lines.boq_item_id`.
+2. The headline margin is after shared cost; before shared cost is the second column.
+3. A picker on the contract line form, shown only while the setting is on and only when editing an existing line (a new line has no id until saved). The contract-line import carries no discipline column, so the picker is the only way.
+4. The setting follows the organisation-setting pattern of the fiscal-year start (a column, a getter, an Admin-only audited setter RPC), not `org_features`.
+5. The revenue read returns a `basis` column (`validated_progress`) so a second basis (billed) can be added beside it without rewriting the read or the join.
 
 ## 8. Out of scope
 Forecast to completion, tax, per-discipline billing, re-pricing validated lines, new cost sources.
