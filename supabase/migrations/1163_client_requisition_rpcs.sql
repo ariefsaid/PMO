@@ -1,4 +1,4 @@
--- 1087_client_requisition_rpcs.sql — #2585 client material requisitions: the ONLY writers, the pickup that posts a receipt.
+-- 1163_client_requisition_rpcs.sql — #2585 client material requisitions: the ONLY writers, the pickup that posts a receipt.
 -- Spec docs/specs/client-material-requisitions.spec.md · plan docs/plans/2026-11-20-client-material-requisitions.md · tables 1086,
 -- cost attribution for a receive naming a work order 1085. Proven by supabase/tests/csr_requisition.test.sql and csr_pickup.test.sql.
 --
@@ -14,7 +14,7 @@
 -- Mutation checks (by hand, in the build report): `-- mut:zero_cost_tag` (the zero-cost refusal), `-- mut:still_to_collect`,
 -- `-- mut:cancelled`, `-- mut:over_requested`, `-- mut:below_collected`, `-- mut:line_lock` mark the single statement enforcing each rule.
 --
--- REVERSE: supabase/migrations/rollback/1087_client_requisition_rpcs_down.sql.
+-- REVERSE: supabase/migrations/rollback/1163_client_requisition_rpcs_down.sql.
 
 -- ── internals (never client-callable) ─────────────────────────────────────────────────────────────────────────
 

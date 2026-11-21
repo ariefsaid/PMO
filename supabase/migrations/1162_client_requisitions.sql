@@ -1,6 +1,6 @@
 -- 1162_client_requisitions.sql — #2585 client material requisitions per work order: SCHEMA.
 -- Spec docs/specs/client-material-requisitions.spec.md · plan docs/plans/2026-11-20-client-material-requisitions.md.
--- The RPCs that are the ONLY writers live in 1087_client_requisition_rpcs.sql. Proven by supabase/tests/csr_requisition.test.sql
+-- The RPCs that are the ONLY writers live in 1163_client_requisition_rpcs.sql. Proven by supabase/tests/csr_requisition.test.sql
 -- and supabase/tests/csr_pickup.test.sql.
 --
 -- Shape (FR-CSR-001..023):
