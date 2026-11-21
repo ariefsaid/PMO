@@ -162,6 +162,12 @@ select throws_ok($$ select tst_recv(tst_tr('t4'), 11, 4) $$, '23514', null, 'AC-
 select throws_ok($$ select tst_recv(tst_tr('t4'), -1, 0) $$, '23514', null, 'AC-TST-009 a negative count is refused');
 select throws_ok($$ select tst_recv(tst_tr('t4'), 1.0005, 1) $$, 'P0001', 'STK_INVALID: a count needs counted and accepted quantities (3 decimals at most)', 'AC-TST-009 a count with more than 3 decimals is refused');
 select throws_ok($$ select public.receive_stock_transfer(tst_tr('t4'), '[]'::jsonb) $$, 'P0001', 'STK_INVALID: give a count for every line of the transfer', 'AC-TST-009 every line needs a count');
+reset role;
+-- The table checks are the authority for these rules (the RPC adds friendlier messages, not the rule): bind each to its own constraint by writing as the table owner.
+select throws_ok($$ update stock_transfer_lines set qty_counted = 11, qty_accepted = 11, qty_rejected = 0 where id = tst_line(tst_tr('t4')) $$, '23514', null, 'AC-TST-009 the table itself refuses a count above the sent quantity (stock_transfer_lines_count_cap)');
+select throws_ok($$ update stock_transfer_lines set qty_counted = 4, qty_accepted = 4, qty_rejected = 1, reject_reason = 'x' where id = tst_line(tst_tr('t4')) $$, '23514', null, 'AC-TST-008 the table itself refuses accepted + rejected different from counted (stock_transfer_lines_accept_sum)');
+select throws_ok($$ update stock_transfer_lines set qty_counted = 4, qty_accepted = 4, qty_rejected = 0, quality_result = 'fail' where id = tst_line(tst_tr('t4')) $$, '23514', null, 'AC-TST-010 the table itself refuses accepting stock that failed its quality check (stock_transfer_lines_quality_fail)');
+select tst_as('26920000-0000-0000-0000-0000000000a3');
 select lives_ok($$ select tst_recv(tst_tr('t4'), 4, 4, '{"quality_result":"fail"}') $$, 'AC-TST-010 a quality result on an unflagged item is ignored');
 select is((select quality_result from stock_transfer_lines where id = tst_line(tst_tr('t4'))), null, 'AC-TST-010 and not stored');
 reset role;
