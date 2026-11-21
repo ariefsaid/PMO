@@ -29,6 +29,8 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
     'financial-statements-publication-race.test.mjs',
     'financial-statements-rollback.test.mjs',
     'financial-statements-nightly-intent-race.test.mjs',
+    'fiscal-year-ensure-mutation.test.mjs',
+    'fiscal-year-ensure-race.test.mjs',
   ];
   const nonDatabase = workflow.match(/node scripts\/run-script-tests\.mjs[^\n]+/);
   assert.ok(nonDatabase, 'CI must discover non-database script tests through the tracked runner (#2332)');
@@ -48,6 +50,10 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
   provesCoverage(workflow);
   assert.throws(() => provesCoverage(workflow.replace(/scripts\/financial-statements-rollback\.test\.mjs/g, '')),
     /financial-statements-rollback\.test\.mjs is missing from CI/);
+  assert.throws(() => provesCoverage(workflow.replace(/scripts\/fiscal-year-ensure-mutation\.test\.mjs/g, '')),
+    /fiscal-year-ensure-mutation\.test\.mjs is missing from CI/);
+  assert.throws(() => provesCoverage(workflow.replace(/scripts\/fiscal-year-ensure-race\.test\.mjs/g, '')),
+    /fiscal-year-ensure-race\.test\.mjs is missing from CI/);
   // The release path must run the two-session interleaving proof too, not only the PR-to-dev job:
   // a harness that only runs before a dev merge would never gate a promote to main.
   const integrationLanesJob = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration:'));
@@ -61,6 +67,26 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
     assert.match(job, /run: node --test --test-concurrency=1 [^\n]*scripts\/2195-journal-safety-rollback\.test\.mjs/);
     assert.ok(job.indexOf('supabase start') < job.indexOf('scripts/2195-journal-safety-rollback.test.mjs'));
   }
+  const pgtapReset = pgtapJob.indexOf('supabase db reset');
+  assert.ok(pgtapReset !== -1, 'pgtap job must reset the database');
+  for (const file of [
+    'fiscal-year-ensure-mutation.test.mjs',
+    'fiscal-year-ensure-race.test.mjs',
+  ]) {
+    const fileIdx = pgtapJob.indexOf(`scripts/${file}`);
+    assert.ok(fileIdx !== -1, `pgtap job must run scripts/${file}`);
+    assert.ok(fileIdx > pgtapReset, `scripts/${file} must run after supabase db reset in pgtap job`);
+    assert.match(
+      pgtapJob,
+      new RegExp(`scripts/with-db-lock\\.sh [^\\n]*scripts/${file}`),
+      `scripts/${file} must run under scripts/with-db-lock.sh`,
+    );
+  }
+  assert.match(
+    pgtapJob,
+    /scripts\/with-db-lock\.sh\s+node\s+--test\s+--test-concurrency=1\s+scripts\/fiscal-year-ensure-mutation\.test\.mjs\s+scripts\/fiscal-year-ensure-race\.test\.mjs/,
+    'fiscal year ensure tests must run serially under scripts/with-db-lock.sh',
+  );
   const checksJob = workflow.slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'));
   assert.doesNotMatch(checksJob, /node --test[^\n]*scripts\/[^ \n]+\.test\.mjs/,
     'script tests must run only through the repository-test glob, not hand-picked duplicates');

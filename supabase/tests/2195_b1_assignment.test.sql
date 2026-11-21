@@ -3,7 +3,7 @@
 -- claim helper it will call is exercised directly. The race section uses committed fixtures in a second session.
 begin;
 select plan(146);
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 insert into organizations(id,name,default_currency) values
  ('21951001-0000-0000-0000-000000000001','Assignment org A','USD'),
  ('21951001-0000-0000-0000-000000000002','Assignment org B','USD');

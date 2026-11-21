@@ -3,8 +3,9 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
-vi.mock('./SalesInvoiceEvidence', () => ({ SalesInvoiceEvidenceSection: () => null }));
+vi.mock('./SalesInvoiceEvidence', () => ({ SalesInvoiceEvidenceWithPayments: () => null }));
 vi.mock('@/src/hooks/useRevenue', () => ({
+  useIncomingPayments: () => ({ data: [], isPending: false, isError: false }),
   useSalesInvoiceEvidence: () => ({ data: { lines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalRow', () => ({ SalesInvoiceApprovalPreview: () => null }));

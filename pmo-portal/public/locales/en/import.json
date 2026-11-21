@@ -8,6 +8,14 @@
     "crew": "crew",
     "crewMembers": "crew members",
     "crewMember": "crew member",
+    "stockItems": "stock items",
+    "stockItem": "stock item",
+    "stockLocations": "stock locations",
+    "stockLocation": "stock location",
+    "equipment": "equipment",
+    "equipmentOne": "equipment asset",
+    "people": "people",
+    "person": "person",
     "clientTakeoff": "take-off lines",
     "clientTakeoffLine": "take-off line"
   },
@@ -208,6 +216,84 @@
       "endBefore": "To is before From.",
       "overlapInFile": "This person is already placed on overlapping dates in row {n}.",
       "overlap": "These dates overlap another placement of this person. End that one first."
+    }
+  },
+  "stockItem": {
+    "code": "Item code",
+    "name": "Name",
+    "description": "Description",
+    "unit": "Unit",
+    "leadTimeDays": "Lead time (days)",
+    "codeHint": "Your own code for the item. Each code is used once.",
+    "unitHint": "The code of an existing unit of measure.",
+    "alreadyThere": "This item code already exists.",
+    "error": {
+      "code": "Item code is required.",
+      "codeLong": "Item code is too long.",
+      "name": "Name is required.",
+      "nameLong": "Name is too long.",
+      "lead": "Lead time must be a whole number of days."
+    }
+  },
+  "stockLocation": {
+    "code": "Location code",
+    "name": "Name",
+    "kind": "Kind",
+    "project": "Project",
+    "projectHint": "Required for site, yard and staging; leave blank for central.",
+    "alreadyThere": "This location code already exists.",
+    "error": {
+      "code": "Location code is required.",
+      "codeLong": "Location code is too long.",
+      "name": "Name is required.",
+      "nameLong": "Name is too long.",
+      "kind": "Kind must be central, site, yard or staging.",
+      "projectNeeded": "A project is required for this kind of location.",
+      "projectNotAllowed": "A central location has no project."
+    }
+  },
+  "equipment": {
+    "code": "Asset code",
+    "name": "Name",
+    "unit": "Default unit",
+    "ownership": "Ownership",
+    "vendor": "Supplier",
+    "rate": "Rental rate",
+    "basis": "Rate basis",
+    "currency": "Currency",
+    "rentedFrom": "Rental start",
+    "rentedTo": "Rental end",
+    "vendorHint": "Required when rented: the name of an existing supplier.",
+    "alreadyThere": "This asset code already exists.",
+    "error": {
+      "code": "Asset code is required.",
+      "codeLong": "Asset code is too long.",
+      "name": "Name is required.",
+      "nameLong": "Name is too long.",
+      "unit": "Default unit must be hours or days.",
+      "ownership": "Ownership must be owned or rented.",
+      "rate": "Rental rate must be a number above 0, with at most 2 decimals.",
+      "basis": "Rate basis must be day or month.",
+      "currency": "Currency is not one the organisation uses.",
+      "date": "Dates are written year-month-day, e.g. 2026-01-31.",
+      "vendorNeeded": "Supplier is required for a rented asset.",
+      "rateNeeded": "Rental rate is required for a rented asset.",
+      "basisNeeded": "Rate basis is required for a rented asset.",
+      "currencyNeeded": "Currency is required for a rented asset.",
+      "startNeeded": "Rental start is required for a rented asset.",
+      "endBefore": "Rental end is before the rental start."
+    }
+  },
+  "people": {
+    "code": "Employee code",
+    "name": "Display name",
+    "codeHint": "Your own code for the person. Each code is used once.",
+    "alreadyThere": "This employee code already exists.",
+    "error": {
+      "code": "Employee code is required.",
+      "codeLong": "Employee code is too long.",
+      "name": "Display name is required.",
+      "nameLong": "Display name is too long."
     }
   },
   "clientTakeoff": {

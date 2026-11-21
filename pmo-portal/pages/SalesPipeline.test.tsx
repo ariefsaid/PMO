@@ -927,14 +927,12 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
     return within(funnel).getByText(name, { exact: true }).closest('[data-funnel-stage]') as HTMLElement;
   };
 
-  it('AC-RD-SALES-002 a stage holding two currencies shows "—" with the reason, never a sum', () => {
-    renderPage(); // Tender holds USD + IDR deals
+  it('AC-RD-SALES-002 a stage holding two currencies shows one line per currency, the org currency first, never a sum', () => {
+    renderPage(); // Tender holds USD (1,200,000 + 9,000) and IDR (1,234) deals
     const tender = stageCell('Tender submitted');
-    const amount = tender.querySelector('[data-funnel-stage-amount]') as HTMLElement;
-    expect(amount).toHaveTextContent('—');
-    expect(amount.textContent).not.toContain('1,200,000');
-    expect(within(amount).getByText('Mixed currencies')).toHaveClass('sr-only');
-    expect(amount.querySelector('[title="Mixed currencies"]')).not.toBeNull();
+    const lines = Array.from(tender.querySelectorAll('[data-funnel-stage-amount] > div')).map((n) => n.textContent?.replace(/\u00a0/g, ' '));
+    expect(lines).toEqual(['$1,209,000', '+ IDR 1,234']);
+    expect(tender.querySelector('[data-funnel-stage-amount]')?.textContent).not.toContain('1,210,234');
   });
 
   it('AC-RD-SALES-002 a one-currency stage still shows its total in that currency', () => {
@@ -943,11 +941,15 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
     expect(within(preQual).getByText(formatCurrency(800000, 'USD'))).toBeInTheDocument();
   });
 
-  it('AC-RD-SALES-002 the weighted forecast total is "—" while the open pipeline mixes currencies', () => {
+  it('AC-RD-SALES-002 the headline figures keep the org currency first and a second line per other currency', () => {
     renderPage();
-    // Unknown is never drawn as a number: the forecast tile is left out and the page's one line says why.
-    expect(screen.queryByTestId('pipeline-weighted-total')).toBeNull();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('2 figures hidden: Mixed currencies');
+    // each currency line is one child; its visible text is the aria-hidden figure (the exact twin is sr-only)
+    const norm = (el: HTMLElement) => Array.from(el.children).map((line) => line.querySelector('[aria-hidden]')?.textContent?.replace(/\u00a0/g, ' '));
+    // Weighted per deal: USD 150,000 + 200,000 + 4,500; IDR 617. Open value: USD 2,009,000; IDR 1,234.
+    expect(norm(screen.getByTestId('pipeline-weighted-total'))[1]).toBe('+ IDR 617');
+    expect(norm(screen.getByTestId('pipeline-weighted-total'))[0]).toBe('$355K');
+    expect(norm(screen.getByTestId('pipeline-open-value-figure').firstElementChild as HTMLElement)).toEqual(['$2.01M', '+ IDR 1.23K']);
+    expect(screen.queryByTestId('figures-hidden')).toBeNull();
   });
 
   it('AC-RD-SALES-002 a one-currency pipeline denominates stages in that currency, not the org default', () => {

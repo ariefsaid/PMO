@@ -11,11 +11,13 @@ const setup = vi.hoisted(() => ({
     budgetMappedCategories: [],
     unlinkedEmployeeCount: 2,
   })),
+  listConnectProposals: vi.fn(async (..._args: unknown[]) => ({ proposals: [], nextAfterId: null })),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: setup } }));
 vi.mock('./ProjectMatchReview', () => ({ ProjectMatchReview: () => null }));
 vi.mock('./ConnectProposalReview', () => ({ ConnectProposalReview: () => null }));
 
+import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ErpSetupChecklist } from './ErpSetupChecklist';
 
 function Where() {
@@ -27,10 +29,12 @@ function renderChecklist() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/integrations']}>
-        <ErpSetupChecklist orgId="org-1" onRefreshCompany={() => {}} />
-        <Where />
-      </MemoryRouter>
+      <ImpersonationProvider realRole="Admin">
+        <MemoryRouter initialEntries={['/integrations']}>
+          <ErpSetupChecklist orgId="org-1" onRefreshCompany={() => {}} />
+          <Where />
+        </MemoryRouter>
+      </ImpersonationProvider>
     </QueryClientProvider>,
   );
 }

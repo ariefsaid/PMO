@@ -4,7 +4,7 @@ import { ExportButton } from '@/src/components/export';
 import {
   Button, Drawer, FigureHiddenLine, FigureScope, Icon, LifecycleStepper, SearchMini, StatTiles, StatusPill, TaxBasisLabel, ViewToggle,
 } from '@/src/components/ui';
-import { formatCurrency, formatDay, formatTableMoney, formatTileMoney } from '@/src/lib/format';
+import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
   dealJourneySteps, formatPercent, daysSince, daysSinceLatestTouch, isNeedsAttention, isStaleBid, weightedValue,
@@ -13,7 +13,7 @@ import { PipelineResults } from '../sales-pipeline/PipelineResults';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
 import type { SalesModel } from './useSalesModel';
 import { useStageJourneyStepLabel } from './useDealActions';
-import { attentionDeals, attentionReason, dash, openValueTotal } from './salesLogic';
+import { attentionDeals, attentionReason, dash, pipelineFigures, type FigureLines } from './salesLogic';
 
 export const SalesSearch: React.FC<{ m: SalesModel; className?: string }> = ({ m, m: { t }, className }) => (
   <SearchMini
@@ -107,20 +107,24 @@ export const PhoneControls: React.FC<{ m: SalesModel; stage?: boolean; scope?: b
   </div>
 );
 
-/** Phone: the two money figures as one compact row (hidden, with one line, when currencies are mixed). */
+/** Phone: the two money figures as one compact row (a second line per other currency; a hidden figure gets one line). */
 export const PhoneFigures: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => {
   if (m.isDesktop || m.state !== undefined) return null;
-  const total = openValueTotal(m);
-  const cur = m.funnel.effectiveCurrency;
-  const mixed = t('sales:pipeline.mixedCurrency', 'Mixed currencies');
+  const pf = pipelineFigures(m);
+  const unavailable = t('sales:funnel.unavailable', 'Not available');
+  const view = (f: FigureLines) => (
+    <span className="inline-flex flex-col">
+      {f.lines.map((line, i) => <span key={line} className={i === 0 ? undefined : 'text-control font-normal text-muted-foreground'}>{line}</span>)}
+    </span>
+  );
   return (
     <FigureScope>
       <section aria-label={t('sales:options.figuresLabel', 'Pipeline figures')} className="panel-card mb-4 p-[var(--panel-inset)]">
         <StatTiles
           variant="bare"
           tiles={[
-            { label: t('sales:options.weightedForecast', 'Weighted forecast'), value: total === null ? null : formatTileMoney(m.funnel.totalWeighted, cur), exactValue: total === null ? undefined : formatTableMoney(m.funnel.totalWeighted, cur) ?? undefined, unavailableReason: total === null ? mixed : undefined },
-            { label: t('sales:options.openValue', 'Open value'), value: total === null ? null : formatTileMoney(total, cur), unavailableReason: total === null ? mixed : undefined,
+            { label: t('sales:options.weightedForecast', 'Weighted forecast'), value: pf.weighted === null ? null : view(pf.weighted), exactValue: pf.weighted?.exact[0], unavailableReason: pf.weighted === null ? unavailable : undefined },
+            { label: t('sales:options.openValue', 'Open value'), value: view(pf.open), exactValue: pf.open.exact[0],
               sub: t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length }) },
           ]}
         />

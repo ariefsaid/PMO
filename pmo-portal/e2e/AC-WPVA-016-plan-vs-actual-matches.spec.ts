@@ -58,7 +58,8 @@ test('AC-WPVA-016 the work-order page plan-vs-actual matches the project tab row
     await page.route('**/api/resource/**', (route) => route.abort());
     await page.goto('/projects/' + projectId + '/contract');
     const row = page.getByTestId('wo-pva-row-' + workOrderId);
-    await expect(row).toBeVisible();
+    // The row waits on three request rounds (page, contract tab, plan lines); on a loaded runner that outlasts the 5 s default.
+    await expect(row).toBeVisible({ timeout: 15_000 });
     // The amount is each cell's first line; a variance note may follow it (the page also notes shared cost against its plan).
     const amountOf = async (testId: string) => (await row.getByTestId(testId).innerText()).split('\n')[0].trim();
     const sameAmount = (amount: string) => new RegExp('^' + amount.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\d.,])');

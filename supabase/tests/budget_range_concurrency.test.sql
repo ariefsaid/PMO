@@ -2,7 +2,7 @@
 -- project/outbox locks. dblink supplies an independent committing session; barriers are bounded.
 create temporary table budget_range_concurrency_extension_state as
   select exists (select 1 from pg_extension where extname='dblink') as preexisted;
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 select dblink_connect('budget_range_concurrency', format(
   'dbname=%s user=%s password=postgres host=%s port=%s', current_database(), current_user,
   coalesce(host(inet_server_addr()),'supabase_db_pmo-portal'),coalesce(inet_server_port(),5432)));

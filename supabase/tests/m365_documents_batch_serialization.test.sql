@@ -6,7 +6,7 @@
 -- password=postgres is the Supabase LOCAL default; this file only runs under `supabase test db`.
 begin;
 select plan(23);
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 insert into organizations(id,name,default_currency) values ('03750000-0000-0000-0000-0000000000c0','Batch serialization','IDR');
 insert into auth.users(id,email) values ('03750000-0000-0000-0000-0000000000c1','bs-fin@example.com'),('03750000-0000-0000-0000-0000000000c6','bs-admin@example.com');
 insert into profiles(id,org_id,full_name,email,role,status) values

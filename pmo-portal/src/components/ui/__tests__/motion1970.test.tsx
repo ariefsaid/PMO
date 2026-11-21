@@ -78,6 +78,57 @@ describe('#1970 motion', () => {
     expect(css).toContain('.popup-anim[data-instant] { transition-duration: 0ms; }');
   });
 
+  it('#2128 every entrance and exit eases on the house token, not a keyword', () => {
+    expect(css).not.toMatch(/ease-in forwards/);
+    expect(css).toContain('.confirm-anim { animation: confirmIn var(--motion-dialog-in) var(--ease-out); }');
+    expect(css).toContain('.confirm-scrim-anim { animation: confirmScrimIn var(--motion-dialog-in) var(--ease-out); }');
+    expect(css).toContain('animation: confirmOut var(--motion-dialog-out) var(--ease-out) forwards;');
+    expect(css).toContain('animation: confirmScrimOut var(--motion-dialog-out) var(--ease-out) forwards;');
+    expect(css).toContain('animation: confirmSheetOut var(--motion-sheet-out) var(--ease-out) forwards;');
+    expect(css).not.toContain('transition: transform 120ms cubic-bezier');
+    expect(css).toContain('transition: transform var(--ds-ease);');
+  });
+
+  it('#2128 Tailwind default transitions settle on the hover token and the house curve', () => {
+    expect(css).toMatch(/--motion-hover:\s*120ms/);
+    expect(css).toContain('--default-transition-duration: var(--motion-hover)');
+    expect(css).toContain('--default-transition-timing-function: var(--ease-out)');
+  });
+
+  it('#2128 the listed hover surfaces carry no literal duration utility', () => {
+    const surfaces = [
+      'pages/project-detail/ProjectBlocks.tsx',
+      'src/auth/authFormPrimitives.tsx',
+      'components/ProjectCardShell.tsx',
+      'src/components/ui/KPITile.tsx',
+      'src/components/ui/Kanban.tsx',
+      'src/components/ui/Card.tsx',
+      'src/components/ui/MobileToolbarDisclosure.tsx',
+      'src/components/reui/gantt/gantt-view.tsx',
+    ];
+    for (const file of surfaces) {
+      const src = readFileSync(file, 'utf8');
+      expect(src, file).not.toMatch(/duration-1[05]0/);
+      expect(src, file).not.toContain('duration-150 ease-out');
+    }
+  });
+
+  it('#2128 Crossfade holds the old child for the --motion-icon-swap token', () => {
+    document.documentElement.style.setProperty('--motion-icon-swap', '400ms');
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(<Crossfade swapKey="a"><i>old</i></Crossfade>);
+      rerender(<Crossfade swapKey="b"><i>new</i></Crossfade>);
+      act(() => { vi.advanceTimersByTime(250); });
+      expect(screen.getByText('old')).toBeTruthy();
+      act(() => { vi.advanceTimersByTime(200); });
+      expect(screen.queryByText('old')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+      document.documentElement.style.removeProperty('--motion-icon-swap');
+    }
+  });
+
   it('Crossfade keeps the old child while the new one fades in, then drops it', () => {
     vi.useFakeTimers();
     const { rerender } = render(<Crossfade swapKey="a"><i>old</i></Crossfade>);

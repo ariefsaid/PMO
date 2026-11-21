@@ -11,7 +11,7 @@
 --       property the lock serializes).
 begin;
 select plan(24);
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 
 insert into organizations (id, name, default_currency) values ('a0925000-0000-0000-0000-00000000000a', 'Project Lock Org', 'USD');
 insert into auth.users (id, email) values

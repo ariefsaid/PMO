@@ -39,7 +39,7 @@ export const Card: React.FC<CardProps> = ({
       clip && 'overflow-hidden',
       seam && 'panel-card-seam',
       interactive &&
-        'transition-colors duration-150 hover:bg-surface-hover',
+        'transition-colors hover:bg-surface-hover',
       className
     )}
     {...rest}

@@ -3424,7 +3424,7 @@
           "emptyTitle": "No Companies found",
           "emptySub": "Create a Company in ERPNext before activating this integration.",
           "activateFailed": "Activation failed. Your selection was kept; you can try again.",
-          "missingReads": "The ERPNext integration user cannot read: {{doctypes}}. Grant it read access to these in ERPNext, then activate again. Your selection was kept.",
+          "missingReads": "The ERPNext integration user cannot read: {{doctypes}}. Your operator will fix its role; then activate again. Your selection was kept.",
           "unsupportedVersion": "ERPNext {{version}} is not supported. PMO supports ERPNext {{supported}}. Nothing was activated."
         },
         "health": {
@@ -3540,7 +3540,7 @@
     },
     "erpSetup": {
       "defaultsFailed": "Could not save ERP defaults. Check the values and try again.",
-      "domainFailed": "Could not employ this domain. Check ERP read permissions and try again.",
+      "domainFailed": "Could not employ this domain. Your operator will fix the integration role; then try again.",
       "unavailable": "ERP setup unavailable",
       "configured": "{{count}} of {{total}} configured",
       "activityMissing": "Activity type not set",
