@@ -13566,7 +13566,7 @@ export type Database = {
         Returns: { claim_id: string; days_over: number; step_name: string }[]
       }
       remove_claim_billing_step: { Args: { p_reason: string; p_stage: string }; Returns: undefined }
-      save_billing_step_template: { Args: { p_name: string; p_steps: Json; p_template?: string }; Returns: string }
+      save_billing_step_template: { Args: { p_name: string; p_steps: Json; p_template: string | null }; Returns: string }
       update_claim_billing_step: { Args: { p_patch: Json; p_stage: string }; Returns: undefined }
       retention_held: { Args: { "": Database["public"]["Tables"]["sales_invoices"]["Row"] }; Returns: number }
       set_work_order_plan: { Args: { p_project_id: string; p_work_order_id: string; p_changes: Json }; Returns: number }

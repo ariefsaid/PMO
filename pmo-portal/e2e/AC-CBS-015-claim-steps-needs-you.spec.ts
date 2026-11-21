@@ -123,7 +123,7 @@ test.afterEach(async () => {
 
 test('AC-CBS-015 a template step owned by the Finance role points at Finance until it completes, and the invoice is raised', async ({ page }) => {
   const finance = await userClient('finance@acme.test');
-  const saved = await finance.rpc('save_billing_step_template', { p_name: `${tag} template`, p_steps: [
+  const saved = await finance.rpc('save_billing_step_template', { p_template: null, p_name: `${tag} template`, p_steps: [
     { name: 'Survey report', owner_role: 'Finance', target_days: 7, documents: [] },
     { name: 'Final check', owner_role: 'Admin', documents: [] },
   ] });

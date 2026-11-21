@@ -105,7 +105,8 @@ export async function listStepTemplates(): Promise<StepTemplate[]> {
 
 export async function saveStepTemplate(templateId: string | null, name: string, steps: StepInput[]): Promise<string> {
   const { data, error } = await supabase.rpc('save_billing_step_template', {
-    p_name: name, p_steps: steps.map(stepPayload), ...(templateId ? { p_template: templateId } : {}),
+    // The function has no default for p_template: a new template sends null.
+    p_template: templateId, p_name: name, p_steps: steps.map(stepPayload),
   });
   if (error) fail(error);
   return String(data);

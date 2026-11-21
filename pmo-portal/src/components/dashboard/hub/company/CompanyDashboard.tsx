@@ -58,9 +58,9 @@ type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to
 const MARGIN_HINT_KEY = 'pmo.home.marginTile';
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
 const WAIT_ORDER: Record<'Executive' | 'Admin' | 'Finance', string[]> = {
-  Executive: ['approvals'],
-  Admin: ['approvals'],
-  Finance: ['approvals', 'supplier-invoices', 'overdue-invoices', 'ready-to-bill'],
+  Executive: ['approvals', 'billing-steps-waiting'],
+  Admin: ['approvals', 'billing-steps-waiting'],
+  Finance: ['approvals', 'supplier-invoices', 'overdue-invoices', 'ready-to-bill', 'billing-steps-waiting'],
 };
 
 
