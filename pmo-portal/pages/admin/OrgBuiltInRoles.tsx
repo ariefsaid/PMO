@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, FieldError, ListState, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { repositories } from '@/src/lib/repositories';
+import { builtInRolesRepository } from '@/src/lib/repositories/builtInRoles';
 import { BUILT_IN_ROLES_ENABLED_KEY, useBuiltInRolesEnabled } from '@/src/hooks/useBuiltInRoles';
 
 /**
@@ -23,7 +23,7 @@ const OrgBuiltInRoles: React.FC = () => {
   const enabled = query.data === true;
 
   const mutation = useMutation({
-    mutationFn: (next: boolean) => repositories.orgSettings.setBuiltInRolesEnabled(next),
+    mutationFn: (next: boolean) => builtInRolesRepository.setEnabled(next),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: [BUILT_IN_ROLES_ENABLED_KEY] });
       toast(t('admin.builtInRoles.saved', 'Built-in roles setting saved'), undefined, 'success');

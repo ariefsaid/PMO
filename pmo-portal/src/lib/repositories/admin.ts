@@ -1,7 +1,7 @@
 /** People, operator, usage, saved views, org features/settings, credits and domain-ownership repository implementations (the admin/settings group). */
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
 import { listSpendApprovers, addSpendApprover, removeSpendApprover } from '@/src/lib/db/spendApprovers';
-import { listUsers, listUsersPage, countActiveAdminsByOrg, findUserPage, listManagerChoices, updateUserRole, updateUserBuiltInRole, assignUserManager, inviteUser, setUserStatus } from '@/src/lib/db/adminUsers';
+import { listUsers, listUsersPage, countActiveAdminsByOrg, findUserPage, listManagerChoices, updateUserRole, assignUserManager, inviteUser, setUserStatus } from '@/src/lib/db/adminUsers';
 import { isOperator } from '@/src/lib/db/operators';
 import {
   getOrgUsageSummary,
@@ -39,8 +39,6 @@ import { getOwnOrgPlan } from '@/src/lib/db/orgPlan';
 import {
   getOrgFiscalYearSetting,
   setOrgFiscalYearStartMonth,
-  getOrgBuiltInRolesEnabled,
-  setOrgBuiltInRolesEnabled,
   getOrgTaxDefault,
   getOrgDefaultCurrency,
   getOrgLocaleDefaults,
@@ -73,7 +71,6 @@ export const profileRepository: ProfileRepository = {
   findUserPage: (input) => wrap(() => findUserPage(input)),
   listManagerChoices: () => wrap(() => listManagerChoices()),
   updateUserRole: (id, role) => wrap(() => updateUserRole(id, role)),
-  updateUserBuiltInRole: (id, key) => wrap(() => updateUserBuiltInRole(id, key)),
   assignUserManager: (id, managerId) => wrap(() => assignUserManager(id, managerId)),
   inviteUser: (input) => wrap(() => inviteUser(input)),
   setUserStatus: (input) => wrap(() => setUserStatus(input)),
@@ -145,8 +142,6 @@ export const orgSettingsRepository: OrgSettingsRepository = {
   setTaxDefault: (value) => wrap(() => setOrgTaxDefault(value)),
   getFiscalYearSetting: () => wrap(() => getOrgFiscalYearSetting()),
   setFiscalYearStartMonth: (month) => wrap(() => setOrgFiscalYearStartMonth(month)),
-  getBuiltInRolesEnabled: () => wrap(() => getOrgBuiltInRolesEnabled()),
-  setBuiltInRolesEnabled: (enabled) => wrap(() => setOrgBuiltInRolesEnabled(enabled)),
   listSpendApprovers: () => wrap(() => listSpendApprovers()),
   addSpendApprover: (profileId, projectId) => wrap(() => addSpendApprover(profileId, projectId)),
   removeSpendApprover: (id) => wrap(() => removeSpendApprover(id)),

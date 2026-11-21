@@ -7,8 +7,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({ canManage: true, get: vi.fn(), set: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { orgSettings: { getBuiltInRolesEnabled: h.get, setBuiltInRolesEnabled: h.set } },
+vi.mock('@/src/lib/repositories/builtInRoles', () => ({
+  builtInRolesRepository: { getEnabled: h.get, setEnabled: h.set },
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'fixture-admin', org_id: 'fixture-org' } }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canManage }));

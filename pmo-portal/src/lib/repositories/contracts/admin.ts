@@ -42,8 +42,6 @@ export interface ProfileRepository {
   findUserPage(input: { userId: string; pageSize: number }): Promise<UserFocusLocation | null>;
   /** Change a user's role (Admin-only via profiles_admin_write RLS). */
   updateUserRole(id: string, role: UserRole): Promise<void>;
-  /** #2709: give a person a built-in role key, or clear it (null). The database applies the profile-administration rule. */
-  updateUserBuiltInRole(id: string, key: string | null): Promise<void>;
   /** Assign (or clear, with null) a user's line manager (Admin-only via profiles_admin_write RLS). */
   assignUserManager(id: string, managerId: string | null): Promise<void>;
   /** Invite a new user via the admin-invite-user edge fn (Admin-in-org OR Operator). */
@@ -126,10 +124,6 @@ export interface OrgSettingsRepository {
   getFiscalYearSetting(): Promise<OrgFiscalYearSetting>;
   /** #2329, Admin-only (server): set or clear the fiscal-year start month; refused where an accounting system is read. */
   setFiscalYearStartMonth(month: number | null): Promise<void>;
-  /** #2709: has the organization turned the built-in role set on (default false)? Every member reads. */
-  getBuiltInRolesEnabled(): Promise<boolean>;
-  /** #2709, Admin-only (server). */
-  setBuiltInRolesEnabled(enabled: boolean): Promise<void>;
   /** #803: the org's spend approvers (senior set + project approvers); every active member reads. */
   listSpendApprovers(): Promise<SpendApproverRow[]>;
   /** #803, Admin-only (RLS): name an approver — `projectId` null = the overhead/over-budget set. */

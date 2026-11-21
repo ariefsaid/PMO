@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import { builtInRolesRepository } from '@/src/lib/repositories/builtInRoles';
 import { useAuth } from '@/src/auth/useAuth';
 
 /** #2709: has the organization turned the built-in role set on? Off (false) until an Admin turns it on; unreadable reads as off. */
@@ -10,7 +10,7 @@ export function useBuiltInRolesEnabled() {
   const orgId = currentUser?.org_id;
   return useQuery({
     queryKey: [BUILT_IN_ROLES_ENABLED_KEY, orgId],
-    queryFn: () => repositories.orgSettings.getBuiltInRolesEnabled(),
+    queryFn: () => builtInRolesRepository.getEnabled(),
     enabled: Boolean(orgId),
     staleTime: 5 * 60_000,
     retry: false,
@@ -21,7 +21,7 @@ export function useBuiltInRolesEnabled() {
 export function useBuiltInRoleMutation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, key }: { id: string; key: string | null }) => repositories.profile.updateUserBuiltInRole(id, key),
+    mutationFn: ({ id, key }: { id: string; key: string | null }) => builtInRolesRepository.assign(id, key),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       qc.invalidateQueries({ queryKey: ['org-profiles'] });
