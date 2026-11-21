@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { workOrderPerformanceRepository } from '@/src/lib/repositories/workOrderPerformance';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
@@ -8,10 +8,15 @@ export const PERFORMANCE_SETTINGS_KEY = 'org-performance-settings';
 /** The organisation's switch and bands. Off (the default) means no performance panel and no performance request. */
 export function usePerformanceSettings() {
   const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  // The app shell already loads the organisation row once per session (`org-locale-defaults`). This only watches that
+  // cache entry (skipToken: it never fetches) and reads the setting once the shell's own read has landed, so a page
+  // that mounts without the shell makes no organisation request, and navigating makes none (the answer is cached).
+  const shellOrgRead = useQuery({ queryKey: ['org-locale-defaults', orgId], queryFn: skipToken });
   return useQuery({
-    queryKey: [PERFORMANCE_SETTINGS_KEY, currentUser?.org_id],
+    queryKey: [PERFORMANCE_SETTINGS_KEY, orgId],
     queryFn: () => workOrderPerformanceRepository.getSettings(),
-    enabled: Boolean(currentUser),
+    enabled: Boolean(currentUser) && shellOrgRead.data !== undefined,
     ...SESSION_QUERY_OPTIONS,
   });
 }

@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext } from 'react';
 import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { usePermission } from '@/src/auth/usePermission';
@@ -13,29 +13,9 @@ import { usePerformanceSettings } from '@/src/hooks/useWorkOrderPerformance';
 export const PerformanceGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const queryClient = useContext(QueryClientContext);
   const auth = useContext(AuthContext);
-  const idle = useWhenIdle();
-  if (!queryClient || !auth || !idle) return null;
+  if (!queryClient || !auth) return null;
   return <GateInner>{children}</GateInner>;
 };
-
-/**
- * True once the browser is idle (or after a second where it has no idle callback). The panels are secondary and
- * below the fold, so reading the organisation setting waits until the page's own reads are done; the screen's
- * mount requests are unchanged for an organisation that has not turned the indices on.
- */
-function useWhenIdle(): boolean {
-  const [idle, setIdle] = useState(false);
-  useEffect(() => {
-    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (h: number) => void };
-    if (w.requestIdleCallback) {
-      const handle = w.requestIdleCallback(() => setIdle(true), { timeout: 2000 });
-      return () => w.cancelIdleCallback?.(handle);
-    }
-    const timer = window.setTimeout(() => setIdle(true), 1000);
-    return () => window.clearTimeout(timer);
-  }, []);
-  return idle;
-}
 
 const GateInner: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const may = usePermission();
