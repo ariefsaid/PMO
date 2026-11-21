@@ -55,7 +55,7 @@ begin
         v_body := regexp_replace(r.prosrc, '(^|\n)(\s*begin\s*)(\n|$)', E'\\1\\2\\3  perform public.assert_not_light();\n', 'i');
       elsif r.lanname = 'sql' then
         v_body := E'\n  select q.* from (' || regexp_replace(btrim(r.prosrc, E' \n\t\r;'), ';\s*$', '') ||
-                  E') q where public.assert_not_light()\n';
+                  E'\n) q where public.assert_not_light()\n';
       else
         raise exception '2710: % is language %, cannot guard', r.proname, r.lanname;
       end if;
@@ -63,7 +63,11 @@ begin
         raise exception '2710: % could not be rewritten', r.proname;
       end if;
       v_new := overlay(v_def placing v_body from position(r.prosrc in v_def) for length(r.prosrc));
-      execute v_new;
+      begin
+        execute v_new;
+      exception when others then
+        raise exception '2710: rewriting % failed: %', r.proname, sqlerrm;
+      end;
     end loop;
     if v_found = 0 then
       raise exception '2710: function % not found in public', v_n;
