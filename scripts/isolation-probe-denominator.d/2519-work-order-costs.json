@@ -1,0 +1,3 @@
+{
+  "definer_functions": ["work_order_cost_amounts_unrounded(uuid)"]
+}

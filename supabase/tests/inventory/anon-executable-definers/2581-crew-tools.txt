@@ -1,0 +1,8 @@
+# #2581 (2581-crew-tools), carried from the branch's own array at integration
+close_crew_tool_report
+correct_crew_tool_report
+crew_tool_can_report
+crew_tool_is_reporter
+crew_tool_photo_stored
+report_crew_tool
+set_crew_tool_settings

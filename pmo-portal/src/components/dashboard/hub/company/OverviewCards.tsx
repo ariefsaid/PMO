@@ -298,4 +298,3 @@ export const ReceivablesAgeCard: React.FC<{ ageing: Record<string, AgeingBuckets
     </ChartCard>
   );
 };
-

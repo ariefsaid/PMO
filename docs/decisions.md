@@ -3824,3 +3824,98 @@ Amends DD-APR-2 and ADR-0075 §3 (migration 1016). `spend_approval_route` judges
 ## DD-WPVA-1 — Work-order financial attribution (2026-11-20)
 
 For #2519, project and contract totals use the existing project-finance basis; work orders divide that total without guessing document attribution. Shared costs use positive direct-cost weights, or a valid custom split; if neither exists they remain unassigned. Allocate cents by largest remainder, preserving the sign of a negative pool. Discipline figures cover planned and actual costs, with revenue and profit at work-order, project and contract levels. The detailed attribution, billing and rounding rules are in [the plan-versus-actual spec](specs/work-order-plan-vs-actual.spec.md); the discipline plan editor and work-order page integration follow separately.
+
+## OD-SCOPE — contractor scope for the 15 December 2026 release (owner, 2026-11-21, map #2516)
+
+Rulings from the scope review of the first contractor client's requirements. They replace the owner rule of 2026-11-20 on this map
+("no new builds for 15 Dec", the February to Q2 ordering). The map's tickets carry the work; the roadmap carries the order.
+
+### OD-SCOPE-1 — three buckets: live 15 Dec, Q1 2027, outside the proposal
+Every need sits in one bucket: **live** on 15 December 2026 (in production, built and waiting for release, or built for the release),
+**Q1 2027** (January to March), or **outside** the proposal. The earlier rule that nothing new is built for 15 December is withdrawn: the
+builds and the finished branches both ship for 15 December, and nothing is held for the second quarter. A build at risk drops to January
+rather than delaying the release.
+
+### OD-SCOPE-2 — no client process in code
+Every item is a setting or data the client fills in. No client's stage names, day counts, document names or step order are written
+into PMO. A habit of one client ships only as a client-configured automation (Q1 2027).
+
+### OD-SCOPE-3 — built-in roles grow from 5 to 28; custom roles are Q1
+No custom roles on 15 December. The built-in set grows from 5 to 28 roles in three levels (manager, officer, field) across the
+functions a contractor has. Each new role starts from one of today's five access levels, so nothing a current client can do changes.
+Role names are renameable per client. Custom roles, custom approvals, automations and custom fields are Q1 2027 (roles map #902).
+**What breaks without it:** a contractor's functions cannot be told apart, so access follows five blunt levels.
+
+### OD-SCOPE-4 — light accounts: Foreman and Field user
+Two roles are light accounts, counted as a separate, cheaper seat: **Foreman** and **Field user**. A light account has one phone home
+screen showing only its own tasks (any project), clock-in at work orders where it is rostered (off-roster goes to the supervisor),
+deliveries addressed to it (confirm with count and photo) and issues it reported. No project page, work-order page, list, dashboard,
+price or budget. No cap on the number of projects: access follows roster and assignment. The Foreman also ticks their own crew's
+roster. Neither enters the daily report on 15 December (Q1 2027, with offline capture). Price and seat counts remain the owner's (#2539).
+
+### OD-SCOPE-5 — the five risk items are promised for 15 December
+Labour cost in money, the wider role set, receiving at site with a count, clock-in at the work location, and email. Email goes through
+Resend. Labour cost, the role set, light accounts, amount-tier approvals and every stock-ledger change ship alone.
+
+### OD-SCOPE-6 — billing: one record, steps on the claim
+One billing record, no task copies. Steps live on the claim (owner role, target date, documents, done mark). The board is a view: cards
+are claims, columns are steps. A step waiting on a role shows in that person's needs-you list as a pointer and clears itself when the
+step completes. Ordinary tasks can still be attached to a claim (#2587). The billing plan only shows candidates, because holding a claim
+to the next month can be deliberate; the done-not-claimed reminder is information, off as an alert by default. Over-claim stays a
+warning, not a block.
+
+### OD-SCOPE-7 — the daily target is an entered figure
+A figure entered per work order per day or per month, spread evenly over working days unless edited. PMO does not calculate it from
+crews or productivity.
+
+### OD-SCOPE-8 — material on a validated daily report posts a stock issue
+On validation, the report's material lines post a stock issue from the work order's site location to the work order; a corrected
+report reverses and re-posts; short stock is flagged, not blocked. Working material out from progress quantities is Q1 2027.
+
+### OD-SCOPE-9 — reservations and borrowing
+A reservation holds a quantity of an item at a location for a work order; nothing is physically locked. Stock reads "x free + y
+reserved". A request that takes another work order's reserved stock is marked as borrowing and goes to an approval step; whether it
+approves or only warns is a setting.
+
+### OD-SCOPE-10 — handover can be confirmed in PMO
+A handover is confirmed in PMO by the logged-in person (name, time, counted quantity, photo of the goods and of the receiver); someone
+without an account signs on the screen of an account holder's phone with their name typed. This is an alternative to the photographed
+signed paper; the client chooses which proof counts per stock tag.
+
+### OD-SCOPE-11 — accounting package: export file only, Q1 2027
+An export file of posted transactions. No direct connector in this proposal; one would be quoted separately.
+
+### OD-SCOPE-12 — pulled forward into 15 December
+Candidate tracking (a cleared-for-site checklist per person), leave and sick requests, the work-order close-out checklist with
+material close-out, daily safety records, candidate work orders, scheduled email reports, the monthly equipment and service plan, a
+rental extension step, vendor response time, task groups to a milestone, and stock at risk against site cover.
+
+### OD-SCOPE-13 — terminology grows
+The renameable terms grow from 6 to about 20, plus all 28 role names. A client renames any of them in settings; PMO's general word is
+the default.
+
+### OD-SCOPE-14 — outside the proposal; PMO is not a workflow engine
+Outside: connections to a client's customer systems; a one-off in-house payment site; a workflow engine that runs a client's whole
+chart; payroll, grades, contracts, assets, accommodation, sourcing and interviewing; weld-level detail; hardware; purchase-order
+financing; a native Android app; source code handover; an uptime guarantee; print layouts identical to a client's own forms. PMO is
+not a workflow engine on one condition: every step of a client's flow has a place to be captured (records, billing steps, tasks with
+proof, approval chains, checklists; and from Q1 2027 custom approvals and automations).
+
+### OD-SCOPE-15 — what stays Q1 2027
+Custom roles, custom approvals with timed steps, automations, custom fields, offline capture with foreman phone entry, batch and lot
+tracking, GPS import, the accounting export file, expected final value per contract item, phone push and messaging-app notifications,
+material worked out from progress, a time-phased resource plan, a weekly work plan, export of every table, a usage forecast through the
+assistant, inspection and test plan points, emergency release, release approved by a named role, and purchasing progress computed
+from items bought.
+
+### OD-SCOPE-16 — answers to the nine open owner questions on the map
+- Source code (#2532): outside the proposal; terms follow the signed agreement.
+- Document storage (#2533): the Microsoft 365 link, already shipped, switched on per client.
+- Phone app (#2534): the installable web app on 15 December; offline capture Q1 2027; a native Android app is outside.
+- Attendance (#2535): both. The roster tick stays; phone clock-in at the work location ships on 15 December through the light account.
+- Workflow engine (#2536): no engine. Configurable stages and approval chains now; custom approvals and automations Q1 2027.
+- Field readiness, weekly plans and resource allocation (#2537): the candidate work-order checklist, the close-out checklist and the
+  monthly equipment plan on 15 December; the weekly work plan and resource-conflict detection Q1 2027.
+- Batch and lot tracking and material close-out (#2538): batch and lot Q1 2027; material close-out with the close-out checklist on 15 December.
+- User count and service terms (#2539): stays open; the light seat type is decided and counted separately, price and counts remain the owner's.
+- Custom roles (#2540): the 28 built-in roles and light accounts on 15 December; custom roles Q1 2027.

@@ -2,7 +2,7 @@
 begin;
 set local statement_timeout='5s';
 select plan(22);
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 select dblink_connect('draft_lane', format('dbname=%s user=%s password=postgres host=%s port=%s', current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(), 5432)));
 select dblink_connect('draft_edit', format('dbname=%s user=%s password=postgres host=%s port=%s', current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(), 5432)));
 create temporary table draft_edit_backend(pid integer);

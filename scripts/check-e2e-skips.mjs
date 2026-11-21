@@ -170,6 +170,12 @@ export const ALLOWED_SKIPS = [
     verified: '2026-11-06',
   },
   {
+    file: 'serial/AC-ECX-040-fiscal-year-ensure.spec.ts',
+    reason: 'Fiscal-year ensure journey needs the served functions lane and the disposable ERPNext bed (its goal oracle is the bed\'s Fiscal Year documents); the bed is not provisioned in CI.',
+    restore: 'Run scripts/with-erpnext-lock.sh scripts/with-db-lock.sh scripts/serve-functions.sh -- scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-ECX-040 with the bed up and ERPNEXT_BENCH_URL, ERPNEXT_BENCH_API_KEY/SECRET (and LOCAL_BENCH_KEY/SECRET, ERPNEXT_SWEEP_SECRET) exported. The spec creates and removes its own org, bench Company and fiscal years.',
+    verified: '2026-11-21',
+  },
+  {
     file: 'serial/AC-SETUP-001-project-erp-link.spec.ts',
     reason: 'ERP setup journey needs the disposable ERP bench and a prepared HTTPS binding.',
     restore: 'Run in the local served-functions lane with the disposable HTTPS ERP relay and ready binding.',

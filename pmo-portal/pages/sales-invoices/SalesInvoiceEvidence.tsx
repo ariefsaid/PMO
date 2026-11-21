@@ -13,13 +13,17 @@ import { OdooOutcome } from '@/src/components/revenue/OdooOutcome';
 import { OdooCaseStatus } from '../procurement/OdooCaseStatus';
 
 /** The invoice record's evidence panel; `totals` (net · tax · total) closes it, under the lines they sum. */
-export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow; odoo?: boolean; totals?: React.ReactNode }> = ({ invoice, odoo = false, totals }) => {
+type Payments = ReturnType<typeof useIncomingPayments>;
+type EvidenceProps = { invoice: SalesInvoiceRow; odoo?: boolean; totals?: React.ReactNode };
+
+// One receipt read per surface: the record page and the drawer each own the invoice-scoped
+// `useIncomingPayments` call and hand it down, so this panel never mounts a second read.
+export const SalesInvoiceEvidenceWithPayments: React.FC<EvidenceProps & { payments: Payments }> = ({ invoice, odoo = false, totals, payments }) => {
   const { t } = useTranslation();
   // The ERP evidence read serves the ERP tier only; an Odoo invoice has no lines to fetch, so it never shows a load error.
   const canFetchEvidence = !invoice.pmo_native && invoice.erp_docstatus !== null && !odoo;
   const evidence = useSalesInvoiceEvidence(invoice.id, canFetchEvidence);
   const [pendingTimedOut, setPendingTimedOut] = useState(false);
-  const payments = useIncomingPayments(undefined, true, invoice.id);
   const commands = useOdooRevenueCommands(invoice.id, odoo);
   const creditNotes = useOdooRevenueCreditNotes(invoice.id, odoo);
   const { unreachable } = useOdooUnreachable(odoo);

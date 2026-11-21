@@ -33,6 +33,10 @@ export const EXCLUDED = [
   'stock-connect-race.test.mjs',
   // needs the database: pgtap job, "AI credit allocation two-session race" under scripts/with-db-lock.sh
   'credit-allocation-race.test.mjs',
+  // needs the database: pgtap job, fiscal-year-ensure mutation proof under scripts/with-db-lock.sh
+  'fiscal-year-ensure-mutation.test.mjs',
+  // needs the database: pgtap job, fiscal-year-ensure two-session race under scripts/with-db-lock.sh
+  'fiscal-year-ensure-race.test.mjs',
 ];
 
 // Pure: from a directory listing of scripts/ (file names), the ordered test list this runner

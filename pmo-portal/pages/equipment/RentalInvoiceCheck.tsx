@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, SelectField, TextField } from '@/src/components/ui';
+import { Button, ListState, NumberField, SelectField, TextField } from '@/src/components/ui';
 import { useRentalCheck } from '@/src/hooks/useEquipmentAvailability';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatExactMoney, formatIsoDay } from '@/src/lib/format';
+import { formatExactMoney, formatIsoDay, normalizeLocalizedDecimal } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { EquipmentStatus } from '@/src/lib/equipmentMetrics';
 
@@ -32,7 +32,10 @@ export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLab
   const clear = () => { check.reset(); setProofLinks({}); setProblem(null); setReason(''); };
   const run = async (includeReason: boolean) => {
     setProblem(null); setProofLinks({});
-    try { await check.mutateAsync({ assetId: asset, from, to, invoice, reason: includeReason ? reason : undefined }); }
+    // The typed amount is read in the viewer's number convention and sent as a canonical decimal (#2618).
+    const amount = invoice.trim() === '' ? '' : normalizeLocalizedDecimal(invoice, 2);
+    if (amount === null) { setProblem(t('equipment:availability.amountInvalid', 'Enter the amount as a number with at most 2 decimals')); return; }
+    try { await check.mutateAsync({ assetId: asset, from, to, invoice: amount, reason: includeReason ? reason : undefined }); }
     catch (error) { setProblem(classifyMutationError(error).headline); }
   };
   const proofLink = async (path: string) => {
@@ -47,7 +50,7 @@ export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLab
       <SelectField label={t('equipment:availability.rentedAsset', 'Rented machine')} value={asset} onChange={(v) => { clear(); setAsset(v); }} options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...assets.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))]} />
       <TextField label={t('equipment:availability.from', 'Invoice period from')} type="date" value={from} onChange={(v) => { clear(); setStart(v); }} />
       <TextField label={t('equipment:availability.to', 'Invoice period to')} type="date" value={to} onChange={(v) => { clear(); setEnd(v); }} />
-      <TextField label={t('equipment:availability.invoiceAmount', 'Vendor invoice amount')} inputMode="decimal" value={invoice} onChange={(v) => { clear(); setInvoice(v); }} />
+      <NumberField localeAware label={t('equipment:availability.invoiceAmount', 'Vendor invoice amount')} value={invoice} onChange={(v) => { clear(); setInvoice(v); }} />
     </div>
     <Button variant="primary" className="mt-3" disabled={!asset || !from || !to || check.isPending} onClick={() => void run(false)}>{t('equipment:availability.runCheck', 'Check invoice')}</Button>
     {check.data && <div className="mt-4" role="region" aria-label={t('equipment:availability.result', 'Check result')}>

@@ -15,7 +15,9 @@ import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
-import { SalesInvoiceEvidenceSection } from './SalesInvoiceEvidence';
+import { SalesInvoiceEvidenceWithPayments } from './SalesInvoiceEvidence';
+import { useIncomingPayments } from '@/src/hooks/useRevenue';
+import { salesInvoicePaymentFacts } from './salesInvoicePaymentFacts';
 import { cn } from '@/src/components/ui/cn';
 
 function WorkOrderReference({ id }: { id: string }) {
@@ -52,6 +54,9 @@ interface Props {
 export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, projectName = null, receiptAwaitingOdoo = false, odoo = false, may, pdfDownload, dialogs }: Props) {
   const { t } = useTranslation();
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
+  const isPaid = viewTarget?.status === 'Paid';
+  const payments = useIncomingPayments(undefined, Boolean(viewTarget), viewTarget?.id);
+  const { amount: paidAmount, date: paidDate } = salesInvoicePaymentFacts(viewTarget, payments);
   const dueDate = viewTarget ? deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date) : null;
   // #1457: the one shared overdue rule gates the stat and supplies the day count.
   const overdueDays = viewTarget ? clientInvoiceOverdueDays(viewTarget, organizationToday) : null;
@@ -93,7 +98,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                   <span style={{ whiteSpace: 'nowrap' }}>{viewTargetNumber}</span>
                 </>
               ) : invoiceDisplayLabel(viewTarget)}
-              status={receiptAwaitingOdoo
+              status={receiptAwaitingOdoo && !isPaid
                 ? <StatusPill variant="progress">{t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo')}</StatusPill>
                 : isPartlyPaid(viewTarget)
                 ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{statusLabel('salesInvoice', 'PartlyPaid', t)}</StatusPill>
@@ -128,16 +133,29 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
               stats={[
                 { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={viewTarget.project_id} name={projectName} className="text-control" /> },
                 { label: t('uxs17.invoiceDate', 'Invoice date'), value: viewTarget.invoice_date ? formatDayYear(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded') },
-                { label: t('uxs17.dueDate', 'Due date'), value: dueDate ? formatDayYear(dueDate) : t('uxs17.dueDateUnavailable', 'Due date not available') },
-                // Unknown outstanding is left out; the receivables page carries the one hidden-figures line.
-                ...(viewTarget.erp_outstanding_amount == null ? [] : [{
-                  label: t('financeCopy.outstanding', 'Outstanding'),
-                  value: <>
-                    {formatCurrency(viewTarget.erp_outstanding_amount, viewTarget.currency, { precision: 'minor' })}
-                    <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
-                  </>,
-                }]),
-                ...(overdueDays !== null ? [{ label: t('uxs17.overdue', 'Overdue'), value: t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays }) }] : []),
+                ...(isPaid ? [
+                  // #2442: one name for the fact in both languages, the app's established "Payment date".
+                  { label: t('financeCopy.paymentDateLabel', 'Payment date'), value: paidDate ? formatDayYear(paidDate) : t('finance:receivables.paymentDateUnavailable', 'Payment date not available') },
+                  {
+                    label: t('finance:receivables.paidAmount', 'Amount paid'),
+                    // #2442: a neutral statement, never "missing" — the settlement may live in the accounting system.
+                    value: paidAmount == null ? t('finance:receivables.paidAmountUnavailable', 'Not available in this view') : <>
+                      {formatCurrency(paidAmount, viewTarget.currency, { precision: 'minor' })}
+                      <FxEquivalent amount={paidAmount} currency={viewTarget.currency} date="latest" />
+                    </>,
+                  },
+                ] : [
+                  { label: t('uxs17.dueDate', 'Due date'), value: dueDate ? formatDayYear(dueDate) : t('uxs17.dueDateUnavailable', 'Due date not available') },
+                  // Unknown outstanding is left out; the receivables page carries the one hidden-figures line.
+                  ...(viewTarget.erp_outstanding_amount == null ? [] : [{
+                    label: t('financeCopy.outstanding', 'Outstanding'),
+                    value: <>
+                      {formatCurrency(viewTarget.erp_outstanding_amount, viewTarget.currency, { precision: 'minor' })}
+                      <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
+                    </>,
+                  }]),
+                  ...(overdueDays !== null ? [{ label: t('uxs17.overdue', 'Overdue'), value: t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays }) }] : []),
+                ]),
                 // The invoice's remaining facts join the header (were boxed cards above the totals).
                 ...(viewTarget.pmo_native || viewTarget.reference_number ? [{ label: t('financeCopy.customerPO', 'Customer PO'), value: <span className="text-control font-normal">{viewTarget.reference_number ?? '—'}</span> }] : []),
                 ...(viewTarget.pmo_native ? [{ label: t('approvals.salesInvoices.raisedBy', 'Raised by'), value: <RaisedBy userId={viewTarget.author_user_id} /> }] : []),
@@ -150,10 +168,9 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                 className="[&_[data-testid=stepper-scroll-container]>[role=list]]:gap-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep]:min-w-0 [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep>span:first-child]:rounded-none [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:first-child>span:first-child]:rounded-l-full [&_[data-testid=stepper-scroll-container]>[role=list]>.jstep:last-child>span:first-child]:rounded-r-full [&_[data-testid=stepper-fade]]:hidden"
               /> : undefined}
             >
-              {/* #2345 row 2 + follow-up: the "Ready to send" prompt shows only while the invoice can still be sent — the
-                  status rules (invoiceTimelineSteps) complete "Delivered to client" at Paid, so a Paid invoice never claims
-                  it. The approved-PDF download (header action slot) stays on a Paid invoice without a recorded receipt (the
-                  record page's only download path); with a receipt the note reports the recorded date instead. */}
+              {/* #2345 row 2 + #2442: the delivery band carries the delivery fact only — a Paid invoice never prompts
+                  "Ready to send", and its paid amount/date live in the key facts above, never repeated here. A Paid
+                  invoice with no recorded receipt has no delivery fact to state, so the band stays empty. */}
               {deliveryStep && (viewTarget.received_date || viewTarget.status !== 'Paid') ? (
                 <p data-testid="invoice-delivery-note">
                   <span className="font-medium text-foreground">
@@ -171,7 +188,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
             {/* hideLines: the Bill evidence section is the record page's single lines render (AC-991-001's accessible
                 "Line items" list lives there); its totals close the same panel, under the lines they sum. The approvals
                 panel keeps the preview as its own lines surface. */}
-            <SalesInvoiceEvidenceSection invoice={viewTarget} odoo={odoo} totals={(
+            <SalesInvoiceEvidenceWithPayments invoice={viewTarget} odoo={odoo} payments={payments} totals={(
               <SalesInvoiceApprovalPreview
                 inv={viewTarget}
                 showFx

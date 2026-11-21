@@ -5,6 +5,7 @@ import {
   Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListPage, ListState, SelectField, TextField,
   useEntityForm, useToast, type Column, type SubmitError,
 } from '@/src/components/ui';
+import { EquipmentAssetImport } from './EquipmentAssetImport';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useCreateAsset, useDeleteAsset, useEquipmentAssetPages, useUpdateAsset } from '@/src/hooks/useEquipment';
@@ -104,6 +105,7 @@ const EquipmentAssetsPage: React.FC = () => {
       title={t('equipment:assets.title', 'Assets')}
       count={total}
       primaryAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
+        <EquipmentAssetImport onImported={() => void refetch()} />
         <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:assets.new', 'New asset')}</Button>
       </CanWrite>}
     >

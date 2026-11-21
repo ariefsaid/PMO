@@ -43,14 +43,14 @@ function splitRoute(route) {
   return { segments, query };
 }
 
-/** Segment-wise match of a route-table path; returns the pattern segments or null. Record-id params become `:id`. */
+/** Segment-wise match of a route-table path; returns the pattern segments or null. Record-id params (`:id`, `...Id`) become `:id`. */
 function matchPath(tablePath, segments) {
   if (tablePath === '*') return null;
   const parts = tablePath.split('/').filter(Boolean);
   if (parts.length !== segments.length) return null;
   const out = [];
   for (let i = 0; i < parts.length; i += 1) {
-    if (parts[i].startsWith(':')) out.push(/Id$/.test(parts[i]) ? ':id' : segments[i]);
+    if (parts[i].startsWith(':')) out.push(/id$/i.test(parts[i]) ? ':id' : segments[i]);
     else if (parts[i] === segments[i]) out.push(segments[i]);
     else return null;
   }
@@ -59,8 +59,9 @@ function matchPath(tablePath, segments) {
 
 /**
  * A concrete route as its route pattern (`/work-orders/WO-7` -> `/work-orders/:id`), resolved against the app's
- * route table. Literal routes beat param routes (`/projects/new`); only `...Id` params collapse to `:id` (a
- * `:tab`/`:kind` value is a different screen and stays); the query is kept, the hash and trailing slash dropped.
+ * route table. Literal routes beat param routes (`/projects/new`); only record-id params collapse to `:id`
+ * (lowercase `:id` and camelCase `...Id` alike; a `:tab`/`:kind` value is a different screen and stays);
+ * the query is kept, the hash and trailing slash dropped.
  * A route the table does not know falls back to uuid-segment detection.
  */
 export function routePatternFor(route, routePaths = []) {

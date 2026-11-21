@@ -53,6 +53,8 @@
   "from": "From",
   "headcount": "Headcount",
   "hours": "Hours",
+  "overtime": "Overtime",
+  "overtimeFor": "Overtime for {{name}}",
   "hoursFor": "Hours for {{name}}",
   "hoursTotal": "{{hours}} hours",
   "importCrews": "Import crews",

@@ -1,5 +1,5 @@
 -- AC-APR-056: two real approvals overlap through the first commit.
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 begin;
 select plan(6);
 select dblink_connect('approval_first', format('dbname=%s user=%s password=postgres host=%s port=%s', current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(),5432)));

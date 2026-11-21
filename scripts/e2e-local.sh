@@ -23,6 +23,8 @@
 #   scripts/e2e-local.sh [--reset] AC-DEL-022     # pass-through playwright args (single spec, --repeat-each, …)
 #   --reset: `supabase db reset` first. Needed when your branch adds/changes a migration or the seed
 #            (or the shared DB is in another branch's schema); implied by E2E_SECOND_ORG=1.
+#   A no-reset run that finds the seed org missing resets INSIDE its own lock hold (#2638), so the
+#   run never depends on an earlier reset hold that a sibling worktree could have invalidated.
 set -euo pipefail
 
 reset=0
@@ -64,18 +66,42 @@ if [ "${_E2E_LOCAL_LOCKED:-}" != "1" ] && [ -z "${PMO_DB_LOCK_HELD:-}" ]; then
 fi
 
 cd "$REPO"
+# Seed-state preflight (#2638): every entry into Playwright assumes the seed org literal exists.
+# One read answers "did the seed actually land?" — empty output means the container did not answer
+# (stack down), anything but 1 means the org is absent or was moved away.
+seed_org_id="00000000-0000-0000-0000-000000000001"
+seed_container="supabase_db_pmo-portal"
+seed_where="$seed_container (local Supabase stack, postgres/public.organizations)"
+seed_query="select count(*) from public.organizations where id = '$seed_org_id'"
+seed_count() {
+  docker exec "$seed_container" psql -U postgres -d postgres -XAtc "$seed_query" 2>/dev/null || true
+}
+seed_org=""
 if [ "$reset" -eq 1 ]; then
   echo "[e2e-local] db reset (branch: $(git branch --show-current))"
   supabase db reset >/dev/null
+  seed_org="$(seed_count)"   # #2638: a reset that reports success may still not have seeded
 else
   echo "[e2e-local] no db reset (pass --reset if your branch adds/changes a migration or seed)"
-  # A previous E2E_SECOND_ORG run leaves the seed org moved; without a reset every spec would fail.
-  seed_org=$(docker exec supabase_db_pmo-portal psql -U postgres -d postgres -XAtc \
-    "select count(*) from public.organizations where id = '00000000-0000-0000-0000-000000000001'" 2>/dev/null || echo 0)
+  seed_org="$(seed_count)"
+  # A previous E2E_SECOND_ORG run leaves the seed org moved, and a sibling worktree's reset can
+  # land in ANY hold between the caller's own reset hold and this one — the old "re-run with
+  # --reset" advice put the recovery in yet another hold that could race the same way (#2638).
+  # So recover INSIDE this hold: the same reset --reset would run, under the lock we already hold,
+  # making reset + preflight + Playwright atomic.
   if [ "$seed_org" != 1 ]; then
-    echo "[e2e-local] shared DB is not at seed state (seed org missing) — re-run with --reset" >&2
-    exit 1
+    echo "[e2e-local] seed org $seed_org_id not found in $seed_where — resetting inside this lock hold (#2638)" >&2
+    supabase db reset >/dev/null
+    seed_org="$(seed_count)"
   fi
+fi
+if [ "$seed_org" != 1 ]; then
+  _holder_path="${PMO_DB_LOCK:-$HOME/.pmo-supabase-db.lock}.holder"
+  echo "[e2e-local] ERROR: the e2e seed-state preflight wants org $seed_org_id." >&2
+  echo "[e2e-local]        queried: $seed_where — $seed_query" >&2
+  echo "[e2e-local]        result:  '$seed_org' (empty = that container did not answer — is the local stack up?)" >&2
+  echo "[e2e-local]        this run reset the DB inside its own lock hold (holder: $(cat "$_holder_path" 2>/dev/null || echo 'record unavailable')) and the org is still missing — the seed itself failed; check supabase/seed.sql and the reset output above." >&2
+  exit 1
 fi
 # E2E_SECOND_ORG=1 (#621): make the seed org a NON-seed org. Every business table defaults org_id to the
 # seed literal; the app never sends it; a second tenant relies on the stamp triggers to fix it up. With
