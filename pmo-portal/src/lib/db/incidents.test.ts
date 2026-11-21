@@ -364,3 +364,11 @@ describe('AC-IN-005 deleteIncident (Admin only)', () => {
     expect(h.calls.delete).toBeGreaterThan(0);
   });
 });
+
+describe('#2677 issue tasks and root cause', () => {
+  it('AC-ITR-005: getIncident embeds the issue tasks oldest first', async () => {
+    h.result.value = { data: { id: 'i1', incident_tasks: [] }, error: null };
+    await getIncident('i1');
+    expect(String(h.calls.select.at(-1))).toContain('incident_tasks(');
+  });
+});

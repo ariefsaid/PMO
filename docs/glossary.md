@@ -1091,3 +1091,7 @@ Manager, Finance) sets the mark; it restarts the safe-hours count for the projec
 **Task group** — a named set of a project's tasks, optionally linked to one phase (milestone). While linked and not archived, the group's
 top-level, non-archived tasks count toward the phase's calculated progress, once each, together with the tasks placed directly on the
 phase. A phase with no linked group is measured exactly as before. Only Admin and Project Manager manage groups (#2679).
+
+**Issue task** — a task linked to a site issue through `incident_tasks`; one issue has many, one task serves one issue (#2677).
+
+**Root cause** — the cause of an issue, recorded apart from the visible problem (description) and the close note (#2677).

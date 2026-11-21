@@ -166,6 +166,8 @@ vi.mock('@/src/lib/db/incidents', () => ({
   uploadIncidentFile: vi.fn(),
   getIncidentFileUrl: vi.fn(),
   createTaskFromIncident: vi.fn(),
+  addTaskToIncident: vi.fn(),
+  setIncidentRootCause: vi.fn(),
 }));
 vi.mock('@/src/lib/db/milestones', () => ({
   listMilestones: vi.fn(),
@@ -401,7 +403,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listOrgDrafts', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'resubmitVersion', 'returnVersion', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
-      ['count', 'create', 'createTask', 'delete', 'fileUrl', 'get', 'list', 'listFiles', 'listPage', 'transition', 'update', 'uploadFile'].sort(),
+      ['addTask', 'count', 'create', 'createTask', 'delete', 'fileUrl', 'get', 'list', 'listFiles', 'listPage', 'setRootCause', 'transition', 'update', 'uploadFile'].sort(),
     );
     expect(Object.keys(repositories.comment).sort()).toEqual(['archive', 'create', 'list']);
   });
