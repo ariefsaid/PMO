@@ -31,7 +31,7 @@ Spec: `docs/specs/stock-movements-awaiting-proof.spec.md`. Stacked on #2690. Not
 |---|---|---|
 | AC-MAP-001..010 | unit (Vitest/RTL, mocked repository and hooks) | `pmo-portal/src/components/stock/ProofChaseCard.test.tsx` |
 | AC-MAP-002, 003 (page unchanged) | unit | add `pmo-portal/pages/stock/StockOnHand.proofChase.test.tsx` (new file; existing StockOnHand tests untouched) |
-| AC-MAP-011 | e2e (one curated journey) | `pmo-portal/e2e/AC-MAP-011-chase-list-clears-on-attach.spec.ts` (class per `docs/e2e-parallel-conventions.md`; seeds via the same helpers as the 2690 specs) |
+| AC-MAP-011 | e2e (one curated journey) | `pmo-portal/e2e/serial/AC-MAP-011-chase-list-clears-on-attach.spec.ts` (class per `docs/e2e-parallel-conventions.md`; seeds via the same helpers as the 2690 specs) |
 | AC-MAP-012 | pgTAP (existing 1309) | no new file |
 
 Tests assert user actions and text, never looks. Written but not run for e2e; unit run per the gate change.

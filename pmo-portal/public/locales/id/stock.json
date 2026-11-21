@@ -814,7 +814,17 @@
     "requiredNow": "Bukti dibutuhkan sebelum menerima: {{rules}}.",
     "mayFollow": "Bukti boleh menyusul: transfer tetap berstatus bukti belum lengkap sampai ditambahkan.",
     "addTitle": "Tambahkan bukti yang kurang",
-    "addAction": "Catat bukti"
+    "addAction": "Catat bukti",
+    "chase": {
+      "title": "Menunggu bukti ({{count}})",
+      "updated": "Diperbarui {{time}}",
+      "waiting_one": "menunggu {{count}} hari",
+      "waiting_other": "menunggu {{count}} hari",
+      "missing": "Belum ada: {{what}}",
+      "showAll": "Tampilkan semua {{count}}",
+      "showFewer": "Tampilkan lebih sedikit",
+      "go": "Tambah bukti"
+    }
   },
   "transferSettings": {
     "manage": "Transfer dan bukti",

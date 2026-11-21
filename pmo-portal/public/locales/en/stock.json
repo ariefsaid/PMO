@@ -814,7 +814,17 @@
     "requiredNow": "Proof needed before receiving: {{rules}}.",
     "mayFollow": "Proof may follow: the transfer stays proof outstanding until it is added.",
     "addTitle": "Add the missing proof",
-    "addAction": "Record proof"
+    "addAction": "Record proof",
+    "chase": {
+      "title": "Waiting for proof ({{count}})",
+      "updated": "Updated {{time}}",
+      "waiting_one": "waiting {{count}} day",
+      "waiting_other": "waiting {{count}} days",
+      "missing": "Missing: {{what}}",
+      "showAll": "Show all {{count}}",
+      "showFewer": "Show fewer",
+      "go": "Add proof"
+    }
   },
   "transferSettings": {
     "manage": "Transfers and proof",

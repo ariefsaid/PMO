@@ -33,7 +33,7 @@ chase them.
 4. **Default-off by the timing setting.** The card renders only while the organisation's `stock_proof_timing` is `may_follow`, the one
    setting under which an outstanding proof is an expected state. Under `before_posting` (every existing organisation) the card never
    renders, even if an old movement reads outstanding (for example a paper archived after posting, or a tag set to require paper after
-   older transfers posted), so no existing organisation sees a new card.
+   older transfers posted), so no existing organisation sees a new card. The gate is also correct on its own terms: under `before_posting` a paper-ruled movement cannot post without its paper, so there is nothing to chase; the list has a purpose only when proof may follow.
 5. **Who sees it.** The people who can attach proof: Admin (all movements) and a warehouse keeper (movements where they keep the source or
    destination). A role that cannot attach sees nothing. The database read stays open to every active member as in #2690 (stock
    documents are readable by all members, FR-STK-061); the page filters, and the attach itself stays enforced by the existing
@@ -91,7 +91,7 @@ for a keeper or Admin; it is skipped for any other role (`enabled` is false).
 - AC-MAP-008 (unit) The missing proof reads in words for `paper`, `confirmation`, `either` and a combination.
 - AC-MAP-009 (unit) The read failing renders no card and no error for it; the rest of the page still renders.
 - AC-MAP-010 (unit) The Bahasa Indonesia strings render (no English fallback on the card).
-- AC-MAP-011 (e2e) Given an organisation on `may_follow` with a one-step paper-tag transfer posted without paper, When the keeper opens
+- AC-MAP-011 (e2e, `pmo-portal/e2e/serial/AC-MAP-011-chase-list-clears-on-attach.spec.ts`, serial because it flips the org timing setting) Given an organisation on `may_follow` with a one-step paper-tag transfer posted without paper, When the keeper opens
   `/stock`, follows the row to the document and attaches the paper, Then returning to `/stock` the card is gone.
 - AC-MAP-012 (pgTAP, existing) Tenancy and role of the read: owned by `supabase/tests/1309_stock_movement_proof_status.test.sql`
   (#2690); this ticket adds no database object, so no new pgTAP file and no mutation target. A guard test asserts no migration from 1325

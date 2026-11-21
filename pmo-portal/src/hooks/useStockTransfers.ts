@@ -21,9 +21,9 @@ export function useTransferConfirmations(id: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['stock-transfer-confirmations', orgId, id], queryFn: () => repo.confirmations(id!), enabled: Boolean(orgId) && Boolean(id) });
 }
-export function useProofStatus(status?: 'outstanding' | 'complete') {
+export function useProofStatus(status?: 'outstanding' | 'complete', enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-proof-status', orgId, status ?? 'all'], queryFn: () => repo.proofStatus({ status }), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: ['stock-proof-status', orgId, status ?? 'all'], queryFn: () => repo.proofStatus({ status }), enabled: Boolean(orgId) && enabled, refetchOnWindowFocus: true });
 }
 /** After any transfer write the transfers, on-hand and proof reads are stale. */
 export function useTransferRefresh() {
