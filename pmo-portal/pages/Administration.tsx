@@ -36,6 +36,7 @@ import OrgFiscalYearStart from './admin/OrgFiscalYearStart';
 import OrgDisciplineProfit from './admin/OrgDisciplineProfit';
 import OrgBuiltInRoles from './admin/OrgBuiltInRoles';
 import OrgHidePrices from './admin/OrgHidePrices';
+import { HIDE_PRICES_SETTING_AVAILABLE } from '@/src/lib/db/hidePrices';
 import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
@@ -293,7 +294,7 @@ const SelectedAdministrationPanel: React.FC<{
           <SectionName name={label('clearance')} />
           <Clearance />
           <LeaveRequestsSetting />
-          <OrgHidePrices />
+          {HIDE_PRICES_SETTING_AVAILABLE && <OrgHidePrices />}
         </div>
       );
     case 'integrations':

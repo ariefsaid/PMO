@@ -1,28 +1,25 @@
-// @e2e-isolation: serial — flips the org-wide hide prices setting on the shared seed org and restores it (try/finally).
-import { test, expect, type Page } from '@playwright/test';
+// @e2e-isolation: serial — flips the org-wide hide prices setting on the shared seed org through the service role and restores it (try/finally).
+import { test, expect } from '@playwright/test';
 import { signIn, pinEnglishLocale } from '../helpers';
+import { ORG_ID, need, serviceClient } from '../support/jobFixtures';
 
 /**
- * AC-HP-001 (#2699) — an Admin turns "Hide prices from requesters" on. On the default Procurement view a Finance person still sees the
- * Value column and amounts; a requester (the seeded Engineer, no built-in role) sees no Value column and no amount in the table.
- * The Admin turns the setting off again.
+ * AC-HP-001 (#2699) — with "Hide prices from requesters" on, the default Procurement view shows a Finance person the Value column and
+ * amounts, while a requester (the seeded Engineer, no built-in role) sees no Value column and no amount in the table.
+ * The setting ships with the next release, so this journey sets it through the service role and restores the previous value.
  */
 test.setTimeout(240_000);
 
-async function setHidePrices(page: Page, on: boolean) {
-  await page.goto('/administration/people');
-  const turnOn = page.getByRole('button', { name: 'Hide prices from requesters' });
-  const turnOff = page.getByRole('button', { name: 'Show prices to requesters again' });
-  if (on && (await turnOn.isVisible())) { await turnOn.click(); await expect(turnOff).toBeVisible(); }
-  if (!on && (await turnOff.isVisible())) { await turnOff.click(); await expect(turnOn).toBeVisible(); }
+async function setHidePrices(on: boolean): Promise<boolean> {
+  const admin = serviceClient('AC-HP-001');
+  const current = need('read the hide prices setting', await admin.from('organizations').select('hide_prices_from_requesters').eq('id', ORG_ID).single());
+  need('set the hide prices setting', await admin.from('organizations').update({ hide_prices_from_requesters: on }).eq('id', ORG_ID));
+  return current.hide_prices_from_requesters as boolean;
 }
 
-test('AC-HP-001: a requester sees no prices on the purchase list; Finance does', async ({ page, browser }) => {
-  await pinEnglishLocale(page);
-  await signIn(page, 'admin@acme.test');
+test('AC-HP-001: a requester sees no prices on the purchase list; Finance does', async ({ browser }) => {
+  const previous = await setHidePrices(true);
   try {
-    await setHidePrices(page, true);
-
     const finance = await browser.newPage();
     await pinEnglishLocale(finance);
     await signIn(finance, 'finance@acme.test');
@@ -44,6 +41,6 @@ test('AC-HP-001: a requester sees no prices on the purchase list; Finance does',
     await expect(requesterTable.getByText(/\$\d/)).toHaveCount(0);
     await requester.close();
   } finally {
-    await setHidePrices(page, false);
+    await setHidePrices(previous);
   }
 });

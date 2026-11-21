@@ -1,6 +1,7 @@
 # Hide prices from requesters: organisation setting
 
 Ticket #2699 (map #902). Status: Approved by the Director 2026-11-21 (rulings Q1-Q5 applied). Rulings: OD-SCOPE-2 (a setting, no client process), OD-SCOPE-3.
+Not offered in the app in this release; the setting card is held back until the next release.
 Builds on: `builtin-role-set.spec.md` (#2709): `actor_sees_prices()`, `actor_built_in_role()`.
 
 **Job story.** When people only request items, I want them not to see unit prices and amounts, so pricing stays with purchasing and finance.
