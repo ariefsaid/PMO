@@ -8,7 +8,7 @@ import { login } from '../helpers';
 // Written for the orchestrator's wave run; not executed by the builder (no database in the builder's gate).
 
 async function setPlanning(page: import('@playwright/test').Page, on: boolean) {
-  await page.goto('/administration#accounting');
+  await page.goto('/administration/accounting');
   const toggle = page.getByRole('switch', { name: 'Show a category and a needed-by date on each request line' });
   await expect(toggle).toBeVisible({ timeout: 15_000 });
   if ((await toggle.getAttribute('aria-checked')) !== String(on)) await toggle.click();
@@ -41,7 +41,7 @@ test('AC-PLP-009 line planning is hidden by default and works once an Admin turn
   await page.getByRole('button', { name: 'Save draft' }).click();
 
   await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]{36}/, { timeout: 15_000 });
-  await page.getByRole('tab', { name: /items/i }).click();
+  await page.getByRole('tab', { name: /line items/i }).click();
   const panel = page.getByTestId('line-planning-panel');
   await expect(panel.getByLabel('Category')).toHaveValue(/.+/);
   await expect(panel.getByLabel('Needed by')).toHaveValue('2026-12-31');
