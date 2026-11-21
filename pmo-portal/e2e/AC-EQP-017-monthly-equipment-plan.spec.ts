@@ -20,7 +20,7 @@ test.beforeAll(async () => {
   if (on.error) throw new Error('plan settings: ' + on.error.message);
   const cat = await admin.rpc('upsert_equipment_plan_category', { p_id: null, p_name: `Cranes ${sfx}`, p_name_id: `Derek ${sfx}`, p_position: 1 });
   if (cat.error) throw new Error('category: ' + cat.error.message);
-  const project = await admin.from('projects').insert({ name: projectName, status: 'Ongoing Project' }).select('id').single();
+  const project = await admin.from('projects').insert({ name: projectName, status: 'Internal Project' }).select('id').single();
   if (project.error) throw new Error('project: ' + project.error.message);
   projectId = project.data.id as string;
 });
@@ -31,7 +31,7 @@ test.afterAll(async () => {
 });
 
 const chooseProject = async (page: import('@playwright/test').Page) => {
-  await page.getByLabel('Project').click();
+  await page.getByLabel('Project', { exact: true }).click();
   await page.getByRole('option', { name: new RegExp(projectName) }).click();
 };
 
@@ -47,7 +47,7 @@ test.describe('phone planner, desktop approver', () => {
     await page.getByRole('button', { name: 'Add line' }).click();
     const line = page.getByTestId('plan-line');
     await line.getByLabel('What is needed').fill(`Mobile crane ${sfx}`);
-    await line.getByLabel(/Vendor/).click();
+    await line.getByLabel('Vendor', { exact: true }).click();
     await page.getByRole('option', { name: /SunVolt Modules/ }).click();
     await line.getByLabel('Category').selectOption({ label: `Cranes ${sfx}` });
     await line.getByLabel('Rate').fill('1500');

@@ -98,15 +98,16 @@ An existing organisation has no `org_equipment_plan_settings` row and no plan, l
 
 ## Mutation checks (to be run by the Director on the integration branch; written, not run by the builder)
 Each breaks one rule in the database, runs the named pgTAP file, must go red; restoring turns it green.
-| ID | Break | File that must go red |
+| ID | Exact break | File and assertions that must go red |
 |---|---|---|
-| AC-EQP-003 | Remove the `auth_role() is distinct from 'Admin'` refusal from `set_equipment_plan_settings`, `upsert_equipment_plan_category` and `set_equipment_plan_category_active` | `supabase/tests/equipment_plan_settings.test.sql` |
-| AC-EQP-008 | In `equipment_plan_approver_ok`, make it `return true` after the author check | `supabase/tests/equipment_plan_approval.test.sql` |
-| AC-EQP-009 | Delete the `v_plan.created_by = auth.uid() and not ...allow_self_approval` refusal in `approve_equipment_plan` and the author clause in `equipment_plan_approver_ok` | `supabase/tests/equipment_plan_approval.test.sql` |
-| AC-EQP-011 | In `approve_equipment_plan`, delete the line `if v_plan.status = 'Approved' then return v_plan; end if;` (a re-approve then raises a state error and the "returns the plan" cases go red); separately drop the unique index `equipment_plan_lines_procurement_uq` (the one-purchase-one-line case goes red) | `supabase/tests/equipment_plan_orders.test.sql` |
-| AC-EQP-012 | Replace the single transaction with a per-line `begin ... exception when others then null; end` block that swallows the failure | `supabase/tests/equipment_plan_orders.test.sql` (the all-or-nothing case) |
-| AC-EQP-019 | In the `equipment_plans_select` policy, delete the `equipment_plan_engineer_on_project` branch (the Engineer-on-project count goes red) or the role list (Finance count goes red) | `supabase/tests/equipment_plan_draft.test.sql` |
-| AC-EQP-013 | Replace the flag lookup with `lower(name) = 'rental'` | `supabase/tests/equipment_plan_orders.test.sql` |
+| AC-EQP-003 | `1358_equipment_plan.sql` lines 230, 255 and 283: change `if public.auth_role() is distinct from 'Admin' then` to `if false then` (all three) | `equipment_plan_settings.test.sql`: 'AC-EQP-003 a Project Manager cannot change the settings', '... cannot add a category', '... cannot restore a category' |
+| AC-EQP-008 | `1358_equipment_plan.sql` after line 137 (the author check) insert `return true;` | `equipment_plan_approval.test.sql`: 'AC-EQP-008 an Engineer cannot approve', 'AC-EQP-008 Finance is not an approver while no approver is named...', 'AC-EQP-008 with a project approver named, the Admin is not the approver of that project', 'AC-EQP-008 on the senior-role step an Engineer is refused' |
+| AC-EQP-009 | BOTH `1359_approve_equipment_plan.sql` line 19 (change the `if` condition to `false`) AND `1358_equipment_plan.sql` line 137 (change to `if false then return false; end if;`). Either alone stays green because the other still refuses. | `equipment_plan_approval.test.sql`: 'AC-EQP-009 the author cannot approve their own plan', 'AC-EQP-009 an Admin cannot approve their own plan', 'AC-EQP-009 nor reject it' |
+| AC-EQP-011 (status guard) | `1359_approve_equipment_plan.sql` line 25: delete `if v_plan.status = 'Approved' then return v_plan; end if;` | `equipment_plan_orders.test.sql`: 'AC-EQP-011 approving again returns the plan', 'AC-EQP-011 and again' |
+| AC-EQP-011 (one purchase, one line) | `1358_equipment_plan.sql`: delete the `create unique index equipment_plan_lines_procurement_uq` statement | `equipment_plan_orders.test.sql`: 'AC-EQP-011 one purchase cannot be linked to a second line: the unique index refuses it' and 'AC-EQP-011 one purchase belongs to at most one line: the unique index is in place' |
+| AC-EQP-012 | `1359_approve_equipment_plan.sql`: wrap the `perform public.create_procurement_with_items(...)` call in `begin ... exception when others then continue; end` so a failing line is skipped | `equipment_plan_orders.test.sql`: 'AC-EQP-012 when one line's purchase cannot be created the approval is refused', 'AC-EQP-012 the plan is still Submitted', 'AC-EQP-012 and the first line's purchase was not left behind...' |
+| AC-EQP-013 | `1358_equipment_plan.sql` function `equipment_plan_rental_type`: change `t.active and t.is_rental` to `t.active and lower(t.name) = 'rental'` | `equipment_plan_orders.test.sql`: 'AC-EQP-013 the orders take the flagged type, not the decoy named Rental' and 'AC-EQP-014 each is an ordinary Draft of the flagged rental type...' |
+| AC-EQP-019 | `1358_equipment_plan.sql` line 101: delete the `or ((select public.auth_role()) = 'Engineer' and public.equipment_plan_engineer_on_project(project_id))` branch; separately, remove `'Finance'` from line 99 | `equipment_plan_draft.test.sql`: 'AC-EQP-019 an Engineer who raised a purchase on the project reads its plans'; and 'AC-EQP-019 Finance reads every plan of the organisation' |
 
 ## Errors
 | Condition | Result |
