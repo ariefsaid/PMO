@@ -1,0 +1,12 @@
+# #2671 dated revenue plan (1275-1277): SECURITY DEFINER writers and reads called under a member's JWT
+# (pmo-portal/src/lib/db/workOrderRevenuePlan.ts). Each re-asserts active membership and the caller's org, then a role gate
+# (set_revenue_plan_settings: Admin; the plan writers and reads: dsr_may_see_revenue) in its body; proven by
+# supabase/tests/1275_work_order_revenue_plan.test.sql and 1276_work_order_revenue_plan_reads.test.sql.
+# revenue_plan_enabled answers only for the caller's own org (the plan table's select policy calls it).
+set_revenue_plan_settings
+wo_revenue_plan_set_day
+wo_revenue_plan_set_month
+wo_revenue_plan_clear
+wo_revenue_plan_vs_actual
+project_revenue_plan_vs_actual
+revenue_plan_enabled

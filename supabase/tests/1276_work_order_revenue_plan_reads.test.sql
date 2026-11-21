@@ -5,7 +5,7 @@
 -- refused · AC-WRP-010 project totals are per currency, never blended · AC-WRP-012 another organisation is refused.
 begin;
 create extension if not exists pgtap;
-select plan(27);
+select plan(26);
 
 insert into organizations (id, name) values
   ('26720000-0000-0000-0000-00000000000a', 'WRR Org'),
@@ -126,7 +126,9 @@ begin
   execute mutant;
 end $$;
 -- The submitted report's line gets an amount so the mutant is visible.
+set local session_replication_role = replica;
 update dsr_progress_lines set frozen_amount = 25.00 where id = '26720000-0000-0000-0000-000000000904';
+set local session_replication_role = origin;
 set local role authenticated;
 select pg_temp.act_as('26720000-0000-0000-0000-0000000000a2');
 select is((public.wo_revenue_plan_vs_actual('26720000-0000-0000-0000-000000000401', '2026-12-05')->>'actual_to_date')::numeric, 325.00::numeric,
