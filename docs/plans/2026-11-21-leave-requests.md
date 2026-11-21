@@ -7,8 +7,9 @@ Spec: `docs/specs/leave-requests.spec.md`. Reuses: `people` (+ `profile_id`), `p
 |---|---|
 | `1240_leave_requests.sql` | `organizations.leave_approver_role text null` (check against role names); `leave_types` and `leave_requests` tables (person_id, leave_type_id, start_date, end_date, reason, status Pending/Approved/Rejected/Cancelled, entered_by, decided_by, decided_at, decision_note, version, archived_at on types), `stamp_org_id` triggers, same-org ref guard, overlap exclusion constraint on (person_id, daterange) for live statuses, RLS (select: active member own org, own person row, or approver-capable; direct insert/update revoked except `leave_types` admin writes), grants |
 | `1241_leave_rpcs.sql` | security-definer `leave_request_submit`, `leave_request_decide` (approve/reject; SoD and authority inside), `leave_request_cancel`, `leave_can_decide(request)`; `leave_on_date(p_date)` returns person ids on Approved leave (invoker, additive roster marker); revoke anon |
-| `1242_leave_policies_and_settings.sql` | org setting write path for `leave_approver_role` (Admin only, via existing org settings route if present; else a definer setter) |
-| `1243`, `1244` | reserved, unused unless needed |
+| `1242_leave_settings.sql` | `set_leave_settings(enabled, approver_role)`: Admin-only security-definer setter (no existing generic org-settings write route covers org columns with an Admin check) |
+| `1243_leave_requestable_people.sql` | `leave_requestable_people()` for the form's person picker |
+| `1244` | unused |
 
 Isolation denominator manifest fragment updated for the new tables and definer functions (`node scripts/check-isolation-denominator.mjs`).
 

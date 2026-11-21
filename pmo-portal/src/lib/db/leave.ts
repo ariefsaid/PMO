@@ -11,7 +11,7 @@ type Loose = {
   rpc: Rpc;
   from: (table: string) => {
     select: (cols: string) => {
-      order: (col: string) => Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
+      order: (col: string) => { limit: (n: number) => Promise<{ data: unknown; error: { message: string; code?: string } | null }> };
       maybeSingle: () => Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
     };
     insert: (row: Record<string, unknown>) => Promise<{ error: { message: string; code?: string } | null }>;
@@ -58,7 +58,7 @@ export async function setLeaveSettings(s: LeaveSettings): Promise<void> {
 }
 
 export async function listLeaveTypes(): Promise<LeaveType[]> {
-  const { data, error } = await db.from('leave_types').select('id, name, archived_at').order('name');
+  const { data, error } = await db.from('leave_types').select('id, name, archived_at').order('name').limit(500);
   fail(error);
   return (data ?? []) as LeaveType[];
 }

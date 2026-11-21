@@ -18,13 +18,14 @@ When I cannot work, I want to request leave or report sickness, so my manager ap
 - FR-LV-002 The system shall let a person request leave for an inclusive date range with a type and an optional reason; a request starts `Pending`.
 - FR-LV-003 If a person already has a `Pending` or `Approved` request overlapping the range, the system shall refuse the new request.
 - FR-LV-004 Where the request is entered by someone other than the person (office user), the system shall record who entered it.
-- FR-LV-005 When a decision is made, the system shall allow it only by (a) the person's line manager, or (b) a user whose role is the organisation's configured approver role; the setting is empty by default, in which case only the line manager and Admin may decide.
+- FR-LV-005 When a decision is made, the system shall allow it only by (a) the person's line manager, or (b) a user whose role is the organisation's configured approver role; while the setting is empty the approver role is Admin, so a person with no line manager is decided by an Admin (never their own or an entered request). The approver role is stored as a role key (text) so a built-in role key (#2709) can be accepted later without a type change; today it takes a base role.
 - FR-LV-006 The system shall never allow the requester, the person on leave, or whoever entered the request to decide it, whatever their role, including Admin (SoD, ADR-0019), in the database.
 - FR-LV-007 When a decision is made, the system shall store decider, time and an optional note; a rejection requires a note. Only `Pending` requests can be decided.
 - FR-LV-008 While a request is `Pending`, the requester or the person may cancel it; an approver may cancel an `Approved` one, with the same SoD rule.
 - FR-LV-009 Where a person is on `Approved` leave on a date, the work-order roster shall show a leave marker beside that person; an organisation with no approved leave sees the roster unchanged.
 - FR-LV-010 Approved leave shall not change attendance entry or block the attendance tick. (An optional block setting is not built; see Deferred note in the plan.)
 - FR-LV-011 The approvals page shall list `Pending` requests the viewer may decide, and nothing else; users who cannot decide see only their own requests on a "My leave" list.
+- FR-LV-014 Where the organisation setting `leave_requests_enabled` is false (the default), the system shall show no leave navigation entry, no approvals section, no roster marker and no needs-you pointer, and shall refuse new requests. Where it is true, the approvals section and the roster marker still render nothing when there are no requests.
 - FR-LV-012 Reads and writes are scoped to the organisation (RLS); `org_id` is stamped by trigger, never from the client.
 - FR-LV-013 Screens shall be usable at 390 px and 1440 px, use shared form primitives and `DESIGN.md` tokens, and have English and Bahasa Indonesia strings. Writes are gated by `can()` (UX only; the RPC is the authority).
 
@@ -41,6 +42,7 @@ When I cannot work, I want to request leave or report sickness, so my manager ap
 | AC-LV-008 | Given a rejection without a note, then refused; an already decided request cannot be decided again. | pgTAP |
 | AC-LV-009 | Given another organisation's user, when reading or deciding, then refused. | pgTAP |
 | AC-LV-010 | Given approved leave on day D for a rostered person, when the roster leave read is called for D, then the person is returned; for a pending or rejected request, not; with no leave requests the result is empty and `work_order_roster` is unchanged. | pgTAP |
+| AC-LV-016 | Given leave is off (default), when anyone opens the app, then no leave rail entry, approvals section or roster marker shows, and a new request is refused. | Unit + pgTAP |
 | AC-LV-011 | Given approved leave, when the person is ticked present for that day, then the tick still succeeds (off by default). | pgTAP |
 | AC-LV-012 | Given the request form, when a person submits with a type and range, then it posts one request; a conflict error is shown in words; strings render in Bahasa Indonesia. | Unit |
 | AC-LV-013 | Given pending requests, when a decider opens approvals, then they see only requests they may decide, with Approve and Reject (note required); a non-decider sees no decide buttons. | Unit |
@@ -59,9 +61,13 @@ When I cannot work, I want to request leave or report sickness, so my manager ap
 | Setting | Default (unchanged behaviour) |
 |---|---|
 | Leave types list | Empty; leave screens show an empty state until filled |
-| `leave_approver_role` | Empty: line manager and Admin only |
+| `leave_requests_enabled` | false: the feature is invisible and refuses writes |
+| `leave_approver_role` | Empty: line manager, or Admin |
 | (not built) block attendance on approved leave | Not built; FR-LV-010 |
 
 ## Open questions
 - OQ-LV-1 Half days and hours: not built; whole days only. If wrong, part-day absences cannot be shown.
-- OQ-LV-2 Where a person has no line manager and the setting is empty, only Admin decides (not the person themself). If wrong, such requests queue for Admin.
+- OQ-LV-2 (settled) Where a person has no line manager and the setting is empty, Admin decides, never on their own or an entered request.
+- Settings write path (settled): there is no generic Admin-checked organisation-settings write route, so `set_leave_settings` (migration 1242) is an Admin-only security-definer setter, audited, with pgTAP (non-Admin refused, other organisation untouched).
+- Needs-you pointer: the Approvals page section and the decision list on /leave carry the pointer; the dashboard needs-you list is not changed.
+- The Admin settings page is at /leave/settings (not in the Administration section list, to keep that screen unchanged for every existing organisation); it is linked from /leave for an Admin.
