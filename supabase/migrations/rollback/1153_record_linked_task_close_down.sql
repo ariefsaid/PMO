@@ -1,4 +1,4 @@
--- 1071_record_linked_task_close_down.sql — reverse of 1071 (triggers, then functions). Loses no task data.
+-- 1153_record_linked_task_close_down.sql — reverse of 1071 (triggers, then functions). Loses no task data.
 drop function if exists public.task_linked_records(uuid[]);
 drop trigger if exists material_requests_close_linked_tasks on public.material_requests;
 drop trigger if exists expense_claims_close_linked_tasks on public.expense_claims;

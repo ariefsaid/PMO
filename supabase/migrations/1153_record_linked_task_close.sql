@@ -1,6 +1,6 @@
--- 1071_record_linked_task_close.sql — #2587: the system close (FR-RLT-012..018) and the live-status read (FR-RLT-009..011).
+-- 1153_record_linked_task_close.sql — #2587: the system close (FR-RLT-012..018) and the live-status read (FR-RLT-009..011).
 -- Proven by supabase/tests/1152_record_linked_tasks.test.sql.
--- ── REVERSE: supabase/migrations/rollback/1071_record_linked_task_close_down.sql ─────────────────────────
+-- ── REVERSE: supabase/migrations/rollback/1153_record_linked_task_close_down.sql ─────────────────────────
 
 -- ── the close function: definer, never client-callable (FR-RLT-014) ──────────────────────────────────────
 -- Sets every OPEN task of the record to Done and stores why (the three closed_by_* columns); completed_at is stamped by the
