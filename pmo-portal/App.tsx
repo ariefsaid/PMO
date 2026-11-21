@@ -223,7 +223,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/sales', chunks: [SalesPipeline], namespaces: ['sales'] },
   // /sales/:id redirects to /projects/:projectId — start that download now.
   { path: '/sales/:opportunityId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
-  { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList', 'purchaseTypes'] },
+  { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList'] },
   { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate', 'purchaseTypes'] },
   { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord', 'purchaseTypes'] },
   { path: '/procurement/:procurementId', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord', 'purchaseTypes'] },
