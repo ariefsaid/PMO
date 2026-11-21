@@ -12,7 +12,7 @@ Spec: `docs/specs/work-order-area-group.spec.md`. Executor: one Orca/builder sli
 6. **Form** — `WorkOrderFormModal.tsx`: two `SelectField` pickers rendered only when the list has live entries (or the row already names one). Owns AC-WAG-008.
 7. **List** — new `workOrderGrouping.ts` pure helper (group + order + counts, unit-tested); `WorkOrdersTab.tsx`: `hasLists` gate, "Group by" `SelectField` writing `?groupBy=`, grouped headings wrapping the existing card/draft blocks (no change when None); area/group text on the card and Draft row; `StatusPill` on Draft rows when `hasLists`. Owns AC-WAG-005..007.
 8. **i18n** — English and Bahasa Indonesia keys under `projectDetail.workOrders.*` and the admin namespace; parity test.
-9. **e2e** — one curated journey `e2e/AC-WAG-010-work-order-area-group.spec.ts` (isolation tag per `docs/e2e-parallel-conventions.md`). Screenshots phone 390 and desktop 1440 under `docs/evidence/1215/2668/` (grouped list, form, admin page).
+9. **e2e** — one curated journey `e2e/serial/AC-WAG-010-work-order-area-group.spec.ts` (serial lane: an org area changes every project tab in the org) (isolation tag per `docs/e2e-parallel-conventions.md`). Screenshots phone 390 and desktop 1440 under `docs/evidence/1215/2668/` (grouped list, form, admin page).
 10. **Docs** — `docs/glossary.md` entries (work-order area, work-order group).
 
 ## Traceability
@@ -23,6 +23,6 @@ Spec: `docs/specs/work-order-area-group.spec.md`. Executor: one Orca/builder sli
 | WAG-005..007 | unit | `WorkOrdersTab.groupBy.test.tsx`, `workOrderGrouping.test.ts` |
 | WAG-008 | unit | `WorkOrderFormModal.areaGroup.test.tsx` |
 | WAG-009 | unit | `WorkOrderLists.test.tsx` |
-| WAG-010 | e2e | `e2e/AC-WAG-010-work-order-area-group.spec.ts` |
+| WAG-010 | e2e | `e2e/serial/AC-WAG-010-work-order-area-group.spec.ts` (serial lane: an org area changes every project tab in the org) |
 
 Gates: check:guards, typecheck, eslint on changed files, `vitest related`, under lock reset + pgTAP + 0178 + 0646 + isolation denominator (live and `--self-test`), the one e2e journey.

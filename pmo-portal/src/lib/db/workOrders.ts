@@ -77,6 +77,8 @@ export interface WorkOrderInput {
   orderDate: string | null;
   startDate: string | null;
   endDate: string | null;
+  areaId?: string | null;
+  groupId?: string | null;
 }
 
 /**
@@ -92,6 +94,8 @@ export interface WorkOrderPatch {
   orderDate: string | null;
   startDate: string | null;
   endDate: string | null;
+  areaId?: string | null;
+  groupId?: string | null;
 }
 
 /** The value + the basis that describes it — always written as one call (`0197 §5`). */
@@ -245,6 +249,8 @@ export async function createWorkOrder(
       order_date: input.orderDate,
       start_date: input.startDate,
       end_date: input.endDate,
+      ...(input.areaId !== undefined ? { area_id: input.areaId } : {}),
+      ...(input.groupId !== undefined ? { group_id: input.groupId } : {}),
     })
     .select()
     .single();
@@ -267,6 +273,8 @@ export async function updateWorkOrder(id: string, patch: WorkOrderPatch): Promis
       order_date: patch.orderDate,
       start_date: patch.startDate,
       end_date: patch.endDate,
+      ...(patch.areaId !== undefined ? { area_id: patch.areaId } : {}),
+      ...(patch.groupId !== undefined ? { group_id: patch.groupId } : {}),
     })
     .eq('id', id)
     .select('id');

@@ -2555,6 +2555,66 @@ export type Database = {
         }
         Relationships: []
       }
+      work_order_areas: {
+        Row: {
+          archived_at: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          org_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          org_id?: string
+        }
+        Update: {
+          archived_at?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+        }
+        Relationships: []
+      }
+      work_order_groups: {
+        Row: {
+          archived_at: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          org_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          org_id?: string
+        }
+        Update: {
+          archived_at?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+        }
+        Relationships: []
+      }
       work_order_plan_lines: {
         Row: {
           created_at: string
@@ -12906,6 +12966,7 @@ export type Database = {
       }
       work_orders: {
         Row: {
+          area_id: string | null
           cancelled_at: string | null
           client_po_number: string | null
           closed_at: string | null
@@ -12915,6 +12976,7 @@ export type Database = {
           currency: string
           description: string | null
           end_date: string | null
+          group_id: string | null
           id: string
           issued_at: string | null
           issued_by: string | null
@@ -12938,6 +13000,7 @@ export type Database = {
           wo_number: string | null
         }
         Insert: {
+          area_id?: string | null
           cancelled_at?: string | null
           client_po_number?: string | null
           closed_at?: string | null
@@ -12947,6 +13010,7 @@ export type Database = {
           currency?: string
           description?: string | null
           end_date?: string | null
+          group_id?: string | null
           id?: string
           issued_at?: string | null
           issued_by?: string | null
@@ -12970,6 +13034,7 @@ export type Database = {
           wo_number?: string | null
         }
         Update: {
+          area_id?: string | null
           cancelled_at?: string | null
           client_po_number?: string | null
           closed_at?: string | null
@@ -12979,6 +13044,7 @@ export type Database = {
           currency?: string
           description?: string | null
           end_date?: string | null
+          group_id?: string | null
           id?: string
           issued_at?: string | null
           issued_by?: string | null

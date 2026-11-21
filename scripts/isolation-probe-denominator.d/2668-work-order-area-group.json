@@ -1,0 +1,6 @@
+{
+  "tables": [
+    {"table":"work_order_areas","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"work_order_groups","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ]
+}

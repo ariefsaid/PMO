@@ -370,6 +370,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Work order** — a client's purchase order against a project, with an order value, tax basis and a Draft, Issued, Closed or Cancelled status; it is the commitment that billing and acceptance run against.
 
+**Work order area** and **work order group** — two optional, organisation-owned lists (an Admin adds, renames and archives entries; nothing is coded). A work order names at most one area and one group; the project work-order list can be grouped by either. An archived entry leaves the pickers but stays on the work orders that already name it.
+
 **Cost attribution** — the optional work order and discipline a cost record names (purchase request, purchase order, goods receipt, vendor bill, timesheet line, stock movement, equipment usage); a cost with neither is a project-level cost. The work order must be on the cost's own project (ADR-0104).
 
 **Discipline** — an entry in the organisation's own list of trades or engineering disciplines (for example civil, mechanical, electrical) that a cost can name. The Admin keeps the list on the **Cost disciplines** screen (*disiplin biaya*) and archives rather than deletes (#2623).

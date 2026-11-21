@@ -1,5 +1,6 @@
 import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
 import CostDisciplines from './admin/CostDisciplines';
+import WorkOrderLists from './admin/WorkOrderLists';
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -292,6 +293,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectClassificationOptions />
             <SiteReportLists />
             <CostDisciplines />
+            <WorkOrderLists />
           </div>
         </div>
       );

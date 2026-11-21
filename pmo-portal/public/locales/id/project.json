@@ -1188,7 +1188,17 @@
       "description": "Deskripsi",
       "closingValue": "Nilai penutupan",
       "orderValue": "Nilai order",
-      "orderValueSource": "Sumber: nilai pesanan pelanggan yang ditetapkan oleh peninjau berwenang."
+      "orderValueSource": "Sumber: nilai pesanan pelanggan yang ditetapkan oleh peninjau berwenang.",
+      "groupBy": {
+        "label": "Kelompokkan menurut",
+        "none": "Tidak ada",
+        "area": "Wilayah",
+        "group": "Grup",
+        "noArea": "Tanpa wilayah",
+        "noGroup": "Tanpa grup"
+      },
+      "areaLabel": "Wilayah",
+      "groupLabel": "Grup"
     },
     "contract": {
       "orders": "Pesanan pelanggan",
@@ -1255,7 +1265,13 @@
       "stuck": "{{name}} tidak dapat lagi memutuskan langkah ini. Siapa pun dengan peran ini dapat memutuskannya sampai Anda memilih orang lain.",
       "retry": "Coba lagi"
     },
-    "projectIncidents": "Insiden proyek"
+    "projectIncidents": "Insiden proyek",
+    "workOrderForm": {
+      "area": "Wilayah",
+      "group": "Grup",
+      "noArea": "Tanpa wilayah",
+      "noGroup": "Tanpa grup"
+    }
   },
   "common": {
     "retry": "Coba lagi",

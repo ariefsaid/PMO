@@ -1188,7 +1188,17 @@
       "description": "Description",
       "closingValue": "Closing value",
       "orderValue": "Order value",
-      "orderValueSource": "Source: the customer order value set by an authorized reviewer."
+      "orderValueSource": "Source: the customer order value set by an authorized reviewer.",
+      "groupBy": {
+        "label": "Group by",
+        "none": "None",
+        "area": "Area",
+        "group": "Group",
+        "noArea": "No area",
+        "noGroup": "No group"
+      },
+      "areaLabel": "Area",
+      "groupLabel": "Group"
     },
     "contract": {
       "orders": "Customer orders",
@@ -1255,7 +1265,13 @@
       "stuck": "{{name}} can no longer decide this step. Anyone with the role can until you choose someone else.",
       "retry": "Retry"
     },
-    "projectIncidents": "Project incidents"
+    "projectIncidents": "Project incidents",
+    "workOrderForm": {
+      "area": "Area",
+      "group": "Group",
+      "noArea": "No area",
+      "noGroup": "No group"
+    }
   },
   "common": {
     "retry": "Retry",
