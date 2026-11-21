@@ -21,9 +21,9 @@ When I plan the month's equipment and services, I want the plan to become rental
 | Plan grain | One plan per project per calendar month; unique on (org, project, month). A rejected plan is reopened and resubmitted, not duplicated. | A month's need is read and approved as one; a second plan for the same month would invite the double ordering the job story forbids. |
 | Order grain | One rental purchase **per plan line**. | A purchase carries a single rental period and one vendor (OQ-PTR-3), and a line carries its own dates; grouping by vendor would force one period across lines. A per-line id keeps idempotency exact (`procurement_id` unique on the line). |
 | Idempotency | The purchase id is derived from the line id; `equipment_plan_lines.procurement_id` is unique; approval is a status transition guarded by a row lock; one transaction creates all orders or none. | A re-approve or retry finds the plan Approved and creates nothing; a failure rolls back every order, so no half-created plan exists. |
-| Requester of the created purchases | The approver (the caller of `create_procurement_with_items`, which stamps `auth.uid()`). | Reuses the single creation path unchanged; the existing purchase SoD (requester cannot approve their own purchase) then stops the plan approver approving the spend, which is the safer side. Plan author is recorded on the plan and in each purchase title note. |
+| Requester of the created purchases | The approver (the caller of `create_procurement_with_items`, which stamps `auth.uid()`). | Reuses the single creation path unchanged (no requester-passing path is added). The existing purchase SoD (a requester cannot approve their own purchase) then stops the plan approver also approving that spend. **This is intended**: two different people sign, one the plan, one the spend. The plan's author is recorded on the plan. |
 | Approval step | Setting `approval_step`: `spend_approvers` (default) or `senior_role`. | Both mechanisms already exist; the client chooses who approves a plan. |
-| Work order on the order | The line's work order is stamped on the created purchase's request as cost attribution (ADR-0104) when the line names one. | Cost per work order is the reason the plan is by work order. See OQ-EQP-3. |
+| Work order on the order | `create_procurement_with_items` creates no `purchase_requests` row and accepts no work order, so there is nothing to stamp. **Deviation:** the line's work order reference (its number, else its title) is written into the purchase item's description, with the plan month and category. Cost attribution to the work order stays a later step on the purchase (ADR-0104). | The ticket needs the work order carried; this does that without changing the creation path. See OQ-EQP-3. |
 
 ## Settings (every one is organisation data)
 
@@ -62,7 +62,8 @@ An existing organisation has no `org_equipment_plan_settings` row and no plan, l
 - FR-EQP-015 When an approver rejects a Submitted plan with a reason, the plan becomes Rejected and nothing is created. A plan whose purchases exist cannot be edited, rejected or deleted.
 - FR-EQP-016 The system shall refuse approval when purchase types are off or no active `is_rental` type exists, naming the cause, and shall not change the plan.
 - FR-EQP-017 The system shall show on each plan line the purchase created from it, and on such a purchase the plan and month it came from (link both ways).
-- FR-EQP-018 Plan and line changes, submission, approval and rejection shall appear in the record history.
+- FR-EQP-018 The plan shall record who submitted, approved or rejected it and when, with the rejection reason. (The record-history registry covers purchases only; the created purchases carry their own history. Deviation from the first draft, which asked for plan history.)
+- FR-EQP-019 The system shall let Admin, Executive, Finance and Project Manager read every plan of the organisation, the author read their own, and an Engineer read the plans of a project they have raised a purchase on (the application keeps no other project-membership list; OQ-EQP-4). Another organisation reads nothing.
 
 ## Non-functional requirements
 - NFR-EQP-001 `org_id` seam, RLS and FORCE RLS on every new table, `org_id` stamped by the server (default plus trigger), RLS helpers wrapped in `(select ...)`; a user in another organisation sees and changes nothing.
@@ -92,16 +93,19 @@ An existing organisation has no `org_equipment_plan_settings` row and no plan, l
 | AC-EQP-015 | Given a user of another organisation, when they read plans or call any RPC, then nothing visible and refused. | pgTAP |
 | AC-EQP-016 | Given the plan screen, when the user adds lines on a phone, the month changes, or a server refusal returns, then the form shows the line, totals and the refusal in English or Bahasa Indonesia. | Unit |
 | AC-EQP-017 | Given a planner on a phone and an approver, when the plan is drafted, submitted and approved, then the rental purchases appear as Drafts linked both ways and the second approve click creates none. | E2E (one journey) |
+| AC-EQP-019 | Given an Engineer who raised a purchase on a project, an Engineer who did not, Finance, an Admin and another organisation's Admin, when each reads plans, then the first sees that project's plans, the second only their own, Finance and Admin all of the organisation's, the last none. | pgTAP |
 | AC-EQP-018 | Given an Admin on the settings screen, when they add, rename, retire a category and change the step and self-approval, then the list updates; a non-Admin does not see it. Strings exist in both languages. | Unit |
 
 ## Mutation checks (to be run by the Director on the integration branch; written, not run by the builder)
 Each breaks one rule in the database, runs the named pgTAP file, must go red; restoring turns it green.
 | ID | Break | File that must go red |
 |---|---|---|
-| AC-EQP-003 | Remove the `auth_role() is distinct from 'Admin'` refusal from the settings and category RPCs | `supabase/tests/equipment_plan_settings.test.sql` |
-| AC-EQP-008 | In `approve_equipment_plan`, make `v_may` true for any member | `supabase/tests/equipment_plan_approval.test.sql` |
-| AC-EQP-009 | Delete the `v_plan.created_by = v_uid` refusal | `supabase/tests/equipment_plan_approval.test.sql` |
-| AC-EQP-011 | Delete the `status <> 'Submitted'` idempotent return and drop the unique index on `equipment_plan_lines.procurement_id` | `supabase/tests/equipment_plan_orders.test.sql` |
+| AC-EQP-003 | Remove the `auth_role() is distinct from 'Admin'` refusal from `set_equipment_plan_settings`, `upsert_equipment_plan_category` and `set_equipment_plan_category_active` | `supabase/tests/equipment_plan_settings.test.sql` |
+| AC-EQP-008 | In `equipment_plan_approver_ok`, make it `return true` after the author check | `supabase/tests/equipment_plan_approval.test.sql` |
+| AC-EQP-009 | Delete the `v_plan.created_by = auth.uid() and not ...allow_self_approval` refusal in `approve_equipment_plan` and the author clause in `equipment_plan_approver_ok` | `supabase/tests/equipment_plan_approval.test.sql` |
+| AC-EQP-011 | In `approve_equipment_plan`, delete the line `if v_plan.status = 'Approved' then return v_plan; end if;` (a re-approve then raises a state error and the "returns the plan" cases go red); separately drop the unique index `equipment_plan_lines_procurement_uq` (the one-purchase-one-line case goes red) | `supabase/tests/equipment_plan_orders.test.sql` |
+| AC-EQP-012 | Replace the single transaction with a per-line `begin ... exception when others then null; end` block that swallows the failure | `supabase/tests/equipment_plan_orders.test.sql` (the all-or-nothing case) |
+| AC-EQP-019 | In the `equipment_plans_select` policy, delete the `equipment_plan_engineer_on_project` branch (the Engineer-on-project count goes red) or the role list (Finance count goes red) | `supabase/tests/equipment_plan_draft.test.sql` |
 | AC-EQP-013 | Replace the flag lookup with `lower(name) = 'rental'` | `supabase/tests/equipment_plan_orders.test.sql` |
 
 ## Errors
@@ -119,8 +123,8 @@ Each breaks one rule in the database, runs the named pgTAP file, must go red; re
 |---|---|---|
 | OQ-EQP-1 | One purchase per line. | A client wanting one order per vendor for the month gets several small Drafts per vendor to merge by hand. |
 | OQ-EQP-2 | Requester of the created purchases is the plan approver. | A client wanting the planner as requester needs creation to run as the author; it would need a creation path that takes the requester, which #2697 did not add. |
-| OQ-EQP-3 | Work order is stamped on the created purchase's request as cost attribution, if `create_procurement_with_items` produces a request row; otherwise carried in the item description until a purchase-level work order exists. Verified in phase 2. | Costs would not split by work order until attributed. |
-| OQ-EQP-4 | Plans readable by Admin, Executive, Finance, Project Manager and the author. | A site engineer cannot see the plan of their month until a role set is agreed. |
+| OQ-EQP-3 | **Resolved in the build:** the creation path makes no request row, so the work order reference goes in the item description (see Design decisions). | Costs do not split by work order until someone attributes the purchase. |
+| OQ-EQP-4 | Readers per FR-EQP-019. "An Engineer on the project" means an Engineer who has raised a purchase on it, because projects have no member list. | An Engineer who planned a project but never raised a purchase on it sees only their own plan until they do. |
 | OQ-EQP-5 | Plans only, no versioning: a changed plan after approval is a new purchase by hand or the next month. | A mid-month change cannot be re-approved. |
 
 ## Delivery checklist
