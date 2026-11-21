@@ -434,7 +434,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
   if (missingReads.length > 0) {
     return errorResponse(
       `The ERPNext integration user cannot read: ${missingReads.map((f) => f.name).join(', ')}. ` +
-        'Grant read access to these doctypes and try again. No connection was activated.',
+        'The platform operator will fix the integration user\'s role. No connection was activated.',
       'CONFIG_REJECTED', 422,
       { reason: 'erpnext-missing-read-permissions', missing: missingReads.map((f) => f.name) });
   }

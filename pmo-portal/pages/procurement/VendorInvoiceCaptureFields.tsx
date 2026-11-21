@@ -63,7 +63,7 @@ export const VendorInvoiceCaptureFields: React.FC<{ formId: string; capture: Ven
             data-testid={VI_FIELD_TEST_IDS.taxTreatment}
           />
         </div>
-        <div className="flex min-w-[140px] flex-1 flex-col gap-1">
+        <div className="flex min-w-[140px] flex-1 flex-col gap-2">
           <label
             htmlFor={`${formId}-tax-amount`}
             className="text-sm font-semibold text-muted-foreground"

@@ -12,10 +12,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { compareDenominators, formatEntry, preserveTableExpectations, readDenominator, validateDenominator, validateProbeInputs } from './check-isolation-denominator.mjs';
+import { unionDenominatorFragments, DENOMINATOR_PATH, compareDenominators, formatEntry, INTEGER_PK_TABLES, preserveTableExpectations, readDenominator, validateDenominator, validateProbeInputs } from './check-isolation-denominator.mjs';
 
 test('site report isolation probe selects only authenticated progress columns', () => {
-  const denominator = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  const denominator = readDenominator(DENOMINATOR_PATH);
   assert.equal(denominator.tables.find((entry) => entry.table === 'dsr_progress_lines')?.columns,
     'id,org_id,report_id,position,work_order_line_id,sub_stage,quantity,unit,frozen_at');
 });
@@ -157,7 +157,7 @@ test('validateDenominator rejects a columns field that is not a non-empty string
 });
 
 test('probe expectations are mandatory, constrained and round-trip through regeneration', () => {
-  const shipped = JSON.parse(fs.readFileSync(new URL('./isolation-probe-denominator.json', import.meta.url)));
+  const shipped = unionDenominatorFragments();
   assert.doesNotThrow(() => validateDenominator(shipped));
   for (const field of ['columns', 'b_read', 'by_id']) {
     const bad = structuredClone(shipped);
@@ -192,7 +192,7 @@ test('probe expectations are mandatory, constrained and round-trip through regen
 });
 
 test('M365 typed relations and server-only lifecycle RPCs are in the isolation denominator', () => {
-  const denominator = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  const denominator = readDenominator(DENOMINATOR_PATH);
   const tables = new Map(denominator.tables.map((entry) => [entry.table, entry]));
   assert.deepEqual(tables.get('budget_version_document_links'), {
     table: 'budget_version_document_links', has_org: true, pk: 'id', columns: '*',
@@ -211,7 +211,7 @@ test('M365 typed relations and server-only lifecycle RPCs are in the isolation d
 });
 
 test('native statement helpers and composite-table probe key match the catalog contract', () => {
-  const denominator = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  const denominator = readDenominator(DENOMINATOR_PATH);
   const helpers = [
     '_erp_statement_native_has_amount_rows(jsonb)',
     '_erp_statement_period_matches(jsonb,jsonb,text,date,date)',
@@ -236,7 +236,7 @@ test('native statement helpers and composite-table probe key match the catalog c
 });
 
 test('source citations and exact RPC probe coverage are verified without a database', () => {
-  const shipped = JSON.parse(fs.readFileSync(new URL('./isolation-probe-denominator.json', import.meta.url)));
+  const shipped = unionDenominatorFragments();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'denominator-source-'));
   const file = path.join(dir, 'manifest.json');
   const check = value => { fs.writeFileSync(file, JSON.stringify(value)); return () => readDenominator(file); };
@@ -268,9 +268,12 @@ test('validateDenominator rejects an unexpected root key (manifest is exactly fo
 function probeFixture(mode, { full = false, override, runner = false, missingAcceptance = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'isolation-behavior-'));
   try {
-    const denominator = JSON.parse(fs.readFileSync(new URL('./isolation-probe-denominator.json', import.meta.url)));
+    const denominator = unionDenominatorFragments();
     const rows = denominator.tables.filter(t => t.has_org && t.by_id === 'applicable' && !(missingAcceptance && t.table === 'work_order_acceptances')).map(t => {
-      const row = { table: t.table, pk: t.pk, id: randomUUID() };
+      // An A-row id must match the table's real pk type (#2636): a positive integer where the
+      // validator's integer map says so, a uuid everywhere else — or the probe's preflight
+      // refuses the manifest (exit 2) before the guard under test (exit 4) can run.
+      const row = { table: t.table, pk: t.pk, id: INTEGER_PK_TABLES.has(t.table) ? 42 : randomUUID() };
       if (t.table === 'work_order_acceptances') Object.assign(row, {
         work_order_id: randomUUID(), lines: [{ boq_item_id: randomUUID(), quantity: 1.25 }],
       });
@@ -321,10 +324,12 @@ fs.writeFileSync(args[args.indexOf('-o')+1], typeof body === 'string' ? body : J
 process.stdout.write(String(code));
 `;
     fs.writeFileSync(path.join(dir, 'curl'), curl, { mode: 0o755 });
+    const denomFile = path.join(dir, 'probe-denominator.json');
+    fs.writeFileSync(denomFile, JSON.stringify(unionDenominatorFragments()));
     const env = { PATH: `${dir}:${process.env.PATH}`, TMPDIR: dir, BASE: 'fixture', ANON: 'anon', SERVICE: 'service', JWT_B: 'token',
       A_ORG: randomUUID(), B_ORG: randomUUID(), PROBE_USER: randomUUID(), A_ROWS_JSON: path.join(dir, 'rows.json'),
       PROBE_A_DISPOSABLE: '1', STRICT: '1', PROBE_TEST_MODE: mode,
-      PROBE_DENOM: path.resolve('scripts/isolation-probe-denominator.json'), PROBE_CAPTURE: path.join(dir, 'capture.jsonl') };
+      PROBE_DENOM: denomFile, PROBE_CAPTURE: path.join(dir, 'capture.jsonl') };
     if (!full && !runner) env.RPC_ONLY = '1';
     if (override !== undefined) {
       env.TABLES_JSON = override === '' ? '' : path.join(dir, 'tables.json');
@@ -404,7 +409,7 @@ test('a child row without a visible parent is reported as a cross-org leak', () 
 
 // #2076 — catalogue drift: three expectations were wrong, not the app.
 test('get_finance_hub_figures is an own-org read: own figures pass, another tenant id in the body is a leak', () => {
-  const entry = readDenominator(path.resolve('scripts/isolation-probe-denominator.json')).rpcs.find(r => r.name === 'get_finance_hub_figures');
+  const entry = readDenominator(DENOMINATOR_PATH).rpcs.find(r => r.name === 'get_finance_hub_figures');
   assert.equal(entry.class, 'read');
   assert.equal(entry.shape, 'own-org-no-foreign-ids');
   const own = probeFixture('baseline');
@@ -458,12 +463,12 @@ test('validateDenominator rejects a table entry with an empty pk', () => {
 });
 
 test('guarded invoice unpair is included in the isolation denominator', () => {
-  const manifest = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  const manifest = readDenominator(DENOMINATOR_PATH);
   assert.ok(manifest.definer_functions.includes('compare_and_unpair_invoice(uuid,uuid,timestamp with time zone,integer,timestamp with time zone)'));
 });
 
 test('capture surfaces are included in the isolation denominator', () => {
-  const manifest = readDenominator(path.resolve('scripts/isolation-probe-denominator.json'));
+  const manifest = readDenominator(DENOMINATOR_PATH);
   for (const name of ['erp_capture_batches', 'erp_capture_feed_witnesses']) {
     assert.ok(manifest.tables.some(table => table.table === name), name);
   }
@@ -494,5 +499,30 @@ test('probe input rejects an A row for a table without by-id access', () => {
     const rows = path.join(dir, 'rows.json');
     fs.writeFileSync(rows, JSON.stringify([{ table: 'erp_capture_batches', pk: 'org_id', id: randomUUID() }]));
     assert.throws(() => validateProbeInputs({ A_ROWS_JSON: rows }), /unique applicable/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// #2589 — the manifest is a directory of fragments; readers see the union.
+test('#2589 fragments: the shipped directory unions to a valid manifest', () => {
+  const union = unionDenominatorFragments();
+  assert.ok(union.tables.length > 0 && union.rpcs.length > 0);
+  assert.doesNotThrow(() => readDenominator(DENOMINATOR_PATH));
+});
+
+test('#2589 fragments: a second fragment adds to the union, a duplicate across fragments fails, a malformed one fails', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'denom-frag-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'a.json'), JSON.stringify({ buckets: ['one'], edge_functions: ['fn-a'] }));
+    fs.writeFileSync(path.join(dir, 'b.json'), JSON.stringify({ buckets: ['two'] }));
+    const union = unionDenominatorFragments(dir);
+    assert.deepEqual(union.buckets, ['one', 'two']);
+    assert.deepEqual(union.edge_functions, ['fn-a']);
+    assert.deepEqual(union.tables, []);
+    fs.writeFileSync(path.join(dir, 'c.json'), JSON.stringify({ buckets: ['one'] }));
+    assert.throws(() => validateDenominator(unionDenominatorFragments(dir)), /duplicate buckets entry one/);
+    fs.writeFileSync(path.join(dir, 'c.json'), '{ not json');
+    assert.throws(() => unionDenominatorFragments(dir), /invalid denominator fragment c\.json/);
+    fs.writeFileSync(path.join(dir, 'c.json'), JSON.stringify({ surprise: [] }));
+    assert.throws(() => unionDenominatorFragments(dir), /unexpected key surprise/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

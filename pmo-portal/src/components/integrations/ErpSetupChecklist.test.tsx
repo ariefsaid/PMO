@@ -1,6 +1,6 @@
 import type React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -25,9 +25,13 @@ vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: vi.fn() }));
 import { wrapWithRole } from './IntegrationsView.test-helpers';
 import { ErpSetupChecklist } from './ErpSetupChecklist';
 
-const readiness = (defaults: Partial<ErpSetupReadiness['defaults']>): ErpSetupReadiness => ({
+const readiness = (
+  defaults: Partial<ErpSetupReadiness['defaults']>,
+  extra: Partial<ErpSetupReadiness> = {},
+): ErpSetupReadiness => ({
   defaults: { company: 'Example Co', default_activity_type: 'Delivery', default_receivable_account: 'Debtors', ...defaults },
   domains: ['companies'], unmappedProjects: [], budgetMappedCategories: [], unlinkedEmployeeCount: 0,
+  ...extra,
 });
 const OPTIONS = {
   company: 'Example Co',
@@ -263,5 +267,130 @@ describe('ERP company account lists that fail to load (#1599 ECX-3 critique)', (
     fireEvent.click(await screen.findByRole('button', { name: 'Set company accounts' }));
     const dialog = await screen.findByRole('dialog', { name: 'Company accounts' });
     expect(await within(dialog).findByRole('combobox', { name: 'Bank account' })).toHaveAttribute('title', long);
+  });
+});
+
+describe('Next fiscal year operator task notice (#1599 ECX-5)', () => {
+  it('hides the fiscal year line when fiscalYear is null, ready, or not-due', async () => {
+    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: null }));
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).toHaveAttribute('hidden'));
+
+    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: { state: 'ready', next: '2027' } }));
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).toHaveAttribute('hidden'));
+
+    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: { state: 'not-due' } }));
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).toHaveAttribute('hidden'));
+  });
+
+  it('unhides and renders missing-role in English and Indonesian', async () => {
+    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: { state: 'needs-operator', reason: 'missing-role' } }));
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    const itemEn = document.getElementById('erp-setup-fiscal-year')!;
+    expect(within(itemEn).getByText('Next fiscal year')).toBeInTheDocument();
+    expect(within(itemEn).getByText('Ask your Admin to grant the integration user Read and Create permissions on the Fiscal Year document type in ERPNext. PMO checks again on the next sync.')).toBeInTheDocument();
+
+    cleanup();
+    await renderIndonesian(<ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    const itemId = document.getElementById('erp-setup-fiscal-year')!;
+    expect(within(itemId).getByText('Tahun fiskal berikutnya')).toBeInTheDocument();
+    expect(within(itemId).getByText('Minta Admin memberikan izin Baca dan Buat pada jenis dokumen Fiscal Year kepada pengguna integrasi di ERPNext. PMO memeriksa kembali pada sinkronisasi berikutnya.')).toBeInTheDocument();
+  });
+
+  it('unhides and renders no-current-year in English and Indonesian', async () => {
+    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: { state: 'needs-operator', reason: 'no-current-year' } }));
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    const itemEn = document.getElementById('erp-setup-fiscal-year')!;
+    expect(within(itemEn).getByText('Ask your Admin to add or enable a Fiscal Year covering today in ERPNext and assign it to the linked company. PMO checks again on the next sync.')).toBeInTheDocument();
+
+    cleanup();
+    await renderIndonesian(<ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    const itemId = document.getElementById('erp-setup-fiscal-year')!;
+    expect(within(itemId).getByText('Minta Admin menambahkan atau mengaktifkan Fiscal Year yang mencakup hari ini di ERPNext dan menetapkannya ke perusahaan yang terhubung. PMO memeriksa kembali pada sinkronisasi berikutnya.')).toBeInTheDocument();
+  });
+
+  it('unhides and renders disabled-year in English and Indonesian with year interpolation', async () => {
+    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: { state: 'needs-operator', reason: 'disabled-year', year: '2027' } }));
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    const itemEn = document.getElementById('erp-setup-fiscal-year')!;
+    expect(within(itemEn).getByText('Ask your Admin to review the disabled Fiscal Year 2027 in ERPNext and enable it only if it is the intended period. PMO checks again on the next sync.')).toBeInTheDocument();
+
+    cleanup();
+    await renderIndonesian(<ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    const itemId = document.getElementById('erp-setup-fiscal-year')!;
+    expect(within(itemId).getByText('Minta Admin meninjau Fiscal Year 2027 yang nonaktif di ERPNext dan mengaktifkannya hanya jika periodenya sesuai. PMO memeriksa kembali pada sinkronisasi berikutnya.')).toBeInTheDocument();
+  });
+
+  it('asks the Admin to review other undecidable settings in both languages', async () => {
+    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: { state: 'needs-operator', reason: 'review-settings' } }));
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    expect(within(document.getElementById('erp-setup-fiscal-year')!).getByText('Ask your Admin to review Fiscal Year settings in ERPNext for the linked company. PMO checks again on the next sync.')).toBeInTheDocument();
+    cleanup();
+    await renderIndonesian(<ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    expect(within(document.getElementById('erp-setup-fiscal-year')!).getByText('Minta Admin meninjau pengaturan Fiscal Year di ERPNext untuk perusahaan yang terhubung. PMO memeriksa kembali pada sinkronisasi berikutnya.')).toBeInTheDocument();
+  });
+
+  it('guides the Admin to resolve overlapping fiscal years in both languages', async () => {
+    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: { state: 'needs-operator', reason: 'ambiguous-overlap' } }));
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    expect(within(document.getElementById('erp-setup-fiscal-year')!).getByText('Next fiscal year')).toBeInTheDocument();
+    expect(within(document.getElementById('erp-setup-fiscal-year')!).getByText('Ask your Admin to correct Fiscal Year date ranges and company assignments in ERPNext so one enabled year applies. PMO checks again on the next sync.')).toBeInTheDocument();
+    cleanup();
+    await renderIndonesian(<ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    expect(within(document.getElementById('erp-setup-fiscal-year')!).getByText('Tahun fiskal berikutnya')).toBeInTheDocument();
+    expect(within(document.getElementById('erp-setup-fiscal-year')!).getByText('Minta Admin memperbaiki rentang tanggal dan penetapan perusahaan Fiscal Year di ERPNext agar hanya satu tahun aktif yang berlaku. PMO memeriksa kembali pada sinkronisasi berikutnya.')).toBeInTheDocument();
+  });
+
+  it('unhides and renders held state in English and Indonesian', async () => {
+    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: { state: 'needs-operator', reason: 'held', intentId: 'intent-uuid-1' } }));
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    const itemEn = document.getElementById('erp-setup-fiscal-year')!;
+    expect(within(itemEn).getByText('Operator attention is needed because PMO could not confirm the next fiscal year.')).toBeInTheDocument();
+
+    cleanup();
+    await renderIndonesian(<ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    const itemId = document.getElementById('erp-setup-fiscal-year')!;
+    expect(within(itemId).getByText('Perhatian Operator diperlukan karena PMO tidak dapat mengonfirmasi tahun fiskal berikutnya.')).toBeInTheDocument();
+  });
+
+  it('unhides and renders refused state with and without reason in English and Indonesian', async () => {
+    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: { state: 'refused', message: 'Forbidden' } }));
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    let itemEn = document.getElementById('erp-setup-fiscal-year')!;
+    expect(within(itemEn).getByText('Operator attention is needed because PMO could not create the next fiscal year.')).toBeInTheDocument();
+
+    cleanup();
+    await renderIndonesian(<ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    let itemId = document.getElementById('erp-setup-fiscal-year')!;
+    expect(within(itemId).getByText('Perhatian Operator diperlukan karena PMO tidak dapat membuat tahun fiskal berikutnya.')).toBeInTheDocument();
+
+    cleanup();
+    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: { state: 'refused', message: null } }));
+    wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    itemEn = document.getElementById('erp-setup-fiscal-year')!;
+    expect(within(itemEn).getByText('Operator attention is needed because PMO could not create the next fiscal year.')).toBeInTheDocument();
+
+    cleanup();
+    await renderIndonesian(<ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
+    await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    itemId = document.getElementById('erp-setup-fiscal-year')!;
+    expect(within(itemId).getByText('Perhatian Operator diperlukan karena PMO tidak dapat membuat tahun fiskal berikutnya.')).toBeInTheDocument();
   });
 });

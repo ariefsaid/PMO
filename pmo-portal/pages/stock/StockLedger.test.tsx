@@ -110,6 +110,20 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(read('Eka Engineer')).toHaveLength(1);
   });
 
+  it('a long unbreakable work-item code wraps in the Project cell instead of clipping it', async () => {
+    reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(4, { boqItemCode: 'E2E-PIPEMWP0000000' })], nextBeforeSeq: null });
+    renderPage();
+
+    const table = await screen.findByRole('table');
+    const code = within(table).getByTestId('stock-ledger-boq-code');
+    expect(code.textContent).toBe('E2E-PIPEMWP0000000');
+    // Layer-1 gate for AC-STOCK-LAYOUT-004 (the rendered proof is e2e/layout/stock-long-code.layout.spec.ts):
+    // the code carries the emergency wrap (overflow-wrap:anywhere) and no nowrap defeats it at any width,
+    // so a long token wraps inside its 136px column instead of clipping with an ellipsis.
+    expect(code).toHaveClass('[overflow-wrap:anywhere]');
+    expect(code.className).not.toMatch(/whitespace-nowrap/);
+  });
+
   it('P9 keeps long item, warehouse, and work-item codes intact in the table text', async () => {
     reports.ledgerPage.mockResolvedValueOnce({ rows: [entry(3, {
       documentNumber: 'ISS-2611130002',

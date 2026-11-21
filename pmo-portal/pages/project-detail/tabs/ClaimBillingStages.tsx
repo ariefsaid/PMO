@@ -68,7 +68,8 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
   const canRecord = open && may('transition', 'billingStage');
   const current = currentStageIndex(trace.stages);
   const done = trace.stages.filter((s) => s.completedOn).length;
-  const deadline = open && trace.deadline ? nextInvoiceDeadline(today, trace.deadline.day, trace.deadline.warnDays) : null;
+  const hasOpenStages = trace.stages.length === 0 || done < trace.stages.length;
+  const deadline = open && hasOpenStages && trace.deadline ? nextInvoiceDeadline(today, trace.deadline.day, trace.deadline.warnDays) : null;
   const hasRetention = Boolean(trace.retention && (trace.retention.pct > 0 || trace.retention.amount > 0));
   if (trace.stages.length === 0 && !deadline && !hasRetention) return null;
   const eligible = (documents.data ?? []).filter((d) => (d.status === 'Issued' || d.status === 'Approved') && Boolean(d.file_path));

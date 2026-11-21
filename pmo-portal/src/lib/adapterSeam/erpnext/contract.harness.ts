@@ -6,8 +6,10 @@ import { AppError } from '../../appError.ts';
 import type {
   ConnectHarness,
   BudgetPushResult, BudgetPushScenario, ErpHarness, ErpPartyInput, InboundInvoiceDoc, PartyMatchResult, PmoPartyCandidate,
-  JournalHarness, ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
+  JournalHarness, ProjectLinkResult, PushBeforeConnectionResult, TransferHarness, FiscalYearHarness,
 } from '../contractSuite/harness.ts';
+import { fakeFiscalYearErp } from './fakeFiscalYearErp.ts';
+import { discoverFiscalYear } from './fiscalYear.ts';
 import { AdapterError } from '../contract.ts';
 import type { LedgerJournal } from '../ledgerJournal.ts';
 import { manualJournalFromDoc } from './bodies/manualJournal.ts';
@@ -196,12 +198,26 @@ function createJournalHarness(): JournalHarness {
   };
 }
 
+function createFiscalYearHarness(): FiscalYearHarness {
+  const company = 'Test Co';
+  const erp = fakeFiscalYearErp([], { companies: [company, 'Other Co'], version: 16 });
+  return {
+    company,
+    seed(y) { erp.seed(y); },
+    discover: (today) => discoverFiscalYear(erp.client, company, today),
+    years: () => erp.years(),
+    writes: () => erp.writes(),
+    denyRead: () => { erp.denyRead(); },
+  };
+}
+
 export function createErpnextHarness(): ErpHarness {
   return {
     tier: 'erpnext',
     transfer: createTransferHarness,
     journal: createJournalHarness,
     companyDefaults: createCompanyDefaultsHarness,
+    fiscalYear: createFiscalYearHarness,
     connect: createConnectHarness,
     ...createPushAndReadHarness(),
 
@@ -353,6 +369,33 @@ function createConnectHarness(): ConnectHarness {
     ownKeys: ['project'],   // the ERP names a project itself; the PMO code is not on the document
     touchedAccounting: () => seen.some((r) => ACCOUNTING.has(decodeURIComponent(r.path.split('?')[0].split('/').pop()!))),
     calls: () => ({ reads: seen.filter((r) => r.method === 'GET').length, writes: seen.filter((r) => r.method !== 'GET').length }),
+    // account.send: a Standard-chart slice of the bound company and of a second one. The fake's list filter is exact, so a name held in
+    // another letter case is found only through the ERP's duplicate answer (a real ERP may already find it at lookup: both are checked).
+    chart() {
+      tables.Company = [{ name: 'Test Co', abbr: 'TC' }, { name: 'Other Co', abbr: 'OTH' }];
+      const account = (name: string, parent: string | null, isGroup: boolean, rootType: string, company = 'Test Co') =>
+        (tables.Account ??= []).push({ name, account_name: name.replace(/ - (TC|OTH)$/, ''), parent_account: parent, company, root_type: rootType, is_group: isGroup ? 1 : 0, disabled: 0 });
+      account('Expenses - TC', null, true, 'Expense');
+      account('Direct Expenses - TC', 'Expenses - TC', true, 'Expense');
+      account('Indirect Expenses - TC', 'Expenses - TC', true, 'Expense');
+      account('Cost of Goods Sold - TC', 'Direct Expenses - TC', false, 'Expense');
+      account('Application of Funds (Assets) - TC', null, true, 'Asset');
+      account('Direct Expenses - OTH', null, true, 'Expense', 'Other Co');
+      account('Old Site Costs - TC', 'Expenses - TC', true, 'Expense');
+      tables.Account.at(-1)!.disabled = 1;
+      return {
+        company: 'Test Co', expenseGroup: 'Direct Expenses - TC', otherExpenseGroup: 'Indirect Expenses - TC',
+        expenseLeaf: 'Cost of Goods Sold - TC', otherCompanyGroup: 'Direct Expenses - OTH', disabledExpenseGroup: 'Old Site Costs - TC',
+        place(a) {
+          const parent = a.rootType === 'Expense' ? a.parent : 'Application of Funds (Assets) - TC';
+          account(`${a.accountName} - TC`, parent, a.isGroup, a.rootType);
+          return `${a.accountName} - TC`;
+        },
+      };
+    },
+    accounts: () => (tables.Account ?? []).map((r) => ({ externalId: String(r.name), accountName: String(r.account_name), parent: (r.parent_account as string) ?? null,
+      company: String(r.company), isGroup: r.is_group === 1, rootType: String(r.root_type), created: r.created === true })),
+    writesOutsideAccounts: () => seen.filter((r) => r.method !== 'GET' && decodeURIComponent(r.path.split('?')[0]) !== '/api/resource/Account').map((r) => `${r.method} ${r.path}`),
     load(kind, rows) {
       for (const r of rows) {
         const disabled = r.active ? 0 : 1;

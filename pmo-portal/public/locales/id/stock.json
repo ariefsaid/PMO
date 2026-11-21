@@ -669,13 +669,13 @@
       "loading": "Memuat label stok…"
     },
     "balance": {
-      "connectedUnavailable": "Sisa stok perintah kerja tidak tersedia untuk inventaris yang terhubung.",
+      "connectedUnavailable": "Sisa stok $t(common:terms.clientWorkOrder) tidak tersedia untuk inventaris yang terhubung.",
       "issuedValue": "Nilai terpakai",
       "loading": "Memuat stok…",
-      "open": "Stok untuk perintah kerja ini",
-      "error": "Stok untuk perintah kerja ini tidak dapat dimuat.",
-      "title": "Stok untuk perintah kerja ini",
-      "empty": "Belum ada stok yang bergerak untuk perintah kerja ini.",
+      "open": "Stok untuk $t(common:terms.clientWorkOrder) ini",
+      "error": "Stok untuk $t(common:terms.clientWorkOrder) ini tidak dapat dimuat.",
+      "title": "Stok untuk $t(common:terms.clientWorkOrder) ini",
+      "empty": "Belum ada stok yang bergerak untuk $t(common:terms.clientWorkOrder) ini.",
       "item": "Barang",
       "location": "Lokasi",
       "received": "Diterima",
@@ -683,7 +683,7 @@
       "issued": "Dikeluarkan",
       "onSite": "Di lokasi",
       "value": "Nilai",
-      "unassigned": "Tidak terkait perintah kerja",
+      "unassigned": "Tidak terkait $t(common:terms.clientWorkOrder)",
       "noValue": "—",
       "zeroCost": "Dari klien, tanpa biaya"
     }

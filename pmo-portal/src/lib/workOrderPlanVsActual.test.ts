@@ -246,6 +246,15 @@ describe('rollupProject — actuals and roll-ups (FR-WPVA-010..032)', () => {
     expect(r.hours).toMatchObject({ crewHours: 7, crewSize: 1, equipmentHours: 2, planCrewHours: 20 });
   });
 
+  it('AC-TEL-018 counts only approved equipment usage in plan-versus-actual hours (#2599)', () => {
+    const r = rollupProject({ workOrders: [wo('A', 'WO-1')], plans: [], split: null, restricted: false,
+      lines: [
+        line({ workOrderId: 'A', source: 'equipment_usage', reason: 'not-posted', amount: null, quantity: 8, quantityUnit: 'hours' }),
+        line({ workOrderId: 'A', source: 'equipment_usage', reason: 'no-rate', amount: null, quantity: 3, quantityUnit: 'hours' }),
+      ] });
+    expect(r.workOrders[0].equipmentHours).toBe(3);
+  });
+
   it('rolls planned direct and indirect budgets up by project currency', () => {
     const r = rollupProject({ workOrders: [wo('A', 'WO-1'), wo('B', 'WO-2')], lines: [], split: null, restricted: false,
       plans: [
