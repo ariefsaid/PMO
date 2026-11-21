@@ -11,7 +11,7 @@
 --   drop the guard line in org_credit_balance .................... 'AC-LA-013 org_credit_balance refuses a light account'
 begin;
 create extension if not exists pgtap;
-select plan(51);
+select plan(54);
 
 insert into organizations (id, name, default_currency, built_in_roles_enabled) values
   ('27100000-0000-0000-0000-00000000000a', 'LA Org',       'IDR', true),
@@ -103,12 +103,18 @@ select is((select count(*)::int from work_order_crews), 1, 'AC-LA-002 foreman re
 select is((select count(*)::int from projects) + (select count(*)::int from companies), 0, 'AC-LA-003 foreman reads no project and no company');
 
 -- AC-LA-005 writes
-select is((with u as (update tasks set status = 'In Progress' where id = '27100000-0000-0000-0000-000000000a01' returning 1) select count(*)::int from u),
-  1, 'AC-LA-005 a light account updates the status of its own task');
+select lives_ok($$ update tasks set status = 'In Progress' where id = '27100000-0000-0000-0000-000000000a01' $$,
+  'AC-LA-005 a light account updates its own task');
+select is((select status::text from tasks where id = '27100000-0000-0000-0000-000000000a01'), 'In Progress',
+  'AC-LA-005 and the status of its own task changed');
 select throws_ok($$ update tasks set name = 'renamed' where id = '27100000-0000-0000-0000-000000000a01' $$, '42501', null,
   'AC-LA-005 a light account cannot rename its task');
-select is((with u as (update tasks set status = 'Done' where id = '27100000-0000-0000-0000-000000000a03' returning 1) select count(*)::int from u),
-  0, 'AC-LA-005 a light account cannot update another person''s task');
+select lives_ok($$ update tasks set status = 'Done' where id = '27100000-0000-0000-0000-000000000a03' $$,
+  'AC-LA-005 a light account''s update of another person''s task touches nothing');
+reset role;
+select is((select status::text from tasks where id = '27100000-0000-0000-0000-000000000a03'), 'To Do',
+  'AC-LA-005 a light account cannot update another person''s task');
+set local role authenticated;
 select throws_ok($$ insert into tasks (project_id, name, assignee_id) values ('27100000-0000-0000-0000-0000000000d1', 'new', '27100000-0000-0000-0000-0000000000a5') $$,
   '42501', null, 'AC-LA-005 a light account cannot create a task');
 select lives_ok($$ insert into incident_reports (incident_date, type, severity) values (current_date, 'Hazard', 'Low') $$,
@@ -116,8 +122,12 @@ select lives_ok($$ insert into incident_reports (incident_date, type, severity) 
 select throws_ok($$ insert into incident_reports (incident_date, type, severity, reported_by)
   values (current_date, 'Hazard', 'Low', '27100000-0000-0000-0000-0000000000a7') $$, '42501', null,
   'AC-LA-005 a light account cannot report an issue in another person''s name');
-select is((with d as (delete from work_orders where id = '27100000-0000-0000-0000-000000000401' returning 1) select count(*)::int from d),
-  0, 'AC-LA-005 a light account cannot delete a work order');
+select lives_ok($$ delete from work_orders where id = '27100000-0000-0000-0000-000000000401' $$,
+  'AC-LA-005 a light account''s delete of a work order touches nothing');
+reset role;
+select is((select count(*)::int from work_orders where id = '27100000-0000-0000-0000-000000000401'), 1,
+  'AC-LA-005 a light account cannot delete a work order');
+set local role authenticated;
 
 -- AC-LA-006 my_home: own items only, no money key
 select is((select jsonb_array_length(public.my_home()->'tasks')), 1, 'AC-LA-006 my_home lists the one own task');
