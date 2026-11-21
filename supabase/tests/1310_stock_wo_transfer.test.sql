@@ -60,6 +60,7 @@ create function public.wot_move(p_wh uuid, p_from uuid, p_to uuid, p_item uuid, 
     jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty) || p_extra), p_req) $$;
 create function public.wot_bal(p_wh uuid, p_item uuid) returns text language sql security definer as $$
   select coalesce((select qty_on_hand::text || '/' || value_on_hand::text from public.stock_balances where warehouse_id = p_wh and item_id = p_item), 'none') $$;
+create function public.wot_mrq(p_wo uuid, p_item uuid) returns numeric language sql security definer as $$ select public.mrq_prior_quantity(p_wo, p_item, null) $$;
 create function public.wot_count() returns int language sql security definer as $$ select count(*)::int from public.stock_wo_transfers $$;
 create function public.wot_docs() returns int language sql security definer as $$ select count(*)::int from public.stock_documents where wo_transfer_id is not null $$;
 create function public.wot_audit(p_action text) returns int language sql security definer as $$ select count(*)::int from public.audit_events where action = p_action $$;
@@ -121,8 +122,8 @@ select is(wot_wb('26910000-0000-0000-0000-000000000401', '26910000-0000-0000-000
 select is(wot_wb('26910000-0000-0000-0000-000000000402', '26910000-0000-0000-0000-000000001001', 'issued_value'), 48::numeric, 'AC-WOT-002 B issued cost is 12 x 4');
 select is(wot_wb('26910000-0000-0000-0000-000000000401', '26910000-0000-0000-0000-000000001001', 'on_site_qty'), -15::numeric, 'AC-WOT-002 A on-site quantity is unchanged by the move');
 select is(wot_wb('26910000-0000-0000-0000-000000000402', '26910000-0000-0000-0000-000000001001', 'on_site_qty'), 0::numeric, 'AC-WOT-002 B on-site quantity is unchanged by the move');
-select is(mrq_prior_quantity('26910000-0000-0000-0000-000000000402', '26910000-0000-0000-0000-000000001001', null), 12::numeric, 'AC-WOT-003 B was moved 12 (what a new request must not ask again)');
-select is(mrq_prior_quantity('26910000-0000-0000-0000-000000000401', '26910000-0000-0000-0000-000000001001', null), -12::numeric, 'AC-WOT-003 A was moved 12 off');
+select is(wot_mrq('26910000-0000-0000-0000-000000000402', '26910000-0000-0000-0000-000000001001'), 12::numeric, 'AC-WOT-003 B was moved 12 (what a new request must not ask again)');
+select is(wot_mrq('26910000-0000-0000-0000-000000000401', '26910000-0000-0000-0000-000000001001'), -12::numeric, 'AC-WOT-003 A was moved 12 off');
 
 -- ── AC-WOT-004 the net cap ─────────────────────────────────────────────────────────────────────
 select throws_ok($$ select wot_move('26910000-0000-0000-0000-000000002002', '26910000-0000-0000-0000-000000000401', '26910000-0000-0000-0000-000000000402', '26910000-0000-0000-0000-000000001001', 4) $$, 'P0001', 'STK_WOT_EXCEEDS: the work order holds 3 of this item, requested 4', 'AC-WOT-004 4 above the net 3 is refused');

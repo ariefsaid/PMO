@@ -38,6 +38,7 @@ begin
     jsonb_build_array(jsonb_build_object('item_id','26911000-0000-0000-0000-000000001001','quantity',p_qty,'boq_item_id','26911000-0000-0000-0000-0000000000e1')), true);
   perform public.set_cost_attribution('stock_document', array[d], p_wo, null);
 end $$;
+create function public.wot_mrq(p_wo uuid, p_item uuid) returns numeric language sql security definer as $$ select public.mrq_prior_quantity(p_wo, p_item, null) $$;
 create function public.wob_bal() returns text language sql security definer as $$
   select coalesce((select qty_on_hand::text || '/' || value_on_hand::text from public.stock_balances where warehouse_id = '26911000-0000-0000-0000-000000002002' and item_id = '26911000-0000-0000-0000-000000001001'), 'none') $$;
 create function public.wob_total_value() returns numeric language sql security definer as $$
@@ -54,7 +55,7 @@ select wob_issue(10, '26911000-0000-0000-0000-000000000401');
 select wob_rcv(10, 10);
 select is(wob_bal(), '20.000/140.00', 'setup: 20 on site at an average of 7 after a dearer receipt');
 select is(wob_project_on_site('on_site_qty'), 20::numeric, 'AC-WOT-002 before the move the work orders plus unassigned equal the location');
-select is(mrq_prior_quantity('26911000-0000-0000-0000-000000000403', '26911000-0000-0000-0000-000000001001', null), 0::numeric, 'AC-WOT-012 a work order with no move reads 0 as before');
+select is(wot_mrq('26911000-0000-0000-0000-000000000403', '26911000-0000-0000-0000-000000001001'), 0::numeric, 'AC-WOT-012 a work order with no move reads 0 as before');
 select post_stock_wo_transfer(jsonb_build_object('warehouse_id','26911000-0000-0000-0000-000000002002','from_work_order_id','26911000-0000-0000-0000-000000000401','to_work_order_id','26911000-0000-0000-0000-000000000402'),
   jsonb_build_array(jsonb_build_object('item_id','26911000-0000-0000-0000-000000001001','quantity',10)));
 select is(wob_project_on_site('on_site_qty'), 20::numeric, 'AC-WOT-002 after the move the work orders plus unassigned still equal the location quantity');
@@ -66,7 +67,7 @@ select is(wob_total_value(), 120::numeric, 'AC-WOT-006 ledger value is conserved
 select is(wob_wb('26911000-0000-0000-0000-000000000401', 'on_site_qty') + wob_wb('26911000-0000-0000-0000-000000000402', 'on_site_qty'), -10::numeric, 'AC-WOT-002 on-site quantity per work order is unchanged by the move (A -10, B 0)');
 select is(wob_wb('26911000-0000-0000-0000-000000000402', 'on_site_value'), -20::numeric, 'AC-WOT-006 B received the value A gave up (40) and consumed 60 at the average: the drift reads -20 on B');
 select is(wob_wb('26911000-0000-0000-0000-000000000401', 'on_site_value'), -40::numeric, 'AC-WOT-006 A on-site value is unchanged by the move');
-select is(mrq_prior_quantity('26911000-0000-0000-0000-000000000402', '26911000-0000-0000-0000-000000001001', null), 10::numeric, 'AC-WOT-003 B was moved 10');
-select is(mrq_prior_quantity('26911000-0000-0000-0000-000000000401', '26911000-0000-0000-0000-000000001001', null), -10::numeric, 'AC-WOT-003 A was moved 10 off');
+select is(wot_mrq('26911000-0000-0000-0000-000000000402', '26911000-0000-0000-0000-000000001001'), 10::numeric, 'AC-WOT-003 B was moved 10');
+select is(wot_mrq('26911000-0000-0000-0000-000000000401', '26911000-0000-0000-0000-000000001001'), -10::numeric, 'AC-WOT-003 A was moved 10 off');
 select * from finish();
 rollback;
