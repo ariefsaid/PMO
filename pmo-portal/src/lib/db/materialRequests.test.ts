@@ -265,3 +265,35 @@ describe('#2598 step pins', () => {
     expect(dal.materialRequestRefusal({ message: 'MRQ_PIN_INVALID: the approver' })).toBe('pinInvalid');
   });
 });
+
+describe('#2687 delivery note settings', () => {
+  it('reads delivery note settings with defaults when table is empty', async () => {
+    h.result.value = { data: [], error: null };
+    const settings = await dal.getDeliveryNoteSettings();
+    expect(settings).toEqual({
+      enabled: false,
+      signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'],
+    });
+    expect(h.calls.from).toEqual(['material_request_settings']);
+  });
+
+  it('reads saved delivery note settings', async () => {
+    h.result.value = {
+      data: [{ delivery_note_enabled: true, delivery_note_signature_blocks: ['Prepared by', 'Received by'] }],
+      error: null,
+    };
+    const settings = await materialRequestRepository.deliveryNoteSettings();
+    expect(settings).toEqual({
+      enabled: true,
+      signatureBlocks: ['Prepared by', 'Received by'],
+    });
+  });
+
+  it('saves delivery note settings through mrq_set_delivery_note_settings RPC', async () => {
+    h.result.value = { data: null, error: null };
+    await materialRequestRepository.setDeliveryNoteSettings(true, ['Sign 1', 'Sign 2']);
+    expect(h.calls.rpc).toEqual([
+      ['mrq_set_delivery_note_settings', { p_enabled: true, p_signature_blocks: ['Sign 1', 'Sign 2'] }],
+    ]);
+  });
+});

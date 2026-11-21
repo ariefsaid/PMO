@@ -7,7 +7,7 @@ import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { useAuth } from '@/src/auth/useAuth';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useUsers } from '@/src/hooks/useUsers';
-import { useApprovalChain, useMaterialRequestCutoff, useMaterialRequestMutations, useStandIns } from '@/src/hooks/useMaterialRequests';
+import { useApprovalChain, useDeliveryNoteSettings, useMaterialRequestCutoff, useMaterialRequestMutations, useStandIns } from '@/src/hooks/useMaterialRequests';
 import type { ChainStepInput } from '@/src/lib/repositories/materialRequests';
 import type { Role } from '@/src/auth/AuthContext';
 import { formatDay } from '@/src/lib/format';
@@ -95,6 +95,130 @@ const CutoffEditor: React.FC = () => {
   );
 };
 
+const DeliveryNoteEditor: React.FC = () => {
+  const { t } = useTranslation('materialRequests');
+  const { toast } = useToast();
+  const refusal = useRefusalText();
+  const dnQuery = useDeliveryNoteSettings();
+  const m = useMaterialRequestMutations();
+  const [enabledDraft, setEnabledDraft] = useState<boolean | null>(null);
+  const [blocksDraft, setBlocksDraft] = useState<string[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const enabled = enabledDraft ?? (dnQuery.data?.enabled ?? false);
+  const blocks = blocksDraft ?? (dnQuery.data?.signatureBlocks?.length ? dnQuery.data.signatureBlocks : ['Dispatched by', 'Delivered by', 'Received by']);
+
+  const editBlock = (index: number, val: string) => {
+    const next = [...blocks];
+    next[index] = val;
+    setBlocksDraft(next);
+  };
+
+  const removeBlock = (index: number) => {
+    if (blocks.length <= 1) return;
+    setBlocksDraft(blocks.filter((_, i) => i !== index));
+  };
+
+  const addBlock = () => {
+    setBlocksDraft([...blocks, '']);
+  };
+
+  const dirty = enabledDraft !== null || blocksDraft !== null;
+  const valid = !enabled || (blocks.length > 0 && blocks.every((b) => b.trim().length > 0));
+
+  const save = async () => {
+    setError(null);
+    try {
+      await m.setDeliveryNoteSettings.mutateAsync({
+        enabled,
+        signatureBlocks: blocks.map((b) => b.trim()).filter(Boolean),
+      });
+      setEnabledDraft(null);
+      setBlocksDraft(null);
+      toast(t('settings.deliveryNoteSaved', 'Delivery note settings saved'), undefined, 'success');
+    } catch (err) {
+      setError(refusal(err));
+    }
+  };
+
+  return (
+    <RecordSection
+      title={t('settings.deliveryNote', 'Printable delivery note')}
+      subline={t('settings.deliveryNoteSub', 'Generate a printable delivery note with signature blocks for approved material requests.')}
+    >
+      {dnQuery.isPending && <ListState variant="loading" rows={2} />}
+      {dnQuery.isError && (
+        <ListState
+          variant="error"
+          title={t('settings.deliveryNoteError', "Couldn't load delivery note settings")}
+          onRetry={() => void dnQuery.refetch()}
+        />
+      )}
+      {dnQuery.data && (
+        <div className="space-y-4" data-testid="delivery-note-settings-editor">
+          {error && <FormErrorStrip>{error}</FormErrorStrip>}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={enabled}
+              onChange={(checked) => setEnabledDraft(checked)}
+              label={t('settings.deliveryNoteEnabled', 'Enable printable delivery note')}
+            />
+            <span className="text-sm font-medium text-foreground cursor-pointer" onClick={() => setEnabledDraft(!enabled)}>
+              {t('settings.deliveryNoteEnabled', 'Enable printable delivery note')}
+            </span>
+          </div>
+
+          {enabled && (
+            <div className="space-y-3 pt-2 border-t border-border">
+              <p className="text-sm font-medium text-foreground">
+                {t('settings.signatureBlocks', 'Signature blocks')}
+              </p>
+              <div className="space-y-2">
+                {blocks.map((block, idx) => (
+                  <div key={idx} className="flex items-center gap-2" data-testid={`signature-block-input-${idx}`}>
+                    <TextField
+                      label={`${t('settings.signatureBlock', 'Signature block')} ${idx + 1}`}
+                      hideLabel
+                      value={block}
+                      onChange={(v) => editBlock(idx, v)}
+                      placeholder={`Block ${idx + 1}`}
+                      fullWidth
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={blocks.length <= 1}
+                      onClick={() => removeBlock(idx)}
+                      aria-label={`${t('settings.removeSignatureBlock', 'Remove')} ${idx + 1}`}
+                    >
+                      {t('settings.removeSignatureBlock', 'Remove')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <Button variant="outline" size="sm" onClick={addBlock}>
+                {t('settings.addSignatureBlock', 'Add signature block')}
+              </Button>
+            </div>
+          )}
+
+          <div className="pt-2">
+            <Button
+              variant="primary"
+              disabled={!dirty || !valid}
+              loading={m.setDeliveryNoteSettings.isPending}
+              onClick={() => void save()}
+              data-testid="save-delivery-note-settings-button"
+            >
+              {t('settings.saveDeliveryNote', 'Save delivery note settings')}
+            </Button>
+          </div>
+        </div>
+      )}
+    </RecordSection>
+  );
+};
+
 const StandInEditor: React.FC = () => {
   const { t } = useTranslation('materialRequests');
   const { toast } = useToast();
@@ -160,6 +284,7 @@ const MaterialRequestSettingsPage: React.FC = () => {
       <RecordStack>
         <ChainEditor />
         <CanWrite entity="approvalChain" action="manage"><CutoffEditor /></CanWrite>
+        <CanWrite entity="approvalChain" action="manage"><DeliveryNoteEditor /></CanWrite>
         <StandInEditor />
       </RecordStack>
     </div>

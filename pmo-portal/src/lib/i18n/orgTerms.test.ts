@@ -42,6 +42,17 @@ describe('AC-TERM-002 applyOrgTerms', () => {
     expect(applyOrgTerms('Withdraw this material request', 'en', t)).toBe('Withdraw this site requisition');
     expect(applyOrgTerms('Daftar permintaan material', 'id', t)).toBe('Daftar permintaan barang');
   });
+  it('renames delivery note in English and Bahasa, singular and plural (#2687)', () => {
+    const t = {
+      en: { deliveryNote: { singular: 'dispatch docket', plural: 'dispatch dockets' } },
+      id: { deliveryNote: { singular: 'faktur jalan', plural: 'faktur-faktur jalan' } },
+    };
+    expect(applyOrgTerms('Delivery note', 'en', t)).toBe('Dispatch docket');
+    expect(applyOrgTerms('Print delivery notes', 'en', t)).toBe('Print dispatch dockets');
+    expect(applyOrgTerms('DELIVERY NOTE', 'en', t)).toBe('DISPATCH DOCKET');
+    expect(applyOrgTerms('Surat jalan', 'id', t)).toBe('Faktur jalan');
+    expect(applyOrgTerms('Nota pengiriman', 'id', t)).toBe('Faktur jalan');
+  });
   it('matchCase', () => {
     expect(matchCase('Project', 'job')).toBe('Job');
     expect(matchCase('project', 'Job')).toBe('job');

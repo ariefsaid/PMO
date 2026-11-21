@@ -99,6 +99,7 @@ export const CORE_ROUTES = {
   '/material-requests/new': 'material requests (#2524) — every member raises one; no catalogue switch yet',
   '/material-requests/settings': 'material requests (#2524) — every member raises one; no catalogue switch yet',
   '/material-requests/:requestId/edit': 'material requests (#2524) — every member raises one; no catalogue switch yet',
+  '/material-requests/:requestId/delivery-note': 'material requests delivery note (#2687) — printable delivery note; no catalogue switch yet',
   '/material-requests/:requestId': 'material requests (#2524) — every member raises one; no catalogue switch yet',
 };
 

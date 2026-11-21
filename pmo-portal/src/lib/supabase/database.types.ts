@@ -6423,18 +6423,24 @@ export type Database = {
       material_request_settings: {
         Row: {
           cutoff_time: string | null
+          delivery_note_enabled: boolean
+          delivery_note_signature_blocks: string[]
           org_id: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           cutoff_time?: string | null
+          delivery_note_enabled?: boolean
+          delivery_note_signature_blocks?: string[]
           org_id?: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           cutoff_time?: string | null
+          delivery_note_enabled?: boolean
+          delivery_note_signature_blocks?: string[]
           org_id?: string
           updated_at?: string
           updated_by?: string | null
@@ -13543,6 +13549,10 @@ export type Database = {
       }
       mrq_set_chain: { Args: { p_steps: Json }; Returns: undefined }
       mrq_set_cutoff: { Args: { p_cutoff: string | null }; Returns: undefined }
+      mrq_set_delivery_note_settings: {
+        Args: { p_enabled: boolean; p_signature_blocks: string[] }
+        Returns: undefined
+      }
       mrq_set_stand_in: {
         Args: { p_delegator_id: string; p_ends_on: string; p_stand_in_id: string; p_starts_on: string }
         Returns: string

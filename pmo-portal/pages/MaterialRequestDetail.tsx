@@ -5,7 +5,7 @@ import { Button, ConfirmDialog, ListState, ReasonDialog, RecordHeader, RecordSec
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
-import { useMaterialRequest, useMaterialRequestMutations, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
+import { useDeliveryNoteSettings, useMaterialRequest, useMaterialRequestMutations, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
 import { useStockItems, useStockKeepers, useStockWarehouses } from '@/src/hooks/useStock';
 import { formatDay } from '@/src/lib/format';
 import { RequestStatusPill, RequestWorkOrder, StepStatusPill } from './materialRequests/shared';
@@ -26,6 +26,7 @@ const MaterialRequestDetailPage: React.FC = () => {
   const labels = useLabels();
   const q = useMaterialRequest(requestId);
   const waiting = useWaitingForMe();
+  const { data: dnSettings } = useDeliveryNoteSettings();
   const { data: items } = useStockItems(true);
   const { data: warehouses } = useStockWarehouses();
   const { data: keepers } = useStockKeepers();
@@ -58,6 +59,7 @@ const MaterialRequestDetailPage: React.FC = () => {
   const canRetryTransfer = req.status === 'approved' && (!req.transferDocumentId || req.transferCancelled) &&
     req.createdBy !== currentUser?.id && retrySourceOptions.length > 0;
   const noApprover = req.status === 'pending' && !open;
+  const canPrintDeliveryNote = Boolean(dnSettings?.enabled) && (req.status === 'approved' || req.status === 'fulfilled');
 
   const close = () => { setDialog(null); setDialogError(null); };
   const run = async (work: () => Promise<unknown>, success: string) => {
@@ -75,12 +77,15 @@ const MaterialRequestDetailPage: React.FC = () => {
       <RecordHeader panelInset name={req.number} status={<RequestStatusPill status={req.status} />}
         meta={<span>{t('detail.meta', 'Raised by {{name}} · needed by {{date}}', { name: name(req.createdBy), date: formatDay(req.neededBy) })}</span>}
         primaryAction={canDecide ? <Button variant="primary" onClick={() => setDialog({ kind: 'approve' })}>{t('detail.approve', 'Approve')}</Button>
-          : canEdit ? <Button variant="primary" onClick={() => navigate(`/material-requests/${req.id}/edit`)}>{t('detail.edit', 'Edit and send')}</Button> : undefined}
+          : canEdit ? <Button variant="primary" onClick={() => navigate(`/material-requests/${req.id}/edit`)}>{t('detail.edit', 'Edit and send')}</Button>
+          : canPrintDeliveryNote ? <Button variant="outline" onClick={() => navigate(`/material-requests/${req.id}/delivery-note`)}>{t('detail.printDeliveryNote', 'Print delivery note')}</Button>
+          : undefined}
         menuItems={[
           ...(canDecide ? [
             { key: 'return', label: t('detail.return', 'Send back'), onSelect: () => setDialog({ kind: 'return' }) },
             { key: 'reject', label: t('detail.reject', 'Reject'), onSelect: () => setDialog({ kind: 'reject' }) }] : []),
           ...(canWithdraw ? [{ key: 'withdraw', label: t('detail.withdraw', 'Withdraw request'), onSelect: () => setDialog({ kind: 'withdraw' }) }] : []),
+          ...(canPrintDeliveryNote ? [{ key: 'printDeliveryNote', label: t('detail.printDeliveryNote', 'Print delivery note'), onSelect: () => navigate(`/material-requests/${req.id}/delivery-note`) }] : []),
         ]} menuLabel={t('detail.moreActions', 'More actions')}>
         <p><span className="text-muted-foreground">{t('list.columns.workOrder', 'Work order')}: </span><RequestWorkOrder workOrderId={req.workOrderId} projectId={req.projectId} /></p>
         {req.note && <p>{req.note}</p>}
