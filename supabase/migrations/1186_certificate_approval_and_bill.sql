@@ -1,8 +1,8 @@
--- 1137_certificate_approval_and_bill.sql — #2584 Slice 3 (money, SoD, payable path): submit, return, approve, cancel, bill.
+-- 1186_certificate_approval_and_bill.sql — #2584 Slice 3 (money, SoD, payable path): submit, return, approve, cancel, bill.
 -- Spec docs/specs/subcontractor-progress-certificate.spec.md (FR-SPC-011..017, FR-SPC-021; NFR-SPC-002/003; OD-SPC-5/8/9).
 -- Plan docs/plans/2026-11-20-subcontractor-progress-certificate.md. Proven by supabase/tests/subcontract_certificate_sod.test.sql,
 -- subcontract_certificate_bill.test.sql and subcontract_certificate_mutation.test.sql (SoD and cap pre-check mutation checks).
--- Rollback: rollback/1137_certificate_approval_and_bill_down.sql (refused while a bill carries a deduction or a certificate is live).
+-- Rollback: rollback/1186_certificate_approval_and_bill_down.sql (refused while a bill carries a deduction or a certificate is live).
 --
 -- Lock order (NFR-SPC-002, D5 of the shipped capture): the procurement row, then subcontract_po_lock, then the certificate row.
 -- The claim on measured work is also arbitrated by the unique index on subcontract_certificate_claims, so two certificates on

@@ -1,4 +1,4 @@
--- 1137_certificate_approval_and_bill_down.sql — refused while a bill carries a deduction or a certificate is past draft (NFR-SPC-005).
+-- 1186_certificate_approval_and_bill_down.sql — refused while a bill carries a deduction or a certificate is past draft (NFR-SPC-005).
 do $$ begin
   if exists (select 1 from public.procurement_invoices where deduction_amount <> 0 or certificate_id is not null)
      or exists (select 1 from public.subcontract_certificates where status not in ('draft', 'cancelled'))
