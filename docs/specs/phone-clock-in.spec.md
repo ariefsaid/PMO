@@ -1,6 +1,6 @@
 # Clock in by phone at the work location
 
-Ticket #2705 (map #902). Status: proposed, awaiting Director "build". Builds on `light-accounts.spec.md` (#2710, `ClockInSection` seam),
+Ticket #2705 (map #902). Status: approved by the Director 2026-11-21 with rulings 1-5 (section 8), built. Builds on `light-accounts.spec.md` (#2710, `ClockInSection` seam),
 `builtin-role-set.spec.md` (#2709) and `crews-roster-attendance.spec.md` (attendance path). The broader GPS ticket is #1517; offline capture is Q1 2027.
 Rulings: OD-SCOPE-2 (no client process in code), OD-SCOPE-4.
 
@@ -40,6 +40,9 @@ The only geolocation restriction is `pmo-portal/public/_headers` (`Permissions-P
 - **FR-012** `phone_check_in_requests()` shall list pending requests the caller may decide; empty for everyone else. The decision list sits on the existing Attendance screen and renders nothing unless a request exists.
 - **FR-013** Location shall be read only on the tap (`getCurrentPosition`, no watch, no stored permission state), only from the clock-in section. The geolocation block in the response headers is lifted for the `/my` route only (section 5).
 - **FR-014** Permission denied, unavailable fix or timeout shall show a clear message and offer the "ask your supervisor" request without a position (stored as pending, outcome `no_position`); it never records attendance by itself.
+- **FR-016** Stored latitude and longitude shall be rounded to 5 decimals (about 1 m) in the database; the distance test uses the unrounded input.
+- **FR-017** When the document's permissions policy does not allow geolocation (the page was reached by client-side navigation), the phone shall do one hard navigation to `/my?clockin=<work order>` and resume the tap after load, with a guard so it cannot loop.
+- **FR-018** `my_home()` shall carry a boolean `has_area` per rostered work order (never the coordinates) so the phone knows before the tap whether a position is needed.
 - **FR-015** English and Bahasa Indonesia, phone-first, one column, 44px targets, tokens only; existing repositories gain no method (new module `phoneCheckIn.ts`).
 
 ## 4. Acceptance criteria and owning layer
@@ -83,3 +86,12 @@ stays the one loaded. The browser API is therefore called from the clock-in scre
 ## 7. Not in this ticket
 
 Offline check-in (Q1 2027). Continuous tracking, geofence alerts, retention/consent notice (#1517 owns). Check-out. A map.
+
+## 8. Director rulings applied (2026-11-21)
+
+1. Headers: `/my` detaches the site-wide `Permissions-Policy` with `! Permissions-Policy` and re-adds `camera=(), microphone=(), geolocation=(self)`. AC-SEC-207 stays untouched; the new test asserts the `/my` rule and that every other rule still blocks geolocation.
+2. Per-document policy: before `getCurrentPosition`, `ClockInSection` asks `document.permissionsPolicy` / `document.featurePolicy` `allowsFeature('geolocation')` (where available). If not allowed it does one `window.location.assign('/my?clockin=<wo>')` and resumes the tap after load, guarded by a session flag so it cannot loop (FR-017). Both branches unit-tested (AC-PCI-014).
+3. `attendance_record` is re-created in 1212 as a copy of the 1110 definition with one hunk changed (the phone-check-in authority test) and a header naming the source; the rollback restores the 1110 body.
+4. Crew is optional on off-roster or no-position requests; deciders as in FR-009.
+5. Stored lat/lng rounded to 5 decimals in the database (FR-016).
+6. (Builder) 1214 re-creates `my_home()` as a copy of 1207 with the `has_area` key only (FR-018); a work order with no area keeps the existing clock-in path (existing tests untouched). Position protocol: with an area and no position yet, `phone_check_in` returns `needs_position` and writes nothing; the phone then reads its position once and calls again. A denied/unavailable fix calls it with `p_no_position = true`.

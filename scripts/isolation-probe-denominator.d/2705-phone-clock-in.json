@@ -1,0 +1,21 @@
+{
+  "definer_functions": [
+    "get_phone_check_in_supervisor_role()",
+    "phone_check_in(uuid,uuid,double precision,double precision,double precision,numeric,boolean)",
+    "phone_check_in_decide(uuid,boolean,text)",
+    "phone_check_in_is_supervisor()",
+    "phone_check_in_may_decide(uuid)",
+    "phone_check_in_requests()",
+    "set_phone_check_in_supervisor_role(text)"
+  ],
+  "tables": [
+    {
+      "table": "phone_check_ins",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "another organisation's blind read by id returns no row; within the organisation only the person, the crew controller, the check-in supervisor and Admin read"
+    }
+  ]
+}
