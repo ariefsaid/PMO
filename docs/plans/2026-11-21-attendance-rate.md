@@ -85,6 +85,6 @@ Gate evidence (2026-11-21, this branch):
 | `npm run check:guards` | passed — i18n parity (en+id) passed, plain words 12468 strings clean, unpaged reads OK (39 allowlisted, 0 new), layout baseline none grew, migrations/ADRs/anon-definer/retention/module/ui-system self-tests green |
 | `npm run typecheck` | passed (app, server, test, tooling projects) |
 | `npx eslint --max-warnings=0 <changed files>` | passed, no output |
-| `npx vitest run` on the touched files | 24 new tests + Crews page tests 4 + `policy`/`usePermission`/crew-list/tick/site-lists 200 — all passed |
+| `npx vitest run` on the touched files | `Test Files 6 passed (6)`, `Tests 209 passed (209)` — the DAL, the rate view, the Crews tab gate, the Admin panel, plus `policy.test.ts` and `usePermission.test.tsx` |
 | pgTAP on the spare runner (`vps-pgtap.sh feat/2706-attendance-rate supabase/tests/attendance_rate.test.sql`) | `All tests successful. Files=1, Tests=29 ... Result: PASS` |
 | Mutation check (role gate) | allowing `Engineer` in the RPC's role list reddens exactly test 25 (AC-ATR-007, "caught: no exception / wanted 42501"); restored |
