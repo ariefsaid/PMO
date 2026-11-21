@@ -1,7 +1,7 @@
--- 1135_subcontractor_rate_card.sql — #2584 Slice 1: the subcontractor rate card, and the crew on a progress line.
+-- 1184_subcontractor_rate_card.sql — #2584 Slice 1: the subcontractor rate card, and the crew on a progress line.
 -- Spec docs/specs/subcontractor-progress-certificate.spec.md (FR-SPC-001..003, FR-SPC-019/020; OD-SPC-1/2/3) ·
 -- Plan docs/plans/2026-11-20-subcontractor-progress-certificate.md. Proven by supabase/tests/subcontract_rate_card.test.sql.
--- Rollback: rollback/1135_subcontractor_rate_card_down.sql (refused while a rate line or a crewed progress line exists).
+-- Rollback: rollback/1184_subcontractor_rate_card_down.sql (refused while a rate line or a crewed progress line exists).
 --
 -- §1 The rate card: one cost rate per (vendor company, contract item) per month window. It is NOT the client rate catalogue
 --    (#2520) and NOT the T&M card (0515): paying the vendor the client's selling price is the defect OD-SPC-2 names.

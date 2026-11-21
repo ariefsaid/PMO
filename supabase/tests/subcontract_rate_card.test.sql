@@ -1,5 +1,5 @@
 -- #2584 S1: the subcontractor rate card and the crew on a progress line (AC-SPC-004, AC-SPC-017 rate rows; FR-SPC-001..003, OD-SPC-1/2/3).
--- Migration under test: 1135_subcontractor_rate_card.sql. Plan docs/plans/2026-11-20-subcontractor-progress-certificate.md.
+-- Migration under test: 1184_subcontractor_rate_card.sql. Plan docs/plans/2026-11-20-subcontractor-progress-certificate.md.
 begin;
 create extension if not exists pgtap;
 select plan(28);

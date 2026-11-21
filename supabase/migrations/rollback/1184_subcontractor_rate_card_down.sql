@@ -1,4 +1,4 @@
--- 1135_subcontractor_rate_card_down.sql — refused while a rate line or a crewed progress line exists (NFR-SPC-005).
+-- 1184_subcontractor_rate_card_down.sql — refused while a rate line or a crewed progress line exists (NFR-SPC-005).
 do $$ begin
   if exists (select 1 from public.subcontractor_rate_lines) or exists (select 1 from public.dsr_progress_lines where crew_id is not null)
   then raise exception 'rollback refused: subcontractor rate lines or crewed progress lines exist — export and remove them first'; end if;
