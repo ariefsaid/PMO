@@ -1,0 +1,9 @@
+# #2708 leave requests (1240-1243): every function checks is_active_member and the caller's org; leave_requests_ pgTAP.
+leave_request_submit  # person, line manager or office user only; overlap refused
+leave_request_decide  # line manager or the org's approver role; never the requester, the person or the enterer (LV_SOD)
+leave_request_cancel  # the person or enterer while Pending; an approver for Approved
+set_leave_settings  # active Admin, own organisation only
+leave_on_date  # active member; the caller's organisation; empty while the feature is off
+leave_requestable_people  # active member; the caller's organisation
+leave_authority  # active member; boolean about the caller's own authority
+leave_enabled  # active member; the caller's own organisation setting

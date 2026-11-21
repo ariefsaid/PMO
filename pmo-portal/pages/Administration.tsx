@@ -28,6 +28,7 @@ import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 import { AccountingHelp } from './admin/AccountingHelp';
 import OrgTaxDefault from './admin/OrgTaxDefault';
+import LeaveRequestsSetting from './admin/LeaveRequestsSetting';
 import OrgFiscalYearStart from './admin/OrgFiscalYearStart';
 import OrgBuiltInRoles from './admin/OrgBuiltInRoles';
 import SpendApprovers from './admin/SpendApprovers';
@@ -268,6 +269,7 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-clearance" className="min-w-0">
           <SectionName name={label('clearance')} />
           <Clearance />
+          <LeaveRequestsSetting />
         </div>
       );
     case 'integrations':

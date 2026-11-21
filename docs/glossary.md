@@ -1057,3 +1057,16 @@ the material close-out: joint count, loss report, material completion report). T
 **Role tier** — manager, officer or field. Managers approve, officers prepare, field roles are light accounts; a manager stands in for a manager, never upward.
 
 **Role capability** — a narrow difference from the base level held by named built-in roles only (for example posting stock, validating a daily report, running billing stages). Other features read it through `actor_has_role_capability`.
+## Leave requests (#2708)
+
+**Leave request** — a request by or for a person to be away for an inclusive range of days, of a type from the organisation's own list.
+It is Pending until the person's line manager, or a user holding the organisation's approver role, approves or rejects it. Nobody
+decides a request they made, are the subject of, or entered, whatever their role.
+
+**Leave type** — an entry on the organisation's own list of reasons for being away (leave, sickness, and so on). PMO ships none.
+
+**Leave approver role** — the organisation setting naming which role decides leave requests besides the line manager; empty means Admin.
+
+**On leave (roster marker)** — a chip beside a rostered person who has approved leave on the day shown. It is information only and does
+not stop attendance being ticked.
+

@@ -13,6 +13,7 @@ import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTim
 import { ProcurementBulkConfirm, ProcurementBulkSelect, ProcurementBulkToolbar } from './approvals/ProcurementBulkApprove';
 import { useProcurementBulkApprove } from './approvals/useProcurementBulkApprove';
 import { ExpenseClaimApprovalSection } from './approvals/ExpenseClaimApprovalSection';
+import { LeaveApprovalSection } from './approvals/LeaveApprovalSection';
 import { ImprestApprovalSection } from './approvals/ImprestApprovalSection';
 import { SalesInvoiceApprovalSection } from './approvals/SalesInvoiceApprovalSection';
 import { PushAttentionSection } from './approvals/PushAttentionSection';
@@ -412,6 +413,8 @@ const ApprovalsPage: React.FC = () => {
       {activeScope === 'all' && canShowExpenses && <ExpenseClaimApprovalSection />}
       {activeScope === 'all' && canApproveExpenses && <ImprestApprovalSection />}
       {activeScope === 'all' && canShowInvoices && <SalesInvoiceApprovalSection />}
+      {/* #2708: renders nothing while leave requests are off or none waits for this viewer. */}
+      <LeaveApprovalSection />
       {hasTimesheetRole && <PushAttentionSection />}
       {hasTimesheetRole && <EmployeeLinkConfirmSection />}
       {canApproveTimesheets && <ReopenableApprovedSection hasPending={allPopulation.length > 0 || procPending || tsPending || expenseQuery.isPending || invoices.isPending} />}

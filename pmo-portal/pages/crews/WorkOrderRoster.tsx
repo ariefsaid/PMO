@@ -7,6 +7,7 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useCrewMutations, useCrews, useWorkOrderCrews, useWorkOrderRoster } from '@/src/hooks/useCrews';
+import { useLeaveOnDate } from '@/src/hooks/useLeave';
 import type { RosterCrew, WorkOrderCrewRow } from '@/src/lib/repositories/crews';
 import { formatDay } from '@/src/lib/format';
 import { toIso } from '../equipment/equipmentWeek';
@@ -53,7 +54,7 @@ const RosterCrewModal: React.FC<{ workOrderId: string; from: string; onClose: ()
 };
 
 /** One rostered crew on the date: its people and standard-role headcount against placed (FR-CRW-007). */
-const RosterCrewCard: React.FC<{ crew: RosterCrew }> = ({ crew }) => {
+const RosterCrewCard: React.FC<{ crew: RosterCrew; onLeave: ReadonlySet<string> }> = ({ crew, onLeave }) => {
   const { t } = useTranslation('crews');
   const headingId = `roster-crew-${crew.crew_id}`;
   const roleName = (id: string | null) => crew.roles.find((r) => r.standard_role_id === id)?.name ?? '—';
@@ -86,7 +87,10 @@ const RosterCrewCard: React.FC<{ crew: RosterCrew }> = ({ crew }) => {
           <ul className="divide-y divide-border">
             {crew.members.map((m) => (
               <li key={m.worker_id} className="flex items-center justify-between py-2 text-sm">
-                <span className="text-foreground">{m.display_name}</span>
+                <span className="text-foreground">
+                  {m.display_name}
+                  {onLeave.has(m.worker_id) && <StatusPill variant="neutral" className="ml-2">{t('crews:leave.onLeave', 'On leave')}</StatusPill>}
+                </span>
                 <span className="text-muted-foreground">{roleName(m.standard_role_id)}</span>
               </li>
             ))}
@@ -110,6 +114,8 @@ export const WorkOrderRoster: React.FC = () => {
   const date = ISO.test(values.date) ? values.date : today;
   const roster = useWorkOrderRoster(workOrderId, date);
   const placements = useWorkOrderCrews(workOrderId);
+  // #2708: an additive marker. Empty while leave requests are off or nobody is on approved leave, so the roster is unchanged.
+  const onLeave = new Set(useLeaveOnDate(workOrderId ? date : null).data ?? []);
   const crews = useCrews();
   const { endRoster } = useCrewMutations();
   const [rostering, setRostering] = useState(false);
@@ -153,7 +159,7 @@ export const WorkOrderRoster: React.FC = () => {
             {rosterAction}
           </div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-2">{(roster.data ?? []).map((c) => <RosterCrewCard key={c.crew_id} crew={c} />)}</div>
+          <div className="grid gap-6 lg:grid-cols-2">{(roster.data ?? []).map((c) => <RosterCrewCard key={c.crew_id} crew={c} onLeave={onLeave} />)}</div>
         )
       )}
       {workOrderId && (
