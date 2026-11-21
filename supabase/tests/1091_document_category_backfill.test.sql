@@ -1,6 +1,6 @@
 -- 1091_document_category_backfill.test.sql — AC-DCV-001 parity at the upgrade: documents that exist BEFORE the change (free-text category,
 -- no reference) get a category, keep their audience (every role), and keep the name they showed. The legacy shape is rebuilt inside this
--- transaction (reference column nullable, resolver off, text-only rows), then the backfill statements of 1091 run over it.
+-- transaction (reference column nullable, resolver off, text-only rows), then the backfill statements of 1165 run over it.
 begin;
 select plan(8);
 
@@ -23,7 +23,7 @@ insert into project_documents (id, org_id, project_id, category, title, author_i
   ('02579000-0000-0000-0000-0000000000d6', '02579000-0000-0000-0000-0000000000c1', '02579000-0000-0000-0000-0000000000c3', 'Reference', 'a folder reference label', '02579000-0000-0000-0000-0000000000c2');
 update project_documents set category_id = null where org_id = '02579000-0000-0000-0000-0000000000c1';
 
--- the backfill statements of 1091, verbatim
+-- the backfill statements of 1165, verbatim
 insert into public.document_categories (org_id, name, sort_order)
 select d.org_id, min(btrim(d.category)), 1000 + (row_number() over (partition by d.org_id order by lower(btrim(d.category))))::int * 10
   from public.project_documents d

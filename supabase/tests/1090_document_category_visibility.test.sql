@@ -1,5 +1,5 @@
 -- 1090_document_category_visibility.test.sql — #2579 document categories with per-role visibility.
--- Spec docs/specs/document-category-visibility.spec.md. Migrations under test: 1090..1094 (+ rollbacks).
+-- Spec docs/specs/document-category-visibility.spec.md. Migrations under test: 1164..1168 (+ rollbacks).
 -- Fixture: org A with categories Commercial approval (Admin, Executive, Finance), Invoice (Admin, Finance), Drawing (all roles);
 -- one document in each with an uploaded file object; one user per role; a second organisation.
 begin;
