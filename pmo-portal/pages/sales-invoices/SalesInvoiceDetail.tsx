@@ -12,11 +12,12 @@ import { statusLabel } from '@/src/lib/status/statusMap';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { clientInvoiceOverdueDays, deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
-import { invoiceNumber, isPartlyPaid, paidToDate } from '@/src/lib/revenue/nativeInvoice';
+import { invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { SalesInvoiceEvidenceWithPayments } from './SalesInvoiceEvidence';
 import { useIncomingPayments } from '@/src/hooks/useRevenue';
+import { salesInvoicePaymentFacts } from './salesInvoicePaymentFacts';
 import { cn } from '@/src/components/ui/cn';
 
 function WorkOrderReference({ id }: { id: string }) {
@@ -55,18 +56,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
   const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
   const isPaid = viewTarget?.status === 'Paid';
   const payments = useIncomingPayments(undefined, Boolean(viewTarget), viewTarget?.id);
-  const paidAmount = viewTarget ? paidToDate(viewTarget) : null;
-  // A single live native allocation tied to a single dated receipt gives an unambiguous receipt date.
-  const matchingReceipts = viewTarget?.pmo_native && !payments.isPending && !payments.isError
-    ? (payments.data ?? []).filter((payment) => payment.pmo_native && payment.status === 'Paid'
-      && !payment.cancelled_at && !payment.erp_cancelled_at
-      && payment.allocations?.some((allocation) => allocation.sales_invoice_id === viewTarget.id))
-    : [];
-  const receipt = matchingReceipts.length === 1 ? matchingReceipts[0] : null;
-  const allocations = receipt?.allocations?.filter((allocation) => allocation.sales_invoice_id === viewTarget?.id) ?? [];
-  const paidDate = receipt && paidAmount != null && allocations.length === 1
-    && allocations[0].currency === viewTarget?.currency && allocations[0].amount === paidAmount
-    ? receipt.date : null;
+  const { amount: paidAmount, date: paidDate } = salesInvoicePaymentFacts(viewTarget, payments);
   const dueDate = viewTarget ? deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date) : null;
   // #1457: the one shared overdue rule gates the stat and supplies the day count.
   const overdueDays = viewTarget ? clientInvoiceOverdueDays(viewTarget, organizationToday) : null;

@@ -957,6 +957,60 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     expect(within(drawer).getAllByText(/outstanding balance is not known yet/)).toHaveLength(1);
   });
 
+  it('keeps the shared outstanding column and zero balance for a paid list row', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Paid', pmo_number: 'PAID-LIST', erp_outstanding_amount: 0 })];
+    renderPage('/finance/receivables', true);
+    expect(screen.getByRole('columnheader', { name: 'Outstanding' })).toBeInTheDocument();
+    expect(rowFor('PAID-LIST')).toHaveTextContent(/IDR\s*0/);
+  });
+
+  it('a paid drawer shows the known native payment and its receipt date, without due or outstanding fields', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Paid', pmo_number: 'PAID-1', invoice_date: '2026-10-01', received_date: '2026-10-12', erp_payment_terms_days: 30, erp_outstanding_amount: 0 })];
+    h.payments = [{ id: 'payment-1', pmo_native: true, status: 'Paid', currency: 'IDR', date: '2026-10-20', cancelled_at: null, erp_cancelled_at: null,
+      allocations: [{ id: 'a1', sales_invoice_id: 'si-n1', amount: 1110000, cash_amount: 1110000, withheld_amount: 0, currency: 'IDR' }] } as IncomingPaymentRow];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    const facts = within(drawer).getByText('Amount').closest('dl') as HTMLElement;
+    expect(within(facts).queryByText('Outstanding · tax included')).not.toBeInTheDocument();
+    expect(within(facts).queryByText('Due date')).not.toBeInTheDocument();
+    expect(within(facts).getByText('Amount paid').parentElement).toHaveTextContent(/1,110,000/);
+    expect(within(facts).getByText('Paid date').parentElement).toHaveTextContent('20 Oct 2026');
+    expect(within(drawer).getAllByText('Paid').length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    { pmo_native: false, amount: 1000000, erp_outstanding_amount: 0 },
+    { pmo_native: true, amount: null, erp_outstanding_amount: 0 },
+    { pmo_native: true, amount: 1000000, erp_outstanding_amount: null },
+  ])('a paid drawer leaves unknown payment facts unavailable %#', (facts) => {
+    h.invoices.data = [nativeInvoice({ ...facts, status: 'Paid', pmo_number: 'PAID-1', invoice_date: '2026-10-01', received_date: '2026-10-12', erp_payment_terms_days: 30 })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    const field = within(drawer).getByText('Paid date').closest('dl') as HTMLElement;
+    expect(within(field).getByText('Payment date not recorded')).toBeInTheDocument();
+    expect(within(field).getByText('Amount not available')).toBeInTheDocument();
+    expect(within(field).queryByText('Outstanding · tax included')).not.toBeInTheDocument();
+    expect(within(field).queryByText('Due date')).not.toBeInTheDocument();
+  });
+
+  it.each([1110000, 500000])('an unpaid drawer retains due and outstanding facts with balance %i', (balance) => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'OPEN-1', invoice_date: '2026-10-01', received_date: '2026-10-12', erp_payment_terms_days: 30, erp_outstanding_amount: balance })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByText('Outstanding · tax included')).toBeInTheDocument();
+    expect(within(drawer).getByText('Due date')).toBeInTheDocument();
+    expect(within(drawer).queryByText('Paid date')).not.toBeInTheDocument();
+  });
+
+  it('a paid drawer describes unknown payment facts in Bahasa', async () => {
+    await financeTestI18n.changeLanguage('id');
+    h.invoices.data = [nativeInvoice({ status: 'Paid', pmo_number: 'PAID-1', pmo_native: false, invoice_date: '2026-10-01', received_date: '2026-10-12', erp_payment_terms_days: 30, erp_outstanding_amount: 0 })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByText('Tanggal pembayaran belum dicatat')).toBeInTheDocument();
+    expect(within(drawer).getByText('Jumlah tidak tersedia')).toBeInTheDocument();
+  });
+
   it('AC-RET-005 the drawer shows the retention still held and what is due now (outstanding less retention) (#2625)', () => {
     h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 610_000, erp_payment_terms_days: 30, retention_held: 50_000 })];
     renderPage('/finance/receivables?open=si-n1', true);
