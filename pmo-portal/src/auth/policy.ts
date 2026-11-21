@@ -456,6 +456,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   /** The check types, permit types and pre-work checklist: Admin-only rows (1410) and the switch (set_safety_records_enabled). */
   safetyLists: { manage: allow(ADMIN) },
+  /**
    * Quantity change requests (#2578). UX only: qcr_* functions and RLS are the authority (ADR-0016/0019).
    *   view ← read;  create ← raise or edit a draft;  act ← submit (the author or an editor);
    *   approve ← approve or return, never the author, ANY editor (`record.editor_ids`) or the submitter (`record.submitted_by`);
