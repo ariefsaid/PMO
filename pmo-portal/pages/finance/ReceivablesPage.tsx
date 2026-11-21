@@ -8,6 +8,7 @@ import { figureCols, moneyTileProps } from '@/src/components/finance/moneyTile';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { useReceivablesPagePosition } from '@/src/hooks/useReceivablesPagePosition';
 import { BillingBoardLink } from '@/src/components/finance/BillingBoardLink';
+import { BillingPlanLink } from '@/src/components/finance/BillingPlanLink';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
@@ -177,6 +178,7 @@ export default function ReceivablesPage() {
         className="order-1"
         action={<div className="flex flex-wrap items-center gap-2">
           <BillingBoardLink />
+          <BillingPlanLink />
           {canCreateInvoice && <div data-testid="receivables-header-new-invoice"><Button type="button" variant="primary" onClick={openNewInvoice}><Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}</Button></div>}
           {canCreatePayment && <div data-testid="receivables-header-receive-payment"><Button type="button" variant="outline" onClick={openNewPayment}><Icon name="plus" />{t('financeCopy.receivePayment', 'Receive payment')}</Button></div>}
         </div>}

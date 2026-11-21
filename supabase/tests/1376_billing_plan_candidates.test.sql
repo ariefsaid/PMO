@@ -2,7 +2,7 @@
 -- Org a1: b1 finance, b6 engineer. Org a2 (foreign): b9 finance. Project c1 (live), c3 (archived), c4 (foreign).
 begin;
 create extension if not exists pgtap;
-select plan(19);
+select plan(20);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('13760000-0000-0000-0000-0000000000a1', 'MBP Org A', 'IDR', 'UTC'), ('13760000-0000-0000-0000-0000000000a2', 'MBP Org B', 'IDR', 'UTC');
@@ -27,10 +27,11 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
   ('13760000-0000-0000-0000-0000000000d1', '13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000c1', 'MBP lines order', 'Issued', 100000, 'exclusive', 0, 'IDR'),
   ('13760000-0000-0000-0000-0000000000d2', '13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000c1', 'MBP money order', 'Issued', 7000, 'exclusive', 0, 'IDR'),
   ('13760000-0000-0000-0000-0000000000d3', '13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000c1', 'MBP draft money order', 'Draft', 3000, 'exclusive', 0, 'IDR'),
+  ('13760000-0000-0000-0000-0000000000d4', '13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000c1', 'MBP lines order, nothing claimed', 'Issued', 50000, 'exclusive', 0, 'IDR'),
   ('13760000-0000-0000-0000-0000000000d5', '13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000c3', 'MBP archived order', 'Issued', 9000, 'exclusive', 0, 'IDR'),
   ('13760000-0000-0000-0000-0000000000d6', '13760000-0000-0000-0000-0000000000a2', '13760000-0000-0000-0000-0000000000c4', 'MBP foreign order', 'Issued', 9000, 'exclusive', 0, 'IDR');
 insert into work_order_lines (org_id, work_order_id, boq_item_id, quantity) values
-  ('13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000d1', '13760000-0000-0000-0000-000000000041', 20), ('13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000d1', '13760000-0000-0000-0000-000000000042', 30), ('13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000d1', '13760000-0000-0000-0000-000000000043', 10), ('13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000d1', '13760000-0000-0000-0000-000000000044', 10);
+  ('13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000d1', '13760000-0000-0000-0000-000000000041', 20), ('13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000d1', '13760000-0000-0000-0000-000000000042', 30), ('13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000d1', '13760000-0000-0000-0000-000000000043', 10), ('13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000d1', '13760000-0000-0000-0000-000000000044', 10), ('13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000d4', '13760000-0000-0000-0000-000000000043', 5);
 -- A confirmed acceptance on d1: I-1 accepted 12, I-2 accepted 5, I-4 accepted 4; I-3 has no acceptance line (accepted null).
 insert into work_order_acceptances (id, org_id, project_id, work_order_id, acceptance_date, is_final, status, prepared_by, confirmed_by, confirmed_at, confirm_basis) values
   ('13760000-0000-0000-0000-000000000051', '13760000-0000-0000-0000-0000000000a1', '13760000-0000-0000-0000-0000000000c1', '13760000-0000-0000-0000-0000000000d1', current_date, false, 'Confirmed', '13760000-0000-0000-0000-0000000000b1', '13760000-0000-0000-0000-0000000000b1', timestamptz '2026-05-04 10:00+00', 'standard');
@@ -67,6 +68,7 @@ select is((select value from billing_plan_candidates() where kind = 'order'), (s
 -- AC-MBP-003: exclusions.
 select is((select count(*)::int from billing_plan_candidates() where boq_item_id in ('13760000-0000-0000-0000-000000000043', '13760000-0000-0000-0000-000000000044')), 0, 'AC-MBP-003 accepted null and accepted-equals-claimed lines do not appear');
 select is((select count(*)::int from billing_plan_candidates() where work_order_id = '13760000-0000-0000-0000-0000000000d3'), 0, 'AC-MBP-003 a draft money-only order does not appear');
+select is((select count(*)::int from billing_plan_candidates() where work_order_id = '13760000-0000-0000-0000-0000000000d4'), 0, 'AC-MBP-003 an order that has contract lines is counted through them, never again as a lump');
 select is((select count(*)::int from billing_plan_candidates() where project_id = '13760000-0000-0000-0000-0000000000c3'), 0, 'AC-MBP-003 an archived project does not appear');
 -- AC-MBP-005: project filter.
 select is((select count(*)::int from billing_plan_candidates('13760000-0000-0000-0000-0000000000c1')), 3, 'AC-MBP-005 project filter keeps that project');

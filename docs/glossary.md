@@ -421,6 +421,12 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Billing board** — a read-only screen listing every open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with the days on that step and an overdue chip. It is a view over the claims' own steps: nothing is stored for it, and a claim moves on only by completing its step on the claim. Bahasa Indonesia: Papan penagihan (#2681).
 
+**Billing plan** — a screen at the Receivables header that lists billing candidates against a monthly target. Candidates only: ticks are view state, nothing is stored for them, and nothing raises a claim or an invoice. Over-claim shows as a warning, never a block. Bahasa Indonesia: Rencana penagihan (#2682).
+
+**Billing candidate** — accepted work that is not yet claimed: accepted quantity above claimed quantity on a work-order allocation (the Cascade's "Unclaimed"), or a money-only order with an amount left. "Progress not yet client-certified" in the ticket words (#2682).
+
+**Monthly target** — the amount the organisation aims to bill in a calendar month, with its currency; a default plus optional per-month overrides, set by Admin or Finance. Other currencies are listed apart, not converted (#2682).
+
 **Board column** — one step name on the billing board, ordered by the median position of that name across the claims; a final column, All steps done, holds claims ready to invoice (#2681).
 
 **Invoice deadline** — the project's monthly day (1–31, clamped to the month's end) by which its invoice must reach the client, with a warning window in days. A claim shows it while its stages are still open or it has no stage plan; it is hidden once every planned stage is complete (#2522).

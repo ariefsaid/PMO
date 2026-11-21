@@ -77,6 +77,20 @@ export type Database = {
           },
         ]
       }
+      org_billing_plan_settings: {
+        Row: { org_id: string; monthly_target: number | null; target_currency: string | null; done_not_claimed_reminder_on: boolean; updated_by: string; updated_at: string }
+        ComputedFields: never
+        Insert: { org_id: string; monthly_target?: number | null; target_currency?: string | null; done_not_claimed_reminder_on?: boolean; updated_by: string; updated_at?: string }
+        Update: { org_id?: string; monthly_target?: number | null; target_currency?: string | null; done_not_claimed_reminder_on?: boolean; updated_by?: string; updated_at?: string }
+        Relationships: []
+      }
+      billing_plan_month_targets: {
+        Row: { org_id: string; month: string; target: number; updated_by: string; updated_at: string }
+        ComputedFields: never
+        Insert: { org_id: string; month: string; target: number; updated_by: string; updated_at?: string }
+        Update: { org_id?: string; month?: string; target?: number; updated_by?: string; updated_at?: string }
+        Relationships: []
+      }
       billing_stage_templates: {
         Row: {
           owner_role: Database["public"]["Enums"]["user_role"] | null
@@ -13569,6 +13583,12 @@ export type Database = {
         Args: { p_project?: string }
         Returns: { all_done: boolean; claim_created_at: string; claim_id: string; current_name: string | null; current_position: number | null; current_stage_id: string | null; due_on: string | null; last_completed_on: string | null; owner_role: Database["public"]["Enums"]["user_role"] | null; project_id: string; project_name: string; started_on: string | null; step_count: number; steps_done: number; target_days: number | null; target_on: string | null; today: string; wo_number: string | null; work_order_id: string | null }[]
       }
+      billing_plan_candidates: {
+        Args: { p_project?: string }
+        Returns: { kind: string; project_id: string; project_name: string; currency: string; work_order_id: string | null; wo_number: string | null; boq_item_id: string | null; item_code: string | null; description: string | null; unit: string | null; earning_basis: string | null; rate: number | null; contract_quantity: number | null; accepted_quantity: number | null; claimed_quantity: number | null; unclaimed_quantity: number | null; value: number; accepted_on: string | null; today: string }[]
+      }
+      set_billing_plan_settings: { Args: { p_target: number | null; p_currency: string | null; p_reminder_on: boolean }; Returns: Database["public"]["Tables"]["org_billing_plan_settings"]["Row"] }
+      set_billing_plan_month_target: { Args: { p_month: string; p_target: number | null }; Returns: undefined }
       remove_claim_billing_step: { Args: { p_reason: string; p_stage: string }; Returns: undefined }
       save_billing_step_template: { Args: { p_name: string; p_steps: Json; p_template: string | null }; Returns: string }
       update_claim_billing_step: { Args: { p_patch: Json; p_stage: string }; Returns: undefined }

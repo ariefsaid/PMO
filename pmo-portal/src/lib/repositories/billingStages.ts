@@ -8,6 +8,7 @@ import {
   loadStepTemplateOntoProject, moveClaimStep, removeClaimStep, saveStepTemplate, updateClaimStep,
 } from '@/src/lib/db/billingSteps';
 import { getBillingBoard } from '@/src/lib/db/billingBoard';
+import { getPlanCandidates, getPlanSettings, saveMonthTarget, savePlanSettings } from '@/src/lib/db/billingPlan';
 import { wrap } from './repositoryErrors';
 import type { BillingStagesRepository } from './contracts/billingStages';
 
@@ -17,6 +18,10 @@ import type { BillingStagesRepository } from './contracts/billingStages';
  */
 export const billingStagesRepository: BillingStagesRepository = {
   readBoard: (projectId) => wrap(() => getBillingBoard(projectId)),
+  readPlanCandidates: (projectId) => wrap(() => getPlanCandidates(projectId)),
+  getPlanSettings: () => wrap(() => getPlanSettings()),
+  savePlanSettings: (input) => wrap(() => savePlanSettings(input)),
+  saveMonthTarget: (month, target) => wrap(() => saveMonthTarget(month, target)),
   getTemplate: (projectId) => wrap(() => getBillingStageTemplate(projectId)),
   setTemplate: (projectId, stages) => wrap(() => setBillingStageTemplate(projectId, stages)),
   setTerms: (projectId, stages, day, warnDays, pct) => wrap(() => setProjectBillingTerms(projectId, stages, day, warnDays, pct)),

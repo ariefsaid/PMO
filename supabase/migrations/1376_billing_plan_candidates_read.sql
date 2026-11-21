@@ -2,7 +2,8 @@
 -- Spec docs/specs/monthly-billing-plan.spec.md (FR-MBP-001..005); proven by supabase/tests/1376_billing_plan_candidates.test.sql.
 -- "Progress not yet client-certified" = accepted-not-yet-claimed (the Cascade's "Unclaimed"). ONE definition: quantity lines come from
 -- get_project_billing (accepted_quantity above claimed_quantity per work-order allocation, times the contract line rate) and money-only
--- orders from work_order_billing (line_count = 0, figures_complete, remaining > 0). Nothing is recomputed here, nothing is written.
+-- orders from work_order_billing (line_count = 0, figures_complete, remaining > 0, and no contract lines of its own: an order that has
+-- lines is counted through them, not twice). Nothing is recomputed here, nothing is written.
 -- SECURITY INVOKER: RLS decides what a caller sees; money is visible to Admin, Executive, Project Manager and Finance only, so the read
 -- also names those roles (an Engineer can read projects but not claim money and gets nothing). Bounded: 501 rows (the caller shows 500 and says so).
 -- Only projects with a confirmed acceptance are walked, so the per-project call stays proportional to billable work.
@@ -46,6 +47,8 @@ create function public.billing_plan_candidates(p_project uuid default null)
        and pr.archived_at is null
        and (p_project is null or pr.id = p_project)
        and b.line_count = 0 and b.figures_complete and b.remaining > 0 and b.status in ('Issued', 'Closed')
+       -- An order with contract lines is counted through its lines above, never again as a lump (no double count).
+       and not exists (select 1 from public.work_order_lines wl where wl.work_order_id = b.work_order_id)
   ), pool as (
     select * from lines union all select * from orders
   )

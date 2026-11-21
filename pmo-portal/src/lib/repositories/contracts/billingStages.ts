@@ -11,10 +11,17 @@ import type {
 import type { OverdueClaimStep, StepInput, StepPatch, StepTemplate, WaitingStep } from '@/src/lib/db/billingSteps';
 
 import type { BillingBoardResult } from '@/src/lib/db/billingBoard';
+import type { PlanCandidatesResult, PlanSettings } from '@/src/lib/db/billingPlan';
 
 export interface BillingStagesRepository {
   /** #2681: the billing board's rows (a read-only view over the claims' own steps). */
   readBoard(projectId: string | null): Promise<BillingBoardResult>;
+  /** #2682: accepted-not-yet-claimed candidates for the monthly billing plan (read only; never raises a claim). */
+  readPlanCandidates(projectId: string | null): Promise<PlanCandidatesResult>;
+  /** #2682: the plan's target, its currency, the month overrides and the done-not-claimed reminder switch (off by default). */
+  getPlanSettings(): Promise<PlanSettings>;
+  savePlanSettings(input: { monthlyTarget: number | null; targetCurrency: string | null; reminderOn: boolean }): Promise<void>;
+  saveMonthTarget(month: string, target: number | null): Promise<void>;
   getTemplate(projectId: string): Promise<StageTemplateInput[]>;
   setTemplate(projectId: string, stages: StageTemplateInput[]): Promise<number>;
   setTerms(projectId: string, stages: StageTemplateInput[], day: number | null, warnDays: number, pct: number): Promise<void>;

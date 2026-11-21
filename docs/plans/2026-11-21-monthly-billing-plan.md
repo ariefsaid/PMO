@@ -9,7 +9,7 @@ Spec `docs/specs/monthly-billing-plan.spec.md`. Test-first; each step names its 
 4. **Unit red** `pmo-portal/src/lib/billingPlan.test.ts` (AC-MBP-010..012), then `pmo-portal/src/lib/billingPlan.ts` (cents arithmetic via `progressBilling` helpers, `remainingQuantity` reuse).
 5. **Data layer**: `src/lib/db/billingPlan.ts` (+ test), repository entry in `src/lib/repositories`, hooks `useBillingPlanCandidates`, `useBillingPlanSettings`, `useSaveBillingPlanSettings`; permission `billingPlanSettings` in `src/auth/policy.ts` (Admin, Finance).
 6. **RTL red** `pmo-portal/pages/BillingPlan.test.tsx` (AC-MBP-013..016) and Receivables link test file new (AC-MBP-017, existing Receivables tests untouched); then `pages/BillingPlan.tsx` (read `.claude/skills/restructure/SKILL.md` first), `BillingPlanLink`, settings modal on `EntityFormModal`, route `/finance/billing-plan` in `App.tsx`, strings en + id.
-7. **e2e** `pmo-portal/e2e/AC-MBP-018-monthly-billing-plan.spec.ts` with isolation tag per `docs/e2e-parallel-conventions.md`.
+7. **e2e** `pmo-portal/e2e/serial/AC-MBP-018-monthly-billing-plan.spec.ts` with isolation tag per `docs/e2e-parallel-conventions.md`.
 8. **Docs**: `docs/glossary.md` (Candidate, Monthly target, Plan), spec status, `docs/decisions.md` pointer.
 
 ## Traceability
@@ -19,8 +19,8 @@ Spec `docs/specs/monthly-billing-plan.spec.md`. Test-first; each step names its 
 | AC-MBP-006..009 | `supabase/tests/1375_billing_plan_settings.test.sql` | pgTAP |
 | AC-MBP-010..012 | `pmo-portal/src/lib/billingPlan.test.ts` | unit |
 | AC-MBP-013..016 | `pmo-portal/pages/BillingPlan.test.tsx` | unit (RTL) |
-| AC-MBP-017 | `pmo-portal/pages/finance/BillingPlanLink.test.tsx` | unit (RTL) |
-| AC-MBP-018 | `pmo-portal/e2e/AC-MBP-018-monthly-billing-plan.spec.ts` | e2e |
+| AC-MBP-017 | `pmo-portal/pages/__tests__/ReceivablesPage.billingPlanLink.test.tsx` | unit (RTL) |
+| AC-MBP-018 | `pmo-portal/e2e/serial/AC-MBP-018-monthly-billing-plan.spec.ts` | e2e |
 
 ## Mutation checks (money-path rules)
 Settings writer: change the role check to allow any member, AC-MBP-006 must go red. Candidates: drop the `accepted > claimed` condition, AC-MBP-003 must go red.
