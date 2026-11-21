@@ -36,7 +36,7 @@ describe('stock repository (master data)', () => {
     expect(err).toBeInstanceOf(AppError);
     expect(err).toMatchObject({ message: 'nope', code: '42501' });
     vi.mocked(dal.createStockWarehouse).mockRejectedValue(new Error('boom'));
-    await expect(repositories.stock.master.createWarehouse({ code: 'W', name: 'W', kind: 'site', projectId: null })).rejects.toBeInstanceOf(AppError);
+    await expect(repositories.stock.master.createWarehouse({ code: 'W', name: 'W', kind: 'site', projectId: null, coverValue: null })).rejects.toBeInstanceOf(AppError);
   });
 });
 
