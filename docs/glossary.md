@@ -231,6 +231,8 @@ reporting manager.
 
 **Spend approver** — a user designated to approve spending for a project.
 
+**Approval tier** — an optional minimum amount on a spend approver. Where the organisation turns tiers on, a request goes to the highest tier whose minimum is at most its amount (anyone with no minimum sits in the base tier); an unknown or foreign-currency amount goes to the top tier.
+
 **Issue (site)** — a problem raised on site (#2521): an incident record that also names the person in
 charge, what must be done, a due time, optionally a work order of its project, and photo evidence.
 One record serves safety incidents and site issues; the UI says *issue* for site work and *incident*

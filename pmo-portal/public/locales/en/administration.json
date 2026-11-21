@@ -665,6 +665,16 @@
       }
     },
     "spendApprovers": {
+      "tiers": {
+        "switch": "Choose the approver by amount",
+        "on": "The approver is chosen by amount.",
+        "base": "Base tier",
+        "from": "From {{amount}}",
+        "help": "Each approver decides from the amount you set. A request goes to the highest tier at or below its amount; anyone with no amount sits in the base tier. Add a person to each tier they cover. Amounts are in your organisation currency.",
+        "fromAmount": "From amount (optional)",
+        "fromAmountHelp": "Leave empty for the base tier. Used only while choosing the approver by amount is on.",
+        "amountInvalid": "Enter an amount of zero or more."
+      },
       "whoNow": "Who can approve now",
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
     },

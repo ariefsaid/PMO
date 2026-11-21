@@ -12,7 +12,7 @@
 1. pgTAP `supabase/tests/spend_approval_tiers.test.sql` (AC-TIER-001..011); migrations 1290-1292. Existing `spend_approval_*` and `spend_approvers_config` pgTAP files stay untouched and must stay green (the flag-off proof).
 2. DAL/repository: `pmo-portal/src/lib/db/spendApprovers.ts` (`min_amount` on rows and insert; `setSpendApprovalTiersEnabled` (insert or update the settings row), `getSpendApprovalTiersEnabled` reading the settings row, upsert on write), `src/lib/repositories/contracts/admin.ts` + `admin.ts` (ADR-0017), `database.types.ts` additions by hand to match (no regen against the shared DB). Vitest: extend `spendApprovers.test.ts`.
 3. UI: `pmo-portal/pages/admin/SpendApprovers.tsx` (switch, From-amount via `TextField`, tier label, `can('manage','orgAccounting')`), strings in en and id spend-approver namespace (find with `grep -rn "spendApprovers" pmo-portal/public/locales`). Request page: show line budget/used from `approvalRoute.ts` fields in the existing decision strip (`pmo-portal/pages/ProcurementDetails.tsx`), text only. Read `restructure` and `docs/ux/screen-rules.md`. Vitest AC-TIER-012/013 in the existing test files (new cases only).
-4. e2e `pmo-portal/e2e/AC-TIER-014-amount-tier-approval.spec.ts` (written, not run; follow `docs/e2e-parallel-conventions.md`, isolation tag).
+4. e2e `pmo-portal/e2e/serial/AC-TIER-014-amount-tier-approval.spec.ts` (written, not run; follow `docs/e2e-parallel-conventions.md`, isolation tag).
 5. Glossary: add "approval tier" to `docs/glossary.md`. No ADR (additive filter on an existing rule).
 
 ## Owning layer per AC

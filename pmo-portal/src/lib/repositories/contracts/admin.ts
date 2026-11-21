@@ -127,7 +127,11 @@ export interface OrgSettingsRepository {
   /** #803: the org's spend approvers (senior set + project approvers); every active member reads. */
   listSpendApprovers(): Promise<SpendApproverRow[]>;
   /** #803, Admin-only (RLS): name an approver — `projectId` null = the overhead/over-budget set. */
-  addSpendApprover(profileId: string, projectId: string | null): Promise<void>;
+  addSpendApprover(profileId: string, projectId: string | null, minAmount?: number | null): Promise<void>;
+  /** #2695 — approver lists narrowed by amount tier (default off). */
+  getSpendApprovalTiersEnabled(): Promise<boolean>;
+  /** Admin-only (RLS). */
+  setSpendApprovalTiersEnabled(enabled: boolean): Promise<void>;
   /** #803, Admin-only (RLS): remove one approver row. */
   removeSpendApprover(id: string): Promise<void>;
 }
