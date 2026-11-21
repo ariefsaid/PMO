@@ -77,7 +77,7 @@
     {"table":"dsr_idle_periods","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"dsr_idle_reasons","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"dsr_photos","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"dsr_progress_lines","has_org":true,"pk":"id","columns":"id,org_id,report_id,position,work_order_line_id,sub_stage,quantity,unit,frozen_at,crew_id","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"dsr_progress_lines","has_org":true,"pk":"id","columns":"id,org_id,report_id,position,work_order_line_id,sub_stage,quantity,unit,frozen_at","b_read":"own-org-only","by_id":"applicable"},
     {"table":"dsr_weather_conditions","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"document_expiry_notices","has_org":true,"pk":"document_id","columns":"*","b_read":"none","by_id":"n/a: no API role has table privileges"},
     {"table":"document_types","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
