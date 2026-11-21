@@ -9,6 +9,7 @@ import { useProject } from '@/src/hooks/useProjects';
 import { useSafetyEnabled, useSafetyMutations, useSafetyWorkOrderDays } from '@/src/hooks/useSafetyDays';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
+import { SAFETY_PART_LABEL } from '@/src/lib/safetyDay';
 import type { SafetyWorkOrderDay } from '@/src/lib/db/safetyDays';
 
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -43,7 +44,7 @@ const SafetySectionBody: React.FC<{ workOrderId: string; projectId: string; stat
     try { navigate(`/safety-days/${await m.createDay.mutateAsync({ workOrderId, workDate: row.work_date })}`); }
     catch (err) { const { headline, detail } = classifyMutationError(err); toast(headline, detail, 'warning'); }
   };
-  const partLabel = (p: string) => t(`parts.${p}`, p);
+  const partLabel = (p: string) => t(`parts.${p}`, SAFETY_PART_LABEL[p as keyof typeof SAFETY_PART_LABEL] ?? p);
   const state = (r: SafetyWorkOrderDay) => {
     if (r.complete) return <StatusPill variant="won">{t('day.complete', 'Complete')}</StatusPill>;
     if (!r.day_id) return <StatusPill variant="warn">{t('day.noRecord', 'Worked without a safety record')}</StatusPill>;

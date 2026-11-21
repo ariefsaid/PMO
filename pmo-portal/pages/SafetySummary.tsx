@@ -17,6 +17,11 @@ const DETAIL_KIND: Partial<Record<SafetyFigureKey, SafetyDetailKind>> = {
   daysWithoutRecord: 'days_without_record',
 };
 
+const FIGURE_LABEL: Record<SafetyFigureKey, string> = {
+  workedMinutes: 'Worked hours', safeMinutes: 'Safe hours', lostTimeIncidents: 'Lost-time incidents', recordableIncidents: 'Recordable incidents',
+  nearMisses: 'Near misses', toolboxTalks: 'Toolbox talks held', completeDays: 'Complete days', daysWithoutRecord: 'Days worked without a safety record',
+};
+
 const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
 /**
@@ -41,7 +46,7 @@ const SafetySummary: React.FC = () => {
   if (!enabled.data) return <ListState variant="empty" icon="reports" title={t('summary.off', 'Safety records are not switched on for this organisation')} />;
 
   const figures = summary.data ? deriveSafetySummaryView(summary.data) : [];
-  const label = (f: SafetyFigure) => t(`summary.figure.${f.key}`, f.key);
+  const label = (f: SafetyFigure) => t(`summary.figure.${f.key}`, FIGURE_LABEL[f.key]);
   const value = (f: SafetyFigure) => (f.value === null ? '—' : f.unit === 'minutes' ? formatSafetyMinutes(f.value) : String(f.value));
   const hidden = figures.filter((f) => f.hidden);
 
@@ -93,7 +98,7 @@ const SafetySummary: React.FC = () => {
             {open && (
               <Card>
                 <div className="p-4" data-testid="safety-detail">
-                  <h2 className="text-group font-semibold">{t(`summary.figure.${open}`, open)}</h2>
+                  <h2 className="text-group font-semibold">{t(`summary.figure.${open}`, FIGURE_LABEL[open])}</h2>
                   {detail.isPending ? <ListState variant="loading" rows={2} />
                     : detail.isError ? <ListState variant="error" title={t('summary.detailError', "Couldn't load the rows")} onRetry={() => void detail.refetch()} />
                     : (

@@ -5,6 +5,9 @@
  */
 export type SafetyPart = 'toolbox_talk_photo' | 'checklist' | 'fitness_check';
 
+/** English names of the parts (the screens look the translation up by part). */
+export const SAFETY_PART_LABEL: Record<SafetyPart | 'safety_record', string> = { toolbox_talk_photo: 'Toolbox talk photo', checklist: 'Pre-work checklist', fitness_check: 'Fitness check', safety_record: 'Safety record' };
+
 export interface SafetyDayParts {
   status: 'draft' | 'locked';
   /** Workers with a `present` attendance row on the day. */

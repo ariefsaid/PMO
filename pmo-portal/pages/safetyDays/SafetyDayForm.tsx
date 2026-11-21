@@ -10,6 +10,7 @@ import { useProject } from '@/src/hooks/useProjects';
 import { useSafetyDay, useSafetyMutations, useSafetyRoster } from '@/src/hooks/useSafetyDays';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
+import { SAFETY_PART_LABEL } from '@/src/lib/safetyDay';
 import { deriveSafetyDayStatus } from '@/src/lib/safetyDay';
 import type { SafetyDayDetail } from '@/src/lib/db/safetyDays';
 import { FitnessPart } from './FitnessPart';
@@ -100,7 +101,7 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
       >
         {day.correction_reason && <p className="text-foreground">{t('form.correction', { defaultValue: 'Correction: {{reason}}', reason: day.correction_reason })}</p>}
         {day.status === 'draft' && status.missing.length > 0 && (
-          <p className="text-muted-foreground" data-testid="safety-missing">{t('form.stillNeeded', { defaultValue: 'Still needed: {{parts}}', parts: status.missing.map((p) => t(`parts.${p}`, p)).join(', ') })}</p>
+          <p className="text-muted-foreground" data-testid="safety-missing">{t('form.stillNeeded', { defaultValue: 'Still needed: {{parts}}', parts: status.missing.map((p) => t(`parts.${p}`, SAFETY_PART_LABEL[p as keyof typeof SAFETY_PART_LABEL] ?? p)).join(', ') })}</p>
         )}
       </RecordHeader>
       <RecordStack>

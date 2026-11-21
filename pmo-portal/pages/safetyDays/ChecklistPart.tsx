@@ -15,7 +15,7 @@ export const ChecklistPart: React.FC<{ detail: SafetyDayDetail; editable: boolea
   const { t } = useTranslation('safety');
   const { toast } = useToast();
   const m = useSafetyMutations();
-  const answerLabel = (a: SafetyChecklistAnswer['answer']) => (a ? t(`checklist.answer.${a}`, a) : t('checklist.unanswered', 'Not answered'));
+  const answerLabel = (a: SafetyChecklistAnswer['answer']) => (a ? t(`checklist.answer.${a}`, { yes: 'Yes', no: 'No', not_applicable: 'Not applicable' }[a]) : t('checklist.unanswered', 'Not answered'));
   const save = (c: SafetyChecklistAnswer, answer: SafetyChecklistAnswer['answer'], note: string | null) =>
     m.answerChecklist.mutateAsync({ id: c.id, answer, note }).catch((err) => { const { headline, detail: d } = classifyMutationError(err); toast(headline, d, 'warning'); });
   if (detail.checklist.length === 0) {

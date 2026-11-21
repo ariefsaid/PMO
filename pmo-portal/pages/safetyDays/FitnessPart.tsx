@@ -20,7 +20,7 @@ export const FitnessPart: React.FC<{ detail: SafetyDayDetail; roster: RosterWork
   const dayId = detail.day.id;
   const fail = (err: unknown) => { const { headline, detail: d } = classifyMutationError(err); toast(headline, d, 'warning'); };
   const typeLabel = (id: string | null) => types.data?.find((x) => x.id === id)?.label;
-  const resultLabel = (r: SafetyFitnessCheck['result']) => t(`fitness.result.${r}`, r);
+  const resultLabel = (r: SafetyFitnessCheck['result']) => t(`fitness.result.${r}`, { fit: 'Fit', not_fit: 'Not fit', not_checked: 'Not checked' }[r]);
   const canAdd = (workerId || visitor.trim()) && (result !== 'not_fit' || note.trim());
 
   const add = async () => {
