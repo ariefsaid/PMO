@@ -59,6 +59,7 @@ import {
 import WorkOrdersModals from './WorkOrdersModals';
 import WorkOrderPlanVsActual from '../WorkOrderPlanVsActual';
 import RevenuePlanRollup from '../RevenuePlanRollup';
+import DailyTargetRollup from '../DailyTargetRollup';
 
 /**
  * The work-order surface for one project (#566) — the client's inbound POs and the drawdown they
@@ -899,6 +900,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
       {/* #2671: dated revenue plan roll-up — renders nothing while the organisation's switch is off. */}
       <RevenuePlanRollup projectId={projectId} />
+      {/* #2672: month-to-date target, actual and projection; same switch and role gate. */}
+      <DailyTargetRollup projectId={projectId} />
     </div>
   );
 };

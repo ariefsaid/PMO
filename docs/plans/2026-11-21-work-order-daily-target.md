@@ -11,15 +11,15 @@ Gate change (Director): no db reset, pgTAP, e2e, screenshots or mutation runs at
 
 **S3 `1282_project_daily_target_rollup.sql`.** `project_daily_target_vs_actual(p_project, p_as_of default null)`: per work order MTD target, MTD actual, projection, plus totals per currency (never blended). Same gate. Cases added to the 1281 file (AC-WDT-010).
 
-**S4 DAL, repository, derivation (Unit).** Extend `pmo-portal/src/lib/db/workOrderRevenuePlan.ts` (+ test) with the two reads and the list calls; repository entries (ADR-0017); hooks in `src/hooks/useWorkOrderRevenuePlan.ts`; pure additions to `src/lib/revenuePlan.ts` (behind-target wording, restricted, per-currency totals, non-working marker). Tests AC-WDT-008, 010, 012.
+**S4 DAL, repository, derivation (Unit).** New modules beside #2671's (its files and tests stay untouched): `pmo-portal/src/lib/db/workOrderDailyTarget.ts`, `src/lib/repositories/workOrderDailyTarget.ts` (ADR-0017), `src/hooks/useWorkOrderDailyTarget.ts` (query keys under the `revenue-plan` prefix so every #2671 plan write refreshes them), pure `src/lib/dailyTarget.ts` (+ `dailyTarget.test.ts`: parsing, visible days, month browsing). Tests AC-WDT-007 (null projection), 010.
 
-**S5 Work-order Daily target view.** `pmo-portal/pages/work-order-detail/DailyTargetView.tsx` (+ test) inside the #2671 `RevenuePlanSection`; phone list / desktop table + recharts day bars; reuse the existing entry form. Read `.claude/skills/restructure/SKILL.md` and `DESIGN.md` first.
+**S5 Work-order Daily target view.** `pmo-portal/pages/work-order-detail/DailyTargetView.tsx` + `DailyTargetGate.tsx` (+ tests), mounted in `WorkOrderDetail.tsx` right after #2671's `RevenuePlanGate` (a separate section, so #2671's section tests are not touched); phone list / desktop table + recharts day bars; reuse the existing entry form. Read `.claude/skills/restructure/SKILL.md` and `DESIGN.md` first.
 
-**S6 Project roll-up columns.** Extend `pmo-portal/pages/project-detail/RevenuePlanRollup.tsx` (+ test) with MTD target, MTD actual, projection.
+**S6 Project roll-up.** New card `pmo-portal/pages/project-detail/DailyTargetRollup.tsx` (+ test) under #2671's roll-up in `WorkOrdersTab.tsx`: MTD target, MTD actual, gap and projection per work order, totals per currency.
 
 **S7 Non-working dates editor.** `pmo-portal/pages/admin/NonWorkingDatesCard.tsx` (+ test) beside the #2671 switch on the Administration > Projects card (locate via `scripts/prior-art.sh`); `can()`-gated Admin; shared form primitives; `ConfirmDialog` on remove.
 
-**S8 Strings, evidence, glossary.** Namespace `workOrderDailyTarget` in `pmo-portal/public/locales/{en,id}/`; AC-WDT-013 unit test; screenshots 390 and 1440 px (scale 2) in `docs/evidence/1215/2672/` (written to run; per the gate change, not captured at build unless the orchestrator says so); glossary entries.
+**S8 Strings, evidence, glossary.** Keys `daily.*`, `dailyRollup.*`, `nonWorking.*` added to the existing `workOrderRevenuePlan` namespace in `pmo-portal/public/locales/{en,id}/` (no change to the shared namespace list); AC-WDT-013 unit test; screenshots 390 and 1440 px (scale 2) in `docs/evidence/1215/2672/` (written to run; per the gate change, not captured at build unless the orchestrator says so); glossary entries.
 
 **S9 E2E (written, not run).** `pmo-portal/e2e/serial/AC-WDT-014-daily-target.spec.ts` (serial: switches the org-wide setting), isolation class per `docs/e2e-parallel-conventions.md`.
 

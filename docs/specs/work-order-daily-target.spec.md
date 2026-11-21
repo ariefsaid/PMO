@@ -46,8 +46,8 @@ Plan: `docs/plans/2026-11-21-work-order-daily-target.md`. Executor: Orca worker.
 - FR-WDT-016 A project-level read shall return the same MTD figures per work order and a total **per currency**, never blended.
 
 **Screens**
-- FR-WDT-020 The work-order Revenue plan section (#2671) shall gain a **Daily target** view (only when the setting is on and the caller may see revenue): the as-of month's days against target and actual, the MTD figures, the projection, and the "keep edited days / month amount" entry already built. Phone shows a list per day; desktop a table plus a day bar chart. Behind-target reads in words ("1,200.00 behind target").
-- FR-WDT-021 The project Revenue plan roll-up (#2671) shall add MTD target, MTD actual and projection per work order and the per-currency total.
+- FR-WDT-020 The work-order page shall show a **Daily target** section next to the Revenue plan section (#2671) (only when the setting is on and the caller may see revenue): the as-of month's days against target and actual, the MTD figures, the projection, and the "keep edited days / month amount" entry already built. Phone shows a list per day; desktop a table plus a day bar chart. Behind-target reads in words ("1,200.00 behind target").
+- FR-WDT-021 The project page shall show a **Daily target, month to date** card beside the Revenue plan roll-up (#2671): MTD target, MTD actual, gap and projection per work order and the per-currency total.
 - FR-WDT-022 The Administration > Projects card (where #2671 put the switch) shall gain a **Non-working dates** editor (add a date + label, remove), Admin only, shared form primitives.
 - FR-WDT-023 English and Bahasa Indonesia strings; 320 CSS px; `DESIGN.md` tokens; states loading, empty, error, restricted.
 
@@ -67,14 +67,14 @@ No client calendar, holiday set or day count is coded. The target amounts, the d
 | Per-day, MTD, projection, restricted, setting off (FR-WDT-010..016) | read RPCs reusing `dsr_may_see_revenue` and the actual filter | `supabase/tests/1281_work_order_daily_target_reads.test.sql` |
 | Cross-org isolation, anon cannot execute, RLS initplan | RLS + revokes | both files + 0178 anon test + 0646 |
 
-Mutation checks (written as a note, run by the orchestrator): (a) make `org_is_working_day` ignore the list; (b) count `submitted` reports in actual; (c) drop the Admin check in `non_working_date_add`. Each must turn its file red.
+Mutation checks (written as a note, run by the orchestrator): (a) make `org_is_working_day` ignore the list; (b) drop the superseded-report filter in the actual; (c) drop the Admin check in `non_working_date_add`. Each must turn its file red.
 
 ## 7. Acceptance criteria
 | ID | Given / When / Then | Layer |
 |---|---|---|
 | AC-WDT-001 | Given the setting off (default), when anyone reads the day view or edits the non-working list, then reads return nothing, writes are refused and no section shows. | pgTAP + Unit |
 | AC-WDT-002 | Given an Admin with the setting on, when they add 25 Dec, then it is listed; adding it again changes nothing; a non-Admin is refused. | pgTAP (+ mutation c) |
-| AC-WDT-003 | Given 25 Dec (a Thursday) listed and a December amount of 2100.00 spread over the other working days, when spread, then no row is dated 25 Dec and the rows sum exactly to 2100.00. | pgTAP (+ mutation a) |
+| AC-WDT-003 | Given 25 Dec (a Friday) listed and a December amount of 2100.00 spread over the other working days, when spread, then no row is dated 25 Dec and the rows sum exactly to 2100.00. | pgTAP (+ mutation a) |
 | AC-WDT-004 | Given a month already spread, when a date is added to the list, then no existing target row changes. | pgTAP |
 | AC-WDT-005 | Given targets 100 on 1 Dec and 100 on 2 Dec and validated actual 80 on 1 Dec, when read as of 2 Dec, then day 1 gap is -20, day 2 actual 0, MTD target 200, MTD actual 80, MTD gap -120. | pgTAP |
 | AC-WDT-006 | Given a submitted (not validated) report of 50 and a superseded one of 40 on a day, when read, then actual excludes both and the day shows "1 not yet validated". | pgTAP (+ mutation b) |

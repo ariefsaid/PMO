@@ -21,6 +21,7 @@ import { CostSection } from './work-order-detail/CostSection';
 import { BillingSection } from './work-order-detail/BillingSection';
 import { PlanVsActualSection } from './work-order-detail/PlanVsActualSection';
 import { RevenuePlanGate } from './work-order-detail/RevenuePlanGate';
+import { DailyTargetGate } from './work-order-detail/DailyTargetGate';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { IssuesSection } from './work-order-detail/IssuesSection';
 import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
@@ -105,6 +106,8 @@ const WorkOrderDetail: React.FC = () => {
         {canPlanView && <PlanVsActualSection workOrderId={row.id} query={pva} disciplines={disciplines.data ?? []} />}
         {/* #2671: the dated revenue plan; renders nothing unless the organisation switched it on. */}
         <RevenuePlanGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
+        {/* #2672: the daily target view; same switch and role gate as the plan above. */}
+        <DailyTargetGate workOrderId={row.id} />
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
         <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
