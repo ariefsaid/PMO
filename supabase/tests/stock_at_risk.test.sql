@@ -61,9 +61,11 @@ select public.sar_t_rcv('26940000-0000-0000-0000-000000002002', '26940000-0000-0
 select public.sar_t_rcv('26940000-0000-0000-0000-000000002003', '26940000-0000-0000-0000-000000001001', 100, 10); -- SITE-B 1,000
 select public.sar_t_rcv('26940000-0000-0000-0000-000000002004', '26940000-0000-0000-0000-000000001001', 75, 10);  -- SITE-C 750 (no cover)
 select public.sar_t_rcv('26940000-0000-0000-0000-000000002005', '26940000-0000-0000-0000-000000001001', 5, 0);    -- SITE-D 0.00
+select public.sar_t_as_user('26940000-0000-0000-0000-0000000000b1');                                               -- the other org posts on its own site
 select public.sar_t_rcv('26940000-0000-0000-0000-000000003001', '26940000-0000-0000-0000-000000002001', 4, 100);  -- other org 400
 
 -- Covers recorded by an org Admin through RLS (FR-SAR-006): SITE-A 2,500, SITE-B 1,000, SITE-C/SITE-D none.
+select public.sar_t_as_user('26940000-0000-0000-0000-0000000000a1');
 update public.stock_warehouses set cover_value = 2500 where id = '26940000-0000-0000-0000-000000002002';
 update public.stock_warehouses set cover_value = 1000 where id = '26940000-0000-0000-0000-000000002003';
 
