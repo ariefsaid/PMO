@@ -1042,3 +1042,14 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+**Safety day** — one record per work order and date holding the five daily safety parts: the fitness check, the toolbox talk with its
+attendance photo, the pre-work checklist, the permit to work and the safety officer's report. It is a draft until submitted, then
+locked; a correction is a new version naming the one it replaces, with a reason. The check types, permit types and checklist items
+come from lists the client keeps. Off until an Admin switches safety records on (#2596).
+
+**Safe hours** — worked hours (present attendance, locked or approved) since the date of the project's last lost-time incident, or
+since the start of attendance when there is none. Hidden with a reason when there is nothing to count from; never shown as 0.
+
+**Lost-time incident** — an incident marked as one that cost working time. Only an incident manager (Admin, Executive, Project
+Manager, Finance) sets the mark; it restarts the safe-hours count for the project.

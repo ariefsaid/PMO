@@ -58,3 +58,12 @@ One migration, additive (plus one column on `incident_reports`).
 
 ## Final gate
 `cd pmo-portal && npm run check:guards`, `npm run typecheck`, `npx eslint --max-warnings=0 <touched files>`, the touched vitest files, the touched pgTAP file and e2e journeys (`scripts/e2e-local.sh <fragment>`), `node scripts/affected-e2e.mjs`, `scripts/ux-proof.sh` on the touched routes. No full local suite.
+
+## Build notes (21 Nov, as built)
+Deviations from the design above, each with its reason:
+- One list table `safety_list_items` (kind: check type, permit type, checklist item) instead of three tables; same rules, one policy set.
+- `get_safety_summary` and `safety_work_order_days` are security definer, not invoker: attendance rows are readable only by the roles that manage crews, so an invoker read would give an Engineer a silently low figure. Each filters on the caller's organisation, refuses a non-member, and returns counts and dates only.
+- The lost-time rule is a sibling trigger (`guard_incident_lost_time`); `guard_incident_issue_fields` is untouched. `incident_reports` is not in the record-history registry, so `lost_time` is not captured there; the day (`safety_day`) is.
+- Record history covers the day (create, submit, correction). The parts are written only while the day is a draft and carry their writer and time.
+- There is no `Viewer` role in this codebase (the roles are Admin, Executive, Project Manager, Finance, Engineer). OD-DSF-6 reads as: names and photos for Admin, Executive, Engineer and the project's Project Manager; Finance sees counts only.
+- Toolbox talks and attendees are written by `safety_save_talk` (one step, at least one attendee); the other parts are row writes the database guards.
