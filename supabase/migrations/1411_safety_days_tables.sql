@@ -316,7 +316,7 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
--- Header, talks (topic only), checklist, permits and officer entries: every active member of the organisation (counts).
+-- Header, talks (topic and presenter), checklist, permits and officer entries: every active member of the organisation (counts).
 create policy safety_days_select on public.safety_days for select
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 create policy safety_talks_select on public.safety_toolbox_talks for select
