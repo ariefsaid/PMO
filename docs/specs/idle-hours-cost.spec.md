@@ -1,6 +1,6 @@
 # Idle hours turned into cost per work order (IHC)
 
-Issue #2673 (map #2516, target 15 December 2026). Status: **Draft, awaiting sign-off.** Plan
+Issue #2673 (map #2516, target 15 December 2026). Status: **Approved, 2026-11-21** (open questions 1-3 answered yes). Plan
 `docs/plans/2026-11-21-idle-hours-cost.md`. IDs: `FR-IHC-###`, `AC-IHC-###`. Size S. Stacked on #2670 (labour cost in money).
 **Money path: read-only costing.** It posts nothing, changes no approval, no site-report rule and no ledger. Migrations 1255-1256.
 
@@ -37,8 +37,8 @@ Issue #2673 (map #2516, target 15 December 2026). Status: **Draft, awaiting sign
 ## 4. Acceptance criteria (owning layer in brackets)
 - AC-IHC-001 Given the switch never turned on, then the read returns no row and no idle block shows. [pgTAP 1255 + vitest]
 - AC-IHC-002 Given the idle switch on but labour cost off (or the reverse), then no row. [pgTAP 1255]
-- AC-IHC-003 Given both on, a validated report with 90 idle minutes for reason A and work-order hourly cost 50000, then one
-  row: 1.50 h, amount 75000.00, `counted`. [pgTAP 1255]
+- AC-IHC-003 Given both on, validated reports with 60 idle minutes in all for reason A and work-order hourly cost 62500, then
+  that row: 1.00 h, amount 62500.00, `counted`. [pgTAP 1255]
 - AC-IHC-004 Given priced lines of 8 h at 400000 and 8 h at 600000 (weighted 62500/h) and 60 idle minutes, then 62500.00. [pgTAP 1255]
 - AC-IHC-005 Given two reasons across two days, then one row per reason with summed minutes. [pgTAP 1255]
 - AC-IHC-006 Given draft, submitted, returned, superseded or archived reports, then their idle minutes are excluded. [pgTAP 1255]
@@ -59,8 +59,8 @@ Issue #2673 (map #2516, target 15 December 2026). Status: **Draft, awaiting sign
 No new rate: the hourly cost comes from #2670 rates. Database-enforced: who writes the switch, both-switch gate, report
 eligibility, org scoping, role gate. Not DB-enforced (UX only): visibility of the Administration control.
 
-## 6. Open questions
+## 6. Open questions (answered yes by the Director; 3 is a known v1 limit)
 1. "Hourly cost of the work order" = weighted average of its priced labour (no per-person split, as idle periods name no
    person). Assumed yes.
 2. Idle cost is shown apart and not added to direct cost (it would count paid hours twice). Assumed yes.
-3. Idle periods are not split by overtime or by date rate; the average is over the work order's whole history. Assumed yes.
+3. KNOWN LIMIT (v1): idle periods are not split by overtime or by date rate; the average is over the work order's whole history. Assumed yes.

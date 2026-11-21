@@ -112,5 +112,14 @@
     "cost": "Biaya",
     "unknownClass": "Kelas lain",
     "note": "Bagian dari biaya langsung di atas, dari jam yang disetujui dengan tarif biaya tiap orang."
+  },
+  "idle": {
+    "title": "Biaya waktu menganggur per alasan",
+    "reason": "Alasan",
+    "hours": "Jam",
+    "cost": "Biaya",
+    "total": "Total menganggur",
+    "noRate": "Tanpa tarif",
+    "note": "Ditampilkan terpisah: waktu ini sudah dibayar, jadi sudah termasuk dalam biaya langsung di atas dan tidak ditambahkan lagi. Dihitung dengan biaya per jam rata-rata pekerjaan."
   }
 }

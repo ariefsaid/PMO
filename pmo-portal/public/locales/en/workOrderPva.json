@@ -112,5 +112,14 @@
     "cost": "Cost",
     "unknownClass": "Other class",
     "note": "Part of the direct cost above, from approved hours at each person's cost rate."
+  },
+  "idle": {
+    "title": "Idle time cost by reason",
+    "reason": "Reason",
+    "hours": "Hours",
+    "cost": "Cost",
+    "total": "Total idle",
+    "noRate": "No rate",
+    "note": "Shown apart: this time was already paid, so it is part of the direct cost above and is not added again. Cost at the work order's average hourly cost."
   }
 }

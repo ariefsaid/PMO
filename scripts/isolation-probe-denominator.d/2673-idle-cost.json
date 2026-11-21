@@ -1,0 +1,10 @@
+{
+  "tables": [
+    {"table":"idle_cost_settings","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"n/a: pk is the org id, not a row uuid; the blind read covers the declared B visibility"}
+  ],
+  "definer_functions": [
+    "idle_cost_enabled(uuid)",
+    "save_idle_cost_setting(boolean)",
+    "work_order_idle_cost(uuid)"
+  ]
+}
