@@ -10,9 +10,21 @@ from pathlib import Path
 import sys
 out=Path(sys.argv[1])
 text=Path('scripts/contract-quantities-rollback.test.sql').read_text()
-# 1047 / 1046 opening balances reference work_order_acceptances;
-# 1040's dsr_progress_lines references work_order_lines; 1041 holds the functions over 1040's tables.
+# Later migrations that reference 0337's objects are reverted first (newest first), as a real rollback would.
+# 1321's dsr_stock_posting_lines holds a key to 1041's dsr_consumables; 1280's org_non_working_dates policy calls
+# 1275's revenue_plan_enabled; 1275's work_order_revenue_plan policy calls 1041's dsr_may_see_revenue; 1186's
+# procurement_invoices certificate link and 1185's subcontract certificate claims hold keys to 0337's
+# work_order_lines; 1163's csr_lock_line returns 1162's client_requisition_lines row type, whose lines hold a key
+# to work_order_lines; 1047 / 1046 opening balances reference work_order_acceptances; 1040's dsr_progress_lines
+# references work_order_lines; 1041 holds the functions over 1040's tables.
 dependents=[
+    'supabase/migrations/rollback/1321_dsr_stock_postings_down.sql',
+    'supabase/migrations/rollback/1280_non_working_dates_down.sql',
+    'supabase/migrations/rollback/1275_work_order_revenue_plan_down.sql',
+    'supabase/migrations/rollback/1186_certificate_approval_and_bill_down.sql',
+    'supabase/migrations/rollback/1185_subcontract_certificates_down.sql',
+    'supabase/migrations/rollback/1163_client_requisition_rpcs_down.sql',
+    'supabase/migrations/rollback/1162_client_requisitions_down.sql',
     'supabase/migrations/rollback/1047_cli_opening_balances_down.sql',
     'supabase/migrations/rollback/1046_opening_balances_down.sql',
     'supabase/migrations/rollback/1041_daily_site_report_rpcs_down.sql',
