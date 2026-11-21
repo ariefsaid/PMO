@@ -3,16 +3,20 @@ import { useTranslation } from 'react-i18next';
 import { Button, Icon, ListPage, Tabs, tabId, tabPanelId, useUrlFilters } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useAttendanceTarget } from '@/src/hooks/useAttendanceRate';
 import { CrewList } from './CrewList';
 import { WorkOrderRoster } from './WorkOrderRoster';
 import { AttendanceTick } from './AttendanceTick';
 import { CrewImports } from './CrewImports';
 import { CrewTools } from './CrewTools';
+import AttendanceRate from './AttendanceRate';
 
-type View = 'crews' | 'roster' | 'attendance' | 'tools';
+type View = 'crews' | 'roster' | 'attendance' | 'tools' | 'rate';
 
 /**
  * Crews (#2528): the crew master, the roster per work order and the daily attendance tick, as three views of one page.
+ * #2706 adds a fourth — the attendance rate against the organisation's target — offered only once a target is set, so
+ * an organisation that never sets one sees the page exactly as before.
  * The view lives in the address (`?view=`), so Back and a shared link return to it.
  */
 const CrewsPage: React.FC = () => {
@@ -20,14 +24,20 @@ const CrewsPage: React.FC = () => {
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
   const canManage = may('manage', 'crew', { record: { viewOnly: realRole !== effectiveRole } });
+  const maySeeRate = may('view', 'attendanceRate');
+  const target = useAttendanceTarget();
+  const rateOffered = maySeeRate && target.data !== null && target.data !== undefined;
   const { values, setFilter } = useUrlFilters(['view']);
-  const view: View = values.view === 'roster' || values.view === 'attendance' || values.view === 'tools' ? values.view : 'crews';
+  const view: View = values.view === 'roster' || values.view === 'attendance' || values.view === 'tools' || (values.view === 'rate' && rateOffered)
+    ? values.view as View
+    : 'crews';
   const [creating, setCreating] = useState(false);
   const tabs = [
     { value: 'crews' as View, label: t('crews:tabs.crews', 'Crews') },
     { value: 'roster' as View, label: t('crews:tabs.roster', 'Roster') },
     { value: 'attendance' as View, label: t('crews:tabs.attendance', 'Attendance') },
     { value: 'tools' as View, label: t('crews:tabs.tools', 'Tools') },
+    ...(rateOffered ? [{ value: 'rate' as View, label: t('crews:tabs.rate', 'Rate') }] : []),
   ];
   return (
     <ListPage
@@ -44,6 +54,7 @@ const CrewsPage: React.FC = () => {
         {view === 'roster' && <WorkOrderRoster />}
         {view === 'attendance' && <AttendanceTick />}
         {view === 'tools' && <CrewTools />}
+        {view === 'rate' && <AttendanceRate />}
       </div>
     </ListPage>
   );

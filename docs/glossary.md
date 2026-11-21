@@ -277,6 +277,14 @@ rotation, with hours), whatever the capture method (roster tick, phone check-in,
 person's timesheet line, or, for a person with no login, holds their approved hours itself. Approved attendance is
 locked; it changes only by re-opening the timesheet (the correction path).
 
+**Attendance rate** — a crew's present member-days over its countable member-days for a period, as a percentage. A
+member-day is expected when the person was placed in the crew and the crew was rostered on a work order that day; leave
+and off rotation are excused, and a day nobody recorded counts against the rate and is shown apart. It is a review
+figure, not a payroll rule.
+
+**Attendance target** — the organisation-wide percentage an attendance rate is measured against. It is a setting the
+client owns: unset means the rate is not offered, and PMO writes no default.
+
 **Incident report** — a dated report of an incident with a type, severity, location, description
 and status, optionally linked to a project.
 
@@ -788,6 +796,14 @@ recorded.
 rotation, with hours), whatever the capture method (roster tick, phone check-in, office correction). It becomes the
 person's timesheet line, or, for a person with no login, holds their approved hours itself. Approved attendance is locked
 and changes only by re-opening the timesheet.
+
+**Attendance rate** (*tingkat kehadiran*) — a crew's present member-days over its countable member-days for a period, as a
+percentage. A member-day is expected when the person was placed in the crew and the crew was rostered on a work order that
+day; leave and off rotation are excused, and a day nobody recorded counts against the rate and is shown apart. It is a
+review figure, not a payroll rule.
+
+**Attendance target** (*target kehadiran*) — the organisation-wide percentage an attendance rate is measured against. It is
+a setting the client owns: unset means the rate is not offered, and PMO writes no default.
 
 ### Crew tools (#2581)
 

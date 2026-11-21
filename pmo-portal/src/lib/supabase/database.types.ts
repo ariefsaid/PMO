@@ -7733,6 +7733,7 @@ export type Database = {
         Row: {
           attendance_backdate_days: number
           attendance_conflict_tolerance_hours: number
+          attendance_target_rate: number | null
           created_at: string
           default_currency: string
           default_locale: string
@@ -7758,6 +7759,7 @@ export type Database = {
         Insert: {
           attendance_backdate_days?: number
           attendance_conflict_tolerance_hours?: number
+          attendance_target_rate?: number | null
           created_at?: string
           default_currency?: string
           default_locale?: string
@@ -7783,6 +7785,7 @@ export type Database = {
         Update: {
           attendance_backdate_days?: number
           attendance_conflict_tolerance_hours?: number
+          attendance_target_rate?: number | null
           created_at?: string
           default_currency?: string
           default_locale?: string
@@ -15701,6 +15704,24 @@ export type Database = {
           p_work_order_id: string
         }
         Returns: number
+      }
+      attendance_rate_by_crew: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          crew_id: string
+          crew_code: string
+          crew_name: string
+          expected_days: number
+          present_days: number
+          absent_days: number
+          leave_days: number
+          off_rotation_days: number
+          no_record_days: number
+          countable_days: number
+          rate: number | null
+          target_rate: number | null
+          meets_target: boolean | null
+        }[]
       }
       attendance_generate_timesheet: {
         Args: { p_week_start: string; p_worker_id: string }
