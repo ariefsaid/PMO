@@ -31,7 +31,7 @@ Spec: `docs/specs/stock-work-order-transfer.spec.md`. Money path (stock ledger, 
 4. **`1313_stock_wo_transfer_balances.sql`** - re-create `get_work_order_stock_balance` (1031 body verbatim, plus the received term for the issue half
    and the moved-out term for the return half of a WOT document at the project's `site`/`yard`/`staging` locations, quantity and value) and
    `mrq_prior_quantity` (1100 body verbatim plus `coalesce(sum(-l.qty_delta), 0)` over ledger rows of documents with `wo_transfer_id` and `work_order_id = p_work_order_id`).
-5. **`1314`** left unused (reserved, not needed).
+5. **`1314_stock_wo_transfer_setting.sql`** - `organizations.stock_wo_transfers boolean not null default false`, `stock_wo_transfers_on(org)`, `set_stock_wo_transfers(boolean)` (Admin, standalone, audited `stock.wo_transfers`), test `1314_stock_wo_transfer_setting.test.sql`. `post_stock_wo_transfer` refuses `STK_WOT_OFF` while off.
 
 Inventories: `supabase/tests/inventory/anon-executable-definers/2691-work-order-transfer.txt` lists `post_stock_wo_transfer`;
 `scripts/isolation-probe-denominator.d/2691-work-order-transfer.json` lists the table (`has_org`, own-org-only) and the definer functions
@@ -41,6 +41,7 @@ Read both script headers when writing them.
 ## Tests (written first)
 - `supabase/tests/1310_stock_wo_transfer.test.sql` - AC-WOT-001, 004, 005, 007, 008, 009, 010, 011, 013, 014, 015 (fixtures: two work orders, a site, yard,
   staging, vendor and central location, keeper and non-keeper, two organisations, a two-step org).
+- `supabase/tests/1314_stock_wo_transfer_setting.test.sql` - AC-WOT-019.
 - `supabase/tests/1311_stock_wo_transfer_balances.test.sql` - AC-WOT-002, 003, 006, 012 (reconciliation sum, value conservation, no-WOT identity).
 - `pmo-portal/src/lib/db/stockWorkOrderTransfer.test.ts` and `pmo-portal/pages/stock/StockWorkOrderTransfer.test.tsx` - AC-WOT-016, 017 (en and id key parity, entry point gating).
 - `pmo-portal/e2e/serial/AC-WOT-018-work-order-transfer-phone.spec.ts` (tag `@e2e-isolation` per `docs/e2e-parallel-conventions.md`) - AC-WOT-018.
@@ -53,8 +54,7 @@ Read both script headers when writing them.
   to work order (project fixed by the first pick), then lines (item combobox limited to what A holds, quantity with "available n" and a client-side cap, optional work item), note;
   one primary action "Move to <B>" with a `ConfirmDialog` stating the two effects. Shared primitives only (`useEntityForm`, `Combobox`, `FieldError`), `classifyMutationError`.
   Detail `StockWorkOrderTransferDetail.tsx` (route `/stock/work-order-transfer/:id`) shows both halves and links.
-- Entry: a link "Move leftover to another work order" on `StockDocuments.tsx`, gated by `can('create', 'stockDocument', {record:{isKeeper}})` and by the org having a posted work-order issue
-  (default-off). The "part of WOT-nnnn" link on `StockDocumentDetail.tsx` and the ledger row (FR-WOT-013).
+- Entry: a link "Move leftover to another work order" on `StockDocuments.tsx`, shown only when the org setting `stock_wo_transfers` is on AND the user is a stock writer (`can('create','stockDocument',{record:{isKeeper}})`); the routes render the "off" empty state otherwise. Admin toggle on the Stock setup transfers panel. The "part of WOT-nnnn" link on `StockDocumentDetail.tsx` and the ledger row (FR-WOT-013).
 - `src/auth/policy.ts` unchanged (existing `stockDocument.create`). `App.tsx`: two lazy routes (namespace `stock`).
 - Strings: `pmo-portal/public/locales/en/stock.json` and `id/stock.json` (keys `workOrderTransfer.*`), parity tested.
 - Glossary: `docs/glossary.md` adds "Work-order transfer (WOT)".

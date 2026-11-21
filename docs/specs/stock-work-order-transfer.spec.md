@@ -1,6 +1,6 @@
 # Transfer between work orders in one document (WOT)
 
-Issue #2691 (map #2516). Status: **Draft for sign-off, 2026-11-21**. Plan `docs/plans/2026-11-21-stock-work-order-transfer.md`.
+Issue #2691 (map #2516). Status: **Accepted, 2026-11-21** (Director rulings recorded in §9). Plan `docs/plans/2026-11-21-stock-work-order-transfer.md`.
 IDs: `FR-WOT-###`, `AC-WOT-###`. **Money path: stock ledger and work-order cost.** The ledger stays written only by `stock_write_entry`
 (FR-STK-072); nothing here writes it except through the existing return and issue engine. Ships alone. Stacked on #2690 (two-step
 transfers, migrations 1305-1309) and #2683 (vendor location). Reads: `stock-site-work.spec.md` (work-order issue, return, balance),
@@ -39,13 +39,14 @@ transfers, migrations 1305-1309) and #2683 (vendor location). Reads: `stock-site
    issues less the posted returns that cite them. The RPC spreads the quantity over A's issue lines oldest first (each return line
    cites one issue line) and refuses with `STK_WOT_EXCEEDS` (held, requested) when A does not hold enough. The engine's per-issue-line cap
    (`STK_RETURN_EXCEEDS`) stays as the second guard under the lock, so two concurrent moves cannot both succeed.
-5. **Cost follows the engine, unchanged (FR-STK-017).** A's cost nets down by the cost its issue lines left at (the return takes that
+5. **Cost follows the engine, unchanged (FR-STK-017); accepted by the Director.** A's cost nets down by the cost its issue lines left at (the return takes that
    back, last return takes the remainder). B's issue takes the location's moving average at that moment (`stock_write_entry` derives an
    out value; nothing passes a value in). When the location's average equals A's issue cost B is charged exactly what A is relieved of;
    otherwise the difference stays in the location's stock value and in no work order. The ledger conserves quantity and value at every step.
 6. **Balances.** "Moved to B" is stock received by B and "moved off A" is stock moved off A, not a consumption by B and an un-consumption by
    A on site. So `get_work_order_stock_balance` counts the issue half of a WOT as B **received** and the return half as A **moved out**
-   (on-site quantity and value of both work orders unchanged; their issued quantity and cost move by the amount: A down, B up), and
+   (on-site quantity of both work orders unchanged and A's on-site value unchanged; B's received value is the value A gave up, so B's on-site
+   value reads the average-cost drift of decision 5, zero when the averages match; issued quantity and cost move: A down, B up), and
    `mrq_prior_quantity` adds the signed quantity of WOT documents (B +q, A -q) so material requests see what was moved. Sums over
    work orders and unassigned still equal each location's ledger balance (FR-SSW-032). Both functions return byte-identical results for
    any organisation that has no WOT (the new terms are zero).
@@ -54,8 +55,11 @@ transfers, migrations 1305-1309) and #2683 (vendor location). Reads: `stock-site
 8. **Atomic, immutable, correctable.** One RPC does everything; any refusal rolls back both halves. A posted WOT cannot be edited,
    cancelled or deleted; the correction is a WOT the other way (B to A), which the same rules allow. Replays with one client request id
    return the original.
-9. **Cancelled work orders.** A cancelled work order takes no new cost (existing `COST_WO_CANCELLED`), and a return names its work order,
-   so a cancelled A or B is refused. Not changed here (see open question 2).
+9. **Cancelled work orders (known limit, accepted).** A cancelled work order takes no new cost (existing `check_cost_attribution` rule), and a return names
+   its work order, so a move naming a cancelled A or B is refused with `COST_WO_CANCELLED: the work order is cancelled`. The screen shows that message in the
+   person's language. Leftover on a cancelled work order is therefore moved off by re-opening the work order first. The rule is not loosened here.
+10. **Off until an Admin turns it on.** The organisation setting `stock_wo_transfers` (default off) gates the whole feature: while off, the RPC refuses
+   (`STK_WOT_OFF`) and no screen, link or menu entry appears. Only an Admin changes it, through an audited RPC (`stock.wo_transfers`).
 
 ## 3. Requirements (EARS)
 - FR-WOT-001 The system shall provide `post_stock_wo_transfer(header, lines, client request id)`, taking the location, work order A (from),
@@ -80,17 +84,22 @@ transfers, migrations 1305-1309) and #2683 (vendor location). Reads: `stock-site
 - FR-WOT-011 The WOT, its lines (through its two documents) and the two RPCs are organisation-isolated; nothing is client-writable except through the RPC.
 - FR-WOT-012 The move screen and the WOT detail work at 390 px wide, strings in English and Bahasa Indonesia, using the shared form primitives and
   DESIGN.md tokens. The detail shows both halves, links to both documents and both work orders.
+- FR-WOT-014 The organisation shall have `stock_wo_transfers` (boolean, default false), changed only by an Admin through `set_stock_wo_transfers`, audited
+  as `stock.wo_transfers`; while off, `post_stock_wo_transfer` refuses `STK_WOT_OFF` and the entry link, the move screen and the WOT detail do not render.
+  Turning it on needs the organisation to run its own inventory (`STK_OWNED_BY_ERP` otherwise).
 - FR-WOT-013 The ledger and stock-document screens shall show a WOT's two documents as "part of WOT-nnnn" with a link.
 
 ## 4. Settings
-**None** (as the ticket says). No organisation setting, no per-tag or per-item flag, no new role.
+| Setting | Where | Default | Meaning |
+|---|---|---|---|
+| Work-order transfers | `organizations.stock_wo_transfers`, Stock setup (Admin) | off | on lets stock writers move leftover between work orders |
+
+The ticket lists none; the Director ruled (2026-11-21) that nothing alters an existing screen until a setting turns it on. No per-tag or per-item flag, no new role.
 
 ## 5. Default-off statement
-New table, new nullable column, new functions only. No existing screen, document, rule or result changes for an organisation that never
-posts a WOT: `get_work_order_stock_balance` and `mrq_prior_quantity` are re-created with terms that are zero without a WOT (proved by the
-existing tests of both, untouched, and AC-WOT-012). The one visible entry point, "Move leftover to another work order", appears only for
-a stock writer in an organisation that already has posted issues naming a work order; every other organisation sees no new control. The
-`/stock/work-order-transfer` route exists for all but is reached only from that entry. Existing tests are not edited.
+New table, new nullable column, new boolean setting defaulting to off, new functions only. While the setting is off nothing renders and the RPC refuses.
+`get_work_order_stock_balance` and `mrq_prior_quantity` are re-created with terms that are zero without a move (AC-WOT-012; the existing tests of both run
+unedited). With the setting on, the one visible entry is the link "Move leftover to another work order", shown only to a stock writer. Existing tests are not edited.
 
 ## 6. Acceptance criteria
 | AC | Given / When / Then | Owning layer |
@@ -103,7 +112,7 @@ a stock writer in an organisation that already has posted issues naming a work o
 | AC-WOT-006 | Given A issued at cost 5 and the location's average is 5, then A's cost drops by q x 5 and B's rises by q x 5; given a different average, then B is charged the average and the difference stays in the location value; ledger value is conserved either way. | pgTAP + Layer-1 money test |
 | AC-WOT-007 | Given a work order of another project, another organisation, a cancelled work order, A = B, then each is refused with its own error and nothing is written. | pgTAP |
 | AC-WOT-008 | Given a location that is a vendor, transit, central, archived, or belongs to another project, then refused; a site, yard and staging location of the project post. | pgTAP |
-| AC-WOT-009 | Given a user who is not the location's keeper and not Admin, then refused `STK_NOT_KEEPER`; the keeper succeeds; an Admin succeeds with a `stock.admin_post` audit row; a view-only impersonation is refused. | pgTAP |
+| AC-WOT-009 | Given a user who is not the location's keeper and not Admin, then refused `STK_NOT_KEEPER`; the keeper succeeds; an Admin succeeds with a `stock.admin_post` audit row; view-only impersonation hides the entry in the UI (the real role is the authority). | pgTAP + Unit |
 | AC-WOT-010 | Given a two-step organisation, then the move posts, creates no transfer, no transit location and no handover, and one-step transfers are still refused as before. | pgTAP |
 | AC-WOT-011 | Given a failure in the issue half (project not Ongoing, work item of another project, no stock after rounding), then the return half is not written either; replaying one client request id returns the same WOT with no second posting. | pgTAP |
 | AC-WOT-012 | Given an organisation with no WOT, then `get_work_order_stock_balance` and `mrq_prior_quantity` give the results the shipped tests (stock_site_work, 1100) expect, unedited. | pgTAP (existing files re-run) |
@@ -112,22 +121,23 @@ a stock writer in an organisation that already has posted issues naming a work o
 | AC-WOT-015 | Given zero-cost (client-supplied) items, then the move carries value 0 on both halves. | pgTAP |
 | AC-WOT-016 | Given work order A with returnable lines, when the form is filled and submitted, then the request carries the right payload, `STK_WOT_EXCEEDS` is shown in the person's words, and a quantity above the returnable shows before submitting. | Unit (RTL) |
 | AC-WOT-017 | Given the strings, then every key exists in `en` and `id`, and no view-only or non-keeper sees the entry point. | Unit |
+| AC-WOT-019 | Given the setting off (default), then the RPC is refused `STK_WOT_OFF` and the link and routes do not render; only an Admin turns it on or off, each change audited, a repeat is a no-op, another organisation is unaffected. | pgTAP + Unit |
 | AC-WOT-018 | Given a keeper on a phone viewport, when moving leftover from A to B and opening the WOT, then both work orders' balances change as stated and the WOT shows both halves. | E2E (one journey) |
 
 ## 7. Mutation checks (written now; run on the integration branch)
-Each is broken, the named AC must go red, then restored (`supabase/tests/1310_stock_wo_transfer.test.sql`, `1311_..`):
+Each is broken, the named AC must go red, then restored (`supabase/tests/1310_stock_wo_transfer.test.sql`, `1311_stock_wo_transfer_balances.test.sql`, `1314_stock_wo_transfer_setting.test.sql`):
 `mut:wot_net_cap` (drop the net-issued check, AC-WOT-004) · `mut:wot_engine_cap` (drop the engine's per-line cap under the lock, AC-WOT-005) ·
 `mut:wot_same_project` (AC-WOT-007) · `mut:wot_location_kind` (AC-WOT-008) · `mut:wot_keeper` (AC-WOT-009) · `mut:wot_atomic` (post the return outside the
 RPC transaction block or swallow the issue error, AC-WOT-011) · `mut:wot_pair_check` (drop the commit-time check, AC-WOT-013) · `mut:wot_system_only`
 (allow a client to set `wo_transfer_id`, AC-WOT-013) · `mut:wot_balance_in` / `mut:wot_balance_moved` (drop the received or moved-out term in
-`get_work_order_stock_balance`, AC-WOT-002) · `mut:wot_mrq` (drop the WOT term in `mrq_prior_quantity`, AC-WOT-003).
+`get_work_order_stock_balance`, AC-WOT-002) · `mut:wot_mrq` (drop the WOT term in `mrq_prior_quantity`, AC-WOT-003) · `mut:wot_setting_admin` (drop the Admin check of the setting RPC, AC-WOT-019).
 
 ## 8. Out of scope
 Moves between projects. Moves between two physical locations (use the transfer). Moving stock that was never issued to work order A (that
 is a transfer, or a plain issue to B). Reservations (#2693). Editing or cancelling a posted WOT (correct it with the reverse WOT).
 
-## 9. Open questions for sign-off
-1. Cost of B's issue is the location's moving average (engine unchanged, decision 5), not A's exact cost. Wanted exactly A's cost? That needs an
-   engine change and is not proposed.
-2. Leftover on a **cancelled** work order is refused today by the cost-attribution rule. Allow a return from a cancelled A (cost relief only)? It
-   would loosen `check_cost_attribution`, so it is not proposed unless the owner wants it.
+## 9. Director rulings (2026-11-21)
+1. B's issue is costed at the location's moving average (engine unchanged). Accepted (decision 5).
+2. The cancelled-work-order refusal stays as the existing rule; recorded as a known limit with its error (decision 9).
+3. Moves between projects stay refused (`STK_WOT_PROJECT`).
+4. The entry stays off until an Admin turns on the organisation setting (decision 10, FR-WOT-014, AC-WOT-019).

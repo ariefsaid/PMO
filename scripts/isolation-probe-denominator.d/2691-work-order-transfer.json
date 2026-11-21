@@ -1,0 +1,9 @@
+{
+  "tables": [
+    {"table": "stock_wo_transfers", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"}
+  ],
+  "definer_functions": [
+    "stock_wo_transfers_on(uuid)", "set_stock_wo_transfers(boolean)", "stock_wo_issue_sources(uuid,uuid,uuid)", "get_work_order_returnable(uuid)",
+    "post_stock_wo_transfer(jsonb,jsonb,uuid)", "check_stock_wo_transfer_pair(uuid)", "trg_stock_wo_transfer_pair()", "guard_stock_document_wo_transfer()"
+  ]
+}
