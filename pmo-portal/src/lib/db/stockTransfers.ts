@@ -73,9 +73,11 @@ export async function getTransferSettings(): Promise<TransferSettings> {
 export const setTransferMode = (mode: TransferMode): Promise<void> => rpc('set_stock_transfer_mode', { p_mode: mode });
 export const setProofTiming = (timing: ProofTiming): Promise<void> => rpc('set_stock_proof_timing', { p_timing: timing });
 
+/** PostgREST returns a numeric column as a JSON number; quantities stay decimal strings (NFR-STK-007). */
+const qty = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
 const mapLine = (l: Json): StockTransferLine => ({
-  id: l.id, lineNo: l.line_no, itemId: l.item_id, qtySent: l.qty_sent, qtyCounted: l.qty_counted ?? null, qtyAccepted: l.qty_accepted ?? null,
-  qtyRejected: l.qty_rejected ?? null, rejectReason: l.reject_reason ?? null, qualityResult: l.quality_result ?? null,
+  id: l.id, lineNo: l.line_no, itemId: l.item_id, qtySent: String(l.qty_sent), qtyCounted: qty(l.qty_counted), qtyAccepted: qty(l.qty_accepted),
+  qtyRejected: qty(l.qty_rejected), rejectReason: l.reject_reason ?? null, qualityResult: l.quality_result ?? null,
   shortResolution: l.short_resolution ?? null, shortReason: l.short_reason ?? null,
 });
 const mapTransfer = (t: Json): StockTransfer => ({

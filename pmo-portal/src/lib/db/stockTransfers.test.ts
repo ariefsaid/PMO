@@ -55,6 +55,12 @@ describe('stockTransfers DAL', () => {
     expect(t?.lines.map((l) => l.id)).toEqual(['l1', 'l2']);
     expect(t?.lines[0]).toMatchObject({ qtySent: '1.000', qtyCounted: null, shortResolution: null });
   });
+  it('AC-TST-024 numeric columns that PostgREST returns as JSON numbers are mapped to strings', async () => {
+    h.queue.push({ data: { id: 't', number: 'TST-1', from_warehouse_id: 'a', to_warehouse_id: 'b', transit_warehouse_id: 'c', status: 'Received', sent_by: 'u', sent_at: 'x',
+      stock_transfer_lines: [{ id: 'l1', line_no: 1, item_id: 'i1', qty_sent: 10, qty_counted: 7, qty_accepted: 7, qty_rejected: 0 }] }, error: null });
+    const t = await getStockTransfer('t');
+    expect(t?.lines[0]).toMatchObject({ qtySent: '10', qtyCounted: '7', qtyAccepted: '7', qtyRejected: '0' });
+  });
   it('AC-TST-015 a photo uploads to {org}/{transfer}/{confirmation}/ in the private handover bucket with a safe name', async () => {
     const path = await uploadHandoverPhoto('org', 't', 'c', 'goods', new File(['x'], 'my photo (1).jpg'));
     expect(path).toBe('org/t/c/goods-my_photo__1_.jpg');
