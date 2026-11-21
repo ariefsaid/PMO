@@ -893,5 +893,28 @@
     "daysLabel": "Ingatkan sekian hari sebelum kedaluwarsa",
     "daysHelp": "Sampai 5 nilai, misalnya 30, 14, 7.",
     "daysSave": "Simpan hari peringatan"
+  },
+  "issueClosingReport": {
+    "title": "Laporan waktu penyelesaian isu",
+    "helper": "Aktifkan laporan waktu penyelesaian dan atur pengelompokan departemen.",
+    "enableLabel": "Aktifkan laporan waktu penyelesaian",
+    "enableHelper": "Menampilkan laporan waktu penyelesaian pada daftar insiden.",
+    "groupingMode": "Pengelompokan bawaan",
+    "modeType": "Berdasarkan jenis isu",
+    "modeDepartmentGroups": "Berdasarkan grup departemen kustom",
+    "groupsTitle": "Grup departemen",
+    "groupsHelper": "Petakan jenis isu ke nama departemen untuk pelaporan.",
+    "addGroup": "Tambah grup departemen",
+    "groupName": "Nama departemen",
+    "groupNamePlaceholder": "mis. Sipil & Pekerjaan Tanah",
+    "issueTypes": "Jenis isu (pisahkan dengan koma)",
+    "issueTypesPlaceholder": "mis. Civil, Excavation, Concrete",
+    "save": "Simpan",
+    "cancel": "Batal",
+    "edit": "Ubah",
+    "delete": "Hapus",
+    "saved": "Pengaturan disimpan",
+    "groupSaved": "Grup departemen disimpan",
+    "groupDeleted": "Grup departemen dihapus"
   }
 }

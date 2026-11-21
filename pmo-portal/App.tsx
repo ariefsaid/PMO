@@ -123,6 +123,7 @@ const CompanyDetailPage = lazyWithPreload(() => import('./pages/CompanyDetail'))
 const ContactsPage = lazyWithPreload(() => import('./pages/Contacts'));
 const ContactDetailPage = lazyWithPreload(() => import('./pages/ContactDetail'));
 const IncidentsPage = lazyWithPreload(() => import('./pages/Incidents'));
+const ClosingTimeReportPage = lazyWithPreload(() => import('./pages/incidents/ClosingTimeReport'));
 const IncidentDetailPage = lazyWithPreload(() => import('./pages/IncidentDetail'));
 const AdministrationPage = lazyWithPreload(() => import('./pages/Administration'));
 const IntegrationsPage = lazyWithPreload(() => import('./pages/Integrations'));
@@ -241,6 +242,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/contacts', chunks: [ContactsPage], namespaces: ['crm'] },
   { path: '/contacts/:contactId', chunks: [ContactDetailPage], namespaces: ['crm'] },
   { path: '/incidents', chunks: [IncidentsPage], namespaces: ['incidents'] },
+  { path: '/incidents/closing-time', chunks: [ClosingTimeReportPage], namespaces: ['incidents'] },
   { path: '/incidents/:incidentId', chunks: [IncidentDetailPage], namespaces: ['incidents'] },
   { path: '/my-tasks', chunks: [MyTasksPage], namespaces: ['tasks'] },
   { path: '/calendar', chunks: [CalendarPage], namespaces: ['calendar'] },
@@ -459,6 +461,7 @@ export const appRouteConfig: RouteObject[] = [
   //   FeatureRoute renders the page when enabled, else redirects deep-links to home instead of
   //   404. CW-4a: /incidents/:id is the routable detail page when the module is on.
   { path: '/incidents', element: <FeatureRoute feature="incidents" element={<IncidentsPage />} /> },
+  { path: '/incidents/closing-time', element: <FeatureRoute feature="incidents" element={<ClosingTimeReportPage />} /> },
   { path: '/incidents/:incidentId', element: <FeatureRoute feature="incidents" element={<IncidentDetailPage />} /> },
   // B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list.
   { path: '/my-tasks', element: <MyTasksPage /> },

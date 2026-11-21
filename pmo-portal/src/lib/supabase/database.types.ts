@@ -6946,6 +6946,76 @@ export type Database = {
           },
         ]
       }
+      issue_closing_report_settings: {
+        Row: {
+          created_at: string | null
+          enabled: boolean
+          grouping_mode: 'type' | 'department_groups'
+          id: string
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean
+          grouping_mode?: 'type' | 'department_groups'
+          id?: string
+          org_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean
+          grouping_mode?: 'type' | 'department_groups'
+          id?: string
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_closing_report_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      issue_department_groups: {
+        Row: {
+          created_at: string
+          id: string
+          issue_types: string[]
+          name: string
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          issue_types?: string[]
+          name: string
+          org_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          issue_types?: string[]
+          name?: string
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issue_department_groups_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       material_request_events: {
         Row: {
           acted_for: string | null
@@ -16622,6 +16692,22 @@ export type Database = {
           plan_lines: Json
           receipts_waiting: number
           replenishment_in_flight: number
+        }[]
+      }
+      get_issue_closing_time_report: {
+        Args: {
+          p_date_from?: string | null
+          p_date_to?: string | null
+          p_grouping_mode?: string | null
+        }
+        Returns: {
+          department: string
+          total_issues: number
+          closed_issues: number
+          open_issues: number
+          overdue_issues: number
+          avg_closing_hours: number | null
+          median_closing_hours: number | null
         }[]
       }
       get_loss_breakdown: {
