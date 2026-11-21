@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const runtime = vi.hoisted(() => ({ createRun: vi.fn(), followUp: vi.fn(), control: vi.fn(), subscribe: vi.fn() }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ session: { access_token: 'test' } }) }));
@@ -44,6 +45,11 @@ import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvid
 import { ShellChrome } from '@/App';
 
 const LocationProbe = () => <output data-testid="location">{useLocation().pathname}</output>;
+/** `App` mounts a QueryClientProvider above the shell (#2699's price-visibility sync reads the cache), so a
+ * shell render has one too — a fresh client per render keeps the three tests from sharing a cache. */
+const withQueryClient = (ui: React.ReactNode) => (
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>
+);
 // The slot imports the panel chunk on first open; warm it so the cold jsdom import is not inside findByRole's 1 s.
 beforeAll(async () => { await import('@/src/components/panel/AssistantPanel'); }, 60_000);
 beforeEach(() => { roleState.value = null; });
@@ -58,7 +64,7 @@ describe('Ask AI palette integration', () => {
       },
     });
     const user = userEvent.setup();
-    render(<MemoryRouter><AgentRuntimeProvider><ShellChrome /></AgentRuntimeProvider></MemoryRouter>);
+    render(withQueryClient(<MemoryRouter><AgentRuntimeProvider><ShellChrome /></AgentRuntimeProvider></MemoryRouter>));
     const query = 'show me vendor concentration risk';
     await user.keyboard('{Control>}k{/Control}');
     await user.type(screen.getByRole('combobox'), query);
@@ -80,7 +86,7 @@ describe('UXS-007 command palette discovery', () => {
   it('UXS-007: a Project Manager finds My Tasks, reads its context, and navigates there', async () => {
     roleState.value = 'Project Manager';
     const user = userEvent.setup();
-    render(<MemoryRouter><AgentRuntimeProvider><ShellChrome /><LocationProbe /></AgentRuntimeProvider></MemoryRouter>);
+    render(withQueryClient(<MemoryRouter><AgentRuntimeProvider><ShellChrome /><LocationProbe /></AgentRuntimeProvider></MemoryRouter>));
     await user.keyboard('{Control>}k{/Control}');
     await user.type(screen.getByRole('combobox'), 'my tasks');
     const option = await screen.findByRole('option', { name: /my tasks/i });
@@ -93,7 +99,7 @@ describe('UXS-007 command palette discovery', () => {
   it('UXS-007: Executive has no My Tasks option in the actual shell palette', async () => {
     roleState.value = 'Executive';
     const user = userEvent.setup();
-    render(<MemoryRouter><AgentRuntimeProvider><ShellChrome /></AgentRuntimeProvider></MemoryRouter>);
+    render(withQueryClient(<MemoryRouter><AgentRuntimeProvider><ShellChrome /></AgentRuntimeProvider></MemoryRouter>));
     await user.keyboard('{Control>}k{/Control}');
     expect(screen.getByRole('dialog', { name: /command palette/i })).toBeVisible();
     await user.type(screen.getByRole('combobox'), 'my tasks');
