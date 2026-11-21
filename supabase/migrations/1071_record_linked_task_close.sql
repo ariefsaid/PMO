@@ -1,5 +1,5 @@
 -- 1071_record_linked_task_close.sql — #2587: the system close (FR-RLT-012..018) and the live-status read (FR-RLT-009..011).
--- Proven by supabase/tests/1070_record_linked_tasks.test.sql.
+-- Proven by supabase/tests/1152_record_linked_tasks.test.sql.
 -- ── REVERSE: supabase/migrations/rollback/1071_record_linked_task_close_down.sql ─────────────────────────
 
 -- ── the close function: definer, never client-callable (FR-RLT-014) ──────────────────────────────────────

@@ -1,6 +1,6 @@
--- 1070_record_linked_tasks.sql — #2587: a task may follow one purchase, expense claim/advance or material request.
+-- 1152_record_linked_tasks.sql — #2587: a task may follow one purchase, expense claim/advance or material request.
 -- Spec docs/specs/record-linked-tasks.spec.md (FR-RLT-001..021); plan docs/plans/2026-11-20-record-linked-tasks.md.
--- Proven by supabase/tests/1070_record_linked_tasks.test.sql. Not a money path: a task only reads a record's status.
+-- Proven by supabase/tests/1152_record_linked_tasks.test.sql. Not a money path: a task only reads a record's status.
 --   §1 link + close columns on tasks, one-link / no-proof checks, one-open-task-per-link indexes.
 --   §2 end-state lists (one place) and the status reader.
 --   §3 check_task_record_link: the link guard (caller rights, so an unreadable record is a missing one) + the
@@ -8,7 +8,7 @@
 --   §4 enforce_assignee_status_only gains exactly one exception: Done while the linked record is in an end state.
 --   §5 change-history registry.
 -- The close function, its triggers and the read function are in 1071 / 1072.
--- ── REVERSE: supabase/migrations/rollback/1070_record_linked_tasks_down.sql ─────────────────────────────
+-- ── REVERSE: supabase/migrations/rollback/1152_record_linked_tasks_down.sql ─────────────────────────────
 
 -- ── §1 columns, checks, indexes ──────────────────────────────────────────────────────────────────────────
 -- ⚑ The FKs keep the default NO ACTION: a hard delete of a record FK-blocks (23503) while any task row names it, as 0206's

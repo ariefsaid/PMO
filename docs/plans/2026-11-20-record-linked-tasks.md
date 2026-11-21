@@ -10,7 +10,7 @@ Built to the spec's recommended defaults; each is one line to change.
 - **OQ-RLT-2** No notification when the system closes a task (the close is in My tasks and the task's history).
 - **OQ-RLT-3** A closed task keeps its link and closing reason visible (read-only history).
 
-Built as migrations **1070** (columns, checks, indexes, link guard, column pin, history registry) and **1071** (close function, record triggers, read function); rollbacks in `supabase/migrations/rollback/`. Test file: `supabase/tests/1070_record_linked_tasks.test.sql` (AC-RLT-012 is built here because #2531 shipped first: a check constraint refuses link plus proof-required either way).
+Built as migrations **1070** (columns, checks, indexes, link guard, column pin, history registry) and **1071** (close function, record triggers, read function); rollbacks in `supabase/migrations/rollback/`. Test file: `supabase/tests/1152_record_linked_tasks.test.sql` (AC-RLT-012 is built here because #2531 shipped first: a check constraint refuses link plus proof-required either way).
 
 Deviations from the plan text, with the reason:
 - The system close is recognised by two things, not one: the linked record is itself in an end state (server truth) for the Done exception in `enforce_assignee_status_only`, and the close columns (`closed_by_*`) are writable only when `current_user` is the owner of the close function (no client role, no session value), so a client cannot forge a system close even as Admin.

@@ -1,4 +1,4 @@
--- 1070_record_linked_tasks_down.sql — reverse of 1070 (guard body back to 0355's, then trigger, functions, indexes, columns).
+-- 1152_record_linked_tasks_down.sql — reverse of 1070 (guard body back to 0355's, then trigger, functions, indexes, columns).
 -- Loses record links and close reasons, never tasks.
 update public.record_history_config
    set captured = captured - 'procurement_id' - 'expense_claim_id' - 'material_request_id'

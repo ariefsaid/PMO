@@ -1,4 +1,4 @@
--- 1070_record_linked_tasks.test.sql — #2587. Migrations under test: 1070 (columns, link guard, column pin) + 1071 (close, read).
+-- 1152_record_linked_tasks.test.sql — #2587. Migrations under test: 1070 (columns, link guard, column pin) + 1071 (close, read).
 -- AC-RLT-001..013, 018. Fixtures are written as the owner role; assertions run as the actor.
 -- ⚑ Row-changing assertions COUNT ROWS where an RLS-denied write is a silent no-op.
 begin;
