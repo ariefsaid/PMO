@@ -34,8 +34,8 @@ insert into public.issue_closing_report_settings (org_id, enabled, grouping_mode
 
 -- Department Groups for Org A
 insert into public.issue_department_groups (id, org_id, name, issue_types) values
-  ('26780000-0000-0000-0000-0000000000g1', '26780000-0000-0000-0000-00000000000a', 'Civil & Earthworks', array['Civil', 'Excavation', 'Concrete']),
-  ('26780000-0000-0000-0000-0000000000g2', '26780000-0000-0000-0000-00000000000a', 'Electrical & Controls', array['Electrical', 'Instrumentation']);
+  ('26780000-0000-0000-0000-0000000000c1', '26780000-0000-0000-0000-00000000000a', 'Civil & Earthworks', array['Civil', 'Excavation', 'Concrete']),
+  ('26780000-0000-0000-0000-0000000000c2', '26780000-0000-0000-0000-00000000000a', 'Electrical & Controls', array['Electrical', 'Instrumentation']);
 
 -- Incidents for Org A
 -- 1: Civil, Nov 1, closed 24h later
