@@ -329,7 +329,33 @@ insert into la_fn_allow values
   ('stamp_org_id', 'a table-write trigger function, not client-callable; the write itself is refused to a field account'),
   ('timesheet_entry_week_bounds_guard', 'a table-write trigger function, not client-callable; the write itself is refused to a field account'),
   ('timesheet_mirror_unknown_witness_guard', 'a table-write trigger function, not client-callable; the write itself is refused to a field account'),
-  ('timesheets_week_start_bounds_guard', 'a table-write trigger function, not client-callable; the write itself is refused to a field account');
+  ('timesheets_week_start_bounds_guard', 'a table-write trigger function, not client-callable; the write itself is refused to a field account'),
+  -- 1480: the round's later lanes. A boolean or setting helper an RLS policy or another function calls keeps its
+  -- answer for every account; the delivery confirmation path is the one write a light account performs on stock.
+  ('dsr_stock_issue_on', 'the site-report stock switch: dsr_post_stock reads it, so guarding it would refuse the posting for every account'),
+  ('equipment_plan_approver_ok', 'the plan approver test: approve and reject equipment plan call it, so it must answer for every account'),
+  ('equipment_plan_engineer_on_project', 'the equipment_plans select policy calls it, so it must answer for every account'),
+  ('revenue_plan_enabled', 'the revenue-plan switch several reads and the work_order_revenue_plan select policy call'),
+  ('safety_day_writable', 'the safety-day write policies and safety_save_talk call it, so it must answer for every account'),
+  ('safety_may_enter', 'the safety-day policies and the safety writes call it'),
+  ('safety_may_enter_day', 'the safety_officer_entries insert policy calls it'),
+  ('safety_may_see_people', 'safety_may_see_people_day calls it'),
+  ('safety_may_see_people_day', 'the safety fitness, attendee and photo select policies call it'),
+  ('safety_photo_stored', 'the safety_toolbox_photos insert policy calls it'),
+  ('safety_records_enabled', 'the safety_days write guard and the setting write call it'),
+  ('site_checkpoint_may_read', 'the site_checkpoints select policy and the photo path test call it'),
+  ('site_checkpoint_may_record', 'record_site_checkpoint and the photo write policy call it'),
+  ('site_checkpoint_photo_path_ok', 'the site-checkpoint photo storage policies call it'),
+  ('site_checkpoint_photo_stored', 'record_site_checkpoint checks the stored object through it'),
+  ('site_checkpoint_today', 'record_site_checkpoint and the work-order checkpoint flag read the organisation date through it'),
+  ('stock_can_handover', 'the stock handover photo write policy calls it, so it must answer for every account'),
+  ('stock_handover_readable', 'the stock handover photo read policy calls it'),
+  ('stock_proof_timing_of', 'receive_stock_transfer and stock_post_core read the proof timing through it'),
+  ('stock_reservations_on', 'the reservation reads and writes check the switch through it'),
+  ('stock_transfer_mode_of', 'stock_lock_transfer, send_stock_transfer and the stock document guards read the mode through it'),
+  ('stock_wo_transfers_on', 'post_stock_wo_transfer checks the switch through it'),
+  ('receive_stock_transfer', 'the delivery confirmation path: a field account confirms the count and the photo'),
+  ('record_stock_handover', 'the handover confirmation path: a field account signs for the delivery addressed to it');
 
 create temp table la_table_allow (t text primary key, why text not null);
 insert into la_table_allow values
