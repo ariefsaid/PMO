@@ -1,4 +1,4 @@
--- Reverses 1126_quantity_overrun_detection.sql.
+-- Reverses 1175_quantity_overrun_detection.sql.
 drop function if exists public.record_quantity_forecast(uuid, numeric, text);
 drop trigger if exists boq_items_zz_qcr_quantity on public.boq_items;
 drop trigger if exists quantity_forecasts_qcr_ins on public.quantity_forecasts;

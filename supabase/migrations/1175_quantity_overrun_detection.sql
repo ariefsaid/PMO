@@ -1,6 +1,6 @@
--- 1126_quantity_overrun_detection.sql — #2578: when does a contract line pass its contract quantity?
+-- 1175_quantity_overrun_detection.sql — #2578: when does a contract line pass its contract quantity?
 -- Spec: docs/specs/quantity-change-requests.spec.md (FR-QCR-001..003); AC-QCR-001..003, 028, 029.
--- Reversal: rollback/1126_quantity_overrun_detection_down.sql.
+-- Reversal: rollback/1175_quantity_overrun_detection_down.sql.
 --   §1 quantity_forecasts: append-only expected-final-quantity rows (the forecast source, OD-QCR-1).
 --   §2 qcr_figures: ONE set-based read of contract quantity C, reported progress P (greatest of four shipped sources,
 --      naming the winner) and forecast E, per item; over-contract = strictly greater, never for a lump_sum line.
