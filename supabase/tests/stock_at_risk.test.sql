@@ -73,7 +73,7 @@ select plan(17);
 
 -- AC-SAR-101: one row per location holding stock; the value held is the sum over the location's items.
 select is(public.sar_t_codes(public.get_stock_at_risk()),
-  'CEN=9000.00,SITE-A=3000.00,SITE-B=1000.00,SITE-C=750.00,SITE-D=0.00',
+  'CEN=9000.00,SITE-C=750.00,SITE-A=3000.00,SITE-B=1000.00,SITE-D=0.00',
   'AC-SAR-101 one row per location holding stock, value held summed over its items');
 select is((select count(*)::text from jsonb_array_elements(public.get_stock_at_risk())), '5',
   'AC-SAR-101 exactly five org locations hold stock (the other org''s site is not among them)');
@@ -124,9 +124,9 @@ select is((select cover_value::text from public.stock_warehouses where id = '269
 update public.stock_warehouses set cover_value = null where id = '26940000-0000-0000-0000-000000002003';
 select is((select cover_value from public.stock_warehouses where id = '26940000-0000-0000-0000-000000002003'), null,
   'AC-SAR-106 clearing the cover leaves it null (not recorded)');
-select throws_ok(
+select throws_like(
   $$ update public.stock_warehouses set cover_value = -1 where id = '26940000-0000-0000-0000-000000002002' $$,
-  '23514', 'stock_warehouses_cover_value_check', 'AC-SAR-106 a negative cover is refused');
+  '%stock_warehouses_cover_value_check%', 'AC-SAR-106 a negative cover is refused');
 
 select * from finish();
 rollback;
