@@ -20,8 +20,7 @@ import { EmployeeLinkConfirmSection } from './approvals/EmployeeLinkConfirmSecti
 import { ReopenableApprovedSection } from './approvals/ReopenableApprovedSection';
 import { QueueGroup, type QueueItem } from './approvals/ApprovalQueue';
 import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
-import { useApproverInboxSetting } from '@/src/hooks/useApproverInbox';
-import { useWaitingForMe } from '@/src/hooks/useMaterialRequests';
+import { useMaterialInbox } from '@/src/hooks/useApproverInbox';
 import { MaterialRequestApprovalSection } from './approvals/MaterialRequestApprovalSection';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals, type ApprovalPopulationEntry, type ApprovalScope } from '@/src/lib/selectors/approvals';
@@ -89,8 +88,8 @@ const ApprovalsPage: React.FC = () => {
 
   // #2685: material-request steps awaiting the viewer. Off (the default, and while the setting is unknown) the queue is not
   // requested and nothing below changes.
-  const materialOn = useApproverInboxSetting().data === true;
-  const materialQuery = useWaitingForMe(materialOn);
+  const materialQuery = useMaterialInbox();
+  const materialOn = materialQuery.on;
   const materialRows = useMemo(() => (materialOn && !materialQuery.isError ? materialQuery.data ?? [] : []), [materialOn, materialQuery.data, materialQuery.isError]);
   const canShowMaterial = materialOn && (materialRows.length > 0 || materialQuery.isPending || materialQuery.isError);
 
