@@ -18,6 +18,7 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `notifications` | purge, 180 days, read ones only (`notifications-purge`, 0565) |
 | `email_outbox` | keep: delivery record, one row per emailed notification; removed with its notification (`notifications-purge`) |
 | `scheduled_report_runs` | purge, 90 days (`scheduled-report-tick`, 1227); finished scheduled-report `email_outbox` rows follow the same 90 days |
+| `phone_check_ins` | purge, 90 days, position columns only (`phone-check-in-position-purge`, 1467); the check-in record itself stays: outcome, decision and hours are business history |
 | `agent_runs` | keep: owner decision pending (#1755) |
 | `agent_events` | keep: owner decision pending (#1755) |
 | `agent_usage` | keep: owner decision pending (#1755); proposal 13 months for billing |
@@ -51,6 +52,7 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `document-expiry-warnings` | keep: writes one dedupe row per notice (`document_expiry_notices`, removed with its document); notifications fall under `notifications-purge` |
 | `alert-send-log-purge` | keep: purge job, stores no rows |
 | `notifications-purge` | keep: purge job, stores no rows |
+| `phone-check-in-position-purge` | keep: purge job, stores no rows (1467) |
 | `agent-dispatch-tick` | keep: trigger only, stores no rows |
 | `telegram-notify-tick` | keep: trigger only, stores no rows |
 | `email-notify-tick` | keep: trigger only, stores no rows |
