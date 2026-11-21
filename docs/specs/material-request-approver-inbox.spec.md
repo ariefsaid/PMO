@@ -87,6 +87,19 @@ While the setting is off: no trigger writes a notification, `/approvals` renders
 ## Out of scope
 - Phone push, email or messaging-app delivery; reminders or escalation of an unattended step; re-notifying on a role change of a profile (the inbox stays correct because it reads the live queue).
 
+## Mutation checks (to run in the wave proof; each must turn `supabase/tests/mrq_approver_inbox.test.sql` red, then be restored)
+Each point is tagged `-- mut:` in the migration. Apply by editing the one line, `db reset`, run the file, expect the named failures, restore.
+
+| Tag (file) | Break it by | Expected red |
+|---|---|---|
+| `recipient_author` (1336) | deleting `and p.id <> r.created_by` | AC-MRI-003, 006 (author stand-in), 019, 004 resubmission |
+| `recipient_authority` (1336) | passing `null` instead of `v_pin` to `mrq_step_authority` | AC-MRI-010 pin re-point, 009 pin parity, 005 live pin |
+| `recipient_twice` (1336) | prefixing the earlier-decision `if` with `false and` | AC-MRI-007, 009 earlier-decision parity |
+| `setting_gate` (1336) | replacing `if public.mrq_approver_inbox_on(s.org_id) then` with `if true then` | AC-MRI-002, 020 |
+| `setting_admin` (1335) | replacing the Admin test with `if false then` | AC-MRI-001 |
+
+A first, partial run on the build machine (before the database gate was moved to the wave proof) saw `recipient_author`, `recipient_authority` (pin) and `recipient_twice` go red with the failures above, and the unmutated file pass 33/33; `setting_gate` and `setting_admin` were not run.
+
 ## Deliberate deviation (follow-up)
 Notification wording is plain English written by the database, the same as every existing 0237 workflow notification. The `message_key` template guard (1025) is not changed, so a Bahasa Indonesia reader sees the English title and body in the bell. Templated, translated wording for workflow notifications is one follow-up for all of them, not for this feature alone.
 
