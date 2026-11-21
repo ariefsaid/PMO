@@ -15481,6 +15481,7 @@ export type Database = {
         Returns: Json
       }
       get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
+      get_work_in_hand: { Args: { p_as_of?: string }; Returns: Json }
       grant_sales_invoice_submit_clearance: {
         Args: { p_actor_id: string; p_clearance_id: string; p_si_id: string }
         Returns: {
