@@ -52,5 +52,42 @@
     "label": "Filter by work order",
     "all": "All work orders",
     "none": "No work order"
+  },
+  "linkedRecord": {
+    "type": {
+      "procurement": "Purchase",
+      "expense_claim": "Expense claim",
+      "material_request": "Material request"
+    },
+    "typeLower": {
+      "procurement": "purchase",
+      "expense_claim": "expense claim",
+      "material_request": "material request"
+    },
+    "region": "Linked record",
+    "unreadable": "{{type}} · linked record you cannot view",
+    "open": "Open {{type}} {{label}}",
+    "closedBy": "Closed automatically: the {{type}} is {{status}}.",
+    "followUp": {
+      "create": "Create follow-up task",
+      "open": "Open follow-up task",
+      "dialogTitle": "Follow-up task",
+      "nameLabel": "What needs following up?",
+      "namePlaceholder": "For example: chase the supplier",
+      "assigneeLabel": "Assigned to",
+      "unassigned": "Unassigned",
+      "save": "Create task",
+      "cancel": "Cancel",
+      "created": "Follow-up task created.",
+      "alreadyOpen": "This record already has an open task. Opening it."
+    },
+    "field": {
+      "label": "Follows a record",
+      "none": "No linked record",
+      "hint": "The task shows this record's status and closes itself when the record is finished.",
+      "locked": "A task that requires proof of completion cannot follow a record."
+    },
+    "unlink": "Stop following this record",
+    "unlinked": "Stopped following the record."
   }
 }

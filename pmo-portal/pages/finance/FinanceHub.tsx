@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useFeature } from '@/src/auth/useFeature';
@@ -204,6 +204,7 @@ const FinanceHub: React.FC = () => {
           </div>
           <div className="min-w-0 space-y-[var(--space-panel-gap)]">
             {tiles}
+            {hasRevenue && <Link to="/finance/work-in-hand" className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline">{t('financeHub:hub.workInHand', 'Work in hand')}</Link>}
             <FinanceRevenueTrend today={finance.today} enabled={hasRevenue} />
           </div>
         </div>

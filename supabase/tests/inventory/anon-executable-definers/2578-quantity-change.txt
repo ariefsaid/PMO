@@ -1,0 +1,10 @@
+# #2578 (2578-quantity-change), carried from the branch's own array at integration
+qcr_approve
+qcr_raise
+qcr_record_decision
+qcr_record_sent
+qcr_return
+qcr_submit
+qcr_update_draft
+qcr_withdraw
+record_quantity_forecast

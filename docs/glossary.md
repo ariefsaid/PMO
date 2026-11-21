@@ -41,11 +41,13 @@ file is issued, content changes require a new revision: PMO prevents changes to 
 while a linked file can change at Microsoft and PMO detects that change (see **Content drift**).
 (One-source rule decided 2026-06-12; linking decided 2026-07-29.)
 
-**Document category** — an organisation-owned label on every register document that also decides which roles may see it. Seven system categories are seeded (Drawing, Specification, Report, Transmittal, Submittal, Certificate, Other); organisations add their own.
+**Document category** — an organisation-owned label on every register document that also decides which roles may see it. Eight system categories are seeded (Drawing, Specification, Report, Transmittal, Submittal, Certificate, Other, Reference); organisations add their own.
 
 **Viewer roles** — the roles allowed to see documents of one category, files included. A role not listed sees no trace of those documents; Admin is always listed.
 
 **System category** — a seeded document category that cannot be renamed, archived or deleted; `Other` is the fallback when a document is filed without a recognised category.
+
+**Reference** — the system category that labels a linked Microsoft 365 folder entry. It is created by the link routine, so the ordinary register forms do not offer it.
 
 **Content drift** — a linked document file's currently observed content differs from the
 content baseline recorded when it was issued. Each verification compares against that same
@@ -554,9 +556,11 @@ Pending (waiting for approval), Approved, Rejected, Cancelled or Fulfilled. An a
 named when the project has several); a keeper posts it, which marks the request Fulfilled. Not a purchase
 request: it moves stock the organisation already holds.
 
-**Planned quantity (material request)** — the material allowances of the contract lines a work order carries, in
-proportion to the share of each line the work order holds. A line whose already-requested quantity plus the new
-quantity exceeds it is **over plan** and carries a reason.
+**Planned quantity (material request)** — for an item on a work order: the work order's **consumable plan** quantity
+when it has a plan line for that item (adjusted if adjusted, else generated), otherwise the material allowances of the
+contract lines the work order carries, in proportion to the share of each line the work order holds, otherwise zero.
+Each request line keeps the figure it was submitted against and where it came from (standard, adjusted, allowance,
+none). A line whose already-requested quantity plus the new quantity exceeds it is **over plan** and carries a reason.
 
 **Approval chain** — the organisation's ordered list of approval steps for material requests, each naming a role and
 a purpose; a step may apply only to over-plan requests. A submitted request keeps a copy of the chain as it was, and
@@ -579,6 +583,17 @@ clears it; the pin row is kept (#2605).
 
 **Cut-off (material request)** — an optional time of day after which a request needed by the next day is refused;
 later dates are not affected. Checked on the server clock in the organisation's time zone.
+
+**Usage standard** (*standar pemakaian*) — the organisation's rule "this consumable, this much per unit of work", for
+example welding rod per dia-inch welded. Names a consumable stock item, a work unit (matched to the contract line's unit,
+ignoring case and spaces), an optional contract-line code prefix, a quantity per unit in the item's own unit and a waste
+margin %. Where several standards of one item match a line, the longest prefix wins. Archived, never deleted.
+
+**Consumable plan** (*rencana bahan habis pakai*) — the stock items a work order is expected to use, generated on request
+from its contract-line allocations and the active usage standards, and stored as a snapshot with the basis of each quantity.
+A planner may adjust a quantity, or add an item no standard covers, with a reason. It goes **out of date** when the work or
+the standards change after it was made and is regenerated only on request. Quantities of stock items only: it is not the
+cost plan of a work order.
 
 ## Work orders down to the cost line (#2516)
 
@@ -608,6 +623,18 @@ work order's currency, or equipment hours or crew hours. It never changes an act
 **Actual crew hours** — the crew hours a work order's plan versus actual counts: hours on **Approved** timesheet weeks
 naming the work order; hours on a Draft, Submitted or Rejected week are named apart as not yet approved and never
 counted. Crew size is the count of distinct people with approved hours (#2626).
+
+### Third-party inspections (#2580)
+
+**Third-party inspection** (*inspeksi pihak ketiga*) — one external test or inspection of a work order by an outside
+company, tracked from request through purchase, invitation, execution and report (Requested, Purchase raised, Invited,
+Executed, Reported; Cancelled only when it is required for no gate). Its cost is never entered on the inspection: it is
+read from the procurement case it links to. A re-test is a new inspection.
+
+**Inspection prerequisite** (*prasyarat inspeksi*) — the inspections a work order must have complete before a gate
+(readiness or billing). An inspection is **complete** when it is reported with a Pass or Conditional result, or when a
+manager other than its creator has recorded a **waiver** with a reason. Fail and Pending are not complete. The read only
+reports; the billing and readiness features own the block.
 
 ### Unit-rate catalogue (#2520)
 
@@ -722,6 +749,21 @@ on the decision.
 **Cut-off (material request)** (*batas waktu harian*) — an optional time of day after which a request needed by the next
 day is refused, with the earliest accepted date given; later dates are not affected. Checked on the server clock, not the
 browser's.
+
+### Client material requisitions (#2585)
+
+**Client material requisition** (*permintaan material klien*) - a request to the client to release material the organisation
+does not own, for one work order. Draft, Open (sent) or Cancelled. Different from a material request, which moves the
+organisation's own stock under an approval chain. Only quantities are tracked; no requisition holds an amount of money.
+
+**Take-off** (*take-off*) - the quantity of an item a work order needs, as typed or imported per requisition line.
+
+**Reservation (client material)** (*reservasi*) - the client's confirmation that a quantity is set aside, recorded with the
+client's own reference. Append-only; the client withdrawing part of it is a **release**. Reserved = reservations minus releases.
+
+**Pickup (client material)** (*pengambilan*) - the physical collection of reserved material. It posts one stock receipt at
+no cost into a site, yard or staging location of the work order's project, and cannot exceed what is still to collect.
+Still to collect = reserved minus collected; awaiting reservation = requested minus reserved, never below zero.
 
 ### Three-way match (#2525)
 
@@ -866,7 +908,7 @@ A person who cannot read the record sees only its type and "cannot view".
 **End state** — a status after which a record cannot continue, per record type (for example Paid or Cancelled for a
 purchase). Reaching it closes the linked task.
 
-**System close** — the database setting a linked task to Done when its record reaches an end state, with no person acting.
+**System close** — the database setting a linked task to Done when its record reaches an end state, with a stored closing reason; the history names whoever moved the record (or no one for a service sync), and a task a person closed carries no such reason.
 
 **Open task** — a task that is not Done, archived or tombstoned.
 ### Work-order sections (#2576)
@@ -1118,3 +1160,18 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 - **Done-not-claimed age** (#2675): whole days from the latest confirmed acceptance of a candidate's work order to the organisation's today. Information, shown on every candidate line of the billing plan.
 - **Done-not-claimed alert** (#2675): off by default; when an organisation switches the reminder on and sets a day limit, lines older than the limit are flagged and Finance is told once per line. It never raises a claim or an invoice.
+## Work-order sections (#2576)
+**Section** — an optional child of one work order: a place or scope with a code (unique per work order, reserved for its life), a name, an optional note and foreman, a held readiness and a sort order. It carries no value, invoice, acceptance or status of its own, and is neither a discipline (the organisation-wide cost list) nor a work-order line (a contract quantity). The organisation's word for it is the shared term `terms.section` ("Section" / "Bagian"); no screen spells it. Not the record page's layout regions, which are *panels*.
+**Unsectioned remainder** — the records of a work order that name no section; shown as "Not in a section". A work order with no section has none and reads exactly as before.
+**Roll-up invariant** — for every work order and every measure, the sum over its sections plus the unsectioned remainder equals the work-order total exactly (exact decimals, no rounding in between). It holds by construction: every record keeps its work order, and the roll-up is a group by section over the same records.
+**Section readiness** — one held value per section (`not ready`, `ready`, `blocked`) with a note, who set it and when, each change kept in history. The work order shows counts over its live sections and "all ready"; readiness gates no transition, approval or posting.
+**Section allocation** — a planned material quantity for one stock item on one section, taken from the work order's planned quantity for that item (never a second stored plan); the allocations of an item never exceed the work order's plan (#2576).
+
+### Subcontractor progress certificate (#2584)
+
+**Subcontractor progress certificate** — a month's measured work of one subcontractor on one subcontract purchase order and its work order, priced at the subcontractor's agreed rates, less backcharges, approved by a different person and then turned into one vendor bill. It is a calculation and approval record: it never posts or pays.
+**Measured line** — a progress line of a validated, not superseded daily report whose crew is a vendor crew of the purchase order's vendor, on the order's effective revision, in the month, and in no other live certificate. Measured work is claimed per work order, day, contract line and crew.
+**Rate card (subcontractor)** — the cost rate paid to a vendor per contract item and month window; separate from the client rate catalogue. A rate takes effect on the first day of a month.
+**Backcharge** — a recovery from a subcontractor (rework, damage, safety, materials we supplied, other) deducted on the certificate that includes it. It lowers the bill's payable, never its amount.
+**Net certified amount** — the certificate's gross less its backcharges; the figure the payment ceiling allows (the payable).
+**Live certificate** — one that is submitted, approved or billed; only a live certificate holds measured work or a backcharge.

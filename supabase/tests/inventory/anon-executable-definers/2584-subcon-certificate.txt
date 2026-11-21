@@ -1,0 +1,13 @@
+# #2584 (2584-subcon-certificate), carried from the branch's own array at integration
+approve_subcontract_certificate
+archive_subcontract_backcharge
+bill_subcontract_certificate
+cancel_subcontract_certificate
+prepare_certificate_acceptance
+prepare_subcontract_certificate
+record_subcontract_backcharge
+return_subcontract_certificate
+set_certificate_backcharge
+set_certificate_deselection
+set_subcontractor_rate
+submit_subcontract_certificate

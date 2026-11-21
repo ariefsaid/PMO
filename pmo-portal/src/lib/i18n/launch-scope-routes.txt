@@ -169,4 +169,5 @@
 /finance/receivables           pages/finance/ReceivablesPage.tsx src/components/finance/receivables/*.tsx pages/SalesInvoices.tsx pages/IncomingPayments.tsx
 /finance/payables              pages/finance/PayablesPage.tsx
 /finance/reports               pages/ManagementPack.tsx src/components/reports/RecordProgressModal.tsx
+/finance/work-in-hand          pages/finance/WorkInHand.tsx
 /finance/statements            pages/FinancialStatements.tsx src/components/financial-statements/FinancialStatementsSection.tsx

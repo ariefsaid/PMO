@@ -39,10 +39,10 @@ function throwWrite(error: PostgrestErrorLike): never {
  */
 export type CompanyListRow = Pick<
   CompanyRow,
-  'id' | 'name' | 'short_name' | 'type' | 'client_number_segment'
+  'id' | 'name' | 'short_name' | 'type' | 'client_number_segment' | 'supply_risk_status'
 >;
 
-export const COMPANY_LIST_COLUMNS = 'id,name,short_name,type,client_number_segment';
+export const COMPANY_LIST_COLUMNS = 'id,name,short_name,type,client_number_segment,supply_risk_status';
 
 /** The directory's display row for pickers/exports that must offer EVERY company. */
 export type CompanyOptionRow = Pick<CompanyRow, 'id' | 'name' | 'short_name'>;

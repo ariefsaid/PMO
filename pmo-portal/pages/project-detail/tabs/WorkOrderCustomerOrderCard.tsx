@@ -1,3 +1,4 @@
+import { WorkOrderSupplyWarning } from '@/src/components/SupplyRiskWarning';
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -276,6 +277,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
             {orderActions.length > 0 && <MenuButton items={orderActions} ariaLabel={t('projectDetail.workOrders.action.orderMenuLabel', 'Actions for {{order}}', { order: row.wo_number ?? row.title })} />}
           </div>
         </div>
+        <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
 
         {canViewBilling && <dl className="flex flex-wrap gap-x-6 gap-y-2" data-testid={`wo-money-${row.id}`} aria-label={t('common:projectDetail.workOrders.billing.column', 'Billing')}>
           {/* AC-BWO-004: what is still to invoice leads, ahead of invoiced and paid. */}

@@ -125,6 +125,7 @@ export function kindLabels(t: TFunction): Record<string, string> {
     vendor_withholding_slip: t('history.kind.vendor_withholding_slip', 'Bukti potong'),
     vendor_withholding_slip_bill: t('history.kind.vendor_withholding_slip_bill', 'Bukti potong bill link'),
     project_stage_entry: t('history.kind.project_stage_entry', 'Stage entry'),
+    third_party_inspection: t('workOrders:inspections.historyKind', 'Third-party inspection'),
   };
 }
 

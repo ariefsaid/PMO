@@ -200,7 +200,8 @@
     "documents": "Documents",
     "ledger": "Ledger",
     "setup": "Setup",
-    "reorder": "Reorder"
+    "reorder": "Reorder",
+    "usageStandards": "Usage standards"
   },
   "onHand": {
     "title": "Stock",
@@ -642,8 +643,31 @@
     "rowLabel": "Request purchase for {{item}}"
   },
   "siteWork": {
-    "files": {"unknownUploader": "Unknown uploader", "title": "Attachments", "choose": "Choose file", "label": "Label (optional)", "upload": "Upload attachment", "remove": "Remove", "reason": "Reason for archiving", "loading": "Loading attachments…", "loadError": "Could not load attachments.", "error": "Could not change the attachment."},
-    "tags": {"connectedUnavailable": "Stock tags are unavailable while inventory is connected.", "confirmTitle": "Archive this stock tag?", "confirmDescription": "Items keep their tag, but it will no longer be offered for new items.", "manage": "Manage stock tags", "name": "Tag name", "zero": "Zero cost", "paper": "Paper required", "add": "Add tag", "save": "Save tag", "loadError": "Could not load stock tags.", "loading": "Loading stock tags…"},
+    "files": {
+      "unknownUploader": "Unknown uploader",
+      "title": "Attachments",
+      "choose": "Choose file",
+      "label": "Label (optional)",
+      "upload": "Upload attachment",
+      "remove": "Remove",
+      "reason": "Reason for archiving",
+      "loading": "Loading attachments…",
+      "loadError": "Could not load attachments.",
+      "error": "Could not change the attachment."
+    },
+    "tags": {
+      "connectedUnavailable": "Stock tags are unavailable while inventory is connected.",
+      "confirmTitle": "Archive this stock tag?",
+      "confirmDescription": "Items keep their tag, but it will no longer be offered for new items.",
+      "manage": "Manage stock tags",
+      "name": "Tag name",
+      "zero": "Zero cost",
+      "paper": "Paper required",
+      "add": "Add tag",
+      "save": "Save tag",
+      "loadError": "Could not load stock tags.",
+      "loading": "Loading stock tags…"
+    },
     "balance": {
       "connectedUnavailable": "Work-order stock balances are not available for connected inventory.",
       "issuedValue": "Issued value",

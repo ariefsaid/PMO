@@ -1,0 +1,46 @@
+{
+  "title": "Supply risk",
+  "hint": "Whether we can rely on this supplier. A person sets it; the age of unpaid invoices only suggests.",
+  "status": {
+    "active": "Active",
+    "at_risk": "At risk",
+    "inactive": "Inactive"
+  },
+  "setBy": "Set by {{name}} on {{date}}",
+  "setOn": "Set on {{date}}",
+  "reasonShown": "Reason: {{reason}}",
+  "saved": "Supplier status saved",
+  "setToSuggested": "Set to suggested",
+  "onlyRoles": "Only Admin or Finance can change this.",
+  "suggestion": {
+    "loading": "Reading unpaid invoices…",
+    "unavailable": "No suggestion is available.",
+    "noData": "No aging data for this supplier in the accounting system.",
+    "atRiskErp": "Suggested: at risk, {{amount}} over 60 days",
+    "atRiskPmo_one": "Suggested: at risk, {{count}} invoice over 60 days, {{amount}}",
+    "atRiskPmo_other": "Suggested: at risk, {{count}} invoices over 60 days, {{amount}}",
+    "active": "Suggested: active, no unpaid balance is over 60 days old",
+    "unknown_one": "{{count}} purchase has an unpaid amount that is not known and is not counted.",
+    "unknown_other": "{{count}} purchases have an unpaid amount that is not known and are not counted.",
+    "differs": "The stored status is {{status}}; it differs from the suggestion."
+  },
+  "form": {
+    "status": "Status",
+    "reason": "Reason",
+    "reasonHelper": "Say why. Required for At risk and Inactive.",
+    "reasonError": "Say why",
+    "save": "Save status"
+  },
+  "exposure": {
+    "title": "Work orders with open orders from this supplier",
+    "loading": "Loading…",
+    "empty": "No work order has an open order from this supplier.",
+    "orders_one": "{{count}} open order",
+    "orders_other": "{{count}} open orders",
+    "projectLevel": "Project-level orders (no work order named)"
+  },
+  "warning": {
+    "lead": "Supplier warning",
+    "body": "is {{status}} and has an open order on this work order."
+  }
+}

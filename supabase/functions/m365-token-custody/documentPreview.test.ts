@@ -198,6 +198,9 @@ async function serve(world: World, body: unknown) {
 Deno.test("document-preview AC-014 an unreadable record returns a sanitized refusal before any Microsoft or signed-link call", async (t) => {
   const refusals: Array<[string, Partial<World>, Record<string, unknown>]> = [
     ["RLS hides the row", { documents: [] }, previewBody()],
+    // AC-DCV-016 (#2579): a row whose category the caller's role cannot view is hidden by the register policy, so the caller's JWT reads
+    // nothing: the same generic refusal, and no Microsoft call. The handler adds no category rule of its own; the database is the gate.
+    ["AC-DCV-016 the category rule hides the row from the caller's JWT", { documents: [] }, previewBody()],
     ["row in another org", { documents: [msRow({ org_id: "other-org" })] }, previewBody()],
     ["row is a different id", { documents: [msRow({ id: "10200000-0000-0000-0000-0000000000ee" })] }, previewBody()],
     ["private upload row", { documents: [msRow({ source: "upload" })] }, previewBody()],

@@ -514,6 +514,14 @@ export function breadcrumbForPath(
       { label: paymentRecord ? 'Payment record' : 'Invoice record', i18nKey: paymentRecord ? 'financeHub:nav.paymentRecord' : 'shell.nav.invoiceRecord' },
     ];
   }
+  if (pathname === '/finance/work-in-hand') {
+    return [
+      { label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:hub.title', href: '/finance', onClick: () => navigate?.('/finance') },
+      { label: 'Work in hand', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'workInHand:title' },
+    ];
+  }
   const financeArea = pathname.match(/^\/finance\/(receivables|payables|reports|statements)$/)?.[1];
   if (financeArea) {
     const labels: Record<string, string> = {

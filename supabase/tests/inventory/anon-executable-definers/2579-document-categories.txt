@@ -1,0 +1,8 @@
+# #2579 document categories (migrations 1090..1094, renumbered at integration)
+archive_document_category
+create_document_category
+refile_document_lineage
+rename_document_category
+reorder_document_categories
+restore_document_category
+set_document_category_roles

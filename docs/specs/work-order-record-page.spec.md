@@ -42,7 +42,7 @@ the project's tabs and modals.
   line (by source), a task, an issue. The link is rendered only where the caller can read the work order.
 - FR-WORP-012 The project page's modals stay for creating and editing; the page is the place to read.
 
-**Sections** (one column on a phone; section order fixed)
+**Panels** (one column on a phone; section order fixed)
 - FR-WORP-020 *Scope and progress*: BOQ lines allocated to this work order with quantity, accepted-to-date quantity
   and percent complete, and the work order's overall percent (value-weighted, as shipped). A work order with no
   lines shows an empty state with a link to allocate.
@@ -58,8 +58,8 @@ the project's tabs and modals.
 - FR-WORP-025 *Issues*: issues (#2521) naming the work order, with status and due time; *Open tasks* (#2531): tasks
   naming it that are not Done, with assignee and due date. Both link out and show an empty state.
 - FR-WORP-028 *Close-out checklist* (#2593, `docs/specs/work-order-closeout-checklist.spec.md`): where the work order has a checklist, an ordered list of its items with age, attached document, done date and person, and the count of required items still open; Admin, Finance and the project's manager attach and mark done. The section is absent when the work order has no checklist. The database refuses to close the work order while a required item is open.
-- FR-WORP-026 A section whose read fails shall show its own error with retry; the other sections still render.
-- FR-WORP-027 A section shall never render blank: loading, empty, error and restricted each have copy (English and
+- FR-WORP-026 A panel whose read fails shall show its own error with retry; the other panels still render.
+- FR-WORP-027 A panel shall never render blank: loading, empty, error and restricted each have copy (English and
   Bahasa Indonesia).
 
 ## 3. Acceptance criteria
@@ -74,7 +74,7 @@ the project's tabs and modals.
 | AC-WORP-006 | Given cost lines on three sources and two disciplines plus one with none, when I view Costs, then groups by source and by discipline list exactly those records, with "No discipline" for the unlabelled one. | Unit + Layer-1 money test |
 | AC-WORP-007 | Given a caller who cannot read purchase money, when I view Costs, then purchase groups list records with no total and a restricted note. | Unit |
 | AC-WORP-008 | Given invoices in each state, when I view Billing, then figures equal `workOrderBilling` for the same WO. | Unit |
-| AC-WORP-009 | Given one failing section read, when the page loads, then that section shows an error with retry and the rest render. | Unit |
+| AC-WORP-009 | Given one failing panel read, when the page loads, then that panel shows an error with retry and the rest render. | Unit |
 | AC-WORP-010 | Given any state at 375 px, when I run `scripts/ux-proof.sh` on the route, then no small text, no horizontal scroll and no blank region. | ux-proof gate |
 | AC-WORP-011 | Given Bahasa Indonesia selected, then every string on the page is translated. | Unit (locale parity guard) |
 
@@ -87,3 +87,5 @@ the project's tabs and modals.
 
 ## 5. Out of scope
 Editing from the page beyond shipped RPCs; plan-vs-actual and margin (#2519); creating tasks or issues (#2531, #2521).
+
+> **#2576 note:** this spec's layout regions were called "sections"; they are *panels* now, so the word "section" means only the business entity of `work-order-sections.spec.md` (`terms.section`). The sections block of #2576 is one more panel.

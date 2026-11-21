@@ -55,6 +55,10 @@ export interface TaskInput {
   work_order_id?: string | null;
   /** #2531: when true the task cannot be set Done until a proof attachment exists (enforced in the DB). */
   proof_required?: boolean;
+  /** #2587: at most ONE record link (the DB refuses two, or one the caller cannot read). */
+  procurement_id?: string | null;
+  expense_claim_id?: string | null;
+  material_request_id?: string | null;
 }
 
 /** The structure fields an edit (PM/Exec/Admin) supplies. project_id/org_id are never patched. */
@@ -78,6 +82,10 @@ export interface TaskPatch {
   work_order_id?: string | null;
   /** #2531: require / stop requiring proof of completion. Never changes the task's status. */
   proof_required?: boolean;
+  /** #2587: set / change / clear (null) the record link. The close columns are never client-writable. */
+  procurement_id?: string | null;
+  expense_claim_id?: string | null;
+  material_request_id?: string | null;
 }
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -359,6 +367,10 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       ...(input.work_order_id ? { work_order_id: input.work_order_id } : {}),
       ...(input.proof_required ? { proof_required: true } : {}),
       ...(input.task_group_id ? { task_group_id: input.task_group_id } : {}), // #2679, managers only (DB-enforced)
+      // #2587: a record link, only when stated.
+      ...(input.procurement_id ? { procurement_id: input.procurement_id } : {}),
+      ...(input.expense_claim_id ? { expense_claim_id: input.expense_claim_id } : {}),
+      ...(input.material_request_id ? { material_request_id: input.material_request_id } : {}),
     })
     .select()
     .single();
@@ -394,6 +406,9 @@ export async function updateTask(id: string, patch: TaskPatch, projectId?: strin
   if (patch.priority !== undefined) next.priority = patch.priority; // null clears
   if (patch.work_order_id !== undefined) next.work_order_id = patch.work_order_id; // null clears (#2531)
   if (patch.proof_required !== undefined) next.proof_required = patch.proof_required; // #2531
+  if (patch.procurement_id !== undefined) next.procurement_id = patch.procurement_id; // null clears (#2587)
+  if (patch.expense_claim_id !== undefined) next.expense_claim_id = patch.expense_claim_id;
+  if (patch.material_request_id !== undefined) next.material_request_id = patch.material_request_id;
   const { data, error } = await supabase.from('tasks').update(next).eq('id', id).select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Task not found or you do not have permission to edit it.');
@@ -526,6 +541,12 @@ export interface MyTask {
    * the row must SAY it is archived instead of looking like ordinary open work. null = live.
    */
   archived_at: string | null;
+  /** #2587: the one record this task follows, and why the system closed it (both null for an ordinary task). */
+  procurement_id?: string | null;
+  expense_claim_id?: string | null;
+  material_request_id?: string | null;
+  closed_by_record_type?: string | null;
+  closed_by_record_status?: string | null;
 }
 
 /**
@@ -539,7 +560,7 @@ export interface MyTask {
 export async function listMyTasks(userId: string): Promise<MyTask[]> {
   const data = await fetchAllPages((from, to) => supabase
     .from('tasks')
-    .select('id, name, status, assignee_id, project_id, meeting_id, work_order_id, start_date, end_date, priority, archived_at, work_order:work_orders!tasks_work_order_id_fkey(wo_number,title), project:projects!tasks_project_id_fkey(name, short_name)')
+    .select('id, name, status, assignee_id, project_id, meeting_id, work_order_id, start_date, end_date, priority, archived_at, procurement_id, expense_claim_id, material_request_id, closed_by_record_type, closed_by_record_status, work_order:work_orders!tasks_work_order_id_fkey(wo_number,title), project:projects!tasks_project_id_fkey(name, short_name)')
     .eq('assignee_id', userId)
     .is('tombstoned_at', null)
     .order('created_at', { ascending: true })
@@ -559,6 +580,11 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     end_date: string | null;
     priority: TaskPriority | null;
     archived_at: string | null;
+    procurement_id?: string | null;
+    expense_claim_id?: string | null;
+    material_request_id?: string | null;
+    closed_by_record_type?: string | null;
+    closed_by_record_status?: string | null;
     project: { name: string; short_name?: string | null } | null;
   }>).map((t) => ({
     id: t.id,
@@ -578,5 +604,93 @@ export async function listMyTasks(userId: string): Promise<MyTask[]> {
     end_date: t.end_date,
     priority: t.priority ?? null,
     archived_at: t.archived_at ?? null,
+    procurement_id: t.procurement_id ?? null,
+    expense_claim_id: t.expense_claim_id ?? null,
+    material_request_id: t.material_request_id ?? null,
+    closed_by_record_type: t.closed_by_record_type ?? null,
+    closed_by_record_status: t.closed_by_record_status ?? null,
   }));
+}
+
+// ── #2587: tasks that follow a linked record ─────────────────────────────────────────────────────────────────
+export type RecordLinkType = 'procurement' | 'expense_claim' | 'material_request';
+
+const LINK_COLUMN: Record<RecordLinkType, 'procurement_id' | 'expense_claim_id' | 'material_request_id'> = {
+  procurement: 'procurement_id',
+  expense_claim: 'expense_claim_id',
+  material_request: 'material_request_id',
+};
+
+/** The single record a task row follows, or null. */
+export function recordLinkOf(
+  t: Pick<TaskRow, 'procurement_id' | 'expense_claim_id' | 'material_request_id'>,
+): { type: RecordLinkType; id: string } | null {
+  if (t.procurement_id) return { type: 'procurement', id: t.procurement_id };
+  if (t.expense_claim_id) return { type: 'expense_claim', id: t.expense_claim_id };
+  if (t.material_request_id) return { type: 'material_request', id: t.material_request_id };
+  return null;
+}
+
+/** Why the system closed the task (FR-RLT-015): present only for a system close, never for a person's. */
+export function closedReasonOf(
+  t: Pick<TaskRow, 'closed_by_record_type' | 'closed_by_record_status'>,
+): { type: RecordLinkType; status: string } | null {
+  if (!t.closed_by_record_type || !t.closed_by_record_status) return null;
+  return { type: t.closed_by_record_type as RecordLinkType, status: t.closed_by_record_status };
+}
+
+/**
+ * A task's linked record as the CALLER may see it (FR-RLT-009..011). `readable: false` carries only the type: no
+ * number, status or end-state flag. `isEndState` comes from the database's single end-state list, never a copy here.
+ */
+export interface TaskLinkedRecord {
+  taskId: string;
+  linkType: RecordLinkType;
+  recordId: string | null;
+  label: string | null;
+  status: string | null;
+  isEndState: boolean | null;
+  readable: boolean;
+}
+
+/**
+ * The live status of the records behind a page of tasks: ONE security-invoker call per BY_IDS_CHUNK of ids
+ * (NFR-RLT-001), never a request per row. Tasks without a link yield no entry.
+ */
+export async function taskLinkedRecords(taskIds: readonly string[]): Promise<Map<string, TaskLinkedRecord>> {
+  const out = new Map<string, TaskLinkedRecord>();
+  const unique = [...new Set(taskIds)];
+  for (let i = 0; i < unique.length; i += BY_IDS_CHUNK) {
+    const { data, error } = await supabase.rpc('task_linked_records', { p_task_ids: unique.slice(i, i + BY_IDS_CHUNK) });
+    if (error) throwWrite(error);
+    for (const r of data ?? []) {
+      out.set(r.task_id, {
+        taskId: r.task_id,
+        linkType: r.link_type as RecordLinkType,
+        recordId: r.record_id ?? null,
+        label: r.label ?? null,
+        status: r.status ?? null,
+        isEndState: r.is_end_state ?? null,
+        readable: r.readable,
+      });
+    }
+  }
+  return out;
+}
+
+/** The open task (not Done, archived or tombstoned) that follows a record, or null (FR-RLT-008). */
+export async function findOpenTaskForRecord(
+  type: RecordLinkType,
+  recordId: string,
+): Promise<{ id: string; name: string; project_id: string | null } | null> {
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('id, name, project_id')
+    .eq(LINK_COLUMN[type], recordId)
+    .neq('status', 'Done')
+    .is('archived_at', null)
+    .is('tombstoned_at', null)
+    .limit(1);
+  if (error) throwWrite(error);
+  return (data as Array<{ id: string; name: string; project_id: string | null }> | null)?.[0] ?? null;
 }

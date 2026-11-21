@@ -19,6 +19,7 @@ const base: ProjectDocumentRow = {
   title: 'Foundation GA',
   code: 'DWG-001',
   category: 'Drawing',
+  category_id: 'cat-drawing',
   revision: 'A',
   status: 'Draft',
   author_id: ME,

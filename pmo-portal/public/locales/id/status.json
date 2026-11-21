@@ -38,6 +38,14 @@
     "paid": "Dibayar",
     "cancelled": "Dibatalkan"
   },
+  "materialRequest": {
+    "draft": "Draf",
+    "pending": "Menunggu persetujuan",
+    "approved": "Disetujui",
+    "rejected": "Ditolak",
+    "cancelled": "Ditarik",
+    "fulfilled": "Terkirim"
+  },
   "imprest": {
     "draft": "Draf",
     "submitted": "Diajukan",
@@ -240,5 +248,15 @@
     "submitted": "Menunggu validasi",
     "returned": "Dikembalikan",
     "validated": "Tervalidasi"
+  },
+  "quantityChange": {
+    "draft": "Draf",
+    "pending_approval": "Menunggu persetujuan",
+    "returned": "Dikembalikan",
+    "approved": "Disetujui",
+    "sent_to_client": "Di klien",
+    "client_accepted": "Klien menyetujui",
+    "client_declined": "Klien menolak",
+    "withdrawn": "Ditarik"
   }
 }

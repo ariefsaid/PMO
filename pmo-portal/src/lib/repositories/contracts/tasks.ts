@@ -1,5 +1,7 @@
 /** Task repository contract (ADR-0017). */
-import type { TaskRow, TaskDueRow, CalendarTask, TaskWithRefs, TaskInput, TaskPatch, TaskStatus, MyTask } from '@/src/lib/db/tasks';
+import type {
+  TaskRow, TaskDueRow, CalendarTask, TaskWithRefs, TaskInput, TaskPatch, TaskStatus, MyTask, TaskLinkedRecord, RecordLinkType,
+} from '@/src/lib/db/tasks';
 
 export interface TaskRepository {
   /** Per-project tasks with assignee + dependency edges. */
@@ -29,6 +31,10 @@ export interface TaskRepository {
   archive(id: string, projectId?: string): Promise<void>;
   /** PMO-owned reversible unarchive. */
   unarchive(id: string, projectId?: string): Promise<void>;
+  /** #2587: the live status of each task's linked record as the caller may see it, one read per page. */
+  linkedRecords(taskIds: readonly string[]): Promise<Map<string, TaskLinkedRecord>>;
+  /** #2587: the open task that follows a record, or null (create-from-record opens it, never offers a second). */
+  findOpenForRecord(type: RecordLinkType, recordId: string): Promise<{ id: string; name: string; project_id: string | null } | null>;
   /** Add a dependency edge (taskId depends on dependsOnId). */
   addDependency(taskId: string, dependsOnId: string): Promise<void>;
   /** Remove a dependency edge. */
