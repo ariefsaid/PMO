@@ -8,3 +8,4 @@ reopen_equipment_plan
 reject_equipment_plan
 approve_equipment_plan
 equipment_plan_approver_ok
+equipment_plan_engineer_on_project
