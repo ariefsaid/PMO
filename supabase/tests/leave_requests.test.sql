@@ -5,7 +5,7 @@
 -- AC-LV-011 attendance is not blocked · settings write path (Admin only) and the OFF state.
 begin;
 create extension if not exists pgtap;
-select plan(43);
+select plan(45);
 create or replace function pg_temp.today() returns date language sql stable as $$
   select public.equipment_org_today('27080000-0000-0000-0000-00000000010a') $$;
 
@@ -174,6 +174,12 @@ select leave_request_decide((select id from lv_ids where k = 'y1'), 'Approved', 
 select is(attendance_record('27080000-0000-0000-0000-000000001401', pg_temp.d('y'), 'roster_tick',
   '[{"worker_id": "27080000-0000-0000-0000-000000001f01", "status": "present", "hours": 8}]'), 1,
   'AC-LV-011 approved leave does not block the attendance tick');
+
+-- the form's person picker: a person sees themselves, an office user sees everyone
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a3');
+select is((select count(*)::int from leave_requestable_people()), 1, 'picker: a person may enter a request only for themselves');
+select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
+select is((select count(*)::int from leave_requestable_people()), 3, 'picker: an office user may enter one for every person');
 
 -- OFF state: switching off hides the marker and refuses new requests
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a1');

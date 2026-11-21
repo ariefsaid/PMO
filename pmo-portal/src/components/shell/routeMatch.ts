@@ -169,6 +169,9 @@ export const MODULES: ModuleDef[] = [
   // #2528: Crews — every role reads; the tick and the manage actions gate inside the page.
   { module: 'crews', icon: 'user', label: 'Crews', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'crews:nav.crews', path: '/crews' },
+  // #2708: Leave — every role reads its own; the decide actions gate on the database's answer.
+  { module: 'leave', icon: 'clock', label: 'Leave', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'crews:leave.title', path: '/leave' },
   // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Finance, Engineers and Admins
   // (Finance works assigned tasks like an Engineer, owner 2026-10-23).
   // Project-level Tasks remain available for oversight; Executive navigation is unchanged.

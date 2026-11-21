@@ -1,15 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/src/auth/useAuth';
+import { useContext } from 'react';
+import { QueryClient, QueryClientContext, useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { leaveRepository, type LeaveRequestInput, type LeaveSettings } from '@/src/lib/repositories/leave';
 
 /** Leave requests (#2708) over the repository seam (ADR-0017). Keys carry org_id. Off means off: every read below the
  *  settings read waits for `enabled`, so an organisation that never switched it on makes no leave call but one. */
 const ROOTS = ['leave-requests', 'leave-on-date'] as const;
-const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
+// The leave reads sit on shared chrome (rail, approvals, roster). Outside a query provider or a session they are simply
+// off: no throw, no request, so the shell never depends on this feature being mounted.
+const IDLE_CLIENT = new QueryClient();
+const useOrgId = (): string | undefined => useContext(AuthContext)?.currentUser?.org_id;
+function useLeaveQuery<T>(key: QueryKey, fn: () => Promise<T>, enabled: boolean) {
+  const qc = useContext(QueryClientContext);
+  return useQuery({ queryKey: key, queryFn: fn, enabled: enabled && Boolean(qc) }, qc ?? IDLE_CLIENT);
+}
 
 export function useLeaveSettings() {
   const orgId = useOrgId();
-  return useQuery({ queryKey: ['leave-settings', orgId], queryFn: () => leaveRepository.settings(), enabled: Boolean(orgId) });
+  return useLeaveQuery(['leave-settings', orgId], () => leaveRepository.settings(), Boolean(orgId));
 }
 
 /** True only when the organisation switched leave requests on. Unknown (loading, failed) is false. */
@@ -19,22 +27,19 @@ export function useLeaveEnabled(): boolean {
 
 export function useLeaveTypes() {
   const orgId = useOrgId();
-  return useQuery({ queryKey: ['leave-types', orgId], queryFn: () => leaveRepository.types(), enabled: Boolean(orgId) });
+  return useLeaveQuery(['leave-types', orgId], () => leaveRepository.types(), Boolean(orgId));
 }
 
 export function useLeaveRequests() {
   const orgId = useOrgId();
   const enabled = useLeaveEnabled();
-  return useQuery({ queryKey: ['leave-requests', orgId], queryFn: () => leaveRepository.visible(), enabled: Boolean(orgId) && enabled });
+  return useLeaveQuery(['leave-requests', orgId], () => leaveRepository.visible(), Boolean(orgId) && enabled);
 }
 
 export function useLeaveOnDate(date: string | null) {
   const orgId = useOrgId();
   const enabled = useLeaveEnabled();
-  return useQuery({
-    queryKey: ['leave-on-date', orgId, date], queryFn: () => leaveRepository.onDate(date as string),
-    enabled: Boolean(orgId && date) && enabled,
-  });
+  return useLeaveQuery(['leave-on-date', orgId, date], () => leaveRepository.onDate(date as string), Boolean(orgId && date) && enabled);
 }
 
 export function useLeaveMutations() {

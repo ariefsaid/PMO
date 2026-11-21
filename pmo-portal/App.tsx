@@ -112,6 +112,8 @@ const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment
 const SiteReportsPage = lazyWithPreload(() => import('./pages/siteReports/SiteReports'));
 const SiteReportDetailPage = lazyWithPreload(() => import('./pages/siteReports/SiteReportDetail'));
 const CrewsPage = lazyWithPreload(() => import('./pages/crews/Crews'));
+const LeaveRequestsPage = lazyWithPreload(() => import('./pages/leave/LeaveRequests'));
+const LeaveSettingsPage = lazyWithPreload(() => import('./pages/leave/LeaveSettings'));
 const ApprovalsPage = lazyWithPreload(() => import('./pages/Approvals'));
 const CompaniesPage = lazyWithPreload(() => import('./pages/Companies'));
 const MasterDataPage = lazyWithPreload(() => import('./pages/MasterData'));
@@ -260,6 +262,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/site-reports', chunks: [SiteReportsPage], namespaces: ['siteReport'] },
   { path: '/site-reports/:reportId', chunks: [SiteReportDetailPage], namespaces: ['siteReport'] },
   { path: '/crews', chunks: [CrewsPage], namespaces: ['crews'] },
+  { path: '/leave', chunks: [LeaveRequestsPage, LeaveSettingsPage], namespaces: ['crews'] },
   { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
@@ -481,6 +484,9 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/site-reports/:reportId', element: <SiteReportDetailPage /> },
   // #2528: crews, the roster per work order and the daily attendance tick.
   { path: '/crews', element: <CrewsPage /> },
+  // #2708: leave and sick requests; the rail entry appears only where the organisation switched them on.
+  { path: '/leave', element: <LeaveRequestsPage /> },
+  { path: '/leave/settings', element: <LeaveSettingsPage /> },
   { path: '/equipment/people/:personId', element: <PersonDetailPage /> },
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
