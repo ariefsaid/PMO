@@ -1,4 +1,4 @@
--- 1091_document_category_reference.sql — #2579 step 2 of 5: every register document references a category.
+-- 1165_document_category_reference.sql — #2579 step 2 of 5: every register document references a category.
 -- project_documents.category (text) stays, so every existing writer (the command-line client, the Microsoft 365 folder and link
 -- routines, the operator write API) keeps working unchanged: a BEFORE INSERT OR UPDATE trigger resolves the text name to the
 -- organisation's live category, else to Other, and keeps the text equal to the category's current name (FR-DCV-007).
