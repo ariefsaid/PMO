@@ -15,7 +15,9 @@ type Dialog = null | { kind: 'return' | 'reject' } | { kind: 'approve' } | { kin
 
 /** One request: the chain and who acted, the lines against plan, the decision controls, and the link to the transfer draft. */
 const MaterialRequestDetailPage: React.FC = () => {
-  const { t } = useTranslation('materialRequests');
+  // Both catalogues load before first paint: the approve dialog and the stock pickers render `stock` text, and a namespace that is
+  // still loading when the dialog opens suspends the route and re-mounts this page, losing the open dialog (#2685, SPA arrival).
+  const { t } = useTranslation(['materialRequests', 'stock']);
   const { requestId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
