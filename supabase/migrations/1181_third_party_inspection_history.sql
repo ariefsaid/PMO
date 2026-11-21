@@ -1,9 +1,9 @@
--- 1132_third_party_inspection_history.sql — #2580 FR-TPI-005: every status step and the waiver is audited in record history.
+-- 1181_third_party_inspection_history.sql — #2580 FR-TPI-005: every status step and the waiver is audited in record history.
 -- The inspection row is the tracked entity (parent: its work order); its report-file rows are append-only (FR-TPI-015) and are
 -- not a second tracked entity. The estimate (a planning figure, hidden from the money-less roles) is a flag: a change is
 -- recorded, its value is not. The catalog gate (supabase/tests/record_changes_catalog_gate.test.sql) now counts 18 entities and
 -- requires the visibility arm below.
--- ── REVERSE (rollback/1132_third_party_inspection_history_down.sql): delete the registry row, drop the trigger, restore 0448's arm list.
+-- ── REVERSE (rollback/1181_third_party_inspection_history_down.sql): delete the registry row, drop the trigger, restore 0448's arm list.
 
 insert into public.record_history_config(entity_type, table_name, parent_type, parent_col, parent_via, captured, flag_cols, omit_cols) values
 ('third_party_inspection', 'third_party_inspections', 'work_order', 'work_order_id', null,

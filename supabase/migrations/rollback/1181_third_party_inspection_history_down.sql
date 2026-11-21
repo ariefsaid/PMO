@@ -1,4 +1,4 @@
--- 1132_third_party_inspection_history_down.sql — reverse 1132 (#2580). Recorded change rows of the entity are removed with its registry row.
+-- 1181_third_party_inspection_history_down.sql — reverse 1132 (#2580). Recorded change rows of the entity are removed with its registry row.
 drop trigger if exists third_party_inspections_zz_record_change on public.third_party_inspections;
 delete from public.record_changes where entity_type = 'third_party_inspection';
 delete from public.record_history_config where entity_type = 'third_party_inspection';
