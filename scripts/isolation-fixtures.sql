@@ -237,8 +237,9 @@ insert into public.daily_site_reports (id, org_id, project_id, work_order_id, wo
 select 'a6120000-0000-4000-8000-0000000000c3', w.org_id, w.project_id, w.id, current_date,
        (select id from public.profiles where org_id = w.org_id order by id limit 1)
   from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
-insert into public.dsr_progress_lines (id, org_id, report_id, position, work_order_line_id, quantity, unit)
-values ('a6120000-0000-4000-8000-0000000000c4', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 1, 'a6120000-0000-4000-8000-0000000000d4', 1, 'each');
+-- work_order_id is NOT NULL since #2576 (a trigger stamps it from the report, but triggers are off in replica mode).
+insert into public.dsr_progress_lines (id, org_id, report_id, work_order_id, position, work_order_line_id, quantity, unit)
+values ('a6120000-0000-4000-8000-0000000000c4', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 'a6120000-0000-4000-8000-0000000000d2', 1, 'a6120000-0000-4000-8000-0000000000d4', 1, 'each');
 insert into public.dsr_idle_periods (id, org_id, report_id, position, minutes, reason_id)
 values ('a6120000-0000-4000-8000-0000000000c5', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 1, 10, 'a6120000-0000-4000-8000-0000000000c1');
 insert into public.dsr_consumables (id, org_id, report_id, position, stock_item_id, quantity, unit)
