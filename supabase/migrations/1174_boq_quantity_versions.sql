@@ -1,6 +1,6 @@
--- 1125_boq_quantity_versions.sql — #2578: every contract quantity is a version; the current figure is a server-written cache.
+-- 1174_boq_quantity_versions.sql — #2578: every contract quantity is a version; the current figure is a server-written cache.
 -- Spec: docs/specs/quantity-change-requests.spec.md (FR-QCR-017..020); plan: docs/plans/2026-11-20-quantity-change-requests.md.
--- Reversal: rollback/1125_boq_quantity_versions_down.sql.
+-- Reversal: rollback/1174_boq_quantity_versions_down.sql.
 --   §1 boq_quantity_versions: append-only (immutability trigger, 42501), org-scoped, read-only to clients.
 --   §2 baseline version for every existing contract line (backfill) and every new one (insert trigger).
 --   §3 direct-edit guard: once a line has progress, a claim or a confirmed acceptance, boq_items.quantity changes only

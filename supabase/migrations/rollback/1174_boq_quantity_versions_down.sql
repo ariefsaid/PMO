@@ -1,4 +1,4 @@
--- Reverses 1125_boq_quantity_versions.sql. Versions are history; the current quantity stays on boq_items.
+-- Reverses 1174_boq_quantity_versions.sql. Versions are history; the current quantity stays on boq_items.
 drop trigger if exists boq_items_zz_quantity_setup_edit on public.boq_items;
 drop trigger if exists boq_items_zz_quantity_guard on public.boq_items;
 drop trigger if exists boq_items_zz_quantity_baseline on public.boq_items;

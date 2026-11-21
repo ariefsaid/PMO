@@ -1,4 +1,4 @@
--- 1125_boq_quantity_versions.test.sql — #2578 quantity versions + the direct-edit guard. AC-QCR-019, 020, 021.
+-- 1174_boq_quantity_versions.test.sql — #2578 quantity versions + the direct-edit guard. AC-QCR-019, 020, 021.
 -- Spec docs/specs/quantity-change-requests.spec.md (FR-QCR-017..019).
 begin;
 create extension if not exists pgtap;
