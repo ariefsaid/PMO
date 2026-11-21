@@ -14,6 +14,7 @@ declare
   v_org uuid := public.equipment_plan_gate(); v_plan public.equipment_plans%rowtype; v_type uuid; v_line record;
   v_pid uuid; v_name text; v_note text;
 begin
+  perform public.assert_is_active_member();
   select * into v_plan from public.equipment_plans where id = p_id and org_id = v_org for update;
   if not found then raise exception 'EQP_NOT_FOUND: the plan is not available' using errcode = '23503'; end if;
   if v_plan.created_by = auth.uid() and not coalesce((select allow_self_approval from public.org_equipment_plan_settings where org_id = v_org), false) then

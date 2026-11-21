@@ -42,6 +42,10 @@ alter table public.stock_items add column consumable boolean not null default fa
 
 alter table public.work_orders add column site_warehouse_id uuid references public.stock_warehouses(id);
 create index work_orders_site_warehouse_idx on public.work_orders (site_warehouse_id) where site_warehouse_id is not null;
+-- change history (#719 registry): the site location is a captured business field.
+update public.record_history_config
+   set captured = captured || '{"site_warehouse_id":"ref"}'::jsonb
+ where table_name = 'work_orders';
 
 create or replace function public.guard_work_order_site_location() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$

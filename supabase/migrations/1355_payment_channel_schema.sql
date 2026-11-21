@@ -37,6 +37,10 @@ comment on table public.org_payment_channels is
 alter table public.procurements
   add column payment_channel_id uuid references public.org_payment_channels(id) on delete restrict;
 create index procurements_payment_channel_idx on public.procurements (payment_channel_id) where payment_channel_id is not null;
+-- change history (#719 registry): the payment channel is a captured business field.
+update public.record_history_config
+   set captured = captured || '{"payment_channel_id":"ref"}'::jsonb
+ where table_name = 'procurements';
 
 alter table public.org_payment_channel_settings enable row level security;
 alter table public.org_payment_channel_settings force  row level security;

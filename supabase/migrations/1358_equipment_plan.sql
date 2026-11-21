@@ -316,6 +316,7 @@ create function public.save_equipment_plan(p_id uuid, p_project uuid, p_month da
   returns public.equipment_plans language plpgsql security definer set search_path = pg_catalog, public as $$
 declare v_org uuid := public.equipment_plan_gate(); v_plan public.equipment_plans%rowtype; v_line jsonb;
 begin
+  perform public.assert_is_active_member();
   if p_id is null or p_project is null or p_month is null or p_month <> date_trunc('month', p_month::timestamp)::date
      or jsonb_typeof(p_lines) is distinct from 'array' or jsonb_array_length(p_lines) > 200 then
     raise exception 'EQP_INVALID: a plan needs a project, the first day of a month and up to 200 lines' using errcode = '22023';
@@ -356,6 +357,7 @@ create function public.submit_equipment_plan(p_id uuid) returns public.equipment
   language plpgsql security definer set search_path = pg_catalog, public as $$
 declare v_org uuid := public.equipment_plan_gate(); v_plan public.equipment_plans%rowtype;
 begin
+  perform public.assert_is_active_member();
   select * into v_plan from public.equipment_plans where id = p_id and org_id = v_org for update;
   if not found then raise exception 'EQP_NOT_FOUND: the plan is not available' using errcode = '23503'; end if;
   if v_plan.created_by is distinct from auth.uid() then
@@ -374,6 +376,7 @@ create function public.reopen_equipment_plan(p_id uuid) returns public.equipment
   language plpgsql security definer set search_path = pg_catalog, public as $$
 declare v_org uuid := public.equipment_plan_gate(); v_plan public.equipment_plans%rowtype;
 begin
+  perform public.assert_is_active_member();
   select * into v_plan from public.equipment_plans where id = p_id and org_id = v_org for update;
   if not found then raise exception 'EQP_NOT_FOUND: the plan is not available' using errcode = '23503'; end if;
   if v_plan.created_by is distinct from auth.uid() then
@@ -388,6 +391,7 @@ create function public.reject_equipment_plan(p_id uuid, p_reason text) returns p
   language plpgsql security definer set search_path = pg_catalog, public as $$
 declare v_org uuid := public.equipment_plan_gate(); v_plan public.equipment_plans%rowtype;
 begin
+  perform public.assert_is_active_member();
   if p_reason is null or char_length(btrim(p_reason)) not between 1 and 500 then
     raise exception 'EQP_INVALID: give a reason of 1 to 500 characters' using errcode = '22023';
   end if;

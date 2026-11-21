@@ -206,6 +206,7 @@ declare
   v_q text; v_reason text; v_acc jsonb := '[]'::jsonb; v_rej jsonb := '[]'::jsonb; v_open boolean; v_missing text; v_seen uuid[] := '{}';
   v_guest boolean;
 begin
+  perform public.assert_is_active_member();
   t := public.stock_lock_transfer(p_transfer, true);
   if t.status <> 'Sent' then raise exception 'STK_INVALID: this transfer was already received or cancelled' using errcode = 'P0001'; end if;
   if not public.stock_transfer_actor_ok(t, 'receive') then                                              -- mut:receiver_actor
@@ -253,6 +254,7 @@ create or replace function public.recall_stock_transfer(p_transfer uuid, p_reaso
   language plpgsql volatile security definer set search_path = public as $$
 declare t public.stock_transfers; v_lines jsonb;
 begin
+  perform public.assert_is_active_member();
   t := public.stock_lock_transfer(p_transfer, true);
   if t.status <> 'Sent' then raise exception 'STK_INVALID: only a transfer still in transit can be recalled' using errcode = 'P0001'; end if;
   if not public.stock_transfer_actor_ok(t, 'send') then
