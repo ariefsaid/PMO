@@ -1,8 +1,8 @@
-// @e2e-isolation: self-isolated — switches purchase types and the monthly plan on for the seed organisation for the run and back off in afterAll (no other journey reads either); each run creates its own uniquely named project, so its plan (append-only) never collides with another run's.
+// @e2e-isolation: serial - switches the org-wide purchase-types flag and the monthly plan on and off (the rental-extension journey flips the same flag, so the two cannot share the parallel lane); each run creates its own uniquely named project, so its plan (append-only) never collides with another run's.
 /** AC-EQP-017 — goal: a planner drafts and submits the month's equipment plan on a phone; an approver approves it; the rental orders appear as Drafts linked from the plan; approving again creates none. Also captures the evidence screenshots (phone 390 and desktop 1440, 2x) for the two new screens. */
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
-import { runSuffix, userClient } from './support/stockFixture';
+import { signIn } from '../helpers';
+import { runSuffix, userClient } from '../support/stockFixture';
 
 const EVIDENCE = '../docs/evidence/1215/2700';
 test.setTimeout(240_000);

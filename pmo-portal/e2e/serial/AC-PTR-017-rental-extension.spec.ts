@@ -1,8 +1,8 @@
-// @e2e-isolation: self-isolated — switches purchase types on for the seed organisation for the run and back off in afterAll (no other journey reads it); each run raises its own uniquely titled rental and extension (procurement history is append-only, so none is deleted).
+// @e2e-isolation: serial - switches the org-wide purchase-types flag on and off (the monthly-plan journey flips the same flag, so the two cannot share the parallel lane); each run raises its own uniquely titled rental and extension (procurement history is append-only, so none is deleted).
 /** AC-PTR-017 — goal: a requester on a phone raises a rental purchase and extends it; the extension is its own Draft purchase, linked both ways. Also captures the evidence screenshots (phone 390 and desktop 1440, 2x) for the two new screens. */
 import { test, expect, type Page } from '@playwright/test';
-import { signIn } from './helpers';
-import { runSuffix, userClient } from './support/stockFixture';
+import { signIn } from '../helpers';
+import { runSuffix, userClient } from '../support/stockFixture';
 
 const EVIDENCE = '../docs/evidence/1215/2697';
 test.setTimeout(180_000);
