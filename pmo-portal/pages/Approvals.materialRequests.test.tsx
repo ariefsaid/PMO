@@ -15,9 +15,11 @@ const h = vi.hoisted(() => ({
 }));
 const idle = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 
-vi.mock('@/src/hooks/useApproverInbox', () => ({ useApproverInboxSetting: () => h.setting }));
+vi.mock('@/src/hooks/useApproverInbox', () => ({
+  useMaterialInbox: () => { const on = h.setting.data === true; h.waitingEnabled(on); return on ? { on, ...h.waiting } : { on: false, data: undefined, isPending: false, isError: false, refetch: vi.fn() }; },
+}));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
-  useWaitingForMe: (enabled?: boolean) => { h.waitingEnabled(enabled); return h.waiting; },
+  useWaitingForMe: () => h.waiting,
   useMaterialRequest: (id: string | undefined) => ({ data: id ? { id, number: `MR-${id}`, workOrderId: 'wo1', projectId: 'p1', neededBy: '2026-12-01' } : undefined }),
 }));
 vi.mock('./materialRequests/shared', () => ({ RequestWorkOrder: () => <span>WO-1 · Foundations</span> }));
