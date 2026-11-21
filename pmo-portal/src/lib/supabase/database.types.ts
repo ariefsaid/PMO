@@ -15427,6 +15427,10 @@ export type Database = {
         }
         Returns: Json
       }
+      get_stock_at_risk: {
+        Args: Record<string, never>
+        Returns: Json
+      }
       get_stock_on_hand: {
         Args: {
           p_include_zero?: boolean
