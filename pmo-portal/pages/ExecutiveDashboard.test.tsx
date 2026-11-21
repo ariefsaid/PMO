@@ -308,17 +308,17 @@ describe('company home — executive (one question: is the company OK, what wait
     expect(within(figures()).queryByText(/^\d+$/)).not.toBeInTheDocument();
   });
 
-  it('puts a second currency on its own line without a plus sign', () => {
+  // Owner ruling 2026-11-16: a second currency is its own labelled amount, never a bare line that reads as a conversion.
+  it('puts a second currency on its own line, labelled as a separate amount', () => {
     renderPage();
     const invoiced = tile('Invoiced');
     expect(flat(invoiced.textContent)).not.toMatch(/·/);
-    const second = within(invoiced).getByText('IDR 5.3M');
+    const second = within(invoiced).getByText('+ IDR 5.3M');
     expect(second).toHaveClass('block');
-    expect(second).not.toHaveTextContent('+');
     expect(invoiced).toHaveTextContent('$7.7M');
   });
 
-  it('renders supplier payables with one currency per line and no plus sign', () => {
+  it('renders supplier payables with one currency per line, the second labelled as a separate amount', () => {
     setToday('supplier-payables', {
       value: '$30K',
       amounts: [{ currency: 'USD', amount: 30_000 }, { currency: 'IDR', amount: 12_000_000 }],
@@ -327,9 +327,8 @@ describe('company home — executive (one question: is the company OK, what wait
 
     const supplier = tile('Owed to suppliers');
     expect(within(supplier).getByText('$30K')).toBeInTheDocument();
-    const secondCurrency = within(supplier).getByText('IDR 12M');
+    const secondCurrency = within(supplier).getByText('+ IDR 12M');
     expect(secondCurrency).toHaveClass('block');
-    expect(secondCurrency).not.toHaveTextContent('+');
     expect(within(supplier).getByText('$30,000; IDR 12,000,000')).toHaveClass('sr-only');
   });
 
@@ -544,7 +543,7 @@ describe('company home — finance (one question: what must I collect, pay and i
     expect(names[0]).toContain('$1,000');
     expect(names[0]).toContain('118 days overdue');
     expect(names[1]).toContain('Client B');
-    fireEvent.click(within(card).getByRole('button', { name: 'Open overdue invoice for Client A' }));
+    fireEvent.click(within(card).getByRole('link', { name: 'Open overdue invoice for Client A' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?overdue=true');
   });
 
@@ -605,7 +604,7 @@ describe('company home — finance (one question: what must I collect, pay and i
     expect(screen.queryByRole('columnheader', { name: 'Supplier' })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Invoice age' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Due state' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Open Supplier invoice 42' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Open Supplier invoice 42' }));
     expect(screen.getByTestId('location')).toHaveTextContent('/procurement/procurement-1');
   });
 

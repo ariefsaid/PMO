@@ -577,6 +577,20 @@ export function formatDayYear(input: DayInput): string {
   return `${day} ${month} ${year}`;
 }
 
+/**
+ * "10 Nov 2026" for a `YYYY-MM-DD` day that is typed into and read back out of a form field. Built at UTC
+ * midnight and formatted in UTC, so the process or viewer zone (and a zone change while the page is open)
+ * can never move it to the day before or after. Anything that is not a real calendar day → `—`.
+ */
+export function formatIsoDay(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return '—';
+  const date = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  if (date.getUTCFullYear() !== +m[1] || date.getUTCMonth() !== +m[2] - 1 || date.getUTCDate() !== +m[3]) return '—';
+  const { day, month, year } = dayPart({ date, timeZone: 'UTC' }, 'day');
+  return `${day} ${month} ${year}`;
+}
+
 /** "10 Nov" within the current year, "10 Nov 2026" otherwise. `now` is for tests. */
 export function formatDay(input: DayInput, now: Date = new Date()): string {
   const frame = dayFrame(input);
@@ -651,10 +665,40 @@ export function formatDaysOverdue(due: DayInput, t: AgeTranslate, now: Date = ne
 
 const trueMinus = (text: string) => text.replace('-', '−');
 
-/** "IDR 7.7B", "$56.5K", "$856". `code`: name the currency by ISO code ("USD 5.3K") for a non-home currency. */
+/**
+ * An amount smaller than one whole unit but not zero (screen-rules "Numbers": never show a non-zero
+ * amount as zero). Shows its exact value to the cent ("$0.40"), or "<$0.01" when it is smaller than a
+ * cent. Returns null for zero and for amounts of a unit or more: those use the normal whole-unit shapes.
+ */
+function formatSubUnitMoney(value: number, currency: string, code: boolean): string | null {
+  const magnitude = Math.abs(value);
+  if (magnitude === 0 || magnitude >= 1) return null;
+  const sub = magnitude < 0.005;
+  const text = currencyFormatterFor(code ? 'sub-unit-code' : 'sub-unit', currency, {
+    minimumFractionDigits: 2, maximumFractionDigits: 2, ...(code ? { currencyDisplay: 'code' as const } : {}),
+  }).format(sub ? 0.01 : magnitude);
+  const sign = value < 0 ? '−' : '';
+  return sub ? `${sign}<${text}` : `${sign}${text}`;
+}
+
+/**
+ * A decimal string cut to two decimals, so `formatExactMoney` (which takes at most two) never rejects a
+ * many-decimal forecast. Cutting, not rounding: the whole-unit rounding that follows reads only the first
+ * decimal, so rounding here as well would round twice (1234.4999 must stay 1,234). Null when not a plain decimal.
+ */
+function truncateDecimalToCents(text: string): string | null {
+  const match = /^(-?[0-9]+)(?:[.]([0-9]*))?$/.exec(text);
+  if (!match) return null;
+  const [, whole, fraction = ''] = match;
+  return fraction.length <= 2 ? text : `${whole}.${fraction.slice(0, 2)}`;
+}
+
+/** "IDR 7.7B", "$56.5K", "$856", "$0.40". `code`: name the currency by ISO code ("USD 5.3K") for a non-home currency. */
 export function formatTileMoney(amount: number | string | null, currency: string, opts: { code?: boolean } = {}): string | null {
   const value = typeof amount === 'string' ? Number(amount) : amount;
   if (value === null || !Number.isFinite(value) || !/^[A-Z]{3}$/.test(currency)) return null;
+  const subUnit = formatSubUnitMoney(value, currency, opts.code === true);
+  if (subUnit !== null) return subUnit;
   const display = opts.code ? { currencyDisplay: 'code' as const } : {};
   if (Math.abs(value) < 1_000) {
     return trueMinus(currencyFormatterFor(opts.code ? 'tile-small-code' : 'tile-small', currency, {
@@ -666,13 +710,18 @@ export function formatTileMoney(amount: number | string | null, currency: string
   }).format(value));
 }
 
-/** "IDR 1,467,628,320": the full amount in whole units, with currency. Exact strings stay exact. */
+/** "IDR 1,467,628,320": the full amount in whole units, with currency; under one unit, its exact value. */
 export function formatTableMoney(amount: number | string | null, currency: string, opts: { code?: boolean } = {}): string | null {
-  const text = typeof amount === 'number' ? (Number.isFinite(amount) ? String(amount) : null) : amount;
-  if (text === null) return null;
-  if (!opts.code) return formatExactMoney(text, currency, getNumberLocale(), { wholeUnits: true });
-  const value = Number(text);
-  if (!Number.isFinite(value) || !/^[A-Z]{3}$/.test(currency)) return null;
+  if (amount === null || !/^[A-Z]{3}$/.test(currency)) return null;
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return null;
+  const subUnit = formatSubUnitMoney(value, currency, opts.code === true);
+  if (subUnit !== null) return subUnit;
+  if (!opts.code) {
+    // A number goes through a fixed 8-decimal string; an exact string keeps every digit it was given.
+    const text = truncateDecimalToCents(typeof amount === 'number' ? amount.toFixed(8) : amount);
+    return text === null ? null : formatExactMoney(text, currency, getNumberLocale(), { wholeUnits: true });
+  }
   // ponytail: the ISO-code form goes through a Number (a second-line amount), exact strings use the branch above.
   return trueMinus(currencyFormatterFor('table-code', currency, {
     minimumFractionDigits: 0, maximumFractionDigits: 0, currencyDisplay: 'code',
@@ -996,9 +1045,6 @@ export function formatWeekday(d: Date): string {
 }
 
 /** "Jun 14, 2026" — Date-input twin of formatDate(iso) (same parts, local zone; shares its formatter). */
-export function formatFullDate(d: Date): string {
-  return dateFormatter().format(d);
-}
 
 /** "Jun 14, 2026, 03:45 PM" — last-sync style (hour '2-digit' is zero-padded). */
 export function formatDateTime(d: Date): string {
@@ -1085,6 +1131,11 @@ export function formatUtcMonthYear(d: Date): string {
   }).format(d);
 }
 
+/** UTC "June" — full month name in the viewer's date locale (the fiscal-year start month picker, #2329). */
+export function formatUtcMonthLong(d: Date): string {
+  return dateFormatterFor('utcMonthLong', getDateLocale(), { month: 'long', timeZone: 'UTC' }).format(d);
+}
+
 /** UTC "Jun 2026" in the viewer's date locale: month + 4-digit year, so it never reads as a day. */
 export function formatUtcMonthYearFull(d: Date): string {
   return dateFormatterFor('utcMonthYearFull', getDateLocale(), {
@@ -1134,4 +1185,9 @@ export function formatCurrencyDecimal4(value: string, currency: string, locale: 
 
 export function formatDecimalString(value: string, locale: string, maxFractionDigits: number): string {
   return numberFormatterFor(`dec${maxFractionDigits}`, locale, undefined, { maximumFractionDigits: maxFractionDigits }).format(value as unknown as number);
+}
+
+/** "Sun" / "Min" — short weekday name of a date (calendar column headers). */
+export function formatWeekdayShort(d: Date): string {
+  return dateFormatterFor('weekdayShort', getDateLocale(), { weekday: 'short' }).format(d);
 }

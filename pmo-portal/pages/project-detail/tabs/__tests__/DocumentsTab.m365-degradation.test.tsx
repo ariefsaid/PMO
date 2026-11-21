@@ -15,7 +15,9 @@ const h = vi.hoisted(() => ({
 }));
 
 // The register mounts RecordFolderAction (own coverage: DocumentsTab.record-folder.test).
-vi.mock('@/src/components/m365/RecordFolderAction', () => ({ RecordFolderAction: () => null }));
+vi.mock('@/src/components/m365/useRecordFolderAction', () => ({
+  useRecordFolderAction: () => ({ allowed: false, hasNotice: false, canStart: false, pending: false, start: () => {}, label: '', outcome: null, remedies: null, reconnectError: null }),
+}));
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => ({
     data: [makeLinkedDoc({ status: 'Issued', ms_drift_state: 'drifted', ms_last_verified_at: '2026-06-03T00:00:00Z' })],
@@ -43,6 +45,7 @@ vi.mock('@/src/lib/m365/graphClient', async () => ({
   getItem: h.getItem,
 }));
 
+import { chooseAddOption } from './addDocumentMenu';
 import DocumentsTab from '../DocumentsTab';
 
 const renderTab = () =>
@@ -65,7 +68,7 @@ beforeEach(() => {
 
 const rowOpenStillWorks = async () => {
   await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-  expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Open in SharePoint/ })).toBeEnabled();
+  expect(within(screen.getByRole('dialog')).getByRole('link', { name: /Open in SharePoint:/ })).toBeEnabled();
   expect(h.unlink).not.toHaveBeenCalled();
 };
 
@@ -77,7 +80,7 @@ describe('DocumentsTab — project degradation matrix (AC-M365DOC-032/033/034/03
   ])('%s: browse is recovered through reviewed copy; row, open and the reference stay', async (_name, connection, copy) => {
     h.conn.connection = connection;
     renderTab();
-    await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    await chooseAddOption(userEvent, 'Link from Microsoft 365');
     expect(screen.getByText(copy)).toBeInTheDocument();
     await rowOpenStillWorks();
   });

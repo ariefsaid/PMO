@@ -135,6 +135,20 @@ describe('Receivables page', () => {
     expect(within(tile('Received this month')).getByTestId('kpi-skeleton')).toBeInTheDocument();
   });
 
+  it('AC-RET-005 owed includes the retention still held, which is shown as its own figure and kept out of the ages (#2625)', async () => {
+    h.position = { ...h.position, receivablesRetentionHeld: { IDR: 5000 } };
+    renderPage();
+    expect(tile('Owed to you')).toHaveTextContent(/IDR\s*150/);
+    expect(screen.getByTestId('receivables-retention-held')).toHaveTextContent(/Retention held, not due until released: IDR\s*50/);
+    await financeTestI18n.changeLanguage('id');
+    expect(await screen.findByTestId('receivables-retention-held')).toHaveTextContent(/Retensi ditahan, belum jatuh tempo sampai dilepas/);
+  });
+
+  it('AC-RET-005 no retention held shows no retention line', () => {
+    renderPage();
+    expect(screen.queryByTestId('receivables-retention-held')).not.toBeInTheDocument();
+  });
+
   it('B6: keeps cash visible while the invoice read is pending', () => {
     h.financePending = true;
     h.receivablesPending = true;
@@ -321,6 +335,16 @@ describe('Receivables page', () => {
     expect(cash).toHaveTextContent(/IDR\s*100/);
     expect(cash).toHaveTextContent(/\+IDR\s*60 vs last month/);
     expect(cash).not.toHaveTextContent(/999/);
+  });
+
+  it('shows a minus sign when received cash is below last month', () => {
+    h.payments = [
+      payment({ received_amount: 40 }),
+      payment({ id: 'payment-previous', date: '2026-09-05', amount: 100, received_amount: 100, withheld_amount: 0 }),
+    ];
+    renderPage();
+
+    expect(tile('Received this month')).toHaveTextContent(/−IDR\s*60 vs last month/);
   });
 
   it('O8: an unchanged month carries no sign', () => {

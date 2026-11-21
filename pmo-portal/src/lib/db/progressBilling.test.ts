@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   const result = { data: null as unknown, error: null as unknown };
-  for (const name of ['select', 'insert', 'update', 'delete', 'eq', 'order', 'range', 'single']) chain[name] = vi.fn(() => chain);
+  for (const name of ['select', 'insert', 'update', 'delete', 'eq', 'order', 'range', 'single', 'limit', 'in']) chain[name] = vi.fn(() => chain);
   const thenable = { ...chain, then: (resolve: (v: unknown) => unknown) => resolve(result) };
   for (const name of Object.keys(chain)) chain[name].mockImplementation(() => thenable);
   return { rpc: vi.fn(), from: vi.fn(() => thenable), chain, result };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 import {
-  attachClaimEvidence, createBoqItem, createProgressClaim, getProjectBilling, listBoqItems, recordProgressAssessment, updateBoqItem,
+  attachClaimEvidence, listProjectClaims, createBoqItem, createNativeProgressClaimInvoice, createProgressClaim, getProjectBilling, listBoqItems, recordProgressAssessment, updateBoqItem,
 } from './progressBilling';
 
 const CONTRACT = {
@@ -141,6 +141,12 @@ describe('progress billing DAL', () => {
     });
   });
 
+  it('removes catalogue provenance when a line returns to manual pricing', async () => {
+    h.result.data = [{ id: 'b1' }];
+    await updateBoqItem('b1', { itemCode: 'A-1', description: 'Cable', unit: 'm', quantity: 1, rate: 50, earningBasis: 'unit_rate', lineNo: null, clearCatalogue: true });
+    expect(h.chain.update).toHaveBeenCalledWith(expect.objectContaining({ catalogue_item_id: null, catalogue_variant_id: null, catalogue_priced_as_of: null }));
+  });
+
   it('AC-CQ-012 the BoQ list is ordered by line number (nulls last), then created_at, then id', async () => {
     h.result.data = [];
     await listBoqItems('p1');
@@ -149,5 +155,34 @@ describe('progress billing DAL', () => {
       ['created_at', { ascending: true }],
       ['id', { ascending: true }],
     ]);
+  });
+
+  it('AC-PBL-NAT-004 DAL: the native claim invoice sends the claim id and returns the invoice id', async () => {
+    h.rpc.mockResolvedValue({ data: 'claim-1', error: null });
+    await expect(createNativeProgressClaimInvoice('claim-1')).resolves.toBe('claim-1');
+    expect(h.rpc).toHaveBeenCalledWith('create_native_progress_claim_invoice', { p_claim: 'claim-1' });
+  });
+
+  it('AC-PBL-NAT-004 DAL: a refusal surfaces its machine-readable detail as the code, and a missing id is an error', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'this claim already has an invoice', code: 'P0001', details: 'claim-already-invoiced' } });
+    await expect(createNativeProgressClaimInvoice('claim-1')).rejects.toMatchObject({ name: 'AppError', code: 'claim-already-invoiced' });
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'a time-and-materials claim is invoiced from its own sign-off', code: 'P0001', details: 'claim-kind' } });
+    await expect(createNativeProgressClaimInvoice('claim-1')).rejects.toMatchObject({ code: 'claim-kind' });
+    h.rpc.mockResolvedValue({ data: null, error: null });
+    await expect(createNativeProgressClaimInvoice('claim-1')).rejects.toMatchObject({ name: 'AppError' });
+  });
+});
+
+describe('#2624 listProjectClaims carries each claim\'s open billing stages', () => {
+  it('AC-BST-005 counts the stages not yet completed, and reads them with the claim', async () => {
+    h.result.data = [
+      { id: 'k1', lines: [], evidence: [], stages: [{ completed_on: '2026-10-02' }, { completed_on: null }, { completed_on: null }] },
+      { id: 'k2', lines: [], evidence: [], stages: [{ completed_on: '2026-10-02' }] },
+      { id: 'k3', lines: [], evidence: [] },
+    ];
+    const rows = await listProjectClaims('p1');
+    expect(rows.map((r) => [r.id, r.open_stage_count])).toEqual([['k1', 2], ['k2', 0], ['k3', 0]]);
+    expect(h.chain.select.mock.calls[0][0]).toContain('stages:claim_billing_stages(completed_on)');
+    expect(rows[0]).not.toHaveProperty('stages');
   });
 });

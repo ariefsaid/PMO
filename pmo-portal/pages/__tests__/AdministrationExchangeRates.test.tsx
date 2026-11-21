@@ -236,7 +236,7 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
     fireEvent.change(screen.getByLabelText(/IDR per USD/, { selector: 'input, select, textarea' }), { target: { value: '17000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save rate' }));
     expect(await screen.findByText(/offline/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Publication date/, { selector: 'input, select, textarea' })).toHaveValue('2026-10-12');
+    expect(screen.getByLabelText(/Publication date/, { selector: 'input, select, textarea' })).toHaveValue('12 Oct 2026');
     expect(screen.getByLabelText(/IDR per USD/, { selector: 'input, select, textarea' })).toHaveValue('17,000');
   });
 

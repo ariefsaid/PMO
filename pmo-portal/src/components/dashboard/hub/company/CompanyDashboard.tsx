@@ -55,6 +55,7 @@ import { FinancesCard, LeftToBillSection } from './FinancesCard';
 import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
+const MARGIN_HINT_KEY = 'pmo.home.marginTile';
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
 const WAIT_ORDER: Record<'Executive' | 'Admin' | 'Finance', string[]> = {
   Executive: ['approvals'],
@@ -87,6 +88,13 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const erpPurchases = useErpPurchases();
   const [refreshToken, setRefreshToken] = React.useState(0);
   const todayFigure = (id: string) => figures.today.find((figure) => figure.id === id);
+  // ponytail: one browser-wide hint (not per organisation); a sign-in to a different organisation can still jump once.
+  const marginSettled = !figures.figureStatus('billed-margin').pending && !figures.figureStatus('billed-margin').error;
+  const marginShownNow = Boolean(todayFigure('billed-margin')?.amounts);
+  React.useEffect(() => {
+    if (marginSettled) try { localStorage.setItem(MARGIN_HINT_KEY, marginShownNow ? '1' : '0'); } catch { /* the hint is optional */ }
+  }, [marginSettled, marginShownNow]);
+  const marginShownBefore = React.useMemo(() => { try { return localStorage.getItem(MARGIN_HINT_KEY) === '1'; } catch { return false; } }, []);
   const { period } = periodState;
   const periodLabel = period.key === 'custom'
     ? [period.from, period.to].filter(Boolean).join(' – ')
@@ -307,7 +315,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         ? <div className="px-[var(--panel-inset)] pb-1"><ListState variant="error" title={t('home.overdueError', "Couldn't load overdue invoices")} onRetry={financePosition.retry} quiet /></div>
         : (
           <div className={cn('overflow-x-auto [--table-cell-inset:var(--panel-inset)]', financePosition.isPending && PHONE_TABLE_HOLD)}>
-            <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : overdueRows.length === 0 ? 'empty' : undefined} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} tableId="dashboard-company-overdue-clients" embedded />
+            <DataTable rows={overdueRows} columns={overdueColumns} rowKey={(row) => row.invoice.id} onActivate={() => navigate('/finance/receivables?overdue=true')} rowHref={() => '/finance/receivables?overdue=true'} rowLabel={(row) => t('home.openInvoiceFor', 'Open overdue invoice for {{name}}', { name: row.invoice.customer_name ?? '' })} state={financePosition.isPending ? 'loading' : overdueRows.length === 0 ? 'empty' : undefined} emptyTitle={t('home.noOverdue', 'No overdue client invoices')} tableId="dashboard-company-overdue-clients" embedded />
           </div>
         )}
     </Card>
@@ -350,16 +358,21 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const trendMonths = trendRange.from && trendRange.to ? monthsBetween(trendRange.from, trendRange.to).map((month) => month.slice(0, 7)) : [];
     // A1: every tile fills in on its own read; there is no band-wide skeleton or band-wide error.
     // Each tile carries a secondary line so their captions end together at the band's foot.
+    const marginStatus = figures.figureStatus('billed-margin');
     const bandTiles = [
       moneyTile(todayFigure('contract-on-hand'), { caption: onHandCount === undefined ? '' : t('home.signedContractCount', { count: onHandCount, defaultValue_one: '{{count}} with a signed contract', defaultValue_other: '{{count}} with a signed contract' }), reason: t('home.reasonContract', 'contract values are missing') }),
       moneyTile(invoiced, { label: t('home.invoiced', 'Invoiced'), caption: periodLabel }),
       moneyTile(collected, collectedOpts),
       moneyTile(leftToBill, { label: t('home.leftToBill', 'Left to bill'), caption: leftToBillNote ?? t('home.onSignedContracts', 'On signed contracts') }),
       // One label in every state: the figure is always the known amount (AC-1414), so it says so before its read lands.
-      figures.figureStatus('billed-margin').pending || figures.figureStatus('billed-margin').error || margin?.amounts
+      // While loading, the tile is held only if it showed last time, so the band does not settle from five to four.
+      (marginStatus.pending && marginShownBefore) || marginStatus.error || margin?.amounts
         ? moneyTile(margin, { label: t('dashboard:hub.company.knownMarginOnBilledWork', 'Known margin on billed work'), caption: t('home.marginCaption', 'Billed revenue less spending') }) : null,
     ].filter((tile) => tile !== null);
-    const band = tilesRow('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2 min-[900px]:grid-flow-col min-[900px]:auto-cols-fr', bandTiles);
+    // Five figures do not fit one line below 1280px (values ran past their cells at 1024): there they sit three over two.
+    const band = tilesRow(cn('grid-cols-2 max-[899px]:[&>*:last-child:nth-child(odd)]:col-span-2', bandTiles.length >= 5
+      ? 'min-[900px]:max-[1279px]:grid-cols-6 min-[900px]:max-[1279px]:[&>*]:col-span-2 min-[900px]:max-[1279px]:[&>*:nth-child(n+4)]:col-span-3 min-[1280px]:grid-flow-col min-[1280px]:auto-cols-fr'
+      : 'min-[900px]:grid-flow-col min-[900px]:auto-cols-fr'), bandTiles);
 
     // Each card takes its natural height; for Executive/Admin, Purchasing by stage (the right column's last card)
     // absorbs the few pixels that let the column end level with Project health.
@@ -404,7 +417,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     const billingBand = (
       <Card data-testid="billing" className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-6')}>
         <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
-        <CardPad className="grid gap-x-[var(--space-panel-gap)] gap-y-5 min-[900px]:grid-cols-12">
+        {/* With the monthly chart withheld (too few months), what is left to bill takes the whole card. */}
+        <CardPad className="grid gap-x-[var(--space-panel-gap)] gap-y-5 min-[900px]:grid-cols-12 min-[900px]:[&>:only-child]:col-span-12">
           <InvoicedCollectedCard className="min-w-0 min-[900px]:col-span-7" embedded chartHeight={188} fill={finance && wide} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />
           <div className="flex min-w-0 flex-col gap-5 min-[900px]:col-span-5">
             <LeftToBillSection limit={finance ? 3 : 5} currency={orgCurrency} rows={figures.leftToBillByProject} pending={figures.figureStatus('left-to-bill').pending} error={figures.figureStatus('left-to-bill').error} retry={retryOwed} />
@@ -440,8 +454,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
               action={<div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} compact /><Button variant="outline" size="sm" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>}
             />
             {/* The summary keeps its row in every state: a skeleton while it loads, one line and Retry when it fails. */}
-            <div className="flex min-h-6 flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-              {figures.dashboardPending || needs.approvalsPending ? <div aria-hidden className="skel h-5 w-80 max-w-full" /> : null}
+            <div className="flex min-h-7 flex-wrap items-center justify-between gap-x-6 gap-y-2">
+              {figures.dashboardPending || needs.approvalsPending ? <div aria-hidden className="flex gap-2"><div className="skel h-7 w-52 rounded-full" /><div className="skel h-7 w-64 rounded-full max-[639px]:hidden" /></div> : null}
               <FindingLine offTrack={figures.dashboardPending || figures.dashboardError ? undefined : { count: offTrackCount, atLeast: offTrackSaturated, total: activeProjectCount, unchecked }} overdue={overdue /* undefined until its own invoices read and the org day resolve */} approvals={needs.approvals?.length}
                 failed={!figures.dashboardPending && !needs.approvalsPending && (figures.dashboardError || needs.isError)} onRetry={refresh} />
               <FigureHiddenLine compact />

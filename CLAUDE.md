@@ -249,6 +249,8 @@ matching one ONLY when your task touches that surface — that is the whole poin
 | The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — the deployed model (`deepseek/deepseek-v4.1-flash-1017`) chose the right tool on every completed turn in the 10-run local eval (86/90, 2026-11-02, #1596). Run the eval harness locally (not CI) after prompt or tool changes; it is the real gate. |
 | Authoring or editing any e2e spec | [`docs/e2e-parallel-conventions.md`](docs/e2e-parallel-conventions.md) — isolation classes, the `@e2e-isolation` tag, and the guard-polarity rule |
 | Local/prod Supabase, secrets, or a deploy | [`docs/environments.md`](docs/environments.md) |
+| Bumping or auditing an edge-function `deno.json` pin | [`docs/runbooks/edge-fn-pins.md`](docs/runbooks/edge-fn-pins.md) — the check command, its exit codes, and the bump-together cadence |
+| Recomposing a screen, or the owner says a screen looks wrong | [`docs/ux/screen-owner-runbook.md`](docs/ux/screen-owner-runbook.md) — one worker owns a screen: designs, builds, looks at its own render; the Director judges at actual size; review rounds are the failure mode |
 
 The full product charter + per-layer Definition of Done is **`docs/product-expectations.md`** — binding on all agents.
 The Director's detailed orchestration runbook (per-issue loop, delegation, gates, git hygiene, grading rubric) is **`docs/director-playbook.md`**.
@@ -280,6 +282,7 @@ ui-implementer (sonnet; opus for hard slices) · design-reviewer (opus).
 | UI build (to tokens + design-plan) | ui-implementer (ui-ux-pro-max, taste) |
 | Visual design review (render + screenshot audit) | design-reviewer (design-review, impeccable, taste) |
 | Browser QA · security · ship/deploy/monitor | gstack (`/qa`, `/cso`, `/ship`, `/land-and-deploy`, `/canary`) |
+| Human friction: walk a role's jobs (`docs/jtbd.md` §6) as a first-time person | friction-walk (project skill) |
 | Multi-session fuzzy efforts → decision-ticket map | wayfinder (mattpocock set; maps live on GitHub issues, `docs/agents/issue-tracker.md`) |
 | Skill routing ("which skill fits?") | ask-matt (override — main flow = the per-issue loop) |
 | Conversation→spec synthesis (no interview) | to-spec (override; feature-forge keeps the interview workshop) |

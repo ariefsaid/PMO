@@ -26,6 +26,7 @@ const versionsState = {
   refetch: vi.fn(),
 };
 
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => ({ status: 'off' }) }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,

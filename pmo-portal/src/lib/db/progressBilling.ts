@@ -1,7 +1,8 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
-import type { Tables } from '@/src/lib/supabase/database.types';
+import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
+import type { Tables, TablesUpdate } from '@/src/lib/supabase/database.types';
 import type { AllocationFacts, ContractLineFacts, EarningBasis, ProjectBillingFacts } from '@/src/lib/progressBilling';
 
 /**
@@ -10,7 +11,7 @@ import type { AllocationFacts, ContractLineFacts, EarningBasis, ProjectBillingFa
  * definer RPCs (no client write grant exists); the summary is the INVOKER `get_project_billing`.
  * org_id is never sent from the client.
  */
-export type BoqItemRow = Tables<'boq_items'>;
+export type BoqItemRow = Tables<'boq_items'> & { catalogue_item_id?: string | null; catalogue_variant_id?: string | null; catalogue_priced_as_of?: string | null };
 export type ProgressClaimRow = Tables<'progress_claims'>;
 export type ProgressClaimLineRow = Tables<'progress_claim_lines'>;
 
@@ -26,6 +27,8 @@ export interface ProgressClaimWithInvoice extends ProgressClaimRow {
   evidence: ClaimEvidenceRef[];
   /** The claim's invoice mirror (id = claim id), or null when not yet raised. */
   invoice: { si_number: string | null; pmo_number: string | null; status: string; amount: number | null } | null;
+  /** Billing stages not yet completed (FR-BST-020): while above zero the database refuses the claim's invoice. */
+  open_stage_count: number;
 }
 
 export interface BoqItemInput {
@@ -38,6 +41,7 @@ export interface BoqItemInput {
   lineNo: number | null;
   /** The import identity (`pmo load` / the contract-lines importer); null/absent for a hand-entered line. */
   importKey?: string | null;
+  clearCatalogue?: boolean;
 }
 
 export interface ProgressClaimInput {
@@ -95,10 +99,13 @@ export async function createBoqItem(projectId: string, input: BoqItemInput): Pro
 }
 
 export async function updateBoqItem(id: string, input: BoqItemInput): Promise<void> {
-  const { data, error } = await supabase.from('boq_items').update({
+  const update = {
     item_code: input.itemCode, description: input.description, unit: input.unit,
     quantity: input.quantity, rate: input.rate, earning_basis: input.earningBasis, line_no: input.lineNo,
-  }).eq('id', id).select('id');
+    ...(input.clearCatalogue ? { catalogue_item_id: null, catalogue_variant_id: null, catalogue_priced_as_of: null } : {}),
+  };
+  // The generated schema predates the catalogue columns; the spread is retained at runtime.
+  const { data, error } = await supabase.from('boq_items').update(update as TablesUpdate<'boq_items'>).eq('id', id).select('id');
   if (error) fail(error);
   assertWriteLanded(data, 'Bill of quantities line not found or you do not have permission to edit it.');
 }
@@ -111,10 +118,12 @@ export async function deleteBoqItem(id: string): Promise<void> {
 
 export async function listProjectClaims(projectId: string): Promise<ProgressClaimWithInvoice[]> {
   const { data, error } = await supabase.from('progress_claims')
-    .select('*, lines:progress_claim_lines(*), evidence:progress_claim_evidence(id,document_id,document_status,document_revision)')
+    .select('*, lines:progress_claim_lines(*), evidence:progress_claim_evidence(id,document_id,document_status,document_revision), stages:claim_billing_stages(completed_on)')
     .eq('project_id', projectId).order('created_at', { ascending: false }).limit(CLAIM_LIST_LIMIT);
   if (error) fail(error);
-  const claims = (data ?? []) as Array<ProgressClaimRow & { lines: ProgressClaimLineRow[]; evidence: ClaimEvidenceRef[] }>;
+  // A claim has at most 20 stages (the table's check), so the embedded read is never truncated.
+  const claims = ((data ?? []) as Array<ProgressClaimRow & { lines: ProgressClaimLineRow[]; evidence: ClaimEvidenceRef[]; stages?: Array<{ completed_on: string | null }> | null }>)
+    .map(({ stages, ...claim }) => ({ ...claim, open_stage_count: (stages ?? []).filter((stage) => stage.completed_on === null).length }));
   if (claims.length === 0) return [];
   const { data: invoices, error: invoiceError } = await supabase.from('sales_invoices')
     .select('id,si_number,pmo_number,status,amount').in('id', claims.map((claim) => claim.id));
@@ -139,6 +148,17 @@ export async function createProgressClaim(input: ProgressClaimInput): Promise<st
   });
   if (error) fail(error);
   return data as string;
+}
+
+/**
+ * No ERP owns revenue: the claim's invoice is a PMO Draft with the claim's id, approved by someone outside the claim's author set.
+ * Refusal details (`claim-already-invoiced`, `no-client`, `claim-total-mismatch`, `erp-owns-revenue`) become the error code.
+ */
+export async function createNativeProgressClaimInvoice(claimId: string): Promise<string> {
+  const { data, error } = await supabase.rpc('create_native_progress_claim_invoice', { p_claim: claimId });
+  if (error) throw new AppError(error.message, revenueRefusalCode(error));
+  if (typeof data !== 'string' || data === '') throw new AppError('the server recorded the invoice but returned no id', 'claim-invoice-malformed');
+  return data;
 }
 
 export async function withdrawProgressClaim(id: string): Promise<void> {

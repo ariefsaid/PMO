@@ -27,7 +27,7 @@
 -- aborted file.
 begin;
 create extension if not exists pgtap;
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 create extension if not exists pgrowlocks;
 select plan(48);
 

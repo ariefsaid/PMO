@@ -17,6 +17,7 @@ const h = vi.hoisted(() => {
         ? { data: null, error: { message: 'boom', code: 'XX001' } }
         : { data: [{
             id: 't1', name: 'Pour slab', status: 'To Do', assignee_id: 'u1', project_id: 'p1',
+            work_order_id: 'wo1', work_order: { wo_number: 'WO-1', title: 'Site work' },
             meeting_id: null, start_date: null, end_date: '2026-11-12',
             priority: state.nullFacts ? null : 'High',
             archived_at: state.nullFacts ? null : '2026-10-01T00:00:00Z',
@@ -37,12 +38,16 @@ describe('listMyTasks — C13 facts on the row', () => {
   it('selects and maps the priority and archive stamp the queue renders', async () => {
     const [task] = await listMyTasks('u1');
 
+    expect(h.state.select).toContain('work_order_id');
+    expect(h.state.select).toContain('work_order:work_orders');
     expect(h.state.select).toContain('priority');
     expect(h.state.select).toContain('archived_at');
     expect(h.state.eq).toEqual([['eq', 'assignee_id', 'u1']]);
     expect(task).toMatchObject({
       id: 't1',
       project_name: 'Tower A',
+      work_order_id: 'wo1',
+      work_order_name: 'WO-1 · Site work',
       priority: 'High',
       archived_at: '2026-10-01T00:00:00Z',
     });

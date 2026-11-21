@@ -1,3 +1,4 @@
+import { BillingReconciliation } from './BillingReconciliation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
@@ -56,6 +57,7 @@ import {
   WorkOrderPoDrawer,
 } from './WorkOrdersDrawers';
 import WorkOrdersModals from './WorkOrdersModals';
+import WorkOrderPlanVsActual from '../WorkOrderPlanVsActual';
 
 /**
  * The work-order surface for one project (#566) — the client's inbound POs and the drawdown they
@@ -147,7 +149,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const openPoDrawer = (row: WorkOrderRow) => { setPoDrawerFor(row); updateOpenRecord(row.id, 'workOrder'); };
   const openLineDrawer = (line: OrderLineView) => { setLineDrawerFor(line); updateOpenRecord(line.key, 'workOrderLine'); };
   const openInvoiceDrawer = (invoice: InvoiceWithWorkOrder) => { setInvoiceDrawerFor(invoice); updateOpenRecord(invoice.id, 'workOrderInvoice'); };
-  const openClaimDrawer = (claim: ProgressClaimWithInvoice) => { setClaimDrawerFor(claim); updateOpenRecord(claim.id, 'workOrderClaim'); };
+  const openClaimDrawer = (claim: ProgressClaimWithInvoice) => { updateOpenRecord(claim.id, 'workOrderClaim'); };
 
   const rows = useMemo(() => data ?? [], [data]);
   const canIssue = (id: string) => !isPending && !isFetching && !isError && rows.some((row) => row.id === id && row.status === 'Draft' && row.issue_eligibility === 'allowed');
@@ -265,7 +267,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const [raiseFor, setRaiseFor] = useState<{ claim: ProgressClaimWithInvoice; idempotencyKey: string } | null>(null);
   const [withdrawClaimFor, setWithdrawClaimFor] = useState<ProgressClaimWithInvoice | null>(null);
   const claimScopeReady = !lines.isPending && !lines.isError;
-  const canBill = may('create', 'progressClaim') && erp.connected && Boolean(clientId) && claimScopeReady && Boolean(summary);
+  // No ERP owns revenue: a claim is made, evidenced, withdrawn and invoiced in PMO by whoever may raise a customer invoice.
+  const nativeBilling = revenueMode === 'native' && revenueRouteReady && may('create', 'salesInvoice');
+  const canBill = may('create', 'progressClaim') && (erp.connected || nativeBilling) && Boolean(clientId) && claimScopeReady && Boolean(summary);
   /** The card's Raise invoice and the plan's Invoice this share ONE gate and ONE opener (#1640 D5). */
   const orderInvoiceAction = (row: WorkOrderRow): (() => void) | null => {
     // Fail closed: if either read that tells claim-path from direct-path failed, we can't know which applies.
@@ -452,18 +456,30 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     }
   };
 
+  // A time-and-materials claim is invoiced from its own section, so the native raise covers the other claim kinds.
+  const nativeRaise = nativeBilling;  // route decided: a failed ownership read in an ERP-owned org keeps the ERP raise
   const runRaiseClaimInvoice = async () => {
     if (!raiseFor || !clientId) return;
     try {
-      await billingMutations.raiseInvoice.mutateAsync({
-        claimId: raiseFor.claim.id,
-        customerId: clientId,
-        intent: { id: raiseFor.claim.id, idempotencyKey: raiseFor.idempotencyKey },
-      });
-      toast(t('projectDetail.billing.claims.toast.raised', 'Invoice raised in the ERP'), undefined, 'success');
+      if (nativeRaise) {
+        await billingMutations.raiseNativeInvoice.mutateAsync(raiseFor.claim.id);
+        toast(t('projectDetail.billing.claims.toast.raisedNative', 'Invoice drafted in PMO'), undefined, 'success');
+      } else {
+        await billingMutations.raiseInvoice.mutateAsync({
+          claimId: raiseFor.claim.id,
+          customerId: clientId,
+          intent: { id: raiseFor.claim.id, idempotencyKey: raiseFor.idempotencyKey },
+        });
+        toast(t('projectDetail.billing.claims.toast.raised', 'Invoice raised in the ERP'), undefined, 'success');
+      }
     } catch (err) {
       failClaim(err, {
         '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn. Its invoice can't be raised."),
+        'claim-already-invoiced': t('projectDetail.billing.claims.errors.alreadyInvoiced', 'This claim already has an invoice.'),
+        'no-client': t('projectDetail.billing.claims.errors.noClient', 'This project has no client to invoice. Set the client on the project first.'),
+        'claim-total-mismatch': t('projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
+        'claim-erp-raise-in-flight': t('projectDetail.billing.claims.errors.erpRaiseInFlight', 'An invoice for this claim is still being raised in the ERP. Wait for it to finish.'),
+        'invoice-total-invalid': t('projectDetail.billing.claims.errors.invoiceTotalInvalid', "This claim's net is zero, so there is nothing to invoice. Withdraw it."),
       });
     } finally {
       setRaiseFor(null);
@@ -538,10 +554,32 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </div>
       )}
 
+      {/* The claims come first: billing the work done is what waits on Finance here (screen rules: what waits on you leads). */}
+      <WorkOrdersClaimsCard
+        visible={canViewBilling}
+        currency={currency}
+        boqRows={boqRows}
+        summary={summary}
+        canAssess={canAssess}
+        canRecordPercent={canRecordPercent}
+        canBill={canBill}
+        claimsRead={claimsQuery}
+        claimRows={claimRows}
+        openClaimDrawer={openClaimDrawer}
+        onOpenAssessment={() => setAssessOpen(true)}
+        onOpenPercent={() => setPercentOpen(true)}
+        onOpenNewClaim={() => setNewClaimOpen(true)}
+        onAttachEvidence={setEvidenceFor}
+        canRaiseClaim={(claim) => !(nativeRaise && claim.kind === 'time_materials')}
+        revenueMode={revenueMode}
+        onRaiseClaim={(claim) => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() })}
+        onWithdrawClaim={setWithdrawClaimFor}
+      />
+
       <section aria-labelledby="pd-customer-orders" className="panel-card min-w-0">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-[var(--panel-inset)] py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-[var(--panel-inset)] py-4 [&+*]:pt-0">
           <div className="flex flex-wrap items-baseline gap-x-2">
-            <h2 id="pd-customer-orders" className="text-sm font-semibold text-foreground">
+            <h2 id="pd-customer-orders" className="text-group font-semibold text-foreground">
               {t('projectDetail.contract.orders', 'Customer orders')}
             </h2>
             {/* C6: currency named once for the orders below; every figure in them is a bare number. */}
@@ -561,12 +599,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 {t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order')}
               </Button>
             )}
-            <ExportButton rows={filteredOrders} columns={orderExportColumns} entity="Customer orders"
+            <ExportButton size="sm" rows={filteredOrders} columns={orderExportColumns} entity="Customer orders"
               label={t('common.export', 'Export')} />
           </div>
         </div>
 
-        <div className="flex flex-wrap items-end gap-2 px-[var(--panel-inset)] pt-4">
+        {/* Filters appear once there is an order to filter. */}
+        {rows.length > 0 && <div className="flex flex-wrap items-end gap-2 px-[var(--panel-inset)] pt-4">
           <SelectField
             label={t('projectDetail.workOrders.filter.orders', 'Order')}
             value={orderFilter}
@@ -589,7 +628,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             wrapperClassName="min-w-[160px] gap-1"
             aria-label={t('projectDetail.workOrders.filter.status', 'Status')}
           />
-        </div>
+        </div>}
         {autoInvoiceNote && <p role="status" className="px-[var(--panel-inset)] pt-4 text-sm text-muted-foreground">{autoInvoiceNote}</p>}
         {/* L6/C4: the "Still to invoice" total only adds information across several orders (one order's own line
             already says it); "Not yet submitted" is said only here. An incomplete total is left out — each order
@@ -703,29 +742,15 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         )}
       </section>
 
-      <WorkOrdersClaimsCard
-        visible={canViewBilling}
-        boqRows={boqRows}
-        summary={summary}
-        canAssess={canAssess}
-        canRecordPercent={canRecordPercent}
-        canBill={canBill}
-        claimsRead={claimsQuery}
-        claimRows={claimRows}
-        openClaimDrawer={openClaimDrawer}
-        onOpenAssessment={() => setAssessOpen(true)}
-        onOpenPercent={() => setPercentOpen(true)}
-        onOpenNewClaim={() => setNewClaimOpen(true)}
-        onAttachEvidence={setEvidenceFor}
-        onRaiseClaim={(claim) => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() })}
-        onWithdrawClaim={setWithdrawClaimFor}
-      />
 
       {canViewBilling && (orderlessInvoices.length > 0 || ((!customerOrders.length && !draftOrders.length) && !invoiceReadReady)) && <WorkOrdersOrderlessInvoices
         orderlessInvoices={orderlessInvoices}
+        currency={currency}
         invoicesRead={invoicesQuery}
         openInvoiceDrawer={openInvoiceDrawer}
       />}
+
+      {canViewBilling && <BillingReconciliation projectId={projectId} workOrderId={null} currency={currency} />}
 
       {deliverySelectorOpen && <DeliverySelectorDrawer
         open
@@ -766,8 +791,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       {claimDrawerFor && <WorkOrderClaimDrawer
         claim={claimDrawerFor}
         canBill={canBill}
+        canRaise={!(nativeRaise && claimDrawerFor.kind === 'time_materials')}
         currency={currency}
         projectId={projectId}
+        today={orgDay ?? undefined}
         documents={documents.data ?? []}
         onClose={() => closeOpenRecord(claimDrawerFor.id, 'workOrderClaim')}
         onRaise={(claim) => { closeOpenRecord(claim.id, 'workOrderClaim'); setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() }); }}
@@ -811,6 +838,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         newClaimOpen={newClaimOpen}
         evidenceFor={evidenceFor}
         raiseFor={raiseFor}
+        nativeRaise={nativeRaise}
         withdrawClaimFor={withdrawClaimFor}
         pending={pending}
         overCommit={overCommit}
@@ -864,6 +892,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         onAcknowledgedIssue={runAcknowledgedIssue}
         onCloseOverCommit={() => setOverCommit(null)}
       />
+
+      {/* #2519: plan vs actual and profit per work order — renders nothing for a role that cannot read work-order money. */}
+      <WorkOrderPlanVsActual projectId={projectId} />
     </div>
   );
 };

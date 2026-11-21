@@ -34,6 +34,7 @@ import {
   listWorkOrderCostVariations,
   listSubcontractCapExceptions,
   attributeSubcontractBillLines,
+  voidSubcontractBill,
 } from './subcontracts';
 
 beforeEach(() => {
@@ -309,6 +310,28 @@ describe('subcontract DAL (src/lib/db/subcontracts.ts)', () => {
     expect(h.rpc).toHaveBeenCalledWith('attribute_subcontract_bill_lines', {
       p_invoice_id: 'inv-1',
       p_lines: [{ boq_item_id: 'b1', quantity: 50, rate: 100000 }],
+    });
+  });
+
+  it('AC-SCV-008 voidSubcontractBill sends the invoice id and trimmed reason and returns the row', async () => {
+    const row = { id: 'inv-1', voided_at: '2026-11-15T00:00:00Z', void_reason: 'typed 12 instead of 2' };
+    h.rpc.mockResolvedValue({ data: row, error: null });
+    await expect(voidSubcontractBill('inv-1', '  typed 12 instead of 2  ')).resolves.toEqual(row);
+    expect(h.rpc).toHaveBeenCalledWith('void_subcontract_bill', {
+      p_invoice_id: 'inv-1',
+      p_reason: 'typed 12 instead of 2',
+    });
+  });
+
+  it('AC-SCV-008 voidSubcontractBill raises an AppError carrying the code and detail', async () => {
+    h.rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'separation of duties: the person who captured this bill cannot void it', code: '42501', details: 'void-own-bill' },
+    });
+    await expect(voidSubcontractBill('inv-1', 'x')).rejects.toMatchObject({
+      name: 'AppError',
+      code: '42501',
+      details: 'void-own-bill',
     });
   });
 });

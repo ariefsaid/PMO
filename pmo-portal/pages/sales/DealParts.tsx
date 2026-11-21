@@ -1,12 +1,12 @@
 import React from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, Icon, LifecycleStepper, RecordActionZone, TaxBasisLabel } from '@/src/components/ui';
+import { Button, ConfirmDialog, Icon, RecordActionZone, TaxBasisLabel } from '@/src/components/ui';
+import { DateField } from '@/src/components/ui/DateField';
 import { LostReasonFields } from '@/components/project-status/LostReasonFields';
 import { lostReasonLabel, lostReasonValid } from '@/src/lib/lostReasons';
 import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
-import { formatPercent, dealJourneySteps, weightedValue } from '../../components/salesPipeline';
-import StageHistory from '../project-detail/StageHistory';
-import { useStageJourneyStepLabel, type DealActions } from './useDealActions';
+import { formatPercent, weightedValue } from '../../components/salesPipeline';
+import type { DealActions } from './useDealActions';
 import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 type Fig = { key: string; label: string; value: React.ReactNode; sub?: React.ReactNode };
@@ -92,18 +92,6 @@ export const DealFigures: React.FC<{ d: DealActions; className?: string }> = ({ 
   );
 };
 
-export const DealJourney: React.FC<{ d: DealActions; history?: boolean }> = ({ d, history = true }) => {
-  const { t } = useTranslation('project');
-  const stepLabel = useStageJourneyStepLabel();
-  return (
-    <section className="min-w-0 space-y-3">
-      <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</h2>
-      <LifecycleStepper variant="bar" steps={dealJourneySteps(d.status as never, stepLabel)} aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')} className="[&_span]:text-control" />
-      {history && <StageHistory projectId={d.project.id} />}
-    </section>
-  );
-};
-
 /** The one filled action (Advance, or Mark won at the last stage), plus Won / Lost / Decline. */
 export const DealActionButtons: React.FC<{ d: DealActions; primaryOnly?: boolean; secondaryOnly?: boolean }> = ({ d, primaryOnly, secondaryOnly }) => {
   const { t } = useTranslation('project');
@@ -129,7 +117,7 @@ export const DealActionButtons: React.FC<{ d: DealActions; primaryOnly?: boolean
       )}
       {!primaryOnly && d.canDecline && (
         <Button variant="outline" disabled={d.pending} onClick={() => d.setConfirmAction('declined')}>
-          <span aria-hidden className="size-1.5 rounded-full bg-muted-foreground" />{t('projectDetail.pipeline.markDeclined', 'Decline to bid')}
+          <span aria-hidden className="size-1.5 rounded-full bg-mark-neutral" />{t('projectDetail.pipeline.markDeclined', 'Decline to bid')}
         </Button>
       )}
     </div>
@@ -156,12 +144,8 @@ export const DealActionsZone: React.FC<{ d: DealActions; children?: React.ReactN
           className={`h-8 rounded-md border bg-background px-2.5 text-control outline-none placeholder:text-muted-foreground ${d.refError ? 'border-destructive' : 'border-input'}`} />
         {d.refError && <span id="won-ref-err" className="text-control text-destructive">{d.refError}</span>}
       </div>
-      <div className="flex flex-col gap-1">
-        <label htmlFor="won-date" className="text-control font-semibold">{t('projectDetail.pipeline.contractDateLabel', 'Contract date')}</label>
-        <input id="won-date" type="date" max={d.today} value={d.contractDate} onChange={(e) => { d.setContractDate(e.target.value); d.setDateError(null); }} aria-invalid={!!d.dateError} aria-describedby={d.dateError ? 'won-date-err' : undefined}
-          className={`h-8 rounded-md border bg-background px-2.5 text-control outline-none ${d.dateError ? 'border-destructive' : 'border-input'}`} />
-        {d.dateError && <span id="won-date-err" className="text-control text-destructive">{d.dateError}</span>}
-      </div>
+      <DateField id="won-date" compact label={t('projectDetail.pipeline.contractDateLabel', 'Contract date')} max={d.today} value={d.contractDate}
+        onChange={(v) => { d.setContractDate(v); d.setDateError(null); }} error={d.dateError} />
       <div className="flex gap-2">
         <Button variant="primary" size="sm" loading={d.pending} onClick={d.submitWon}>{t('projectDetail.pipeline.confirmWon', 'Confirm won')}</Button>
         <Button variant="ghost" size="sm" onClick={() => d.setShowWonPanel(false)}>{t('projectDetail.pipeline.cancel', 'Cancel')}</Button>

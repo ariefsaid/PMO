@@ -330,6 +330,9 @@ describe('CompanyDetail — account activity timeline (AC-CRM-CD-04, AC-CRM-CD-0
     contactsState.data = contacts;
     contactActivitiesState.data = [];
     renderPage('Admin');
+    // Facts and history first: the form is closed until "Log activity" opens it.
+    expect(screen.queryByLabelText(/subject/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^log activity$/i }));
 
     // The log-activity form should have a contact selector
     const contactSelect = screen.getByLabelText(/^contact$/i);
@@ -342,7 +345,7 @@ describe('CompanyDetail — account activity timeline (AC-CRM-CD-04, AC-CRM-CD-0
     await userEvent.type(screen.getByLabelText(/subject/i), 'Quarterly review');
 
     // Submit
-    await userEvent.click(screen.getByRole('button', { name: /^log activity$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^save activity$/i }));
 
     await waitFor(() =>
       expect(contactMutations.logActivity.mutateAsync).toHaveBeenCalledWith(
@@ -359,8 +362,9 @@ describe('CompanyDetail — account activity timeline (AC-CRM-CD-04, AC-CRM-CD-0
     contactActivitiesState.data = [];
     renderPage('Admin');
 
-    await userEvent.type(screen.getByLabelText(/subject/i), 'Quick call');
     await userEvent.click(screen.getByRole('button', { name: /^log activity$/i }));
+    await userEvent.type(screen.getByLabelText(/subject/i), 'Quick call');
+    await userEvent.click(screen.getByRole('button', { name: /^save activity$/i }));
 
     await waitFor(() =>
       expect(contactMutations.logActivity.mutateAsync).toHaveBeenCalledWith(
@@ -395,7 +399,7 @@ describe('CompanyDetail — primary contact + related opportunities (AC-CRM-CD-0
     // The first contact (alphabetically or by order) should appear as primary contact
     expect(screen.getByText(/primary contact/i)).toBeInTheDocument();
     // Should be a link navigating to the contact's page
-    const link = screen.getByRole('link', { name: /jane doe/i });
+    const link = screen.getByRole('link', { name: /^jane doe$/i });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute('href', '/contacts/ct1');
     expect(link.className).toContain('text-primary-text');

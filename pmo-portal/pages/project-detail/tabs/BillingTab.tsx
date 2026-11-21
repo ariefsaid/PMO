@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, Drawer, ListState, StatusPill, Tooltip, useToast, type Column,
+  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, Drawer, ListState, StatusPill, Tooltip, buttonClasses, useToast, type Column,
 } from '@/src/components/ui';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -10,6 +10,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { currencySymbol, formatCurrency, formatDay, formatNumber, formatNumberExact, formatNumberMax2, formatUtcMonthYear } from '@/src/lib/format';
 import { claimNet, milli, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
+import { ClaimRaiseFigures } from '../ClaimRaiseFigures';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
 } from '@/src/lib/db/progressBilling';
@@ -22,16 +23,22 @@ import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { ImportButton, ImportWizard } from '@/src/components/import';
 import { makeContractLineImportDescriptor } from '@/src/lib/import';
 import BoqItemFormModal from '../BoqItemFormModal';
+import RateCatalogue from '../RateCatalogue';
 import MaterialAllowanceModal from '../MaterialAllowanceModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
 import ProgressClaimModal from '../ProgressClaimModal';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
 import { ClaimEvidenceList } from './ClaimEvidenceList';
+import { ClaimBillingStages } from './ClaimBillingStages';
+import { BillingReconciliation } from './BillingReconciliation';
+import { BillingTermsModal } from './BillingTermsModal';
 import ProjectBillingStart from '../ProjectBillingStart';
 import TimeAndMaterials from '../TimeAndMaterials';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { useInvoiceTmClaimNative } from '@/src/hooks/useTimeAndMaterials';
 import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
+import { repositories } from '@/src/lib/repositories';
+import type { PricingChoice } from '../RatePicker';
 
 /**
  * The project's Billing tab (#766). Three things on one page, kept visibly apart (DD-PBL-2):
@@ -48,8 +55,10 @@ export interface BillingTabProps {
   clientId: string | null;
   /** Decides who may record progress (#765's rule). */
   projectManagerId: string | null;
-  /** Keep contract line tools available while the contract cascade owns the reading surface. */
-  mode?: 'full' | 'contract-tools';
+  /** Keep contract line tools available while the contract cascade owns the reading surface:
+   *  `contract-tools` = the contract card's actions and their overlays; `contract-time-materials` = the
+   *  time-and-materials block, rendered as its own panel lower on the Contract tab. */
+  mode?: 'full' | 'contract-tools' | 'contract-time-materials';
 }
 
 /** A lump-sum line is one lot: its progress is a fraction (0.4) shown as a percent (40%). */
@@ -101,8 +110,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   // #1512 S5: planned material per work item - Finance rank and above, or this project's own PM (PQ-7; RLS decides).
   const canSetAllowance = may('edit', 'materialAllowance', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId, viewOnly: realRole !== effectiveRole } });
   const [claimFormOpen, setClaimFormOpen] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
   const [assessOpen, setAssessOpen] = useState(false);
   const [contractLinesOpen, setContractLinesOpen] = useState(false);
+  const [catalogueOpen, setCatalogueOpen] = useState(false);
+  const [catalogueImportOpen, setCatalogueImportOpen] = useState(false);
   // One overlay at a time (#1278 round B): the import wizard needs the width of a dialog, so opening it from the
   // lines drawer closes the drawer first and reopens it, focus back on "Import lines", when the wizard closes.
   // The wizard is hosted here, not in the button, because the button unmounts with the drawer.
@@ -132,6 +144,15 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const boqRows = useMemo(() => boq.data ?? [], [boq.data]);
   const boqImportDescriptor = useMemo(() => makeContractLineImportDescriptor(projectId, t, currency), [projectId, t, currency]);
   const claimRows = useMemo(() => claims.data ?? [], [claims.data]);
+  const [catalogueLocations, setCatalogueLocations] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!boqRows.some((row) => row.catalogue_variant_id)) return;
+    let active = true;
+    void repositories.rateCatalogue.listVariants(projectId).then((variants) => {
+      if (active) setCatalogueLocations(Object.fromEntries(variants.map((variant) => [variant.id, variant.name])));
+    }).catch(() => { if (active) setCatalogueLocations({}); });
+    return () => { active = false; };
+  }, [boqRows, projectId]);
   const canViewMoney = may('view', 'salesInvoice');
   const openRecordId = searchParams.get('open');
   const openRecordType = searchParams.get('openType');
@@ -173,9 +194,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
 
   // A claim's scope comes from the allocations: until they are loaded no scope is offered (never a guessed one).
   const claimScopeReady = !allocations.isPending && !allocations.isError;
-  const canBill = may('create', 'progressClaim') && erp.connected && clientId !== null && claimScopeReady;
-  // #1817: no ERP owns revenue, so a confirmed T&M claim is invoiced in PMO (volume claims stay ERP-only, #784's deferral).
-  const canBillNative = revenueMode === 'native' && may('create', 'salesInvoice') && clientId !== null;
+  // No ERP owns revenue: a claim is made, evidenced, withdrawn and invoiced in PMO by whoever may raise a customer invoice.
+  const nativeBilling = revenueMode === 'native' && revenueRouteReady && may('create', 'salesInvoice');
+  const canBill = may('create', 'progressClaim') && (erp.connected || nativeBilling) && clientId !== null && claimScopeReady;
+  // #1817: a confirmed T&M claim is invoiced in PMO the same way (it needs no contract-line scope).
+  const canBillNative = nativeBilling && clientId !== null;
   const claimSources = [
     { query: boq, name: t('projectDetail.billing.sources.boq', 'contract lines') },
     { query: billing, name: t('projectDetail.billing.sources.billing', 'billing figures') },
@@ -188,13 +211,19 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const canAssess = may('edit', 'projectProgress', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const liveDownPayment = claimRows.some((c) => c.kind === 'down_payment' && !c.withdrawn_at && c.invoice?.status !== 'Cancelled');
 
+  // FR-BST-020: a claim with an open billing stage cannot be invoiced (the database refuses); say so instead of offering it.
+  const stagesOpen = (claim: { open_stage_count?: number }) => (claim.open_stage_count ?? 0) > 0;
+  const stagesOpenReason = t('projectDetail.billing.claims.errors.stagesIncomplete', 'Complete every billing stage of this claim before raising its invoice.');
+
   const fail = (err: unknown, headlineOverrides?: Record<string, string>) => {
     const { headline, detail } = classifyMutationError(err, headlineOverrides);
     toast(headline, detail, 'warning');
   };
 
-  const saveBoq = async (input: BoqItemInput) => {
-    if (boqFormFor) await mutations.updateBoq.mutateAsync({ id: boqFormFor.id, input });
+  const saveBoq = async (input: BoqItemInput, pricing?: PricingChoice) => {
+    if (pricing) {
+      await mutations.savePricedBoq.mutateAsync({ id: boqFormFor?.id ?? null, input, itemId: pricing.itemId, variantId: pricing.variantId, asOf: pricing.asOf });
+    } else if (boqFormFor) await mutations.updateBoq.mutateAsync({ id: boqFormFor.id, input: boqFormFor.catalogue_item_id ? { ...input, clearCatalogue: true } : input });
     else await mutations.createBoq.mutateAsync(input);
     toast(t('projectDetail.billing.boq.toast.saved', 'Bill of quantities line saved'), input.itemCode, 'success');
     setBoqFormFor(undefined);
@@ -220,8 +249,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     if (!raiseFor || !clientId) return;
     const { claim, idempotencyKey } = raiseFor;
     try {
-      if (revenueMode === 'native') {
-        await invoiceTmClaimNative.mutateAsync(claim.id);
+      if (nativeBilling) {
+        if (claim.kind === 'time_materials') await invoiceTmClaimNative.mutateAsync(claim.id);
+        else await mutations.raiseNativeInvoice.mutateAsync(claim.id);
         toast(t('projectDetail.billing.claims.toast.raisedNative', 'Invoice drafted in PMO'), undefined, 'success');
       } else {
         await mutations.raiseInvoice.mutateAsync({ claimId: claim.id, customerId: clientId, intent: { id: claim.id, idempotencyKey } });
@@ -234,9 +264,12 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       // InvoiceWorkOrderModal).
       fail(err, {
         '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn. Its invoice can't be raised."),
+        'billing-stages-incomplete': stagesOpenReason,
         'claim-already-invoiced': t('projectDetail.billing.claims.errors.alreadyInvoiced', 'This claim already has an invoice.'),
         'no-client': t('projectDetail.billing.claims.errors.noClient', 'This project has no client to invoice. Set the client on the project first.'),
         'claim-total-mismatch': t('projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
+        'claim-erp-raise-in-flight': t('projectDetail.billing.claims.errors.erpRaiseInFlight', 'An invoice for this claim is still being raised in the ERP. Wait for it to finish.'),
+        'invoice-total-invalid': t('projectDetail.billing.claims.errors.invoiceTotalInvalid', "This claim's net is zero, so there is nothing to invoice. Withdraw it."),
       });
     } finally {
       setRaiseFor(null);
@@ -289,7 +322,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     ...(canViewMoney ? [{ key: 'rate', header: t('projectDetail.billing.boq.column.rateWithCurrency', 'Rate ({{code}})', { code: currency }), align: 'num' as const, size: 176,
       // Round A items 1+7 (#1278): a unit rate shows its EXACT value (2.5 stays 2.5, a whole rate stays whole) —
       // never rounded to the currency's display decimals — and carries no currency symbol: the header names it once.
-      cell: (row: BoqItemRow) => <Tooltip content={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.') }><span className="cursor-help tabular">{formatNumberExact(Number(row.rate))}</span></Tooltip> }] : []),
+      cell: (row: BoqItemRow) => <span className="tabular">{formatNumberExact(Number(row.rate))}{row.catalogue_priced_as_of && <span className="block text-sm text-muted-foreground">{catalogueLocations[row.catalogue_variant_id ?? ''] ?? t('rateCatalogue.sourceUnavailable', 'Location unavailable')} · {formatDay(row.catalogue_priced_as_of)}</span>}</span> }] : []),
     ...(hasLines ? [
       { key: 'ordered', header: t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
@@ -403,7 +436,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
               {t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}
             </Button>
           )}
-          {open && canBill && (c.evidence.length > 0 ? (
+          {open && canBill && (stagesOpen(c) ? (
+            <span className="text-sm text-muted-foreground">{stagesOpenReason}</span>
+          ) : c.evidence.length > 0 ? (
             <Button variant="outline" size="sm" onClick={() => setRaiseFor({ claim: c, idempotencyKey: crypto.randomUUID() })}>
               {t('projectDetail.billing.claims.raise', 'Raise invoice')}
             </Button>
@@ -484,12 +519,12 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const boqDetailDrawer = boqDetailFor && (() => {
     const item = boqDetailFor;
     const fact = lineFactsById.get(item.id);
-    return <Drawer open title={item.description} subtitle={`${item.item_code} · ${item.unit}`}
+    return <Drawer open width="lg" title={item.description} subtitle={`${item.item_code} · ${item.unit}`}
       status={<StatusPill variant="neutral">{t('projectDetail.billing.boq.lineStatus', 'Contract line')}</StatusPill>}
       onClose={() => closeRecord(item.id, 'billingBoq')}
       headerActions={<div className="flex flex-wrap items-center gap-2">
         {may('edit', 'boqItem') && <Button variant="outline" size="sm" onClick={() => { closeRecord(item.id, 'billingBoq'); setBoqFormFor(item); }}>{t('projectDetail.billing.boq.edit', 'Edit')}</Button>}
-      <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeRecord(item.id, 'billingBoq')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
+      <Link className={buttonClasses('outline', 'sm')} to={`/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeRecord(item.id, 'billingBoq')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
       </div>}>
       <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
         <SourcedFigure label={t('projectDetail.billing.boq.column.quantity', 'Contract')} value={quantityText(item, Number(item.quantity))} detail={t('projectDetail.billing.boq.source.contract', 'Source: priced contract line quantity and unit.')} />
@@ -511,7 +546,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           {fact.allocations.map((allocation) => {
             const order = workOrders.data?.find((candidate) => candidate.id === allocation.workOrderId);
             return <li key={allocation.workOrderId} className="flex flex-wrap items-center justify-between gap-2 py-2">
-              <span>{order?.wo_number ?? order?.title ?? allocation.workOrderId}</span>
+              <span>{order ? <Link className="underline" to={`/work-orders/${order.id}`}>{order.wo_number ?? order.title}</Link> : allocation.workOrderId}</span>
               <Tooltip content={t('projectDetail.cascade.source.lineOrdered', 'Source: quantity allocated to this work order.')}><span className="cursor-help tabular">{quantityText(item, allocation.quantity)}</span></Tooltip>
             </li>;
           })}
@@ -525,11 +560,16 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       <CardHead
         level={2}
         className="text-base"
-        actions={
-          canBill && claimDataReady && !canStartInvoice && (
-            <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
-          )
-        }
+        actions={(may('edit', 'billingStage') || (canBill && claimDataReady && !canStartInvoice)) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {may('edit', 'billingStage') && (
+              <Button variant="outline" size="sm" onClick={() => setTermsOpen(true)}>{t('projectDetail.billing.terms.title', 'Billing terms')}</Button>
+            )}
+            {canBill && claimDataReady && !canStartInvoice && (
+              <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
+            )}
+          </div>
+        )}
       >
         {t('projectDetail.billing.claims.billingTitle', 'Billing claims')}
       </CardHead>
@@ -549,7 +589,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           rowKey={(row) => row.id}
           state={claims.isPending ? 'loading' : claims.isError ? 'error' : claimRows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
-          emptySub={t('projectDetail.billing.claims.billingEmptySub', 'A claim bills a down payment or quantities done, as one ERP invoice.')}
+          emptySub={t('projectDetail.billing.claims.billingEmptySub', 'A claim bills a down payment or quantities done, as one invoice.')}
           errorTitle={t('projectDetail.billing.claims.error', 'Couldn’t load the billing claims')}
           errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
           onRetry={() => claims.refetch()}
@@ -564,7 +604,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             const open = !claim.withdrawn_at && !claim.invoice;
             return [
               ...(open && canBill ? [{ label: t('projectDetail.billing.claims.attachEvidence', 'Attach evidence'), onClick: () => setEvidenceFor(claim.id) }] : []),
-              ...(open && canBill && claim.evidence.length > 0 ? [{ label: t('projectDetail.billing.claims.raise', 'Raise invoice'), onClick: () => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() }) }] : []),
+              ...(open && canBill && claim.evidence.length > 0 && !stagesOpen(claim) ? [{ label: t('projectDetail.billing.claims.raise', 'Raise invoice'), onClick: () => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() }) }] : []),
               ...(open && canBill ? [{ label: t('projectDetail.billing.claims.withdraw', 'Withdraw'), danger: true, onClick: () => setWithdrawFor(claim) }] : []),
             ];
           }}
@@ -573,7 +613,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     </Card>
   );
 
-  const claimDetailDrawer = canViewMoney && claimDetailFor && <Drawer open
+  const claimDetailDrawer = canViewMoney && claimDetailFor && <Drawer open width="lg"
     title={claimDetailFor.kind === 'down_payment'
       ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
       : claimDetailFor.kind === 'time_materials'
@@ -585,10 +625,12 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       : claimDetailFor.invoice?.status ?? t('projectDetail.billing.claims.notRaised', 'Not raised')}</StatusPill>}
     onClose={() => closeRecord(claimDetailFor.id, 'billingClaim')}
     headerActions={<div className="flex flex-wrap items-center gap-2">
-      {!claimDetailFor.withdrawn_at && !claimDetailFor.invoice && canBill && (claimDetailFor.evidence.length > 0
+      {!claimDetailFor.withdrawn_at && !claimDetailFor.invoice && canBill && (stagesOpen(claimDetailFor)
+        ? <span className="text-sm text-muted-foreground">{stagesOpenReason}</span>
+        : claimDetailFor.evidence.length > 0
         ? <Button variant="primary" size="sm" onClick={() => { closeRecord(claimDetailFor.id, 'billingClaim'); setRaiseFor({ claim: claimDetailFor, idempotencyKey: crypto.randomUUID() }); }}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>
         : <Button variant="outline" size="sm" onClick={() => { closeRecord(claimDetailFor.id, 'billingClaim'); setEvidenceFor(claimDetailFor.id); }}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>)}
-      <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeRecord(claimDetailFor.id, 'billingClaim')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
+      <Link className={buttonClasses('outline', 'sm')} to={`/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeRecord(claimDetailFor.id, 'billingClaim')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
     </div>}>
     <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
       <SourcedFigure label={t('projectDetail.billing.claims.column.claimedLabel', 'Claimed')} value={cents(claimDetailFor.gross_amount)} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.')} />
@@ -600,28 +642,30 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       <h3 className="text-sm font-semibold">{t('projectDetail.billing.claims.evidence', 'Evidence')}</h3>
       {claimDetailFor.evidence.length === 0
         ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p>
-        : <ClaimEvidenceList evidence={claimDetailFor.evidence} projectId={projectId} documents={documents.data ?? []} />}
+        : <ClaimEvidenceList evidence={claimDetailFor.evidence} documents={documents.data ?? []} />}
     </section>
+    {claimDetailFor.kind === 'progress' && <ClaimBillingStages claimId={claimDetailFor.id} projectId={projectId} currency={currency}
+      invoiced={Boolean(claimDetailFor.invoice)} withdrawn={Boolean(claimDetailFor.withdrawn_at)} today={orgToday} />}
   </Drawer>;
 
   const timeAndMaterials = canViewMoney && <TimeAndMaterials projectId={projectId} projectManagerId={projectManagerId} currency={currency}
-    embedded={mode === 'contract-tools'}
+    
     invoiceNumberFor={(claimId) => {
       const invoice = claimRows.find((row) => row.id === claimId)?.invoice;
       return invoice ? invoice.si_number ?? invoice.pmo_number ?? invoice.status : null;
     }}
     canCreateInvoice={(claimId) => {
       const claim = claimRows.find((row) => row.id === claimId);
-      return (canBill || canBillNative) && Boolean(claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0);
+      return (canBill || canBillNative) && Boolean(claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0 && !stagesOpen(claim));
     }}
     onCreateInvoice={(claimId) => {
       const claim = claimRows.find((row) => row.id === claimId);
-      if ((canBill || canBillNative) && claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0) {
+      if ((canBill || canBillNative) && claim && !claim.withdrawn_at && !claim.invoice && claim.evidence.length > 0 && !stagesOpen(claim)) {
         setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() });
       }
     }} />;
 
-  const native = revenueMode === 'native';
+  const native = nativeBilling;
   const raiseInvoiceDialog = raiseFor && (
     <ConfirmDialog
       open
@@ -631,40 +675,41 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           <p>{native
             ? t('projectDetail.billing.claims.confirmRaiseNative.body', 'A draft invoice is created in PMO from this claim. A different Admin or Finance user approves it.')
             : t('projectDetail.billing.claims.confirmRaise.body', 'An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.')}</p>
-          <p data-testid="raise-figures">
-            {t('projectDetail.billing.claims.confirmRaise.figures', 'Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)', {
-              gross: cents(raiseFor.claim.gross_amount),
-              recovery: cents(raiseFor.claim.dp_recovery_amount),
-              net: cents(claimNet(Number(raiseFor.claim.gross_amount), Number(raiseFor.claim.dp_recovery_amount))),
-              interpolation: { escapeValue: false },
-            })}
-          </p>
+          <ClaimRaiseFigures gross={raiseFor.claim.gross_amount} recovery={raiseFor.claim.dp_recovery_amount} currency={currency} />
         </div>
       }
       confirmLabel={native ? t('projectDetail.billing.claims.confirmRaiseNative.confirm', 'Create invoice') : t('projectDetail.billing.claims.confirmRaise.confirm', 'Create ERP invoice')}
-      loading={native ? invoiceTmClaimNative.isPending : mutations.raiseInvoice.isPending}
+      loading={native ? invoiceTmClaimNative.isPending || mutations.raiseNativeInvoice.isPending : mutations.raiseInvoice.isPending}
       onConfirm={() => void runRaise()}
       onCancel={() => setRaiseFor(null)}
     />
   );
 
+  if (mode === 'contract-time-materials') {
+    return <>{timeAndMaterials}{raiseInvoiceDialog}</>;
+  }
+
   if (mode === 'contract-tools') {
     return (
       <>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setContractLinesOpen(true)}>
+            {t('projectDetail.billing.boq.manage', 'Edit contract lines')}
+          </Button>
+          {may('view', 'rateCatalogue') && <Button variant="outline" size="sm" onClick={() => setCatalogueOpen(true)}>{t('rateCatalogue.title', 'Rate catalogue')}</Button>}
+          {may('edit', 'billingStage') && <Button variant="outline" size="sm" onClick={() => setTermsOpen(true)}>{t('projectDetail.billing.terms.title', 'Billing terms')}</Button>}
           {canStartInvoice && <Link
-            className="touch-target inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className={buttonClasses('outline', 'sm')}
             to={`/finance/receivables?create=1&project=${encodeURIComponent(projectId)}`}
           >
             {t('uxs15.contractInvoice', 'Contract invoice')}
           </Link>}
-          <Button variant="ghost" size="sm" className="h-auto min-h-8 px-0! text-muted-foreground underline underline-offset-4"
-            onClick={() => setContractLinesOpen(true)}>
-            {t('projectDetail.billing.boq.manage', 'Edit contract lines')}
-          </Button>
         </div>
-        {timeAndMaterials}
         {raiseInvoiceDialog}
+        <Drawer open={catalogueOpen} nestedOpen={catalogueImportOpen} width="lg" title={t('rateCatalogue.title', 'Rate catalogue')} onClose={() => setCatalogueOpen(false)}>
+          {catalogueOpen && <RateCatalogue projectId={projectId} currency={currency} canWrite={may('create', 'rateCatalogue', { record: { viewOnly: realRole !== effectiveRole } })} onImportOpenChange={setCatalogueImportOpen} />}
+        </Drawer>
+        {termsOpen && <BillingTermsModal projectId={projectId} onClose={() => setTermsOpen(false)} />}
         <Drawer open={contractLinesOpen} nestedOpen={Boolean(boqDetailFor)} width="lg" title={t('projectDetail.billing.boq.title', 'Bill of quantities')}
           initialFocus={() => {
             if (!focusImportOnReopen.current) return true;
@@ -679,7 +724,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         {claimDetailDrawer}
         {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
         {boqFormFor !== undefined && (
-          <BoqItemFormModal item={boqFormFor} currencySymbolPrefix={currencySymbol(currency)}
+          <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
             onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
         )}
         {assessOpen && (
@@ -785,12 +830,14 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         </>
       )}
 
+      {canViewMoney && <BillingReconciliation projectId={projectId} workOrderId={null} currency={currency} />}
+
       {timeAndMaterials}
 
       {importOpen && <ImportWizard descriptor={boqImportDescriptor} onClose={closeImport} />}
       {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
       {boqFormFor !== undefined && (
-        <BoqItemFormModal item={boqFormFor} currencySymbolPrefix={currencySymbol(currency)}
+        <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
           onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
       )}
       {boqDetailDrawer}
@@ -799,6 +846,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={orgToday.slice(0, 7)}
           onClose={() => setAssessOpen(false)} onSave={saveAssessment} onError={fail} />
       )}
+      {termsOpen && <BillingTermsModal projectId={projectId} onClose={() => setTermsOpen(false)} />}
       {claimFormOpen && (
         <ProgressClaimModal sources={claimSources.map(({ query, name }) => ({ name,
           pending: query.isPending || (!query.isError && query.data == null), error: query.isError, retry: () => { void query.refetch(); } }))}

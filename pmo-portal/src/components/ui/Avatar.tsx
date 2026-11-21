@@ -7,11 +7,13 @@ import { cn } from './cn';
 // behaviour comes from Base UI; the look is DESIGN.md tokens only (no per-person hue).
 export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg';
 
+// A minimum square that GROWS with wide initials ("HW" at 14px is wider than a 24px circle), so the
+// chip always contains them instead of clipping; a loaded photo is laid over it and keeps the square.
 const sizeClasses: Record<AvatarSize, string> = {
-  xs: 'size-5 text-control',
-  sm: 'size-6 text-control',
-  md: 'size-[30px] text-control',
-  lg: 'size-9 text-control',
+  xs: 'h-5 min-w-5',
+  sm: 'h-6 min-w-6',
+  md: 'h-[30px] min-w-[30px]',
+  lg: 'h-9 min-w-9',
 };
 
 export interface AvatarProps {
@@ -31,12 +33,12 @@ export const Avatar: React.FC<AvatarProps> = ({ name, src, size = 'sm', initials
   <AvatarPrimitive.Root
     {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': name || undefined, title: name || undefined })}
     className={cn(
-      'inline-grid shrink-0 select-none place-items-center overflow-hidden rounded-full bg-secondary font-semibold text-secondary-foreground',
+      'relative inline-grid shrink-0 select-none place-items-center overflow-hidden whitespace-nowrap rounded-full px-1 bg-secondary text-control font-semibold text-secondary-foreground',
       sizeClasses[size],
       className
     )}
   >
-    {src ? <AvatarPrimitive.Image src={src} alt="" className="size-full object-cover" /> : null}
+    {src ? <AvatarPrimitive.Image src={src} alt="" className="absolute inset-0 size-full object-cover" /> : null}
     <AvatarPrimitive.Fallback>{initials ?? toInitials(name, { fallback })}</AvatarPrimitive.Fallback>
   </AvatarPrimitive.Root>
 );

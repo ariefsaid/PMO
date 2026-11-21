@@ -44,6 +44,7 @@ const state = vi.hoisted(() => ({
   updateLineItem: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => ({ status: 'off' }) }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetDistribution: () => ({ data: null, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBudget: () => state.budget,
@@ -634,10 +635,12 @@ describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
   it('shows no active amount when only a draft exists', () => {
     state.versions.data = [draft({ currency: 'EUR' })];
     renderPage();
-    expect(screen.getByText('No active budget')).toBeInTheDocument();
     const tiles = screen.getByRole('region', { name: 'Budget figures' });
+    // The Budget card names the cause once; no separate row above the cards repeats it.
+    expect(within(tiles).getAllByText('No active budget')).toHaveLength(1);
     expect(within(tiles).queryByText('€125')).not.toBeInTheDocument();
-    expect(within(tiles).queryByText('Budget')).not.toBeInTheDocument();
+    // The Budget card stays and reads — with a short caption, never the draft's amount.
+    expect(within(tiles).getAllByText('—').length).toBeGreaterThanOrEqual(1);
   });
 
   it('F11: summary tiles show short amounts with the full amount kept for hover and screen readers', () => {
@@ -729,7 +732,8 @@ describe('#2325 the spend-versus-budget comparison without an accounting system'
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: 'Forecast' }));
     const figures = await screen.findByTestId('budget-forecast-view');
-    const recorded = within(figures).getByText('Recorded to date', { selector: 'dt' }).parentElement!;
+    // #2329: the view resolves the PMO fiscal years first ("Loading fiscal years"), then shows the figures.
+    const recorded = (await within(figures).findByText('Recorded to date', { selector: 'dt' })).parentElement!;
     expect(recorded).toHaveTextContent('$1,000');
     expect(within(figures).getByText('Remaining', { selector: 'dt' }).parentElement).toHaveTextContent('$4,000');
     expect(within(figures).getByText('% recorded', { selector: 'dt' }).parentElement).toHaveTextContent('20%');

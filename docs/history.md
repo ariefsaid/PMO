@@ -64,15 +64,15 @@ Timeline (each program is merged to `main`; cited PRs + key migrations/decisions
 > These were live `backlog.md` current-state blocks; superseded by the 2026-06-16 QA-portfolio/Gantt-v2 state. Embedded branch/commit figures are point-in-time and NOT current (e.g. 'dev 42 ahead' is false — see git).
 
 ### ⟨SHIPPED & SUPERSEDED⟩ Current state (2026-06-15) — JTBD REMEDIATION PROGRAM (long since merged via the session above)
-> **RESUME ENTRY POINT (model-agnostic).** If you are resuming this work — **especially a non-Claude tool (pi/codex/etc.) that does NOT have the Claude auto-memory** — these REPO docs are the authoritative, self-contained handoff: **this `docs/backlog.md` current-state block + [`docs/reviews/2026-06-15-jtbd-reaudit-r3.md`](reviews/2026-06-15-jtbd-reaudit-r3.md) (full fix-wave-3 plan-of-record + lessons)**. Everything needed to continue is in-repo; you do not need any external memory. Plans: `docs/plans/2026-06-15-jtbd-remediation.md` + `docs/plans/2026-06-15-fix-wave-2.md`. Audits: `docs/reviews/2026-06-14-jtbd-census.md` + `docs/reviews/2026-06-15-broad-audit.md`. **Branch `jtbd-remediation`; verify exact head with `git -C . log --oneline -5`.**
+> **RESUME ENTRY POINT (model-agnostic).** If you are resuming this work — **especially a non-Claude tool (pi/codex/etc.) that does NOT have the Claude auto-memory** — these REPO docs are the authoritative, self-contained handoff: **this `docs/backlog.md` current-state block + `jtbd-reaudit-r3 review (2026-06-15, in git history)` (full fix-wave-3 plan-of-record + lessons)**. Everything needed to continue is in-repo; you do not need any external memory. Plans: `docs/plans/2026-06-15-jtbd-remediation.md` + `fix-wave-2 plan (2026-06-15, in git history)`. Audits: `docs/reviews/2026-06-14-jtbd-census.md` + `broad-audit review (2026-06-15, in git history)`. **Branch `jtbd-remediation`; verify exact head with `git -C . log --oneline -5`.**
 > **⚠ If `git status` shows a DIRTY working tree:** a fix-wave-3 group (G3a→G3b→G3c→G3d, see the r3 plan-of-record) was mid-build when the prior session ended — the uncommitted edits are that group's partial work. Do NOT assume they're complete/correct: inspect each changed file against its group's spec in the r3 doc, finish the group, run the FULL gate (`npm run typecheck && npm run lint && npm test && npm run build` from `pmo-portal/`; `supabase test db` from repo root if SQL changed), then commit that group before starting the next. Commits land at clean per-group checkpoints; the last commit's subject names the last completed group.
 
 Owner ran `/goal`: *"find as many [JTBD/usability issues] as possible, run workflow to fix them, then re-audit fresh — loop."* Triggered by owner: "the jtbd review isn't earning its keep" (Gantt unusable / procurement unnatural / approval chevron inconsistent / where is the CRM / drawer-vs-detail). **Method fix: replaced the narrative design-walk with an enumerated CENSUS** (16-route denominator × action-completeness oracle + cross-screen invariants + job-fit), plus a complementary BROAD audit (state/a11y/data/mobile/resilience).
 - **Branch `jtbd-remediation`** (off `main`@`21a0577`) = head **`cbdf407`**. Gates green: typecheck 0 · lint 0 · build ok · **2957 unit** · **496 pgTAP**. **NOT merged to `main`/`dev`/prod.**
 - **fix-wave-1 (DONE, gated):** 27 action-completeness findings → P0 shared seams (`ProjectNameLink`, `ApprovalRow` disclosure slot, single status-variant authority, Gantt `onActivate`) + 10 file-disjoint consumer pkgs. Closes the owner's dead-display/inert-project-name class + in-context add + CRM-hub buildout (activity timeline, Add-contact, contacts error-state) + Gantt-clickable + chevron order. Plan `docs/plans/2026-06-15-jtbd-remediation.md`; census `docs/reviews/2026-06-14-jtbd-census.md`.
-- **fix-wave-2 (DONE, gated):** 25 broad-audit findings → **G1 the CRITICAL budget money-bug** (`projects.budget` stored-but-never-populated, twin of the 0032 spent bug → **migration 0033** derives at-risk/util from active budget-version line-items; **pgTAP 0075**), G2 false-empty-on-error cluster + MyTasks silent-no-op, G3 date-only UTC off-by-one (4 sites→canonical formatters) + variance-sign + compact-currency, G4 a11y labels/focus + touch-targets + resilience + ViewToggle semantics. Plan `docs/plans/2026-06-15-fix-wave-2.md`; audit `docs/reviews/2026-06-15-broad-audit.md`.
+- **fix-wave-2 (DONE, gated):** 25 broad-audit findings → **G1 the CRITICAL budget money-bug** (`projects.budget` stored-but-never-populated, twin of the 0032 spent bug → **migration 0033** derives at-risk/util from active budget-version line-items; **pgTAP 0075**), G2 false-empty-on-error cluster + MyTasks silent-no-op, G3 date-only UTC off-by-one (4 sites→canonical formatters) + variance-sign + compact-currency, G4 a11y labels/focus + touch-targets + resilience + ViewToggle semantics. Plan `fix-wave-2 plan (2026-06-15, in git history)`; audit `broad-audit review (2026-06-15, in git history)`.
 - **3-reviewer battery (on the program diff):** security **CLEAN** · code-quality **SHIP** · spec **COMPLIANT** (mig 0033 preserves `security invoker`+RLS org-scoping).
-- **Fresh re-audit (loop-closer, both oracles re-run on the fixed tree):** census **0 Crit / 7 Imp / 17 Min**; broad **2 Crit / 7 Imp / 9 Min**. Structural wins HELD (drawer/detail clean, one noun, one registry). **It caught 2 residuals from my own waves** (header Spend% still on dead budget; AwaitingApprovalTile false-zero) + a pre-existing Critical (delivery-hook cache-key collision). Full triage + fix-wave-3 plan-of-record: **`docs/reviews/2026-06-15-jtbd-reaudit-r3.md`** (read this to resume).
+- **Fresh re-audit (loop-closer, both oracles re-run on the fixed tree):** census **0 Crit / 7 Imp / 17 Min**; broad **2 Crit / 7 Imp / 9 Min**. Structural wins HELD (drawer/detail clean, one noun, one registry). **It caught 2 residuals from my own waves** (header Spend% still on dead budget; AwaitingApprovalTile false-zero) + a pre-existing Critical (delivery-hook cache-key collision). Full triage + fix-wave-3 plan-of-record: **`jtbd-reaudit-r3 review (2026-06-15, in git history)`** (read this to resume).
 - **▶ fix-wave-3 IN PROGRESS (plan-of-record in the r3 doc):**
   - **G3a ✅ DONE** (`e1e2b0d`, 2986 unit / typecheck 0 / lint 0): both criticals (delivery cache-key, header budget) + W1/W2 residuals (OverviewTab/Finance/AwaitingApproval false-empty, ProjectBudget line-item resilience, Gantt undated chips, procurement board link-in-button + empty-state) + 2 reviewer test-minors.
   - **G3b ✅ DONE** (`9774e5c`, 3004 unit / typecheck 0 / lint 0): shared `CompanyNameLink`+`ContactNameLink` + dead-display sweep (E-1: D-1/PL-1/PL-2/PRD-1/CD-2/AD-1/D-2) + `ApprovalRowShell` unification (B — owner's chevron complaint root-caused & fixed).
@@ -99,8 +99,8 @@ Owner ran `/goal`: *"find as many [JTBD/usability issues] as possible, run workf
   - **Wave 1** — Bulk **Export** xlsx (#92) · Project **Calendar** read-only (#93) · **Procurement attachments** per-phase child tables+RLS+storage (#94, migration **0028**).
   - **Wave 2** — **S-Curve** planned-vs-actual (#95) · Projects **Kanban** by status (#96) · mobile view-toggle/S-curve drift fix (#97).
   - **Wave 3** — **Gantt** (#98) · **Import wizard** xlsx (#99) · **CRM** contacts+activity (#100, migration **0030**) · CRM companies-drawer (#101). New migrations: **0029** calendar-milestone RPC, **0030** CRM contacts/activities.
-- **Whole-app coherence audit (2026-06-14):** dual-substrate (Opus ×3 + gpt-5.4 ×3, 3-lens) → `docs/reviews/2026-06-14-whole-app-coherence-audit.md`. Diagnosis: "doesn't feel like the same app" = **PATTERN drift** (5 record verbs built per-feature), not token drift.
-- **Coherence wave (PRs #103–#112 + #111, on `dev`):** plan `docs/plans/2026-06-14-coherence-wave.md`, DESIGN.md §7 added. CW-1: one noun "Project" + one create-verb. CW-2: status/colour registry (action-blue freed, active→grey). CW-7: bug sweep (NaN/dates, ⌘K-index Companies/Contacts, role-invariant URL, dashboard copy, validation, honest Add-user). CW-3a: one RecordHeader + bar stepper (retired procurement circle stepper). CW-3b: one KpiTile + one ProjectCard. CW-4a/b: routable `/incidents/:id` + `/companies/:id` + `/contacts/:id` pages (drawers-as-record retired, Incidents dead-end fixed). CW-5: one ListPage shell. CW-6: unified `/approvals` inbox. #111: re-landed orphaned #102 drift fixes (gantt today-line, s-curve "100%", import autoMap; #102 closed). Design-review closing verdict: **SHIP — "feels like one app."** Two minor residuals in follow-up PR (sticky action zone + procurement header Edit; "No deals in <stage>" → "No projects" copy leak). **B-MIN-1 noun-soup RESOLVED by CW-1.**
+- **Whole-app coherence audit (2026-06-14):** dual-substrate (Opus ×3 + gpt-5.4 ×3, 3-lens) → `whole-app-coherence-audit review (2026-06-14, in git history)`. Diagnosis: "doesn't feel like the same app" = **PATTERN drift** (5 record verbs built per-feature), not token drift.
+- **Coherence wave (PRs #103–#112 + #111, on `dev`):** plan `coherence-wave plan (2026-06-14, in git history)`, DESIGN.md §7 added. CW-1: one noun "Project" + one create-verb. CW-2: status/colour registry (action-blue freed, active→grey). CW-7: bug sweep (NaN/dates, ⌘K-index Companies/Contacts, role-invariant URL, dashboard copy, validation, honest Add-user). CW-3a: one RecordHeader + bar stepper (retired procurement circle stepper). CW-3b: one KpiTile + one ProjectCard. CW-4a/b: routable `/incidents/:id` + `/companies/:id` + `/contacts/:id` pages (drawers-as-record retired, Incidents dead-end fixed). CW-5: one ListPage shell. CW-6: unified `/approvals` inbox. #111: re-landed orphaned #102 drift fixes (gantt today-line, s-curve "100%", import autoMap; #102 closed). Design-review closing verdict: **SHIP — "feels like one app."** Two minor residuals in follow-up PR (sticky action zone + procurement header Edit; "No deals in <stage>" → "No projects" copy leak). **B-MIN-1 noun-soup RESOLVED by CW-1.**
 - **Deployed LIVE** — Supabase Cloud (prod) + Cloudflare Pages (`https://pmo-bfb.pages.dev`). Full
   infra/secrets/ops runbook + parallel-worktree stack hygiene: **`docs/environments.md`**. Release =
   merge `main → production`. **Prod is current** — Cloud at migration **0027**, `production` promoted (2026-06-13). PRs through **#83**.
@@ -132,7 +132,7 @@ subagent brief context for work that had already shipped. Verbatim, not summaris
 **Branch `feat/erpnext-adapter-p3`** (off `dev` @ `b549d06`). **HOLD on the branch — NO PR** (owner: dev
 is moving with parallel agents). Spec + plan SIGNED OFF:
 [`docs/specs/erpnext-adapter-p3a-sales-ar.spec.md`](specs/erpnext-adapter-p3a-sales-ar.spec.md) ·
-[`docs/plans/2026-07-14-erpnext-adapter-p3a-sales-ar.md`](plans/2026-07-14-erpnext-adapter-p3a-sales-ar.md).
+`erpnext-adapter-p3a-sales-ar plan (2026-07-14, in git history)`.
 R9 bench spike frozen: [`docs/spikes/2026-07-14-erpnext-si-pe-receive-fields.md`](spikes/2026-07-14-erpnext-si-pe-receive-fields.md).
 Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-DRAFT-SUBMIT**.
 - **✅ Built (8 slices) + happy-path proven:** migs `0104–0107`; revenue domain (SI + PE-receive) full
@@ -142,7 +142,7 @@ Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-D
   RevenueByProject). **Served-fn money e2e: 19/19 GREEN at the live bench** (two-person flow). Gates:
   verify (5,428) · pgTAP (1,506) · deno (69) green at the happy-path checkpoint.
 - **⚑ HARDENING ROUND IN PROGRESS (re-Luna@max NO SHIP):** the first Luna audit's 8 findings were fixed;
-  a **max-thinking re-audit** ([`docs/reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md`](reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md))
+  a **max-thinking re-audit** (`luna-p3a-reaudit-maxthinking review (2026-07-15, in git history)`)
   found the **dispatch/repo layer has real authz/targeting/reference holes** the happy-path e2e misses
   (it hand-builds correct commands). **DONE + verified:** BLOCK 2/3/4 (dispatch domain-ownership+role+
   kind↔domain gate before ERP write — hardens ALL erpnext money writes, incl. a gap P2 shared;
@@ -199,7 +199,7 @@ catalog sweep catches real drift. **✅ MERGED to `dev` as PR #336 (`adf79e48`, 
 
 
 ### ✅ COMPLETE ON `dev` (2026-07-22) — ClickUp integration + integration enablement
-> **COLD-CONTEXT? START HERE →** [`docs/plans/2026-07-20-clickup-integration-completion.md`](plans/2026-07-20-clickup-integration-completion.md)
+> **COLD-CONTEXT? START HERE →** `clickup-integration-completion plan (2026-07-20, in git history)`
 > Current enablement authority: ADR-0061 + [`docs/specs/integration-enablement-model.spec.md`](specs/integration-enablement-model.spec.md).
 > Live-smoke evidence remains in [`docs/spikes/2026-07-17-clickup-live-smoke.md`](spikes/2026-07-17-clickup-live-smoke.md).
 
@@ -227,7 +227,7 @@ selected at ORG level** · **OD-INT-7 project↔List link is PROJECT-SCOPED to t
    correct, so this is a transparency gap).
 5. Per-org webhook secret remains deliberately deferred for single-org scope (OD-INT-14 / ADR-0047).
 
-Historical design and phase details remain in [`docs/plans/2026-07-13-clickup-admin-integration-flow.md`](plans/2026-07-13-clickup-admin-integration-flow.md); they are not the current completion status.
+Historical design and phase details remain in `clickup-admin-integration-flow plan (2026-07-13, in git history)`; they are not the current completion status.
 
 
 ### ✅ Audit HIGHS — ALL 3 MERGED to dev (owner-directed, 2026-07-07, glm-5.2/4.7)
@@ -480,7 +480,7 @@ pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
 > - **Credits enforcement** — `AGENT_CREDITS_ENFORCED` default OFF (launch un-enforced per the GTM plan; price after
 >   pilot-margin data). **F4 mobile assistant entry, OpenRouter fallback chain** still open.
 >
-> **Seven-dimension audit + hardening wave (2026-07-04, post-promote):** `docs/spikes/2026-07-04-seven-dimension-audit.md`
+> **Seven-dimension audit + hardening wave (2026-07-04, post-promote):** `seven-dimension-audit spike (2026-07-04, in git history)`
 > is the ledger. 7 read-only audits over `dev`@`8869145` (RED-1..4 + SEC-HIGH-1/2 re-verified CLOSED). Same-day
 > fixes on `dev`: **H-1** procurement record tables RPC-only writes + amount CHECKs + Admin-only file DELETE
 > (mig `0058`, pgTAP `0110` — was LIVE in prod DB); **C-1** model-call retry ×3 (429/5xx/network); **H-5**
@@ -492,7 +492,7 @@ pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
 > `AGENT_ALLOWED_ORIGIN`).** Deferred (ledgered in the spike): H-6 `strict`, M-16 e2e waits, M-14 god
 > components, M-6/M-7/M-8/M-9/M-12/M-15 + lows.
 >
-> **Full-codebase review + hardening (this session's second half):** `docs/spikes/2026-07-04-full-codebase-review.md`
+> **Full-codebase review + hardening (this session's second half):** `full-codebase-review spike (2026-07-04, in git history)`
 > is the severity-ledger + shipped-vs-deferred truth. 7 gpt-5.5 sweeps found 11 real issues 4 prior review layers
 > passed (incl. 2 live-prod); all exploitable ones FIXED (#221–#223), + hardening waves: observability logging
 > +readiness script (#224), reliability atomic RPCs +error-boundary (#225), 12 indexes +pagination (#226),
@@ -623,7 +623,7 @@ pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
 
 ## ▶ Prior state (2026-06-21) — PROD CURRENT: procurement case-folder record model + tabbed case-page UI revamp LIVE
 
-> **RESUME ENTRY POINT (model-agnostic).** **`production`(prod) current at `fc312eb` / Cloud DB migration 0041; `main`=`7a65ac7` (the 2026-06-21 procurement IxD + Reserved-budget program promoted, PR #169); `dev`=`d317260`+ a few ahead (the 2 done follow-ups + docs). See IMMEDIATE NEXT ACTION below.** The prod-level case-folder revamp shipped a prior session (owner-direct "push to prod", PRs #158→dev #160→main): the **procurement revamp** — a case folder over ERP-canonical record tables (PR/RFQ/Quotation/PO/GR/VI/Payment; **dual-ID** = minted system# + external ref; **Model-C** = case-spine + optional PO-anchored settlement chain w/ a same-case FK invariant; PO-less is first-class; SoD-gated `transition_procurement` RPC byte-preserved; append-only `procurement_status_events` log; migs **0035–0041**, the 0038 backfill creates PR/PO records from existing prod pr_number/po_number) **+ the tabbed case page** (Overview bento + Progression timeline · Documents dual-ID ledger w/ file view+upload · Vendor-quotes bid comparison) replacing the old accreted stack. Authority: **ADR-0033**; spec `docs/specs/procurement-records.spec.md`; plans `docs/plans/2026-06-19-procurement-{records,ui-revamp}.md`; design `docs/design/procurement-redesign/`. Security-audited (1 Medium fixed); pgTAP 0076–0083; procurement e2e retargeted to the tabs.
+> **RESUME ENTRY POINT (model-agnostic).** **`production`(prod) current at `fc312eb` / Cloud DB migration 0041; `main`=`7a65ac7` (the 2026-06-21 procurement IxD + Reserved-budget program promoted, PR #169); `dev`=`d317260`+ a few ahead (the 2 done follow-ups + docs). See IMMEDIATE NEXT ACTION below.** The prod-level case-folder revamp shipped a prior session (owner-direct "push to prod", PRs #158→dev #160→main): the **procurement revamp** — a case folder over ERP-canonical record tables (PR/RFQ/Quotation/PO/GR/VI/Payment; **dual-ID** = minted system# + external ref; **Model-C** = case-spine + optional PO-anchored settlement chain w/ a same-case FK invariant; PO-less is first-class; SoD-gated `transition_procurement` RPC byte-preserved; append-only `procurement_status_events` log; migs **0035–0041**, the 0038 backfill creates PR/PO records from existing prod pr_number/po_number) **+ the tabbed case page** (Overview bento + Progression timeline · Documents dual-ID ledger w/ file view+upload · Vendor-quotes bid comparison) replacing the old accreted stack. Authority: **ADR-0033**; spec `docs/specs/procurement-records.spec.md`; plans procurement-records / procurement-ui-revamp (2026-06-19) and the procurement-redesign design exploration (all removed from the tree 2026-11-19; in git history). Security-audited (1 Medium fixed); pgTAP 0076–0083; procurement e2e retargeted to the tabs.
 > **⚑ BINDING (owner): work→`dev`→`main`; `main` is the autonomous ceiling. NEVER promote to `production` (FE push or `db-push-prod.sh`) without a DIRECT per-instance owner instruction.** (`fc312eb` was such an instruction.) Promote = `db-push-prod.sh` typed-`prod` (**NO reseed** — seed §R/§S/§T procurement enrichment is local-only) → `git push origin main:production` (clean ff). ⚠ `db-push-prod.sh --check` hangs **silently in `op-get.sh`** if 1Password is locked (zero output; looks like a DB hang but isn't — unlock 1Password first).
 >
 > **⭐ IMMEDIATE NEXT ACTION — none blocking; `dev` is 9 commits ahead of `main` (the 2 procurement follow-ups + a full backlog debt sweep), optional promote.** **`main`=`7a65ac7` (PROMOTED 2026-06-21, owner "ship to main", PR #169, gated green)** carries the procurement IxD + Reserved-budget program (#162–168). **`dev`=`42c1522` is 9 ahead** — all `verify`-green, promote whenever (gated `verify`+`integration`). **`production` UNTOUCHED — `fc312eb`/mig 0041, now well behind `main`; a prod promote needs a direct per-instance owner go (would push migs 0042–0044 to the cloud DB + FE to `production`).**
@@ -669,7 +669,7 @@ pgTAP/e2e — `docs/environments.md` local-stack hygiene).**
 - **#125 Gantt v2 (ADR-0031, BUILD-AND-OWN not vendored):** on-axis milestone diamonds + dependency connector lines (frappe-MIT blueprint) + MS-Project split table/timeline + day/week/month/quarter zoom + pixel-aware geometry/edge model + D1 mobile fallback (`useIsNarrow` 640px → List/Board notice). Vendor spike killed SVAR (GPLv3+R19-crash) & Frappe (no-a11y).
 - **#119** housekeeping · **#120** CLAUDE.md model-tiering rule · **#121** Incidents hidden behind interim feature flag (`src/lib/features.ts`, re-enable=flip flag) · **#126** `pi-delegation.md` hardened (subagent must run pi blocking-foreground; GLM-only degraded mode).
 
-**▶ pi/GLM QA-ORCHESTRATION TRIAL ✅ SUCCEEDED** (`docs/reviews/2026-06-16-qa-orchestration-trial-gantt.md`): a **separate opus orchestrator** ran the full portfolio loop on the Gantt D1 fix **from the docs alone**, dispatching **pi/GLM** for all work (build `glm-5.2` → review `glm-5.1` → fold), self-verified gates (3128/3128); Director only verified + hardened docs. **GLM verdict: keep both** (glm-5.2 first-pass-correct). **gpt-5.4/openai-codex is UNAVAILABLE → GLM-ONLY routing.** Prompting lesson: a Claude subagent gets NO background re-invoke → must run pi blocking-foreground within its turn.
+**▶ pi/GLM QA-ORCHESTRATION TRIAL ✅ SUCCEEDED** (`qa-orchestration-trial-gantt review (2026-06-16, in git history)`): a **separate opus orchestrator** ran the full portfolio loop on the Gantt D1 fix **from the docs alone**, dispatching **pi/GLM** for all work (build `glm-5.2` → review `glm-5.1` → fold), self-verified gates (3128/3128); Director only verified + hardened docs. **GLM verdict: keep both** (glm-5.2 first-pass-correct). **gpt-5.4/openai-codex is UNAVAILABLE → GLM-ONLY routing.** Prompting lesson: a Claude subagent gets NO background re-invoke → must run pi blocking-foreground within its turn.
 
 **▶ OUTSTANDING (owner-gated / next):**
 1. **PROD PROMOTE ✅ DONE 2026-06-17** — `production`=`d3d50b0` / Cloud DB **migration 0034** (two promotes: 5ce5a39 then d3d50b0 for the timesheet fix). All of mobile + PostHog + S-curve + row-clickable + Vite 8 + timesheet-icon-fix are LIVE. (1 dependabot-high esbuild dismissed not-affected.)
@@ -911,12 +911,12 @@ e2e/BDD) green LOCALLY before any PR**; branch flow work→`dev`→`main` (`main
 **Per-issue status (branch `feat/<name>` in `../PMO-worktrees/<name>`):**
 | # | Issue | Spec | Plan | Extra | State |
 |---|---|---|---|---|---|
-| 1 | Auth floor | `docs/specs/auth-production-floor.spec.md` | `docs/plans/2026-07-04-auth-production-floor.md` | — | ✅ **MERGED to `dev` (PR #235)** — full battery passed |
-| 7 | Deputy-help | `docs/specs/deputy-help.spec.md` | `docs/plans/2026-07-04-deputy-help.md` | live-verify = `docs/qa-portfolio.md` (AC-DH-005) | ✅ **MERGED to `dev` (PR #233)** |
+| 1 | Auth floor | `docs/specs/auth-production-floor.spec.md` | `auth-production-floor plan (2026-07-04, in git history)` | — | ✅ **MERGED to `dev` (PR #235)** — full battery passed |
+| 7 | Deputy-help | `docs/specs/deputy-help.spec.md` | `deputy-help plan (2026-07-04, in git history)` | live-verify = `docs/qa-portfolio.md` (AC-DH-005) | ✅ **MERGED to `dev` (PR #233)** |
 | 4 | DR runbooks | — | — | `docs/runbooks/{incident-response,restore-drill}.md` | ✅ **MERGED to `dev` (PR #230)** |
 | 2 | Ops-admin | `docs/specs/ops-admin-surface.spec.md` | `docs/plans/2026-07-04-ops-admin-surface.md` | `docs/adr/0049-ops-admin-surface.md` | 🟢 **ALL 7 SLICES BUILT + 3-lens battery hardening VERIFIED — needs only rendered pass + PR** (branch `feat/ops-admin` @ **`e4e135b`, pushed; NO PR yet**). Slices: S1–S5 (`8cd0faa`), **S6** (`eae9d47` — `org_features` mig **0068**, `useFeature`/`FeatureGate`, Features/Credits sections, a11y capstone; pgTAP **0122/0123**), **S7** (`9c978c2` — 3 curated e2e: AC-INV-001 invite, AC-CRE-004 grant, AC-ENT-005 toggle). Migrations **0060–0068**, pgTAP through **0123**. **3-lens review battery ran (spec+code+security)** → hardening applied in `e4e135b` (sec M1 disabled-Operator RPC entry-guards, M2 invite redirectTo from `SITE_URL` not Origin header, L1/L3 credit-attribution + entitlement-probe close, L4 TOCTOU sole-admin `SHARE ROW EXCLUSIVE` lock, L5, code I1/I2/I3, spec I1). **Verified: pgTAP 1041/1041 green + typecheck/lint clean.** ⏭ **RESUME:** rendered Discover pass (AdminUsers/Usage/Features UI) → open PR to `dev`. **Deviations to carry:** CI extended for `admin-invite-user` deno-check/boot-smoke; `errorLog.ts` `EdgeFunctionName` widened; `classifyMutationError` `overrides` param; `AdminUsers.mailto.test.tsx` deleted (FR-INV-006); `deno.lock`s untracked per repo pattern. |
-| 5 | Legal pages | `docs/specs/legal-pages.spec.md` | `docs/plans/2026-07-04-legal-pages.md` | — | 🟡 **CODE-COMPLETE** (branch, unpushed) — 2-lens SHIP, e2e 70/70. **NEEDS: rendered Discover pass** (stack) → PR. |
-| 3 | Observability | `docs/specs/observability-floor.spec.md` | `docs/plans/2026-07-04-observability-floor.md` | no ADR (uses ADR-0046/0048 precedents) | ⏳ **SIGNED, NOT BUILT** (stack-bound). Renumber migration/pgTAP vs then-current `dev` max at build time. |
+| 5 | Legal pages | `docs/specs/legal-pages.spec.md` | `legal-pages plan (2026-07-04, in git history)` | — | 🟡 **CODE-COMPLETE** (branch, unpushed) — 2-lens SHIP, e2e 70/70. **NEEDS: rendered Discover pass** (stack) → PR. |
+| 3 | Observability | `docs/specs/observability-floor.spec.md` | `observability-floor plan (2026-07-04, in git history)` | no ADR (uses ADR-0046/0048 precedents) | ⏳ **SIGNED, NOT BUILT** (stack-bound). Renumber migration/pgTAP vs then-current `dev` max at build time. |
 | 6 | Onboarding | `docs/specs/onboarding-tooling.spec.md` | `docs/plans/2026-07-04-onboarding-tooling.md` | `OD-ONB-1` in `docs/decisions.md` (on branch) | ⏳ **SIGNED, NOT BUILT** (stack-bound). Renumber at build time. |
 
 **Cross-issue contracts already wired (don't re-derive):** ops-admin's `admin-invite-user` edge fn
@@ -1145,7 +1145,7 @@ and the `main` → `production` FE promote. Open follow-ups from the batch: #728
 
 ### ⚑ 2026-09-29 — enterprise UI/UX readiness milestone COMPLETE on `dev` (promoted 2026-09-30, above)
 
-Signed brief `docs/design/2026-09-26-enterprise-coherence-brief.md`: #685 (#691), #689 (#698), #681 (#703),
+Signed brief `enterprise-coherence-brief doc (2026-09-26, in git history)`: #685 (#691), #689 (#698), #681 (#703),
 #687 (#706), #683 (#709), #684 (#710), #688 (#712), #682 (#717); umbrella #679 closed. The full CI e2e lane
 (chromium + serial) went green via #725, which fixed seven drifted journeys and a real list-seam race (a filter
 picked just before a debounced search write was dropped). `main` and production are untouched by this
@@ -1204,7 +1204,7 @@ the credential probe fetched a User document Frappe cannot serve (#647, fixed on
 after an `external-connect` deploy); beyond it, connect leaves the binding with an empty `site_url` and no
 `activated_at`, the write paths resolve credentials from function env rather than Vault, and the version handshake has
 no call site and pins v15. Every existing binding is seed / e2e helper / operator SQL. Findings with file:line on #590;
-the #481 dry-run plan (`docs/plans/2026-09-14-erpnext-crossing-dryrun.md`) is written against a second company
+the #481 dry-run plan (`erpnext-crossing-dryrun plan (2026-09-14, in git history)`) is written against a second company
 `PMO Smoke Co` on the v16 site so the client's books are never touched. Owner sequencing pending. Also shipped: #639.
 **2026-09-14 — #650 built (ERPNext activation at Company selection, ADR-0073):** migration `0216` adds three
 service-role-only RPCs — `set_external_binding_site_url` (connect persists the site URL; a repoint un-activates),

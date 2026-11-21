@@ -71,7 +71,7 @@
           "confirm": "Tarik BAST",
           "title": "Tarik draft BAST ini?"
         },
-        "document": "BAST bertanda tangan: {{title}}",
+        "documentLabel": "BAST bertanda tangan:",
         "edit": "Ubah",
         "editLabel": "Ubah draft BAST tanggal {{date}}",
         "empty": "Belum ada BAST",
@@ -102,7 +102,7 @@
           "quantities": "Diterima s.d. saat ini",
           "quantityLine": "{{item}}: diterima s.d. saat ini ({{unit}})",
           "save": "Simpan BAST",
-          "subtitle": "Penerimaan pekerjaan oleh klien, sebagai kuantitas kumulatif s.d. saat ini. Pihak lain yang mengonfirmasinya; ini tidak membuat faktur.",
+          "subtitle": "Penerimaan pekerjaan oleh klien, sebagai kuantitas kumulatif s.d. saat ini. Pihak lain yang mengonfirmasinya; ini tidak membuat invoice.",
           "titleEdit": "Ubah BAST: {{wo}}",
           "titleNew": "Siapkan BAST: {{wo}}"
         },
@@ -124,7 +124,8 @@
         "withdrawLabel": "Tarik draft BAST tanggal {{date}}",
         "confirmDelivery": "Konfirmasi draf BAST",
         "finalConfirmed": "Final terkonfirmasi",
-        "confirmed": "Terkonfirmasi"
+        "confirmed": "Terkonfirmasi",
+        "openWorkOrder": "Buka Work Order / SPK"
       },
       "closing": {
         "closedAt": "Ditutup pada {{amount}} (belum termasuk PPN)",

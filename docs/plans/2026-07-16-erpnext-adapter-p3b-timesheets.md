@@ -47,7 +47,7 @@
 > - migrations `0074` (`stamp_org_id()`), `0087` (`domain_externally_owned`), `0088` (`external_refs`), `0089` (`external_sync_watermarks`), `0096` (outbox + bindings + claim/fence RPCs), `0102` (sweep cron), `0107` (`get_process_gates` — the org-guarded config-read idiom), `0076` (`audit_events`)
 > - `e2e/serial/AC-SAR-*.spec.ts` + `scripts/{serve-functions,with-db-lock,with-erpnext-lock}.sh`
 >
-> **The P3a Luna re-audit is a binding design input** (`docs/reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md`).
+> **The P3a Luna re-audit is a binding design input** (`luna-p3a-reaudit-maxthinking review (2026-07-15, in git history)`).
 > Its ten findings are pre-closed **by construction**, not by later hardening — slice 5 lands the guards
 > **before** any push can happen:
 > | Luna finding (P3a) | P3b closure |

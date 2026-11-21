@@ -318,23 +318,18 @@ const ApprovalsPage: React.FC = () => {
             data-testid="approvals-queue-region"
             className="min-w-0"
           >
+            {/* #2497: the waiting block says what its figure counts, so the number is never a bare "2". */}
             <div
               data-testid="approvals-waiting-summary"
-              className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-waiting-surface p-4 [&>div]:ml-auto"
+              className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-waiting-surface px-4 py-3"
             >
-              <h2 className={activeScope === 'all' ? 'sr-only' : 'text-base font-semibold'}>
-                {activeScope === 'all' ? t('procurement:approvalQueue.headingAll', 'Purchases and timesheets') : t('approvals.queueHeading', 'Approvals queue')}
+              <h2 className="flex min-w-0 items-baseline gap-2 text-base font-semibold text-foreground">
+                <span data-testid="approvals-waiting-count" className="text-metric font-semibold tabular-nums">{queueItems.length}</span>
+                <span>{t('procurement:approvalQueue.waitingOnYou', 'waiting on your decision')}</span>
               </h2>
               <div className="flex flex-wrap items-center gap-2">
                 {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}
                 {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && <ProcurementBulkSelect controller={procurementBulk} />}
-                <span
-                  data-testid="approvals-waiting-count"
-                  aria-label={`${queueItems.length} ${t('approvals.queueHeading', 'Approvals queue')}`}
-                  className="text-metric font-semibold tabular-nums text-foreground"
-                >
-                  {queueItems.length}
-                </span>
               </div>
             </div>
 
@@ -360,7 +355,7 @@ const ApprovalsPage: React.FC = () => {
                   items={procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, row }))}
                   selectedKey={selectedKey}
                   onSelect={pickItem}
-                  isPending={procPending || (activeScope === 'all' && allScopePending && procurementRows.length === 0)}
+                  isPending={procPending}
                   isError={procError}
                   onRetry={() => refetchProc()}
                   emptyTitle={t(
@@ -379,7 +374,7 @@ const ApprovalsPage: React.FC = () => {
                   items={timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, row }))}
                   selectedKey={selectedKey}
                   onSelect={pickItem}
-                  isPending={tsPending || (activeScope === 'all' && allScopePending && timesheetRows.length === 0)}
+                  isPending={tsPending}
                   isError={tsError}
                   onRetry={() => refetchTimesheets()}
                   emptyTitle={t(

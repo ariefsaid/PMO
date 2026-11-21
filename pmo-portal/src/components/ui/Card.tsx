@@ -39,7 +39,7 @@ export const Card: React.FC<CardProps> = ({
       clip && 'overflow-hidden',
       seam && 'panel-card-seam',
       interactive &&
-        'transition-colors duration-150 hover:bg-surface-hover',
+        'transition-colors hover:bg-surface-hover',
       className
     )}
     {...rest}
@@ -74,9 +74,10 @@ export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
     <div
       // The heading sits 16px above its content: this row's own bottom padding is the whole gap, so the
       // next sibling (usually CardPad) drops its top inset instead of stacking 16 + inset (a 40px band).
-      className={cn('flex items-start gap-2 px-[var(--panel-inset)] py-4 [&+*]:pt-0', className)}
+      // flex-wrap: on a phone the actions take their own row instead of squeezing the title onto two lines.
+      className={cn('flex items-start flex-wrap gap-2 px-[var(--panel-inset)] py-4 [&+*]:pt-0', className)}
     >
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-40">
         <Heading
           ref={ref}
           className="flex min-w-0 items-center gap-2 text-group font-semibold text-foreground"
@@ -103,16 +104,6 @@ export const CardPad: React.FC<CardPadProps> = ({
   ...rest
 }) => (
   <div className={cn(flush ? 'p-0' : 'p-[var(--panel-inset)]', className)} {...rest}>
-    {children}
-  </div>
-);
-
-export const CardFoot: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
-  className,
-  children,
-  ...rest
-}) => (
-  <div className={cn('border-t border-border px-[var(--panel-inset)] py-3', className)} {...rest}>
     {children}
   </div>
 );

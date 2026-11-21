@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
 import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
+import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
 const mocks = vi.hoisted(() => ({
   createRequest: vi.fn(),
@@ -16,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   orgFxContext: { data: { currency: 'USD' } as { currency: string } | undefined, isPlaceholderData: false, isError: false, isPending: false, refetch: vi.fn() },
   realRole: 'Admin' as string,
   projectQuery: { data: [{ value: 'p1', label: 'Project One' }], isPending: false, isError: false, refetch: vi.fn() },
-  vendorQuery: { data: [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }], isPending: false, isError: false, refetch: vi.fn() },
+  vendorQuery: { data: [{ value: 'v1', label: 'Supplier One' }], isPending: false, isError: false, refetch: vi.fn() },
 }));
 vi.mock('react-router', async (importOriginal) => ({ ...await importOriginal<typeof import('react-router')>(), useNavigate: () => mocks.navigate }));
 vi.mock('@/src/auth/usePermission', async () => {
@@ -59,6 +61,12 @@ function renderCreate(path = '/procurement/new?have=need') {
   );
 }
 
+function estimatedTotalCell() {
+  const cell = screen.getByTestId('line-items-section').querySelector('tfoot tr td:nth-child(4)');
+  if (!(cell instanceof HTMLElement)) throw new Error('Estimated total cell is missing from the line items table.');
+  return cell;
+}
+
 describe('AC-PROC1 one-page request creation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -69,10 +77,15 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.projectQuery.isPending = false; mocks.projectQuery.isError = false;
     mocks.projectQuery.data = [{ value: 'p1', label: 'Project One' }];
     mocks.vendorQuery.isPending = false; mocks.vendorQuery.isError = false;
-    mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }];
+    mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One' }];
     mocks.createRequest.mockResolvedValue({ id: 'new-id' });
     mocks.createAtomic.mockResolvedValue({ id: 'new-id' });
     mocks.createItem.mockResolvedValue({});
+  });
+
+  afterEach(async () => {
+    cleanup();
+    await financeTestI18n.changeLanguage('en');
   });
 
   it('keeps reference pickers unavailable during loading and offers retry after failure', async () => {
@@ -86,7 +99,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.vendorQuery.refetch).toHaveBeenCalled();
     mocks.projectQuery.isPending = false;
     mocks.vendorQuery.isError = false;
-    mocks.vendorQuery.data = [{ value: 'v2', label: 'New Supplier', sub: 'Vendor' }];
+    mocks.vendorQuery.data = [{ value: 'v2', label: 'New Supplier' }];
     view.rerender(<MemoryRouter initialEntries={['/procurement/new?have=need']}><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></MemoryRouter>);
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     expect(await screen.findByRole('option', { name: /New Supplier/ })).toBeVisible();
@@ -122,6 +135,71 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(submitted.lines[0]).not.toHaveProperty('total');
     expect(submitted.lines[0]).not.toHaveProperty('tax');
     expect(submitted.lines[0]).not.toHaveProperty('taxBasis');
+  });
+
+  it('#2514 includes a complete pending line in the same draft save and preserves added lines', async () => {
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
+
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Envelopes' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add line item' }));
+    await waitFor(() => expect(screen.getByLabelText('New item description')).toHaveValue(''));
+
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
+    expect(mocks.createAtomic.mock.calls[0][0]).toMatchObject({
+      header: { title: 'Office supplies' },
+      lines: [
+        expect.objectContaining({ name: 'Envelopes', quantity: 2, rate: 5 }),
+        expect.objectContaining({ name: 'Paper', quantity: 3, rate: 10 }),
+      ],
+    });
+  });
+
+  it('#2514 includes the valid pending line in the estimate once before and after Add', async () => {
+    renderCreate();
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Existing' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '7' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add line item' })); });
+    await waitFor(() => expect(screen.getByLabelText('New item description')).toHaveValue(''));
+    expect(estimatedTotalCell()).toHaveTextContent('$7');
+
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Pending' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '12' } });
+    expect(estimatedTotalCell()).toHaveTextContent('$43');
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add line item' })); });
+    await waitFor(() => expect(screen.getByLabelText('New item description')).toHaveValue(''));
+    expect(estimatedTotalCell()).toHaveTextContent('$43');
+    expect(within(estimatedTotalCell()).getAllByText('$43')).toHaveLength(1);
+  });
+
+  it('#2514 keeps the estimate unknown when a pending numeric value is invalid', async () => {
+    renderCreate();
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Existing' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '1' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '7' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add line item' })); });
+    await waitFor(() => expect(screen.getByLabelText('New item description')).toHaveValue(''));
+
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Invalid price' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '0' } });
+    expect(estimatedTotalCell()).toHaveTextContent('—');
+    expect(estimatedTotalCell()).not.toHaveTextContent('$0');
+    expect(screen.getByLabelText('New line total')).toHaveTextContent('—');
+
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '' } });
+    expect(estimatedTotalCell()).toHaveTextContent('—');
+    expect(screen.getByLabelText('New line total')).toHaveTextContent('—');
   });
 
   it('SEC-RS-5: shows the five intake choices to Finance and only the plain request to an Engineer', () => {
@@ -357,12 +435,11 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
 
-  it('uses supplier wording for the supplier option in the shared picker', async () => {
+  it('lists suppliers by name only: no type word is repeated on every option of the supplier picker', async () => {
     renderCreate();
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     const supplierOption = await screen.findByRole('option', { name: /Supplier One/ });
-    expect(supplierOption).toHaveTextContent('Supplier');
-    expect(supplierOption).not.toHaveTextContent('Vendor');
+    expect(supplierOption).toHaveTextContent(/^Supplier One$/);
   });
 
   it('AC-PROC1-004 skips the question for ?have=invoice and omits line items', () => {
@@ -439,6 +516,38 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createItem).not.toHaveBeenCalled();
   });
 
+  it('AC-STK-RESTOCK-1 opens pre-filled from a Stock link: title, project, one line at the shortfall', async () => {
+    renderCreate('/procurement/new?have=need&project=p1&from=%2Fstock%2Freorder&title=CEM%20-%20Cement&lineName=Cement%20(bag)&lineQty=30&lineRate=12.5');
+    expect(screen.getByLabelText(/title/i)).toHaveValue('CEM - Cement');
+    expect(screen.getByText('Project One')).toBeVisible();
+    expect(screen.getByText('Cement (bag)')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
+    expect(mocks.createAtomic.mock.calls[0][0].header.projectId).toBe('p1');
+    expect(mocks.createAtomic.mock.calls[0][0].lines).toEqual([expect.objectContaining({ name: 'Cement (bag)', quantity: 30, rate: 12.5 })]);
+  });
+
+  it('AC-STK-RESTOCK-1 with no known unit value the price stays empty (never 0) and the line waits in the entry row', () => {
+    renderCreate('/procurement/new?have=need&from=%2Fstock%2Freorder&title=CEM&lineName=Cement%20(bag)&lineQty=30');
+    expect(screen.getByDisplayValue('Cement (bag)')).toBeVisible();
+    expect(screen.getByDisplayValue('30')).toBeVisible();
+    expect(screen.getByLabelText('New item unit price')).toHaveValue('');
+  });
+
+  it('AC-STK-RESTOCK-2 Cancel and Back return to the page the request started from, not the list', () => {
+    renderCreate('/procurement/new?have=need&from=%2Fstock%2Freorder');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(mocks.navigate).toHaveBeenLastCalledWith('/stock/reorder');
+    fireEvent.click(screen.getByRole('button', { name: /^back/i }));
+    expect(mocks.navigate).toHaveBeenLastCalledWith('/stock/reorder');
+  });
+
+  it('AC-STK-RESTOCK-2 ignores an external origin and falls back to the list', () => {
+    renderCreate('/procurement/new?have=need&from=https%3A%2F%2Fevil.test');
+    fireEvent.click(screen.getByRole('button', { name: /^back/i }));
+    expect(mocks.navigate).toHaveBeenLastCalledWith('/procurement');
+  });
+
   it('AC-PROC1-004 required title error is inline and blocks creation', () => {
     renderCreate();
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
@@ -513,7 +622,7 @@ describe('AC-PROC1 one-page request creation', () => {
 
   it('allows a stale supplier to be corrected after a definitive reference rejection', async () => {
     mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Reference unavailable', '23503'));
-    mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }, { value: 'v2', label: 'Supplier Two', sub: 'Vendor' }];
+    mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One' }, { value: 'v2', label: 'Supplier Two' }];
     renderCreate();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Supplies' } });
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
@@ -673,21 +782,47 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
   });
 
-  it('C1(b) blocks form submit while the add row has input and focuses that row', () => {
+  it('#2514 blocks an invalid pending row and explains the fields that need correction', async () => {
     renderCreate();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '0' } });
 
     const saveDraft = screen.getByRole('button', { name: 'Save draft' });
     const form = saveDraft.closest('form');
     fireEvent.click(saveDraft);
 
     expect(mocks.createAtomic).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent('Add this line or clear it first');
+    expect(await screen.findByText('Item is required.')).toBeVisible();
+    expect(screen.getByText('Unit price must be greater than 0 with no more than 2 decimal places.')).toBeVisible();
     expect(screen.getByLabelText('New item description')).toHaveFocus();
+    expect(screen.getByLabelText('New item description')).toHaveValue('');
+    expect(screen.getByLabelText('New item quantity')).toHaveValue('2');
+    expect(screen.getByLabelText('New item unit price')).toHaveValue('0');
 
     fireEvent.submit(form as HTMLFormElement);
     expect(mocks.createAtomic).not.toHaveBeenCalled();
+  });
+
+  it('#2514 localizes pending-row Save errors in Indonesian and restores English for later tests', async () => {
+    await financeTestI18nReady;
+    await financeTestI18n.changeLanguage('id');
+    render(
+      <I18nextProvider i18n={financeTestI18n}>
+        <MemoryRouter initialEntries={['/procurement/new?have=need']}>
+          <Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes>
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+    fireEvent.change(screen.getByRole('textbox', { name: /Title/ }), { target: { value: 'Perlengkapan kantor' } });
+    fireEvent.change(screen.getByLabelText('Jumlah item baru'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Harga satuan item baru'), { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    expect(mocks.createAtomic).not.toHaveBeenCalled();
+    expect(await screen.findByText('Nama item wajib diisi.')).toBeVisible();
+    expect(screen.getByText('Harga satuan harus lebih besar dari 0 dengan maksimal 2 angka desimal.')).toBeVisible();
+    expect(screen.getByLabelText('Deskripsi item baru')).toHaveFocus();
   });
 
   it('C1(c) treats add-row input as unsaved work for the existing leave guard', () => {

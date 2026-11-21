@@ -618,7 +618,7 @@ traceability.
 
 ## 7. Design Dependencies
 
-A companion **design-plan** (`docs/plans/2026-06-30-agent-assistant-panel.design.md`) is being
+A companion **design-plan** (`agent-assistant-panel.design plan (2026-06-30, in git history)`) is being
 authored separately by `design-architect` and owns:
 - Layout: panel grid column, width token (AP-OD-003 default = 360px), breakpoint behavior
   (collapsed ≤768px? hidden? — design-plan decides).

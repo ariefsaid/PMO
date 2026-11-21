@@ -12,6 +12,7 @@ import {
   updateTaskMilestone,
 } from '@/src/lib/db/milestones';
 import {
+  listWorkOrderClaimDocuments,
   listProjectWorkOrders,
   getWorkOrder,
   createWorkOrder,
@@ -32,6 +33,7 @@ import {
   attachClaimEvidence,
   withdrawProgressClaim,
   getProjectBilling,
+  createNativeProgressClaimInvoice,
 } from '@/src/lib/db/progressBilling';
 import {
   listProjectAcceptances,
@@ -66,6 +68,7 @@ export const milestoneRepository: MilestoneRepository = {
  * transition authority. Collapsing any pair here would hide a control behind a convenience.
  */
 export const workOrderRepository: WorkOrderRepository = {
+  claimDocuments: (id) => wrap(() => listWorkOrderClaimDocuments(id)),
   list: (projectId) => wrap(() => listProjectWorkOrders(projectId)),
   get: (id) => wrap(() => getWorkOrder(id)),
   create: (projectId, input) => wrap(() => createWorkOrder(projectId, input)),
@@ -101,6 +104,7 @@ export const progressBillingRepository: ProgressBillingRepository = {
           { id: claim.claimId, idempotencyKey: intent?.idempotencyKey ?? crypto.randomUUID() },
         ).then((res) => ({ id: String(res.canonical.id), si_number: String(res.canonical.si_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  raiseNativeInvoice: (claimId) => wrap(() => createNativeProgressClaimInvoice(claimId)),
   summary: (projectId) => wrap(() => getProjectBilling(projectId)),
 };
 

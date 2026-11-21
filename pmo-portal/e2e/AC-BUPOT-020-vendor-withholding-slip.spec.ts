@@ -149,8 +149,8 @@ test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked 
     await expect(page.getByLabel(localized('Bukti potong details', 'Detail bukti potong'))).toBeVisible({ timeout: 20_000 });
     const details = page.getByLabel(localized('Bukti potong details', 'Detail bukti potong'));
     await expect(details.getByText(slipNumber)).toBeVisible();
-    await expect(details.getByText(localizedExact(`Supplier invoice no. (accounting): ${viA}`, `No. faktur supplier (akuntansi): ${viA}`))).toBeVisible();
-    await expect(details.getByText(localizedExact(`Supplier invoice no. (accounting): ${viB}`, `No. faktur supplier (akuntansi): ${viB}`))).toBeVisible();
+    await expect(details.getByText(localizedExact(`Supplier invoice no. (accounting): ${viA}`, `No. invoice supplier (akuntansi): ${viA}`))).toBeVisible();
+    await expect(details.getByText(localizedExact(`Supplier invoice no. (accounting): ${viB}`, `No. invoice supplier (akuntansi): ${viB}`))).toBeVisible();
     await expect(details.getByText(localizedExact(`Bukti potong bill link · ${viA}`, `Tautan tagihan bukti potong · ${viA}`))).toBeVisible();
     await expect(details.getByText(localizedExact(`Bukti potong bill link · ${viB}`, `Tautan tagihan bukti potong · ${viB}`))).toBeVisible();
     const { data: recorded, error: recordedError } = await admin.from('vendor_withholding_slips').select('id,slip_number,withheld_amount,revision,status').eq('slip_number', slipNumber).single();

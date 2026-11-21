@@ -39,7 +39,7 @@
     "recordOrder": "Catat pesanan",
     "chooseQuote": "Pilih penawaran",
     "recordReceipt": "Catat penerimaan",
-    "recordInvoice": "Catat faktur supplier",
+    "recordInvoice": "Catat invoice supplier",
     "recordPayment": "Catat pembayaran",
     "return": "Kembalikan",
     "rework": "Ajukan ulang",
@@ -61,7 +61,7 @@
     "note": "Catatan persetujuan (opsional)"
   },
   "sod": {
-    "approverHint": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengadaannya sendiri. Pemisahan tugas memerlukan peninjau lain.",
+    "approverHint": "Anda dapat menyetujui atau mengembalikan pengadaan ini. Pemohon tidak dapat menyetujui pengadaannya sendiri.",
     "approverCannotPay": "Pembayaran harus dirilis oleh pengguna keuangan lain. Penyetuju tidak dapat juga membayar pengadaan ini.",
     "payerHint": "Merilis pembayaran: penyetuju tidak dapat juga membayar (pemisahan tugas).",
     "preAnnounce": "Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui kasus pengadaan Anda sendiri."
@@ -79,7 +79,7 @@
     "quoteRequest": "Permintaan penawaran",
     "purchaseOrder": "Pesanan pembelian",
     "receipt": "Penerimaan",
-    "supplierInvoice": "Faktur supplier",
+    "supplierInvoice": "Invoice supplier",
     "payment": "Pembayaran"
   },
   "errors": {
@@ -113,18 +113,17 @@
     "purchaseOrders": "pesanan",
     "receipt": "penerimaan",
     "receipts": "penerimaan",
-    "invoice": "faktur",
-    "invoices": "faktur",
+    "invoice": "invoice",
+    "invoices": "invoice",
     "payment": "pembayaran",
-    "payments": "pembayaran",
-    "countAndAmount": "{{count}} {{document}} · {{amount}}"
+    "payments": "pembayaran"
   },
   "money": {
     "title": "Nilai · {{currency}}, sebelum pajak",
-    "requested": "Diminta",
-    "ordered": "Dipesan",
+    "requested": "Total permintaan",
+    "ordered": "Total pesanan",
     "invoiced": "Ditagih",
-    "paid": "Dibayar",
+    "paid": "Pembayaran",
     "unpaid": "Belum dibayar",
     "noneRecorded": "Belum ada catatan",
     "noPurchaseRequest": "Tidak ada permintaan pembelian: dimulai pada pesanan",
@@ -137,21 +136,23 @@
     "currencyUnavailable": "Perbandingan anggaran tidak tersedia untuk mata uang ini",
     "amountUnavailable": "Perbandingan anggaran tidak tersedia untuk jumlah ini",
     "noBudget": "Tidak ada anggaran aktif untuk proyek ini",
-    "budgetSignalPurchases": "Belum terikat pembelian {{available}} · {{after}} setelah pengadaan ini",
     "unknown": "{{figure}} tidak dapat dihitung karena jumlah sumber belum tersedia. Sumber: catatan pengadaan dan dokumen sistem akuntansi tertaut.",
-    "unpaidHelp": "Dihitung dari jumlah tagihan dikurangi jumlah pembayaran, atau saldo faktur sistem akuntansi tertaut. Sumber: tagihan supplier, pembayaran, dan dokumen sistem akuntansi tertaut.",
+    "unpaidHelp": "Dihitung dari jumlah tagihan dikurangi jumlah pembayaran, atau saldo invoice sistem akuntansi tertaut. Sumber: invoice supplier, pembayaran, dan dokumen sistem akuntansi tertaut.",
     "calculation": "Jumlah dari nilai {{figure}} yang tercatat. Sumber: catatan pengadaan dan dokumen sistem akuntansi tertaut.",
     "projectBudget": "Anggaran proyek terlacak",
     "projectBudgetTooltip": "Data anggaran proyek dan pengeluaran yang dicadangkan ditampilkan jika tersedia. Dampak penuh ditampilkan saat pengadaan masih di tahap Permintaan.",
-    "financeOnly": "Faktur dan pembayaran ditangani oleh Finance.",
+    "financeOnly": "Invoice dan pembayaran ditangani oleh Finance.",
     "sourceMissing": "jumlah {{figure}} belum dicatat",
     "source": {
       "requested": "permintaan pembelian",
       "ordered": "pesanan pembelian",
-      "invoiced": "faktur supplier",
+      "invoiced": "invoice supplier",
       "paid": "pembayaran",
-      "unpaid": "saldo faktur"
-    }
+      "unpaid": "saldo invoice"
+    },
+    "budgetLeft": "Sisa anggaran {{left}}",
+    "budgetLeftUnknown": "Sisa anggaran belum diketahui",
+    "otherCurrenciesExcluded": " · Mata uang lain tidak dibandingkan"
   },
   "timeline": {
     "filterLabel": "Filter linimasa",
@@ -165,7 +166,7 @@
     "hasFile": "Ada berkas",
     "empty": "Belum ada aktivitas yang dicatat.",
     "fromAccounting": "dari sistem akuntansi",
-    "supplierInvoice": "Faktur supplier",
+    "supplierInvoice": "Invoice supplier",
     "receipt": "Penerimaan",
     "order": "Pesanan",
     "payment": "Pembayaran",
@@ -185,9 +186,11 @@
       "Quote": "Penawaran",
       "PO": "Pesanan pembelian",
       "GR": "Penerimaan",
-      "Invoice": "Faktur supplier",
+      "Invoice": "Invoice supplier",
       "Payment": "Pembayaran"
-    }
+    },
+    "groupRef": "Ref. grup",
+    "workOrder": "Work Order / SPK"
   },
   "files": {
     "heading": "Lampiran",

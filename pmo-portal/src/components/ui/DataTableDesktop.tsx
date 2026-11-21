@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useRef } from 'react';
 import { rowContentKey, useLiveRowProps } from './useLiveRowProps';
+import { RowOpenControl } from './RowOpenControl';
 import type { Table, Row as TableRow } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
@@ -178,6 +179,7 @@ interface DataTableRowProps<Row> {
   isSelected: boolean;
   accessibleRowLabel: (row: Row) => string | undefined;
   onActivate?: (row: Row) => void;
+  rowHref?: string;
   canActivate: boolean;
   rowMenu?: (row: Row) => RowMenuItem[] | undefined;
   selection?: DataTableSelection<Row>;
@@ -200,6 +202,7 @@ function dataTableRowPropsEqual<Row>(a: Readonly<DataTableRowProps<Row>>, b: Rea
   return a.row === b.row
     && a.rowId === b.rowId
     && a.targetId === b.targetId
+    && a.rowHref === b.rowHref
     && a.selected === b.selected
     && a.isSelected === b.isSelected
     && a.seamStore === b.seamStore
@@ -228,6 +231,7 @@ function DataTableRowInner<Row>({
   isSelected,
   accessibleRowLabel,
   onActivate: tableOnActivate,
+  rowHref,
   canActivate,
   rowMenu,
   selection,
@@ -311,19 +315,9 @@ function DataTableRowInner<Row>({
             )}
           >
             {colIndex === 0 && canActivate && onActivate ? (
-              <button
-                type="button"
-                aria-label={accessibleRowLabel(row)}
-                onClick={(e) => {
-                  // The <tr> onClick already activates; stop it so
-                  // the row doesn't fire onActivate twice.
-                  e.stopPropagation();
-                  onActivate(row);
-                }}
-                className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
-              >
+              <RowOpenControl href={rowHref} label={accessibleRowLabel(row) ?? ''} onActivate={() => onActivate(row)}>
                 {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
-              </button>
+              </RowOpenControl>
             ) : (
               col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
             )}
@@ -356,6 +350,7 @@ interface DataTableTableBodyProps<Row> {
   selectedKey?: string;
   accessibleRowLabel: (row: Row) => string | undefined;
   onActivate?: (row: Row) => void;
+  rowHref?: (row: Row) => string | undefined;
   rowMenu?: (row: Row) => RowMenuItem[] | undefined;
   selection?: DataTableSelection<Row>;
   selectionLabel: (row: Row, primaryColumn?: Column<Row>) => string;
@@ -417,6 +412,7 @@ function tableBodyPropsEqual<Row>(a: Readonly<DataTableTableBodyProps<Row>>, b: 
     // count, but re-rendering this <tbody> does not re-render its memoised rows — each row must
     // see the presence change itself to grow/shrink its own cell count.
     && Boolean(a.onActivate) === Boolean(b.onActivate)
+    && Boolean(a.rowHref) === Boolean(b.rowHref)
     && Boolean(a.rowMenu) === Boolean(b.rowMenu)
     && Boolean(a.selection) === Boolean(b.selection)
     && a.listStateNode === b.listStateNode
@@ -441,6 +437,7 @@ function DataTableTableBodyInner<Row>({
   selectedKey,
   accessibleRowLabel,
   onActivate,
+  rowHref,
   rowMenu,
   selection,
   selectionLabel,
@@ -485,6 +482,7 @@ function DataTableTableBodyInner<Row>({
               isSelected={modelRow.getIsSelected()}
               accessibleRowLabel={accessibleRowLabel}
               onActivate={onActivate}
+              rowHref={rowHref?.(modelRow.original)}
               canActivate={canActivate}
               rowMenu={rowMenu}
               selection={selection}
@@ -515,6 +513,7 @@ export interface DataTableDesktopProps<Row> {
   caveatId: string;
   accessibleName?: string;
   onActivate?: (row: Row) => void;
+  rowHref?: (row: Row) => string | undefined;
   rowLabel?: (row: Row) => string;
   accessibleRowLabel: (row: Row) => string | undefined;
   rowTarget?: (row: Row) => string | undefined;
@@ -553,6 +552,7 @@ export function DataTableDesktop<Row>({
   caveatId,
   accessibleName,
   onActivate,
+  rowHref,
   rowLabel,
   accessibleRowLabel,
   rowTarget,
@@ -595,7 +595,7 @@ export function DataTableDesktop<Row>({
   // Locale stamp for the table's own t()-built row labels (aria-labels); semantic column
   // changes propagate through the `columns` identity comparison instead.
   const canActivate = Boolean(onActivate && rowLabel);
-  const live = useLiveRowProps({ onActivate, rowMenu, accessibleRowLabel, selectionLabel });
+  const live = useLiveRowProps({ onActivate, rowHref, rowMenu, accessibleRowLabel, selectionLabel });
   // Frozen during a drag: the body skips every move, so the O(rows) key pass would be pure waste.
   const frozenKeys = useRef<{ rowKeys: Map<string, string>; rowKeysSignature: string } | null>(null);
   let keyed = frozenKeys.current;
@@ -604,7 +604,7 @@ export function DataTableDesktop<Row>({
     if (!state) {
       for (const entry of groupedRows) {
         if (entry.type === 'data') {
-          rowKeys.set(entry.modelRow.id, rowContentKey(entry.modelRow.original, { onActivate, rowMenu, accessibleRowLabel, selectionLabel, rowTarget }, columns[0]));
+          rowKeys.set(entry.modelRow.id, rowContentKey(entry.modelRow.original, { onActivate, rowHref, rowMenu, accessibleRowLabel, selectionLabel, rowTarget }, columns[0]));
         }
       }
     }
@@ -708,14 +708,14 @@ export function DataTableDesktop<Row>({
                     <button
                       type="button"
                       onClick={() => onSort?.(col.sortKey!)}
-                      className="inline-flex flex-wrap items-center gap-1 break-words hover:text-foreground [&_svg]:size-3"
+                      className="inline-flex max-w-full items-center gap-1 hover:text-foreground [&_svg]:size-3 [&_svg]:shrink-0"
                     >
-                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="break-words">{col.header}</span>
-                      {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
-                      {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="opacity-40 [&_svg]:size-3"><Icon name="sort" /></span>}
+                      <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{col.header}</span>
+                      {col.caveat && <span aria-hidden="true" className="ml-0.5 shrink-0 text-warning-foreground">*</span>}
+                      {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="shrink-0 opacity-40 [&_svg]:size-3"><Icon name="sort" /></span>}
                     </button>
                   ) : (
-                    <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="break-words">{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
+                    <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`} title={typeof col.header === 'string' ? col.header : undefined} className="inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-bottom">{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
                   )}
                   {(() => {
                     const min = columnMinSize(col) ?? 20;
@@ -824,6 +824,7 @@ export function DataTableDesktop<Row>({
           selectedKey={selectedKey}
           accessibleRowLabel={live.accessibleRowLabel}
           onActivate={onActivate ? live.onActivate : undefined}
+          rowHref={rowHref ? live.rowHref : undefined}
           rowMenu={rowMenu ? live.rowMenu : undefined}
           selection={selection}
           selectionLabel={live.selectionLabel}

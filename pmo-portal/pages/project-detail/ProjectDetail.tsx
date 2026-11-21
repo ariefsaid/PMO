@@ -24,6 +24,7 @@ import { HeaderFact } from './HeaderFact';
 import DealBand from '../sales/DealBand';
 import StageHistory from './StageHistory';
 import ProjectDetailRail from './ProjectDetailRail';
+import { ProjectIssuesLink } from './ProjectIssuesLink';
 import ProjectFormModal from '../../components/ProjectFormModal';
 import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
 import { areaFromParam, type Area } from './projectDetailAreas';
@@ -46,36 +47,45 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures
     ? formatDayRange(project.start_date, project.end_date)
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
+  // The facts line (muted, one step under the identity line): facts joined by one middle dot on a wide
+  // desktop, plain 16px gaps where the line can wrap (below xl), so no dot is left hanging at a line end.
+  // "Updated" is system information, so it sits at the right end.
+  const facts = [
+    manager && (
+      <HeaderFact key="manager" label={t('projects:filterBuilder.manager', 'Project manager')} title={manager}>{manager}</HeaderFact>
+    ),
+    <span key="dates" className="text-foreground md:whitespace-nowrap">{dates}</span>,
+    // L6: the contract value lives once on the screen — in Money position (Overview) / Contract & billing.
+    progress !== null && (
+      <Tooltip key="progress" content={t('projectDetail.facts.progressTooltip', 'Weighted average of phase completion using each phase weight; source: project phase plan. Phase progress is not billable quantity.')}>
+        {/* Content-sized (compact bar, label and value tight) so the gap before the next fact stays one dot. */}
+        <span tabIndex={0} className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap">
+          <span className="text-muted-foreground">{t('projectDetail.facts.progress', 'Progress')}</span>
+          <ProgressBar value={progress} tone={progress >= 100 ? 'success' : 'primary'} showValue compact className="[&>span:last-child]:min-w-0 [&>span:last-child]:text-left [&>span:last-child]:text-control [&>span:last-child]:font-normal [&>span:last-child]:text-foreground" aria-label={t('projectDetail.facts.progressAria', 'Project progress {{percent}}%', { percent: progress })} />
+        </span>
+      </Tooltip>
+    ),
+    phases.isPending && <span key="progress-loading">{t('projectDetail.facts.progressLoading', 'Progress loading')}</span>,
+    showBudgetFigures && canViewBudgetFigures && isDeliveryProject && (
+      <ProjectBudgetFigures key="budget" project={project} className="max-w-full" />
+    ),
+  ].filter(Boolean);
   return (
-    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="inline-flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
-      {/* Who and when first (each fact named), then the measures after a rule; every pair is one unit, 16 px apart. */}
-      {manager && (
-        <HeaderFact label={t('projects:filterBuilder.manager', 'Project manager')} title={manager}>{manager}</HeaderFact>
-      )}
-      <span className="whitespace-nowrap text-foreground">{dates}</span>
-      <span aria-hidden="true" className="hidden h-4 border-l border-border md:inline-block" />
-      {/* L6: the contract value lives once on the screen — in Money position (Overview) / Contract & billing. */}
-      {progress !== null && (
-        <Tooltip content={t('projectDetail.facts.progressTooltip', 'Weighted average of phase completion using each phase weight; source: project phase plan. Phase progress is not billable quantity.')}>
-          {/* Owner tidy ruling 2026-10-29: the segment is content-sized (compact bar,
-              label and value tight) so the meta row keeps ONE consistent gap before
-            "Updated" — the old min-w-40 left dead slack that read as a hole. */}
-          <span tabIndex={0} className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap">
-            <span className="text-muted-foreground">{t('projectDetail.facts.progress', 'Progress')}</span>
-            <ProgressBar value={progress} tone={progress >= 100 ? 'success' : 'primary'} showValue compact className="[&>span:last-child]:text-control [&>span:last-child]:font-normal [&>span:last-child]:text-foreground" aria-label={t('projectDetail.facts.progressAria', 'Project progress {{percent}}%', { percent: progress })} />
-          </span>
-        </Tooltip>
-      )}
-      {phases.isPending && <span>{t('projectDetail.facts.progressLoading', 'Progress loading')}</span>}
-      {showBudgetFigures && canViewBudgetFigures && isDeliveryProject && (
-        <ProjectBudgetFigures project={project} className="max-w-full" />
-      )}
+    <section data-testid="project-facts-line" aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="flex w-full min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-control text-muted-foreground xl:gap-x-2">
+      {facts.map((fact, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && <span aria-hidden="true" className="max-xl:hidden">·</span>}
+          {fact}
+        </React.Fragment>
+      ))}
       {updated && (
-        <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatDay(project.last_update) })}>
-          <time tabIndex={0} dateTime={project.last_update} className="whitespace-nowrap text-muted-foreground">
-            {t('projectDetail.facts.updated', 'Updated {{when}}', { when: updated })}
-          </time>
-        </Tooltip>
+        <span className="md:ml-auto">
+          <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatDay(project.last_update) })}>
+            <time tabIndex={0} dateTime={project.last_update} className="whitespace-nowrap text-muted-foreground">
+              {t('projectDetail.facts.updated', 'Updated {{when}}', { when: updated })}
+            </time>
+          </Tooltip>
+        </span>
       )}
     </section>
   );
@@ -238,6 +248,7 @@ const ProjectDetail: React.FC = () => {
             {pipelineGroup === 'onHand' && <SalesHistoryDisclosure projectId={project.id} className="px-1 pt-3" />}
           </>
         )} />
+      {!isPipelineRecord && <ProjectIssuesLink projectId={project.id} />}
       {isPipelineRecord && <div className="mb-6"><DealBand project={project} /></div>}
     </>
   );

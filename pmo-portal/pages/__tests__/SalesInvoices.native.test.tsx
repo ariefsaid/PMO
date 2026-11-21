@@ -199,7 +199,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     h.role = 'Project Manager';
     await financeTestI18n.changeLanguage('id');
     renderPage();
-    expect(screen.getByText(/Finance mengelola pembuatan faktur/)).toBeInTheDocument();
+    expect(screen.getByText(/Finance mengelola pembuatan invoice/)).toBeInTheDocument();
     await financeTestI18n.changeLanguage('en');
   });
 
@@ -489,7 +489,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
 
   it.each([
     ['en', 'Line items are kept in ERPNext for this invoice.', 'Line items'],
-    ['id', 'Rincian item untuk faktur ini disimpan di ERPNext.', 'Item faktur'],
+    ['id', 'Rincian item untuk invoice ini disimpan di ERPNext.', 'Item invoice'],
   ])('AC-991-001 FIN-S2 ERP-owned invoice record shows no empty line-items section and no standing note (%s)', async (language, note, sectionLabel) => {
     h.route = 'external';
     h.invoices.data = [nativeInvoice({
@@ -743,7 +743,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await financeTestI18n.changeLanguage('id');
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getAllByRole('button', { name: /Faktur Baru|New Invoice/i })[0]);
+    await user.click(screen.getAllByRole('button', { name: /Invoice Baru|New Invoice/i })[0]);
     await pick(user, 'Pelanggan', 'Acme Energy');
     await pick(user, 'Proyek', 'Alpha Platform');
     await user.type(screen.getByLabelText('Kode item'), 'SVC-7');
@@ -751,10 +751,10 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     const rate = screen.getByLabelText(/tarif/i);
     await user.clear(rate);
     await user.type(rate, '125000');
-    await user.click(screen.getByRole('button', { name: 'Buat faktur' }));
+    await user.click(screen.getByRole('button', { name: 'Buat invoice' }));
 
     const error = await screen.findByTestId('entity-modal-save-error');
-    expect(error).toHaveTextContent('Tarif PPN harus dicatat pada proyek ini sebelum faktur dapat dibuat. Isian Anda tetap tersimpan di formulir.');
+    expect(error).toHaveTextContent('Tarif PPN harus dicatat pada proyek ini sebelum invoice dapat dibuat. Isian Anda tetap tersimpan di formulir.');
     expect(within(error).getByRole('link', { name: 'Catat tarif PPN di proyek' })).toHaveAttribute('href', '/projects/proj-1');
     expect(screen.getByLabelText('Deskripsi')).toHaveValue('Inspeksi panel');
     expect(rate).toHaveValue('125,000');
@@ -887,7 +887,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(dialog).toContainElement(saveError);
     expect(saveError).toHaveAttribute('role', 'alert');
     await waitFor(() => expect(saveError).toHaveFocus());
-    expect(receivedDate).toHaveValue('2026-10-08');
+    expect(receivedDate).toHaveValue('8 Oct 2026');
     expect(h.toast).not.toHaveBeenCalled();
   });
 
@@ -955,6 +955,22 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     for (const empty of ['Terms', 'e-Faktur', 'Outstanding · tax included']) expect(within(figures).queryByText(empty)).not.toBeInTheDocument();
     expect(figures).not.toHaveTextContent('—');
     expect(within(drawer).getAllByText(/outstanding balance is not known yet/)).toHaveLength(1);
+  });
+
+  it('AC-RET-005 the drawer shows the retention still held and what is due now (outstanding less retention) (#2625)', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 610_000, erp_payment_terms_days: 30, retention_held: 50_000 })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    expect((within(drawer).getByText('Retention held').parentElement as HTMLElement)).toHaveTextContent(/IDR\s?50,000/);
+    expect((within(drawer).getByText('Due now').parentElement as HTMLElement)).toHaveTextContent(/IDR\s?560,000/);
+  });
+
+  it('AC-RET-005 an invoice with no retention shows no due-now split', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 610_000, erp_payment_terms_days: 30 })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).queryByText('Retention held')).not.toBeInTheDocument();
+    expect(within(drawer).queryByText('Due now')).not.toBeInTheDocument();
   });
 
   it('C5: the drawer shows the outstanding balance in whole units, never cents', () => {

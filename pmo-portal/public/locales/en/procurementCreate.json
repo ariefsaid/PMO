@@ -74,5 +74,13 @@
     "cancel": "Cancel"
   },
   "currencyError": "Couldn't load your organisation's currency.",
-  "currencyLoading": "Loading organisation currency…"
+  "currencyLoading": "Loading organisation currency…",
+  "backToProject": "project",
+  "backToStock": "Stock",
+  "headerEdit": {
+    "title": "Edit procurement details",
+    "titlePlaceholder": "Procurement title",
+    "save": "Save procurement"
+  },
+  "noCategory": "No category"
 }

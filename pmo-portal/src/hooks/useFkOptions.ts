@@ -1,8 +1,6 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName, projectOptionSub } from '@/src/lib/projectDisplayName';
-import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { ComboboxOption } from '@/src/components/ui';
@@ -25,29 +23,18 @@ import type { ComboboxOption } from '@/src/components/ui';
 const FK_STALE_MS = 5 * 60_000; // FK reference lists change rarely; cache for 5 min.
 
 /**
- * Org-scoped vendor companies as FK options (id→value, name→label). The cached data is
- * language-neutral — the only translatable part (the "Vendor" type sub for companies without a
- * short name) is applied through `select` tied to the current translation, exactly as
- * `useClientCompanyOptions` does (HKA-009): translating inside `queryFn` left cached subtitles in
- * the previous language after a language switch, because the cache key omits the language and the
- * query stays fresh for five minutes.
+ * Org-scoped vendor companies as FK options (id→value, name→label). Every option is a supplier, so no
+ * type tag rides on the row; a company with a short name keeps its legal name as the sub (AC-NICK-001).
  */
 export function useVendorOptions() {
-  const { t } = useTranslation();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const vendorLabel = t('companies.type.vendor', 'Supplier');
-  const select = useCallback(
-    (options: ComboboxOption[]) => options.map((o) => (o.sub ? o : { ...o, sub: vendorLabel })),
-    [vendorLabel],
-  );
-  return useQuery<ComboboxOption[], Error, ComboboxOption[]>({
+  return useQuery<ComboboxOption[]>({
     queryKey: ['fk-options', 'vendor', orgId],
     queryFn: async () => {
       const rows = await repositories.company.list({ type: 'Vendor' });
       return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), ...(c.short_name ? { sub: c.name } : {}) }));
     },
-    select,
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
   });
@@ -118,24 +105,16 @@ export function useInvoiceProjectOptions() {
   });
 }
 
-/** Client companies as FK options (id→value, name→label, "Client" sub — translated at read, so the cached list
- *  follows a language switch). */
+/** Client companies as FK options (id→value, name→label). Every option is a client, so no type tag rides on the row. */
 export function useClientCompanyOptions() {
   const { currentUser } = useAuth();
-  const { t } = useTranslation();
   const orgId = currentUser?.org_id;
-  const clientLabel = t('companies.type.client', 'Client');
-  const select = useCallback(
-    (options: ComboboxOption[]) => options.map((o) => (o.sub ? o : { ...o, sub: clientLabel })),
-    [clientLabel],
-  );
-  return useQuery<ComboboxOption[], Error, ComboboxOption[]>({
+  return useQuery<ComboboxOption[]>({
     queryKey: ['fk-options', 'client', orgId],
     queryFn: async () => {
       const rows = await repositories.company.listClients();
       return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), ...(c.short_name ? { sub: c.name } : {}) }));
     },
-    select,
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
   });

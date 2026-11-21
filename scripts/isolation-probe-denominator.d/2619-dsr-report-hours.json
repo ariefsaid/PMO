@@ -1,0 +1,3 @@
+{
+  "definer_functions": ["dsr_report_hours(uuid)"]
+}

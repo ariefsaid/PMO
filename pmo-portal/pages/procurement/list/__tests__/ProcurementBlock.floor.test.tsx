@@ -46,10 +46,10 @@ const RouteProbe = () => {
   const location = useLocation();
   return <output data-testid="route-probe" data-state={JSON.stringify(location.state ?? null)}>{location.pathname + location.search}</output>;
 };
-const renderBlock = (path = '/procurement') => render(
+const renderBlock = (path = '/procurement', projectId?: string) => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
     <MemoryRouter initialEntries={[path]}><ToastProvider><Routes>
-      <Route path="/procurement" element={<><RouteProbe /><ProcurementBlock showCreate={false} /></>} />
+      <Route path="/procurement" element={<><RouteProbe /><ProcurementBlock showCreate={false} projectId={projectId} /></>} />
       <Route path="/procurement/:procurementId" element={<RouteProbe />} />
       <Route path="*" element={<RouteProbe />} />
     </Routes></ToastProvider></MemoryRouter>
@@ -87,7 +87,7 @@ describe('ProcurementBlock floor controls', () => {
       makeRow({ id: 'p-2', code: 'PR-2', title: 'Batteries', status: 'Ordered' }),
     ];
     renderBlock();
-    const stageBand = screen.getByRole('group', { name: 'Procurement stages' });
+    const stageBand = screen.getByRole('region', { name: 'Procurement stages' });
     const requestStage = within(stageBand).getByRole('button', { name: /^Request/ });
     const orderStage = within(stageBand).getByRole('button', { name: /^Order/ });
 
@@ -230,9 +230,10 @@ describe('ProcurementBlock floor controls', () => {
     expect(order()).toEqual(['Charlie', 'Bravo', 'Alpha']);
   });
 
+  // #2497: the company list names the category under the project; a project tab keeps the sortable Category column.
   it('floor: Category sort orders categories ascending then descending', async () => {
     procState.data = [makeRow({ id: 'p-s', title: 'Services row', budget_category: 'Services' }), makeRow({ id: 'p-m', title: 'Materials row', budget_category: 'Materials' })];
-    renderBlock();
+    renderBlock('/procurement', 'pr-1');
     const order = () => screen.getAllByRole('button', { name: /^Open / }).map((button) => button.getAttribute('aria-label')!.replace('Open ', ''));
     await userEvent.click(screen.getByRole('button', { name: /^Category/ }));
     expect(order()).toEqual(['Materials row', 'Services row']);
@@ -240,14 +241,15 @@ describe('ProcurementBlock floor controls', () => {
     expect(order()).toEqual(['Services row', 'Materials row']);
   });
 
-  it('floor: Status sort orders status labels ascending then descending', async () => {
+  it('floor: Status sort orders the lifecycle ascending then descending', async () => {
     procState.data = [makeRow({ id: 'p-d', title: 'Draft row', status: 'Draft' }), makeRow({ id: 'p-a', title: 'Approved row', status: 'Approved' })];
     renderBlock();
     const order = () => screen.getAllByRole('button', { name: /^Open / }).map((button) => button.getAttribute('aria-label')!.replace('Open ', ''));
-    await userEvent.click(screen.getByRole('button', { name: /^Status/ }));
-    expect(order()).toEqual(['Approved row', 'Draft row']);
+    // #2497: by lifecycle step (Draft before Approved), not by the alphabet of the label.
     await userEvent.click(screen.getByRole('button', { name: /^Status/ }));
     expect(order()).toEqual(['Draft row', 'Approved row']);
+    await userEvent.click(screen.getByRole('button', { name: /^Status/ }));
+    expect(order()).toEqual(['Approved row', 'Draft row']);
   });
 
   it('floor: Raised by sort orders owners ascending then descending', async () => {
@@ -266,7 +268,7 @@ describe('ProcurementBlock floor controls', () => {
       makeRow({ id: 'p-2', code: 'PR-2', title: 'Batteries', status: 'Ordered' }),
     ];
     renderBlock();
-    const requestChip = within(screen.getByRole('group', { name: 'Procurement stages' })).getByRole('button', { name: /^Request/ });
+    const requestChip = within(screen.getByRole('region', { name: 'Procurement stages' })).getByRole('button', { name: /^Request/ });
     await userEvent.click(requestChip);
     expect(screen.getByRole('button', { name: 'Open Inverters' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open Batteries' })).not.toBeInTheDocument();
@@ -284,7 +286,7 @@ describe('ProcurementBlock floor controls', () => {
       makeRow({ id: 'p-2', code: 'PR-2', title: 'Batteries', status: 'Ordered' }),
     ];
     renderBlock();
-    await userEvent.click(within(screen.getByRole('group', { name: 'Procurement stages' })).getByRole('button', { name: /^Order/ }));
+    await userEvent.click(within(screen.getByRole('region', { name: 'Procurement stages' })).getByRole('button', { name: /^Order/ }));
     expect(screen.getByRole('button', { name: 'Open Batteries' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open Inverters' })).not.toBeInTheDocument();
     expect(screen.getByTestId('route-probe')).toHaveTextContent('/procurement?stage=order');
@@ -296,7 +298,7 @@ describe('ProcurementBlock floor controls', () => {
       makeRow({ id: 'p-2', code: 'PR-2', title: 'Batteries', status: 'Received' }),
     ];
     renderBlock();
-    await userEvent.click(within(screen.getByRole('group', { name: 'Procurement stages' })).getByRole('button', { name: /^Receive/ }));
+    await userEvent.click(within(screen.getByRole('region', { name: 'Procurement stages' })).getByRole('button', { name: /^Receive/ }));
     expect(screen.getByRole('button', { name: 'Open Batteries' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open Inverters' })).not.toBeInTheDocument();
     expect(screen.getByTestId('route-probe')).toHaveTextContent('/procurement?stage=receive');
@@ -308,7 +310,7 @@ describe('ProcurementBlock floor controls', () => {
       makeRow({ id: 'p-2', code: 'PR-2', title: 'Batteries', status: 'Draft' }),
     ];
     renderBlock();
-    await userEvent.click(within(screen.getByRole('group', { name: 'Procurement stages' })).getByRole('button', { name: /^Pay/ }));
+    await userEvent.click(within(screen.getByRole('region', { name: 'Procurement stages' })).getByRole('button', { name: /^Pay/ }));
     expect(screen.getByRole('button', { name: 'Open Inverters' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open Batteries' })).not.toBeInTheDocument();
     expect(screen.getByTestId('route-probe')).toHaveTextContent('/procurement?stage=pay');
@@ -320,7 +322,7 @@ describe('ProcurementBlock floor controls', () => {
       makeRow({ id: 'p-2', code: 'PR-2', title: 'Batteries', status: 'Ordered' }),
     ];
     renderBlock('/procurement?stage=request');
-    expect(within(screen.getByRole('group', { name: 'Procurement stages' })).getByRole('button', { name: /^Request/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(screen.getByRole('region', { name: 'Procurement stages' })).getByRole('button', { name: /^Request/ })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Open Inverters' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Open Batteries' })).not.toBeInTheDocument();
   });

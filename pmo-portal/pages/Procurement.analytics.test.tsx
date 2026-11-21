@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { pickOption } from '@/test/pickOption';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -99,9 +100,10 @@ afterEach(() => {
 });
 
 describe('Procurement: filter_applied fires on the grouped-view status filter', () => {
-  it('AC: switching to Paid fires filter_applied with the option-set size', () => {
+  it('AC: switching to Paid fires filter_applied with the option-set size', async () => {
+    vi.useRealTimers();
     renderPage();
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'Paid' } });
+    await pickOption('Status', 'Paid');
     expect(analytics.trackFilterApplied).toHaveBeenCalledWith('status', expect.any(Number), 'procurement');
   });
 });

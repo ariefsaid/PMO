@@ -1,7 +1,7 @@
 # Purchase capture — place an ERP order and its project-less invoices as one purchase (#2277)
 
 Status: draft for owner sign-off · Issue: #2277 (part of #2195, map #450) · Builds on: B1 (migration 0882, merged to `dev`
-in 78ff44236) · Plan: `docs/plans/2026-11-15-capture-order-invoices.md` · Tier: **money path** (ships alone)
+in 78ff44236) · Plan: `capture-order-invoices plan (2026-11-15, in git history)` · Tier: **money path** (ships alone)
 
 ## Owner questions (one line each; the recommended answer is what this spec assumes)
 

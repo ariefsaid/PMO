@@ -394,7 +394,25 @@ mechanically. Unit tests for its pure classification logic:
 
 **Superseded by** the "Observability & alerting" section below — the durable `error_events` table +
 Telegram webhook alert this paragraph used to flag as not-yet-built now exists (observability floor,
-`docs/specs/observability-floor.spec.md` + `docs/plans/2026-07-04-observability-floor.md`).
+`docs/specs/observability-floor.spec.md` + `observability-floor plan (2026-07-04, in git history)`).
+
+### Edge-function dependency pins (`deno.json`)
+
+Each function's `deno.json` pins its packages to exact versions, and nothing bumps them: Dependabot is scoped
+to `github-actions`, and `scripts/audit-prod.mjs` audits the npm trees the app ships. One command reports
+every pin with its latest published version and advisory status, and the release checklist runs it
+(step 0b of "The standard promote"):
+
+```bash
+node scripts/check-edge-fn-pins.mjs   # exit 1 on an advisory, drift, or a pin it cannot verify
+```
+
+Being behind latest is reported, not failed; an advisory is a release blocker. Every registry and advisory
+lookup is retried 3× with backoff (1s, 3s, 9s) inside the check, so a registry blip cannot red the release run;
+a real outage still fails closed and names the lookup. How to bump them (all pins in one PR, locks
+regenerated, edge lane proved) and the cadence are in
+[`docs/runbooks/edge-fn-pins.md`](runbooks/edge-fn-pins.md). CI runs the same command on a pull request to
+`main`.
 
 ## ERPNext integration API-user setup — statement metadata
 
@@ -604,7 +622,7 @@ What the bed showed about the Odoo API, including where the research docs were w
 
 Four pieces, each config-per-deployed-project (ADR-0047): a Telegram alert webhook, PostHog FE error
 tracking, BetterStack uptime/status, and two PostHog dashboards. Code: `docs/specs/observability-floor.spec.md`
-+ `docs/plans/2026-07-04-observability-floor.md`.
++ `observability-floor plan (2026-07-04, in git history)`.
 
 ### Telegram alert webhook — secrets + GUCs (per deployed project)
 
@@ -693,7 +711,7 @@ catalog is the claim. 2026-09-07: the sweep found 37 vs 4 and a vault reader ans
 closed by an emergency revoke + `0210`. Expected steady state: exactly the RLS helpers (`auth_org_id`,
 `auth_role`, `is_active_member`, `org_feature_enabled`).
 
-⚑ **The probe's table list comes from the checked-in denominator** (`scripts/isolation-probe-denominator.json`, #612 item 1): `scripts/isolation-probe.sh` reads its `tables` array itself when `TABLES_JSON` is unset; an explicit `TABLES_JSON` must exactly match that array, including its reviewed expectations. `node scripts/check-isolation-denominator.mjs` (CI `pgtap` lane) keeps that file equal to the catalog; `--write` regenerates it.
+⚑ **The probe's table list comes from the checked-in denominator** (the fragment directory `scripts/isolation-probe-denominator.d/*.json`, unioned by `check-isolation-denominator.mjs --emit`; #612 item 1, #2589): `scripts/isolation-probe.sh` reads the `tables` of that union itself when `TABLES_JSON` is unset; an explicit `TABLES_JSON` must exactly match that array, including its reviewed expectations. `node scripts/check-isolation-denominator.mjs` (CI `pgtap` lane) keeps the union equal to the catalog; `--write` redistributes it across the fragments.
 
 ⚑ **After each deploy, run `scripts/post-deploy-probes.sh`**. It runs `scripts/second-org-smoke.sh`,
 then `scripts/second-org-roles-smoke.sh`, then `scripts/isolation-probe.sh`, and prints one combined
@@ -756,6 +774,8 @@ The standard promote (owner-gated). Per ADR-0042 a promote also **cuts a version
 `CHANGELOG.md`/`package.json`, then tag `vX.Y.Z` on the promoted commit with the deploy manifest:
 ```bash
 # 0. RELEASE: pick the bump (ADR-0042 §2), update CHANGELOG.md + pmo-portal/package.json
+node scripts/check-edge-fn-pins.mjs   # 0b. EDGE-FN PINS: must report 0 advisory (a pin behind latest is
+                                      #     a report; an advisory is a blocker). Cadence: docs/runbooks/edge-fn-pins.md
 scripts/db-push-prod.sh            # 1. DB: apply pending migrations (typed 'prod')
 scripts/stamp-edge-fns.sh --project-ref <ref>   # 1b. ALL edge functions, SHA-stamped (secrets set once)
 scripts/db-seed-prod.sh            # 2. demo data (typed 'prod-seed') — demo-deploy only

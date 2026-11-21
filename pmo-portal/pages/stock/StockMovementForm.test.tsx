@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -24,9 +24,11 @@ let realRole: Role = 'Engineer';
 let effectiveRole: Role = 'Engineer';
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole }) }));
 
+vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({ CostAttributionFields: ({ projectId, value }: { projectId: string | null; value?: { workOrderId: string | null } }) => <div data-testid="cost-attribution-stub" data-project={projectId ?? ''} data-wo={value?.workOrderId ?? ''} /> }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-01' }) }));
 
 import StockMovementForm from './StockMovementForm';
+import { latestPickableDay } from '@/test/dateField';
 
 const unit = { id: 'u1', code: 'bag', name: 'Bag', whole_only: true, archived_at: null };
 const metre = { id: 'u2', code: 'm', name: 'Metre', whole_only: false, archived_at: null };
@@ -75,6 +77,22 @@ async function fillIssue(qty = '5', search = 'cem', option: RegExp = /CEM - Ceme
 }
 
 describe('StockMovementForm', () => {
+  it('FR-WCA-050 offers attribution when returning stock from a project', async () => {
+    renderForm('return');
+    expect(await screen.findByLabelText(/^Project/)).toBeInTheDocument();
+    expect(screen.getByTestId('cost-attribution-stub')).toBeInTheDocument();
+  });
+
+  it('#2612 citing an issue line prefills the work order that issue was for', async () => {
+    documents.issueLines.mockResolvedValue([{ id: 'il1', item_id: 'i1', quantity: '5', boq_item_id: null, item: { code: 'CEM', name: 'Cement', unit: { code: 'bag' } }, boq: null,
+      document: { id: 'd1', number: 'ISS-1', occurred_on: '2026-11-01', warehouse_id: 'w1', work_order_id: 'wo-7' } }]);
+    renderForm('return', 'Admin');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Project/), 'p1');
+    expect(screen.getByTestId('cost-attribution-stub')).toHaveAttribute('data-wo', '');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Issue to return/), 'il1');
+    expect(screen.getByTestId('cost-attribution-stub')).toHaveAttribute('data-wo', 'wo-7');
+  });
+
   it('AC-STK-030 every field has a label, the item picker finds by code or name, and axe reports no violation', async () => {
     const { container } = renderForm('issue');
     await fillIssue();
@@ -89,7 +107,7 @@ describe('StockMovementForm', () => {
     renderForm('issue', 'Admin');
     expect(await screen.findByRole('heading', { level: 1, name: 'Issue to project' })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Stock sections' })).not.toBeInTheDocument();
-    expect(await screen.findByLabelText('Date')).toHaveAttribute('max', '2026-11-01');
+    expect(await latestPickableDay(userEvent.setup(), await screen.findByLabelText('Date'))).toBe('2026-11-01');
   });
 
   it('AC-STK-030 a shortfall error is announced beside the quantity', async () => {
@@ -252,6 +270,31 @@ describe('StockMovementForm', () => {
     expect(await screen.findByLabelText(/^Warehouse/)).toBeInTheDocument();
   });
 
+  it('AC-NBR-033 (P) items pending: the header is editable and only the line editor shows loading; submit waits', async () => {
+    master.listItems.mockReturnValue(new Promise(() => {}));
+    renderForm('receive');
+    const warehouse = await screen.findByLabelText(/^Warehouse/);
+    expect(warehouse).toBeEnabled();
+    await userEvent.selectOptions(warehouse, 'w1');
+    const lines = screen.getByTestId('stock-lines-region');
+    expect(within(lines).getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /^Item/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Post receipt' })).toBeDisabled();
+  });
+
+  it('AC-NBR-033 (F) units failed: the header stays editable and the line editor shows the error with retry', async () => {
+    master.listUnits.mockRejectedValueOnce(new Error('boom'));
+    renderForm('receive');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
+    const lines = screen.getByTestId('stock-lines-region');
+    expect(await within(lines).findByRole('button', { name: /retry/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Warehouse/)).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Post receipt' })).toBeDisabled();
+    await userEvent.click(within(lines).getByRole('button', { name: /retry/i }));
+    expect(await screen.findByRole('combobox', { name: /^Item/ })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Post receipt' })).toBeEnabled());
+  });
+
   it('FR-STK-064 a view-as session keeps the page read-only: no submit', async () => {
     renderForm('receive', 'Admin', 'Engineer');
     await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
@@ -268,4 +311,24 @@ describe('StockMovementForm', () => {
     renderForm('bogus');
     expect(await screen.findByText('Unknown document kind')).toBeInTheDocument();
   });
+});
+
+it.each(['yard', 'staging'])('offers destination project work orders for a %s transfer', async (kind) => {
+  master.listWarehouses.mockResolvedValue([wh('w1', 'CENTRAL'), { ...wh('w2', 'SITE-B'), kind, project_id: 'p1' }]);
+  renderForm('transfer');
+  await userEvent.selectOptions(await screen.findByLabelText(/^To warehouse/), 'w2');
+  expect(screen.getByTestId('cost-attribution-stub')).toHaveAttribute('data-project', 'p1');
+});
+
+it('saves a transfer as a draft so paper can be attached before posting', async () => {
+  renderForm('transfer');
+  await userEvent.selectOptions(await screen.findByLabelText(/^From warehouse/), 'w1');
+  await userEvent.selectOptions(screen.getByLabelText(/^To warehouse/), 'w2');
+  await userEvent.click(screen.getByRole('combobox', { name: /^Item/ }));
+  await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'cem');
+  await userEvent.click(await screen.findByRole('option', { name: /CEM - Cement 50kg/ }));
+  await userEvent.type(screen.getByLabelText(/^Quantity/), '2');
+  await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await waitFor(() => expect(documents.create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'transfer' }), expect.objectContaining({ post: false })));
+  expect(await screen.findByText('document page')).toBeInTheDocument();
 });

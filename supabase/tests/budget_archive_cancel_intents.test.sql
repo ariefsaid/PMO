@@ -5,12 +5,12 @@
 -- removed (a pre-existing extension is never dropped) and the shared catalog returns to baseline.
 create temp table _budget_archive_dblink_extension_state as
 select exists (select 1 from pg_extension where extname = 'dblink') as existed_before_test;
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 begin;
 -- Bound accidental fixture cycles while the explicit 500ms lock-timeout probes below continue to
 -- prove that the intended competing writer blocks at the shared project decision lock.
 set local statement_timeout = '30s';
-select plan(139);
+select plan(140);
 select dblink_connect('archive_race', format('dbname=%s user=%s password=postgres host=%s port=%s', current_database(), current_user, coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'), coalesce(inet_server_port(),5432)));
 select dblink_exec('archive_race', $$set statement_timeout = '20s'$$);
 select dblink_exec('archive_race', $$set lock_timeout = '5s'$$);
@@ -733,6 +733,11 @@ select ok(exists(select 1 from notifications where org_id='05750000-0000-0000-00
   and owner_id='05750000-0000-0000-0000-0000000000a1'
   and metadata @> '{"action_required":"budget-archive-live-erp","versionId":"05750000-0000-0000-0000-0000000000d2","targetCount":2}'::jsonb),
   'AC-BUD-122: archive without cancellation warns about the mixed targets');
+select ok(exists(select 1 from notifications where org_id='05750000-0000-0000-0000-000000000001'
+  and owner_id='05750000-0000-0000-0000-0000000000a1'
+  and metadata @> '{"action_required":"budget-archive-live-erp","versionId":"05750000-0000-0000-0000-0000000000d2"}'::jsonb
+  and message_key = 'budgetArchiveWarning' and message_params = '{}'::jsonb),
+  'AC-TERM-008: a real archive warning carries its app template and parameters');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"05750000-0000-0000-0000-0000000000a1","role":"authenticated"}';

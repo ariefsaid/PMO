@@ -5,7 +5,7 @@ import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { formatCurrency, formatCurrencyCents, formatDay, formatNumberExact } from '@/src/lib/format';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
-import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
+import { invoiceGross, invoiceNet, nativeInvoiceSummary, nativeLineName } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
@@ -22,7 +22,9 @@ export const SalesInvoiceApprovalPreview: React.FC<{
   /** Record-only movement of facts into the shared record header. */
   hideProject?: boolean;
   hideInvoiceDate?: boolean;
-}> = ({ inv, showFx = false, hideLines = false, hideProject = false, hideInvoiceDate = false }) => {
+  /** Record-only: the remaining facts (customer PO, raised by, draft number) live in the record header. */
+  hideFacts?: boolean;
+}> = ({ inv, showFx = false, hideLines = false, hideProject = false, hideInvoiceDate = false, hideFacts = false }) => {
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
@@ -44,14 +46,14 @@ export const SalesInvoiceApprovalPreview: React.FC<{
 
   return (
     <div className="space-y-3">
-      <dl className="grid gap-2 sm:grid-cols-2">
+      {!hideFacts && <dl className="grid gap-2 sm:grid-cols-2">
         {facts.map((f) => (
           <div key={f.label} className="min-w-0 rounded-lg border border-border/70 px-3 py-2">
             <dt className={EYEBROW}>{f.label}</dt>
             <dd title={f.label === t('financeCopy.project', 'Project') ? projectName ?? undefined : undefined} className="mt-1 break-words text-control font-medium">{f.value}</dd>
           </div>
         ))}
-      </dl>
+      </dl>}
 
       {(inv.pmo_native || Boolean(lines.length)) && !hideLines ? (
         <section>
@@ -61,7 +63,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
               <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-lg border border-border/70 px-3 py-2 text-control">
                 {/* The line text wraps rather than truncates: the approver must read every word of what is billed. */}
                 <span className="min-w-[12rem] flex-1 break-words">
-                  <span className="block">{line.description ?? line.item_code ?? '—'}</span>
+                  <span className="block">{nativeLineName(line, t) ?? '—'}</span>
                   {line.description && line.item_code && (
                     <span className="block record-id">{line.item_code}</span>
                   )}
@@ -100,7 +102,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
         </div>
         <div className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
           {/* #2345 row 2: on a PAID invoice nothing is due any more — the gross reads as the invoice
-              total (the catalogue's existing word for it, en "Invoice total" / id "Total faktur",
+              total (the catalogue's existing word for it, en "Invoice total" / id "Total invoice",
               finance:receivables.invoiceTotal); before approval/unpaid it stays "Total due". The
               figure itself never changes. */}
           <dt>{inv.status === 'Paid'

@@ -470,3 +470,27 @@ describe('DataTable accessible structure name', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 });
+
+// Phone checkbox card: the 44px phone floor must grow the HIT AREA only. The global phone rule
+// (index.css) stretches every `main button` to 44x44 unless it carries `.touch-target-overlay`,
+// which drew each row's 16px checkbox as an empty 44px square beside the title.
+describe('mobile card selection checkbox', () => {
+  const selection = { selectedIds: new Set<string>(), onChange: vi.fn(), rowLabel: (r: Row) => `Select ${r.name}` };
+
+  it('keeps the row checkbox and select-all at their own size (hit area only is enlarged)', () => {
+    mockViewport(false);
+    render(<DataTable<Row> columns={columns} rows={rows} rowKey={(r) => r.id} selection={selection} />);
+    const rowBox = screen.getByRole('checkbox', { name: 'Select Alpha Corp' });
+    const allBox = screen.getByRole('checkbox', { name: /select all rows/i });
+    for (const box of [rowBox, allBox]) {
+      expect(box).toHaveClass('touch-target', 'touch-target-overlay');
+    }
+  });
+
+  it('sits on the title line: its box is centred on the first text line, not top-stacked above it', () => {
+    mockViewport(false);
+    render(<DataTable<Row> columns={columns} rows={rows} rowKey={(r) => r.id} selection={selection} />);
+    const rowBox = screen.getByRole('checkbox', { name: 'Select Alpha Corp' });
+    expect(rowBox.closest('span.shrink-0')).toHaveClass('mt-0.5');
+  });
+});

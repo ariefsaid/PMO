@@ -25,7 +25,7 @@ async function waitReady(page: Page) {
 function contactRow(page: Page, name: string) {
   // CW-4b: rows navigate to /contacts/:id — the activation button reads "Open <name>".
   return page.locator('table tbody tr').filter({
-    has: page.getByRole('button', { name: `Open ${name}`, exact: true }),
+    has: page.getByRole('link', { name: `Open ${name}`, exact: true }),
   });
 }
 
@@ -50,9 +50,10 @@ test(
 
     // ── Step 2: fill name + pick a company → save ────────────────────────────
     await dialog.getByLabel(/full name/i).fill(name);
-    // The Company field is a native <select>; pick the first real option (index 1 skips the placeholder).
+    // The Company field is a native <select>; pick a named seed company, never the first option (the list is
+    // shared, and a parallel journey's own company can sort first and be removed before Create).
     const companySelect = dialog.getByLabel(/^Company/i);
-    await companySelect.selectOption({ index: 1 });
+    await companySelect.selectOption({ label: 'Meridian Steelworks' });
     await dialog.getByRole('button', { name: /create contact/i }).click();
 
     // GOAL ORACLE (create): modal closes; the new row is in the list.
@@ -61,7 +62,7 @@ test(
     await expect(row).toBeVisible({ timeout: 15_000 });
 
     // ── Step 3: open the routable record page and log a Call ─────────────────
-    await row.getByRole('button', { name: `Open ${name}`, exact: true }).click();
+    await row.getByRole('link', { name: `Open ${name}`, exact: true }).click();
     // GOAL ORACLE (navigation): the routable /contacts/:id record page rendered.
     await expect(page).toHaveURL(/\/contacts\/[0-9a-f-]+$/i, { timeout: 15_000 });
     const header = page.getByTestId('record-header');

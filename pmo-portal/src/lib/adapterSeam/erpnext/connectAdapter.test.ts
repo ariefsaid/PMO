@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createErpnextConnectAdapter, ERP_CONNECT_PAGE, erpnextSendProbe } from './connectAdapter.ts';
 import { fakeErp } from './fakeErp.ts';
+import { takeCensus } from '../connect/census.ts';
+import { AdapterError } from '../contract.ts';
 
 describe('ECA2-T7 erpnext ConnectAdapter reads', () => {
   it('lists parties: Supplier first, then Customer, normalised, then done', async () => {
@@ -76,9 +78,16 @@ describe('ECA2-T7 erpnext ConnectAdapter reads', () => {
     const a = createErpnextConnectAdapter(client, 'Test Co');
     await expect(a.listMasters('contact', null)).rejects.toThrow(/unavailable/);
     await expect(a.listMasters('party', 'Bogus:x')).rejects.toThrow(/cursor/);
-    for (const kind of ['employee', 'account', 'contact'] as const) {
+    for (const kind of ['employee', 'contact'] as const) {
       await expect(a.sendMaster(kind, { id: 'p', name: 'n' }, 'k')).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringMatching(/unavailable/) });
     }
+  });
+
+  it('AC-ECX-030 an account is sent only with an expense group to go under: without one it is refused before any ERP call', async () => {
+    const { client, seen } = fakeErp({});
+    const a = createErpnextConnectAdapter(client, 'Test Co');
+    await expect(a.sendMaster('account', { id: 'Materials', name: 'Site materials' }, 'k')).rejects.toMatchObject({ code: 'commit-rejected', message: expect.stringMatching(/expense group/) });
+    expect(seen).toEqual([]);
   });
 });
 
@@ -221,5 +230,44 @@ describe('#1692 which PMO field ERPNext matches its project code on', () => {
   it('an ERPNext project is named by the client project code, so it matches PMO\'s `code`', () => {
     const { client } = fakeErp({});
     expect(createErpnextConnectAdapter(client, 'Test Co').projectCodeField).toBe('code');
+  });
+});
+
+describe('#2119 ERPNext census runs its count calls at once', () => {
+  it('#2119 against the fake at 200 ms per call, the whole census takes about two round trips (was ~14)', async () => {
+    const { client, seen } = fakeErp({ Supplier: [{ name: 'S1' }], Customer: [{ name: 'C1' }, { name: 'C2' }] });
+    let inFlight = 0; let peak = 0;
+    const inner = client.fetchImpl!;
+    const slowClient = { ...client, fetchImpl: (async (url: string | URL | Request, init?: RequestInit) => {
+      inFlight += 1; peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 200));
+      inFlight -= 1;
+      return inner(url, init);
+    }) as typeof fetch };
+    const adapter = createErpnextConnectAdapter(slowClient, 'Test Co');
+    const t0 = Date.now();
+    const rows = await takeCensus(adapter, {});
+    const elapsed = Date.now() - t0;
+    expect(rows.find((r) => r.kind === 'party')).toMatchObject({ erpCount: 3 });
+    expect(seen.length).toBeGreaterThanOrEqual(11);
+    expect(seen.every((r) => r.method === 'GET')).toBe(true);
+    expect(peak).toBe(seen.length); // every count in one wave
+    expect(elapsed).toBeLessThan(2 * 200 + 200);
+  }, 10_000);
+});
+
+describe('#2119 ERPNext counts at once but reports errors as the serial loop did', () => {
+  it('#2119 when two doctypes of one kind fail, the first doctype in order is the error reported, not the fastest', async () => {
+    const { client } = fakeErp({});
+    const slowClient = { ...client, fetchImpl: (async (url: string | URL | Request) => {
+      const doctype = new URL(String(url)).searchParams.get('doctype');
+      // Supplier (first) fails slowly with one status; Customer (second) fails fast with another
+      await new Promise((r) => setTimeout(r, doctype === 'Supplier' ? 80 : 5));
+      return doctype === 'Supplier' ? new Response('{"message":"no access"}', { status: 403 }) : new Response('{"message":"bad"}', { status: 417 });
+    }) as typeof fetch };
+    const adapter = createErpnextConnectAdapter(slowClient, 'Test Co');
+    const err = await adapter.countDomain('party').then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(AdapterError);
+    expect(err).toMatchObject({ message: 'no access' }); // the Supplier's 403, not the faster Customer's 417 ("bad")
   });
 });

@@ -74,6 +74,10 @@ export const ALL_ITEMS: NavItem[] = [
   { to: '/stock', text: 'Stock', icon: 'inbox', group: 'Delivery', feature: 'stock', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1519: every member logs equipment usage; the Assets and approvals views gate by role inside the page.
   { to: '/equipment', text: 'Equipment', icon: 'equipment', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // #1522: every member reads site reports; entry and validation gate by role inside the pages.
+  { to: '/site-reports', text: 'Site reports', icon: 'reports', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // #2528: crews, roster and attendance — every member reads; writes gate by role (and field controller) inside the page.
+  { to: '/crews', text: 'Crews', icon: 'user', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // Without CRM, PM and Finance keep their supplier doorway in the Delivery group.
   { to: '/companies?type=Vendor', text: 'Suppliers', icon: 'companies', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
@@ -93,11 +97,15 @@ export const ALL_ITEMS: NavItem[] = [
   { to: '/finance/payables', text: 'Payables', icon: 'payments', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/reports', text: 'Reports', icon: 'chart-column', group: 'Finance', feature: 'management_pack', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/statements', text: 'Statements', icon: 'statements', group: 'Finance', feature: 'financial_statements', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  // #895 manual journals: the Finance desk, role-gated (policy journal.view = Admin·Executive·Finance), no entitlement.
+  { to: '/journals', text: 'Journals', icon: 'table', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'My work', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
   { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1515: floats are visible to approval rank (policy imprestFloat.view = master-data roles); Engineers see none.
   { to: '/imprest', text: 'Site cash', icon: 'site-cash', group: 'My work', feature: 'imprest', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // #2524: every member raises a request (policy materialRequest.create = ALL); RLS scopes reads.
+  { to: '/material-requests', text: 'Material requests', icon: 'file', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/my-tasks', text: 'My Tasks', icon: 'clipboard-check', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/views', text: 'My Views', icon: 'views', group: undefined, feature: 'user_views', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
 ];
@@ -148,15 +156,15 @@ const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
  * Rail unit harnesses can render without an AuthProvider; in the application the provider is
  * always present. Keep the data query behind that boundary so such shell-only renders stay pure.
  */
-const FinanceOverdueCount: React.FC = () => {
+const FinanceOverdueCount: React.FC<{ enabled: boolean }> = ({ enabled }) => {
   const auth = useContext(AuthContext);
   if (!auth) return null;
-  return <FinanceOverdueCountValue />;
+  return <FinanceOverdueCountValue enabled={enabled} />;
 };
 
-const FinanceOverdueCountValue: React.FC = () => {
+const FinanceOverdueCountValue: React.FC<{ enabled: boolean }> = ({ enabled }) => {
   const { t } = useTranslation();
-  const { data: count, isPending, isError } = useOverdueInvoiceCount();
+  const { data: count, isPending, isError } = useOverdueInvoiceCount(enabled);
   // Unknown is not zero: while the read is pending or failed there is no badge at all, and a
   // genuine zero prints nothing rather than a "0" that would read like work waiting.
   if (isPending || isError || count === undefined || count <= 0) return null;
@@ -240,6 +248,9 @@ const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
 const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false, hasEligibleTimesheets = false, onPreloadHref }) => {
   const { t } = useTranslation();
   const location = useLocation();
+  const [financeHovered, setFinanceHovered] = useState(false);
+  const [financeFocused, setFinanceFocused] = useState(false);
+  const financeCountEnabled = location.pathname.startsWith('/finance') || financeHovered || financeFocused;
   const inDrawer = useContext(RailDrawerContext);
   const { effectiveRole, realRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
@@ -333,12 +344,16 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     '/timesheets': t('shell.nav.timesheets', 'Timesheets'),
     '/expenses': t('shell.nav.expenses', 'Expenses'),
     '/imprest': t('imprest:nav.siteCash', 'Site cash'),
+    '/material-requests': t('materialRequests:nav.materialRequests', 'Material requests'),
     '/equipment': t('equipment:nav.equipment', 'Equipment'),
+    '/site-reports': t('siteReport:nav', 'Site reports'),
+    '/crews': t('crews:nav.crews', 'Crews'),
     '/finance': t('financeHub:nav.finance', 'Finance'),
     '/finance/receivables': t('financeHub:hub.receivables', 'Receivables'),
     '/finance/payables': t('financeHub:hub.payables', 'Payables'),
     '/finance/reports': t('financeHub:hub.reports', 'Reports'),
     '/finance/statements': t('financeHub:hub.statements', 'Statements'),
+    '/journals': t('journals:nav.journals', 'Journals'),
     '/approvals': t('shell.nav.approvals', 'Approvals'),
     '/companies': t('shell.nav.companies', 'Companies'),
     // No rail item any more (FIN-S9), but the breadcrumb and command palette share this key.
@@ -382,7 +397,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         </>
       );
     }
-    if (item.to === '/finance') return <><span>{label}</span><FinanceOverdueCount /></>;
+    if (item.to === '/finance') return <><span>{label}</span><FinanceOverdueCount enabled={financeCountEnabled} /></>;
     return <span>{label}</span>;
   };
 
@@ -391,6 +406,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     // the override instead of NavLink's built-in URL-prefix matching.
     const isStageAware = railActiveOverride != null && STAGE_AWARE_PATHS.has(item.to);
     const isCompanyDirectoryLink = item.to === '/companies';
+    const onFinanceHover = item.to === '/finance' ? () => setFinanceHovered(true) : undefined;
+    const onFinanceLeave = item.to === '/finance' ? () => setFinanceHovered(false) : undefined;
+    const onFinanceFocus = item.to === '/finance' ? () => setFinanceFocused(true) : undefined;
+    const onFinanceBlur = item.to === '/finance' ? () => setFinanceFocused(false) : undefined;
 
     if (isCompanyDirectoryLink) {
       // A company record lives under Companies, so its page keeps Companies lit like its breadcrumb.
@@ -443,6 +462,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
           key={item.to}
           to={item.to}
           onClick={onNavigate}
+          onMouseEnter={onFinanceHover}
+          onMouseLeave={onFinanceLeave}
+          onFocus={onFinanceFocus}
+          onBlur={onFinanceBlur}
           aria-current="page"
           className={cn(NAV_LINK_BASE, 'bg-nav-selected-surface font-semibold text-nav-active-text')}
         >
@@ -458,6 +481,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         to={item.to}
         end={item.to === '/' || item.to.includes('?') || item.to.startsWith('/finance')}
         onClick={onNavigate}
+        onMouseEnter={onFinanceHover}
+        onMouseLeave={onFinanceLeave}
+        onFocus={onFinanceFocus}
+        onBlur={onFinanceBlur}
         className={({ isActive }: { isActive: boolean }) => {
           // A child page outside the module's URL (e.g. /erp-purchases under Procurement) lights its parent.
           const active = isActive || railParentForPath(location.pathname) === item.to;
@@ -605,10 +632,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         </div>
       )}
 
-      {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || isOperator) && (
+      {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || role === UserRole.ProjectManager || isOperator) && (
         <div className="flex-shrink-0 border-t border-border p-2.5">
           <NavLink
-            to={role === UserRole.Finance ? '/administration/exchange-rates' : '/administration'}
+            to={role === UserRole.Finance ? '/administration/exchange-rates' : role === UserRole.ProjectManager ? '/administration/people' : '/administration'}
             onClick={onNavigate}
             className={({ isActive }: { isActive: boolean }) =>
               cn(

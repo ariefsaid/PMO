@@ -38,11 +38,11 @@ vi.mock('@/src/lib/db/budgets', () => ({ retryBudgetPush: retryBudgetPushMock })
 import {
   fetchBudgetComparison,
   fetchBudgetProjection,
-  fetchFirstSpendingYear,
   fetchBudgetPushStatus,
   fetchActiveBudgetCategoryPhasing,
   listBudgetFiscalYears,
   fetchProjectFiscalCalendar,
+  fetchPmoFiscalCalendar,
   retryActiveBudgetPush,
   releaseActiveBudgetPushHold,
   listBudgetPostingAccountCatalogue,
@@ -56,16 +56,32 @@ import {
 import { AppError } from '@/src/lib/appError';
 import { Constants } from '@/src/lib/supabase/database.types';
 
-describe('first spending year summary', () => {
-  it('passes opaque years in their existing order and returns the server selection', async () => {
-    mockRpc.mockResolvedValueOnce({ data: 'FY-B', error: null });
-    await expect(fetchFirstSpendingYear('project', ['FY-B', 'FY-A'])).resolves.toBe('FY-B');
-    expect(mockRpc).toHaveBeenCalledWith('first_budget_spending_year', { p_project_id: 'project', p_fiscal_years: ['FY-B', 'FY-A'] });
+describe('PMO fiscal calendar (#2329)', () => {
+  beforeEach(() => { mockRpc.mockReset(); });
+
+  it('AC-FCAL-010 reads the PMO calendar of an organization with no accounting system, in the accounting-system shape', async () => {
+    const calendar = {
+      status: 'resolved',
+      project: { start: '2026-06-01', end: '2027-08-31' },
+      years: [
+        { name: '2026-2027', start: '2026-04-01', end: '2027-03-31' },
+        { name: '2027-2028', start: '2027-04-01', end: '2028-03-31' },
+      ],
+    };
+    mockRpc.mockResolvedValueOnce({ data: calendar, error: null });
+    await expect(fetchPmoFiscalCalendar('project-1')).resolves.toEqual(calendar);
+    expect(mockRpc).toHaveBeenCalledWith('get_pmo_fiscal_calendar', { p_project_id: 'project-1' });
   });
 
-  it('surfaces a failed summary instead of inventing a result', async () => {
-    mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'unavailable', code: 'XX000' } });
-    await expect(fetchFirstSpendingYear('project', ['FY-B'])).rejects.toBeInstanceOf(AppError);
+  it('AC-FCAL-010 keeps a not-set calendar explicit and rejects a project the caller cannot see', async () => {
+    mockRpc.mockResolvedValueOnce({ data: { status: 'unresolved', project: { start: '2026-06-01', end: null } }, error: null });
+    await expect(fetchPmoFiscalCalendar('project-1')).resolves.toEqual({ status: 'unresolved', project: { start: '2026-06-01', end: null } });
+
+    mockRpc.mockResolvedValueOnce({ data: null, error: null });
+    await expect(fetchPmoFiscalCalendar('project-1')).rejects.toBeInstanceOf(AppError);
+
+    mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'boom', code: '42501' } });
+    await expect(fetchPmoFiscalCalendar('project-1')).rejects.toBeInstanceOf(AppError);
   });
 });
 

@@ -7,6 +7,7 @@
 \set ON_ERROR_STOP on
 select :'action' = 'up' as is_up \gset
 begin;
+set local storage.allow_delete_query = 'true';
 set local session_replication_role = replica;  -- FK triggers off: whole orgs are written and removed in one step
 -- ENABLE-ALWAYS triggers (append-only guards) still fire in replica mode; switch them off for this transaction only.
 create temp table _iso_always on commit drop as
@@ -23,11 +24,12 @@ do $$ declare t record; begin
     execute format('delete from public.%I where org_id in (%L, %L)', t.relname,
                    'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-00000000000b');
   end loop;
+  delete from storage.objects where id = 'a6120000-0000-4000-8000-000000000f92';
   delete from public.organizations where id in ('a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-00000000000b');
   delete from auth.refresh_tokens where user_id = 'a6120000-0000-4000-8000-0000000000b1';  -- B's sign-in leaves these behind
   delete from auth.sessions where user_id = 'a6120000-0000-4000-8000-0000000000b1';
   delete from auth.identities where user_id = 'a6120000-0000-4000-8000-0000000000b1';
-  delete from auth.users where id = 'a6120000-0000-4000-8000-0000000000b1';
+  delete from auth.users where id in ('a6120000-0000-4000-8000-0000000000a1', 'a6120000-0000-4000-8000-0000000000b1');
 end $$;
 
 \if :is_up
@@ -86,6 +88,235 @@ begin
     end;
   end loop;
 end $$;
+-- A real active auth user is required by is_active_member; copied profiles have no matching auth.users.
+insert into auth.users (id, email) values
+  ('a6120000-0000-4000-8000-0000000000a1', 'isolation-proof-a@example.invalid');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('a6120000-0000-4000-8000-0000000000a1', 'a6120000-0000-4000-8000-00000000000a',
+   'Isolation Proof A', 'isolation-proof-a@example.invalid', 'Admin', 'active');
+-- The seed org carries no journal, so the copy leaves the three journal tables empty and their by-id read and update
+-- probes would skip. Give A one draft journal (one line, one author) so every probe on them runs.
+insert into public.journal_entries (id, org_id, kind, entry_date, memo, status, maker_id)
+select 'a6120000-0000-4000-8000-0000000000e1', 'a6120000-0000-4000-8000-00000000000a', 'fee', current_date, 'isolation-proof journal', 'draft', p.id
+  from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.journal_entry_lines (id, org_id, journal_id, line_no, account, debit, credit, label)
+values ('a6120000-0000-4000-8000-0000000000e2', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000e1', 1, 'iso-account', 10, 0, '');
+insert into public.journal_entry_authors (journal_id, profile_id, org_id)
+select 'a6120000-0000-4000-8000-0000000000e1', p.id, 'a6120000-0000-4000-8000-00000000000a'
+  from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+-- 1018 (#2525): the seed org carries no three-way match rows either. Give A one of each so their by-id probes run. The
+-- match stays off for A (enabled = false), so none of A's purchases is gated. Each child has a real parent in A,
+-- so an authenticated A member can see it through the parent-visible policies.
+insert into public.procurement_items (id, org_id, procurement_id, name, quantity, rate)
+select 'a6120000-0000-4000-8000-0000000000e4', p.org_id, p.id, 'isolation-proof item', 1, 1
+  from public.procurements p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.procurement_receipts (id, org_id, procurement_id, status)
+select 'a6120000-0000-4000-8000-0000000000e3', p.org_id, p.procurement_id, 'Partial'
+  from public.procurement_items p where p.id = 'a6120000-0000-4000-8000-0000000000e4';
+insert into public.procurement_invoices (id, org_id, procurement_id, status, tax_treatment, tax_amount, currency)
+select 'a6120000-0000-4000-8000-0000000000e5', p.org_id, p.procurement_id, 'Received', 'exclusive', 0, 'IDR'
+  from public.procurement_items p where p.id = 'a6120000-0000-4000-8000-0000000000e4';
+insert into public.org_three_way_match_settings (org_id, enabled, updated_by)
+select 'a6120000-0000-4000-8000-00000000000a', false, p.id
+  from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.procurement_receipt_lines (receipt_id, item_id, org_id, quantity, recorded_by)
+select 'a6120000-0000-4000-8000-0000000000e3', 'a6120000-0000-4000-8000-0000000000e4', 'a6120000-0000-4000-8000-00000000000a', 1, p.id
+  from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.procurement_bill_matches (invoice_id, org_id, recorded_by)
+select 'a6120000-0000-4000-8000-0000000000e5', 'a6120000-0000-4000-8000-00000000000a', p.id
+  from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.procurement_bill_match_lines (invoice_id, item_id, org_id, quantity, rate)
+values ('a6120000-0000-4000-8000-0000000000e5', 'a6120000-0000-4000-8000-0000000000e4', 'a6120000-0000-4000-8000-00000000000a', 1, 1);
+insert into public.bill_match_exceptions (invoice_id, org_id, approved_by, reason, match)
+select 'a6120000-0000-4000-8000-0000000000e5', 'a6120000-0000-4000-8000-00000000000a', p.id, 'isolation-proof exception', '{}'::jsonb
+  from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+-- A complete B purchase and match, so its own-organisation reads are non-vacuous.
+insert into public.projects (id, org_id, name, status, pmo_project_number, currency) values
+  ('a6120000-0000-4000-8000-0000000000b2', 'a6120000-0000-4000-8000-00000000000b', 'isolation-proof project B', 'Ongoing Project', 'ISO-B-1', 'IDR');
+insert into public.procurements (id, org_id, title, project_id, requested_by_id, status, total_value, approved_total_value,
+  approved_by_id, budget_category, currency, is_subcontract) values
+  ('a6120000-0000-4000-8000-0000000000b3', 'a6120000-0000-4000-8000-00000000000b', 'isolation-proof purchase B',
+   'a6120000-0000-4000-8000-0000000000b2', 'a6120000-0000-4000-8000-0000000000b1', 'Vendor Invoiced', 1, 1,
+   'a6120000-0000-4000-8000-0000000000b1', 'Materials', 'IDR', false);
+insert into public.procurement_items (id, org_id, procurement_id, name, quantity, rate) values
+  ('a6120000-0000-4000-8000-0000000000b4', 'a6120000-0000-4000-8000-00000000000b', 'a6120000-0000-4000-8000-0000000000b3', 'isolation-proof item B', 1, 1);
+insert into public.procurement_receipts (id, org_id, procurement_id, status) values
+  ('a6120000-0000-4000-8000-0000000000b5', 'a6120000-0000-4000-8000-00000000000b', 'a6120000-0000-4000-8000-0000000000b3', 'Partial');
+insert into public.procurement_invoices (id, org_id, procurement_id, status, tax_treatment, tax_amount, currency) values
+  ('a6120000-0000-4000-8000-0000000000b6', 'a6120000-0000-4000-8000-00000000000b', 'a6120000-0000-4000-8000-0000000000b3', 'Received', 'exclusive', 0, 'IDR');
+insert into public.org_three_way_match_settings (org_id, enabled, updated_by) values
+  ('a6120000-0000-4000-8000-00000000000b', false, 'a6120000-0000-4000-8000-0000000000b1');
+insert into public.procurement_receipt_lines (receipt_id, item_id, org_id, quantity, recorded_by) values
+  ('a6120000-0000-4000-8000-0000000000b5', 'a6120000-0000-4000-8000-0000000000b4', 'a6120000-0000-4000-8000-00000000000b', 1, 'a6120000-0000-4000-8000-0000000000b1');
+insert into public.procurement_bill_matches (invoice_id, org_id, recorded_by) values
+  ('a6120000-0000-4000-8000-0000000000b6', 'a6120000-0000-4000-8000-00000000000b', 'a6120000-0000-4000-8000-0000000000b1');
+insert into public.procurement_bill_match_lines (invoice_id, item_id, org_id, quantity, rate) values
+  ('a6120000-0000-4000-8000-0000000000b6', 'a6120000-0000-4000-8000-0000000000b4', 'a6120000-0000-4000-8000-00000000000b', 1, 1);
+insert into public.bill_match_exceptions (invoice_id, org_id, approved_by, reason, match) values
+  ('a6120000-0000-4000-8000-0000000000b6', 'a6120000-0000-4000-8000-00000000000b', 'a6120000-0000-4000-8000-0000000000b1', 'isolation-proof exception B', '{}'::jsonb);
+-- The seed org has no expiry registry rows; give A a complete person/document chain for by-id probes.
+insert into public.people (id, org_id, code, name)
+values ('a6120000-0000-4000-8000-0000000000f1', 'a6120000-0000-4000-8000-00000000000a', 'iso-person', 'Isolation proof person');
+insert into public.document_types (id, org_id, name, applies_to)
+values ('a6120000-0000-4000-8000-0000000000f2', 'a6120000-0000-4000-8000-00000000000a', 'Isolation proof document', 'person');
+insert into public.expiry_documents (id, org_id, subject_kind, person_id, type_id, expires_on)
+values ('a6120000-0000-4000-8000-0000000000f3', 'a6120000-0000-4000-8000-00000000000a', 'person',
+        'a6120000-0000-4000-8000-0000000000f1', 'a6120000-0000-4000-8000-0000000000f2', current_date + 30);
+-- Cover the previously unseeded equipment chain too: read-mode deliberately skips updates,
+-- so its ceiling also requires by-id reads on existing tables.
+insert into public.equipment_assets (id, org_id, code, name)
+values ('a6120000-0000-4000-8000-0000000000f4', 'a6120000-0000-4000-8000-00000000000a', 'iso-asset', 'Isolation proof asset');
+insert into public.equipment_costing_settings (id, org_id, asset_id, setting_key, version, basis, effective_from)
+values ('a6120000-0000-4000-8000-0000000000f5', 'a6120000-0000-4000-8000-00000000000a',
+        'a6120000-0000-4000-8000-0000000000f4', 'a6120000-0000-4000-8000-0000000000f6', 1, 'none', current_date);
+insert into public.equipment_usage_entries (id, org_id, asset_id, project_id, work_date, quantity, unit, author_id)
+select 'a6120000-0000-4000-8000-0000000000f7', 'a6120000-0000-4000-8000-00000000000a',
+       'a6120000-0000-4000-8000-0000000000f4', p.id, current_date, 1, 'hours', u.id
+  from public.projects p cross join public.profiles u
+  where p.org_id = 'a6120000-0000-4000-8000-00000000000a' and u.org_id = p.org_id
+  order by p.id, u.id limit 1;
+-- Provide disposable rows even when the seed contains no work orders or disciplines.
+insert into public.cost_disciplines (id, org_id, code, name)
+values ('a6120000-0000-4000-8000-0000000000d1', 'a6120000-0000-4000-8000-00000000000a', 'iso', 'Isolation discipline');
+insert into public.work_orders (id, org_id, project_id, title, currency, tax_treatment, tax_amount)
+select 'a6120000-0000-4000-8000-0000000000d2', p.org_id, p.id, 'Isolation work order', 'IDR', 'exclusive', 0
+from public.projects p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate)
+select 'a6120000-0000-4000-8000-0000000000d3', org_id, project_id, 'iso', 'Isolation line', 'each', 1, 1
+from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.work_order_lines (id, org_id, work_order_id, boq_item_id, quantity)
+values ('a6120000-0000-4000-8000-0000000000d4', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000d2', 'a6120000-0000-4000-8000-0000000000d3', 1);
+insert into public.work_order_acceptances (id, org_id, project_id, work_order_id, acceptance_date, prepared_by)
+select 'a6120000-0000-4000-8000-0000000000d5', w.org_id, w.project_id, w.id, current_date, p.id
+from public.work_orders w join lateral (select id from public.profiles where org_id = w.org_id order by id limit 1) p on true
+where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+-- Material request rows ensure the cross-org by-id read and update probes run on the new tables.
+insert into public.material_request_settings (org_id) values ('a6120000-0000-4000-8000-00000000000a') on conflict do nothing;
+insert into public.approval_chain_steps (id, org_id, position, role, label)
+values ('a6120000-0000-4000-8000-0000000000c1', 'a6120000-0000-4000-8000-00000000000a', 1, 'Finance', 'Isolation review');
+insert into public.approval_step_pins (id, org_id, project_id, position, role, approver_id, created_by)
+select 'a6120000-0000-4000-8000-0000000000c4', w.org_id, w.project_id, 1, 'Finance', p.id, p.id
+from public.work_orders w join lateral (select id from public.profiles where org_id = w.org_id order by id limit 1) p on true
+where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.approval_stand_ins (id, org_id, delegator_id, stand_in_id, starts_on, ends_on, created_by)
+select 'a6120000-0000-4000-8000-0000000000c2', a.org_id, a.id, b.id, current_date, current_date, a.id
+from public.profiles a cross join lateral (select id from public.profiles where org_id = a.org_id and id <> a.id order by id limit 1) b
+where a.org_id = 'a6120000-0000-4000-8000-00000000000a' order by a.id limit 1;
+insert into public.material_requests (id, org_id, number, work_order_id, project_id, needed_by, created_by)
+select 'a6120000-0000-4000-8000-0000000000c3', w.org_id, 'ISO-MRQ', w.id, w.project_id, current_date + 1, p.id
+from public.work_orders w join lateral (select id from public.profiles where org_id = w.org_id order by id limit 1) p on true
+where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.material_request_lines (id, org_id, request_id, line_no, item_id, quantity)
+select 'a6120000-0000-4000-8000-0000000000c4', r.org_id, r.id, 1, i.id, 1
+from public.material_requests r join lateral (select id from public.stock_items where org_id = r.org_id order by id limit 1) i on true
+where r.id = 'a6120000-0000-4000-8000-0000000000c3';
+insert into public.material_request_steps (id, org_id, request_id, round, position, role, label, status)
+values ('a6120000-0000-4000-8000-0000000000c5', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 1, 1, 'Finance', 'Isolation review', 'open');
+insert into public.material_request_events (id, org_id, request_id, action, to_status)
+values ('a6120000-0000-4000-8000-0000000000c6', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 'created', 'draft');
+-- Cover additional real by-id probes so read-mode skip counts stay within the existing ceiling.
+insert into public.user_views (id, org_id, user_id, name)
+select 'a6120000-0000-4000-8000-0000000000b2', org_id, id, 'Isolation view' from public.profiles
+where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1;
+insert into public.notifications (id, org_id, owner_id, title)
+select 'a6120000-0000-4000-8000-0000000000b3', org_id, id, 'Isolation notification' from public.profiles
+where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1;
+insert into public.spend_approvers (id, org_id, project_id, profile_id)
+select 'a6120000-0000-4000-8000-0000000000b4', w.org_id, w.project_id, p.id
+from public.work_orders w join lateral (select id from public.profiles where org_id = w.org_id order by id limit 1) p on true
+where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.project_progress_entries (id, org_id, project_id, month, pct_complete)
+select 'a6120000-0000-4000-8000-0000000000b5', org_id, project_id, date '2001-01-01', 0
+from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2';
+-- Site report chain for A (the seed org has no reports): a draft report on the disposable work order, one row per child table.
+insert into public.dsr_idle_reasons (id, org_id, label)
+values ('a6120000-0000-4000-8000-0000000000c1', 'a6120000-0000-4000-8000-00000000000a', 'iso-idle-reason') on conflict do nothing;
+insert into public.dsr_weather_conditions (id, org_id, label)
+values ('a6120000-0000-4000-8000-0000000000c2', 'a6120000-0000-4000-8000-00000000000a', 'iso-weather') on conflict do nothing;
+insert into public.daily_site_reports (id, org_id, project_id, work_order_id, work_date, author_id)
+select 'a6120000-0000-4000-8000-0000000000c3', w.org_id, w.project_id, w.id, current_date,
+       (select id from public.profiles where org_id = w.org_id order by id limit 1)
+  from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.dsr_progress_lines (id, org_id, report_id, position, work_order_line_id, quantity, unit)
+values ('a6120000-0000-4000-8000-0000000000c4', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 1, 'a6120000-0000-4000-8000-0000000000d4', 1, 'each');
+insert into public.dsr_idle_periods (id, org_id, report_id, position, minutes, reason_id)
+values ('a6120000-0000-4000-8000-0000000000c5', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 1, 10, 'a6120000-0000-4000-8000-0000000000c1');
+insert into public.dsr_consumables (id, org_id, report_id, position, stock_item_id, quantity, unit)
+select 'a6120000-0000-4000-8000-0000000000c6', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 1, i.id, 1, 'each'
+  from public.stock_items i where i.org_id = 'a6120000-0000-4000-8000-00000000000a' order by i.id limit 1;
+insert into public.dsr_photos (id, org_id, report_id, kind, file_path)
+values ('a6120000-0000-4000-8000-0000000000c7', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 'other', 'iso/none/none/none.jpg');
+insert into public.dsr_events (id, org_id, report_id, action)
+values ('a6120000-0000-4000-8000-0000000000c8', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000c3', 'created');
+-- #2519: a plan figure and a shared-cost split row on the isolation work order.
+insert into public.work_order_plan_lines (id, org_id, project_id, work_order_id, kind, value)
+select 'a6120000-0000-4000-8000-0000000000d6', w.org_id, w.project_id, w.id, 'direct_budget', 1
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.project_shared_cost_splits (org_id, project_id, work_order_id, percent)
+select w.org_id, w.project_id, w.id, 100
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+-- Give the new evidence table an A row so the cross-organization probes exercise it.
+insert into storage.objects (id, bucket_id, name)
+select 'a6120000-0000-4000-8000-000000000f92', 'incident-files',
+       org_id::text || '/' || id::text || '/a6120000-0000-4000-8000-000000000f91/photo.jpg'
+from public.incident_reports where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1;
+insert into public.incident_files (id, org_id, incident_id, kind, file_path, storage_object_id)
+select 'a6120000-0000-4000-8000-000000000f91', i.org_id, i.id, 'at_raise', o.name, o.id
+from public.incident_reports i join storage.objects o on o.id = 'a6120000-0000-4000-8000-000000000f92'
+where i.org_id = 'a6120000-0000-4000-8000-00000000000a' order by i.id limit 1;
+-- Disposable rate catalogue rows (variant, item, rate, stage weight) so its by-id reads and writes are probed, not skipped.
+insert into public.rate_catalogue_variants (id, org_id, project_id, name)
+select 'a6120000-0000-4000-8000-0000000000e1', w.org_id, w.project_id, 'iso' from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.rate_catalogue_items (id, org_id, project_id, item_code, description, unit)
+select 'a6120000-0000-4000-8000-0000000000e2', w.org_id, w.project_id, 'iso', 'Isolation catalogue item', 'each' from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.rate_catalogue_rates (id, org_id, item_id, variant_id, rate, effective_from)
+values ('a6120000-0000-4000-8000-0000000000e3', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000e2', 'a6120000-0000-4000-8000-0000000000e1', 1, current_date);
+insert into public.rate_catalogue_stage_weights (id, org_id, item_id, effective_from, position, stage, weight_pct)
+values ('a6120000-0000-4000-8000-0000000000e4', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000e2', current_date, 1, 'iso', 100);
+-- Crew and attendance rows make each new tenant-scoped relation probeable.
+insert into public.crews (id, org_id, code, name) values
+ ('a6120000-0000-4000-8000-000000000101', 'a6120000-0000-4000-8000-00000000000a', 'iso-crew', 'Isolation crew');
+insert into public.crew_standard_roles (id, org_id, crew_id, name, headcount) values
+ ('a6120000-0000-4000-8000-000000000102', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000101', 'Worker', 1);
+insert into public.crew_members (id, org_id, crew_id, worker_id, standard_role_id, valid_from) values
+ ('a6120000-0000-4000-8000-000000000103', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000101', 'a6120000-0000-4000-8000-0000000000f1', 'a6120000-0000-4000-8000-000000000102', current_date);
+insert into public.work_order_crews (id, org_id, crew_id, work_order_id, valid_from) values
+ ('a6120000-0000-4000-8000-000000000104', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000101', 'a6120000-0000-4000-8000-0000000000d2', current_date);
+insert into public.crew_worker_rotation_off (id, org_id, worker_id, off_from, off_to) values
+ ('a6120000-0000-4000-8000-000000000105', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000f1', current_date - 1, current_date - 1);
+insert into public.attendance_days (id, org_id, crew_id, worker_id, work_order_id, project_id, work_date, status, hours, source)
+select 'a6120000-0000-4000-8000-000000000106', w.org_id, 'a6120000-0000-4000-8000-000000000101', 'a6120000-0000-4000-8000-0000000000f1', w.id, w.project_id, current_date, 'present', 8, 'roster_tick'
+from public.work_orders w where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.attendance_photos (id, org_id, crew_id, work_order_id, work_date, file_path) values
+ ('a6120000-0000-4000-8000-000000000107', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000101', 'a6120000-0000-4000-8000-0000000000d2', current_date, 'isolation-fixture');
+-- Supplement the second-org probe with otherwise empty, org-scoped rows.
+insert into public.user_views (id, org_id, user_id, name, scope)
+select 'a6120000-0000-4000-8000-000000000111', p.org_id, p.id, 'Isolation view', 'private'
+from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.comments (id, org_id, entity_type, entity_id, author_id, body)
+select 'a6120000-0000-4000-8000-000000000112', p.org_id, 'project', p.id, u.id, 'Isolation comment'
+from public.projects p join public.profiles u on u.org_id = p.org_id
+where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id, u.id limit 1;
+insert into public.agent_threads (id, org_id, owner_id, title)
+select 'a6120000-0000-4000-8000-000000000113', p.org_id, p.id, 'Isolation thread'
+from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+insert into public.agent_runs (id, org_id, owner_id, thread_id, title)
+select 'a6120000-0000-4000-8000-000000000114', t.org_id, t.owner_id, t.id, 'Isolation run'
+from public.agent_threads t where t.id = 'a6120000-0000-4000-8000-000000000113';
+insert into public.agent_events (id, org_id, owner_id, run_id, seq, type)
+select 'a6120000-0000-4000-8000-000000000115', r.org_id, r.owner_id, r.id, 1, 'user'
+from public.agent_runs r where r.id = 'a6120000-0000-4000-8000-000000000114';
+insert into public.agent_usage (id, org_id, owner_id, run_id, model)
+select 'a6120000-0000-4000-8000-000000000116', r.org_id, r.owner_id, r.id, 'fixture'
+from public.agent_runs r where r.id = 'a6120000-0000-4000-8000-000000000114';
+insert into public.agent_attachments (id, org_id, owner_id, thread_id, storage_path, mime_type, size_bytes, original_filename)
+select 'a6120000-0000-4000-8000-000000000117', t.org_id, t.owner_id, t.id,
+  'org/a6120000-0000-4000-8000-00000000000a/agent-attachments/a6120000-0000-4000-8000-000000000117',
+  'application/pdf', 1, 'fixture.pdf'
+from public.agent_threads t where t.id = 'a6120000-0000-4000-8000-000000000113';
+insert into public.agent_automations (id, org_id, owner_id, kind, prompt, schedule)
+select 'a6120000-0000-4000-8000-000000000118', p.org_id, p.id, 'schedule', 'Isolation automation', '0 0 * * *'
+from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 

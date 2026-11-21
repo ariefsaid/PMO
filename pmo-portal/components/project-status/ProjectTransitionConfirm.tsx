@@ -20,7 +20,7 @@ export const ProjectTransitionConfirm: React.FC<{
   const statusLabel = useProjectStatusLabel();
   const [picked, setPicked] = useState<ProjectStatus | null>(null);
   const [lost, setLost] = useState<LostReasonValue>({ reason: '', note: '' });
-  const copy = projectConfirmCopy(target);
+  const copy = projectConfirmCopy(target, t, statusLabel);
 
   const lostTarget = (choice ?? [target]).some((s) => projectStatusGroup(s as never) === 'lost');
 

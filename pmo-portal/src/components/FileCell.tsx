@@ -67,7 +67,7 @@ export const FileCell: React.FC<FileCellProps> = ({
       <span className="flex items-center gap-1.5 min-w-0">
         <span
           role="progressbar"
-          aria-label={`Upload progress for ${title}`}
+          aria-label={t('fileCell.progress', 'Upload progress for {{title}}', { title })}
           aria-valuenow={uploadProgress}
           aria-valuemin={0}
           aria-valuemax={100}
@@ -83,7 +83,7 @@ export const FileCell: React.FC<FileCellProps> = ({
           <button
             type="button"
             onClick={onCancelUpload}
-            aria-label={`Cancel upload for ${title}`}
+            aria-label={t('fileCell.cancelUpload', 'Cancel upload for {{title}}', { title })}
             className="touch-target text-muted-foreground hover:text-foreground p-1 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <Icon name="x" className="size-3.5" />
@@ -102,10 +102,10 @@ export const FileCell: React.FC<FileCellProps> = ({
           <button
             type="button"
             onClick={onRemoveError}
-            aria-label={`Remove failed upload for ${title}`}
+            aria-label={t('fileCell.removeFailed', 'Remove failed upload for {{title}}', { title })}
             className="touch-target text-[12px] text-muted-foreground hover:text-foreground underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
-            Remove
+            {t('fileCell.remove', 'Remove')}
           </button>
         )}
       </span>
@@ -120,11 +120,11 @@ export const FileCell: React.FC<FileCellProps> = ({
       <button
         type="button"
         onClick={onUpload}
-        aria-label={`Upload file for ${title}`}
+        aria-label={t('fileCell.uploadFor', 'Upload file for {{title}}', { title })}
         className="touch-target inline-flex items-center gap-1 text-[12px] text-foreground hover:text-primary-text font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon name="upload" className="size-3.5" />
-        Upload
+        {t('fileCell.upload', 'Upload')}
       </button>
     ) : <span className="text-muted-foreground">—</span>;
   }
@@ -140,19 +140,19 @@ export const FileCell: React.FC<FileCellProps> = ({
           <button
             type="button"
             onClick={onReplace}
-            aria-label={`Replace file for ${title}`}
+            aria-label={t('fileCell.replaceFor', 'Replace file for {{title}}', { title })}
             className="touch-target text-[12px] text-primary-text hover:underline font-medium shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
-            Replace
+            {t('fileCell.replace', 'Replace')}
           </button>
         )}
         {isPreviewable(filePath) && onPreview && (
           <button
             type="button"
             onClick={onPreview}
-            aria-label={t('projectDetail.documents.action.previewFileFor', 'Preview file for {{title}}', { title })}
+            aria-label={t('projectDetail.header.previewFileFor', 'Preview file for {{title}}', { title })}
             className="touch-target text-muted-foreground hover:text-primary-text p-0.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            title={t('projectDetail.documents.action.previewFile', 'Preview file')}
+            title={t('projectDetail.header.previewFile', 'Preview file')}
           >
             <Icon name="eye" className="size-4" />
           </button>
@@ -173,9 +173,9 @@ export const FileCell: React.FC<FileCellProps> = ({
           <button
             type="button"
             onClick={onDownload}
-            aria-label={`Download file for ${title}`}
+            aria-label={t('fileCell.downloadFor', 'Download file for {{title}}', { title })}
             className="touch-target text-muted-foreground hover:text-primary-text p-0.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            title="Download file"
+            title={t('fileCell.download', 'Download file')}
           >
             <Icon name="download" className="size-4" />
           </button>
@@ -184,9 +184,9 @@ export const FileCell: React.FC<FileCellProps> = ({
           <button
             type="button"
             onClick={onPreview}
-            aria-label={`Preview file for ${title}`}
+            aria-label={t('projectDetail.header.previewFileFor', 'Preview file for {{title}}', { title })}
             className="touch-target text-muted-foreground hover:text-primary-text p-0.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            title="Preview file"
+            title={t('projectDetail.header.previewFile', 'Preview file')}
           >
             <Icon name="eye" className="size-4" />
           </button>

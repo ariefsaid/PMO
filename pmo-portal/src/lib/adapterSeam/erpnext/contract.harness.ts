@@ -6,8 +6,12 @@ import { AppError } from '../../appError.ts';
 import type {
   ConnectHarness,
   BudgetPushResult, BudgetPushScenario, ErpHarness, ErpPartyInput, InboundInvoiceDoc, PartyMatchResult, PmoPartyCandidate,
-  ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
+  JournalHarness, ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
 } from '../contractSuite/harness.ts';
+import { AdapterError } from '../contract.ts';
+import type { LedgerJournal } from '../ledgerJournal.ts';
+import { manualJournalFromDoc } from './bodies/manualJournal.ts';
+import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence } from './doctypeRegistry.ts';
 import type { ImprestTransfer } from '../imprestTransfer.ts';
 import { createErpAdapter } from './adapter.ts';
 import { assertNotPreCutover } from '../cutoverGate.ts';
@@ -145,10 +149,58 @@ function createTransferHarness(): TransferHarness {
   };
 }
 
+/**
+ * #895 journal.post: the SHIPPED ERPNext adapter (generic Journal Entry create + submit through DOCTYPE_BODIES['manual-journal'])
+ * and the shipped anchor probe over the fake Journal Entry ERP. A retry after a lost answer is a recovery that follows the
+ * registry's reissue policy (an immutable `user_remark` anchor: a conclusive miss may reissue once).
+ */
+function createJournalHarness(): JournalHarness {
+  const erp = fakeJournalErp();
+  let writes = 0;
+  const counted = (async (url: string | URL | Request, init?: RequestInit) => {
+    if (init?.method === 'POST' || init?.method === 'PUT') writes += 1;
+    return erp.fetchImpl(url, init);
+  }) as typeof fetch;
+  const client = { fetchImpl: counted, apiKey: 'key', apiSecret: 'secret', baseUrl: 'https://erp.test', maxRetries: 0 };
+  const adapter = createErpAdapter({ client, doctypeBodies: DOCTYPE_BODIES, ctx: { refs: {}, config: { company: 'Test Co' } } });
+  const entry = DOCTYPE_REGISTRY['manual-journal'];
+  const inDoubt = new Set<string>();
+  let armed = false;
+  const keyOf = (remark: unknown) => String(remark ?? '').split(' ')[0];
+  const answer = (r: { externalRecordId: string; canonical: Record<string, unknown> }) => ({
+    externalId: r.externalRecordId, status: r.canonical.status as 'posted' | 'scheduled', postedDate: (r.canonical.posted_date as string | null) ?? null,
+  });
+  return {
+    today: '2026-11-15',
+    async post(j: LedgerJournal) {
+      const id = j.key.slice(j.key.indexOf(':') + 1);
+      const adopted = await probeErpByAnchorKey({ client, doctype: entry.doctype, anchorField: entry.anchorField!, fromDoc: manualJournalFromDoc, pmoRecordId: id }, j.key);
+      if (adopted) { inDoubt.delete(j.key); return answer(adopted); }
+      if (inDoubt.has(j.key) && !reissueOnInconclusiveAbsence(entry)) throw new AppError('journal held', 'command-held');
+      if (armed) { armed = false; erp.arm('lost-response'); }
+      try {
+        return answer(await adapter.commit({ domain: 'accounting', operation: 'create', idempotencyKey: j.key, record: { id, erp_doc_kind: 'manual-journal', journal: j } }));
+      } catch (e) {
+        if (e instanceof AdapterError && e.code === 'external-unreachable') inDoubt.add(j.key);
+        throw e;
+      }
+    },
+    documents: () => erp.docs.map((d) => ({ externalId: String(d.name), key: keyOf(d.user_remark) })),
+    lines(externalId) {
+      const doc = erp.docs.find((d) => d.name === externalId);
+      const rows = (doc?.accounts ?? []) as Array<{ account: string; debit_in_account_currency?: number; credit_in_account_currency?: number }>;
+      return rows.map((row) => ({ account: row.account, debit: (row.debit_in_account_currency ?? 0).toFixed(2), credit: (row.credit_in_account_currency ?? 0).toFixed(2) }));
+    },
+    writes: () => writes,
+    failNextWrite: () => { armed = true; },
+  };
+}
+
 export function createErpnextHarness(): ErpHarness {
   return {
     tier: 'erpnext',
     transfer: createTransferHarness,
+    journal: createJournalHarness,
     companyDefaults: createCompanyDefaultsHarness,
     connect: createConnectHarness,
     ...createPushAndReadHarness(),
@@ -186,6 +238,7 @@ export function createErpnextHarness(): ErpHarness {
       let review = 0;
       for (let i = 0; i < runs; i += 1) {
         await onboardParties(parties.map((p) => ({ doctype: p.role === 'vendor' ? 'Supplier' : 'Customer', id: p.externalId, name: p.name, taxId: p.taxId ?? null })), {
+          findPmoRecordIds: async (ids) => new Map(ids.filter((ext) => refs.has(ext)).map((ext) => [ext, refs.get(ext)!])),
           findPmoRecordId: async (ext) => refs.get(ext) ?? null,
           findCandidates: async () => existing.filter((c) => ![...refs.values()].includes(c.pmoId)).map((c) => ({ pmoRecordId: c.pmoId, taxId: c.taxId })),
           insertCompaniesMirror: async (c) => {
@@ -300,6 +353,33 @@ function createConnectHarness(): ConnectHarness {
     ownKeys: ['project'],   // the ERP names a project itself; the PMO code is not on the document
     touchedAccounting: () => seen.some((r) => ACCOUNTING.has(decodeURIComponent(r.path.split('?')[0].split('/').pop()!))),
     calls: () => ({ reads: seen.filter((r) => r.method === 'GET').length, writes: seen.filter((r) => r.method !== 'GET').length }),
+    // account.send: a Standard-chart slice of the bound company and of a second one. The fake's list filter is exact, so a name held in
+    // another letter case is found only through the ERP's duplicate answer (a real ERP may already find it at lookup: both are checked).
+    chart() {
+      tables.Company = [{ name: 'Test Co', abbr: 'TC' }, { name: 'Other Co', abbr: 'OTH' }];
+      const account = (name: string, parent: string | null, isGroup: boolean, rootType: string, company = 'Test Co') =>
+        (tables.Account ??= []).push({ name, account_name: name.replace(/ - (TC|OTH)$/, ''), parent_account: parent, company, root_type: rootType, is_group: isGroup ? 1 : 0, disabled: 0 });
+      account('Expenses - TC', null, true, 'Expense');
+      account('Direct Expenses - TC', 'Expenses - TC', true, 'Expense');
+      account('Indirect Expenses - TC', 'Expenses - TC', true, 'Expense');
+      account('Cost of Goods Sold - TC', 'Direct Expenses - TC', false, 'Expense');
+      account('Application of Funds (Assets) - TC', null, true, 'Asset');
+      account('Direct Expenses - OTH', null, true, 'Expense', 'Other Co');
+      account('Old Site Costs - TC', 'Expenses - TC', true, 'Expense');
+      tables.Account.at(-1)!.disabled = 1;
+      return {
+        company: 'Test Co', expenseGroup: 'Direct Expenses - TC', otherExpenseGroup: 'Indirect Expenses - TC',
+        expenseLeaf: 'Cost of Goods Sold - TC', otherCompanyGroup: 'Direct Expenses - OTH', disabledExpenseGroup: 'Old Site Costs - TC',
+        place(a) {
+          const parent = a.rootType === 'Expense' ? a.parent : 'Application of Funds (Assets) - TC';
+          account(`${a.accountName} - TC`, parent, a.isGroup, a.rootType);
+          return `${a.accountName} - TC`;
+        },
+      };
+    },
+    accounts: () => (tables.Account ?? []).map((r) => ({ externalId: String(r.name), accountName: String(r.account_name), parent: (r.parent_account as string) ?? null,
+      company: String(r.company), isGroup: r.is_group === 1, rootType: String(r.root_type), created: r.created === true })),
+    writesOutsideAccounts: () => seen.filter((r) => r.method !== 'GET' && decodeURIComponent(r.path.split('?')[0]) !== '/api/resource/Account').map((r) => `${r.method} ${r.path}`),
     load(kind, rows) {
       for (const r of rows) {
         const disabled = r.active ? 0 : 1;

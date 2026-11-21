@@ -1,10 +1,10 @@
 # Spec amendment — vendor withholding (PPh 23 / PPh 4(2)) on ERPNext-owned procurement (#876)
 
 > **Amends** `docs/specs/erpnext-adapter.spec.md` §5.10 FR-ENA-115 (Purchase Invoice mirror) and FR-ENA-116 (the PI
-> paid-detection it specified), and supersedes DD-VI-3a in part (`docs/plans/2026-10-06-purchase-tax-template.md`
+> paid-detection it specified), and supersedes DD-VI-3a in part (`purchase-tax-template plan (2026-10-06, in git history)`
 > AC-520-11). Owner frame: OD-ERP-3 (ERPNext is headless for RIS — what an ERPNext screen would show is a PMO gap) and
 > OD-ERP-4 (vendor withholding is a go-live item; tax registers #898 follow at the first month-end).
-> Architecture: ADR-0082. Plan: `docs/plans/2026-10-07-vendor-withholding.md`. Migration slot: **0266**.
+> Architecture: ADR-0082. Plan: `vendor-withholding plan (2026-10-07, in git history)`. Migration slot: **0266**.
 >
 > **Slice 2 (§7)** — vendor tax set up in PMO with editable amounts (owner OD-VWH-1; Director DD-VWH-10..14).
 > Architecture: ADR-0084. Plan: `docs/plans/2026-10-07-vendor-withholding-slice2.md`. Migration slot: **0269**.

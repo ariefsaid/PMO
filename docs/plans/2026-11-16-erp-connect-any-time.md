@@ -1,7 +1,7 @@
 # Plan — Connect an ERP at any time, with no step inside the ERP (#1599, ECX)
 
 - **Issue:** #1599 (`OD-ERP-ANYTIME-1`), map #791 / #1442. Builds on the owner-signed spec
-  `docs/specs/erp-connect-anytime.spec.md` (ECA) and its as-built plan `docs/plans/2026-11-01-erp-connect-anytime.md`.
+  `docs/specs/erp-connect-anytime.spec.md` (ECA) and its as-built plan `erp-connect-anytime plan (2026-11-01, in git history)`.
 - **Owner rule (binding for this plan):** clients never work in the ERP. PMO is the only interface; the ERP is the source of
   truth, PMO writes to it and reads it back. A no-ERP organisation keeps its own records in PMO as the truth. Any step a person
   would have to do inside the ERP is a **GAP** (§6), never a plan step.
@@ -202,12 +202,12 @@ Run V-type (red until declared, then green).
 
 **ECX4-T2 — failing shared suite (AC-ECX-030).** `contractSuite/accountSend.suite.ts`:
 `AC-ECX-030 given a budget category with no direct-cost account and a chosen expense group, sending creates one leaf account
-under that group, the category map points at it, a lost response then retry finds and links the same account, a 409 duplicate that is not a leaf of the same company under an expense root is refused in plain words, and no tax,
+under that group, the category map points at it, a lost response then retry finds and links the same account, a 409 duplicate that is not a leaf of the same company under an expense root is refused in plain words (`commit-rejected`, never held), and no tax,
 fiscal year or group account is ever created`. Run the ERPNext `contract.test.ts` → red.
 
 **ECX4-T3 — adapter (green).** Extend `erpnext/connectAdapter.ts` `sendMaster` for `kind: 'account'`: send
 `account_name`, `parent_account`, `company` only; look up by `company` + `account_name` before create; a 409 duplicate is linked
-only when the existing account is a leaf of the same company under an expense root, otherwise refuse in plain words; guard an
+only when the existing account is a leaf of the same company under an expense root, otherwise refuse in plain words (`commit-rejected`); only a duplicate whose account cannot be read back (outcome not established) is held as `command-held` for reconciliation; guard an
 empty name in PMO; create leaf only, return the ERP name; derived key `seed:account:<category>` via
 `sendViaOutbox`.
 
@@ -221,6 +221,8 @@ p_parent_account text)`; on success the sweep writes `budget_category_account_ma
 
 **ECX4-T6 — UI.** Replace `accountantTask` copy with "No direct-cost account for: {{categories}}. Create them under:
 [group picker] [Create]"; RTL test first in `ErpSetupChecklist.test.tsx` (created in ECX3-T6). Drop allowlist entry. V-unit, V-type, V-guards.
+
+An account request whose reconciliation is unresolved keeps its category reserved until the account is linked or an Admin records a reasoned, audited absence disposition. Disposition requires the original outbox to be terminal and unclaimable and any claim window to have elapsed; a recorded ERP identity requires authoritative linking.
 
 ### ECX-5 — Fiscal year kept ahead from PMO (M-8)
 
@@ -367,6 +369,7 @@ the next purchase and timesheet reach the ERP. Tag `@e2e-isolation` per `docs/e2
 | AC-ECX-020 | Given an empty ERP company default and a mirrored account of the right type, when Admin sets it in PMO, then the ERP company holds it once and a retry writes nothing; given the wrong type, then nothing is written. | unit (shared suite) |
 | AC-ECX-021 | Given a defaults request, when a non-Admin/Finance or another org sends it, then it is refused. | pgTAP |
 | AC-ECX-030 | Given a category with no direct-cost account, when Finance creates it in PMO, then one leaf account exists under the chosen group, the map points at it, a retry links, and no tax, fiscal year or group is created. | unit (shared suite) |
+| AC-ECX-030 (reconciliation) | Given a 409 duplicate, when its account is known unusable, then the request is refused in plain words; when it cannot be read back, then the request is held (not refused) and its category stays reserved until the account is linked or an Admin records an audited absence disposition. | unit (ERPNext `accountSend.test.ts`; shared suite for the refusal) |
 | AC-ECX-031 | Given an account send request, when the caller is not Admin/Finance or the parent is not a mirrored group of the bound company, then it is refused. | pgTAP |
 | AC-ECX-040 | Given the year ends within 45 days and no next year exists, when the sweep runs twice, then one next fiscal year exists. | Deno (shipped sweep) |
 | AC-ECX-050 | Given an active person with HR details in PMO, when sends run, then one ERP employee exists linked to them; given a person without them, then it is held with a PMO instruction and nothing is invented. | unit (shared suite) |

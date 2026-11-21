@@ -1,8 +1,18 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { formatCalendarDayInTimeZone } from './format';
-import { formatFxEquivalent } from './fxEquivalent';
+import { formatCalendarDayInTimeZone, formatDateOnly } from './format';
+import type { TFunction } from 'i18next';
+import { convertUsdToIdr, formatFxEquivalent, formatFxRate, formatIdrApprox, fxRateCaption, fxRateSourceNote } from './fxEquivalent';
+import en from '../../public/locales/en/finance.json';
+import id from '../../public/locales/id/finance.json';
 import { resetActiveLocale, setActiveLocale } from './locale/activeLocale';
 import type { FxRateMatch } from './repositories/types';
+
+// A tiny catalogue-backed translator: interpolates {{x}} from the shipped locale files.
+const translator = (catalogue: { fx: Record<string, string> }): TFunction =>
+  ((key: string, _default: string, vars: Record<string, string> = {}) =>
+    catalogue.fx[key.replace(/^finance:fx\./, '')].replace(/\{\{(\w+)\}\}/g, (_m, name: string) => vars[name])) as unknown as TFunction;
+const t = translator(en);
+const tId = translator(id);
 
 const match: FxRateMatch = { rate: 16234.56, rate_date: '2026-10-09' };
 
@@ -16,19 +26,40 @@ describe('display-only JISDOR equivalent', () => {
     expect(formatCalendarDayInTimeZone(instant, 'America/New_York')).toBe('2026-10-09');
   });
 
-  it('rounds the approximation once, keeps source/date explicit and does not mutate the amount', () => {
+  it('formats amount and rate as "≈ IDR … (using IDR … rate)" and leaves the amount untouched', () => {
     const amount = 100;
-    expect(formatFxEquivalent(amount, match)).toBe('≈ Rp 1,623,456 (JISDOR 2026-10-09)');
-    expect(formatFxEquivalent(1.01, match)).toBe('≈ Rp 16,397 (JISDOR 2026-10-09)');
-    expect(formatFxEquivalent(0, match)).toBe('≈ Rp 0 (JISDOR 2026-10-09)');
+    expect(formatFxEquivalent(amount, match, t)).toBe('≈ IDR 1,623,456 (using IDR 16,234.56 rate)');
+    expect(formatFxEquivalent(1.01, match, t)).toBe('≈ IDR 16,397 (using IDR 16,234.56 rate)');
+    expect(formatFxEquivalent(0, match, t)).toBe('≈ IDR 0 (using IDR 16,234.56 rate)');
     expect(amount).toBe(100);
   });
 
-  it('groups numbers with the viewer locale while preserving Rp and the ISO source date', () => {
-    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
-    expect(formatFxEquivalent(100, match)).toContain('Rp 1,623,456');
+  it('prints a whole rate with thousands separators and no decimals, a fractional rate with at most two', () => {
+    expect(formatFxEquivalent(100000, { rate: 18500, rate_date: '2026-10-09' }, t)).toBe('≈ IDR 1,850,000,000 (using IDR 18,500 rate)');
+    expect(formatFxRate(16234.567)).toBe('16,234.57');
+    expect(formatFxRate(16234.5)).toBe('16,234.5');
+  });
+
+  it('keeps the publication date out of the visible text and in the source note', () => {
+    expect(formatFxEquivalent(100, match, t)).not.toContain('2026-10-09');
+    expect(fxRateSourceNote(match, t, '2026-10-10')).toBe(`JISDOR rate of ${formatDateOnly('2026-10-09')}`);
+    expect(fxRateSourceNote(match, t, '2026-10-09')).toBeNull();
+  });
+
+  it('a total of rows converted at their own date says so instead of naming one rate', () => {
+    expect(formatFxEquivalent(100, match, t, { eachDate: true })).toBe('≈ IDR 1,623,456 (using IDR rate of each date)');
+  });
+
+  it('writes the Indonesian form with the viewer number locale', () => {
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
-    expect(formatFxEquivalent(100, match)).toBe('≈ Rp 1.623.456 (JISDOR 2026-10-09)');
+    expect(formatFxEquivalent(100000, { rate: 18500, rate_date: '2026-10-09' }, tId)).toBe('≈ IDR 1.850.000.000 (kurs IDR 18.500)');
+    expect(formatFxEquivalent(100, match, tId)).toBe('≈ IDR 1.623.456 (kurs IDR 16.234,56)');
+    expect(formatFxEquivalent(100, match, tId, { eachDate: true })).toBe('≈ IDR 1.623.456 (kurs IDR tiap tanggal)');
+  });
+
+  it('the card caption names the rate and the rupiah figure carries ≈ IDR', () => {
+    expect(fxRateCaption({ rate: 18500, rate_date: '2026-10-09' }, t)).toBe('using IDR 18,500 rate');
+    expect(formatIdrApprox(1070000000)).toBe('≈ IDR 1,070,000,000');
   });
 
   it.each([
@@ -41,7 +72,14 @@ describe('display-only JISDOR equivalent', () => {
   ] as const)(
     'refuses an invalid amount or rate rather than formatting a false number',
     (amount, rate) => {
-      expect(() => formatFxEquivalent(amount, rate)).toThrow(RangeError);
+      expect(() => formatFxEquivalent(amount, rate, t)).toThrow(RangeError);
     },
   );
+
+  it('one conversion function: usd × rate, null for any unusable input', () => {
+    expect(convertUsdToIdr(100, 18500)).toBe(1850000);
+    expect(convertUsdToIdr(100, 0)).toBeNull();
+    expect(convertUsdToIdr(Infinity, 18500)).toBeNull();
+    expect(convertUsdToIdr(100, Number.NaN)).toBeNull();
+  });
 });

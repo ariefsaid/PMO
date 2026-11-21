@@ -41,6 +41,8 @@ vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpOrphans: () => ({ data: [], isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState, useProjectProcurements: () => procState }));
+// The drawer's budget block reads project budget data; its own tests cover it.
+vi.mock('@/src/components/procurement/DecisionSupportPanel', () => ({ DecisionSupportPanel: () => <div data-testid="decision-support-panel">Budget impact</div> }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { id: 'proj-1', currency: 'USD' } }) }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: (id?: string) => {
@@ -128,6 +130,18 @@ describe('Procurement drawer header (B4)', () => {
     expect(transitionSpy).not.toHaveBeenCalled();
     fireEvent.click(within(confirm).getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(transitionSpy).toHaveBeenCalledWith('p-1', 'Approved'));
+  });
+
+  it('shows Return as a visible drawer button beside Approve, not only in the menu, and it returns the request', async () => {
+    transitionSpy.mockClear();
+    procState.data = [row({ status: 'Requested', procurement_invoices: [], approved_by_id: null })];
+    renderBlock();
+    const drawer = screen.getByRole('dialog', { name: /Inverters/ });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Return procurement' });
+    await userEvent.type(within(confirm).getByLabelText(/Reason for returning/), 'Needs revising');
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Return' }));
+    await waitFor(() => expect(transitionSpy).toHaveBeenCalledWith('p-1', 'Rejected', 'Needs revising'));
   });
 
   it('AC-1578: Return from the list needs a comment and sends it with the rejection', async () => {
@@ -254,14 +268,17 @@ describe('Procurement list rows', () => {
     authState.role = 'Finance';
   });
 
-  it('B7: the stage band names only stages in use, in Request · Order · Receive · Pay words', () => {
+  // #2497: the company list uses the project tab's band: four fixed quarters, so each figure sits over its own bar.
+  it('B7: the stage band names the four stages in Request · Order · Receive · Pay words, empty ones at zero', () => {
     procState.data = [row({ id: 'o', status: 'Ordered', procurement_invoices: [] }), row({ id: 'r', status: 'Received', procurement_invoices: [] })];
     renderBlock('/procurement');
-    const band = screen.getByRole('group', { name: 'Procurement stages' });
+    const band = screen.getByRole('region', { name: 'Procurement stages' });
     const labels = within(band).getAllByRole('button').map((button) => button.textContent ?? '');
-    expect(labels).toHaveLength(2);   // stages with nothing in them are not drawn
-    expect(labels[0]).toMatch(/^Order/);
-    expect(labels[1]).toMatch(/^Receive/);
+    expect(labels).toHaveLength(4);
+    expect(labels[0]).toMatch(/^Request0/);
+    expect(labels[1]).toMatch(/^Order1/);
+    expect(labels[2]).toMatch(/^Receive1/);
+    expect(labels[3]).toMatch(/^Pay0/);
     expect(band).not.toHaveTextContent(/Ordered|Received/);
   });
 

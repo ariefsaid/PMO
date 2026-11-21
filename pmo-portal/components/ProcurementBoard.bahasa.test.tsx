@@ -47,8 +47,9 @@ describe('ProcurementBoard in Bahasa', () => {
     expect(titleIn('approved', 'Disetujui')).toBeInTheDocument();
     expect(titleIn('ordered', 'Dipesan')).toBeInTheDocument();
     expect(titleIn('received', 'Diterima')).toBeInTheDocument();
+    expect(titleIn('invoiced', 'Ditagih')).toBeInTheDocument();
     expect(titleIn('paid', 'Dibayar')).toBeInTheDocument();
-    for (const en of ['Request', 'Approved', 'Ordered', 'Received', 'Paid']) {
+    for (const en of ['Request', 'Approved', 'Ordered', 'Received', 'Invoiced', 'Paid']) {
       expect(screen.queryByText(en, { exact: true })).toBeNull();
     }
   });

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Cross-org probes use the reviewed expectations in isolation-probe-denominator.json.
+# Cross-org probes use the reviewed expectations in the isolation-probe-denominator.d/ fragments (unioned).
 # Writes require a dedicated disposable tenant A; never use a client org.
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DENOMINATOR="$SCRIPT_DIR/isolation-probe-denominator.json"
 for name in BASE ANON SERVICE JWT_B A_ORG B_ORG A_ROWS_JSON; do
   [ -n "${!name:-}" ] || { echo "isolation-probe: required input missing: $name" >&2; exit 2; }
 done
@@ -11,6 +10,8 @@ node "$SCRIPT_DIR/check-isolation-denominator.mjs" --validate-inputs || exit $?
 [ "$A_ORG" != "$B_ORG" ] || { echo 'isolation-probe: tenant A and B must differ' >&2; exit 2; }
 _work=$(mktemp -d "${TMPDIR:-/tmp}/isolation-probe.XXXXXX") || exit 2
 trap 'rm -rf "$_work"' EXIT
+DENOMINATOR="$_work/denominator.json"
+node "$SCRIPT_DIR/check-isolation-denominator.mjs" --emit "$DENOMINATOR" || exit 2
 jq '.tables' "$DENOMINATOR" > "$_work/tables"
 TABLES_JSON="$_work/tables"
 BODY="$_work/body"
@@ -93,7 +94,10 @@ if [ "${RPC_ONLY:-0}" != 1 ]; then
     code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?$pk=eq.$aid&select=$columns")
     # Granted tenant tables deny by returning []; none also permits a denied SELECT grant.
     table_read "table $t by-id read" "$code" none
-    if [ "${PROBE_A_DISPOSABLE:-0}" != 1 ]; then skip "$t update — needs disposable tenant A"; continue; fi
+    if [ "${PROBE_A_DISPOSABLE:-0}" != 1 ]; then
+      if [ "${PAIRED_READ_WRITE:-0}" = 1 ]; then say "  N/A  $t update — paired write run"; else skip "$t update — needs disposable tenant A"; fi
+      continue
+    fi
     code=$(req -X PATCH "${hdr_b[@]}" -H 'Prefer: return=representation' "$BASE/rest/v1/$t?$pk=eq.$aid" -d "{\"$pk\":\"$aid\"}")
     table_update "table $t update" "$code"
   done < <(jq -r '.[] | [.table,.has_org,.pk,.columns,.b_read,.by_id] | @tsv' "$TABLES_JSON")
@@ -125,7 +129,9 @@ rpc(){
         if [ "$shape" = must-deny ]; then flag "rpc $fn unexpectedly returned cross-tenant read data"; return; fi
         if [ "$shape" = own-org-no-foreign-ids ]; then
           # Own-org read: B legitimately gets a body, but it must hold no id or org id of tenant A.
-          jq -e --arg a_org "$A_ORG" --slurpfile rows "$A_ROWS_JSON" 'tojson as $t | ($rows[0] | map(.id)) + [$a_org] | all(.[]; . as $id | ($t | contains($id)) | not)' "$BODY" >/dev/null || { flag "rpc $fn returned other-tenant ids"; return; }
+          # Ids are stringified before containment so integer pks (stock_ledger.seq, #2636) compare
+          # by their decimal form; uuid ids are unchanged.
+          jq -e --arg a_org "$A_ORG" --slurpfile rows "$A_ROWS_JSON" 'tojson as $t | ($rows[0] | map(.id | tostring)) + [$a_org] | all(.[]; . as $id | ($t | contains($id)) | not)' "$BODY" >/dev/null || { flag "rpc $fn returned other-tenant ids"; return; }
           say "  PASS  rpc $fn (own-org read, no other-tenant ids)" >&2; return
         fi
         if [ "$shape" = null ]; then
@@ -232,6 +238,7 @@ if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc withdraw_tm_signoff "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\"}")
   c=$(rpc confirm_tm_signoff "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\"}")
   c=$(rpc create_native_tm_invoice "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\"}")
+  c=$(rpc create_native_progress_claim_invoice "{\"p_claim\":\"b0000000-0000-4000-8000-0000000000ad\"}")
   c=$(rpc get_financial_statement_catalogue "$(jq -nc --arg project "$A_PROJECT" '{p_project_id:$project}')")
   c=$(rpc get_financial_statement "$(jq -nc --arg project "$A_PROJECT" '{p_period_kind:"month",p_period_start:"2026-09-01",p_statement:"profit_and_loss",p_project_id:$project,p_view_kind:"project_totals",p_unassigned:false}')")
 else
@@ -247,6 +254,9 @@ fi
 c=$(rpc get_finance_hub_figures "{}")
 A_COMPANY=$(jq -r '.[]|select(.table=="companies")|.id' "$A_ROWS_JSON")
 A_SI=$(jq -r '.[]|select(.table=="sales_invoices")|.id' "$A_ROWS_JSON")
+if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
+  c=$(rpc set_project_billing_terms "{\"p_project\":\"$A_PROJECT\",\"p_stages\":[],\"p_day\":null,\"p_warn_days\":5,\"p_pct\":0}")
+else skip "set_project_billing_terms (projects)"; fi
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc get_projects_money_collection "{\"p_project_ids\":[\"$A_PROJECT\"]}")
 else skip "get_projects_money_collection (projects)"; fi
@@ -289,7 +299,8 @@ if [ -n "$A_PROC" ] && [ "$A_PROC" != null ]; then
 else skip "capture_subcontract_vendor_invoice (procurements)"; fi
 if [ -n "$A_PI" ] && [ "$A_PI" != null ]; then
   c=$(rpc attribute_subcontract_bill_lines "{\"p_invoice_id\":\"$A_PI\",\"p_lines\":[{\"boq_item_id\":\"$A_PI\",\"quantity\":1,\"rate\":1}]}")
-else skip "attribute_subcontract_bill_lines (procurement_invoices)"; fi
+  c=$(rpc void_subcontract_bill "{\"p_invoice_id\":\"$A_PI\",\"p_reason\":\"probe\"}")
+else skip "attribute_subcontract_bill_lines (procurement_invoices)"; skip "void_subcontract_bill (procurement_invoices)"; fi
 A_VAR=$(jq -r '.[]|select(.table=="po_variations")|.id' "$A_ROWS_JSON")
 A_BOQ=$(jq -r '.[]|select(.table=="boq_items")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PO" ] && [ "$A_PO" != null ] && [ -n "$A_BOQ" ] && [ "$A_BOQ" != null ]; then

@@ -2,7 +2,7 @@
 
 Status: bounded implementation handoff, 2026-10-19; no implementation or runtime acceptance claimed.
 Authority: signed `docs/specs/uxs-006-delivery-bahasa-batch-a.spec.md` (A2/A3/A4), DD-VOCAB-1 in `docs/decisions.md`, and the approved v024 polish P02. This document is self-contained; it extracts that approved residue without reopening alignment.
-Plan: `docs/plans/2026-10-19-phase-label-polish.md`.
+Plan: `phase-label-polish plan (2026-10-19, in git history)`.
 Deciding code: PRIMARY dev checkout at `3b3590ccd1ca5987f8cd34b3ba791aa41e8d03ef`; the reused planning checkout is older and is not the code baseline.
 
 ## Job and observed failure

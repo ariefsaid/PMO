@@ -32,6 +32,14 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
     expect(parent.label).toBe('Projects');
     expect(current).toEqual({ label: 'New project', i18nKey: 'projectForm.title.create' });
   });
+  it('shows the project between Projects and a work order, linking the project', () => {
+    const navigate = vi.fn();
+    const crumbs = breadcrumbForPath('/work-orders/w1', 'WO-1', navigate, true, undefined, '', { id: 'p1', name: 'Harbour' });
+    expect(crumbs.map((c) => c.label)).toEqual(['Projects', 'Harbour', 'WO-1']);
+    expect(crumbs[1].href).toBe('/projects/p1');
+    crumbs[1].onClick?.();
+    expect(navigate).toHaveBeenCalledWith('/projects/p1');
+  });
   it('AC-NAV-003: a module index route renders a single current crumb', () => {
     expect(breadcrumbForPath('/projects')).toEqual([{ label: 'Projects', i18nKey: 'shell.nav.projects' }]);
     expect(breadcrumbForPath('/sales')).toEqual([{ label: 'Sales Pipeline', i18nKey: 'shell.nav.sales' }]);

@@ -23,13 +23,16 @@ export interface PendingTransition {
   to: WorkOrderStatus;
 }
 
+/** One invoice's settlement in its own currency, on the gross basis (#2204); null figures are unknown or not applicable. */
 // eslint-disable-next-line react-refresh/only-export-components -- shared figures/helpers used across the work-orders split.
 export function invoiceBalanceFigures(invoice: InvoiceWithWorkOrder): { paid: number | null; unpaid: number | null } {
   if (invoice.status === 'Draft' || invoice.status === 'Cancelled') return { paid: null, unpaid: null };
   if (invoice.amount === null || invoice.erp_outstanding_amount === null) return { paid: null, unpaid: null };
-  if (invoice.status === 'Paid') return { paid: invoice.amount, unpaid: 0 };
-  const balance = summarizeInvoiceSettlement([invoice]);
-  return { paid: balance.paid, unpaid: balance.unpaid };
+  const summary = summarizeInvoiceSettlement([invoice]);
+  if (summary.denomination !== 'single') return { paid: null, unpaid: null };
+  // A Paid invoice still reads Unpaid 0 (unchanged); its Paid figure is on the same gross basis as every other row.
+  if (invoice.status === 'Paid') return { paid: summary.gross, unpaid: 0 };
+  return { paid: summary.settled, unpaid: summary.outstanding };
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- shared figures/helpers used across the work-orders split.
@@ -61,8 +64,8 @@ export const MoneyFigure: React.FC<{ label: string; value: string; detail?: stri
 );
 
 export const QuantityFigure: React.FC<{ label: string; value: string; detail?: string }> = ({ label, value, detail }) => (
-  <div className="flex items-baseline justify-between gap-2">
-    <dt><Tooltip content={detail ?? 'Source: project billing records.'}><span className="cursor-help">{label}</span></Tooltip></dt>
-    <dd className="cursor-help tabular-nums text-foreground"><Tooltip content={detail ?? 'Source: project billing records.'}><span>{value}</span></Tooltip></dd>
+  <div className="min-w-0">
+    <dt className="text-sm text-muted-foreground"><Tooltip content={detail ?? 'Source: project billing records.'}><span className="cursor-help">{label}</span></Tooltip></dt>
+    <dd className="mt-1 w-fit cursor-help text-group font-semibold tabular-nums text-foreground"><Tooltip content={detail ?? 'Source: project billing records.'}><span>{value}</span></Tooltip></dd>
   </div>
 );

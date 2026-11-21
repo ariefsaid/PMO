@@ -32,6 +32,8 @@ export interface PmoMaster {
   active?: boolean;
   /** The PMO unit of an item, mapped to the ERP's unit by the adapter. */
   unit?: string | null;
+  /** An account send (#1599 ECX-4): the ERP expense group the new leaf account goes under, chosen in PMO. */
+  parentAccount?: string | null;
 }
 
 /** `commitDeadlineAtMs`: the money outbox's claim deadline; past it the create must be refused, not issued (ADR-0058 BLOCK 10). */
@@ -48,6 +50,8 @@ export interface ConnectAdapter {
   readonly projectCodeField?: PmoProjectCodeField;
   /** One page of a kind, keyset-paged; `nextCursor` is null on the last page. */
   listMasters(kind: MasterKind, cursor: string | null): Promise<{ rows: NormalisedMaster[]; nextCursor: string | null }>;
+  /** True when this ERP may take every census count at once (#2119). Absent means one count at a time (Odoo, #1767). */
+  readonly parallelCensus?: boolean;
   /** Census, read-only: how many records `listMasters` would page through. */
   countDomain(domain: string): Promise<number>;
   /** Lookup-then-create: a retry with the same record finds the first attempt's document instead of creating another. */

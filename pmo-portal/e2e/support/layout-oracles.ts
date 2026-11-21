@@ -1,8 +1,9 @@
 import { expect, type Page, type Locator } from '@playwright/test';
 import { pinEnglishLocale, signIn, waitForFonts } from '../helpers';
+import { VISUALLY_HIDDEN_SRC } from './visually-hidden';
 
 export async function findBleeders(page: Page, vw: number) {
-  return page.evaluate((vw) => {
+  return page.evaluate(([vw, hiddenSrc]) => {
     const tol = 2;
     const inScroller = (el: Element): boolean => {
       let p = el.parentElement;
@@ -13,11 +14,12 @@ export async function findBleeders(page: Page, vw: number) {
       }
       return false;
     };
+    const inClippedBox = new Function(`return ${hiddenSrc}`)() as (el: Element) => boolean;
     const out: { tag: string; cls: string; right: number; text: string }[] = [];
     document.querySelectorAll('body *').forEach((el) => {
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) return;
-      if (r.right > vw + tol && !inScroller(el)) {
+      if (r.right > vw + tol && !inScroller(el) && !inClippedBox(el)) {
         out.push({
           tag: el.tagName.toLowerCase(),
           cls: (el.getAttribute('class') ?? '').slice(0, 60),
@@ -29,7 +31,7 @@ export async function findBleeders(page: Page, vw: number) {
     // De-dup parents that share the same right edge (report the outermost few).
     out.sort((a, b) => b.right - a.right);
     return out.slice(0, 12);
-  }, vw);
+  }, [vw, VISUALLY_HIDDEN_SRC] as const);
 }
 
 interface OversizedIcon {
@@ -1258,17 +1260,18 @@ export async function assertCompactProjectHeader(page: Page) {
   await expect(stages.first()).toBeVisible();
   const count = await stages.count();
   for (let i = 0; i < count; i++) {
-    const value = stages.nth(i).locator(':scope > dd.text-right').first();
+    // The figure is the tile's first dd (label above it, the share-of-contract caption below).
+    const value = stages.nth(i).locator(':scope > dd').first();
     const visible = (await value.evaluate((el) => {
       const clone = el.cloneNode(true) as HTMLElement;
       clone.querySelectorAll('.sr-only, button, [data-testid="fx-equivalent"]').forEach((n) => n.remove());
       return clone.textContent ?? '';
     })).trim();
-    expect(visible, `tile ${i} value is a figure or omitted when unknown, never prose`)
-      .toMatch(/^(|[^A-Za-z]*\d[\d.,%\s]*[^A-Za-z]*|[A-Z$€£]{1,4}\s?[\d.,\s]+)$/);
+    // A tile figure may carry its compact unit ("$7.8M", "Rp 13,6 M"): the shared FIGURE_TEXT shape.
+    expect(visible === '' || FIGURE_TEXT.test(visible), `tile ${i} value "${visible}" is a figure or omitted when unknown, never prose`).toBe(true);
     const box = await stages.nth(i).evaluate((el) => {
       const stage = el.getBoundingClientRect();
-      const v = el.querySelector(':scope > dd.text-right') as HTMLElement;
+      const v = el.querySelector(':scope > dd') as HTMLElement;
       const value = v.getBoundingClientRect();
       return { overflow: v.scrollWidth - v.clientWidth, left: value.left, right: value.right, stageLeft: stage.left, stageRight: stage.right, vw: window.innerWidth };
     });

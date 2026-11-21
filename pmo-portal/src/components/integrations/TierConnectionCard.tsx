@@ -110,14 +110,14 @@ export const TierConnectionCard: React.FC<TierConnectionCardProps> = ({
         <Icon name="plug" />
         <h3 className="text-group text-foreground font-semibold">{tierLabel(tier)}</h3>
         {setupIncomplete
-          ? <StatusPill variant="warn" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.notReady', 'Not ready yet: {{count}} steps left', { count: missingSetupSteps.length })}</StatusPill>
+          ? <StatusPill wrap variant="warn" className="min-w-0 max-w-full shrink">{t('uxs07.notReady', 'Not ready yet: {{count}} steps left', { count: missingSetupSteps.length })}</StatusPill>
           : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !canManageIntegrations
-          ? <StatusPill variant="neutral" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.setupAdminRequired', 'Ask an administrator to check setup')}</StatusPill>
+          ? <StatusPill wrap variant="neutral" className="min-w-0 max-w-full shrink">{t('uxs07.setupAdminRequired', 'Ask an administrator to check setup')}</StatusPill>
           : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !erpSetup
-          ? <StatusPill variant={erpSetupUnavailable ? 'warn' : 'neutral'} className="min-w-0 max-w-full shrink whitespace-normal break-words">{erpSetupUnavailable ? t('uxs07.setupUnavailable', 'Setup status unavailable') : t('uxs07.setupChecking', 'Checking setup')}</StatusPill>
+          ? <StatusPill wrap variant={erpSetupUnavailable ? 'warn' : 'neutral'} className="min-w-0 max-w-full shrink">{erpSetupUnavailable ? t('uxs07.setupUnavailable', 'Setup status unavailable') : t('uxs07.setupChecking', 'Checking setup')}</StatusPill>
           : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && erpSetup
           ? <span className="text-control font-medium text-success-text">{t('uxs07.ready', 'Ready')}</span>
-          : <StatusPill variant={pillVariant} className="min-w-0 max-w-full shrink whitespace-normal break-words">{pillLabel}</StatusPill>}
+          : <StatusPill wrap variant={pillVariant} className="min-w-0 max-w-full shrink">{pillLabel}</StatusPill>}
       </div>
 
       {setupIncomplete && (

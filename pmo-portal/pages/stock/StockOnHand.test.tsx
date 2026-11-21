@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useParams } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import i18next from 'i18next';
@@ -39,6 +39,8 @@ const NewMovementPage: React.FC = () => {
   return <p>{`new movement: ${kind ?? ''}`}</p>;
 };
 
+const LocationProbe: React.FC = () => { const l = useLocation(); return <p data-testid="loc">{l.pathname + l.search}</p>; };
+
 /** The page inside the stock route table, so a control that navigates can be observed. */
 const renderRouted = (role: Role = 'Admin') => {
   realRole = role;
@@ -50,6 +52,7 @@ const renderRouted = (role: Role = 'Admin') => {
         <MemoryRouter initialEntries={['/stock']}>
           <Routes>
             <Route path="/stock" element={<StockOnHand />} />
+            <Route path="/procurement/new" element={<LocationProbe />} />
             <Route path="/stock/documents" element={<p>documents page</p>} />
             <Route path="/stock/ledger" element={<p>ledger page</p>} />
             <Route path="/stock/new/:kind" element={<NewMovementPage />} />
@@ -243,6 +246,26 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     expect(screen.queryByText('CEM')).not.toBeInTheDocument();
   });
 
+  it('AC-STK-RESTOCK-3 the below-level view offers "Request purchase" per row, and the plain list does not', async () => {
+    reorder.worklist.mockResolvedValue([{ itemId: 'i1', itemCode: 'CEM', itemName: 'Cement 50kg', unitCode: 'bag', warehouseId: 'w1', warehouseCode: 'SITE-A', qtyOnHand: '70', reorderLevel: '100', reorderQuantity: null }]);
+    master.listWarehouses.mockResolvedValue([{ id: 'w1', code: 'SITE-A', name: 'Site A', kind: 'site', project_id: 'p1', archived_at: null }]);
+    renderPage('Engineer');
+    await screen.findByText('CEM');
+    expect(screen.queryByRole('button', { name: /^Request purchase/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('checkbox', { name: /below reorder level/i }));
+    expect(await screen.findByRole('button', { name: 'Request purchase for CEM' })).toBeInTheDocument();
+  });
+
+  it('AC-STK-RESTOCK-1 Request purchase carries the store\'s average unit value, and nothing when unknown', async () => {
+    reorder.worklist.mockResolvedValue([{ itemId: 'i1', itemCode: 'CEM', itemName: 'Cement 50kg', unitCode: 'bag', warehouseId: 'w1', warehouseCode: 'SITE-A', qtyOnHand: '70', reorderLevel: '100', reorderQuantity: null }]);
+    reports.onHand.mockResolvedValue([{ ...row, valueOnHand: '3500.00', avgCost: '50.0000' }]);
+    renderRouted('Admin');
+    await screen.findByText('CEM');
+    await userEvent.click(screen.getByRole('checkbox', { name: /below reorder level/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Request purchase for CEM' }));
+    expect(new URL((await screen.findByTestId('loc')).textContent!, 'http://x').searchParams.get('lineRate')).toBe('50.0000');
+  });
+
   it('the worklist is not fetched while the filter is off', async () => {
     renderPage();
     await screen.findByText('CEM');
@@ -260,17 +283,17 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
   it('FR-STK-064 view-as is view-only: an Admin viewing as an Engineer sees no movement buttons', async () => {
     renderPage('Admin', 'Engineer');
     await screen.findByText('CEM');
-    expect(screen.queryByRole('button', { name: 'Issue to project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Issue to project' })).not.toBeInTheDocument();
   });
 
   it('FR-STK-064 movement actions appear only for a keeper (Admin always); a non-keeper sees none', async () => {
     const { unmount } = renderPage('Engineer');
     await screen.findByText('CEM');
-    expect(screen.queryByRole('button', { name: 'Issue to project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Issue to project' })).not.toBeInTheDocument();
     unmount();
     master.listKeepers.mockResolvedValue([{ warehouse_id: 'w1', user_id: 'me', org_id: 'org-1' }]);
     renderPage('Engineer');
-    expect(await screen.findByRole('button', { name: 'Issue to project' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Issue to project' })).toBeInTheDocument();
   });
 
   it('typing in search narrows the list by code or name', async () => {
@@ -361,10 +384,22 @@ describe('AC-STK-032 floor: every control on the balance list still works', () =
     expect(await screen.findByText('documents page')).toBeInTheDocument();
   });
 
+  it('AC-2077 Issue to project is one tab stop: a link with no button inside it', async () => {
+    const user = userEvent.setup();
+    renderRouted();
+    const link = await screen.findByRole('link', { name: 'Issue to project' });
+    expect(link).toHaveAttribute('href', '/stock/new/issue');
+    expect(link.querySelector('button')).toBeNull();
+    const more = screen.getByRole('button', { name: 'More' });
+    link.focus();
+    await user.tab();
+    expect(more).toHaveFocus();
+  });
+
   it('Issue to project starts an issue movement', async () => {
     renderRouted();
     await screen.findByText('CEM');
-    await userEvent.click(await screen.findByRole('button', { name: 'Issue to project' }));
+    await userEvent.click(await screen.findByRole('link', { name: 'Issue to project' }));
     expect(await screen.findByText('new movement: issue')).toBeInTheDocument();
   });
 

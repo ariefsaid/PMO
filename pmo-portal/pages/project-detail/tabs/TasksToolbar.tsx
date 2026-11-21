@@ -10,12 +10,12 @@ import {
   Icon,
   SearchMini,
   SelectField,
-  TextField,
   ViewToggle,
 } from '@/src/components/ui';
 import type { TaskStatus } from '@/src/lib/db/tasks';
 import { STATUSES, STATUS_OPTIONS, type ViewMode, type TaskScope, type BulkAction } from './taskViewModel';
 import type { ProfileRow } from '@/src/lib/db/profiles';
+import { DateField } from '@/src/components/ui/DateField';
 
 
 /** The tasks toolbar: heading, more-options menu, filters, search, view toggle and the bulk bars. */
@@ -31,6 +31,9 @@ const TasksToolbar: React.FC<{
   onNewTask: () => void;
   scope: TaskScope;
   setTaskScope: (scope: TaskScope) => void;
+  workOrderFilter: string;
+  onWorkOrderFilter: (value: string) => void;
+  workOrderOptions: { value: string; label: string }[];
   statusFilter: TaskStatus | 'all';
   onStatusFilter: (value: TaskStatus | 'all') => void;
   assigneeFilter: string;
@@ -71,6 +74,9 @@ const TasksToolbar: React.FC<{
   onNewTask,
   scope,
   setTaskScope,
+  workOrderFilter,
+  onWorkOrderFilter,
+  workOrderOptions,
   statusFilter,
   onStatusFilter,
   assigneeFilter,
@@ -155,6 +161,11 @@ const TasksToolbar: React.FC<{
             />
           </div>
           <div className="min-w-[144px] flex-1 sm:flex-none">
+            <SelectField id="tasks-filter-work-order" hideLabel
+              label={t('tasks:workOrderFilter.label', 'Filter by work order')} value={workOrderFilter} onChange={onWorkOrderFilter}
+              options={[{ value: 'all', label: t('tasks:workOrderFilter.all', 'All work orders') }, { value: 'none', label: t('tasks:workOrderFilter.none', 'No work order') }, ...workOrderOptions]} />
+          </div>
+          <div className="min-w-[144px] flex-1 sm:flex-none">
             <SelectField
               id="tasks-filter-assignee"
               hideLabel
@@ -216,9 +227,8 @@ const TasksToolbar: React.FC<{
             options={[{ value: '', label: t('projectDetail.tasks.bulk.chooseAssignee', 'Choose an assignee') }, { value: '__unassigned__', label: t('projectDetail.tasks.unassigned', 'Unassigned') }, ...assignableProfiles.map((profile) => ({ value: profile.id, label: profile.full_name }))]}
           />}
           {bulkAction === 'due' && <>
-            <TextField
+            <DateField
               label={t('projectDetail.tasks.bulk.dueDateLabel', 'Due date for selected tasks')}
-              type="date"
               value={bulkDueDate}
               onChange={(value) => { setBulkDueDate(value); setBulkClearDueDate(false); }}
               disabled={bulkClearDueDate}

@@ -11,7 +11,7 @@ import { type EditRow, computeTotals, diffEntries, gridIsValid, parseHourCell, s
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDayRange } from '@/src/lib/format';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
-import { dayKey, planCopyLastWeekRows } from './timesheetWeekModel';
+import { dayKey, planCopyLastWeekRows, weekSaveState } from './timesheetWeekModel';
 import { TimesheetStatus } from '../../types';
 
 type Props = {
@@ -63,12 +63,16 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
         const note =
           currentWeekEntries.find((e) => e.project_id === r.id && (e.notes ?? '') !== '')?.notes ??
           '';
+        // #2517: the row's work order / discipline is what its lines carry (one row = one project's week).
+        const attributed = currentWeekEntries.find((e) => e.project_id === r.id && (e.work_order_id || e.discipline_id));
         return {
           project_id: r.id,
           project: r.project,
           code: r.code,
           hours: r.hours.map((h) => (h === 0 ? '' : String(h))),
           note,
+          attribution: { workOrderId: attributed?.work_order_id ?? null, disciplineId: attributed?.discipline_id ?? null },
+          originalAttribution: { workOrderId: attributed?.work_order_id ?? null, disciplineId: attributed?.discipline_id ?? null },
         };
       }),
     [gridRows, currentWeekEntries]
@@ -79,6 +83,10 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
     [currentTimesheet?.id, currentTimesheet?.status, weekStartString]
   );
   const [editRows, setEditRows] = useState<EditRow[]>(seedRows);
+  // #2559: the edit buffer (by identity) that last saved / failed. Any later edit or reseed (a week
+  // change) yields a new buffer, so these states are per-week and end at the next edit.
+  const [savedRows, setSavedRows] = useState<EditRow[] | null>(null);
+  const [failedRows, setFailedRows] = useState<EditRow[] | null>(null);
   const lastSeedKey = useRef<string | null>(null);
   if (lastSeedKey.current !== seedKey) {
     lastSeedKey.current = seedKey;
@@ -125,6 +133,8 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
         entry_date: e.entry_date,
         hours: e.hours,
         notes: e.notes ?? null,
+        work_order_id: e.work_order_id ?? null,
+        discipline_id: e.discipline_id ?? null,
       })),
     [currentWeekEntries]
   );
@@ -189,6 +199,14 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
     );
   const setNote = (rowId: string, note: string) =>
     setEditRows((rows) => rows.map((r) => (r.project_id === rowId ? { ...r, note } : r)));
+  // #2517: a row's work order and discipline, saved with the row's lines on the next Save.
+  const setAttribution = (rowId: string, attribution: NonNullable<EditRow['attribution']>) =>
+    setEditRows((rows) => rows.map((r) => (r.project_id === rowId ? { ...r, attribution } : r)));
+  const rowAttributions = editRows.map((r) => ({
+    projectId: r.project_id,
+    project: r.project,
+    attribution: r.attribution ?? { workOrderId: null, disciplineId: null },
+  }));
   const addProject = (projectId: string) => {
     const proj = (allProjects ?? []).find((p) => p.id === projectId);
     if (!proj || presentProjectIds.has(projectId)) return;
@@ -200,6 +218,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
         code: proj.code,
         hours: ['', '', '', '', '', '', ''],
         note: '',
+        attribution: { workOrderId: null, disciplineId: null },
       },
     ]);
   };
@@ -288,16 +307,22 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
       toast(...saveToastForChangeCount(0));
       return;
     }
+    const savedBuffer = editRows;
+    setFailedRows(null);
     saveWeek.mutate(
       { currentTimesheetId, weekStartDate: weekStartString, diff },
       {
         // Quiet success toast; the user stays on the editable grid (no view/navigation change).
         onSuccess: (sheetId) => {
           savedSheetIds.current.set(weekStartString, sheetId);
+          setSavedRows(savedBuffer);
           toast(...saveToastForChangeCount(changeCount));
         },
-        onError: (err: { message: string }) =>
-          toast(t('timesheets.toast.saveFailed', 'Save failed'), err.message, 'warning'),
+        // The edits stay in the buffer; the status line says so and the toast names the reason.
+        onError: (err: unknown) => {
+          setFailedRows(savedBuffer);
+          toast(t('timesheets.toast.saveFailed', 'Save failed'), classifyMutationError(err).detail, 'warning');
+        },
       }
     );
   };
@@ -311,6 +336,16 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
   // text such as "8h" or a newly picked project with no valid hours cannot be saved, but leaving
   // still loses what the user typed.
   const hasUnsavedBuffer = dirty || JSON.stringify(editRows) !== JSON.stringify(seedRows);
+
+  const saveState = weekSaveState({
+    reconciling: deleteRow.isPending || isReconciling,
+    saving: saveWeek.isPending,
+    invalid: !editValid,
+    failed: failedRows === editRows,
+    saved: savedRows === editRows,
+    dirty,
+    hasEntries: currentWeekEntries.length > 0,
+  });
 
   const weeklyTotal = useMemo(
     () => currentWeekEntries.reduce((sum, e) => sum + e.hours, 0),
@@ -427,13 +462,15 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
           diff,
         });
         savedSheetIds.current.set(weekStartString, sheetId);
+        setSavedRows(editRows);
       } catch (err: unknown) {
         // Auto-save failed — don't attempt the submit; surface the error.
         submittingRef.current = false;
         setConfirmSubmit(false);
+        setFailedRows(editRows);
         toast(
           t('timesheets.toast.saveFailed', 'Save failed'),
-          err instanceof Error ? err.message : undefined,
+          classifyMutationError(err).detail,
           'warning',
         );
         return;
@@ -470,11 +507,11 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
   };
 
   return {
-    view: { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
+    view: { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes, rowAttributions,
       editRawHours, rowToDelete, dirty, hasUnsavedBuffer, weeklyTotal, pendingWeekDelta, weekRangeLabel,
-      isOwner, editBufferHasHours, canSubmit, confirmSubmit,
+      isOwner, editBufferHasHours, canSubmit, confirmSubmit, saveState,
       copyPlan: { addedCount: copyPlan.addedCount, lastWeekHasRows: copySource.length > 0 } },
-    actions: { setCell, setNote, addProject, copyLastWeek, requestDelete: setConfirmDeleteRowId,
+    actions: { setCell, setNote, setAttribution, addProject, copyLastWeek, requestDelete: setConfirmDeleteRowId,
       cancelDelete: () => setConfirmDeleteRowId(null), confirmDeleteRow, commitSave,
       stepWeek, cancelWeekChange: () => setPendingWeekDelta(null),
       confirmWeekChange: () => { if (pendingWeekDelta !== null) moveWeek(pendingWeekDelta); setPendingWeekDelta(null); },

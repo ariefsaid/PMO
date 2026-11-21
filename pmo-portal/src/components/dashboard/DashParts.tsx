@@ -83,9 +83,9 @@ export const WaitsOnYou: React.FC<{
           : error ? <ListState variant="error" title={t('home.waitsError', "Couldn't load what waits on you")} onRetry={onRetry} quiet />
             : rows.length === 0 && !lead ? <p className="py-2.5 text-control text-muted-foreground">{emptyLabel ?? t('home.waitsNone', 'Nothing waits on you.')}</p>
               : (
-                <ul className={cn('divide-y divide-border', band && 'min-[900px]:grid min-[900px]:grid-cols-3 min-[900px]:gap-x-[var(--space-panel-gap)] min-[900px]:divide-y-0')}>
+                <ul className={cn('divide-y divide-border', band && 'min-[900px]:grid min-[900px]:grid-flow-col min-[900px]:auto-cols-fr min-[900px]:divide-x min-[900px]:divide-y-0 min-[900px]:pb-3')}>
                   {lead}
-                  {rows.map((row) => <WaitItem key={row.id} row={row} />)}
+                  {rows.map((row) => <WaitItem key={row.id} row={row} band={band} />)}
                 </ul>
               )}
       </div>
@@ -97,7 +97,22 @@ export const WaitsOnYou: React.FC<{
  * One row of "Waits on you", the same design as an approval item: what (the count in words, in the exception
  * colour only when overdue), its one supporting fact under it, the amount in its own right-aligned column.
  */
-const WaitItem: React.FC<{ row: WaitRow }> = ({ row }) => (
+const WaitItem: React.FC<{ row: WaitRow; band?: boolean }> = ({ row, band = false }) => band ? (
+  // In a band each kind is a figure: the count large, what it counts under it, the chevron pinned to the cell's edge.
+  <li className="min-[900px]:px-[var(--panel-inset)] min-[900px]:first:pl-0 min-[900px]:last:pr-0">
+    <Link
+      to={row.href}
+      className="grid min-h-11 grid-cols-[minmax(0,1fr)_1rem] items-start gap-x-3 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      <span className="min-w-0">
+        <span className={cn('block text-metric font-semibold leading-tight tabular', COUNT_TONE[row.tone])}>{row.count}</span>
+        <span className="block break-words text-control font-medium">{row.label}</span>
+        {(row.detail || row.amount) && <span className="block break-words text-control text-muted-foreground tabular">{[row.detail, row.amount].filter(Boolean).map((part, index) => <React.Fragment key={index}>{index > 0 && ' · '}{part}</React.Fragment>)}</span>}
+      </span>
+      <span className="mt-2.5"><Chevron /></span>
+    </Link>
+  </li>
+) : (
   <li>
     <Link
       to={row.href}
@@ -256,8 +271,8 @@ export const ProjectRows: React.FC<{
     'minmax(0,1.6fr)',
     ...(showStructuredNeeds ? ['repeat(4,minmax(2.7rem,0.35fr))'] : showReason ? ['minmax(0,1.3fr)'] : []),
     showDelivery ? '5rem' : null,
-    showBudget ? '6rem' : null,
-    '9rem',
+    showBudget ? '7.5rem' : null,
+    '14rem',
   ].filter(Boolean).join(' ');
   const sorted = [...rows.filter((row) => row.offTrack || row.reason), ...rows.filter((row) => !row.offTrack && !row.reason)];
   const firstExceptionIndex = sorted.findIndex((row) => row.offTrack);
@@ -321,8 +336,8 @@ export const ProjectRows: React.FC<{
                             className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring min-[900px]:[grid-template-columns:var(--cols)]"
                           >
                             <span className="min-w-0 text-control font-medium">{row.name}</span>
-                            {/* A long translated status wraps inside its cell: it never runs over the figure beside it. */}
-                            <span className={cn(showStructuredNeeds ? 'min-[900px]:order-8' : 'min-[900px]:order-5', 'min-w-0 max-w-full justify-self-end text-right')}><StatusPill className="py-2" variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{rowStatus}</StatusPill></span>
+                            {/* The status column is wide enough for the longest translated status on one line. */}
+                            <span className={cn(showStructuredNeeds ? 'min-[900px]:order-8' : 'min-[900px]:order-5', 'min-w-0 max-w-full justify-self-end text-right')}><StatusPill wrap={false} variant={toneVariant(statusTone('project', row.status) === 'exception' ? 'exception' : 'neutral')}>{rowStatus}</StatusPill></span>
                             {showStructuredNeeds && row.needs ? (
                               <>
                               <span className="col-span-2 hidden grid-cols-2 gap-x-5 gap-y-0.5 text-control tabular min-[900px]:contents">

@@ -163,6 +163,8 @@ const submittedSheets: TimesheetAwaitingApproval[] = [
         hours: 8,
         notes: null,
         org_id: 'org-1',
+        work_order_id: null,
+        discipline_id: null,
         project: { name: 'Project Alpha', code: 'PA' },
       },
     ],
@@ -1116,5 +1118,46 @@ describe('Approvals page — T18 supplementary read errors and scoped retry (AC-
     );
     expect(screen.queryByRole('region', { name: /ERP pushes needing attention/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: /Employee links awaiting confirmation/i })).not.toBeInTheDocument();
+  });
+});
+
+// AC-NBR-030 — each queue group renders from its own read (no whole-list gate on the slowest read).
+describe('AC-NBR-030 per-group loading', () => {
+  it('(P) invoices pending, procurement + timesheets settled: those groups answer, no caught-up', () => {
+    authState.role = 'Admin';
+    queryState.data = [];
+    procState.data = [];
+    invoiceState.isPending = true;
+    renderPage('all');
+    expect(screen.getByText('No procurement cases awaiting your decision')).toBeInTheDocument();
+    expect(screen.getByText('No timesheets awaiting your decision')).toBeInTheDocument();
+    expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+  });
+
+  it('(P) a pending timesheet read does not hold a settled procurement group', () => {
+    authState.role = 'Admin';
+    queryState.data = undefined;
+    queryState.isPending = true;
+    procState.data = [];
+    renderPage('all');
+    expect(screen.getByText('No procurement cases awaiting your decision')).toBeInTheDocument();
+    const procurementGroup = screen.getByRole('heading', { name: 'Procurement cases' }).parentElement?.parentElement;
+    const timesheetGroup = screen.getByRole('heading', { name: /^Timesheets$/ }).parentElement?.parentElement;
+    expect(procurementGroup).not.toBeNull();
+    expect(within(procurementGroup as HTMLElement).queryByTestId('liststate-loading')).toBeNull();
+    expect(timesheetGroup).not.toBeNull();
+    expect(within(timesheetGroup as HTMLElement).getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+  });
+
+  it('(F) a failed timesheet read leaves the settled procurement group available and reports its own failure', () => {
+    authState.role = 'Admin';
+    queryState.data = undefined;
+    queryState.isError = true;
+    procState.data = [];
+    renderPage('all');
+    expect(screen.getByText('No procurement cases awaiting your decision')).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load timesheets")).toBeInTheDocument();
+    expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
   });
 });

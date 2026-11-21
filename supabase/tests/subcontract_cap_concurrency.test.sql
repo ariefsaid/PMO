@@ -3,7 +3,7 @@
 -- Delete subcontract_po_lock from the capture and the first capture sails through instead.
 begin;
 create extension if not exists pgtap;
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 select plan(5);
 
 -- F1: org A (multi-member), org B (other tenant), org S (sole member). Inserted as superuser, before `set local role`.

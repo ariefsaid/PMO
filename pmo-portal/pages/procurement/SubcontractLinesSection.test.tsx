@@ -5,6 +5,7 @@ import React from 'react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/documents';
 import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { formatCurrency } from '@/src/lib/format';
 import type { SubcontractPoPositionRow, SubcontractCapExceptionRow } from '@/src/lib/db/subcontracts';
@@ -16,6 +17,7 @@ const h = vi.hoisted(() => ({
   draft: { data: [] as unknown[], isPending: false },
   acceptances: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   exceptions: { data: [] as unknown[], isError: false },
+  docs: [] as unknown[],
   issue: vi.fn(),
   requestVariation: vi.fn(),
   variations: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
@@ -41,7 +43,7 @@ vi.mock('@/src/hooks/useSubcontract', () => ({
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => h.may }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [{ id: 'u1', status: 'active' }, { id: 'u2', status: 'active' }] }) }));
-vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs }) }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }) }));
 
@@ -56,7 +58,7 @@ const TWO = [
   row({ boq_item_id: 'e2', item_code: 'L2', unit: 'm', rate: 40000, po_qty: 50, verified: 30, verified_not_on_po: 0, billed: 10, payable: 20 }),
 ];
 
-function renderSection() {
+function renderSection(open?: DocumentViewerApi['open']) {
   const i18n = createInstance();
   void i18n.init({
     lng: 'en', fallbackLng: 'en', ns: ['procurement'], defaultNS: 'procurement', interpolation: { escapeValue: false },
@@ -64,8 +66,9 @@ function renderSection() {
   });
   return render(
     <I18nextProvider i18n={i18n}>
-      <ToastProvider>
-        <SubcontractLinesSection poId="po1" procurementId="pr1" projectId="prj1" currency="IDR" currentUserId="u1" />
+      <ToastProvider>{open
+        ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}><SubcontractLinesSection poId="po1" procurementId="pr1" projectId="prj1" currency="IDR" currentUserId="u1" /></DocumentViewerContext.Provider>
+        : <SubcontractLinesSection poId="po1" procurementId="pr1" projectId="prj1" currency="IDR" currentUserId="u1" />}
       </ToastProvider>
     </I18nextProvider>,
   );
@@ -76,6 +79,7 @@ beforeEach(() => {
   h.draft = { data: [], isPending: false };
   h.acceptances = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.exceptions = { data: [], isError: false };
+  h.docs = [];
   h.variations = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.may = vi.fn(() => true);
   h.issue.mockReset().mockResolvedValue(undefined);
@@ -171,6 +175,27 @@ describe('SubcontractLinesSection', () => {
     expect(screen.queryByRole('button', { name: /attribute lines/i })).toBeNull();
   });
 
+  it('document-preview AC-016 opens the signed subcontract acceptance document in the viewer', async () => {
+    const open = vi.fn<DocumentViewerApi['open']>();
+    h.docs = [{ id: 'd1', title: 'Signed memo', status: 'Issued', file_path: 'org/prj1/d1/m.pdf', source: 'upload' }];
+    h.acceptances = { data: [{ id: 'a1', status: 'Confirmed', acceptance_date: '2026-10-20', document_id: 'd1', confirm_basis: 'standard', lines: [] }], isPending: false, isError: false, refetch: vi.fn() };
+    renderSection(open);
+    await userEvent.click(await screen.findByRole('button', { name: 'Preview Signed memo' }));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][0].key).toBe('project-document:d1');
+  });
+
+  it('document-preview AC-017 distinguishes an unreadable linked acceptance from no linked document', async () => {
+    h.docs = [];
+    h.acceptances = { data: [{ id: 'a1', status: 'Confirmed', acceptance_date: '2026-10-20', document_id: 'd1', confirm_basis: 'standard', lines: [] }], isPending: false, isError: false, refetch: vi.fn() };
+    renderSection();
+    expect(await screen.findByText('Signed document:')).toBeInTheDocument();
+    expect(screen.getByText('Document not available')).toBeInTheDocument();
+    expect(screen.queryByText(/No signed document linked/)).toBeNull();
+    expect(screen.queryByText('d1')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Preview/ })).toBeNull();
+  });
+
   it('FR-SCA-010 Record acceptance is gated by can(prepare, subcontractAcceptance)', async () => {
     h.may = vi.fn((a: string, e: string) => !(a === 'prepare' && e === 'subcontractAcceptance'));
     renderSection();
@@ -194,7 +219,7 @@ describe('SubcontractLinesSection', () => {
       fireEvent.click(screen.getByRole('button', { name: /record acceptance/i }));
 
       // The UTC day is still Jun 1; the org day is Jun 2.
-      expect(await screen.findByLabelText(/^Period date/)).toHaveValue('2026-06-02');
+      expect(await screen.findByLabelText(/^Period date/)).toHaveValue('2 Jun 2026');
     } finally {
       vi.useRealTimers();
       resetActiveLocale();

@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/documents';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { Role } from '@/src/auth/AuthContext';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
 
 const h = vi.hoisted(() => ({
+  reconciliation: vi.fn(() => ({ data: [], isPending: false, isError: false, refetch: vi.fn() })),
   list: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   billing: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   age: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
@@ -19,12 +21,15 @@ const h = vi.hoisted(() => ({
   documents: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   orderLines: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   claims: [] as unknown[],
+  erpConnected: true,
+  m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
   mode: 'erp' as 'erp' | 'native' | undefined,
   routeReady: true,
   synced: true,
   role: 'Finance' as string,
 }));
 // #1457: the invoice-overdue figure is bounded by the org's business day (fixed here per test file).
+vi.mock('@/src/components/tasks/WorkOrderOpenTasks', () => ({ WorkOrderOpenTasks: () => null }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
   useFxOrgDay: () => ({ day: '2026-06-01', isPending: false, isError: false, retry: vi.fn() }),
 }));
@@ -43,7 +48,7 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
   useBoqItems: () => h.boq,
   useProjectBilling: () => h.projectBilling,
   useProjectClaims: () => ({ data: h.claims, isPending: false, isError: false, refetch: vi.fn() }),
-  useProgressBillingMutations: () => ({}),
+  useProgressBillingMutations: () => h.m,
 }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -52,9 +57,15 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderAcceptanceMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.documents }));
+// #2522: the claim drawer's billing stages; a claim with no stage plan renders nothing.
+vi.mock('@/src/hooks/useBillingStages', () => ({
+  useBillingReconciliation: h.reconciliation,
+  useClaimBillingTrace: () => ({ data: { stages: [], retention: null, deadline: null }, isPending: false, isError: false, refetch: vi.fn() }),
+  useBillingStageMutations: () => ({ attachDocument: { mutateAsync: vi.fn(), isPending: false }, completeStage: { mutateAsync: vi.fn(), isPending: false } }),
+}));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderAcceptanceAge: () => h.age }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
-vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true }) }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.erpConnected }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({
   useRevenueRouteReady: (mode: unknown) => h.routeReady && mode !== undefined,
@@ -90,10 +101,11 @@ const bill = (over: Partial<WorkOrderBillingRow> = {}): WorkOrderBillingRow => (
   workOrderId: 'wo-1', projectId: 'p1', status: 'Issued', currency: 'USD', orderNet: 500_000, invoiced: 330_000,
   pending: 90_000, paid: 100_000, remaining: 80_000, figuresComplete: true, lineCount: 6, unpaidCount: 3, ...over,
 });
-const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null, initialEntry = '/', autoInvoiceWorkOrderId: string | null = null) => {
+const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null, initialEntry = '/', autoInvoiceWorkOrderId: string | null = null, open?: DocumentViewerApi['open']) => {
   h.role = role;
+  const content = <><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} autoInvoiceWorkOrderId={autoInvoiceWorkOrderId} /><RouteSearch /></>;
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} autoInvoiceWorkOrderId={autoInvoiceWorkOrderId} /><RouteSearch /></ToastProvider></MemoryRouter>,
+    <MemoryRouter initialEntries={[initialEntry]}><ToastProvider>{open ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>{content}</DocumentViewerContext.Provider> : content}</ToastProvider></MemoryRouter>,
   );
 };
 
@@ -112,6 +124,9 @@ beforeEach(() => {
   h.documents = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.orderLines = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.claims = [];
+  h.erpConnected = true;
+  h.m = Object.fromEntries(['createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice', 'raiseNativeInvoice', 'recordAssessment']
+    .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
   h.mode = 'erp';
   h.routeReady = true;
   h.synced = true;
@@ -156,19 +171,24 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   });
 
   it('AC-1402 opens the customer-order drawer from its order number', async () => {
+    h.reconciliation.mockClear();
     const user = userEvent.setup();
     renderTab();
 
+    expect(screen.getByRole('region', { name: 'Billing reconciliation' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'View details for WO-1' }));
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('region', { name: 'Billing reconciliation' })).toBeInTheDocument();
+    expect(h.reconciliation).toHaveBeenCalledWith('p1', null);
+    expect(h.reconciliation).toHaveBeenCalledWith('p1', 'wo-1');
     expect(within(screen.getByRole('dialog')).getByText('Customer PO')).toBeInTheDocument();
     expect(screen.getByTestId('route-search')).toHaveTextContent('open=wo-1');
     expect(screen.getByTestId('route-search')).toHaveTextContent('openType=workOrder');
   });
 
   it('AC-1402 an Engineer can read orders without seeing invoice, rate, or drawdown money', () => {
-    h.invoices = { data: [{ id: 'si-1', work_order_id: 'wo-1', status: 'Unpaid', amount: 100_000, erp_outstanding_amount: 100_000, si_number: 'INV-1' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.invoices = { data: [{ currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-1', work_order_id: 'wo-1', status: 'Unpaid', amount: 100_000, erp_outstanding_amount: 100_000, si_number: 'INV-1' }], isPending: false, isError: false, refetch: vi.fn() };
     renderTab('Engineer');
 
     expect(screen.getByTestId('customer-order-wo-1')).toBeInTheDocument();
@@ -234,9 +254,9 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   it('AC-1402 omits aggregate payment figures until every invoice balance is known', async () => {
     h.invoices = {
       data: [
-        { id: 'si-part', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 250_000, si_number: 'INV-1' },
-        { id: 'si-unknown', work_order_id: 'wo-1', status: 'Unpaid', amount: 120_000, erp_outstanding_amount: null, si_number: 'INV-2' },
-        { id: 'si-paid', work_order_id: 'wo-1', status: 'Paid', amount: 50_000, erp_outstanding_amount: 0, si_number: 'INV-3' },
+        { currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-part', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 250_000, si_number: 'INV-1' },
+        { currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-unknown', work_order_id: 'wo-1', status: 'Unpaid', amount: 120_000, erp_outstanding_amount: null, si_number: 'INV-2' },
+        { currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-paid', work_order_id: 'wo-1', status: 'Paid', amount: 50_000, erp_outstanding_amount: 0, si_number: 'INV-3' },
       ],
       isPending: false,
       isError: false,
@@ -259,7 +279,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
   it('AC-1402 sums settled amounts when all submitted invoice balances are known', () => {
     h.invoices = {
-      data: [{ id: 'si-part', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 250_000, si_number: 'INV-1' }],
+      data: [{ currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-part', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 250_000, si_number: 'INV-1' }],
       isPending: false,
       isError: false,
       refetch: vi.fn(),
@@ -272,6 +292,75 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(figures.getByText('Unpaid')).toBeInTheDocument();
     expect(figures.getByText('250,000')).toBeInTheDocument();
     expect(screen.queryByText('Invoice figures are incomplete.')).toBeNull();
+  });
+
+  it('AC-SET-001 #2204 a customer order holding invoices in two currencies shows no added-up Invoiced, Paid or Unpaid', () => {
+    h.billing.data = [bill({ figuresComplete: false })];
+    h.invoices = { data: [
+      { id: 'si-usd', work_order_id: 'wo-1', status: 'Unpaid', currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, amount: 330_000, erp_outstanding_amount: 250_000, si_number: 'INV-USD' },
+      { id: 'si-eur', work_order_id: 'wo-1', status: 'Unpaid', currency: 'EUR', tax_treatment: 'inclusive', tax_amount: 0, amount: 70_000, erp_outstanding_amount: 70_000, si_number: 'INV-EUR' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    const order = screen.getByTestId('customer-order-wo-1');
+    const money = within(screen.getByTestId('wo-money-wo-1'));
+    expect(screen.getByTestId('wo-money-wo-1')).not.toHaveTextContent(/400,000|320,000/);
+    // Unknown reads "—" with its reason, never a blank or an added-up figure.
+    for (const label of ['Invoiced', 'Paid', 'Unpaid']) {
+      expect(money.getByText(label).closest('div')!).toHaveTextContent(new RegExp(`^${label}—$`));
+    }
+    expect(within(order).getByText('Invoices on this order are in more than one currency, so they are not added up.')).toBeInTheDocument();
+  });
+
+  it('AC-SET-005 #2204 a fully paid tax-exclusive order invoice reads Paid + Unpaid = Invoiced, all including tax', () => {
+    h.invoices = { data: [
+      { id: 'si-excl', work_order_id: 'wo-1', status: 'Paid', currency: 'USD', tax_treatment: 'exclusive', tax_amount: 11_000, amount: 100_000, erp_outstanding_amount: 0, si_number: 'INV-EXCL' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    const figures = within(screen.getByTestId('wo-money-wo-1'));
+    expect(within(figures.getByText('Invoiced').closest('div')!).getByText('111,000')).toBeInTheDocument();
+    expect(within(figures.getByText('Paid').closest('div')!).getByText('111,000')).toBeInTheDocument();
+    expect(within(figures.getByText('Unpaid').closest('div')!).getByText('0')).toBeInTheDocument();
+  });
+
+  it('AC-SET-006 #2204 a customer order never adds overdue balances in two currencies', () => {
+    h.invoices = { data: [
+      { id: 'si-usd', work_order_id: 'wo-1', status: 'Unpaid', currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, amount: 330_000, erp_outstanding_amount: 250_000, erp_due_date: '2020-01-01', si_number: 'INV-USD' },
+      { id: 'si-eur', work_order_id: 'wo-1', status: 'Unpaid', currency: 'EUR', tax_treatment: 'inclusive', tax_amount: 0, amount: 70_000, erp_outstanding_amount: 70_000, erp_due_date: '2020-01-01', si_number: 'INV-EUR' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    const order = screen.getByTestId('customer-order-wo-1');
+    expect(within(order).getByTestId('wo-overdue-wo-1')).toHaveTextContent(/^Overdue—$/);
+    expect(order).not.toHaveTextContent('320,000');
+  });
+
+  it('AC-SET-002 #2204 customer-order figures settle tax-exclusive and tax-inclusive invoices on one gross basis', async () => {
+    h.invoices = { data: [
+      { id: 'si-excl', work_order_id: 'wo-1', status: 'Unpaid', currency: 'USD', tax_treatment: 'exclusive', tax_amount: 11_000, amount: 100_000, erp_outstanding_amount: 111_000, si_number: 'INV-EXCL' },
+      { id: 'si-incl', work_order_id: 'wo-1', status: 'Paid', currency: 'USD', tax_treatment: 'inclusive', tax_amount: 11_000, amount: 111_000, erp_outstanding_amount: 0, si_number: 'INV-INCL' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    const figures = within(screen.getByTestId('wo-money-wo-1'));
+    // Gross 222,000 less 111,000 owed: 111,000 settled (amount-minus-balance read 100,000).
+    expect(within(figures.getByText('Invoiced').closest('div')!).getByText('222,000')).toBeInTheDocument();
+    expect(within(figures.getByText('Paid').closest('div')!).getByText('111,000')).toBeInTheDocument();
+    expect(within(figures.getByText('Unpaid').closest('div')!).getByText('111,000')).toBeInTheDocument();
+
+    const order = screen.getByTestId('customer-order-wo-1');
+    await userEvent.click(within(order).getByRole('button', { name: 'Open invoice INV-EXCL' }));
+    const drawer = within(screen.getByRole('dialog'));
+    // The unpaid exclusive invoice reads nothing paid, never a negative tax-sized "paid".
+    expect(within(drawer.getByText('Paid').closest('div')!).getByText(/\$0\b/)).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).not.toHaveTextContent(/-\$11,000|\$-11,000/);
+    expect(within(drawer.getByText('Unpaid', { selector: 'dt *' }).closest('div')!).getByText('$111,000')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(within(order).getByRole('button', { name: 'Open invoice INV-INCL' }));
+    const inclusive = within(screen.getByRole('dialog'));
+    expect(within(inclusive.getByText('Paid', { selector: 'dt *' }).closest('div')!).getByText('$111,000')).toBeInTheDocument();
+    expect(within(inclusive.getByText('Unpaid', { selector: 'dt *' }).closest('div')!).getByText('$0')).toBeInTheDocument();
   });
 
   it('M17 empty register explains client PO drawdown without showing zero billing totals', () => {
@@ -303,7 +392,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
   it('AC-1402 keeps each order money summary tied to invoice balances', async () => {
     h.invoices = { data: [
-      { id: 'si-paid', work_order_id: 'wo-1', status: 'Paid', amount: 330_000, erp_outstanding_amount: 0, si_number: 'INV-PAID' },
+      { currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-paid', work_order_id: 'wo-1', status: 'Paid', amount: 330_000, erp_outstanding_amount: 0, si_number: 'INV-PAID' },
     ], isPending: false, isError: false, refetch: vi.fn() };
     h.claims = [{ id: 'si-paid', work_order_id: 'wo-1', kind: 'down_payment', withdrawn_at: null,
       down_payment_amount: 330_000, gross_amount: 330_000, invoice: { status: 'Paid', si_number: 'INV-PAID', amount: 330_000 } }];
@@ -316,7 +405,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(figures.getAllByText('330,000')).toHaveLength(2);
     expect(screen.getByRole('heading', { name: 'Claims & down payment' })).toBeInTheDocument();
     expect(screen.getByText('Down payment held')).toBeInTheDocument();
-    expect(within(screen.getByText('Down payment held').parentElement!).getByText('330,000')).toBeInTheDocument();
+    expect(within(screen.getByText('Down payment held').parentElement!).getByText('$330,000')).toBeInTheDocument();
   });
 
   it('AC-BWO-004 Finance gets Invoice on an Issued work order with something left; it opens the dialog with what is left', async () => {
@@ -387,7 +476,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
       );
       await userEvent.click(screen.getByRole('button', { name: /^Tagih/ }));
       await userEvent.click(screen.getByRole('button', { name: 'modal-created-numbered' }));
-      expect(screen.getByText('Draf dibuat. Pengguna Finance atau Admin lain harus mengajukan faktur ini.')).toBeInTheDocument();
+      expect(screen.getByText('Draf dibuat. Pengguna Finance atau Admin lain harus mengajukan invoice ini.')).toBeInTheDocument();
     } finally {
       await financeTestI18n.changeLanguage('en');
     }
@@ -426,7 +515,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
   it('AC-1402 keeps orderless invoices visible and opens their detail drawer', async () => {
     h.list.data = [];
-    h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Unpaid', amount: 12_345.6,
+    h.invoices = { data: [{ tax_treatment: 'inclusive', tax_amount: 0, id: 'si-orphan', work_order_id: null, status: 'Unpaid', amount: 12_345.6,
       erp_outstanding_amount: 2_345.6, si_number: 'INV-ORPHAN', invoice_date: '2026-10-04', currency: 'USD' }],
     isPending: false, isError: false, refetch: vi.fn() };
     const user = userEvent.setup();
@@ -437,18 +526,19 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     const openButtons = within(section).getAllByRole('button', { name: 'Open invoice INV-ORPHAN' });
     expect(openButtons.length).toBeGreaterThan(0);
     expect(within(section).getAllByText(formatDay('2026-10-04')).length).toBeGreaterThan(0);
-    expect(within(section).getAllByText('12,346').length).toBeGreaterThan(0);
-    expect(within(section).getAllByText('10,000').length).toBeGreaterThan(0);
-    expect(within(section).getAllByText('2,346').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText('$12,346').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText('$10,000').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText('$2,346').length).toBeGreaterThan(0);
     expect(section).toHaveTextContent('Unpaid');
-    expect(section.textContent).not.toMatch(/\$|\.00/);
+    // Every amount names its currency in whole units: no decimals.
+    expect(section.textContent).not.toMatch(/\.00/);
     await user.click(openButtons[0]);
     expect(within(screen.getByRole('dialog')).getByRole('link', { name: 'Open full page' })).toHaveAttribute('href', '/sales-invoices/si-orphan');
     expect(screen.getByTestId('route-search')).toHaveTextContent('open=si-orphan&openType=workOrderInvoice');
   });
 
   it('AC-1402 opens the invoice detail drawer from its status pill', async () => {
-    h.invoices = { data: [{ id: 'si-direct', work_order_id: 'wo-1', status: 'Unpaid', amount: 12_000,
+    h.invoices = { data: [{ tax_treatment: 'inclusive', tax_amount: 0, id: 'si-direct', work_order_id: 'wo-1', status: 'Unpaid', amount: 12_000,
       erp_outstanding_amount: 8_000, si_number: 'INV-DIRECT', invoice_date: '2026-10-05', currency: 'USD' }],
     isPending: false, isError: false, refetch: vi.fn() };
     renderTab();
@@ -460,7 +550,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   });
 
   it('AC-1402 omits unknown invoice figures and offers one retry for the order block', async () => {
-    h.invoices = { data: [{ id: 'si-unknown', work_order_id: 'wo-1', status: 'Unpaid', amount: 12_000,
+    h.invoices = { data: [{ tax_treatment: 'inclusive', tax_amount: 0, id: 'si-unknown', work_order_id: 'wo-1', status: 'Unpaid', amount: 12_000,
       erp_outstanding_amount: null, si_number: 'INV-UNKNOWN', currency: 'USD' }],
     isPending: false, isError: false, refetch: vi.fn() };
     renderTab();
@@ -474,7 +564,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   });
 
   it('AC-1402 hides invoice rows and every money figure from an Engineer', () => {
-    h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Paid', amount: 12_000,
+    h.invoices = { data: [{ tax_treatment: 'inclusive', tax_amount: 0, id: 'si-orphan', work_order_id: null, status: 'Paid', amount: 12_000,
       erp_outstanding_amount: 0, si_number: 'INV-PRIVATE', currency: 'USD' }],
     isPending: false, isError: false, refetch: vi.fn() };
     renderTab('Engineer');
@@ -485,7 +575,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
   it('AC-1402 leaves paid and unpaid unknown without offering Retry when accounting has no balance', () => {
     h.list.data = [];
-    h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Paid', amount: 12_000,
+    h.invoices = { data: [{ currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, id: 'si-orphan', work_order_id: null, status: 'Paid', amount: 12_000,
       erp_outstanding_amount: null, si_number: 'INV-ORPHAN' }], isPending: false, isError: false, refetch: vi.fn() };
     renderTab();
 
@@ -514,11 +604,230 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   });
 });
 
+describe('WorkOrdersTab — a claim is billed in PMO when no ERP owns revenue (#2465, AC-PBL-NAT-004)', () => {
+  const FACTS = { currency: 'USD', contractNet: 500_000, workBilled: 0, dpBilled: 0, dpRecovered: 0, notSubmitted: 0,
+    assessment: null, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 0, contractLines: [] };
+  const claim = (id: string, over: Record<string, unknown> = {}) => ({ id, kind: 'progress', created_at: '2026-06-01T00:00:00Z', withdrawn_at: null,
+    gross_amount: 10_000, dp_recovery_amount: 2_000, invoice: null,
+    evidence: [{ id: `e-${id}`, document_id: 'doc-1', document_status: 'Issued', document_revision: 'A' }], lines: [], ...over });
+  beforeEach(() => {
+    h.projectBilling = { data: FACTS, isPending: false, isError: false, refetch: vi.fn() };
+    h.claims = [claim('claim-1')];
+    h.mode = 'native'; h.erpConnected = false;
+  });
+  const rowActions = async (user: ReturnType<typeof userEvent.setup>) => {
+    const claims = screen.getByRole('table', { name: 'Claims & down payment' });
+    await user.click(within(claims).getByRole('button', { name: 'Row actions' }));
+  };
+
+  describe('document evidence in the claim drawer', () => {
+    const evidenceClaim = () => [{ id: 'cl-1', work_order_id: 'wo-1', kind: 'progress', withdrawn_at: null, created_at: '2026-10-01T00:00:00Z',
+      down_payment_amount: null, gross_amount: 100_000, dp_recovery_amount: 0, invoice: null,
+      evidence: [{ id: 'ev-1', document_id: 'doc-9', document_status: 'active', document_revision: 'A' }] }];
+
+    it('document-preview AC-016 opens work-order claim evidence by its readable document title', async () => {
+      h.claims = evidenceClaim();
+      h.documents = { data: [{ id: 'doc-9', title: 'Site report', status: 'Issued', file_path: 'org/p/doc-9/r.pdf', source: 'upload' }], isPending: false, isError: false, refetch: vi.fn() };
+      const open = vi.fn<DocumentViewerApi['open']>();
+      renderTab('Finance', 'c-1', null, '/?open=cl-1&openType=workOrderClaim', null, open);
+      expect(screen.queryByText('doc-9')).toBeNull();
+      await userEvent.click(await screen.findByRole('button', { name: 'Preview Site report' }));
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(open.mock.calls[0][0].key).toBe('project-document:doc-9');
+    });
+
+    it('document-preview AC-017 reports unavailable work-order evidence without a raw id', async () => {
+      h.claims = evidenceClaim();
+      renderTab('Finance', 'c-1', null, '/?open=cl-1&openType=workOrderClaim');
+      expect(await screen.findByText('Document not available')).toBeInTheDocument();
+      expect(screen.queryByText('doc-9')).toBeNull();
+      expect(screen.queryByRole('button', { name: /Preview/ })).toBeNull();
+    });
+  });
+
+  it('offers New claim, Attach evidence, Raise invoice and Withdraw to Finance with no ERP', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
+    await rowActions(user);
+    for (const name of ['Attach evidence', 'Raise invoice', 'Withdraw']) expect(await screen.findByRole('menuitem', { name })).toBeInTheDocument();
+  });
+
+  it('creates the PMO invoice from the claim, naming a PMO Draft, and never calls the ERP raise', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
+    const dialog = screen.getByRole('dialog', { name: "Create this claim's invoice?" });
+    expect(within(dialog).getByText(/A draft invoice is created in PMO/)).toBeInTheDocument();
+    expect(within(dialog).getByTestId('raise-figures')).toHaveTextContent('Net');
+    await user.click(within(dialog).getByRole('button', { name: 'Create invoice' }));
+    expect(h.m.raiseNativeInvoice.mutateAsync).toHaveBeenCalledExactlyOnceWith('claim-1');
+    expect(h.m.raiseInvoice.mutateAsync).not.toHaveBeenCalled();
+    expect(await findToastAnnouncement('status', 'Invoice drafted in PMO')).toBeInTheDocument();
+  });
+
+  it('names a claim recovered in full in plain words', async () => {
+    const { AppError } = await import('@/src/lib/appError');
+    h.m.raiseNativeInvoice.mutateAsync.mockRejectedValue(new AppError('the invoice total must be above zero', 'invoice-total-invalid'));
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
+    await user.click(within(screen.getByRole('dialog', { name: "Create this claim's invoice?" })).getByRole('button', { name: 'Create invoice' }));
+    expect(await findToastAnnouncement('alert', "This claim's net is zero, so there is nothing to invoice. Withdraw it.")).toBeInTheDocument();
+  });
+
+  it.each([
+    ['claim-already-invoiced', 'This claim already has an invoice.'],
+    ['claim-erp-raise-in-flight', 'An invoice for this claim is still being raised in the ERP. Wait for it to finish.'],
+  ])('names a %s refusal in plain words', async (code, words) => {
+    const { AppError } = await import('@/src/lib/appError');
+    h.m.raiseNativeInvoice.mutateAsync.mockRejectedValue(new AppError('refused', code as never));
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
+    await user.click(within(screen.getByRole('dialog', { name: "Create this claim's invoice?" })).getByRole('button', { name: 'Create invoice' }));
+    expect(await findToastAnnouncement('alert', words)).toBeInTheDocument();
+  });
+
+  it('keeps the ERP raise when the ownership read fails in an ERP-connected organisation (the route is not decided)', async () => {
+    h.mode = 'native'; h.routeReady = false; h.erpConnected = true;
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
+    const dialog = screen.getByRole('dialog', { name: "Raise this claim's invoice?" });
+    await user.click(within(dialog).getByRole('button', { name: 'Create ERP invoice' }));
+    expect(h.m.raiseInvoice.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(h.m.raiseNativeInvoice.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('withdraws an open claim', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Withdraw' }));
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Withdraw claim' }));
+    expect(h.m.withdrawClaim.mutateAsync).toHaveBeenCalledExactlyOnceWith('claim-1');
+  });
+
+  it('leaves a time-and-materials claim to its own section: no Raise here', async () => {
+    h.claims = [claim('tm-1', { kind: 'time_materials', dp_recovery_amount: 0 })];
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    expect(await screen.findByRole('menuitem', { name: 'Attach evidence' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Raise invoice' })).toBeNull();
+  });
+
+  const openPanel = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole('button', { name: /^Open Progress claim/ }));
+    return screen.findByRole('dialog', { name: 'Progress' });
+  };
+  const RAISED = { id: 'claim-1', status: 'Unpaid', si_number: 'INV-1', amount: 8000 };
+
+  it('opens the claim after its route is set and closes it without reopening', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    const panel = await openPanel(user);
+    expect(screen.getByTestId('route-search')).toHaveTextContent('openType=workOrderClaim');
+    await user.click(within(panel).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Progress' })).not.toBeInTheDocument());
+    expect(screen.getByTestId('route-search')).toBeEmptyDOMElement();
+  });
+
+  it('puts Raise invoice first in the row menu, and in the side panel, when the claim has evidence and is open', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    expect((await screen.findAllByRole('menuitem'))[0]).toHaveAccessibleName('Raise invoice');
+    await user.keyboard('{Escape}');
+    const panel = await openPanel(user);
+    await user.click(within(panel).getByRole('button', { name: 'Raise invoice' }));
+    expect(screen.getByRole('dialog', { name: "Create this claim's invoice?" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['has no evidence', { evidence: [] }, 'Attach evidence'],
+    ['is withdrawn', { withdrawn_at: '2026-06-02T00:00:00Z' }, null],
+    ['already has an invoice', { invoice: RAISED }, null],
+  ])('offers no Raise in the row menu or the side panel when the claim %s', async (_n, over, instead) => {
+    h.claims = [claim('claim-1', over)];
+    const user = userEvent.setup();
+    renderTab();
+    const menu = within(screen.getByRole('table', { name: 'Claims & down payment' })).queryByRole('button', { name: 'Row actions' });
+    if (menu) { await user.click(menu); expect(screen.queryByRole('menuitem', { name: 'Raise invoice' })).toBeNull(); await user.keyboard('{Escape}'); }
+    const panel = await openPanel(user);
+    expect(within(panel).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    if (instead) expect(within(panel).getByRole('button', { name: instead })).toBeInTheDocument();
+  });
+
+  it('offers no Raise in the side panel for a time-and-materials claim, or to a Project Manager', async () => {
+    h.claims = [claim('tm-1', { kind: 'time_materials', dp_recovery_amount: 0 })];
+    const user = userEvent.setup();
+    renderTab();
+    await user.click(screen.getByRole('button', { name: /^Open Progress claim/ }));
+    expect(within(await screen.findByRole('dialog', { name: 'Progress' })).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    cleanup();
+    h.claims = [claim('claim-1')];
+    renderTab('Project Manager');
+    expect(within(await openPanel(user)).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+  });
+
+  it('offers the ERP raise from the side panel when an ERP owns revenue', async () => {
+    h.mode = 'erp'; h.erpConnected = true;
+    const user = userEvent.setup();
+    renderTab();
+    await user.click(within(await openPanel(user)).getByRole('button', { name: 'Raise invoice' }));
+    expect(screen.getByRole('dialog', { name: "Raise this claim's invoice?" })).toBeInTheDocument();
+  });
+
+  it('says evidence is needed first only while an open claim lacks it', () => {
+    const note = /Claims need evidence attached before an invoice draft can be raised/;
+    renderTab();
+    expect(screen.queryByText(note)).toBeNull();
+    cleanup();
+    h.claims = [claim('claim-1'), claim('claim-2', { evidence: [] })];
+    renderTab();
+    expect(screen.getByText(note)).toBeInTheDocument();
+    cleanup();
+    h.claims = [claim('claim-2', { evidence: [], withdrawn_at: '2026-06-02T00:00:00Z' }), claim('claim-3', { evidence: [], invoice: RAISED })];
+    renderTab();
+    expect(screen.queryByText(note)).toBeNull();
+  });
+
+  it('offers nothing to a Project Manager, with no client, or before the revenue route is decided', () => {
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
+    cleanup();
+    renderTab('Finance', null);
+    expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
+    cleanup();
+    h.routeReady = false;
+    renderTab();
+    expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
+  });
+
+  it('keeps the ERP raise, with its own words, when an ERP owns revenue', async () => {
+    h.mode = 'erp'; h.erpConnected = true;
+    const user = userEvent.setup();
+    renderTab();
+    await rowActions(user);
+    await user.click(await screen.findByRole('menuitem', { name: 'Raise invoice' }));
+    const dialog = screen.getByRole('dialog', { name: "Raise this claim's invoice?" });
+    await user.click(within(dialog).getByRole('button', { name: 'Create ERP invoice' }));
+    expect(h.m.raiseInvoice.mutateAsync).toHaveBeenCalledTimes(1);
+    expect(h.m.raiseNativeInvoice.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
 describe('WorkOrdersTab — billing by work order: restored oracles (AC-BWO-003/004, AC-UNB-002, NFR-BWO-005)', () => {
   // The per-order Invoiced/Paid figures read the project's invoices; this fixture matches the server billing row
   // (invoiced 330,000 · paid 100,000 · draft 90,000 · still to invoice 80,000).
   const invoicesMatchingBill = () => ({
-    data: [{ id: 'si-1', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 230_000, si_number: 'INV-1', currency: 'USD' }],
+    data: [{ tax_treatment: 'inclusive', tax_amount: 0, id: 'si-1', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 230_000, si_number: 'INV-1', currency: 'USD' }],
     isPending: false, isError: false, refetch: vi.fn(),
   });
 
@@ -531,6 +840,17 @@ describe('WorkOrdersTab — billing by work order: restored oracles (AC-BWO-003/
     expect(figures.getByText('Invoiced').closest('dt')!.parentElement).toHaveTextContent('330,000');
     expect(figures.getByText('Paid').closest('dt')!.parentElement).toHaveTextContent('100,000');
     expect(within(order).getByText('Still to invoice 80,000')).toBeInTheDocument();
+  });
+
+  it('#2204 an incomplete same-currency billing projection never exposes calculated order totals', () => {
+    h.billing.data = [bill({ figuresComplete: false, problems: [{ recordId: 'si-9', number: 'INV-9', cause: 'no-amount', currency: 'USD' }] })];
+    h.invoices = { data: [{ id: 'si-1', work_order_id: 'wo-1', status: 'Paid', currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, amount: 100, erp_outstanding_amount: 0, si_number: 'INV-1' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+    const order = screen.getByTestId('customer-order-wo-1');
+    const figures = within(screen.getByTestId('wo-money-wo-1'));
+    for (const label of ['Invoiced', 'Paid', 'Unpaid', 'Still to invoice']) expect(figures.queryByText(label)).not.toBeInTheDocument();
+    expect(order).toHaveTextContent('INV-9 has no amount');
+    expect(within(order).queryByRole('button', { name: /Raise invoice/ })).not.toBeInTheDocument();
   });
 
   it('SUB-C the always-on summary note is gone, but the incomplete-totals note stays', () => {
@@ -602,6 +922,32 @@ describe('WorkOrdersTab — billing by work order: restored oracles (AC-BWO-003/
       h.role = 'Finance';
       render(<MemoryRouter><FinanceI18nTestProvider><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" /></ToastProvider></FinanceI18nTestProvider></MemoryRouter>);
       expect(within(screen.getByTestId('customer-order-wo-1')).getByText('Menunggu dikirim')).toBeInTheDocument();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
+  });
+
+  const renderBahasaTab = () => { h.role = 'Finance'; return render(<MemoryRouter><FinanceI18nTestProvider><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" /></ToastProvider></FinanceI18nTestProvider></MemoryRouter>); };
+
+  it('an organisation where PMO owns billing reads no ERP in the empty claims card in Bahasa', async () => {
+    h.mode = 'native';
+    await financeTestI18n.changeLanguage('id');
+    try {
+      renderBahasaTab();
+      expect(screen.getByText('Belum ada tagihan')).toBeInTheDocument();
+      expect(screen.getByText('Satu tagihan menagih uang muka atau kuantitas yang diterima sebagai satu invoice.')).toBeInTheDocument();
+      expect(screen.queryByText(/ERP/)).not.toBeInTheDocument();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
+  });
+
+  it('an ERP-owned organisation keeps the ERP wording in the empty claims card', async () => {
+    h.mode = 'erp';
+    await financeTestI18n.changeLanguage('id');
+    try {
+      renderBahasaTab();
+      expect(screen.getByText('Satu tagihan menagih uang muka atau kuantitas yang diterima sebagai satu invoice ERP.')).toBeInTheDocument();
     } finally {
       await financeTestI18n.changeLanguage('en');
     }

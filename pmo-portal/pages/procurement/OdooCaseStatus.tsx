@@ -3,6 +3,7 @@
  * shown while Odoo cannot be reached, and the two decisions for a held payment. Renders nothing for an org PMO owns or when nothing
  * is outstanding, so those screens stay exactly as they were. Settled records show their state in the ledger's status column.
  */
+import { cn } from '@/src/components/ui/cn';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, TextField } from '@/src/components/ui';
@@ -24,11 +25,12 @@ type CaseCommand = PurchaseCommand | RevenueCommand;
 type Decision = { command: CaseCommand; resolution: 'adopt' | 'absent' };
 
 /** The ownership cache is the gate, so a PMO-owned domain reads and subscribes to nothing here. */
-export const OdooCaseStatus: React.FC<{ procurementId?: string; invoiceId?: string }> = ({ procurementId, invoiceId }) =>
+/** Frameless: it sits inside the section it reports on (the record header's band, the invoice's Bill evidence); `className` places it. */
+export const OdooCaseStatus: React.FC<{ procurementId?: string; invoiceId?: string; className?: string }> = ({ procurementId, invoiceId, className }) =>
   (procurementId && odooOwnsProcurement()) || (invoiceId && odooOwnsRevenueTier(domainTier('revenue') ?? undefined))
-    ? <OdooCaseStatusBody procurementId={procurementId} invoiceId={invoiceId} /> : null;
+    ? <OdooCaseStatusBody procurementId={procurementId} invoiceId={invoiceId} className={className} /> : null;
 
-const OdooCaseStatusBody: React.FC<{ procurementId?: string; invoiceId?: string }> = ({ procurementId, invoiceId }) => {
+const OdooCaseStatusBody: React.FC<{ procurementId?: string; invoiceId?: string; className?: string }> = ({ procurementId, invoiceId, className }) => {
   const { t } = useTranslation('procurement');
   const purchaseCommands = useOdooPurchaseCommands(procurementId ?? '');
   const revenueCommands = useOdooRevenueCommands(invoiceId, Boolean(invoiceId));
@@ -75,7 +77,7 @@ const OdooCaseStatusBody: React.FC<{ procurementId?: string; invoiceId?: string 
   };
 
   return (
-    <section data-testid="odoo-case-status" aria-label={t('odoo.waiting.title', 'Waiting on Odoo')} className="mb-3 space-y-2 rounded-lg border border-border bg-card px-4 py-3">
+    <section data-testid="odoo-case-status" aria-label={t('odoo.waiting.title', 'Waiting on Odoo')} className={cn('space-y-2', className)}>
       {showUnreachable && (
         <p data-testid="odoo-unreachable" role="status" className="text-sm text-foreground">
           {t('odoo.unreachable', 'Odoo cannot be reached. Showing what PMO last read, {{age}}. Try again once Odoo is back.', { age: formatRelativeTime(lastOkAt) })}

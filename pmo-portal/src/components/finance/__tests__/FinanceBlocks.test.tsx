@@ -65,7 +65,7 @@ describe('Finance blocks', () => {
       />,
     );
 
-    expect(screen.getByTestId('ageing-bucket-IDR-d0_30').firstElementChild).toHaveStyle({ background: 'hsl(var(--muted-foreground) / 0.55)' });
+    expect(screen.getByTestId('ageing-bucket-IDR-d0_30').firstElementChild).toHaveStyle({ background: 'hsl(var(--mark-neutral) / 0.55)' });
     expect(screen.getByTestId('ageing-bucket-IDR-d31_60').firstElementChild).toHaveStyle({ background: 'hsl(var(--warning) / 0.48)' });
     expect(screen.getByTestId('ageing-bucket-IDR-d61_90').firstElementChild).toHaveStyle({ background: 'hsl(var(--warning) / 0.72)' });
     expect(screen.getByTestId('ageing-segment-IDR-d31_60')).toHaveStyle({ background: 'hsl(var(--warning) / 0.48)' });
@@ -155,16 +155,16 @@ describe('Finance blocks', () => {
     const { rerender } = render(<MemoryRouter><FinanceAttention {...props} canAct /><CurrentLocation /></MemoryRouter>);
 
     expect(screen.getByText('1 draft to approve')).toBeInTheDocument();
-    await user.click(screen.getAllByRole('button', { name: 'Review' })[0]!);
+    await user.click(screen.getAllByRole('link', { name: 'Review' })[0]!);
     expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?todo=approve');
-    await user.click(screen.getByRole('button', { name: 'Record delivery' }));
+    await user.click(screen.getByRole('link', { name: 'Record delivery' }));
     expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?todo=send');
-    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    await user.click(screen.getByRole('link', { name: 'Apply' }));
     expect(screen.getByLabelText('Current location')).toHaveTextContent('/finance/receivables?view=payments&todo=unapplied');
     expect(screen.getByRole('link', { name: 'Open payables' })).toHaveAttribute('href', '/finance/payables');
 
     rerender(<MemoryRouter><FinanceAttention {...props} canAct={false} /></MemoryRouter>);
-    expect(screen.queryByRole('button', { name: /Review|Record delivery|Apply/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Review|Record delivery|Apply/ })).not.toBeInTheDocument();
   });
 
   it('L12(b): an invoice with an unknown balance is counted in its age group, never shown as 0 there', () => {

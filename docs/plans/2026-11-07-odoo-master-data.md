@@ -1,6 +1,6 @@
 # Plan — Odoo master data, remainder (#1504 S8, S9, S10), re-baselined 2026-11-07
 
-- **Supersedes** the S8/S9/S10 sections of `docs/plans/2026-10-31-odoo-connect-master-data.md` (the signed plan, ~1300 commits stale). Its S0–S7 stay as written; this file is the only source for what is left. Slice numbers are the signed plan's.
+- **Supersedes** the S8/S9/S10 sections of `odoo-connect-master-data plan (2026-10-31, in git history)` (the signed plan, ~1300 commits stale). Its S0–S7 stay as written; this file is the only source for what is left. Slice numbers are the signed plan's.
 - **Spec:** `docs/specs/odoo-connect-master-data.spec.md` (ACs `AC-ODC-*`); shared send/scenario ACs `AC-ECA-010..012`, `050`, `051` in `docs/specs/erp-connect-anytime.spec.md`.
 - **Baseline checked at `origin/dev` `d1947f807` (2026-11-07).** `(new)` = does not exist yet. Names cited with `file:line` were read at that SHA.
 - **Out of scope here:** O2–O8 documents (P2P and revenue are already on dev), employee sends (`employee.send` stays pending #1510).
@@ -44,7 +44,7 @@
 | pgTAP for sends (ERPNext tier only today) | `erp_connect_sends.test.sql` has **no `odoo` rows** | `supabase/tests/erp_connect_sends.test.sql` (395 lines) |
 | Bed tooling | `scripts/odoo-dev-bed.sh up|down|reset|status`, `scripts/with-odoo-lock.sh`, `scripts/odoo-probe.mjs`; synthetic fixtures | `scripts/odoo-dev-bed.sh:73-93` |
 | Bed-gated e2e pattern | `ODOO_BED_URL/DB/KEY` + served-functions env; partial config throws, none = `test.skip` | `pmo-portal/e2e/AC-OCI-100-odoo-client-invoice-to-receipt.spec.ts:14-36`, allowlist `scripts/check-e2e-skips.mjs:43,88` |
-| ERPNext scenario journeys to mirror | **not yet on dev** (ECA-8 #1607 open): `AC-ECA-050/051` do not exist | `docs/plans/2026-11-01-erp-connect-anytime.md` §13 |
+| ERPNext scenario journeys to mirror | **not yet on dev** (ECA-8 #1607 open): `AC-ECA-050/051` do not exist | `erp-connect-anytime plan (2026-11-01, in git history)` §13 |
 | Runbooks | `docs/runbooks/odoo-client-revenue.md` only; no client setup runbook | `docs/runbooks/` |
 
 **Gaps = the work:** (a) no Odoo send probe; (b) no Odoo drain, so accepted *send* proposals under tier `odoo` sit in `sending` forever; (c) no `companies` adapter or outbox deps in dispatch; (d) `employ-domain` refuses `companies`; (e) no `send-project` verb; (f) Odoo codes missing in `pushErrorCopy`; (g) no Odoo rows in the send pgTAP; (h) S10 specs and runbook.
@@ -160,7 +160,7 @@ If revived (parked design, unchanged from the signed plan's S9): migration `0740
 
 ## 5. S10 — Bed acceptance: four scenarios, unavailable journey, setup journey, runbook
 
-Executor: Orca worker (qa-acceptance role). Needs S8 and S7 on dev. ACs: 014, 080, 090, 091–094 (+ `AC-ECA-050/051` Odoo parity row of ECA-8, `docs/plans/2026-11-01-erp-connect-anytime.md` §13: "Odoo S9 of #1504 adds the same two journeys against the Odoo bed, reusing these specs' fixtures with `tier: 'odoo'`" — here that is **S10-T1 and S10-T3**; ECA-8's specs (#1607) are not on dev, so S10 builds Odoo-bed versions that use the same oracles and share a fixtures helper `e2e/helpers/connectScenario.ts` (new) which #1607 may adopt — **never two copies:** if #1607 lands first, S10 imports its fixtures instead).
+Executor: Orca worker (qa-acceptance role). Needs S8 and S7 on dev. ACs: 014, 080, 090, 091–094 (+ `AC-ECA-050/051` Odoo parity row of ECA-8, `erp-connect-anytime plan (2026-11-01, in git history)` §13: "Odoo S9 of #1504 adds the same two journeys against the Odoo bed, reusing these specs' fixtures with `tier: 'odoo'`" — here that is **S10-T1 and S10-T3**; ECA-8's specs (#1607) are not on dev, so S10 builds Odoo-bed versions that use the same oracles and share a fixtures helper `e2e/helpers/connectScenario.ts` (new) which #1607 may adopt — **never two copies:** if #1607 lands first, S10 imports its fixtures instead).
 
 Conventions: gate on the dependency (`ODOO_BED_URL`, `ODOO_BED_DB`, `ODOO_BED_KEY`, served-functions env), partial config throws, none = `test.skip` (pattern `AC-OCI-100…spec.ts:14-36`); never `process.env.CI`; each skip has a `scripts/check-e2e-skips.mjs` entry with a `restore` path ("scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/e2e-local.sh <fragment> with the bed up and the functions served") and today's `verified` date; headers per `docs/e2e-parallel-conventions.md`. Order inside the serial group (S-C needs an empty bed): `scripts/odoo-dev-bed.sh reset` → S-C → S-A → S-D. Run: `scripts/with-odoo-lock.sh scripts/with-db-lock.sh scripts/e2e-local.sh AC-ODC-0`.
 

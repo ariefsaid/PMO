@@ -19,8 +19,12 @@ orca orchestration worker-start --spec "<brief or path>" --agent <harness> \
   worker-start --help` lists the ids enabled on this host; agents other than claude, codex and
   antigravity take their model from their own config.
 - **One worker per task, with its full brief** — never reassign a worker to a different job.
-- **Waiting:** use the orchestration skill's worker-done wait and cite it as `[watch: …]`; never
-  poll by hand.
+- **Waiting:** end your turn; Orca wakes the coordinator for each worker message (`ask`, escalation,
+  `worker_done`). Never run `orca-wait`, watch scripts or a `check` loop: a script's `check` takes the
+  coordinator's mail, so Orca has nothing to wake it with (two lost worker messages, 2026-11-10).
+  Lost track: `orca orchestration inbox --terminal run:<run_id> --limit 50`. Cite `[watch: Orca wake, run <id>]`.
+- **Workers talk through Orca's tools only:** `ask` then end the turn (Orca wakes it with the answer),
+  `send --type escalation` when blocked, `worker_done` when finished. Briefs say so.
 - Worktrees lack the vendored skills: briefs tell workers to run `scripts/vendor-skills.sh` when
   they need a skill.
 

@@ -18,6 +18,7 @@ const ODOO_REVENUE_CUTOVER = 1602;
 const ODOO_EQUIPMENT = 1511;
 
 /** Why tax documents cannot be read: Odoo Community v20 has no tax document facts and PMO writes no ERP tax fields (FR-OCI-094, SD-11). */
+
 export const ODOO_TAX_DOCUMENT_UNAVAILABLE_REASON = 'Odoo Community does not expose tax-document facts, and PMO writes no ERP tax-document fields.';
 
 export const ODOO_WORKFLOWS: TierWorkflows = {
@@ -30,6 +31,7 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'item.match': { status: 'supported', version: 1 },
   'item.send': { status: 'supported', version: 1 },
   'account.match': { status: 'supported', version: 1 },
+  'account.send': { status: 'pending', version: 1, issue: 1504 },
   'employee.match': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'employee.send': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'company-defaults.set': { status: 'pending', version: 1, issue: 1504 },
@@ -56,6 +58,8 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'purchase-order.revise': { status: 'supported', version: 1 },
   'equipment.push': { status: 'pending', version: 1, issue: ODOO_EQUIPMENT },
   'equipment.read': { status: 'pending', version: 1, issue: ODOO_EQUIPMENT },
+  'journal.post': { status: 'supported', version: 1 },
+  'journal.reverse': { status: 'supported', version: 1 },
 };
 
 /** Captured-purchase behavior declared by this tier. */

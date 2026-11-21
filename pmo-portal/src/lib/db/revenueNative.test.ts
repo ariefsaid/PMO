@@ -4,7 +4,7 @@ const h = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
 
 import {
-  NATIVE_REVENUE_REFUSALS, applyNativeReceipt, cancelNativeReceipt, createNativeSalesInvoice, recordNativeOnAccountReceipt,
+  NATIVE_REVENUE_REFUSALS, revenueRefusalCode, applyNativeReceipt, cancelNativeReceipt, createNativeSalesInvoice, recordNativeOnAccountReceipt,
   recordNativeReceipt, transitionNativeSalesInvoice, unapplyNativeAllocation,
 } from './revenueNative';
 import { AppError } from '@/src/lib/appError';
@@ -67,13 +67,14 @@ describe('revenueNative DAL (#784) — names the four RPCs and sends what the us
     await expect(createNativeSalesInvoice({ projectId: 'p', customerId: 'c', lines: [] })).rejects.toBeInstanceOf(AppError);
     await expect(cancelNativeReceipt('ip-1')).rejects.toBeInstanceOf(AppError);
   });
-  it('#784 the final refusal codes from migration 0275, #1415 migration 0731 and 0704 (#1817) are all known (34)', () => {
-    expect(NATIVE_REVENUE_REFUSALS).toHaveLength(34);
+  it('#784 the final refusal codes from migration 0275, #1415 migration 0731 and 0704 (#1817) and 0924 (#2465) and 1021 (#2624) are all known (37)', () => {
+    expect(NATIVE_REVENUE_REFUSALS).toHaveLength(37);
     expect(NATIVE_REVENUE_REFUSALS).toEqual(expect.arrayContaining([
       'pmo-native', 'receipt-split-mismatch', 'sod-self-approval', 'illegal-transition',
       'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
       'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',
-      'request-id-reused', 'claim-already-invoiced', 'no-client', 'claim-total-mismatch',
+      'request-id-reused', 'claim-already-invoiced', 'no-client', 'claim-total-mismatch', 'claim-kind', 'claim-erp-raise-in-flight',
+      'billing-stages-incomplete',
     ]));
   });
   it('#784 a refusal carrying a machine-readable detail reaches the caller keyed on that detail, not the SQLSTATE', async () => {
@@ -138,5 +139,12 @@ describe('revenueNative DAL (#1415) — apply a receipt to invoices', () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: 'x', code: 'P0001', details: 'request-id-reused' } });
     await expect(recordNativeOnAccountReceipt({ customerId: 'c-1', amount: 1, date: '2026-10-07', receiptId: 'rc-1' }))
       .rejects.toMatchObject({ code: 'request-id-reused' });
+  });
+});
+
+describe('#2624 revenueRefusalCode keeps the billing-stage refusal', () => {
+  it('AC-BST-005 an open-stage refusal is classified by its detail, never by the bare SQLSTATE 55000 (the withdrawn code)', () => {
+    expect(revenueRefusalCode({ code: '55000', details: 'billing-stages-incomplete' })).toBe('billing-stages-incomplete');
+    expect(revenueRefusalCode({ code: '55000', details: null })).toBe('55000');
   });
 });

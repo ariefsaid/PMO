@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { latestPickableDay } from '@/test/dateField';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
@@ -121,7 +123,7 @@ describe('AC-BUPOT-017 capture form', () => {
     expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     expect(screen.getByRole('checkbox', { name: /SUP-DUP-7.*VI-7001.*Case North.*Harbor works.*PRJ-2641.*1 Oct 2026/ })).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /SUP-DUP-7.*VI-7002.*Case South.*Canal works.*PRJ-2642/ })).toBeInTheDocument();
-    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur supplier belum dicatat')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi invoice supplier belum dicatat')).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent('invoice-a');
     await financeTestI18n.changeLanguage('en');
   });
@@ -265,9 +267,7 @@ describe('AC-BUPOT-017 capture form', () => {
     render(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
     const slipDateInput = await screen.findByLabelText(/slip date/i);
     const taxPeriodInput = screen.getByLabelText(/tax period/i);
-    expect(slipDateInput).toHaveAttribute('type', 'date');
-    expect(slipDateInput).toHaveAttribute('max');
-    const maxDate = slipDateInput.getAttribute('max')!;
+    const maxDate = (await latestPickableDay(userEvent.setup(), slipDateInput))!;
     expect(maxDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(taxPeriodInput).toHaveAttribute('type', 'month');
     expect(taxPeriodInput).toHaveAttribute('max', maxDate.slice(0, 7));
@@ -302,8 +302,8 @@ describe('AC-BUPOT-017 capture form', () => {
 
     const slipDateInput = await screen.findByLabelText(/slip date/i);
     const taxPeriodInput = screen.getByLabelText(/tax period/i);
-    expect(slipDateInput).toHaveValue('2026-06-30');
-    expect(slipDateInput).toHaveAttribute('max', '2026-06-30');
+    expect(slipDateInput).toHaveValue('30 Jun 2026');
+    expect(await latestPickableDay(userEvent.setup(), slipDateInput)).toBe('2026-06-30');
     expect(taxPeriodInput).toHaveValue('2026-06');
     expect(taxPeriodInput).toHaveAttribute('max', '2026-06');
   });

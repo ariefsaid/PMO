@@ -218,15 +218,15 @@ describe('AC-FX-012 sales invoice equivalents', () => {
     renderAt('/sales-invoices');
     const table = screen.getByRole('table');
     const usd = within(table).getByText('SI-USD').closest('tr') as HTMLElement;
-    expect(usd).toHaveTextContent('≈ Rp 1,623,456 (JISDOR 2026-10-09)');
-    expect(usd).toHaveTextContent('≈ Rp 1,802,036 (JISDOR 2026-10-09)');
-    expect(usd).toHaveTextContent('≈ Rp 407,500 (JISDOR 2026-10-12)');
+    expect(usd).toHaveTextContent('≈ IDR 1,623,456 (using IDR 16,234.56 rate)');
+    expect(usd).toHaveTextContent('≈ IDR 1,802,036 (using IDR 16,234.56 rate)');
+    expect(usd).toHaveTextContent('≈ IDR 407,500 (using IDR 16,300 rate)');
     const idr = within(table).getByText('SI-IDR').closest('tr') as HTMLElement;
     const eur = within(table).getByText('SI-EUR').closest('tr') as HTMLElement;
     const nullMoney = within(table).getByText('SI-NULL').closest('tr') as HTMLElement;
-    expect(idr).not.toHaveTextContent('JISDOR');
+    expect(idr).not.toHaveTextContent('≈');
     expect(eur).not.toHaveTextContent('≈ Rp');
-    expect(eur).not.toHaveTextContent(/JISDOR/); // FIN-S4: an unsupported pair is silent
+    expect(eur).not.toHaveTextContent('≈'); // FIN-S4: an unsupported pair is silent
     expect(nullMoney).not.toHaveTextContent('≈ Rp');
     expect(h.rateArgs).toContainEqual(['USD', 'IDR', '2026-10-12', true]);
     expect(h.rateArgs).toContainEqual(['USD', 'IDR', '2026-10-10', true]);
@@ -259,9 +259,9 @@ describe('AC-FX-012 sales invoice equivalents', () => {
     h.rateArgs = [];
     renderAt('/sales-invoices/inv-usd');
     expect(screen.getByRole('heading', { name: 'Invoice SI-USD' })).toBeInTheDocument();
-    expect(screen.getByText('≈ Rp 1,623,456 (JISDOR 2026-10-09)')).toBeInTheDocument();
-    expect(screen.getByText('≈ Rp 1,802,036 (JISDOR 2026-10-09)')).toBeInTheDocument();
-    expect(screen.getByText('≈ Rp 407,500 (JISDOR 2026-10-12)')).toBeInTheDocument();
+    expect(screen.getByText('≈ IDR 1,623,456 (using IDR 16,234.56 rate)')).toBeInTheDocument();
+    expect(screen.getByText('≈ IDR 1,802,036 (using IDR 16,234.56 rate)')).toBeInTheDocument();
+    expect(screen.getByText('≈ IDR 407,500 (using IDR 16,300 rate)')).toBeInTheDocument();
     expect(h.rateArgs).toContainEqual(['USD', 'IDR', '2026-10-12', true]);
   });
 });

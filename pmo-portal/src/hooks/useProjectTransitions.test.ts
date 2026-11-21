@@ -22,7 +22,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: vi.fn(() => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' })),
 }));
 
-import { usePipelineStageConfig, useProjectTransition, useProjectWinEligibility } from './useProjectTransitions';
+import { useProjectTransition, useProjectWinEligibility } from './useProjectTransitions';
 import { useAuth } from '@/src/auth/useAuth';
 
 // ---------------------------------------------------------------------------
@@ -87,35 +87,6 @@ describe('useProjectWinEligibility', () => {
 // C1 — usePipelineStageConfig (supports AC-1003)
 // ---------------------------------------------------------------------------
 
-describe('usePipelineStageConfig', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    // Reset useAuth to the default signed-in user (clearAllMocks wipes the vi.fn() impl).
-    vi.mocked(useAuth).mockReturnValue({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' } as unknown as ReturnType<typeof useAuth>);
-  });
-
-  it("AC-1003 (hook): usePipelineStageConfig keys cache by ['pipeline-stage-config', orgId] and calls listPipelineStageConfig", async () => {
-    const { Wrapper } = makeWrapper();
-    const { result } = renderHook(() => usePipelineStageConfig(), { wrapper: Wrapper });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(project.listPipelineStageConfig).toHaveBeenCalledTimes(1);
-    expect(result.current.data).toMatchObject([
-      { status: 'Leads', go_probability: 0.1 },
-      { status: 'Negotiation', go_probability: 0.75 },
-    ]);
-  });
-
-  it('is disabled when orgId is absent', () => {
-    // No signed-in user → no org_id → query is enabled:false (fetchStatus stays 'idle', queryFn never runs).
-    vi.mocked(useAuth).mockReturnValue({ currentUser: null } as unknown as ReturnType<typeof useAuth>);
-    const { Wrapper } = makeWrapper();
-    const { result } = renderHook(() => usePipelineStageConfig(), { wrapper: Wrapper });
-    expect(result.current.fetchStatus).toBe('idle');
-    expect(project.listPipelineStageConfig).not.toHaveBeenCalled();
-  });
-});
 
 // ---------------------------------------------------------------------------
 // C2 — useProjectTransition (supports AC-1011)

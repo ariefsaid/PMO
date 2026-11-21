@@ -82,7 +82,9 @@ const position = (overrides: Record<string, unknown> = {}) => ({
 
 const reading = (overrides: Partial<ProjectFinances> = {}): ProjectFinances => ({
   project_id: project.id,
-  cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '0.00' }, { currency: 'IDR', amount: '7.50' }], receipt_count: 1 },
+  // #2204: Invoiced now reads this projection's bucket (25 settled), so project-currency cash is the 25 received; a bare
+  // zero beside known invoicing is the "no receipt matched yet" case, which another test owns.
+  cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '25.00' }, { currency: 'IDR', amount: '7.50' }], receipt_count: 1 },
   contract_invoiced: '25.00',
   remaining_to_invoice: '75.00',
   invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '25.00', settled: '25.00', outstanding: '0.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'exclusive', work_revenue: '20.00', missing_work: 0 }],
@@ -91,13 +93,13 @@ const reading = (overrides: Partial<ProjectFinances> = {}): ProjectFinances => (
   ...overrides,
 } as ProjectFinances);
 
-const renderOverviewMoney = () => {
+const renderOverviewMoney = (value: ProjectWithRefs = project) => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter><ToastProvider>
-        <CostBlock project={project} />
-        <MoneyBlock project={project} />
+        <CostBlock project={value} />
+        <MoneyBlock project={value} />
       </ToastProvider></MemoryRouter>
     </QueryClientProvider>,
   );
@@ -140,26 +142,27 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
     const expectedRecorded = formatExactMoney('10.10', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
     const expectedRemaining = formatExactMoney('89.90', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
     const expectedSettled = formatExactMoney('25.00', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
-    const expectedProjectCash = formatExactMoney('0', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
+    const expectedProjectCash = formatExactMoney('25', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
     const expectedForeignCash = formatExactMoney('7.50', 'IDR', numberLocale, { wholeUnits: true }) ?? 'invalid expected format';
     const recordedHeading = within(section).getByRole('heading', { name: 'Recorded spending · USD' });
     // The amount is the paragraph's direct text; the following span is the separate Updated date.
     expect(recordedHeading.nextElementSibling?.firstChild?.textContent).toBe(expectedRecorded);
     expect(definitionValueText(section, 'Contract remaining after cost')).toBe(expectedRemaining);
     expect(definitionValueText(within(section).getByTestId('project-finances-USD'), 'Settled')).toBe(expectedSettled);
-    // Project-currency receipt cash stays a known 0 in the strip; foreign receipt cash remains separate from settlement.
+    // Project-currency receipt cash stays its own known figure in the strip; foreign receipt cash remains separate from settlement.
     expect(screen.getByTestId('money-lead-cash')).toHaveTextContent(new RegExp(`${expectedProjectCash}$`));
     expect(definitionValueText(section, 'Cash received')).toBe(expectedForeignCash);
   });
 
-  it('draws only invoiced and paid bars; contract remains a plain figure', async () => {
+  it('shows each stage as a figure with no share under a known zero and draws no per-row bars', async () => {
+    h.getProjectFinances.mockResolvedValue(reading({ invoices: [{ ...reading().invoices![0], invoiced: '0', settled: '0', outstanding: '0' }] }));
     renderOverviewMoney();
     const money = await screen.findByRole('region', { name: /Money position/ });
     expect(await within(money).findByTestId('contract-value-amount')).toHaveTextContent('$100');
-    expect(within(money).getAllByRole('progressbar')).toHaveLength(2);
-    expect(within(money).queryByRole('progressbar', { name: /Contract is/ })).not.toBeInTheDocument();
-    expect(within(money).getByRole('progressbar', { name: /Invoiced is/ })).toBeInTheDocument();
-    expect(within(money).getByRole('progressbar', { name: /Paid is/ })).toBeInTheDocument();
+    // Known zeros keep their figure; a share under a zero says nothing, so it has no caption.
+    expect(within(money).getByText('Invoiced', { selector: 'dt *' })).toBeInTheDocument();
+    expect(within(money).queryByText(/% of contract/)).not.toBeInTheDocument();
+    expect(within(money).queryAllByRole('progressbar')).toHaveLength(0);
   });
 
   it('AC-PMP-003 a mapped category with no ERP amount is never reported as complete spending', async () => {
@@ -287,7 +290,7 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
     h.budgetPosition = position({ activeBudgetAmount: '150000.00', spent: '10.10', consumption: '10.10', usedRatio: '0.0001', usedPercent: '0', consumptionVariance: '-149989.90' });
     renderOverviewMoney();
     expect(await within(costBlock()).findByText('$10 of $100,000')).toBeInTheDocument();
-    expect(within(costBlock()).getByText('$0 of $50,000')).toBeInTheDocument();
+    expect(within(costBlock()).getByText('$0.10 of $50,000')).toBeInTheDocument();
     expect(costBlock().textContent).not.toMatch(/\b\d+h\b/);
   });
 

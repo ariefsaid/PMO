@@ -82,17 +82,6 @@ export function useVariationRoute(id: string | undefined) {
     enabled: Boolean(orgId && id),
   });
 }
-
-export function useProjectSubcontractExposure(projectId: string | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery({
-    queryKey: subcontractKeys.projectExposure(orgId, projectId),
-    queryFn: () => repositories.subcontracts.getProjectSubcontractExposure(projectId!),
-    enabled: Boolean(orgId && projectId),
-  });
-}
-
 export function useWorkOrderCostVariations(workOrderId: string | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
@@ -193,6 +182,13 @@ export function useSubcontractMutations(poId: string, procurementId?: string) {
     onSuccess: invalidate,
   });
 
+  // #1671: void a mistyped subcontract bill; the server owns role, SoD and the cap. Refreshes the PO's payable.
+  const voidBill = useMutation({
+    mutationFn: ({ invoiceId, reason }: { invoiceId: string; reason: string }) =>
+      repositories.subcontracts.voidSubcontractBill(invoiceId, reason),
+    onSuccess: invalidate,
+  });
+
   return {
     setPoLines,
     issuePoLines,
@@ -203,6 +199,7 @@ export function useSubcontractMutations(poId: string, procurementId?: string) {
     decideVariation,
     issueRevision,
     linkVariation,
+    voidBill,
     attributeBillLines,
   };
 }

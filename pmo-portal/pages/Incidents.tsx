@@ -19,14 +19,15 @@ import {
 import { ExportAllButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useIncidentsPage, useIncidentsExportAll, useIncidentMutations } from '@/src/hooks/useIncidents';
+import { useIncidentsPage, useIncidentsExportAll, useIncidentMutations, useAssigneeOptions } from '@/src/hooks/useIncidents';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { INCIDENTS_PAGE_SIZE, type IncidentRow, type IncidentStatus } from '@/src/lib/db/incidents';
 import { formatDay } from '@/src/lib/format';
 import { severityVariant } from '@/src/lib/status/statusVariants';
 import { statusLabel } from '@/src/lib/status/statusMap';
-import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
+import { NEXT_STATUS, transitionCopy as getTransitionCopy, severityLabel, type AdvanceStatus } from '@/src/lib/incidents/transitions';
+import { isIncidentOverdue, needsCloseProof } from '@/src/lib/incidents/overdue';
 import { IncidentFormModal } from '@/components/IncidentFormModal';
 
 /** Status filter segments: All + the three incident_status enum values. */
@@ -51,19 +52,22 @@ interface TransitionTarget {
 
 const Incidents: React.FC = () => {
   const { t: tStatus } = useTranslation('status');
+  const { t } = useTranslation('incidents');
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { create, update, transition, remove } = useIncidentMutations();
   const exportAll = useIncidentsExportAll();
+  const { data: assigneeOptions } = useAssigneeOptions();
 
   // R2: page joins q/status in the URL so Back/refresh return to the same page; page 1 (the
   // default) stays out of the URL. Filter resets ride the filter's own history entry (replace)
   // and batch with the filter write — react-router 8 does not queue same-tick param writes.
-  const { values, setFilter, setFilters, clear } = useUrlFilters(['q', 'status', 'page']);
+  const { values, setFilter, setFilters, clear } = useUrlFilters(['q', 'status', 'due', 'page', 'project']);
   const statusFilter = values.status as IncidentStatus | '';
   const search = values.q;
+  const overdueOnly = values.due === 'overdue';
   const page = Math.max(1, Number.parseInt(values.page || '1', 10) || 1);
   const setPage = (next: number, options?: { replace?: boolean }) =>
     setFilter('page', next > 1 ? String(next) : '', options);
@@ -73,6 +77,8 @@ const Incidents: React.FC = () => {
     pageSize: INCIDENTS_PAGE_SIZE,
     status: statusFilter || undefined,
     search: search.trim() || undefined,
+    overdue: overdueOnly || undefined,
+    projectId: values.project || undefined,
   });
   const { data, isPending, isError, refetch } = list;
   const rows = data?.rows;
@@ -111,7 +117,7 @@ const Incidents: React.FC = () => {
   const columns: Column<IncidentRow>[] = [
     {
       key: 'type',
-      header: 'Incident',
+      header: t('col.incident', 'Incident'),
       cell: (i) => (
         <span className="truncate font-semibold" title={i.description ?? i.type}>
           {i.type}
@@ -121,19 +127,31 @@ const Incidents: React.FC = () => {
     },
     {
       key: 'severity',
-      header: 'Severity',
-      cell: (i) => <StatusPill variant={severityVariant(i.severity)}>{i.severity}</StatusPill>,
+      header: t('col.severity', 'Severity'),
+      cell: (i) => <StatusPill variant={severityVariant(i.severity)}>{severityLabel(t, i.severity)}</StatusPill>,
       exportValue: (i) => i.severity,
     },
     {
       key: 'status',
-      header: 'Status',
-      cell: (i) => <StatusPill record="incident" state={i.status} />,
+      header: t('col.status', 'Status'),
+      cell: (i) => (
+        <span className="flex flex-wrap items-center gap-1">
+          <StatusPill record="incident" state={i.status} />
+          {isIncidentOverdue(i) && <StatusPill variant="lost">{t('overdue', 'Overdue')}</StatusPill>}
+        </span>
+      ),
       exportValue: (i) => i.status,
     },
     {
+      key: 'assignee',
+      header: t('col.assignee', 'Person in charge'),
+      cell: (i) => <span className="truncate text-muted-foreground">{i.assignee_id ? assigneeOptions?.find((o) => o.value === i.assignee_id)?.label ?? '…' : '—'}</span>,
+      exportValue: (i) => assigneeOptions?.find((o) => o.value === i.assignee_id)?.label ?? '',
+      colClassName: 'hidden md:table-cell',
+    },
+    {
       key: 'incident_date',
-      header: 'Date',
+      header: t('col.date', 'Date'),
       kind: 'date',
       cell: (i) => <span className="tabular text-muted-foreground">{formatDay(i.incident_date)}</span>,
       exportValue: (i) => i.incident_date,
@@ -141,7 +159,7 @@ const Incidents: React.FC = () => {
     },
     {
       key: 'location',
-      header: 'Location',
+      header: t('col.location', 'Location'),
       cell: (i) => (
         <span className="truncate text-muted-foreground" title={i.location ?? ''}>
           {i.location || '—'}
@@ -157,12 +175,13 @@ const Incidents: React.FC = () => {
     const next = NEXT_STATUS[i.status];
     if (canTransition && next) {
       items.push({
-        label: TRANSITION_COPY[next].menu,
-        onClick: () => setTransitionTarget({ incident: i, to: next }),
+        label: getTransitionCopy(t, next).menu,
+        // A High or Critical issue closes with a photo: open its page, where the close form takes one.
+        onClick: () => (next === 'Closed' && needsCloseProof(i.severity) ? navigate(`/incidents/${i.id}`) : setTransitionTarget({ incident: i, to: next })),
       });
     }
-    if (canEdit) items.push({ label: 'Edit', onClick: () => setFormTarget({ incident: i }) });
-    if (canDelete) items.push({ label: 'Delete', onClick: () => setDeleteTarget(i), danger: true });
+    if (canEdit) items.push({ label: t('action.edit', 'Edit'), onClick: () => setFormTarget({ incident: i }) });
+    if (canDelete) items.push({ label: t('action.delete', 'Delete'), onClick: () => setDeleteTarget(i), danger: true });
     return items;
   };
 
@@ -179,7 +198,7 @@ const Incidents: React.FC = () => {
     try {
       await transition.mutateAsync({ id: incident.id, status: to });
       toast(
-        to === 'Closed' ? 'Incident closed' : 'Investigation started',
+        to === 'Closed' ? t('toast.closed', 'Incident closed') : t('toast.started', 'Investigation started'),
         incident.type,
         'success',
       );
@@ -195,7 +214,7 @@ const Incidents: React.FC = () => {
     const target = deleteTarget;
     try {
       await remove.mutateAsync(target.id);
-      toast('Incident deleted', target.type, 'success');
+      toast(t('toast.deleted', 'Incident deleted'), target.type, 'success');
       setDeleteTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -204,12 +223,12 @@ const Incidents: React.FC = () => {
     }
   };
 
-  const transitionCopy = transitionTarget ? TRANSITION_COPY[transitionTarget.to] : null;
+  const transitionCopy = transitionTarget ? getTransitionCopy(t, transitionTarget.to) : null;
 
   const filters: FilterBarFilter[] = useMemo(() => [
     {
       key: 'status',
-      label: 'Filter by status',
+      label: t('filterByStatus', 'Filter by status'),
       kind: 'segment',
       semantics: 'tabs',
       options: ['Open', 'Investigating', 'Closed'].map((s) => ({
@@ -217,7 +236,14 @@ const Incidents: React.FC = () => {
         label: statusLabel('incident', s as IncidentStatus, tStatus),
       })),
     },
-  ], [tStatus]);
+    {
+      key: 'due',
+      label: t('filterByDue', 'Filter by due time'),
+      kind: 'segment',
+      semantics: 'toggle',
+      options: [{ value: 'overdue', label: t('overdue', 'Overdue') }],
+    },
+  ], [tStatus, t]);
 
   const handleFilterChange = (key: string, value: string) => {
     // One batched write (react-router 8 does not queue same-tick setSearchParams calls): the
@@ -230,12 +256,12 @@ const Incidents: React.FC = () => {
 
   return (
     <ListPage
-      title="Incidents"
+      title={t('title', 'Incidents')}
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ incident: null })}>
             <Icon name="plus" />
-            File incident
+            {t('file', 'File incident')}
           </Button>
         )
       }
@@ -243,7 +269,7 @@ const Incidents: React.FC = () => {
         state !== 'loading' && (
           <FilterBar
             searchKey="q"
-            searchLabel="Search incidents"
+            searchLabel={t('search', 'Search incidents')}
             // search_used analytics (2026-07-13 wiring plan): c002a54a4's FilterBar adoption
             // dropped these two props; restored so the incidents search reports again.
             searchSurface="incidents-list"
@@ -257,10 +283,6 @@ const Incidents: React.FC = () => {
             }}
             shown={data ? total : 0}
             total={data ? (allTotal ?? total) : 0}
-            labels={{
-              all: 'All',
-              clear: 'Clear all',
-            }}
           />
         )
       }
@@ -272,11 +294,19 @@ const Incidents: React.FC = () => {
             entity="Incidents"
             columns={columns}
             hasRows={total > 0}
-            fetchRows={() => exportAll.mutateAsync({ status: statusFilter || undefined, search: search.trim() || undefined })}
+            fetchRows={() => exportAll.mutateAsync({ status: statusFilter || undefined, search: search.trim() || undefined, overdue: overdueOnly || undefined, projectId: values.project || undefined })}
           />
         )
       }
     >
+      {values.project && (
+        <div className="mb-4 flex items-center justify-between gap-3 text-control">
+          <span>{t('projectScope', 'Project incidents')}</span>
+          <Button variant="ghost" size="sm" onClick={() => setFilters({ project: '', page: '' })}>
+            {t('allIncidents', 'All incidents')}
+          </Button>
+        </div>
+      )}
       {/* Body */}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -287,8 +317,8 @@ const Incidents: React.FC = () => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title="Couldn't load incidents"
-          sub="The request failed. Check your connection and try again."
+          title={t('error.title', "Couldn't load incidents")}
+          sub={t('error.sub', 'The request failed. Check your connection and try again.')}
           onRetry={() => refetch()}
         />
       )}
@@ -297,14 +327,14 @@ const Incidents: React.FC = () => {
         <ListState
           variant="empty"
           icon="alert"
-          title="No incidents reported"
-          sub="When something goes wrong on a project or site, file it here so it can be investigated and closed out."
+          title={t('empty.title', 'No incidents reported')}
+          sub={t('empty.sub', 'When something goes wrong on a project or site, file it here so it can be investigated and closed out.')}
           stateId="incidents-empty"
           role={realRole ?? undefined}
           module="incidents"
           action={
             canCreate
-              ? { label: 'File incident', onClick: () => setFormTarget({ incident: null }) }
+              ? { label: t('file', 'File incident'), onClick: () => setFormTarget({ incident: null }) }
               : undefined
           }
         />
@@ -319,23 +349,24 @@ const Incidents: React.FC = () => {
           // functional dead-end). Create/edit-in-modal are unchanged; only the row-open behavior
           // is added. RLS scopes which records the detail page can read.
           onActivate={(i) => navigate(`/incidents/${i.id}`)}
-          rowLabel={(i) => `Open ${i.type}`}
+          rowHref={(i) => `/incidents/${i.id}`}
+          rowLabel={(i) => t('openRow', 'Open {{type}}', { type: i.type })}
           rowMenu={canRowWrite ? rowMenuOrNone : undefined}
           state={(rows ?? []).length === 0 ? 'empty' : undefined}
-          emptyTitle="No incidents match your filters"
-          emptySub="Try a different status or clear the search."
-          emptyAction={{ label: 'Clear filters', onClick: () => clear() }}
+          emptyTitle={t('empty.noMatchTitle', 'No incidents match your filters')}
+          emptySub={t('empty.noMatchSub', 'Try a different status or clear the search.')}
+          emptyAction={{ label: t('action.clearFilters', 'Clear filters'), onClick: () => clear() }}
         tableId="incidents-table" />
       )}
 
       {state === undefined && total > INCIDENTS_PAGE_SIZE && (
-        <nav aria-label="Pages" className="mt-3 flex items-center justify-between gap-3 text-control tabular-nums">
-          <span>{(page - 1) * INCIDENTS_PAGE_SIZE + 1}–{Math.min(page * INCIDENTS_PAGE_SIZE, total)} of {total}</span>
+        <nav aria-label={t('pager.label', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-control tabular-nums">
+          <span>{t('pager.range', '{{from}}–{{to}} of {{total}}', { from: (page - 1) * INCIDENTS_PAGE_SIZE + 1, to: Math.min(page * INCIDENTS_PAGE_SIZE, total), total })}</span>
           <span className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label="Previous page">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label={t('pager.prev', 'Previous page')}>
               <Icon name="back" aria-hidden="true" />
             </Button>
-            <Button variant="outline" size="sm" disabled={page >= lastPage} onClick={() => setPage(page + 1)} aria-label="Next page">
+            <Button variant="outline" size="sm" disabled={page >= lastPage} onClick={() => setPage(page + 1)} aria-label={t('pager.next', 'Next page')}>
               <Icon name="chev" aria-hidden="true" />
             </Button>
           </span>
@@ -346,15 +377,16 @@ const Incidents: React.FC = () => {
       {formTarget && (
         <IncidentFormModal
           incident={formTarget.incident}
+          defaultProjectId={values.project || undefined}
           onClose={() => setFormTarget(null)}
-          onCreate={async (input) => {
-            await create.mutateAsync(input);
-            toast('Incident filed', input.type, 'success');
+          onCreate={(input) => create.mutateAsync(input)}
+          onCreated={(_row, input) => {
+            toast(t('toast.filed', 'Incident filed'), input.type, 'success');
             setFormTarget(null);
           }}
           onUpdate={async (id, input) => {
             await update.mutateAsync({ id, input });
-            toast('Incident updated', input.type, 'success');
+            toast(t('toast.updated', 'Incident updated'), input.type, 'success');
             setFormTarget(null);
           }}
           onError={(err) => {
@@ -371,10 +403,10 @@ const Incidents: React.FC = () => {
         title={
           transitionTarget && transitionCopy
             ? transitionCopy.title(transitionTarget.incident.type)
-            : 'Advance incident?'
+            : t('transition.advance', 'Advance incident?')
         }
         description={transitionCopy?.body ?? ''}
-        confirmLabel={transitionCopy?.confirm ?? 'Confirm'}
+        confirmLabel={transitionCopy?.confirm ?? t('transition.confirm', 'Confirm')}
         loading={transition.isPending}
         onConfirm={onTransitionConfirm}
         onCancel={() => setTransitionTarget(null)}
@@ -384,9 +416,9 @@ const Incidents: React.FC = () => {
       <ConfirmDialog
         open={!!deleteTarget}
         tone="destructive"
-        title={deleteTarget ? `Delete ${deleteTarget.type}?` : 'Delete incident?'}
-        description="This permanently removes the incident report. This can't be undone; consider closing it instead to keep the audit trail."
-        confirmLabel="Delete incident"
+        title={deleteTarget ? t('delete.title', 'Delete {{type}}?', { type: deleteTarget.type }) : t('delete.titleFallback', 'Delete incident?')}
+        description={t('delete.body', "This permanently removes the incident report. This can't be undone; consider closing it instead to keep the audit trail.")}
+        confirmLabel={t('delete.confirm', 'Delete incident')}
         loading={remove.isPending}
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}

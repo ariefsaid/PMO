@@ -21,7 +21,7 @@ export function requiredBudgetCategories(setup: ErpSetupReadiness): string[] {
   );
 }
 
-/** FR-ECA-020: PMO never creates accounts, so a required category with no linked account is the accountant's task. */
+/** A required category with no linked account: created from PMO under an expense group the Admin or Finance user picks (#1599 ECX-4). */
 export function missingAccountCategories(setup: ErpSetupReadiness): string[] {
   return requiredBudgetCategories(setup).filter((category) => !setup.budgetMappedCategories.includes(category));
 }

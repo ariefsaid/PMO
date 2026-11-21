@@ -3,7 +3,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { invalidateProcurementCase, cachedProcurementProjectId, procurementDetailKey } from './procurementQueryKeys';
 
 describe('invalidateProcurementCase', () => {
-  it('refreshes detail, list family and committed/reserved spend of old and new project', () => {
+  it('refreshes detail, list family, committed/reserved spend of old and new project, and the budget positions (a payment must not leave spending stale)', () => {
     const qc = new QueryClient();
     const spy = vi.spyOn(qc, 'invalidateQueries');
     invalidateProcurementCase(qc, 'o1', 'c1', ['pOld', 'pNew', 'pNew', null]);
@@ -15,7 +15,15 @@ describe('invalidateProcurementCase', () => {
       ['project-reserved-spend', 'o1', 'pOld'],
       ['project-committed-spend', 'o1', 'pNew'],
       ['project-reserved-spend', 'o1', 'pNew'],
+      ['project-budget-positions', 'o1'],
     ]);
+  });
+
+  it('a case with no project leaves the budget positions alone', () => {
+    const qc = new QueryClient();
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    invalidateProcurementCase(qc, 'o1', 'c1');
+    expect(spy.mock.calls.map((c) => c[0]?.queryKey)).toEqual([['procurement', 'o1', 'c1'], ['procurements', 'o1']]);
   });
 
   it('reads the project from the cached detail', () => {

@@ -20,6 +20,43 @@ export interface ClientInvoiceOverdueInput {
   erp_payment_terms_days: number | null | undefined;
   erp_due_date: string | null | undefined;
   received_date: string | null | undefined;
+  /** Accounting balance still owed, tax included; absent or null = unknown. */
+  erp_outstanding_amount?: number | null;
+  /** The claim's retention still held on this invoice (ADR-0105; the `retention_held` read, 1116); absent = none. */
+  retention_held?: number | null;
+}
+
+/** The fields the due-now rule reads. */
+export interface ClientInvoiceBalanceInput {
+  erp_outstanding_amount?: number | null;
+  retention_held?: number | null;
+}
+
+/** A numeric balance arrives as a JSON number or as numeric text (PostgREST numeric); anything else is unknown. */
+const balanceCents = (value: number | string | null | undefined): number | null => {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
+};
+
+/**
+ * #2625 (ADR-0105 §4) — the retention still held on an invoice, in cents, capped at the balance; null when the balance is
+ * unknown. Retention is its own figure until a release is recorded: it is owed, but not due now.
+ */
+export function retentionHeldCents(invoice: ClientInvoiceBalanceInput): number | null {
+  const outstanding = balanceCents(invoice.erp_outstanding_amount);
+  if (outstanding === null) return null;
+  const held = balanceCents(invoice.retention_held) ?? 0;
+  return Math.max(0, Math.min(held, outstanding));
+}
+
+/**
+ * #2625 (ADR-0105 §4) — THE due-now rule: the invoice's outstanding balance less the retention still held, in cents, never
+ * below zero; null when the balance is unknown (never a guessed figure). The ledger stays the oracle for what was paid.
+ */
+export function clientInvoiceDueNowCents(invoice: ClientInvoiceBalanceInput): number | null {
+  const outstanding = balanceCents(invoice.erp_outstanding_amount);
+  if (outstanding === null) return null;
+  return outstanding - (retentionHeldCents(invoice) ?? 0);
 }
 
 /**
@@ -38,6 +75,8 @@ export function clientInvoiceOverdueDays(
   organizationToday: string | null | undefined,
 ): number | null {
   if (!isOpenClientInvoiceStatus(invoice.status)) return null;
+  // #2625: a known balance that is only retention still held is not due, so it is never overdue.
+  if ((balanceCents(invoice.retention_held) ?? 0) > 0 && clientInvoiceDueNowCents(invoice) === 0) return null;
   const dueDate = deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date);
   const age = overdueAgeDays(dueDate, organizationToday);
   return age !== null && age > 0 ? age : null;

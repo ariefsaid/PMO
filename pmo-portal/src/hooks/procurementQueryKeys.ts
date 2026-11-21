@@ -19,7 +19,8 @@ export function cachedProcurementProjectId(qc: QueryClient, orgId: string | unde
 
 /**
  * One refresh for a case change made on the detail page: the detail, the Procurement list family and the
- * committed / reserved spend of every project the case touched (pass both old and new on a project change).
+ * committed / reserved spend of every project the case touched (pass both old and new on a project change), and
+ * the budget positions behind "Left after this purchase" (its recorded spending moves with a payment).
  */
 export function invalidateProcurementCase(
   qc: QueryClient,
@@ -29,8 +30,11 @@ export function invalidateProcurementCase(
 ) {
   qc.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
   qc.invalidateQueries({ queryKey: procurementKeys.all(orgId) });
-  for (const projectId of new Set(projectIds.filter((p): p is string => Boolean(p)))) {
+  const touched = new Set(projectIds.filter((p): p is string => Boolean(p)));
+  for (const projectId of touched) {
     qc.invalidateQueries({ queryKey: ['project-committed-spend', orgId, projectId] });
     qc.invalidateQueries({ queryKey: ['project-reserved-spend', orgId, projectId] });
   }
+  // Prefix: the key's last part is the sorted id list of whichever screen asked.
+  if (touched.size > 0) qc.invalidateQueries({ queryKey: ['project-budget-positions', orgId] });
 }

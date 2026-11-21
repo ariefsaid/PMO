@@ -1,5 +1,8 @@
 {
-  "description": {"engineer": "Pengadaan yang Anda ajukan", "projectManager": "Pengadaan untuk proyek yang Anda kelola"},
+  "description": {
+    "engineer": "Pengadaan yang Anda ajukan",
+    "projectManager": "Pengadaan untuk proyek yang Anda kelola"
+  },
   "title": {
     "default": "Pengadaan",
     "engineer": "Pengadaan Anda"
@@ -33,8 +36,8 @@
     "needsYou": "Menunggu langkah Anda berikutnya",
     "request": "Diajukan, disetujui, atau dalam penawaran",
     "order": "Dipesan, menunggu penerimaan",
-    "receive": "Diterima, menunggu faktur",
-    "pay": "Difakturkan, menunggu pembayaran"
+    "receive": "Diterima, menunggu invoice",
+    "pay": "Ditagih, menunggu pembayaran"
   },
   "count": {
     "one": "pengadaan",
@@ -43,9 +46,9 @@
     "procurements_other": "{{count}} pengadaan"
   },
   "money": {
-    "mostReal": "Nilai paling nyata per pengadaan: nilai dibayar, jika tidak ada gunakan faktur supplier, lalu pesanan pembelian, lalu permintaan pembelian. Total dipisahkan menurut mata uang.",
-    "pay": "Faktur supplier menggunakan saldo yang belum dibayar; pengadaan lunas bernilai nol. Total dipisahkan menurut mata uang.",
-    "engineer": "Hanya nilai permintaan. Nilai faktur supplier dan pembayaran tidak ditampilkan.",
+    "mostReal": "Nilai paling nyata per pengadaan: nilai dibayar, jika tidak ada gunakan invoice supplier, lalu pesanan pembelian, lalu permintaan pembelian. Total dipisahkan menurut mata uang.",
+    "pay": "Invoice supplier menggunakan saldo yang belum dibayar; pengadaan lunas bernilai nol. Total dipisahkan menurut mata uang.",
+    "engineer": "Hanya nilai permintaan. Nilai invoice supplier dan pembayaran tidak ditampilkan.",
     "partialNotRecorded_one": "{{count}} lagi belum tercatat jumlahnya",
     "partialNotRecorded_other": "{{count}} lagi belum tercatat jumlahnya",
     "notRecorded": "Nilai {{currencies}} belum dicatat",
@@ -53,15 +56,16 @@
     "kind": {
       "requested": "Nilai permintaan",
       "ordered": "Nilai pesanan",
-      "invoiced": "Nilai faktur supplier",
+      "invoiced": "Nilai invoice supplier",
       "paid": "Nilai dibayar",
       "unpaid": "Nilai belum dibayar"
-    }
+    },
+    "unavailable": "Jumlah tidak tersedia"
   },
   "column": {
     "procurement": "Pengadaan",
     "project": "Proyek",
-    "raisedBy": "Diajukan oleh",
+    "raisedBy": "Pemohon",
     "externalReferences": "Referensi eksternal",
     "value": "Nilai",
     "lifecycle": "Tahapan",
@@ -71,7 +75,7 @@
   "filter": {
     "project": "Proyek",
     "supplier": "Supplier",
-    "raisedBy": "Diajukan oleh",
+    "raisedBy": "Pemohon",
     "status": "Status",
     "filters": "Filter"
   },
@@ -80,7 +84,7 @@
     "needsApproval": "Perlu persetujuan",
     "open": "Terbuka",
     "ordered": "Dipesan",
-    "supplierInvoiced": "Difakturkan supplier",
+    "supplierInvoiced": "Ditagih supplier",
     "paid": "Lunas"
   },
   "search": {
@@ -113,7 +117,7 @@
   "group": {
     "needsApproval": "Perlu persetujuan",
     "inProgress": "Sedang berlangsung",
-    "invoiced": "Difakturkan, belum dibayar",
+    "invoiced": "Ditagih, belum dibayar",
     "done": "Selesai",
     "empty": "Tidak ada pengadaan dalam kelompok ini."
   },
@@ -126,12 +130,13 @@
     "approved": "Disetujui",
     "ordered": "Dipesan",
     "received": "Diterima",
+    "invoiced": "Ditagih",
     "paid": "Dibayar",
     "empty": "Belum ada pengadaan pada tahap {{stage}}",
     "open": "Buka {{title}}"
   },
   "status": {
-    "invoiceToPay": "Faktur supplier belum dibayar",
+    "invoiceToPay": "Invoice supplier belum dibayar",
     "paid": "Lunas"
   },
   "clear": "Hapus",
@@ -163,7 +168,7 @@
     "label": "Daftar pengadaan"
   },
   "kpi": {
-    "unpaid": "Tagihan supplier belum dibayar",
+    "unpaid": "Invoice supplier belum dibayar",
     "ordered": "Dipesan, belum ditagih",
     "notRecorded": "jumlah belum dicatat",
     "partial_one": "{{count}} belum dicatat",
@@ -179,7 +184,7 @@
   "help": {
     "value": {
       "term": "Nilai",
-      "text": "Jumlah terbaru yang tercatat: dibayar, atau tagihan supplier, atau pesanan pembelian, atau permintaan. Dipisah per mata uang."
+      "text": "Jumlah terbaru yang tercatat: dibayar, atau invoice supplier, atau pesanan pembelian, atau permintaan. Dipisah per mata uang."
     },
     "stage": {
       "term": "Di tahap",
@@ -187,7 +192,7 @@
     },
     "invoiceAge": {
       "term": "Usia tagihan",
-      "text": "Hari sejak tagihan supplier tertua yang belum dibayar bertanggal, atau dicatat bila tanpa tanggal."
+      "text": "Hari sejak invoice supplier tertua yang belum dibayar bertanggal, atau dicatat bila tanpa tanggal."
     }
   }
 }

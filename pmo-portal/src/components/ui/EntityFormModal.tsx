@@ -89,6 +89,8 @@ export interface EntityFormModalProps {
   submitDisabled?: boolean;
   /** Drop the primary submit from the footer (Cancel/Done only). */
   hideSubmit?: boolean;
+  /** A second footer action between Cancel and the submit (e.g. "Save draft" beside "Submit"). */
+  extraActions?: React.ReactNode;
   /**
    * The screen-reader reason a disabled submit is described by. Defaults to the required-fields hint;
    * pass your own when the submit is disabled for another reason (e.g. an invalid value).
@@ -135,6 +137,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   onClose,
   submitDisabled,
   hideSubmit,
+  extraActions,
   disabledReason,
   discardCopy,
   loading = false,
@@ -378,6 +381,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                     onCancel={requestClose}
                     disabled={submitDisabled}
                     hideSubmit={hideSubmit}
+                    extraActions={extraActions}
                     loading={loading}
                     submitDescribedBy={disabledReasonId}
                   />

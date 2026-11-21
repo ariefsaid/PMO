@@ -3,10 +3,15 @@ import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/own
 const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
 const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));
 vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
-vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+// #1671: the shared ownership mock plus the org-binding answer the Void bill control reads; unset reads as "not known" (control hidden).
+const orgBinding = vi.hoisted(() => ({ bound: null as boolean | null }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => {
+  const shared = await import('@/test/domainOwnershipMock');
+  return { useDomainOwnershipMode: (domain: string) => ({ ...shared.useDomainOwnershipMode(domain), orgBound: orgBinding.bound }) };
+});
 
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => itemEligibility }));
-afterEach(() => { clearOwnershipCache(); itemEligibility.data = true; itemEligibility.isPending = false; itemEligibility.isError = false; itemEligibility.isFetching = false; recordPush.status = 'idle'; subcontractPosition.data = []; subcontractPosition.isPending = false; subcontractPosition.isError = false; });
+afterEach(() => { clearOwnershipCache(); itemEligibility.data = true; itemEligibility.isPending = false; itemEligibility.isError = false; itemEligibility.isFetching = false; recordPush.status = 'idle'; orgBinding.bound = null; subcontractPosition.data = []; subcontractPosition.isPending = false; subcontractPosition.isError = false; });
 
 // OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
 // live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
@@ -531,14 +536,14 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
 
   it('AC-1404: the money card labels requested and ordered amounts from their sources', () => {
     renderPage();
-    const moneyCard = screen.getByTestId('procurement-money-summary');
-    expect(within(moneyCard).getByText('Requested')).toBeInTheDocument();
-    // C6: the heading names the currency once, so the figures below are bare numbers.
-    expect(within(moneyCard).getByText(/Money · USD, before tax/)).toBeInTheDocument();
-    expect(within(moneyCard).getByText('$50,000')).toBeInTheDocument();
-    expect(within(moneyCard).queryByText('50,000')).not.toBeInTheDocument();
-    // Nothing ordered is no figure, so the card does not draw an empty "Ordered".
-    expect(within(moneyCard).queryByText('Ordered')).not.toBeInTheDocument();
+    // On a request the budget impact carries the request's total, so the money block does not repeat it.
+    const budget = screen.getByRole('heading', { name: /budget impact/i }).closest('section') as HTMLElement;
+    expect(within(budget).getByText('Procurement total')).toBeInTheDocument();
+    expect(within(budget).getAllByText('$50,000').length).toBeGreaterThan(0);
+    expect(within(budget).queryByText('50,000')).not.toBeInTheDocument();
+    expect(screen.queryByText('Request total')).not.toBeInTheDocument();
+    // Nothing ordered is no figure, so no empty "Ordered" is drawn.
+    expect(screen.queryByText('Order total')).not.toBeInTheDocument();
   });
 });
 
@@ -609,7 +614,7 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    expect(await screen.findByRole('menuitem', { name: 'Reject' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Return' })).toBeInTheDocument();
   });
 
   it('AC-S20-001: the approver has one primary action with request and budget evidence on the page', async () => {
@@ -617,15 +622,16 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     const budgetEvidence = screen.getByRole('heading', { name: /budget impact/i });
-    const money = screen.getByTestId('procurement-money-summary');
+    // The request's total sits in the budget impact, beside the budget it is measured against.
+    const money = budgetEvidence.closest('section') as HTMLElement;
     const header = screen.getByTestId('record-header');
     expect(screen.getByText('Workstations for HQ')).toBeInTheDocument();
     expect(screen.getByText('PROC-2026-001')).toBeInTheDocument();
-    expect(within(money).getByText('$50,000')).toBeInTheDocument();
+    expect(within(money).getAllByText('$50,000').length).toBeGreaterThan(0);
     expect(within(header).getByRole('button', { name: 'Approve' }).className).toContain('bg-primary');
     expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    expect(await screen.findByRole('menuitem', { name: 'Reject' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'Return' })).toBeInTheDocument();
     expect(await screen.findByRole('menuitem', { name: 'Cancel procurement' })).toBeInTheDocument();
     expect(budgetEvidence).toBeInTheDocument();
   });
@@ -654,7 +660,7 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     const evidence = screen.getByRole('heading', { name: /budget impact/i });
     const policy = screen.getByTestId('sod-ready-hint');
     expect(evidence.compareDocumentPosition(policy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(policy).toHaveTextContent(/requester cannot self-approve/i);
+    expect(policy).toHaveTextContent(/requester cannot approve their own/i);
   });
 
   it('AC-805: no Approve/Reject for Draft status (not a legal transition from Draft)', () => {
@@ -687,13 +693,13 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    const rejectBtn = await screen.findByRole('menuitem', { name: /reject/i });
+    const rejectBtn = await screen.findByRole('menuitem', { name: /return/i });
     // at rest: outline (background fill + input border), NOT the solid destructive fill
     // Reject remains in the overflow menu; its destructive confirmation is the actual action.
     await userEvent.click(rejectBtn);
-    const dialog = await screen.findByRole('alertdialog');
-    const confirm = within(dialog).getByRole('button', { name: /reject/i });
-    expect(confirm.className).toContain('bg-destructive');
+    const dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: /return/i });
+    expect(confirm).toBeVisible();
   });
 });
 
@@ -767,18 +773,18 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     );
   });
 
-  it('AC-805 / #1578: Reject confirm requires a rejection comment, then passes it as the notes', async () => {
+  it('AC-805 / #1578: Return confirm requires a reason, then passes it as the notes', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: /reject/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /return/i }));
     // Reject is destructive → alertdialog surface
-    const dialog = await screen.findByRole('alertdialog');
+    const dialog = await screen.findByRole('dialog');
     expect(mockTransition).not.toHaveBeenCalled();
-    expect(within(dialog).getByRole('button', { name: /reject/i })).toBeDisabled();
-    await userEvent.type(within(dialog).getByLabelText(/rejection comment/i), 'Over budget.');
-    await confirmInDialog(/reject/i);
+    expect(within(dialog).getByRole('button', { name: /return/i })).toBeDisabled();
+    await userEvent.type(within(dialog).getByLabelText(/reason for returning/i), 'Over budget.');
+    await confirmInDialog(/return/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(
         expect.objectContaining({ to: 'Rejected', notes: 'Over budget.' })
@@ -793,25 +799,25 @@ describe('AC-805: Approve/Reject notes input (OD-PROC-1 optional Notes)', () => 
     await userEvent.type(screen.getByTestId('procurement-notes-input'), 'Approval-only note');
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: /reject/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /return/i }));
 
-    const dialog = await screen.findByRole('alertdialog');
+    const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent('PROC-2026-001');
     expect(dialog).toHaveTextContent('Workstations for HQ');
-    expect(dialog).toHaveTextContent('terminal action for this procurement and cannot be undone');
-    const reason = within(dialog).getByLabelText(/rejection comment/i);
+
+    const reason = within(dialog).getByLabelText(/reason for returning/i);
     await userEvent.type(reason, '  Over budget.  ');
-    await userEvent.click(within(dialog).getByRole('button', { name: /reject/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /return/i }));
 
-    const failedDialog = await screen.findByRole('alertdialog');
+    const failedDialog = await screen.findByRole('dialog');
     expect(within(failedDialog).getByRole('alert')).toHaveTextContent("You don't have permission to do that.");
-    expect(within(failedDialog).getByLabelText(/rejection comment/i)).toHaveValue('  Over budget.  ');
+    expect(within(failedDialog).getByLabelText(/reason for returning/i)).toHaveValue('  Over budget.  ');
 
-    await userEvent.click(within(failedDialog).getByRole('button', { name: /reject/i }));
+    await userEvent.click(within(failedDialog).getByRole('button', { name: /return/i }));
     await waitFor(() => expect(mockTransition).toHaveBeenCalledTimes(2));
     expect(mockTransition).toHaveBeenNthCalledWith(1, { to: 'Rejected', notes: 'Over budget.' });
     expect(mockTransition).toHaveBeenNthCalledWith(2, { to: 'Rejected', notes: 'Over budget.' });
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('AC-805: notes input is NOT shown when no Approve/Reject action is available', () => {
@@ -1701,6 +1707,38 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     expect(screen.getByTestId('ledger-capture-row')).toBeInTheDocument();
   });
 
+  describe('#1671 the Void bill control follows who owns the books', () => {
+    const subcontractBill = () => {
+      detailState.data = {
+        ...baseProcurement,
+        status: 'Vendor Invoiced',
+        is_subcontract: true,
+        purchase_orders: [{ id: 'po-1', po_number: 'PO-1', amount: 62000, currency: 'USD', status: 'Issued', created_at: '2026-06-01T00:00:00Z', org_id: 'org-1', procurement_id: 'proc-001' }],
+        invoices: [{ id: 'invoice-1', procurement_id: 'proc-001', po_id: 'po-1', vi_number: 'VI-1', amount: 62000, currency: 'USD', status: 'Received', invoice_date: '2026-06-02', created_at: '2026-06-02T00:00:00Z', org_id: 'org-1', voided_at: null, external_ref: null, erp_docstatus: null, erp_cancelled_at: null, tax_treatment: 'exclusive' }],
+      };
+    };
+    const rowMenu = () => screen.getAllByRole('button', { name: 'Row actions' })[0];
+
+    it('is offered where PMO owns the books (no active external binding)', async () => {
+      mockEffectiveRole = 'Finance';
+      orgBinding.bound = false;
+      subcontractBill();
+      renderPage('proc-001', 'files');
+      await userEvent.click(rowMenu());
+      expect(await screen.findByRole('menuitem', { name: 'Void bill' })).toBeInTheDocument();
+    });
+
+    it.each<[boolean | null, string]>([[true, 'an active external binding'], [null, 'an unknown binding state']])('is not rendered with %s (%s)', async (bound) => {
+      mockEffectiveRole = 'Finance';
+      orgBinding.bound = bound;
+      subcontractBill();
+      renderPage('proc-001', 'files');
+      const menus = screen.queryAllByRole('button', { name: 'Row actions' });
+      if (menus.length > 0) await userEvent.click(menus[0]);
+      expect(screen.queryByRole('menuitem', { name: 'Void bill' })).toBeNull();
+    });
+  });
+
   it('AC-PROC-005: an Engineer sees the redacted document timeline without financial amounts', () => {
     mockEffectiveRole = 'Engineer';
     detailState.data = {
@@ -1755,18 +1793,66 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     expect(within(screen.getByTestId('record-header')).getByText('Requested', { exact: true })).toBeInTheDocument();
   });
 
+  // #2437: the header holds the status badge AND the money band, so a figure label must never repeat the status word.
+  const statusWordCount = (word: string) => {
+    const header = screen.getByTestId('record-header');
+    const walker = document.createTreeWalker(header, NodeFilter.SHOW_TEXT);
+    let count = 0;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if ((node.textContent ?? '').trim().toLowerCase() === word.toLowerCase()) count += 1;
+    }
+    return count;
+  };
+  const request = { id: 'pr-1', procurement_id: 'proc-001', pr_number: 'PR-1', amount: 50000, currency: 'USD', status: 'Submitted', created_at: '2026-06-01T00:00:00Z', org_id: 'org-1' };
+  const invoice = { id: 'invoice-1', procurement_id: 'proc-001', vi_number: 'VI-1', amount: 50000, currency: 'USD', status: 'Received', invoice_date: '2026-06-02', created_at: '2026-06-02T00:00:00Z', org_id: 'org-1' };
+  const payment = { id: 'payment-1', procurement_id: 'proc-001', amount: 50000, currency: 'USD', status: 'Paid', date: '2026-06-03', created_at: '2026-06-03T00:00:00Z', org_id: 'org-1' };
+  it.each([
+    ['Requested', 'Requested', { purchase_requests: [request] }],
+    ['Approved', 'Approved', { purchase_requests: [request] }],
+    ['Vendor Invoiced', 'Supplier invoice', { purchase_requests: [request], invoices: [invoice] }],
+    ['Paid', 'Paid', { purchase_requests: [request], invoices: [invoice], payments: [payment] }],
+  ] as const)('the header names the %s status once: the badge, never again as a money label (#2437)', (status, word, records) => {
+    detailState.data = { ...baseProcurement, status, requested_by_id: 'u-other', ...records };
+    renderPage();
+    expect(screen.getByTestId('procurement-money-summary')).toBeInTheDocument();
+    expect(statusWordCount(word)).toBe(1);
+  });
+
+  it('in Bahasa the header names the Paid status once (#2437)', async () => {
+    const { default: i18next } = await import('i18next');
+    const { I18nextProvider } = await import('react-i18next');
+    const { readFileSync } = await import('node:fs');
+    const load = (lng: string, ns: string) => JSON.parse(readFileSync(`public/locales/${lng}/${ns}.json`, 'utf8'));
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id', fallbackLng: 'en', ns: ['common', 'status', 'procurementRecord'], defaultNS: 'common',
+      resources: Object.fromEntries(['en', 'id'].map((lng) => [lng, { common: load(lng, 'common'), status: load(lng, 'status'), procurementRecord: load(lng, 'procurementRecord') }])),
+      interpolation: { escapeValue: false },
+    });
+    detailState.data = { ...baseProcurement, status: 'Paid', requested_by_id: 'u-other', purchase_requests: [request], invoices: [invoice], payments: [payment] };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={['/procurement/proc-001']}>
+          <Routes><Route path="/procurement/:procurementId" element={<ProcurementDetails />} /></Routes>
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+    expect(within(screen.getByTestId('procurement-status-badge')).getByText('Dibayar')).toBeInTheDocument();
+    expect(statusWordCount('Dibayar')).toBe(1);
+  });
+
   it('AC-CONFIRM-001: Reject opens the existing destructive confirm without changing status', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: /^Reject$/ }));
-    const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByRole('button', { name: /^Reject$/ })).toBeVisible();
+    await userEvent.click(await screen.findByRole('menuitem', { name: /^Return$/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: /^Return$/ })).toBeVisible();
     expect(mockTransition).not.toHaveBeenCalled();
     expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
     await userEvent.click(within(dialog).getByRole('button', { name: /cancel/i }));
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
     expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
   });
@@ -1776,7 +1862,7 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
-    expect(await screen.findByRole('menuitem', { name: /^reject$/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /^return$/i })).toBeInTheDocument();
   });
 
   // Polish #2 — the three "Cancel"s disambiguate: page action = "Cancel procurement",
@@ -2142,7 +2228,7 @@ describe('Procurement detail restructure fixes', () => {
     renderPage();
 
     const money = screen.getByTestId('procurement-money-summary');
-    for (const kind of ['Ordered', 'Invoiced', 'Paid']) expect(within(money).queryByText(kind)).not.toBeInTheDocument();
+    for (const kind of ['Order total', 'Invoiced', 'Payments']) expect(within(money).queryByText(kind)).not.toBeInTheDocument();
     expect(money).not.toHaveTextContent('$0');
   });
 

@@ -255,9 +255,9 @@ describe('Contacts index — rows + states (AC-CRM-030)', () => {
     expect(await screen.findByRole('button', { name: 'Clear all' })).toBeInTheDocument();
   });
 
-  it('move 1: gives search a visible label alongside the labelled company filter', () => {
+  it('move 1: search and the company filter are both reachable by name', () => {
     renderPage();
-    expect(screen.getByText('Search contacts')).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Search contacts' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Filter by company' })).toBeInTheDocument();
   });
 });
@@ -307,6 +307,19 @@ describe('Contacts index — server paging (#1989)', () => {
     expect(await screen.findByText('Showing 2 of 16')).toBeInTheDocument();
     expect(screen.getByText('1–2 of 2')).toBeInTheDocument();
     expect(h.totalEnabled).toBe(true);
+  });
+
+  it('#2446: the count rides the title and the toolbar is the shared one row (filter, search, actions)', async () => {
+    h.total = 16;
+    renderPage();
+    await selectCompanyFilter('Cascade Port Authority');
+    const header = screen.getByTestId('list-page-header');
+    expect(await within(header).findByText(/^Showing \d+ of 16$/)).toBeInTheDocument();
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    expect(within(toolbar).queryByText(/^Showing /)).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-search-group')).getByRole('searchbox', { name: 'Search contacts' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-filter-group')).getByRole('combobox', { name: /Filter by company/ })).toBeInTheDocument();
+    expect(within(screen.getByTestId('list-page-filter-group')).getByRole('button', { name: 'Clear all' })).toBeInTheDocument();
   });
 
   it('move 3: the directory shows a contact title and phone number', () => {
@@ -402,9 +415,9 @@ describe('Contacts create form (AC-CRM-030)', () => {
 describe('Contacts index — row → detail navigation (CW-4b)', () => {
   it('CW-4b: activating a row navigates to the routable /contacts/:id page', async () => {
     renderPage('Admin');
-    // Row activation = the first-cell <button> (rowLabel "Open <name>").
-    expect(screen.getByRole('button', { name: 'Open Marcus Webb' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Open Marcus Webb' }));
+    // Row activation = the first-cell link (rowLabel "Open <name>").
+    expect(screen.getByRole('link', { name: 'Open Marcus Webb' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('link', { name: 'Open Marcus Webb' }));
     await waitFor(() =>
       expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/contacts/ct2'),
     );
@@ -412,7 +425,7 @@ describe('Contacts index — row → detail navigation (CW-4b)', () => {
 
   it('CW-4b: the drawer-as-record overlay is gone — activating a row opens no dialog', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('button', { name: 'Open Jane Doe' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Open Jane Doe' }));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
@@ -446,7 +459,7 @@ describe('Contacts index — list working set + return context (AC-LRC-007)', ()
 
   it('AC-LRC-007: opening a row stamps a validated Contacts return context onto the navigation state', async () => {
     renderPage('Admin', '/contacts?company=22222222-2222-4222-8222-222222222222');
-    await userEvent.click(screen.getByRole('button', { name: 'Open Marcus Webb' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Open Marcus Webb' }));
     await waitFor(() => {
       const probe = screen.getByTestId('location-probe');
       expect(probe.dataset.pathname).toBe('/contacts/ct2');

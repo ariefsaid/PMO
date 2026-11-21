@@ -85,11 +85,10 @@ describe('MyTasks — status mutation error handling (W2-2)', () => {
     renderMyTasks();
 
     // The task row should show a SelectField for status
-    const selects = screen.getAllByRole('combobox');
-    expect(selects.length).toBeGreaterThan(0);
+    const statusSelect = screen.getByRole('combobox', { name: /Change status of Fix the login bug/ });
 
     // Change status to trigger mutation
-    fireEvent.change(selects[0], { target: { value: 'Done' } });
+    fireEvent.change(statusSelect, { target: { value: 'Done' } });
 
     // The toast surfaces classifyMutationError's exact 42501 headline + its SoD-specific
     // detail — not a generic "Update failed" or an unasserted non-empty string. AC-ERR-002:
@@ -111,8 +110,8 @@ describe('MyTasks — status mutation error handling (W2-2)', () => {
 
     renderMyTasks();
 
-    const selects = screen.getAllByRole('combobox');
-    fireEvent.change(selects[0], { target: { value: 'Done' } });
+    const statusSelect = screen.getByRole('combobox', { name: /Change status of Fix the login bug/ });
+    fireEvent.change(statusSelect, { target: { value: 'Done' } });
 
     await waitFor(() => {
       expect(toastSpy).toHaveBeenCalledWith('Update failed', 'unexpected server error', 'warning');
@@ -124,8 +123,7 @@ describe('MyTasks — status mutation error handling (W2-2)', () => {
 
     renderMyTasks();
 
-    const selects = screen.getAllByRole('combobox');
     // The status select for this task should be disabled
-    expect(selects[0]).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: /Change status of Fix the login bug/ })).toBeDisabled();
   });
 });

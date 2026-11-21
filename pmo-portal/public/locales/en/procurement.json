@@ -29,6 +29,14 @@
     "addLineItem": "Add line item",
     "addRowLabel": "New line",
     "add": "Add",
+    "validation": {
+      "itemRequired": "Item is required.",
+      "required": "{{label}} is required.",
+      "positive": "{{label}} must be greater than 0 with no more than 2 decimal places.",
+      "format": "{{label}} must use \"{{group}}\" to group thousands and \"{{decimal}}\" for decimals — for example {{example}}.",
+      "quantityLabel": "Quantity",
+      "unitPriceLabel": "Unit price"
+    },
     "removeDescription": "This removes the line item from procurement. You can add it again while the procurement is a draft.",
     "removeItem": "Remove item",
     "searchItem": "Search item code or name…",
@@ -319,7 +327,10 @@
     "inStageDays_other": "{{count}} days",
     "filters": "Filters",
     "inStageDaysLong_one": "{{count}} day in stage",
-    "inStageDaysLong_other": "{{count}} days in stage"
+    "inStageDaysLong_other": "{{count}} days in stage",
+    "projectColumn": "Project",
+    "inStageToday": "Today",
+    "paidShare": "{{percent}} paid"
   },
   "common": {
     "loading": "Loading…",
@@ -352,29 +363,39 @@
     "returnedDetail": "{{title}} has been returned"
   },
   "decisionSupport": {
-    "otherCurrencyCommitments": "Not counting commitments in other currencies: {{amounts}}",
     "projectBudget": "Project budget",
-    "reservedSub": "approved, not yet ordered",
+    "reservedSub": "Approved, not yet ordered",
     "reserved": "Reserved",
     "thisProcurement": "Procurement total",
     "notCompared": "In a different currency: not compared with the budget",
-    "afterThisProcurement": "After this procurement",
-    "overBudgetLead": "This procurement exceeds available budget by",
-    "committedBarLabel": "Committed to purchases, with this one: {{pct}}% of {{budget}}",
-    "committedBarCaption": "Committed to purchases, with this one: {{pct}}%",
-    "uncommittedToPurchases": "Not yet committed to purchases",
-    "notCountingRecordedSpending": "Not counting recorded spending",
     "budgetUsed": "Budget used",
     "budgetUsedBasis": "Recorded spending, before tax",
     "budgetUsedUnknown": "Budget used is unknown or unavailable.",
-    "reserved": "Reserved",
-    "reservedSub": "Approved, not yet ordered",
-    "projectBudget": "Project budget",
-    "headroom": "{{pct}}% headroom left",
     "amountUnavailable": "Budget comparison unavailable for these amounts.",
     "currencyUnavailable": "Budget comparison unavailable for these currencies.",
     "heading": "Budget impact",
-    "openProject": "Open project"
+    "openProject": "Open project",
+    "openOrders": "Open orders",
+    "openOrdersSub": "Ordered, not yet in spending",
+    "leftAfterPurchase": "Left after this purchase",
+    "leftAfterPurchaseSub": "After spending, orders and reserved",
+    "leftAfterPurchaseTooltip": "Budget minus recorded spending, open orders, reserved requests and this purchase, each counted once, before tax.",
+    "spentOrCommittedBarLabel": "Committed, including this purchase: {{pct}}% of {{budget}}",
+    "spentOrCommittedBarCaption": "Committed, including this purchase: {{pct}}%",
+    "overBudgetTitle": "Over budget",
+    "overBudgetAfter": "{{amount}} over the budget after this purchase. Approval is still permitted; this is advisory only.",
+    "leftOtherCurrency": "Open orders in another currency: {{amounts}}",
+    "leftWithoutSpending": "Without spending: {{amount}} left after orders, reserved and this purchase.",
+    "leftNotKnown": "Not known",
+    "leftOrdersUnknown": "Open orders not known yet",
+    "leftSpendingUnknown": "Spending not known yet",
+    "comparison": "Budget comparison",
+    "loading": "Loading budget impact",
+    "currencyUnknown": "currency unavailable",
+    "otherReservedCurrencies": "Approved, not yet ordered. Other currencies: {{amounts}}",
+    "beforeTax": "Before tax",
+    "budgetUnavailable": "Budget unavailable: budget impact can't be shown right now.",
+    "noActiveBudget": "No active budget set for this project."
   },
   "headerEdit": {
     "heading": "Edit procurement details",
@@ -449,6 +470,7 @@
       "loadError": "Could not load the acceptances.",
       "empty": "No acceptances recorded",
       "document": "Signed document: {{title}}",
+      "documentLabel": "Signed document:",
       "noDocument": "No signed document linked",
       "soleOperator": "Confirmed by the only active member",
       "review": "Review draft",
@@ -730,7 +752,78 @@
   "approvalQueue": {
     "headingAll": "Purchases and timesheets",
     "waitingDays_one": "{{count}} day waiting",
-    "waitingDays_other": "{{count}} days waiting"
+    "waitingDays_other": "{{count}} days waiting",
+    "waitingOnYou": "waiting on your decision"
+  },
+  "threeWayMatch": {
+    "title": "Three-way match · {{bill}}",
+    "approve": "Approve exception",
+    "loadError": "Couldn't load this bill's match",
+    "heldLine": "Payments on this purchase are held until this bill matches or an exception is approved.",
+    "notApplicableLine": "This bill is outside the three-way match.",
+    "reasons": "Why it is held",
+    "tolerances": "Tolerance: quantity {{qty}}% · amount {{amount}}%",
+    "exceptionLine": "Exception approved {{date}}: {{reason}}",
+    "confirmTitle": "Approve an exception for {{bill}}?",
+    "confirmDescription": "Payments on this purchase can then go ahead. The approval is permanent and recorded with your reason. You cannot approve a bill you recorded or whose lines you recorded.",
+    "reasonLabel": "Reason",
+    "review": "Review match",
+    "menu": "Three-way match",
+    "heldNotice": "{{bill}} is held by the three-way match, so payments wait.",
+    "paymentHeld": {
+      "title": "Payment held by the three-way match",
+      "detail": "A bill on this purchase does not match its order and receipts. Open the bill's three-way match to see why, record the missing receipt, or ask Finance to approve an exception."
+    },
+    "status": {
+      "held": "Held",
+      "matched": "Matched",
+      "exceptionApproved": "Exception approved",
+      "notApplicable": "Not matched"
+    },
+    "reason": {
+      "noLines": "No match lines recorded",
+      "amountMismatch": "Bill amount differs from its lines",
+      "notOnOrder": "Not on the order",
+      "overReceived": "Billed more than received",
+      "overOrdered": "Billed more than ordered",
+      "priceVariance": "Rate above the order rate"
+    },
+    "refusal": {
+      "ownBill": "You recorded this bill or its lines. A different Admin or Finance user approves its exception.",
+      "authorUnknown": "This bill's author is not recorded, so no exception can be approved.",
+      "alreadyApproved": "An exception was already approved for this bill.",
+      "notHeld": "This bill is not held, so there is nothing to approve.",
+      "reason": "Give a reason of up to 1,000 characters.",
+      "role": "Only an Admin or Finance user approves an exception."
+    },
+    "col": {
+      "item": "Item",
+      "ordered": "Ordered",
+      "received": "Received",
+      "billedToDate": "Billed to date",
+      "orderRate": "Order rate",
+      "billRate": "Bill rate"
+    }
+  },
+  "voidBill": {
+    "action": "Void bill",
+    "title": "Void this bill?",
+    "reason": "Why is this bill being voided?",
+    "helper": "Kept with the bill and its history.",
+    "confirm": "Void bill",
+    "context": "{{number}} stays on the ledger as voided and stops counting against the PO, so the corrected bill can be captured.",
+    "voided": "Voided",
+    "byOn": "{{name}} · {{date}}",
+    "error": {
+      "ownBill": "You captured this bill, so another Admin or Finance user must void it.",
+      "authorUnknown": "Nobody is recorded as capturing this bill, so it cannot be voided here.",
+      "erpBound": "Your organisation records bills in its ERP. Cancel the bill there.",
+      "erpRecord": "This bill came from an ERP record. Cancel it in the ERP.",
+      "hasPayment": "This bill has a payment. Cancel the payment first.",
+      "paymentsExceed": "Payments on this purchase would be more than its remaining bills. Cancel a payment first.",
+      "already": "This bill is already voided.",
+      "generic": "The bill could not be voided. Try again."
+    }
   },
   "capture": {
     "refLabel": {
@@ -750,5 +843,64 @@
       "purchaseOrder": "Save Purchase Order",
       "goodsReceipt": "Save GR"
     }
+  },
+  "progression": {
+    "quote": "Quote",
+    "invoice": "Invoice",
+    "payment": "Payment",
+    "empty": "No history yet — events appear here as the procurement progresses.",
+    "ariaLabel": "Progression history",
+    "by": "by",
+    "showFewer": "Show fewer",
+    "showEarlier": "Show {{count}} earlier"
+  },
+  "overview": {
+    "detail": "Detail",
+    "progression": "Progression"
+  },
+  "ledgerFile": {
+    "attached": "File attached",
+    "attachToRecord": "Attach a file to this record",
+    "attach": "Attach file",
+    "uploading": "Uploading…",
+    "attachShort": "Attach",
+    "viewAll": "{{count}} files for {{record}} — click to view all",
+    "count": "{{count}} files",
+    "drawerTitle": "Files — {{record}}"
+  },
+  "decisionZone": {
+    "sodGate": "Separation-of-duties gate.",
+    "addNote": "Add a note",
+    "optional": "optional",
+    "notes": "Notes",
+    "notePlaceholder": "Add a note for the approval or rejection…",
+    "addLineItem": "Add at least one line item before submitting.",
+    "sodPreAnnounce": "Submitting hands this to another approver — you can't approve your own procurement case."
+  },
+  "vendorQuotes": {
+    "add": "Add quotation",
+    "title": "Bid comparison",
+    "colSupplier": "Supplier / Quote #",
+    "supplierQuote": "Supplier quote",
+    "colValueStatus": "Value status",
+    "colAmount": "Amount",
+    "colValidUntil": "Valid until",
+    "colAttachments": "Attachments",
+    "selectQuote": "Select quote {{name}}",
+    "select": "Select",
+    "tableName": "Supplier bid comparison",
+    "supplier": "Supplier",
+    "selectSupplier": "Select a supplier…",
+    "quotedTotal": "Quoted total",
+    "uploadSoon": "File upload coming soon",
+    "attachSoon": "Attach file (coming soon)",
+    "confirmTitle": "Select this quote?",
+    "confirmBody": "The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval.",
+    "confirmLabel": "Select quote"
+  },
+  "routeWhy": {
+    "exceedsProject": "it would take the project's budget over its limit, counting what is already spent.",
+    "spendingUnknown": "what is already spent on the project's {{category}} budget is not known yet.",
+    "spendingNotVisible": "whether it fits the project's {{category}} budget is checked when it is decided."
   }
 }

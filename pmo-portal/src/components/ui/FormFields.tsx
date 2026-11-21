@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { Button } from './Button';
@@ -166,7 +167,7 @@ export const formControlShell =
   'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground ' +
   'disabled:cursor-not-allowed';
 export const formControlInvalid = 'border-destructive hover:enabled:border-destructive';
-const compactControlShell =
+export const compactControlShell =
   'h-[var(--control-height-sm)] rounded-md border border-border hover:enabled:border-input bg-card px-3 text-control text-foreground ' +
   '[@media(pointer:coarse)]:h-11 ' +
   'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground ' +
@@ -601,6 +602,8 @@ export interface FormActionsProps {
   submitDescribedBy?: string;
   /** Omit the primary submit (a dialog whose job is done and only offers Cancel/Done). */
   hideSubmit?: boolean;
+  /** Rendered between Cancel and the submit: a second action of the same form ("Save draft"). */
+  extraActions?: React.ReactNode;
   className?: string;
 }
 
@@ -612,7 +615,7 @@ export interface FormActionsProps {
  */
 export const FormActions: React.FC<FormActionsProps> = ({
   submitLabel,
-  cancelLabel = 'Cancel',
+  cancelLabel: cancelLabelProp,
   hideCancel,
   onCancel,
   onSubmit,
@@ -620,8 +623,12 @@ export const FormActions: React.FC<FormActionsProps> = ({
   loading,
   submitDescribedBy,
   hideSubmit,
+  extraActions,
   className,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  const cancelLabel = cancelLabelProp ?? t('entityForm.cancel', 'Cancel');
+  return (
   <div
     className={cn(
       'flex items-center justify-end gap-2',
@@ -634,6 +641,7 @@ export const FormActions: React.FC<FormActionsProps> = ({
         {cancelLabel}
       </Button>
     )}
+    {extraActions}
     {!hideSubmit && (
       <Button
         type={onSubmit ? 'button' : 'submit'}
@@ -647,4 +655,5 @@ export const FormActions: React.FC<FormActionsProps> = ({
       </Button>
     )}
   </div>
-);
+  );
+};

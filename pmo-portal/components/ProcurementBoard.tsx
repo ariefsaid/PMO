@@ -18,9 +18,11 @@ interface ProcurementBoardProps {
   viewerRole?: ProcurementListRole;
   /** Needs-you rationale is shown on every board card while that tab is active. */
   needsYouReasons?: ReadonlyMap<string, { result: NeedsYouReason; text: string }>;
+  /** The org's currency, so an empty column's total reads "Rp 0" rather than a bare 0. */
+  homeCurrency?: string;
 }
 
-type BoardStageKey = 'request' | 'approved' | 'ordered' | 'received' | 'paid';
+type BoardStageKey = 'request' | 'approved' | 'ordered' | 'received' | 'invoiced' | 'paid';
 
 const BOARD_STAGES: Array<{
   key: BoardStageKey;
@@ -32,7 +34,9 @@ const BOARD_STAGES: Array<{
   { key: 'approved', label: 'board.approved', fallback: 'Approved', statuses: ['Approved', 'Vendor Quoted', 'Quote Selected'] },
   { key: 'ordered', label: 'board.ordered', fallback: 'Ordered', statuses: ['Ordered'] },
   { key: 'received', label: 'board.received', fallback: 'Received', statuses: ['Received'] },
-  { key: 'paid', label: 'board.paid', fallback: 'Paid', statuses: ['Vendor Invoiced', 'Paid'] },
+  // #2497: a supplier invoice not yet paid is billed, not paid; it gets its own column.
+  { key: 'invoiced', label: 'board.invoiced', fallback: 'Invoiced', statuses: ['Vendor Invoiced'] },
+  { key: 'paid', label: 'board.paid', fallback: 'Paid', statuses: ['Paid'] },
 ];
 
 /** Initial-letter avatar tile for the requester (categorical, non-interactive). */
@@ -64,18 +68,15 @@ const PrCard: React.FC<{
   const tooltip = t(role === 'Engineer' ? 'money.engineer' : 'money.mostReal', role === 'Engineer'
     ? 'Request amount only. Supplier invoice and payment amounts are not shown.'
     : 'Most real amount: paid, then supplier invoice, then purchase order, then request.');
-  const statusLabel = pr.status === 'Vendor Invoiced'
-    ? t('status.invoiceToPay', 'Supplier invoice to pay')
-    : pr.status === 'Paid' ? t('status.paid', 'Paid') : undefined;
 
   return (
     <KanbanCard selected={selected} onActivate={onActivate} aria-label={t('board.open', { title: pr.title, defaultValue: `Open ${pr.title}` })}>
       <div className="line-clamp-2 text-sm font-semibold leading-snug" title={pr.title}>
         {pr.title}
       </div>
-      {pr.code && (
-        <div className="mt-0.5 truncate record-id">
-          {pr.code}
+      {(pr.code || pr.pr_number) && (
+        <div className="mt-0.5 block truncate record-id">
+          {pr.code || pr.pr_number}
         </div>
       )}
       <span
@@ -88,14 +89,13 @@ const PrCard: React.FC<{
         <span className="text-sm text-muted-foreground">{amountKind}</span>
       </span>
       {reason && <div className="mt-2 text-sm font-medium text-warning-foreground">{reason}</div>}
-      {statusLabel && <div className="mt-1 text-sm text-muted-foreground">{statusLabel}</div>}
-      <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2">
+      <div className="mt-2.5 flex items-start gap-2 border-t border-border/70 pt-2">
         <Initial name={pr.requested_by?.full_name} />
         {/* Keep the card as a single activation target; project navigation remains on the detail page. */}
         <span
           aria-label={pr.project?.name ? `Project: ${projectDisplayName(pr.project)}` : undefined}
           title={pr.project && projectDisplayName(pr.project) !== pr.project.name ? pr.project.name : undefined}
-          className="truncate text-sm text-muted-foreground"
+          className="line-clamp-2 min-w-0 break-words text-sm text-muted-foreground"
         >
           {pr.project ? projectDisplayName(pr.project) : '—'}
         </span>
@@ -104,13 +104,14 @@ const PrCard: React.FC<{
   );
 };
 
-/** Five workflow columns. Rejected and cancelled records remain available in Table and Grouped views. */
+/** Six workflow columns. Rejected and cancelled records remain available in Table and Grouped views. */
 const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
   procurements,
   onOpen,
   selectedId,
   viewerRole,
   needsYouReasons,
+  homeCurrency,
 }) => {
   const { t } = useTranslation('procurementList');
   const byStage = new Map<BoardStageKey, ProcurementWithRefs[]>(BOARD_STAGES.map(({ key }) => [key, []]));
@@ -120,7 +121,8 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
   }
 
   return (
-    <Kanban aria-label={t('board.label', 'Procurement by stage')}>
+    // Six stages share the 1440 content width (no sideways scroll); narrower screens keep the board's own scroll.
+    <Kanban aria-label={t('board.label', 'Procurement by stage')} className="xl:[grid-auto-columns:minmax(176px,1fr)]!">
       {BOARD_STAGES.map(({ key, label, fallback }) => {
         const items = byStage.get(key) ?? [];
         const totals = totalsByCurrency(items, viewerRole);
@@ -132,9 +134,9 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
           <div key={key} data-testid={`prstage-${key}`} className="flex min-w-0 flex-col">
             <KanbanColumn
               title={stageTitle}
-              dotColor={key === 'paid' ? 'hsl(var(--success))' : 'hsl(var(--muted-foreground))'}
+              dotColor={key === 'paid' ? 'hsl(var(--success))' : 'hsl(var(--mark-neutral))'}
               count={items.length}
-              totals={<MoneyTotalLines totals={totals} tooltip={tooltip} testId={`prstage-${key}-totals`} className="items-end" />}
+              totals={<MoneyTotalLines totals={totals} tooltip={tooltip} testId={`prstage-${key}-totals`} className="items-end" zeroCurrency={homeCurrency} />}
               emptyMessage={t('board.empty', { stage: stageTitle, defaultValue: `No procurements at ${stageTitle}` })}
             >
               {items.map((procurement) => (

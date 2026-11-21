@@ -45,6 +45,7 @@ vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs
 vi.mock('../TimeAndMaterials', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useTimeAndMaterials', () => ({ useInvoiceTmClaimNative: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 
+vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import BillingTab from '../tabs/BillingTab';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
@@ -83,6 +84,11 @@ const RouteProbe: React.FC = () => {
 };
 
 describe('AC-S15-001 / M18 project billing start', () => {
+  it('offers billing terms on the contract area to Finance', () => {
+    renderTab('Finance', 'client-synthetic', 'contract-tools');
+    expect(screen.getByRole('button', { name: 'Billing terms' })).toBeInTheDocument();
+  });
+
   it('AC-S15-004: keeps the existing contract invoice route on Contract & billing', async () => {
     const user = userEvent.setup();
     renderTab('Finance', 'client-synthetic', 'contract-tools');
@@ -197,9 +203,9 @@ describe('AC-S15-001 / M18 project billing start', () => {
         </FinanceI18nTestProvider>,
       );
 
-      await user.click(screen.getByRole('button', { name: 'Ajukan faktur' }));
-      expect(screen.getByRole('dialog', { name: 'Mulai membuat faktur' })).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: /Faktur kontrak/ })).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Ajukan invoice' }));
+      expect(screen.getByRole('dialog', { name: 'Mulai membuat invoice' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Invoice kontrak/ })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Work Order \/ SPK pelanggan/ })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Klaim kuantitas atau progres/ })).toBeInTheDocument();
     } finally {

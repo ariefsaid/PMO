@@ -30,6 +30,7 @@ import ProjectGantt from '../ProjectGantt';
 const TaskCalendarView = React.lazy(() => import('./TaskCalendarView').then((m) => ({ default: m.TaskCalendarView })));
 import TaskBoard from './TaskBoard';
 import TaskFormModal from './TaskFormModal';
+import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import MilestoneGroupedList from './MilestoneGroupedList';
 import { useProjectTaskColumns } from './TaskList';
 import TaskRecordDrawer from './TaskRecordDrawer';
@@ -92,6 +93,9 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const updateAsync = update.mutateAsync;
   const archiveAsync = archive.mutateAsync;
   const { data: milestones } = useMilestones(projectId);
+  const { data: workOrders } = useProjectWorkOrders(projectId);
+  // #2531: the work-order link and proof flag are structure edits (migration 0991 refuses any other writer).
+  const canStructure = realRole === 'Admin' || realRole === 'Executive' || realRole === 'Project Manager';
   const location = useLocation();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -154,6 +158,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const [showArchived, setShowArchived] = useState(false);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [workOrderFilter, setWorkOrderFilter] = useState('all');
   const [searchText, setSearchText] = useState('');
   const integrationsRef = useRef<HTMLDivElement>(null);
 
@@ -243,12 +248,13 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const filteredTasks = useMemo(() => {
     const query = deferredSearchText.trim().toLocaleLowerCase();
     return scopedTasks.filter((task) => {
+      if (workOrderFilter === 'none' ? task.work_order_id != null : workOrderFilter !== 'all' && task.work_order_id !== workOrderFilter) return false;
       if (statusFilter !== 'all' && task.status !== statusFilter) return false;
       if (assigneeFilter === 'unassigned' ? task.assignee_id != null : assigneeFilter !== 'all' && task.assignee_id !== assigneeFilter) return false;
       if (!query) return true;
       return task.name.toLocaleLowerCase().includes(query) || task.id.toLocaleLowerCase().includes(query);
     });
-  }, [assigneeFilter, deferredSearchText, scopedTasks, statusFilter]);
+  }, [assigneeFilter, deferredSearchText, scopedTasks, statusFilter, workOrderFilter]);
   const selectedTaskId = searchParams.get('open');
   const selectedTask = selectedTaskId ? all.find((task) => task.id === selectedTaskId) ?? null : null;
 
@@ -468,6 +474,9 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         onNewTask={() => setFormTarget({ task: null })}
         scope={scope}
         setTaskScope={setTaskScope}
+        workOrderFilter={workOrderFilter}
+        onWorkOrderFilter={(value) => { setWorkOrderFilter(value); clearSelection(); }}
+        workOrderOptions={(workOrders ?? []).map((w) => ({ value: w.id, label: w.wo_number ? `${w.wo_number} · ${w.title}` : w.title }))}
         statusFilter={statusFilter}
         onStatusFilter={(value) => { setStatusFilter(value); clearSelection(); }}
         assigneeFilter={assigneeFilter}
@@ -630,6 +639,11 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         openTask={openTask}
         onClose={closeTask}
         nestedOpen={!!(formTarget && (formTarget.task ? canEditTask(formTarget.task) : canCreate)) || (!!deleteTarget && canDelete)}
+        proof={selectedTask ? {
+          canAttach: !externallyOwned && (canStructure || (!!currentUserId && selectedTask.assignee_id === currentUserId)),
+          canSetStatus: canSetStatus(selectedTask),
+          onMarkDone: async (task) => { await onStatusChange(task, 'Done'); },
+        } : undefined}
       />
 
       {/* Create / edit modal */}
@@ -641,6 +655,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           allTasks={all}
           defaultMilestoneId={formTarget.defaultMilestoneId ?? null}
           milestones={milestoneList}
+          workOrders={workOrders ?? []}
+          canStructure={canStructure && !externallyOwned}
           pendingPushState={
             formTarget.task && externallyOwned
               ? (pendingPushByTask[formTarget.task.id] ?? IDLE_PENDING_PUSH)

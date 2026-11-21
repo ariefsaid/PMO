@@ -23,7 +23,7 @@ import { useRoleLabels } from './admin-users/roleLabels';
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
  * S4, ADR-0049). Admin-in-org or platform-Operator management of the org's profiles: directory +
- * invite + edit role + assign manager + disable/re-enable. To docs/design-mockups/crud-admin-users.html.
+ * invite + edit role + assign manager + disable/re-enable. Mockup: crud-admin-users.html (in git history).
  *
  * Authority: `profiles_admin_write` RLS is the write authority for role/manager edits; the
  * `admin-invite-user` edge fn (Admin-in-org OR Operator, service-role issuance) is the invite

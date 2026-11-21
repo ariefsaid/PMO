@@ -10,12 +10,12 @@
   `holds_spend_approval_authority`, `spend_approvers`, `get_procurement_approval_routes`; DD-APR-1..5).
 - **This plan is split across six files** (one per phase, so each stays readable):
   1. this file — design, file map, task index, Tasks 0–4 (schema, RLS, lifecycle)
-  2. `docs/plans/2026-10-06-expense-claims.part2-db.md` — Tasks 5–13 (routing, lock, advances, notifications,
+  2. `expense-claims.part2-db plan (2026-10-06, in git history)` — Tasks 5–13 (routing, lock, advances, notifications,
      allow-list, types, mutation battery)
-  3. `docs/plans/2026-10-06-expense-claims.part3-fe-data.md` — Tasks 14–25 (DAL, repository, rules, hooks, policy)
-  4. `docs/plans/2026-10-06-expense-claims.part4-fe-ui.md` — Tasks 26–35 (labels, list, form, aging, lines, receipts)
-  5. `docs/plans/2026-10-06-expense-claims.part5-fe-ship.md` — Tasks 36–42 (record page, approvals inbox, wiring)
-  6. `docs/plans/2026-10-06-expense-claims.part6-i18n-e2e.md` — Tasks 43–46 (i18n, e2e, final gate, phase-B spike)
+  3. `expense-claims.part3-fe-data plan (2026-10-06, in git history)` — Tasks 14–25 (DAL, repository, rules, hooks, policy)
+  4. `expense-claims.part4-fe-ui plan (2026-10-06, in git history)` — Tasks 26–35 (labels, list, form, aging, lines, receipts)
+  5. `expense-claims.part5-fe-ship plan (2026-10-06, in git history)` — Tasks 36–42 (record page, approvals inbox, wiring)
+  6. `expense-claims.part6-i18n-e2e plan (2026-10-06, in git history)` — Tasks 43–46 (i18n, e2e, final gate, phase-B spike)
 
 ## 0. Conventions for every task
 
@@ -909,4 +909,4 @@ grant execute on function public.transition_expense_claim(uuid, public.expense_c
 **Verify (GREEN):** `cd "$WT" && scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/expense_claims_transition.test.sql supabase/tests/expense_claims_schema_rls.test.sql'`
 → 24/24 and 23/23.
 
-**Continue with `docs/plans/2026-10-06-expense-claims.part2-db.md`.**
+**Continue with `expense-claims.part2-db plan (2026-10-06, in git history)`.**

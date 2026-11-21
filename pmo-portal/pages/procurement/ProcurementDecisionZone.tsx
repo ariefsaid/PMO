@@ -1,3 +1,4 @@
+import { DateField } from '@/src/components/ui/DateField';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 /**
@@ -208,7 +209,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               data-testid="sod-blocked-hint"
               className="text-sm text-muted-foreground"
             >
-              <b className="font-semibold text-foreground">Separation-of-duties gate.</b> {gateMsg}
+              <b className="font-semibold text-foreground">{tProcurement('decisionZone.sodGate', 'Separation-of-duties gate.')}</b> {gateMsg}
             </p>
           ) : showReadyHint ? (
             <p
@@ -235,7 +236,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               data-testid="sod-pre-announce"
               className="text-sm text-muted-foreground"
             >
-              Submitting hands this to another approver — you can&apos;t approve your own procurement case.
+              {tProcurement('decisionZone.sodPreAnnounce', "Submitting hands this to another approver — you can't approve your own procurement case.")}
             </p>
           )}
 
@@ -250,14 +251,14 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               className="inline-flex w-fit items-center gap-1 text-sm font-medium text-[hsl(var(--nav-active-text))] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               <Icon name="plus" className="size-3.5" />
-              Add a note <span className="font-normal text-muted-foreground">(optional)</span>
+              {tProcurement('decisionZone.addNote', 'Add a note')} <span className="font-normal text-muted-foreground">({tProcurement('decisionZone.optional', 'optional')})</span>
             </button>
           )}
 
           {showNotes && notesRevealed && (
             <div className="flex max-w-md flex-col gap-1">
               <label htmlFor="procurement-notes-input" className="text-sm font-semibold text-muted-foreground">
-                Notes <span className="font-normal">(optional)</span>
+                {tProcurement('decisionZone.notes', 'Notes')} <span className="font-normal">({tProcurement('decisionZone.optional', 'optional')})</span>
               </label>
               <textarea
                 id="procurement-notes-input"
@@ -266,7 +267,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                 autoFocus
                 value={notesInput}
                 onChange={(e) => setNotesInput(e.target.value)}
-                placeholder="Add a note for the approval or rejection…"
+                placeholder={tProcurement('decisionZone.notePlaceholder', 'Add a note for the approval or rejection…')}
                 className="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               />
             </div>
@@ -320,7 +321,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
           {/* D10 (AC-W3-D10): gate message below the action bar when Draft with no items. */}
           {isDraft && p.items.length === 0 && actions.some((a) => a.to === 'Requested') && (
             <p className="text-sm text-muted-foreground" data-testid="line-items-gate">
-              Add at least one line item before submitting.
+              {tProcurement('decisionZone.addLineItem', 'Add at least one line item before submitting.')}
             </p>
           )}
 
@@ -350,6 +351,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                 <RecordCaptureForm
                   kind="goods_receipt"
                   items={p.items}
+                  projectId={p.project_id}
                   busy={mutations.createReceipt.isPending}
                   onCreate={() => Promise.resolve()}
                   onStage={(staged) => {
@@ -372,6 +374,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               {showCreateVI && (
                 <RecordCaptureForm
                   kind="vendor_invoice"
+                  projectId={p.project_id}
                   vendorId={p.vendor_id}
                   itemsNet={itemsNetTotal(p.items)}
                   currency={p.currency}
@@ -591,16 +594,13 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             {/* N1 (AC-W3-N1): Paid excluded — Mark as Paid is the sole PR→Paid authority. */}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm font-semibold text-muted-foreground">
-          {t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date')}
-          <input
-            type="date"
-            value={invoiceDate}
-            onChange={(e) => setInvoiceDate(e.target.value)}
-            data-testid={VI_FIELD_TEST_IDS.date}
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          />
-        </label>
+        <DateField
+          compact
+          label={t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date')}
+          value={invoiceDate}
+          onChange={setInvoiceDate}
+          data-testid={VI_FIELD_TEST_IDS.date}
+        />
         {/* #505: the tax treatment — REQUIRED, and deliberately unselected at rest. The recorded
             `amount` above is ambiguous without it and no later inference recovers the answer.
             Hidden entirely on a flipped org, where the ERP owns the answer (`taxIsPmoAuthored`). */}

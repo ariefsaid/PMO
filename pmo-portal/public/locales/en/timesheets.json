@@ -21,12 +21,14 @@
     "awaiting": "{{total}} awaiting you",
     "empty": "Nothing awaiting you",
     "emptySub": "Submitted timesheets from your reports will appear here for review.",
-    "showHours": "Show hours for {{name}}"
+    "showHours": "Show hours for {{name}}",
+    "returnSubject": "{{name}}'s timesheet"
   },
   "discardWeek": {
     "title": "Discard unsaved changes?",
     "description": "Your unsaved hours for this week will be discarded.",
-    "confirm": "Discard changes"
+    "confirm": "Discard changes",
+    "descriptionInvalid": "Some hours are not valid and cannot be saved. Moving to another week discards everything you typed in this one."
   },
   "discardHours": {
     "title": "Discard unsaved hours?",
@@ -53,5 +55,10 @@
   },
   "footer": {
     "fixHoursToSubmit": "Fix the hours marked in red to submit"
+  },
+  "saveState": {
+    "saving": "Saving…",
+    "invalid": "Fix the hours marked in red to save",
+    "failed": "Save failed. Your hours are kept: try again."
   }
 }

@@ -545,6 +545,11 @@ describe('FormGrid / FormActions: composition', () => {
     expect(buttons[1].className).toContain('bg-primary');
   });
 
+  it('FormActions puts a second action between Cancel and the primary submit', () => {
+    render(<FormActions submitLabel="Submit" onCancel={() => {}} extraActions={<button type="button">Save draft</button>} />);
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Cancel', 'Save draft', 'Submit']);
+  });
+
   it('FormActions disables submit when disabled, shows spinner + aria-busy when loading', () => {
     const { rerender } = render(
       <FormActions submitLabel="Save" onCancel={() => {}} disabled />,

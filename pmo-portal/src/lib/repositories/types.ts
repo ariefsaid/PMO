@@ -1,3 +1,4 @@
+import type { TaskProofRepository } from './taskProofs';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
  *
@@ -19,8 +20,11 @@
  * by domain. This module keeps the `Repositories` aggregate plus TYPE-ONLY re-exports of
  * every contract, so the external import surface of the seam is unchanged.
  */
+import type { EquipmentAvailabilityRepository } from './equipmentAvailability';
 import type { RecordHistoryRepository } from './contracts/recordHistory';
 import type { ProjectStageRepository } from './contracts/projectStages';
+import type { RateCatalogueRepository } from './contracts/rateCatalogue';
+import type { DailySiteReportRepository } from './contracts/dailySiteReports';
 import type { SubcontractRepository } from './contracts/subcontracts';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
 import type { ProjectOverviewRepository } from './contracts/projectOverview';
@@ -65,7 +69,10 @@ import type {
   ExpenseReceiptRepository,
 } from './contracts/expenses';
 import type { ImprestRepository } from './contracts/imprest';
+import type { JournalRepository } from './contracts/journals';
 import type { EquipmentRepository } from './contracts/equipment';
+import type { DocumentExpiryRepository } from './contracts/documentExpiry';
+import type { PeopleRepository } from './contracts/people';
 import type { TimeAndMaterialsRepository } from './contracts/timeAndMaterials';
 import type {
   IncidentRepository,
@@ -108,6 +115,7 @@ import type {
   WorkOrderAcceptanceRepository,
   WorkOrderRepository,
 } from './contracts/workOrders';
+import type { BillingStagesRepository } from './contracts/billingStages';
 
 import type { OdooRepository } from './contracts/odoo';
 
@@ -119,6 +127,8 @@ export interface Repositories {
   vendorWithholdingSlips: VendorWithholdingSlipsRepository;
   project: ProjectRepository;
   projectStage: ProjectStageRepository;
+  rateCatalogue: RateCatalogueRepository;
+  dailySiteReport: DailySiteReportRepository;
   company: CompanyRepository;
   document: DocumentRepository;
   agentAttachment: AgentAttachmentRepository;
@@ -129,17 +139,23 @@ export interface Repositories {
   timesheet: TimesheetRepository;
   budget: BudgetRepository;
   task: TaskRepository;
+  taskProof: TaskProofRepository;
   incident: IncidentRepository;
   comment: CommentRepository;
   milestone: MilestoneRepository;
   workOrder: WorkOrderRepository;
   progressBilling: ProgressBillingRepository;
+  billingStages: BillingStagesRepository;
   stock: StockRepository;
   workOrderAcceptance: WorkOrderAcceptanceRepository;
   procurementFiles: ProcurementFileRepository;
   expenseClaim: ExpenseClaimRepository;
   imprest: ImprestRepository;
+  journal: JournalRepository;
   equipment: EquipmentRepository;
+  documentExpiry: DocumentExpiryRepository;
+  equipmentAvailability: EquipmentAvailabilityRepository;
+  people: PeopleRepository;
   timeAndMaterials: TimeAndMaterialsRepository;
   expenseReceipts: ExpenseReceiptRepository;
   expensePostings: ExpensePostingRepository;
@@ -191,9 +207,13 @@ export type { StockMasterRepository, StockRepository } from './contracts/stock';
 export type { IncidentRepository } from './contracts/incidents';
 export type { CommentRepository } from './contracts/comments';
 export type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
+export type { BillingStagesRepository } from './contracts/billingStages';
 export type { ExpenseClaimRepository, ExpensePostingRepository, ExpenseReceiptRepository } from './contracts/expenses';
 export type { ImprestRepository } from './contracts/imprest';
+export type { JournalRepository } from './contracts/journals';
 export type { EquipmentRepository } from './contracts/equipment';
+export type { DocumentExpiryRepository } from './contracts/documentExpiry';
+export type { PeopleRepository } from './contracts/people';
 export type { TimeAndMaterialsRepository } from './contracts/timeAndMaterials';
 export type { ErpPurchaseRepository } from './contracts/erpPurchases';
 export type { ErpJournalLineRepository } from './contracts/erpJournalLines';
@@ -201,4 +221,4 @@ export type { OdooLedgerRepository } from './contracts/odooLedger';
 export type { VendorWithholdingSlipsRepository } from './contracts/vendorWithholdingSlips';
 export type { CreditsRepository, ExternalDomainOwnershipRepository, OperatorRepository, OrgFeatureRepository, OrgSettingsRepository, ProfileRepository, UsageRepository, UserViewRepository } from './contracts/admin';
 export type { ErpSnapshotsRepository, FinancialStatementsRepository, FxCommitCounts, FxRateInput, FxRateMatch, FxRatePage, FxRateRow, FxRatesRepository, ReportsRepository } from './contracts/reporting';
-export type { CompanyDefaultOptions, CompanyDefaultSlot, CompanyDefaultsSetResponse, ClickUpListItem, ConnectCredential, ConnectCensusRow, ConnectCounts, ConnectDomain, ConnectKind, ConnectProposal, ConnectReviewChoice, ConnectStatus, ConnectStagedRecord, ConnectTier, ConnectAcceptResult, ConnectResponse, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationStatus, IntegrationsRepository, LinkClickUpProjectInput, LinkDirection, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
+export type { AccountSendGroup, CompanyDefaultOptions, CompanyDefaultSlot, CompanyDefaultsSetResponse, ClickUpListItem, ConnectCredential, ConnectCensusRow, ConnectCounts, ConnectDomain, ConnectKind, ConnectProposal, ConnectReviewChoice, ConnectStatus, ConnectStagedRecord, ConnectTier, ConnectAcceptResult, ConnectResponse, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationStatus, IntegrationsRepository, LinkClickUpProjectInput, LinkDirection, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';

@@ -86,7 +86,7 @@ test('AC-WOMS-012 Finance invoices a work order from the project plan', async ({
     // Nothing is invoiced yet, so what is left on this work order is its whole value.
     await expect(amountField).toHaveValue(formatMoneyInputValue(1_000_000, 'en-US'));
     await amountField.fill(String(amount));
-    await form.getByRole('button', { name: /create draft invoice|buat draf faktur/i }).click();
+    await form.getByRole('button', { name: /create draft invoice|buat draf invoice/i }).click();
     await expect(form).toBeHidden();
 
     const saved = await admin.from('sales_invoices').select('work_order_id,status,amount').eq('work_order_id', workOrderId).single();

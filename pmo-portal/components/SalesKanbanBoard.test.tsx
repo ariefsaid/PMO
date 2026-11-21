@@ -81,6 +81,16 @@ describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
   });
 });
 
+describe('#2346 the phone card amount is one unbroken line', () => {
+  it('reads the contract value as one figure that never breaks, on the phone list card', () => {
+    render(<SalesKanbanBoard projects={[{ ...projects[0], contract_value: 123_456_789_012 }]} onOpen={() => {}} presentation="list" selectedStatus={projects[0].status} />);
+    const list = screen.getByTestId('sales-phone-stage-list');
+    const amount = within(list).getByText(formatCurrency(123_456_789_012, 'USD'));
+    expect(amount.className).toContain('whitespace-nowrap');
+    expect(amount.className).not.toContain('break-words');
+  });
+});
+
 describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
   it('AC-002 #1325: the avatar initial stays the client\'s first letter, not the short name\'s', () => {
     const project = { ...projects[0], name: 'Contractual pipeline deal', short_name: 'Zulu Terminal', client_name: 'Acme' };

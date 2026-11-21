@@ -15,8 +15,8 @@
       "description": "Catat pesanan yang sudah Anda miliki"
     },
     "invoice": {
-      "title": "Tagihan supplier",
-      "description": "Pantau tagihan supplier"
+      "title": "Invoice supplier",
+      "description": "Pantau invoice supplier"
     },
     "payment": {
       "title": "Pembayaran terjadwal",
@@ -74,5 +74,13 @@
     "cancel": "Batal"
   },
   "currencyError": "Mata uang organisasi tidak dapat dimuat.",
-  "currencyLoading": "Memuat mata uang organisasi…"
+  "currencyLoading": "Memuat mata uang organisasi…",
+  "backToProject": "proyek",
+  "backToStock": "Stok",
+  "headerEdit": {
+    "title": "Ubah detail pengadaan",
+    "titlePlaceholder": "Judul pengadaan",
+    "save": "Simpan pengadaan"
+  },
+  "noCategory": "Tanpa kategori"
 }

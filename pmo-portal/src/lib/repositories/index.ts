@@ -18,6 +18,8 @@
 import { companyCollectionsRepository } from './companyCollections';
 import { recordHistoryRepository } from './recordHistory';
 import { projectStageRepository } from './projectStages';
+import { rateCatalogueRepository } from './rateCatalogue';
+import { dailySiteReportRepository } from './dailySiteReports';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { fxRatesRepository } from './fxRates';
 import { financialStatementsRepository } from './financialStatements';
@@ -49,6 +51,8 @@ import {
   externalDomainOwnershipRepository,
 } from './admin';
 import { taskRepository } from './tasks';
+import { billingStagesRepository } from './billingStages';
+import { taskProofRepository } from './taskProofs';
 import { commentRepository } from './comments';
 import { meetingRepository } from './meetings';
 import { incidentRepository } from './incidents';
@@ -66,7 +70,11 @@ import {
 } from './workOrders';
 import { expenseClaimRepository, expenseReceiptsRepository } from './expenses';
 import { imprestRepository } from './imprest';
+import { journalRepository } from './journals';
 import { equipmentRepository } from './equipment';
+import { documentExpiryRepository } from './documentExpiry';
+import { equipmentAvailabilityRepository } from './equipmentAvailability';
+import { peopleRepository } from './people';
 import { timeAndMaterialsRepository } from './timeAndMaterials';
 import { integrationsRepository } from './integrations';
 import { odooRepository } from './odoo';
@@ -113,17 +121,25 @@ export const repositories: Repositories = {
   timesheet: timesheetRepository,
   budget: budgetRepository,
   task: taskRepository,
+  taskProof: taskProofRepository,
   incident: incidentRepository,
   comment: commentRepository,
   milestone: milestoneRepository,
   workOrder: workOrderRepository,
   progressBilling: progressBillingRepository,
+  rateCatalogue: rateCatalogueRepository,
+  billingStages: billingStagesRepository,
+  dailySiteReport: dailySiteReportRepository,
   stock: stockRepository,
   workOrderAcceptance: workOrderAcceptanceRepository,
   procurementFiles: procurementFilesRepository,
   expenseClaim: expenseClaimRepository,
   imprest: imprestRepository,
+  journal: journalRepository,
   equipment: equipmentRepository,
+  documentExpiry: documentExpiryRepository,
+  equipmentAvailability: equipmentAvailabilityRepository,
+  people: peopleRepository,
   timeAndMaterials: timeAndMaterialsRepository,
   expenseReceipts: expenseReceiptsRepository,
   expensePostings: expensePostingsRepository,
@@ -182,6 +198,7 @@ export type {
   ProcurementFileRepository,
   ExpenseClaimRepository,
   ImprestRepository,
+  JournalRepository,
   EquipmentRepository,
   TimeAndMaterialsRepository,
   ExpenseReceiptRepository,

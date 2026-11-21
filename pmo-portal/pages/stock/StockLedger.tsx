@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { DataTable, ListPage, ListState, SelectField, StatusPill, TextField, type Column } from '@/src/components/ui';
+import { DataTable, ListPage, ListState, SelectField, StatusPill, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { useStockItems, useStockLedger, useStockWarehouses } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -10,6 +10,7 @@ import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatDay } from '@/src/lib/format';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
+import { DateField } from '@/src/components/ui/DateField';
 
 /** Desktop code columns reserve their full width and the table scrolls inside its own viewport. The
  * phone card may wrap a long code to keep it within the card. */
@@ -81,11 +82,13 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
       ),
       exportValue: (r) => r.itemCode,
     },
-    { key: 'warehouse', header: t('ledger.columns.warehouse'), size: 200, minSize: 200, colClassName: 'md:whitespace-nowrap', cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all record-id md:whitespace-nowrap" />, exportValue: (r) => r.warehouseCode },
+    { key: 'warehouse', header: t('ledger.columns.warehouse'), size: 136, minSize: 136, cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all record-id" />, exportValue: (r) => r.warehouseCode },
     {
       key: 'project', header: t('ledger.columns.project'), size: 136, minSize: 136, colClassName: 'hidden lg:table-cell',
-      // Project names wrap at spaces; the work-item code remains one intact identifier on desktop.
-      cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block break-normal whitespace-normal text-sm">{r.projectName}</span><CodeText code={r.boqItemCode ?? ''} testId="stock-ledger-boq-code" className="block break-all record-id md:whitespace-nowrap" /></div>) : null),
+      // The whole cell wraps long tokens instead of clipping (AC-STOCK-LAYOUT-004): a real work-item
+      // code can be longer than its fixed 136px column, so the code emergency-breaks inside the cell
+      // (overflow-wrap:anywhere) rather than clipping with an ellipsis; names keep their space wrap.
+      cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block [overflow-wrap:anywhere] whitespace-normal text-sm">{r.projectName}</span><CodeText code={r.boqItemCode ?? ''} testId="stock-ledger-boq-code" className="block whitespace-normal [overflow-wrap:anywhere] record-id" /></div>) : null),
       exportValue: (r) => r.projectName ?? '',
     },
     {
@@ -195,8 +198,8 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
             options={(items.data ?? []).map((i) => ({ value: i.id, label: `${i.code} - ${i.name}` }))} placeholder={t('ledger.filters.allItems')} />
           <SelectField label={t('ledger.filters.warehouse')} hideLabel value={warehouseId} onChange={(v) => set('warehouse', v)}
             options={(warehouses.data ?? []).map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('ledger.filters.allWarehouses')} />
-          <TextField label={t('ledger.filters.from')} type="date" value={from} onChange={(v) => set('from', v)} />
-          <TextField label={t('ledger.filters.to')} type="date" value={to} onChange={(v) => set('to', v)} />
+          <DateField label={t('ledger.filters.from')} value={from} onChange={(v) => set('from', v)} />
+          <DateField label={t('ledger.filters.to')} value={to} onChange={(v) => set('to', v)} />
           {documentId && <StatusPill variant="neutral">{t('ledger.filters.oneDocument')}</StatusPill>}
       </StockFilters>
       {body}

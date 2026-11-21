@@ -4,7 +4,7 @@
 - **Issue:** A2 — the `AssistantPanel` drawer against the A1 `AgentRuntime` port.
 - **Author:** eng-planner (Claude Opus 4.8)
 - **Spec:** `docs/specs/agent-assistant-panel.spec.md` (FR-AP-001..025, NFR-AP-A11Y/SEC/PERF, AC-AP-001..024 + AC-AR-013)
-- **Design-plan:** `docs/plans/2026-06-30-agent-assistant-panel.design.md`
+- **Design-plan:** `agent-assistant-panel.design plan (2026-06-30, in git history)`
 - **ADR:** `docs/adr/0040-in-app-agent-panel-pmo-native-vs-sidecar.md`
 - **Port (A1, on this branch):** `pmo-portal/src/lib/agent/runtime/{port.ts,pmoNativeRuntime.ts,transport.ts}`
 

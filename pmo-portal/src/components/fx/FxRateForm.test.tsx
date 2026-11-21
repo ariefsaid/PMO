@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import type { SubmitError } from '@/src/components/ui';
 import type { FxRateRow } from '@/src/lib/repositories/types';
 import FxRateForm from './FxRateForm';
+import { latestPickableDay } from '@/test/dateField';
 
 const enCatalogue = JSON.parse(
   readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8'),
@@ -86,12 +87,10 @@ describe('FX manual rate form', () => {
     expect(screen.getByRole('button', { name: 'Save rate' })).toBeDisabled();
   });
 
-  it('AC-FX-009 blocks a future date at the native date control boundary', () => {
-    const { onSubmit } = renderForm();
-    const date = screen.getByLabelText(/Publication date/) as HTMLInputElement;
-    fireEvent.change(date, { target: { value: '2026-11-01' } });
-    expect(date.validity.rangeOverflow).toBe(true);
-    expect(onSubmit).not.toHaveBeenCalled();
+  it('AC-FX-009 offers no day after today in the calendar', async () => {
+    renderForm();
+    const date = screen.getByLabelText(/Publication date/);
+    expect(await latestPickableDay(userEvent.setup(), date)).toBe(today);
   });
 
   // Characterization (T-34): the publication date must be a REAL calendar day. Pinned against
@@ -148,7 +147,7 @@ describe('FX manual rate form', () => {
   it('retains entered values while displaying a persistent failed-save error', () => {
     const submitError: SubmitError = { headline: 'Rate not saved', detail: 'Try again.' };
     renderForm({ draft: { rate_date: '2026-10-12', rate: 16234.56 }, submitError });
-    expect(screen.getByLabelText(/Publication date/)).toHaveValue('2026-10-12');
+    expect(screen.getByLabelText(/Publication date/)).toHaveValue('12 Oct 2026');
     expect((screen.getByLabelText(/IDR per USD/) as HTMLInputElement).value).toContain('16');
     expect(screen.getByRole('alert')).toHaveTextContent('Rate not saved');
   });

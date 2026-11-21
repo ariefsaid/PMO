@@ -221,3 +221,27 @@ Ranked by expected TBT saving per page at 4x (from the profiles above). "Verify"
 7. **Low priority: CLS on procurement 0.061 (needs-you tabpanel) and project detail 0.030.** Both under the 0.1 line; reserve the panel's height. No TBT effect.
 
 Not worth doing from this data: more vendor chunk splitting (`repositories` is 107 kB gzip and `vendor-react` script time is React running component code, not chunk evaluation; chunk evaluation shows as 12-20 ms per chunk); another table virtualization pass (row counts above are far under the trigger).
+
+## Large organisation: lists and pickers (#2480)
+
+Measured 2026-11-20 on the local stack with `scripts/perf/large-org-seed.sql` (500 extra projects — 308 on the
+active partition — and 5,000 purchases on top of the rich seed), Vite dev server, Chromium headless, 1440×900,
+on a shared Mac (load average ~15). Method and the full before/after table: `docs/plans/2026-11-20-large-org-lists.md`.
+
+| Read | Before | After (1047) |
+|---|---|---|
+| Projects list row read (308 rows, 3 joins) | 1.6 ms | 1.2 ms |
+| Project picker page 1 (308 rows, no joins) | 0.5 ms | 0.3 ms |
+| Project name search (`ilike`, 50 rows) | 0.6 ms | 0.5 ms |
+| `get_projects_money_collection` (500 ids) | **9,941 ms** | **103 ms** |
+| `project_budget_positions` (500 ids) | 156 ms | 91 ms |
+| `get_projects_delivery` (500 ids) | **1,983 ms** | **8.3 ms** |
+| `/projects` settled | **7,876 ms** | **4,136 ms** |
+| `/meetings/new` picker settled | 4,664 ms | 2,585 ms |
+
+The row reads were never the problem: the two batch RPCs looped over the project ids and called a per-project
+function each time. Migration 1047 replaces both loops with the set-based forms that already exist for the same
+figures (`project_mapped_actuals_all`, `project_pmo_positions`, `procurement_open_commitments`). No index was
+added: the explains show 0.3–1.2 ms scans at 500 projects, so an index cannot help. Picker options stay complete
+(309 of 309) before and after. The end-to-end figures are directional (dev-server compile on first visit, loaded
+Mac, StrictMode double-fires); the picker needs no change at this size and its movement is run-to-run noise.

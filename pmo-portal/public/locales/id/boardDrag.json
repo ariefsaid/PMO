@@ -21,5 +21,32 @@
   "saving": "Menyimpan…",
   "statusChangeFailed": "Perubahan status gagal",
   "winTitle": "Catat proyek yang dimenangkan",
-  "winConfirm": "Konfirmasi menang"
+  "winConfirm": "Konfirmasi menang",
+  "confirm": {
+    "lostTitle": "Tandai proyek kalah",
+    "lostBody": "Proyek dipindah ke tahap kalah yang final. Anda masih bisa melihatnya, tetapi proyek keluar dari pipeline aktif.",
+    "lostConfirm": "Tandai kalah",
+    "moveTitle": "Pindahkan proyek ke {{status}}?",
+    "moveBody": "Proyek dilanjutkan ke tahap {{status}}.",
+    "moveConfirm": "Pindah ke {{status}}"
+  },
+  "win": {
+    "contractRef": "Ref. kontrak pelanggan",
+    "contractRefPlaceholder": "mis. CPO-2026-001",
+    "contractDate": "Tanggal kontrak"
+  },
+  "statusControl": {
+    "updated": "Proyek diperbarui",
+    "movedTo": "Dipindah ke {{status}}",
+    "failed": "Perubahan status gagal",
+    "change": "Ubah status",
+    "saving": "Menyimpan…",
+    "moveTo": "Pindah ke",
+    "winTitle": "Menang — isi detail kontrak",
+    "confirm": "Konfirmasi"
+  },
+  "column": {
+    "empty": "Tidak ada item"
+  },
+  "stageNav": "Navigasi tahap pipeline"
 }

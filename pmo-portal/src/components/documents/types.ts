@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-/** What a loaded document looks like to the panel. The URL lives in the viewer's memory only (NFR-002). */
+/** What a loaded document looks like to the viewer. The URL lives in the viewer's memory only (NFR-002). */
 export type PreviewResult =
   | { mode: 'image'; url: string }
   | { mode: 'pdf'; url: string }
@@ -27,16 +27,18 @@ export class PreviewFailure extends Error {
 }
 
 export interface DocumentViewTarget {
-  /** Stable identity: one active document owns the panel; a late result for another key is dropped. */
+  /** Stable identity: one active document owns the viewer; a late result for another key is dropped. */
   key: string;
   name: string;
   /** 'SharePoint' | 'OneDrive' | 'Microsoft 365' | 'PMO' (display only). */
   sourceLabel: string;
+  /** Which version this is, as the register names it (e.g. "Rev B · Approved"); shown beside the source. */
+  detail?: string;
   /** Runs on open and on Retry only (NFR-004). Throws `PreviewFailure`. */
   load: (signal: AbortSignal) => Promise<PreviewResult>;
   /** Authorized download of the original, independent of preview (FR-010). Rejects with the reason on a denial. */
   download?: () => Promise<void>;
-  /** Validated https URL; the panel words the action from `sourceLabel` ("Open in SharePoint"). */
+  /** Validated https URL; the viewer words the action from `sourceLabel` ("Open in SharePoint"). */
   openInSource?: { url: string };
   /** FR-012: the preview shows the latest source bytes, never the issued or approved version. */
   latestNotice?: boolean;

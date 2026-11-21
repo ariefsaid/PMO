@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => ({ status: 'off' }) }));
 vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({ useProjectBudgetPositions: () => ({ data: {} }) }));
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
@@ -159,6 +160,7 @@ vi.mock('../ProjectDetailRail', () => ({
 }));
 vi.mock('../../sales/DealBand', () => ({ default: () => null }));
 vi.mock('../ProjectErpLink', () => ({ ProjectErpLink: () => null }));
+vi.mock('../ProjectIssuesLink', () => ({ ProjectIssuesLink: () => null }));
 vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
 vi.mock('../ProjectSCurve', () => ({ default: () => null }));
 vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));

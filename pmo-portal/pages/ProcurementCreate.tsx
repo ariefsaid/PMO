@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { BackBar } from '@/src/components/shell';
-import { Button, Combobox, FormFooter, FormGrid, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, Combobox, FormFooter, FormGrid, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import type { IconName } from '@/src/components/ui/icons';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
@@ -15,8 +15,9 @@ import type { AtomicProcurementInput, ProcurementItemRow } from '@/src/lib/db/pr
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
-import { LineItemsSection } from './procurement/LineItemsSection';
-import { BUDGET_CATEGORY_OPTIONS } from './procurement/budgetCategoryOptions';
+import { LineItemsSection, type LineItemsSectionHandle } from './procurement/LineItemsSection';
+import { readOrigin, readRestockLine, resolveFormOrigin } from '@/src/lib/stockRequestPurchase';
+import { useBudgetCategoryOptions } from './procurement/budgetCategoryOptions';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
 
 type ProcurementHave = 'need' | 'order' | 'invoice' | 'payment';
@@ -64,7 +65,7 @@ function ProcurementIntake({
   const { t } = useTranslation('procurementCreate');
 
   return (
-    <section aria-labelledby="procurement-create-question" className="max-w-3xl">
+    <section aria-labelledby="procurement-create-question">
       <h1 id="procurement-create-question" className="text-page font-bold tracking-[-0.02em]">
         {t('question', 'What do you have?')}
       </h1>
@@ -97,6 +98,7 @@ function ProcurementIntake({
 
 export default function ProcurementCreate() {
   const { t } = useTranslation('procurementCreate');
+  const budgetCategoryOptions = useBudgetCategoryOptions();
   const location = useLocation();
   const navigate = useNavigate();
   const may = usePermission();
@@ -113,24 +115,30 @@ export default function ProcurementCreate() {
   const supplierQuery = useVendorOptions();
   const { data: projects = [] } = projectQuery;
   const { data: suppliers = [] } = supplierQuery;
-  const supplierOptions = useMemo(
-    () => suppliers.map((option) => option.sub === 'Vendor' ? { ...option, sub: t('supplier', 'Supplier') } : option),
-    [suppliers, t],
-  );
   // Recording an existing order, supplier invoice or payment is for roles that may capture those documents;
   // everyone else raises a plain request.
   const canCaptureDocuments = may('create', 'procDoc');
   const [haveChoice, setHave] = useState<ProcurementHave | null>(() => parseHave(params.get('have')));
   // B3: a role that can only raise a need has one choice, so it starts straight on that form.
   const have: ProcurementHave | null = canCaptureDocuments ? haveChoice : 'need';
-  const [title, setTitle] = useState('');
+  // The page the request was started from (explicit `from`); a pre-filled line when started from Stock.
+  const [origin] = useState(() => resolveFormOrigin(location.search));
+  const [restock] = useState(() => readRestockLine(location.search));
+  const [initialTitle] = useState(() => (restock ? params.get('title') ?? '' : ''));
+  // A known average unit value pre-fills the line; unknown leaves the price empty, as a typed line starts.
+  const restockPriced = restock !== null && restock.rate !== null;
+  const initialLineCount = restockPriced ? 1 : 0;
+  const [title, setTitle] = useState(initialTitle);
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
-  const [lines, setLines] = useState<DraftLine[]>([]);
-  const [addRowHasInput, setAddRowHasInput] = useState(false);
-  const [blockedAddRowMessage, setBlockedAddRowMessage] = useState<string | null>(null);
+  const [lines, setLines] = useState<DraftLine[]>(() => restock && restock.rate !== null
+    ? [{ id: crypto.randomUUID(), name: restock.name, quantity: restock.quantity, rate: restock.rate, amount: itemsNetTotal([{ quantity: restock.quantity, rate: restock.rate }]), description: null }]
+    : []);
+  // A pre-filled unpriced restock row is pending input but is not user-edited until changed.
+  const [addRowEdited, setAddRowEdited] = useState(false);
   const addRowDescriptionRef = useRef<HTMLInputElement>(null);
+  const lineItemsRef = useRef<LineItemsSectionHandle | null>(null);
   const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -147,16 +155,19 @@ export default function ProcurementCreate() {
   const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
   const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
   const dirty = saving || attempt !== null || (
-    title !== '' || supplierId !== null || budgetCategory !== '' || lines.length > 0 || addRowHasInput || selectedProject !== projectId
+    title !== initialTitle || supplierId !== null || budgetCategory !== '' || lines.length > initialLineCount || addRowEdited || selectedProject !== projectId
   );
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
   const updateAddRowDirty = useCallback((hasInput: boolean) => {
-    setAddRowHasInput(hasInput);
-    if (!hasInput) setBlockedAddRowMessage(null);
+    setAddRowEdited(hasInput);
   }, []);
   const guardLeave = useUnsavedChangesGuard({ dirty, guardHistory: true, onBlocked: holdLeave });
+  // Leaving unsaved returns to where the form was started: the project's procurement tab when the
+  // link carried `?project=`, the Procurement list otherwise (an Engineer has no list in the menu).
+  const originPath = origin.path;
+  const backLabel = origin.kind === 'stock' ? t('backToStock', 'Stock') : origin.kind === 'project' ? t('backToProject', 'project') : t('backToProcurement', 'Procurement');
   const backToProcurement = () => {
-    guardLeave(() => navigate('/procurement'));
+    guardLeave(() => navigate(originPath));
   };
   // Discard means discard: the whole draft goes, not just the chosen type (C7). The project
   // preselected by the link is the form's starting value, not typed input, so it stays.
@@ -166,8 +177,7 @@ export default function ProcurementCreate() {
     setSupplierId(null);
     setBudgetCategory('');
     setLines([]);
-    setAddRowHasInput(false);
-    setBlockedAddRowMessage(null);
+    setAddRowEdited(false);
     setErrors({});
   }, [projectId]);
 
@@ -215,17 +225,16 @@ export default function ProcurementCreate() {
     return standardChoices;
   }, [canCaptureDocuments, realRole, t]);
 
-  const addLine = async (line: { name: string; quantity: number; rate: number }) => {
-    const amount = itemsNetTotal([{ quantity: line.quantity, rate: line.rate }]);
-    setLines((current) => [
-      ...current,
-      {
-        ...line,
-        id: crypto.randomUUID(),
-        amount,
-        description: null,
-      },
-    ]);
+  const makeDraftLine = (line: { name: string; quantity: number; rate: number; description?: string }): DraftLine => ({
+    ...line,
+    id: crypto.randomUUID(),
+    amount: itemsNetTotal([{ quantity: line.quantity, rate: line.rate }]),
+    description: line.description ?? null,
+  });
+  const addLine = async (line: { name: string; quantity: number; rate: number; description?: string }) => {
+    const row = makeDraftLine(line);
+    setLines((current) => [...current, row]);
+    return row;
   };
   const updateLine = async (id: string, patch: { name: string; quantity?: number; rate?: number; description?: string }) => {
     setLines((current) => current.map((line) => {
@@ -247,16 +256,26 @@ export default function ProcurementCreate() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!have || savingRef.current) return;
-    if (addRowHasInput) {
-      setBlockedAddRowMessage(t('addRowIncomplete', 'Add this line or clear it first'));
-      addRowDescriptionRef.current?.focus();
-      return;
-    }
     if (!title.trim()) {
       setErrors({ title: t('titleRequired', 'A procurement title is required.') });
       return;
     }
     setErrors({});
+
+    let pendingLine: DraftLine | null = null;
+    if (have === 'need') {
+      const pendingRow = lineItemsRef.current?.commitPendingRow();
+      if (pendingRow?.status === 'invalid') {
+        addRowDescriptionRef.current?.focus();
+        return;
+      }
+      if (pendingRow?.status === 'committed') {
+        const committedLine = makeDraftLine(pendingRow.input);
+        pendingLine = committedLine;
+        setLines((current) => [...current, committedLine]);
+      }
+    }
+
     savingRef.current = true;
     setSaving(true);
 
@@ -266,7 +285,7 @@ export default function ProcurementCreate() {
         title: title.trim(), projectId: selectedProject, vendorId: supplierId,
         ...(have === 'need' && budgetCategory ? { budgetCategory: budgetCategory as BudgetCategory } : {}),
       },
-      lines: have === 'need' ? lines.map(({ id, name, quantity, rate, description }) => ({ id, name, quantity, rate, description })) : [],
+      lines: have === 'need' ? (pendingLine ? [...lines, pendingLine] : lines).map(({ id, name, quantity, rate, description }) => ({ id, name, quantity, rate, description })) : [],
     };
     const attemptHave = attempt?.have ?? have;
     setAttempt({ input, have: attemptHave });
@@ -299,8 +318,8 @@ export default function ProcurementCreate() {
 
   if (!have) {
     return (
-      <div className="mx-auto w-full max-w-7xl p-4 pb-6 md:p-6">
-        <BackBar label={t('backToProcurement', 'Procurement')} onBack={backToProcurement} />
+      <div className="mx-auto w-full max-w-[880px] pb-6">
+        <BackBar label={backLabel} onBack={backToProcurement} />
         <ProcurementIntake
           choices={choices}
           onChoose={choose}
@@ -343,25 +362,26 @@ export default function ProcurementCreate() {
     setHave(null);
   };
   // Footer Cancel mirrors Change type for capture roles and the list exit for need-only roles.
-  const cancelCreate = canCaptureDocuments ? changeType : backToProcurement;
+  const cancelCreate = canCaptureDocuments && !readOrigin(location.search) ? changeType : backToProcurement;
 
   return (
-    <div className="mx-auto w-full max-w-[880px] p-4 pb-6 md:p-6">
-      <BackBar label={t('backToProcurement', 'Procurement')} onBack={backToProcurement} />
+    <div className="mx-auto w-full max-w-[880px] pb-6">
+      <BackBar label={backLabel} onBack={backToProcurement} />
       <form id="procurement-create-form" className="mx-auto w-full max-w-[880px]" onSubmit={submit} noValidate>
         <header className="mb-6 flex items-center justify-between gap-4 border-b border-border pb-4">
           <h1 className="text-page font-bold tracking-[-0.02em]">{t('heading', 'New procurement')}</h1>
           {canCaptureDocuments && <Button type="button" variant="outline" onClick={changeType}>{t('changeType', 'Change type')}</Button>}
         </header>
-        <div className="mb-4 rounded-lg border border-border bg-card px-5 py-4 md:mb-6">
+        {/* Both panels share the item table's cell inset, so every field, heading and cell starts on one edge. */}
+        <Card className="mb-4 md:mb-6">
+          <CardHead className="px-[var(--table-cell-inset)]!">{t('details', 'Procurement details')}</CardHead>
+          <CardPad className="px-[var(--table-cell-inset)]!">
           {errors.save && (
             <div role="alert" className="mb-4 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-sm text-destructive-text">
               <p className="font-semibold">{errors.save.headline}</p>
               {errors.save.detail && <p>{errors.save.detail}</p>}
             </div>
           )}
-          <section className="mb-6 border-b border-border pb-6" aria-label={t('details', 'Procurement details')}>
-            <h2 className="mb-4 font-semibold">{t('details', 'Procurement details')}</h2>
             <fieldset disabled={Boolean(attempt) || saving}>
               <FormGrid>
               <TextField
@@ -390,9 +410,9 @@ export default function ProcurementCreate() {
                 emptyMessage={(query) => query ? undefined : t('references.noSuppliers', 'No suppliers available. A supplier is optional; ask an administrator to add one if needed.')}
                 placeholder={t('selectSupplier', 'Optional: select a supplier…')}
                 value={supplierId}
-                selectedOption={supplierOptions.find((option) => option.value === supplierId) ?? null}
+                selectedOption={suppliers.find((option) => option.value === supplierId) ?? null}
                 onChange={setSupplierId}
-                loadOptions={async () => supplierOptions}
+                loadOptions={async () => suppliers}
                 disabled={saving || Boolean(attempt) || supplierQuery.isPending || supplierQuery.isError || supplierQuery.data === undefined}
               />
               {(projectQuery.isPending || projectQuery.isError || projectQuery.data === undefined) && <div role="status">{projectQuery.isPending ? t('references.loadingProjects', 'Loading projects…') : <>{t('references.projectsError', "Couldn't load projects.")} <Button type="button" variant="outline" onClick={() => void projectQuery.refetch()}>{t('references.retryProjects', 'Retry projects')}</Button></>}</div>}
@@ -403,14 +423,14 @@ export default function ProcurementCreate() {
                   label={t('budgetCategory', 'Budget category')}
                   value={budgetCategory}
                   onChange={setBudgetCategory}
-                  options={BUDGET_CATEGORY_OPTIONS}
+                  options={budgetCategoryOptions}
                   helper={<BudgetCategoryHelp />}
                 />
               )}
               </FormGrid>
             </fieldset>
-          </section>
-        </div>
+          </CardPad>
+        </Card>
         {attempt && errors.save && <Button type="button" variant="outline" onClick={() => guardLeave(() => navigate(`/procurement/${attempt.input.id}`))}>{errors.conflict ? t('openSavedRequest', 'Open saved request') : t('checkSaveStatus', 'Check request status')}</Button>}
         {needForm && (
           <>
@@ -419,16 +439,17 @@ export default function ProcurementCreate() {
             : !currencyKnown && <p role="status" className="text-sm text-muted-foreground">{t('currencyLoading', 'Loading organisation currency…')}</p>}
           <fieldset disabled={saving || Boolean(attempt)} className="contents">
             <LineItemsSection
+              ref={lineItemsRef}
               items={lines as unknown as ProcurementItemRow[]}
               editable
               createFormLayout
               busy={saving || Boolean(attempt)}
+              initialDraft={restock && !restockPriced ? { name: restock.name, quantity: String(restock.quantity) } : undefined}
               onAdd={addLine}
               onUpdate={updateLine}
               onDelete={removeLine}
               onAddRowInputChange={updateAddRowDirty}
               addRowDescriptionRef={addRowDescriptionRef}
-              blockedAddRowMessage={blockedAddRowMessage}
               onError={(error) => { const classified = classifyMutationError(error); toast(classified.headline, classified.detail, 'warning'); }}
               currency={orgCurrency}
               currencyKnown={currencyKnown}

@@ -64,6 +64,7 @@ const copy = {
     emptyPrompt: 'No delivery phases yet',
     addFirst: 'Plan delivery phases',
     createTitle: 'New phase',
+    nameLabel: /^Phase name/,
     createAction: 'Create phase',
     createdToast: 'Phase created',
     heading: 'Delivery phases',
@@ -81,6 +82,7 @@ const copy = {
     emptyPrompt: 'Belum ada fase pelaksanaan',
     addFirst: 'Rencanakan fase pelaksanaan',
     createTitle: 'Fase baru',
+    nameLabel: /^Nama fase/,
     createAction: 'Buat fase',
     createdToast: 'Fase dibuat',
     heading: 'Fase pelaksanaan',
@@ -138,7 +140,7 @@ describe('planner phase vocabulary', () => {
       await user.click(screen.getByRole('button', { name: words.addFirst }));
       const createDialog = screen.getByRole('dialog');
       expect(within(createDialog).getByRole('heading', { name: words.createTitle })).toBeInTheDocument();
-      await user.type(within(createDialog).getByRole('textbox'), 'Engineering design');
+      await user.type(within(createDialog).getByRole('textbox', { name: words.nameLabel }), 'Engineering design');
       await user.click(within(createDialog).getByRole('button', { name: words.createAction }));
       expect(milestoneMutations.create.mutateAsync).toHaveBeenCalledTimes(1);
       expect(await screen.findByText(words.createdToast)).toBeInTheDocument();

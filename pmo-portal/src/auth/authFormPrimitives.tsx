@@ -36,8 +36,8 @@ export const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
 );
 
 /** Shared small product line for every shell-less auth screen. */
-export const AuthHeader: React.FC<{ className?: string; productName?: string }> = ({ className, productName = 'PMO Portal' }) => (
-  <header className={cn('flex justify-center', className)}>
+export const AuthHeader: React.FC<{ className?: string; productName?: string; as?: 'header' | 'div' }> = ({ className, productName = 'PMO Portal', as: Tag = 'header' }) => (
+  <Tag className={cn('flex justify-center', className)}>
     <div className="inline-flex items-center gap-2">
       <span
         aria-hidden="true"
@@ -49,7 +49,7 @@ export const AuthHeader: React.FC<{ className?: string; productName?: string }> 
         {productName}
       </span>
     </div>
-  </header>
+  </Tag>
 );
 
 /** Single labeled input block — label above, value controlled by parent. */
@@ -93,7 +93,7 @@ export const AuthInput: React.FC<{
       className={cn(
         'h-[var(--control-height)] w-full rounded-md border border-border hover:enabled:border-input bg-card px-2.5 text-control text-foreground',
         'placeholder:text-muted-foreground',
-        'transition-[border-color,box-shadow] duration-100',
+        'transition-[border-color,box-shadow]',
         'disabled:cursor-not-allowed disabled:opacity-45',
         isSecret && 'pr-11',
       )}

@@ -3,7 +3,7 @@
  * for the AssistantPanel's resizable width and dock/overlay mode.
  *
  * FR-AXP-024 (width, clamped 320-720, default 400) / FR-AXP-025 (mode, default
- * 'overlay'). No server/DB persistence — this is a per-device UX preference.
+ * 'docked': the page reflows beside the panel instead of being sliced under it). No server/DB persistence — this is a per-device UX preference.
  * localStorage reads/writes are wrapped in try/catch: private-mode Safari (and
  * any environment where localStorage throws) must not crash the panel — the
  * in-memory state still works for the session, mirroring useTheme.ts's pattern.
@@ -15,8 +15,11 @@ export const PANEL_WIDTH_MIN = 320;
 export const PANEL_WIDTH_MAX = 720;
 export const PANEL_WIDTH_DEFAULT = 400;
 
+/** Docked needs room: below this the panel is the full-screen sheet (and the shell reserves nothing). */
+export const PANEL_DOCK_MIN_WIDTH = 1280;
+
 export type PanelMode = 'overlay' | 'docked';
-export const PANEL_MODE_DEFAULT: PanelMode = 'overlay';
+export const PANEL_MODE_DEFAULT: PanelMode = 'docked';
 export const PANEL_PREFS_CHANGED_EVENT = 'pmo.agentPanel.prefsChanged';
 
 export interface PanelPrefsChangedDetail {
@@ -62,7 +65,7 @@ export function writePanelWidth(width: number): void {
 export function readPanelMode(): PanelMode {
   try {
     const raw = window.localStorage.getItem(PANEL_MODE_KEY);
-    return raw === 'docked' ? 'docked' : PANEL_MODE_DEFAULT;
+    return raw === 'docked' || raw === 'overlay' ? raw : PANEL_MODE_DEFAULT;
   } catch {
     return PANEL_MODE_DEFAULT;
   }

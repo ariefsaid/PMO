@@ -4,7 +4,7 @@
 
 ## Basis and decisions applied
 
-Inputs: [local-seed audit](2026-10-16-declutter-audit.md), the private live-data friction register (referenced only by finding IDs below), [PRODUCT.md](../../PRODUCT.md), [DESIGN.md](../../DESIGN.md), and [decisions](../decisions.md). The live register is deliberately not linked, quoted or attached. All examples below are generic; implementation fixtures must be synthetic too.
+Inputs: the 2026-10-16 local-seed audit (since deleted), the private live-data friction register (referenced only by finding IDs below), [PRODUCT.md](../../PRODUCT.md), [DESIGN.md](../../DESIGN.md), and [decisions](../decisions.md). The live register is deliberately not linked, quoted or attached. All examples below are generic; implementation fixtures must be synthetic too.
 
 The local audit supplies breadth, role/phone evidence and conditional-state hypotheses; the live pass supplies financial and daily-operation impact. Neither proves the other's data state. Reproduce conditional findings before changing behavior. This backlog supersedes the audit's proposed dispatch grouping, not its evidence.
 

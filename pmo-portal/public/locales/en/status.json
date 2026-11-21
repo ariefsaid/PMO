@@ -48,6 +48,16 @@
     "cancelled": "Cancelled",
     "active": "Active"
   },
+  "journal": {
+    "draft": "Draft",
+    "submitted": "Submitted",
+    "approved": "Approved",
+    "sending": "Sending",
+    "posted": "Posted",
+    "scheduled": "Scheduled",
+    "held": "Needs a check",
+    "refused": "Refused"
+  },
   "timesheet": {
     "draft": "Draft",
     "submitted": "Submitted",
@@ -224,5 +234,11 @@
     "notShown": "Not shown yet: {{figures}}",
     "hiddenCount_other": "{{count}} figures hidden",
     "why": "Why"
+  },
+  "siteReport": {
+    "draft": "Draft",
+    "submitted": "Waiting to validate",
+    "returned": "Returned",
+    "validated": "Validated"
   }
 }

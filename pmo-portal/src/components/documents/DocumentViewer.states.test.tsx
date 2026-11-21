@@ -22,7 +22,7 @@ describe('document-preview AC-004 recovery states', () => {
     await open();
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent("Your Microsoft account can't open this file. Ask the owner for access, or open it in SharePoint.");
-    expect(screen.getByRole('button', { name: 'Open in SharePoint' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open in SharePoint' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /reconnect/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /integrations/i })).not.toBeInTheDocument();
   });
@@ -31,7 +31,7 @@ describe('document-preview AC-004 recovery states', () => {
     await open(failing(kind));
     expect(await screen.findByRole('alert')).toHaveTextContent('Connect your Microsoft account to preview this file.');
     expect(screen.getByRole('link', { name: 'Open My integrations' })).toHaveAttribute('href', '/integrations');
-    expect(screen.getByRole('button', { name: 'Open in SharePoint' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open in SharePoint' })).toBeInTheDocument();
   });
 
   it('consent_needed: reconnect copy with the integrations entry', async () => {
@@ -52,7 +52,7 @@ describe('document-preview AC-004 recovery states', () => {
     await screen.findByRole('alert');
     expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Download' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open in SharePoint' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open in SharePoint' })).toBeInTheDocument();
   });
 
   it('not_found: its own copy, no Retry loop', async () => {
@@ -66,7 +66,7 @@ describe('document-preview AC-004 recovery states', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('No file is attached.');
     expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
-    expect(screen.queryByTitle('Plan.png')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog').querySelector('iframe')).toBeNull();
   });
 
   it('rate_limited: Retry is disabled until the retry-after has elapsed', async () => {

@@ -52,9 +52,9 @@ it.each([true, false])('UIP-004 Projects keeps classification in its one filter 
   expect(within(chips).getByRole('button', { name: 'Sector filter options' })).toBeVisible();
   expect(within(chips).getByText('Engineering')).toBeVisible();
   expect(within(chips).getByText('Energy')).toBeVisible();
-  expect(screen.queryByRole('button', { name: state.data[1].name })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: state.data[1].name })).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Clear all' }));
-  expect(screen.getByRole('button', { name: state.data[1].name })).toBeVisible();
+  expect(screen.getByRole('link', { name: state.data[1].name })).toBeVisible();
   expect(screen.queryByRole('toolbar', { name: /active filters/i })?.querySelectorAll('[data-rule-id]') ?? []).toHaveLength(0);
 });
 

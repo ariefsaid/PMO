@@ -48,6 +48,8 @@ const KNOWN_UNLISTED = new Map([
   ['rpc:grant_sales_invoice_submit_clearance', SERVICE_ONLY],
   ['rpc:release_sales_invoice_submit_clearance', SERVICE_ONLY],
   ['rpc:claim_sales_invoice_author', APP_ONLY],
+  // #895: manual journals are posted from the app only; no CLI command sends one, so a command-line token stays refused here.
+  ['rpc:approved_journal_for_push', APP_ONLY],
   ['rpc:get_process_gates', SERVICE_ONLY],
   ['table:sales_invoices', SERVICE_ONLY],
   ['table:procurements', SERVICE_ONLY],
@@ -77,6 +79,8 @@ const KNOWN_UNLISTED = new Map([
   ['rpc:decide_connect_review', CONNECT],
   ['rpc:unlink_connect_match', CONNECT],
   ['rpc:retry_connect_send', CONNECT],
+  ['rpc:account_send_groups', CONNECT],   // #1599 ECX-4
+  ['rpc:request_account_send', CONNECT],  // #1599 ECX-4
   ['rpc:request_company_defaults', CONNECT],
 ]);
 

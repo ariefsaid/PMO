@@ -9,13 +9,18 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { BahasaProvider } from '@/test/bahasa';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const state = vi.hoisted(() => ({
   onLedger: true,
+  unlinked: false,
   ledgerCurrency: 'IDR',
   spendCurrency: 'USD',
   currencyDiffers: false,
+  unknown: 0,
+  draftOnly: false,
+  displaySpent: undefined as { amount: number; currency: string } | undefined,
   rows: [] as Array<{ category: string; budget: number; actual: number | null }>,
   spendRows: undefined as Array<{ category: string; actual: number | null }> | undefined,
   position: {
@@ -35,10 +40,12 @@ const ACTIVE = {
   line_items: LINES, total: 6000,
 };
 
+const fxIdr = vi.hoisted(() => ({ state: { status: 'off' } as { status: string; match?: { rate: number; rate_date: string } } }));
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => fxIdr.state }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetDistribution: () => ({ data: null, isSuccess: true, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
-  useBudgetVersions: () => ({ data: [ACTIVE], isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetVersions: () => ({ data: [state.draftOnly ? { ...ACTIVE, status: 'Draft' } : ACTIVE], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: 'allowed', isPending: false, isError: false }),
   useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetArchiveTargets: () => ({ data: [], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) }),
@@ -48,14 +55,26 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({
 vi.mock('@/src/hooks/useProjectPosition', () => ({
   useBudgetPosition: () => ({
     actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true,
-    ...state.position, rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: 0,
+    ...state.position, displaySpent: state.displaySpent, rows: state.rows, spendRows: state.spendRows ?? state.rows, spendCurrency: state.spendCurrency, currencyDiffers: state.currencyDiffers, unknown: state.unknown,
+  }),
+}));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: () => ({
+    data: {
+      'p-1': {
+        projectId: 'p-1', ledgerBasis: state.position.ledgerBasis,
+        currency: state.displaySpent?.currency ?? state.spendCurrency, budgetCurrency: ACTIVE.currency, activeBudgetAmount: '6000.00',
+        spent: state.displaySpent ? String(state.displaySpent.amount) : state.position.spent === null ? null : String(state.position.spent),
+        openCommitment: '0.00', consumption: null, complete: true, usedRatio: null, usedPercent: null,
+      },
+    },
   }),
 }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: null, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useOdooLedger', () => ({
-  useOdooProjectActuals: () => ({ onLedger: state.onLedger, linked: true, linkError: false, unlinked: false }),
+  useOdooProjectActuals: () => ({ onLedger: state.onLedger, linked: !state.unlinked, linkError: false, unlinked: state.unlinked }),
   useOdooLedgerCurrency: () => state.ledgerCurrency,
   useOdooLedgerHealth: () => ({
     isPending: false,
@@ -86,6 +105,26 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const projectIn = (currency: string) => ({ id: 'p-1', currency, tax_treatment: 'exclusive', tax_rate: null, start_date: '2026-01-01', end_date: '2026-12-31' }) as unknown as ProjectWithRefs;
 
+/**
+ * Reads the Spent column of the budget table by its header, so a test follows what a person adds
+ * up: the figures in the body rows against the Total row's figure. In the body the category header
+ * names a `rowheader` th (no `cell` role, so each data cell sits one header-index left); the
+ * Total row's category is itself a `td` (the "Total" label), so its data cells sit level with
+ * their headers.
+ */
+const spentColumn = (table: HTMLElement): { rowValues: string[]; total: string } => {
+  const headers = within(table).getAllByRole('columnheader').map((header) => header.textContent?.trim() ?? '');
+  const spentHeaderIndex = headers.indexOf('Spent');
+  if (spentHeaderIndex < 0) throw new Error('no Spent column rendered');
+  const dataRows = within(table).getAllByRole('row').filter((row) => within(row).queryAllByRole('columnheader').length === 0);
+  const totalRow = dataRows.find((row) => row.textContent?.includes('Total'));
+  return {
+    rowValues: dataRows.filter((row) => row !== totalRow).map((row) => within(row).getAllByRole('cell')[spentHeaderIndex - 1]?.textContent ?? ''),
+    total: totalRow ? within(totalRow).getAllByRole('cell')[spentHeaderIndex]?.textContent ?? '' : '',
+  };
+};
+const moneyValue = (cell: string) => cell.trim() === '' ? 0 : Number(cell.replace(/[^0-9.-]/g, ''));
+
 const renderPage = (project = projectIn('USD')) => render(
   <FinanceI18nTestProvider>
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -105,10 +144,15 @@ const ROWS = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fxIdr.state = { status: 'off' };
   state.onLedger = true;
+  state.unlinked = false;
   state.ledgerCurrency = 'IDR';
   state.spendCurrency = 'IDR';
   state.currencyDiffers = false;
+  state.unknown = 0;
+  state.draftOnly = false;
+  state.displaySpent = undefined;
   state.rows = ROWS;
   state.spendRows = undefined;
   state.position = {
@@ -119,6 +163,18 @@ beforeEach(() => {
 });
 
 describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currency (#2066)', () => {
+  it('withholds Spent and Left when the project is not linked, even if a position was cached', async () => {
+    state.unlinked = true;
+    renderPage(projectIn('IDR'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    // Spent and Left read — with a short caption; no amount of the cached position leaks through.
+    // The cause is said once, on the Spent card where it is fixed; Budget used and Left both say the same
+    // short thing in words, so an unknown percentage and an unknown amount never read differently.
+    expect(within(figures).getAllByText('Spending is not linked')).toHaveLength(1);
+    expect(within(figures).getAllByText('Shown once spending is linked')).toHaveLength(2);
+    expect(figures.textContent).not.toMatch(/1,500|4,500|≈\s*0%/);
+  });
+
   it('Spent and Left cards equal the table totals, not "unknown"', async () => {
     renderPage(projectIn('IDR'));
     const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
@@ -135,7 +191,7 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
     // Travel has no Odoo account: Spent (and the Left built on it) state the exclusion.
-    expect(within(figures).getAllByText('Excludes 1 unmapped categories')).toHaveLength(2);
+    expect(within(figures).getAllByText('Excludes 1 unmapped category')).toHaveLength(2);
   });
 
   it('every category known: no exclusion note', async () => {
@@ -151,9 +207,44 @@ describe('AC-ODA-024 Odoo ledger basis: budget, spend and project in one currenc
     state.position = { ...state.position, spent: null, consumption: null, consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null };
     renderPage(projectIn('IDR'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    // Spent is withheld, never a zero: the page's one hidden-figures line says why.
-    expect(figures.textContent).not.toMatch(/Spent/);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/spending is not linked/i);
+    // Spent is withheld, never a zero: its own card reads — and says why in one short caption; no notice row.
+    expect(within(figures).getAllByText('Spending is not linked')).toHaveLength(1);
+    expect(within(figures).getAllByText('—').length).toBeGreaterThanOrEqual(1);
+    expect(figures.textContent).not.toMatch(/Spent\s*0\b/);
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-ODA-024 an all-USD project in a rupiah organisation (#2249)', () => {
+  it('every USD card (Budget, Spent, Committed, Left) carries its rupiah equivalent', async () => {
+    fxIdr.state = { status: 'ready', match: { rate: 18500, rate_date: '2026-11-14' } };
+    ACTIVE.currency = 'USD';
+    state.ledgerCurrency = 'USD';
+    state.spendCurrency = 'USD';
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).toMatch(/Budget.*\$6,000/);
+    expect(within(figures).getByText('≈ IDR 111,000,000 (using IDR 18,500 rate)')).toBeInTheDocument(); // Budget
+    expect(within(figures).getByText(/≈ IDR 27,750,000 \(using IDR 18,500 rate\)/)).toBeInTheDocument(); // Spent
+    expect(within(figures).getByText('≈ IDR 0 (using IDR 18,500 rate)')).toBeInTheDocument(); // Committed
+    expect(within(figures).getByText(/≈ IDR 83,250,000 \(using IDR 18,500 rate\)/)).toBeInTheDocument(); // Left
+  });
+});
+
+describe('AC-ODA-024 a project with no active budget (#2249)', () => {
+  beforeEach(() => {
+    state.draftOnly = true;
+    state.spendCurrency = 'IDR';
+    state.position = { ...state.position, spent: null, budgetComparisonKnown: false, usedPercent: null, consumption: null };
+  });
+
+  it('says the budget is what is missing once: no repeated row, no "Shown once spending is linked"', async () => {
+    renderPage(projectIn('IDR'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(screen.queryByText('Shown once spending is linked')).not.toBeInTheDocument();
+    expect(within(figures).getAllByText('No active budget')).toHaveLength(1); // the Budget card names the cause
+    const rowAboveCards = screen.queryAllByText('No active budget').find((el) => !figures.contains(el) && el.tagName === 'P');
+    expect(rowAboveCards).toBeUndefined();
   });
 });
 
@@ -165,7 +256,8 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     state.rows = ROWS.map((r) => ({ ...r, actual: null }));
     state.spendRows = ROWS;
     state.currencyDiffers = true;
-    state.position = { ...state.position, spent: 1500, consumption: '1500.00', consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null };
+    state.position = { ...state.position, spent: null, consumption: '1500.00', consumptionVariance: null, budgetComparisonKnown: false, usedPercent: null };
+    state.displaySpent = { amount: 1500, currency: 'IDR' };
   });
 
   it('keeps each figure in its own currency: budget in USD, Odoo spend in IDR', async () => {
@@ -177,18 +269,68 @@ describe('AC-ODA-024 Odoo ledger basis: a USD budget against IDR Odoo spend (#20
     expect(within(table).getByText('IDR 1,200')).toBeInTheDocument();
   });
 
-  it('the shared hidden-figure line names each currency separately once', async () => {
+  it('shows Budget used and Left in rupiah at the latest rate, each marked approximate, with no notice row', async () => {
+    fxIdr.state = { status: 'ready', match: { rate: 18500, rate_date: '2026-11-14' } };
+    state.displaySpent = { amount: 55500000, currency: 'IDR' };
     renderPage(projectIn('USD'));
-    const hidden = await screen.findByTestId('figures-hidden');
-    const reason = 'Budget: USD. Spending: IDR. Commitments: USD. Comparisons are unavailable across currencies.';
-    expect(hidden).toHaveTextContent(reason);
-    expect(screen.queryByText(reason, { exact: true })).not.toBeInTheDocument();
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    // Exact figures stay exact and first; the equivalent sits under the USD budget.
+    expect(figures.textContent).toMatch(/Budget.*\$6,000/);
+    expect(within(figures).getByText('≈ IDR 111,000,000 (using IDR 18,500 rate)')).toBeInTheDocument();
+    expect(figures.textContent).toMatch(/Spent.*IDR\s*55,500,000/);
+    expect(figures.textContent).toMatch(/≈ 50%/);
+    expect(figures.textContent).toMatch(/≈ IDR 55,500,000/);
+    expect(within(figures).getByText('using IDR 18,500 rate')).toBeInTheDocument(); // under Budget used
+    expect(within(figures).getByText(/·\s*using IDR 18,500 rate$/)).toBeInTheDocument(); // under Left
+  });
+
+  it('with no rate uploaded Budget used and Left read — and say so on their own cards', async () => {
+    fxIdr.state = { status: 'none' };
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(within(figures).getAllByText('No exchange rate uploaded').length).toBeGreaterThanOrEqual(2);
+    expect(figures.textContent).not.toMatch(/≈ \d/);
+  });
+
+  it('the unknown-figure caption reads in Bahasa without a notice row', async () => {
+    fxIdr.state = { status: 'none' };
+    render(
+      <BahasaProvider locale="id">
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={['/projects/p-1/budget']}>
+            <ToastProvider><ProjectBudget projectId="p-1" project={projectIn('USD')} /></ToastProvider>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </BahasaProvider>,
+    );
+    await screen.findAllByText('Belum ada kurs yang diunggah');
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Belum ada kurs yang diunggah').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('does not call mapped spending unmapped when only the comparison currency differs', async () => {
+    state.unknown = 3;
+    state.spendRows = ROWS.map((row) => ({ ...row, actual: row.actual ?? 100 }));
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).toMatch(/Spent.*IDR\s*1,500/);
+    expect(figures.textContent).not.toMatch(/not mapped|unmapped/i);
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+  });
+
+  it('still warns when a category amount is genuinely unmapped', async () => {
+    state.unknown = 3;
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).toMatch(/not mapped|unmapped/i);
   });
 
   it('never subtracts across currencies: Left gives no number and says the currencies differ', async () => {
     renderPage(projectIn('USD'));
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/Comparisons are unavailable across currencies/i);
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
     expect(figures.textContent).not.toMatch(/4,500/);
     expect(screen.queryByText('Over budget')).not.toBeInTheDocument();
     expect(screen.queryByText('On track')).not.toBeInTheDocument();
@@ -204,8 +346,8 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
   it('one unknown category still makes Spent and Left unknown, in the project currency', async () => {
     renderPage();
     const figures = await screen.findByRole('region', { name: 'Budget figures' });
-    expect(figures.textContent).not.toMatch(/Spent|Left/);
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/3 figures hidden/i);
+    expect(within(figures).getAllByText('Spending is not linked')).toHaveLength(1);
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
     expect(figures.textContent).toMatch(/\$/);
     expect(figures.textContent).not.toMatch(/IDR|Spent excludes/);
     expect(screen.queryByText('Amounts in IDR')).not.toBeInTheDocument();
@@ -220,5 +362,91 @@ describe('AC-ODA-024 PMO basis is unchanged (#2066)', () => {
     expect(within(table).getByText('$1,600')).toBeInTheDocument();
     expect(figures.textContent).toMatch(/Spent.*\$1,600/);
     expect(figures.textContent).toMatch(/Left.*\$4,400/);
+  });
+
+  it('describes unknown category allocations without saying the known project total excludes them', async () => {
+    state.rows = ROWS.map((row) => ({ ...row, actual: null }));
+    state.unknown = 3;
+    state.position = { ...state.position, spent: 1600, budgetComparisonKnown: true };
+    renderPage();
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).toMatch(/Spent.*\$1,600/);
+    expect(within(figures).getAllByText('Not split by category')).toHaveLength(2);
+    expect(figures.textContent).not.toMatch(/Excludes/);
+  });
+
+  it('puts the unsplit spending on one row so the Spent column adds up to the Total row', async () => {
+    state.rows = ROWS.map((row) => ({ ...row, actual: null }));
+    state.unknown = 3;
+    state.position = { ...state.position, spent: 1600, budgetComparisonKnown: true };
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
+    const spent = spentColumn(table);
+    expect(spent.rowValues).toEqual(['', '', '', '$1,600']);
+    expect(spent.total).toBe('$1,600');
+    expect(spent.rowValues.reduce((sum, cell) => sum + moneyValue(cell), 0)).toBe(moneyValue(spent.total));
+    // The row carries the spent figure; its Budget cell is empty, never a $0 placeholder.
+    const notSplitRow = within(table).getByRole('row', { name: /Not split by category/ });
+    const headers = within(table).getAllByRole('columnheader').map((header) => header.textContent?.trim() ?? '');
+    const budgetCell = within(notSplitRow).getAllByRole('cell')[headers.indexOf('Budget') - 1];
+    expect(budgetCell?.textContent ?? '').toBe('');
+    expect(budgetCell?.textContent ?? '').not.toBe('$0');
+  });
+
+  it('a partially known split puts only the unknown remainder on the not-split row', async () => {
+    state.rows = [{ category: 'Labor', budget: 5000, actual: 1000 }, { category: 'Materials', budget: 800, actual: null }, { category: 'Travel', budget: 200, actual: null }];
+    state.unknown = 2;
+    state.position = { ...state.position, spent: 1600, budgetComparisonKnown: true };
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
+    const spent = spentColumn(table);
+    // Labor carries its known $1,000; the not-split row carries only the unknown $600 remainder.
+    expect(spent.rowValues).toEqual(['$1,000', '', '', '$600']);
+    expect(spent.total).toBe('$1,600');
+    expect(spent.rowValues.reduce((sum, cell) => sum + moneyValue(cell), 0)).toBe(moneyValue(spent.total));
+  });
+
+  it('an empty Uncategorized row is left out instead of contradicting the total', async () => {
+    state.rows = [...ROWS.map((row) => ({ ...row, actual: null })), { category: 'Uncategorized', budget: 0, actual: null }];
+    state.spendRows = state.rows;
+    state.unknown = 4;
+    state.position = { ...state.position, spent: 1600, budgetComparisonKnown: true };
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Budget vs actual by category' });
+    // Nothing is recorded on the Uncategorized row (budget $0, spent $0, committed $0), so it is
+    // not shown beside a total it cannot explain; the unsplit spending sits on its own row.
+    expect(within(table).queryByRole('row', { name: /Uncategorized/ })).not.toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /Not split by category/ })).toHaveTextContent('$1,600');
+    const spent = spentColumn(table);
+    expect(spent.rowValues.reduce((sum, cell) => sum + moneyValue(cell), 0)).toBe(moneyValue(spent.total));
+  });
+});
+
+describe('ERP ledger spending in a different currency', () => {
+  beforeEach(() => {
+    state.onLedger = false;
+    ACTIVE.currency = 'USD';
+    state.spendCurrency = 'IDR';
+    state.currencyDiffers = true;
+    state.unknown = 3;
+    state.rows = ROWS.map((row) => ({ ...row, actual: null }));
+    state.spendRows = ROWS.map((row) => ({ ...row, actual: row.actual ?? 0 }));
+    state.position = { ...state.position, spent: null, budgetComparisonKnown: false, usedPercent: null };
+    state.displaySpent = { amount: 1500, currency: 'IDR' };
+  });
+
+  it('shows mapped spend without an unmapped warning while comparisons are unavailable', async () => {
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(figures.textContent).toMatch(/Spent.*IDR\s*1,500/);
+    expect(figures.textContent).not.toMatch(/not mapped|unmapped/i);
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
+  });
+
+  it('warns when an actual category is unknown', async () => {
+    state.spendRows = ROWS;
+    renderPage(projectIn('USD'));
+    const figures = await screen.findByRole('region', { name: 'Budget figures' });
+    expect(within(figures).getByText('Not split by category')).toBeInTheDocument();
   });
 });

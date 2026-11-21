@@ -43,6 +43,7 @@ import { ProcurementFilesSubsection } from '@/pages/procurement/ProcurementFiles
 import { LedgerFileCell } from '@/pages/procurement/LedgerFileCell';
 import { useDocumentFiles } from '@/pages/project-detail/tabs/useDocumentFiles';
 import { ReceiptPreviewButton } from './targets/ReceiptPreviewButton';
+import { ProjectDocumentLink } from './targets/ProjectDocumentLink';
 
 const SP = 'https://tenant.sharepoint.com/sites/x/Plan.pdf';
 const file: MicrosoftReference = { drive_id: 'd', item_id: 'i', web_url: SP, name: 'Plan.pdf', item_kind: 'file', linked_by: 'u', linked_at: '2026-10-01T00:00:00Z', last_verified_at: null };
@@ -64,6 +65,7 @@ function Where() {
 interface Surface { name: string; fileName: string; ui: ReactNode; control: RegExp; preList?: () => void }
 const surfaces: Surface[] = [
   { name: 'project register row', fileName: 'Survey', ui: <RegisterRow />, control: /Preview file for Survey/i },
+  { name: 'linked evidence', fileName: 'Survey', ui: <ProjectDocumentLink documentId="doc-2" documents={[row]} />, control: /Preview Survey/ },
   { name: 'project quick view', fileName: 'Plan.pdf', ui: <LinkedDocumentCell reference={file} owner={project} />, control: /Preview Plan\.pdf/ },
   { name: 'purchase Microsoft reference', fileName: 'Plan.pdf', ui: <LinkedDocumentCell reference={file} owner={{ kind: 'procurement', id: 'pd-1' }} />, control: /Preview Plan\.pdf/ },
   {
@@ -112,7 +114,7 @@ describe('document-preview AC-001 the ledger previews a SharePoint-backed attach
   });
 });
 
-describe('document-preview AC-001 every entry point opens the side-panel viewer', () => {
+describe('document-preview AC-001 every entry point opens the viewer dialog', () => {
   it.each(surfaces)('$name', async ({ ui, control, fileName, preList }) => {
     preList?.();
     const open = vi.fn<DocumentViewerApi['open']>();

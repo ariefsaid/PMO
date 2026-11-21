@@ -45,6 +45,7 @@ vi.mock('@/src/components/m365/MicrosoftDocumentPicker', () => ({
 }));
 
 import DocumentsTab from '../DocumentsTab';
+import { chooseAddOption, addOptionLabels } from './addDocumentMenu';
 import { formatDay } from '@/src/lib/format';
 
 const renderTab = () =>
@@ -77,7 +78,7 @@ describe('F1: register rows stay short', () => {
     expect(screen.queryAllByText(ACCESS)).toHaveLength(0);
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
     const preview = screen.getByRole('dialog');
-    expect(within(preview).getByRole('button', { name: /^Open in SharePoint:/ })).toBeEnabled();
+    expect(within(preview).getByRole('link', { name: /^Open in SharePoint:/ })).toBeEnabled();
     expect(within(preview).getAllByText(ACCESS)).toHaveLength(1);
   });
 
@@ -88,23 +89,15 @@ describe('F1: register rows stay short', () => {
   });
 });
 
-describe('F4/F17: header actions', () => {
-  it('F4/F17: the primary actions share one wrapping group, labelled "Link from Microsoft 365", and the folder action is outside the heading row', () => {
-    renderTab();
-    const link = screen.getByRole('button', { name: 'Link from Microsoft 365' });
-    const add = screen.getByRole('button', { name: 'Add document' });
-    expect(link.parentElement).toBe(add.parentElement);
-    expect(link.parentElement).toHaveClass('flex-wrap');
-    expect(screen.queryByRole('button', { name: 'From Microsoft 365' })).not.toBeInTheDocument();
-    expect(link.parentElement).not.toBe(screen.getByRole('button', { name: 'Create folder in SharePoint' }).parentElement);
-  });
-
-  it('F4/F17: Create folder in SharePoint shares the register toolbar row with the other create controls', () => {
+describe('F4/F17: one Add document control', () => {
+  it('F4/F17: the ways to add (upload, Link from Microsoft 365, Create folder in SharePoint) sit inside the one Add document control on the toolbar row', async () => {
     renderTab();
     const toolbar = screen.getByTestId('documents-register-toolbar');
-    for (const name of ['Create folder in SharePoint', 'Link from Microsoft 365', 'Add document']) {
-      expect(within(toolbar).getByRole('button', { name })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Add document' })).toHaveLength(1);
+    for (const name of ['Create folder in SharePoint', 'Link from Microsoft 365', 'From Microsoft 365']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
+    expect(await addOptionLabels(userEvent)).toEqual(['Upload a document', 'Link from Microsoft 365', 'Create folder in SharePoint']);
     expect(within(toolbar).getByRole('button', { name: 'Grouped' })).toBeInTheDocument();
     expect(within(toolbar).getByRole('combobox', { name: 'Filter by category' })).toBeInTheDocument();
   });
@@ -138,7 +131,8 @@ describe('F3: Bahasa', () => {
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByText('Lepas tautan Foundation GA?')).toBeNull());
 
-    expect(screen.getByRole('button', { name: 'Tautkan dari Microsoft 365' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Tambah dokumen' }));
+    expect(await screen.findByRole('menuitem', { name: 'Tautkan dari Microsoft 365' })).toBeInTheDocument();
   });
 });
 
@@ -147,7 +141,7 @@ describe('F5: ambiguous folder match', () => {
     h.ensure.mockResolvedValue({ state: 'needs_choice' });
     renderTab();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Create folder in SharePoint' }));
+    await chooseAddOption(user, 'Create folder in SharePoint');
     await user.click(await screen.findByRole('button', { name: 'Choose existing folder' }));
     expect(await screen.findByRole('dialog', { name: 'Synthetic picker' })).toBeInTheDocument();
   });
@@ -157,7 +151,7 @@ describe('F6: setup link', () => {
   it('F6: when Microsoft is not connected a Project Manager is sent to My integrations, not the Admin area', async () => {
     h.conn.connection = { connected: false, status: null };
     renderTab();
-    await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    await chooseAddOption(userEvent, 'Link from Microsoft 365');
     expect(screen.getByRole('link', { name: 'My integrations' })).toHaveAttribute('href', '/integrations');
     expect(document.querySelector('a[href="/administration/integrations"]')).toBeNull();
   });
@@ -166,7 +160,7 @@ describe('F6: setup link', () => {
 describe('F7: Add document from a Microsoft item', () => {
   async function pick(name: string, kind: 'file' | 'folder' = 'file') {
     renderTab();
-    await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
+    await chooseAddOption(userEvent, 'Link from Microsoft 365');
     await screen.findByRole('dialog', { name: 'Synthetic picker' });
     await waitFor(() => expect(h.selectFromPicker).toBeTruthy());
     await act(async () => {

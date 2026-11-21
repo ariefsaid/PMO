@@ -48,6 +48,7 @@ const mockArchive = vi.fn().mockResolvedValue(undefined);
 const mockDeleteDraft = vi.fn().mockResolvedValue(undefined);
 const mockCreateVersion = vi.fn().mockResolvedValue({ id: 'v-new' });
 
+vi.mock('@/src/hooks/useFxIdrRate', () => ({ useFxIdrRate: () => ({ status: 'off' }) }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,

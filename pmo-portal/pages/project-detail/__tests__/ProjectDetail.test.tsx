@@ -296,6 +296,35 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(facts).toHaveTextContent(/Progress.*Budget used 50%.*Updated/u);
   });
 
+  it('the header reads name, identity line (customer, number), then facts line with Updated last, and keeps the customer named for assistive tech', async () => {
+    projectsState.data = [{ ...seed[0], last_update: '2026-11-01T00:00:00Z' } as ProjectWithRefs];
+    await renderAt('/projects/p1');
+    const header = screen.getByTestId('record-header');
+    const identity = within(header).getByTestId('project-identity-line');
+    const facts = within(header).getByRole('region', { name: 'Project facts' });
+    // Customer then project number, read apart (the visual dot is a separator drawn by CSS).
+    expect(identity).toHaveTextContent(/Innovate Corp PRJ-001$/u);
+    expect(identity.querySelector('.sr-only')).toHaveTextContent('Customer');
+    expect(within(facts).getByText('Alice Manager')).toBeInTheDocument();
+    expect(facts.lastElementChild).toHaveTextContent(/^Updated /u);
+    // Document order is the reading order: name, identity, facts.
+    const order = [screen.getByRole('heading', { level: 1 }), identity, facts];
+    order.slice(1).forEach((el, i) => expect(order[i].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy());
+  });
+
+  it('phone: the header carries the project name visibly, with the status tags right under it before the identity line', async () => {
+    desktopBox.value = false;
+    await renderAt('/projects/p1');
+    const header = screen.getByTestId('record-header');
+    const name = within(header).getByRole('heading', { level: 1, name: 'Innovate Corp HQ Fit-Out' });
+    // No top bar carries the name on a phone, so the heading must not be screen-reader-only there.
+    expect(name.className).not.toMatch(/sr-only/);
+    const status = within(header).getByText('Ongoing');
+    const identity = within(header).getByTestId('project-identity-line');
+    expect(name.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(status.compareDocumentPosition(identity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('2057: Copy link lives in the More actions menu', async () => {
     await renderAt('/projects/p1');
     await userEvent.click(screen.getByRole('button', { name: 'Project actions' }));

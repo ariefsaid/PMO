@@ -319,6 +319,34 @@ describe('Payables page', () => {
     expect(lateAges.map((row) => row.textContent)).toEqual(['100 days overdue', '95 days overdue']);
   });
 
+  it('keeps the 30- and 90-day rows below the overdue cutoff and marks day 91 late', () => {
+    const base = payablesFixture();
+    const rowAtAge = (ageDays: number, supplier: string): FinancePosition['payables'][number] => ({
+      ...base.payables[0]!,
+      procurement: {
+        ...base.payables[0]!.procurement,
+        id: `procurement-${ageDays}`,
+        vendor: { name: supplier },
+        vendor_id: `supplier-${ageDays}`,
+      },
+      ageDays,
+    });
+    renderPage('Finance', {
+      ...base,
+      payables: [rowAtAge(30, 'Supplier 30'), rowAtAge(90, 'Supplier 90'), rowAtAge(91, 'Supplier 91')],
+    });
+
+    const age30 = screen.getByRole('row', { name: /Supplier 30/ });
+    const age90 = screen.getByRole('row', { name: /Supplier 90/ });
+    const age91 = screen.getByRole('row', { name: /Supplier 91/ });
+    expect(age30).toHaveTextContent('30 days');
+    expect(age90).toHaveTextContent('90 days');
+    expect(age30).not.toHaveTextContent(/overdue/i);
+    expect(age90).not.toHaveTextContent(/overdue/i);
+    expect(age91).toHaveTextContent('91 days overdue');
+    expect(screen.getByRole('button', { name: 'Overdue only · 1' })).toBeInTheDocument();
+  });
+
   it('names the over-90 row late in words, not only in colour', () => {
     const base = payablesFixture();
     const warnRow = {
@@ -392,7 +420,7 @@ describe('Payables page', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(screen.getByRole('button', { name: /Open supplier invoice for Sinar Supplier/ }));
+    await user.click(screen.getByRole('link', { name: /Open supplier invoice for Sinar Supplier/ }));
     expect(screen.getByRole('status', { name: 'Current path' })).toHaveTextContent('/procurement/procurement-1');
     cleanup();
     renderPage();
@@ -481,7 +509,7 @@ describe('Payables page', () => {
 
     expect(screen.getByText('No supplier invoices waiting to be paid.')).toBeInTheDocument();
     expect(screen.getByText('To pay suppliers').parentElement?.parentElement).toHaveTextContent(/IDR\s*0/);
-    expect(screen.queryByRole('button', { name: /Open supplier invoice for/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open supplier invoice for/ })).not.toBeInTheDocument();
   });
 
   it('SEC-RS-2 / C4: an unknown supplier balance is left out of its row and the total, counted, and explained once', () => {

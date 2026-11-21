@@ -15,10 +15,21 @@ function setup() {
   const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const { result } = renderHook(() => useProgressBillingMutations('p1'), { wrapper });
   const keys = () => spy.mock.calls.map(([arg]) => JSON.stringify((arg as { queryKey: unknown }).queryKey));
-  return { result, keys };
+  return { result, keys, client };
 }
 
 describe('useProgressBillingMutations', () => {
+  it('invalidates project and work-order reconciliations when a claim changes', async () => {
+    h.withdrawClaim.mockResolvedValue(undefined);
+    const { result, client } = setup();
+    const project = ['billing-reconciliation', 'org-1', 'p1', null];
+    const order = ['billing-reconciliation', 'org-1', 'p1', 'wo-1'];
+    client.setQueryData(project, [{ measuredQty: 4 }]);
+    client.setQueryData(order, [{ measuredQty: 4 }]);
+    await act(async () => { await result.current.withdrawClaim.mutateAsync('k1'); });
+    expect(client.getQueryState(project)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(order)?.isInvalidated).toBe(true);
+  });
   it('AC-PB-008 a claim write refreshes the claims, the bill of quantities and the billing summary', async () => {
     h.withdrawClaim.mockResolvedValue(undefined);
     const { result, keys } = setup();

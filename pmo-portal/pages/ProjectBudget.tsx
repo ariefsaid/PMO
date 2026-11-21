@@ -43,7 +43,6 @@ import {
   KPIRow,
   KPITile,
   FigureScope,
-  FigureHiddenLine,
   PageHeader,
   ViewToggle,
   ProgressBar,
@@ -53,11 +52,15 @@ import {
 import type { BudgetDistributionPlan, BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useBudgetPosition } from '@/src/hooks/useProjectPosition';
+import { useBudgetUsed } from '@/src/hooks/useBudgetUsed';
+import { useFxIdrRate } from '@/src/hooks/useFxIdrRate';
+import { idrPosition } from '@/src/lib/budget/idrPosition';
+import { formatFxEquivalent, formatIdrApprox, fxRateCaption, fxRateSourceNote } from '@/src/lib/fxEquivalent';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { BudgetOdooActuals, BudgetOdooCategoryLines } from './project-detail/budget/BudgetOdooActuals';
 import { useOdooProjectActuals } from '@/src/hooks/useOdooLedger';
-import { UNCATEGORIZED, buildBudgetSummaryRows, resolveProjectCommitment, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
+import { buildBudgetSummaryRows, resolveProjectCommitment, UNCATEGORIZED, type BudgetSummaryRow } from '@/src/lib/budget/budgetModel';
 import BudgetProjection from './BudgetProjection';
 import { buildBudgetProjectionCsv, type BudgetProjectionExport } from '@/src/lib/budget/budgetProjectionExport';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
@@ -70,6 +73,7 @@ import { useBudgetVersionActions } from './project-budget/BudgetVersionActions';
 import { fetchBudgetComparison, fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 import { repositories } from '@/src/lib/repositories';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
+import { statusLabel } from '@/src/lib/status/statusMap';
 
 // ---------------------------------------------------------------------------
 // Main page component (NFR-BV-UI-001)
@@ -137,7 +141,7 @@ function expectedModeSnapshot(request: BudgetModeSwitchRequest, projectId: strin
 }
 
 const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => {
-  const { t } = useTranslation('finance');
+  const { t, i18n } = useTranslation('finance');
   const { toast } = useToast();
   const can = usePermission();
   const { realRole } = useEffectiveRole();
@@ -166,6 +170,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     setSearchParams(next, { replace: true });
   };
   const openCategory = (row: BudgetSummaryRow) => {
+    if (isNotSplitRow(row)) return; // A display-only remainder has no category drawer.
     const next = new URLSearchParams(searchParams);
     next.set('open', row.category);
     setSearchParams(next);
@@ -180,6 +185,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const versionsQuery = useBudgetVersions(projectId);
   const mutations = useBudgetMutations(projectId);
   const position = useBudgetPosition(project, true, { refetchOnMount: false });
+  const { t: tCommon } = useTranslation(['common', 'finance']);
+  const idrRate = useFxIdrRate();
+  const budgetUsed = useBudgetUsed(project);
   const procurementsQuery = useProjectProcurements(canReadProcurements ? projectId : null);
   const pushStatusQuery = useQuery<BudgetPushStatusRow[]>({
     queryKey: ['budget-push-status', projectId],
@@ -551,11 +559,29 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const spentRows = enrichedRows.filter((row) => row.spent !== null);
   // Spent and Left say so when they leave out budget categories that have no Odoo account.
   const spentExcluded = odooActuals.onLedger ? enrichedRows.length - spentRows.length : 0;
-  const totalSpent = canSeeActuals ? position.spent : null;
+  const totalSpent = canSeeActuals ? (position.displaySpent?.amount ?? position.spent) : null;
+  const totalSpentCurrency = position.displaySpent?.currency ?? spendCurrency;
+  // The spending figure is known but no category carries it: the caption and the one display-only
+  // row below both say so, and the row is what makes the Spent column add up to the Total row.
+  const spentNotSplitByCategory = !odooActuals.onLedger && !position.uncategorized && position.unknown > 0 && (position.spendRows ?? position.rows).some((row) => row.actual === null) && totalSpent !== null;
+  // Display-only rows for the category table (the shared figures logic and every other screen are
+  // untouched). When the known spending is not split by category, it shows on ONE row so the Spent
+  // column adds up to the Total row; an "Uncategorized" row that carries nothing is left out rather
+  // than reading as a $0 that contradicts the Spent card.
+  const NOT_SPLIT_CATEGORY = 'not-split-by-category';
+  const isNotSplitRow = (row: Pick<BudgetSummaryRow, 'category'>) => row.category === NOT_SPLIT_CATEGORY;
+  const notSplitSpent = spentNotSplitByCategory ? totalSpent! - enrichedRows.reduce((sum, row) => sum + (row.spent ?? 0), 0) : null;
+  const categoryRows = enrichedRows.filter((row) => !(row.category === UNCATEGORIZED && row.budget === 0 && row.spent === 0 && (row.committed ?? 0) === 0));
+  const displayRows: (typeof enrichedRows) = notSplitSpent !== null && notSplitSpent !== 0
+    ? [...categoryRows, { category: NOT_SPLIT_CATEGORY, budget: 0, spent: notSplitSpent, committed: 0, lines: [], left: null, used: null }]
+    : categoryRows;
+  const budgetRowName = (row: Pick<BudgetSummaryRow, 'category'>) => isNotSplitRow(row)
+    ? t('projectDetail.budget.uncategorizedTotalKnown', 'Not split by category')
+    : budgetCategoryLabel(row.category, t);
   const projectConsumptionIncludesOrders = position.ledgerBasis === 'pmo';
   const projectBudgetBasisKnown = position.ledgerBasis === 'pmo' || position.ledgerBasis === 'erp';
   const totalCommitted = canSeeCommitments ? resolveProjectCommitment(position.openCommitment, enrichedRows) : null;
-  const totalLeft = budgetLeftAfterOrders(position.budgetComparisonKnown && compatibleBasis ? position.budget : null, totalSpent, totalCommitted);
+  const totalLeft = budgetLeftAfterOrders(position.budgetComparisonKnown && compatibleBasis ? position.budget : null, canSeeActuals ? position.spent : null, totalCommitted);
   const totalLeftLabel = t('projectDetail.budget.leftAfterOrders', 'Left after open orders');
   const totalLeftFormula = t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and open orders, before tax.');
   const budgetAvailable = position.budgetAvailable ?? (position.spent === null || position.budgetComparisonKnown);
@@ -563,11 +589,29 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     !budgetAvailable ? t('projectDetail.budget.budgetUnavailable', 'Budget is unavailable for comparison') : null,
     totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : null,
     totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : null,
-  ].filter((reason): reason is string => reason !== null);
-  const totalLeftUnavailableReason = totalLeft !== null ? undefined : !compatibleBasis
-    ? t('projectDetail.budget.currencyBasisSplitNotice', 'Budget: {{budgetCurrency}}. Spending: {{spendCurrency}}. Commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.', { budgetCurrency: selectedCurrency, spendCurrency, projectCurrency: project.currency })
-    : missingPositionInputs.length ? missingPositionInputs.join('; ')
+  ].filter((reason): reason is string => reason !== null).map((reason) => reason.replace(/\.$/, ''));
+  // The one hidden-figures notice as plain sentences, not ";"-glued reason fragments: every hidden
+  // tile carries the SAME sentence, so FigureHiddenLine's duplicate-fold renders it once. It names
+  // what a person cannot see and the one reason it is hidden, in this page's own currencies.
+  const joinClauses = (clauses: string[]): string => clauses.length <= 1 ? clauses[0] ?? ''
+    : `${clauses.slice(0, -1).join(', ')} ${t('projectDetail.budget.hiddenNoticeAnd', 'and')} ${clauses[clauses.length - 1]}`;
+  const hiddenFigures = [
+    position.usedPercent === null ? t('projects:columns.budgetUsed', 'Budget used') : null,
+    totalSpent === null ? t('projectDetail.budget.hiddenFigureSpent', 'the amount spent') : null,
+    totalCommitted === null ? t('projectDetail.budget.hiddenFigureCommitted', 'the amount committed') : null,
+    totalLeft === null ? t('projectDetail.budget.hiddenFigureLeft', 'the amount left') : null,
+  ].filter((figure): figure is string => figure !== null);
+  // Across currencies the comparison is the missing figure, so the currencies say it; commitments
+  // are named only when their currency differs from the budget's.
+  const hiddenCause = !compatibleBasis
+    ? t('projectDetail.budget.hiddenCauseCurrency', 'Budget is in {{budgetCurrency}} and spending is in {{spendCurrency}}', { budgetCurrency: selectedCurrency, spendCurrency })
+      + (project.currency !== selectedCurrency ? t('projectDetail.budget.hiddenCauseCommitmentCurrency', ', and commitments are in {{projectCurrency}}', { projectCurrency: project.currency }) : '')
+    : missingPositionInputs.length ? joinClauses(missingPositionInputs)
       : t('projectDetail.budget.budgetPositionUnknown', 'The canonical project budget position could not be read.');
+  const hiddenCauseSentence = hiddenCause.replace(/\.$/, '');
+  const hiddenFiguresNotice = hiddenFigures.length === 0 ? undefined : hiddenFigures.length === 1
+    ? t('projectDetail.budget.hiddenNoticeOne', '{{cause}}, so {{figures}} is not shown.', { cause: hiddenCauseSentence.charAt(0).toUpperCase() + hiddenCauseSentence.slice(1), figures: hiddenFigures[0] })
+    : t('projectDetail.budget.hiddenNotice', '{{cause}}, so {{figures}} are not shown.', { cause: hiddenCauseSentence.charAt(0).toUpperCase() + hiddenCauseSentence.slice(1), figures: joinClauses(hiddenFigures) });
   const canonicalUtilizationFormula = t('projectDetail.budget.canonicalUtilizationFormula', 'Spent as a share of budget, before tax.');
   const categoryUtilizationFormula = projectConsumptionIncludesOrders
     ? t('projectDetail.budget.utilizationFormula', 'Calculated as spending divided by the category budget before tax.')
@@ -630,21 +674,69 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     : null;
   const spentExcludedNote = position.uncategorized
     ? undefined
-    : position.unknown > 0 && totalSpent !== null && !pmoSpendRows
-    ? t('projectDetail.budget.uncategorizedTotalKnown', 'Project spending is known; some category amounts are not mapped.')
+    : spentNotSplitByCategory && position.spendRows
+    ? t('projectDetail.budget.uncategorizedTotalKnown', 'Not split by category')
+    : position.unknown > 0 && totalSpent !== null && !pmoSpendRows && (position.spendRows ?? position.rows).some((row) => row.actual === null)
+    ? t('projectDetail.budget.uncategorizedTotalNotMapped', 'Project spending is known; some category amounts are not mapped.')
     : spentExcluded > 0 && totalSpent !== null
-      ? t('projectDetail.budget.spentExcludes', 'Excludes {{count}} unmapped categories', { count: spentExcluded })
+      ? t('projectDetail.budget.spentExcludes', { count: spentExcluded, defaultValue_one: 'Excludes {{count}} unmapped category', defaultValue_other: 'Excludes {{count}} unmapped categories' })
       : undefined;
   const actualSource = odooActuals.onLedger
     ? t('projectDetail.budget.actualsSourceOdoo', 'Source: the Odoo ledger by budget category. Accounts without a budget category are listed above the table and not counted.')
     : t('projectDetail.budget.actualsSource', 'Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.');
+  // Display-only: when the budget, the spending and the open orders sit in different currencies the position is
+  // shown in rupiah, marked approximate, at the latest rate on or before the organisation's today.
+  const sameCurrencies = activeBudgetCurrency === totalSpentCurrency && totalSpentCurrency === project.currency;
+  const fxMatch = idrRate.status === 'ready' ? idrRate.match : null;
+  const idr = idrPosition({
+    budget: { amount: totalBudget, currency: activeBudgetCurrency },
+    spent: { amount: totalSpent, currency: totalSpentCurrency },
+    committed: { amount: totalCommitted, currency: project.currency },
+  }, fxMatch?.rate ?? null);
+  const hasForeign = [activeBudgetCurrency, totalSpentCurrency, project.currency].some((currency) => currency !== 'IDR');
+  const rateReason = idrRate.status === 'none' ? tCommon('finance:fx.noRate', 'No exchange rate uploaded')
+    : idrRate.status === 'error' ? tCommon('fx.rateError', 'Could not load JISDOR rate.') : undefined;
+  const sourceNote = fxMatch ? fxRateSourceNote(fxMatch, tCommon) ?? undefined : undefined;
+  /** `≈ IDR … (using IDR … rate)` under a card whose own figure is in USD; nothing for a rupiah figure or without a rate. */
+  const equivalentCaption = (amount: number | null, currency: string): string | undefined => {
+    if (amount === null || currency !== 'USD' || idrRate.status === 'off') return undefined;
+    if (!fxMatch) return rateReason;
+    return formatFxEquivalent(amount, fxMatch, tCommon);
+  };
+  /** The rate's source date, for screen readers only, beside an equivalent line. */
+  const equivalentNote = (amount: number | null, currency: string): string | undefined =>
+    amount !== null && currency === 'USD' && fxMatch ? sourceNote : undefined;
+  // A card that carries `≈ IDR … (using IDR … rate)` needs the whole line on one row, so the strip gives its cells that width.
+  const showsEquivalent = [equivalentCaption(totalBudget, activeBudgetCurrency), equivalentCaption(totalSpent, totalSpentCurrency), equivalentCaption(totalCommitted, project.currency)].some((c) => c?.startsWith('≈ IDR'));
+  const spentUnknownCaption = t('projectDetail.budget.captionSpendingUnlinked', 'Spending is not linked');
+  // The cause is said once, on the Spent card where it is fixed; the figures that depend on it say the same short thing.
+  const dependsOnSpending = t('projectDetail.budget.captionNeedsSpending', 'Shown once spending is linked');
+  const noActiveBudgetCaption = t('projectDetail.budget.noActiveBudget', 'No active budget');
+  const unknownCaption = !activeVersion ? undefined : totalSpent === null ? dependsOnSpending
+    : totalCommitted === null ? t('projectDetail.budget.captionCommitmentsUnknown', 'Open orders are unknown')
+      : !budgetAvailable ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : rateReason;
+  // With spending unknown there is no percentage: never a cached one.
+  // The header reads the same value through the same reader; here an unlinked or hidden spending figure shows no percentage.
+  const usedPercentShown = totalSpent === null ? null : budgetUsed.percent;
+  const usedApproximate = usedPercentShown !== null && budgetUsed.approximate;
+  const usedValue = usedPercentShown === null ? null : budgetUsed.value;
+  const usedCaption = usedPercentShown === null ? unknownCaption : usedApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : undefined;
+  const leftApproximate = !sameCurrencies && hasForeign && idr.left !== null;
+  const leftTile = sameCurrencies || !hasForeign
+    ? tileAmount(totalLeft)
+    : idr.left === null ? { value: null as string | null } : { value: formatIdrApprox(idr.left), exactValue: `${formatIdrApprox(idr.left)} (${sourceNote ?? ''})` };
+  const leftValueNegative = sameCurrencies || !hasForeign ? totalLeft !== null && totalLeft < 0 : idr.left !== null && idr.left < 0;
+  const leftCaption = leftTile.value === null ? unknownCaption
+    : [spentExcludedNote, sameCurrencies || !hasForeign ? equivalentCaption(totalLeft, project.currency) : leftApproximate && fxMatch ? fxRateCaption(fxMatch, tCommon) : null].filter(Boolean).join(' · ') || undefined;
+  /** The card's help carries the longer reason when the figure cannot be shown. */
+  const withDetail = (text: string, unknown: boolean) => unknown && hiddenFiguresNotice ? `${text} ${hiddenFiguresNotice}` : text;
   const exportRows = (rows: BudgetSummaryRow[], filename: string) => {
     const leftLabel = t('projectDetail.budget.leftAfterSpending', 'Left after spending');
     const header = [t('financeCopy.category', 'Category'), `${t('projectDetail.budget.budgetBeforeTax', 'Budget')} (${selectedCurrency})`, `${t('projectDetail.budget.spent', 'Spent')} (${spendCurrency})`, `${t('projectDetail.budget.committed', 'Committed')} (${project.currency})`, `${leftLabel} (${project.currency})`];
     const csv = [header, ...rows.map((row) => {
       const actualKnown = canSeeActuals && row.spent !== null;
-      const left = compatibleBasis && actualKnown ? row.budget - row.spent! : null;
-      return [budgetCategoryLabel(row.category, t), row.budget, row.spent ?? '', row.committed ?? '', left ?? ''];
+      const left = compatibleBasis && actualKnown && !isNotSplitRow(row) ? row.budget - row.spent! : null;
+      return [budgetRowName(row), isNotSplitRow(row) ? '' : row.budget, row.spent ?? '', row.committed ?? '', left ?? ''];
     })].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -679,7 +771,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       rowHeader: true,
       size: 250,
       cell: (row) => {
-        const name = budgetCategoryLabel(row.category, t);
+        const name = budgetRowName(row);
+        // The not-split row is a display-only remainder, not a category: no drawer opens from it.
+        if (isNotSplitRow(row)) return <span className="min-w-0 truncate font-medium text-foreground">{name}</span>;
         return <button type="button" className="min-w-0 truncate text-left font-medium text-foreground underline-offset-2 hover:underline" aria-label={t('projectDetail.budget.openCategory', 'Open {{category}} budget details', { category: name })} onClick={(event) => { event.stopPropagation(); openCategory(row); }}>{name}</button>;
       },
       secondaryCell: (row) => row.category === UNCATEGORIZED && position.uncategorized && canSeeActuals
@@ -688,7 +782,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     },
     {
       key: 'budget', header: t('projectDetail.budget.budgetBeforeTax', 'Budget'), kind: 'money', align: 'num', size: 125, minSize: 100,
-      cell: (row) => <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.')}><span>{formatBudget(row.budget)}</span></Tooltip>,
+      // The not-split spending has no budget line, so its Budget cell stays empty — never a $0.
+      cell: (row) => isNotSplitRow(row) ? null : <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.')}><span>{formatBudget(row.budget)}</span></Tooltip>,
     },
     {
       key: 'spent', header: t('projectDetail.budget.spent', 'Spent'), kind: 'money', align: 'num', size: 125, minSize: 100,
@@ -714,14 +809,19 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     },
     {
       key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 125, minSize: 112,
-      cell: (row) => { const status = getStatus(row); return status ? <StatusPill variant={status.variant} wrap={false}>{status.label}</StatusPill> : null; },
+      cell: (row) => {
+        // The remainder row is not a planning category, so it claims no "Not budgeted" status.
+        if (isNotSplitRow(row)) return null;
+        const status = getStatus(row);
+        return status ? <StatusPill variant={status.variant} wrap={false}>{status.label}</StatusPill> : null;
+      },
     },
   ];
   const actualTotals = enrichedRows.length ? [{
     key: 'total', label: t('financeCopy.total', 'Total'),
     values: {
       budget: <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.')}><span tabIndex={0}>{formatBudget(tableBudgetTotal)}</span></Tooltip>,
-      spent: totalSpent === null ? null : <Tooltip content={actualSource}><span tabIndex={0}>{formatSpent(totalSpent)}</span></Tooltip>,
+      spent: totalSpent === null ? null : <Tooltip content={actualSource}><span tabIndex={0}>{formatAmount(totalSpent, totalSpentCurrency)}</span></Tooltip>,
       committed: <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')}><span tabIndex={0}>{formatAmount(totalCommitted)}</span></Tooltip>,
       left: tableLeftTotal === null ? null : <Tooltip content={tableLeftFormula}><span tabIndex={0}>{formatAmount(tableLeftTotal)}</span></Tooltip>,
       used: activeVersionSelected
@@ -731,7 +831,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         : null,
     },
   }] : [];
-  const categoryMenu = (row: (typeof enrichedRows)[number]): RowMenuItem[] => [
+  const categoryMenu = (row: (typeof enrichedRows)[number]): RowMenuItem[] => isNotSplitRow(row) ? [] : [
     ...(canWrite ? [{ label: t('projectDetail.budget.adjustInDraft', 'Adjust in a draft'), onClick: adjustInDraft }] : []),
     { label: t('projectDetail.budget.exportCategory', 'Export category'), onClick: () => exportRows([row], `Budget_${row.category}`) },
   ];
@@ -870,7 +970,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     <FigureScope>
     <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]" data-testid={versions.length === 0 ? 'budget-empty' : 'budget-option-a'}>
       <PageHeader headingLevel={2} title={t('projectDetail.budget.title', 'Project budget')} count={budgetUnit} className="mb-0" />
-      <FigureHiddenLine />
 
       {authoringRecoveryNotice}
 
@@ -933,18 +1032,17 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         </section>
       )}
       {/* SUB-D: with no versions at all, the empty state below says it once. */}
-      {!activeVersion && versions.length > 0 && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.noActiveBudget', 'No active budget')}</p>}
 
       {showNewVersionForm && canWrite && newVersionForm}
 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
 
-      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]">
-        <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
-        <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={position.usedPercent === null ? null : `${position.usedPercent}%`} unavailableReason={position.usedPercent === null ? t('projectDetail.budget.budgetUsedUnavailable', 'Budget used is unknown or unavailable.') : undefined} help={canonicalUtilizationFormula} />
-        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, spendCurrency)} caption={spentExcludedNote} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} hiddenLink={spendingSetupLink} help={actualSource} />
-        <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')} />
-        <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={totalLeftLabel} {...tileAmount(totalLeft)} caption={spentExcludedNote} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeftUnavailableReason} hiddenLink={compatibleBasis ? spendingSetupLink : undefined} help={totalLeftFormula} />
+      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className={showsEquivalent ? 'grid-cols-1 min-[1024px]:grid-cols-2 min-[1024px]:[&>*:last-child]:col-span-full min-[1360px]:grid-cols-6 min-[1360px]:[&>*]:col-span-2 min-[1360px]:[&>*:nth-child(n+4)]:col-span-3' : 'grid-cols-[repeat(auto-fit,minmax(9rem,1fr))]'}>
+        <KPITile icon="dollar" tone="blue" label={t('projectDetail.budget.budgetBeforeTax', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} caption={totalBudget === null ? (activeVersion || versions.length === 0 ? t('projectDetail.budget.captionBudgetUnavailable', 'Budget is unavailable') : noActiveBudgetCaption) : equivalentCaption(totalBudget, activeBudgetCurrency)} captionWrap captionNote={equivalentNote(totalBudget, activeBudgetCurrency)} keepWhenUnknown help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items before tax, grouped by category.')} />
+        <KPITile icon="chart-column" tone="violet" label={t('projects:columns.budgetUsed', 'Budget used')} value={usedValue} caption={usedCaption} nowrapLabel keepWhenUnknown help={withDetail(canonicalUtilizationFormula, usedValue === null)} />
+        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent, totalSpentCurrency)} captionWrap captionNote={equivalentNote(totalSpent, totalSpentCurrency)} caption={[spentExcludedNote, totalSpent === null ? spentUnknownCaption : equivalentCaption(totalSpent, totalSpentCurrency)].filter(Boolean).join(' · ') || undefined} hiddenLink={spendingSetupLink} keepWhenUnknown help={withDetail(actualSource, totalSpent === null)} />
+        <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} captionWrap captionNote={equivalentNote(totalCommitted, project.currency)} caption={totalCommitted === null ? t('projectDetail.budget.captionCommitmentsUnknown', 'Open orders are unknown') : equivalentCaption(totalCommitted, project.currency)} keepWhenUnknown help={withDetail(t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.'), totalCommitted === null)} />
+        <KPITile icon="down" tone={leftValueNegative ? 'red' : 'green'} label={totalLeftLabel} {...leftTile} caption={leftCaption} negative={leftValueNegative} nowrapLabel keepWhenUnknown help={withDetail(totalLeftFormula, leftTile.value === null)} />
       </KPIRow>
       {uncategorizedNote && <p className="text-sm text-muted-foreground">{uncategorizedNote}</p>}
 
@@ -974,7 +1072,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           <div className="flex min-w-0 flex-wrap items-center gap-2" role="toolbar" aria-label={t('projectDetail.budget.selectedCategories', 'Selected categories')}>
             <span className="text-sm font-medium">{t('projectDetail.budget.selectedCount', '{{count}} selected', { count: selectedRows.size })}</span>
             {canWrite && <Button variant="outline" size="sm" onClick={adjustInDraft}>{t('projectDetail.budget.adjustInDraft', 'Adjust in a draft')}</Button>}
-            <Button variant="outline" size="sm" onClick={() => exportRows(enrichedRows.filter((row) => selectedRows.has(row.category)), 'ProjectBudgetSelected')}>{t('projectDetail.budget.exportRows', 'Export lines')}</Button>
+            <Button variant="outline" size="sm" onClick={() => exportRows(displayRows.filter((row) => selectedRows.has(row.category)), 'ProjectBudgetSelected')}>{t('projectDetail.budget.exportRows', 'Export lines')}</Button>
             <Button variant="ghost" size="sm" onClick={() => setSelectedRows(new Set())}>{t('common.clear', 'Clear')}</Button>
           </div>
         ) : <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
@@ -995,12 +1093,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <span>{t('projectDetail.budget.version', 'Version')}</span>
               <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="touch-target h-[var(--control-height-sm)] max-w-52 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:opacity-70">
-                {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {version.status}</option>)}
+                {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {statusLabel('budgetVersion', version.status, tCommon)}</option>)}
               </select>
             </label>
             <div className="h-4 w-px bg-border" aria-hidden="true" />
             {canWrite && !authoringRefreshNeeded && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
-            {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(enrichedRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}
+            {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(displayRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}
           </div>
         </div>}
         {view === 'actual' && selectedVersion && selectedVersion.status !== 'Active' && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.viewingVersion', 'Viewing {{status}} v{{version}}; project spending and commitments reflect the current project totals.', { status: selectedVersion.status, version: selectedVersion.version })}</p>}
@@ -1011,7 +1109,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             <BudgetOdooActuals projectId={projectId} />
             <DataTable
               embedded
-              rows={enrichedRows}
+              rows={displayRows}
               columns={actualColumns}
               rowKey={(row) => row.category}
               onActivate={openCategory}
@@ -1019,7 +1117,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               selection={{
                 selectedIds: selectedRows,
                 onChange: setSelectedRows,
-                rowLabel: (row) => t('projectDetail.budget.selectCategory', 'Select {{category}}', { category: budgetCategoryLabel(row.category, t) }),
+                rowLabel: (row) => t('projectDetail.budget.selectCategory', 'Select {{category}}', { category: budgetRowName(row) }),
               }}
               rowMenu={categoryMenu}
               tableId="project-budget-option-a"
@@ -1035,6 +1133,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           </> : versions.length === 0 ? null : <ListState variant="empty" title={t('projectDetail.budget.noActiveBudget', 'No active budget')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} />
         ) : activeVersion ? <><AttributedSpendingNote projectId={projectId} /><BudgetProjection projectId={projectId} orgId={currentUser?.org_id} budgetVersionId={activeVersion.id} projectStartDate={project.start_date ?? null} projectEndDate={project.end_date ?? null} budgetMode={activeVersion.budget_mode} approvedBudgetYears={approvedBudgetYears} currency={project.currency} budgetCurrency={activeBudgetCurrency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} ledgerBasis={position.ledgerBasis} onAdjustInDraft={adjustInDraft} onExport={(payload: BudgetProjectionExport) => {
           const csv = buildBudgetProjectionCsv(payload, {
+            locale: i18n.resolvedLanguage ?? i18n.language,
+            allYearsLabel: t('projectDetail.budget.allYearsProjectToDate', 'All years (project to date)'),
             budgetCurrency: activeBudgetCurrency,
             projectCurrency: project.currency,
             categoryLabel: (category) => budgetCategoryLabel(category, t),

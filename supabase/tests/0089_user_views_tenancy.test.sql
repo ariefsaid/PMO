@@ -101,9 +101,10 @@ select is(
   (select count(*)::int from user_views where name = 'Ann Private'), 1,
   'AC-UV-004: the owner''s own in-org private view still resolves (no regression)');
 
--- Regression: Ann's own IN-ORG shared row still resolves; total visible to Ann = 2 (her Org-A rows only).
+-- Regression: Ann's own IN-ORG shared row still resolves; exactly two of Ann's four owned rows are visible.
+-- Other same-org shared_org rows remain legitimately visible, so count Ann's rows by ownership here.
 select is(
-  (select count(*)::int from user_views), 2,
+  (select count(*)::int from user_views where user_id = auth.uid()), 2,
   'AC-UV-004: the owner sees exactly her two in-org rows — no cross-org own-row leak');
 
 reset role;

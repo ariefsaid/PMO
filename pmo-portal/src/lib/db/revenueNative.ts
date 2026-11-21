@@ -55,12 +55,14 @@ export const NATIVE_REVENUE_REFUSALS = [
   // State (P0001) and approval SoD.
   'invoice-not-receivable', 'invoice-has-receipts', 'receipt-already-cancelled', 'illegal-transition',
   'sod-self-approval', 'sod-author-missing', 'native-drafts-open',
-  // 0704 (#1817): a time-and-materials claim's invoice.
-  'claim-already-invoiced', 'no-client', 'claim-total-mismatch',
+  // 0704 (#1817): a time-and-materials claim's invoice; 0924: a progress or down-payment claim's.
+  'claim-already-invoiced', 'no-client', 'claim-total-mismatch', 'claim-kind', 'claim-erp-raise-in-flight',
   // #1415 (migration 0731): applying a receipt to invoices.
   'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
   'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',
   'request-id-reused',
+  // FR-BST-020 (1021): a progress claim with an open billing stage mints no invoice (55000 carries this detail; bare 55000 is the withdrawn fence).
+  'billing-stages-incomplete',
 ] as const;
 export type NativeRevenueRefusal = (typeof NATIVE_REVENUE_REFUSALS)[number];
 const REFUSALS: ReadonlySet<string> = new Set(NATIVE_REVENUE_REFUSALS);

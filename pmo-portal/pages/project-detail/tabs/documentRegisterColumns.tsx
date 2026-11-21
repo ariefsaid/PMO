@@ -87,3 +87,41 @@ export function buildDocumentRegisterColumns(deps: DocumentRegisterColumnDeps): 
     } satisfies Column<ProjectDocumentRow>] : []),
   ];
 }
+
+export interface DocumentMobileCardDeps {
+  categoryName: (doc: ProjectDocumentRow) => string;
+  cells: ReturnType<typeof import('./documentRegisterCells').createDocumentRegisterCells>;
+  microsoftCell: (doc: ProjectDocumentRow, compact?: boolean) => React.ReactNode;
+  /** Whether this person may attach the file to a Draft (its upload starts on the card). */
+  canEditDoc: (doc: ProjectDocumentRow) => boolean;
+}
+
+/**
+ * The phone card under a document's title: status, category and date on one line, then the owner
+ * and source, then the file. Every register fact stays on the card, without a label per line.
+ */
+export function buildDocumentMobileCardDetails(deps: DocumentMobileCardDeps) {
+  const { categoryName, cells, microsoftCell, canEditDoc } = deps;
+  const { statusCell, sourceName, ownerCell, documentDateCell, fileCell, documentHasFile } = cells;
+  return function DocumentMobileCardDetails(doc: ProjectDocumentRow): React.ReactNode {
+    // A file line only when there is a file, or a Draft this person can attach one to.
+    const file = !documentHasFile(doc) && !(doc.status === 'Draft' && canEditDoc(doc)) ? null : doc.source === 'onedrive'
+      ? (isMicrosoftFolder(doc) ? null : microsoftCell(doc, true))
+      : fileCell(doc);
+    const owner = ownerCell(doc);
+    return (
+      <div className="flex min-w-0 flex-col gap-1.5 text-control">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          {!isMicrosoftFolder(doc) && statusCell(doc)}
+          <span className="text-muted-foreground">{categoryName(doc)}</span>
+          {doc.doc_date && documentDateCell(doc)}
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          {owner}
+          <span className="text-muted-foreground">{sourceName(doc)}</span>
+        </div>
+        {file && <div className="min-w-0">{file}</div>}
+      </div>
+    );
+  };
+}

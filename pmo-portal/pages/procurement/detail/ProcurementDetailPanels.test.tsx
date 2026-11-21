@@ -1,17 +1,26 @@
 import { describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
-import { FigureHiddenLine, FigureScope } from '@/src/components/ui';
+import { FigureScope } from '@/src/components/ui';
 import { ProcurementBudgetSignal, ProcurementMoneySummary, ProcurementTimeline } from './ProcurementDetailPanels';
 
+vi.mock('../ProcurementFilesSubsection', () => ({ ProcurementFilesSubsection: () => null }));
 vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
 vi.mock('@/src/hooks/useBudget', () => ({ useProjectBudget: () => ({ data: 1000, isPending: false, isError: false }) }));
+const positionsState = vi.hoisted(() => ({ spent: '0.00' as string | null }));
+vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
+  useProjectBudgetPositions: (ids: string[]) => ({
+    data: Object.fromEntries(ids.map((id) => [id, { projectId: id, ledgerBasis: 'pmo', currency: 'USD', spent: positionsState.spent, openCommitment: '100.00' }])),
+    isPending: false, isError: false,
+  }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProjectCommittedSpend: () => ({ data: 100, isPending: false, isError: false }),
+  useProjectCommittedSpend: () => ({ data: 100, otherCurrencies: [], commitmentSource: 'pmo', ownershipPending: false, isPending: false, isError: false }),
   useProjectReservedSpend: () => ({ data: 200, projectCurrency: 'USD', budgetCurrency: 'USD', isPending: false, isError: false }),
 }));
 
@@ -51,6 +60,16 @@ describe('procurement record panels', () => {
     expect(summary).not.toHaveTextContent(/Overdue|Due/);
   });
 
+  it('links a named and readable work order from its cost record', () => {
+    const row = { id: 'Invoice-bill', recordId: 'bill', type: 'Invoice', date: '2026-01-01', systemNumber: 'INV-1', amount: 25, currency: 'USD', status: 'Received', fileCount: 0 } as import('@/src/lib/db/procurementLedger').LedgerRow;
+    render(<MemoryRouter><ProcurementTimeline procurement={procurement} ledgerRows={[row]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={vi.fn()} focusedRecordId="bill" workOrderLinks={{ bill: { id: 'wo1', label: 'WO-1' } }} /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'WO-1' })).toHaveAttribute('href', '/work-orders/wo1');
+  });
+  it('opens the requested cost record on arrival from its work order', () => {
+    const row = { id: 'Invoice-bill', recordId: 'bill', type: 'Invoice', date: '2026-01-01', systemNumber: 'INV-1', amount: 25, currency: 'USD', status: 'Received', fileCount: 0 } as import('@/src/lib/db/procurementLedger').LedgerRow;
+    render(<ProcurementTimeline procurement={procurement} ledgerRows={[row]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={vi.fn()} focusedRecordId="bill" />);
+    expect(screen.getByText('INV-1').closest('details')).toHaveAttribute('open');
+  });
   it('shows a recorded procurement total when its request amount is missing', () => {
     const missingRequestAmount = {
       ...procurement,
@@ -64,7 +83,7 @@ describe('procurement record panels', () => {
     expect(money).not.toHaveTextContent('amount not recorded');
   });
 
-  it('a purchase that started at the order stage reports ONE hidden figure — the order — not the request (#2345 row 6)', () => {
+  it('a purchase that started at the order stage reports ONE hidden figure — the order — not the request (#2345 row 6)', async () => {
     const orderStarted = {
       ...procurement,
       total_value: null,
@@ -73,18 +92,19 @@ describe('procurement record panels', () => {
     render(
       <FigureScope>
         <ProcurementMoneySummary procurement={orderStarted} linkedDocuments={[]} isEngineer={false} budgetSignal={null} />
-        <FigureHiddenLine />
       </FigureScope>,
     );
 
     // The order amount is genuinely unrecorded; a purchase with no request has no request figure to hide.
-    const line = screen.getByTestId('figures-hidden');
+    // The record's one hidden-figures line sits in the Money block, under the figures it reports on.
+    const line = within(screen.getByTestId('procurement-money-summary')).getByTestId('figures-hidden');
     expect(line).toHaveTextContent('1 figure hidden');
-    expect(line).toHaveTextContent('purchase order amount not recorded');
-    expect(line).not.toHaveTextContent('purchase request');
+    await userEvent.click(within(line).getByRole('button', { name: 'Why' }));
+    expect(await screen.findByText('purchase order amount not recorded')).toBeInTheDocument();
+    expect(screen.queryByText(/purchase request/)).not.toBeInTheDocument();
   });
 
-  it('a purchase with a request whose amount is missing still reports the request (#2345 row 6)', () => {
+  it('a purchase with a request whose amount is missing still reports the request (#2345 row 6)', async () => {
     const requestOnly = {
       ...procurement,
       total_value: null,
@@ -93,11 +113,14 @@ describe('procurement record panels', () => {
     render(
       <FigureScope>
         <ProcurementMoneySummary procurement={requestOnly} linkedDocuments={[]} isEngineer={false} budgetSignal={null} />
-        <FigureHiddenLine />
       </FigureScope>,
     );
 
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('purchase request amount not recorded');
+    // The count is on the face; only the reason sits behind Why.
+    const line = within(screen.getByTestId('procurement-money-summary')).getByTestId('figures-hidden');
+    expect(line).toHaveTextContent('1 figure hidden');
+    await userEvent.click(within(line).getByRole('button', { name: 'Why' }));
+    expect(await screen.findByText('purchase request amount not recorded')).toBeInTheDocument();
   });
 
   it('P5: the timeline note and the Full history link are both reachable and the link still works', async () => {
@@ -111,11 +134,26 @@ describe('procurement record panels', () => {
 
 
 describe('procurement budget signal currency', () => {
-  it('shows compatible project headroom', () => {
-    render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="USD" />);
-    expect(screen.getByText(/Not yet committed to purchases \$700/)).toBeInTheDocument();
+  it('AC-RB-018: an ordered purchase is counted once: budget 1000, open orders 100 (include it), reserved 200, spent 0 → "Left in budget $700"', () => {
+    positionsState.spent = '0.00';
+    render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Ordered" currency="USD" />);
+    expect(screen.getByText('Left in budget $700')).toBeInTheDocument();
+  });
+  it('recorded spending is subtracted too: spent 150 → $550', () => {
+    positionsState.spent = '150.00';
+    render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Ordered" currency="USD" />);
+    expect(screen.getByText('Left in budget $550')).toBeInTheDocument();
+  });
+  it('spending not known → the amount without spending, in the panel\'s own wording, never under "Left in budget"', () => {
+    positionsState.spent = null;
+    render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Ordered" currency="USD" />);
+    // budget 1000 − open orders 100 − reserved 200 = 700, the order already inside open orders
+    expect(screen.getByText('Without spending: $700 left after orders, reserved and this purchase.')).toBeInTheDocument();
+    expect(screen.queryByText(/left in budget/i)).toBeNull();
+    expect(screen.queryByText(/not known/i)).toBeNull();
   });
   it('does not compare a foreign request with project headroom', () => {
+    positionsState.spent = '0.00';
     render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="EUR" />);
     expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
   });

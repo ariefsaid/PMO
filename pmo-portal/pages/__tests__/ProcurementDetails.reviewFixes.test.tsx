@@ -4,7 +4,7 @@
  * I3  — Draft Overview must be sparse: only tiles with real values render.
  * I2  — Honest tiles on terminal/early states: no "awaiting delivery" on a Paid case.
  * I1  — Stepper doc ref from actual records, not denormalized header columns.
- * I4  — Budget label: "After this request" sub must say "headroom remaining", not "% of budget".
+ * I4  — Budget label: the Left tile sub names what it is left after, not "% of budget".
  * I6  — Mobile stat tiles: 2-col grid, no horizontal carousel (no snap/overflow-x).
  * M3  — Timeline column: aside must NOT force min-height/stretch (size to content).
  * M4  — nextExpectedType: Ordered/Received → null (defer to action zone, no mis-prompt PO).
@@ -110,7 +110,11 @@ vi.mock('@/src/components/ui', async (orig) => {
 
 // S05: the budget panel also reads the project's canonical Budget used; stubbed like its other reads (these tests mount no QueryClient).
 vi.mock('@/src/hooks/useProjectBudgetPositions', () => ({
-  useProjectBudgetPositions: () => ({ data: undefined, isPending: false, isError: false }),
+  // Recorded spending 0 and open orders 150,000 on a PMO-basis reading, so the Left figure is known.
+  useProjectBudgetPositions: (ids: string[]) => ({
+    data: Object.fromEntries(ids.map((id) => [id, { projectId: id, ledgerBasis: 'pmo', currency: 'USD', budgetCurrency: 'USD', activeBudgetAmount: '1000000.00', spent: '0.00', openCommitment: '150000.00', consumption: null, complete: true, usedRatio: null, usedPercent: null, consumptionVariance: null, riskEligible: true, atRisk: false }])),
+    isPending: false, isError: false,
+  }),
 }));
 // Budget hooks — used by DecisionSupportPanel
 vi.mock('@/src/hooks/useBudget', () => ({
@@ -195,7 +199,8 @@ beforeEach(() => {
 // "Pending", "None yet", "no PO yet" or "awaiting delivery" — holds. The "fewer than 4 tiles" test pinned
 // the old sparse layout (the five-figure summary is deliberate), so it is dropped.
 const MISLEADING = ['Pending', 'None yet', 'no PO yet', 'awaiting delivery'];
-const moneyText = () => screen.getByTestId('procurement-money-summary').textContent ?? '';
+// The record's money lives in the header band: the money block and, on a request, the budget impact that carries its total.
+const moneyText = () => screen.getByTestId('record-header-band').textContent ?? '';
 
 describe('I3: Draft money summary has no misleading placeholder', () => {
   it('I3: a Draft case shows the requested value and no Pending/None-yet placeholders', () => {
@@ -213,7 +218,8 @@ describe('I3: Draft money summary has no misleading placeholder', () => {
     // Must contain the request value
     expect(text).toContain('85,000');
     // Must NOT contain a placeholder that reads as a state
-    expect(MISLEADING.some((phrase) => text.toLowerCase().includes(phrase.toLowerCase()))).toBe(false);
+    // Whole words: "spending" in the budget impact is not the placeholder "Pending".
+    expect(MISLEADING.some((phrase) => new RegExp(`\\b${phrase}\\b`, 'i').test(text))).toBe(false);
   });
 });
 
@@ -379,11 +385,11 @@ describe('I1: stage tracker + timeline come from actual record rows, not header 
 });
 
 // ---------------------------------------------------------------------------
-// I4 — Budget label: "% remaining" / "headroom remaining", not "% of budget"
+// I4 — Budget label: says what the Left figure counts, never "% of budget"
 // ---------------------------------------------------------------------------
 
-describe('I4: budget sub-label reads "headroom remaining", not "% of budget"', () => {
-  it('I4: the "After this request" tile sub does not say "% of budget" (misread as utilization)', () => {
+describe('I4: the Left figure says what it counts, never "% of budget"', () => {
+  it('I4: the "Left after this purchase" tile sub does not say "% of budget" (misread as utilization)', () => {
     detailState.data = {
       ...base,
       status: 'Requested',
@@ -391,13 +397,13 @@ describe('I4: budget sub-label reads "headroom remaining", not "% of budget"', (
     };
     renderPage();
 
-    // The budget panel renders tiles — find the "After this request" tile
+    // The budget panel renders tiles — find the "Left after this purchase" tile
     // and assert its sub-label is NOT "X% of budget"
     const allText = document.body.textContent ?? '';
     expect(allText).not.toMatch(/\d+(\.\d+)?% of budget/i);
   });
 
-  it('I4: the "After this request" tile sub says "headroom" or "remaining"', () => {
+  it('I4: the "Left after this purchase" tile sub names what it is left after', () => {
     detailState.data = {
       ...base,
       status: 'Requested',
@@ -407,8 +413,8 @@ describe('I4: budget sub-label reads "headroom remaining", not "% of budget"', (
 
     // Look for the sub-label text in the budget tiles
     const allText = document.body.textContent ?? '';
-    // Should contain one of: "headroom remaining", "% remaining", "% headroom"
-    expect(allText).toMatch(/headroom|% remaining/i);
+    expect(allText).toMatch(/Left after this purchase/);
+    expect(allText).toMatch(/After spending, orders and reserved/);
   });
 });
 

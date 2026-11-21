@@ -2,9 +2,11 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
+  Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, PageHeader, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
 } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
+import { StockLinesLoading } from '@/src/components/stock/LinesLoading';
+import { MOVEMENT_LINES_RESERVE } from '@/src/components/stock/linesLoadingHeights';
 import { useStockErrorText, useStockFailureNotice } from '@/src/components/stock/useStockErrorText';
 import { StockDispatchError } from '@/src/lib/stockDispatchError';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
@@ -20,6 +22,10 @@ import { parseStockError } from '@/src/lib/stockErrors';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
 import type { StockDocumentInput, StockDocumentKind, StockLineInput } from '@/src/lib/db/stockDocuments';
 import StockCount from './StockCount';
+import { DateField } from '@/src/components/ui/DateField';
+import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
+import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { AttributionRefusedError, NO_ATTRIBUTION, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 const KINDS = ['receive', 'transfer', 'issue', 'return'] as const;
 type MovementKind = (typeof KINDS)[number];
@@ -75,6 +81,7 @@ const StockMovementForm: React.FC = () => {
   const [lines, setLines] = useState<LineState[]>([blankLine(1)]);
   const [occurredOn, setOccurredOn] = useState('');
   const [note, setNote] = useState('');
+  const [attribution, setAttribution] = useState<CostAttribution>(NO_ATTRIBUTION);
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
@@ -98,11 +105,21 @@ const StockMovementForm: React.FC = () => {
   if (!kind) {
     return <div className="p-4"><ListState variant="empty" icon="folder" title={t('form.unknownKind')} sub={t('form.unknownKindSub')} /></div>;
   }
-  const loadError = warehouses.isError || keepers.isError || items.isError || units.isError || (kind !== 'receive' && kind !== 'transfer' && projects.isError);
-  const pending = warehouses.isPending || keepers.isPending || items.isPending || units.isPending;
-  const retry = () => { for (const q of [warehouses, keepers, items, units, projects]) if (q.isError) void q.refetch(); };
+  // AC-NBR-033: the header needs warehouses + keepers (+ projects where the kind picks one); the line editor needs
+  // items + units. Submit waits for all four.
+  const headerError = warehouses.isError || keepers.isError || (kind !== 'receive' && kind !== 'transfer' && projects.isError);
+  const headerPending = warehouses.isPending || keepers.isPending;
+  const linesError = items.isError || units.isError;
+  const linesPending = items.isPending || units.isPending;
+  const linesSettled = !linesPending && !linesError;
+  const retryHeader = () => { for (const q of [warehouses, keepers, projects]) if (q.isError) void q.refetch(); };
+  const retryLines = () => { for (const q of [items, units]) if (q.isError) void q.refetch(); };
   const canSubmit = may('create', 'stockDocument', { record: { isKeeper: keptIds.has(warehouseId), viewOnly } });
   const needsProject = kind === 'issue' || kind === 'return';
+  // #2517: an issue goes to its project's work order; a transfer to a site goes to the work order of that site's project.
+  const destination = (warehouses.data ?? []).find((w) => w.id === toWarehouseId);
+  const attributionProject = needsProject ? projectId : kind === 'transfer' && destination && ['site', 'yard', 'staging'].includes(destination.kind) ? destination.project_id : null;
+  const offersAttribution = needsProject || kind === 'transfer';
   const heading = t(`kinds.${kind}`);
 
   const setLine = (key: number, patch: Partial<LineState>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -150,21 +167,29 @@ const StockMovementForm: React.FC = () => {
     return item ? (units.data ?? []).find((u) => u.id === item.unit_id)?.code ?? '' : '';
   }
 
-  async function submit(ev: React.FormEvent) {
-    ev.preventDefault();
+  async function submit(post = true) {
     const { input, errors } = validate();
     setFieldErrors(errors);
     if (!input) return;
     setSubmitError(null);
     try {
-      const id = await create.mutateAsync({ input, post: true, clientRequestId: requestId.current });
+      const id = await create.mutateAsync({ input, post, clientRequestId: requestId.current, ...(offersAttribution ? { attribution } : {}) });
       requestId.current = crypto.randomUUID(); // a success mints the next submit's id; a failure keeps it for the retry
-      toast(t('form.posted'), heading, 'success');
+      toast(post ? t('form.posted') : t('form.draftSaved'), heading, 'success');
       setSaved(true);
       navigate(`/stock/documents/${id}`);
     } catch (err) {
       // The Draft was saved and the post did not go through: open it (its page says where it stands) rather than create it again.
       if (err instanceof StockDispatchError) { notify(err); setSaved(true); navigate(`/stock/documents/${err.documentId}`); return; }
+      // Posted, but the work order / discipline was refused: open the movement and say why (it is not created again).
+      if (err instanceof AttributionRefusedError) {
+        const d = describeAttributionError(err.refusal, t);
+        requestId.current = crypto.randomUUID();
+        toast(d.headline, d.detail, 'warning');
+        setSaved(true);
+        navigate(`/stock/documents/${err.recordId}`);
+        return;
+      }
       setSubmitError(err);
       const s = parseStockError(err);
       if (s?.code === 'STK_INSUFFICIENT') {
@@ -182,17 +207,19 @@ const StockMovementForm: React.FC = () => {
   const insufficient = parseStockError(submitError)?.code === 'STK_INSUFFICIENT';
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-4">
-      <h1 className="text-page font-semibold">{heading}</h1>
+    <div>
+      <PageHeader title={heading} />
+      <div className="max-w-5xl">
 
-      {pending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
-      {!pending && loadError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retry} />}
-      {!pending && !loadError && usable.length === 0 && (
+      {headerPending && <div data-testid="stock-header-region" className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
+      {!headerPending && headerError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retryHeader} />}
+      {!headerPending && !headerError && usable.length === 0 && (
         <ListState variant="empty" icon="folder" title={t('form.noWarehouse.title')} sub={t('form.noWarehouse.sub')} />
       )}
-      {!pending && !loadError && usable.length > 0 && (
-        <form onSubmit={(e) => void submit(e)} noValidate className="space-y-4">
+      {!headerPending && !headerError && usable.length > 0 && (
+        <form data-testid="stock-movement-form" onSubmit={(e) => { e.preventDefault(); if (linesSettled) void submit(); }} noValidate className="space-y-4">
           {viewOnly && <p className="text-sm text-muted-foreground">{t('form.viewOnly')}</p>}
+          <div data-testid="stock-movement-header">
           <FormSection legend={t('form.sections.where')}>
             <FormGrid>
               <SelectField
@@ -226,11 +253,18 @@ const StockMovementForm: React.FC = () => {
                   error={fieldErrors.project}
                 />
               )}
+              {offersAttribution && (
+                <CostAttributionFields idPrefix="stock-movement" projectId={attributionProject} value={attribution} onChange={setAttribution} disabled={viewOnly} />
+              )}
             </FormGrid>
           </FormSection>
+          </div>
 
           <FormSection legend={t('form.sections.lines')}>
-            <div className="space-y-4">
+            <div data-testid="stock-lines-region">
+            {linesPending && <StockLinesLoading reserve={MOVEMENT_LINES_RESERVE[kind] ?? MOVEMENT_LINES_RESERVE.receive} />}
+            {!linesPending && linesError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retryLines} />}
+            {linesSettled && <div className="space-y-4">
               {lines.map((l, idx) => {
                 const n = lines.length > 1 ? ` ${idx + 1}` : '';
                 const src = sourceById.get(l.sourceLineId);
@@ -242,7 +276,7 @@ const StockMovementForm: React.FC = () => {
                           label={`${t('form.cite')}${n}`}
                           required
                           value={l.sourceLineId}
-                          onChange={(v) => { const s = sourceById.get(v); setLine(l.key, { sourceLineId: v, itemId: s?.item_id ?? null }); if (s && !warehouseId) setWarehouseId(s.document.warehouse_id); }}
+                          onChange={(v) => { const s = sourceById.get(v); setLine(l.key, { sourceLineId: v, itemId: s?.item_id ?? null }); if (s && !warehouseId) setWarehouseId(s.document.warehouse_id); if (s?.document.work_order_id && !attribution.workOrderId) setAttribution({ ...attribution, workOrderId: s.document.work_order_id }); }}
                           options={sourceOptions}
                           placeholder={!projectId ? t('form.pickProjectFirst') : issueLines.isPending ? t('form.loading') : t('form.citePlaceholder')}
                           disabled={!projectId}
@@ -288,12 +322,13 @@ const StockMovementForm: React.FC = () => {
                 <Icon name="plus" />
                 {t('form.addLine')}
               </Button>
+            </div>}
             </div>
           </FormSection>
 
           <FormSection legend={t('form.sections.details')}>
             <div className="max-w-[260px]">
-              <TextField label={t('form.occurredOn')} type="date" value={occurredOn} onChange={setOccurredOn} helper={t('form.occurredOnHelp')} max={today ?? undefined} />
+              <DateField label={t('form.occurredOn')} value={occurredOn} onChange={setOccurredOn} helper={t('form.occurredOnHelp')} max={today ?? undefined} />
             </div>
             <div className="mt-3">
               <TextArea label={t('form.note')} value={note} onChange={setNote} rows={2} />
@@ -304,7 +339,7 @@ const StockMovementForm: React.FC = () => {
 
           {canSubmit ? (
             <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
-              <FormActions submitLabel={t(`form.submit.${kind}`)} cancelLabel={t('actions.cancel')} onCancel={() => guardLeave(() => navigate('/stock/documents'))} loading={create.isPending} />
+              <FormActions submitLabel={t(`form.submit.${kind}`)} cancelLabel={t('actions.cancel')} onCancel={() => guardLeave(() => navigate('/stock/documents'))} loading={create.isPending} disabled={!linesSettled} extraActions={kind === 'transfer' ? <Button variant="outline" disabled={!linesSettled || create.isPending} onClick={() => void submit(false)}>{t('form.saveDraft')}</Button> : undefined} />
             </MobileActionBar>
           ) : (
             <p className="text-sm text-muted-foreground">{warehouseId ? t('form.notKeeper') : t('form.pickWarehouse')}</p>
@@ -316,6 +351,7 @@ const StockMovementForm: React.FC = () => {
         onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}
         onKeepEditing={() => { const pending = pendingLeave; setPendingLeave(null); pending?.stay(); }}
       />
+      </div>
     </div>
   );
 };

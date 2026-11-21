@@ -236,7 +236,7 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
           )}
         </FormSection>
       )}
-      <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.claimForm.subtitle', 'A claim becomes one ERP invoice. Attach the evidence before raising it.')}</p>
+      <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.claimForm.subtitle', 'A claim becomes one invoice. Attach the evidence before raising it.')}</p>
     </EntityFormModal>
   );
 };

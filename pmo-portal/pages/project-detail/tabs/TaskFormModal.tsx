@@ -18,6 +18,7 @@ import {
   FormGrid,
   useEntityForm,
   Button,
+  Checkbox,
   Icon,
   type ComboboxOption,
 } from '@/src/components/ui';
@@ -31,6 +32,7 @@ import type { TaskWithRefs, TaskStatus, TaskPriority, TaskInput, TaskPatch } fro
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { collectDescendants } from '@/src/lib/tasks/taskTree';
 import { STATUS_OPTIONS } from './taskViewModel';
+import { DateField } from '@/src/components/ui/DateField';
 
 // OD-INT-9 — the four task_priority enum values, for the Priority select. The first option is the
 // explicit unset (value="" → null): the column is nullable, so "no priority" must stay expressible
@@ -73,6 +75,10 @@ interface TaskFormModalProps {
   defaultMilestoneId?: string | null;
   /** Available milestones for the milestone select field. */
   milestones?: MilestoneWithProgress[];
+  /** #2531: the project's work orders for the link picker (structure editors only). */
+  workOrders?: { id: string; title: string; wo_number: string | null; status: string }[];
+  /** #2531: may the viewer set the work-order link and the proof flag (Admin/Executive/Project Manager). */
+  canStructure?: boolean;
   /** FR-CUA-070 breadth (review fix #4): the edit-modal save is an external write origin — its
    *  pending-push state surfaces in the modal (pushing while saving / push-failed when the save is
    *  rejected and the modal stays open). Idle for create + PMO-owned. */
@@ -89,6 +95,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   allTasks,
   defaultMilestoneId = null,
   milestones = [],
+  workOrders = [],
+  canStructure = false,
   pendingPushState = IDLE_PENDING_PUSH,
   onClose,
   onCreate,
@@ -111,6 +119,19 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   // Default: the task's current parent when editing, or none (top-level) when creating.
   const initialParentTaskId = task?.parent_task_id ?? null;
   const [parentTaskId, setParentTaskId] = useState<string | null>(initialParentTaskId);
+
+  // #2531 — work-order link and proof-of-completion flag, tracked like milestone_id.
+  const initialWorkOrderId = task?.work_order_id ?? null;
+  const [workOrderId, setWorkOrderId] = useState<string | null>(initialWorkOrderId);
+  const initialProofRequired = task?.proof_required ?? false;
+  const [proofRequired, setProofRequired] = useState<boolean>(initialProofRequired);
+  const woDirty = workOrderId !== initialWorkOrderId || proofRequired !== initialProofRequired;
+  const { t: tTasks } = useTranslation('tasks');
+  const workOrderOptions: ComboboxOption[] = workOrders
+    // A Cancelled work order takes no new tasks; an existing link to one stays visible.
+    .filter((w) => w.status !== 'Cancelled' || w.id === initialWorkOrderId)
+    .map((w) => ({ value: w.id, label: w.wo_number ? `${w.wo_number} · ${w.title}` : w.title }));
+  const selectedWorkOrder = workOrderOptions.find((o) => o.value === workOrderId) ?? null;
 
   // PGB-025: Track phase and parent changes as part of form dirty state
   const phaseDirty = milestoneId !== initialMilestoneId;
@@ -223,6 +244,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               ...base,
               milestone_id: milestoneId,
               ...(parentTaskId !== initialParentTaskId ? { parent_task_id: parentTaskId } : {}),
+              ...(canStructure && workOrderId !== initialWorkOrderId ? { work_order_id: workOrderId } : {}),
+              ...(canStructure && proofRequired !== initialProofRequired ? { proof_required: proofRequired } : {}),
             },
             delta,
           );
@@ -232,6 +255,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             ...base,
             milestone_id: milestoneId,
             parent_task_id: parentTaskId,
+            ...(canStructure && workOrderId ? { work_order_id: workOrderId } : {}),
+            ...(canStructure && proofRequired ? { proof_required: true } : {}),
           });
         }
       } catch (err) {
@@ -261,7 +286,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
-      dirty={form.isDirty || depsDirty || phaseDirty || parentDirty}
+      dirty={form.isDirty || depsDirty || phaseDirty || parentDirty || woDirty}
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
@@ -318,18 +343,16 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             onBlur={priorityField.onBlur}
             options={priorityOptions(t)}
           />
-          <TextField
+          <DateField
             id={startField.id}
             label={t('projectDetail.tasks.form.startDate', 'Start date')}
-            type="date"
             value={startField.value}
             onChange={startField.onChange}
             onBlur={startField.onBlur}
           />
-          <TextField
+          <DateField
             id={endField.id}
             label={t('projectDetail.tasks.form.dueDate', 'Due date')}
-            type="date"
             value={endField.value}
             onChange={endField.onChange}
             onBlur={endField.onBlur}
@@ -360,6 +383,24 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               placeholder={t('projectDetail.tasks.form.noParent', 'No parent (top-level)')}
               searchPlaceholder={t('projectDetail.tasks.form.searchTasks', 'Search tasks…')}
               noun="task"
+            />
+          )}
+          {canStructure && (
+            <Combobox
+              label={tTasks('proof.workOrder')}
+              value={workOrderId}
+              selectedOption={selectedWorkOrder}
+              loadOptions={async () => workOrderOptions}
+              onChange={(v) => setWorkOrderId(v || null)}
+              placeholder={tTasks('proof.noWorkOrder')}
+              noun="work order"
+            />
+          )}
+          {canStructure && (
+            <Checkbox
+              checked={proofRequired}
+              onChange={setProofRequired}
+              label={tTasks('proof.required')}
             />
           )}
           {/* OD-INT-9 — Description. Multi-line (the shared TextArea primitive), full-width so the

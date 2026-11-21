@@ -31,12 +31,12 @@ export interface KanbanColumnProps {
  *  fill the card content/variants. */
 export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   title,
-  dotColor = 'hsl(var(--muted-foreground))',
+  dotColor = 'hsl(var(--mark-neutral))',
   prob,
   count,
   totals,
   children,
-  emptyMessage = 'No items',
+  emptyMessage: emptyMessageProp,
   selected = false,
   presentation = 'cards',
   dropState,
@@ -100,7 +100,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             {[0, 1, 2].map((i) => <div key={i} className="skel h-[116px] rounded-lg" />)}
           </div>
         ) : empty ? (
-          <div className="py-6 text-center text-control text-muted-foreground">{emptyMessage}</div>
+          <div className="py-6 text-center text-control text-muted-foreground">{emptyMessageProp ?? t('column.empty', 'No items')}</div>
         ) : (
           children
         )}
@@ -133,7 +133,7 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
       }
     }}
     className={cn(
-      'relative cursor-pointer rounded-lg border border-border bg-card p-3 shadow-[0_1px_2px_hsl(240_6%_10%/0.04)] transition-[box-shadow,border-color,transform] duration-150',
+      'relative cursor-pointer rounded-lg border border-border bg-card p-3 shadow-[0_1px_2px_hsl(240_6%_10%/0.04)] transition-[box-shadow,border-color,transform]',
       'hover:border-muted-foreground/35 hover:shadow-[0_4px_14px_hsl(240_6%_10%/0.1)] active:scale-[0.992]',
       selected && 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]',
       className

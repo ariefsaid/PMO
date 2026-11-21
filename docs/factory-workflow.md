@@ -185,7 +185,7 @@ run `scripts/sync-agent-surfaces.mjs --write`, done once.
 ## Non-negotiables carried over (nothing here weakens them)
 
 - Archive `adws/adw_data/` out of a worktree **before** `git worktree remove` — the trace is the
-  owner's review surface (`docs/reviews/2026-08-06-sssf-trial-record.md`).
+  owner's review surface (`sssf-trial-record review (2026-08-06, in git history)`).
 - Substrate ladder, briefs-as-files, background-dispatch mechanics: `docs/archive/pi-delegation.md`.
 - **Substrate rulings land in TWO places:** the `pi-dispatch` ladders (`~/.local/bin/pi-dispatch`)
   AND `adws/adw_sssf_config/sssf.config.yaml` — the ADW calls raw `pi` with pinned models (its own

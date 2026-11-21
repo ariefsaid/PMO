@@ -70,13 +70,11 @@ describe('ProjectCard', () => {
     expect(screen.getByText('$5,000,000')).toBeInTheDocument();
   });
 
-  it('keeps the tax basis on the contract amount line on narrow cards', () => {
+  it('states the tax basis beside the contract amount, in the same cell', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
     const contract = screen.getByTestId('project-card-contract');
-    const basis = within(contract).getByTestId('tax-basis');
-    expect(basis.parentElement).toHaveClass('inline-flex', 'whitespace-nowrap');
-    expect(basis.parentElement).toHaveTextContent('$5,000,000');
-    expect(basis.parentElement).toHaveTextContent('excl. PPN');
+    expect(within(contract).getByTestId('tax-basis')).toHaveTextContent('excl. PPN');
+    expect(contract).toHaveTextContent('$5,000,000');
   });
 
   it('renders a StatusPill (dot + text), not a legacy badge', () => {

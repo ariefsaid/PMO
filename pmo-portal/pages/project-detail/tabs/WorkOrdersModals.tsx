@@ -4,13 +4,13 @@ import {
   ConfirmDialog,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
 import type { WorkOrderInput, WorkOrderPatch, SetWorkOrderValueInput, WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { PrepareWorkOrderAcceptanceInput, WorkOrderAcceptanceWithLines, WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
 import type { BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
-import { claimNet, type ProjectBillingSummary } from '@/src/lib/progressBilling';
+import type { ProjectBillingSummary } from '@/src/lib/progressBilling';
+import { ClaimRaiseFigures } from '../ClaimRaiseFigures';
 import WorkOrderFormModal from '../WorkOrderFormModal';
 import WorkOrderValueModal from '../WorkOrderValueModal';
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
@@ -58,12 +58,14 @@ const WorkOrdersModals: React.FC<{
   newClaimOpen: boolean;
   evidenceFor: string | null;
   raiseFor: { claim: ProgressClaimWithInvoice; idempotencyKey: string } | null;
+  /** No ERP owns revenue: the raise creates a PMO Draft, so the confirm says that instead of naming the ERP. */
+  nativeRaise: boolean;
   withdrawClaimFor: ProgressClaimWithInvoice | null;
   pending: PendingTransition | null;
   overCommit: { row: WorkOrderRow; message: string } | null;
   // Busy flags — read lazily inside each dialog's own conditional, exactly as the tab did.
   bastMutations: { withdraw: { isPending: boolean }; confirm: { isPending: boolean } };
-  claimMutations: { raiseInvoice: { isPending: boolean }; withdrawClaim: { isPending: boolean } };
+  claimMutations: { raiseInvoice: { isPending: boolean }; raiseNativeInvoice: { isPending: boolean }; withdrawClaim: { isPending: boolean } };
   transition: { isPending: boolean };
   // Gates.
   canIssue: (id: string) => boolean;
@@ -110,7 +112,7 @@ const WorkOrdersModals: React.FC<{
     boqRows, documentRows, rows, allocations, allocationsById, acceptancesByWo, contractLines, summary,
     currency, currencyPrefix, projectId, projectName, liveDownPayment, evidenceAttachedIds, linesSources,
     assessOpen, percentOpen, formFor, linesFor, bastFor, withdrawFor, confirmFor, valueFor,
-    invoiceFor, clientId, claimFor, newClaimOpen, evidenceFor, raiseFor, withdrawClaimFor,
+    invoiceFor, clientId, claimFor, newClaimOpen, evidenceFor, raiseFor, nativeRaise, withdrawClaimFor,
     pending, overCommit,
     bastMutations, claimMutations, transition,
     canIssue, canEditLinesFor,
@@ -309,22 +311,17 @@ const WorkOrdersModals: React.FC<{
       {raiseFor && (
         <ConfirmDialog
           open
-          title={t('projectDetail.billing.claims.confirmRaise.title', "Raise this claim's invoice?")}
+          title={nativeRaise ? t('projectDetail.billing.claims.confirmRaiseNative.title', "Create this claim's invoice?") : t('projectDetail.billing.claims.confirmRaise.title', "Raise this claim's invoice?")}
           description={
             <div className="flex flex-col gap-2">
-              <p>{t('projectDetail.billing.claims.confirmRaise.body', 'An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.')}</p>
-              <p data-testid="raise-figures">
-                {t('projectDetail.billing.claims.confirmRaise.figures', 'Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)', {
-                  gross: formatCurrency(Number(raiseFor.claim.gross_amount), currency),
-                  recovery: formatCurrency(Number(raiseFor.claim.dp_recovery_amount), currency),
-                  net: formatCurrency(claimNet(Number(raiseFor.claim.gross_amount), Number(raiseFor.claim.dp_recovery_amount)), currency),
-                  interpolation: { escapeValue: false },
-                })}
-              </p>
+              <p>{nativeRaise
+                ? t('projectDetail.billing.claims.confirmRaiseNative.body', 'A draft invoice is created in PMO from this claim. A different Admin or Finance user approves it.')
+                : t('projectDetail.billing.claims.confirmRaise.body', 'An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.')}</p>
+              <ClaimRaiseFigures gross={raiseFor.claim.gross_amount} recovery={raiseFor.claim.dp_recovery_amount} currency={currency} />
             </div>
           }
-          confirmLabel={t('projectDetail.billing.claims.confirmRaise.confirm', 'Create ERP invoice')}
-          loading={claimMutations.raiseInvoice.isPending}
+          confirmLabel={nativeRaise ? t('projectDetail.billing.claims.confirmRaiseNative.confirm', 'Create invoice') : t('projectDetail.billing.claims.confirmRaise.confirm', 'Create ERP invoice')}
+          loading={nativeRaise ? claimMutations.raiseNativeInvoice.isPending : claimMutations.raiseInvoice.isPending}
           onConfirm={() => void onRaise()}
           onCancel={onCloseRaise}
         />

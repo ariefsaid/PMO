@@ -163,12 +163,14 @@ const KNOWN_REASON_CODES = new Set([
   'invoice-lines-count', 'invoice-line-invalid', 'invoice-total-invalid', 'vat-rate-missing',
   'invoice-not-receivable', 'invoice-has-receipts', 'receipt-already-cancelled', 'illegal-transition',
   'sod-self-approval', 'sod-author-missing', 'native-drafts-open',
-  // #1817 (reviewed 2026-11-06): migration 0704's refusal details.
-  'claim-already-invoiced', 'no-client', 'claim-total-mismatch',
+  // #1817 (reviewed 2026-11-06): migration 0704's refusal details; 0924 adds claim-kind.
+  'claim-already-invoiced', 'no-client', 'claim-total-mismatch', 'claim-kind', 'claim-erp-raise-in-flight',
   // #1415 (migration 0731): payment-allocation refusals, mapped by `src/lib/db/revenueNative.ts`.
   'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
   'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',
   'request-id-reused',
+  // #2624 (reviewed 2026-11-20): migration 1021's open-billing-stage refusal, mapped by `src/lib/db/revenueNative.ts`.
+  'billing-stages-incomplete',
 ]);
 
 /** A genuine Postgres SQLSTATE is exactly 5 alphanumeric characters — too short to hold a name. */
@@ -259,6 +261,22 @@ export function isMeetingReadDenied(err: unknown): boolean {
   return code === '42501' && message.includes(MEETING_READ_DENIED_MARKER);
 }
 
+/**
+ * #2531 (migration 0991): the 23514 refusals the task triggers author themselves, in plain product copy. Matched on
+ * the message (the code alone is shared with every CHECK) so they surface instead of the generic detail.
+ */
+const TASK_RULE_MESSAGES = [
+  'proof of completion is required before this task can be Done',
+  'proof of a completed task cannot be removed; reopen the task first',
+  'a task holds at most 10 proof attachments',
+  'task is linked to a work order of its current project; clear the work order before moving it',
+  'a task without a project cannot name a work order',
+  'work order must belong to the task\'s own project',
+  'a cancelled work order takes no new tasks',
+];
+const isTaskRule = (code: string | undefined, message: string): boolean =>
+  code === '23514' && TASK_RULE_MESSAGES.includes(message);
+
 export interface ClassifiedMutationError {
   /** The primary, human headline. */
   headline: string;
@@ -302,7 +320,8 @@ export function classifyMutationError(
       ? 'This entry already has a file or link; refresh and clear it before relinking.'
       : POSTGRES_GENERATED_DETAIL['23514']
     : undefined;
-  const detail = detailOverride ?? safeCheckDetail ?? generated ?? rawDetail;
+  const taskRule = isTaskRule(code, rawDetail);
+  const detail = detailOverride ?? (taskRule ? rawDetail : undefined) ?? safeCheckDetail ?? generated ?? rawDetail;
 
   if (import.meta.env.DEV) {
     // The dev-only affordance for the raw text (AC-ERR-002): table/constraint names and RLS
@@ -329,6 +348,8 @@ export function classifyMutationError(
   if (code && overrides && Object.prototype.hasOwnProperty.call(overrides, code)) {
     return { headline: overrides[code], detail, rawDetail, classification };
   }
+
+  if (taskRule) return { headline: 'A task rule applies', detail, rawDetail, classification };
 
   if (isPurchaseRule) return { headline: 'A purchase rule applies', detail, rawDetail, classification };
 

@@ -2,13 +2,27 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { violations, layoutReport } from './ux-proof-metrics.mjs';
+import * as proofMetrics from './ux-proof-metrics.mjs';
+const { violations, layoutReport } = proofMetrics;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = path.join(ROOT, 'scripts/ux-proof.mjs');
+
+async function closedLoopbackPort(host) {
+  const server = net.createServer();
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, host, resolve);
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  return address.port;
+}
 
 test('rendered proof self-test checks its thresholds without an app', () => {
   const result = spawnSync(process.execPath, [SCRIPT, '--self-test'], { cwd: ROOT, encoding: 'utf8' });
@@ -119,19 +133,21 @@ test('#1862 ux-proof.sh does not fail the local port probe for a remote host', (
   assert.doesNotMatch(result.stderr, /nothing is listening/);
 });
 
-test('#1862 ux-proof.sh still fails fast when a local base has no listener', () => {
+test('#1862 ux-proof.sh still fails fast when a local base has no listener', async () => {
+  const port = await closedLoopbackPort('127.0.0.1');
   const result = spawnSync('bash', [path.join(ROOT, 'scripts/ux-proof.sh'), '/x'], {
     cwd: ROOT, encoding: 'utf8', timeout: 60000,
-    env: { ...process.env, SHOT_BASE: 'http://localhost:1', UX_PROOF_PORT: '' },
+    env: { ...process.env, SHOT_BASE: `http://127.0.0.1:${port}`, UX_PROOF_PORT: '' },
   });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /nothing is listening/);
 });
 
-test('#1862 ux-proof.sh treats a bracketed IPv6 loopback base as local and fails fast', () => {
+test('#1862 ux-proof.sh treats a bracketed IPv6 loopback base as local and fails fast', async () => {
+  const port = await closedLoopbackPort('::1');
   const result = spawnSync('bash', [path.join(ROOT, 'scripts/ux-proof.sh'), '/x'], {
     cwd: ROOT, encoding: 'utf8', timeout: 60000,
-    env: { ...process.env, SHOT_BASE: 'http://[::1]:1', UX_PROOF_PORT: '' },
+    env: { ...process.env, SHOT_BASE: `http://[::1]:${port}`, UX_PROOF_PORT: '' },
   });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /nothing is listening/);
@@ -145,24 +161,59 @@ test('#1862 ux-proof.sh does not treat a host merely containing a local name as 
   assert.doesNotMatch(result.stderr, /nothing is listening/);
 });
 
+
 const emptyLayout = { leftEdges: [], gaps: [], columnsLevel: [], rowCentre: [], loneSection: [] };
+
+test('R3 aggregation compares tab frames gathered by the normal proof for every route', () => {
+  assert.equal(typeof proofMetrics.compareRuleFrames, 'function');
+  const bar = (route, x) => ({
+    route,
+    width: 1440,
+    role: 'exec',
+    tabBars: [{ labels: 'Overview | Budget', x, y: 120, w: 560, el: 'nav.tabs' }],
+  });
+  const findings = proofMetrics.compareRuleFrames([bar('/projects', 24), bar('/projects/1', 40)]);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].route, '/projects/1');
+  assert.equal(findings[0].rule, 'R3');
+});
+
+test('--rules-only does not read baseline or word-budget settings', async () => {
+  const { loadProofSettings } = await import('./ux-proof-settings.mjs');
+  const accesses = [];
+  const settings = loadProofSettings({
+    root: '/repo',
+    rulesOnly: true,
+    fsApi: {
+      existsSync: (file) => { accesses.push(`exists:${file}`); throw new Error('settings must not be read'); },
+      readFileSync: (file) => { accesses.push(`read:${file}`); throw new Error('settings must not be read'); },
+    },
+  });
+  assert.deepEqual(settings, { budget: { targets: {} }, layoutBaseline: {} });
+  assert.deepEqual(accesses, []);
+});
 
 test('layout failures name the route, state, width, elements and numbers', () => {
   const layout = {
     ...emptyLayout,
-    leftEdges: [{ surface: 'div.panel "Summary"', limit: 1, edges: { 273: ['h2 "Summary"'], 265: ['p "Body"'] } }],
-    gaps: [{ kind: 'gap', gap: 81, above: 'p "Intro"', below: 'div "Timeline"' }, { kind: 'heading', gap: 40, above: 'h2 "Lines"', below: 'p "None"' }],
-    columnsLevel: [{ row: 'div.grid', column: 'div.panel "Health"', ends: 397, tallest: 826, diff: 429 }],
-    rowCentre: [{ row: 'li "Claim"', figure: '$421', action: 'button "Pay"', dy: 14 }],
+    leftEdges: [{ surface: 'div.panel "Summary"', surfacePath: 'main>div.panel', limit: 1, edges: { 273: ['h2 "Summary"'], 265: ['p "Body"'] }, strays: [{ path: 'main>div.panel>p', offset: -8 }] }],
+    gaps: [
+      { kind: 'gap', gap: 81, above: 'p "Intro"', below: 'div "Timeline"', aboveSel: 'main>p', belowSel: 'main>div' },
+      { kind: 'heading', gap: 40, above: 'h2 "Lines"', below: 'p "None"', aboveSel: 'main>h2', belowSel: 'main>p' },
+      { kind: 'scale', gap: 40, above: 'div "A"', below: 'div "B"', aboveSel: 'main>div.a', belowSel: 'main>div.b' },
+    ],
+    columnsLevel: [{ row: 'div.grid', column: 'div.panel "Health"', rowSel: 'main>div.grid', columnSel: 'main>div.grid>div.panel', ends: 397, tallest: 826, diff: 429 }],
+    rowCentre: [{ row: 'li "Claim"', rowSel: 'main>li', figure: '$421', action: 'button "Pay"', dy: 14 }],
   };
   const { failures } = layoutReport(layout, '/expenses/1 @1440', 'reads-failing');
-  assert.equal(failures.length, 5);
+  assert.equal(failures.length, 6);
   for (const failure of failures) assert.match(failure, /^\/expenses\/1 @1440 \[reads-failing\]: /);
   assert.match(failures[0], /2 left edges \(max 1\).*x=265: p "Body"/);
-  assert.match(failures[1], /81px between blocks/);
-  assert.match(failures[2], /40px below it \(max 24\)/);
-  assert.match(failures[3], /429px above.*y=397.*y=826/);
-  assert.match(failures[4], /\$421.*14px/);
+  assert.match(failures[1], /81px of white space/);
+  assert.match(failures[2], /40px below it \(want 12-16px\)/);
+  assert.match(failures[3], /40px between sections or panels \(want 16, 24, 32px\)/);
+  assert.match(failures[4], /429px above.*y=397.*y=826/);
+  assert.match(failures[5], /\$421.*14px/);
 });
 
 test('a lone label/value section is a warning with the value, never a failure', () => {
@@ -172,10 +223,160 @@ test('a lone label/value section is a warning with the value, never a failure', 
   assert.match(warnings[0], /Owner.*Name = Ada/);
 });
 
-test('layout failures are shrink-only per route: a baseline is a ceiling, no baseline means clean', () => {
-  const layout = { ...emptyLayout, gaps: [{ kind: 'gap', gap: 60, above: 'a', below: 'b' }, { kind: 'gap', gap: 70, above: 'c', below: 'd' }] };
-  const metrics = { layout, smallTextSamples: {} };
-  assert.equal(violations(metrics, undefined, '/x @1440', undefined, undefined, 2).length, 0);
-  assert.ok(violations(metrics, undefined, '/x @1440', undefined, undefined, 1).some((failure) => /layoutFailures=2.*baseline 1/.test(failure)));
-  assert.ok(violations(metrics, undefined, '/x @1440').some((failure) => /layoutFailures=2.*baseline 0/.test(failure)));
+const gap = (above, below) => ({ kind: 'gap', gap: 60, above: `p "${above}"`, below: `p "${below}"`, aboveSel: `main>${above}`, belowSel: `main>${below}` });
+
+test('the layout baseline is a fingerprint list: a new fingerprint fails even when the count is unchanged', () => {
+  const metrics = { layout: { ...emptyLayout, gaps: [gap('a', 'b'), gap('c', 'd')] }, smallTextSamples: {} };
+  const known = layoutReport(metrics.layout, '/x @1440').fingerprints;
+  assert.equal(known.length, 2);
+  assert.equal(violations(metrics, undefined, '/x @1440', undefined, undefined, known).length, 0);
+  // one fixed, one new: the same count of two, and still red
+  const swapped = known.slice(0, 1).concat('gaps-gap|main>x|main>y');
+  assert.ok(violations(metrics, undefined, '/x @1440', undefined, undefined, swapped).some((failure) => /layoutFingerprints=1/.test(failure)));
+  assert.ok(violations(metrics, undefined, '/x @1440').some((failure) => /layoutFingerprints=2/.test(failure)));
+});
+
+test('repeats of one element class count once, so the seed can grow without a red screen', () => {
+  const one = { ...emptyLayout, rowCentre: [{ row: 'li "A"', rowSel: 'main>li.claim', figure: '$1', action: 'button', dy: 9 }] };
+  const many = { ...emptyLayout, rowCentre: Array.from({ length: 10 }, (_, i) => ({ row: `li "Row ${i}"`, rowSel: 'main>li.claim', figure: `$${i}`, action: 'button', dy: 9 })) };
+  assert.deepEqual(layoutReport(many, '/x @1440').fingerprints, layoutReport(one, '/x @1440').fingerprints);
+});
+
+test('an ignore marker that covers a panel or most of main fails, and is reported', () => {
+  const covered = layoutReport({ ...emptyLayout, ignored: { count: 1, share: 0.1, coversPanel: true } }, '/x @1440');
+  assert.ok(covered.failures.some((failure) => /ignoreMarker.*covers a panel/.test(failure)));
+  const wide = layoutReport({ ...emptyLayout, ignored: { count: 2, share: 0.45, coversPanel: false } }, '/x @1440');
+  assert.ok(wide.failures.some((failure) => /45% of main/.test(failure)));
+  const small = layoutReport({ ...emptyLayout, ignored: { count: 1, share: 0.02, coversPanel: false } }, '/x @1440');
+  assert.equal(small.failures.length, 0);
+  assert.match(small.warnings[0], /1 element\(s\) marked data-layout-ignore cover 2%/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// False-positive classes of the layout rules: each fixture is a screen shape the review found flagged
+// although nothing was off. `clean` fixtures must report nothing; `control` fixtures keep a real defect.
+// ---------------------------------------------------------------------------------------------
+function layoutFixture(html, width = 1440) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ux-proof-layout-'));
+  const file = path.join(dir, 'fixture.html');
+  try {
+    fs.writeFileSync(file, `<!doctype html><style>.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}body{margin:0;font:16px/24px sans-serif}p{margin:0}</style>${html}`);
+    const result = spawnSync(process.execPath, [SCRIPT, '--layout-html', file, String(width)], { cwd: ROOT, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout).failures;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+const lpanel = (body) => `<div style="border:1px solid #ccc;border-radius:8px;padding:24px;margin-bottom:24px">${body}</div>`;
+const h2 = '<h2 style="margin:0 0 12px;font-size:18px">Title</h2>';
+
+test('class aria-hidden figure: a KPI tile whose big figure is aria-hidden still has that figure as painted content', () => {
+  const tile = (label, fig, top) => `<div style="margin-top:${top}px"><span>${label}</span><b aria-hidden="true" style="font-size:32px;line-height:40px;display:block;margin-top:8px">${fig}</b><span class="sr-only">${fig}</span></div>`;
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${tile('Budget', '$6.9M', 0)}${tile('Spent', '$7.2M', 24)}<p style="margin-top:24px">Tail</p></main>`), []);
+});
+
+test('class wrapped text: a paragraph wrapped over four lines is measured to its last line, not its first', () => {
+  const long = 'Long wrapped description that goes on and on across several lines of a narrow column so it wraps. '.repeat(2);
+  assert.deepEqual(layoutFixture(`<main style="padding:24px"><div style="width:220px"><p>${long}</p></div><p style="margin-top:24px">Next block</p><p style="margin-top:24px">Tail</p></main>`), []);
+});
+
+test('control: a real 80px hole under wrapped text is still reported', () => {
+  const long = 'Long wrapped description that goes on and on across several lines of a narrow column so it wraps. '.repeat(2);
+  const failures = layoutFixture(`<main style="padding:24px"><div style="width:220px"><p>${long}</p></div><p style="margin-top:80px">Next block</p><p>Tail</p></main>`);
+  assert.ok(failures.some((f) => /white space/.test(f)), failures.join('; '));
+});
+
+test('class leading mark: a colour swatch before a legend label is not the legend\'s left edge', () => {
+  const key = (name) => `<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:#07f;display:inline-block"></span>${name}</span>`;
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${lpanel(`${h2}<div style="display:flex;gap:16px">${key('Delivery')}${key('Budget used')}</div>`)}<p>Tail</p></main>`), []);
+});
+
+test('class leading mark: a checkbox before a row label is not the row\'s left edge', () => {
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${lpanel(`${h2}<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" style="margin:0">Select all</label><p>Body</p>`)}<p>Tail</p></main>`), []);
+});
+
+test('class leading mark: an avatar with initials before a name is not the row\'s left edge', () => {
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${lpanel(`${h2}<div style="display:flex;align-items:center;gap:8px"><span style="width:32px;height:32px;border-radius:50%;background:#ddd;display:inline-flex;align-items:center;justify-content:center;font-size:12px">AB</span>Ada Byron</div><p>Body</p>`).replace(h2, '')}<p>Tail</p></main>`), []);
+});
+
+test('control: a body line indented 16px beside a swatch row is still a stray edge', () => {
+  const failures = layoutFixture(`<main style="padding:24px">${lpanel(`${h2}<div style="display:flex;gap:8px"><span style="width:10px;height:10px;background:#07f;display:inline-block"></span>Key</div><p style="margin-left:16px">Indented</p>`)}<p>Tail</p></main>`);
+  assert.ok(failures.some((f) => /left edges/.test(f)), failures.join('; '));
+});
+
+test('class search field: the padding inside a bordered search field is not a left edge', () => {
+  const field = '<label style="display:flex;align-items:center;gap:8px;border:1px solid #ccc;border-radius:8px;padding:0 11px;height:44px"><svg width="16" height="16"><circle cx="8" cy="8" r="6"/></svg><input aria-label="Search" style="border:0;outline:0;flex:1"></label>';
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${lpanel(`<p>Body</p><div style="margin-top:12px">${field}</div>`)}<p>Tail</p></main>`), []);
+});
+
+test('class link tab: a tab link with its own padding sits at its box, not its text', () => {
+  const tabs = '<nav style="display:flex;gap:8px;margin-top:16px"><a href="#a" style="padding:8px 12px;border-bottom:2px solid #07f">On hand</a><a href="#b" style="padding:8px 12px">Moves</a></nav>';
+  assert.deepEqual(layoutFixture(`<main style="padding:24px"><h1 style="margin:0">Ledger</h1>${tabs}${lpanel('<p>Body</p>')}<p>Tail</p></main>`), []);
+});
+
+test('class centred control: centred text and a right-aligned control are not left edges', () => {
+  const body = `<h1 style="margin:0">Ledger</h1>${lpanel('<p>Body</p>')}<div style="display:flex;justify-content:flex-end;margin-bottom:24px"><button>Table</button></div><p style="text-align:center;margin-bottom:24px">36 entries, end of the ledger</p>`;
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${body}<p>Tail</p></main>`), []);
+});
+
+test('class intervening block: a field is measured to the block directly above it, even one that overlaps only partly', () => {
+  const field = (name, w) => `<div style="display:flex;flex-direction:column;gap:8px;width:${w}px"><span>${name}</span><select style="height:44px"><option>${name} value</option></select></div>`;
+  const row = `<div style="display:flex;flex-wrap:wrap;gap:12px;width:400px;align-items:flex-end">${field('Item', 334)}${field('Warehouse', 251)}${field('From', 180)}${field('To', 164)}</div>`;
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${row}<p style="margin-top:24px">Tail</p></main>`), []);
+});
+
+test('class stretched KPI tiles: tiles of one KPI grid stretched to a common height are not checked for level ends', () => {
+  const tile = (extra) => `<div style="background:#fff;padding:16px"><span>Label</span><b style="font-size:28px;display:block">1,200</b>${extra}</div>`;
+  const kpis = `<section aria-label="KPIs" style="display:grid;grid-template-columns:1fr 1fr;gap:1px;border:1px solid #ccc;border-radius:8px;overflow:hidden;background:#ccc">${tile('<span style="display:block;margin-top:40px">Sub line one</span>')}${tile('')}</section>`;
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${kpis}<p style="margin-top:24px">Below</p></main>`), []);
+});
+
+test('control: two bordered columns that end 60px apart are still reported', () => {
+  const failures = layoutFixture('<main style="padding:24px"><div style="display:flex;gap:24px"><div style="width:400px;height:300px;border:1px solid #ccc;box-sizing:border-box"><p>Short</p></div><div style="width:400px;height:300px;border:1px solid #ccc;box-sizing:border-box"><p>Short</p><p style="margin-top:220px">Tall</p></div></div><p>Below</p></main>');
+  assert.ok(failures.some((f) => /columnsLevel/.test(f)), failures.join('; '));
+});
+
+test('control: a visually hidden select-all checkbox is not a leading mark, and the visible rows keep one edge', () => {
+  const list = '<ul style="list-style:none;margin:0;padding:0"><li><label class="sr-only"><input type="checkbox">Select all rows</label></li><li>First row</li><li>Second row</li></ul>';
+  assert.deepEqual(layoutFixture(`<main style="padding:24px">${lpanel(`<p>Body</p><div style="margin-top:12px">${list}</div>`)}<p>Tail</p></main>`), []);
+});
+
+test('class centred control: a centred logo-and-name group at the top of a form page is not a left edge', () => {
+  const logo = '<header style="display:flex;justify-content:center;margin-bottom:24px"><div style="display:inline-flex;align-items:center;gap:8px"><span style="width:32px;height:32px;border-radius:6px;background:#07f;color:#fff;display:flex;align-items:center;justify-content:center">P</span><span>Brand</span></div></header>';
+  assert.deepEqual(layoutFixture(`<main style="padding:24px"><div style="max-width:384px;margin:0 auto">${logo}${lpanel('<p>Body</p>')}</div></main>`), []);
+});
+
+test('#2549 text baselines are keyed by route pattern: ids are normalised, exact keys still win', async () => {
+  const { routePattern, baselineKey } = await import('./ux-proof-settings.mjs');
+  const uuid = '3f2b8c1e-9d4a-4e7b-8a61-0c5d2e9f7a14';
+  assert.equal(routePattern(`/work-orders/${uuid}`), '/work-orders/:id');
+  assert.equal(routePattern(`/projects/${uuid}/tasks/${uuid.toUpperCase()}?tab=x`), '/projects/:id/tasks/:id?tab=x');
+  assert.equal(routePattern('/companies/new'), '/companies/new');
+  assert.equal(routePattern('/projects'), '/projects');
+  // a fixed route keeps its exact key (backward compatible with every existing baseline)
+  assert.equal(baselineKey({ '/projects@1440@exec': 44 }, '/projects', 1440, 'exec'), '/projects@1440@exec');
+  // a record route resolves to the pattern key, whichever id was visited
+  const budget = { '/work-orders/:id@1440@exec': 90 };
+  assert.equal(baselineKey(budget, `/work-orders/${uuid}`, 1440, 'exec'), '/work-orders/:id@1440@exec');
+  // a legacy exact-url key still wins when present
+  const legacy = { [`/work-orders/${uuid}@1440@exec`]: 80, '/work-orders/:id@1440@exec': 90 };
+  assert.equal(baselineKey(legacy, `/work-orders/${uuid}`, 1440, 'exec'), `/work-orders/${uuid}@1440@exec`);
+  // no baseline anywhere: new records are keyed by the pattern, so the next record page shares it
+  assert.equal(baselineKey({}, `/work-orders/${uuid}`, 390, 'exec'), '/work-orders/:id@390@exec');
+});
+
+test('#2549 existing record baselines also apply to another record id', async () => {
+  const { baselineKey } = await import('./ux-proof-settings.mjs');
+  const { readFileSync } = await import('node:fs');
+  const budget = JSON.parse(readFileSync(new URL('../docs/ux/word-budget.json', import.meta.url)));
+  const route = '/projects/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const key = baselineKey(budget, route, 390, 'pm@acme.test');
+  assert.equal(budget[key], 133);
+  assert.notEqual(budget.targets[key], undefined);
+});
+
+test('#2549 keeps distinct query-driven views when normalising record ids', async () => {
+  const { routePattern } = await import('./ux-proof-settings.mjs');
+  assert.equal(routePattern('/projects/41000000-0000-0000-0000-000000000002/tasks?view=board&scope=all'), '/projects/:id/tasks?view=board&scope=all');
 });

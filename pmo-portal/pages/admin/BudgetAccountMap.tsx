@@ -51,10 +51,9 @@ import { isDirectCostPostingAccount, proposeBudgetAccountMap, type BudgetPosting
 
 const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
 
-/** AC-CAT-005: the categories added after the original seven are translated here; the seven keep their names. */
-const TRANSLATED_HERE: readonly string[] = ['Special expenses', 'Travel & accommodation', 'Vehicle', 'Overheads'];
+/** One category vocabulary on every screen: the same names the budget and purchase lists use. */
 const accountMapCategoryLabel = (value: string, t: (key: string, fallback: string) => string) =>
-  TRANSLATED_HERE.includes(value) ? budgetCategoryLabel(value, t) : value;
+  budgetCategoryLabel(value, t);
 
 interface FormValues {
   erpAccount: string;

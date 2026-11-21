@@ -49,6 +49,9 @@ select set_eq(
             -- Checked before adding: no DAL, repository, edge fn or e2e spec embeds profiles from
             -- it (only database.types.ts mentions the table), so no unqualified embed exists.
             ('contract_rate_assignees -> profiles'),
+            -- 1004 (#1522): daily_site_reports carries author_id AND validated_by, both -> profiles. New
+            -- table: the DAL (src/lib/db/dailySiteReports.ts) embeds no profiles; names resolve by id.
+            ('daily_site_reports -> profiles'),
             ('credits -> profiles'),
             -- 0882 (#2195): erp_capture_invoice_assignments carries actor_id, undone_by and the two
             -- prior_mark_* columns, all -> profiles. Checked before adding: no DAL, repository,
@@ -65,6 +68,19 @@ select set_eq(
             -- before adding: neither src/lib/db/fxRates.ts nor the fx repository embeds profiles
             -- from fx_rates, so no unqualified embed exists. Recorded, not waived.
             ('fx_rates -> profiles'),
+            -- 1046 (#2588): opening_balances carries loaded_by AND reversed_by, both -> profiles. New table: nothing
+            -- embeds it through PostgREST (read through opening_balance_report). Any future embed must name its constraint.
+            ('opening_balances -> profiles'),
+            -- 0887 (#895): journal_entries carries maker_id AND approver_id, both -> profiles. Checked before
+            -- adding: the journals DAL reads journal_entries with select('*') and no embed; names resolve through
+            -- the profiles directory by id. Any future embed must name its constraint.
+            -- #2521: incident_reports adds assignee_id and closed_by alongside reported_by.
+            -- Incident DAL reads unembedded rows; repository, pages, edge functions, scripts and
+            -- e2e references do not embed profiles. Future embeds must qualify the relationship.
+            ('incident_reports -> profiles'),
+            ('journal_entries -> profiles'),
+            -- 0970: people has profile_id and manager_id; the expiry DAL uses an RPC, not a profiles embed.
+            ('people -> profiles'),
             ('platform_operators -> profiles'),
             ('procurements -> profiles'),
             ('projects -> profiles'),
@@ -101,6 +117,9 @@ select set_eq(
             -- 0337: work_order_acceptances carries prepared_by and confirmed_by -> profiles. No DAL code embeds
             -- profiles from it; whatever ships first MUST qualify it with !constraint_name.
             ('work_order_acceptances -> profiles'),
+            -- 0989 (#2528): attendance_days carries recorded_by and approved_by -> profiles. No DAL code embeds profiles
+            -- from it; whatever ships first MUST qualify it with !constraint_name.
+            ('attendance_days -> profiles'),
             -- 0447 (#1519): equipment_usage_entries carries author_id and approver_id -> profiles. No DAL code embeds
             -- profiles from it yet; whatever ships first MUST qualify it with !constraint_name.
             ('equipment_usage_entries -> profiles'),
@@ -155,6 +174,10 @@ select set_eq(
             ('stock_documents -> profiles'),
             ('stock_documents -> stock_warehouses'),
             ('stock_ledger -> stock_document_lines'),
+            -- 1030 (#2523): stock_document_files carries uploaded_by and archived_by -> profiles. CHECKED BEFORE ADDING: no DAL,
+            -- repository, edge function or e2e code embeds profiles from it (stockSiteWork.ts reads select('*')), so nothing broke.
+            -- Whatever ships first MUST qualify it with !constraint_name.
+            ('stock_document_files -> profiles'),
             -- 0422 (#1515 S1): imprest_floats, imprest_replenishments, imprest_plans and imprest_float_changes each
             -- carry custodian/author/decider person columns -> profiles. The custodian FK stays (integrity). CHECKED
             -- BEFORE ADDING: no DAL, repository or edge-function code reads these tables (only database.types.ts
@@ -170,7 +193,15 @@ select set_eq(
             -- 0731: incoming_payment_allocations carries created_by AND reversed_by -> profiles. CHECKED BEFORE ADDING:
             -- the only DAL embed of the table is from incoming_payments (revenue.ts, no profiles embed); nothing embeds
             -- profiles from it. Whatever ships first MUST qualify it with !constraint_name.
-            ('incoming_payment_allocations -> profiles') $$,
+            ('incoming_payment_allocations -> profiles'),
+            -- 0961 (#1572): retention_releases carries created_by AND released_by -> auth.users. CHECKED BEFORE ADDING:
+            -- the only DAL read (src/lib/db/billingStages.ts listRetentionReleases) embeds nothing; whatever embeds users
+            -- from it MUST qualify with !constraint_name.
+            ('retention_releases -> users'),
+            -- 0997 (#2519): work_order_plan_lines carries created_by AND updated_by -> profiles. CHECKED BEFORE ADDING:
+            -- the only DAL read (workOrderFinance.ts) selects plain columns, no profiles embed. Whatever ships first
+            -- MUST qualify it with !constraint_name.
+            ('work_order_plan_lines -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

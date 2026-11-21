@@ -8,7 +8,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { pickOption } from '@/test/pickOption';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -97,21 +98,19 @@ describe('Procurement page — URL param read-on-mount (AC-IXD-DASH-W5-C2A)', ()
   it('AC-IXD-DASH-W5-C2A-PROC-4: in table view the URL status filter is shown and can be cleared', async () => {
     renderWithUrl('/procurement?view=table&status=Paid');
     expect(screen.queryByText('Invoice Request')).not.toBeInTheDocument();
-    const status = screen.getByRole('combobox', { name: 'Status' });
-    expect(status).toHaveValue('Paid');
-    const allOption = within(status).getAllByRole('option')[0];
-    await userEvent.selectOptions(status, allOption);
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveTextContent('Paid');
+    await pickOption('Status', 'All');
     expect(await screen.findByText('Invoice Request')).toBeInTheDocument();
     expect(screen.getByText('Draft Request')).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2A-PROC-5: a zero-match table offers Clear filters, which clears the URL filters and the search', async () => {
     renderWithUrl('/procurement?view=table&status=Paid');
-    await userEvent.type(screen.getByPlaceholderText('Search procurement…'), 'Invoice');
+    await userEvent.type(screen.getByLabelText(/Search procurements/i), 'Invoice');
     expect(await screen.findByText('No procurement matches these filters.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(await screen.findByText('Invoice Request')).toBeInTheDocument();
     expect(screen.getByText('Paid Request')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Status' })).not.toHaveValue('Paid');
+    expect(screen.getByRole('combobox', { name: 'Status' })).not.toHaveTextContent('Paid');
   });
 });

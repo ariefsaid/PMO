@@ -41,7 +41,8 @@
       "filters": "Filters",
       "clear": "Clear all"
     },
-    "recordReference": "Reference"
+    "recordReference": "Reference",
+    "lifecycle": "Lifecycle"
   },
   "uxs07": {
     "personalConnections": "My integrations",
@@ -78,7 +79,6 @@
     "retryCheck": "Check setup again",
     "operatorHandoff": "Open accounting setup",
     "noDomains": "No connected information is currently updating from ERPNext",
-    "m365ApprovalDescription": "Only if Microsoft asks for organization approval.",
     "organizationScope": "Personal connections: "
   },
   "uxs14": {
@@ -300,7 +300,11 @@
     "actorNotRecorded": "Not recorded",
     "actorResolving": "Loading the name…",
     "actorDirectoryError": "Couldn't read the people who changed these rates",
-    "actorDirectoryErrorSub": "Each rate still shows the day it changed; the person is not named until this read succeeds."
+    "actorDirectoryErrorSub": "Each rate still shows the day it changed; the person is not named until this read succeeds.",
+    "actionsUnavailableError": "Actions are unavailable because organization currency could not be read.",
+    "actionsUnavailableLoading": "Wait for the organization currency to load before using these actions.",
+    "description": "USD → IDR · JISDOR · display equivalents only",
+    "continue": "Continue"
   },
   "toast": {
     "dismiss": "Dismiss notification"
@@ -455,7 +459,9 @@
       "notReady": "Connect ERPNext before mapping expense accounts.",
       "error": {
         "title": "Couldn't load the expense account map",
-        "noCauseRemedy": "The account was not saved. Your entry is kept; try again."
+        "noCauseRemedy": "The account was not saved. Your entry is kept; try again.",
+        "saveHeadline": "Couldn’t save the expense account",
+        "accountRemedy": "Check the account name and type in ERPNext, then try again. Your entry is kept."
       },
       "openIntegrations": "Open integrations",
       "change": "Change {{key}}",
@@ -870,7 +876,6 @@
       "loadError": "Couldn't load {{queue}}",
       "loadErrorSub": "Try again to refresh this queue."
     },
-    "queueHeading": "Approvals queue",
     "queueRegionLabel": "Approvals queue",
     "reopen": {
       "action": "Re-open for correction",
@@ -920,7 +925,26 @@
       "withQuery": "No {{noun}} matches \"{{query}}\". Try a different search.",
       "bare": "Nothing is available to select yet. Check this field’s prerequisites or ask an administrator to add an option."
     },
-    "clear": "Clear {{noun}}"
+    "clear": "Clear {{noun}}",
+    "noun": {
+      "option": "option",
+      "project": "project",
+      "supplier": "supplier",
+      "vendor": "vendor",
+      "customer": "customer",
+      "person": "person",
+      "task": "task",
+      "invoice": "invoice",
+      "erpItem": "ERP item"
+    },
+    "select": "Select…"
+  },
+  "dateField": {
+    "open": "Open calendar",
+    "calendar": "Calendar",
+    "invalid": "Enter a date like 16 Nov 2026",
+    "beforeMin": "Choose a date on or after {{date}}",
+    "afterMax": "Choose a date on or before {{date}}"
   },
   "companies": {
     "accessDenied": {
@@ -1323,33 +1347,10 @@
       "emptySub": "Try a wider time frame to see your win rate.",
       "declined": "{{n}} declined to bid, not counted in the win rate"
     },
-    "bva": {
-      "atRisk": "At risk"
-    },
-    "projectedMargin": {
-      "group": "Weighted pipeline value by stage",
-      "barLabel": "{{stage}}: {{value}} weighted"
-    },
     "procurementStatus": {
       "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}."
     },
-    "delivery": {
-      "percent": "Delivery {{rounded}}%"
-    },
-    "engineer": {
-      "noHours": "No hours logged this week",
-      "entriesEmptySub": "Hours you log will show up here.",
-      "noNote": "No note",
-      "unknownProject": "Unknown",
-      "hoursShort": "{{hours}}h",
-      "hoursSpoken": "{{hours}} {{unit}}",
-      "hoursUnit": "hours"
-    },
-    "atRisk": {
-      "reviewSingle": "Review {{count}} at-risk project",
-      "reviewMany": "Review {{count}} at-risk projects"
-    },
-    "budgetReviewLink": "Review {{project}} budget",
+    "delivery": {},
     "snapshots": {
       "unavailable": "No accounting snapshot has been synced yet.",
       "guidance": "Ask your administrator to sync accounting data."
@@ -1375,35 +1376,8 @@
       "label": "Board pack",
       "tooltip": "Board pack export arrives with Reports"
     },
-    "chart": {
-      "procStatus": {
-        "chartLabel": "Procurement by status",
-        "empty": "No procurement activity yet",
-        "noun": "procurement cases"
-      }
-    },
     "kpi": {
-      "awaitingApproval": {
-        "label": "Awaiting your approval",
-        "unavailable": "unavailable: check connection",
-        "one": "{{count}} item waiting",
-        "many": "{{count}} items waiting",
-        "linkUnavailable": "{{label}}: unavailable",
-        "linkOne": "{{label}}: {{count}} item awaiting",
-        "linkMany": "{{label}}: {{count}} items awaiting"
-      },
       "helpLabel": "Help: {{label}}"
-    },
-    "stillToInvoice": {
-      "daysSinceAcceptance": "Days since acceptance, not invoiced: {{days}}",
-      "count": "Work orders: {{n}}",
-      "daysSinceClosed": "Days since closed: {{days}}",
-      "empty": "Nothing left to invoice on issued work orders",
-      "error": "Couldn't load what is still to invoice",
-      "incomplete": "Work orders not totalled (an invoice on them has no amount or is in another currency): {{n}}",
-      "title": "Still to invoice on work orders",
-      "incompleteMore": "and {{n}} more",
-      "clientPo": "Client PO {{po}}"
     }
   },
   "decisionContext": {
@@ -1876,7 +1850,6 @@
       "project": "Project",
       "requester": "Requester",
       "value": "Value",
-      "age": "Age",
       "status": "Status"
     },
     "preview": {
@@ -1941,7 +1914,6 @@
       "generatePurchaseOrder": "Generate Purchase Order",
       "markAsPaid": "Mark as Paid",
       "markVendorInvoiced": "Mark Supplier Invoiced",
-      "reject": "Reject",
       "selectQuote": "Compare and select a quote",
       "submitRequest": "Submit for approval"
     },
@@ -2056,9 +2028,8 @@
       "note": "Approval for this procurement is routed to {{names}}: {{why}}",
       "nameJoiner": " or ",
       "why": {
-        "projectApprover": "they are the approver set for this project.",
         "withinBudget": "it is within the project's {{category}} budget.",
-        "exceedsLine": "it would take the project's {{category}} budget over its limit.",
+        "exceedsLine": "it would take the project's {{category}} budget over its limit, counting what is already spent.",
         "noProject": "it is overhead spend, not charged to a project.",
         "noCategory": "it has no budget category, so it cannot be checked against the project budget.",
         "noActiveBudget": "the project has no active budget.",
@@ -2178,7 +2149,7 @@
         "save": "Create claim",
         "scope": "Bills",
         "scopeContract": "Lines with no work order",
-        "subtitle": "A claim becomes one ERP invoice. Attach the evidence before raising it.",
+        "subtitle": "A claim becomes one invoice. Attach the evidence before raising it.",
         "title": "New billing claim"
       },
       "claims": {
@@ -2195,7 +2166,6 @@
         "confirmRaise": {
           "body": "An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.",
           "confirm": "Create ERP invoice",
-          "figures": "Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)",
           "title": "Raise this claim's invoice?"
         },
         "confirmWithdraw": {
@@ -3454,7 +3424,7 @@
           "emptyTitle": "No Companies found",
           "emptySub": "Create a Company in ERPNext before activating this integration.",
           "activateFailed": "Activation failed. Your selection was kept; you can try again.",
-          "missingReads": "The ERPNext integration user cannot read: {{doctypes}}. Grant it read access to these in ERPNext, then activate again. Your selection was kept.",
+          "missingReads": "The ERPNext integration user cannot read: {{doctypes}}. Your operator will fix its role; then activate again. Your selection was kept.",
           "unsupportedVersion": "ERPNext {{version}} is not supported. PMO supports ERPNext {{supported}}. Nothing was activated."
         },
         "health": {
@@ -3564,14 +3534,13 @@
     },
     "m365OrgApproval": {
       "heading": "Microsoft 365",
-      "badge": "Organization approval",
       "approve": "Approve in Microsoft 365",
       "approving": "Opening Microsoft 365…",
       "errorFallback": "Could not start Microsoft 365 organization approval."
     },
     "erpSetup": {
       "defaultsFailed": "Could not save ERP defaults. Check the values and try again.",
-      "domainFailed": "Could not employ this domain. Check ERP read permissions and try again.",
+      "domainFailed": "Could not employ this domain. Your operator will fix the integration role; then try again.",
       "unavailable": "ERP setup unavailable",
       "configured": "{{count}} of {{total}} configured",
       "activityMissing": "Activity type not set",
@@ -4426,33 +4395,6 @@
     },
     "accounting": {}
   },
-  "uxs03": {
-    "spendingContract": "Spending vs contract",
-    "spendingContractBar": "{{name}}: {{percent}}% of contract",
-    "notAvailableYet": "Not available yet",
-    "attentionAndApprovals": "Attention and approvals",
-    "realizedMargin": "Margin on billed work",
-    "realizedMarginKnown": "Known margin on billed work",
-    "contractRemaining": "Contract remaining after known Actual",
-    "coverage": "Actual available for {{known}} of {{total}} delivery projects",
-    "coverageCategories": "Actual coverage: {{known}} of {{total}} mapped cost categories",
-    "pmoPurchasing": "PMO purchasing requests",
-    "pmoPurchasingScope": "ERP-native purchases are outside this PMO request chart.",
-    "activeBudget": "Active budget",
-    "actual": "Actual",
-    "variance": "Variance",
-    "utilization": "Utilization",
-    "atRisk": "At risk",
-    "activeBudgetReviewEmpty": "No active budgets ready for review",
-    "activeBudgetReviewEmptySub": "Active, positive-value budgets appear here.",
-    "actualSourceCurrency": "Source currency: {{currency}}",
-    "actualAsOf": "As of {{date}}",
-    "financeDashboardTitle": "Finance Dashboard",
-    "financeDashboardSubtitle": "Portfolio revenue, spend, margin, and budget utilization.",
-    "financeBudgetReviewTitle": "Budget review: top 5 by variance (portfolio-wide)",
-    "financeProjectColumn": "Project",
-    "financeReadyToPay": "Ready to pay"
-  },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} or {{fourth}}",
     "holdersNone": "Nobody active holds these roles right now.",
@@ -4475,7 +4417,6 @@
     "previewGapSummary_other": "{{dates}} dates without rates across {{count}} gaps"
   },
   "uxs17": {
-    "deliverySection": "Client delivery",
     "receivedByClient": "Received by client",
     "readyToSend": "Ready to send",
     "receivedDateSummary": "Client receipt was recorded for {{date}}.",
@@ -4593,17 +4534,6 @@
       "rejected": "Rejected",
       "cancelled": "Cancelled"
     },
-    "nextStep": {
-      "draft": "Submit for approval",
-      "requested": "Await approval",
-      "approved": "Request supplier quotes",
-      "vendorQuoted": "Select quote",
-      "quoteSelected": "Prepare purchase order",
-      "ordered": "Record receipt",
-      "received": "Record supplier invoice",
-      "vendorInvoiced": "Record payment"
-    },
-    "nextStepPrefix": "Next:",
     "projectEmptyScope": "This list covers purchases recorded in PMO. Purchases recorded in ERPNext appear below."
   },
   "uxs29": {

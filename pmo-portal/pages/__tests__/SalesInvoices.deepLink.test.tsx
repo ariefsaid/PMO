@@ -522,7 +522,7 @@ describe('SalesInvoices — deep link (#787)', () => {
       received_date: '2026-10-10',
     };
     renderAt('/sales-invoices/inv-1');
-    expect(screen.getByRole('heading', { name: 'Received by client' })).toBeInTheDocument();
+    expect(screen.getByText('Received by client')).toBeInTheDocument();
     expect(screen.getByText('Client receipt was recorded for 10 Oct 2026.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Download approved PDF' })).not.toBeInTheDocument();
   });
@@ -586,7 +586,7 @@ it('records the selected invoice receipt from detail', async () => {
   await userEvent.type(within(dialog).getByLabelText('Delivered'), '2026-10-12');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(await within(dialog).findByTestId('entity-modal-save-error')).toBeInTheDocument();
-  expect(within(dialog).getByLabelText('Delivered')).toHaveValue('2026-10-12');
+  expect(within(dialog).getByLabelText('Delivered')).toHaveValue('12 Oct 2026');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
   expect(hoisted.received).toHaveBeenCalledWith({ siId: 'inv-1', receivedDate: '2026-10-12' });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

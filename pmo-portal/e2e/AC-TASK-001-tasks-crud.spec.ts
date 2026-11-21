@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — unique task name (Date.now()), PM creates/edits/restatuses/deletes own task; Engineer gate reads seeded 'Fit-out' task (read-only).
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login, waitForFonts } from './helpers';
 
 /**
  * AC-TASK-001  Project Tasks CRUD — real user journey (binding BDD authoring principle).
@@ -39,6 +39,8 @@ async function gotoTasks(page: Page) {
   await expect(
     tasksPanel.getByRole('tablist', { name: 'Task view', exact: true }),
   ).toBeVisible({ timeout: 20_000 });
+  // The status-control hit test below measures geometry, so settle the web fonts first (#713).
+  await waitForFonts(page);
 }
 
 /**
@@ -91,6 +93,16 @@ test(
     // GOAL ORACLE: the control reflects the new status (the row persisted the change).
     // The stored value stays 'In Progress'; ux/1110 prints it through status.json as "In progress".
     await expect(statusButton).toHaveText('In progress', { timeout: 15_000 });
+    // #2502: the "Status updated" notice may be painted over this row's status control on a short
+    // window, but it never TAKES the control — clicking it again is the person's next natural move,
+    // with no dismiss step first.
+    await expect(page.getByRole('listitem').filter({ hasText: 'Status updated' })).toBeVisible({ timeout: 15_000 });
+    const controlIsTop = await statusButton.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      const top = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      return top === el || el.contains(top);
+    });
+    expect(controlIsTop, 'the row control receives the pointer through the notice').toBe(true);
     await statusButton.click();
     await expect(statusCtl).toHaveValue('In Progress', { timeout: 15_000 });
 

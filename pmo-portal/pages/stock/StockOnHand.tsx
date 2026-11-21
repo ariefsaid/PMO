@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, useUrlFilters, type Column } from '@/src/components/ui';
+import { buttonClasses, Button, Checkbox, DataTable, Icon, ListPage, ListState, RecordMenu, SelectField, TextField, useUrlFilters, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
+import { useRequestPurchase } from '@/src/components/stock/useRequestPurchase';
 import { useBelowReorder, useStockKeepers, useStockOnHand, useStockWarehouses } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue, sumDecimal } from '@/src/lib/stockFormat';
@@ -48,6 +49,7 @@ const StockOnHand: React.FC = () => {
   const setSearch = (value: string) => setFilter('q', value);
   const setBelowOnly = (checked: boolean) => setFilter('belowReorder', checked ? '1' : '');
   const navigate = useNavigate();
+  const { canRequest, request: requestPurchase } = useRequestPurchase();
 
   const warehouses = useStockWarehouses(false);
   const keepers = useStockKeepers();
@@ -122,8 +124,18 @@ const StockOnHand: React.FC = () => {
         { key: 'value', header: t('onHand.columns.value'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueOnHand, currency, loc)}</span>, exportValue: (r) => r.valueOnHand ?? '' },
       );
     }
+    // Only in the below-level view: a restock request is for an item at or below its level.
+    if (belowOnly && canRequest) {
+      cols.push({
+        key: 'request', header: t('requestPurchase.column'), align: 'num',
+        cell: (r) => {
+          const b = (below.data ?? []).find((x) => x.itemId === r.itemId && x.warehouseId === r.warehouseId);
+          return b ? <Button variant="outline" size="sm" aria-label={t('requestPurchase.rowLabel', { item: r.itemCode })} onClick={() => requestPurchase(b, r.avgCost)}>{t('requestPurchase.action')}</Button> : null;
+        },
+      });
+    }
     return cols;
-  }, [t, loc, currency, showCost, sharedNames]);
+  }, [t, loc, currency, showCost, sharedNames, belowOnly, canRequest, below.data, requestPurchase]);
 
   const lookupError = warehouses.isError || keepers.isError || (belowOnly && below.isError);
   const state: 'loading' | 'empty' | 'error' | undefined =
@@ -156,8 +168,8 @@ const StockOnHand: React.FC = () => {
       }
       primaryAction={canMove && (
         <div className="flex items-center gap-2">
-          <Link to="/stock/new/issue" className="inline-flex">
-            <Button variant="primary"><Icon name="plus" />{t('kinds.issue')}</Button>
+          <Link to="/stock/new/issue" className={buttonClasses('primary')}>
+            <Icon name="plus" />{t('kinds.issue')}
           </Link>
           <RecordMenu
             label={t('onHand.moreMovements')}

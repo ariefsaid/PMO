@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import { useAuth } from '@/src/auth/useAuth';
+import { useOrgId } from '@/src/hooks/useOrgId';
 import type { BudgetCategory } from '@/src/lib/db/imprest';
 import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
@@ -9,7 +9,6 @@ import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-float', 'imprest-position', 'imprest-plan-usage', 'imprest-plans',
   'imprest-replenishments', 'imprest-counts', 'imprest-float-choices', 'imprest-float-claims', 'imprest-limit', 'imprest-awaiting', 'imprest-float-changes', 'imprest-posting-states'] as const;
 
-const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 
 export function useImprestFloats() {
   const orgId = useOrgId();
@@ -60,14 +59,6 @@ export function useImprestPostingStates(floatId: string | undefined) {
     queryKey: ['imprest-posting-states', orgId, floatId],
     queryFn: () => repositories.imprest.listPostingStates(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
-  });
-}
-export function useImprestPlanUsage(floatId: string | undefined, month: string | undefined) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['imprest-plan-usage', orgId, floatId, month],
-    queryFn: () => repositories.imprest.getPlanUsage(floatId as string, month as string),
-    enabled: Boolean(orgId) && Boolean(floatId) && Boolean(month),
   });
 }
 export function useImprestPlans(floatId: string | undefined) {

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { cn } from '@/src/components/ui/cn';
 import { formatInstantDate } from '@/src/lib/format';
@@ -35,10 +36,11 @@ function formatAsOf(iso: string): string {
 }
 
 export const AccountingSnapshotProvenance: React.FC<AccountingSnapshotProvenanceProps> = ({ asOf, sourceReport, reportVersion, updatedLabel, className }) => {
+  const { t } = useTranslation();
   if (!asOf) {
     return (
       <div data-testid="snapshot-provenance-empty" className={cn('text-[11px] text-muted-foreground', className)}>
-        No snapshot available yet
+        {t('finance:snapshotProvenance.empty', 'No snapshot available yet')}
       </div>
     );
   }

@@ -17,12 +17,12 @@ export interface RecordHeaderProps {
   iconColor?: string;
   /** The record's title (an h1; 24px on a page). */
   name: React.ReactNode;
+  /** 2 when the page already carries its own h1 above (a record whose number is the page title). */
+  headingLevel?: 1 | 2;
   /** Status pill, mandatory on every record. Use `<StatusPill record=... state=... />` so the colour comes from the shared map. */
   status: React.ReactNode;
   /** Keep a long record name full width on mobile, with status below its identity line. */
   statusBelowMetaOnMobile?: boolean;
-  /** Phone: the shell's app bar already shows the name, so the h1 stays for assistive tech only (one visible title). */
-  titleInAppBarOnPhone?: boolean;
   /** Phone: the name takes at most two lines with the status under it; a tap on a cut name shows it whole. */
   clampNameOnMobile?: boolean;
   /** Quiet identity line under the title (reference number, client). Not a sentence. */
@@ -56,6 +56,8 @@ export interface RecordHeaderProps {
   actionsOnTitleRow?: boolean;
   /** Page variant: pad the panel on the panel inset (24px desktop / 16px phone) so it shares its left edge with `RecordSection` panels. */
   panelInset?: boolean;
+  /** A block under the identity row (and the facts), after a rule: a record's stage track or status steps. */
+  band?: React.ReactNode;
   /** Notes that belong to the record (one muted line each), inside the header panel under the facts. */
   children?: React.ReactNode;
   className?: string;
@@ -76,9 +78,9 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   icon,
   iconColor,
   name,
+  headingLevel = 1,
   status,
   statusBelowMetaOnMobile = false,
-  titleInAppBarOnPhone = false,
   clampNameOnMobile = false,
   meta,
   metaId,
@@ -92,6 +94,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   variant = 'page',
   actionsOnTitleRow = false,
   panelInset = false,
+  band,
   children,
   className,
   'data-testid': dataTestId = 'record-header',
@@ -100,6 +103,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   const label = menuLabel ?? t('uxs14.moreActions', 'More actions');
   const hasMenu = Boolean(menuItems && menuItems.length > 0);
   const isDrawer = variant === 'drawer';
+  const Heading = headingLevel === 2 ? 'h2' : 'h1';
   const [nameOpen, setNameOpen] = React.useState(false);
   const zone = actions || primaryAction || hasMenu ? (
     <span data-testid="record-header-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
@@ -135,7 +139,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
               : 'flex flex-nowrap items-baseline',
             clampNameOnMobile && 'max-sm:flex-col max-sm:items-start max-sm:gap-1',
           )}>
-            <h1
+            <Heading
               title={clampNameOnMobile && typeof name === 'string' ? name : undefined}
               onClick={clampNameOnMobile ? () => setNameOpen((open) => !open) : undefined}
               className={cn(
@@ -143,10 +147,9 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
               statusBelowMetaOnMobile
                 ? 'col-span-2 row-start-1 break-words sm:col-span-1 sm:row-start-auto sm:flex-[0_1_auto]'
                 : 'flex-[0_1_auto] truncate',
-              titleInAppBarOnPhone && 'max-md:sr-only',
               clampNameOnMobile && cn('max-sm:max-w-full max-sm:whitespace-normal max-sm:break-words', !nameOpen && 'max-sm:line-clamp-2'),
               !isDrawer && 'sm:truncate',
-            )}>{name}</h1>
+            )}>{name}</Heading>
             {status != null && status !== false && <span className={cn(
               'shrink-0 self-baseline',
               statusBelowMetaOnMobile && 'col-span-2 row-start-3 justify-self-start sm:col-span-1 sm:row-start-auto',
@@ -154,7 +157,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
           </div>
           {meta && !metaFullWidth && <div id={metaId} className={cn(
             'mt-1 text-control font-normal text-muted-foreground',
-            statusBelowMetaOnMobile && (titleInAppBarOnPhone ? 'col-span-2 row-start-1 sm:row-start-auto' : 'col-span-2 row-start-2 sm:row-start-auto'),
+            statusBelowMetaOnMobile && 'col-span-2 row-start-2 sm:row-start-auto',
           )}>{meta}</div>}
         </div>
         {zone && <div className={cn('flex shrink-0 items-center gap-2', actionsOnTitleRow ? 'ml-auto max-w-full' : cn('w-full', !isDrawer && 'ml-auto sm:w-auto'))}>{zone}</div>}
@@ -174,6 +177,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
           ))}
         </div>
       )}
+      {band != null && band !== false && <div data-testid="record-header-band" className="mt-4 border-t border-border pt-4">{band}</div>}
       {children != null && children !== false && <div data-testid="record-header-notes" className="mt-3 flex flex-col gap-1 text-control text-muted-foreground">{children}</div>}
     </div>
   );

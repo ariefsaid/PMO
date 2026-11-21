@@ -62,7 +62,7 @@ export function allowedActions(
     actions.push({ to: 'Approved', label: t('procurementDetail.action.approve', 'Approve'), variant: 'primary' });
   }
   if (legal('Rejected') && canApproveReject(role) && !isRequester && routeAllows) {
-    actions.push({ to: 'Rejected', label: t('procurementDetail.action.reject', 'Reject'), variant: 'destructive' });
+    actions.push({ to: 'Rejected', label: t('procurementRecord:action.return', 'Return'), variant: 'destructive' });
   }
 
   // Rejected → Draft: requester rework (FR-PROC-007)

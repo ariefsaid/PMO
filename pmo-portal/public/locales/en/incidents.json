@@ -1,0 +1,145 @@
+{
+  "title": "Incidents",
+  "file": "File incident",
+  "edit": "Edit incident",
+  "save": "Save incident",
+  "search": "Search incidents",
+  "filterByStatus": "Filter by status",
+  "openRow": "Open {{type}}",
+  "reported": "Reported {{date}}",
+  "col": {
+    "incident": "Incident",
+    "severity": "Severity",
+    "status": "Status",
+    "date": "Date",
+    "location": "Location",
+    "assignee": "Person in charge"
+  },
+  "action": {
+    "edit": "Edit",
+    "delete": "Delete",
+    "next": "Next action",
+    "clearFilters": "Clear filters"
+  },
+  "severity": {
+    "Low": "Low",
+    "Medium": "Medium",
+    "High": "High",
+    "Critical": "Critical"
+  },
+  "error": {
+    "title": "Couldn't load incidents",
+    "sub": "The request failed. Check your connection and try again."
+  },
+  "empty": {
+    "title": "No incidents reported",
+    "sub": "When something goes wrong on a project or site, file it here so it can be investigated and closed out.",
+    "noMatchTitle": "No incidents match your filters",
+    "noMatchSub": "Try a different status or clear the search."
+  },
+  "pager": {
+    "label": "Pages",
+    "range": "{{from}}–{{to}} of {{total}}",
+    "prev": "Previous page",
+    "next": "Next page"
+  },
+  "toast": {
+    "closed": "Incident closed",
+    "started": "Investigation started",
+    "deleted": "Incident deleted",
+    "filed": "Incident filed",
+    "updated": "Incident updated",
+    "taskMade": "Task created"
+  },
+  "transition": {
+    "advance": "Advance incident?",
+    "confirm": "Confirm",
+    "Investigating": {
+      "action": "Start investigating",
+      "title": "Start investigating {{type}}?",
+      "body": "This moves the incident to Investigating so the team can record findings. You can close it once the investigation is complete."
+    },
+    "Closed": {
+      "action": "Close incident",
+      "title": "Close {{type}}?",
+      "body": "This marks the incident Closed. Closed is the final state; reopen by filing a follow-up if new information emerges."
+    }
+  },
+  "delete": {
+    "title": "Delete {{type}}?",
+    "titleFallback": "Delete incident?",
+    "body": "This permanently removes the incident report. This can't be undone; consider closing it instead to keep the audit trail.",
+    "confirm": "Delete incident"
+  },
+  "detail": {
+    "notFoundTitle": "Incident not found",
+    "notFoundSub": "This incident either doesn't exist or isn't visible to you. Return to the register to find it.",
+    "errorTitle": "Couldn't load incident",
+    "errorSub": "Something went wrong fetching the incident report.",
+    "section": "Incident detail",
+    "description": "Description",
+    "noDescription": "No description was recorded.",
+    "viewProject": "View project",
+    "type": "Type",
+    "escalated": "Escalated",
+    "escalatedBody": "This issue passed its due time on {{date}}; the person in charge and the project manager were told.",
+    "closedOn": "Closed on",
+    "task": "Task",
+    "taskLinked": "A task was created for this issue.",
+    "makeTask": "Make a task",
+    "photos": "Photos",
+    "openTask": "Open task"
+  },
+  "form": {
+    "section": "What happened",
+    "date": "Date",
+    "severity": "Severity",
+    "type": "Type",
+    "typePlaceholder": "e.g. Near Miss, Equipment Damage, Spill",
+    "location": "Location",
+    "locationPlaceholder": "e.g. Regional Site B",
+    "project": "Project",
+    "projectNoun": "project",
+    "projectPlaceholder": "Optional — link a project…",
+    "description": "Description",
+    "descriptionPlaceholder": "What happened, who was involved, and any immediate action taken.",
+    "dateRequired": "Incident date is required.",
+    "typeRequired": "Incident type is required.",
+    "workOrder": "Work order",
+    "workOrderNoun": "work order",
+    "workOrderPlaceholder": "Optional — name a work order…",
+    "workOrderNeedsProject": "Choose a project first",
+    "assignee": "Person in charge",
+    "assigneeNoun": "person",
+    "assigneePlaceholder": "Optional — who must fix it…",
+    "due": "Fix by",
+    "action": "What must be done",
+    "actionPlaceholder": "e.g. Replace the damaged guard rail",
+    "photos": "Photos",
+    "addPhoto": "Add photo",
+    "photoHint": "Up to 10 photos, 15 MB each.",
+    "removePhoto": "Remove",
+    "retryUpload": "Retry photo upload",
+    "uploadFailed": "The issue was saved, but a photo could not be uploaded. Your text is kept — retry to send the remaining photos.",
+    "invalidDueTime": "The due time is not valid in your timezone."
+  },
+  "filterByDue": "Filter by due time",
+  "overdue": "Overdue",
+  "evidence": {
+    "none": "No photos yet.",
+    "atClose": "Close proof",
+    "atRaise": "At raise"
+  },
+  "close": {
+    "note": "Close note",
+    "notePlaceholder": "What was done to fix it.",
+    "addPhoto": "Add close photo",
+    "proofRequired": "A close photo is required for a High or Critical issue.",
+    "proofOptional": "Optional for this severity."
+  },
+  "projectScope": "Project incidents",
+  "allIncidents": "All incidents",
+  "notification": {
+    "overdue": "Issue is overdue"
+  }
+}

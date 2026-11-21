@@ -6,16 +6,17 @@ import { clearOwnershipCache, setTaskOwnership, setProjectBindings } from '@/src
 
 const state = vi.hoisted(() => ({ data: undefined as { domain: string }[] | undefined, isError: false, refetch: vi.fn() }));
 const listBindings = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+const listOrgBindings = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => state }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: { listProjectBindings: listBindings } } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: { listProjectBindings: listBindings, listBindings: listOrgBindings } } }));
 import { useDomainOwnershipMode } from './useDomainOwnershipMode';
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
   const [client] = React.useState(() => new QueryClient({ defaultOptions: { queries: { retry: false } } }));
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 };
-afterEach(() => { clearOwnershipCache(); state.data = undefined; state.isError = false; state.refetch.mockClear(); listBindings.mockReset().mockResolvedValue([]); });
+afterEach(() => { clearOwnershipCache(); state.data = undefined; state.isError = false; state.refetch.mockClear(); listBindings.mockReset().mockResolvedValue([]); listOrgBindings.mockReset().mockResolvedValue([]); });
 describe('domain ownership mode', () => {
   it('holds until the query and cache agree and responds to ownership changes', async () => {
     const { result, rerender } = renderHook(() => useDomainOwnershipMode('companies'), { wrapper: Wrapper });
@@ -43,5 +44,19 @@ describe('domain ownership mode', () => {
     expect(result.current.mode).toBe('error');
     act(() => result.current.retry());
     expect(state.refetch).toHaveBeenCalled();
+  });
+  it('#1671 orgBound: null until known and on error, true with an active binding, false with none or only disconnected ones', async () => {
+    state.data = [];
+    listOrgBindings.mockResolvedValueOnce([{ status: 'active' }]);
+    const bound = renderHook(() => useDomainOwnershipMode('procurement'), { wrapper: Wrapper });
+    expect(bound.result.current.orgBound).toBeNull();
+    await waitFor(() => expect(bound.result.current.orgBound).toBe(true));
+    listOrgBindings.mockResolvedValueOnce([{ status: 'disconnected' }]);
+    const off = renderHook(() => useDomainOwnershipMode('procurement'), { wrapper: Wrapper });
+    await waitFor(() => expect(off.result.current.orgBound).toBe(false));
+    listOrgBindings.mockRejectedValueOnce(new Error('unavailable'));
+    const failed = renderHook(() => useDomainOwnershipMode('procurement'), { wrapper: Wrapper });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(failed.result.current.orgBound).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 # Spec: monthly management pack (issue #765)
 
-> **Status:** Draft — 2026-10-06. **Plan:** [`docs/plans/2026-10-06-monthly-management-pack.md`](../plans/2026-10-06-monthly-management-pack.md).
+> **Status:** Draft — 2026-10-06. **Plan:** [`monthly-management-pack plan (2026-10-06, in git history)`](../plans/2026-10-06-monthly-management-pack.md).
 > **ADR:** [ADR-0076](../adr/0076-management-pack-recognition-is-an-estimate.md).
 > **Builds on:** OD-TAX-1 + migration 0197 (net-of-tax normalisation), DD-CUR-6 (per-currency, never
 > converted), OD-WO-1 (a project IS the contract), ADR-0048 (ERP is the ledger), the revenue read rule

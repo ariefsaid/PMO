@@ -322,3 +322,10 @@ export async function attributeSubcontractBillLines(
   });
   if (error) throwRpc(error);
 }
+
+/** #1671: void a mistyped PMO-native subcontract bill (no-ERP orgs). The server owns the role, SoD and cap rules. */
+export async function voidSubcontractBill(invoiceId: string, reason: string): Promise<ProcurementInvoiceRow> {
+  const { data, error } = await supabase.rpc('void_subcontract_bill', { p_invoice_id: invoiceId, p_reason: reason.trim() });
+  if (error) throwRpc(error);
+  return data as unknown as ProcurementInvoiceRow;
+}

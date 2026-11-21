@@ -3,7 +3,7 @@
 Issue #1577 (map #459). Source: (a competitor review, kept private). Status: **Draft, 2026-11-01**
 (decisions DD-LR-1..8 below are Director-delegate calls with a recommended default; owner may override; spec and plan
 reviewed against the code 2026-11-01, Director accepted the defaults). Plan:
-`docs/plans/2026-11-01-lost-reason.md`. Related, not blocking: board drag and drop `docs/specs/board-drag-drop.spec.md`
+`lost-reason plan (2026-11-01, in git history)`. Related, not blocking: board drag and drop `docs/specs/board-drag-drop.spec.md`
 (#1637), pipeline stage history (#1638, owner ruling OD-GRILL-20261101 "Pipeline dates").
 
 **Job story.** When a deal is lost or declined, I want to say why in a couple of clicks, so that the company can
@@ -19,7 +19,7 @@ later see which reasons and which clients cost it the most bids, and stop guessi
   2. The deal page: `pages/project-detail/PipelineLens.tsx:113,476-503`, two `ConfirmDialog`s, "Mark project as lost"
      (`runTransition('Loss Tender')`) and "Decline to bid" (`runTransition('Declined')`).
   3. Drag to the Lost column (#1637, being built on `feat/board-dnd-1637`): the shared `ProjectTransitionConfirm`
-     (plan `docs/plans/2026-11-01-board-drag-drop.md` S2-T3) with a required Loss Tender vs Declined radio.
+     (plan `board-drag-drop plan (2026-11-01, in git history)` S2-T3) with a required Loss Tender vs Declined radio.
 - No reason is captured anywhere. `projects` has `decided_at` (stamped `now()` on loss by `transition_project`) but no
   column for why.
 - `transition_project` is `security definer`, role-gated to Admin, Executive, Project Manager, Finance, org and

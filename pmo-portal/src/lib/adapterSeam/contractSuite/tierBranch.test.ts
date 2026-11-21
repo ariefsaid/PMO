@@ -38,8 +38,6 @@ const ALLOWED: Record<string, number> = {
   'pmo-portal/src/components/integrations/TierConnectionCard.tsx': 7,
   // #1504 S5: the Odoo setup steps count only Odoo's own employed domains (the list is Odoo-only UI).
   'pmo-portal/src/components/integrations/odoo/OdooSetupChecklist.tsx': 1,
-  // #1511 F5: the equipment screens' ownership switch selects the Odoo-specific register UI (D12).
-  'pmo-portal/src/hooks/useEquipment.ts': 1,
   'pmo-portal/src/hooks/useErpItemOptions.ts': 1,
   'pmo-portal/src/hooks/useExpensePostingReadiness.ts': 1,
   'pmo-portal/src/lib/repositories/integrations.ts': 2,
@@ -52,6 +50,8 @@ const ALLOWED: Record<string, number> = {
   'supabase/functions/external-invoice-pdf/index.ts': 1,
   'supabase/functions/external-disconnect/index.ts': 2,
   'supabase/functions/external-set-company/index.ts': 2,
+  // #895: the journal dispatch gate refuses a server answer whose tier is neither ledger (a shape check, no routing).
+  'supabase/functions/adapter-dispatch/journalGuard.ts': 2,
   // #1595: the assistant picks ERP vs native invoice drafting by the revenue owner; behind the shared contract since #1672.
   'supabase/functions/agent-chat/draftInvoice.ts': 1,
 };
