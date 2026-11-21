@@ -16,6 +16,9 @@ test('AC-RSV-018 reserve for one work order, then a request borrowing it is appr
   const source = await makeWarehouse(admin, sfx, 'RS', 'central');
   await postReceive(admin, source.id, item.id, '10');
   await keeperOf(admin, source.id);
+  // The requester names where the material goes: the project has several delivery locations, so the request must say which.
+  const dest = await admin.from('stock_warehouses').insert({ code: `E2E-RD${sfx}`, name: `E2E delivery ${sfx}`, kind: 'site', project_id: SEED_PROJECT_ID }).select('id').single();
+  if (dest.error) throw new Error('destination: ' + dest.error.message);
   const exec = await admin.from('profiles').select('id').eq('email', 'exec@acme.test').single();
   if (exec.error) throw new Error('exec: ' + exec.error.message);
   await keeperOf(admin, source.id, exec.data.id as string);
@@ -46,7 +49,7 @@ test('AC-RSV-018 reserve for one work order, then a request borrowing it is appr
   // The second work order asks for 5: 2 are free, 3 are borrowed.
   const engineer = await userClient('engineer@acme.test');
   const saved = await engineer.rpc('mrq_save_draft', {
-    p_request_id: null, p_header: { work_order_id: other.data.id, needed_by: new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10), to_warehouse_id: null, note: null },
+    p_request_id: null, p_header: { work_order_id: other.data.id, needed_by: new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10), to_warehouse_id: dest.data.id, note: null },
     p_lines: [{ item_id: item.id, quantity: '5', over_plan_reason: 'RSV journey' }], p_client_request_id: randomUUID(),
   });
   if (saved.error) throw new Error('draft: ' + saved.error.message);
