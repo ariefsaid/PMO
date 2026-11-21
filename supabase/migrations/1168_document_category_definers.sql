@@ -1,4 +1,4 @@
--- 1094_document_category_definers.sql — #2579 step 5 of 5: the two security-definer routines that read the register on a caller's behalf.
+-- 1168_document_category_definers.sql — #2579 step 5 of 5: the two security-definer routines that read the register on a caller's behalf.
 -- transition_document_status refuses a document the caller's role cannot view with the same not-found as a missing id (FR-DCV-012);
 -- notify_workflow_user writes no notification naming a document to a recipient who cannot view its category (FR-DCV-014).
 -- The two service-role M365 definers (m365_issue_document, m365_refresh_reference) are reached only after the edge handler has read the
