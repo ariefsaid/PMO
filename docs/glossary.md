@@ -509,6 +509,12 @@ an edit. Distinct from the **Goods Receipt** procurement record, whose only line
 **Stock ledger entry** — one signed quantity-and-value line per item and warehouse written when a document posts.
 Append-only. The ledger is the trace.
 
+**Issued share** — for one item on one work order: its net issued quantity (issues less returns) as a percent of the quantity planned for that work order (the BoQ material allowance, prorated by the work order's share of the line). Per item, by quantity. #2674.
+
+**Progress share** — a work order's progress as one percent, value-weighted over its allocated contract lines; each line counts the greater of its Confirmed accepted quantity and its validated daily-report quantity, capped at the allocated quantity. #2674.
+
+**Issue-progress gap** — issued share minus progress share, in percentage points. An item warns when the gap is strictly greater than the organisation's threshold; the threshold is unset (no warning) until an Admin sets it. A warning never blocks. #2674.
+
 **On hand** — quantity and value of an item at a warehouse now: the sum of its ledger entries (kept in a balance row).
 
 **Moving-average cost** — value on hand ÷ quantity on hand at the moment of a stock-out.

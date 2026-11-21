@@ -13517,6 +13517,7 @@ export type Database = {
     }
     Functions: {
       retention_held: { Args: { "": Database["public"]["Tables"]["sales_invoices"]["Row"] }; Returns: number }
+      set_work_order_issue_threshold: { Args: { p_threshold_pct: number }; Returns: number }
       set_work_order_plan: { Args: { p_project_id: string; p_work_order_id: string; p_changes: Json }; Returns: number }
       set_shared_cost_split: { Args: { p_project_id: string; p_split: Json }; Returns: number }
       clear_shared_cost_split: { Args: { p_project_id: string }; Returns: number }
@@ -15488,6 +15489,7 @@ export type Database = {
         Returns: Json
       }
       get_unbilled_work_orders: { Args: { p_limit?: number }; Returns: Json }
+      get_work_order_material_vs_progress: { Args: { p_work_order_id: string }; Returns: Json }
       get_work_order_stock_balance: {
         Args: { p_project_id?: string; p_work_order_id?: string }
         Returns: Json
