@@ -76,6 +76,12 @@ so I know where it is.
 | AC-SVL-011 | Given a location import file row with kind `vendor` and a project, then the row is refused; without a project it is accepted. | Unit |
 | AC-SVL-012 | Given an admin, when creating a vendor location in Setup, sending material to it and back from the transfer form, then the on-hand screen shows it "at" the vendor in between and zero after. | E2E (extends the shipped round-trip journey JOB-F20 to use the vendor kind; the existing spec stays untouched) |
 
+## 3a. Mutation checks (database rules)
+Each rule below is broken, the named ACs must go red, then it is restored (`supabase/tests/1300_stock_vendor_location.test.sql`):
+- `-- mut:vendor_kind` in `guard_vendor_location_document()` (make it return without raising): AC-SVL-004 receive, issue, return refusals go red.
+- `dw.kind in ('central', 'vendor')` back to `dw.kind = 'central'` in `get_reorder_suggestions`: AC-SVL-008 (both assertions) go red.
+- `-- mut:vendor_company` in `check_stock_warehouse_parent()` (drop the company type/org check): AC-SVL-001 Client-company and other-org-company refusals go red.
+
 ## 4. Settings
 | Setting | Default |
 |---|---|
