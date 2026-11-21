@@ -44,7 +44,7 @@ begin
   if new.category_id is not null and (tg_op = 'INSERT' or new.category_id is distinct from old.category_id)
      and not exists (select 1 from public.purchase_line_categories c
                       where c.id = new.category_id and c.org_id = new.org_id and c.archived_at is null) then
-    raise exception 'Category is not available' using errcode = '42501';
+    raise exception 'Line category is not available' using errcode = '42501';
   end if;
   return new;
 end $$;

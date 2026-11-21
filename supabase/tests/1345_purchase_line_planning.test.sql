@@ -7,11 +7,17 @@
 --   AC-PLP-005 on the requester's Draft the RPC sets and clears both fields; a retired or foreign category is refused.
 --   AC-PLP-006 a non-Draft case, or a caller who may not edit the lines, is refused and the line is unchanged.
 --   AC-PLP-007 another organisation can neither read nor change these rows.
--- Mutation checks (run by the orchestrator): drop the Admin check in set_purchase_line_category (AC-PLP-002 red); drop the OFF guard
--- in procurement_items_planning_guard (AC-PLP-004 red); drop the editable check in set_procurement_line_planning (AC-PLP-006 red);
--- drop the org filter on the category lookup (AC-PLP-005/007 red).
+-- Mutation checks (run by the orchestrator), each alone, each names the assertion that must go red:
+--   1 drop the Admin check in set_purchase_line_category            -> 'AC-PLP-002 Finance cannot add a category'
+--   2 drop the OFF guard in procurement_items_planning_guard        -> 'AC-PLP-004 a direct insert with a date is refused while OFF'
+--   3 drop the editable check in set_procurement_line_planning      -> 'AC-PLP-006 a non-requester Engineer is refused'
+--   4a drop (org_id, category_id) FK in favour of (category_id)     -> 'AC-PLP-005 foreign-key layer ...'
+--   4b drop `c.org_id = v_org` in set_procurement_line_planning     -> 'AC-PLP-005 RPC layer ...'
+--   4c drop `c.org_id = new.org_id` in the guard trigger            -> 'AC-PLP-005 trigger layer ...'
+--   5 drop `org_id = (select auth_org_id())` from the select policy -> 'AC-PLP-001/007 org B cannot read org A categories'
+--   6 drop the Draft check in the guard trigger                      -> 'AC-PLP-006 trigger layer ...'
 begin;
-select plan(29);
+select plan(32);
 
 insert into organizations (id, name) values
   ('26960000-0000-0000-0000-000000000001', 'PLP Org A'),
@@ -100,7 +106,21 @@ insert into purchase_line_categories (id, org_id, name) values
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"26960000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select throws_ok($$select set_procurement_line_planning('26960000-0000-0000-0000-000000000020',
-  '26960000-0000-0000-0000-000000000090', null)$$, '42501', null, 'AC-PLP-005 another organisation''s category is refused');
+  '26960000-0000-0000-0000-000000000090', null)$$, '42501', 'Category is not available', 'AC-PLP-005 RPC layer: another organisation''s category is refused by the RPC''s own lookup');
+
+-- Each layer alone. The messages differ on purpose: the RPC says 'Category is not available', the trigger 'Line category is not
+-- available', the FK raises 23503; a test that names its layer goes red when that layer alone is broken.
+reset role;
+select throws_ok($$update procurement_items set category_id = '26960000-0000-0000-0000-000000000090' where id = '26960000-0000-0000-0000-000000000020'$$,
+  '42501', 'Line category is not available', 'AC-PLP-005 trigger layer: a direct write of another organisation''s category is refused by the guard trigger');
+alter table procurement_items disable trigger procurement_items_zz_planning_guard;
+select throws_ok($$update procurement_items set category_id = '26960000-0000-0000-0000-000000000090' where id = '26960000-0000-0000-0000-000000000020'$$,
+  '23503', null, 'AC-PLP-005 foreign-key layer: with the trigger off, the composite key still refuses another organisation''s category');
+alter table procurement_items enable trigger procurement_items_zz_planning_guard;
+select throws_ok($$update procurement_items set category_id = null, needed_by = date '2027-01-01' where id = '26960000-0000-0000-0000-000000000021'$$,
+  '42501', 'Line planning is read-only for this request', 'AC-PLP-006 trigger layer: a value past Draft is refused by the guard trigger');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"26960000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
 -- AC-PLP-006: a caller who may not edit the lines, and a non-Draft case.
 set local request.jwt.claims = '{"sub":"26960000-0000-0000-0000-0000000000a3","role":"authenticated"}';
