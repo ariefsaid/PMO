@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { maskSelection, priceSource } from '@/src/lib/priceReadPath';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 import { attachApprovalRoutes } from './approvalRoutes';
@@ -189,7 +190,7 @@ export async function listProcurements(
 ): Promise<ProcurementWithRefs[]> {
   const selection = opts?.lean ? SELECT_LEAN_DETAILS : opts?.withSharedDetails ? SELECT_WITH_SHARED_DETAILS : opts?.withRefs ? SELECT_WITH_REFS : SELECT;
   const data = await fetchAllRowsByKeyset((afterId, limit) => {
-    let query = supabase.from('procurements').select(selection).order('id', { ascending: true }).limit(limit);
+    let query = supabase.from(priceSource('procurements') as 'procurements').select(maskSelection(selection)).order('id', { ascending: true }).limit(limit);
     if (opts?.status) query = query.eq('status', opts.status);
     if (afterId !== null) query = query.gt('id', afterId);
     return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
@@ -206,7 +207,7 @@ export async function listProcurements(
  */
 export async function listProcurementsByProject(projectId: string): Promise<ProcurementWithRefs[]> {
   const data = await fetchAllRowsByKeyset((afterId, limit) => {
-    let query = supabase.from('procurements').select(PROJECT_DETAIL_SELECT)
+    let query = supabase.from(priceSource('procurements') as 'procurements').select(maskSelection(PROJECT_DETAIL_SELECT))
       .eq('project_id', projectId).order('id', { ascending: true }).limit(limit);
     if (afterId !== null) query = query.gt('id', afterId);
     return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
@@ -225,7 +226,7 @@ export async function listProcurementsByProject(projectId: string): Promise<Proc
  */
 export async function listProcurementsByVendor(vendorId: string): Promise<ProcurementWithRefs[]> {
   return fetchAllRowsByKeyset((afterId, limit) => {
-    let query = supabase.from('procurements').select(SELECT)
+    let query = supabase.from(priceSource('procurements') as 'procurements').select(maskSelection(SELECT))
       .eq('vendor_id', vendorId).order('id', { ascending: true }).limit(limit);
     if (afterId !== null) query = query.gt('id', afterId);
     return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;

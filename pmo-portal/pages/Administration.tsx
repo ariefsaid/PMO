@@ -27,6 +27,7 @@ import { AccountingHelp } from './admin/AccountingHelp';
 import OrgTaxDefault from './admin/OrgTaxDefault';
 import OrgFiscalYearStart from './admin/OrgFiscalYearStart';
 import OrgBuiltInRoles from './admin/OrgBuiltInRoles';
+import OrgHidePrices from './admin/OrgHidePrices';
 import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
@@ -252,6 +253,7 @@ const SelectedAdministrationPanel: React.FC<{
           <People />
           <DocumentTypes />
           <OrgBuiltInRoles />
+          <OrgHidePrices />
         </div>
       );
     case 'integrations':

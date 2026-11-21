@@ -83,6 +83,7 @@ import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { AccountMenu } from '@/src/components/shell/AccountMenu';
+import { usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
 
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
@@ -554,6 +555,7 @@ export const ShellChrome: React.FC = () => {
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
+  usePriceVisibilitySync();
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
 
   // #1834: route entry fires the route's — and its late in-page chunks' —

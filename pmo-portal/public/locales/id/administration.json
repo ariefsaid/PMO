@@ -712,6 +712,17 @@
       "turnOn": "Aktifkan peran bawaan",
       "turnOff": "Nonaktifkan peran bawaan"
     },
+    "hidePrices": {
+      "title": "Sembunyikan harga dari peminta",
+      "loadError": "Pengaturan sembunyikan harga tidak dapat dimuat",
+      "saved": "Pengaturan sembunyikan harga disimpan",
+      "helper": "Sembunyikan harga satuan dan jumlah dari orang yang hanya meminta barang: peran lapangan dan staf di luar pembelian dan keuangan, serta Engineer tanpa peran bawaan. Kuantitas dan status tetap terlihat. Semua orang lain melihat harga seperti sebelumnya.",
+      "on": "Aktif",
+      "off": "Nonaktif",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
+      "turnOn": "Sembunyikan harga dari peminta",
+      "turnOff": "Tampilkan lagi harga kepada peminta"
+    },
     "fiscalYear": {
       "title": "Tahun fiskal",
       "label": "Tahun fiskal dimulai pada",

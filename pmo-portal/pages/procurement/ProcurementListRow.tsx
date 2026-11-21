@@ -24,6 +24,7 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { formatCurrency, formatNumberExact } from '@/src/lib/format';
 import { DecisionSupportPanel } from '@/src/components/procurement/DecisionSupportPanel';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import { FIGURE_LINE_CLASS } from '@/src/components/ui/FigureContent';
 
 const TERMINAL = new Set<string>(['Paid', 'Rejected', 'Cancelled']);
@@ -38,9 +39,13 @@ const columnFields = [
   { key: 'value', span: 'md:col-span-2 md:text-right' },
   { key: 'status', span: 'md:col-span-2 md:pl-4' },
 ] as const;
+/** #2699: without amounts the value column goes and the first column takes its two spans. */
+const spanOf = (key: (typeof columnFields)[number]['key'], maySeePrices: boolean): string =>
+  !maySeePrices && key === 'request' ? 'col-span-2 md:col-span-6' : columnFields.find((c) => c.key === key)!.span;
 
 export const ProcurementListColumns: React.FC = () => {
   const { t } = useTranslation();
+  const maySeePrices = useMaySeePrices();
   const labels = {
     request: t('procurement.columns.request', 'Procurement'),
     project: t('procurement.columns.project', 'Project'),
@@ -50,7 +55,7 @@ export const ProcurementListColumns: React.FC = () => {
   };
   return (
     <div data-testid="procurement-list-columns" aria-hidden="true" className={`${columnGrid} hidden items-center border-b border-border px-3.5 py-3 text-sm font-semibold text-muted-foreground md:grid`}>
-      {columnFields.map(({ key, span }) => <span key={key} className={span}>{labels[key]}</span>)}
+      {columnFields.filter(({ key }) => maySeePrices || key !== 'value').map(({ key }) => <span key={key} className={spanOf(key, maySeePrices)}>{labels[key]}</span>)}
     </div>
   );
 };
@@ -93,6 +98,7 @@ const ExpandedPanel: React.FC<{
 }> = ({ row, panelId, onLinkClick }) => {
   const { t } = useTranslation();
   const detail = useProcurementDetail(row.id);
+  const maySeePrices = useMaySeePrices();
 
   return (
     <div
@@ -113,7 +119,7 @@ const ExpandedPanel: React.FC<{
       ) : detail.data ? (
         <>
           {/* Budget impact */}
-          <DecisionSupportPanel
+          {maySeePrices && <DecisionSupportPanel
             projectId={detail.data.project_id}
             totalValue={detail.data.total_value}
             projectName={detail.data.project ? projectDisplayName(detail.data.project) : undefined}
@@ -121,7 +127,7 @@ const ExpandedPanel: React.FC<{
             projectStatus={detail.data.project?.status}
             status={detail.data.status}
             currency={detail.data.currency}
-          />
+          />}
 
           {/* Line items */}
           {detail.data.items.length > 0 && (
@@ -131,7 +137,7 @@ const ExpandedPanel: React.FC<{
               </h4>
               <ul className="space-y-1" aria-label={t('procurement.preview.lineItems', 'Line items')}>
                 {detail.data.items.map((item) => {
-                  const lineTotal = item.amount ?? item.quantity * item.rate;
+                  const lineTotal = maySeePrices ? (item.amount ?? item.quantity * item.rate) : 0;
                   return (
                     <li
                       key={item.id}
@@ -140,10 +146,10 @@ const ExpandedPanel: React.FC<{
                       <span className="truncate">{item.name}</span>
                       <span className="tabular text-muted-foreground shrink-0">
                         {/* #2089: the quantity renders in the viewer's locale, grouped. */}
-                        {formatNumberExact(item.quantity)} × {formatCurrency(item.rate, detail.data.currency)} ={' '}
+                        {maySeePrices ? <>{formatNumberExact(item.quantity)} × {formatCurrency(item.rate, detail.data.currency)} ={' '}
                         <span className="font-medium text-foreground">
                           {formatCurrency(lineTotal, detail.data.currency)}
-                        </span>
+                        </span></> : formatNumberExact(item.quantity)}
                       </span>
                     </li>
                   );
@@ -176,6 +182,7 @@ const ExpandedPanel: React.FC<{
  */
 export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ row, openRecord }) => {
   const { t } = useTranslation();
+  const maySeePrices = useMaySeePrices();
   const { t: tp } = useTranslation('procurement');
   const panelId = `proc-list-panel-${useId()}`;
   const [expanded, setExpanded] = useState(false);
@@ -217,7 +224,7 @@ export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ 
           openRecord(`/procurement/${row.id}`);
         }}
         className={`${columnGrid} cursor-pointer items-start px-3.5 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent/60`}>
-        <div className={`${columnFields[0].span} flex min-w-0 items-start gap-2`}>
+        <div className={`${spanOf('request', maySeePrices)} flex min-w-0 items-start gap-2`}>
         {/* Disclosure toggle (AC-FIX5-PREVIEW-01) */}
         <Button
           variant="ghost"
@@ -255,19 +262,19 @@ export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ 
 
         </div>
         <dl className="contents">
-          <div className={`${columnFields[1].span} min-w-0 break-words`}>
+          <div className={`${spanOf('project', maySeePrices)} min-w-0 break-words`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.project', 'Project')}</dt>
             <dd><ProjectNameLink projectId={row.project_id} name={row.project ? projectDisplayName(row.project) : null} legalName={row.project?.name} className="block whitespace-normal break-words" /></dd>
           </div>
-          <div className={`${columnFields[2].span} min-w-0 break-words`}>
+          <div className={`${spanOf('requester', maySeePrices)} min-w-0 break-words`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.requester', 'Requester')}</dt>
             <dd>{row.requested_by?.full_name ?? '—'}</dd>
           </div>
-          <div data-procurement-value className={`${columnFields[3].span} min-w-0 tabular`}>
+          {maySeePrices && <div data-procurement-value className={`${spanOf('value', maySeePrices)} min-w-0 tabular`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.value', 'Value')}</dt>
             <dd className={`${FIGURE_LINE_CLASS} font-medium text-foreground`}>{formatCurrency(row.total_value, row.currency)}</dd>
-          </div>
-          <div className={`${columnFields[4].span} min-w-0`}>
+          </div>}
+          <div className={`${spanOf('status', maySeePrices)} min-w-0`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.status', 'Status')}</dt>
             <dd className="space-y-1">
               <span className="flex flex-wrap items-center gap-x-2 gap-y-1">

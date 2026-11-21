@@ -1,0 +1,6 @@
+# #2699 hide prices: client-callable SECURITY DEFINER names (authenticated only; anon revoked in 1215).
+get_hide_prices_enabled  # 1215: active member read of the caller org's setting
+set_hide_prices_enabled  # 1215: active Admin of the caller org
+get_may_see_prices  # 1215: caller's own price visibility
+actor_may_see_prices  # 1215: caller's own price visibility
+actor_may_see_prices_now  # 1215: caller's own price visibility (view helper)

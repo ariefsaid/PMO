@@ -1050,3 +1050,7 @@ the material close-out: joint count, loss report, material completion report). T
 **Role tier** — manager, officer or field. Managers approve, officers prepare, field roles are light accounts; a manager stands in for a manager, never upward.
 
 **Role capability** — a narrow difference from the base level held by named built-in roles only (for example posting stock, validating a daily report, running billing stages). Other features read it through `actor_has_role_capability`.
+
+**Hide prices setting** — the organisation setting (`hide_prices_from_requesters`, default off) that hides unit prices and amounts from a **requester**. While off, nothing changes for anyone. (#2699.)
+
+**Requester (price visibility)** — a person with no purchasing or finance authority: a built-in officer or field role without price right (every one except Buyer, Finance Officer, Billing Officer), or a legacy Engineer who holds no built-in role. Judged per person on the real signed-in role, not per request and never on the view-as role. Prices read as empty for them through the masked views. (#2699.)

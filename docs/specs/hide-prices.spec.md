@@ -1,6 +1,6 @@
 # Hide prices from requesters: organisation setting
 
-Ticket #2699 (map #902). Status: Draft for Director approval. Rulings: OD-SCOPE-2 (a setting, no client process), OD-SCOPE-3.
+Ticket #2699 (map #902). Status: Approved by the Director 2026-11-21 (rulings Q1-Q5 applied). Rulings: OD-SCOPE-2 (a setting, no client process), OD-SCOPE-3.
 Builds on: `builtin-role-set.spec.md` (#2709): `actor_sees_prices()`, `actor_built_in_role()`.
 
 **Job story.** When people only request items, I want them not to see unit prices and amounts, so pricing stays with purchasing and finance.
@@ -9,7 +9,7 @@ Builds on: `builtin-role-set.spec.md` (#2709): `actor_sees_prices()`, `actor_bui
 
 One organisation setting `organizations.hide_prices_from_requesters` (default false). While false nothing changes for anyone.
 One SQL rule, `actor_may_see_prices()`, decides every price read; one frontend mirror, `canSeePrices(ctx)` in `src/auth/policy.ts`
-(a `can('view','prices',ctx)` entry). Price columns are nulled in the database; the frontend hides a price column only when the
+(`src/auth/priceVisibility.ts`; no new `policy.ts` entry). Price columns are nulled in the database; the frontend hides a price column only when the
 server returned it as hidden.
 
 **Requester (defined).** A person acts purely as a requester when they can raise requests but hold no purchasing or finance
@@ -52,11 +52,17 @@ on a request they raised either. An inactive member sees nothing.
 | S4 | `purchase_orders`, `purchase_order_lines`, `po_variation_lines` | `amount`, `rate` | masked views |
 | S5 | `stock_document_lines` | `unit_cost` | masked view |
 | S6 | `stock_ledger`, `stock_balances` (stock valuation reports, `stockReports.ts`) | `value_delta`, `value_after`, `value_on_hand` | masked views + report RPCs call the helper |
-| S7 | read RPCs and views returning the above (committed spend, left after this purchase, approval panel figures) | derived amounts | helper inside the RPC |
+| S7 | stock report RPCs (`get_stock_on_hand`, `get_stock_ledger`, `get_project_consumption`, work-order stock balance) | stock values | the stock cost seam `stock_can_see_cost()` now also requires `actor_may_see_prices()` |
+| S7b | procurement derived-amount RPCs (open commitment, committed spend, approval panel figures) | derived amounts | not covered here: the screens hide them from a requester; Director to rule |
 | S8 | `material_request_lines` and the material-request RPCs | none (quantities only) | not covered: carries no price or amount |
-| S9 | `boq_items.rate`, budget and revenue screens | planning and revenue prices | not covered: not request, procurement or stock reads; open question Q2 |
+| S9 | `boq_items.rate`, budget and revenue screens | planning and revenue prices | out of scope: the ticket is about requesters and unit prices on request, procurement and stock screens |
 
 The build re-greps the DAL (`from('<table>')`, `.rpc(`) for each column before closing the inventory and adds a row for any surface found.
+
+**Read path.** The masked `security_invoker` views (`<table>_masked`, migrations 1216-1217) are the read path for the request screens
+(procurement list, detail, project and vendor lists, line items, stock reports). While the setting is on, those screens read the views and
+embed the masked child views (`maskSelection`); while off they read the tables exactly as before, so an existing organisation sees no change.
+Write responses are read back through the masked view. If an embed through a view does not resolve, a view joining the needed names replaces it.
 
 ## 4. Acceptance criteria and owning layer
 
@@ -85,4 +91,4 @@ it follows #2709's role set.
 
 ## 6. Not in this ticket
 
-Hiding budget, BOQ or revenue figures (Q2); per-field price rules; custom roles (Q1 2027). Nothing else deferred.
+Budget, BOQ and revenue figures (out of scope); per-field price rules; custom roles (Q1 2027). Nothing else deferred.
