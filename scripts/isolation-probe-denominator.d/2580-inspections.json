@@ -12,7 +12,7 @@
       "table": "third_party_inspections",
       "has_org": true,
       "pk": "id",
-      "columns": "*",
+      "columns": "id,org_id,work_order_id,project_id,title,test_kind,planned_date,vendor_id,note,required_for,section_id,status,result,procurement_id,purchase_raised_at,purchase_raised_by,invited_on,invited_who,invited_how,invited_by,executed_on,executed_by,reported_at,reported_by,waived_at,waived_by,waiver_reason,cancelled_at,cancelled_by,cancel_reason,overdue_notified_at,created_by,created_at,updated_at",
       "b_read": "own-org-only",
       "by_id": "applicable"
     }
