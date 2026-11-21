@@ -65,7 +65,8 @@ export type Action =
   | 'cancel'
   | 'report'
   | 'close'
-  | 'configure';
+  | 'configure'
+  | 'set';
 
 export type Entity =
   | 'project'
@@ -120,6 +121,7 @@ export type Entity =
   | 'workOrderSection'
   | 'sharedCostSplit'
   | 'vendorTaxDefault'
+  | 'supplyRisk'
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
   | 'siteReportLists'
@@ -244,6 +246,8 @@ const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Ad
 const REVENUE_WRITE: Role[] = [...REVENUE_WRITE_ROLES];
 /** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0273). */
 const TAX_SETUP: Role[] = ['Admin', 'Finance'];
+/** #2583: who may set a supplier's supply-risk status — mirrors set_vendor_supply_status (1067: Admin, Finance). */
+const SUPPLY_RISK_SET: Role[] = ['Admin', 'Finance'];
 /** #1515: establish a float, propose its amount (0422). */
 const IMPREST_SETUP: Role[] = ['Admin', 'Finance'];
 /** #1271: who may save / end / preview cost attribution rules — mirrors the 0376 RPC gate. */
@@ -1133,6 +1137,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   // #876 slice 2: a vendor's default VAT / PPh treatment. UX ONLY — set_vendor_tax_defaults is the authority.
   vendorTaxDefault: { manage: allow(TAX_SETUP) },
+  // #2583: a supplier's supply-risk status. UX ONLY — set_vendor_supply_status (1067) and companies_supply_risk_guard
+  // (1065) are the authority; `view` offers the panel to the Master-data roles (the flag itself is org-readable).
+  supplyRisk: { view: allow(MASTER_DATA), set: allow(SUPPLY_RISK_SET) },
   orgProjectNumbering: {
     manage: allow(ADMIN),
   },

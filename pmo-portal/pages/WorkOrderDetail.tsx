@@ -16,6 +16,7 @@ import { useWorkOrder, useWorkOrderAllocations, useWorkOrderClaimDocuments, useW
 import { deriveScopeProgress } from '@/src/lib/workOrderProgress';
 import { buildCostView } from '@/src/lib/workOrderCostView';
 import { formatCurrency } from '@/src/lib/format';
+import { WorkOrderSupplyWarning } from '@/src/components/SupplyRiskWarning';
 import { ScopeSection } from './work-order-detail/ScopeSection';
 import { CostSection } from './work-order-detail/CostSection';
 import { BillingSection } from './work-order-detail/BillingSection';
@@ -101,6 +102,7 @@ const WorkOrderDetail: React.FC = () => {
           { label: t('client', 'Client'), value: project.data?.client?.name ?? '—' },
           { label: t('orderValue', 'Order value'), value: <span className="tabular-nums" data-testid="wo-order-value">{formatCurrency(Number(row.order_value), row.currency)}</span> },
         ]} />
+      <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       <RecordStack>
         <ScopeSection projectId={row.project_id} progress={progress} isPending={allocations.isPending || boq.isPending || bastList.isPending} isError={allocations.isError || boq.isError || bastList.isError}
           onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
