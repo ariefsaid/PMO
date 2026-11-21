@@ -486,7 +486,7 @@
         "skip": "Tidak diperlukan",
         "skipTitle": "Tandai {{stage}} tidak diperlukan",
         "skipLabel": "Alasan",
-        "skipHelp": "Disimpan bersama klaim. Faktur tidak lagi menunggu tahap ini, dan tidak dapat dibatalkan.",
+        "skipHelp": "Disimpan bersama klaim. Invoice tidak lagi menunggu tahap ini, dan tidak dapat dibatalkan.",
         "skipConfirm": "Tandai tidak diperlukan"
       },
       "steps": {

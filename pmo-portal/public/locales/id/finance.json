@@ -1169,7 +1169,7 @@
   "billingPlan": {
     "title": "Rencana penagihan",
     "entryLink": "Rencana penagihan",
-    "statement": "Hanya kandidat. Tidak ada yang membuat klaim atau faktur dari sini.",
+    "statement": "Hanya kandidat. Tidak ada yang membuat klaim atau invoice dari sini.",
     "ticksNote": "Pilihan Anda tidak disimpan; pilihan hilang saat Anda meninggalkan halaman ini.",
     "summary": "Ringkasan bulan",
     "prevMonth": "Bulan sebelumnya",
