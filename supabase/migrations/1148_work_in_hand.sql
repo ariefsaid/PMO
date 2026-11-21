@@ -1,7 +1,7 @@
--- 1060_work_in_hand.sql — #2575: the value of work in hand per contract and work order, read-only.
+-- 1148_work_in_hand.sql — #2575: the value of work in hand per contract and work order, read-only.
 -- Adds one SECURITY INVOKER, STABLE function get_work_in_hand(p_as_of date default null) returning one jsonb value.
 -- No table, column, policy or grant change. Money path: read-only — it posts nothing and stores nothing.
--- Reversal: supabase/migrations/rollback/1060_work_in_hand_down.sql.
+-- Reversal: supabase/migrations/rollback/1148_work_in_hand_down.sql.
 --
 -- ⚑ ONE billed-work definition: every billed figure is read from sales_invoice_work_billed (0498, ADR-0077 decision 9),
 --   the view get_project_billing (0921), work_order_billing (0337) and the management pack (0919) read. A paired PMO copy is

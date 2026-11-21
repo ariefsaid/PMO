@@ -29,7 +29,7 @@ One migration, additive: a `security invoker`, `stable` function `get_work_in_ha
 - Work orders: `Issued` only, value as `work_order_billing.order_net`, and `figures_complete` taken from that view rather than re-derived. A closing value exists only on a Closed work order, so no work-in-hand row carries one.
 - Bounds: 500 contracts, 3,000 work orders, `truncated` flag.
 - `revoke all ... from public, anon; grant execute ... to authenticated`. RLS-initplan rule: any policy wrapper uses `(select helper())` (none added).
-- **Rollback:** `supabase/migrations/rollback/1060_work_in_hand_down.sql` = `drop function if exists public.get_work_in_hand(date);`.
+- **Rollback:** `supabase/migrations/rollback/1148_work_in_hand_down.sql` = `drop function if exists public.get_work_in_hand(date);`.
 - ADR candidate: none expected; if the owner rules a different billed definition (OD-WIH-1), record it in an ADR amending ADR-0077 decision 9 because every billing reader shares it.
 
 ## Slice 1: pure derivation (Orca)
