@@ -1130,7 +1130,11 @@
     "tasks": {
       "selectTask": "Pilih tugas {{name}}",
       "form": {
-        "noAssignees": "Belum ada orang yang dapat ditugaskan. Tambahkan atau aktifkan pengguna di Administrasi."
+        "noAssignees": "Belum ada orang yang dapat ditugaskan. Tambahkan atau aktifkan pengguna di Administrasi.",
+        "taskGroup": "Grup tugas",
+        "noTaskGroup": "Tanpa grup",
+        "searchTaskGroups": "Cari grup…",
+        "taskGroupNoun": "grup"
       },
       "addTask": "Tambah tugas",
       "bulk": {
@@ -1217,7 +1221,30 @@
       "noMilestone": "Tanpa fase",
       "drawerMoreActions": "Tindakan tugas lainnya",
       "statusMix": "Tugas menurut status",
-      "statusMixOther": "Lainnya"
+      "statusMixOther": "Lainnya",
+      "taskGroups": {
+        "title": "Grup tugas",
+        "count_one": "{{count}} grup",
+        "count_other": "{{count}} grup",
+        "empty": "Belum ada grup tugas. Grup yang ditautkan ke fase menggerakkan progres fase itu bersama tugasnya.",
+        "archived": "Diarsipkan",
+        "progressAria": "Progres {{name}}",
+        "done": "{{done}} dari {{total}} selesai",
+        "phase": "Fase",
+        "noPhase": "Belum ditautkan",
+        "restore": "Pulihkan",
+        "archive": "Arsipkan",
+        "delete": "Hapus",
+        "name": "Nama grup baru",
+        "add": "Tambah grup",
+        "deleteTitle": "Hapus grup tugas?",
+        "deleteBody": "Tugas tetap ada di proyek; hanya keluar dari grup ini.",
+        "toast": {
+          "created": "Grup tugas dibuat",
+          "deleted": "Grup tugas dihapus"
+        },
+        "menu": "Grup tugas"
+      }
     },
     "workOrders": {
       "acceptanceAge": "Hari sejak BAST, belum ditagih: {{days}}",

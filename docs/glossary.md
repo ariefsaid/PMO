@@ -1087,3 +1087,7 @@ Manager, Finance) sets the mark; it restarts the safe-hours count for the projec
 **Availability target / use target** — optional organisation settings (percent) the equipment availability screen compares each metric figure with; a figure below its target is marked. Unset means no marking.
 
 **Escalation limit** — the organisation setting (whole days, default 2) after which an open equipment downtime is flagged and notified: more than this many recorded down days.
+
+**Task group** — a named set of a project's tasks, optionally linked to one phase (milestone). While linked and not archived, the group's
+top-level, non-archived tasks count toward the phase's calculated progress, once each, together with the tasks placed directly on the
+phase. A phase with no linked group is measured exactly as before. Only Admin and Project Manager manage groups (#2679).
