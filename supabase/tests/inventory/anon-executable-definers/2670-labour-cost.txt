@@ -1,0 +1,6 @@
+# #2670 labour cost: client-called writers (1250). Each refuses unless the caller is an active Admin or Finance
+# of the org (labour_cost_gate); proven by supabase/tests/1250_labour_cost_rates.test.sql (AC-LCM-013, 014).
+save_labour_cost_settings
+save_labour_cost_rate
+end_labour_cost_rate
+archive_labour_cost_rate
