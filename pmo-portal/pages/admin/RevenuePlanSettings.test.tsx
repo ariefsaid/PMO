@@ -20,7 +20,7 @@ describe('RevenuePlanSettings (#2671)', () => {
     const on = screen.getByRole('checkbox', { name: 'Use the revenue plan' });
     expect(on.getAttribute('aria-checked')).toBe('false');
     await userEvent.click(on);
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Saturday' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Sat' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(s.save).toHaveBeenCalledWith({ enabled: true, weekdays: [1, 2, 3, 4, 5, 6] }));
   });

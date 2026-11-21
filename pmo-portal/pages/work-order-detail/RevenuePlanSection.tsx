@@ -6,7 +6,7 @@ import { chartTheme } from '@/src/components/ui/chartTheme';
 import { axisTickStyle, tooltipContentStyle, tooltipLabelStyle } from '@/src/components/dashboard/chartChrome';
 import { usePermission } from '@/src/auth/usePermission';
 import { useWorkOrderRevenuePlan } from '@/src/hooks/useWorkOrderRevenuePlan';
-import { formatExactMoney } from '@/src/lib/format';
+import { formatExactMoney, formatNumberMax2, formatShortAmount } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { revenueGap } from '@/src/lib/revenuePlan';
 import { RevenuePlanModal } from './RevenuePlanModal';
@@ -71,8 +71,8 @@ export const RevenuePlanSection: React.FC<Props> = ({ workOrderId, woLabel, froz
             <LineChart data={series} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
               <XAxis dataKey="date" tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} minTickGap={32} />
-              <YAxis tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} width={56} tickFormatter={(v: number) => new Intl.NumberFormat(getNumberLocale(), { notation: 'compact' }).format(v)} />
-              <Tooltip contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(v) => new Intl.NumberFormat(getNumberLocale(), { maximumFractionDigits: 2 }).format(Number(v))} />
+              <YAxis tick={axisTickStyle} tickLine={false} axisLine={{ stroke: chartTheme.grid }} width={56} tickFormatter={(v: number) => formatShortAmount(v)} />
+              <Tooltip contentStyle={tooltipContentStyle} labelStyle={tooltipLabelStyle} formatter={(v) => formatNumberMax2(Number(v))} />
               <Line type="monotone" dataKey="plan" name={t('seriesPlan', 'Plan')} stroke={chartTheme.series.primary} strokeWidth={2} strokeDasharray="5 4" dot={false} isAnimationActive={false} />
               <Line type="monotone" dataKey="actual" name={t('seriesActual', 'Actual')} stroke={chartTheme.series.success} strokeWidth={2} dot={false} isAnimationActive={false} />
             </LineChart>

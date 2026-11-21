@@ -4,7 +4,7 @@ import { Checkbox, DateField, EntityFormModal, FormGrid, SelectField, TextField,
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useRevenuePlanMutations } from '@/src/hooks/useWorkOrderRevenuePlan';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { formatUtcMonthYearFull } from '@/src/lib/format';
 import { monthRange, monthStartOf, planAmountProblem } from '@/src/lib/revenuePlan';
 
 type Mode = 'date' | 'month' | 'clear';
@@ -27,8 +27,7 @@ export const RevenuePlanModal: React.FC<Props> = ({ workOrderId, woLabel, curren
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
-  const locale = getActiveLocale().locale;
-  const months = useMemo(() => monthRange(today, 6, 18).map((v) => ({ value: v, label: new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${v}T00:00:00Z`)) })), [today, locale]);
+  const months = useMemo(() => monthRange(today, 6, 18).map((v) => ({ value: v, label: formatUtcMonthYearFull(new Date(`${v}T00:00:00Z`)) })), [today]);
 
   const needsAmount = mode !== 'clear';
   const problem = needsAmount ? planAmountProblem(amount) : null;

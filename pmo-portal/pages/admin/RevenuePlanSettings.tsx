@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, ListState, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { formatWeekday } from '@/src/lib/format';
 import { useRevenuePlanSettings, useSetRevenuePlanSettings } from '@/src/hooks/useWorkOrderRevenuePlan';
 
 /**
@@ -23,8 +23,8 @@ const RevenuePlanSettings: React.FC = () => {
   const [error, setError] = useState<string>();
   if (!may('manage', 'revenuePlanSettings')) return null;
 
-  const locale = getActiveLocale().locale;
-  const dayName = (iso: number) => new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, iso)));
+  // 1 January 2024 was a Monday, so ISO weekday n is day n of that January (noon UTC keeps the day in every zone).
+  const dayName = (iso: number) => formatWeekday(new Date(Date.UTC(2024, 0, iso, 12)));
   const current = draft ?? (q.data ? { enabled: q.data.enabled, weekdays: q.data.workingWeekdays } : null);
   const save = async () => {
     if (!current) return;
