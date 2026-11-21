@@ -134,6 +134,10 @@ export async function discoverFiscalYear(
       return { state: 'ready', current: current.name, next: servingNextStart[0].name };
     }
 
+    if (candidates.length > 0) {
+      return { state: 'operator', reason: 'ambiguous-overlap' };
+    }
+
     const disabledExact = intersecting.find(
       (y) => y.disabled && y.start === span.start && y.end === span.end && coversCompany({ ...y, disabled: false }, company),
     );

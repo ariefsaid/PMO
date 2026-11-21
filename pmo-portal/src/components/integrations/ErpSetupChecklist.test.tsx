@@ -341,13 +341,15 @@ describe('Next fiscal year operator task notice (#1599 ECX-5)', () => {
   });
 
   it('guides the Admin to resolve overlapping fiscal years in both languages', async () => {
-    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: { state: 'needs-operator', reason: 'ambiguous-overlap' } as never }));
+    repo.getErpSetup.mockResolvedValue(readiness({}, { fiscalYear: { state: 'needs-operator', reason: 'ambiguous-overlap' } }));
     wrapWithRole('Admin', <ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
     await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    expect(within(document.getElementById('erp-setup-fiscal-year')!).getByText('Next fiscal year')).toBeInTheDocument();
     expect(within(document.getElementById('erp-setup-fiscal-year')!).getByText('Ask your Admin to correct Fiscal Year date ranges and company assignments in ERPNext so one enabled year applies. PMO checks again on the next sync.')).toBeInTheDocument();
     cleanup();
     await renderIndonesian(<ErpSetupChecklist orgId='org-1' onRefreshCompany={vi.fn()} />);
     await waitFor(() => expect(document.getElementById('erp-setup-fiscal-year')).not.toHaveAttribute('hidden'));
+    expect(within(document.getElementById('erp-setup-fiscal-year')!).getByText('Tahun fiskal berikutnya')).toBeInTheDocument();
     expect(within(document.getElementById('erp-setup-fiscal-year')!).getByText('Minta Admin memperbaiki rentang tanggal dan penetapan perusahaan Fiscal Year di ERPNext agar hanya satu tahun aktif yang berlaku. PMO memeriksa kembali pada sinkronisasi berikutnya.')).toBeInTheDocument();
   });
 

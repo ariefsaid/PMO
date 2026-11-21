@@ -136,20 +136,13 @@ describe('ERPNext discoverFiscalYear (Task 2)', () => {
     expect(erp.writes()).toEqual([]);
   });
 
-  it('later partial overlap: discovery attempts create, which ERP then refuses on write', async () => {
+  it('later partial overlap: discovery requests an operator review without writing', async () => {
     const erp = fakeFiscalYearErp([
       { name: '2026', start: '2026-01-01', end: '2026-12-31', companies: [COMPANY] },
       { name: '2027-Late', start: '2027-03-01', end: '2028-02-29', companies: [COMPANY] },
     ]);
     const res = await discoverFiscalYear(erp.client, COMPANY, '2026-12-01');
-    expect(res).toEqual({
-      state: 'create',
-      current: '2026',
-      start: '2027-01-01',
-      end: '2027-12-31',
-      yearName: '2027',
-      isShortYear: false,
-    });
+    expect(res).toEqual({ state: 'operator', reason: 'ambiguous-overlap' });
     expect(erp.writes()).toEqual([]);
   });
 
