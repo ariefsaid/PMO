@@ -57,11 +57,11 @@ test('AC-WRP-013 a month plan entered on the work order shows the same plan to d
     const section = page.getByTestId('wo-page-revenue-plan');
     await expect(section).toBeVisible({ timeout: 15_000 });
     await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText('No plan entered');
-    await section.getByRole('button', { name: 'Enter plan' }).click();
+    await section.getByRole('button', { name: 'Enter plan', exact: true }).click();
     // The month list runs from six months back; index 5 is last month, wholly in the past, so plan to date is the whole amount.
-    await page.getByLabel('Month').selectOption({ index: 5 });
-    await page.getByLabel(/Amount/).fill('1000.00');
-    await page.getByRole('button', { name: 'Save plan' }).click();
+    await page.locator('#wrp-month').selectOption({ index: 5 });
+    await page.locator('#wrp-amount').fill('1000.00');
+    await page.getByRole('button', { name: 'Save plan', exact: true }).click();
     const expectedPlan = formatExactMoney('1000.00', 'EUR', 'en-US') ?? 'unformattable';
     await expect(section.getByTestId('wo-revenue-plan-plan')).toHaveText(expectedPlan);
     await expect(section.getByTestId('wo-revenue-plan-gap')).toHaveText(expectedPlan + ' behind plan');
