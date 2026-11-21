@@ -34,7 +34,8 @@
       "central": "Central",
       "site": "Site",
       "yard": "Yard",
-      "staging": "Staging"
+      "staging": "Staging",
+      "vendor": "Vendor"
     },
     "noKeepers": "No keeper",
     "active": "Active",
@@ -93,6 +94,9 @@
         "project": "Site project",
         "projectHelp": "Optional. Only a default for issues; it does not restrict them.",
         "noProject": "No default project",
+        "vendorCompany": "Vendor company",
+        "vendorCompanyHelp": "Optional. The outside vendor that holds material at this location.",
+        "noVendorCompany": "No vendor company",
         "codeRequired": "Code is required.",
         "nameRequired": "Name is required."
       }
@@ -203,6 +207,8 @@
     "reorder": "Reorder"
   },
   "onHand": {
+    "atVendor": "At vendor",
+    "atVendorNamed": "At {{name}}",
     "title": "Stock",
     "columns": {
       "item": "Item",

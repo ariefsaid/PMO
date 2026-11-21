@@ -245,9 +245,10 @@
       "codeLong": "Kode lokasi terlalu panjang.",
       "name": "Nama wajib diisi.",
       "nameLong": "Nama terlalu panjang.",
-      "kind": "Jenis harus central, site, yard, atau staging.",
+      "kind": "Jenis harus central, site, yard, staging, atau vendor.",
       "projectNeeded": "Jenis lokasi ini memerlukan proyek.",
-      "projectNotAllowed": "Lokasi central tidak memiliki proyek."
+      "projectNotAllowed": "Lokasi central tidak memiliki proyek.",
+      "projectNotAllowedVendor": "Lokasi vendor tidak memiliki proyek."
     }
   },
   "equipment": {

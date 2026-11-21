@@ -70,7 +70,7 @@ const StockOnHand: React.FC = () => {
         const w = (warehouses.data ?? []).find((x) => x.id === b.warehouseId);
         if (have.has(`${b.itemId}:${b.warehouseId}`) || !w || (warehouseId && warehouseId !== b.warehouseId)) continue;
         all.push({ itemId: b.itemId, itemCode: b.itemCode, itemName: b.itemName, unitCode: b.unitCode, wholeOnly: false,
-          warehouseId: b.warehouseId, warehouseCode: b.warehouseCode, warehouseName: w.name, warehouseKind: w.kind as 'central' | 'site', qtyOnHand: b.qtyOnHand });
+          warehouseId: b.warehouseId, warehouseCode: b.warehouseCode, warehouseName: w.name, warehouseKind: w.kind as 'central' | 'site' | 'vendor', qtyOnHand: b.qtyOnHand });
       }
     }
     return all;
@@ -107,7 +107,7 @@ const StockOnHand: React.FC = () => {
         key: 'warehouse', header: t('onHand.columns.warehouse'),
         cell: (r) => (
           <span className="block truncate text-sm">
-            {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="record-id"> · {r.warehouseCode}</span>}
+            {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="record-id"> · {r.warehouseCode}</span>}{r.warehouseKind === 'vendor' && <span className="text-muted-foreground"> · {r.vendorName ? t('onHand.atVendorNamed', { name: r.vendorName }) : t('onHand.atVendor')}</span>}
           </span>
         ),
         exportValue: (r) => r.warehouseName,
@@ -269,7 +269,7 @@ const StockOnHand: React.FC = () => {
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 text-control">
               <dt className="text-muted-foreground">{t('onHand.columns.warehouse')}</dt>
               <dd className="min-w-0">
-                {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="record-id"> · {r.warehouseCode}</span>}
+                {r.warehouseName}{sharedNames.has(r.warehouseName) && <span className="record-id"> · {r.warehouseCode}</span>}{r.warehouseKind === 'vendor' && <span className="text-muted-foreground"> · {r.vendorName ? t('onHand.atVendorNamed', { name: r.vendorName }) : t('onHand.atVendor')}</span>}
               </dd>
               <dt className="text-muted-foreground">{t('onHand.columns.quantity')}</dt>
               <dd className="tabular-nums font-semibold">

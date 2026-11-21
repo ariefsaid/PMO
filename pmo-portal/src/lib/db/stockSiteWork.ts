@@ -15,7 +15,7 @@ export interface StockTagInput { name: string; zeroCost: boolean; paperRequired:
 export interface WorkOrderStockRow {
   workOrderId: string | null;           // null = movements whose document names no work order ("unassigned")
   itemId: string; itemCode: string; itemName: string; unitCode: string;
-  warehouseId: string; warehouseCode: string; warehouseKind: 'central' | 'site' | 'yard' | 'staging';
+  warehouseId: string; warehouseCode: string; warehouseKind: 'central' | 'site' | 'yard' | 'staging' | 'vendor';
   tagId: string | null; tagName: string | null; zeroCost: boolean;
   receivedQty: string; movedOutQty: string; issuedQty: string; onSiteQty: string;
   receivedValue?: string; movedOutValue?: string; issuedValue?: string; onSiteValue?: string;

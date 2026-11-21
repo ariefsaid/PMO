@@ -1,6 +1,6 @@
 # Vendor stock location: material sent out to an outside vendor and back (SVL)
 
-Issue #2683 (map #2516). Status: **Draft, 2026-11-21**. Plan `docs/plans/2026-11-21-stock-vendor-location.md`.
+Issue #2683 (map #2516). Status: **Accepted, 2026-11-21**. Plan `docs/plans/2026-11-21-stock-vendor-location.md`.
 IDs: `FR-SVL-###`, `AC-SVL-###`. **Money path: stock ledger** (transfers); the ledger stays written only by
 `stock_write_entry`. Head of a stacked chain: the two-step transfer (#2690), work-order-to-work-order transfer (#2691),
 reservations (#2693) and the daily-report stock issue (#2676) build on this branch.
@@ -43,9 +43,9 @@ so I know where it is.
 - FR-SVL-012 A transfer to a vendor location shall not name a work order (the vendor holds no project; the 1029 rule already
   refuses it). A transfer from a vendor location back to a `site`, `yard` or `staging` location is an ordinary transfer and may
   name the work order of that destination's project.
-- FR-SVL-013 A location with ledger rows or transfers naming a work order shall not change kind to or from `vendor` when that would
-  break FR-SVL-003/004/012: the kind change to `vendor` is refused while the location has a project or transfers naming a work order
-  (the 1029 move guard already covers the latter).
+- FR-SVL-013 A location that already has receive, issue or return documents shall not change kind to `vendor` (`STK_VENDOR_LOCATION`),
+  and one that carries a project or transfers naming a work order cannot become `vendor` either (the table check and the 1029 move
+  guard). Changing a vendor location to another kind requires its vendor company to be cleared in the same update (the table check).
 
 **Reading it**
 - FR-SVL-020 `get_stock_on_hand` shall return, per row, `warehouse_kind` (already) and, for a vendor location,
@@ -66,7 +66,7 @@ so I know where it is.
 | AC-SVL-001 | Given a vendor location linked to a Vendor company, when created by a master writer, then it saves; a project on it is refused; a Client or Internal company, another org's company, or a link on a non-vendor kind is refused. | pgTAP |
 | AC-SVL-002 | Given stock of an item at a warehouse, when transferred to a vendor location then back, then both legs are posted, value is carried (value at vendor = value sent; back at the source's cost), and the vendor holds zero at the end. | pgTAP |
 | AC-SVL-003 | Given a vendor location holding 5, when transferring 8 back, then refused (negative stock). | pgTAP |
-| AC-SVL-004 | Given a vendor location, when posting a receive, issue or return naming it, then refused `STK_VENDOR_LOCATION`; adjustment and count are accepted. | pgTAP (mutation-check: drop the rule, red) |
+| AC-SVL-004 | Given a vendor location, when posting a receive, issue or return naming it, then refused `STK_VENDOR_LOCATION`; adjustment and count are accepted; a location that already has receipts cannot become a vendor location. | pgTAP (mutation-check: drop the rule, red) |
 | AC-SVL-005 | Given a transfer to a vendor location naming a work order, then refused; given vendor -> site naming a work order of the site's project, then accepted; of another project, refused. | pgTAP |
 | AC-SVL-006 | Given stock at a vendor, when reading `get_stock_on_hand`, then the row has `warehouse_kind = 'vendor'` and `vendor_name`; a non-vendor row has no `vendor_name`; the cost keys follow the existing role rule. | pgTAP |
 | AC-SVL-007 | Given only central/site/yard/staging locations, after migrating, then on-hand output for them is byte-identical to before and no existing test changes. | pgTAP (existing suite untouched) |
