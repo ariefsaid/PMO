@@ -1220,7 +1220,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   // #2584 subcontractor progress certificate. UX ONLY — the database RPCs and RLS are the authority:
   // prepare (also submit, cancel and backcharges): Finance and Admin, or the project's own PM (spc_may_prepare);
-  // approve (also return): Finance and Admin only, never the preparer or submitter (approve_subcontract_certificate);
+  // approve (also return): Finance, Executive and Admin, never the preparer or submitter (approve_subcontract_certificate; OD-SPC-9);
   // bill: Finance and Admin; read: Admin, Executive, Finance, or the project's PM (spc_may_read).
   subcontractCertificate: {
     view: (role, ctx) =>
@@ -1231,7 +1231,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       (has(['Admin', 'Finance'], role) ||
         (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
     approve: (role, ctx) =>
-      ctx.record?.viewOnly !== true && has(['Admin', 'Finance'], role) &&
+      ctx.record?.viewOnly !== true && has(['Admin', 'Finance', 'Executive'], role) &&
       !(ctx.currentUserId && (ctx.record?.prepared_by === ctx.currentUserId || ctx.record?.submitted_by === ctx.currentUserId)),
     bill: allowUnlessViewOnly(['Admin', 'Finance']),
   },

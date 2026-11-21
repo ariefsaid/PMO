@@ -132,11 +132,12 @@ select throws_ok($$ select approve_subcontract_certificate(pg_temp.cid('mar')) $
   'AC-SPC-006 the submitter (and preparer) cannot approve the certificate');
 select is((select status from subcontract_certificates where id = pg_temp.cid('mar')), 'submitted', 'AC-SPC-006 it stays submitted');
 select pg_temp.act_as(pg_temp.u('a4'));
-select throws_ok($$ select approve_subcontract_certificate(pg_temp.cid('mar')) $$, '42501', 'only Finance and Admin approve a certificate', 'AC-SPC-017 a Project Manager cannot approve');
+select throws_ok($$ select approve_subcontract_certificate(pg_temp.cid('mar')) $$, '42501', 'only Finance, Executive and Admin approve a certificate', 'AC-SPC-017 a Project Manager cannot approve');
 select pg_temp.act_as(pg_temp.u('a6'));
-select throws_ok($$ select approve_subcontract_certificate(pg_temp.cid('mar')) $$, '42501', 'only Finance and Admin approve a certificate', 'AC-SPC-017 an Executive cannot approve (OD-SPC-9 default)');
+select throws_like($$ select approve_subcontract_certificate(pg_temp.cid('mar')) $$, 'line A cannot be approved%',
+  'AC-SPC-017 an Executive is an approver (OD-SPC-9, owner default 2026-11-21): past the role gate, stopped only by the bill cap');
 select pg_temp.act_as(pg_temp.u('a5'));
-select throws_ok($$ select approve_subcontract_certificate(pg_temp.cid('mar')) $$, '42501', 'only Finance and Admin approve a certificate', 'AC-SPC-017 an Engineer cannot approve');
+select throws_ok($$ select approve_subcontract_certificate(pg_temp.cid('mar')) $$, '42501', 'only Finance, Executive and Admin approve a certificate', 'AC-SPC-017 an Engineer cannot approve');
 select pg_temp.act_as(pg_temp.u('b1'));
 select throws_ok($$ select approve_subcontract_certificate(pg_temp.cid('mar')) $$, 'P0002', 'certificate not found', 'AC-SPC-017 another organisation''s Finance sees no such certificate');
 -- AC-SPC-009 over the cap: nothing is signed for 40.

@@ -155,13 +155,13 @@ begin
 end $$;
 revoke all on function public.spc_release(uuid, boolean) from public, anon, authenticated;
 
--- ── §4 return (submitted -> returned), Finance or Admin, reason required ─────────────────────────────────
+-- ── §4 return (submitted -> returned), Finance, Executive or Admin, reason required ─────────────────────────────────
 create function public.return_subcontract_certificate(p_certificate uuid, p_reason text) returns void
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.auth_org_id(); c public.subcontract_certificates; v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
 begin
   perform public.assert_is_active_member();
-  if public.auth_role() not in ('Admin', 'Finance') then raise exception 'only Finance and Admin return a certificate' using errcode = '42501'; end if;
+  if public.auth_role() not in ('Admin', 'Finance', 'Executive') then raise exception 'only Finance, Executive and Admin return a certificate' using errcode = '42501'; end if;
   if v_reason is null or char_length(v_reason) > 500 then raise exception 'a return needs a reason' using errcode = '22023'; end if;
   select * into c from public.subcontract_certificates where id = p_certificate and org_id = v_org;
   if c.id is null then raise exception 'certificate not found' using errcode = 'P0002'; end if;
@@ -203,15 +203,15 @@ revoke all on function public.cancel_subcontract_certificate(uuid, text) from pu
 grant execute on function public.cancel_subcontract_certificate(uuid, text) to authenticated;
 
 -- ── §6 approve (FR-SPC-012, AC-SPC-006/009/015/018) ─────────────────────────────────────────────────
--- SoD (ADR-0019, OD-SPC-9): the approver is Finance or Admin and is neither the preparer nor the submitter. There is no
+-- SoD (ADR-0019, OD-SPC-9, owner default 2026-11-21): the approver is Finance, Executive or Admin and is neither the preparer nor the submitter. There is no
 -- sole-operator escape: a one-person organisation cannot approve its own certificate.
 create function public.approve_subcontract_certificate(p_certificate uuid) returns void
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_org uuid := public.auth_org_id(); c public.subcontract_certificates; v_v jsonb;
 begin
   perform public.assert_is_active_member();
-  if public.auth_role() not in ('Admin', 'Finance') then
-    raise exception 'only Finance and Admin approve a certificate' using errcode = '42501'; end if;
+  if public.auth_role() not in ('Admin', 'Finance', 'Executive') then
+    raise exception 'only Finance, Executive and Admin approve a certificate' using errcode = '42501'; end if;
   select * into c from public.subcontract_certificates where id = p_certificate and org_id = v_org;
   if c.id is null then raise exception 'certificate not found' using errcode = 'P0002'; end if;
   perform public.assert_feature_on(v_org, 'procurement');

@@ -3,7 +3,7 @@
 -- The hand calculation is the spec's "Definitions" table: A 40.000 x 10.00, B 12.500 x 8.40, C 3.333 x 9.99 = 538.30; backcharge 38.30; net 500.00.
 begin;
 create extension if not exists pgtap;
-select plan(48);
+select plan(49);
 
 -- ── shared fixture (the hand-calculation month, spec "Definitions"): org A (multi-member), org B (another tenant). ──
 -- PO quantity 100 and rate 12.00 on every item; vendor V1's crew works work order W1 in March 2026.
@@ -231,6 +231,7 @@ select pg_temp.act_as(pg_temp.u('b1'));
 select is((select count(*)::int from subcontract_certificates), 0, 'AC-SPC-017 another organisation reads none');
 select pg_temp.act_as(pg_temp.u('a6'));
 select is((select count(*)::int from subcontract_certificates), 1, 'AC-SPC-017 an Executive reads it');
+select lives_ok($$ select return_subcontract_certificate(pg_temp.cid(), 'Executive sends it back') $$, 'AC-SPC-017 an Executive is an approver and returns a submitted certificate (OD-SPC-9, owner default 2026-11-21)');
 reset role;
 
 select * from finish();

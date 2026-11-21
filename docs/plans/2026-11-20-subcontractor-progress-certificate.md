@@ -15,7 +15,7 @@ path, ships alone. Branch `feat/2584-subcon-certificate`. Migrations 1184 to 118
 | OD-SPC-6 | No retention in this slice. |
 | OD-SPC-7 | One certificate = one PO, one calendar month, the PO's `work_order_id` (required; refused when absent). |
 | OD-SPC-8 | Net may not be negative: refused at approval with the figures (stored at submit so the shortfall shows). |
-| OD-SPC-9 | Approver is Finance or Admin (not Executive), never the preparer or the submitter, no sole-operator escape (function check plus a row CHECK, two independent layers). Billing is also Finance and Admin. |
+| OD-SPC-9 | Approver (and return) is Finance, Executive or Admin (owner default, 2026-11-21: Executive added), never the preparer or the submitter, no sole-operator escape (function check plus a row CHECK, two independent layers). Billing stays Finance and Admin. |
 | OQ-SPC-1 | The period is always a calendar month. |
 | OQ-SPC-2 | Backcharge reasons: rework, damaged, safety, materials supplied, other. |
 | Record history | Rate and certificate changes are audited through `log_audit` events (action `subcontractor_rate.set`, `subcontract_certificate.*`); `procurement_invoices.deduction_amount` and `certificate_id` are registered in the record-history catalogue. The new tables are not registered as record-history entities. |

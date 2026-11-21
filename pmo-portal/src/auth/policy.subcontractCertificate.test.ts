@@ -12,11 +12,13 @@ describe('subcontract certificate policy', () => {
     expect(can('prepare', 'subcontractCertificate', { realRole: 'Engineer' })).toBe(false);
     expect(can('prepare', 'subcontractCertificate', { realRole: 'Executive' })).toBe(false);
   });
-  it('AC-SPC-006 approves: Finance and Admin only, and never the person who prepared or submitted it', () => {
+  it('AC-SPC-006 approves: Finance, Executive and Admin, and never the person who prepared or submitted it', () => {
     expect(can('approve', 'subcontractCertificate', { realRole: 'Finance', currentUserId: 'f2', record: { prepared_by: 'f1', submitted_by: 'f1' } })).toBe(true);
     expect(can('approve', 'subcontractCertificate', { realRole: 'Finance', currentUserId: 'f1', record: { prepared_by: 'f1', submitted_by: 'f1' } })).toBe(false);
     expect(can('approve', 'subcontractCertificate', { realRole: 'Admin', currentUserId: 'a1', record: { prepared_by: 'x', submitted_by: 'a1' } })).toBe(false);
-    expect(can('approve', 'subcontractCertificate', { realRole: 'Executive', currentUserId: 'e1', record: {} })).toBe(false);
+    expect(can('approve', 'subcontractCertificate', { realRole: 'Executive', currentUserId: 'e1', record: { prepared_by: 'f1', submitted_by: 'f1' } })).toBe(true);
+    expect(can('approve', 'subcontractCertificate', { realRole: 'Executive', currentUserId: 'e1', record: { prepared_by: 'f1', submitted_by: 'f1', viewOnly: true } })).toBe(false);
+    expect(can('approve', 'subcontractCertificate', { realRole: 'Engineer', currentUserId: 'g1', record: {} })).toBe(false);
     expect(can('approve', 'subcontractCertificate', { realRole: 'Project Manager', currentUserId: 'pm1', record: { project_manager_id: 'pm1' } })).toBe(false);
   });
   it('bills: Finance and Admin; impersonation is view-only', () => {

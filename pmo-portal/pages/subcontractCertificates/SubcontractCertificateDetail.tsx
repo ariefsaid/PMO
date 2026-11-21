@@ -63,9 +63,10 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
   const editable = (c.status === 'draft' || c.status === 'returned') && can('prepare', 'subcontractCertificate', ctx);
   const mayPrepare = can('prepare', 'subcontractCertificate', ctx);
   const mayApprove = c.status === 'submitted' && can('approve', 'subcontractCertificate', ctx);
-  const mayReturn = c.status === 'submitted' && (realRole === 'Admin' || realRole === 'Finance') && !viewOnly;
+  const approverRole = realRole === 'Admin' || realRole === 'Finance' || realRole === 'Executive'; // OD-SPC-9 (owner default 2026-11-21)
+  const mayReturn = c.status === 'submitted' && approverRole && !viewOnly;
   const mayBill = c.status === 'approved' && can('bill', 'subcontractCertificate', ctx);
-  const sameApprover = c.status === 'submitted' && (realRole === 'Admin' || realRole === 'Finance') && (userId === c.prepared_by || userId === c.submitted_by);
+  const sameApprover = c.status === 'submitted' && approverRole && (userId === c.prepared_by || userId === c.submitted_by);
   const vendor = (vendors.data ?? []).find((v) => v.value === c.vendor_company_id)?.label ?? '—';
   const money = (v: number | null | undefined) => (v === null || v === undefined ? '—' : formatCurrencyCents(v, c.currency));
   const itemCode = useMemo(() => new Map(d.lines.map((l) => [l.boq_item_id, l.item_code])), [d.lines]);

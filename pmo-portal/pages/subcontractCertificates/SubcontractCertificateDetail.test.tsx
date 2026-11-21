@@ -108,6 +108,15 @@ describe('subcontract certificate screen', () => {
     expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Return' })).toBeInTheDocument();
   });
+  it('AC-SPC-006 OD-SPC-9: an Executive is an approver (approve and return), never of what they submitted, and cannot bill', () => {
+    h.view = make('submitted', { submitted_by: 'u-prep' });
+    h.realRole = 'Executive';
+    h.userId = 'u-exec';
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Return' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create bill' })).not.toBeInTheDocument();
+  });
   it('AC-SPC-019 approved: Finance may create the bill; the bill dialog states the payable', async () => {
     h.view = make('approved', { submitted_by: 'u-prep', approved_by: 'u-other' });
     h.userId = 'u-other';
