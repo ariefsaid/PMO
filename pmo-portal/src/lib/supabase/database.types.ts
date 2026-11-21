@@ -17408,6 +17408,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_work_order_area_group: {
+        Args: {
+          p_area?: string
+          p_group?: string
+          p_set_area?: boolean
+          p_set_group?: boolean
+          p_work_order: string
+        }
+        Returns: undefined
+      }
       set_work_order_value: {
         Args: {
           p_id: string

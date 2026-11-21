@@ -10,6 +10,9 @@ alter table public.work_orders
   add constraint work_orders_group_same_org foreign key (org_id, group_id) references public.work_order_groups (org_id, id);
 create index work_orders_area_idx  on public.work_orders (org_id, project_id, area_id)  where area_id  is not null;
 create index work_orders_group_idx on public.work_orders (org_id, project_id, group_id) where group_id is not null;
--- Column-level grants (0193 §5): a column is writable only if listed. Neither column is money or pushed to the ERP.
-grant insert (area_id, group_id) on public.work_orders to authenticated;
-grant update (area_id, group_id) on public.work_orders to authenticated;
+-- No column grant: 0193's work_orders grant lists are a pinned SoD surface (0193 AC-WO-011/012), so the two columns are
+-- written only through set_work_order_area_group (1384), which mirrors the table's update role rule.
+-- Record history (0260 registry): the two new columns are tracked refs, like work_order_id on the purchase records (0951).
+update public.record_history_config
+   set captured = captured || '{"area_id":"ref","group_id":"ref"}'::jsonb
+ where table_name = 'work_orders';

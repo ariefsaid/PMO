@@ -56,10 +56,10 @@ test('AC-WAG-010 grouping the work-order list by area shows each work order unde
     await page.getByRole('combobox', { name: 'Group by' }).selectOption('area');
 
     const grouped = page.getByTestId('wo-group-' + areaId);
-    await expect(grouped.getByRole('heading', { level: 3 })).toContainText(areaName);
+    await expect(page.locator('#wo-group-h-' + areaId)).toContainText(areaName);
     await expect(grouped.getByTestId('customer-order-' + woIds[0])).toBeVisible();
     await expect(page.getByTestId('wo-group-none').getByTestId('customer-order-' + woIds[1])).toBeVisible();
-    await expect(page.getByTestId('wo-group-none').getByRole('heading', { level: 3 })).toContainText('No area');
+    await expect(page.locator('#wo-group-h-none')).toContainText('No area');
   } catch (e) {
     failure = e;
   } finally {
