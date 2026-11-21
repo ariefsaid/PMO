@@ -34,7 +34,7 @@ When an issue needs actions from different departments, I want several tasks on 
 - FR-ITR-010 When an issue has no root cause, every screen shall render as before (no empty label added to the register or the print).
 
 **Screens**
-- FR-ITR-011 The issue detail shall list all tasks of the issue (name, status, assignee, due day, link to the task) with an "Add a task" control shown by `can()` to the manager roles only, and a "Root cause" field next to the description, editable by the manager or assignee. The legacy "Make a task" button shows when the issue has no task and becomes "Add a task" once it has one.
+- FR-ITR-011 The issue detail shall list all tasks of the issue (name, status, assignee, due day, link to the task) with an "Add a task" control shown by `can()` to the manager roles only, and a "Root cause" card shown only once an issue has a root cause; a manager or the assignee adds it from a "Record the root cause" action in the header actions row (nothing new is shown on an issue with no root cause and no extra task). The legacy "Make a task" button shows when the issue has no task and becomes "Add a task" once it has one.
 - FR-ITR-012 English and Bahasa Indonesia strings; phone (390 px) and desktop (1440 px) layouts; `DESIGN.md` tokens and shared form primitives.
 
 **Tenancy and history**

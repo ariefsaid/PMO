@@ -15,7 +15,7 @@ test('AC-ITR-011: several tasks and a root cause survive closing the issue', asy
   await page.getByRole('dialog').getByRole('button', { name: 'Add a task' }).click();
   await expect(page.getByRole('link', { name: stamp })).toBeVisible();
 
-  await page.getByTestId('incident-root-cause-edit').click();
+  await page.getByTestId('incident-root-cause-add').click();
   await page.getByLabel('Root cause').fill('Wrong fixing spec');
   await page.getByTestId('incident-root-cause-save').click();
   await expect(page.getByTestId('incident-root-cause')).toContainText('Wrong fixing spec');

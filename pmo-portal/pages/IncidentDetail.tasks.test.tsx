@@ -94,7 +94,8 @@ describe('IncidentDetail tasks and root cause (#2677)', () => {
   it('AC-ITR-010: a manager records the root cause and the repository receives it', async () => {
     const user = userEvent.setup();
     renderPage('Project Manager');
-    await user.click(screen.getByTestId('incident-root-cause-edit'));
+    expect(screen.queryByTestId('incident-root-cause')).not.toBeInTheDocument();
+    await user.click(screen.getByTestId('incident-root-cause-add'));
     await user.type(screen.getByLabelText('Root cause'), 'Wrong fixing spec');
     await user.click(screen.getByTestId('incident-root-cause-save'));
     expect(saveRootCause).toHaveBeenCalledWith({ id: 'i1', rootCause: 'Wrong fixing spec' });
@@ -113,9 +114,20 @@ describe('IncidentDetail tasks and root cause (#2677)', () => {
     expect(screen.queryByTestId('incident-root-cause-edit')).not.toBeInTheDocument();
   });
 
-  it('AC-ITR-010: a reporter-only Engineer sees no empty root-cause card', () => {
+  it('AC-ITR-008: an issue with no root cause and no extra tasks renders as before (no Root cause card, no task list)', () => {
+    detail.data = { ...base, incident_tasks: [] };
     auth.id = 'u1';
     renderPage('Engineer');
+    expect(screen.queryByText('Root cause')).not.toBeInTheDocument();
     expect(screen.queryByTestId('incident-root-cause')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('incident-root-cause-add')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('incident-tasks')).not.toBeInTheDocument();
+  });
+
+  it('AC-ITR-008: a manager with no root cause gets no card until they choose to record one', () => {
+    detail.data = { ...base, incident_tasks: [] };
+    renderPage('Project Manager');
+    expect(screen.queryByTestId('incident-root-cause')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('incident-root-cause-form')).not.toBeInTheDocument();
   });
 });

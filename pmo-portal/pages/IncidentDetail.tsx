@@ -65,6 +65,7 @@ const IncidentDetail: React.FC = () => {
   const { data: projectOptions } = useProjectOptions();
 
   const [editOpen, setEditOpen] = useState(false);
+  const [rootCauseOpen, setRootCauseOpen] = useState(false);
   const [transitionTo, setTransitionTo] = useState<AdvanceStatus | null>(null);
 
   // Manager-only investigate/close + edit (FE clarity projection; the incident_reports RLS
@@ -199,10 +200,19 @@ const IncidentDetail: React.FC = () => {
         }
         meta={<span className="tabular">{t('reported', 'Reported {{date}}', { date: formatDay(incident.incident_date) })}</span>}
         actions={
-          canEdit ? (
-            <Button variant="outline" size="sm" data-testid="incident-edit" onClick={() => setEditOpen(true)}>
-              {t('action.edit', 'Edit')}
-            </Button>
+          canEdit || (canEditRootCause && !incident.root_cause) ? (
+            <span className="flex items-center gap-2">
+              {canEditRootCause && !incident.root_cause && !rootCauseOpen && (
+                <Button variant="outline" size="sm" data-testid="incident-root-cause-add" onClick={() => setRootCauseOpen(true)}>
+                  {t('rootCause.add', 'Record the root cause')}
+                </Button>
+              )}
+              {canEdit && (
+                <Button variant="outline" size="sm" data-testid="incident-edit" onClick={() => setEditOpen(true)}>
+                  {t('action.edit', 'Edit')}
+                </Button>
+              )}
+            </span>
           ) : undefined
         }
       />
@@ -300,13 +310,15 @@ const IncidentDetail: React.FC = () => {
         </Card>
       )}
 
-      {(incident.root_cause || canEditRootCause) && (
+      {(incident.root_cause || rootCauseOpen) && (
         <Card variant="bare" className="mb-4">
           <CardHead>{t('rootCause.heading', 'Root cause')}</CardHead>
           <CardPad>
             <IncidentRootCause
               value={incident.root_cause ?? null}
               canEdit={canEditRootCause}
+              startEditing={rootCauseOpen && !incident.root_cause}
+              onDone={() => setRootCauseOpen(false)}
               onSave={async (text) => {
                 await saveRootCause.mutateAsync({ id: incident.id, rootCause: text });
                 toast(t('toast.updated', 'Incident updated'), incident.type, 'success');

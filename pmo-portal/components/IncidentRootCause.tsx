@@ -8,10 +8,14 @@ export const IncidentRootCause: React.FC<{
   canEdit: boolean;
   onSave: (text: string) => Promise<void>;
   onError: (err: unknown) => void;
-}> = ({ value, canEdit, onSave, onError }) => {
+  /** Open in the edit form (the page's "Record the root cause" action opened it). */
+  startEditing?: boolean;
+  /** The form closed (saved or cancelled), so the page can hide the card again when there is still no value. */
+  onDone?: () => void;
+}> = ({ value, canEdit, onSave, onError, startEditing = false, onDone }) => {
   const { t } = useTranslation('incidents');
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
+  const [editing, setEditing] = useState(startEditing);
+  const [draft, setDraft] = useState(value ?? '');
   const [busy, setBusy] = useState(false);
 
   if (!editing) {
@@ -42,6 +46,7 @@ export const IncidentRootCause: React.FC<{
         try {
           await onSave(draft);
           setEditing(false);
+          onDone?.();
         } catch (err) {
           onError(err);
         } finally {
@@ -60,7 +65,7 @@ export const IncidentRootCause: React.FC<{
       />
       <div className="flex gap-2">
         <Button type="submit" variant="primary" size="sm" loading={busy} data-testid="incident-root-cause-save">{t('rootCause.save', 'Save')}</Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => setEditing(false)}>{t('rootCause.cancel', 'Cancel')}</Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => { setEditing(false); onDone?.(); }}>{t('rootCause.cancel', 'Cancel')}</Button>
       </div>
     </form>
   );
