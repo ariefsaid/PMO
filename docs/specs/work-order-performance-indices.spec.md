@@ -1,6 +1,13 @@
 # Spec: Cost and schedule performance indices per work order and project (#2597)
 
-**Status:** proposed; owner decisions below need sign-off before build. Map #2516 (contractor field operations), after the December go-live. Target February to March 2027. IDs `FR-CSP-###`, `NFR-CSP-###`, `AC-CSP-###`. Plan: `docs/plans/2026-11-21-work-order-performance-indices.md`. Executor: Orca worker; **Money path: read-only derivation.** It posts nothing, changes no separation-of-duties rule, adds no write path and stores no figure. A wrong index is a wrong business decision, so it ships alone and gets the three reviewers. The panel is composed with the `restructure` skill and judged rendered by the owner (`docs/ux/screen-rules.md`).
+**Status:** reconciled 21 Nov with the ticket; the recommended default of each OD-CSP is taken as the working decision (below). Map #2516 (contractor field operations). Target 15 December 2026. IDs `FR-CSP-###`, `NFR-CSP-###`, `AC-CSP-###`. Plan: `docs/plans/2026-11-21-work-order-performance-indices.md`. Executor: Orca worker; **Money path: read-only derivation.** It posts nothing, changes no separation-of-duties rule, adds no write path and stores no figure. A wrong index is a wrong business decision, so it ships alone and gets the three reviewers. The panel is composed with the `restructure` skill and judged rendered by the owner (`docs/ux/screen-rules.md`).
+
+## Reconciliation 21 Nov (ticket #2597)
+
+- Target is now 15 December 2026 (was February to March 2027). Size M. No client-controlled settings: no new org setting, rate or list; nothing is switched on or off. The panels appear only where validated progress and cost exist, and the read is new and additive, so an organisation without daily site reports sees no change except an empty-state line.
+- OD-CSP-1..8 and OQ-CSP-1..3: the recommended default of each is adopted as written (calendar-linear plan; date-bounded EV via a new read; revenue basis; direct counted cost only; 0.90/1.10 text bands; ratio of sums over Issued and Closed; undated cost makes AC incomplete; closed work order capped at local close date; as-of parameter defaulting to today, no trend, Indonesian terms as stated).
+- Database-enforced rule: the role and revenue-and-cost gate and organisation isolation of `get_work_order_performance`, proved by `supabase/tests/work_order_performance.test.sql` (AC-CSP-006..015, 017) with a mutation check.
+- Migration 1285 (rollback 1285).
 
 ## Review 20 Nov
 
@@ -105,7 +112,7 @@ Mutation check: in the read, include `submitted` reports in EV and AC-CSP-006 mu
 | Counted direct cost in another currency | AC "not comparable"; no CPI |
 | Caller cannot read both revenue and cost | Database refusal; no partial figures returned |
 
-## Owner decisions (recommended defaults, not rulings)
+## Owner decisions (OD-CSP-1..8 take the recommended default, per the 21 Nov reconciliation; OQ-CSP-1..3 take their stated defaults)
 | ID | Decision and default | If wrong, what breaks |
 |---|---|---|
 | OD-CSP-1 | Planned value is **linear by calendar** between the work order's start and end dates over BAC. | Work that is front- or back-loaded reads as slipping or ahead by the curve's shape alone; the answer is a weighted plan (baseline tasks, #1574, or milestone weights), which needs its own money-weighted plan and is a later spec. |
@@ -121,7 +128,7 @@ Mutation check: in the read, include `submitted` reports in EV and AC-CSP-006 mu
 | OQ-CSP-3 | Bahasa Indonesia wording for the two indices (default "Indeks kinerja biaya" and "Indeks kinerja jadwal"). | Terms the finance team does not use. |
 
 ## Delivery checklist
-- [ ] Owner signs OD-CSP-1..8 and answers OQ-CSP-1..3.
+- [x] OD-CSP-1..8 and OQ-CSP-1..3: recommended defaults adopted (21 Nov).
 - [ ] Owner sketch-glance of the panel before build.
 - [ ] Glossary entries: earned value, planned value, cost performance index, schedule performance index (with the build).
 - [ ] After release: `improve-codebase-architecture` on the changed areas.
