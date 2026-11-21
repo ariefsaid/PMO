@@ -1,0 +1,7 @@
+set_equipment_ownership
+save_equipment_rental_term
+change_equipment_rental_rate
+add_equipment_downtime_proof
+set_equipment_working_hours
+equipment_rental_check
+create_rented_equipment_asset

@@ -79,6 +79,8 @@ const KNOWN_UNLISTED = new Map([
   ['rpc:decide_connect_review', CONNECT],
   ['rpc:unlink_connect_match', CONNECT],
   ['rpc:retry_connect_send', CONNECT],
+  ['rpc:account_send_groups', CONNECT],   // #1599 ECX-4
+  ['rpc:request_account_send', CONNECT],  // #1599 ECX-4
   ['rpc:request_company_defaults', CONNECT],
 ]);
 

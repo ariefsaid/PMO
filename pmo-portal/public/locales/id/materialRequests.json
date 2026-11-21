@@ -56,7 +56,7 @@
     "back": "Permintaan material",
     "chooseDestination": "Pilih lokasi",
     "chooseItem": "Pilih barang",
-    "chooseProject": "Pilih proyek untuk melihat perintah kerjanya.",
+    "chooseProject": "Pilih proyek untuk melihat $t(common:terms.clientWorkOrder) di dalamnya.",
     "destination": "Kirim ke",
     "destinationRequired": "Proyek ini punya beberapa lokasi. Pilih tujuan material.",
     "duplicateItem": "Barang ini sudah ada di baris lain. Gabungkan dalam satu baris.",
@@ -86,8 +86,8 @@
     "submitted": "Permintaan dikirim untuk persetujuan",
     "title": "Permintaan material baru",
     "wholeOnly": "Barang ini dihitung dalam satuan utuh. Masukkan bilangan bulat.",
-    "workOrder": "Perintah kerja",
-    "workOrderNoun": "perintah kerja"
+    "workOrder": "$t(common:terms.clientWorkOrder)",
+    "workOrderNoun": "$t(common:terms.clientWorkOrder)"
   },
   "list": {
     "all": "Semua permintaan",
@@ -129,7 +129,7 @@
     "manyDestinations": "Proyek perintah kerja ini punya beberapa lokasi pengiriman. Minta pemohon menyebutkan tujuannya.",
     "neededBy": "Pilih tanggal dibutuhkan yang belum lewat.",
     "noChain": "Rantai persetujuan belum diatur. Hubungi administrator.",
-    "noDestination": "Proyek perintah kerja ini tidak punya lokasi proyek, halaman penimbunan, atau area persiapan sebagai tujuan.",
+    "noDestination": "Proyek $t(common:terms.clientWorkOrder) ini tidak punya lokasi proyek, halaman penimbunan, atau area persiapan sebagai tujuan.",
     "notApprover": "Langkah ini bukan wewenang Anda.",
     "notAuthor": "Hanya orang yang mengajukan permintaan yang dapat melakukan ini.",
     "notDraft": "Hanya draf yang dapat diubah.",

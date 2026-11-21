@@ -28,11 +28,13 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'item.match': { status: 'supported', version: 1 },
   'item.send': { status: 'supported', version: 1 },
   'account.match': { status: 'supported', version: 1 },
+  'account.send': { status: 'supported', version: 1 },
   'employee.match': { status: 'supported', version: 1 },
   // PQ-ECA-1, verified on the bed (ECA3-T1): the ERP requires gender, date of birth and date of joining for an employee; PMO holds none of them and never invents them.
   'employee.send': { status: 'unavailable', version: 1, reason: EMPLOYEE_SEND_UNAVAILABLE_REASON },
   // #1599 ECX-3: PUT on Company, checked against the bed (fixtures in __fixtures__/companyDefaults.json).
   'company-defaults.set': { status: 'supported', version: 1 },
+  'fiscal-year.ensure': { status: 'supported', version: 1 },
   'purchase.push': { status: 'supported', version: 1 },
   'bill.push': { status: 'supported', version: 1 },
   'vendor-payment.push': { status: 'supported', version: 1 },

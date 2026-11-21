@@ -2,7 +2,7 @@
 -- checks, B1's invoice checks inside a family, replay, roles and the reviewed revision. The race section uses committed fixtures in a second session.
 begin;
 select plan(74);
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 insert into organizations(id,name,default_currency) values
  ('21953001-0000-0000-0000-000000000001','Family org','USD'),
  ('21953001-0000-0000-0000-000000000002','Other family org','USD');

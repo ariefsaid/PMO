@@ -93,7 +93,7 @@ export const AuthInput: React.FC<{
       className={cn(
         'h-[var(--control-height)] w-full rounded-md border border-border hover:enabled:border-input bg-card px-2.5 text-control text-foreground',
         'placeholder:text-muted-foreground',
-        'transition-[border-color,box-shadow] duration-100',
+        'transition-[border-color,box-shadow]',
         'disabled:cursor-not-allowed disabled:opacity-45',
         isSecret && 'pr-11',
       )}

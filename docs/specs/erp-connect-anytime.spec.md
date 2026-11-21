@@ -21,7 +21,7 @@
 | # | Question | Default in this spec |
 |---|---|---|
 | **OQ-ECA-1** | A purchase or expense claim that started in PMO **before** the ERP was connected and continues after it: push its later steps, or finish it in PMO only? | **Finish in PMO only.** Later steps are not sent; the record shows "recorded before the ERP connection, not sent". Matches OD-XING-1 (2): the accountant carries open balances in as an opening entry. Sending a receipt or bill whose order never reached the ERP produces an unlinked ERP document. |
-| **OQ-ECA-2** | When the ERP is empty (S-C), may PMO **create** the masters the ERP is missing (clients/vendors, projects, items, employees) after the admin accepts the proposal? | **Yes**, for those four only, after one bulk accept. PMO never creates accounts, taxes or fiscal years: the chart belongs to the accountant (DD-SETUP-1). Missing accounts appear as a setup task. |
+| **OQ-ECA-2** | When the ERP is empty (S-C), may PMO **create** the masters the ERP is missing (clients/vendors, projects, items, employees) after the admin accepts the proposal? | **Yes**, for those four only, after one bulk accept. PMO never creates taxes or fiscal years here, and no group accounts; the only account it may create is a leaf direct-cost account under a group Admin/Finance picks (OQ-ECX-1). Missing accounts appear as a setup task. |
 | **OQ-ECA-3** | Both sides hold invoices for the same sale (S-D, PMO invoiced before connect and the ERP also holds them individually): which copy counts? | **The ERP copy counts** (ADR-0055 money principle). PMO proposes pairs; once Finance accepts, the paired PMO invoice stops counting and links to the ERP one. Unpaired copies keep counting and stay listed until resolved. |
 | **OQ-ECA-4** | An ERP budget already exists for a project and year that PMO would push to (S-D). | **List it; never touch it silently** (already shipped). Offer two actions: *use the ERP figures as a PMO draft version*, or *replace the ERP budget with PMO's active version* (explicit confirm). |
 
@@ -122,8 +122,9 @@ there is no workflow registry and no test suite that a second ERP adapter must p
   projects and items used on any open or post-cut-over purchase or invoice. Employees are not sent while the ERP requires
   personal details PMO does not hold (PQ-ECA-1): such a row asks the Admin to add the person in the ERP, and a tier whose ERP
   needs none declares `employee.send` supported. A record that already has its link SHALL NOT be sent, and an existing link
-  SHALL NOT be re-pointed by a send. It SHALL NOT create accounts, taxes or fiscal years; missing direct-cost accounts SHALL appear as a
-  named setup task for the accountant (DD-SETUP-1).
+  SHALL NOT be re-pointed by a send. It SHALL NOT create taxes, fiscal years or group accounts. Missing direct-cost accounts SHALL appear as a
+  setup task; PMO MAY create only a leaf direct-cost account under an expense group an Admin or Finance user picks (OQ-ECX-1,
+  slice ECX-4); nothing else in the chart is created.
 - **FR-ECA-021** — Each send SHALL go through the money outbox with a derived key `seed:<kind>:<pmo_record_id>`
   (ADR-0059 §4) and SHALL look the record up by its matching keys before any create, so a retry after an unknown
   outcome links instead of duplicating.

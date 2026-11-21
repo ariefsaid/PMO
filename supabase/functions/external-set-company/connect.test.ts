@@ -48,6 +48,8 @@ function routes(o: Opts = {}): MockRoute[] {
     rpc('decide_connect_review', null),
     rpc('unlink_connect_match', null),
     rpc('retry_connect_send', null),
+    rpc('request_account_send', 'send-acct-1'),
+    rpc('account_send_groups', [{ erp_name: 'Direct Expenses - EC', account_name: 'Direct Expenses', parent_account: 'Expenses - EC' }]),
   ];
 }
 
@@ -278,6 +280,19 @@ describe('ECA setup verbs — list and status', () => {
     ]);
   });
 
+  it('AC-ECX-030 returns truthful legacy held and exhausted account reasons when operator notification failed', async () => {
+    const rows = [
+      { id: 'held', kind: 'account', outcome: 'review', reason: 'held', reason_text: 'PMO could not confirm whether the account was created; your administrator has been told.', pmo_ids: ['Labor'], external_ids: [], snapshot: {}, state: 'open' },
+      { id: 'exhausted', kind: 'account', outcome: 'review', reason: 'rejected', reason_text: 'PMO could not create the account; your administrator has been told.', pmo_ids: ['Equipment'], external_ids: [], snapshot: {}, state: 'open' },
+    ];
+    const r = await call({ setupAction: 'list-proposals', kind: 'account', outcome: 'review' }, { role: 'Finance', extra: [supabaseSelect('erp_connect_proposals', () => jsonResponse(rows))] });
+    assertEquals(r.res.status, 200);
+    assertEquals((r.json.proposals as Array<{ reason_text: string }>).map((p) => p.reason_text), [
+      'PMO could not confirm whether the account was created. Contact your administrator.',
+      'PMO could not create the account. Contact your administrator.',
+    ]);
+  });
+
   it('FR-ECA-012 Finance lists account rows only', async () => {
     const r = await call({ setupAction: 'list-proposals', kind: 'party' }, { role: 'Finance' });
     assertEquals(r.res.status, 403);
@@ -319,5 +334,55 @@ describe('ECA setup verbs — list and status', () => {
   it('an unknown setup verb stays on the existing path (no connect handling)', async () => {
     const r = await call({ setupAction: 'census-everything' });
     assertEquals(rpcCall(r.calls, 'start_connect_run').length, 0);
+  });
+});
+
+describe('#1599 ECX-4 direct-cost accounts from PMO', () => {
+  it('AC-ECX-031 Finance lists the expense groups and asks for an account, as the caller, with nothing sent to the ERP here', async () => {
+    const g = await call({ setupAction: 'account-groups' }, { role: 'Finance' });
+    assertEquals([g.res.status, g.json.groups], [200, [{ erpName: 'Direct Expenses - EC', accountName: 'Direct Expenses', parentAccount: 'Expenses - EC' }]]);
+    assertEquals(rpcCall(g.calls, 'account_send_groups')[0].headers.get('authorization'), `Bearer ${g.jwt}`);
+    const r = await call({ setupAction: 'send-account', category: 'Materials', parentAccount: 'Direct Expenses - EC', accountName: 'Site materials' }, { role: 'Finance' });
+    assertEquals([r.res.status, r.json.id], [200, 'send-acct-1']);
+    const rc = rpcCall(r.calls, 'request_account_send')[0];
+    assertEquals([rc.headers.get('authorization'), rc.bodyJson], [`Bearer ${r.jwt}`,
+      { p_tier: 'erpnext', p_category: 'Materials', p_parent_account: 'Direct Expenses - EC', p_account_name: 'Site materials' }]);
+    assertEquals(erpCalls(r.calls).length, 0);
+  });
+
+  it('AC-ECX-031 an Admin may ask; any other role is refused before the database is asked', async () => {
+    const a = await call({ setupAction: 'send-account', category: 'Labor', parentAccount: 'Direct Expenses - EC', accountName: 'Site labour' });
+    assertEquals(a.res.status, 200);
+    for (const role of ['Project Manager', 'Executive']) {
+      const r = await call({ setupAction: 'send-account', category: 'Labor', parentAccount: 'Direct Expenses - EC', accountName: 'Site labour' }, { role });
+      assertEquals(r.res.status, 403);
+      assertEquals(rpcCall(r.calls, 'request_account_send').length, 0);
+      const g = await call({ setupAction: 'account-groups' }, { role });
+      assertEquals(g.res.status, 403);
+    }
+  });
+
+  it('AC-ECX-031 an inactive Finance member cannot queue an account', async () => {
+    const r = await call({ setupAction: 'send-account', category: 'Labor', parentAccount: 'Direct Expenses - EC', accountName: 'Site labour' }, { role: 'Finance', active: false });
+    assertEquals(r.res.status, 403);
+    assertEquals(rpcCall(r.calls, 'request_account_send').length, 0);
+  });
+
+  it('AC-ECX-030 a blank name is refused before the database is asked', async () => {
+    const r = await call({ setupAction: 'send-account', category: 'Labor', parentAccount: 'Direct Expenses - EC', accountName: '   ' }, { role: 'Finance' });
+    assertEquals([r.res.status, r.json.message], [400, 'Give the account a name']);
+    assertEquals(rpcCall(r.calls, 'request_account_send').length, 0);
+  });
+
+  it('FR-PLN-006 asking for an account is refused while erp_sync is off: it would mint an ERP write', async () => {
+    const r = await call({ setupAction: 'send-account', category: 'Labor', parentAccount: 'Direct Expenses - EC', accountName: 'Site labour' }, { role: 'Finance', featureEnabled: false });
+    assertEquals([r.res.status, r.json.error], [409, 'feature_off']);
+    assertEquals(rpcCall(r.calls, 'request_account_send').length, 0);
+  });
+
+  it('a refusal from the database is answered in its own plain words', async () => {
+    const r = await call({ setupAction: 'send-account', category: 'Labor', parentAccount: 'Cost of Goods Sold - EC', accountName: 'Site labour' },
+      { role: 'Finance', rpc: { request_account_send: () => pgError('P0001', 'Choose an expense group of the connected company') } });
+    assertEquals([r.res.status, r.json.message], [400, 'Choose an expense group of the connected company']);
   });
 });

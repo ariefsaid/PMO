@@ -1,7 +1,10 @@
--- 0493 — get_projects_money_collection: same output as the 0396 definition, each project's
--- finances / mapped actuals read once. The 0396 body is copied below as a reference oracle (test-only).
+-- 0493 — get_projects_money_collection: same output as the 0396 definition, read in ONE pass.
+-- The 0396 body is copied below as a reference oracle (test-only).
 -- 0700 (#1739) moved the PMO basis from the whole ordered purchase total to spent + open commitment; the oracle
 -- carries the same basis so the equivalence still proves the single-read implementation, not the old figure.
+-- 1047 (#2480) removed the last per-project calls: the collection now reads project_mapped_actuals_all and
+-- project_pmo_positions once. The call-count assertions below therefore pin ZERO per-project calls (the 0493
+-- version pinned exactly one per project, which was the 500-project list defect: 9.9 s of SQL at 500 rows).
 begin;
 create extension if not exists pgtap;
 select plan(21);
@@ -189,7 +192,7 @@ select is((select (actuals->>'complete')::boolean from public.get_projects_money
   'T12 a Project Manager sees the same complete Actual as an Admin');
 reset role;
 
--- Single read: one project, one get_project_finances call and one project_mapped_actuals call of its own.
+-- Single read: one org-wide actuals pass for the whole collection, no per-project call at any id count.
 -- Each probe runs in a fresh function-stat baseline (stats are cumulative inside the transaction).
 create temp table t12_calls (label text, fn text, calls bigint);
 grant all on t12_calls to authenticated;
@@ -199,15 +202,14 @@ create temp table t12_before as select funcname, calls from pg_stat_xact_user_fu
 select count(*) from public.get_projects_money_collection(array['04930000-0000-0000-0000-0000000000d2'::uuid]);
 insert into t12_calls select 'new', n.funcname, n.calls - coalesce(b.calls,0)
   from pg_stat_xact_user_functions n left join t12_before b using (funcname)
-  where n.funcname in ('get_project_finances','project_mapped_actuals');
+  where n.funcname in ('get_project_finances','project_mapped_actuals','project_mapped_actuals_all');
 reset role;
-select is((select calls from t12_calls where label='new' and fn='get_project_finances'),1::bigint,
-  'T12 get_project_finances is called once per project');
-select is((select calls from t12_calls where label='new' and fn='project_mapped_actuals'),2::bigint,
-  'T12 project_mapped_actuals: one read inside the single finances call plus one for the collection (not one per budget line)');
-select cmp_ok((select calls from t12_calls where label='new' and fn='project_mapped_actuals'),'<=',
-  (select calls from t12_calls where label='new' and fn='get_project_finances')+1,
-  'T12 mapped actuals is not re-read for a multi-line budget');
+select is(coalesce((select calls from t12_calls where label='new' and fn='get_project_finances'),0),0::bigint,
+  'T12 #2480: the collection makes no per-project finances call');
+select is(coalesce((select calls from t12_calls where label='new' and fn='project_mapped_actuals'),0),0::bigint,
+  'T12 #2480: the collection makes no per-project mapped-actuals call');
+select is((select calls from t12_calls where label='new' and fn='project_mapped_actuals_all'),1::bigint,
+  'T12 #2480: mapped actuals are read once for the whole collection');
 
 -- PMO-owned org: same equivalence with the committed-procurement basis.
 update public.external_org_bindings set status='disconnected' where org_id='04930000-0000-0000-0000-000000000001';

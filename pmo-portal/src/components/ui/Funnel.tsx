@@ -3,13 +3,22 @@ import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { chartTheme } from './chartTheme';
 
+/**
+ * One physical scale for every stage bar. Tracks size to their own content, so a bar drawn as a share
+ * of its own track draws equal values at unequal lengths. Every stage is therefore at least
+ * `FUNNEL_STAGE_MIN_REM` wide, and every bar track is the SAME fixed length, narrower than that
+ * floor's content box: a bar's fill is then a share of one shared length.
+ */
+export const FUNNEL_STAGE_MIN_REM = 9;
+export const FUNNEL_BAR_TRACK_REM = 7.5;
+
 export interface FunnelStage {
   name: string;
   dotColor?: string;
   prob?: string;
   value: React.ReactNode;
   weighted?: React.ReactNode;
-  /** 0-100 bar fill. */
+  /** 0-100 bar fill, as a share of the one shared bar length (the largest stage is 100). */
   barPct?: number;
   barColor?: string;
 }
@@ -93,6 +102,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 // needed to reveal the stage, never re-centering or scrolling the whole page.
                 if (interactive) e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' });
               }}
+              style={{ minWidth: `${FUNNEL_STAGE_MIN_REM}rem` }}
               className={cn(
                 'relative flex flex-col',
                 compact ? 'px-2 pb-2 pt-2' : 'px-3 pb-3 pt-3',
@@ -141,7 +151,11 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 // through the gap. `mt-auto` still does the cross-stage alignment: every stage's
                 // wrapper contributes the same fixed pt-2, so the alignment math is unaffected.
                 <div className="mt-auto pt-2">
-                  <div data-funnel-stage-bar className="h-[5px] overflow-hidden rounded-full bg-secondary">
+                  <div
+                    data-funnel-stage-bar
+                    className="h-[5px] overflow-hidden rounded-full bg-secondary"
+                    style={{ width: `${FUNNEL_BAR_TRACK_REM}rem` }}
+                  >
                     <span
                       className="block h-full rounded-full"
                       style={{

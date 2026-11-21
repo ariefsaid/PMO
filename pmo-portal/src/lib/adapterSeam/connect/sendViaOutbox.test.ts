@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { AdapterError } from '../contract.ts';
 import type { DispatchMoneyOutboxDeps, OutboxRow } from '../dispatch.ts';
-import { sendKey, sendMasterOnce, SEND_DOMAIN } from './sendViaOutbox.ts';
+import { accountSendKey, sendKey, sendMasterOnce, SEND_DOMAIN } from './sendViaOutbox.ts';
 import type { ConnectAdapter, MasterKind, PmoMaster } from './types.ts';
 
 const LEASE_MS = 60_000;
@@ -109,7 +109,17 @@ describe('ECA3-T4 sendViaOutbox', () => {
       ['items', 'Semen', 'seed:item:Semen'], ['employees', 'u-1', 'seed:employee:u-1'],
     ]);
     expect(sendKey('party', 'x')).toBe('seed:party:x');
-    expect(SEND_DOMAIN).toEqual({ party: 'companies', project: 'projects', item: 'items', employee: 'employees' });
+    // #1599 ECX-4: a direct-cost account rides its own domain, keyed by the request: category + name + group
+    expect(SEND_DOMAIN).toEqual({ party: 'companies', project: 'projects', item: 'items', employee: 'employees', account: 'accounts' });
+    const key = (name: string, parent: string) => accountSendKey({ id: 'Materials', name, parentAccount: parent });
+    expect(key('Site materials', 'Direct Expenses - TC')).toBe('seed:account:Materials:["site materials","direct expenses - tc"]');
+    expect(key('  SITE   materials ', 'direct expenses - tc')).toBe(key('Site materials', 'Direct Expenses - TC'));
+    expect(key('Site fixtures', 'Direct Expenses - TC')).not.toBe(key('Site materials', 'Direct Expenses - TC'));
+    expect(key('Site materials', 'Indirect Expenses - TC')).not.toBe(key('Site materials', 'Direct Expenses - TC'));
+    const long = key('x'.repeat(140), 'g'.repeat(140));
+    expect(long.length).toBeLessThan(80);
+    expect(long).toBe(key('X'.repeat(140), 'G'.repeat(140)));
+    expect(long).not.toBe(key('x'.repeat(139) + 'y', 'g'.repeat(140)));
   });
 
   it('sending the same record twice claims once and creates once: the second answer is the stored one', async () => {
@@ -181,8 +191,8 @@ describe('ECA3-T4 sendViaOutbox', () => {
     expect(erp.deadlines[0]).toEqual(expect.any(Number));
   });
 
-  it('MasterKind account and contact are not sendable (type-level), the kinds are exactly the four', () => {
+  it('MasterKind contact and the stock kinds are not sendable (type-level); account is (#1599 ECX-4), the kinds are exactly the five', () => {
     const kinds: MasterKind[] = Object.keys(SEND_DOMAIN) as MasterKind[];
-    expect(kinds.sort()).toEqual(['employee', 'item', 'party', 'project']);
+    expect(kinds.sort()).toEqual(['account', 'employee', 'item', 'party', 'project']);
   });
 });

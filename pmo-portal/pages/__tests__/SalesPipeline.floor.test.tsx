@@ -121,10 +121,10 @@ beforeEach(() => {
 });
 
 describe('Sales pipeline floor — figures the page cannot total', () => {
-  it('floor: mixed-currency deals hide the money figures and the page says why', () => {
+  it('floor: mixed-currency deals still show the money figures, one line per currency, and hide nothing', () => {
     renderPage();
-    expect(screen.queryByTestId('pipeline-weighted-total')).not.toBeInTheDocument();
-    expect(screen.getByTestId('figures-hidden')).toHaveTextContent(/Mixed currencies/i);
+    expect(screen.getByTestId('pipeline-weighted-total')).toHaveTextContent(/IDR/);
+    expect(screen.queryByTestId('figures-hidden')).not.toBeInTheDocument();
   });
 });
 

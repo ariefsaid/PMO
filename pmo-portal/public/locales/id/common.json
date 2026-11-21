@@ -3424,7 +3424,7 @@
           "emptyTitle": "Tidak ada Perusahaan ditemukan",
           "emptySub": "Buat sebuah Perusahaan di ERPNext sebelum mengaktifkan integrasi ini.",
           "activateFailed": "Aktivasi gagal. Pilihan Anda tetap tersimpan; Anda dapat mencoba lagi.",
-          "missingReads": "Pengguna integrasi ERPNext tidak dapat membaca: {{doctypes}}. Berikan akses baca untuk semuanya di ERPNext, lalu aktifkan lagi. Pilihan Anda tetap tersimpan.",
+          "missingReads": "Pengguna integrasi ERPNext tidak dapat membaca: {{doctypes}}. Operator akan memperbaiki perannya; lalu aktifkan lagi. Pilihan Anda tetap tersimpan.",
           "unsupportedVersion": "ERPNext {{version}} tidak didukung. PMO mendukung ERPNext {{supported}}. Tidak ada yang diaktifkan."
         },
         "health": {
@@ -3540,7 +3540,7 @@
     },
     "erpSetup": {
       "defaultsFailed": "Gagal menyimpan nilai bawaan ERP. Periksa nilainya lalu coba lagi.",
-      "domainFailed": "Gagal menggunakan domain ini. Periksa izin baca ERP lalu coba lagi.",
+      "domainFailed": "Gagal menggunakan domain ini. Operator akan memperbaiki peran integrasi; lalu coba lagi.",
       "unavailable": "Pengaturan ERP tidak tersedia",
       "configured": "{{count}} dari {{total}} dikonfigurasi",
       "activityMissing": "Jenis aktivitas belum diatur",
