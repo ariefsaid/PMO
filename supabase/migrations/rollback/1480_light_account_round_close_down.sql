@@ -55,7 +55,7 @@ begin
       else
         -- the 1461/1480 rewrite for a sql function: the original body, once more unwrapped
         v_body := regexp_replace(r.prosrc,
-          '^\n  select q[.]\* from \((.*)\n\) q where public[.]assert_not_light[(][)]\n$', '\1\n', 's');
+          '^\n  select q[.]\* from \((.*)\n\) q where public[.]assert_not_light[(][)]\n$', '\1', 's');
       end if;
       if v_body = r.prosrc or position(r.prosrc in v_def) = 0 then
         raise exception '2711 rollback: % could not be rewritten', r.proname;
