@@ -54,7 +54,8 @@ versus actual shows manpower in rupiah and not only hours.
 - FR-LCM-012 Labour cost is internal costing outside the ledger: it shall be added to a work order's direct cost and to the
   project's shared cost, and shall not alter the ledger-based project actuals, the "project actuals" remainder row, project
   finances or project margin. (Equipment hire charges are the precedent, 0460 D5.)
-- FR-LCM-013 For Project Manager the labour rows shall carry no person (amounts remain); Admin, Executive and Finance see the person.
+- FR-LCM-013 For Project Manager the labour money shall be aggregate: one row per work order, discipline and class with
+  summed hours and amount, and no record id, no date and no person (amounts remain); Admin, Executive and Finance see the per-entry rows.
 - FR-LCM-014 The calculation shall be database-side only (`work_order_cost_amounts`), read-only, role-gated and
   org-scoped as the existing function; another organisation's project reads as absent.
 - FR-LCM-015 Reopening a timesheet (no longer Approved) shall remove its cost from the work order with no other action.

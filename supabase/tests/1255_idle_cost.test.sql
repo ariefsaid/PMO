@@ -67,15 +67,17 @@ select pg_temp.act_as('26730000-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from public.work_order_idle_cost('26730000-0000-0000-0000-0000000000d1')), 0,
   'AC-IHC-001 with neither switch ever turned on the read returns no row');
 
--- Rates are saved while labour cost is off (the lock rule only guards priced hours), as in 1251; then labour cost goes on.
+-- Rates are present while labour cost is off, as in 1251; then labour cost goes on.
 select public.save_labour_cost_settings(true);
 create temp table cls as select code, id from public.labour_cost_classes;
 grant select on cls to authenticated;
 select public.save_labour_cost_settings(false);
-select public.save_labour_cost_rate(jsonb_build_object('subject_kind','role','role_key','Engineer','class_id',(select id from cls where code='direct'),
-  'basis','hourly','amount',50000,'effective_from','2026-11-01'));
-select public.save_labour_cost_rate(jsonb_build_object('subject_kind','person','person_id','26730000-0000-0000-0000-0000000000a4',
-  'class_id',(select id from cls where code='direct'),'basis','hourly','amount',75000,'effective_from','2026-11-01'));
+reset role;
+insert into public.labour_cost_rates (org_id, subject_kind, role_key, class_id, basis, amount, effective_from) values
+  ('26730000-0000-0000-0000-00000000000a', 'role', 'Engineer', (select id from public.labour_cost_classes where code = 'direct'), 'hourly', 50000, '2026-11-01');
+insert into public.labour_cost_rates (org_id, subject_kind, person_id, class_id, basis, amount, effective_from) values
+  ('26730000-0000-0000-0000-00000000000a', 'person', '26730000-0000-0000-0000-0000000000a4', (select id from public.labour_cost_classes where code = 'direct'), 'hourly', 75000, '2026-11-01');
+set local role authenticated;
 select public.save_labour_cost_settings(true);
 select is((select count(*)::int from public.work_order_idle_cost('26730000-0000-0000-0000-0000000000d1')), 0,
   'AC-IHC-002 labour cost on but idle switch off: no row');

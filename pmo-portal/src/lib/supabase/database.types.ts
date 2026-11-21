@@ -14910,7 +14910,7 @@ export type Database = {
           quantity: number | null
           quantity_unit: string | null
           reason: string
-          record_id: string
+          record_id: string | null
           reference: string | null
           source: string
           work_order_id: string | null

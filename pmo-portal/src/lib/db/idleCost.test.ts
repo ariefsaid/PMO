@@ -21,6 +21,10 @@ describe('idle cost DAL', () => {
     h.rpc.mockResolvedValue({ data: [{ ...raw, hourly_cost: null, amount: null, reason: 'no-rate' }], error: null });
     expect((await listProjectIdleCost('p1'))[0]).toMatchObject({ amount: null, reason: 'no-rate' });
   });
+  it('AC-IHC-005 a Project Manager reads the amount with no hourly cost (migration 1298 withholds it)', async () => {
+    h.rpc.mockResolvedValue({ data: [{ ...raw, hourly_cost: null }], error: null });
+    expect((await listProjectIdleCost('p1'))[0]).toMatchObject({ hourlyCost: null, amount: '75000.00', reason: 'counted' });
+  });
   it('rejects an unreadable amount instead of showing a plausible figure', async () => {
     h.rpc.mockResolvedValue({ data: [{ ...raw, amount: '7.5e4' }], error: null });
     await expect(listProjectIdleCost('p1')).rejects.toThrow();

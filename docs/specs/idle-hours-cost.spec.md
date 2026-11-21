@@ -28,7 +28,7 @@ Issue #2673 (map #2516, target 15 December 2026). Status: **Approved, 2026-11-21
   hours shown, no money). Reasons are the client's own list; archived reasons with history still appear.
 - FR-IHC-004 Idle cost shall not alter work-order direct cost, plan versus actual totals, project actuals, margin or the ledger.
 - FR-IHC-005 The read shall be database-side, read-only, org-scoped (another organisation's project reads as absent) and
-  limited to Admin, Executive, Finance and Project Manager; it reveals no person and no rate.
+  limited to Admin, Executive, Finance and Project Manager; it reveals no person and no rate, and gives a Project Manager no hourly cost.
 - FR-IHC-006 Work-order plan versus actual shall show an "Idle time" block (per reason: hours and amount, plus a total)
   only where the read returns rows. Copy says "cost", never "pay". English and Bahasa Indonesia; phone and desktop.
 - FR-IHC-007 Administration > Labour cost shall carry the switch (Admin, Finance), using the shared form primitives.
