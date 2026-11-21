@@ -42,11 +42,11 @@ Not built from the plan above: the `record_history_config` registration (M5): th
 | AC-QCR-003 | pgTAP | `supabase/tests/1126_quantity_overrun.test.sql` |
 | AC-QCR-004, 005, 006, 008, 009, 010 | pgTAP | `supabase/tests/1127_quantity_change_raise.test.sql` |
 | AC-QCR-007 | pgTAP-style concurrency (two real sessions) | `supabase/tests/concurrency/quantity_change_requests.py` |
-| AC-QCR-011..018, 030 | pgTAP | `supabase/tests/1128_quantity_change_approval.test.sql` |
+| AC-QCR-011..018, 030 | pgTAP | `supabase/tests/1177_quantity_change_approval.test.sql` |
 | AC-QCR-019, 020, 021 | pgTAP | `supabase/tests/1174_boq_quantity_versions.test.sql` |
 | AC-QCR-022 | pgTAP | `supabase/tests/1127_quantity_change_raise.test.sql` |
 | AC-QCR-023 | Unit | `pmo-portal/src/lib/quantityChangeRules.test.ts` (and the record page test) |
-| AC-QCR-024 | pgTAP | `supabase/tests/1127_quantity_change_raise.test.sql`, `1128_quantity_change_approval.test.sql`; isolation denominator |
+| AC-QCR-024 | pgTAP | `supabase/tests/1127_quantity_change_raise.test.sql`, `1177_quantity_change_approval.test.sql`; isolation denominator |
 | AC-QCR-025 | E2E | `pmo-portal/e2e/AC-QCR-025-raise-and-approve-on-a-phone.spec.ts` |
 | AC-QCR-026 | E2E | `pmo-portal/e2e/AC-QCR-026-send-and-client-acceptance.spec.ts` |
 | AC-QCR-027 | Unit (component) | `pmo-portal/pages/quantityChanges/QuantityChangeDetail.test.tsx` |

@@ -1,6 +1,6 @@
--- 1128_quantity_change_approval.sql — #2578: internal approval (server-enforced separation of duties), the client record and the decision.
+-- 1177_quantity_change_approval.sql — #2578: internal approval (server-enforced separation of duties), the client record and the decision.
 -- Spec: docs/specs/quantity-change-requests.spec.md (FR-QCR-011..016, 019); AC-QCR-011..018, 030.
--- Reversal: rollback/1128_quantity_change_approval_down.sql.
+-- Reversal: rollback/1177_quantity_change_approval_down.sql.
 --   §1 qcr_assert_approver: ONE copy of the approval rule — approver role, and NOT the author, NOT anyone in the editor set,
 --      NOT whoever submitted it, and no sole-user exception (OD-QCR-3). approve and return both call it.
 --   §2 qcr_approve / qcr_return.

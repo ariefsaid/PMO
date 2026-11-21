@@ -1,4 +1,4 @@
--- 1128_quantity_change_approval.test.sql — #2578 internal approval (server-enforced separation of duties), the client record and the decision.
+-- 1177_quantity_change_approval.test.sql — #2578 internal approval (server-enforced separation of duties), the client record and the decision.
 -- AC-QCR-011, 012, 013, 014, 015, 016, 017, 018, 030, 024. Spec docs/specs/quantity-change-requests.spec.md (FR-QCR-010..016, 019).
 -- Hand calculation: C 1000 (v1), R 1100: version 2 = 1100, allocation 600 -> 700, value change (1100-1000) x 50000 = 5,000,000.00.
 begin;
