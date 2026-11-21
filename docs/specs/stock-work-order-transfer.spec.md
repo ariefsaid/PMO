@@ -87,7 +87,7 @@ transfers, migrations 1305-1309) and #2683 (vendor location). Reads: `stock-site
 - FR-WOT-014 The organisation shall have `stock_wo_transfers` (boolean, default false), changed only by an Admin through `set_stock_wo_transfers`, audited
   as `stock.wo_transfers`; while off, `post_stock_wo_transfer` refuses `STK_WOT_OFF` and the entry link, the move screen and the WOT detail do not render.
   Turning it on needs the organisation to run its own inventory (`STK_OWNED_BY_ERP` otherwise).
-- FR-WOT-013 The ledger and stock-document screens shall show a WOT's two documents as "part of WOT-nnnn" with a link.
+- FR-WOT-013 The WOT detail shall link to both of its stock documents and both work orders. The existing stock-document and ledger screens are not changed (default-off rule); a document of a move is found from the WOT.
 
 ## 4. Settings
 | Setting | Where | Default | Meaning |

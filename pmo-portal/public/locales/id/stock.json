@@ -198,7 +198,13 @@
     "STK_PROOF_REQUIRED": "Transfer ini membutuhkan buktinya sebelum bisa diterima.",
     "STK_PROOF_MODE": "Konfirmasi serah terima hanya bisa diwajibkan bila transfer dua langkah.",
     "STK_MODE_BLOCKED": "Ini tidak bisa diubah selama ada transfer dalam perjalanan, kurang, berstatus draf, atau terikat aturan konfirmasi.",
-    "STK_FORBIDDEN": "Hanya Admin yang dapat melakukan ini."
+    "STK_FORBIDDEN": "Hanya Admin yang dapat melakukan ini.",
+    "STK_WOT_OFF": "Transfer antar perintah kerja belum diaktifkan untuk organisasi Anda.",
+    "STK_WOT_EXCEEDS": "Perintah kerja itu tidak memiliki material sebanyak itu.",
+    "STK_WOT_PROJECT": "Kedua perintah kerja harus berada di proyek yang sama.",
+    "STK_WOT_LOCATION": "Stok harus berada di lokasi lapangan, yard, atau staging milik proyek perintah kerja tersebut.",
+    "STK_WOT_INCOMPLETE": "Transfer antar perintah kerja ini tidak lengkap dan tidak disimpan.",
+    "STK_WOT_SYSTEM": "Dokumen ini hanya ditulis oleh transfer antar perintah kerja."
   },
   "actions": {
     "cancel": "Batal",
@@ -828,5 +834,47 @@
     "timingHelp": "Berlaku untuk tag yang mewajibkan bukti.",
     "proofPerTag": "Bukti yang berlaku, per tag",
     "qualityItems": "Barang yang perlu pemeriksaan mutu saat diterima"
+  },
+  "workOrderTransfer": {
+    "title": "Pindahkan sisa material antar perintah kerja",
+    "detailTitle": "Transfer antar perintah kerja",
+    "intro": "Sisa material berpindah dari satu perintah kerja ke perintah kerja lain dalam satu dokumen. Perintah kerja pertama dikreditkan dan yang kedua dibebani; stok tetap di tempatnya.",
+    "off": {
+      "title": "Transfer antar perintah kerja nonaktif",
+      "sub": "Administrator dapat mengaktifkannya di Pengaturan stok."
+    },
+    "project": "Proyek",
+    "projectPlaceholder": "Pilih proyek",
+    "from": "Dari perintah kerja",
+    "to": "Ke perintah kerja",
+    "woPlaceholder": "Pilih perintah kerja",
+    "location": "Lokasi material",
+    "locationHelp": "Lokasi lapangan, yard, atau staging proyek ini yang Anda kelola.",
+    "itemPlaceholder": "Pilih barang",
+    "available": "Dipegang perintah kerja: {{qty}} {{unit}}",
+    "nothingHeld": "Perintah kerja ini tidak memegang material yang dapat dipindahkan.",
+    "move": "Pindahkan ke perintah kerja lain",
+    "entry": "Pindahkan sisa ke perintah kerja lain",
+    "postedToast": "Material dipindahkan antar perintah kerja",
+    "notFound": "Transfer antar perintah kerja ini tidak ditemukan.",
+    "halves": "Dokumen dalam transfer ini",
+    "returnHalf": "Pengembalian dari perintah kerja pertama",
+    "issueHalf": "Pengeluaran ke perintah kerja kedua",
+    "partOf": "Bagian dari transfer antar perintah kerja",
+    "confirm": {
+      "title": "Pindahkan ke {{to}}",
+      "description": "Material dikembalikan dari perintah kerja pertama dan dikeluarkan ke yang kedua dalam satu langkah. Ini tidak dapat diubah; untuk mengoreksi, pindahkan material kembali."
+    },
+    "errors": {
+      "project": "Pilih proyek.",
+      "from": "Pilih perintah kerja tempat material berada.",
+      "to": "Pilih perintah kerja penerima.",
+      "same": "Pilih perintah kerja yang berbeda.",
+      "location": "Pilih lokasi material.",
+      "duplicate": "Setiap barang hanya boleh di satu baris.",
+      "exceeds": "Perintah kerja hanya memegang {{qty}} barang ini."
+    },
+    "setting": "Transfer antar perintah kerja",
+    "settingHelp": "Memungkinkan penjaga gudang memindahkan sisa material antar perintah kerja dalam satu proyek dengan satu dokumen."
   }
 }

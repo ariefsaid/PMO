@@ -1055,3 +1055,5 @@ the material close-out: joint count, loss report, material completion report). T
 
 **Proof rule** (per stock tag) — which proof counts for items of that tag: none, signed paper, a handover confirmation in PMO, or either. A separate organisation setting says whether the proof must come *before* the movement posts or may *follow* it; a movement whose proof has not arrived reads "proof outstanding" and "proof complete" once it has.
 
+
+**Work-order transfer (WOT)** — one document that moves leftover material from one work order to another of the same project: a return from the first work order and an issue to the second, both at one project location, posted together or not at all. The stock does not leave the location; the first work order is relieved of its cost and the second is charged at the location's moving average. It is off until an Admin turns on the organisation setting "work-order transfers"; a posted one is corrected by a transfer the other way. Not a *Transfer* between locations. (#2691)
