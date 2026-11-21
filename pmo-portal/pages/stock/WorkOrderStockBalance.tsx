@@ -7,6 +7,7 @@ import type { WorkOrderStockRow } from '@/src/lib/db/stockSiteWork';
 import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
 import { isOwnershipCacheSynced, routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { WorkOrderMaterialProgressBanner } from './WorkOrderMaterialProgressBanner';
 
 /**
  * Stock held for one work order (#2523, FR-SSW-030/031). Ledger-derived by the database; an empty list is an empty state,
@@ -54,6 +55,7 @@ export const WorkOrderStockBalance: React.FC<{ workOrderId: string; currency: st
   );
   return (
     <section aria-label={t('siteWork.balance.title')} className="space-y-2">
+      {ownership === 'pmo' && <WorkOrderMaterialProgressBanner workOrderId={workOrderId} />}
       {ownership === 'unknown' ? (
         <p role="status" className="text-sm text-muted-foreground">{t('siteWork.balance.loading')}</p>
       ) : ownership === 'external' ? (

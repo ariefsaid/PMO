@@ -18,6 +18,7 @@ import {
 } from '@/src/hooks/useStock';
 import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { StockTagsPanel } from './StockTagsPanel';
+import { WorkOrderIssueThresholdPanel } from './WorkOrderIssueThresholdPanel';
 import { isOwnershipCacheSynced, routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseStockError } from '@/src/lib/stockErrors';
@@ -62,6 +63,7 @@ const StockSetup: React.FC = () => {
   const ownership = useSyncExternalStore(subscribeOwnershipCache, () => isOwnershipCacheSynced() ? routeDomainWrite('inventory') : 'unknown');
   const tagsEnabled = ownership === 'pmo';
   const [tagsOpen, setTagsOpen] = useState(false);
+  const [thresholdOpen, setThresholdOpen] = useState(false);
   const [form, setForm] = useState<{ tab: Tab; row: StockUnitRow | StockItemRow | StockWarehouseRow | null } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<{ tab: Tab; id: string; archived: boolean } | null>(null);
   const [keepersFor, setKeepersFor] = useState<StockWarehouseRow | null>(null);
@@ -219,6 +221,9 @@ const StockSetup: React.FC = () => {
       {canKeepers && ownership === 'external' && <p className="my-3 text-sm text-muted-foreground">{t('siteWork.tags.connectedUnavailable')}</p>}
       {canKeepers && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={tagsOpen} onClick={() => setTagsOpen(!tagsOpen)}>{t('siteWork.tags.manage')}</Button>
         {tagsOpen && <StockTagsPanel />}
+      </div>}
+      {realRole === 'Admin' && !ctx.record.viewOnly && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={thresholdOpen} onClick={() => setThresholdOpen(!thresholdOpen)}>{t('siteWork.materialProgress.setting.manage')}</Button>
+        {thresholdOpen && <WorkOrderIssueThresholdPanel />}
       </div>}
       <div className="mb-4 flex flex-col items-stretch border-b border-border sm:flex-row sm:items-center">
         <Tabs<Tab>
