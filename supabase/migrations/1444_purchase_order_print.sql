@@ -11,33 +11,25 @@
 -- 1. Helper functions to enforce client-entered list bounds
 create or replace function public.check_collector_names_bounded(names text[])
 returns boolean language sql immutable as $$
-  select coalesce(
-    cardinality(names) is null
-    or (
-      cardinality(names) <= 50
-      and not exists (
-        select 1
-        from unnest(names) as n
-        where length(btrim(n)) = 0 or length(n) > 100
-      )
-    ),
-    true
+  select names is null or (
+    cardinality(names) <= 50
+    and not exists (
+      select 1
+      from unnest(names) as n
+      where n is null or length(btrim(n)) = 0 or length(n) > 100
+    )
   );
 $$;
 
 create or replace function public.check_signature_blocks_bounded(blocks text[])
 returns boolean language sql immutable as $$
-  select coalesce(
-    cardinality(blocks) is null
-    or (
-      cardinality(blocks) <= 10
-      and not exists (
-        select 1
-        from unnest(blocks) as b
-        where length(btrim(b)) = 0 or length(b) > 80
-      )
-    ),
-    true
+  select blocks is null or (
+    cardinality(blocks) <= 10
+    and not exists (
+      select 1
+      from unnest(blocks) as b
+      where b is null or length(btrim(b)) = 0 or length(b) > 80
+    )
   );
 $$;
 

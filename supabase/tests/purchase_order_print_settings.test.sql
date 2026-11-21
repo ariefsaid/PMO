@@ -1,12 +1,12 @@
--- purchase_order_print_settings.test.sql — #2688 purchase order print settings & bounds check.
--- Spec docs/specs/purchase-order-print.spec.md. Migrations under test: 1444_purchase_order_print.sql.
--- AC-POP-009 Admin sets settings · AC-POP-010 non-Admin refused · AC-POP-011 bounds enforced ·
--- AC-POP-012 cross-org isolation.
+-- purchase_order_print_settings.test.sql — #2688 purchase order print settings & client-entered list bounds.
+-- Spec docs/specs/purchase-order-print.spec.md. Migration under test: 1444_purchase_order_print.sql.
+-- AC-POP-009 Admin sets settings · AC-POP-010 non-Admin refused · AC-POP-011 list bounds enforced (RPC and table
+-- constraint) · AC-POP-012 cross-org isolation for reads and writes.
 begin;
 create extension if not exists pgtap;
-select plan(12);
+select plan(20);
 
--- Fixtures (written as table owner before switching to authenticated)
+-- ── Fixtures (table owner, bypassing RLS) ──────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency, default_timezone) values
   ('26880000-0000-0000-0000-00000000000a', 'POP Org A', 'IDR', 'Asia/Jakarta'),
   ('26880000-0000-0000-0000-00000000000b', 'POP Org B', 'IDR', 'Asia/Jakarta');
@@ -21,17 +21,12 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('26880000-0000-0000-0000-0000000000a2', '26880000-0000-0000-0000-00000000000a', 'POP User A',  'pop-user-a@example.com',  'Engineer', 'active'),
   ('26880000-0000-0000-0000-0000000000b1', '26880000-0000-0000-0000-00000000000b', 'POP Admin B', 'pop-admin-b@example.com', 'Admin', 'active');
 
+-- A pre-existing settings row for Org A, so the defaults are readable before any RPC call.
 insert into purchase_order_settings (org_id) values ('26880000-0000-0000-0000-00000000000a');
 
-create or replace function pg_temp._as(p_uid uuid) returns void language sql as $$
-  select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
-$$;
-grant execute on function pg_temp._as(uuid) to authenticated;
-
+-- ── Org A: default row values (FR-POP-009) ────────────────────────────────────────────────────────
 set local role authenticated;
-
--- 1. Default row values: print_enabled defaults to false, default signature blocks, empty collectors
-select pg_temp._as('26880000-0000-0000-0000-0000000000a1');
+set local request.jwt.claims = '{"sub":"26880000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
 select is(
   (select print_enabled from purchase_order_settings where org_id = '26880000-0000-0000-0000-00000000000a'),
@@ -42,17 +37,17 @@ select is(
 select is(
   (select signature_blocks from purchase_order_settings where org_id = '26880000-0000-0000-0000-00000000000a'),
   array['Prepared by', 'Approved by', 'Vendor acceptance'],
-  'FR-POP-009 signature_blocks has standard 3-box default'
+  'FR-POP-009 signature_blocks has the standard three-box default'
 );
 
 select is(
   (select authorised_collectors from purchase_order_settings where org_id = '26880000-0000-0000-0000-00000000000a'),
   array[]::text[],
-  'FR-POP-009 authorised_collectors defaults to empty array'
+  'FR-POP-009 authorised_collectors defaults to an empty list'
 );
 
--- 2. AC-POP-010: Non-Admin calling po_set_print_settings is refused
-select pg_temp._as('26880000-0000-0000-0000-0000000000a2');
+-- ── AC-POP-010: a non-Admin cannot change the settings ────────────────────────────────────────────
+set local request.jwt.claims = '{"sub":"26880000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select throws_ok(
   $$ select public.po_set_print_settings(true, array['Prepared by'], array['Alice Collector']) $$,
   '42501',
@@ -60,61 +55,123 @@ select throws_ok(
   'AC-POP-010 a non-Admin cannot change purchase order print settings'
 );
 
--- 3. AC-POP-009: Admin A sets purchase order print settings with collectors
-select pg_temp._as('26880000-0000-0000-0000-0000000000a1');
+-- ── AC-POP-009: an Admin saves the settings, and the audit trail records it ──────────────────────
+set local request.jwt.claims = '{"sub":"26880000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
   $$ select public.po_set_print_settings(true, array['Prepared by', 'Approved by', 'Collector'], array['Alice Collector', 'Bob Collector']) $$,
-  'AC-POP-009 Admin A successfully saves purchase order print settings'
+  'AC-POP-009 Admin A saves purchase order print settings'
 );
 
 select is(
   (select print_enabled from purchase_order_settings where org_id = '26880000-0000-0000-0000-00000000000a'),
   true,
-  'AC-POP-009 print_enabled updated to true'
+  'AC-POP-009 print_enabled is updated'
 );
 
 select is(
   (select authorised_collectors from purchase_order_settings where org_id = '26880000-0000-0000-0000-00000000000a'),
   array['Alice Collector', 'Bob Collector'],
-  'AC-POP-009 authorised collectors saved'
+  'AC-POP-009 authorised collectors are saved'
 );
 
--- 4. AC-POP-011: Bounds enforcement on collectors and signature blocks
--- 4a. Collector name too long (>100 characters)
+select is(
+  (select count(*)::int from audit_events
+    where org_id = '26880000-0000-0000-0000-00000000000a'
+      and action = 'purchase_order.print_settings_set'),
+  1,
+  'FR-POP-012 a settings change writes one audit entry'
+);
+
+-- ── AC-POP-011: the RPC refuses out-of-bounds lists ───────────────────────────────────────────────
 select throws_ok(
   $$ select public.po_set_print_settings(true, array['Prepared by'], array[repeat('A', 101)]) $$,
   '22023',
   'PO_INVALID_COLLECTORS: collector names must not exceed 50 entries and each between 1 and 100 characters',
-  'AC-POP-011 collector name longer than 100 characters is refused'
+  'AC-POP-011 a collector name longer than 100 characters is refused'
 );
 
--- 4b. Empty/whitespace collector name
 select throws_ok(
   $$ select public.po_set_print_settings(true, array['Prepared by'], array['   ']) $$,
   '22023',
   'PO_INVALID_COLLECTORS: collector names must not exceed 50 entries and each between 1 and 100 characters',
-  'AC-POP-011 empty collector name is refused'
+  'AC-POP-011 a blank collector name is refused'
 );
 
--- 4c. Signature block too long (>80 characters)
+select throws_ok(
+  $$ select public.po_set_print_settings(true, array['Prepared by'], array_fill('Collector'::text, array[51])) $$,
+  '22023',
+  'PO_INVALID_COLLECTORS: collector names must not exceed 50 entries and each between 1 and 100 characters',
+  'AC-POP-011 more than 50 collectors is refused'
+);
+
+select throws_ok(
+  $$ select public.po_set_print_settings(true, array['Prepared by'], array['Alice Collector', null]::text[]) $$,
+  '22023',
+  'PO_INVALID_COLLECTORS: collector names must not exceed 50 entries and each between 1 and 100 characters',
+  'AC-POP-011 a null collector entry is refused'
+);
+
 select throws_ok(
   $$ select public.po_set_print_settings(true, array[repeat('S', 81)], array['Alice Collector']) $$,
   '22023',
   'PO_INVALID_SIGNATURE_BLOCKS: signature blocks must not exceed 10 entries and each between 1 and 80 characters',
-  'AC-POP-011 signature block longer than 80 characters is refused'
+  'AC-POP-011 a signature block longer than 80 characters is refused'
 );
 
--- 5. AC-POP-012: Org B isolation
-select pg_temp._as('26880000-0000-0000-0000-0000000000b1');
+select throws_ok(
+  $$ select public.po_set_print_settings(true, array_fill('Sign'::text, array[11]), array['Alice Collector']) $$,
+  '22023',
+  'PO_INVALID_SIGNATURE_BLOCKS: signature blocks must not exceed 10 entries and each between 1 and 80 characters',
+  'AC-POP-011 more than 10 signature blocks is refused'
+);
+
+-- ── AC-POP-011: the TABLE constraint is the enforcement, independent of the RPC ──────────────────
+select throws_ok(
+  $$ update public.purchase_order_settings
+        set authorised_collectors = array_fill('Collector'::text, array[51])
+      where org_id = '26880000-0000-0000-0000-00000000000a' $$,
+  '23514',
+  'AC-POP-011 the table constraint refuses more than 50 collectors on a direct write'
+);
+
+select throws_ok(
+  $$ update public.purchase_order_settings
+        set authorised_collectors = array[repeat('A', 101)]
+      where org_id = '26880000-0000-0000-0000-00000000000a' $$,
+  '23514',
+  'AC-POP-011 the table constraint refuses a 101-character collector on a direct write'
+);
+
+-- ── AC-POP-012: another organisation's Admin sees and touches nothing of Org A ───────────────────
+set local request.jwt.claims = '{"sub":"26880000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+
 select is(
   (select count(*)::int from purchase_order_settings where org_id = '26880000-0000-0000-0000-00000000000a'),
   0,
-  'AC-POP-012 Admin B cannot see Org A purchase order settings'
+  'AC-POP-012 Admin B cannot read Org A purchase order settings'
+);
+
+select is(
+  (with touched as (
+     update public.purchase_order_settings
+        set print_enabled = false
+      where org_id = '26880000-0000-0000-0000-00000000000a'
+      returning 1
+   ) select count(*)::int from touched),
+  0,
+  'AC-POP-012 a cross-org update touches no rows'
 );
 
 select lives_ok(
   $$ select public.po_set_print_settings(true, array['Dibuat oleh', 'Diterima oleh'], array['Kurir Lapangan']) $$,
-  'AC-POP-012 Admin B can save own org settings'
+  'AC-POP-012 Admin B can save their own organisation settings'
+);
+
+reset role;
+select is(
+  (select print_enabled from purchase_order_settings where org_id = '26880000-0000-0000-0000-00000000000a'),
+  true,
+  'AC-POP-012 Org A settings are unchanged by Org B'
 );
 
 select * from finish();
