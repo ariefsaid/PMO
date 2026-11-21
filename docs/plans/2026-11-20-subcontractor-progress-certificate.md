@@ -1,13 +1,13 @@
 # Plan: Subcontractor progress certificate (#2584)
 
 Spec: `docs/specs/subcontractor-progress-certificate.spec.md` (read its "Review 20 Nov"; binding). Executor: one fresh Orca worker; money
-path, ships alone. Branch `feat/2584-subcon-certificate`. Migrations 1135 to 1138 (1139 unused).
+path, ships alone. Branch `feat/2584-subcon-certificate`. Migrations 1184 to 1187 (1139 unused).
 
 ## Built on defaults (owner to confirm)
 
 | Decision | Default built |
 |---|---|
-| OD-SPC-1 | `dsr_progress_lines.crew_id` (nullable) added in 1135; `dsr_replace_lines` and `dsr_correct` carry it. Only lines whose crew is a vendor crew of the PO's vendor are measurable; a correction keeps the crew. |
+| OD-SPC-1 | `dsr_progress_lines.crew_id` (nullable) added in 1184; `dsr_replace_lines` and `dsr_correct` carry it. Only lines whose crew is a vendor crew of the PO's vendor are measurable; a correction keeps the crew. |
 | OD-SPC-2 | A separate rate card `subcontractor_rate_lines` (vendor, contract item); not the client catalogue (#2520) and not the T&M card (0515). |
 | OD-SPC-3 | A rate window starts on a month's first day and ends on a month's last day; one rate per item per certificate; overlap refused by an exclusion constraint; a change from month M ends the open line the day before. |
 | OD-SPC-4 | The certificate prepares a DRAFT acceptance (`prepare_certificate_acceptance`); the shipped cap (`subcontract_bill_cap_violation`) is the gate at approval and again at bill. |

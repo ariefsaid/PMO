@@ -1,5 +1,5 @@
 -- #2584 S3 (money path): separation of duties, the over-claim rules and the immutability of an approved subcontract certificate
--- (AC-SPC-006, 007, 009, 012, 015, 017; FR-SPC-012, 013; NFR-SPC-002). Migrations under test: 1136 and 1137.
+-- (AC-SPC-006, 007, 009, 012, 015, 017; FR-SPC-012, 013; NFR-SPC-002). Migrations under test: 1185 and 1186.
 -- The SoD line and the cap pre-check are mutation-checked in subcontract_certificate_mutation.test.sql (AC-SPC-018).
 begin;
 create extension if not exists pgtap;

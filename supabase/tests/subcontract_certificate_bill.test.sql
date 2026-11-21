@@ -1,6 +1,6 @@
 -- #2584 S3/S4 (money path): approve -> bill through the shipped capture, the payable net of backcharges, refusal without half-writes,
 -- the void hook, the work-order cost read and the acceptance bridge (AC-SPC-010, 011, 013, 014, 016; FR-SPC-010, 014..017).
--- Migrations under test: 1137 and 1138.
+-- Migrations under test: 1186 and 1187.
 begin;
 create extension if not exists pgtap;
 select plan(39);
