@@ -71,7 +71,7 @@ declare v_org uuid; v_cost boolean; v_n integer; v_rows jsonb;
 begin
   perform public.assert_is_active_member();
   v_org := public.auth_org_id();
-  v_cost := public.stock_can_see_cost();                                                                -- mut:cost
+  v_cost := public.stock_can_see_cost();                                                                -- mut:cost_v2
   select count(*) into v_n from public.stock_balances b
    where b.org_id = v_org and (p_warehouse_id is null or b.warehouse_id = p_warehouse_id) and (p_item_id is null or b.item_id = p_item_id)
      and (b.qty_on_hand > 0 or coalesce(p_include_zero, false));
@@ -105,8 +105,8 @@ begin
   v_org := public.auth_org_id();
   select * into prm from public.stock_reorder_params();
   select coalesce(i.lead_time_days, prm.default_lead_days), u.whole_only into v_lead, v_whole
-    from public.stock_items i join public.stock_units u on u.id = i.unit_id where i.id = p_item_id and i.org_id = v_org;   -- mut:suggest_item_org
-  if v_lead is null or not exists (select 1 from public.stock_warehouses w where w.id = p_warehouse_id and w.org_id = v_org) then   -- mut:suggest_org
+    from public.stock_items i join public.stock_units u on u.id = i.unit_id where i.id = p_item_id and i.org_id = v_org;   -- mut:suggest_item_org_v2
+  if v_lead is null or not exists (select 1 from public.stock_warehouses w where w.id = p_warehouse_id and w.org_id = v_org) then   -- mut:suggest_org_v2
     raise exception 'STK_NOT_FOUND: item or warehouse is not in your organisation' using errcode = 'P0001'; end if;
   v_today := public.stock_org_today(v_org);
   select jsonb_build_object('reorder_level', trim_scale(r.reorder_level)::text, 'reorder_quantity', trim_scale(r.reorder_quantity)::text) into v_cur      -- the level in force, beside the suggestion
@@ -124,7 +124,7 @@ begin
             left join public.stock_warehouses dw on dw.id = d.to_warehouse_id
            where l.org_id = v_org and l.item_id = p_item_id and l.warehouse_id = p_warehouse_id and l.occurred_on > v_today - v_window and l.occurred_on <= v_today
              and l.kind in ('issue','transfer','return')) x;
-  if v_history < prm.min_history_days or v_moves < prm.min_movements or v_usage <= 0 then                                -- mut:min_history (v_usage <= 0: returns of older issues can net usage to nothing, no negative level)
+  if v_history < prm.min_history_days or v_moves < prm.min_movements or v_usage <= 0 then                                -- mut:min_history_v2 (v_usage <= 0: returns of older issues can net usage to nothing, no negative level)
     return jsonb_build_object('status', 'insufficient_history', 'suggestion', null, 'current', v_cur,
       'inputs', jsonb_build_object('history_days', v_history, 'usage_movements', v_moves, 'min_history_days', prm.min_history_days, 'min_movements', prm.min_movements));
   end if;

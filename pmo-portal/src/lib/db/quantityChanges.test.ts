@@ -3,17 +3,19 @@ import { AppError } from '@/src/lib/appError';
 
 /** #2578 quantity change DAL: list filter/order/paging (AC-QCR-024), write payloads (never org_id or an actor), refusals, files. */
 const h = vi.hoisted(() => {
-  const result = { value: {} as { data: unknown; error: unknown } };
+  const result = { value: {} as { data: unknown; error: unknown }, queue: [] as Array<{ data: unknown; error: unknown }> };
   const calls: Array<[string, unknown[]]> = [];
   const rpcCalls: Array<[string, unknown]> = [];
   const builder: Record<string, unknown> = {};
   for (const k of ['select', 'eq', 'is', 'order', 'range', 'insert', 'update', 'maybeSingle'] as const) {
     builder[k] = (...a: unknown[]) => { calls.push([k, a]); return builder; };
   }
-  builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
+  const next = () => (result.queue.length ? result.queue.shift()! : result.value);
+  builder.maybeSingle = () => Promise.resolve(next());
+  builder.then = (resolve: (v: unknown) => unknown) => resolve(next());
   const from = vi.fn((t: string) => { calls.push(['from', [t]]); return builder; });
-  const rpc = vi.fn((n: string, a?: unknown) => { rpcCalls.push([n, a]); return Promise.resolve(result.value); });
-  const storage = { upload: vi.fn(() => Promise.resolve({ error: null })), remove: vi.fn(() => Promise.resolve({ error: null })) };
+  const rpc = vi.fn((n: string, a?: unknown) => { rpcCalls.push([n, a]); return Promise.resolve(next()); });
+  const storage = { upload: vi.fn(() => Promise.resolve({ error: null })), remove: vi.fn(() => Promise.resolve({ error: null })), createSignedUrl: vi.fn() };
   return { from, rpc, calls, rpcCalls, result, storage };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc, storage: { from: () => h.storage } } }));
@@ -24,6 +26,7 @@ beforeEach(() => {
   h.calls.length = 0; h.rpcCalls.length = 0;
   h.storage.upload.mockClear(); h.storage.remove.mockClear();
   h.result.value = { data: [], error: null };
+  h.result.queue = [];
 });
 
 describe('AC-QCR-024 list', () => {
@@ -105,5 +108,91 @@ describe('files', () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(dal.uploadFile({ id: 'q1', org_id: 'o1' }, 'sent_letter', new File(['x'], 'a.pdf'))).rejects.toBeInstanceOf(AppError);
     expect(h.storage.remove).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AC-QCR detail and derived reads (#2578)', () => {
+  it('getRequest returns null for an absent request', async () => {
+    h.result.queue = [{ data: null, error: null }];
+    await expect(dal.getRequest('q0')).resolves.toBeNull();
+  });
+
+  it('getRequest assembles the detail: label, names, line figures validated and sorted by item code', async () => {
+    h.result.queue = [
+      { data: {
+        id: 'q1', org_id: 'o1', status: 'submitted',
+        work_orders: { id: 'w1', title: 'Road', wo_number: 'WO-9', status: 'Issued', currency: 'IDR', order_value: '1200.5' },
+        author: { full_name: 'Ani' }, approver: { full_name: 'Budi' },
+      }, error: null },
+      { data: [ // lines (unsorted on purpose: the sort is the module's job)
+        { id: 'l2', boq_item_id: 'b2', requested_quantity: '5', reason: 'r', trigger_kind: 'forecast', trigger_figure: '9', base_quantity: '1', base_version_no: 3, boq_items: { item_code: 'B', description: 'd2', unit: 'm3', rate: '2' } },
+        { id: 'l1', boq_item_id: 'b1', requested_quantity: 4, reason: 'r', trigger_kind: 'progress', trigger_figure: 8, base_quantity: 2, base_version_no: 1, boq_items: null },
+      ], error: null },
+      { data: [{ id: 'e1', action: 'submit', from_status: 'draft', to_status: 'submitted', actor_id: 'u1', reason: null, created_at: 't' }], error: null },
+      { data: [{ id: 'f1', kind: 'supporting', title: 't', file_path: 'p', uploaded_by_id: 'u1', created_at: 't' }], error: null },
+    ];
+    const d = await dal.getRequest('q1');
+    expect(d).not.toBeNull();
+    expect(d!.workOrder).toEqual({ id: 'w1', label: 'WO-9 · Road', status: 'Issued', currency: 'IDR', orderValue: 1200.5 });
+    expect(d!.names).toEqual({ author: 'Ani', approver: 'Budi' });
+    expect(d!.lines.map((l) => l.item_code)).toEqual(['', 'B']); // sorted by item code; a missing boq_items flattens to empty strings
+    expect(d!.lines[0]).toMatchObject({ requested_quantity: 4, trigger_figure: 8, base_quantity: 2, rate: 0, item_code: '' });
+    expect(d!.events).toHaveLength(1);
+    expect(d!.files).toHaveLength(1);
+    expect(h.calls.some(([k, a]) => k === 'eq' && (a as unknown[])[0] === 'id' && (a as unknown[])[1] === 'q1')).toBe(true);
+  });
+
+  it('overContract passes the only-over flag and normalises every figure', async () => {
+    h.result.queue = [{ data: [{ boq_item_id: 'b1', rate: '2.5', contract_quantity: '100', progress_quantity: 101, forecast_quantity: null, over_progress: true }], error: null }];
+    const rows = await dal.overContract('p1', true);
+    expect(rows[0]).toMatchObject({ rate: 2.5, contract_quantity: 100, progress_quantity: 101, forecast_quantity: null, over_progress: true });
+    expect(h.rpcCalls).toEqual([['qcr_over_contract', { p_project_id: 'p1', p_only_over: true }]]);
+    h.result.queue = [{ data: [], error: null }];
+    await dal.overContract('p1');
+    expect(h.rpcCalls.at(-1)).toEqual(['qcr_over_contract', { p_project_id: 'p1', p_only_over: false }]);
+  });
+
+  it('workOrderBudget and approvalState fall back to a safe default when the RPC returns no row', async () => {
+    h.result.queue = [{ data: [{ request_count: 2, request_limit: 5 }], error: null }];
+    await expect(dal.workOrderBudget('w1')).resolves.toEqual({ request_count: 2, request_limit: 5 });
+    h.result.queue = [{ data: null, error: null }];
+    await expect(dal.workOrderBudget('w1')).resolves.toEqual({ request_count: 0, request_limit: null });
+    h.result.queue = [{ data: [{ can_approve: true, reason: null, eligible_approver_exists: true }], error: null }];
+    await expect(dal.approvalState('q1')).resolves.toEqual({ can_approve: true, reason: null, eligible_approver_exists: true });
+    h.result.queue = [{ data: [], error: null }];
+    await expect(dal.approvalState('q1')).resolves.toEqual({ can_approve: false, reason: 'role', eligible_approver_exists: false });
+  });
+
+  it('listVersions numbers every quantity; updateDraft sends null lines only when clearing', async () => {
+    h.result.queue = [{ data: [{ version_no: 1, quantity: '7', source: 'progress', request_id: null, created_by: 'u1', created_at: 't' }], error: null }];
+    await expect(dal.listVersions('b1')).resolves.toEqual([{ version_no: 1, quantity: 7, source: 'progress', request_id: null, created_by: 'u1', created_at: 't' }]);
+    expect(h.calls.some(([k, a]) => k === 'eq' && (a as unknown[])[1] === 'b1')).toBe(true);
+    h.result.queue = [{ data: null, error: null }];
+    await dal.updateDraft('q1', null, 'n');
+    expect(h.rpcCalls.at(-1)).toEqual(['qcr_update_draft', { p_request_id: 'q1', p_lines: null, p_note: 'n' }]);
+    h.result.queue = [{ data: null, error: null }];
+    await dal.updateDraft('q1', [{ boqItemId: 'b1', requestedQuantity: '3', reason: 'r' }], null);
+    expect(h.rpcCalls.at(-1)).toEqual(['qcr_update_draft', { p_request_id: 'q1', p_lines: [{ boq_item_id: 'b1', requested_quantity: '3', reason: 'r' }], p_note: null }]);
+  });
+
+  it('AC-QCR-021 the org limit reads as null when unset; the archive stamps the file row', async () => {
+    h.result.queue = [{ data: { quantity_change_limit: 12 }, error: null }];
+    await expect(dal.getLimit('o1')).resolves.toBe(12);
+    h.result.queue = [{ data: { quantity_change_limit: null }, error: null }];
+    await expect(dal.getLimit('o1')).resolves.toBeNull();
+    h.result.queue = [{ data: null, error: null }];
+    await expect(dal.getLimit('o1')).resolves.toBeNull();
+    h.result.queue = [{ data: null, error: null }];
+    await dal.archiveFile('f1');
+    const upd = h.calls.find(([k]) => k === 'update')?.[1][0] as Record<string, unknown>;
+    expect(typeof upd.archived_at).toBe('string');
+    expect(h.calls.some(([k, a]) => k === 'eq' && (a as unknown[])[1] === 'f1')).toBe(true);
+  });
+
+  it('a file opens only through a signed link, and a refusal names itself', async () => {
+    h.storage.createSignedUrl.mockResolvedValue({ data: { signedUrl: 'https://signed/qcr' }, error: null });
+    await expect(dal.fileUrl('o/q/f/a.pdf')).resolves.toBe('https://signed/qcr');
+    h.storage.createSignedUrl.mockResolvedValue({ data: null, error: { message: 'gone' } });
+    await expect(dal.fileUrl('x')).rejects.toBeInstanceOf(AppError);
   });
 });

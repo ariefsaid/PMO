@@ -5,15 +5,18 @@ const h = vi.hoisted(() => {
   const rpc = vi.fn(async () => queue.shift() ?? { data: null, error: null });
   const upload = vi.fn(async () => ({ error: null }));
   const maybeSingle = vi.fn(async () => queue.shift() ?? { data: null, error: null });
+  const signed = vi.fn(async () => ({ data: { signedUrl: 'https://signed/handover' }, error: null }));
   const query: Record<string, unknown> = {};
-  Object.assign(query, { select: () => query, order: () => query, eq: () => query, limit: () => query, maybeSingle, then: (r: (v: unknown) => void) => r(queue.shift() ?? { data: [], error: null }) });
-  return { rpc, queue, upload, query, maybeSingle };
+  const fromCalls: string[] = [];
+  const from = vi.fn((t: string) => { fromCalls.push(t); return query; });
+  Object.assign(query, { select: () => query, order: () => query, eq: () => query, limit: () => query, update: () => query, maybeSingle, then: (r: (v: unknown) => void) => r(queue.shift() ?? { data: [], error: null }) });
+  return { rpc, queue, upload, query, maybeSingle, signed, fromCalls, from };
 });
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: () => h.query, storage: { from: () => ({ upload: h.upload, createSignedUrl: vi.fn() }) } } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from, storage: { from: () => ({ upload: h.upload, createSignedUrl: h.signed }) } } }));
 
-import { getMovementProofStatus, getTransferSettings, getStockTransfer, receiveStockTransfer, recordStockHandover, resolveStockShortfall, sendStockTransfer, uploadHandoverPhoto } from './stockTransfers';
+import { getMovementProofStatus, getTransferSettings, getStockTransfer, handoverPhotoUrl, listHandoverConfirmations, listStockTransfers, receiveStockTransfer, recallStockTransfer, recordStockHandover, resolveStockShortfall, sendStockTransfer, setItemQualityCheck, setProofTiming, setTagProofRule, setTransferMode, uploadHandoverPhoto } from './stockTransfers';
 
-beforeEach(() => { h.queue.length = 0; h.rpc.mockClear(); h.upload.mockClear(); });
+beforeEach(() => { h.queue.length = 0; h.rpc.mockClear(); h.upload.mockClear(); h.fromCalls.length = 0; });
 
 describe('stockTransfers DAL', () => {
   it('AC-TST-023 send maps the form to the RPC: warehouses, optional receiver, lines as decimal strings, one request id', async () => {
@@ -65,5 +68,90 @@ describe('stockTransfers DAL', () => {
     const path = await uploadHandoverPhoto('org', 't', 'c', 'goods', new File(['x'], 'my photo (1).jpg'));
     expect(path).toBe('org/t/c/goods-my_photo__1_.jpg');
     expect(h.upload).toHaveBeenCalledWith(path, expect.any(File));
+  });
+});
+
+describe('stockTransfers reads and setup (#2685/#2690)', () => {
+  it('listStockTransfers maps transfers with their lines in line order; the status filter applies only when asked', async () => {
+    h.queue.push({
+      data: [{
+        id: 'tr1', number: 'ST-1', from_warehouse_id: 'w1', to_warehouse_id: 'w2', transit_warehouse_id: 'wt', work_order_id: null,
+        to_user_id: null, note: 'n', status: 'Sent', sent_by: 'u1', sent_at: 't', received_by: null, received_at: null, cancel_reason: null,
+        stock_transfer_lines: [
+          { id: 'l2', line_no: 2, item_id: 'i2', qty_sent: 3, qty_counted: null, qty_accepted: null, qty_rejected: null, reject_reason: null, quality_result: null, short_resolution: null, short_reason: null },
+          { id: 'l1', line_no: 1, item_id: 'i1', qty_sent: '2', qty_counted: 2, qty_accepted: 1, qty_rejected: 1, reject_reason: 'broken', quality_result: 'fail', short_resolution: 'returned', short_reason: 'r' },
+        ],
+      }],
+      error: null,
+    });
+    const list = await listStockTransfers('Sent');
+    expect(list).toHaveLength(1);
+    expect(list[0].lines.map((l) => l.id)).toEqual(['l1', 'l2']); // line order, not arrival order
+    expect(list[0].lines[0]).toMatchObject({ qtySent: '2', qtyCounted: '2', qtyAccepted: '1', qtyRejected: '1', rejectReason: 'broken', qualityResult: 'fail', shortResolution: 'returned', shortReason: 'r' });
+    expect(list[0].lines[1]).toMatchObject({ qtySent: '3', qtyCounted: null, qtyAccepted: null });
+  });
+
+  it('getStockTransfer maps one transfer and null when absent', async () => {
+    h.queue.push({ data: {
+      id: 'tr1', number: 'ST-1', from_warehouse_id: 'w1', to_warehouse_id: 'w2', transit_warehouse_id: 'wt', work_order_id: 'wo1',
+      to_user_id: 'u9', note: null, status: 'Received', sent_by: 'u1', sent_at: 't', received_by: 'u2', received_at: 't2', cancel_reason: null,
+      stock_transfer_lines: [],
+    }, error: null });
+    const t = await getStockTransfer('tr1');
+    expect(t).toMatchObject({ id: 'tr1', status: 'Received', workOrderId: 'wo1', toUserId: 'u9', receivedBy: 'u2', lines: [] });
+    h.queue.push({ data: null, error: null });
+    await expect(getStockTransfer('nope')).resolves.toBeNull();
+  });
+
+  it('listHandoverConfirmations maps the proof columns with nulls kept null', async () => {
+    h.queue.push({
+      data: [{ id: 'hc1', transfer_id: 'tr1', stage: 'send', proof_type: 'in_app', signer_kind: 'account', signer_name: null, recorded_by: 'u1', confirmed_at: 't', goods_photo_path: 'g', signer_photo_path: null, paper_photo_path: null }],
+      error: null,
+    });
+    await expect(listHandoverConfirmations('tr1')).resolves.toEqual([{
+      id: 'hc1', transferId: 'tr1', stage: 'send', proofType: 'in_app', signerKind: 'account', signerName: null, recordedBy: 'u1',
+      confirmedAt: 't', goodsPhotoPath: 'g', signerPhotoPath: null, paperPhotoPath: null,
+    }]);
+    expect(h.from).toHaveBeenLastCalledWith('stock_handover_confirmations');
+  });
+
+  it('setTransferMode and setProofTiming go through their own RPCs', async () => {
+    h.queue.push({ data: null, error: null });
+    await setTransferMode('two_step');
+    expect(h.rpc).toHaveBeenLastCalledWith('set_stock_transfer_mode', { p_mode: 'two_step' });
+    h.queue.push({ data: null, error: null });
+    await setProofTiming('may_follow');
+    expect(h.rpc).toHaveBeenLastCalledWith('set_stock_proof_timing', { p_timing: 'may_follow' });
+  });
+
+  it('recall goes through its RPC with the reason; a shortfall reason trims or nulls', async () => {
+    h.queue.push({ data: null, error: null });
+    await recallStockTransfer('tr1', 'wrong warehouse');
+    expect(h.rpc).toHaveBeenLastCalledWith('recall_stock_transfer', { p_transfer: 'tr1', p_reason: 'wrong warehouse' });
+    h.queue.push({ data: null, error: null });
+    await resolveStockShortfall('l1', 'written_off', '   ');
+    expect(h.rpc).toHaveBeenLastCalledWith('resolve_stock_transfer_shortfall', { p_line: 'l1', p_resolution: 'written_off', p_reason: null });
+  });
+
+  it('a handover photo uploads to the private bucket under org/transfer/confirmation and returns the path', async () => {
+    h.upload.mockResolvedValueOnce({ error: null });
+    const path = await uploadHandoverPhoto('o1', 'tr1', 'hc1', 'goods', new File(['x'], 'crate 2.jpg'));
+    expect(path).toBe('o1/tr1/hc1/goods-crate_2.jpg');
+    expect(h.upload).toHaveBeenCalledWith(path, expect.anything());
+  });
+
+  it('handoverPhotoUrl signs for 300s', async () => {
+    await expect(handoverPhotoUrl('o/tr/hc/g.jpg')).resolves.toBe('https://signed/handover');
+  });
+
+  it('setTagProofRule and setItemQualityCheck refuse a write that changed no row', async () => {
+    h.queue.push({ data: [], error: null });
+    await expect(setTagProofRule('tag1', 'paper')).rejects.toMatchObject({ code: '42501' });
+    h.queue.push({ data: [{ id: 'tag1' }], error: null });
+    await setTagProofRule('tag1', 'confirmation');
+    h.queue.push({ data: [], error: null });
+    await expect(setItemQualityCheck('i1', true)).rejects.toMatchObject({ code: '42501' });
+    h.queue.push({ data: [{ id: 'i1' }], error: null });
+    await setItemQualityCheck('i1', false);
   });
 });

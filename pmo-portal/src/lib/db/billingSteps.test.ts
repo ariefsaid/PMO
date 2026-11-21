@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const h = vi.hoisted(() => ({ rpc: vi.fn() }));
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: vi.fn() } }));
+const h = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 
 import {
-  addClaimStep, archiveStepTemplate, getOverdueStepsByClaim, getWaitingSteps, loadStepTemplateOntoClaim, loadStepTemplateOntoProject,
+  addClaimStep, archiveStepTemplate, getOverdueStepsByClaim, getWaitingSteps, listStepTemplates, loadStepTemplateOntoClaim, loadStepTemplateOntoProject,
   moveClaimStep, removeClaimStep, saveStepTemplate, updateClaimStep,
 } from './billingSteps';
 
-beforeEach(() => { h.rpc.mockReset().mockResolvedValue({ data: null, error: null }); });
+beforeEach(() => { h.rpc.mockReset().mockResolvedValue({ data: null, error: null }); h.from.mockReset(); });
 
 /** Every argument the SQL function declares is sent (none has a default), so a missing one cannot reach the schema cache as "function not found". */
 describe('billing steps DAL sends every declared argument (#2680)', () => {
@@ -56,5 +56,46 @@ describe('billing steps DAL sends every declared argument (#2680)', () => {
   it('a database refusal becomes a coded error', async () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: 'refused', code: '55000', details: 'claim-invoiced' } });
     await expect(removeClaimStep('s1', 'reason')).rejects.toMatchObject({ code: 'claim-invoiced' });
+  });
+});
+
+describe('listStepTemplates (#2680)', () => {
+  it('reads only live templates, names-ordered, and maps steps sorted by position with their documents', async () => {
+    const chain: Record<string, unknown> = {};
+    const calls: Record<string, unknown[]> = { from: [], select: [], is: [], order: [], limit: [] };
+    void calls;
+    const next = { value: { data: null as unknown, error: null } };
+    for (const m of ['select', 'is', 'order', 'limit'] as const) chain[m] = (...a: unknown[]) => { calls[m].push(a.length <= 1 ? a[0] : a); return chain; };
+    (chain as unknown as { then: (res: (v: unknown) => unknown) => void }).then = (res) => res(next.value);
+    h.from.mockImplementation((t: string) => { calls.from.push(t); return chain; });
+    next.value = {
+      data: [{
+        id: 't1', name: 'Standard',
+        steps: [
+          { position: 2, name: 'Check', owner_role: 'Finance', target_days: 5, client_side: true, optional: false, documents: [{ position: 2, name: 'B', required: false }, { position: 1, name: 'A', required: true }] },
+          { position: 1, name: 'Survey', owner_role: null, target_days: null, client_side: false, optional: true, documents: null },
+        ],
+      }],
+      error: null,
+    };
+    const templates = await listStepTemplates();
+    expect(templates).toHaveLength(1);
+    const template = templates[0]!;
+    expect(template.steps.map((s) => s.name)).toEqual(['Survey', 'Check']); // position order
+    const check = template.steps[1]!;
+    expect(check.documents!.map((d) => d.name)).toEqual(['A', 'B']);
+    expect(check).toMatchObject({ ownerRole: 'Finance', targetDays: 5, clientSide: true, optional: false });
+    expect(template.steps[0]).toMatchObject({ ownerRole: null, targetDays: null, optional: true, documents: [] });
+    expect(calls.from).toEqual(['billing_step_templates']);
+    expect(calls.is).toContainEqual(['archived_at', null]);
+    expect(calls.order).toContain('name');
+  });
+
+  it('a template read refusal keeps its code', async () => {
+    const chain: Record<string, unknown> = {};
+    for (const m of ['select', 'is', 'order', 'limit'] as const) chain[m] = () => chain;
+    (chain as unknown as { then: (res: (v: { data: unknown; error: { message: string; code?: string } | null }) => unknown) => void }).then = (res) => res({ data: null, error: { message: 'denied', code: '42501' } });
+    h.from.mockImplementation(() => chain);
+    await expect(listStepTemplates()).rejects.toMatchObject({ code: '42501' });
   });
 });
