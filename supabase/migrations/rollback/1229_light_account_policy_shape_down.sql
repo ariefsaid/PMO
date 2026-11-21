@@ -11,3 +11,14 @@ begin
     execute format('create policy light_account_deny on %I.%I as restrictive for all to authenticated using ((select public.actor_is_light()) is not true)', r.schemaname, r.tablename);
   end loop;
 end $$;
+
+-- restore 1206's own-row delete policies that 1229 dropped (tables without a DELETE grant)
+do $$
+declare t text;
+begin
+  foreach t in array array['work_orders','crews','crew_members','work_order_crews','tasks','incident_reports'] loop
+    if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = t and policyname = 'light_account_scope_delete') then
+      execute format('create policy light_account_scope_delete on public.%I as restrictive for delete to authenticated using ((select public.actor_is_light()) is not true)', t);
+    end if;
+  end loop;
+end $$;

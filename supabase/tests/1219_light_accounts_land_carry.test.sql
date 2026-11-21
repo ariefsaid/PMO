@@ -28,11 +28,12 @@ insert into work_order_sections (id, org_id, project_id, work_order_id, code, na
 insert into crew_tool_lines (id, org_id, crew_id, name, held_qty) values
   ('27190000-0000-0000-0000-000000000f01', '27190000-0000-0000-0000-00000000000a', '27190000-0000-0000-0000-000000000c01', 'LC tool', 1);
 
--- every listed table: restrictive per-command light_account_deny_* policies (select/insert/update; delete only where granted), no `for all`
+-- every listed table: restrictive per-command light_account_deny_* policies (select/insert/update; delete only where granted; select only on six tables whose write policies other guards pin), no `for all`
 select is((select string_agg(cmd || ':' || permissive, ',' order by cmd) from pg_policies
             where schemaname = 'public' and tablename = x.t and policyname ~ '^light_account_deny(_|$)'),
-  case when has_table_privilege('authenticated', 'public.' || x.t, 'DELETE') then 'DELETE:RESTRICTIVE,' else '' end
-    || 'INSERT:RESTRICTIVE,SELECT:RESTRICTIVE,UPDATE:RESTRICTIVE',
+  case when x.t = any(array['sales_invoices','incoming_payments','payments','procurement_invoices','procurement_receipts','purchase_orders']) then 'SELECT:RESTRICTIVE'
+       else case when has_table_privilege('authenticated', 'public.' || x.t, 'DELETE') then 'DELETE:RESTRICTIVE,' else '' end
+            || 'INSERT:RESTRICTIVE,SELECT:RESTRICTIVE,UPDATE:RESTRICTIVE' end,
   x.t || ' has the restrictive light_account_deny_* per-command policies')
   from unnest(array[
   'boq_quantity_versions',
