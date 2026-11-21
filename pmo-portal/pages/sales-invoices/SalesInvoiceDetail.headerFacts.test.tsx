@@ -1,9 +1,10 @@
 import React from 'react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
+import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
 const orderState = vi.hoisted(() => ({ visible: true }));
 vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => ({ data: orderState.visible ? { id: 'wo1', wo_number: 'WO-1', title: 'Install' } : null }) }));
@@ -32,7 +33,11 @@ const target: SalesInvoiceRow = {
   efaktur_number: null, efaktur_date: null, native_lines: null,
 };
 
-afterEach(() => { cleanup(); orderState.visible = true; });
+afterEach(async () => {
+  cleanup();
+  orderState.visible = true;
+  await financeTestI18n.changeLanguage('en');
+});
 
 it('links the project in header facts and keeps Project and Invoice date facts once', () => {
   render(
@@ -225,3 +230,151 @@ it('does not expose an unreadable work order on the invoice', () => {
   render(<FinanceI18nTestProvider><MemoryRouter><SalesInvoiceDetail viewTarget={{ ...target, work_order_id: 'wo1' }} projectName="Northwind" isPending={false} isError={false} data={[target]} organizationToday="2026-10-16" onBack={vi.fn()} refetch={vi.fn()} recordPrimaryAction={null} invoiceDisplayLabel={() => 'INV'} may={(() => false) as never} pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never} dialogs={null} /></MemoryRouter></FinanceI18nTestProvider>);
   expect(screen.queryByRole('link', { name: 'WO-1' })).not.toBeInTheDocument();
 });
+
+describe('#2442 paid sales invoice wording', () => {
+  it('shows paid wording, paid amount and paid date in English, with no due date or outstanding or send prompt', async () => {
+    await financeTestI18n.changeLanguage('en');
+    const paidTarget: SalesInvoiceRow = {
+      ...target,
+      status: 'Paid',
+      erp_outstanding_amount: 0,
+      received_date: '2026-10-15',
+    };
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <SalesInvoiceDetail
+            viewTarget={paidTarget}
+            projectName="Northwind Build"
+            isPending={false}
+            isError={false}
+            data={[paidTarget]}
+            organizationToday="2026-10-16"
+            onBack={vi.fn()}
+            refetch={vi.fn()}
+            recordPrimaryAction={null}
+            invoiceDisplayLabel={() => 'SI-2026-0001'}
+            may={mayDownload}
+            pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
+            dialogs={null}
+          />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Paid date')).toBeInTheDocument();
+    expect(within(header).getByText('15 Oct 2026')).toBeInTheDocument();
+    expect(within(header).queryByText('Due date')).not.toBeInTheDocument();
+    expect(within(header).queryByText('Outstanding')).not.toBeInTheDocument();
+    expect(within(header).queryByText('Ready to send')).not.toBeInTheDocument();
+    expect(within(header).queryByText('Download the PDF and send it to your client yourself.')).not.toBeInTheDocument();
+
+    const note = screen.getByTestId('invoice-delivery-note');
+    expect(within(note).getByText('Paid')).toBeInTheDocument();
+    expect(note).toHaveTextContent(/Paid.*1,110,000.*15 Oct 2026/);
+  });
+
+  it('shows paid wording, paid amount and paid date in Bahasa, with no due date or outstanding or send prompt', async () => {
+    await financeTestI18n.changeLanguage('id');
+    const paidTarget: SalesInvoiceRow = {
+      ...target,
+      status: 'Paid',
+      erp_outstanding_amount: 0,
+      received_date: '2026-10-15',
+    };
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <SalesInvoiceDetail
+            viewTarget={paidTarget}
+            projectName="Northwind Build"
+            isPending={false}
+            isError={false}
+            data={[paidTarget]}
+            organizationToday="2026-10-16"
+            onBack={vi.fn()}
+            refetch={vi.fn()}
+            recordPrimaryAction={null}
+            invoiceDisplayLabel={() => 'SI-2026-0001'}
+            may={mayDownload}
+            pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
+            dialogs={null}
+          />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Tanggal dibayar')).toBeInTheDocument();
+    expect(within(header).queryByText('Tanggal jatuh tempo')).not.toBeInTheDocument();
+    expect(within(header).queryByText('Belum dibayar')).not.toBeInTheDocument();
+    expect(within(header).queryByText('Siap dikirim')).not.toBeInTheDocument();
+
+    const note = screen.getByTestId('invoice-delivery-note');
+    expect(within(note).getByText('Dibayar')).toBeInTheDocument();
+    expect(note).toHaveTextContent(/Dibayar.*1,110,000.*pada 15 Oct 2026/);
+  });
+
+  it('shows due date, outstanding, and send prompt for an unpaid invoice in English and Bahasa', async () => {
+    await financeTestI18n.changeLanguage('en');
+    const { unmount } = render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <SalesInvoiceDetail
+            viewTarget={target}
+            projectName="Northwind Build"
+            isPending={false}
+            isError={false}
+            data={[target]}
+            organizationToday="2026-10-16"
+            onBack={vi.fn()}
+            refetch={vi.fn()}
+            recordPrimaryAction={null}
+            invoiceDisplayLabel={() => 'SI-2026-0001'}
+            may={mayDownload}
+            pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
+            dialogs={null}
+          />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Due date')).toBeInTheDocument();
+    expect(within(header).getByText('Outstanding')).toBeInTheDocument();
+    expect(within(header).queryByText('Paid date')).not.toBeInTheDocument();
+    expect(screen.getByText('Ready to send')).toBeInTheDocument();
+    unmount();
+
+    await financeTestI18n.changeLanguage('id');
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <SalesInvoiceDetail
+            viewTarget={target}
+            projectName="Northwind Build"
+            isPending={false}
+            isError={false}
+            data={[target]}
+            organizationToday="2026-10-16"
+            onBack={vi.fn()}
+            refetch={vi.fn()}
+            recordPrimaryAction={null}
+            invoiceDisplayLabel={() => 'SI-2026-0001'}
+            may={mayDownload}
+            pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
+            dialogs={null}
+          />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+
+    const idHeader = screen.getByTestId('record-header');
+    expect(within(idHeader).getByText('Tanggal jatuh tempo')).toBeInTheDocument();
+    expect(within(idHeader).getAllByText('Belum dibayar').length).toBeGreaterThanOrEqual(1);
+    expect(within(idHeader).queryByText('Tanggal dibayar')).not.toBeInTheDocument();
+    expect(screen.getByText('Siap dikirim')).toBeInTheDocument();
+  });
+});
+
