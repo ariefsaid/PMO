@@ -82,5 +82,21 @@ create trigger material_request_steps_notify_trg
   after insert or update of status on public.material_request_steps
   for each row execute function public.mrq_step_notify_trg();
 
+-- A submission opens step 1 before the request itself turns pending, so the request's own status change re-syncs
+-- every step of the request too.
+create or replace function public.mrq_request_notify_trg() returns trigger
+  language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_step uuid;
+begin
+  for v_step in select st.id from public.material_request_steps st where st.request_id = new.id loop
+    perform public.mrq_sync_step_notifications(v_step);
+  end loop;
+  return null;
+end $$;
+create trigger material_requests_notify_trg
+  after update of status on public.material_requests
+  for each row when (old.status is distinct from new.status)
+  execute function public.mrq_request_notify_trg();
+
 revoke all on function public.mrq_step_recipients(uuid), public.mrq_sync_step_notifications(uuid),
-  public.mrq_step_notify_trg() from public, anon, authenticated, service_role;
+  public.mrq_step_notify_trg(), public.mrq_request_notify_trg() from public, anon, authenticated, service_role;
