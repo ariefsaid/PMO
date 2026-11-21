@@ -7,6 +7,6 @@
     "stock_reservations_on(uuid)", "rsv_today(uuid)", "rsv_reserved(uuid,uuid,uuid)", "rsv_free(uuid,uuid,uuid)", "rsv_assert_may(uuid,uuid,uuid)",
     "rsv_sweep(uuid)", "reserve_stock(uuid,uuid,uuid,numeric,date,text,uuid)", "release_reservation(uuid,numeric,text)", "release_stale_reservations()",
     "set_stock_reservations(boolean,text,user_role,text)", "get_stock_free_reserved(uuid,uuid)", "rsv_split_line(uuid,uuid,uuid,numeric,uuid)",
-    "rsv_take(uuid,uuid,uuid,uuid,numeric,boolean)", "rsv_borrow_on_submit()", "rsv_consume_on_approval()"
+    "rsv_take(uuid,uuid,uuid,uuid,numeric,boolean)"
   ]
 }

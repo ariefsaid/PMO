@@ -59,7 +59,7 @@ select is(rsv_t_n($$ select count(*) from audit_events where action = 'stock.res
 select is(set_stock_reservations(true), true, 'AC-RSV-007 the same value is a no-op');
 select is(rsv_t_n($$ select count(*) from audit_events where action = 'stock.reservations' $$), 1::bigint, 'AC-RSV-007 and writes no second audit row');
 select create_stock_document(jsonb_build_object('kind','receive','warehouse_id','26930000-0000-0000-0000-000000002002'), jsonb_build_array(jsonb_build_object('item_id','26930000-0000-0000-0000-000000001001','quantity',10,'unit_cost',5)), true);
-select is(rsv_t_n($$ select count(*) from stock_ledger $$), 1::bigint, 'setup: one ledger row, 10 on hand');
+select is(rsv_t_n($$ select count(*) from stock_ledger where item_id = '26930000-0000-0000-0000-000000001001' $$), 1::bigint, 'setup: one ledger row, 10 on hand');
 
 -- AC-RSV-001
 select rsv_as('26930000-0000-0000-0000-0000000000a2');
@@ -69,7 +69,7 @@ select is(rsv_t_n($$ select count(*) from stock_reservation_events where action 
 select is(rsv_t_free('qty_on_hand'), '10', 'AC-RSV-001 on hand is still 10') ;
 select is(rsv_t_free('reserved_qty'), '4', 'AC-RSV-001 reserved reads 4');
 select is(rsv_t_free('free_qty'), '6', 'AC-RSV-001 free reads 6');
-select is(rsv_t_n($$ select count(*) from stock_ledger $$), 1::bigint, 'AC-RSV-001 the ledger is unchanged');
+select is(rsv_t_n($$ select count(*) from stock_ledger where item_id = '26930000-0000-0000-0000-000000001001' $$), 1::bigint, 'AC-RSV-001 the ledger is unchanged');
 select is(rsv_t_n($$ select (qty_on_hand * 1000)::bigint from stock_balances where warehouse_id = '26930000-0000-0000-0000-000000002002' and item_id = '26930000-0000-0000-0000-000000001001' $$), 10000::bigint, 'AC-RSV-001 the balance is unchanged');
 select is((select r->>'qty_on_hand' from jsonb_array_elements(get_stock_on_hand('26930000-0000-0000-0000-000000002002', '26930000-0000-0000-0000-000000001001')) r), '10', 'AC-RSV-001 get_stock_on_hand is unchanged by reservations');
 select is((select (r->'reservations'->0->>'work_order_id') from jsonb_array_elements(get_stock_free_reserved('26930000-0000-0000-0000-000000002002', '26930000-0000-0000-0000-000000001001')) r), '26930000-0000-0000-0000-000000000401', 'AC-RSV-001 the read names the reserving work order');
@@ -151,13 +151,13 @@ select throws_ok($$ update stock_reservations set quantity = 99 $$, '42501', nul
 select throws_ok($$ delete from stock_reservations $$, '42501', null, 'AC-RSV-015 no client delete');
 select throws_ok($$ insert into stock_reservation_events (reservation_id, action, qty) values ((select id from stock_reservations limit 1), 'reserve', 1) $$, '42501', null, 'AC-RSV-015 no client event write');
 select rsv_as('26930000-0000-0000-0000-0000000000b1');
-select is(rsv_t_n($$ select count(*) from stock_reservations $$), 0::bigint, 'AC-RSV-015 another organisation sees no reservations');
-select is(rsv_t_n($$ select count(*) from stock_reservation_events $$), 0::bigint, 'AC-RSV-015 nor events');
+select is((select count(*) from stock_reservations), 0::bigint, 'AC-RSV-015 another organisation sees no reservations (read as its own authenticated user, RLS forced)');
+select is((select count(*) from stock_reservation_events), 0::bigint, 'AC-RSV-015 nor events');
 select is(get_stock_free_reserved(null, null), '[]'::jsonb, 'AC-RSV-015 nor a read (its own setting is off)');
 select is(set_stock_reservations(true), true, 'AC-RSV-015 the other organisation turns it on for itself');
 select is(get_stock_free_reserved('26930000-0000-0000-0000-000000002002', '26930000-0000-0000-0000-000000001001'), '[]'::jsonb, 'AC-RSV-015 and still reads none of ours');
 select throws_ok($$ select reserve_stock('26930000-0000-0000-0000-000000000401', '26930000-0000-0000-0000-000000001001', '26930000-0000-0000-0000-000000002002', 1) $$, 'P0001', 'RSV_NOT_FOUND: the work order is not in your organisation', 'AC-RSV-015 it cannot reserve for our work order');
-select throws_ok($$ select release_reservation((select id from public.rsv_t_ids() limit 1), 1, 'x') $$, 'P0001', 'RSV_NOT_FOUND: the reservation is not in your organisation', 'AC-RSV-015 it cannot release ours');
+select throws_ok($$ select release_reservation((select x from public.rsv_t_ids() x limit 1), 1, 'x') $$, 'P0001', 'RSV_NOT_FOUND: the reservation is not in your organisation', 'AC-RSV-015 it cannot release ours');
 select rsv_as('26930000-0000-0000-0000-0000000000a1');
 select is((select stock_reservations from organizations where id = '26930000-0000-0000-0000-00000000000a'), true, 'AC-RSV-015 our setting is untouched by theirs');
 select is(set_stock_reservations(false), false, 'AC-RSV-007 an Admin turns it off');
