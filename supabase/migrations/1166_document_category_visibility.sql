@@ -1,4 +1,4 @@
--- 1092_document_category_visibility.sql — #2579 step 3 of 5: the visibility rule, enforced in the database.
+-- 1166_document_category_visibility.sql — #2579 step 3 of 5: the visibility rule, enforced in the database.
 -- One predicate: the caller's role (the existing auth_role() seam, ADR-0016) is a viewer role of the document's category, or the
 -- caller is an Admin (OD-DCV-3). It is a RESTRICTIVE policy on the register table and on the project-documents bucket, so it ANDs
 -- with every existing permissive policy and nothing about who may write changes. Each policy keeps the (select auth_role())
