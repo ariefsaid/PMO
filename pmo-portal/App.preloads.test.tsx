@@ -31,7 +31,7 @@ describe('#2097: route preload rules load the route namespace in parallel with i
     ['/', ['dashboard', 'home']],
     ['/procurement', ['procurement', 'procurementList']],
     ['/finance/receivables', ['finance', 'financeHub']],
-    ['/administration/users', ['administration', 'costAttribution', 'plans', 'procurement']],
+    ['/administration/users', ['administration', 'costAttribution', 'plans', 'procurement', 'safety']],
     ['/settings/profile', ['profilePreferences']],
     ['/stock/ledger', ['stock']],
   ])('%s preloads %j', (route, expected) => {

@@ -154,17 +154,17 @@ const CertificateRecord: React.FC<{ view: CertificateView }> = ({ view }) => {
         <RecordSection title={t('subcontractCertificates:section.lines', 'Measured work at the agreed rates')}>
           {d.lines.length === 0
             ? <p className="text-sm text-muted-foreground">{t('subcontractCertificates:noLines', 'Nothing measured and rated this month.')}</p>
-            : <DataTable accessibleName={t('subcontractCertificates:section.lines', 'Measured work at the agreed rates')} columns={lineColumns} rows={d.lines} rowKey={(l) => l.boq_item_id} />}
+            : <DataTable accessibleName={t('subcontractCertificates:section.lines', 'Measured work at the agreed rates')} columns={lineColumns} rows={d.lines} rowKey={(l) => l.boq_item_id} tableId="subcontract-certificate-lines" />}
         </RecordSection>
         {editable && (d.tuples?.length ?? 0) > 0 && (
           <RecordSection title={t('subcontractCertificates:section.days', 'Measured days')}>
-            <DataTable accessibleName={t('subcontractCertificates:section.days', 'Measured days')} columns={dayColumns} rows={d.tuples ?? []} rowKey={(x) => `${x.work_date}:${x.work_order_line_id}:${x.crew_id}`} />
+            <DataTable accessibleName={t('subcontractCertificates:section.days', 'Measured days')} columns={dayColumns} rows={d.tuples ?? []} rowKey={(x) => `${x.work_date}:${x.work_order_line_id}:${x.crew_id}`} tableId="subcontract-certificate-days" />
           </RecordSection>
         )}
         <RecordSection title={t('subcontractCertificates:section.excluded', 'Left out')}>
           {d.excluded.length === 0
             ? <p className="text-sm text-muted-foreground">{t('subcontractCertificates:noExcluded', 'Nothing is left out.')}</p>
-            : <DataTable accessibleName={t('subcontractCertificates:section.excluded', 'Left out')} columns={excludedColumns} rows={d.excluded} rowKey={(x) => `${x.work_date}:${x.work_order_line_id}:${x.reason}:${x.crew_id ?? ''}`} />}
+            : <DataTable accessibleName={t('subcontractCertificates:section.excluded', 'Left out')} columns={excludedColumns} rows={d.excluded} rowKey={(x) => `${x.work_date}:${x.work_order_line_id}:${x.reason}:${x.crew_id ?? ''}`} tableId="subcontract-certificate-excluded" />}
         </RecordSection>
         <RecordSection title={t('subcontractCertificates:section.backcharges', 'Backcharges')}
           actions={editable ? <Button size="sm" variant="outline" onClick={() => { setDialogError(null); setDialog('backcharge'); }}>{t('subcontractCertificates:recordBackcharge', 'Record a backcharge')}</Button> : undefined}>

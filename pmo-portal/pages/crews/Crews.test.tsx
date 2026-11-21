@@ -18,6 +18,10 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole: 'Admin' as const, effectiveRole: 'Admin' as const }),
 }));
 vi.mock('./CrewList', () => ({ CrewList: () => <div>crew master</div> }));
+// #2704's loans card and #2705's check-in card are siblings of the views above: each reads the toast provider
+// (and loans also the record queries) and owns its own suite, so this page test holds them inert like the rest.
+vi.mock('./CrewLoans', () => ({ CrewLoans: () => null }));
+vi.mock('./CheckInRequests', () => ({ CheckInRequests: () => null }));
 vi.mock('./WorkOrderRoster', () => ({ WorkOrderRoster: () => <div>roster view</div> }));
 vi.mock('./AttendanceTick', () => ({ AttendanceTick: () => <div>attendance tick</div> }));
 vi.mock('./CrewImports', () => ({ CrewImports: () => <div>crew imports</div> }));

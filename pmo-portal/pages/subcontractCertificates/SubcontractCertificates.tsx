@@ -132,7 +132,7 @@ const CertificateList: React.FC<{ onNew: () => void; canPrepare: boolean }> = ({
         <ListState variant="empty" icon="reports" title={t('subcontractCertificates:empty', 'No certificates yet')}
           action={canPrepare ? { label: t('subcontractCertificates:new', 'New certificate'), onClick: onNew } : undefined} />
       ) : (
-        <DataTable accessibleName={t('subcontractCertificates:title', 'Progress certificates')} columns={columns} rows={rows} rowKey={(r) => r.id} />
+        <DataTable accessibleName={t('subcontractCertificates:title', 'Progress certificates')} columns={columns} rows={rows} rowKey={(r) => r.id} tableId="subcontract-certificates-table" />
       )}
       <div className="mt-3 flex gap-2">
         {offset > 0 && <Button variant="outline" onClick={() => setOffset(Math.max(0, offset - 50))}>{t('subcontractCertificates:newer', 'Newer')}</Button>}
@@ -160,7 +160,7 @@ const RateCard: React.FC<{ canManage: boolean; onNew: () => void }> = ({ canMana
     return <ListState variant="empty" icon="reports" title={t('subcontractCertificates:rateEmpty', 'No rates set yet')}
       action={canManage ? { label: t('subcontractCertificates:addRate', 'Set a rate'), onClick: onNew } : undefined} />;
   }
-  return <DataTable accessibleName={t('subcontractCertificates:rateCard', 'Rate card')} columns={columns} rows={rates.data} rowKey={(r) => r.id} />;
+  return <DataTable accessibleName={t('subcontractCertificates:rateCard', 'Rate card')} columns={columns} rows={rates.data} rowKey={(r) => r.id} tableId="subcontract-rate-card-table" />;
 };
 
 /** `/subcontract-certificates` (#2584): the certificates, and the subcontractor rate card the server prices them from. */

@@ -187,7 +187,7 @@ export default function PurchaseOrderSettingsSection() {
                           aria-label={`${t('procurement:poSettings.removeCollector', 'Remove collector')}: ${collector}`}
                           onClick={() => handleRemoveCollector(collector)}
                           disabled={mutations.setSettings.isPending}
-                          className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                          className="h-7 text-xs text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                         >
                           {t('common.remove', 'Remove')}
                         </Button>
@@ -257,7 +257,7 @@ export default function PurchaseOrderSettingsSection() {
                           aria-label={`${t('procurement:poSettings.removeBlock', 'Remove signature block')}: ${block}`}
                           onClick={() => handleRemoveBlock(block)}
                           disabled={mutations.setSettings.isPending}
-                          className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                          className="h-7 text-xs text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                         >
                           {t('common.remove', 'Remove')}
                         </Button>

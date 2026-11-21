@@ -30,10 +30,9 @@ const CrewCard: React.FC<{ row: CrewAttendanceRateRow; target: number | null }> 
   return (
     <li>
       <Card>
-        <CardHead>
+        <CardHead actions={below ? <BelowTarget /> : undefined}>
           <span className="flex flex-wrap items-center gap-2">
             {row.crew_code} · {row.crew_name}
-            {below && <BelowTarget />}
           </span>
         </CardHead>
         <CardPad>
