@@ -6,7 +6,7 @@
 --   drop policy storage_objects_project_doc_light on storage.objects 'AC-LA-003 the project-documents bucket is closed'
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(9);
 
 insert into organizations (id, name, default_currency, built_in_roles_enabled)
   values ('27130000-0000-0000-0000-00000000000a', 'LA Reads', 'IDR', true);
@@ -21,7 +21,10 @@ insert into approval_chain_steps (org_id, position, role, label, only_over_plan)
 insert into expense_account_map (org_id, account_key, erp_account)
   values ('27130000-0000-0000-0000-00000000000a', 'project_direct_cost', '6000');
 
--- every table in the deny set carries the restrictive select policy (per-command shape, one initplan call)
+-- every table in the deny set confines a field account, by the restrictive select policy or — for the six tables
+-- whose own standing assertion pins their policy set (0128 service-role only, 0212, bfy_column_nullable,
+-- equipment_status) — by the light test inside the table's own select policy, or by carrying no policy at all.
+-- The goal is one: no office row reaches a field account.
 select is((select count(*)::int from unnest(array[
     'approval_chain_steps', 'approval_stand_ins', 'approval_step_pins', 'billing_stage_template_documents',
     'billing_stage_templates', 'budget_category_account_map', 'budget_version_account_erp_mirror',
@@ -41,8 +44,44 @@ select is((select count(*)::int from unnest(array[
                      where p.schemaname = 'public' and p.tablename = x.t
                        and p.policyname = 'light_account_deny_select'
                        and p.cmd = 'SELECT' and p.permissive = 'RESTRICTIVE'
-                       and p.qual like '%actor_is_light%')), 0,
-  'AC-LA-003 every office table without a field-account screen carries the restrictive select policy');
+                       and p.qual like '%actor_is_light%')
+    and not exists (select 1 from pg_policies p
+                     where p.schemaname = 'public' and p.tablename = x.t
+                       and p.cmd in ('SELECT', 'ALL') and p.permissive = 'PERMISSIVE'
+                       and p.qual like '%actor_is_light%')
+    and exists (select 1 from pg_policies p
+                 where p.schemaname = 'public' and p.tablename = x.t)), 0,
+  'AC-LA-003 every office table without a field-account screen confines a field account');
+
+-- the alternate path is exactly these six: a table cannot leave the deny set quietly.
+select is((select array_agg(x.t order by x.t) from unnest(array[
+    'approval_chain_steps', 'approval_stand_ins', 'approval_step_pins', 'billing_stage_template_documents',
+    'billing_stage_templates', 'budget_category_account_map', 'budget_version_account_erp_mirror',
+    'budget_version_erp_mirror', 'claim_billing_stage_documents', 'claim_billing_stages', 'crew_loans',
+    'equipment_downtime_proofs', 'equipment_status_days', 'equipment_status_history', 'equipment_usage_entries',
+    'error_events', 'expense_account_map', 'external_domain_ownership', 'external_master_records',
+    'external_project_bindings', 'external_ref_lineage', 'external_reference_items', 'external_refs',
+    'external_sync_watermarks', 'incoming_payment_allocations', 'material_request_events', 'material_request_lines',
+    'material_request_settings', 'material_request_steps', 'material_requests', 'odoo_stock_cost_lines',
+    'org_imprest_settings', 'org_three_way_match_settings', 'payment_files', 'procurement_doc_counters',
+    'procurement_documents', 'procurement_import_runs', 'procurement_invoice_files', 'procurement_quotation_files',
+    'procurement_receipt_files', 'procurement_status_events', 'progress_assessment_quantities',
+    'progress_claim_evidence', 'progress_claim_lines', 'purchase_order_files', 'purchase_request_files',
+    'retention_releases', 'rfq_files', 'sales_invoice_authors', 'sales_invoice_submit_authorizations',
+    'spend_approvers', 'stock_erp_mirror', 'stock_reorder_levels', 'task_dependencies']) as x(t)
+  where not exists (select 1 from pg_policies p
+                     where p.schemaname = 'public' and p.tablename = x.t
+                       and p.policyname = 'light_account_deny_select'
+                       and p.cmd = 'SELECT' and p.permissive = 'RESTRICTIVE')
+    and (not exists (select 1 from pg_policies p
+                      where p.schemaname = 'public' and p.tablename = x.t)
+         or exists (select 1 from pg_policies p
+                     where p.schemaname = 'public' and p.tablename = x.t
+                       and p.cmd in ('SELECT', 'ALL') and p.permissive = 'PERMISSIVE'
+                       and p.qual like '%actor_is_light%'))),
+  array['budget_version_erp_mirror', 'equipment_downtime_proofs', 'equipment_status_days',
+        'equipment_status_history', 'error_events', 'external_reference_items'],
+  'AC-LA-003 six tables carry the light test in their own policy, or no policy at all (0128, 0212, bfy, equipment_status)');
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
