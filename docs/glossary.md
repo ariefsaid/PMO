@@ -654,6 +654,11 @@ project, so a work order lists its open tasks.
 **Stock location** — a place that holds stock: a warehouse, a **site**, a **yard** or **staging** location. A yard or
 staging location may name a project and behaves as any location for every posting rule.
 
+**Site cover** (#2694) — the protection value an organisation records on a stock location (`stock_warehouses.cover_value`).
+A plain recorded figure the client controls: PMO never computes, insures or enforces it, and blank means not recorded.
+**Stock at risk** (the #2694 report) — the value held at a location above its cover: `max(held − cover, 0)`; with no cover
+recorded the whole held value counts as at risk. The report lists every location holding stock, exposure first.
+
 **Yard** (*halaman proyek*) — a stock location on or near a project's site where deliveries wait before use.
 **Staging** (*area penyiapan*) — a stock location where materials are made ready for a work order, between the yard and the
 point of use.
