@@ -52,18 +52,24 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
   ('27050000-0000-0000-0000-000000000404', '27050000-0000-0000-0000-00000000000a', '27050000-0000-0000-0000-0000000000d1', 'PCI WO area two', 'Issued', 1000, 'exclusive', 0, 0, 0, 100);
 insert into crews (id, org_id, code, name, field_controller_id) values
   ('27050000-0000-0000-0000-000000000c01', '27050000-0000-0000-0000-00000000000a', 'PCI-1', 'PCI crew one', '27050000-0000-0000-0000-0000000000a5'),
-  ('27050000-0000-0000-0000-000000000c02', '27050000-0000-0000-0000-00000000000a', 'PCI-2', 'PCI crew two', '27050000-0000-0000-0000-0000000000a9');
+  ('27050000-0000-0000-0000-000000000c02', '27050000-0000-0000-0000-00000000000a', 'PCI-2', 'PCI crew two', '27050000-0000-0000-0000-0000000000a9'),
+  ('27050000-0000-0000-0000-000000000c03', '27050000-0000-0000-0000-00000000000a', 'PCI-3', 'PCI crew three', null),
+  ('27050000-0000-0000-0000-000000000c04', '27050000-0000-0000-0000-00000000000a', 'PCI-4', 'PCI crew four', null);
 insert into people (id, org_id, kind, name, profile_id) values
   ('27050000-0000-0000-0000-000000000f01', '27050000-0000-0000-0000-00000000000a', 'own', 'PCI Field person', '27050000-0000-0000-0000-0000000000a6'),
-  ('27050000-0000-0000-0000-000000000f04', '27050000-0000-0000-0000-00000000000a', 'own', 'PCI Eng person',   '27050000-0000-0000-0000-0000000000a4');
+  ('27050000-0000-0000-0000-000000000f04', '27050000-0000-0000-0000-00000000000a', 'own', 'PCI Eng person',   '27050000-0000-0000-0000-0000000000a4'),
+  ('27050000-0000-0000-0000-000000000f05', '27050000-0000-0000-0000-00000000000a', 'own', 'PCI Foreman person', '27050000-0000-0000-0000-0000000000a5'),
+  ('27050000-0000-0000-0000-000000000f07', '27050000-0000-0000-0000-00000000000a', 'own', 'PCI Other person', '27050000-0000-0000-0000-0000000000a7');
 insert into crew_members (org_id, crew_id, worker_id, valid_from) values
   ('27050000-0000-0000-0000-00000000000a', '27050000-0000-0000-0000-000000000c01', '27050000-0000-0000-0000-000000000f01', current_date - 30),
-  ('27050000-0000-0000-0000-00000000000a', '27050000-0000-0000-0000-000000000c02', '27050000-0000-0000-0000-000000000f04', current_date - 30);
+  ('27050000-0000-0000-0000-00000000000a', '27050000-0000-0000-0000-000000000c02', '27050000-0000-0000-0000-000000000f04', current_date - 30),
+  ('27050000-0000-0000-0000-00000000000a', '27050000-0000-0000-0000-000000000c03', '27050000-0000-0000-0000-000000000f07', current_date - 30),
+  ('27050000-0000-0000-0000-00000000000a', '27050000-0000-0000-0000-000000000c04', '27050000-0000-0000-0000-000000000f05', current_date - 30);
 insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values
   ('27050000-0000-0000-0000-00000000000a', '27050000-0000-0000-0000-000000000401', '27050000-0000-0000-0000-000000000c01', current_date - 5),
   ('27050000-0000-0000-0000-00000000000a', '27050000-0000-0000-0000-000000000401', '27050000-0000-0000-0000-000000000c02', current_date - 5),
-  ('27050000-0000-0000-0000-00000000000a', '27050000-0000-0000-0000-000000000402', '27050000-0000-0000-0000-000000000c01', current_date - 5),
-  ('27050000-0000-0000-0000-00000000000a', '27050000-0000-0000-0000-000000000404', '27050000-0000-0000-0000-000000000c01', current_date - 5);
+  ('27050000-0000-0000-0000-00000000000a', '27050000-0000-0000-0000-000000000402', '27050000-0000-0000-0000-000000000c03', current_date - 5),
+  ('27050000-0000-0000-0000-00000000000a', '27050000-0000-0000-0000-000000000404', '27050000-0000-0000-0000-000000000c04', current_date - 5);
 
 -- AC-PCI-001 area columns: all set or all NULL, in range
 select lives_ok($$ update work_orders set area_lat = 1, area_lng = 2, area_radius_m = 50 where id = '27050000-0000-0000-0000-000000000402' $$, 'AC-PCI-001 a full area is accepted');
@@ -87,8 +93,10 @@ set local role authenticated;
 -- AC-PCI-008 / 003: the light Field user (member of crew one)
 select pg_temp.act_as('27050000-0000-0000-0000-0000000000a6');
 select is(public.actor_is_light(), true, 'AC-PCI-008 the field user is a light account');
+select pg_temp.act_as('27050000-0000-0000-0000-0000000000a7');
 select is(public.phone_check_in('27050000-0000-0000-0000-000000000402', null, null, null, null)->>'outcome', 'no_area',
   'AC-PCI-003 no area: attendance is recorded and no position is asked');
+select pg_temp.act_as('27050000-0000-0000-0000-0000000000a6');
 select is(public.phone_check_in('27050000-0000-0000-0000-000000000401', null, null, null, null)->>'status', 'needs_position',
   'AC-PCI-003 an area but no position yet: the RPC asks for one and writes nothing');
 -- AC-PCI-007 bad input
@@ -106,6 +114,7 @@ select is((public.phone_check_in('27050000-0000-0000-0000-000000000401', '270500
 select is(public.phone_check_in('27050000-0000-0000-0000-000000000403', null, 0.0001, 0, 10)->>'outcome', 'not_rostered',
   'AC-PCI-006 inside the area but not rostered is pending');
 -- no position (permission refused): pending, no coordinates
+select pg_temp.act_as('27050000-0000-0000-0000-0000000000a5');
 select is(public.phone_check_in('27050000-0000-0000-0000-000000000404', null, null, null, null, 8, true)->>'outcome', 'no_position',
   'AC-PCI-005 no position at all is a pending request');
 reset role;
@@ -147,13 +156,13 @@ grant select on pci_ids to authenticated;
 -- AC-PCI-011 position privacy (setting NULL)
 set local role authenticated;
 select pg_temp.act_as('27050000-0000-0000-0000-0000000000a6');
-select is((select count(*)::int from phone_check_ins), 4, 'AC-PCI-011 a person reads their own check-ins');
+select is((select count(*)::int from phone_check_ins), 3, 'AC-PCI-011 a person reads their own check-ins');
 select pg_temp.act_as('27050000-0000-0000-0000-0000000000a4');
 select is((select count(*)::int from phone_check_ins), 1, 'AC-PCI-011 a peer reads none of another person''s positions');
 select pg_temp.act_as('27050000-0000-0000-0000-0000000000a9');
 select is((select count(*)::int from phone_check_ins), 1, 'AC-PCI-011 a crew controller reads only their own crew''s check-ins');
 select pg_temp.act_as('27050000-0000-0000-0000-0000000000a5');
-select is((select count(*)::int from phone_check_ins), 2, 'AC-PCI-011 the other crew''s controller reads that crew''s check-ins (those that name it)');
+select is((select count(*)::int from phone_check_ins), 3, 'AC-PCI-011 a crew controller reads their crew''s check-ins that name it, plus their own');
 select pg_temp.act_as('27050000-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from phone_check_ins), 5, 'AC-PCI-011 Admin reads every check-in of the organisation');
 select pg_temp.act_as('27050000-0000-0000-0000-0000000000a7');
@@ -228,8 +237,8 @@ select is((select phone_check_in_supervisor_role from organizations where id = '
 -- 1214 my_home carries only a has_area flag, never the coordinates
 set local role authenticated;
 select pg_temp.act_as('27050000-0000-0000-0000-0000000000a6');
-select is((select count(*)::int from jsonb_array_elements(public.my_home()->'work_orders') e where (e->>'has_area')::boolean), 2,
-  'AC-PCI-003 my_home flags the two rostered work orders that have an area');
+select is((select count(*)::int from jsonb_array_elements(public.my_home()->'work_orders') e where (e->>'has_area')::boolean), 1,
+  'AC-PCI-003 my_home flags the rostered work order that has an area');
 select ok(public.my_home()::text !~* '(area_lat|area_lng|area_radius|latitude|longitude)', 'AC-PCI-011 my_home never carries the coordinates');
 reset role;
 
