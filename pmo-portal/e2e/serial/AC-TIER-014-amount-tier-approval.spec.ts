@@ -23,9 +23,20 @@ const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
 );
 
 test.setTimeout(90_000);
+test.use({ deviceScaleFactor: 2 });
+const EVIDENCE = '../docs/evidence/1215/2695';
+const shots = async (page: import('@playwright/test').Page, locator: import('@playwright/test').Locator, name: string) => {
+  for (const [label, width, height] of [['phone', 390, 844], ['desktop', 1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await locator.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${EVIDENCE}/${name}-${label}.png`, fullPage: true });
+  }
+};
 
 let admin: SupabaseClient | undefined;
 let procurementId = '';
+let projectId = '';
+let projectRequestId = '';
 let priorTiers: boolean | null = null;
 let approverName = '';
 
@@ -58,6 +69,24 @@ test.beforeEach(async () => {
     .single();
   if (pr.error) throw new Error(`AC-TIER-014 fixture procurement: ${pr.error.message}`);
   procurementId = pr.data.id;
+
+  // A second request, on a project with an Active budget line, so the request page has budget figures to show.
+  const project = await admin.from('projects').insert({ org_id: ORG_ID, name: tag, status: 'Ongoing Project' }).select('id').single();
+  if (project.error) throw new Error(`AC-TIER-014 fixture project: ${project.error.message}`);
+  projectId = project.data.id;
+  const version = await admin.from('budget_versions').insert({ org_id: ORG_ID, project_id: projectId, name: tag, version: 1, status: 'Draft' }).select('id').single();
+  if (version.error) throw new Error(`AC-TIER-014 fixture budget version: ${version.error.message}`);
+  const line = await admin.from('budget_line_items').insert({ org_id: ORG_ID, budget_version_id: version.data.id, category: 'Materials', budgeted_amount: 1_000_000 });
+  if (line.error) throw new Error(`AC-TIER-014 fixture budget line: ${line.error.message}`);
+  const activate = await admin.from('budget_versions').update({ status: 'Active' }).eq('id', version.data.id);
+  if (activate.error) throw new Error(`AC-TIER-014 fixture budget activate: ${activate.error.message}`);
+  const projectRequest = await admin
+    .from('procurements')
+    .insert({ org_id: ORG_ID, title: `${tag} cable`, project_id: projectId, requested_by_id: ENGINEER_ID, status: 'Requested', total_value: 50_000, budget_category: 'Materials' })
+    .select('id')
+    .single();
+  if (projectRequest.error) throw new Error(`AC-TIER-014 fixture project request: ${projectRequest.error.message}`);
+  projectRequestId = projectRequest.data.id;
 });
 
 test.afterEach(async () => {
@@ -69,10 +98,21 @@ test.afterEach(async () => {
     fail('events', (await admin.from('procurement_status_events').delete().eq('procurement_id', procurementId)).error);
     fail('procurement', (await admin.from('procurements').delete().eq('id', procurementId)).error);
   }
+  if (projectRequestId) {
+    fail('project request events', (await admin.from('procurement_status_events').delete().eq('procurement_id', projectRequestId)).error);
+    fail('project request', (await admin.from('procurements').delete().eq('id', projectRequestId)).error);
+  }
+  if (projectId) {
+    // Line items go by cascade: a direct delete is refused by budget_line_items_draft_guard (Active).
+    fail('versions', (await admin.from('budget_versions').delete().eq('project_id', projectId)).error);
+    fail('project', (await admin.from('projects').delete().eq('id', projectId)).error);
+  }
   fail('approvers', (await admin.from('spend_approvers').delete().eq('org_id', ORG_ID).is('project_id', null).in('profile_id', [BASE_ID, FINANCE_ID])).error);
   if (priorTiers === null) fail('setting', (await admin.from('spend_approval_settings').delete().eq('org_id', ORG_ID)).error);
   else fail('setting', (await admin.from('spend_approval_settings').update({ tiers_enabled: priorTiers }).eq('org_id', ORG_ID)).error);
   procurementId = '';
+  projectId = '';
+  projectRequestId = '';
 });
 
 test('AC-TIER-014 a large overhead request is decided by the higher tier, and only by them', async ({ page }) => {
@@ -93,4 +133,18 @@ test('AC-TIER-014 a large overhead request is decided by the higher tier, and on
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   await dialog.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Approved', { timeout: 15_000 });
+
+  // Evidence (#2695): the request page decision strip with the budget used, and the spend approvers card with tiers on.
+  await signIn(page, 'exec@acme.test');
+  await page.goto(`/procurement/${projectRequestId}`);
+  await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
+  const strip = page.getByTestId('sod-ready-hint');
+  await strip.waitFor({ state: 'visible', timeout: 15_000 });
+  await shots(page, strip, 'request-budget-used');
+
+  await signIn(page, 'admin@acme.test');
+  await page.goto('/administration/accounting');
+  const card = page.locator('#spend-approvers');
+  await card.waitFor({ state: 'visible', timeout: 15_000 });
+  await shots(page, card, 'spend-approvers-tiers');
 });
