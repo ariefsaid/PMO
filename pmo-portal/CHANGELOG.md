@@ -10,6 +10,19 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.43.1](https://github.com/ariefsaid/PMO/compare/v0.43.0...v0.43.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* align paid invoice drawer details ([04a5ac2](https://github.com/ariefsaid/PMO/commit/04a5ac202f3f8c6b2fb79d71de8bd6493a06b65f))
+* clarify paid invoice details ([85c8663](https://github.com/ariefsaid/PMO/commit/85c8663f9944dbff90e8a3fcf3fb8f4dda814457))
+* clarify unavailable payment dates ([0f4b82d](https://github.com/ariefsaid/PMO/commit/0f4b82df011ce5ac331669a238193a6cbae5f76a))
+* **finance:** show paid wording, amount, and date on paid sales invoice ([#2442](https://github.com/ariefsaid/PMO/issues/2442)) ([800d053](https://github.com/ariefsaid/PMO/commit/800d05304d6f744f29fbf0a2e615c2087042abcd))
+* **finance:** show paid wording, amount, and date on paid sales invoice ([#2442](https://github.com/ariefsaid/PMO/issues/2442)) ([1672fe2](https://github.com/ariefsaid/PMO/commit/1672fe279d3601ade1b948ab348918d9aed88930))
+* keep paid invoice delivery evidence and align payment wording ([61c683a](https://github.com/ariefsaid/PMO/commit/61c683a7f78f241f83a02f5d21c80ae747051597))
+* scope invoice drawer receipt read ([c2eaeee](https://github.com/ariefsaid/PMO/commit/c2eaeee46febc918213ded638ac6070312b8892a))
+
 ## [0.43.0](https://github.com/ariefsaid/PMO/compare/v0.42.0...v0.43.0) (2026-11-20)
 
 
