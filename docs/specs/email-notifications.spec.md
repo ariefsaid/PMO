@@ -40,3 +40,8 @@ When no event is passed, one classifier inside `notify_workflow_user` maps the e
 - **AC-EML-013** Given non-Admin writes to event settings, or any client select on the outbox, then denied. *(pgTAP)*
 - **AC-EML-014** Given the settings screen, then Admin toggles events, picks roles and language; labels render in English and Bahasa; the opt-out switch saves. *(Vitest; phone and desktop screenshots)*
 - **AC-EML-015** Given an unset sender secret end to end, then the in-app notification is delivered as before. *(pgTAP: in-app row unchanged; existing notification tests stay green untouched)*
+
+## Review notes
+- **Classifier.** `notify_workflow_user` stamps `metadata.email_event` from `notification_email_event(title, entity_type)` when the caller passes no `p_email_event`: titles ending " awaiting your approval" map to `approval_request`; "Reminder: a task is overdue" and "Issue is overdue" map to `overdue_item`; entity type `expiry_document` maps to `document_expiry`. No producer function was edited, so a producer whose title changes would stop being recognised.
+- **Guard.** `supabase/tests/1221_email_real_producers.test.sql` drives each real producer through its own entry point (procurement transition, expense claim submit, timesheet submit, task reminder run, overdue issue escalation, document expiry run) and asserts an `email_outbox` row with the right event. Changing any of those title strings (or the expiry entity type) turns its case red (mutation-checked; results in the build report). A new producer that wants email should pass `p_email_event` explicitly instead of relying on a title.
+- **Billing steps.** No producer on `origin/dev`; the billing work passes `p_email_event => 'billing_step'`.
