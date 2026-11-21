@@ -7,6 +7,7 @@ begin
   end if;
 end $$;
 drop trigger if exists profiles_built_in_role_sync on public.profiles;
+drop trigger if exists profiles_zz_built_in_role_sync on public.profiles;
 drop function if exists public.profiles_built_in_role_sync();
 revoke update (built_in_role) on public.profiles from authenticated;
 alter table public.profiles drop column if exists built_in_role;
