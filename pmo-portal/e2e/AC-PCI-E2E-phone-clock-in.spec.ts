@@ -27,6 +27,7 @@ let projectId = '';
 let workOrderId = '';
 let crewId = '';
 let personId = '';
+let createdPerson = false;
 let priorSetting = false;
 const run = `E2E-PCI-${Date.now()}`;
 
@@ -50,7 +51,11 @@ test.beforeEach(async () => {
   crewId = need('crew', await admin.from('crews').insert({
     org_id: ORG_ID, code: run.slice(-18), name: `${run} crew`, kind: 'own',
   }).select('id').single()).id;
-  personId = need('person', await admin.from('people').insert({ org_id: ORG_ID, kind: 'own', name: `${run} person`, profile_id: ENGINEER_ID }).select('id').single()).id;
+  // One live person per profile: reuse one another journey left, create only when none exists, and remember which.
+  const live = await admin.from('people').select('id').eq('org_id', ORG_ID).eq('profile_id', ENGINEER_ID).is('archived_at', null).maybeSingle();
+  if (live.error) throw new Error(`AC-PCI-E2E live person: ${live.error.message}`);
+  createdPerson = !live.data;
+  personId = live.data?.id ?? need('person', await admin.from('people').insert({ org_id: ORG_ID, kind: 'own', name: `${run} person`, profile_id: ENGINEER_ID }).select('id').single()).id;
   const from = new Date(); from.setDate(from.getDate() - 2);
   const day = from.toISOString().slice(0, 10);
   need('member', await admin.from('crew_members').insert({ org_id: ORG_ID, crew_id: crewId, worker_id: personId, valid_from: day }).select('id').single());
@@ -64,6 +69,7 @@ test.afterEach(async () => {
   await admin.from('attendance_days').delete().eq('work_order_id', workOrderId);
   await admin.from('work_order_crews').delete().eq('crew_id', crewId);
   await admin.from('crew_members').delete().eq('crew_id', crewId);
+  if (createdPerson) await admin.from('people').delete().eq('id', personId);
   await admin.from('organizations').update({ built_in_roles_enabled: priorSetting }).eq('id', ORG_ID);
 });
 
