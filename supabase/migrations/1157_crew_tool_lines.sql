@@ -1,4 +1,4 @@
--- 1080_crew_tool_lines.sql — #2581 (map #2516): the counted hand-tool register per crew.
+-- 1157_crew_tool_lines.sql — #2581 (map #2516): the counted hand-tool register per crew.
 -- Spec: docs/specs/crew-tools-register.spec.md (FR-CTR-001..005, 016, 017). Plan: docs/plans/2026-11-20-crew-tools-register.md.
 -- Proven by supabase/tests/crew_tools.test.sql. Reports, the task link and the RPCs follow in 1081..1083.
 --
@@ -6,7 +6,7 @@
 -- equipment assets (usage, costing, availability) and not stock items (warehouse ledger): OD-CTR-1.
 -- Writes are direct under RLS + column grants for a crew manager (`crew_can_manage()`); every change is kept in
 -- record history. The crew is `on delete restrict` and a crew holding live lines cannot be archived (FR-CTR-005).
--- Reversal: rollback/1080_crew_tool_lines_down.sql.
+-- Reversal: rollback/1157_crew_tool_lines_down.sql.
 
 create table public.crew_tool_lines (
   id          uuid primary key default gen_random_uuid(),

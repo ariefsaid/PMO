@@ -1,4 +1,4 @@
--- Reverse of 1080_crew_tool_lines.sql. Reverse 1083, 1082 and 1081 first (they depend on this table).
+-- Reverse of 1157_crew_tool_lines.sql. Reverse 1083, 1082 and 1081 first (they depend on this table).
 -- Restores 1035's guard_crew_refs() body and 0448's record_history_visible() body.
 drop trigger if exists crew_tool_lines_zz_record_change on public.crew_tool_lines;
 delete from public.record_history_config where entity_type = 'crew_tool_line';
