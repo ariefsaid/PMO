@@ -20,6 +20,7 @@ import {
 import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { StockTagsPanel } from './StockTagsPanel';
 import { WorkOrderIssueThresholdPanel } from './WorkOrderIssueThresholdPanel';
+import { StockTransferSettings } from './StockTransferSettings';
 import { isOwnershipCacheSynced, routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { parseStockError } from '@/src/lib/stockErrors';
@@ -228,6 +229,7 @@ const StockSetup: React.FC = () => {
       {realRole === 'Admin' && !ctx.record.viewOnly && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={thresholdOpen} onClick={() => setThresholdOpen(!thresholdOpen)}>{t('siteWork.materialProgress.setting.manage')}</Button>
         {thresholdOpen && <WorkOrderIssueThresholdPanel />}
       </div>}
+      {canKeepers && tagsEnabled && <StockTransferSettings />}
       <div className="mb-4 flex flex-col items-stretch border-b border-border sm:flex-row sm:items-center">
         <Tabs<Tab>
           className="mb-0 w-full min-w-0 border-b-0 sm:w-auto sm:flex-1 [&>[role=tab]:first-child]:pl-0"

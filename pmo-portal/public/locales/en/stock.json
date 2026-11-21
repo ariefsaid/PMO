@@ -188,7 +188,17 @@
     "STK_OWNERSHIP": "Stock is not managed in Odoo for this organisation.",
     "STK_PENDING": "This document is being posted in Odoo, so it cannot change right now.",
     "STK_COMMANDS_LIVE": "Stock postings are still in progress in Odoo. Wait for them to finish first.",
-    "STK_DRAFTS_EXIST": "Post or cancel the draft stock documents before connecting stock to Odoo."
+    "STK_DRAFTS_EXIST": "Post or cancel the draft stock documents before connecting stock to Odoo.",
+    "STK_TWO_STEP": "Your organisation sends transfers in two steps: send, then receive.",
+    "STK_TWO_STEP_OFF": "Two-step transfers are not turned on for your organisation.",
+    "STK_TRANSIT_LOCATION": "An in-transit location is managed by its transfer and cannot be used by hand.",
+    "STK_QUALITY": "This item needs a quality check: record pass or fail.",
+    "STK_SELF_RECEIVE": "The person who sent a transfer cannot be the one who receives it.",
+    "STK_NOT_RECEIVER": "You do not keep the destination and this transfer is not addressed to you.",
+    "STK_PROOF_REQUIRED": "This transfer needs its proof before it can be received.",
+    "STK_PROOF_MODE": "A handover confirmation can only be required when transfers are two-step.",
+    "STK_MODE_BLOCKED": "This cannot change while transfers are in transit, short, drafted or tied to a confirmation rule.",
+    "STK_FORBIDDEN": "Only an Admin can do this."
   },
   "actions": {
     "cancel": "Cancel",
@@ -204,7 +214,8 @@
     "documents": "Documents",
     "ledger": "Ledger",
     "setup": "Setup",
-    "reorder": "Reorder"
+    "reorder": "Reorder",
+    "transfers": "Transfers"
   },
   "onHand": {
     "atVendor": "At vendor",
@@ -648,9 +659,47 @@
     "rowLabel": "Request purchase for {{item}}"
   },
   "siteWork": {
-    "materialProgress": {"banner": {"title": "Items issued ahead of progress: {{count}}", "body": "Issued as a share of the planned quantity is more than {{threshold}} points above the work order's progress ({{progress}}%). This is a warning only.", "row": "{{name}}: issued {{issued}}% of planned, progress {{progress}}%, {{gap}} points ahead"}, "setting": {"manage": "Issued-versus-progress warning", "label": "Warn when issued exceeds progress by (percentage points)", "help": "Per item: issued quantity as a share of the planned quantity, against the work order's progress. Leave empty to turn the warning off. It never blocks an issue.", "save": "Save", "saved": "Saved.", "range": "Enter a number from 0 to 100, or leave empty.", "saveError": "Could not save the threshold."}},
-    "files": {"unknownUploader": "Unknown uploader", "title": "Attachments", "choose": "Choose file", "label": "Label (optional)", "upload": "Upload attachment", "remove": "Remove", "reason": "Reason for archiving", "loading": "Loading attachments…", "loadError": "Could not load attachments.", "error": "Could not change the attachment."},
-    "tags": {"connectedUnavailable": "Stock tags are unavailable while inventory is connected.", "confirmTitle": "Archive this stock tag?", "confirmDescription": "Items keep their tag, but it will no longer be offered for new items.", "manage": "Manage stock tags", "name": "Tag name", "zero": "Zero cost", "paper": "Paper required", "add": "Add tag", "save": "Save tag", "loadError": "Could not load stock tags.", "loading": "Loading stock tags…"},
+    "materialProgress": {
+      "banner": {
+        "title": "Items issued ahead of progress: {{count}}",
+        "body": "Issued as a share of the planned quantity is more than {{threshold}} points above the work order's progress ({{progress}}%). This is a warning only.",
+        "row": "{{name}}: issued {{issued}}% of planned, progress {{progress}}%, {{gap}} points ahead"
+      },
+      "setting": {
+        "manage": "Issued-versus-progress warning",
+        "label": "Warn when issued exceeds progress by (percentage points)",
+        "help": "Per item: issued quantity as a share of the planned quantity, against the work order's progress. Leave empty to turn the warning off. It never blocks an issue.",
+        "save": "Save",
+        "saved": "Saved.",
+        "range": "Enter a number from 0 to 100, or leave empty.",
+        "saveError": "Could not save the threshold."
+      }
+    },
+    "files": {
+      "unknownUploader": "Unknown uploader",
+      "title": "Attachments",
+      "choose": "Choose file",
+      "label": "Label (optional)",
+      "upload": "Upload attachment",
+      "remove": "Remove",
+      "reason": "Reason for archiving",
+      "loading": "Loading attachments…",
+      "loadError": "Could not load attachments.",
+      "error": "Could not change the attachment."
+    },
+    "tags": {
+      "connectedUnavailable": "Stock tags are unavailable while inventory is connected.",
+      "confirmTitle": "Archive this stock tag?",
+      "confirmDescription": "Items keep their tag, but it will no longer be offered for new items.",
+      "manage": "Manage stock tags",
+      "name": "Tag name",
+      "zero": "Zero cost",
+      "paper": "Paper required",
+      "add": "Add tag",
+      "save": "Save tag",
+      "loadError": "Could not load stock tags.",
+      "loading": "Loading stock tags…"
+    },
     "balance": {
       "connectedUnavailable": "Work-order stock balances are not available for connected inventory.",
       "issuedValue": "Issued value",
@@ -670,5 +719,130 @@
       "noValue": "—",
       "zeroCost": "Client-supplied, no cost"
     }
+  },
+  "transfers": {
+    "title": "Transfers",
+    "send": "Send transfer",
+    "sendTitle": "Send a transfer",
+    "off": {
+      "title": "Two-step transfers are off",
+      "sub": "An administrator can turn them on in Stock setup."
+    },
+    "empty": {
+      "title": "No transfers yet",
+      "sub": "Send material from one location to another; the receiver counts it on arrival."
+    },
+    "groups": {
+      "inTransit": "In transit",
+      "short": "Short, waiting for a decision",
+      "closed": "Closed"
+    },
+    "status": {
+      "Sent": "In transit",
+      "Received": "Received, shortfall open",
+      "Closed": "Closed",
+      "Cancelled": "Recalled"
+    },
+    "shortOpen_one": "{{count}} shortfall open",
+    "shortOpen_other": "{{count}} shortfalls open",
+    "sentToast": "Transfer sent",
+    "receiver": "Receiver (optional)",
+    "receiverNone": "Anyone who keeps the destination",
+    "receiverHelp": "Name the person the delivery is addressed to.",
+    "viewOnly": "You are viewing as another role, so nothing can be sent.",
+    "notFound": "Transfer not found",
+    "detailTitle": "Transfer",
+    "back": "Back to transfers",
+    "summary": "Summary",
+    "sentBy": "Sent by {{name}} on {{at}}",
+    "addressedTo": "Addressed to {{name}}",
+    "receivedBy": "Received by {{name}} on {{at}}",
+    "recalled": "Recalled: {{reason}}",
+    "receiveTitle": "Count what arrived",
+    "sentQty": "Sent {{qty}}",
+    "counted": "Counted",
+    "accepted": "Accepted",
+    "rejectReason": "Why is some rejected?",
+    "quality": "Quality check",
+    "qualityPass": "Pass",
+    "qualityFail": "Fail",
+    "qualityChoose": "Choose pass or fail",
+    "shortNote": "{{qty}} short: it stays in transit until you decide what happened to it.",
+    "receiveAction": "Confirm receipt",
+    "lines": "Lines",
+    "countedQty": "counted {{qty}}",
+    "acceptedQty": "accepted {{qty}}",
+    "rejectedQty": "rejected {{qty}}: {{reason}}",
+    "resolution": {
+      "delivered": "Shortfall delivered later",
+      "returned": "Shortfall returned to the source",
+      "written_off": "Shortfall written off"
+    },
+    "shortfalls": "Shortfalls",
+    "shortReason": "Reason (needed to write off)",
+    "shortQty": "{{qty}} short",
+    "resolveAs": {
+      "delivered": "It arrived",
+      "returned": "Send back",
+      "written_off": "Write off"
+    },
+    "resolvedToast": "Shortfall resolved",
+    "recallTitle": "Recall this transfer",
+    "recallReason": "Reason for recalling",
+    "recallAction": "Recall",
+    "recalledToast": "Transfer recalled",
+    "receivedToast": "Receipt recorded",
+    "proofAddedToast": "Proof recorded"
+  },
+  "handover": {
+    "title": "Handover confirmation",
+    "proofType": "Kind of proof",
+    "proofInApp": "Confirm in PMO",
+    "proofPaper": "Photo of the signed paper",
+    "guestToggle": "The person signing has no account",
+    "guestName": "Name of the person signing",
+    "guestHelp": "They sign on {{host}}'s phone. Type their name.",
+    "signingAs": "Signing as {{name}}",
+    "goodsPhoto": "Photo of the goods",
+    "personPhoto": "Photo of the person receiving",
+    "paperPhoto": "Photo of the signed paper",
+    "confirmNow": "Confirm the handover in PMO now",
+    "recorded": "Handover confirmations",
+    "none": "No confirmation recorded yet.",
+    "guestBadge": "no account",
+    "stage": {
+      "send": "Sending",
+      "receive": "Receiving"
+    },
+    "recordedBy": "recorded by {{name}}"
+  },
+  "proof": {
+    "outstanding": "Proof outstanding",
+    "complete": "Proof complete",
+    "outstandingMissing": "Proof outstanding: {{missing}}",
+    "rule": {
+      "none": "No proof",
+      "paper": "Signed paper",
+      "confirmation": "Confirmed in PMO",
+      "either": "Signed paper or confirmed in PMO",
+      "mixed": "Several rules"
+    },
+    "requiredNow": "Proof needed before receiving: {{rules}}.",
+    "mayFollow": "Proof may follow: the transfer stays proof outstanding until it is added.",
+    "addTitle": "Add the missing proof",
+    "addAction": "Record proof"
+  },
+  "transferSettings": {
+    "manage": "Transfers and proof",
+    "mode": "How transfers are made",
+    "oneStep": "One step: post at once",
+    "twoStep": "Two steps: send, then receive with a count",
+    "modeHelp": "Two steps keep the goods in transit until the receiver counts them.",
+    "timing": "When proof is demanded",
+    "beforePosting": "Before the movement is posted or received",
+    "mayFollow": "It may follow later (the movement stays proof outstanding)",
+    "timingHelp": "Applies to tags that require proof.",
+    "proofPerTag": "Proof that counts, per tag",
+    "qualityItems": "Items that need a quality check on receipt"
   }
 }

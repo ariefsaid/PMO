@@ -1,0 +1,16 @@
+{
+  "tables": [
+    {"table": "stock_transfers", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"},
+    {"table": "stock_transfer_lines", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"},
+    {"table": "stock_handover_confirmations", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"}
+  ],
+  "definer_functions": [
+    "stock_transfer_mode_of(uuid)", "stock_proof_timing_of(uuid)", "stock_mode_blockers(uuid,text)", "set_stock_transfer_mode(text)", "set_stock_proof_timing(text)",
+    "stock_can_handover(text)", "stock_handover_readable(text)",
+    "stock_transfer_actor_ok(stock_transfers,text)", "stock_assert_not_self_receive(stock_transfers)", "stock_proof_missing(uuid)", "stock_close_transit(stock_transfers)",
+    "stock_post_leg(stock_transfers,text,uuid,uuid,jsonb,uuid,text,uuid)", "stock_insert_handover(stock_transfers,jsonb)", "stock_lock_transfer(uuid,boolean)",
+    "send_stock_transfer(jsonb,jsonb,uuid,uuid)", "receive_stock_transfer(uuid,jsonb,jsonb)", "recall_stock_transfer(uuid,text)",
+    "resolve_stock_transfer_shortfall(uuid,text,text)", "record_stock_handover(uuid,jsonb)", "get_stock_movement_proof_status(text,date,date)"
+  ],
+  "buckets": ["stock-handover"]
+}

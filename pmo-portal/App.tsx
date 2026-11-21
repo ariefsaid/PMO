@@ -155,6 +155,9 @@ const StockLedgerPage = lazyWithPreload(() => import('./pages/stock/StockLedger'
 const StockMovementFormPage = lazyWithPreload(() => import('./pages/stock/StockMovementForm'));
 const StockCountPage = lazyWithPreload(() => import('./pages/stock/StockCount'));
 const StockReorderPage = lazyWithPreload(() => import('./pages/stock/StockReorder'));
+const StockTransfersPage = lazyWithPreload(() => import('./pages/stock/StockTransfers'));
+const StockTransferSendPage = lazyWithPreload(() => import('./pages/stock/StockTransferSend'));
+const StockTransferDetailPage = lazyWithPreload(() => import('./pages/stock/StockTransferDetail'));
 
 // ── Route-entry + nav-link preloads (#1834) ──────────────────────────────────
 /** Anything with the lazyWithPreload preload() handle (structural — the rules
@@ -297,6 +300,9 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/stock/documents', chunks: [StockDocumentsPage], namespaces: ['stock'] },
   { path: '/stock/ledger', chunks: [StockLedgerPage], namespaces: ['stock'] },
   { path: '/stock/reorder', chunks: [StockReorderPage], namespaces: ['stock'] },
+  { path: '/stock/transfers/new', chunks: [StockTransferSendPage], namespaces: ['stock'] },
+  { path: '/stock/transfers/:transferId', chunks: [StockTransferDetailPage], namespaces: ['stock'] },
+  { path: '/stock/transfers', chunks: [StockTransfersPage], namespaces: ['stock'] },
   { path: '/stock/new/:kind', chunks: [StockMovementFormPage], namespaces: ['stock'] },
   { path: '/stock', chunks: [StockOnHandPage], namespaces: ['stock'] },
   { path: '*', chunks: [NotFoundPage] },
@@ -546,6 +552,9 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/stock/documents/:documentId/edit', element: gated('stock', <StockCountPage />) },
   { path: '/stock/ledger', element: gated('stock', <StockLedgerPage />) },
   { path: '/stock/reorder', element: gated('stock', <StockReorderPage />) },
+  { path: '/stock/transfers', element: gated('stock', <StockTransfersPage />) },
+  { path: '/stock/transfers/new', element: gated('stock', <StockTransferSendPage />) },
+  { path: '/stock/transfers/:transferId', element: gated('stock', <StockTransferDetailPage />) },
   { path: '/stock/new/:kind', element: gated('stock', <StockMovementFormPage />) },
   { path: '*', element: <NotFoundPage /> },
 ];
