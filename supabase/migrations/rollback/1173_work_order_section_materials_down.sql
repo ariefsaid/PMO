@@ -1,4 +1,4 @@
--- Reverses 1099_work_order_section_materials.sql (#2576). Refuses when sectioned requests or allocations exist: dropping
+-- Reverses 1173_work_order_section_materials.sql (#2576). Refuses when sectioned requests or allocations exist: dropping
 -- the column would silently re-file them under the work order alone.
 do $$
 begin

@@ -1,5 +1,5 @@
--- 1099_work_order_section_materials.test.sql — #2576 per-section material allocation, the request link, the section check.
--- Migration under test: 1099_work_order_section_materials.sql (needs 1095..1097).
+-- 1173_work_order_section_materials.test.sql — #2576 per-section material allocation, the request link, the section check.
+-- Migration under test: 1173_work_order_section_materials.sql (needs 1095..1097).
 -- AC-WOS-002 cable requested 40 + 10 + 20 = 70 · AC-WOS-003 a request naming a section of another work order is refused ·
 -- AC-WOS-006 an archive is blocked by a draft or pending request · AC-WOS-008 allocations never exceed the work order's plan,
 -- and a plan that drops later flags the item without rewriting a figure · AC-WOS-009 a line over its SECTION's allocation needs

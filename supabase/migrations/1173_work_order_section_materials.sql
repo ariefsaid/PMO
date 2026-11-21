@@ -1,6 +1,6 @@
--- 1099_work_order_section_materials.sql — #2576: per-section material allocation, the request link and the section check.
+-- 1173_work_order_section_materials.sql — #2576: per-section material allocation, the request link and the section check.
 -- Spec docs/specs/work-order-sections.spec.md (FR-WOS-009, 012, 013, 014, 015, 005); plan docs/plans/2026-11-20-work-order-sections.md.
--- Proven by supabase/tests/1099_work_order_section_materials.test.sql (AC-WOS-006, 008, 009, 010, 011 and the material
+-- Proven by supabase/tests/1173_work_order_section_materials.test.sql (AC-WOS-006, 008, 009, 010, 011 and the material
 -- half of AC-WOS-002/003). THIS MIGRATION TOUCHES THE MATERIAL-REQUEST APPROVAL PATH (submit) AND SHIPS ALONE, AFTER 1095..1098: it
 -- reuses the section master (1095), the archived-section trigger (1096) and the archive guard it extends (1097: tasks).
 --
@@ -23,7 +23,7 @@
 -- statement that enforces the section's allocation; `-- mut:alloc_cap` in guard_section_material_plan the plan cap;
 -- `-- mut:section_locked` the draft-only rule.
 --
--- ── REVERSE (also supabase/migrations/rollback/1099_work_order_section_materials_down.sql) ──────────────────
+-- ── REVERSE (also supabase/migrations/rollback/1173_work_order_section_materials_down.sql) ──────────────────
 
 -- ── §1 allocations ─────────────────────────────────────────────────────────────────────────────────────────────
 create table public.work_order_section_material_plan (
