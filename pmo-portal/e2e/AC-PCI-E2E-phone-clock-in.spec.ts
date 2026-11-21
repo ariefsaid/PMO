@@ -77,7 +77,7 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
   // Outside first: about 1.1 km north of the area centre.
   const worker = await browser.newContext({ permissions: ['geolocation'], geolocation: { latitude: -6.19, longitude: 106.8, accuracy: 10 } });
   const page = await worker.newPage();
-  await signIn(page, 'engineer@acme.test');
+  await signIn(page, 'engineer@acme.test', { home: '/my' });
   await page.goto('/my');
   await expect(page.getByRole('heading', { name: 'Clock in' })).toBeVisible();
   await page.getByRole('button', { name: 'Clock in' }).click();

@@ -61,7 +61,7 @@ test.afterEach(async () => {
 });
 
 test('AC-LA-E2E a Foreman lands on the phone home screen and cannot open a project', async ({ page }) => {
-  await signIn(page, 'engineer@acme.test');
+  await signIn(page, 'engineer@acme.test', { home: '/my' });
   await page.goto('/');
   await expect(page).toHaveURL(/\/my$/);
   await expect(page.getByRole('heading', { name: 'My tasks' })).toBeVisible();
