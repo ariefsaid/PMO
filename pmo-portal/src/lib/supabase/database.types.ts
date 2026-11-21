@@ -12308,6 +12308,7 @@ export type Database = {
         Row: {
           archived_at: string | null
           code: string
+          cover_value: number | null
           created_at: string
           id: string
           kind: string
@@ -12318,6 +12319,7 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           code: string
+          cover_value?: number | null
           created_at?: string
           id?: string
           kind: string
@@ -12328,6 +12330,7 @@ export type Database = {
         Update: {
           archived_at?: string | null
           code?: string
+          cover_value?: number | null
           created_at?: string
           id?: string
           kind?: string
@@ -16855,6 +16858,10 @@ export type Database = {
           p_to?: string
           p_warehouse_id?: string
         }
+        Returns: Json
+      }
+      get_stock_at_risk: {
+        Args: Record<string, never>
         Returns: Json
       }
       get_stock_on_hand: {

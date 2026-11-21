@@ -79,7 +79,7 @@ export function makeStockLocationImportDescriptor(
       unavailable: L('import:existing.unavailable', 'Could not check which records already exist.'),
       nothingNew: L('import:existing.nothingNew', 'Every row is already there.'),
     }),
-    toInput: (c: Cells) => ({ code: c.code.trim(), name: c.name.trim(), kind: c.kind.trim().toLowerCase() as StockWarehouseInput['kind'], projectId: refId(project, c.project ?? '') }),
+    toInput: (c: Cells) => ({ code: c.code.trim(), name: c.name.trim(), kind: c.kind.trim().toLowerCase() as StockWarehouseInput['kind'], projectId: refId(project, c.project ?? ''), coverValue: null }),
     create: (input) => repositories.stock.master.createWarehouse(input),
   };
 }
