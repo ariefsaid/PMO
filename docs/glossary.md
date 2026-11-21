@@ -1042,3 +1042,5 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+**Vendor location** (stock) — a stock location of kind `vendor`: material held at an outside vendor, e.g. sent out for a process. Optionally linked to a Vendor company; it names no project, takes only transfers (out and back), adjustments and counts, and is not a project location for the work-order balance. A send-out to it is not usage for reorder suggestions. Created by the organisation in Stock setup; none exists by default. (#2683, `docs/specs/stock-vendor-location.spec.md`.)

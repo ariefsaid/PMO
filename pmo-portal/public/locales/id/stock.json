@@ -34,7 +34,8 @@
       "central": "Pusat",
       "site": "Lokasi proyek",
       "yard": "Halaman proyek",
-      "staging": "Area penyiapan"
+      "staging": "Area penyiapan",
+      "vendor": "Vendor luar"
     },
     "noKeepers": "Belum ada penjaga",
     "active": "Aktif",
@@ -93,6 +94,9 @@
         "project": "Proyek lokasi",
         "projectHelp": "Opsional. Hanya sebagai usulan awal untuk pengeluaran; tidak membatasi.",
         "noProject": "Tanpa proyek bawaan",
+        "vendorCompany": "Perusahaan vendor",
+        "vendorCompanyHelp": "Opsional. Vendor luar yang memegang material di lokasi ini.",
+        "noVendorCompany": "Tanpa perusahaan vendor",
         "codeRequired": "Kode wajib diisi.",
         "nameRequired": "Nama wajib diisi."
       }
@@ -203,6 +207,8 @@
     "reorder": "Pemesanan ulang"
   },
   "onHand": {
+    "atVendor": "Di vendor",
+    "atVendorNamed": "Di {{name}}",
     "title": "Stok",
     "columns": {
       "item": "Barang",

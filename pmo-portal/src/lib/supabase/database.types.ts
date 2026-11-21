@@ -11610,6 +11610,7 @@ export type Database = {
           name: string
           org_id: string
           project_id: string | null
+          vendor_company_id: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -11620,6 +11621,7 @@ export type Database = {
           name: string
           org_id?: string
           project_id?: string | null
+          vendor_company_id?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -11630,6 +11632,7 @@ export type Database = {
           name?: string
           org_id?: string
           project_id?: string | null
+          vendor_company_id?: string | null
         }
         Relationships: [
           {
@@ -11644,6 +11647,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_warehouses_vendor_company_id_fkey"
+            columns: ["vendor_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
