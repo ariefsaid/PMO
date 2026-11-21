@@ -46,3 +46,12 @@ each task is red, green, commit, push. DB commands under `PMO_DB_LOCK=/tmp/db.lo
 `npm run check:guards`, `npm run typecheck`, `npx eslint --max-warnings=0 <changed>`, `npx vitest related --run <changed>`;
 DB one hold: reset + 1250, 1251 + 0178 anon_executable_definers + 0178 m365_member_gate + 0646 rls_initplan + the existing
 0997 and 1115 files (must stay green untouched); isolation denominator test and self-test; touched e2e via `scripts/e2e-local.sh`.
+
+## As built (deviations from the plan above)
+- Migrations 1250, 1251, 1252 used; 1253 and 1254 unused. Existing functions renamed: `work_order_cost_amounts(uuid)` (1113 wrapper) to
+  `work_order_cost_amounts_pre_labour(uuid)`; a new `work_order_cost_amounts(uuid)` has the same name plus a `labour_class_id` column.
+  Redefined: none. `work_order_cost_amounts_unpriced` and `_unrounded` are untouched (compose with #2732).
+- Rates in `labour_cost_rates` are written only through the RPCs; classes by RLS (Admin, Finance; column grant name and archived_at only).
+- The Labour cost section sits under Administration > Cost attribution (Admin and Finance reach it; no new navigation tab, so the
+  existing navigation tests are untouched). ADR number is 0120.
+- e2e journeys: `pmo-portal/e2e/serial/AC-LCM-018-labour-cost-rates.spec.ts` (AC-LCM-018 and AC-LCM-019, serial lane: it flips an org-global switch).

@@ -1,6 +1,6 @@
 # Labour cost in money per work order (LCM)
 
-Issue #2670 (map #2516, scope OD-SCOPE-5, target 15 December 2026). Status: **Draft, 2026-11-21**. Plan
+Issue #2670 (map #2516, scope OD-SCOPE-5, target 15 December 2026). Status: **Approved and built, 2026-11-21** (open questions 1-5 answered yes). Plan
 `docs/plans/2026-11-21-labour-cost-money.md`. IDs: `FR-LCM-###`, `AC-LCM-###`.
 **Money path: ships alone.** It adds a costing setting and a read; it posts nothing, changes no approval, no timesheet
 rule and no ledger. Extends #2519 (plan versus actual) and #2517 (cost attribution); migrations 1250-1254.
@@ -109,7 +109,7 @@ versus actual shows manpower in rupiah and not only hours.
 Database-enforced: who writes (RLS, RPCs), rate validity, rate lock after pricing, rate read-visibility, redaction for
 Project Manager, org scoping. Not enforced in the DB (UX only, ADR-0016): the visibility of the Administration section.
 
-## 6. Open questions (answers assumed unless the orchestrator says otherwise)
+## 6. Open questions (all answered yes by the Director, 2026-11-21)
 1. Overtime = hours beyond a day length per person per day (the timesheet has no overtime field). Assumed yes.
 2. Project finances and project margin stay ledger-only (FR-LCM-012); labour appears on work-order plan versus actual only.
 3. Plan figures stay direct/indirect budgets; no per-class plan in this ticket (actual by class only).
