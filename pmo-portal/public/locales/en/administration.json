@@ -712,6 +712,17 @@
       "turnOn": "Turn on built-in roles",
       "turnOff": "Turn off built-in roles"
     },
+    "hidePrices": {
+      "title": "Hide prices from requesters",
+      "loadError": "Couldn't load the hide prices setting",
+      "saved": "Hide prices setting saved",
+      "helper": "Hide unit prices and amounts from people who only request items: field and officer roles outside purchasing and finance, and Engineers without a built-in role. Quantities and statuses stay visible. Everyone else sees prices as before.",
+      "on": "On",
+      "off": "Off",
+      "adminOnly": "Only an Admin can change this.",
+      "turnOn": "Hide prices from requesters",
+      "turnOff": "Show prices to requesters again"
+    },
     "fiscalYear": {
       "title": "Fiscal year",
       "label": "Fiscal year starts in",

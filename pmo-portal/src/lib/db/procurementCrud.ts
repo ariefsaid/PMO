@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { isHidePricesActive } from '@/src/lib/priceReadPath';
 import { assertWriteLanded } from '@/src/lib/appError';
 import { ProcurementError } from './procurementLifecycle';
 import type { BudgetCategory } from '@/src/lib/budget/categoryAccountMap';
@@ -262,7 +263,14 @@ export async function createProcurementItem(
     throw new ProcurementError(RECONCILE_LINE_MESSAGE, '23505');
   }
   if (error) throwWrite(error);
-  return data as ProcurementItemRow;
+  return maskedItemAfterWrite(data as ProcurementItemRow);
+}
+
+/** #2699: while the organisation hides prices, the write response carries no price: the row is read back through the masked view. */
+async function maskedItemAfterWrite(row: ProcurementItemRow): Promise<ProcurementItemRow> {
+  if (!isHidePricesActive()) return row;
+  const { data } = await supabase.from('procurement_items_masked' as 'procurement_items').select().eq('id', row.id).maybeSingle();
+  return (data as ProcurementItemRow | null) ?? { ...row, rate: null as unknown as number, amount: null as unknown as number, erp_line_amount: null };
 }
 
 /** Patch for an existing line item — name/quantity/rate (+ optional description). */

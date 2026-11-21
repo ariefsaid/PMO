@@ -1083,3 +1083,7 @@ reports) and overdue tasks. The body is computed per recipient, so a figure the 
 **Light account** — a person whose built-in role is Foreman or Field user. One phone home screen (own tasks, clock-in at work orders they are rostered on, deliveries addressed to them, issues they reported; the Foreman also ticks their own crew). No project page, work-order page, list, dashboard, price or budget. The database confines it with restrictive row policies; the organization sets nothing beyond who holds the role. (#2710, `docs/specs/light-accounts.spec.md`.)
 
 **Seat type** — `light` (a light account) or `full` (everyone else), derived from the built-in role. Seat reports split the two; price and counts stay the owner's.
+
+**Hide prices setting** — the organisation setting (`hide_prices_from_requesters`, default off) that hides unit prices and amounts from a **requester**. While off, nothing changes for anyone. (#2699.)
+
+**Requester (price visibility)** — a person with no purchasing or finance authority: a built-in officer or field role without price right (every one except Buyer, Finance Officer, Billing Officer), or a legacy Engineer who holds no built-in role. Judged per person on the real signed-in role, not per request and never on the view-as role. Prices read as empty for them through the masked views. (#2699.)
