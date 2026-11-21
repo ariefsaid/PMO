@@ -14,7 +14,7 @@ declare
 begin
   perform public.assert_is_active_member();
   v_org := public.auth_org_id();
-  v_cost := public.stock_can_see_cost();                                                                -- mut:atrisk_cost
+  v_cost := true;                                                                                       -- mut:atrisk_cost
   with held as (
     select b.warehouse_id, sum(b.value_on_hand) as value_held
       from public.stock_balances b
