@@ -51,7 +51,7 @@ daily (`tpi-overdue`, 01:41 UTC) and is callable by `service_role` only.
 | AC | Owning test | Layer |
 |---|---|---|
 | AC-TPI-001 | `supabase/tests/1134_third_party_inspection_reads.test.sql`; `pages/work-order-detail/InspectionsSection.test.tsx` (display) | pgTAP + Unit |
-| AC-TPI-002 | `supabase/tests/1133_third_party_inspection_purchase.test.sql` | pgTAP |
+| AC-TPI-002 | `supabase/tests/1182_third_party_inspection_purchase.test.sql` | pgTAP |
 | AC-TPI-003 | 1133 test (link refusals) | pgTAP |
 | AC-TPI-004 | `supabase/tests/1179_third_party_inspections.test.sql` | pgTAP |
 | AC-TPI-005 | 1130 test | pgTAP |
@@ -71,7 +71,7 @@ daily (`tpi-overdue`, 01:41 UTC) and is callable by `service_role` only.
 
 ## Verify
 
-`flock /tmp/db.lock bash -c 'supabase db reset && supabase test db supabase/tests/1179_third_party_inspections.test.sql supabase/tests/1133_third_party_inspection_purchase.test.sql supabase/tests/1134_third_party_inspection_reads.test.sql supabase/tests/record_changes_catalog_gate.test.sql'`;
+`flock /tmp/db.lock bash -c 'supabase db reset && supabase test db supabase/tests/1179_third_party_inspections.test.sql supabase/tests/1182_third_party_inspection_purchase.test.sql supabase/tests/1134_third_party_inspection_reads.test.sql supabase/tests/record_changes_catalog_gate.test.sql'`;
 in `pmo-portal`: `npx vitest run pages/work-order-detail/InspectionsSection.test.tsx src/auth/policy.thirdPartyInspection.test.ts src/lib/db/thirdPartyInspections.test.ts`.
 
 ## Not built

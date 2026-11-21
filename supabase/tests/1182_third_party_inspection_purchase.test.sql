@@ -1,5 +1,5 @@
--- 1133_third_party_inspection_purchase.test.sql — #2580 MONEY PATH (docs/specs/third-party-inspections.spec.md).
--- Migration under test: 1133_third_party_inspection_purchase.sql (tpi_raise_purchase, the a1_tpi_stamp_cost_attribution triggers).
+-- 1182_third_party_inspection_purchase.test.sql — #2580 MONEY PATH (docs/specs/third-party-inspections.spec.md).
+-- Migration under test: 1182_third_party_inspection_purchase.sql (tpi_raise_purchase, the a1_tpi_stamp_cost_attribution triggers).
 -- AC-TPI-002 raising a purchase creates exactly one Draft case and nothing else · AC-TPI-003 link refusals ·
 -- AC-TPI-018 the attribution trigger (a)-(c) · AC-TPI-012 advancing/reporting/waiving never touches a bill ·
 -- AC-TPI-014 project totals do not change because an inspection exists. (d) 0950_work_order_cost_attribution stays green unchanged.

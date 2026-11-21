@@ -1,5 +1,5 @@
--- 1133_third_party_inspection_purchase.sql — #2580 MONEY PATH (ships alone): the purchase link of an inspection.
--- Spec FR-TPI-006, FR-TPI-007, FR-TPI-021 (OD-TPI-6). Proven by supabase/tests/1133_third_party_inspection_purchase.test.sql.
+-- 1182_third_party_inspection_purchase.sql — #2580 MONEY PATH (ships alone): the purchase link of an inspection.
+-- Spec FR-TPI-006, FR-TPI-007, FR-TPI-021 (OD-TPI-6). Proven by supabase/tests/1182_third_party_inspection_purchase.test.sql.
 --   §1 tpi_raise_purchase: creates a Draft procurement case through the SHIPPED create_procurement_with_items (no direct insert
 --      into any procurement table), or links an existing unlinked case of the inspection's project, then attributes that case's
 --      existing records to the inspection's work order through the SHIPPED set_cost_attribution. It never calls
@@ -7,7 +7,7 @@
 --   §2 a trigger on the four purchase record tables fills work_order_id on a NEW record that names none when its case is linked
 --      from a live inspection. It touches only work_order_id and never overwrites; check_cost_attribution (0951) then validates it.
 -- No approval, SoD, match, payment or outbox code is touched (FR-TPI-010): procurement's own rules pass through unchanged.
--- ── REVERSE (rollback/1133_third_party_inspection_purchase_down.sql): drop the four a1_tpi triggers, the trigger function, tpi_raise_purchase.
+-- ── REVERSE (rollback/1182_third_party_inspection_purchase_down.sql): drop the four a1_tpi triggers, the trigger function, tpi_raise_purchase.
 
 create function public.tpi_raise_purchase(p_id uuid, p_procurement_id uuid default null, p_title text default null)
   returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
