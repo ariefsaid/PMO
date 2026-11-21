@@ -13116,6 +13116,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "work_orders_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "work_orders_closing_acceptance_id_fkey"
             columns: ["closing_acceptance_id"]
             isOneToOne: false

@@ -33,6 +33,16 @@ export function useWorkOrderCloseoutItems(workOrderId: string | undefined) {
   });
 }
 
+/** Who closed a work order and when; read only once it is Closed. */
+export function useWorkOrderCloser(workOrderId: string | undefined, enabled: boolean) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['work-order-closer', orgId, workOrderId],
+    queryFn: () => repositories.closeoutChecklist.getCloser(workOrderId as string),
+    enabled: enabled && Boolean(orgId) && Boolean(workOrderId),
+  });
+}
+
 /** An item write refreshes the checklist (a done item starts the next one; closing is decided by the database). */
 export function useCloseoutItemMutations(workOrderId: string) {
   const qc = useQueryClient();

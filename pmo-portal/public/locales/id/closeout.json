@@ -3,6 +3,8 @@
   "loadError": "Daftar periksa penutupan tidak dapat dimuat",
   "remaining": "Butir wajib belum selesai: {{count}}. $t(common:terms.clientWorkOrder) ini baru dapat ditutup setelah semua butir wajib selesai.",
   "complete": "Semua butir wajib sudah selesai. $t(common:terms.clientWorkOrder) ini dapat ditutup.",
+  "closedBy": "Ditutup {{date}} oleh {{name}}.",
+  "closed": "$t(common:terms.clientWorkOrder) ini sudah ditutup.",
   "required": "wajib",
   "optional": "opsional",
   "age_one": "{{count}} hari",

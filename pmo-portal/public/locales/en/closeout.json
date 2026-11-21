@@ -3,6 +3,8 @@
   "loadError": "Couldn't load the close-out checklist",
   "remaining": "Required items not done: {{count}}. This work order closes only when every required item is done.",
   "complete": "Every required item is done. This work order can be closed.",
+  "closedBy": "Closed {{date}} by {{name}}.",
+  "closed": "This work order is closed.",
   "required": "required",
   "optional": "optional",
   "age_one": "{{count}} day",

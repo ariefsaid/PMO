@@ -4,7 +4,7 @@ const h = vi.hoisted(() => {
   const results: Record<string, { data: unknown; error: unknown }> = {};
   const builder = (table: string) => {
     const b: Record<string, unknown> = {};
-    for (const op of ['select', 'eq', 'order', 'limit']) b[op] = () => b;
+    for (const op of ['select', 'eq', 'order', 'limit', 'maybeSingle']) b[op] = () => b;
     b.then = (resolve: (v: unknown) => unknown) => resolve(results[table] ?? { data: [], error: null });
     return b;
   };
@@ -12,7 +12,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
-import { attachCloseoutItemDocument, completeCloseoutItem, getCloseoutTemplate, listWorkOrderCloseoutItems, setCloseoutTemplate } from './closeoutChecklist';
+import { attachCloseoutItemDocument, completeCloseoutItem, getCloseoutTemplate, getWorkOrderCloser, listWorkOrderCloseoutItems, setCloseoutTemplate } from './closeoutChecklist';
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => { h.rpc.mockReset(); for (const k of Object.keys(h.results)) delete h.results[k]; });
@@ -54,5 +54,12 @@ describe('close-out checklist DAL', () => {
     const rows = await listWorkOrderCloseoutItems('w1');
     expect(rows[0]).toEqual({ id: 'i1', position: 1, name: 'Item one', required: true, startedOn: '2026-03-01', doneOn: '2026-03-04', documentId: 'd1', doneBy: 'u1', doneByName: 'Dewi' });
     expect(rows[1].doneByName).toBeNull();
+  });
+
+  it('FR-WCO-021 reads when a work order was closed and the name of the closer', async () => {
+    h.results.work_orders = { data: { closed_at: '2026-03-12T08:00:00Z', closer: { full_name: 'Budi PM' } }, error: null };
+    await expect(getWorkOrderCloser('w1')).resolves.toEqual({ closedAt: '2026-03-12T08:00:00Z', closedByName: 'Budi PM' });
+    h.results.work_orders = { data: null, error: null };
+    await expect(getWorkOrderCloser('w1')).resolves.toBeNull();
   });
 });

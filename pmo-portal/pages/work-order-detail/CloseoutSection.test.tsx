@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   items: undefined as unknown,
   state: { isError: false, refetch: vi.fn() },
   docs: [] as unknown[],
+  closer: null as { closedAt: string | null; closedByName: string | null } | null,
   attach: vi.fn(),
   complete: vi.fn(),
 }));
@@ -20,6 +21,7 @@ vi.mock('@/src/auth/usePermission', async () => {
 });
 vi.mock('@/src/hooks/useCloseoutChecklist', () => ({
   useWorkOrderCloseoutItems: () => ({ data: h.items, ...h.state }),
+  useWorkOrderCloser: () => ({ data: h.closer }),
   useCloseoutItemMutations: () => ({
     attachDocument: { mutateAsync: h.attach, isPending: false },
     completeItem: { mutateAsync: h.complete, isPending: false },
@@ -51,6 +53,7 @@ beforeEach(() => {
   h.items = items();
   h.state = { isError: false, refetch: vi.fn() };
   h.docs = [doc('d1', 'Certificate A'), doc('d2', 'Letter B'), doc('d3', 'Draft note', 'Draft'), doc('d4', 'No file yet', 'Approved', null)];
+  h.closer = null;
   h.attach.mockReset().mockResolvedValue(undefined);
   h.complete.mockReset().mockResolvedValue(undefined);
 });
@@ -106,6 +109,12 @@ describe('CloseoutSection', () => {
     renderIt();
     expect(screen.getByRole('list', { name: 'Close-out checklist' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Mark/ })).toBeNull();
+  });
+
+  it('FR-WCO-021 a closed work order shows who closed it and when', () => {
+    h.closer = { closedAt: '2026-03-12T08:00:00Z', closedByName: 'Budi PM' };
+    renderIt({ status: 'Closed' });
+    expect(screen.getByTestId('closeout-summary')).toHaveTextContent('Closed 12 Mar 2026 by Budi PM.');
   });
 
   it('FR-WCO-012 a work order that is no longer issued shows the record without controls', () => {

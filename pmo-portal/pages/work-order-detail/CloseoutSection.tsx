@@ -6,7 +6,7 @@ import { DateField } from '@/src/components/ui/DateField';
 import { SelectField } from '@/src/components/ui/FormFields';
 import { ListState, RecordSection, StatusPill } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { useCloseoutItemMutations, useWorkOrderCloseoutItems } from '@/src/hooks/useCloseoutChecklist';
+import { useCloseoutItemMutations, useWorkOrderCloser, useWorkOrderCloseoutItems } from '@/src/hooks/useCloseoutChecklist';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { closeoutItemAgeDays, closeoutRemaining, currentCloseoutIndex } from '@/src/lib/closeoutChecklist';
 import { formatIsoDay, formatNumberExact } from '@/src/lib/format';
@@ -40,6 +40,7 @@ export const CloseoutSection: React.FC<CloseoutSectionProps> = ({ workOrderId, p
   const { t } = useTranslation('closeout');
   const may = usePermission();
   const query = useWorkOrderCloseoutItems(workOrderId);
+  const closer = useWorkOrderCloser(workOrderId, status === 'Closed');
   const documents = useDocuments(projectId);
   const { attachDocument, completeItem } = useCloseoutItemMutations(workOrderId);
   const [picked, setPicked] = useState<Record<string, string>>({});
@@ -79,7 +80,11 @@ export const CloseoutSection: React.FC<CloseoutSectionProps> = ({ workOrderId, p
 
   return <RecordSection title={title}>
     <p className="text-control text-muted-foreground" data-testid="closeout-summary">
-      {remaining > 0
+      {status === 'Closed'
+        ? (closer.data?.closedAt
+          ? t('closedBy', 'Closed {{date}} by {{name}}.', { date: formatIsoDay(closer.data.closedAt.slice(0, 10)), name: closer.data.closedByName ?? '—' })
+          : t('closed', 'This work order is closed.'))
+        : remaining > 0
         ? t('remaining', 'Required items not done: {{count}}. This work order closes only when every required item is done.', { count: remaining })
         : t('complete', 'Every required item is done. This work order can be closed.')}
     </p>

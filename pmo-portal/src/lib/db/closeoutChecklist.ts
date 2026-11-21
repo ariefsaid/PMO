@@ -76,3 +76,17 @@ export async function completeCloseoutItem(itemId: string, doneOn: string): Prom
   const { error } = await supabase.rpc('complete_closeout_item', { p_item: itemId, p_done_on: doneOn });
   if (error) fail(error);
 }
+
+export interface WorkOrderCloser {
+  closedAt: string | null;
+  closedByName: string | null;
+}
+
+/** When a work order was closed and by whom (stamped by the database from the caller; never sent by a client). */
+export async function getWorkOrderCloser(workOrderId: string): Promise<WorkOrderCloser | null> {
+  const { data, error } = await supabase.from('work_orders')
+    .select('closed_at,closer:profiles!closed_by(full_name)').eq('id', workOrderId).maybeSingle();
+  if (error) fail(error);
+  if (!data) return null;
+  return { closedAt: data.closed_at, closedByName: (data.closer as { full_name: string | null } | null)?.full_name ?? null };
+}
