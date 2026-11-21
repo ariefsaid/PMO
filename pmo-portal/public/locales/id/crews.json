@@ -102,7 +102,7 @@
     "error": "Tidak bisa memuat tingkat kehadiran",
     "expected": "Hari yang diharapkan",
     "from": "Dari",
-    "helper": "Satu hari dihitung sebagai harapan bila kru dijadwalkan dan orangnya ditempatkan di kru itu. Cuti dan libur rotasi dikecualikan; hari yang tidak dicatat siapa pun mengurangi tingkat kehadiran.",
+    "helper": "Harapan menghitung orang yang ditempatkan di kru pada hari kru dijadwalkan. Cuti dan libur rotasi dikecualikan; hari yang tidak dicatat siapa pun mengurangi tingkat kehadiran.",
     "leave": "Cuti",
     "noRecord": "Tidak tercatat",
     "offRotation": "Libur rotasi",

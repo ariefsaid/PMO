@@ -75,9 +75,6 @@ const AttendanceRate: React.FC = () => {
         <DateField label={t('crews:rate.from', 'From')} value={from} max={to} onChange={setFrom} />
         <DateField label={t('crews:rate.to', 'To')} value={to} min={from} max={today} onChange={setTo} />
       </div>
-      <p className="max-w-prose text-control text-muted-foreground">
-        {t('crews:rate.helper', 'A day is expected when the crew was rostered and the person was placed in it. Leave and off rotation are excused; a day nobody recorded counts against the rate.')}
-      </p>
       {rangeInvalid && <p role="alert" className="text-sm text-destructive-text">{t('crews:rate.rangeError', 'The end date is before the start date.')}</p>}
       {!rangeInvalid && report.isPending && <ListState variant="loading" rows={4} />}
       {!rangeInvalid && report.isError && (
@@ -133,6 +130,11 @@ const AttendanceRate: React.FC = () => {
           </CardPad>
         </Card>
       ))}
+      {!rangeInvalid && report.isSuccess && rows.length > 0 && (
+        <p className="text-control text-muted-foreground">
+          {t('crews:rate.helper', 'Expected counts a person placed in the crew on a day it was rostered. Leave and off rotation are excused; a day nobody recorded counts against the rate.')}
+        </p>
+      )}
     </div>
   );
 };

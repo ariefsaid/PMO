@@ -102,7 +102,7 @@
     "error": "Couldn't load the attendance rate",
     "expected": "Expected days",
     "from": "From",
-    "helper": "A day is expected when the crew was rostered and the person was placed in it. Leave and off rotation are excused; a day nobody recorded counts against the rate.",
+    "helper": "Expected counts a person placed in the crew on a day it was rostered. Leave and off rotation are excused; a day nobody recorded counts against the rate.",
     "leave": "Leave",
     "noRecord": "No record",
     "offRotation": "Off rotation",
