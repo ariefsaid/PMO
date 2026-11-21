@@ -75,8 +75,9 @@ test('AC-TWM-024 an Admin switches the match on and fixes a held bill\'s lines i
   invoiceId = bill.data.id as string;
 
   await page.goto(`/procurement/${procId}`);
-  // The purchase opens on its Timeline; the case ledger (bills, receipts, the held-bill notice) is the Documents tab.
-  await page.getByRole('tab', { name: 'Documents' }).click();
+  // The purchase opens on its Timeline; the case ledger (bills, receipts, the held-bill notice) is the Files tab
+  // (procurementRecord:tabs.files; its accessible name can carry a count, so match the start).
+  await page.getByRole('tab', { name: /^Files/ }).click();
   const held = page.getByTestId(`bill-match-held-${invoiceId}`);
   await expect(held).toBeVisible();
 

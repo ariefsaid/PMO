@@ -218,3 +218,7 @@ lines to `if false then`, reset and run `three_way_match_settings.test.sql` and 
   comes from `three_way_match_held_count()` (security-definer read, Admin only, own organisation), added in 1357 (FR-TWM-015).
 - **FR-TWM-015** (held count) — Where the user is an Admin, the system shall return how many bills of the organisation
   are held now, and refuse any other role (`42501`). Proven by AC-TWM-017 and bound by the mutation check AC-TWM-021.
+- **OQ-TWM-7 (open follow-up, not built)** A held bill is named (with Review match and Edit bill lines) only on the purchase's
+  Files tab, where the case ledger lives. A reader who opens the purchase on its Timeline sees no hold notice, although
+  payments are blocked. AC-TWM-014 says the notice shows when a reader "opens the purchase". Decide whether to also name a
+  held bill on the Timeline (or the purchase header); it changes an existing screen, so it waits for an owner decision.
