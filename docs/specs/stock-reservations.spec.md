@@ -1,6 +1,6 @@
 # Stock reservations and borrowing (RSV)
 
-Issue #2693 (map #2516). Status: **Draft for Director sign-off, 2026-11-21**. Plan `docs/plans/2026-11-21-stock-reservations.md`.
+Issue #2693 (map #2516). Status: **Accepted, 2026-11-21** (Director rulings recorded in §8). Plan `docs/plans/2026-11-21-stock-reservations.md`.
 IDs `FR-RSV-###`, `AC-RSV-###`. Owner ruling: `docs/decisions.md` OD-SCOPE-9 (settled, not re-decided here). **Stock-ledger and approval
 rules.** Nothing here posts to the ledger or changes a balance; reservations are a separate book beside it. Ships alone; stacked on #2691
 (migrations 1315-1319 only). Reads: `stock-site-work`, `stock-vendor-location`, `stock-two-step-transfer`, `stock-work-order-transfer`,
@@ -120,10 +120,13 @@ New tables, new defaulted columns (`material_requests.borrowing` false, line qua
 (append the borrowing step always or never, AC-010) · `-- mut:rsv_consume` (skip lender consume, AC-013) · `-- mut:rsv_borrow_recheck` (drop the recheck, AC-014) ·
 `-- mut:rsv_overdraw` (drop table check and trigger, AC-014) · `-- mut:rsv_org` (drop the org bound on a read, AC-015) · `-- mut:rsv_off` (ignore the setting, AC-007).
 
-## 8. Open questions (to the Director)
-## Restated functions
-None. Reservations add behaviour only through new functions and two triggers on `material_requests`; `mrq_submit` (head 1001, restated later by #2686 in 1332), `mrq_decide_step` (head 1045), `mrq_set_chain`, `mrq_waiting_for_me`, `create_procurement_with_items`, `record_*_match_lines`, `get_stock_on_hand` and the balance functions are NOT re-created.
+## 8. Director rulings (2026-11-21) and known limits
+1. Borrowing is evaluated per item across the organisation's reservable locations (a request names no source) and rechecked at the last step. **Follow-up:** ask for a source location at submit, so borrowing can be judged per location.
+2. Consumption happens at final approval, because approving a request already creates the draft transfer, which is the commitment. **Known limit:** an approved request whose transfer is never posted keeps its units consumed until a planner re-reserves.
+3. The borrowing step is appended as the last step of the round. 4. Planner means the existing master-data rank.
+5. Idempotency of `reserve_stock` is recorded on the reservation event (a replayed client request id returns the original reservation); the reservation row carries no client request id.
+6. A request submitted while reservations were off carries `reservation_checked = false` and is never held to them, so turning the setting on changes no in-flight request.
+7. The borrowing step is a plain `material_request_steps` row inserted in the submit transaction (status `waiting`, or `open` when it is the only step), so triggers on that table see it like any other step (AC-RSV-010 asserts its status).
 
-1. A request names no source location, so borrowing is evaluated per item across the organisation's reservable locations and rechecked at the last step. Acceptable? (Alternative: ask for a source location at submit; larger change to the request form.)
-2. Consumption at approval (decision 7) over consumption at posting. Confirm.
-3. Planner = existing master-data rank (Project Manager and above). Confirm no narrower role is wanted.
+## 9. Restated functions
+None. Reservations add behaviour only through new functions and two triggers on `material_requests`; `mrq_submit` (head 1001, restated later by #2686 in 1332), `mrq_decide_step` (head 1045), `mrq_set_chain`, `mrq_waiting_for_me`, `create_procurement_with_items`, `record_*_match_lines`, `get_stock_on_hand` and the balance functions are NOT re-created.

@@ -14,7 +14,7 @@ Spec: `docs/specs/stock-reservations.spec.md`. Stock-ledger and approval rules; 
 1. **`1315_stock_reservations.sql`** - `organizations.stock_reservations boolean not null default false`, `reservation_borrow_mode text not null default 'approve' check in ('approve','warn')`, `reservation_borrow_role public.user_role null`, `reservation_borrow_label text null check (length(btrim(...)) between 1 and 80)`.
    Table `stock_reservations` (id, org_id, work_order_id, item_id, warehouse_id, quantity numeric(18,4) > 0, consumed_qty, released_qty, `check (consumed_qty + released_qty <= quantity)` `mut:rsv_overdraw`,
    status `active|released|expired|consumed`, expires_on date null, note, created_by, created_at, client_request_id; partial unique index on (org_id, work_order_id, item_id, warehouse_id) where status = 'active';
-   unique (org_id, created_by, client_request_id)). Table `stock_reservation_events` (append-only: reservation_id, action, qty, request_id null, actor_id, reason, created_at) with the
+   no client request id on the row). Table `stock_reservation_events` (append-only: reservation_id, action, qty, request_id null, actor_id, reason, created_at) with the
    `guard_*_append_only` trigger. RLS enabled and forced, member-only select with `(select auth_org_id())` and `(select is_active_member())`; all client writes revoked; stamp-org triggers; `stock_reservations_on(org)` helper.
 2. **`1316_stock_reservation_rpcs.sql`** - `reserve_stock`, `release_reservation`, `release_stale_reservations`, `set_stock_reservations(on, mode, role, label)` (Admin, standalone, `log_audit('stock.reservations')`),
    internal `rsv_free(org, item, warehouse)` and `rsv_active(...)` (decisions 2-3). Advisory lock `rsv:<org>:<item>:<warehouse>` in `reserve_stock` (`mut:rsv_exceeds_free`, `mut:rsv_perm`, `mut:rsv_off`).
@@ -23,7 +23,7 @@ Spec: `docs/specs/stock-reservations.spec.md`. Stock-ledger and approval rules; 
    (decision 5a); trigger `rsv_borrow_on_submit` AFTER UPDATE on `material_requests` when `new.status = 'pending' and old.status = 'draft'` (no-op while off): splits lines, marks `borrowing`, and in `approve` mode inserts the last
    `material_request_steps` row (`mut:rsv_borrow_step`, `RSV_NO_BORROW_APPROVER`) with status `waiting`; trigger `rsv_consume_on_approval` AFTER UPDATE when `new.status = 'approved' and old.status = 'pending'`: recheck
    (`mut:rsv_borrow_recheck`, `RSV_BORROW_CHANGED`), consume own then lend (`mut:rsv_consume`). Both `security definer`, org-bounded. Must be proven to fire under the latest lane `mrq_submit` (1332): they depend only on the status transition.
-5. **`1319_stock_reservation_hardening.sql`** - reserved for review fixes (deferred check that no reservation's consumed + released exceeds quantity; none if unused, then the number stays unused).
+5. **`1319`** - unused (the over-draw rule is a table check in 1315 plus the trigger raise in 1318).
 
 Rollbacks drop in reverse (triggers, functions, tables, columns); no shipped function body is restored because none is re-created.
 

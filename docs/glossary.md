@@ -1057,3 +1057,5 @@ the material close-out: joint count, loss report, material completion report). T
 
 
 **Work-order transfer (WOT)** — one document that moves leftover material from one work order to another of the same project: a return from the first work order and an issue to the second, both at one project location, posted together or not at all. The stock does not leave the location; the first work order is relieved of its cost and the second is charged at the location's moving average. It is off until an Admin turns on the organisation setting "work-order transfers"; a posted one is corrected by a transfer the other way. Not a *Transfer* between locations. (#2691)
+
+**Free stock** — on hand at a location minus the active reservations there, never shown below zero; when on hand falls below what is reserved the screen says "reserved, short by n". It is computed on read, so it cannot drift from the ledger. A reservation is active until released, expired or consumed, or until its work order closes.

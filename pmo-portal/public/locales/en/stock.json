@@ -876,5 +876,64 @@
     },
     "setting": "Work-order transfers",
     "settingHelp": "Lets stock keepers move leftover material between work orders of one project in a single document."
+  },
+  "reservations": {
+    "column": "Free and reserved",
+    "freePlusReserved": "{{free}} free + {{reserved}} reserved",
+    "shortBy": "Reserved, short by {{n}}",
+    "reserve": "Reserve",
+    "showHolders_one": "Show work order",
+    "showHolders_other": "Show {{count}} work orders",
+    "hideHolders": "Hide work orders",
+    "holders": "Work orders holding a reservation",
+    "until": "until {{date}}",
+    "heldByWorkOrder": "Held in reserve for this work order",
+    "form": {
+      "title": "Reserve stock",
+      "submit": "Reserve",
+      "project": "Project",
+      "projectPlaceholder": "Choose a project",
+      "workOrder": "Work order",
+      "workOrderPlaceholder": "Choose a work order",
+      "quantity": "Quantity",
+      "expires": "Hold until (optional)",
+      "expiresHelp": "After this date the stock is free again.",
+      "note": "Note (optional)",
+      "errWorkOrder": "Choose the work order the stock is for",
+      "errQuantity": "Enter a quantity above zero, with up to three decimals",
+      "saved": "Stock reserved"
+    },
+    "borrowing": {
+      "title": "Borrowing.",
+      "body": "{{n}} of this request comes from stock reserved for another work order, so it needs the borrowing approval."
+    },
+    "settings": {
+      "enable": "Reserve stock for work orders",
+      "enableHelp": "A work order can hold a quantity of an item at a location. Nothing is locked: stock shows as free and reserved. Off by default.",
+      "mode": "When a request borrows reserved stock",
+      "modeApprove": "Needs an extra approval step",
+      "modeWarn": "Only show a warning",
+      "modeHelp": "Borrowing is when a request takes stock reserved for another work order.",
+      "role": "Who approves borrowing",
+      "roleNone": "Nobody chosen",
+      "roleHelp": "This role decides the last step of a borrowing request.",
+      "label": "Name of the approval step",
+      "labelDefault": "Borrowing approval"
+    },
+    "errors": {
+      "RSV_OFF": "Reservations are not turned on.",
+      "RSV_FORBIDDEN": "Only the location's keeper, a stock planner or an Admin can do this.",
+      "RSV_INVALID": "Check the values: the quantity needs up to three decimals, a whole number for whole-unit items, and a reason where asked.",
+      "RSV_NOT_FOUND": "That work order, item, location or reservation was not found.",
+      "RSV_WORK_ORDER": "The work order is closed or cancelled.",
+      "RSV_LOCATION": "Stock can be reserved at central, site, yard and staging locations that are not archived.",
+      "RSV_EXCEEDS_FREE": "Only {{n}} is free at this location.",
+      "RSV_EXCEEDS_REMAINING": "Only {{n}} remains on this reservation.",
+      "RSV_NOT_ACTIVE": "This reservation is no longer active.",
+      "RSV_NO_BORROW_APPROVER": "This request takes another work order's reserved stock and nobody is set to approve that. Ask an Admin.",
+      "RSV_BORROW_CHANGED": "More reserved stock would be borrowed than was approved. Send the request back and submit it again.",
+      "RSV_OVERDRAW": "The reservation holds less than the request uses.",
+      "RSV_IMMUTABLE": "A reservation cannot be deleted; release it instead."
+    }
   }
 }
