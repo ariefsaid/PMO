@@ -198,6 +198,16 @@ refuse an out-of-scope bill anyway, so an organisation without the match sees no
 - **AC-TWM-025** (RTL, same files as AC-TWM-022/023) Both new surfaces render at phone and desktop width with no overflow;
   checked by the saved captures under `docs/evidence/1215/2634/`.
 
+### 7.5a Mutation checks (AC-TWM-021, how to run them)
+
+`supabase/tests/three_way_match_edit_mutation.test.sql` rewrites one site of each shipped function inside a transaction and
+shows the refusal vanish: the Admin check of `set_three_way_match_settings`, the Admin check of `three_way_match_held_count`,
+the `if v_inv.status::text = 'Paid'` refusal of `record_bill_match_lines`, and the `if v_proc.status::text in ('Paid',
+'Cancelled')` refusal of `record_receipt_match_lines`. It rolls back to a savepoint, repeats the refusals to prove the shipped
+bodies are back, and ends in `rollback`. Manual form: in `1357_three_way_match_edit_states.sql` change one of those `if`
+lines to `if false then`, reset and run `three_way_match_settings.test.sql` and the mutation file: both must go red; restore.
+(Run once by the builder before the gate change: breaking the Paid-bill refusal turned AC-TWM-018 red, 2 of 40 failures.)
+
 ### 7.6 Owner rulings on the open questions (closed)
 
 - **OQ-TWM-5 closed (D-TWM-14).** Receipt edits carry **no separation of duties**; the audit of the lines before and
