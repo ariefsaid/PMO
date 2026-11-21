@@ -77,6 +77,8 @@ export const CORE_ROUTES = {
   '/administration': 'administration — core',
   '/administration/users': 'administration — core',
   '/administration/people': 'administration — core',
+  '/administration/clearance': 'administration — core; gated by the organisation setting clearance_checklist_enabled (#2707), not a catalogue module',
+  '/administration/clearance/:personId': 'administration — core; same setting (#2707)',
   '/administration/integrations': 'administration — core',
   '/administration/accounting': 'administration — core',
   '/administration/projects': 'administration — core',

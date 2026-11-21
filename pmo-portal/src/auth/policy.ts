@@ -144,6 +144,8 @@ export type Entity =
   | 'expiryDocument'
   | 'documentType'
   | 'person'
+  | 'clearanceItem'
+  | 'personClearance'
   | 'maintenance'
   | 'tmRate'
   | 'tmClaim'
@@ -947,6 +949,18 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allowUnlessViewOnly(['Admin', 'Project Manager']),
     edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
     archive: allowUnlessViewOnly(ADMIN),
+  },
+  /**
+   * Cleared-for-site checklist (#2707, migrations 1235-1237). UX ONLY — RLS is the authority (ADR-0016). Admin defines the items and
+   * switches the feature on; Admin and Project Manager record a person's state; Finance and Executive read. View-as is view-only.
+   */
+  clearanceItem: {
+    view: allow(['Admin', 'Project Manager', 'Finance', 'Executive']),
+    manage: allowUnlessViewOnly(ADMIN),
+  },
+  personClearance: {
+    view: allow(['Admin', 'Project Manager', 'Finance', 'Executive']),
+    edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
   },
   maintenance: {
     view: allow(ALL),

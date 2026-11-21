@@ -876,5 +876,87 @@
     "daysLabel": "Warn this many days before expiry",
     "daysHelp": "Up to 5 values, for example 30, 14, 7.",
     "daysSave": "Save warning days"
+  },
+  "clearance": {
+    "items": {
+      "errName": "Enter the item name",
+      "saved": "Item saved",
+      "dupName": "An item with that name already exists",
+      "editTitle": "Edit item",
+      "addTitle": "Add item",
+      "save": "Save item",
+      "name": "Item name",
+      "required": "Required to be cleared",
+      "heading": "Checklist items",
+      "add": "Add item",
+      "loadError": "Couldn’t load the checklist items",
+      "emptyTitle": "No checklist items yet",
+      "emptySub": "List what a person needs before going to site. An Admin adds each item once; every person then gets the same checklist.",
+      "requiredTag": "Required",
+      "optionalTag": "Optional",
+      "edit": "Edit",
+      "archive": "Archive",
+      "archiveTitle": "Archive this item?",
+      "archiveBody": "It leaves every checklist and no longer counts toward being cleared. Dates already recorded are kept.",
+      "archived": "Item archived",
+      "editLabel": "Edit {{name}}",
+      "archiveLabel": "Archive {{name}}"
+    },
+    "cancel": "Cancel",
+    "people": {
+      "heading": "Who is cleared",
+      "loadError": "Couldn’t load the people",
+      "emptyTitle": "No people in the register",
+      "emptySub": "Add people under People first; then their checklist appears here.",
+      "progress": "{{done}} of {{total}} required"
+    },
+    "cleared": "Cleared",
+    "notCleared": "Not cleared",
+    "setting": {
+      "loadError": "Couldn’t load this setting",
+      "heading": "Cleared-for-site checklist",
+      "label": "Track who is cleared to go to site",
+      "help": "Adds a Clearance section where you list what each person needs and record when it is done. Nothing else changes.",
+      "onlyAdmin": "Only an Admin can change this."
+    },
+    "off": {
+      "title": "The clearance checklist is not turned on",
+      "sub": "An Admin can turn it on under People."
+    },
+    "person": {
+      "errDone": "Enter the date it was done",
+      "errExpiry": "The expiry date cannot be before the date done",
+      "saved": "Saved",
+      "save": "Save",
+      "doneOn": "Date done",
+      "expiresOn": "Expires on (optional)",
+      "note": "Note (optional)",
+      "noteHelp": "Keep it short. Do not record medical detail here.",
+      "loadError": "Couldn’t load this checklist",
+      "notFound": "This person was not found",
+      "notFoundSub": "They may have been archived, or you may not have access.",
+      "back": "Back to Clearance",
+      "heading": "Cleared-for-site checklist",
+      "emptyTitle": "No checklist items yet",
+      "emptySub": "An Admin lists what a person needs under Clearance; the items then appear here.",
+      "doneLine": "Done {{date}}",
+      "expiresLine": "Expires {{date}}",
+      "edit": "Edit",
+      "record": "Record",
+      "remove": "Remove",
+      "removeTitle": "Remove this date?",
+      "removeBody": "The item goes back to not done for this person.",
+      "removed": "Date removed",
+      "link": "Cleared-for-site checklist",
+      "editLabel": "{{action}} {{name}}",
+      "removeLabel": "Remove {{name}}"
+    },
+    "state": {
+      "done": "Done",
+      "expiring": "Expiring soon",
+      "expired": "Expired",
+      "missing": "Not done"
+    },
+    "navLabel": "Clearance"
   }
 }

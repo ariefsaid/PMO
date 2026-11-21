@@ -876,5 +876,87 @@
     "daysLabel": "Ingatkan sekian hari sebelum kedaluwarsa",
     "daysHelp": "Sampai 5 nilai, misalnya 30, 14, 7.",
     "daysSave": "Simpan hari peringatan"
+  },
+  "clearance": {
+    "navLabel": "Izin ke lokasi",
+    "cleared": "Lolos",
+    "notCleared": "Belum lolos",
+    "cancel": "Batal",
+    "setting": {
+      "heading": "Daftar periksa izin ke lokasi",
+      "loadError": "Pengaturan ini tidak dapat dimuat",
+      "label": "Lacak siapa yang diizinkan ke lokasi",
+      "help": "Menambahkan bagian Izin ke lokasi tempat Anda mendaftar kebutuhan setiap orang dan mencatat kapan selesai. Tidak ada hal lain yang berubah.",
+      "onlyAdmin": "Hanya Admin yang dapat mengubah ini."
+    },
+    "off": {
+      "title": "Daftar periksa izin ke lokasi belum diaktifkan",
+      "sub": "Admin dapat mengaktifkannya di bagian Orang."
+    },
+    "items": {
+      "errName": "Isi nama butir",
+      "saved": "Butir disimpan",
+      "dupName": "Butir dengan nama itu sudah ada",
+      "editTitle": "Ubah butir",
+      "addTitle": "Tambah butir",
+      "save": "Simpan butir",
+      "name": "Nama butir",
+      "required": "Wajib agar dinyatakan lolos",
+      "heading": "Butir daftar periksa",
+      "add": "Tambah butir",
+      "loadError": "Butir daftar periksa tidak dapat dimuat",
+      "emptyTitle": "Belum ada butir daftar periksa",
+      "emptySub": "Daftarkan apa yang dibutuhkan seseorang sebelum ke lokasi. Admin menambahkan setiap butir sekali; setiap orang lalu mendapat daftar yang sama.",
+      "requiredTag": "Wajib",
+      "optionalTag": "Opsional",
+      "edit": "Ubah",
+      "archive": "Arsipkan",
+      "archiveTitle": "Arsipkan butir ini?",
+      "archiveBody": "Butir ini hilang dari semua daftar periksa dan tidak lagi dihitung untuk status lolos. Tanggal yang sudah dicatat tetap tersimpan.",
+      "archived": "Butir diarsipkan",
+      "editLabel": "Ubah {{name}}",
+      "archiveLabel": "Arsipkan {{name}}"
+    },
+    "people": {
+      "heading": "Siapa yang lolos",
+      "loadError": "Daftar orang tidak dapat dimuat",
+      "emptyTitle": "Belum ada orang di daftar",
+      "emptySub": "Tambahkan orang di bagian Orang terlebih dahulu; daftar periksanya lalu muncul di sini.",
+      "progress": "{{done}} dari {{total}} wajib"
+    },
+    "person": {
+      "errDone": "Isi tanggal selesai",
+      "errExpiry": "Tanggal kedaluwarsa tidak boleh sebelum tanggal selesai",
+      "saved": "Tersimpan",
+      "save": "Simpan",
+      "doneOn": "Tanggal selesai",
+      "expiresOn": "Kedaluwarsa pada (opsional)",
+      "note": "Catatan (opsional)",
+      "noteHelp": "Tulis singkat saja. Jangan catat rincian medis di sini.",
+      "loadError": "Daftar periksa ini tidak dapat dimuat",
+      "notFound": "Orang ini tidak ditemukan",
+      "notFoundSub": "Mungkin sudah diarsipkan, atau Anda tidak punya akses.",
+      "back": "Kembali ke Izin ke lokasi",
+      "heading": "Daftar periksa izin ke lokasi",
+      "emptyTitle": "Belum ada butir daftar periksa",
+      "emptySub": "Admin mendaftar kebutuhan seseorang di bagian Izin ke lokasi; butirnya lalu muncul di sini.",
+      "doneLine": "Selesai {{date}}",
+      "expiresLine": "Kedaluwarsa {{date}}",
+      "edit": "Ubah",
+      "record": "Catat",
+      "remove": "Hapus",
+      "removeTitle": "Hapus tanggal ini?",
+      "removeBody": "Butir kembali menjadi belum selesai untuk orang ini.",
+      "removed": "Tanggal dihapus",
+      "link": "Daftar periksa izin ke lokasi",
+      "editLabel": "{{action}} {{name}}",
+      "removeLabel": "Hapus {{name}}"
+    },
+    "state": {
+      "done": "Selesai",
+      "expiring": "Segera kedaluwarsa",
+      "expired": "Kedaluwarsa",
+      "missing": "Belum selesai"
+    }
   }
 }

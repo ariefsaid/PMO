@@ -121,6 +121,7 @@ const ContactDetailPage = lazyWithPreload(() => import('./pages/ContactDetail'))
 const IncidentsPage = lazyWithPreload(() => import('./pages/Incidents'));
 const IncidentDetailPage = lazyWithPreload(() => import('./pages/IncidentDetail'));
 const AdministrationPage = lazyWithPreload(() => import('./pages/Administration'));
+const PersonClearancePage = lazyWithPreload(() => import('./pages/admin/PersonClearance'));
 const IntegrationsPage = lazyWithPreload(() => import('./pages/Integrations'));
 const MyTasksPage = lazyWithPreload(() => import('./pages/MyTasks'));
 const CalendarPage = lazyWithPreload(() => import('./pages/Calendar'));
@@ -262,6 +263,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/crews', chunks: [CrewsPage], namespaces: ['crews'] },
   { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/administration/clearance/:personId', chunks: [PersonClearancePage], namespaces: ['administration'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
   { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
   { path: '/finance', chunks: [FinanceHubPage], namespaces: ['finance', 'financeHub'] },
@@ -486,6 +488,8 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
   { path: '/administration/people', element: <AdministrationPage /> },
+  { path: '/administration/clearance', element: <AdministrationPage /> },
+  { path: '/administration/clearance/:personId', element: <PersonClearancePage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },
   { path: '/administration/accounting', element: <AdministrationPage /> },
   { path: '/administration/projects', element: <AdministrationPage /> },
