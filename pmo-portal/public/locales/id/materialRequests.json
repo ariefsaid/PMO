@@ -89,6 +89,18 @@
     "workOrder": "$t(common:terms.clientWorkOrder)",
     "workOrderNoun": "$t(common:terms.clientWorkOrder)"
   },
+  "inbox": {
+    "scope": "Permintaan material",
+    "heading": "Permintaan material menunggu Anda ({{count}})",
+    "label": "Permintaan material menunggu Anda",
+    "errorTitle": "Permintaan material yang menunggu Anda tidak dapat dimuat",
+    "errorSub": "Persetujuan lainnya tidak terpengaruh.",
+    "step": "Langkah {{n}}: {{label}}",
+    "standingIn": "mewakili",
+    "neededBy": "Dibutuhkan pada {{date}}",
+    "sent": "Dikirim {{date}}",
+    "open": "Buka permintaan"
+  },
   "list": {
     "all": "Semua permintaan",
     "anyStatus": "Semua status",
@@ -159,6 +171,11 @@
   "settings": {
     "addStandIn": "Tambah pengganti",
     "addStep": "Tambah langkah",
+    "approverInbox": "Kotak masuk persetujuan dan notifikasi",
+    "approverInboxError": "Pengaturan ini tidak dapat dimuat",
+    "approverInboxLabel": "Tampilkan persetujuan permintaan material di kotak masuk persetujuan dan beri tahu penyetuju",
+    "approverInboxSaved": "Pengaturan kotak masuk persetujuan disimpan",
+    "approverInboxSub": "Jika aktif, setiap penyetuju diberi tahu saat langkah permintaan menjadi gilirannya, dan langkah itu tampil di halaman Persetujuan. Nonaktif secara bawaan.",
     "chain": "Rantai persetujuan",
     "chainError": "Rantai tidak dapat dimuat",
     "chainSaved": "Rantai persetujuan disimpan",

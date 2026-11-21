@@ -32,6 +32,8 @@ export const materialRequestRepository = {
   setCutoff: (cutoff: string | null) => wrap(() => dal.setMaterialRequestCutoff(cutoff)),
   usageThresholds: () => wrap(() => dal.getUsageThresholds()),
   setUsageThresholds: (th: dal.UsageThresholds) => wrap(() => dal.setUsageThresholds(th)),
+  approverInbox: () => wrap(() => dal.getApproverInboxSetting()),
+  setApproverInbox: (on: boolean) => wrap(() => dal.setApproverInboxSetting(on)),
   standIns: () => wrap(() => dal.listStandIns()),
   setStandIn: (s: { delegatorId: string; standInId: string; startsOn: string; endsOn: string }) => wrap(() => dal.setStandIn(s)),
   stepPins: (projectId: string) => wrap(() => dal.listStepPins(projectId)),

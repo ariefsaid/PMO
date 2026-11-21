@@ -551,6 +551,15 @@ rule (order, not the author, one step per person) still holds. The pinned person
 the step's role; an Admin or the project's manager sets the pin on the project screen, and a step with no pin stays
 role-level (#2598).
 
+**Approver notification (material request)** — an in-app notification to each person who can decide the open step of a
+material request now (the step's role holders, or the live pin, plus in-window stand-ins; never the author, never
+someone who already decided another step). It is written by the database, removed when the step is decided, and exists
+only while the organisation's approvals-inbox setting is on (default off) (#2685).
+
+**Approvals inbox (material-request section)** — the "Material requests awaiting you" part of the Approvals page: the
+open steps the viewer may decide, from the same queue as the material-requests screen. Shown only while the
+organisation's setting is on (#2685).
+
 **Pin needing attention** — a pinned approver whose person is no longer an active member or no longer holds the
 step's role: the pin stops binding, the step falls back to its role rule (and stand-ins for role holders), and the
 project's setting screen flags the pin as needing attention until an Admin or the project's manager re-points or

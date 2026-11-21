@@ -403,6 +403,18 @@ export async function setApprovalChain(steps: ChainStepInput[]): Promise<void> {
   if (error) fail(error);
 }
 
+/** FR-MRI-001: whether open steps notify their approvers and list in the approvals inbox. Absent row = off. */
+export async function getApproverInboxSetting(): Promise<boolean> {
+  const { data, error } = await (supabase.from('material_request_settings').select('approver_inbox').limit(1) as unknown as DbResult<Array<{ approver_inbox: boolean }>>);
+  if (error) fail(error);
+  return data?.[0]?.approver_inbox ?? false;
+}
+
+export async function setApproverInboxSetting(on: boolean): Promise<void> {
+  const { error } = await supabase.rpc('mrq_set_approver_inbox', { p_on: on });
+  if (error) fail(error);
+}
+
 export async function setMaterialRequestCutoff(cutoff: string | null): Promise<void> {
   const { error } = await supabase.rpc('mrq_set_cutoff', { p_cutoff: cutoff });
   if (error) fail(error);
