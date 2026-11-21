@@ -7,7 +7,17 @@ import { pinEnglishLocale, requireServiceRoleKey, signIn } from './helpers';
 import { formatExactMoney } from '../src/lib/format';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
-test.setTimeout(60_000);
+test.setTimeout(120_000);
+test.use({ deviceScaleFactor: 2 });
+// Screenshots for the evidence folder (phone and desktop); they assert nothing.
+const EVIDENCE = '../docs/evidence/1215/2669';
+const shots = async (page: import('@playwright/test').Page, locator: import('@playwright/test').Locator, name: string) => {
+  for (const [label, width, height] of [['phone', 390, 844], ['desktop', 1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await locator.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${EVIDENCE}/${name}-${label}.png`, fullPage: true });
+  }
+};
 
 test('AC-DPR-013 the project tab shows revenue next to cost and margin per discipline', async ({ page }) => {
   const serviceKey = requireServiceRoleKey();
@@ -92,6 +102,24 @@ test('AC-DPR-013 the project tab shows revenue next to cost and margin per disci
     await expect(row).toContainText(revenue);
     await expect(row.getByTestId('discipline-profit-after')).toHaveText(revenue); // no cost recorded: the margin is the revenue
     await expect(panel.getByTestId('discipline-profit-row-total')).toContainText(revenue);
+    await shots(page, panel, 'discipline-profit-table');
+
+    // Evidence for the contract-line picker and the Admin setting card: a screen that does not open here is skipped, never failed.
+    try {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.getByRole('row', { name: /Tagged line/ }).getByRole('button', { name: 'Edit' }).first().click({ timeout: 8_000 });
+      const picker = page.getByRole('combobox', { name: /Discipline \(for profit per discipline\)/ });
+      await picker.waitFor({ timeout: 8_000 });
+      await shots(page, picker, 'contract-line-discipline-picker');
+      await page.keyboard.press('Escape');
+    } catch { /* picker screenshot not captured */ }
+    try {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto('/administration#org-discipline-profit');
+      const card = page.locator('#org-discipline-profit');
+      await card.waitFor({ timeout: 10_000 });
+      await shots(page, card, 'admin-setting-card');
+    } catch { /* setting-card screenshot not captured */ }
   } catch (e) {
     failure = e;
   } finally {
