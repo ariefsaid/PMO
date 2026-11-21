@@ -120,7 +120,8 @@ select public.set_purchase_types_enabled(true);
 select is((select status || ':' || (select count(*) from equipment_plan_lines where plan_id = '27004000-0000-0000-0000-000000000b03' and procurement_id is not null)::text
             from equipment_plans where id = '27004000-0000-0000-0000-000000000b03'), 'Submitted:0', 'AC-EQP-016 the plan stays Submitted with nothing created');
 
--- AC-EQP-012 all or nothing: the second line''s purchase id is already taken by someone else, so the whole approval rolls back
+-- AC-EQP-012 all or nothing: the second line''s purchase id is already taken by someone else, so the approval is refused
+-- naming the cause before anything is created
 reset role;
 insert into procurements (id, org_id, title, status, requested_by_id)
   select md5('eqplan:' || l.id::text)::uuid, l.org_id, 'taken id', 'Draft', '27004000-0000-0000-0000-0000000000a3'
@@ -128,7 +129,8 @@ insert into procurements (id, org_id, title, status, requested_by_id)
 set local role authenticated;
 select pg_temp._as('27004000-0000-0000-0000-0000000000a1');
 select throws_ok($$ select public.approve_equipment_plan('27004000-0000-0000-0000-000000000b04') $$, '42501',
-  'Procurement creation is not permitted', 'AC-EQP-012 when one line''s purchase cannot be created the approval is refused');
+  'EQP_PID_TAKEN: one of this plan''s purchase references is already in use; save the line again in the Draft plan to pick a new one',
+  'AC-EQP-012 when one line''s purchase reference is taken the approval is refused naming the cause');
 select is((select status from equipment_plans where id = '27004000-0000-0000-0000-000000000b04'), 'Submitted', 'AC-EQP-012 the plan is still Submitted');
 select is((select count(*)::int from equipment_plan_lines where plan_id = '27004000-0000-0000-0000-000000000b04' and procurement_id is not null), 0, 'AC-EQP-012 no line is linked');
 select is((select count(*)::int from procurements p where p.id in (select md5('eqplan:' || id::text)::uuid from equipment_plan_lines where plan_id = '27004000-0000-0000-0000-000000000b04')), 1,
