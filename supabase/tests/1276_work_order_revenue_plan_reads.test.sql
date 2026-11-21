@@ -5,7 +5,7 @@
 -- refused · AC-WRP-010 project totals are per currency, never blended · AC-WRP-012 another organisation is refused.
 begin;
 create extension if not exists pgtap;
-select plan(26);
+select plan(27);
 
 insert into organizations (id, name) values
   ('26720000-0000-0000-0000-00000000000a', 'WRR Org'),
