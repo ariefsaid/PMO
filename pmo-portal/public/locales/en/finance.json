@@ -158,7 +158,7 @@
     "receivedByClient": "Delivered to client {{date}}",
     "notReceivedByClient": "Not delivered yet",
     "paid": "Paid {{date}}",
-    "paymentDateNotRecorded": "Payment date not recorded",
+    "paymentDateUnavailable": "Payment date not available",
     "paidAmountUnavailable": "Amount not available",
     "paidDetailsUnavailable": "Payment details not available.",
     "paidDate": "Paid date",

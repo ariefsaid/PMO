@@ -134,7 +134,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                 { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={viewTarget.project_id} name={projectName} className="text-control" /> },
                 { label: t('uxs17.invoiceDate', 'Invoice date'), value: viewTarget.invoice_date ? formatDayYear(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded') },
                 ...(isPaid ? [
-                  { label: t('finance:receivables.paidDate', 'Paid date'), value: paidDate ? formatDayYear(paidDate) : t('finance:receivables.paymentDateNotRecorded', 'Payment date not recorded') },
+                  { label: t('finance:receivables.paidDate', 'Paid date'), value: paidDate ? formatDayYear(paidDate) : t('finance:receivables.paymentDateUnavailable', 'Payment date not available') },
                   {
                     label: t('finance:receivables.paidAmount', 'Amount paid'),
                     value: paidAmount == null ? t('finance:receivables.paidAmountUnavailable', 'Amount not available') : <>

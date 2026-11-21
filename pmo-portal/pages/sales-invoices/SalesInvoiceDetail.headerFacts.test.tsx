@@ -6,12 +6,12 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
-const orderState = vi.hoisted(() => ({ visible: true, payments: [] as unknown[] }));
+const orderState = vi.hoisted(() => ({ visible: true, payments: [] as unknown[], paymentPending: false, paymentError: false }));
 vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => ({ data: orderState.visible ? { id: 'wo1', wo_number: 'WO-1', title: 'Install' } : null }) }));
 vi.mock('./SalesInvoiceEvidence', () => ({ SalesInvoiceEvidenceWithPayments: () => null }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoiceEvidence: () => ({ data: { lines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
-  useIncomingPayments: () => ({ data: orderState.payments, isPending: false, isError: false }),
+  useIncomingPayments: () => ({ data: orderState.payments, isPending: orderState.paymentPending, isError: orderState.paymentError }),
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useInvoiceProjectOptions: () => ({ data: [{ value: 'project-1', label: 'Northwind Build', contractualName: 'Northwind Build' }] }),
@@ -38,6 +38,8 @@ afterEach(async () => {
   cleanup();
   orderState.visible = true;
   orderState.payments = [];
+  orderState.paymentPending = false;
+  orderState.paymentError = false;
   await financeTestI18n.changeLanguage('en');
 });
 
@@ -260,7 +262,7 @@ describe('#2442 paid sales invoice wording', () => {
   ])('does not fabricate a payment amount or date from invoice facts %#', (facts) => {
     renderInvoice({ ...target, ...facts, status: 'Paid', received_date: '2026-10-15' });
     const header = screen.getByTestId('record-header');
-    expect(within(header).getByText('Payment date not recorded')).toBeInTheDocument();
+    expect(within(header).getByText('Payment date not available')).toBeInTheDocument();
     expect(within(header).getByText('Amount not available')).toBeInTheDocument();
     expect(screen.getByTestId('invoice-delivery-note')).not.toHaveTextContent(/15 Oct 2026|1 Oct 2026|1,110,000|IDR\s*0/);
     expect(within(header).queryByText('Ready to send')).not.toBeInTheDocument();
@@ -270,21 +272,21 @@ describe('#2442 paid sales invoice wording', () => {
     const allocation = { id: 'alloc', sales_invoice_id: 'invoice-1', amount: 555000, cash_amount: 555000, withheld_amount: 0, currency: 'IDR' };
     orderState.payments = ['2026-10-20', '2026-10-21'].map((date, index) => ({ id: String(index), pmo_native: true, status: 'Paid', date, cancelled_at: null, erp_cancelled_at: null, allocations: [allocation] }));
     renderInvoice({ ...target, pmo_native: true, status: 'Paid', erp_outstanding_amount: 0 });
-    expect(within(screen.getByTestId('record-header')).getByText('Payment date not recorded')).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByText('Payment date not available')).toBeInTheDocument();
   });
 
   it('does not present a receipt date as the settlement date when the allocation covers only part', () => {
     orderState.payments = [{ id: 'receipt-1', pmo_native: true, status: 'Paid', date: '2026-10-20', cancelled_at: null, erp_cancelled_at: null,
       allocations: [{ id: 'alloc-1', sales_invoice_id: 'invoice-1', amount: 100, cash_amount: 100, withheld_amount: 0, currency: 'IDR' }] }];
     renderInvoice({ ...target, pmo_native: true, status: 'Paid', erp_outstanding_amount: 0 });
-    expect(within(screen.getByTestId('record-header')).getByText('Payment date not recorded')).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByText('Payment date not available')).toBeInTheDocument();
   });
 
   it('shows the unavailable facts in Bahasa', async () => {
     await financeTestI18n.changeLanguage('id');
     renderInvoice({ ...target, status: 'Paid', erp_outstanding_amount: 0, received_date: '2026-10-15' });
     const header = screen.getByTestId('record-header');
-    expect(within(header).getByText('Tanggal pembayaran belum dicatat')).toBeInTheDocument();
+    expect(within(header).getByText('Tanggal pembayaran tidak tersedia')).toBeInTheDocument();
     expect(within(header).getByText('Jumlah tidak tersedia')).toBeInTheDocument();
     expect(within(header).queryByText('Siap dikirim')).not.toBeInTheDocument();
   });
@@ -296,6 +298,18 @@ describe('#2442 paid sales invoice wording', () => {
       invoiceDisplayLabel={() => 'INV'} may={mayDownload} pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
       receiptAwaitingOdoo dialogs={null} /></MemoryRouter></FinanceI18nTestProvider>);
     expect(within(screen.getByTestId('record-header')).queryByText('Receipt sent, awaiting Odoo')).not.toBeInTheDocument();
+  });
+
+  it.each(['missing', 'pending', 'error'])('shows an unavailable date for a %s receipt read', (state) => {
+    orderState.payments = [{ id: 'receipt-1', pmo_native: true, status: 'Paid', date: state === 'missing' ? null : '2026-10-20', cancelled_at: null, erp_cancelled_at: null,
+      allocations: [{ id: 'alloc-1', sales_invoice_id: 'invoice-1', amount: 1110000, cash_amount: 1110000, withheld_amount: 0, currency: 'IDR' }] }];
+    orderState.paymentPending = state === 'pending';
+    orderState.paymentError = state === 'error';
+    renderInvoice({ ...target, pmo_native: true, status: 'Paid', erp_outstanding_amount: 0 });
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Payment date not available')).toBeInTheDocument();
+    expect(within(header).queryByText('20 Oct 2026')).not.toBeInTheDocument();
+    expect(screen.getByTestId('invoice-delivery-note')).not.toHaveTextContent('20 Oct 2026');
   });
 
   it('keeps partly paid invoices in the unpaid state', () => {

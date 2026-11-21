@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
   setReceivedDate: vi.fn(async () => undefined),
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   payments: [] as IncomingPaymentRow[],
+  paymentPending: false,
+  paymentError: false,
   evidencePending: false,
   route: 'pmo' as 'pmo' | 'external',
   /** null = ownership still loading; otherwise derived from `route`. */
@@ -49,7 +51,7 @@ vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-
 vi.mock('@/src/hooks/useFxRates', () => ({ useFxRate: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoiceEvidence: () => ({ data: null, isPending: h.evidencePending, isError: false, refetch: vi.fn() }),
-  useIncomingPayments: () => ({ data: h.payments, isPending: false, isError: false }),
+  useIncomingPayments: () => ({ data: h.payments, isPending: h.paymentPending, isError: h.paymentError }),
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => h.invoices,
   useRevenueMutations: () => ({
@@ -167,6 +169,8 @@ beforeEach(async () => {
   h.setReceivedDate.mockReset().mockResolvedValue(undefined);
   h.invoices.data = [];
   h.payments = [];
+  h.paymentPending = false;
+  h.paymentError = false;
   h.evidencePending = false;
   h.route = 'pmo';
   h.ownershipLoaded = true;
@@ -987,7 +991,7 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     renderPage('/finance/receivables?open=si-n1', true);
     const drawer = screen.getByRole('dialog');
     const field = within(drawer).getByText('Paid date').closest('dl') as HTMLElement;
-    expect(within(field).getByText('Payment date not recorded')).toBeInTheDocument();
+    expect(within(field).getByText('Payment date not available')).toBeInTheDocument();
     expect(within(field).getByText('Amount not available')).toBeInTheDocument();
     expect(within(field).queryByText('Outstanding · tax included')).not.toBeInTheDocument();
     expect(within(field).queryByText('Due date')).not.toBeInTheDocument();
@@ -1002,12 +1006,25 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     expect(within(drawer).queryByText('Paid date')).not.toBeInTheDocument();
   });
 
+  it.each(['missing', 'pending', 'error', 'multiple'])('a paid drawer describes a %s date as unavailable', (state) => {
+    h.invoices.data = [nativeInvoice({ status: 'Paid', pmo_number: 'PAID-1', invoice_date: '2026-10-01', received_date: '2026-10-12', erp_payment_terms_days: 30, erp_outstanding_amount: 0 })];
+    const allocation = { id: 'a1', sales_invoice_id: 'si-n1', amount: 1110000, cash_amount: 1110000, withheld_amount: 0, currency: 'IDR' };
+    h.payments = [{ id: 'r1', pmo_native: true, status: 'Paid', currency: 'IDR', date: state === 'missing' ? null : '2026-10-20', cancelled_at: null, erp_cancelled_at: null, allocations: [allocation] } as IncomingPaymentRow];
+    if (state === 'multiple') h.payments.push({ ...h.payments[0], id: 'r2', date: '2026-10-21' });
+    h.paymentPending = state === 'pending';
+    h.paymentError = state === 'error';
+    renderPage('/finance/receivables?open=si-n1', true);
+    const facts = within(screen.getByRole('dialog')).getByText('Paid date').closest('dl') as HTMLElement;
+    expect(within(facts).getByText('Payment date not available')).toBeInTheDocument();
+    expect(within(facts).queryByText('20 Oct 2026')).not.toBeInTheDocument();
+  });
+
   it('a paid drawer describes unknown payment facts in Bahasa', async () => {
     await financeTestI18n.changeLanguage('id');
     h.invoices.data = [nativeInvoice({ status: 'Paid', pmo_number: 'PAID-1', pmo_native: false, invoice_date: '2026-10-01', received_date: '2026-10-12', erp_payment_terms_days: 30, erp_outstanding_amount: 0 })];
     renderPage('/finance/receivables?open=si-n1', true);
     const drawer = screen.getByRole('dialog');
-    expect(within(drawer).getByText('Tanggal pembayaran belum dicatat')).toBeInTheDocument();
+    expect(within(drawer).getByText('Tanggal pembayaran tidak tersedia')).toBeInTheDocument();
     expect(within(drawer).getByText('Jumlah tidak tersedia')).toBeInTheDocument();
   });
 

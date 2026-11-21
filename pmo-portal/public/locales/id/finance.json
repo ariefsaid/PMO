@@ -158,7 +158,7 @@
     "receivedByClient": "Terkirim ke klien {{date}}",
     "notReceivedByClient": "Belum dikirim",
     "paid": "Dibayar {{date}}",
-    "paymentDateNotRecorded": "Tanggal pembayaran belum dicatat",
+    "paymentDateUnavailable": "Tanggal pembayaran tidak tersedia",
     "paidAmountUnavailable": "Jumlah tidak tersedia",
     "paidDetailsUnavailable": "Rincian pembayaran tidak tersedia.",
     "paidDate": "Tanggal dibayar",
