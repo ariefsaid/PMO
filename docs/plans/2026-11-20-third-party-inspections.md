@@ -1,7 +1,7 @@
 # Plan — third-party inspection tracker with cost (#2580)
 
 Spec: `docs/specs/third-party-inspections.spec.md` (its "Review 20 Nov" section is binding) · branch `feat/2580-inspections` ·
-migrations 1130-1134.
+migrations 1179-1183.
 
 ## Built on defaults (owner to confirm)
 
@@ -12,7 +12,7 @@ migrations 1130-1134.
 | OD-TPI-3 | A waiver needs a reason and a person other than the creator (`TPI_WAIVE_SELF`, enforced by `guard_tpi_transition`; no client write grant exists on the waiver columns). |
 | OD-TPI-4 | The feature only exposes the prerequisite read and shows a billing-open line on the work-order page (display only); #2522 and #2576 own the block. |
 | OD-TPI-5 | One inspection is one test event; a re-test is a new inspection. |
-| OD-TPI-6 | A trigger on the four purchase record tables (`a1_tpi_stamp_cost_attribution`, 1133) stamps the linked inspection's work order on a new record that names none. It touches only `work_order_id`, never overwrites, and skips a case whose work order is Cancelled so procurement is never broken. Ships alone (money path). |
+| OD-TPI-6 | A trigger on the four purchase record tables (`a1_tpi_stamp_cost_attribution`, 1182) stamps the linked inspection's work order on a new record that names none. It touches only `work_order_id`, never overwrites, and skips a case whose work order is Cancelled so procurement is never broken. Ships alone (money path). |
 | OD-TPI-7 | Engineer scope is the organisation's active members with the Engineer role, org-wide (no per-project membership concept exists). |
 | OD-TPI-8 | A required inspection cannot be cancelled (`TPI_CANCEL_REQUIRED`); it is reported or waived. Cancellation is for tracked-only inspections: the creator (Engineer) while `requested`, or a Project Manager, Finance or Admin at any status before reported. |
 | OQ-TPI-1 | Test kind is free text (`test_kind`), no organisation list yet. |
@@ -28,17 +28,17 @@ daily (`tpi-overdue`, 01:41 UTC) and is callable by `service_role` only.
 
 ## Tasks (as built)
 
-1. **1130 tracker** — `supabase/migrations/1179_third_party_inspections.sql` (+ rollback): `third_party_inspections` (RLS + FORCE,
+1. **1179 tracker** — `supabase/migrations/1179_third_party_inspections.sql` (+ rollback): `third_party_inspections` (RLS + FORCE,
    `stamp_org_id`, no client write grant, column-level SELECT without the estimate), `guard_tpi_transition` (every state rule in one
    trigger), `third_party_inspection_files` (append-only once reported, 10 live files, `on delete restrict`), private bucket
    `inspection-reports` (15 MB; pdf, images, Office) + storage RLS.
-2. **1131 writers** — `supabase/migrations/1180_third_party_inspection_rpcs.sql`: `tpi_create`, `tpi_record_invitation`,
+2. **1180 writers** — `supabase/migrations/1180_third_party_inspection_rpcs.sql`: `tpi_create`, `tpi_record_invitation`,
    `tpi_record_execution`, `tpi_record_report`, `tpi_waive`, `tpi_cancel` (role gates + actor/date stamps + audit rows).
-3. **1132 record history** — registers the entity (parent: its work order), the capture trigger and the `record_history_visible` arm;
+3. **1181 record history** — registers the entity (parent: its work order), the capture trigger and the `record_history_visible` arm;
    `record_changes_catalog_gate.test.sql` now counts 18 entities.
-4. **1133 purchase link (money path)** — `tpi_raise_purchase` (new Draft case through the shipped `create_procurement_with_items`, or
+4. **1182 purchase link (money path)** — `tpi_raise_purchase` (new Draft case through the shipped `create_procurement_with_items`, or
    link an unlinked case of the project and attribute its records through the shipped `set_cost_attribution`) and the four stamping triggers.
-5. **1134 reads** — `tpi_costs` (committed and billed per currency, server-side null amounts outside Admin/Executive/Finance/Project
+5. **1183 reads** — `tpi_costs` (committed and billed per currency, server-side null amounts outside Admin/Executive/Finance/Project
    Manager), `work_order_inspection_prerequisites` (jsonb `{complete, inspections}`), `run_tpi_overdue_sweep` + cron.
 6. **Seam** — `src/lib/db/thirdPartyInspections.ts`, `src/lib/repositories/{contracts/,}thirdPartyInspections.ts`,
    `src/hooks/useThirdPartyInspections.ts`, `can()` entries (`thirdPartyInspection`), hand-edited `database.types.ts`.
@@ -52,22 +52,22 @@ daily (`tpi-overdue`, 01:41 UTC) and is callable by `service_role` only.
 |---|---|---|
 | AC-TPI-001 | `supabase/tests/1183_third_party_inspection_reads.test.sql`; `pages/work-order-detail/InspectionsSection.test.tsx` (display) | pgTAP + Unit |
 | AC-TPI-002 | `supabase/tests/1182_third_party_inspection_purchase.test.sql` | pgTAP |
-| AC-TPI-003 | 1133 test (link refusals) | pgTAP |
+| AC-TPI-003 | 1182 test (link refusals) | pgTAP |
 | AC-TPI-004 | `supabase/tests/1179_third_party_inspections.test.sql` | pgTAP |
-| AC-TPI-005 | 1130 test | pgTAP |
-| AC-TPI-006 | 1130 test | pgTAP |
-| AC-TPI-007 | 1134 test; `src/lib/db/thirdPartyInspections.test.ts` (completeness rule) | pgTAP + Unit |
-| AC-TPI-008 | 1130 test | pgTAP |
-| AC-TPI-009 | 1130 test (create refusal and roll-up) | pgTAP |
-| AC-TPI-010 | 1130 test | pgTAP |
-| AC-TPI-011 | 1134 test | pgTAP |
-| AC-TPI-012 | 1133 test | pgTAP |
-| AC-TPI-013 | 1130 test + 1133 test (Engineer raise) + `src/auth/policy.thirdPartyInspection.test.ts` | pgTAP + Unit |
-| AC-TPI-014 | 1133 test | pgTAP |
+| AC-TPI-005 | 1179 test | pgTAP |
+| AC-TPI-006 | 1179 test | pgTAP |
+| AC-TPI-007 | 1183 test; `src/lib/db/thirdPartyInspections.test.ts` (completeness rule) | pgTAP + Unit |
+| AC-TPI-008 | 1179 test | pgTAP |
+| AC-TPI-009 | 1179 test (create refusal and roll-up) | pgTAP |
+| AC-TPI-010 | 1179 test | pgTAP |
+| AC-TPI-011 | 1183 test | pgTAP |
+| AC-TPI-012 | 1182 test | pgTAP |
+| AC-TPI-013 | 1179 test + 1182 test (Engineer raise) + `src/auth/policy.thirdPartyInspection.test.ts` | pgTAP + Unit |
+| AC-TPI-014 | 1182 test | pgTAP |
 | AC-TPI-015 | `pmo-portal/e2e/AC-TPI-015-inspection-journey.spec.ts` | E2E |
 | AC-TPI-016 | `pmo-portal/e2e/AC-TPI-016-engineer-report.spec.ts` | E2E |
-| AC-TPI-017 | 1130 test | pgTAP |
-| AC-TPI-018 | 1133 test ((a)-(c)); (d) `0950_work_order_cost_attribution.test.sql` run unchanged | pgTAP |
+| AC-TPI-017 | 1179 test | pgTAP |
+| AC-TPI-018 | 1182 test ((a)-(c)); (d) `0950_work_order_cost_attribution.test.sql` run unchanged | pgTAP |
 
 ## Verify
 
