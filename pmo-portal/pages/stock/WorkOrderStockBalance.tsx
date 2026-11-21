@@ -6,6 +6,8 @@ import { PrimaryCell } from '@/src/components/ui/DataTableShared';
 import type { WorkOrderStockRow } from '@/src/lib/db/stockSiteWork';
 import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
 import { isOwnershipCacheSynced, routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
+import { ReservationsSlot } from '@/src/components/stock/ReservationsSlot';
+import { WorkOrderReservations } from '@/src/components/stock/WorkOrderReservations';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { WorkOrderMaterialProgressBanner } from './WorkOrderMaterialProgressBanner';
 
@@ -71,6 +73,7 @@ export const WorkOrderStockBalance: React.FC<{ workOrderId: string; currency: st
           accessibleName={t('siteWork.balance.title')} embedded cardValuesEnd
           mobileCardTitle={(r) => <PrimaryCell title={r.itemName} secondary={r.tagName ?? undefined} />} mobileCardDetails={cardDetails} />
       )}
+      <ReservationsSlot><WorkOrderReservations workOrderId={workOrderId} /></ReservationsSlot>
     </section>
   );
 };

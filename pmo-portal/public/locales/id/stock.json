@@ -902,5 +902,64 @@
     },
     "setting": "Transfer antar perintah kerja",
     "settingHelp": "Memungkinkan penjaga gudang memindahkan sisa material antar perintah kerja dalam satu proyek dengan satu dokumen."
+  },
+  "reservations": {
+    "column": "Bebas dan dicadangkan",
+    "freePlusReserved": "{{free}} bebas + {{reserved}} dicadangkan",
+    "shortBy": "Dicadangkan, kurang {{n}}",
+    "reserve": "Cadangkan",
+    "showHolders_one": "Tampilkan perintah kerja",
+    "showHolders_other": "Tampilkan {{count}} perintah kerja",
+    "hideHolders": "Sembunyikan perintah kerja",
+    "holders": "Perintah kerja yang memegang cadangan",
+    "until": "sampai {{date}}",
+    "heldByWorkOrder": "Dicadangkan untuk perintah kerja ini",
+    "form": {
+      "title": "Cadangkan stok",
+      "submit": "Cadangkan",
+      "project": "Proyek",
+      "projectPlaceholder": "Pilih proyek",
+      "workOrder": "Perintah kerja",
+      "workOrderPlaceholder": "Pilih perintah kerja",
+      "quantity": "Jumlah",
+      "expires": "Tahan sampai (opsional)",
+      "expiresHelp": "Setelah tanggal ini stok bebas kembali.",
+      "note": "Catatan (opsional)",
+      "errWorkOrder": "Pilih perintah kerja yang memerlukan stok ini",
+      "errQuantity": "Isi jumlah di atas nol, maksimal tiga desimal",
+      "saved": "Stok dicadangkan"
+    },
+    "borrowing": {
+      "title": "Meminjam.",
+      "body": "{{n}} dari permintaan ini diambil dari stok yang dicadangkan untuk perintah kerja lain, jadi perlu persetujuan peminjaman."
+    },
+    "settings": {
+      "enable": "Cadangkan stok untuk perintah kerja",
+      "enableHelp": "Perintah kerja dapat menahan sejumlah barang di suatu lokasi. Tidak ada yang dikunci: stok tampil sebagai bebas dan dicadangkan. Nonaktif secara bawaan.",
+      "mode": "Bila permintaan meminjam stok cadangan",
+      "modeApprove": "Perlu langkah persetujuan tambahan",
+      "modeWarn": "Hanya tampilkan peringatan",
+      "modeHelp": "Meminjam berarti permintaan mengambil stok yang dicadangkan untuk perintah kerja lain.",
+      "role": "Siapa yang menyetujui peminjaman",
+      "roleNone": "Belum dipilih",
+      "roleHelp": "Peran ini memutuskan langkah terakhir permintaan yang meminjam.",
+      "label": "Nama langkah persetujuan",
+      "labelDefault": "Persetujuan peminjaman"
+    },
+    "errors": {
+      "RSV_OFF": "Pencadangan belum diaktifkan.",
+      "RSV_FORBIDDEN": "Hanya penjaga lokasi, perencana stok, atau Admin yang dapat melakukan ini.",
+      "RSV_INVALID": "Periksa isian: jumlah maksimal tiga desimal, bilangan bulat untuk barang satuan utuh, dan alasan bila diminta.",
+      "RSV_NOT_FOUND": "Perintah kerja, barang, lokasi, atau cadangan itu tidak ditemukan.",
+      "RSV_WORK_ORDER": "Perintah kerja sudah ditutup atau dibatalkan.",
+      "RSV_LOCATION": "Stok dapat dicadangkan di lokasi pusat, lokasi kerja, yard, dan staging yang tidak diarsipkan.",
+      "RSV_EXCEEDS_FREE": "Hanya {{n}} yang bebas di lokasi ini.",
+      "RSV_EXCEEDS_REMAINING": "Hanya {{n}} yang tersisa pada cadangan ini.",
+      "RSV_NOT_ACTIVE": "Cadangan ini sudah tidak aktif.",
+      "RSV_NO_BORROW_APPROVER": "Permintaan ini mengambil stok cadangan perintah kerja lain dan belum ada yang ditetapkan menyetujuinya. Hubungi Admin.",
+      "RSV_BORROW_CHANGED": "Stok cadangan yang dipinjam kini lebih banyak dari yang disetujui. Kembalikan permintaan dan ajukan lagi.",
+      "RSV_OVERDRAW": "Cadangan lebih sedikit dari yang dipakai permintaan.",
+      "RSV_IMMUTABLE": "Cadangan tidak dapat dihapus; lepaskan saja."
+    }
   }
 }
