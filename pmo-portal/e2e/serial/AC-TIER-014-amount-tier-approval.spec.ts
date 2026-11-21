@@ -12,7 +12,8 @@ import { signIn, requireServiceRoleKey } from '../helpers';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
-const PM_ID = '00000000-0000-0000-0000-0000000000a2'; // base tier
+// An Executive, not a Project Manager: a PM sees only procurements they raised or on a project they manage, so an overhead request is outside a PM's scope.
+const BASE_ID = '00000000-0000-0000-0000-0000000000a1'; // base tier
 const FINANCE_ID = '00000000-0000-0000-0000-0000000000a3'; // the 100000 tier
 const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4'; // the requester
 const VITE_ENV = loadEnv('development', process.cwd(), 'VITE_');
@@ -45,7 +46,7 @@ test.beforeEach(async () => {
   approverName = named.data.full_name;
 
   const rows = await admin.from('spend_approvers').insert([
-    { org_id: ORG_ID, project_id: null, profile_id: PM_ID, min_amount: null },
+    { org_id: ORG_ID, project_id: null, profile_id: BASE_ID, min_amount: null },
     { org_id: ORG_ID, project_id: null, profile_id: FINANCE_ID, min_amount: 100_000 },
   ]);
   if (rows.error) throw new Error(`AC-TIER-014 fixture approvers: ${rows.error.message}`);
@@ -68,7 +69,7 @@ test.afterEach(async () => {
     fail('events', (await admin.from('procurement_status_events').delete().eq('procurement_id', procurementId)).error);
     fail('procurement', (await admin.from('procurements').delete().eq('id', procurementId)).error);
   }
-  fail('approvers', (await admin.from('spend_approvers').delete().eq('org_id', ORG_ID).is('project_id', null).in('profile_id', [PM_ID, FINANCE_ID])).error);
+  fail('approvers', (await admin.from('spend_approvers').delete().eq('org_id', ORG_ID).is('project_id', null).in('profile_id', [BASE_ID, FINANCE_ID])).error);
   if (priorTiers === null) fail('setting', (await admin.from('spend_approval_settings').delete().eq('org_id', ORG_ID)).error);
   else fail('setting', (await admin.from('spend_approval_settings').update({ tiers_enabled: priorTiers }).eq('org_id', ORG_ID)).error);
   procurementId = '';
@@ -76,7 +77,7 @@ test.afterEach(async () => {
 
 test('AC-TIER-014 a large overhead request is decided by the higher tier, and only by them', async ({ page }) => {
   // The base-tier approver: told who decides, offered no Approve.
-  await signIn(page, 'pm@acme.test');
+  await signIn(page, 'exec@acme.test');
   await page.goto(`/procurement/${procurementId}`);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested', { timeout: 10_000 });
