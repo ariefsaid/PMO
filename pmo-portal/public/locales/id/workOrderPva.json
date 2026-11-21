@@ -104,5 +104,13 @@
   "underPlan": "Sisa {{amount}}",
   "underPlanHours": "Sisa {{hours}} jam",
   "unknown": "Tidak diketahui",
-  "unknownDiscipline": "Disiplin diarsipkan"
+  "unknownDiscipline": "Disiplin diarsipkan",
+  "labour": {
+    "title": "Biaya tenaga kerja per kelas",
+    "class": "Kelas",
+    "hours": "Jam",
+    "cost": "Biaya",
+    "unknownClass": "Kelas lain",
+    "note": "Bagian dari biaya langsung di atas, dari jam yang disetujui dengan tarif biaya tiap orang."
+  }
 }
