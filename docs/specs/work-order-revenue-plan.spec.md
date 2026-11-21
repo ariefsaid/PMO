@@ -34,7 +34,7 @@ derived and posts nothing, so no money-path or SoD change.
 - FR-WRP-004 A day's amount can then be edited on its own; an edited day is kept when the month is re-spread only if the user chooses "keep edited days",
   and the remaining amount of the month is spread over the other working days. Re-entering a month without that choice replaces all its rows.
 - FR-WRP-005 An amount shall be a finite number from 0 to under 1e15 with at most two decimals; a date shall be a real calendar date. A month with no working day is refused with a clear message.
-- FR-WRP-006 A Cancelled or Closed work order's plan is frozen (refused on write). Each write records who and when; the previous amount is kept in an audit row.
+- FR-WRP-006 A Cancelled or Closed work order's plan is frozen (refused on write). Each write call records who, when and the amounts before and after in the audit log.
 - FR-WRP-007 Clearing a date or a month removes its rows. The plan never changes an actual, a project total, a budget or an invoice.
 
 **Reading plan, actual and gap**
@@ -54,17 +54,17 @@ derived and posts nothing, so no money-path or SoD change.
 ## 4. Settings and defaults (existing organisations see no change)
 | Setting | Where | Default |
 |---|---|---|
-| Revenue plan on/off | new table `org_revenue_plan_settings.enabled` (one row per org) | **off** |
+| Revenue plan on/off | new table `org_revenue_plan_settings.enabled` (one row per org); Administration > Projects card | **off** |
 | Working weekdays | `org_revenue_plan_settings.working_weekdays smallint[]` (ISO 1..7) | `{1,2,3,4,5}` |
 
-No row = off. No client calendar, holiday list or day count is coded; holidays are an open question (OQ-WRP-1).
+No row = off. The internal function `org_is_working_day(org, date)` is the one place a working day is decided; #2672 reuses it and adds a non-working-dates list. No client calendar or day count is coded.
 
 ## 5. Database-enforced rules and proofs
 | Rule | Enforced by | pgTAP |
 |---|---|---|
 | Plan write roles; cancelled/closed frozen; own org/project; amount shape (FR-WRP-002/005/006) | security-definer write RPCs (table grants SELECT only) + check trigger | `supabase/tests/1275_work_order_revenue_plan.test.sql` |
 | Month spread exact to the cent, working days only (FR-WRP-003/004) | `wo_revenue_plan_set_month` | same file |
-| Setting off => reads empty, writes refused (FR-WRP-001) | RPC guard | same file |
+| Setting off => reads return null, writes refused (FR-WRP-001) | RPC guard | both files |
 | Revenue visibility and only-validated actual (FR-WRP-010..013) | read RPCs reusing `dsr_may_see_revenue` | `supabase/tests/1276_work_order_revenue_plan_reads.test.sql` |
 | Cross-org isolation, anon cannot execute, RLS initplan | RLS `(select auth_org_id())`, revoke from anon | both files + 0178 anon test + 0646 |
 

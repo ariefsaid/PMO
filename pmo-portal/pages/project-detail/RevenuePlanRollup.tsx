@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useContext } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Card, CardHead, CardPad, ListState } from '@/src/components/ui';
@@ -16,6 +18,14 @@ interface Props { projectId: string }
  * read it. Reads the same SQL figures as the work-order page, so the two always agree (AC-WRP-013).
  */
 const RevenuePlanRollup: React.FC<Props> = ({ projectId }) => {
+  // Outside the app's providers (a bare render) there is nothing to read: show nothing, as when the plan is off.
+  const queries = useContext(QueryClientContext);
+  const auth = useContext(AuthContext);
+  if (!queries || !auth) return null;
+  return <RollupInner projectId={projectId} />;
+};
+
+const RollupInner: React.FC<Props> = ({ projectId }) => {
   const { t } = useTranslation('workOrderRevenuePlan');
   const canView = usePermission()('view', 'workOrderRevenuePlan');
   const settings = useRevenuePlanSettings();

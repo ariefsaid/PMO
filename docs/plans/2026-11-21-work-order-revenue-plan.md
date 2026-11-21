@@ -7,9 +7,9 @@ No ADR (additive tables and reads; no irreversible or cross-cutting choice). Glo
 
 **S1 Schema and settings, `1275_work_order_revenue_plan.sql`.** Tables `org_revenue_plan_settings(org_id pk, enabled default false, working_weekdays smallint[] default '{1,2,3,4,5}', updated_by, updated_at)`,
 `work_order_revenue_plan(id, org_id, project_id, work_order_id, plan_date, amount numeric check shape, source 'date'|'month', month_key date null, created_by/at, updated_by/at; unique (work_order_id, plan_date))`,
-`work_order_revenue_plan_audit(id, org_id, work_order_id, plan_date, old_amount, new_amount, actor_id, at)`.
+audit through `log_audit` (one event per write call with before and after), no separate audit table. Internal helper `org_is_working_day(org, date)` is reused by #2672.
 RLS on all three: SELECT `org_id = (select auth_org_id())` and `(select dsr_may_see_revenue(project_id))` for plan rows; grants SELECT only; org stamped by `stamp_org_id`. Setting write via RPC `set_revenue_plan_settings(enabled, weekdays)` (Admin only, weekdays 1..7 distinct, 1 to 7 entries).
-Test `supabase/tests/1275_work_order_revenue_plan.test.sql` (AC-WRP-001..006, 012). Isolation denominator fragment `scripts/isolation-probe-denominator.d/2671-work-order-revenue-plan.json` (3 tables, every definer function).
+Test `supabase/tests/1275_work_order_revenue_plan.test.sql` (AC-WRP-001..006, 012). Isolation denominator fragment `scripts/isolation-probe-denominator.d/2671-work-order-revenue-plan.json` (2 tables, every definer function).
 
 **S2 Write RPCs, `1276_work_order_revenue_plan_writes.sql`.** `wo_revenue_plan_set_day(wo, date, amount)`, `wo_revenue_plan_set_month(wo, month, amount, keep_edited boolean)` (largest-remainder cents over working days, earliest dates take extra cent), `wo_revenue_plan_clear(wo, from, to)`.
 All `security definer set search_path = public, pg_temp`, `revoke ... from public, anon`, grant authenticated; role check (Admin, Executive, Finance, project's PM), setting-on check, frozen-status check, audit row. Same pgTAP file as S1 plus mutation check (a).
@@ -25,7 +25,7 @@ Test `supabase/tests/1276_work_order_revenue_plan_reads.test.sql` (AC-WRP-007..0
 
 **S7 Strings and evidence.** English and Bahasa Indonesia namespace `workOrderRevenuePlan` in `pmo-portal/public/locales/{en,id}/`; screenshots at 390 and 1440 px (scale 2) in `docs/evidence/1215/2671/`; `scripts/ux-proof.sh` on touched routes; glossary entries.
 
-**S8 E2E.** `pmo-portal/e2e/AC-WRP-013-revenue-plan.spec.ts` via `scripts/e2e-local.sh`, isolation class per `docs/e2e-parallel-conventions.md`.
+**S8 E2E.** `pmo-portal/e2e/serial/AC-WRP-013-revenue-plan.spec.ts` (serial: it switches the org-wide setting) via `scripts/e2e-local.sh`, isolation class per `docs/e2e-parallel-conventions.md`.
 
 ## AC ownership
 | AC | Owner layer / file |

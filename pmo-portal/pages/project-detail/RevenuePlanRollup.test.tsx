@@ -2,6 +2,8 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { formatExactMoney } from '@/src/lib/format';
 import type { ProjectRevenuePlan } from '@/src/lib/revenuePlan';
@@ -26,7 +28,11 @@ const plan = (): ProjectRevenuePlan => ({
     { currency: 'USD', planToDate: '50.00', actualToDate: '0.00', gap: '-50.00', planTotal: '50.00', plannedCount: 1 },
   ],
 });
-const renderIt = () => render(<MemoryRouter><RevenuePlanRollup projectId="p" /></MemoryRouter>);
+const renderIt = () => render(
+  <QueryClientProvider client={new QueryClient()}>
+    <AuthContext.Provider value={{} as AuthContextValue}><MemoryRouter><RevenuePlanRollup projectId="p" /></MemoryRouter></AuthContext.Provider>
+  </QueryClientProvider>,
+);
 beforeEach(() => { setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' }); state.enabled = true; state.canView = true; state.query = { data: plan(), isPending: false, isError: false, error: null, refetch: vi.fn() }; });
 
 describe('RevenuePlanRollup (#2671)', () => {
@@ -37,6 +43,9 @@ describe('RevenuePlanRollup (#2671)', () => {
     unmount();
     state.enabled = true; state.canView = false;
     expect(renderIt().container.firstChild).toBeNull();
+  });
+  it('shows nothing outside the app providers, as when the plan is off', () => {
+    expect(render(<MemoryRouter><RevenuePlanRollup projectId="p" /></MemoryRouter>).container.firstChild).toBeNull();
   });
   it('shows one row per work order with the gap in words, and no plan as "No plan entered"', () => {
     renderIt();
