@@ -66,6 +66,7 @@ test('AC-WOT-018 a keeper moves 4 leftover from one work order to another on a p
   };
   expect(await held(a.id)).toBe(2);
   expect(await held(b.id)).toBe(4);
-  const bal = await admin.from('stock_balances').select('qty_on_hand').eq('warehouse_id', site.data.id).eq('item_id', item.id).single();
+  const bal = await service.from('stock_balances').select('qty_on_hand').eq('warehouse_id', site.data.id).eq('item_id', item.id).single();
+  expect(bal.error).toBeNull();
   expect(Number(bal.data?.qty_on_hand)).toBe(4);
 });
