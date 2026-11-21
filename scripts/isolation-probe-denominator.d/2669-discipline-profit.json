@@ -1,0 +1,7 @@
+{
+  "definer_functions": [
+    "project_discipline_revenue(uuid)",
+    "set_boq_item_discipline(uuid,uuid)",
+    "set_org_discipline_profit_enabled(boolean)"
+  ]
+}

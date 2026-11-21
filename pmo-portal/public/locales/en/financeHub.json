@@ -90,7 +90,8 @@
         "openIntegrations": "Open integrations",
         "askAdmin": "Statements come from the accounting system; an Admin sets this up in Integrations.",
         "notConnected": "accounting disconnected",
-        "setUp": "Set up"
+        "setUp": "Set up",
+        "seeManagement": "see management profit and loss"
       },
       "finding": {
         "unknownBalance": "Balance unknown"

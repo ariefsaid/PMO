@@ -23,6 +23,7 @@ import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { ImportButton, ImportWizard } from '@/src/components/import';
 import { makeContractLineImportDescriptor } from '@/src/lib/import';
 import BoqItemFormModal from '../BoqItemFormModal';
+import BoqDisciplinePicker from '../BoqDisciplinePicker';
 import RateCatalogue from '../RateCatalogue';
 import MaterialAllowanceModal from '../MaterialAllowanceModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
@@ -725,7 +726,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
         {boqFormFor !== undefined && (
           <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
-            onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
+            onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail}
+            extra={boqFormFor ? <BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /> : undefined} />
         )}
         {assessOpen && (
           <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={orgToday.slice(0, 7)}
@@ -838,7 +840,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
       {boqFormFor !== undefined && (
         <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
-          onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
+          onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail}
+            extra={boqFormFor ? <BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /> : undefined} />
       )}
       {boqDetailDrawer}
       {claimDetailDrawer}

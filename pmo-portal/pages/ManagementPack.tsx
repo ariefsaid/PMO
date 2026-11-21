@@ -17,6 +17,7 @@ import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 import { useExport } from '@/src/components/export/useExport';
 import { RecordProgressModal } from '@/src/components/reports/RecordProgressModal';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
+import ManagementPackEarned from '@/pages/ManagementPackEarned';
 import { leftToBillNoValueNote } from '@/src/lib/reports/leftToBillNoValueNote';
 import {
   fromCents,
@@ -697,6 +698,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       {pack && state === undefined && (
         <>
           <ManagementPackFigureReasons figures={figureReasons} />
+          {/* #2733: earned and billed revenue with margin on each basis; renders nothing while the organisation setting is off. */}
+          <ManagementPackEarned />
           {pack.rows.some((row) => row.kind === 'unassigned') && <p className="mt-3 text-sm text-muted-foreground">{t('financeHub:managementPack.unassignedNote', 'Some invoices lack project assignments.')}{' '}<Link to="/finance/receivables?attribution=unassigned" className="font-medium text-primary-text underline underline-offset-2">{t('financeHub:managementPack.assignProjects', 'Assign projects')}</Link></p>}
           <button type="button" aria-expanded={monthlyTotalsExpanded} aria-controls="managementpack-monthly-totals" onClick={() => setMonthlyTotalsExpanded((expanded) => !expanded)} className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
             {monthlyTotalsExpanded ? t('finance:area.hideMonthlyTotals', 'Hide monthly totals') : t('finance:area.showMonthlyTotals', 'Show monthly totals')}

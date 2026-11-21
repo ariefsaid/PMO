@@ -58,6 +58,10 @@ import {
 } from './WorkOrdersDrawers';
 import WorkOrdersModals from './WorkOrdersModals';
 import WorkOrderPlanVsActual from '../WorkOrderPlanVsActual';
+import DisciplineProfit from '../DisciplineProfit';
+import RevenuePlanRollup from '../RevenuePlanRollup';
+import EarnedBilledProfit from '../EarnedBilledProfit';
+import DailyTargetRollup from '../DailyTargetRollup';
 
 /**
  * The work-order surface for one project (#566) — the client's inbound POs and the drawdown they
@@ -895,6 +899,15 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
       {/* #2519: plan vs actual and profit per work order — renders nothing for a role that cannot read work-order money. */}
       <WorkOrderPlanVsActual projectId={projectId} />
+      {/* #2669: revenue next to cost per discipline; renders nothing while the organisation setting is off. */}
+      <DisciplineProfit projectId={projectId} />
+
+      {/* #2671: dated revenue plan roll-up — renders nothing while the organisation's switch is off. */}
+      <RevenuePlanRollup projectId={projectId} />
+      {/* #2733: earned and billed revenue side by side; renders nothing while the organisation setting is off. */}
+      <EarnedBilledProfit projectId={projectId} />
+      {/* #2672: month-to-date target, actual and projection; same switch and role gate. */}
+      <DailyTargetRollup projectId={projectId} />
     </div>
   );
 };

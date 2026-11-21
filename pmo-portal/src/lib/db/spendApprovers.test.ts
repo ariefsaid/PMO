@@ -72,3 +72,25 @@ describe('AC-APR-036 spend-approver DAL', () => {
     await expect(addSpendApprover('u-exec', null)).rejects.toMatchObject({ code: '42501' });
   });
 });
+
+describe('AC-TIER-012 spend-approver tier DAL (#2695)', () => {
+  it('AC-TIER-012: a row with a minimum amount maps it; one without has none (base tier)', async () => {
+    h.result = {
+      data: [
+        { id: 'sa-1', project_id: null, profile_id: 'u1', min_amount: null, project: null, profile: { full_name: 'Fiona' } },
+        { id: 'sa-2', project_id: null, profile_id: 'u2', min_amount: '100000', project: null, profile: { full_name: 'Eve' } },
+      ],
+      error: null,
+    };
+    const rows = await listSpendApprovers();
+    expect(rows.find((r) => r.id === 'sa-2')?.minAmount).toBe(100000);
+    expect(rows.find((r) => r.id === 'sa-1')?.minAmount).toBeUndefined();
+  });
+
+  it('AC-TIER-012: add sends min_amount only when given, never org_id', async () => {
+    h.result = { data: [{ id: 'sa-9' }], error: null };
+    await addSpendApprover('u-exec', null, 250000);
+    expect(h.calls).toContainEqual(['insert', { profile_id: 'u-exec', project_id: null, min_amount: 250000 }]);
+    expect(JSON.stringify(h.calls)).not.toContain('org_id');
+  });
+});

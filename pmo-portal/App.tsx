@@ -144,7 +144,7 @@ const ErpPurchasesPage = lazyWithPreload(() => import('./pages/ErpPurchases'));
 const FinancialStatementsPage = lazyWithPreload(() => import('./pages/FinancialStatements'));
 const JournalsPage = lazyWithPreload(() => import('./pages/Journals'));
 const ManagementPackPage = lazyWithPreload(() => import('./pages/ManagementPack'));
-const FinanceHubPage = lazyWithPreload(() => import('./pages/finance/FinanceHub'));
+const FinanceHubPage = lazyWithPreload(() => import('./pages/finance/FinanceHubRoute'));
 const ReceivablesPage = lazyWithPreload(() => import('./pages/finance/ReceivablesPage'));
 const PayablesPage = lazyWithPreload(() => import('./pages/finance/PayablesPage'));
 const WorkInHandPage = lazyWithPreload(() => import('./pages/finance/WorkInHand'));

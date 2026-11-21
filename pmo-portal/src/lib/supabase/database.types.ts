@@ -5183,6 +5183,7 @@ export type Database = {
           claimant_id: string
           created_at: string
           currency: string
+          discipline_id: string | null
           id: string
           imprest_float_id: string | null
           imprest_month: string | null
@@ -5204,6 +5205,7 @@ export type Database = {
           submitted_at: string | null
           title: string
           updated_at: string
+          work_order_id: string | null
         }
         Insert: {
           advance_applied?: number
@@ -5220,6 +5222,7 @@ export type Database = {
           claimant_id?: string
           created_at?: string
           currency?: string
+          discipline_id?: string | null
           id?: string
           imprest_float_id?: string | null
           imprest_month?: string | null
@@ -5241,6 +5244,7 @@ export type Database = {
           submitted_at?: string | null
           title: string
           updated_at?: string
+          work_order_id?: string | null
         }
         Update: {
           advance_applied?: number
@@ -5257,6 +5261,7 @@ export type Database = {
           claimant_id?: string
           created_at?: string
           currency?: string
+          discipline_id?: string | null
           id?: string
           imprest_float_id?: string | null
           imprest_month?: string | null
@@ -5278,6 +5283,7 @@ export type Database = {
           submitted_at?: string | null
           title?: string
           updated_at?: string
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -7603,6 +7609,45 @@ export type Database = {
           },
         ]
       }
+      idle_cost_settings: {
+        Row: { enabled: boolean; org_id: string; updated_at: string; updated_by: string | null }
+        Insert: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Update: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Relationships: []
+      }
+      labour_cost_classes: {
+        Row: { archived_at: string | null; code: string; created_at: string; id: string; name: string; org_id: string }
+        Insert: { archived_at?: string | null; code: string; created_at?: string; id?: string; name: string; org_id?: string }
+        Update: { archived_at?: string | null; code?: string; created_at?: string; id?: string; name?: string; org_id?: string }
+        Relationships: []
+      }
+      labour_cost_rates: {
+        Row: {
+          amount: number; archived_at: string | null; basis: string; class_id: string; created_at: string; created_by: string | null
+          day_hours: number; effective_from: string; effective_to: string | null; id: string; month_hours: number; org_id: string
+          overtime_multiplier: number; person_id: string | null; role_key: string | null; subject_kind: string
+        }
+        Insert: {
+          amount: number; archived_at?: string | null; basis: string; class_id: string; created_at?: string; created_by?: string | null
+          day_hours?: number; effective_from: string; effective_to?: string | null; id?: string; month_hours?: number; org_id?: string
+          overtime_multiplier?: number; person_id?: string | null; role_key?: string | null; subject_kind: string
+        }
+        Update: {
+          amount?: number; archived_at?: string | null; basis?: string; class_id?: string; created_at?: string; created_by?: string | null
+          day_hours?: number; effective_from?: string; effective_to?: string | null; id?: string; month_hours?: number; org_id?: string
+          overtime_multiplier?: number; person_id?: string | null; role_key?: string | null; subject_kind?: string
+        }
+        Relationships: [
+          { foreignKeyName: "labour_cost_rates_person_id_fkey"; columns: ["person_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "labour_cost_rates_class_id_fkey"; columns: ["class_id"]; isOneToOne: false; referencedRelation: "labour_cost_classes"; referencedColumns: ["id"] },
+        ]
+      }
+      labour_cost_settings: {
+        Row: { enabled: boolean; org_id: string; updated_at: string; updated_by: string | null }
+        Insert: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Update: { enabled?: boolean; org_id?: string; updated_at?: string; updated_by?: string | null }
+        Relationships: []
+      }
       org_terminology: {
         Row: {
           locale: string
@@ -7734,6 +7779,7 @@ export type Database = {
           attendance_backdate_days: number
           attendance_conflict_tolerance_hours: number
           created_at: string
+          discipline_profit_enabled: boolean
           default_currency: string
           default_locale: string
           default_number_locale: string | null
@@ -7750,6 +7796,9 @@ export type Database = {
           pph4_2_payable_account: string | null
           pph4_2_prepaid_account: string | null
           procurement_gates: Json
+          performance_band_high: number
+          performance_band_low: number
+          performance_indices_enabled: boolean
           project_number_pattern: string | null
           sector_options: string[]
           service_line_options: string[]
@@ -7775,6 +7824,9 @@ export type Database = {
           pph4_2_payable_account?: string | null
           pph4_2_prepaid_account?: string | null
           procurement_gates?: Json
+          performance_band_high?: number
+          performance_band_low?: number
+          performance_indices_enabled?: boolean
           project_number_pattern?: string | null
           sector_options?: string[]
           service_line_options?: string[]
@@ -7800,6 +7852,9 @@ export type Database = {
           pph4_2_payable_account?: string | null
           pph4_2_prepaid_account?: string | null
           procurement_gates?: Json
+          performance_band_high?: number
+          performance_band_low?: number
+          performance_indices_enabled?: boolean
           project_number_pattern?: string | null
           sector_options?: string[]
           service_line_options?: string[]
@@ -11490,11 +11545,51 @@ export type Database = {
           },
         ]
       }
+      spend_approval_settings: {
+        Row: {
+          id: string
+          org_id: string
+          tiers_enabled: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          org_id?: string
+          tiers_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          org_id?: string
+          tiers_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spend_approval_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spend_approval_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spend_approvers: {
         Row: {
           created_at: string
           created_by: string | null
           id: string
+          min_amount: number | null
           org_id: string
           profile_id: string
           project_id: string | null
@@ -11503,6 +11598,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          min_amount?: number | null
           org_id?: string
           profile_id: string
           project_id?: string | null
@@ -11511,6 +11607,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          min_amount?: number | null
           org_id?: string
           profile_id?: string
           project_id?: string | null
@@ -14679,12 +14776,25 @@ export type Database = {
       set_work_order_plan: { Args: { p_project_id: string; p_work_order_id: string; p_changes: Json }; Returns: number }
       set_shared_cost_split: { Args: { p_project_id: string; p_split: Json }; Returns: number }
       clear_shared_cost_split: { Args: { p_project_id: string }; Returns: number }
+      save_idle_cost_setting: { Args: { p_enabled: boolean }; Returns: undefined }
+      work_order_idle_cost: {
+        Args: { p_project_id: string }
+        Returns: {
+          work_order_id: string; reason_id: string; reason_label: string; minutes: number; hours: string
+          hourly_cost: string | null; amount: string | null; currency: string; reason: string
+        }[]
+      }
+      save_labour_cost_settings: { Args: { p_enabled: boolean }; Returns: undefined }
+      save_labour_cost_rate: { Args: { p: Json }; Returns: string }
+      end_labour_cost_rate: { Args: { p_id: string; p_end: string }; Returns: undefined }
+      archive_labour_cost_rate: { Args: { p_id: string }; Returns: undefined }
       work_order_cost_amounts: {
         Args: { p_project_id: string }
         Returns: {
           amount: string | null
           currency: string | null
           discipline_id: string | null
+          labour_class_id: string | null
           occurred_on: string | null
           person_id: string | null
           project_id: string
@@ -16642,6 +16752,7 @@ export type Database = {
           draft: number
         }[]
       }
+      get_org_discipline_profit_enabled: { Args: never; Returns: boolean }
       get_org_fiscal_year_setting: {
         Args: never
         Returns: { source: string; start_month: number | null }[]
@@ -16657,6 +16768,41 @@ export type Database = {
           has_active_budget: boolean
           ledger_basis: string
           project_id: string
+        }[]
+      }
+      project_work_order_earned_billed: {
+        Args: { p_project: string }
+        Returns: {
+          billed: number
+          billed_complete: boolean
+          currency: string
+          earned: number | null
+          earned_lines: number
+          unrated_lines: number
+          work_order_id: string
+        }[]
+      }
+      management_pack_earned: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          currency: string
+          earned: number
+          earned_lines: number
+          project_id: string
+          unrated_lines: number
+          work_orders: number
+          work_orders_without_progress: number
+        }[]
+      }
+      project_discipline_revenue: {
+        Args: { p_project: string }
+        Returns: {
+          basis: string
+          currency: string
+          discipline_id: string | null
+          revenue: number
+          unrated_lines: number
+          validated_lines: number
         }[]
       }
       project_budget_positions: {
@@ -16944,6 +17090,10 @@ export type Database = {
       is_meeting_attendee: { Args: { p_meeting_id: string }; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
       is_unattributed_authority: { Args: never; Returns: boolean }
+      get_work_order_performance: {
+        Args: { p_as_of?: string; p_project_id: string }
+        Returns: Json
+      }
       is_valid_project_number_pattern: {
         Args: { p_pattern: string }
         Returns: boolean
@@ -18197,6 +18347,14 @@ export type Database = {
       set_odoo_customer_advance_account: {
         Args: { p_account_ref: string; p_actor_id: string; p_org_id: string }
         Returns: undefined
+      }
+      set_boq_item_discipline: {
+        Args: { p_discipline: string | null; p_item: string }
+        Returns: string
+      }
+      set_org_discipline_profit_enabled: {
+        Args: { p_enabled: boolean }
+        Returns: boolean
       }
       set_org_fiscal_year_start_month: {
         Args: { p_month: number | null }

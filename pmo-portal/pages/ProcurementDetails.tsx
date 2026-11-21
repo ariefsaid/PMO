@@ -51,6 +51,7 @@ import { OdooCaseStatus } from './procurement/OdooCaseStatus';
 import { useProcurementGates } from '@/src/hooks/useProcurementGates';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { purchaseHasValue } from '@/src/lib/procurement/purchaseValue';
+import { formatCurrency } from '@/src/lib/format';
 import { recordableFirstKinds } from './procurement/firstDocument';
 import { useLinkedErpDocuments } from '@/src/hooks/useErpPurchaseLinks';
 import { LinkedErpDocuments } from './procurement/LinkedErpDocuments';
@@ -397,6 +398,15 @@ const ProcurementDetails: React.FC = () => {
         ? t('procurementRecord:approval.goesTo', 'Goes to {{name}}', { name: p.approvalRoute.approvers.map((approver) => approver.fullName).join(' or ') })
         : null
     : null;
+  // #2695: the approver sees how much of the budget line is already used. Text, not colour; absent when the figures are
+  // not readable (below approval rank, unknown spending), so it never states a number the server did not give.
+  const budgetUsedLine = p.status === 'Requested' && !isRequester && routeAllows
+    && p.approvalRoute && p.approvalRoute.lineBudget != null && p.approvalRoute.lineUsed != null
+    ? t('procurementRecord:approval.budgetUsed', 'Budget line used {{used}} of {{budget}}', {
+        used: formatCurrency(p.approvalRoute.lineUsed, p.currency),
+        budget: formatCurrency(p.approvalRoute.lineBudget, p.currency),
+      })
+    : null;
   const waitingNote = p.status === 'Requested' && isRequester
     ? isEngineer
       ? t('procurementRecord:waiting.engineerApproval', 'Waiting for approval by a project manager or Finance')
@@ -638,7 +648,7 @@ const ProcurementDetails: React.FC = () => {
   // limit, separation of duties, what gates Submit, the payment ceiling, the optional approval note). One line each.
   // The approver's decision: the limit and separation-of-duties facts read as one line, then the optional note.
   const decidesHere = mainAction?.to === 'Approved';
-  const decisionLine = [approverLimitLine, decisionContextNote].filter(Boolean);
+  const decisionLine = [approverLimitLine, budgetUsedLine, decisionContextNote].filter(Boolean);
   const approvalNote = mainAction?.to === 'Approved' && <label key="approval-note" className="block max-w-xl text-control font-medium text-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
     <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
   </label>;

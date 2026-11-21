@@ -44,6 +44,7 @@
   "overPlan": "Over plan by {{amount}}",
   "overPlanHours": "Over plan by {{hours}} h",
   "pageEmpty": "No plan or actuals for this work order yet.",
+  "pendingCrewHours": "{{hours}} h on timesheets not yet approved are not counted.",
   "plan": {
     "crewHours": "Crew hours",
     "direct": "Direct budget ({{currency}})",
@@ -54,6 +55,48 @@
     "title": "Plan for {{number}}"
   },
   "planLabel": "Plan",
+  "profit": {
+    "title": "Profit per discipline",
+    "col": {
+      "discipline": "Discipline",
+      "revenue": "Revenue",
+      "direct": "Direct cost",
+      "shared": "Shared cost",
+      "after": "Margin after shared cost",
+      "before": "Margin before shared cost"
+    },
+    "noDiscipline": "No discipline",
+    "notAssigned": "Not assigned",
+    "total": "Project total",
+    "loss": "Loss of {{amount}}",
+    "incomplete": "Incomplete: validated work without a rate",
+    "notComparable": "Not comparable (other currency)",
+    "costUnknown": "Cost unknown",
+    "restricted": "Restricted",
+    "unknown": "Unknown",
+    "empty": "No validated revenue or cost per discipline yet.",
+    "loadError": "Couldn't load profit per discipline",
+    "retry": "Try again",
+    "archivedDiscipline": "Archived discipline",
+    "revenueNote": "Revenue is validated progress at the contract rate.",
+    "picker": {
+      "label": "Discipline (for profit per discipline)",
+      "none": "No discipline",
+      "saved": "Discipline saved",
+      "error": "Couldn't save the discipline"
+    },
+    "setting": {
+      "title": "Profit per discipline",
+      "label": "Show revenue next to cost per discipline",
+      "helper": "Adds a table to the project's plan-vs-actual section and a discipline field on contract lines. Off by default.",
+      "save": "Save",
+      "saved": "Setting saved",
+      "adminOnly": "Only an Admin can change this.",
+      "loadError": "Couldn't load the setting",
+      "on": "On",
+      "off": "Off"
+    }
+  },
   "projectHours": "Project and contract hours",
   "projectTotal": "Project and contract total",
   "reason": {
@@ -100,9 +143,104 @@
   "splitStale": "The saved split is stale: a work order was added or cancelled since. The default is used until someone saves it again.",
   "title": "Plan vs actual",
   "uncosted": "{{hours}} h carry no rate and are not in the cost.",
-  "pendingCrewHours": "{{hours}} h on timesheets not yet approved are not counted.",
   "underPlan": "{{amount}} left",
   "underPlanHours": "{{hours}} h left",
   "unknown": "Unknown",
-  "unknownDiscipline": "Archived discipline"
+  "unknownDiscipline": "Archived discipline",
+  "labour": {
+    "title": "Labour cost by class",
+    "class": "Class",
+    "hours": "Hours",
+    "cost": "Cost",
+    "unknownClass": "Other class",
+    "note": "Part of the direct cost above, from approved hours at each person's cost rate."
+  },
+  "performance": {
+    "title": "Cost and schedule performance",
+    "basis": "Earned value is validated daily-report progress at contract rate. Planned value runs in a straight line between the work order's start and end dates. Actual cost is the direct cost recorded to the work order.",
+    "projectBasis": "Work orders issued or closed, summed together. Earned value is validated progress at contract rate; the plan is calendar-linear.",
+    "asOf": "As of {{date}}",
+    "cpi": "Cost performance index",
+    "spi": "Schedule performance index",
+    "reading": {
+      "cpi": {
+        "below": "Actual cost exceeds earned value",
+        "within": "Within range",
+        "above": "Earned value exceeds actual cost"
+      },
+      "spi": {
+        "below": "Behind plan",
+        "within": "Within range",
+        "above": "Ahead of plan"
+      }
+    },
+    "band": "Within range is {{low}} to {{high}}.",
+    "ev": "Earned value",
+    "pv": "Planned value",
+    "ac": "Actual cost",
+    "costVariance": {
+      "positive": "Earned value exceeds actual cost by {{amount}}",
+      "negative": "Actual cost exceeds earned value by {{amount}}",
+      "zero": "Earned value equals actual cost"
+    },
+    "scheduleVariance": {
+      "positive": "Ahead of plan by {{amount}}",
+      "negative": "Behind plan by {{amount}}",
+      "zero": "On plan"
+    },
+    "hidden": {
+      "noCost": "No cost recorded yet",
+      "noDates": "Add a start and end date to see the schedule index",
+      "noPlanYet": "Planned work has not started yet",
+      "unrated_one": "1 validated progress line has no rate, so no index is shown",
+      "unrated_other": "{{count}} validated progress lines have no rate, so no index is shown",
+      "acIncomplete": "Cost cannot be totalled yet: a cost line has no date or no amount",
+      "acIncompleteUndated_one": "Cost cannot be totalled yet: 1 cost line has no date",
+      "acIncompleteUndated_other": "Cost cannot be totalled yet: {{count}} cost lines have no date",
+      "notComparable": "Not comparable: some cost is in another currency",
+      "excluded": "No figures for a draft or cancelled work order"
+    },
+    "unknown": "Unknown",
+    "counted": "{{included}} work orders counted, {{excluded}} left out because their figures are incomplete or they are not issued or closed",
+    "truncated": "The first 500 work orders are shown; {{count}} more are left out.",
+    "nothing": "Nothing is recorded yet for this work order.",
+    "loadError": "Couldn't load cost and schedule performance",
+    "retry": "Try again",
+    "workOrders": "By work order",
+    "col": {
+      "workOrder": "Work order"
+    }
+  },
+  "earnedBilled": {
+    "title": "Earned and billed revenue",
+    "packTitle": "Earned and billed revenue by project",
+    "note": "Earned is validated daily progress at the contract rate. Billed is claims and invoices, excluding tax.",
+    "packNote": "Earned is validated daily progress to date; cost and billed are the project tab's figures, so they agree.",
+    "col": {
+      "workOrder": "Work order",
+      "project": "Project",
+      "earned": "Earned",
+      "billed": "Billed",
+      "gap": "Earned, not yet billed",
+      "marginEarned": "Margin on earned",
+      "marginBilled": "Margin on billed"
+    },
+    "byWorkOrder": "By work order",
+    "byDiscipline": "By discipline",
+    "notItemised": "Not itemised",
+    "notAvailable": "Not available",
+    "incompleteWorkOrders": "Incomplete: some work orders have no validated progress or a missing rate",
+    "withoutProgress": "{{count}} of {{total}} work orders have no validated progress yet.",
+    "empty": "No Issued or Closed work orders yet.",
+    "loadError": "Couldn't load earned and billed revenue"
+  },
+  "idle": {
+    "title": "Idle time cost by reason",
+    "reason": "Reason",
+    "hours": "Hours",
+    "cost": "Cost",
+    "total": "Total idle",
+    "noRate": "No rate",
+    "note": "Shown apart: this time was already paid, so it is part of the direct cost above and is not added again. Cost at the work order's average hourly cost."
+  }
 }

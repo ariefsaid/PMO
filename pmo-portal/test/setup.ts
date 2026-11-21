@@ -37,11 +37,25 @@ vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({
   CostAttributionFields: ({ idPrefix }: { idPrefix?: string }) => createElement('div', { 'data-testid': 'cost-attribution-stub', 'data-prefix': idPrefix }),
 }));
 
+// #2732: the claim's work-order card reads its own queries (work orders, disciplines) and needs a query client, which the
+// ExpenseClaimDetail suites do not provide. ExpenseAttributionCard.test.tsx unmocks and proves it.
+vi.mock('@/pages/expenses/ExpenseAttributionCard', () => ({
+  ExpenseAttributionCard: () => createElement('div', { 'data-testid': 'expense-attribution-stub' }),
+}));
+
 // #2519: the plan-vs-actual card reads its own queries (work-order money, disciplines) and auth, which the contract-area
 // suites (WorkOrdersTab.*) do not provide. WorkOrderPlanVsActual.test.tsx unmocks and proves it.
 vi.mock('@/pages/project-detail/WorkOrderPlanVsActual', () => ({
   default: ({ projectId }: { projectId: string }) => createElement('div', { 'data-testid': 'wo-plan-vs-actual-stub', 'data-project': projectId }),
 }));
+
+// #2669: profit per discipline and the contract-line discipline field read their own queries (setting, revenue, auth),
+// which the contract-area suites do not provide; both render nothing while the setting is off. Their own tests unmock them.
+vi.mock('@/pages/project-detail/DisciplineProfit', () => ({ default: () => null }));
+vi.mock('@/pages/project-detail/EarnedBilledProfit', () => ({ default: () => null })); // #2733
+vi.mock('@/pages/ManagementPackEarned', () => ({ default: () => null })); // #2733
+vi.mock('@/pages/project-detail/BoqDisciplinePicker', () => ({ default: () => null }));
+vi.mock('@/pages/admin/OrgDisciplineProfit', () => ({ default: () => null }));
 
 // #2622: the purchase ledger reads the organisation's three-way match and each bill's match, which the procurement page
 // suites (ProcurementDetails.*) do not provide a query client for. Default: the match is off. ProcurementLedger.threeWayMatch

@@ -225,6 +225,8 @@ insert into public.spend_approvers (id, org_id, project_id, profile_id)
 select 'a6120000-0000-4000-8000-0000000000b4', w.org_id, w.project_id, p.id
 from public.work_orders w join lateral (select id from public.profiles where org_id = w.org_id order by id limit 1) p on true
 where w.id = 'a6120000-0000-4000-8000-0000000000d2';
+insert into public.spend_approval_settings (id, org_id, tiers_enabled)
+values ('a6120000-0000-4000-8000-0000000000fa', 'a6120000-0000-4000-8000-00000000000a', false);
 insert into public.project_progress_entries (id, org_id, project_id, month, pct_complete)
 select 'a6120000-0000-4000-8000-0000000000b5', org_id, project_id, date '2001-01-01', 0
 from public.work_orders where id = 'a6120000-0000-4000-8000-0000000000d2';

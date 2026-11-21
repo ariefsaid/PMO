@@ -11,7 +11,7 @@ import type { AllocationFacts, ContractLineFacts, EarningBasis, ProjectBillingFa
  * definer RPCs (no client write grant exists); the summary is the INVOKER `get_project_billing`.
  * org_id is never sent from the client.
  */
-export type BoqItemRow = Tables<'boq_items'> & { catalogue_item_id?: string | null; catalogue_variant_id?: string | null; catalogue_priced_as_of?: string | null };
+export type BoqItemRow = Tables<'boq_items'> & { catalogue_item_id?: string | null; catalogue_variant_id?: string | null; catalogue_priced_as_of?: string | null; discipline_id?: string | null };
 export type ProgressClaimRow = Tables<'progress_claims'>;
 export type ProgressClaimLineRow = Tables<'progress_claim_lines'>;
 

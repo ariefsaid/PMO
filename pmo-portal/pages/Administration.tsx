@@ -27,15 +27,21 @@ import { IntegrationsView } from '@/src/components/integrations/IntegrationsView
 import { AccountingHelp } from './admin/AccountingHelp';
 import OrgTaxDefault from './admin/OrgTaxDefault';
 import OrgFiscalYearStart from './admin/OrgFiscalYearStart';
+import OrgDisciplineProfit from './admin/OrgDisciplineProfit';
 import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import SiteReportLists from './admin/SiteReportLists';
+import RevenuePlanSettings from './admin/RevenuePlanSettings';
+import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
+import OrgPerformanceIndices from './admin/OrgPerformanceIndices';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
+import LabourCostSettings from './admin/LabourCostSettings';
+import IdleCostSwitch from './admin/IdleCostSwitch';
 import ExpenseAccountMap from './admin/ExpenseAccountMap';
 import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 
@@ -271,6 +277,7 @@ const SelectedAdministrationPanel: React.FC<{
           <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
             <OrgTaxDefault />
             <OrgFiscalYearStart />
+            <OrgDisciplineProfit />
             <SpendApprovers />
             <OrgWithholdingAccount />
             <OrgVendorTaxAccounts />
@@ -285,6 +292,8 @@ const SelectedAdministrationPanel: React.FC<{
       return (
         <div data-testid="administration-panel-cost-attribution" className="min-w-0">
           <CostAttribution />
+          <div className="mt-6 border-t border-border pt-6"><LabourCostSettings /></div>
+          <div className="mt-6 border-t border-border pt-6"><IdleCostSwitch /></div>
         </div>
       );
     case 'projects':
@@ -295,7 +304,10 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
             <SiteReportLists />
+            <RevenuePlanSettings />
+            <NonWorkingDatesCard />
             <CostDisciplines />
+            <OrgPerformanceIndices />
           </div>
         </div>
       );

@@ -22,6 +22,8 @@ import { statusLabel } from '@/src/lib/status/statusMap';
 import { ExpenseDecisionBar } from './expenses/ExpenseDecisionBar';
 import { ExpenseLinesCard } from './expenses/ExpenseLinesCard';
 import { ExpenseReceiptsCard } from './expenses/ExpenseReceiptsCard';
+import { ExpenseAttributionCard } from './expenses/ExpenseAttributionCard';
+import { canAttributeExpenseClaim } from './expenses/canAttributeExpenseClaim';
 import { ExpensePostingNote, ExpensePostingsCard } from './expenses/ExpensePostingsCard';
 import { ExpenseClaimFormModal } from './expenses/ExpenseClaimFormModal';
 import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
@@ -205,6 +207,7 @@ const ExpenseClaimDetail: React.FC = () => {
           <ExpenseLinesCard claimId={claim.id} lines={linesQuery.data ?? []} isPending={linesQuery.isPending}
             isError={linesQuery.isError} currency={claim.currency} editable={canEdit} />
         )}
+        <ExpenseAttributionCard claim={claim} canEdit={canAttributeExpenseClaim(realRole, userId, claim)} />
         <ExpenseReceiptsCard claimId={claim.id} canWrite={canEdit} />
         <ExpensePostingsCard claimId={claim.id} noteInHeader />
       </RecordStack>

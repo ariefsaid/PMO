@@ -44,5 +44,12 @@
     "duplicateCode": "Another live discipline already uses this code.",
     "adminOnly": "Only an Admin can change the discipline list.",
     "tooLong": "Use {{max}} characters or fewer."
+  },
+  "expenseClaim": {
+    "title": "Work order and discipline",
+    "edit": "Change",
+    "save": "Save",
+    "cancel": "Cancel",
+    "saved": "Work order and discipline saved"
   }
 }

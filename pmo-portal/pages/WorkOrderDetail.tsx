@@ -21,6 +21,9 @@ import { ScopeSection } from './work-order-detail/ScopeSection';
 import { CostSection } from './work-order-detail/CostSection';
 import { BillingSection } from './work-order-detail/BillingSection';
 import { PlanVsActualSection } from './work-order-detail/PlanVsActualSection';
+import { RevenuePlanGate } from './work-order-detail/RevenuePlanGate';
+import { PerformanceIndices } from './work-order-detail/PerformanceIndices';
+import { DailyTargetGate } from './work-order-detail/DailyTargetGate';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { QuantityChangesSection } from './work-order-detail/QuantityChangesSection';
 import { SectionsSection } from './work-order-detail/SectionsSection';
@@ -120,7 +123,12 @@ const WorkOrderDetail: React.FC = () => {
           onRetry={() => { void costLines.refetch(); void money.refetch(); void disciplines.refetch(); void links.refetch(); void labels.refetch(); }} moneyPending={money.isPending && flatLines.length > 0} />
         {stockOn && <ConsumablePlanSection workOrderId={row.id} workOrderStatus={row.status} project={project.data} />}
         {may('view', 'clientRequisition') && <ClientMaterialSection workOrderId={row.id} projectId={row.project_id} workOrderStatus={row.status} allocationOptions={allocationOptions} />}
-        {canPlanView && <PlanVsActualSection workOrderId={row.id} query={pva} disciplines={disciplines.data ?? []} />}
+        {canPlanView && <PlanVsActualSection workOrderId={row.id} projectId={projectId} query={pva} disciplines={disciplines.data ?? []} />}
+        {/* #2671: the dated revenue plan; renders nothing unless the organisation switched it on. */}
+        <RevenuePlanGate workOrderId={row.id} woLabel={row.wo_number ?? row.title} frozen={row.status === 'Cancelled' || row.status === 'Closed'} />
+        <PerformanceIndices projectId={row.project_id} workOrderId={row.id} />
+        {/* #2672: the daily target view; same switch and role gate as the plan above. */}
+        <DailyTargetGate workOrderId={row.id} />
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
         {may('view', 'quantityChange') && <QuantityChangesSection workOrderId={row.id} projectId={row.project_id} status={row.status} />}

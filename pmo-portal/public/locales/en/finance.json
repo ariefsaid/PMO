@@ -283,7 +283,12 @@
     "expandAll": "Expand all",
     "projectNameLoadFailed": "Couldn't load the selected project's name",
     "projectNameLoadFailedDescription": "The selected project name could not be read. Retry to restore this project scope.",
-    "setUp": "Set up accounting"
+    "setUp": "Set up accounting",
+    "managementTitle": "Management profit and loss",
+    "managementLine": "Ledger statements (trial balance, profit and loss, balance sheet) come from an accounting system when one is connected.",
+    "openReports": "Open reports",
+    "marginHint": "To add cost and margin to the report, turn on the setting:",
+    "marginSetting": "Profit per discipline"
   },
   "erpPurchases": {
     "countedInActuals": "Already counted in Actuals.",

@@ -233,6 +233,8 @@ reporting manager.
 
 **Spend approver** — a user designated to approve spending for a project.
 
+**Approval tier** — an optional minimum amount on a spend approver. Where the organisation turns tiers on, a request goes to the highest tier whose minimum is at most its amount (anyone with no minimum sits in the base tier); an unknown or foreign-currency amount goes to the top tier.
+
 **Issue (site)** — a problem raised on site (#2521): an incident record that also names the person in
 charge, what must be done, a due time, optionally a work order of its project, and photo evidence.
 One record serves safety incidents and site issues; the UI says *issue* for site work and *incident*
@@ -425,6 +427,14 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **Left to bill** — signed contract value (net of tax) less invoiced to date (also read per issued work order, #2575), per held contract (on-hand status, not archived: the Contract on hand set, whatever the selected period) and currency at a month; it does not depend on the revenue recognition basis. The management pack derives it once and every report tile, row, total, export and the home dashboard read that one figure (#2203). A held contract with no contract value is not in it; the total stays a number and the count of such contracts is said beside it ("N contracts with no value, not in the total").
 
 **Remaining work** — signed contract value less recognised revenue to date in the management pack; it follows the recognition basis (progress, earned value or invoiced) and is distinct from Left to bill. Formerly named "backlog" in the pack (DD-MMP-3).
+
+**Earned value (work order)** — validated daily-site-report progress at the frozen contract rate, to a date (#2597). Not Left to bill or Remaining work, which are invoice and recognition quantities: earned value exists before anything is invoiced.
+
+**Planned value (work order)** — the work order's net value (its closing value once closed) times the share of calendar days elapsed between its start and end dates (#2597). A straight-line plan; a front- or back-loaded job reads ahead or behind by the plan's shape alone.
+
+**Cost performance index** — earned value divided by actual direct cost counted to the work order, rounded half up to two decimals, as of a date (#2597). Earned value is on the revenue basis, so this is a margin-style ratio, not a ratio against a cost budget. A project's index is the ratio of sums over its issued and closed work orders, never an average of their indices. Reading bands (default 0.90 and 1.10) are organisation settings.
+
+**Schedule performance index** — earned value divided by planned value, rounded half up to two decimals, as of a date (#2597). Same bands and project rule as the cost performance index.
 
 **Cancelled invoice pair** — an invoice pair whose linked ERP invoice was later cancelled; Finance can review the pair and decide whether to undo it.
 
@@ -1100,3 +1110,34 @@ the material close-out: joint count, loss report, material completion report). T
 **Backcharge** — a recovery from a subcontractor (rework, damage, safety, materials we supplied, other) deducted on the certificate that includes it. It lowers the bill's payable, never its amount.
 **Net certified amount** — the certificate's gross less its backcharges; the figure the payment ceiling allows (the payable).
 **Live certificate** — one that is submitted, approved or billed; only a live certificate holds measured work or a backcharge.
+**Labour cost rate** — what an hour of a person's time costs the organisation: set per person or per role, hourly, daily or fixed monthly, with an overtime multiplier, a labour class and a start date. Cost only, never pay (#2670).
+
+**Labour class** — an organisation-defined label on a labour cost rate (defaults direct, indirect and guard, renameable) that breaks a work order's labour cost down in plan versus actual (#2670).
+
+**Priced hours** — approved timesheet hours on a date the person has an applicable labour cost rate; **overtime hours** are a person's hours beyond the rate's day length on one date, across all their approved lines. Labour cost is internal costing outside the ledger: it adds to a work order's direct cost, never to project actuals (#2670).
+
+## Profit per discipline (#2669)
+
+**Discipline revenue** — the validated progress of a project at the contract rate frozen at validation, grouped by the discipline of the contract line it was recorded against. A contract line with no discipline rolls under "No discipline". Only current, validated reports count; a validated line frozen without a rate is named as unrated and makes that discipline's revenue incomplete, never zero.
+
+**Earned revenue** — a work order's validated daily progress at the contract rate frozen at validation (the same figure as discipline revenue, taken per work order or project). A work order with no validated progress has earned revenue "not available", never zero; a project where only some work orders have it reads "incomplete", with the count of those without (#2733).
+
+**Billed revenue** — claims and invoices excluding tax, as the work-order billing derivation gives them: a down payment bills zero, a withdrawn claim and a cancelled invoice do not count. Per discipline it is the amount of live claim lines by the contract item's discipline; billed work no claim line itemises is shown as "Not itemised" (#2733).
+
+**Gap between earned and billed** — earned less billed: positive is work done and not yet billed, negative is billed ahead of validated work. Shown only when both figures exist in one currency. Margin is shown on each basis (earned, billed) with the same cost; it is a management view, not revenue recognition (#2733).
+
+**Discipline margin** — discipline revenue less the discipline's direct cost and its allocated shared cost. Shown after shared cost (the headline) and, beside it, before shared cost. A loss reads "Loss of X". Revenue and cost in different currencies are never blended. The Admin turns the view on with the organisation setting **Profit per discipline** (off by default).
+
+**Revenue plan** (*rencana pendapatan*) — per work order, an amount of revenue entered for each plan date, in the work order's own currency, by date or by month spread evenly over the organisation's working days (the extra cents go to the earliest dates). Off until an Admin switches it on. It never changes an actual, a budget or an invoice (#2671).
+
+**Plan to date** — the sum of a work order's revenue-plan amounts dated on or before the as-of date. **Actual to date** is validated daily revenue (validated, non-superseded daily site reports, by report date) on or before the same date; submitted reports are named apart as not yet validated and never counted. **Gap** is actual to date less plan to date; negative reads "behind plan". The project roll-up totals per currency, over the work orders that have a plan, and never blends currencies.
+
+**Daily target, as built** (*target harian*) — the daily target above is stored as the revenue amount entered for one work order on one date. It is the same record as the revenue plan row (#2671), not a second figure; a month amount is spread over working days. The project and work-order pages read it per day, **month to date** (the sum from the first of the month to the as-of date, for target and for actual) and as a **projection to month end**: the actual so far plus its average per elapsed working day times the working days left in the month. The projection is a forecast of actual, never a target, and is empty until a working day has elapsed. No target is calculated from crews or productivity (OD-SCOPE-7) (#2672).
+
+**Non-working date** (*hari tidak kerja*) — a calendar date an organisation does not work (a holiday or shutdown), listed by an Admin on top of its working weekdays. A working day is a working weekday that is not a non-working date. Adding a date changes later month spreads only; a target already entered on it stays and is marked (#2672).
+
+**Working days** (*hari kerja*) — the weekdays an organisation marks as working (default Monday to Friday). A month's revenue plan is spread over them; the same setting is the base for the daily target (#2672).
+
+**Idle cost** — the recorded idle hours of validated daily site reports, per idle reason, multiplied by the work order's hourly cost (priced labour amount divided by priced labour hours, a weighted average over its history). A lost-time view of cost already inside direct cost: shown apart, never added to it. OFF until an organisation switch and labour cost in money are both on (#2673).
+
+**Management profit and loss** — the Reports screen (management pack) read as a profit and loss PMO produces from its own records: recognised, invoiced and earned revenue per project and, while Profit per discipline is on, cost and margin on both revenue bases. It is not a ledger statement; trial balance, profit and loss and balance sheet come from a connected accounting system. An organisation with none connected is led from Statements and the Finance hub Net profit tile to it (#2734).

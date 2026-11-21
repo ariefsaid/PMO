@@ -283,7 +283,12 @@
     "expandAll": "Bentangkan semua",
     "projectNameLoadFailed": "Nama proyek yang dipilih tidak dapat dimuat",
     "projectNameLoadFailedDescription": "Nama proyek pilihan belum dapat dibaca. Coba lagi untuk memulihkan cakupan proyek ini.",
-    "setUp": "Atur akuntansi"
+    "setUp": "Atur akuntansi",
+    "managementTitle": "Laba rugi manajemen",
+    "managementLine": "Laporan buku besar (neraca saldo, laba rugi, neraca) berasal dari sistem akuntansi saat ada yang terhubung.",
+    "openReports": "Buka laporan",
+    "marginHint": "Untuk menambahkan biaya dan margin ke laporan, aktifkan pengaturan:",
+    "marginSetting": "Laba per disiplin"
   },
   "erpPurchases": {
     "countedInActuals": "Sudah dihitung dalam Aktual.",
