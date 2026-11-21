@@ -1,4 +1,4 @@
-// @e2e-isolation: serial - turns the seed organisation's performance-indices setting on (an org-wide switch other specs must see off); resets it and deletes its own rows in finally.
+// @e2e-isolation: serial - turns the seed organisation's performance-indices setting on and disconnects its ERP binding (org-wide state other specs must see unchanged); restores both and deletes its own rows in finally.
 // AC-CSP-016 - a Finance user opens a project and reads the cost and schedule performance indices with the as-of date and the
 // basis line; a work order's row opens its page with the same indices.
 // Goal oracle: validated progress 300,000 against 250,000 of direct cost reads cost performance index 1.20 on the project and on the
@@ -20,6 +20,7 @@ test('AC-CSP-016 the project and the work order show the same cost and schedule 
   const ids = { company: '', project: '', wo: '', boq: '', line: '', report: '', procurement: '', invoice: '' };
   let orgId = '';
   let settingBefore = false;
+  let activeBindings: string[] = [];
   let failure: unknown;
   const cleanupFailures: string[] = [];
   const cleanup = async (label: string, op: () => PromiseLike<{ error: { message: string } | null }>) => {
@@ -36,6 +37,11 @@ test('AC-CSP-016 the project and the work order show the same cost and schedule 
     orgId = fin.org_id;
     const org = must(await admin.from('organizations').select('performance_indices_enabled').eq('id', orgId).single(), 'organisation');
     settingBefore = org.performance_indices_enabled;
+    // The seed organisation has an active ERP binding, so it reads cost from the ledger basis and the work-order cost read
+    // (`work_order_cost_amounts`, `where not v_erp`) lists no PMO vendor bill. This journey proves PMO-recorded direct cost, so
+    // it disconnects the binding for its duration (serial lane) and restores it in finally.
+    activeBindings = must(await admin.from('external_org_bindings').select('id').eq('org_id', orgId).eq('status', 'active'), 'bindings').map((b) => b.id as string);
+    if (activeBindings.length > 0) must(await admin.from('external_org_bindings').update({ status: 'disconnected' }).in('id', activeBindings).select('id'), 'disconnect bindings');
     must(await admin.from('organizations').update({ performance_indices_enabled: true }).eq('id', orgId).select('id').single(), 'enable setting');
 
     ids.company = must(await admin.from('companies').insert({ org_id: orgId, name: 'Client ' + suffix, type: 'Client' }).select('id').single(), 'client').id;
@@ -107,6 +113,7 @@ test('AC-CSP-016 the project and the work order show the same cost and schedule 
     if (ids.wo) await cleanup('delete work order', () => admin.from('work_orders').delete().eq('id', ids.wo));
     if (ids.project) await cleanup('delete project', () => admin.from('projects').delete().eq('id', ids.project));
     if (ids.company) await cleanup('delete client', () => admin.from('companies').delete().eq('id', ids.company));
+    if (activeBindings.length > 0) await cleanup('restore bindings', () => admin.from('external_org_bindings').update({ status: 'active' }).in('id', activeBindings));
     if (orgId) await cleanup('reset setting', () => admin.from('organizations').update({ performance_indices_enabled: settingBefore }).eq('id', orgId));
   }
   if (cleanupFailures.length > 0) {
