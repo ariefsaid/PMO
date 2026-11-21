@@ -1,0 +1,12 @@
+{
+  "tables": [
+    {"table":"org_non_working_dates","has_org":true,"pk":"org_id","columns":"*","b_read":"own-org-only","by_id":"n/a: composite key (org_id, work_date), no uuid row id; the blind read covers the declared B visibility"}
+  ],
+  "definer_functions": [
+    "non_working_date_add(date,text)",
+    "non_working_date_remove(date)",
+    "project_daily_target_vs_actual(uuid,date)",
+    "wdt_month_summary(uuid,date)",
+    "wo_daily_target_vs_actual(uuid,date)"
+  ]
+}

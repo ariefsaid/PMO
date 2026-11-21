@@ -34,6 +34,7 @@ import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import SiteReportLists from './admin/SiteReportLists';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
+import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import OrgPerformanceIndices from './admin/OrgPerformanceIndices';
 import BudgetAccountMap from './admin/BudgetAccountMap';
@@ -298,6 +299,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectClassificationOptions />
             <SiteReportLists />
             <RevenuePlanSettings />
+            <NonWorkingDatesCard />
             <CostDisciplines />
             <OrgPerformanceIndices />
           </div>
