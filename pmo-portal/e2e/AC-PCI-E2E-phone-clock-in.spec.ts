@@ -92,7 +92,7 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
   await adminPage.goto('/crews');
   await expect(adminPage.getByRole('heading', { name: 'Check-ins waiting for you' })).toBeVisible();
   await adminPage.getByRole('button', { name: 'Approve' }).click();
-  await expect(adminPage.getByText('Check-in approved')).toBeVisible();
+  await expect(adminPage.getByLabel('Notifications alt+T').getByText('Check-in approved')).toBeVisible();
   await expect.poll(async () => ((await admin.from('attendance_days').select('id').eq('work_order_id', workOrderId)).data ?? []).length).toBe(1);
 
   // Inside the area on the next day's tap is covered by pgTAP; here a fresh work order position inside records straight away.
