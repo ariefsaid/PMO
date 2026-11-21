@@ -214,7 +214,7 @@
   "earnedBilled": {
     "title": "Pendapatan yang dihasilkan dan yang ditagih",
     "packTitle": "Pendapatan yang dihasilkan dan yang ditagih per proyek",
-    "note": "Dihasilkan adalah progres harian tervalidasi pada tarif kontrak. Ditagih adalah klaim dan faktur, tanpa pajak.",
+    "note": "Dihasilkan adalah progres harian tervalidasi pada tarif kontrak. Ditagih adalah klaim dan invoice, tanpa pajak.",
     "packNote": "Dihasilkan adalah progres harian tervalidasi sampai saat ini; biaya dan nilai tagihan sama dengan tab proyek, sehingga keduanya cocok.",
     "col": {
       "workOrder": "Perintah kerja",
