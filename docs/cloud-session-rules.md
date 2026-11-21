@@ -29,6 +29,7 @@ Every cloud Claude session started for this repo follows these rules. Its brief 
 ## Gates before your report (quote each result line)
 - In `pmo-portal/`: `npm ci` if needed, `npm run check:guards`, `npm run typecheck`, `npx eslint --max-warnings=0 <changed files>`, and `npx vitest related --run <every changed source file>`.
 - Database: if Docker works, from the repo root `SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io npx supabase@2.122.1 start`, then `npx supabase@2.122.1 db reset` and `npx supabase@2.122.1 test db <your pgTAP files>`. If Docker is not available, say so plainly; CI's pgTAP job will prove it.
+- **Several builders in one sandbox share its database:** a builder runs no reset, pgTAP, e2e or screenshot job. It writes those tests and leaves them for the orchestrator's one run per wave (`docs/orca-dispatch.md` § Cloud sessions).
 - A red test is fixed in the code, never by weakening, skipping or deleting the test. Not done until green.
 
 ## Report (print last)
