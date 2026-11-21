@@ -9,7 +9,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
 
-import { getProjectConsumption, getStockLedgerAll, getStockLedgerPage, getStockOnHand } from './stockReports';
+import { getProjectConsumption, getStockAtRisk, getStockLedgerAll, getStockLedgerPage, getStockOnHand } from './stockReports';
 
 const row = (seq: number) => ({ seq, id: `id${seq}`, document_id: 'd', document_number: 'R-1', document_status: 'Posted', kind: 'receive', posted_at: 't', occurred_on: '2026-10-01', posted_by: 'u', actor_name: 'A', item_id: 'i', item_code: 'C', item_name: 'N', unit_code: 'bag', warehouse_id: 'w', warehouse_code: 'W', project_id: null, project_name: null, boq_item_id: null, boq_item_code: null, qty_delta: '1', qty_after: '1' });
 
@@ -88,6 +88,24 @@ describe('stockReports DAL', () => {
     await expect(getProjectConsumption('p', 'a', 'b')).rejects.toBeInstanceOf(AppError);
     h.queue.push({ data: null, error: null });
     await expect(getProjectConsumption('p', 'a', 'b')).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('AC-SAR-201 at risk maps location rows to camelCase and omits money keys the server omitted', async () => {
+    h.queue.push({ data: [
+      { warehouse_id: 'w1', warehouse_code: 'SITE-A', warehouse_name: 'Site A', warehouse_kind: 'site', project_id: 'p', project_name: 'Proj', stock_value: '3000.00', cover_value: '2500.00', at_risk: '500.00' },
+      { warehouse_id: 'w2', warehouse_code: 'SITE-C', warehouse_name: 'Site C', warehouse_kind: 'site', project_id: null, project_name: null },
+    ], error: null });
+    const rows = await getStockAtRisk();
+    expect(h.rpc).toHaveBeenCalledWith('get_stock_at_risk');
+    expect(rows[0]).toEqual({ warehouseId: 'w1', warehouseCode: 'SITE-A', warehouseName: 'Site A', warehouseKind: 'site', projectId: 'p', projectName: 'Proj', stockValue: '3000.00', coverValue: '2500.00', atRisk: '500.00' });
+    expect('stockValue' in rows[1]).toBe(false);
+    expect('coverValue' in rows[1]).toBe(false);
+    expect('atRisk' in rows[1]).toBe(false);
+  });
+
+  it('AC-SAR-201 a failed at-risk read throws; it never resolves to an empty array', async () => {
+    h.queue.push({ data: null, error: { message: 'boom', code: '500' } });
+    await expect(getStockAtRisk()).rejects.toBeInstanceOf(AppError);
   });
 
   it('NFR-STK-007 the report DAL never turns a quantity into a JS number', () => {

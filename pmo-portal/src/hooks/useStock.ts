@@ -19,6 +19,11 @@ export function useStockWarehouses(includeArchived = false) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['stock-warehouses', orgId, includeArchived], queryFn: () => repositories.stock.master.listWarehouses(includeArchived), enabled: Boolean(orgId) });
 }
+/** #2694: stock value held per location against its recorded cover; money keys absent below rank 20. */
+export function useStockAtRisk() {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({ queryKey: ['stock-at-risk', orgId], queryFn: () => repositories.stock.reports.atRisk(), enabled: Boolean(orgId) });
+}
 export function useStockKeepers() {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['stock-keepers', orgId], queryFn: () => repositories.stock.master.listKeepers(), enabled: Boolean(orgId) });
