@@ -221,11 +221,6 @@ export const MODULES: ModuleDef[] = [
     path: '/finance/receivables', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
   {
-    module: 'finance-billing-board', icon: 'invoices', label: 'Billing board', // i18n-exempt: translated at render via labelKey
-    labelKey: 'finance:billingBoard.title', feature: 'revenue',
-    path: '/finance/billing-board', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
-  },
-  {
     module: 'finance-payables', icon: 'payments', label: 'Payables', // i18n-exempt: translated at render via labelKey
     labelKey: 'financeHub:hub.payables', feature: 'procurement',
     path: '/finance/payables', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],

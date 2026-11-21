@@ -80,7 +80,7 @@ When I chase billing across work orders, I want one view of every claim by step 
 - **Route access (deviation from the phase-1 wording):** `/finance/billing-board` sits under Finance and uses the same gate as Receivables (`FinanceAccessRoute` + the `revenue` feature): Finance, Executive and Admin. A Project Manager reaches their claims from the project's billing tab, as before; the board does not widen who sees the Finance area.
 - **Invoiced test:** `billing_claim_invoiced` is not callable by `authenticated`, so the invoker read tests `sales_invoices` rows the caller can see (claim id = invoice id, 0250). For Finance, Executive and Admin that is every invoice of the organisation.
 - **Entry link:** `BillingBoardLink` renders on the Receivables header; it carries its own silent boundary so a failed read hides the link and never blocks Receivables.
-- **Breadcrumb:** a `finance-billing-board` entry in `routeMatch.ts`; no Rail item (OD-BBD-6).
+- **Navigation:** no `routeMatch.ts` module and no Rail item (OD-BBD-6); an extra module would change the Finance rail for every organisation. The page sets its own heading.
 - Two reads when a project is chosen: the unfiltered board (kept for the project list) and the filtered one (so a truncated board still shows a project's own claims).
 
 ## Build plan notes (phase 1)
