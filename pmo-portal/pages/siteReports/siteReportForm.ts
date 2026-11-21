@@ -12,7 +12,7 @@ export interface SiteReportForm {
   note: string;
   progress: { workOrderLineId: string; subStage: string; quantity: string }[];
   idle: { minutes: string; reasonId: string }[];
-  consumables: { stockItemId: string; quantity: string }[];
+  consumables: { stockItemId: string; quantity: string; workOrderLineId?: string }[];
 }
 
 export type SiteReportFormErrors = Partial<Record<string, string>>;
@@ -32,7 +32,7 @@ export function siteReportFormFromDetail(d: DsrReportDetail): SiteReportForm {
     note: d.report.note ?? '',
     progress: d.progress.map((l) => ({ workOrderLineId: l.work_order_line_id, subStage: l.sub_stage ?? '', quantity: String(l.quantity) })),
     idle: d.idle.map((l) => ({ minutes: String(l.minutes), reasonId: l.reason_id })),
-    consumables: d.consumables.map((l) => ({ stockItemId: l.stock_item_id, quantity: String(l.quantity) })),
+    consumables: d.consumables.map((l) => ({ stockItemId: l.stock_item_id, quantity: String(l.quantity), ...(l.work_order_line_id ? { workOrderLineId: l.work_order_line_id } : {}) })),
   };
 }
 
@@ -78,6 +78,6 @@ export function siteReportDraftInput(
     note: f.note.trim() || null,
     progress: f.progress.map((l) => ({ workOrderLineId: l.workOrderLineId, subStage: l.subStage.trim() || null, quantity: l.quantity.trim() })),
     idle: f.idle.map((l) => ({ minutes: Number(l.minutes), reasonId: l.reasonId })),
-    consumables: f.consumables.map((l) => ({ stockItemId: l.stockItemId, quantity: l.quantity.trim() })),
+    consumables: f.consumables.map((l) => ({ stockItemId: l.stockItemId, quantity: l.quantity.trim(), ...(l.workOrderLineId ? { workOrderLineId: l.workOrderLineId } : {}) })),
   };
 }

@@ -935,5 +935,13 @@
       "RSV_OVERDRAW": "The reservation holds less than the request uses.",
       "RSV_IMMUTABLE": "A reservation cannot be deleted; release it instead."
     }
+  },
+  "dsrIssue": {
+    "setting": "Validated daily reports issue their material from stock",
+    "settingHelp": "Off by default. When on, validating a daily report issues its material lines from the work order's site location; short stock is flagged, never blocks the report.",
+    "items": "Which items are issued",
+    "itemsAll": "Every item on a material line",
+    "itemsConsumables": "Only items marked as consumables",
+    "flagList": "Items counted as consumables"
   }
 }

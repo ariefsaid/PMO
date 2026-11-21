@@ -9,10 +9,12 @@
   },
   "consumables": {
     "add": "Add consumable",
+    "anyItem": "Not named",
     "item": "Stock item",
     "pickItem": "Choose an item",
     "quantity": "Quantity",
-    "title": "Consumables used"
+    "title": "Consumables used",
+    "workItem": "Used on contract item"
   },
   "correct": {
     "confirm": "Start correction",
@@ -125,6 +127,30 @@
   "revenue": {
     "day": "Day revenue",
     "toDate": "Validated to date"
+  },
+  "stock": {
+    "title": "Stock",
+    "flag": "Stock flagged",
+    "issued": "Issued to stock: {{number}} on {{date}}",
+    "reversed": "The earlier version's issue was returned to stock.",
+    "warning": "Some material was not issued to stock",
+    "fix": "The report is validated. Correct it once the stock or the site location is fixed, and the material is issued again.",
+    "reason": {
+      "short": "short by {{n}} at {{location}}",
+      "noLocation": "this work order has no site location",
+      "noWorkItem": "no contract item is named for this material",
+      "failed": "stock refused it ({{reason}})",
+      "notStocked": "not tracked in stock"
+    },
+    "state": {
+      "posted": "Issued",
+      "short": "Short",
+      "no_location": "No site location",
+      "no_work_item": "No contract item",
+      "not_stocked": "Not tracked",
+      "failed": "Refused",
+      "pending": "Pending"
+    }
   },
   "title": "Site reports",
   "toast": {
