@@ -696,6 +696,8 @@ pass the order rate beyond the amount tolerance, and the bill's pre-tax amount m
 fails, or states no lines, is **held**: nothing on its purchase moves to payment. Subcontract bills, ERP-mirrored bills,
 bills recorded before the switch and organisations whose ERP owns purchasing are not matched.
 
+**Match lines** — what the three-way match reads: per ordered item, the quantity a goods receipt received and the quantity and rate a bill charges. Both are edited in the app (#2634) while no money has posted on them: a Paid bill's lines, and the receipt lines of a Paid or Cancelled purchase, are refused. Whoever last records a bill's lines can no longer approve its exception; receipt edits carry no separation of duties, and are audited with the lines before and after (small teams enter both). An Admin may switch the match off while bills are held; the setting screen names how many are held now.
+
 **Match exception** — the release of a held bill: an Admin or Finance user approves it with a reason and the purchase may
 be paid again. Never the person who recorded the bill or its match lines. Permanent, and it freezes the bill's lines.
 

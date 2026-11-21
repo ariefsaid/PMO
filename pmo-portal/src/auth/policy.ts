@@ -110,6 +110,7 @@ export type Entity =
   | 'siteReportLists'
   | 'costDiscipline'
   | 'billMatch'
+  | 'threeWayMatchSettings'
   | 'employeeLink'
   | 'pushHold'
   | 'odooHeldCommand'
@@ -845,7 +846,10 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   costDiscipline: { create: allow(ADMIN), edit: allow(ADMIN), archive: allow(ADMIN) },
   // #2622 (1018): a bill's three-way match. get_bill_match reads for Admin/Executive/PM/Finance; approve_bill_match_exception
   // is Admin/Finance, never the bill's author nor its lines' recorder (SoD in the RPC). UX ONLY.
-  billMatch: { view: allow(WORK_ORDER_MONEY), approve: allow(['Admin', 'Finance']) },
+  billMatch: { view: allow(WORK_ORDER_MONEY), approve: allow(['Admin', 'Finance']), edit: allow(WORK_ORDER_MONEY) },
+  // #2634 (1018 §8 / 1357): the organisation's match on/off and tolerances. set_three_way_match_settings is Admin only. UX ONLY.
+  // `billMatch.edit` is the receipt-line and bill-line editors (record_receipt_match_lines / record_bill_match_lines).
+  threeWayMatchSettings: { manage: allow(ADMIN) },
   orgAccounting: {
     manage: allow(ADMIN),
   },
