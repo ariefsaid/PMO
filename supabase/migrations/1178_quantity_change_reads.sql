@@ -1,6 +1,6 @@
--- 1129_quantity_change_reads.sql — #2578: the guarded reads the screens need.
+-- 1178_quantity_change_reads.sql — #2578: the guarded reads the screens need.
 -- Spec: docs/specs/quantity-change-requests.spec.md (FR-QCR-001, 011, 021, 024); AC-QCR-001, 002, 013, 028.
--- Reversal: rollback/1129_quantity_change_reads_down.sql.
+-- Reversal: rollback/1178_quantity_change_reads_down.sql.
 --   qcr_over_contract(project, only_over)  every contract line with C, P (and the source that set it), E, the over flags, and
 --                                          the open request on it; one set-based read (NFR-QCR-002).
 --   qcr_work_order_budget(work_order)      request count and the organisation limit, shown together.
