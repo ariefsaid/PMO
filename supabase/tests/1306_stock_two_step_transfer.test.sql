@@ -4,7 +4,7 @@
 -- 031 two-step may_follow · 032 mrq_prior_quantity.
 -- Mutation checks (break the marked line in the migration, expect red, restore): mut:transit_carry (004, 014) · mut:one_step_block (003) · mut:count_cap (009) ·
 -- mut:accept_sum (008) · mut:quality_fail (010) · mut:self_receive (013) · mut:proof_check (018) · mut:writeoff_admin (011) · mut:transit_system_only (005) ·
--- mut:timing_block (030) · mut:late_actor (031).
+-- mut:timing_block (030) · mut:late_actor (031) · mut:receiver_actor (013: remove the receiver check and the 'no part in the transfer' case goes red).
 begin;
 create extension if not exists pgtap;
 select * from no_plan();
@@ -200,8 +200,8 @@ select throws_ok($$ select resolve_stock_transfer_shortfall(tst_line(tst_tr('s2'
 select lives_ok($$ select resolve_stock_transfer_shortfall(tst_line(tst_tr('s2')), 'written_off', 'lost on the road') $$, 'AC-TST-011 an Admin writes the shortfall off with a reason');
 select is(tst_transit(tst_tr('s2'), '26920000-0000-0000-0000-000000001001'), '0.000/0.00', 'AC-TST-011 transit is empty after the write-off');
 select is((select count(*)::int from audit_events where action = 'stock.transfer.write_off'), 1, 'AC-TST-011 the write-off is audited');
-select is((select count(*)::int from stock_ledger l join stock_documents d on d.id = l.document_id where d.kind = 'adjustment' and d.two_step_id = tst_tr('s2') and l.qty_delta = -2), 1, 'AC-TST-011 one adjustment ledger row of -2 records the loss');
 reset role;
+select is((select count(*)::int from stock_ledger l join stock_documents d on d.id = l.document_id where d.kind = 'adjustment' and d.two_step_id = tst_tr('s2') and l.qty_delta = -2), 1, 'AC-TST-011 one adjustment ledger row of -2 records the loss');
 
 -- ── AC-TST-012 recall ──────────────────────────────────────────────────────────────────────────
 select tst_as('26920000-0000-0000-0000-0000000000a2');

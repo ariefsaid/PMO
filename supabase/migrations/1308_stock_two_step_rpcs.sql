@@ -11,11 +11,12 @@
 -- 'any' = either side.
 create or replace function public.stock_transfer_actor_ok(p_t public.stock_transfers, p_side text) returns boolean
   language sql stable security definer set search_path = public as $$
-  select coalesce(public.role_rank(public.auth_role()) >= 50, false)
+  select coalesce(
+         coalesce(public.role_rank(public.auth_role()) >= 50, false)
       or (p_side in ('send', 'any') and (p_t.sent_by = auth.uid() or exists (select 1 from public.stock_warehouse_keepers k
             where k.org_id = p_t.org_id and k.user_id = auth.uid() and k.warehouse_id = p_t.from_warehouse_id)))
-      or (p_side in ('receive', 'any') and (p_t.to_user_id = auth.uid() or exists (select 1 from public.stock_warehouse_keepers k
-            where k.org_id = p_t.org_id and k.user_id = auth.uid() and k.warehouse_id = p_t.to_warehouse_id))) $$;
+      or (p_side in ('receive', 'any') and (coalesce(p_t.to_user_id = auth.uid(), false) or exists (select 1 from public.stock_warehouse_keepers k
+            where k.org_id = p_t.org_id and k.user_id = auth.uid() and k.warehouse_id = p_t.to_warehouse_id))), false) $$;
 
 -- The sender may not receive their own transfer; an Admin may, and it is audited (FR-TST-024).
 create or replace function public.stock_assert_not_self_receive(p_t public.stock_transfers) returns void
@@ -38,9 +39,9 @@ begin
    where l.transfer_id = p_transfer and tg.proof_required <> 'none';
   select coalesce(bool_or(c.proof_type = 'paper'), false), coalesce(bool_or(c.proof_type = 'in_app' and c.stage = 'receive'), false)
     into v_paper, v_app from public.stock_handover_confirmations c where c.transfer_id = p_transfer;
-  if 'paper' = any (v_rules) and not v_paper then v_miss := v_miss || 'paper'; end if;
-  if 'confirmation' = any (v_rules) and not v_app then v_miss := v_miss || 'confirmation'; end if;
-  if 'either' = any (v_rules) and not (v_paper or v_app) then v_miss := v_miss || 'either'; end if;
+  if 'paper' = any (v_rules) and not v_paper then v_miss := array_append(v_miss, 'paper'::text); end if;
+  if 'confirmation' = any (v_rules) and not v_app then v_miss := array_append(v_miss, 'confirmation'::text); end if;
+  if 'either' = any (v_rules) and not (v_paper or v_app) then v_miss := array_append(v_miss, 'either'::text); end if;
   return nullif(array_to_string(v_miss, ','), '');
 end $$;
 
@@ -207,7 +208,7 @@ declare
 begin
   t := public.stock_lock_transfer(p_transfer, true);
   if t.status <> 'Sent' then raise exception 'STK_INVALID: this transfer was already received or cancelled' using errcode = 'P0001'; end if;
-  if not public.stock_transfer_actor_ok(t, 'receive') then
+  if not public.stock_transfer_actor_ok(t, 'receive') then                                              -- mut:receiver_actor
     raise exception 'STK_NOT_RECEIVER: you do not keep the destination and the transfer is not addressed to you' using errcode = 'P0001'; end if;
   v_guest := p_confirmation is not null and coalesce(p_confirmation->>'signer_kind', 'account') = 'guest';
   if not v_guest then perform public.stock_assert_not_self_receive(t); end if;
