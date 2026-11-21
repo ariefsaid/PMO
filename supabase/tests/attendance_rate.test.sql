@@ -133,30 +133,30 @@ select throws_ok($$ select * from attendance_rate_by_crew('2025-01-01', '2026-03
   'AC-ATR-006 a period longer than 366 days is refused');
 
 -- AC-ATR-002: only an Admin changes the target. The other roles update no row, and the saved value stands.
-select is((with changed as (
-             update organizations set attendance_target_rate = 75.5
-              where id = '27060000-0000-0000-0000-00000000010a' returning id)
-           select count(*)::int from changed), 1,
+with changed as (
+  update organizations set attendance_target_rate = 75.5
+   where id = '27060000-0000-0000-0000-00000000010a' returning id)
+select is((select count(*)::int from changed), 1,
   'AC-ATR-002 an Admin sets the target');
 select is((select attendance_target_rate from organizations where id = '27060000-0000-0000-0000-00000000010a'), 75.5,
   'AC-ATR-002 the Admin''s value is saved');
 select pg_temp.act_as('27060000-0000-0000-0000-0000000001a2');
-select is((with changed as (
-             update organizations set attendance_target_rate = 10
-              where id = '27060000-0000-0000-0000-00000000010a' returning id)
-           select count(*)::int from changed), 0,
+with changed as (
+  update organizations set attendance_target_rate = 10
+   where id = '27060000-0000-0000-0000-00000000010a' returning id)
+select is((select count(*)::int from changed), 0,
   'AC-ATR-002 a Project Manager changes no target row');
 select pg_temp.act_as('27060000-0000-0000-0000-0000000001a3');
-select is((with changed as (
-             update organizations set attendance_target_rate = 10
-              where id = '27060000-0000-0000-0000-00000000010a' returning id)
-           select count(*)::int from changed), 0,
+with changed as (
+  update organizations set attendance_target_rate = 10
+   where id = '27060000-0000-0000-0000-00000000010a' returning id)
+select is((select count(*)::int from changed), 0,
   'AC-ATR-002 a Finance user changes no target row');
 select pg_temp.act_as('27060000-0000-0000-0000-0000000001a4');
-select is((with changed as (
-             update organizations set attendance_target_rate = 10
-              where id = '27060000-0000-0000-0000-00000000010a' returning id)
-           select count(*)::int from changed), 0,
+with changed as (
+  update organizations set attendance_target_rate = 10
+   where id = '27060000-0000-0000-0000-00000000010a' returning id)
+select is((select count(*)::int from changed), 0,
   'AC-ATR-002 an Engineer changes no target row');
 
 select pg_temp.act_as('27060000-0000-0000-0000-0000000001a1');
@@ -164,10 +164,10 @@ select is((select attendance_target_rate from organizations where id = '27060000
   'AC-ATR-002 the target is still the Admin''s value');
 select is((select r.meets_target from attendance_rate_by_crew('2026-03-02', '2026-03-06') r where r.crew_code = 'ATR-A'),
   false, 'AC-ATR-002 a crew under the target is reported under it');
-select is((with changed as (
-             update organizations set attendance_target_rate = 60
-              where id = '27060000-0000-0000-0000-00000000010a' returning id)
-           select count(*)::int from changed), 1,
+with changed as (
+  update organizations set attendance_target_rate = 60
+   where id = '27060000-0000-0000-0000-00000000010a' returning id)
+select is((select count(*)::int from changed), 1,
   'AC-ATR-002 the Admin lowers the target');
 select is((select r.meets_target from attendance_rate_by_crew('2026-03-02', '2026-03-06') r where r.crew_code = 'ATR-A'),
   true, 'AC-ATR-002 a crew at or over the target is reported over it');
