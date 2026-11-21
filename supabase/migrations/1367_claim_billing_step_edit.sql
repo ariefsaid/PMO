@@ -70,6 +70,9 @@ declare
   v_name   text; v_days numeric; v_owner user_role; v_on date; v_cs boolean; v_opt boolean;
 begin
   perform public.assert_is_active_member();
+  if public.auth_role() is null or public.auth_role() not in ('Admin','Finance','Project Manager') then
+    raise exception 'only Finance, an Admin or a Project Manager can edit billing steps' using errcode = '42501';
+  end if;
   if p_stage is null or p_patch is null or jsonb_typeof(p_patch) <> 'object' then
     raise exception 'billing step not found' using errcode = 'P0002';
   end if;
@@ -199,6 +202,9 @@ declare
   v_reason text := nullif(btrim(p_reason), ''); v_ids uuid[];
 begin
   perform public.assert_is_active_member();
+  if public.auth_role() is null or public.auth_role() not in ('Admin','Finance','Project Manager') then
+    raise exception 'only Finance, an Admin or a Project Manager can edit billing steps' using errcode = '42501';
+  end if;
   if p_stage is null then raise exception 'billing step not found' using errcode = 'P0002'; end if;
   select s.claim_id into v_claim from public.claim_billing_stages s where s.id = p_stage and s.org_id = v_org;
   if not found then raise exception 'billing step not found' using errcode = 'P0002'; end if;
@@ -228,6 +234,9 @@ declare
   v_n int; v_k int; v_start date; v_rest uuid[];
 begin
   perform public.assert_is_active_member();
+  if public.auth_role() is null or public.auth_role() not in ('Admin','Finance','Project Manager') then
+    raise exception 'only Finance, an Admin or a Project Manager can edit billing steps' using errcode = '42501';
+  end if;
   if p_stage is null then raise exception 'billing step not found' using errcode = 'P0002'; end if;
   select s.claim_id into v_claim from public.claim_billing_stages s where s.id = p_stage and s.org_id = v_org;
   if not found then raise exception 'billing step not found' using errcode = 'P0002'; end if;

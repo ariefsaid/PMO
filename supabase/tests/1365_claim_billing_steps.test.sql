@@ -3,7 +3,7 @@
 -- Org a1: b1 fin1 (claims), b2 fin2 (raises), b3 admin, b4 pm (manager of c1), b5 pm2 (manager of c2), b6 engineer. Org a2 (foreign): b8 admin, b9 finance.
 begin;
 create extension if not exists pgtap;
-select plan(158);
+select plan(159);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('26800000-0000-0000-0000-0000000000a1', 'CBS Org A', 'IDR', 'UTC'),
@@ -231,20 +231,24 @@ select is(pg_temp.detail($q$select load_billing_step_template_onto_claim(pg_temp
 select pg_temp.as_user('b6');
 select is(pg_temp.detail($q$select load_billing_step_template_onto_claim(pg_temp.st('F')::uuid, pg_temp.st('T3')::uuid)$q$), '42501 ', 'AC-CBS-003 an Engineer cannot load a template onto a claim');
 select pg_temp.as_user('b4');
+select is(pg_temp.detail($q$select load_billing_step_template_onto_claim(pg_temp.st('F')::uuid, pg_temp.st('T3')::uuid)$q$), '42501 ', 'AC-CBS-003 the project''s own manager cannot load a template onto the claim (it can shorten the list, a gate waiver)');
+select pg_temp.as_user('b1');
 select is(pg_temp.detail($q$select load_billing_step_template_onto_claim(pg_temp.st('F')::uuid, pg_temp.st('T0')::uuid)$q$), '22023 template-empty', 'AC-CBS-003 a template with no steps cannot be loaded onto a claim');
 select is(pg_temp.detail($q$select load_billing_step_template_onto_claim(pg_temp.st('F')::uuid, pg_temp.st('T2')::uuid)$q$), 'P0002 template-not-found', 'AC-CBS-003 an archived template cannot be loaded onto a claim');
-select is((select load_billing_step_template_onto_claim(pg_temp.st('F')::uuid, pg_temp.st('T3')::uuid)), 2, 'AC-CBS-003 the project''s manager loads a template onto an untouched claim');
+select is((select load_billing_step_template_onto_claim(pg_temp.st('F')::uuid, pg_temp.st('T3')::uuid)), 2, 'AC-CBS-003 Finance loads a template onto an untouched claim');
 select is(pg_temp.names('F'), 'First > Second', 'AC-CBS-003 the claim''s steps were replaced');
 select is((select started_on from claim_billing_stages where id = pg_temp.stage('F', 1)), current_date, 'AC-CBS-003 the first step is current from today');
 select is((select started_on from claim_billing_stages where id = pg_temp.stage('F', 2)), null, 'AC-CBS-003 the second step has not started');
+select pg_temp.as_user('b4');
 select lives_ok($q$select complete_billing_stage(pg_temp.stage('F', 1), current_date)$q$, 'claim F first step completes');
+select pg_temp.as_user('b1');
 select is(pg_temp.detail($q$select load_billing_step_template_onto_claim(pg_temp.st('F')::uuid, pg_temp.st('T3')::uuid)$q$), '55000 claim-steps-started', 'AC-CBS-003 a claim with a completed step refuses a template');
 select is(pg_temp.detail($q$select load_billing_step_template_onto_claim(pg_temp.st('B')::uuid, pg_temp.st('T3')::uuid)$q$), '55000 claim-steps-started', 'AC-CBS-003 an invoiced claim refuses a template');
 
 select pg_temp.as_user('b1');
 select lives_ok($q$select pg_temp.new_claim('W', '26800000-0000-0000-0000-0000000000c1', '26800000-0000-0000-0000-000000000e01')$q$, 'claim W is created');
 select lives_ok($q$select withdraw_progress_claim(pg_temp.st('W')::uuid)$q$, 'claim W is withdrawn');
-select pg_temp.as_user('b4');
+select pg_temp.as_user('b1');
 select is(pg_temp.detail($q$select load_billing_step_template_onto_claim(pg_temp.st('W')::uuid, pg_temp.st('T3')::uuid)$q$), '55000 claim-steps-started', 'AC-CBS-003 a withdrawn claim refuses a template');
 select pg_temp.as_user('b1');
 select is(pg_temp.detail($q$select update_claim_billing_step(pg_temp.stage('W', 1), '{"owner_role":"Admin"}'::jsonb)$q$), '55000 claim-withdrawn', 'AC-CBS-005 a withdrawn claim''s steps cannot be edited');

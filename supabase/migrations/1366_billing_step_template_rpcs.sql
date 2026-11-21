@@ -1,7 +1,6 @@
 -- 1366_billing_step_template_rpcs.sql — organisation step templates: save, archive, load onto a project or a claim (#2680).
 -- FR-CBS-001..004/020; proven by supabase/tests/1365_claim_billing_steps.test.sql (AC-CBS-001..003). Loading COPIES: nothing links
--- a project or claim to its template (OD-CBS-4). Finance or an Admin writes templates; a Project Manager of the project may also
--- load one onto an untouched claim of theirs.
+-- a project or claim to its template (OD-CBS-4). Finance or an Admin writes templates; Loading onto a claim is Finance/Admin too.
 -- ── REVERSE: rollback/1366_billing_step_template_rpcs_down.sql ───────────────────────────────────────────────────────
 
 -- ── has this claim an invoice (native, or an ERP command)? Used by the claim-step functions to freeze structure ──────────
@@ -204,21 +203,16 @@ create function public.load_billing_step_template_onto_claim(p_claim uuid, p_tem
   language plpgsql security definer set search_path = public as $$
 declare
   v_org uuid := public.auth_org_id(); v_role user_role := public.auth_role();
-  v_c public.progress_claims; v_pm uuid; v_n int;
+  v_c public.progress_claims; v_n int;
 begin
   perform public.assert_is_active_member();
-  if v_role is null or v_role not in ('Admin','Finance','Project Manager') then
-    raise exception 'only Finance, an Admin or a Project Manager can load a billing step template onto a claim' using errcode = '42501';
+  -- Loading can shorten a claim's list, which waives steps for the gate exactly as removal does (OD-CBS-1): Finance or an Admin only.
+  if v_role is null or v_role not in ('Admin','Finance') then
+    raise exception 'only Finance or an Admin can load a billing step template onto a claim' using errcode = '42501';
   end if;
   -- Same claim row lock as the other stage writers.
   select * into v_c from public.progress_claims pc where pc.id = p_claim and pc.org_id = v_org for update;
   if not found then raise exception 'progress claim not found' using errcode = 'P0002'; end if;
-  if v_role = 'Project Manager' then
-    select p.project_manager_id into v_pm from public.projects p where p.id = v_c.project_id;
-    if v_pm is distinct from auth.uid() then
-      raise exception 'only the project''s manager can load a template onto this claim' using errcode = '42501';
-    end if;
-  end if;
   if v_c.kind <> 'progress' then
     raise exception 'only a progress claim has billing steps' using errcode = '55000', detail = 'claim-has-no-steps';
   end if;
