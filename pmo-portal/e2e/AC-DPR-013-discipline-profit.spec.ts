@@ -104,22 +104,19 @@ test('AC-DPR-013 the project tab shows revenue next to cost and margin per disci
     await expect(panel.getByTestId('discipline-profit-row-total')).toContainText(revenue);
     await shots(page, panel, 'discipline-profit-table');
 
-    // Evidence for the contract-line picker and the Admin setting card: a screen that does not open here is skipped, never failed.
-    try {
-      await page.setViewportSize({ width: 1440, height: 900 });
-      await page.getByRole('row', { name: /Tagged line/ }).getByRole('button', { name: 'Edit' }).first().click({ timeout: 8_000 });
-      const picker = page.getByRole('combobox', { name: /Discipline \(for profit per discipline\)/ });
-      await picker.waitFor({ timeout: 8_000 });
-      await shots(page, picker, 'contract-line-discipline-picker');
-      await page.keyboard.press('Escape');
-    } catch { /* picker screenshot not captured */ }
-    try {
-      await page.setViewportSize({ width: 1440, height: 900 });
-      await page.goto('/administration#org-discipline-profit');
-      const card = page.locator('#org-discipline-profit');
-      await card.waitFor({ timeout: 10_000 });
-      await shots(page, card, 'admin-setting-card');
-    } catch { /* setting-card screenshot not captured */ }
+    // Evidence: the contract-line discipline picker (Edit contract lines > Edit a line) and the Admin setting card.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: 'Edit contract lines' }).click();
+    await page.getByRole('row', { name: /Tagged line/ }).getByRole('button', { name: 'Edit' }).first().click();
+    const picker = page.getByRole('combobox', { name: 'Discipline (for profit per discipline)' });
+    await expect(picker).toBeVisible();
+    await shots(page, picker, 'contract-line-discipline-picker');
+    await page.keyboard.press('Escape');
+
+    await page.goto('/administration/accounting');
+    const card = page.locator('#org-discipline-profit');
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    await shots(page, card, 'admin-setting-card');
   } catch (e) {
     failure = e;
   } finally {
