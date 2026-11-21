@@ -99,6 +99,7 @@ set local request.jwt.claims = '{"sub":"02695000-0000-0000-0000-0000000000d0","r
 -- AC-TIER-005: the top tier's only member is disabled: Admin, not a lower tier.
 select is((select route from spend_approval_route('02695000-0000-0000-0000-000000000013',null,null,2000000,'IDR','02695000-0000-0000-0000-0000000000d6')), 'admin', 'AC-TIER-005: nobody eligible in the top tier routes to an Admin');
 select is((select route from spend_approval_route('02695000-0000-0000-0000-000000000013',null,null,500,'IDR','02695000-0000-0000-0000-0000000000d6')), 'org', 'AC-TIER-005: a small amount still reaches the base tier');
+set local request.jwt.claims = '{"sub":"02695000-0000-0000-0000-0000000000a0","role":"authenticated"}';
 -- AC-TIER-007: project list tiered separately; an over-budget request uses the senior list's tier.
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000010','02695000-0000-0000-0000-000000000101','Materials',300,'IDR','02695000-0000-0000-0000-0000000000a6') r, unnest(r.approver_ids) x), '{a1}'::text[], 'AC-TIER-007: a within-budget 300 reaches the project base tier');
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000010','02695000-0000-0000-0000-000000000101','Materials',500,'IDR','02695000-0000-0000-0000-0000000000a6') r, unnest(r.approver_ids) x), '{a2}'::text[], 'AC-TIER-007: a within-budget 500 reaches the project 400 tier');
