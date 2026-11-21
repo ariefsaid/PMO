@@ -162,7 +162,7 @@ select is((select count(*)::int from pg_proc p where p.pronamespace = 'public'::
 
 -- AC-LA-003 the Field user
 select pg_temp.act_as('27100000-0000-0000-0000-0000000000a6');
-select lives_ok($$ select public.attendance_record('27100000-0000-0000-0000-000000000401', current_date - 2, 'phone_check_in',
+select lives_ok($$ select public.attendance_record('27100000-0000-0000-0000-000000000401', current_date, 'phone_check_in',
   '[{"worker_id":"27100000-0000-0000-0000-000000000f01","status":"present","hours":8}]'::jsonb) $$,
   'AC-LA-013 a Field user clocks in through attendance_record');
 select is((select array_agg(name) from tasks), array['LA task field'], 'AC-LA-003 field user reads only own tasks');
