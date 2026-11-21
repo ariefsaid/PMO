@@ -262,7 +262,14 @@
     {"table":"work_order_crews","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_lines","has_org":true,"pk":"id","columns":"id,org_id,work_order_id,boq_item_id,quantity,created_at","b_read":"own-org-only","by_id":"applicable"},
     {"table":"work_order_plan_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
-    {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+    {"table":"work_orders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"boq_quantity_versions","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"quantity_change_request_events","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"quantity_change_request_files","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"quantity_change_request_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"quantity_change_requests","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"quantity_forecasts","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"quantity_overrun_notices","has_org":true,"pk":"boq_item_id","columns":"*","b_read":"own-org-only","by_id":"n/a: the primary key is the contract line id with a kind column, not a row uuid; the blind read covers the declared B visibility"}
   ],
   "definer_functions": [
     "load_stock_opening(uuid,date,jsonb,text)",
@@ -936,7 +943,8 @@
     "project-documents",
     "site-report-photos",
     "stock-documents",
-    "task-proofs"
+    "task-proofs",
+    "quantity-change-files"
   ],
   "rpcs": [
     {"class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"name":"set_project_billing_terms","source":["supabase/migrations/1022_retention.sql:62","supabase/migrations/1022_retention.sql:65"]},

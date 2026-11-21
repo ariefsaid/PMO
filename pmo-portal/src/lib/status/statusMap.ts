@@ -52,6 +52,16 @@ export const STATUS_MAP = {
     Rejected: e('waiting', (t) => t('status:procurement.rejected', 'Returned')),
     Cancelled: e('neutral', (t) => t('status:procurement.cancelled', 'Cancelled')),
   },
+  quantityChange: {
+    draft: e('neutral', (t) => t('status:quantityChange.draft', 'Draft')),
+    pending_approval: e('waiting', (t) => t('status:quantityChange.pending_approval', 'Waiting for approval')),
+    returned: e('waiting', (t) => t('status:quantityChange.returned', 'Returned')),
+    approved: e('neutral', (t) => t('status:quantityChange.approved', 'Approved')),
+    sent_to_client: e('waiting', (t) => t('status:quantityChange.sent_to_client', 'With the client')),
+    client_accepted: e('done', (t) => t('status:quantityChange.client_accepted', 'Client accepted')),
+    client_declined: e('neutral', (t) => t('status:quantityChange.client_declined', 'Client declined')),
+    withdrawn: e('neutral', (t) => t('status:quantityChange.withdrawn', 'Withdrawn')),
+  },
   siteReport: {
     draft: e('neutral', (t) => t('status:siteReport.draft', 'Draft')),
     submitted: e('waiting', (t) => t('status:siteReport.submitted', 'Waiting to validate')),

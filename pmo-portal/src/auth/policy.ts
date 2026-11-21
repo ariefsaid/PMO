@@ -80,6 +80,7 @@ export type Entity =
   | 'rateCatalogue'
   | 'dailySiteReport'
   | 'dailySiteReportRevenue'
+  | 'quantityChange'
   | 'progressClaim'
   | 'billingStage'
   | 'workOrderLine'
@@ -245,6 +246,11 @@ const DSR_ENTER: Role[] = ['Admin', 'Engineer'];
 const DSR_VALIDATE: Role[] = ['Admin', 'Finance'];
 const DSR_REVENUE: Role[] = ['Admin', 'Finance', 'Executive'];
 
+// #2578 quantity change requests (1127/1128, OD-QCR-2): author roles raise, edit and record; approver roles approve, never
+// the author, an editor or the submitter (the SoD below mirrors qcr_assert_approver); the limit is Admin-only (FR-QCR-021).
+const QCR_AUTHOR: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance'];
+const QCR_APPROVER: Role[] = ['Admin', 'Executive', 'Finance'];
+
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
 /** WON / on-hand statuses for the contract_value SoD (ADR-0019). A value on any of
@@ -355,6 +361,31 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     revise: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_VALIDATE, role) || isOwnProjectPm(role, ctx)),
   },
   dailySiteReportRevenue: { view: (role, ctx) => has(DSR_REVENUE, role) || isOwnProjectPm(role, ctx) },
+  /**
+   * Quantity change requests (#2578). UX only: qcr_* functions and RLS are the authority (ADR-0016/0019).
+   *   view ← read;  create ← raise or edit a draft;  act ← submit (the author or an editor);
+   *   approve ← approve or return, never the author, ANY editor (`record.editor_ids`) or the submitter (`record.submitted_by`);
+   *   withdraw ← author, editor or an approver role;  decide ← record the client send and decision;
+   *   request ← record a forecast quantity (the project's own PM, or Finance and above, mirrors may_record_project_progress);
+   *   manage ← set the organisation's request limit.
+   */
+  quantityChange: {
+    view: allow(QCR_AUTHOR),
+    create: allowUnlessViewOnly(QCR_AUTHOR),
+    act: (role, ctx) =>
+      ctx.record?.viewOnly !== true && has(QCR_AUTHOR, role) && !!ctx.currentUserId &&
+      (ctx.record?.author_id === ctx.currentUserId || (ctx.record?.editor_ids ?? []).includes(ctx.currentUserId)),
+    approve: (role, ctx) =>
+      ctx.record?.viewOnly !== true && has(QCR_APPROVER, role) && !!ctx.currentUserId &&
+      ctx.record?.author_id !== ctx.currentUserId && ctx.record?.submitted_by !== ctx.currentUserId &&
+      !(ctx.record?.editor_ids ?? []).includes(ctx.currentUserId),
+    withdraw: (role, ctx) =>
+      ctx.record?.viewOnly !== true && has(QCR_AUTHOR, role) && !!ctx.currentUserId &&
+      (has(QCR_APPROVER, role) || ctx.record?.author_id === ctx.currentUserId || (ctx.record?.editor_ids ?? []).includes(ctx.currentUserId)),
+    decide: allowUnlessViewOnly(QCR_AUTHOR),
+    request: (role, ctx) => ctx.record?.viewOnly !== true && (has(QCR_APPROVER, role) || isOwnProjectPm(role, ctx)),
+    manage: allowUnlessViewOnly(ADMIN),
+  },
   boqItem: {
     view: allow(MASTER_DATA),
     create: allow(MASTER_DATA),

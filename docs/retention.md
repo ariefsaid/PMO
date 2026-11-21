@@ -27,6 +27,7 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `procurement_status_events` | keep: procurement status history shown on the record |
 | `material_request_events` | keep: material request approval history shown on the request (who decided, for whom, why) |
 | `dsr_events` | keep: site report transition history and return reasons shown on the record (#1522) |
+| `quantity_change_request_events` | keep: quantity change request transition history, actors and reasons shown on the request (#2578); a change to a billable quantity is audit evidence |
 | `agent_automation_fires` | keep: owner decision pending (#1755); automation fire claims |
 | `procurement_import_runs` | keep: owner decision pending (#1755); import run history |
 | `erp_connect_runs` | keep: owner decision pending (#1755); ERP connect run history |
