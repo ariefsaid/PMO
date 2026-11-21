@@ -52,7 +52,7 @@ export const ExpenseAttributionCard: React.FC<Props> = ({ claim, canEdit }) => {
             <CostAttributionFields idPrefix="expense-attribution" projectId={claim.project_id} value={draft} onChange={setDraft} disabled={save.isPending} />
           </div>
           <div className="flex gap-2">
-            <Button size="sm" loading={save.isPending} onClick={() => save.mutate()}>{t('workOrderCost:expenseClaim.save', 'Save')}</Button>
+            <Button variant="primary" size="sm" loading={save.isPending} onClick={() => save.mutate()}>{t('workOrderCost:expenseClaim.save', 'Save')}</Button>
             <Button variant="outline" size="sm" disabled={save.isPending} onClick={() => setEditing(false)}>{t('workOrderCost:expenseClaim.cancel', 'Cancel')}</Button>
           </div>
         </div>

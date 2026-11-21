@@ -37,6 +37,12 @@ vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({
   CostAttributionFields: ({ idPrefix }: { idPrefix?: string }) => createElement('div', { 'data-testid': 'cost-attribution-stub', 'data-prefix': idPrefix }),
 }));
 
+// #2732: the claim's work-order card reads its own queries (work orders, disciplines) and needs a query client, which the
+// ExpenseClaimDetail suites do not provide. ExpenseAttributionCard.test.tsx unmocks and proves it.
+vi.mock('@/pages/expenses/ExpenseAttributionCard', () => ({
+  ExpenseAttributionCard: () => createElement('div', { 'data-testid': 'expense-attribution-stub' }),
+}));
+
 // #2519: the plan-vs-actual card reads its own queries (work-order money, disciplines) and auth, which the contract-area
 // suites (WorkOrdersTab.*) do not provide. WorkOrderPlanVsActual.test.tsx unmocks and proves it.
 vi.mock('@/pages/project-detail/WorkOrderPlanVsActual', () => ({

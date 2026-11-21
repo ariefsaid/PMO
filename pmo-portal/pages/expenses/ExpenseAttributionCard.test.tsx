@@ -16,6 +16,7 @@ vi.mock('@/src/lib/repositories/workOrderCosts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/repositories/workOrderCosts')>();
   return { ...actual, workOrderCostRepository: { ...actual.workOrderCostRepository, setAttribution: h.set } };
 });
+vi.unmock('@/pages/expenses/ExpenseAttributionCard'); // test/setup.ts stubs it for the detail-page suites
 import { ExpenseAttributionCard } from './ExpenseAttributionCard';
 import { canAttributeExpenseClaim } from './canAttributeExpenseClaim';
 
