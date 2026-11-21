@@ -1,4 +1,4 @@
--- 1067_set_vendor_supply_status.sql — #2583 slice 2b: the ONE client write path for a supplier's supply-risk status
+-- 1151_set_vendor_supply_status.sql — #2583 slice 2b: the ONE client write path for a supplier's supply-risk status
 -- (FR-VSR-002, 004, 005, 013). SECURITY DEFINER; active member; Admin or Finance only (OD-VSR-3; the user_role enum has
 -- no purchasing role); the company must be a Vendor of the caller's org and not archived; a reason (1-500 chars) is
 -- required for at_risk and inactive; audited (company.supply_risk.change: from, to, reason, actor); and, when the
@@ -7,7 +7,7 @@
 -- the status it already has changes nothing and notifies nobody. Moving back to active notifies nobody (OQ-VSR-4).
 -- The status never blocks an order, a transition or a payment (OD-VSR-4).
 --
--- Rollback: supabase/migrations/rollback/1067_set_vendor_supply_status_down.sql.
+-- Rollback: supabase/migrations/rollback/1151_set_vendor_supply_status_down.sql.
 
 create or replace function public.set_vendor_supply_status(p_company_id uuid, p_status text, p_reason text default null)
   returns public.companies language plpgsql security definer set search_path = public, pg_temp as $$
