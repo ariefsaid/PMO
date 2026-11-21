@@ -844,5 +844,22 @@
     "daysLabel": "Warn this many days before expiry",
     "daysHelp": "Up to 5 values, for example 30, 14, 7.",
     "daysSave": "Save warning days"
+  },
+  "performanceIndices": {
+    "title": "Cost and schedule performance",
+    "description": "Shows the cost and schedule performance indices on projects and work orders. Off until you turn it on.",
+    "enabled": "Show performance indices",
+    "low": "Lower limit (below this reads as a problem)",
+    "high": "Upper limit (above this reads as ahead)",
+    "helper": "The lower limit must be above 0 and below 1; the upper limit above 1. Defaults are 0.90 and 1.10.",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Performance settings saved",
+    "savedDetail": "The panels follow the new settings.",
+    "invalid": "Lower limit must be between 0 and 1, and the upper limit above 1.",
+    "adminOnly": "Only an Admin can change this.",
+    "loadError": "Couldn't load the performance settings",
+    "on": "On",
+    "off": "Off"
   }
 }

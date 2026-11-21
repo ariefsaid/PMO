@@ -103,6 +103,8 @@ export type Entity =
   | 'orgFeedback'
   | 'costAttribution'
   | 'workOrderPlan'
+  | 'workOrderPerformance'
+  | 'orgPerformanceIndices'
   | 'sharedCostSplit'
   | 'vendorTaxDefault'
   | 'orgProjectNumbering'
@@ -857,6 +859,10 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // #2519 plan vs actual per work order. UX ONLY — work_order_plan_lines RLS (0997), set/clear_shared_cost_split (0998)
   // and work_order_cost_amounts (0999) are the authority (ADR-0016).
   workOrderPlan: { view: allow(WORK_ORDER_MONEY), manage: allow(WORK_ORDER_MONEY) },
+  // #2597: cost and schedule indices. UX ONLY: get_work_order_performance refuses anyone who cannot read revenue and cost,
+  // and the organisation setting is written by an Admin only (RLS on organizations).
+  workOrderPerformance: { view: allow(WORK_ORDER_MONEY) },
+  orgPerformanceIndices: { manage: allow(ADMIN) },
   sharedCostSplit: { manage: allow(['Admin', 'Executive', 'Finance']) },
   /**
    * Equipment usage and allocation (#1519, migrations 0447/0460/0471). UX ONLY — transition_equipment_usage,

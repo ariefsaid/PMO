@@ -844,5 +844,22 @@
     "daysLabel": "Ingatkan sekian hari sebelum kedaluwarsa",
     "daysHelp": "Sampai 5 nilai, misalnya 30, 14, 7.",
     "daysSave": "Simpan hari peringatan"
+  },
+  "performanceIndices": {
+    "title": "Kinerja biaya dan jadwal",
+    "description": "Menampilkan indeks kinerja biaya dan jadwal pada proyek dan perintah kerja. Nonaktif sampai Anda mengaktifkannya.",
+    "enabled": "Tampilkan indeks kinerja",
+    "low": "Batas bawah (di bawah ini dianggap bermasalah)",
+    "high": "Batas atas (di atas ini dianggap lebih cepat)",
+    "helper": "Batas bawah harus di atas 0 dan di bawah 1; batas atas di atas 1. Bawaan 0,90 dan 1,10.",
+    "save": "Simpan",
+    "saving": "Menyimpan…",
+    "saved": "Pengaturan kinerja disimpan",
+    "savedDetail": "Panel mengikuti pengaturan baru.",
+    "invalid": "Batas bawah harus antara 0 dan 1, dan batas atas di atas 1.",
+    "adminOnly": "Hanya Admin yang dapat mengubah ini.",
+    "loadError": "Tidak dapat memuat pengaturan kinerja",
+    "on": "Aktif",
+    "off": "Nonaktif"
   }
 }

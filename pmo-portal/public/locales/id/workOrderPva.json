@@ -104,5 +104,61 @@
   "underPlan": "Sisa {{amount}}",
   "underPlanHours": "Sisa {{hours}} jam",
   "unknown": "Tidak diketahui",
-  "unknownDiscipline": "Disiplin diarsipkan"
+  "unknownDiscipline": "Disiplin diarsipkan",
+  "performance": {
+    "title": "Kinerja biaya dan jadwal",
+    "basis": "Nilai yang diperoleh adalah progres laporan harian yang telah divalidasi pada tarif kontrak. Nilai rencana berjalan lurus antara tanggal mulai dan selesai perintah kerja. Biaya aktual adalah biaya langsung yang tercatat pada perintah kerja.",
+    "projectBasis": "Perintah kerja yang diterbitkan atau ditutup, dijumlahkan. Nilai yang diperoleh adalah progres tervalidasi pada tarif kontrak; rencana linear menurut kalender.",
+    "asOf": "Per {{date}}",
+    "cpi": "Indeks kinerja biaya",
+    "spi": "Indeks kinerja jadwal",
+    "reading": {
+      "cpi": {
+        "below": "Biaya aktual melebihi nilai yang diperoleh",
+        "within": "Dalam kisaran",
+        "above": "Nilai yang diperoleh melebihi biaya aktual"
+      },
+      "spi": {
+        "below": "Tertinggal dari rencana",
+        "within": "Dalam kisaran",
+        "above": "Lebih cepat dari rencana"
+      }
+    },
+    "band": "Dalam kisaran adalah {{low}} sampai {{high}}.",
+    "ev": "Nilai yang diperoleh",
+    "pv": "Nilai rencana",
+    "ac": "Biaya aktual",
+    "costVariance": {
+      "positive": "Nilai yang diperoleh melebihi biaya aktual sebesar {{amount}}",
+      "negative": "Biaya aktual melebihi nilai yang diperoleh sebesar {{amount}}",
+      "zero": "Nilai yang diperoleh sama dengan biaya aktual"
+    },
+    "scheduleVariance": {
+      "positive": "Lebih cepat dari rencana sebesar {{amount}}",
+      "negative": "Tertinggal dari rencana sebesar {{amount}}",
+      "zero": "Sesuai rencana"
+    },
+    "hidden": {
+      "noCost": "Belum ada biaya tercatat",
+      "noDates": "Isi tanggal mulai dan selesai untuk melihat indeks jadwal",
+      "noPlanYet": "Pekerjaan yang direncanakan belum dimulai",
+      "unrated_one": "1 baris progres tervalidasi belum bertarif, sehingga indeks tidak ditampilkan",
+      "unrated_other": "{{count}} baris progres tervalidasi belum bertarif, sehingga indeks tidak ditampilkan",
+      "acIncomplete": "Biaya belum dapat dijumlahkan: ada baris biaya tanpa tanggal atau jumlah",
+      "acIncompleteUndated_one": "Biaya belum dapat dijumlahkan: 1 baris biaya tanpa tanggal",
+      "acIncompleteUndated_other": "Biaya belum dapat dijumlahkan: {{count}} baris biaya tanpa tanggal",
+      "notComparable": "Tidak dapat dibandingkan: sebagian biaya dalam mata uang lain",
+      "excluded": "Tidak ada angka untuk perintah kerja draf atau dibatalkan"
+    },
+    "unknown": "Tidak diketahui",
+    "counted": "{{included}} perintah kerja dihitung, {{excluded}} tidak disertakan karena angkanya belum lengkap atau belum diterbitkan atau ditutup",
+    "truncated": "500 perintah kerja pertama ditampilkan; {{count}} lainnya tidak disertakan.",
+    "nothing": "Belum ada yang tercatat untuk perintah kerja ini.",
+    "loadError": "Tidak dapat memuat kinerja biaya dan jadwal",
+    "retry": "Coba lagi",
+    "workOrders": "Per perintah kerja",
+    "col": {
+      "workOrder": "Perintah kerja"
+    }
+  }
 }
