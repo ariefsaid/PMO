@@ -1,6 +1,6 @@
 -- 1248_attendance_record_effective.sql — #2704: attendance for a loaned worker is accepted on the host crew's work
 -- order (and refused on the home crew's) for the loan days. Copy of the 1110 definition; the ONLY change is the
--- crew-resolution query (worker_effective_crew, 1246). The recorder is the effective crew's (host crew field controller).
+-- crew-resolution query (worker_effective_crew, 1246), plus the #2705 phone-check-in approval allowance below. The recorder is the effective crew's (host crew field controller).
 
 create or replace function public.attendance_record(p_work_order_id uuid, p_work_date date, p_source text, p_rows jsonb)
   returns integer
@@ -23,6 +23,7 @@ declare
   v_tick numeric;
   v_phone numeric;
   v_n int := 0;
+  v_ok boolean;
 begin
   perform public.assert_is_active_member();
   if v_uid is null or v_org is null then
@@ -67,7 +68,16 @@ begin
     -- Authority: a phone check-in is the person's own; the other methods are the crew's recorder's.
     if p_source = 'phone_check_in' then
       if v_profile is distinct from v_uid then
-        raise exception 'not authorized' using errcode = '42501';
+        -- #2705 allowance, carried here because 1248 re-creates attendance_record after 1212: a supervisor approving an
+        -- off-area phone check-in may record it. Without public.phone_check_ins another person's check-in is refused.
+        if to_regclass('public.phone_check_ins') is null then
+          raise exception 'not authorized' using errcode = '42501';
+        end if;
+        execute 'select exists (select 1 from public.phone_check_ins q where q.status = ''approving'' and q.decided_by = $1 and q.worker_id = $2 and q.work_order_id = $3 and q.work_date = $4 and q.org_id = $5)'
+          into v_ok using v_uid, r.worker_id, p_work_order_id, p_work_date, v_org;
+        if not v_ok then
+          raise exception 'not authorized' using errcode = '42501';
+        end if;
       end if;
     elsif not public.attendance_can_record(v_crew) then
       raise exception 'not authorized' using errcode = '42501';
