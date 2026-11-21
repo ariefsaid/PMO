@@ -1,4 +1,4 @@
--- 1090_document_categories.sql — #2579 document categories with per-role visibility (spec docs/specs/document-category-visibility.spec.md).
+-- 1164_document_categories.sql — #2579 document categories with per-role visibility (spec docs/specs/document-category-visibility.spec.md).
 -- Step 1 of 5: the two tables and the system seed. Nothing reads them yet; 1091 gives every register document a category
 -- reference, 1092 enforces visibility, 1093 adds the Admin management functions, 1094 patches the two definers that read the register.
 --
