@@ -362,6 +362,10 @@ from public.agent_threads t where t.id = 'a6120000-0000-4000-8000-000000000113';
 insert into public.agent_automations (id, org_id, owner_id, kind, prompt, schedule)
 select 'a6120000-0000-4000-8000-000000000118', p.org_id, p.id, 'schedule', 'Isolation automation', '0 0 * * *'
 from public.profiles p where p.org_id = 'a6120000-0000-4000-8000-00000000000a' order by p.id limit 1;
+-- issue_department_groups (#2678, integration merge 2): the only by_id-applicable table of the r1-local
+-- features with no seed row; without it its by-id read/update probes skip.
+insert into public.issue_department_groups (id, org_id, name, issue_types)
+values ('a6120000-0000-4000-8000-0000000000b6', 'a6120000-0000-4000-8000-00000000000a', 'Isolation department group', '{}');
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 

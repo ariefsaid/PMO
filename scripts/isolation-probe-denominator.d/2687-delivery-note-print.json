@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "mrq_set_delivery_note_settings(boolean,text[])"
+  ]
+}
