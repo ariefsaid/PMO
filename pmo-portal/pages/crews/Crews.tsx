@@ -7,6 +7,7 @@ import { CrewList } from './CrewList';
 import { WorkOrderRoster } from './WorkOrderRoster';
 import { AttendanceTick } from './AttendanceTick';
 import { CrewImports } from './CrewImports';
+import { CrewLoans } from './CrewLoans';
 
 type View = 'crews' | 'roster' | 'attendance';
 
@@ -39,6 +40,7 @@ const CrewsPage: React.FC = () => {
         ariaLabel={t('crews:tabsLabel', 'Crew views')} idBase="crews" className="mb-4" />
       <div id={tabPanelId('crews', view)} role="tabpanel" aria-labelledby={tabId('crews', view)}>
         {view === 'crews' && <CrewList creating={creating} onCreate={() => setCreating(true)} onCloseCreate={() => setCreating(false)} />}
+        {view === 'crews' && <CrewLoans />}
         {view === 'roster' && <WorkOrderRoster />}
         {view === 'attendance' && <AttendanceTick />}
       </div>

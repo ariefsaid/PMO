@@ -687,6 +687,13 @@
           "saved": "List saved",
           "duplicate": "That name is already in the list"
     },
+    "crewLoans": {
+      "title": "Crew loans",
+      "label": "Allow lending workers between crews",
+      "helper": "A lent worker follows the host crew on its roster and attendance for the loan period. Off, the Crews page shows no loans.",
+      "loadError": "Couldn't load the crew loans setting",
+      "adminOnly": "Only an Admin can change this."
+    },
     "fiscalYear": {
       "title": "Fiscal year",
       "label": "Fiscal year starts in",

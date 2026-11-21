@@ -20,9 +20,15 @@ export function crewErrorMessage(t: TFunction, err: unknown): string {
     if (message.includes('crew_standard_roles_name')) return t('crews:errors.duplicateRole', 'That standard role is already listed for this crew.');
     return t('crews:errors.duplicateCode', 'That code is already used by a live crew.');
   }
+  if (code === '23P01' && message.includes('crew_loans_no_overlap')) return t('crews:errors.loanOverlap', 'This person is already on loan on some of these days.');
   if (code === '23P01') return t('crews:errors.overlap', 'These dates overlap another placement. End that one first.');
   switch (prefix) {
     case 'CRW_ARCHIVE_IN_USE': return t('crews:errors.archiveInUse', 'End this crew\'s current and future members and roster placements first.');
+    case 'LOAN_CREW': return t('crews:errors.loanCrew', 'Choose two different live crews of this organisation.');
+    case 'LOAN_HOME': return t('crews:errors.loanHome', 'The person must be placed in the home crew for the whole loan.');
+    case 'LOAN_HOURS_LOCKED':
+      return t('crews:errors.loanLocked', 'Hours on {{date}} are already sent for approval or approved, so the crew for that day cannot change.',
+        { date: formatDay(/\d{4}-\d{2}-\d{2}/.exec(after)?.[0] ?? '') });
     case 'ATT_LOCKED': return t('crews:errors.locked', 'This day is approved. Re-open the timesheet to correct it.');
     case 'ATT_SUBMITTED': return t('crews:errors.submitted', 'This week is sent for approval. Return it to change a day.');
     case 'ATT_NOT_ROSTERED': return t('crews:errors.notRostered', 'This person is not in a crew rostered on this work order that day.');

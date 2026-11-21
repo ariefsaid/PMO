@@ -1,6 +1,6 @@
 # Spec: Crew loan, a worker on loan follows the host crew (#2704)
 
-**Status:** proposed. IDs `FR-LOAN-###`, `AC-LOAN-###`. Plan: `docs/plans/2026-11-21-crew-loan.md`. Map #2516, scope ruling OD-SCOPE-2 (no client process in code). Builds on `docs/specs/crews-roster-attendance.spec.md` (crews, placements, roster, attendance); read it first. Settings the client controls: none.
+**Status:** proposed. IDs `FR-LOAN-###`, `AC-LOAN-###`. Plan: `docs/plans/2026-11-21-crew-loan.md`. Map #2516, scope ruling OD-SCOPE-2 (no client process in code). Builds on `docs/specs/crews-roster-attendance.spec.md` (crews, placements, roster, attendance); read it first. Settings the client controls: one, `crew_loans_enabled` (default off; Admin; Administration, People). Off, the Crews page is exactly as today; the database rules apply regardless and are inert without loans.
 
 ## Job story
 When a worker is lent to another crew, I want them to follow the host crew's roster, so hours land on the right work order.
@@ -18,7 +18,9 @@ A **loan** is (worker, home crew, host crew, start date, end date), both dates i
 - FR-LOAN-007 Hours already approved, locked or submitted for approval shall never move: creating, changing (dates) or deleting a loan is refused when any day it covers (before or after the change) holds such attendance for that worker. Past unapproved days follow the new crew only on the next recording; saved attendance rows are not rewritten.
 - FR-LOAN-008 Whoever may manage crews today (`crew_can_manage`: Admin, Executive, Project Manager) shall create and change loans; every active member reads them; delete is Admin only (as for crew placements); another organisation sees nothing.
 - FR-LOAN-009 A crew with a current or future loan (home or host) shall not be archived.
-- FR-LOAN-010 The crew page shall let a manager lend a member (host crew, start, end) and list a crew's loans out and in; strings in English and Bahasa Indonesia, phone and desktop.
+- FR-LOAN-010 Where the organisation setting `crew_loans_enabled` is on, the Crews page shall show a Crew loans card listing loans (person, home crew, host crew, from, to) and let a crew manager lend a person from their home crew (host crew, start, end) and end a loan; where it is off the page shall be unchanged. Strings in English and Bahasa Indonesia, phone and desktop.
+- FR-LOAN-011 Only an Admin shall change `crew_loans_enabled` (security-definer setter, audited); every active member reads it.
+- FR-LOAN-012 No loaned-in worker fills a standard-role headcount on the host crew; the roster marks them `on_loan`.
 
 ## Acceptance criteria and owning layer
 | ID | Given / When / Then | Layer |
@@ -32,7 +34,8 @@ A **loan** is (worker, home crew, host crew, start date, end date), both dates i
 | AC-LOAN-007 | Given host equal to home, a home crew without a covering placement, an archived host, or a foreign-org crew, when a loan is made, then refused. | pgTAP |
 | AC-LOAN-008 | Given roles Admin, Executive, Project Manager versus Engineer and another organisation, when each creates or reads, then only the managers write, members read, the other organisation reads nothing; delete is Admin only. | pgTAP |
 | AC-LOAN-009 | Given a crew with a current loan, when archived, then refused. | pgTAP |
-| AC-LOAN-010 | Given a crew member row, when a manager opens "Lend to another crew" and saves, then the loan shows on both crews and a non-manager sees no action. | Unit (RTL) + `can()` unit |
+| AC-LOAN-010 | Given the setting off, then the Crews page shows no loans card; given it on, a manager lends a person from the card and a non-manager sees the loans but no Lend action. | Unit (RTL) |
+| AC-LOAN-012 | Given the setting, then it is off by default, an Admin turns it on and a Project Manager is refused. | pgTAP + Unit |
 | AC-LOAN-011 | Given the en and id dictionaries, then every new key exists in both. | Unit |
 
 ## Errors
@@ -44,4 +47,4 @@ A **loan** is (worker, home crew, host crew, start date, end date), both dates i
 | Host equals home, or crew not live | Refused (`LOAN_CREW`) |
 
 ## Rulings (restated, no owner question open)
-Approved hours never move retroactively (FR-LOAN-007). A loan does not alter the home placement. No setting is added: an organisation that creates no loans sees no change (FR-LOAN-006).
+Approved hours never move retroactively (FR-LOAN-007): changing, ending or deleting a loan is refused for any day whose crew would change and that holds submitted, approved or locked attendance; a change that leaves such a day on the same crew is allowed. The home placement is checked at creation only (FR-LOAN-002); editing the placement later does not re-check loans. Readers switched to `worker_effective_crew`: only `work_order_roster` and `attendance_record` (the only functions reading placements to route hours; timesheet generation reads saved attendance rows and is unchanged). A loan does not alter the home placement. No setting is added: an organisation that creates no loans sees no change (FR-LOAN-006).

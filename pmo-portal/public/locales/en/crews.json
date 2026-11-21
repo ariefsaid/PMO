@@ -48,7 +48,11 @@
     "weekEmpty": "This person has no present days that week.",
     "window": "The earliest date open for attendance is {{date}}.",
     "linkedUser": "That user is already linked to a person. Select that person instead.",
-    "duplicateRole": "That standard role is already listed for this crew."
+    "duplicateRole": "That standard role is already listed for this crew.",
+    "loanOverlap": "This person is already on loan on some of these days.",
+    "loanCrew": "Choose two different live crews of this organisation.",
+    "loanHome": "The person must be placed in the home crew for the whole loan.",
+    "loanLocked": "Hours on {{date}} are already sent for approval or approved, so the crew for that day cannot change."
   },
   "from": "From",
   "headcount": "Headcount",
@@ -145,5 +149,22 @@
   "weekSent": "Week sent for approval",
   "workOrder": "Work order",
   "workOrderNoun": "work order",
-  "workOrderNounPlural": "work orders"
+  "workOrderNounPlural": "work orders",
+  "loans": {
+    "chooseCrew": "Choose a crew",
+    "choosePerson": "Choose a person",
+    "empty": "No crew loans yet",
+    "end": "End loan",
+    "endBody": "{{name}} returns to the home crew after today. Recorded attendance stays.",
+    "endTitle": "End this loan?",
+    "ended": "Loan ended",
+    "error": "Couldn't load crew loans",
+    "hostCrew": "Host crew",
+    "homeCrew": "Home crew",
+    "lend": "Lend worker",
+    "lendTitle": "Lend a worker to another crew",
+    "lent": "Worker lent",
+    "title": "Crew loans",
+    "toBeforeFrom": "The end cannot be before the start"
+  }
 }

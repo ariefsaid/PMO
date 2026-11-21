@@ -2927,6 +2927,71 @@ export type Database = {
           },
         ]
       }
+      crew_loans: {
+        Row: {
+          created_at: string
+          home_crew_id: string
+          host_crew_id: string
+          id: string
+          org_id: string
+          valid_from: string
+          valid_to: string
+          version: number
+          worker_id: string
+        }
+        Insert: {
+          created_at?: string
+          home_crew_id: string
+          host_crew_id: string
+          id?: string
+          org_id?: string
+          valid_from: string
+          valid_to: string
+          version?: number
+          worker_id: string
+        }
+        Update: {
+          created_at?: string
+          home_crew_id?: string
+          host_crew_id?: string
+          id?: string
+          org_id?: string
+          valid_from?: string
+          valid_to?: string
+          version?: number
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crew_loans_home_crew_id_fkey"
+            columns: ["home_crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_loans_host_crew_id_fkey"
+            columns: ["host_crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_loans_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crew_loans_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crew_members: {
         Row: {
           created_at: string
@@ -7119,6 +7184,7 @@ export type Database = {
           attendance_backdate_days: number
           attendance_conflict_tolerance_hours: number
           created_at: string
+          crew_loans_enabled: boolean
           default_currency: string
           default_locale: string
           default_number_locale: string | null
@@ -7144,6 +7210,7 @@ export type Database = {
           attendance_backdate_days?: number
           attendance_conflict_tolerance_hours?: number
           created_at?: string
+          crew_loans_enabled?: boolean
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
@@ -7169,6 +7236,7 @@ export type Database = {
           attendance_backdate_days?: number
           attendance_conflict_tolerance_hours?: number
           created_at?: string
+          crew_loans_enabled?: boolean
           default_currency?: string
           default_locale?: string
           default_number_locale?: string | null
@@ -14475,6 +14543,7 @@ export type Database = {
         }[]
       }
       work_order_issue_eligibility: { Args: { p_ids: string[] }; Returns: { work_order_id: string; reason: string }[] }
+      worker_effective_crew: { Args: { p_date: string; p_worker_id: string }; Returns: string }
       work_order_roster: {
         Args: { p_date: string; p_work_order_id: string }
         Returns: {
@@ -16871,6 +16940,7 @@ export type Database = {
         Args: { p_account_ref: string; p_actor_id: string; p_org_id: string }
         Returns: undefined
       }
+      set_org_crew_loans_enabled: { Args: { p_enabled: boolean }; Returns: boolean }
       set_org_fiscal_year_start_month: {
         Args: { p_month: number | null }
         Returns: number | null

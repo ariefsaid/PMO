@@ -687,6 +687,13 @@
           "saved": "Daftar disimpan",
           "duplicate": "Nama itu sudah ada dalam daftar"
     },
+    "crewLoans": {
+      "title": "Pinjaman kru",
+      "label": "Izinkan meminjamkan pekerja antar kru",
+      "helper": "Pekerja yang dipinjamkan mengikuti jadwal dan kehadiran kru tujuan selama masa pinjaman. Jika mati, halaman Kru tidak menampilkan pinjaman.",
+      "loadError": "Tidak dapat memuat pengaturan pinjaman kru",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini."
+    },
     "fiscalYear": {
       "title": "Tahun fiskal",
       "label": "Tahun fiskal dimulai pada",
