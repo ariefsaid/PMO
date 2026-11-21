@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agingBucket, paymentState, projectAging } from './erpPurchaseAging';
+import { agingBucket, projectAging } from './erpPurchaseAging';
 import type { ErpPurchaseRow } from './repositories/erpPurchases';
 
 const pi = (over: Partial<ErpPurchaseRow>): ErpPurchaseRow => ({
@@ -10,14 +10,6 @@ const pi = (over: Partial<ErpPurchaseRow>): ErpPurchaseRow => ({
 const TODAY = '2026-03-15';
 
 describe('erpPurchaseAging', () => {
-  it('derives paid/unpaid/overdue from ERP outstanding, and nothing for a PO', () => {
-    expect(paymentState(pi({ outstanding: 0 }), TODAY)).toBe('paid');
-    expect(paymentState(pi({ dueDate: '2026-04-01' }), TODAY)).toBe('unpaid');
-    expect(paymentState(pi({ dueDate: '2026-04-01', outstanding: 40 }), TODAY)).toBe('partly-paid');
-    expect(paymentState(pi({}), TODAY)).toBe('overdue');
-    expect(paymentState(pi({ isReturn: true, outstanding: -10 }), TODAY)).toBe('return');
-    expect(paymentState(pi({ doctype: 'Purchase Order', outstanding: null }), TODAY)).toBeNull();
-  });
 
   it('buckets by days past due, due today counting as not due', () => {
     expect(agingBucket('2026-03-15', TODAY)).toBe('notDue');

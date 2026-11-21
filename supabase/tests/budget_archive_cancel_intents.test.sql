@@ -5,7 +5,7 @@
 -- removed (a pre-existing extension is never dropped) and the shared catalog returns to baseline.
 create temp table _budget_archive_dblink_extension_state as
 select exists (select 1 from pg_extension where extname = 'dblink') as existed_before_test;
-create extension if not exists dblink;
+create extension if not exists dblink with schema extensions;
 begin;
 -- Bound accidental fixture cycles while the explicit 500ms lock-timeout probes below continue to
 -- prove that the intended competing writer blocks at the shared project decision lock.

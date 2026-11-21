@@ -5,6 +5,7 @@ import {
   Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListPage, ListState, SelectField, TextField,
   useEntityForm, useToast, type Column, type SubmitError,
 } from '@/src/components/ui';
+import { EquipmentAssetImport } from './EquipmentAssetImport';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useCreateAsset, useDeleteAsset, useEquipmentAssetPages, useUpdateAsset } from '@/src/hooks/useEquipment';
@@ -104,6 +105,7 @@ const EquipmentAssetsPage: React.FC = () => {
       title={t('equipment:assets.title', 'Assets')}
       count={total}
       primaryAction={<CanWrite entity="equipmentAsset" action="create" ctx={writeCtx}>
+        <EquipmentAssetImport onImported={() => void refetch()} />
         <Button variant="primary" onClick={() => setCreating(true)}><Icon name="plus" />{t('equipment:assets.new', 'New asset')}</Button>
       </CanWrite>}
     >
@@ -120,6 +122,7 @@ const EquipmentAssetsPage: React.FC = () => {
             {t('equipment:assets.truncated', 'Showing the first {{count}} assets. Archive the ones you no longer use.', { count: LIST_LIMIT })}</p>}
           <DataTable<EquipmentAssetRow> rows={rows} columns={columns} rowKey={(a) => a.id} tableId="equipment-assets-table"
             onActivate={(a) => navigate(`/equipment/assets/${a.id}`)}
+            rowHref={(a) => `/equipment/assets/${a.id}`}
             rowLabel={(a) => t('equipment:assets.rowLabel', 'Open {{name}}', { name: a.name })}
             rowMenu={(a) => [
               ...(may('edit', 'equipmentAsset', writeCtx) ? [{ label: t('equipment:assets.archive', 'Archive'), onClick: () => setPending({ kind: 'archive', asset: a }) }] : []),

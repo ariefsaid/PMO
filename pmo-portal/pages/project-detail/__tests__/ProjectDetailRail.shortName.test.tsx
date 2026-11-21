@@ -6,6 +6,7 @@ import { ToastProvider } from '@/src/components/ui';
 import ProjectDetailRail from '../ProjectDetailRail';
 
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
+vi.mock('@/pages/project-detail/ProjectApprovalPins', () => ({ ProjectApprovalPins: () => null }));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => <div data-testid="status-control" /> }));
 
 const base = {

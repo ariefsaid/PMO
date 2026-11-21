@@ -137,6 +137,8 @@ export { type RepairUnlinkedReceiptsDeps, repairUnlinkedReceipts, repairInvoiceP
 export { type ListOutboxCandidates, DOMAIN_FEATURE_KEY, featureDisabled } from './sweepShared.ts';
 
 export { createInFlightAnchorProbe, type InFlightAnchorProbe };
+import { ensureOrgFiscalYearLive, utcDay } from './fiscalYear.ts';
+export { ensureOrgFiscalYearLive, utcDay };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -231,6 +233,8 @@ export async function reconcileOrgOutbox(
     // report a false `domain-not-owned` "held for an operator" alarm on a budget row that is, in fact,
     // being recovered normally.
     if (candidate.domain === ERPNEXT_BUDGET_DOMAIN) continue;
+    // #1599 ECX-5: fiscal-year setup is owned by ensureOrgFiscalYear pass alone.
+    if (candidate.domain === 'fiscal_year_setup') continue;
     // (0534) ENTITLEMENT gate: a module switched off for this org mints no NEW commands, and its
     // outstanding ones are HELD — same treatment as a revoked domain (row untouched, reported, resumes on
     // re-enable), never a silent drop. This runs BEFORE buildDeps so an off module never resolves ERP
@@ -366,6 +370,8 @@ export interface ErpSweepCycleDeps {
   advanceConnectRun?: (org: OrgBinding) => Promise<{ state?: string; error?: string }>;
   /** ECA3-T7 (#1606) — pass (8b): send the masters an Admin accepted as "send", a few per tick. Optional like its siblings. */
   drainConnectSends?: (org: OrgBinding) => Promise<{ error?: string }>;
+  /** #1599 ECX-5: pass (3c) keep the ERP one fiscal year ahead. Optional like its siblings. */
+  ensureOrgFiscalYear?: (org: OrgBinding, mode?: 'full' | 'recovery-only') => Promise<{ error?: string }>;
   /** 0358: on a money-only tick, whether this org's hourly work is due (its last full run is stale). */
   isFullSweepDue?: (org: OrgBinding) => boolean;
   /** 0642: whether this org's native statement pass is due (its own hourly marker). Absent ⇒ always due,
@@ -599,6 +605,15 @@ export async function runErpSweepCycle(
         errors.push(`sends:${err instanceof Error ? err.message : String(err)}`);
       }
     }
+    // (8c) #1599 ECX-5: fiscal outbox recovery in money pass
+    if (deps.ensureOrgFiscalYear && !erpUnanswered() && tryFits()) {
+      try {
+        const r = await deps.ensureOrgFiscalYear(org, 'recovery-only');
+        if (r.error) errors.push(`fiscal-year:${r.error}`);
+      } catch (err) {
+        errors.push(`fiscal-year:${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
     // (2) doctype modified-poll sweep. (2)–(4) are the hourly inbound/statement work: a money-only
     // tick skips them (the money passes (5)–(7) above have already run).
     // Change-driven statements run on EVERY tick (money-only included) so "Refresh now" and a confirmed posting are
@@ -689,6 +704,15 @@ export async function runErpSweepCycle(
           errors.push(`purchases:${err instanceof Error ? err.message : String(err)}`);
         }
       }
+      // (3c) keep the ERP one fiscal year ahead, so a posting dated in a new year is never refused for want of one.
+      if (deps.ensureOrgFiscalYear && stillTime() && !erpUnanswered() && hourlyFits()) {
+        try {
+          const r = await deps.ensureOrgFiscalYear(org, 'full');
+          if (r.error) errors.push(`fiscal-year:${r.error}`);
+        } catch (err) {
+          errors.push(`fiscal-year:${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
       // (4) refresh only from a complete mirror. A bounded backfill is not a current accounting view.
       if (truncated) {
         // out of invocation time: the whole remainder resumes next tick
@@ -707,7 +731,7 @@ export async function runErpSweepCycle(
       // retry on their own cadence and do not hold the marker back. A tick that dies before here leaves the org due.
       // #2149: a pass whose ERP try the budget refused or cut ran out of time: the run continues next tick, it did not fail.
       const cutByBudget = org.sweepBudgetStopped === true;
-      const failed = !cutByBudget && errors.slice(hourlyFrom).some((e) => !e.startsWith('native-statement:') && !e.startsWith('statement:') && !e.startsWith('statement-pass-mark:'));
+      const failed = !cutByBudget && errors.slice(hourlyFrom).some((e) => !e.startsWith('native-statement:') && !e.startsWith('statement:') && !e.startsWith('statement-pass-mark:') && !e.startsWith('fiscal-year:'));
       const unfinished = truncated || walkIncomplete || ledgerBehind || cutByBudget;
       // An org whose hourly work never started keeps its marker: a defer would reset how long it has waited
       // and let a slow earlier org go first again on every tick. (An org whose ERPNext did not answer is the one
@@ -1589,6 +1613,8 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     reconcileOrgImprestPostings: (org) => reconcileOrgImprestPostingsLive(serviceClient, org, erpAuth),
     advanceConnectRun: (org) => advanceConnectRuns(serviceClient, org),
     drainConnectSends: (org) => drainConnectSends(serviceClient, org),
+    ensureOrgFiscalYear: (org, mode = 'full') =>
+      ensureOrgFiscalYearLive(serviceClient, org, () => erpClientForBinding(serviceClient, org, erpAuth), utcDay(handlerEntryMs), mode),
     isFullSweepDue: (org) => fullSweepDue(org.lastFullSweepAt, handlerEntryMs),
     // 0642: the statement pass has its own hourly marker; an explicit full-mode request bypasses it.
     isStatementPassDue: (org) => statementPassDue(org.lastStatementPassAt, handlerEntryMs),

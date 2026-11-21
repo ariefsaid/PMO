@@ -1,8 +1,8 @@
 {
-  "back": "Perintah kerja",
-  "errorTitle": "Perintah kerja ini tidak dapat dimuat",
-  "notFound": "Perintah kerja tidak ditemukan",
-  "notFoundSub": "Perintah kerja ini tidak ada, atau Anda tidak memiliki akses.",
+  "back": "$t(common:terms.clientWorkOrder)",
+  "errorTitle": "$t(common:terms.clientWorkOrder) ini tidak dapat dimuat",
+  "notFound": "$t(common:terms.clientWorkOrder) tidak ditemukan",
+  "notFoundSub": "$t(common:terms.clientWorkOrder) ini tidak ada, atau Anda tidak memiliki akses.",
   "notNumbered": "Belum bernomor",
   "clientPo": "PO klien {{po}}",
   "project": "Proyek",
@@ -11,7 +11,7 @@
   "scope": {
     "title": "Lingkup dan kemajuan",
     "error": "Lingkup tidak dapat dimuat",
-    "empty": "Belum ada baris kontrak yang dialokasikan ke perintah kerja ini.",
+    "empty": "Belum ada baris kontrak yang dialokasikan ke $t(common:terms.clientWorkOrder) ini.",
     "allocate": "Alokasikan baris di proyek",
     "overall": "Keseluruhan {{pct}} selesai",
     "lump": "{{done}} dari {{all}}",
@@ -20,7 +20,7 @@
   "costs": {
     "title": "Biaya",
     "error": "Biaya tidak dapat dimuat",
-    "empty": "Belum ada biaya yang dikaitkan dengan perintah kerja ini.",
+    "empty": "Belum ada biaya yang dikaitkan dengan $t(common:terms.clientWorkOrder) ini.",
     "noDiscipline": "Tanpa disiplin",
     "unknownDiscipline": "Disiplin",
     "restricted": "Jumlah dibatasi untuk peran Anda",
@@ -29,10 +29,10 @@
       "purchase_request": "Permintaan pembelian",
       "purchase_order": "Pesanan pembelian",
       "goods_receipt": "Penerimaan barang",
-      "vendor_bill": "Tagihan vendor",
+      "vendor_bill": "Invoice supplier",
       "timesheet_entry": "Lembar waktu",
       "stock_document": "Pergerakan stok",
-      "equipment_usage": "Penggunaan peralatan"
+      "equipment_usage": "Pemakaian alat"
     },
     "unavailable": "Jumlah tidak tersedia",
     "notCosted": "Biaya belum dihitung",
@@ -42,7 +42,7 @@
   "billing": {
     "title": "Penagihan dan penerimaan",
     "error": "Angka penagihan tidak dapat dimuat",
-    "noFigures": "Belum ada angka penagihan untuk perintah kerja ini.",
+    "noFigures": "Belum ada angka penagihan untuk $t(common:terms.clientWorkOrder) ini.",
     "invoiced": "Ditagihkan",
     "pending": "Menunggu",
     "paid": "Dibayar",
@@ -60,12 +60,22 @@
   "documents": {
     "title": "Dokumen",
     "error": "Dokumen tidak dapat dimuat",
-    "empty": "Belum ada dokumen yang dapat Anda lihat untuk Work Order ini."
+    "empty": "Belum ada dokumen yang dapat Anda lihat untuk $t(common:terms.clientWorkOrder) ini."
   },
-  "issuesTasks": {
-    "title": "Masalah dan tugas terbuka",
-    "issuesEmpty": "Tidak ada masalah yang menyebut perintah kerja ini.",
-    "tasksEmpty": "Tidak ada tugas terbuka yang menyebut perintah kerja ini."
+  "openPage": "Buka halaman",
+  "issues": {
+    "title": "Masalah",
+    "error": "Masalah tidak dapat dimuat",
+    "empty": "Tidak ada masalah yang menyebut $t(common:terms.clientWorkOrder) ini.",
+    "due": "Selesaikan sebelum {{date}}",
+    "noDue": "Tanpa batas waktu",
+    "overdue": "Terlambat"
   },
-  "openPage": "Buka halaman"
+  "openTasks": {
+    "title": "Tugas terbuka",
+    "error": "Tugas terbuka tidak dapat dimuat",
+    "empty": "Tidak ada tugas terbuka yang menyebut $t(common:terms.clientWorkOrder) ini.",
+    "unassigned": "Belum ditugaskan",
+    "noDue": "Tanpa tenggat"
+  }
 }

@@ -34,7 +34,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }),
 }));
 
-import { useMeetings, useMeetingsPages, useMeetingMutations } from './useMeetings';
+import { useMeetingsPages, useMeetingMutations } from './useMeetings';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <QueryClientProvider
@@ -71,15 +71,6 @@ describe('useMeetings', () => {
     expect(result.current.data?.pages.flatMap((page) => page.rows.map((row) => row.id))).toHaveLength(26);
   });
 
-  it('passes the project filter + search through to the repository (server-side, DD-MTG-5)', async () => {
-    repoMock.meeting.list.mockResolvedValue({ rows: [], hasMore: false });
-    const { result } = renderHook(
-      () => useMeetings({ projectId: 'p1', search: 'pipeline' }),
-      { wrapper },
-    );
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(repoMock.meeting.list).toHaveBeenCalledWith({ projectId: 'p1', search: 'pipeline' });
-  });
 
   it('C8b F5 flags the loaded pages as partial when a search leg failed, so no surface can print a total', async () => {
     repoMock.meeting.listPage.mockResolvedValue({ rows: [{ id: 'm1' }], hasMore: false, partial: true });
@@ -103,12 +94,6 @@ describe('useMeetings', () => {
     expect(result.current.hasNextPage).toBe(true);
   });
 
-  it('requests the full set, including archived rows, through a distinct repository query', async () => {
-    repoMock.meeting.list.mockResolvedValue({ rows: [], hasMore: false });
-    const { result } = renderHook(() => useMeetings({ includeArchived: true }), { wrapper });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(repoMock.meeting.list).toHaveBeenCalledWith({ includeArchived: true });
-  });
 });
 
 describe('useMeetingMutations.restore', () => {

@@ -85,8 +85,10 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
     { key: 'warehouse', header: t('ledger.columns.warehouse'), size: 136, minSize: 136, cell: (r) => <CodeText code={r.warehouseCode} testId="stock-ledger-warehouse-code" className="block min-w-0 break-all record-id" />, exportValue: (r) => r.warehouseCode },
     {
       key: 'project', header: t('ledger.columns.project'), size: 136, minSize: 136, colClassName: 'hidden lg:table-cell',
-      // Project names wrap at spaces; the work-item code remains one intact identifier on desktop.
-      cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block break-normal whitespace-normal text-sm">{r.projectName}</span><CodeText code={r.boqItemCode ?? ''} testId="stock-ledger-boq-code" className="block break-all record-id md:whitespace-nowrap" /></div>) : null),
+      // The whole cell wraps long tokens instead of clipping (AC-STOCK-LAYOUT-004): a real work-item
+      // code can be longer than its fixed 136px column, so the code emergency-breaks inside the cell
+      // (overflow-wrap:anywhere) rather than clipping with an ellipsis; names keep their space wrap.
+      cell: (r) => (r.projectName ? (<div className="min-w-0"><span className="block [overflow-wrap:anywhere] whitespace-normal text-sm">{r.projectName}</span><CodeText code={r.boqItemCode ?? ''} testId="stock-ledger-boq-code" className="block whitespace-normal [overflow-wrap:anywhere] record-id" /></div>) : null),
       exportValue: (r) => r.projectName ?? '',
     },
     {

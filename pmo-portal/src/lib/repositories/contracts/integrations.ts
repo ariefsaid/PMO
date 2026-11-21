@@ -133,7 +133,17 @@ export interface ErpSetupReadiness {
    *  edge function — then neither is required. */
   budgetUsedOptionalCategories?: string[];
   unlinkedEmployeeCount: number;
+  /** #1599 ECX-5: the sweep's last check that the ERP holds the next fiscal year. Null/absent = unknown (no line shown). */
+  fiscalYear?: ErpFiscalYearReadiness | null;
 }
+
+export type ErpFiscalYearReadiness =
+  | { state: 'ready'; next: string }
+  | { state: 'not-due' }
+  | { state: 'needs-operator'; reason: 'missing-role' | 'no-current-year' | 'ambiguous-overlap' | 'review-settings' }
+  | { state: 'needs-operator'; reason: 'disabled-year'; year: string }
+  | { state: 'needs-operator'; reason: 'held'; intentId: string }
+  | { state: 'refused'; message: string | null };
 
 export interface ErpProjectOption { name: string; project_name: string; company: string; is_active: string }
 
@@ -158,7 +168,7 @@ export interface ConnectProposal {
   outcome: 'link' | 'bring-in' | 'send' | 'review';
   pmo_ids: string[];
   external_ids: string[];
-  reason: 'ambiguous' | 'tax-conflict' | 'rejected' | 'held' | null;
+  reason: 'ambiguous' | 'tax-conflict' | 'rejected' | 'held' | 'unresolved' | null;
   reason_text: string | null;
   snapshot: { name?: string; code?: string; employeeName?: string; accountName?: string; itemName?: string; item_name?: string };
   state: 'open' | 'sending' | 'applied' | 'dismissed';
@@ -247,6 +257,13 @@ export interface IntegrationsRepository {
   unlinkConnectMatch(tier: ConnectTier, id: string): Promise<void>;
   /** Send a held record again (Admin): the hold is released and the drain looks the record up before it creates anything. */
   retryConnectSend(tier: ConnectTier, id: string): Promise<void>;
+  /** #1599 ECX-4: the expense groups of the bound ERP company a new direct-cost account may go under (Admin/Finance). */
+  listAccountSendGroups(tier: ConnectTier): Promise<AccountSendGroup[]>;
+  /** #1599 ECX-4: ask PMO to create a leaf direct-cost account for a budget category under the chosen group (Admin/Finance). */
+  requestAccountSend(tier: ConnectTier, input: { category: string; parentAccount: string; accountName: string }): Promise<{ id: string }>;
   /** Set ERPNext company on org binding (calls external-set-company edge fn). */
   setCompany(orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }>;
 }
+
+/** An expense group of the bound ERP company, from the mirrored chart (#1599 ECX-4). */
+export interface AccountSendGroup { erpName: string; accountName: string; parentAccount: string | null }

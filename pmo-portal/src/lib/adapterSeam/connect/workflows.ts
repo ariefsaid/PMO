@@ -20,10 +20,12 @@ export const WORKFLOWS = {
   'item.match': { version: 1, summary: 'pair PMO purchase lines with ERP items' },
   'item.send': { version: 1, summary: 'create ERP items for PMO purchase lines' },
   'account.match': { version: 1, summary: 'propose the ERP account for each PMO budget category' },
+  'account.send': { version: 1, summary: 'create a leaf direct-cost account under the expense group chosen in PMO, never a group, tax or fiscal year' },
   'employee.match': { version: 1, summary: 'pair PMO people with ERP employees' },
   'employee.send': { version: 1, summary: 'create ERP employees for PMO people' },
   // ERP setup done from PMO (#1599 ECX): clients never work in the ERP.
   'company-defaults.set': { version: 1, summary: 'set the ERP company default accounts and cost centre chosen in PMO' },
+  'fiscal-year.ensure': { version: 1, summary: 'keep the ERP one fiscal year ahead of today for the bound company' },
   // Process domains
   'purchase.push': { version: 1, summary: 'send a purchase order and its receipt to the ERP' },
   'bill.push': { version: 1, summary: 'send a vendor bill to the ERP' },

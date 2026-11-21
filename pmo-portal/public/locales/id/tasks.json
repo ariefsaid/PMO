@@ -32,8 +32,8 @@
     "markDone": "Tandai selesai",
     "doneBlocked": "Tambahkan foto atau dokumen terlebih dahulu; tugas ini tidak dapat Selesai tanpa bukti.",
     "required": "Wajibkan bukti penyelesaian",
-    "workOrder": "Perintah kerja",
-    "noWorkOrder": "Tanpa perintah kerja",
+    "workOrder": "$t(common:terms.clientWorkOrder)",
+    "noWorkOrder": "Tanpa $t(common:terms.clientWorkOrder)",
     "refused": {
       "count": "Satu tugas memuat paling banyak 10 lampiran bukti.",
       "size": "Berkas itu lebih besar dari 15 MB.",
@@ -42,16 +42,16 @@
   },
   "workOrderTasks": {
     "title": "Tugas terbuka",
-    "empty": "Tidak ada tugas terbuka pada perintah kerja ini.",
+    "empty": "Tidak ada tugas terbuka pada $t(common:terms.clientWorkOrder) ini.",
     "loading": "Memuat tugas…",
     "loadFailed": "Tugas tidak dapat dimuat.",
     "unassigned": "Belum ditugaskan",
     "noDue": "Tanpa tenggat"
   },
   "workOrderFilter": {
-    "label": "Filter berdasarkan perintah kerja",
-    "all": "Semua perintah kerja",
-    "none": "Tanpa perintah kerja"
+    "label": "Filter berdasarkan $t(common:terms.clientWorkOrder)",
+    "all": "Semua $t(common:terms.clientWorkOrder)",
+    "none": "Tanpa $t(common:terms.clientWorkOrder)"
   },
   "linkedRecord": {
     "type": {

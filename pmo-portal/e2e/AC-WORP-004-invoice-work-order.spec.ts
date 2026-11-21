@@ -60,7 +60,7 @@ test('AC-WORP-004 a sales invoice opens its work-order page', async ({ page }) =
     await expect(page).toHaveURL((url) => url.pathname === '/work-orders/' + workOrderId);
     await expect(page.getByRole('heading', { level: 1 })).toContainText(number);
     await expect(page.getByText(title)).toBeVisible();
-    await expect(page.getByText('Page project ' + suffix)).toBeVisible();
+    await expect(page.getByTestId('record-header').getByText('Page project ' + suffix)).toBeVisible();
   } catch (e) {
     failure = e;
   } finally {

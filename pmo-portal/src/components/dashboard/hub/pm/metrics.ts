@@ -80,18 +80,6 @@ export function projectAtRisk(reading: CanonicalBudgetReading | undefined, proje
   return projectRiskBasisKnown(reading, projectCurrency) && reading?.atRisk === true;
 }
 
-export function projectSpendOfContractPct(project: PMDashboardProject): number | null {
-  if (!projectActualComplete(project)
-    || project.contract_value === null
-    || !Number.isFinite(project.contract_value)
-    || project.contract_value <= 0
-    || project.spent === null
-    || !Number.isFinite(project.spent)
-    || (project.actual_currency ?? project.currency) !== project.currency) return null;
-
-  return Math.round((project.spent / project.contract_value) * 100);
-}
-
 export function projectBudgetUsagePct(reading: CanonicalBudgetReading | undefined, projectCurrency?: string | null): number | null {
   return projectBudgetUsedPercent(reading, projectCurrency);
 }

@@ -41,10 +41,10 @@ test('AC-CODE-001 + AC-CODE-002: Admin saves a client-segment pattern and a PM c
     await expect(companyDialog).not.toBeVisible({ timeout: 15_000 });
 
     const companyRow = page.locator('table tbody tr').filter({
-      has: page.getByRole('button', { name: `Open ${companyName}`, exact: true }),
+      has: page.getByRole('link', { name: `Open ${companyName}`, exact: true }),
     });
     await expect(companyRow).toBeVisible({ timeout: 15_000 });
-    await companyRow.getByRole('button', { name: `Open ${companyName}`, exact: true }).click();
+    await companyRow.getByRole('link', { name: `Open ${companyName}`, exact: true }).click();
     await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+$/i, { timeout: 15_000 });
     await page.getByTestId('company-edit').click();
     const editCompanyDialog = page.getByRole('dialog');

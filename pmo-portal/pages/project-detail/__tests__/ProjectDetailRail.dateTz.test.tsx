@@ -37,6 +37,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { formatDay } from '@/src/lib/format';
 // ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
+vi.mock('@/pages/project-detail/ProjectApprovalPins', () => ({ ProjectApprovalPins: () => null }));
 
 function makeProject(overrides: Partial<ProjectWithRefs> = {}): ProjectWithRefs {
   return {

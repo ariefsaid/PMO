@@ -169,6 +169,8 @@ const KNOWN_REASON_CODES = new Set([
   'allocation-exceeds-unapplied', 'allocation-exceeds-balance', 'allocation-amount-invalid', 'allocation-duplicate-invoice',
   'allocation-client-mismatch', 'allocation-currency-mismatch', 'allocation-already-reversed', 'receipt-not-applicable',
   'request-id-reused',
+  // #2624 (reviewed 2026-11-20): migration 1021's open-billing-stage refusal, mapped by `src/lib/db/revenueNative.ts`.
+  'billing-stages-incomplete',
 ]);
 
 /** A genuine Postgres SQLSTATE is exactly 5 alphanumeric characters — too short to hold a name. */

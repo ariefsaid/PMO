@@ -27,6 +27,8 @@ export interface ProgressClaimWithInvoice extends ProgressClaimRow {
   evidence: ClaimEvidenceRef[];
   /** The claim's invoice mirror (id = claim id), or null when not yet raised. */
   invoice: { si_number: string | null; pmo_number: string | null; status: string; amount: number | null } | null;
+  /** Billing stages not yet completed (FR-BST-020): while above zero the database refuses the claim's invoice. */
+  open_stage_count: number;
 }
 
 export interface BoqItemInput {
@@ -116,10 +118,12 @@ export async function deleteBoqItem(id: string): Promise<void> {
 
 export async function listProjectClaims(projectId: string): Promise<ProgressClaimWithInvoice[]> {
   const { data, error } = await supabase.from('progress_claims')
-    .select('*, lines:progress_claim_lines(*), evidence:progress_claim_evidence(id,document_id,document_status,document_revision)')
+    .select('*, lines:progress_claim_lines(*), evidence:progress_claim_evidence(id,document_id,document_status,document_revision), stages:claim_billing_stages(completed_on)')
     .eq('project_id', projectId).order('created_at', { ascending: false }).limit(CLAIM_LIST_LIMIT);
   if (error) fail(error);
-  const claims = (data ?? []) as Array<ProgressClaimRow & { lines: ProgressClaimLineRow[]; evidence: ClaimEvidenceRef[] }>;
+  // A claim has at most 20 stages (the table's check), so the embedded read is never truncated.
+  const claims = ((data ?? []) as Array<ProgressClaimRow & { lines: ProgressClaimLineRow[]; evidence: ClaimEvidenceRef[]; stages?: Array<{ completed_on: string | null }> | null }>)
+    .map(({ stages, ...claim }) => ({ ...claim, open_stage_count: (stages ?? []).filter((stage) => stage.completed_on === null).length }));
   if (claims.length === 0) return [];
   const { data: invoices, error: invoiceError } = await supabase.from('sales_invoices')
     .select('id,si_number,pmo_number,status,amount').in('id', claims.map((claim) => claim.id));

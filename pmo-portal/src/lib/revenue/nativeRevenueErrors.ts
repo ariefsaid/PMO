@@ -46,6 +46,7 @@ export function nativeRevenueHeadlines(t: T): Record<NativeRevenueRefusal, strin
     'claim-total-mismatch': t('project:projectDetail.billing.claims.errors.totalMismatch', "This claim's lines do not add up to its total. Withdraw it and assemble it again."),
     'claim-kind': t('project:projectDetail.billing.claims.errors.claimKind', "This claim is invoiced from its sign-off, not from here."),
     'claim-erp-raise-in-flight': t('project:projectDetail.billing.claims.errors.erpRaiseInFlight', "An invoice for this claim is still being raised in the ERP. Wait for it to finish."),
+    'billing-stages-incomplete': t('project:projectDetail.billing.claims.errors.stagesIncomplete', 'Complete every billing stage of this claim before raising its invoice.'),
   };
 }
 

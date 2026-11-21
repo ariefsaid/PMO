@@ -290,7 +290,7 @@ describe('Budget vs actual block carries the snapshot behaviours', () => {
     h.budgetPosition = position({ activeBudgetAmount: '150000.00', spent: '10.10', consumption: '10.10', usedRatio: '0.0001', usedPercent: '0', consumptionVariance: '-149989.90' });
     renderOverviewMoney();
     expect(await within(costBlock()).findByText('$10 of $100,000')).toBeInTheDocument();
-    expect(within(costBlock()).getByText('$0 of $50,000')).toBeInTheDocument();
+    expect(within(costBlock()).getByText('$0.10 of $50,000')).toBeInTheDocument();
     expect(costBlock().textContent).not.toMatch(/\b\d+h\b/);
   });
 

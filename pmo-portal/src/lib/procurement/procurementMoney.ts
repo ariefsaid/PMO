@@ -16,7 +16,7 @@ export interface ProcurementMoneyInput {
   total_value?: number | string | null;
   purchase_requests?: readonly AmountRow[] | null;
   purchase_orders?: readonly AmountRow[] | null;
-  procurement_invoices?: readonly (AmountRow & { erp_outstanding_amount?: number | string | null })[] | null;
+  procurement_invoices?: readonly (AmountRow & { erp_outstanding_amount?: number | string | null; voided_at?: string | null })[] | null;
   payments?: readonly (AmountRow & { status: string })[] | null;
   erpDocuments?: readonly ErpMoneyRow[] | null;
 }
@@ -62,7 +62,8 @@ function sumCombined(rows: readonly (AmountRow | { grand_total: number | string 
 export function procurementMoney(input: ProcurementMoneyInput): ProcurementMoneyResult {
   const requests = input.purchase_requests ?? [];
   const orders = input.purchase_orders ?? [];
-  const invoices = input.procurement_invoices ?? [];
+  // A voided bill (0885) is not owed: drop it here so every screen reading this rule agrees (#2600).
+  const invoices = (input.procurement_invoices ?? []).filter((invoice) => !invoice.voided_at);
   const payments = input.payments ?? [];
   const erpDocs = input.erpDocuments ?? [];
   const erpOrders = erpDocs.filter((doc) => doc.doctype === 'Purchase Order');
