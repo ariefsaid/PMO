@@ -66,7 +66,7 @@ path, ships alone. Branch `feat/2584-subcon-certificate`. Migrations 1135 to 113
 ## Files
 
 Migrations `1184_subcontractor_rate_card.sql`, `1185_subcontract_certificates.sql`, `1186_certificate_approval_and_bill.sql`,
-`1138_certificate_acceptance_bridge.sql` (+ rollbacks, each refused while rows exist). DAL `src/lib/db/subcontractCertificates.ts`,
+`1187_certificate_acceptance_bridge.sql` (+ rollbacks, each refused while rows exist). DAL `src/lib/db/subcontractCertificates.ts`,
 repository `src/lib/repositories/subcontractCertificates.ts`, hooks `src/hooks/useSubcontractCertificates.ts`, pure figures
 `src/lib/subcontracts/certificateMath.ts`, screens `pages/subcontractCertificates/`, routes `/subcontract-certificates[/:id]` (gated by the
 procurement switch), catalogues `subcontractCertificates` (en, id).

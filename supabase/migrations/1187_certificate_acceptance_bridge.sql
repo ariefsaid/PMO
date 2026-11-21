@@ -1,7 +1,7 @@
--- 1138_certificate_acceptance_bridge.sql — #2584 Slice 4: prepare the signed acceptance from a certificate, and the work-order read.
+-- 1187_certificate_acceptance_bridge.sql — #2584 Slice 4: prepare the signed acceptance from a certificate, and the work-order read.
 -- Spec docs/specs/subcontractor-progress-certificate.spec.md (FR-SPC-010, FR-SPC-018; OD-SPC-4).
 -- Plan docs/plans/2026-11-20-subcontractor-progress-certificate.md. Proven by supabase/tests/subcontract_certificate_bill.test.sql.
--- Rollback: rollback/1138_certificate_acceptance_bridge_down.sql.
+-- Rollback: rollback/1187_certificate_acceptance_bridge_down.sql.
 --
 -- The certificate prepares the acceptance, it never replaces it (OD-SPC-4): this calls the shipped prepare_subcontract_acceptance
 -- for a DRAFT whose cumulative verified quantity per item is the latest confirmed verified quantity plus the certificate's
