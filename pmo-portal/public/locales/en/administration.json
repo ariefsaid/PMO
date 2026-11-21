@@ -624,6 +624,20 @@
       "fallbackHint": "Receipts without their own account post to the default."
     },
     "users": {
+      "builtIn": {
+        "tier": {
+          "manager": "Managers",
+          "officer": "Officers",
+          "field": "Field"
+        },
+        "none": "No built-in role (access level only)",
+        "label": "Built-in role",
+        "helper": "A built-in role starts from one access level and sets what this person sees and does for their job.",
+        "baseLevel": "Access level: {{level}} (set by the built-in role)"
+      },
+      "roleConfirm": {
+        "clearTitle": "Remove {{name}}'s built-in role?"
+      },
       "pager": {
         "label": "Pages",
         "range": "{{from}}–{{to}} of {{total}}",
@@ -686,6 +700,17 @@
           "loadError": "Couldn't load the list",
           "saved": "List saved",
           "duplicate": "That name is already in the list"
+    },
+    "builtInRoles": {
+      "title": "Built-in roles",
+      "loadError": "Couldn't load the built-in roles setting",
+      "saved": "Built-in roles setting saved",
+      "helper": "Offer 28 roles across the functions of a contractor, in three levels. Each starts from one of the five access levels, so turning this on changes nothing until someone is given a role. People already given a role keep it if you turn this off.",
+      "on": "On",
+      "off": "Off",
+      "adminOnly": "Only an Admin can change this.",
+      "turnOn": "Turn on built-in roles",
+      "turnOff": "Turn off built-in roles"
     },
     "fiscalYear": {
       "title": "Fiscal year",

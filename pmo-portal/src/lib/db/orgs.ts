@@ -389,3 +389,16 @@ export async function setOrgFiscalYearStartMonth(month: number | null): Promise<
   const { error } = await supabase.rpc('set_org_fiscal_year_start_month', { p_month: month });
   if (error) throw new AppError(error.message, error.code);
 }
+
+/** #2709: whether the organization has turned the built-in role set on (default off; every member may read). */
+export async function getOrgBuiltInRolesEnabled(): Promise<boolean> {
+  const { data, error } = await supabase.rpc('get_built_in_roles_enabled');
+  if (error) throw new AppError(error.message, error.code);
+  return data === true;
+}
+
+/** Admin-only (server). Turning it on lets an Admin give people the built-in roles; turning it off keeps roles already given. */
+export async function setOrgBuiltInRolesEnabled(enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_built_in_roles_enabled', { p_enabled: enabled });
+  if (error) throw new AppError(error.message, error.code);
+}

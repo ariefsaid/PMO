@@ -6,18 +6,19 @@ Spec: `docs/specs/builtin-role-set.spec.md`. Executor: one builder, ships alone.
 
 | File | Purpose |
 |---|---|
-| `supabase/migrations/1200_builtin_role_catalogue.sql` | tables `built_in_roles`, `built_in_role_capabilities` (RLS on, select for authenticated, no writes), seed (28 rows, one tuple per line), functions `built_in_role_base/_tier/_may_approve/_may_prepare/_may_stand_in`, `role_has_capability`, `built_in_role_sees_prices` |
-| `supabase/migrations/1201_profiles_built_in_role.sql` | `profiles.built_in_role text references built_in_roles(key)`, BEFORE INSERT/UPDATE trigger (sync role, refuse role-only change, refuse self-assign), grant of the new column to the profile-admin update path as the existing allow-list requires |
-| `supabase/migrations/1202_role_capability_actor_helpers.sql` | `actor_has_role_capability(text)`, `actor_sees_prices()` (security definer, fixed search_path, active member only) |
-| `supabase/migrations/rollback/120{0,1,2}_*_down.sql` | reverse; 1201 down refuses while any profile holds a key |
-| `supabase/tests/1200_builtin_role_catalogue.test.sql` | AC-001, 002, 007, 008, 010, 011 |
-| `supabase/tests/1201_profiles_built_in_role.test.sql` | AC-004, 005, 006, 009 |
-| `pmo-portal/src/auth/builtInRoles.ts` | FE mirror (28 rows, capabilities, helpers) |
-| `pmo-portal/src/auth/builtInRoles.test.ts` | AC-003 (parses migration seed and compares), FR-011 |
-| `docs/glossary.md` | terms: Built-in role, Base access level, Role tier, Role capability |
-| `docs/decisions.md` | note: base-level choices for the 28 roles |
-
-Migration 1203 and 1204 held in reserve; none planned.
+| `supabase/migrations/1200_builtin_role_catalogue.sql` | tables `built_in_roles`, `built_in_role_capabilities` (RLS on, select for signed-in, no writes), the 28-row seed (one tuple per line), helpers `built_in_role_base/_tier/_may_approve/_may_prepare/_may_stand_in`, `role_has_capability`, `built_in_role_sees_prices` |
+| `supabase/migrations/1201_built_in_roles_setting.sql` | `organizations.built_in_roles_enabled` (default false), `org_built_in_roles_enabled`, `get_/set_built_in_roles_enabled` (Admin) |
+| `supabase/migrations/1202_profiles_built_in_role.sql` | `profiles.built_in_role`, column UPDATE grant, trigger: setting gate, level sync, no role-only change while held, no self-assign |
+| `supabase/migrations/1203_role_capability_actor_helpers.sql` | `actor_built_in_role`, `actor_has_role_capability`, `actor_sees_prices`, `actor_holds_built_in_role` |
+| `supabase/migrations/rollback/120{0..3}_*_down.sql` | reverse; the 1202 down refuses while any profile holds a key |
+| `supabase/tests/1200_builtin_role_catalogue.test.sql`, `1202_profiles_built_in_role.test.sql` | AC-001, 002, 004-011, 013 |
+| `supabase/tests/inventory/anon-executable-definers/2709-builtin-roles.txt`, `scripts/isolation-probe-denominator.d/2709-builtin-roles.json` | definer and table inventories |
+| `pmo-portal/src/auth/builtInRoles.ts` (+ test) | frontend mirror, AC-003 parity |
+| `pmo-portal/src/lib/db/{orgs,adminUsers}.ts`, `src/lib/repositories/{admin,contracts/admin}.ts`, `src/hooks/useBuiltInRoles.ts` | DAL, repository seam, hooks |
+| `pmo-portal/pages/admin/OrgBuiltInRoles.tsx` (+ test) | the setting (AC-014) |
+| `pmo-portal/pages/admin-users/{UserForms,UserDirectory}.tsx`, `pages/AdminUsers.tsx` (+ `RoleForm.builtIn.test.tsx`) | role picker (AC-015) |
+| `pmo-portal/e2e/serial/AC-BIR-001-built-in-roles-assignment.spec.ts` | journey + evidence shots (`EVIDENCE_SHOTS=1`) |
+| `docs/evidence/1215/2709/*.png` | phone 390 and desktop 1440 for the setting and the picker |
 
 ## Steps (test first)
 
@@ -27,10 +28,6 @@ Migration 1203 and 1204 held in reserve; none planned.
 4. Mutation checks (four, spec section 4); record the red line for each; restore.
 5. Gates: `npm run check:guards`, typecheck, eslint on changed files, `npx vitest related --run` on changed files, isolation-denominator guard (new tables and definer functions: update the manifest fragment), then reset+test as one lock hold with `0178_anon_executable_definers`, `0178_m365_member_gate`, `0646_rls_initplan`, plus the existing profile tests `0172_profiles_hierarchy_write`, `0175`, `0177`, `0655` to prove nothing existing moved.
 
-## Open questions for the Director
+## Rulings applied (Director, 2026-11-21)
 
-1. Base-level choices in spec section 2 (notably Project Administrator = Engineer, Billing Officer = Finance, every non-finance manager = Project Manager). Rank and approval reach follow the base level, so a wrong base is a real access change. Confirm or amend.
-2. Is Deputy Project Manager a manager (stands in for PM) or an officer? Spec treats it as manager (12 managers + 14 officers + 2 field = 28).
-3. Should a Site Supervisor count as officer (spec) rather than manager?
-4. Medical documents: spec gives HR Manager, HR Officer and Administrator; confirm Executive is excluded.
-5. The assignment path today is the profile update API (existing hierarchy rule); an Admin UI to pick a role is not in this ticket. Acceptable?
+Base levels as in the spec table; Deputy PM manager; Site Supervisor officer; medical documents HR + Administrator only; assignment UI behind one setting (default false), database-enforced.

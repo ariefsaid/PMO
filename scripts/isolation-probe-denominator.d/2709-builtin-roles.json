@@ -1,0 +1,29 @@
+{
+  "definer_functions": [
+    "actor_built_in_role()",
+    "actor_has_role_capability(text)",
+    "actor_holds_built_in_role(text)",
+    "actor_sees_prices()",
+    "get_built_in_roles_enabled()",
+    "org_built_in_roles_enabled(uuid)",
+    "set_built_in_roles_enabled(boolean)"
+  ],
+  "tables": [
+    {
+      "table": "built_in_role_capabilities",
+      "has_org": false,
+      "pk": "role_key",
+      "columns": "*",
+      "b_read": "global-readable",
+      "by_id": "n/a: global catalogue, no org_id and no uuid id; every signed-in person reads the same reference rows"
+    },
+    {
+      "table": "built_in_roles",
+      "has_org": false,
+      "pk": "key",
+      "columns": "*",
+      "b_read": "global-readable",
+      "by_id": "n/a: global catalogue, no org_id and no uuid id; every signed-in person reads the same reference rows"
+    }
+  ]
+}
