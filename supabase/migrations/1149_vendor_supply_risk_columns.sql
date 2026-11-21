@@ -1,4 +1,4 @@
--- 1065_vendor_supply_risk_columns.sql — #2583 slice 2a: a supplier's supply-risk status (FR-VSR-001, FR-VSR-003).
+-- 1149_vendor_supply_risk_columns.sql — #2583 slice 2a: a supplier's supply-risk status (FR-VSR-001, FR-VSR-003).
 --
 --   §1 companies: supply_risk_status ('active' default | 'at_risk' | 'inactive'), the reason, who set it and when.
 --      The status is a HUMAN decision (OD-VSR-1); the payables-age figure only suggests (1067).
@@ -11,7 +11,7 @@
 --      the reason is a flag column; who-set-it is omitted (the history row already names the actor). The reason
 --      itself lives on the audit event (1066).
 --
--- Rollback: supabase/migrations/rollback/1065_vendor_supply_risk_columns_down.sql (revert 1066/1067 and the FE first).
+-- Rollback: supabase/migrations/rollback/1149_vendor_supply_risk_columns_down.sql (revert 1066/1067 and the FE first).
 
 -- §1
 alter table public.companies
