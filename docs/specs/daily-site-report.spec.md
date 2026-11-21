@@ -110,3 +110,8 @@ When a field controller finishes a day on a work order, I want to enter what was
 - [ ] Migrations in the number range the Director assigns at build; reversible, with rollback.
 - [ ] Server slice (tables, RPCs, pgTAP, mutation check on SoD) ships alone; screen slice follows.
 - [ ] One E2E journey, `scripts/ux-proof.sh` on touched routes, 320px render review.
+
+
+## Timed checkpoints (#2594)
+
+The daily site report page shows the day's timed checkpoints of its work order (recorded time, person, photo, late state) when the organisation has set a checkpoint list. They never block submitting or validating the report. Spec: `docs/specs/site-timed-checkpoints.spec.md`.

@@ -111,6 +111,7 @@ const PersonDetailPage = lazyWithPreload(() => import('./pages/equipment/PersonD
 const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssetDetail'));
 const SiteReportsPage = lazyWithPreload(() => import('./pages/siteReports/SiteReports'));
 const SiteReportDetailPage = lazyWithPreload(() => import('./pages/siteReports/SiteReportDetail'));
+const CrewPunctualityPage = lazyWithPreload(() => import('./pages/siteReports/CrewPunctuality'));
 const CrewsPage = lazyWithPreload(() => import('./pages/crews/Crews'));
 const ApprovalsPage = lazyWithPreload(() => import('./pages/Approvals'));
 const CompaniesPage = lazyWithPreload(() => import('./pages/Companies'));
@@ -258,6 +259,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/equipment/availability', chunks: [EquipmentAvailabilityPage], namespaces: ['equipment'] },
   { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage], namespaces: ['equipment'] },
   { path: '/site-reports', chunks: [SiteReportsPage], namespaces: ['siteReport'] },
+  { path: '/site-reports/crews', chunks: [CrewPunctualityPage], namespaces: ['siteReport'] },
   { path: '/site-reports/:reportId', chunks: [SiteReportDetailPage], namespaces: ['siteReport'] },
   { path: '/crews', chunks: [CrewsPage], namespaces: ['crews'] },
   { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
@@ -478,6 +480,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/equipment/assets/:assetId', element: <EquipmentAssetDetailPage /> },
   // #1522: daily site reports per work order and the QS validation queue.
   { path: '/site-reports', element: <SiteReportsPage /> },
+  { path: '/site-reports/crews', element: <CrewPunctualityPage /> },
   { path: '/site-reports/:reportId', element: <SiteReportDetailPage /> },
   // #2528: crews, the roster per work order and the daily attendance tick.
   { path: '/crews', element: <CrewsPage /> },

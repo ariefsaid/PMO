@@ -22,6 +22,7 @@ import { BillingSection } from './work-order-detail/BillingSection';
 import { PlanVsActualSection } from './work-order-detail/PlanVsActualSection';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { IssuesSection } from './work-order-detail/IssuesSection';
+import { SiteCheckpointFlag } from './work-order-detail/SiteCheckpointFlag';
 import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 
 /**
@@ -97,6 +98,7 @@ const WorkOrderDetail: React.FC = () => {
           { label: t('orderValue', 'Order value'), value: <span className="tabular-nums" data-testid="wo-order-value">{formatCurrency(Number(row.order_value), row.currency)}</span> },
         ]} />
       <RecordStack>
+        <SiteCheckpointFlag workOrderId={row.id} />
         <ScopeSection projectId={row.project_id} progress={progress} isPending={allocations.isPending || boq.isPending || bastList.isPending} isError={allocations.isError || boq.isError || bastList.isError}
           onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
         <CostSection labels={labels.data ?? {}} links={links.data ?? {}} groups={groups} disciplines={disciplines.data ?? []} isPending={costLines.isPending} isError={costLines.isError || money.isError || disciplines.isError || links.isError || labels.isError}

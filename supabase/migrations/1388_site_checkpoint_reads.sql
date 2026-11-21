@@ -15,11 +15,11 @@ $$;
 grant execute on function public.site_checkpoint_state(timestamptz, smallint, timestamptz, timestamptz) to authenticated;
 
 create function public.site_checkpoints_for_day(p_work_order uuid, p_date date)
-  returns table (id uuid, crew_id uuid, crew_name text, "position" smallint, name text, marks_work_start boolean, due_at timestamptz,
+  returns table (id uuid, crew_id uuid, crew_name text, field_controller_id uuid, "position" smallint, name text, marks_work_start boolean, due_at timestamptz,
                  grace_minutes smallint, photo_required boolean, recorded_at timestamptz, recorded_by uuid, recorded_by_name text,
                  note text, photo_path text, state text)
   language sql stable security invoker set search_path = public as $$
-  select c.id, c.crew_id, cr.name, c.position, c.name, c.marks_work_start, c.due_at, c.grace_minutes, c.photo_required,
+  select c.id, c.crew_id, cr.name, cr.field_controller_id, c.position, c.name, c.marks_work_start, c.due_at, c.grace_minutes, c.photo_required,
          c.recorded_at, c.recorded_by, p.full_name, c.note, c.photo_path,
          public.site_checkpoint_state(c.due_at, c.grace_minutes, c.recorded_at, now())
     from public.site_checkpoints c

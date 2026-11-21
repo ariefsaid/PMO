@@ -17,7 +17,7 @@ export interface CheckpointTemplateItem {
 }
 export type CheckpointState = 'on_time' | 'late' | 'pending';
 export interface DayCheckpoint {
-  id: string; crew_id: string; crew_name: string; position: number; name: string; marks_work_start: boolean;
+  id: string; crew_id: string; crew_name: string; field_controller_id: string | null; position: number; name: string; marks_work_start: boolean;
   due_at: string; grace_minutes: number; photo_required: boolean; recorded_at: string | null; recorded_by: string | null;
   recorded_by_name: string | null; note: string | null; photo_path: string | null; state: CheckpointState;
 }
@@ -85,7 +85,7 @@ export async function listDayCheckpoints(workOrderId: string, date: string): Pro
     const state = r.state;
     if (state !== 'on_time' && state !== 'late' && state !== 'pending') return malformed('checkpoint state');
     return {
-      id: str(r.id, 'id'), crew_id: str(r.crew_id, 'crew'), crew_name: str(r.crew_name, 'crew name'), position: num(r.position, 'position'),
+      id: str(r.id, 'id'), crew_id: str(r.crew_id, 'crew'), crew_name: str(r.crew_name, 'crew name'), field_controller_id: strOrNull(r.field_controller_id ?? null, 'controller'), position: num(r.position, 'position'),
       name: str(r.name, 'name'), marks_work_start: bool(r.marks_work_start, 'flag'), due_at: str(r.due_at, 'due'),
       grace_minutes: num(r.grace_minutes, 'grace'), photo_required: bool(r.photo_required, 'photo flag'),
       recorded_at: strOrNull(r.recorded_at ?? null, 'recorded time'), recorded_by: strOrNull(r.recorded_by ?? null, 'recorder'),

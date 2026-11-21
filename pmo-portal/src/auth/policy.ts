@@ -108,6 +108,8 @@ export type Entity =
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
   | 'siteReportLists'
+  | 'siteCheckpoint'
+  | 'siteCheckpointList'
   | 'costDiscipline'
   | 'billMatch'
   | 'employeeLink'
@@ -168,6 +170,8 @@ export interface PolicyContext {
     /** Project task write ownership and saved-view owner for record-scoped checks. */
     externallyOwned?: boolean;
     user_id?: string | null;
+    /** The crew's field controller — timed checkpoints (#2594): the controller records their own crew's checkpoints. */
+    field_controller_id?: string | null;
     /** Author id — for equipment usage visibility and the document-edit author rule (A-7). */
     author_id?: string | null;
     /** Task creator — DD-TASK-8. Trigger-stamped server-side (`0204`), never client-set, so it is
@@ -841,6 +845,18 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   orgProjectClassification: { manage: allow(ADMIN) },
   // #2621: the site report idle-reason and weather lists. Mirrors the Admin-only insert/update policies of 1040. UX ONLY.
   siteReportLists: { manage: allow(ADMIN) },
+  /**
+   * Timed checkpoints (#2594, 1385..1388). UX ONLY — record_site_checkpoint and the read rule are the authority (ADR-0016).
+   *   view   ← Admin, Executive, Engineer, the work order's project manager, the crew's own field controller;
+   *   create ← record: Admin, Engineer, the work order's project manager, the crew's own field controller (not Executive).
+   */
+  siteCheckpoint: {
+    view: (role, ctx) => has(['Admin', 'Executive', 'Engineer'], role) || isOwnProjectPm(role, ctx)
+      || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId),
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (has(['Admin', 'Engineer'], role) || isOwnProjectPm(role, ctx)
+      || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+  },
+  siteCheckpointList: { manage: allow(ADMIN) },
   // #2623 (FR-WCA-011): the organisation's cost disciplines. Mirrors 0950's RLS (insert/update/delete: active Admin). UX ONLY.
   costDiscipline: { create: allow(ADMIN), edit: allow(ADMIN), archive: allow(ADMIN) },
   // #2622 (1018): a bill's three-way match. get_bill_match reads for Admin/Executive/PM/Finance; approve_bill_match_exception
