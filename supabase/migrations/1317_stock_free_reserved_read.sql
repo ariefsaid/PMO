@@ -29,6 +29,7 @@ begin
            coalesce((select sum(x.remaining) from res x where x.item_id = p.item_id and x.warehouse_id = p.warehouse_id), 0) as reserved
       from pairs p
   )
+  -- Tenancy has four layers on purpose (res, pairs, fig and the final join each carry the org); mut:rsv_org removes all of them.
   select coalesce(jsonb_agg(
            jsonb_build_object('item_id', i.id, 'item_code', i.code, 'item_name', i.name, 'unit_code', u.code,
                               'warehouse_id', w.id, 'warehouse_code', w.code, 'warehouse_name', w.name, 'warehouse_kind', w.kind,
@@ -45,7 +46,7 @@ begin
     from fig f
     join public.stock_items i on i.id = f.item_id join public.stock_units u on u.id = i.unit_id
     join public.stock_warehouses w on w.id = f.warehouse_id
-   where i.org_id = v_org and w.org_id = v_org;
+   where i.org_id = v_org and w.org_id = v_org;                                                          -- mut:rsv_org
   return v_rows;
 end $$;
 revoke all on function public.get_stock_free_reserved(uuid, uuid) from public, anon;

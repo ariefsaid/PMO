@@ -2,7 +2,7 @@
 -- AC-RSV-001 reserve, free and reserved, ledger untouched · 002 not beyond free, top-up · 003 on hand below reserved · 004 refused locations, work orders, items, quantities ·
 -- 005 who may reserve · 006 expiry, close, partial release · 007 off by default, Admin-only audited setting · 015 tenancy and no client writes.
 -- Mutation checks (break the marked line, the named cases must go red, restore): mut:rsv_exceeds_free (1316: the 7-of-6 and top-up refusals) ·
--- mut:rsv_perm (1316: the outsider case) · mut:rsv_off (1316: the RSV_OFF case) · mut:rsv_org (1317: the other-organisation read) · mut:rsv_overdraw (1315: the table check, see 1318 test).
+-- mut:rsv_perm (1316: the outsider case) · mut:rsv_off (1316: the RSV_OFF case) · mut:rsv_org (1317: remove ALL org filters of the read, the res, pairs, fig and final-join ones; the two-organisation cases go red. Each layer alone is redundant by design) · mut:rsv_overdraw (1315: the table check, see 1318 test).
 begin;
 create extension if not exists pgtap;
 select * from no_plan();
@@ -37,6 +37,7 @@ insert into stock_items (id, org_id, code, name, unit_id, archived_at) values
 insert into stock_warehouses (id, org_id, code, name, kind, project_id, archived_at) values
   ('26930000-0000-0000-0000-000000002001', '26930000-0000-0000-0000-00000000000a', 'CEN', 'Central', 'central', null, null), ('26930000-0000-0000-0000-000000002002', '26930000-0000-0000-0000-00000000000a', 'SITE1', 'Site one', 'site', '26930000-0000-0000-0000-0000000000c1', null),
   ('26930000-0000-0000-0000-000000002003', '26930000-0000-0000-0000-00000000000a', 'VEND', 'Vendor', 'vendor', null, null), ('26930000-0000-0000-0000-000000002004', '26930000-0000-0000-0000-00000000000a', 'OLDSITE', 'Old site', 'site', '26930000-0000-0000-0000-0000000000c1', now());
+insert into stock_warehouses (id, org_id, code, name, kind, project_id) values ('26930000-0000-0000-0000-000000002011', '26930000-0000-0000-0000-00000000000b', 'XCEN', 'Other central', 'central', null);
 insert into stock_warehouse_keepers (org_id, warehouse_id, user_id) values ('26930000-0000-0000-0000-00000000000a', '26930000-0000-0000-0000-000000002002', '26930000-0000-0000-0000-0000000000a2'), ('26930000-0000-0000-0000-00000000000a', '26930000-0000-0000-0000-000000002001', '26930000-0000-0000-0000-0000000000a2');
 create function public.rsv_t_free(p_field text) returns text language sql as $$
   select r->>p_field from jsonb_array_elements(public.get_stock_free_reserved('26930000-0000-0000-0000-000000002002', '26930000-0000-0000-0000-000000001001')) r limit 1 $$;
@@ -156,10 +157,22 @@ select is((select count(*) from stock_reservation_events), 0::bigint, 'AC-RSV-01
 select is(get_stock_free_reserved(null, null), '[]'::jsonb, 'AC-RSV-015 nor a read (its own setting is off)');
 select is(set_stock_reservations(true), true, 'AC-RSV-015 the other organisation turns it on for itself');
 select is(get_stock_free_reserved('26930000-0000-0000-0000-000000002002', '26930000-0000-0000-0000-000000001001'), '[]'::jsonb, 'AC-RSV-015 and still reads none of ours');
+-- AC-RSV-015 with BOTH organisations on and each holding stock and a live reservation, neither read shows the other's rows (mut:rsv_org: drop every org filter of the read, this goes red).
+select create_stock_document(jsonb_build_object('kind','receive','warehouse_id','26930000-0000-0000-0000-000000002011'), jsonb_build_array(jsonb_build_object('item_id','26930000-0000-0000-0000-000000001011','quantity',5,'unit_cost',3)), true);
+select reserve_stock('26930000-0000-0000-0000-000000000411', '26930000-0000-0000-0000-000000001011', '26930000-0000-0000-0000-000000002011', 2);
+select is(jsonb_array_length(get_stock_free_reserved(null, null)), 1, 'AC-RSV-015 the other organisation''s read returns exactly its own one row');
+select is((select r->>'item_id' from jsonb_array_elements(get_stock_free_reserved(null, null)) r), '26930000-0000-0000-0000-000000001011', 'AC-RSV-015 and that row is its own item');
+select is((select r->'reservations'->0->>'work_order_id' from jsonb_array_elements(get_stock_free_reserved(null, null)) r), '26930000-0000-0000-0000-000000000411', 'AC-RSV-015 held for its own work order only');
+select is(jsonb_array_length(get_stock_free_reserved(null, '26930000-0000-0000-0000-000000001001')), 0, 'AC-RSV-015 asking for our item by id returns nothing, with both organisations on');
+select is(jsonb_array_length(get_stock_free_reserved('26930000-0000-0000-0000-000000002002', null)), 0, 'AC-RSV-015 asking for our location by id returns nothing, with both organisations on');
 select throws_ok($$ select reserve_stock('26930000-0000-0000-0000-000000000401', '26930000-0000-0000-0000-000000001001', '26930000-0000-0000-0000-000000002002', 1) $$, 'P0001', 'RSV_NOT_FOUND: the work order is not in your organisation', 'AC-RSV-015 it cannot reserve for our work order');
 select throws_ok($$ select release_reservation((select x from public.rsv_t_ids() x limit 1), 1, 'x') $$, 'P0001', 'RSV_NOT_FOUND: the reservation is not in your organisation', 'AC-RSV-015 it cannot release ours');
 select rsv_as('26930000-0000-0000-0000-0000000000a1');
 select is((select stock_reservations from organizations where id = '26930000-0000-0000-0000-00000000000a'), true, 'AC-RSV-015 our setting is untouched by theirs');
+select is((select count(*) from jsonb_array_elements(get_stock_free_reserved(null, null)) r where r->>'item_id' = '26930000-0000-0000-0000-000000001011'), 0::bigint, 'AC-RSV-015 our read shows none of the other organisation''s items');
+select is((select count(*) from jsonb_array_elements(get_stock_free_reserved(null, null)) r where r->>'warehouse_id' = '26930000-0000-0000-0000-000000002011'), 0::bigint, 'AC-RSV-015 nor its locations');
+select is((select count(*) from jsonb_array_elements(get_stock_free_reserved(null, null)) r, jsonb_array_elements(r->'reservations') x where x->>'work_order_id' = '26930000-0000-0000-0000-000000000411'), 0::bigint, 'AC-RSV-015 nor its work orders');
+select cmp_ok(jsonb_array_length(get_stock_free_reserved(null, null)), '>', 0, 'AC-RSV-015 while our own rows are there');
 select is(set_stock_reservations(false), false, 'AC-RSV-007 an Admin turns it off');
 select throws_ok($$ select reserve_stock('26930000-0000-0000-0000-000000000401', '26930000-0000-0000-0000-000000001001', '26930000-0000-0000-0000-000000002002', 1) $$, 'P0001', 'RSV_OFF: reservations are not turned on for your organisation', 'AC-RSV-007 off again refuses');
 select is(get_stock_free_reserved(null, null), '[]'::jsonb, 'AC-RSV-007 and reads nothing');
