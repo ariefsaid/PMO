@@ -10,7 +10,8 @@ Builds on `document-expiry.spec.md` (#2527) and `expiring-documents-edit.spec.md
 - **Fields.** Name (required), person code, optional job title, optional link to an app user profile. The manager column stays as is and is not edited here.
 - **Code.** When left blank the database assigns the next `P-NNNN` for the organisation (`P-0001`, `P-0002`, …). The code is editable and unique per organisation among live people (0970 index). Generated numbers never reuse an archived person's number.
 - **No auto-creation.** App users do not become people automatically; an Admin links a profile only when it is true.
-- **Archive, not delete** (ADR-0018). An archived person leaves the register, the expiry list and the warnings (0971, 0972 already filter it).
+- **Archive, not delete** (ADR-0018). An archived person leaves the active view, the expiry list and the warnings (0971, 0972
+  already filter it); the record is kept and `former-staff-filter.spec.md` (#2703) adds the Former staff view that shows it.
 - **Migration 1008** adds `people.job_title`, the code generator and the column grants. It is reversible.
 - **Out of scope.** Restoring an archived person, bulk import, editing the manager link, the employee roster.
 

@@ -141,7 +141,7 @@ const People: React.FC = () => {
 
   return (
     <div>
-      <div className="mb-[var(--space-group)] flex flex-wrap items-center justify-between gap-[var(--space-group)]">
+      <div className={`flex flex-wrap items-center justify-between gap-[var(--space-group)] ${rows.length ? 'mb-[var(--space-group)]' : ''}`}>
         <div className="w-full min-w-0 md:w-auto">
           <ViewToggle<PeopleListStatus> semantics="toggle" ariaLabel={t('administration:people.staffStatus', 'Staff status')}
             value={staffView} onChange={setStaffView} className="w-full flex-wrap md:w-auto"

@@ -765,6 +765,10 @@ app (a person may optionally link to an app user profile). Kept under Administra
 automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, ... per organisation when
 left blank, editable and unique among live people. Archiving hides a person and their warnings (soft, ADR-0018).
 
+**Former staff** (*mantan personel*) — a person on the register who has left, recorded by archiving them. They stay on
+record with their code and documents, leave the default active list and the expiry warnings, and appear only under the
+register's Former staff view (#2703). Restoring is a separate, later capability.
+
 ### Terminology and imports (#2529, #2530)
 
 **Term override** (*istilah*) — an org Admin's replacement display name (singular and plural, per language) for one of five
@@ -980,7 +984,7 @@ one **work order** of its own project, so a work order lists its open tasks.
 A certificate, permit or similar record with an expiry date that belongs to a person or an equipment asset, of an org-defined document type. Added, edited and archived on the subject's record (#2542); warned about at the org's thresholds and listed on the expiring-documents screen (#2527). A medical type holds a status (fit / unfit) and dates only.
 
 ## People register
-The workforce register: anyone who holds expiring documents, whether or not they use the app (a person may optionally link to an app user profile). Kept under Administration › People by Admin (HR maps to Admin); app users are never added automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, … per organisation when left blank, editable, unique among live people. Archiving hides a person and their warnings (soft, ADR-0018).
+The workforce register: anyone who holds expiring documents, whether or not they use the app (a person may optionally link to an app user profile). Kept under Administration › People by Admin (HR maps to Admin); app users are never added automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, … per organisation when left blank, editable, unique among live people. Archiving hides a person and their warnings (soft, ADR-0018); **former staff** (*mantan personel*, #2703) are those archived people, kept on record and shown only in the register's Former staff view.
 
 ## Organisation terminology
 **Term override** — an org Admin's replacement display name (singular and plural, per language) for one of
