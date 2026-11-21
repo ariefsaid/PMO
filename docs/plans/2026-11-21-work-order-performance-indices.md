@@ -2,8 +2,11 @@
 
 > Fresh Orca worker per slice. Spec: `docs/specs/work-order-performance-indices.spec.md`. Read-only money path; no posting, no SoD change, no stored figure. **Ships alone** (a wrong index is a wrong decision); Director-dispatched, three reviewers. OD-CSP-1..8 take the spec's recommended defaults; owner's panel sketch-glance precedes the panel slice. Target 15 December 2026. Builds on the daily site report (`daily_site_reports`/`dsr_progress_lines` 1040, `work_order_validated_revenue` and `dsr_may_see_revenue` 1041), plan versus actual (`work_order_cost_amounts` 0999, `pmo-portal/src/lib/workOrderPlanVsActual.ts`, `pmo-portal/src/lib/db/workOrderFinance.ts`), `work_order_billing.order_net` (0337), `native_org_today` (0275) and the S-curve (`pmo-portal/src/lib/delivery/sCurve.ts`, `pmo-portal/pages/project-detail/ProjectSCurve.tsx`).
 
-## Migration (number 1285, from the assigned range 1285-1289)
-One migration, `supabase/migrations/1285_work_order_performance.sql`, additive: `get_work_order_performance(p_project_id uuid, p_as_of date default null)` returning one `jsonb` (per-work-order rows plus the project total). No table, column or grant change.
+## Migration 1285: organisation settings (coordinator change 21 Nov)
+`supabase/migrations/1285_performance_indices_settings.sql`: `organizations.performance_indices_enabled boolean not null default false`, `performance_band_low numeric(3,2) not null default 0.90`, `performance_band_high numeric(3,2) not null default 1.10`, `check (performance_band_low > 0 and performance_band_low < 1 and performance_band_high > 1)`; `grant update (performance_indices_enabled, performance_band_low, performance_band_high) on public.organizations to authenticated` (the existing own-org, active-member, Admin-only update policy applies, as 0231/0234). Rollback `rollback/1285_performance_indices_settings_down.sql`. pgTAP `supabase/tests/performance_indices_settings.test.sql` owns AC-CSP-019 and the validation half of AC-CSP-020. Admin UI: `pmo-portal/pages/admin/OrgPerformanceIndices.tsx` (switch and two band fields, `can()`-gated) mounted where `OrgProjectNumberPattern` is mounted, via `pmo-portal/src/lib/db/orgs.ts`. The panels render only when the switch is on (AC-CSP-018, `PerformanceIndices.test.tsx`/`ProjectPerformance.test.tsx`); the reading uses the bands (AC-CSP-020 unit, `workOrderPerformance.test.ts`).
+
+## Migration 1286: the read (number 1286 from the assigned range 1285-1289)
+One migration, `supabase/migrations/1286_work_order_performance.sql`, additive. It returns `{"enabled": false}` and nothing else when the organisation switch is off, and includes `bands` otherwise: `get_work_order_performance(p_project_id uuid, p_as_of date default null)` returning one `jsonb` (per-work-order rows plus the project total). No table, column or grant change.
 - Gate first: `is_active_member()`, role in Admin, Executive, Finance or the project's Project Manager, **and** `dsr_may_see_revenue(p_project_id)`; else raise `42501`. Project in the caller's org, else `P0002`. `security definer`, `set search_path = public, pg_temp` (it reads `dsr_progress_lines` for validated lines the same way `work_order_validated_revenue` does); `revoke all ... from public, anon; grant execute ... to authenticated`.
 - As-of = `coalesce(p_as_of, native_org_today(org))`; `native_org_today` is defined in 0275 and reads `organizations.default_timezone`.
 - EV per work order: sum of `dsr_progress_lines.frozen_amount` joined to `daily_site_reports` where `status = 'validated'`, `superseded_at is null`, `archived_at is null`, `work_date <= as-of`; count lines with null `frozen_amount` as `unrated_lines`.
@@ -12,7 +15,7 @@ One migration, `supabase/migrations/1285_work_order_performance.sql`, additive: 
 - Status rules: `Issued` and `Closed` get figures (a Closed work order's BAC is its closing value; actual EV/AC are capped at the earlier of the requested as-of date and its organisation-local `closed_at` date; PV still uses `end_date`); `Draft` and `Cancelled` are listed as excluded with a reason. The current 0193 project currency guard requires all a project's work orders to use the project's currency.
 - Project total: sums of EV, PV, AC over work orders with complete figures; `excluded_count`; bound 500 work orders, `truncated` and an omitted-work-order count. Preserve the `work_order_cost_amounts` `reason` distinctions and refuse a complete AC when a counted direct row has no date.
 - Returns amounts as exact decimal strings; ratios are computed in the browser pure function from integers, never in float.
-- **Rollback:** `supabase/migrations/rollback/1285_work_order_performance_down.sql` = `drop function if exists public.get_work_order_performance(uuid, date);`.
+- **Rollback:** `supabase/migrations/rollback/1286_work_order_performance_down.sql` = `drop function if exists public.get_work_order_performance(uuid, date);`.
 - ADR: none expected; record one only if the owner rules a different plan basis (OD-CSP-1) because every future schedule figure would share it.
 
 ## Slice 1: pure derivation (Orca)
@@ -25,7 +28,7 @@ One migration, `supabase/migrations/1285_work_order_performance.sql`, additive: 
 - [ ] `pmo-portal/src/lib/db/workOrderPerformance.ts` (typed read; every figure validated, a missing or non-numeric one is an error, never 0, as `pmo-portal/src/lib/db/workOrderBilling.ts`), repository `pmo-portal/src/lib/repositories/workOrderPerformance.ts` (ADR-0017), hook `pmo-portal/src/hooks/useWorkOrderPerformance.ts`, regenerate `pmo-portal/src/lib/supabase/database.types.ts`. Unit tests with a mocked client for error classification.
 
 ## Slice 3: panels (ui-implementer; `restructure` skill and `docs/ux/screen-rules.md`)
-- [ ] Owner sketch-glance first (directional layout only).
+- [x] Owner sketch-glance replaced by phone and desktop screenshots in `docs/evidence/1215/2597/`.
 - [ ] `pmo-portal/pages/work-order-detail/PerformanceIndices.tsx` inside `PlanVsActualSection.tsx` (figures, text readings, as-of date, drill-down to the validated reports, cost lines and the two plan dates); `pmo-portal/pages/project-detail/ProjectPerformance.tsx` beside `ProjectSCurve` in `pmo-portal/pages/project-detail/ProjectSections.tsx`, gated by the same `can()` as plan versus actual (UX only). One basis line and one hidden-figures line per panel. `ProjectSCurve` and `sCurve.ts` stay unchanged.
 - [ ] Strings: add to `pmo-portal/public/locales/en/workOrderPva.json` and `.../id/workOrderPva.json` (already registered for `/work-orders/:id` in `pmo-portal/App.tsx`); add the project namespace entry where `ProjectSections` strings live. Bahasa per OQ-CSP-3.
 - [ ] E2E `pmo-portal/e2e/AC-CSP-016-project-performance-indices.spec.ts` (Finance user; seeded validated reports and cost; assert both indices beside the curve and a work-order row opens its page with the same figures). Read `docs/e2e-parallel-conventions.md` first and tag the isolation class.
@@ -36,7 +39,9 @@ One migration, `supabase/migrations/1285_work_order_performance.sql`, additive: 
 
 | AC | Owning layer | File |
 |---|---|---|
-| AC-CSP-001..005 | Unit | `pmo-portal/src/lib/workOrderPerformance.test.ts` |
+| AC-CSP-001..005, 020 (reading) | Unit | `pmo-portal/src/lib/workOrderPerformance.test.ts` |
+| AC-CSP-018 | Unit (RTL) | `pmo-portal/pages/work-order-detail/PerformanceIndices.test.tsx`, `pmo-portal/pages/project-detail/ProjectPerformance.test.tsx` |
+| AC-CSP-019, 020 (validation) | pgTAP | `supabase/tests/performance_indices_settings.test.sql` |
 | AC-CSP-006..015, 017 | pgTAP | `supabase/tests/work_order_performance.test.sql` |
 | AC-CSP-016 | E2E | `pmo-portal/e2e/AC-CSP-016-project-performance-indices.spec.ts` |
 
