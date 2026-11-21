@@ -1,0 +1,49 @@
+{
+  "tables": [
+    {
+      "table": "email_event_settings",
+      "has_org": true,
+      "pk": "org_id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: Admin-only settings, no fixture rows; the blind read proves the denial"
+    },
+    {
+      "table": "email_org_settings",
+      "has_org": true,
+      "pk": "org_id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: Admin-only settings, no fixture rows; the blind read proves the denial"
+    },
+    {
+      "table": "email_outbox",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: service-only outbox, no client SELECT grant; the blind read proves the denial"
+    },
+    {
+      "table": "email_user_prefs",
+      "has_org": true,
+      "pk": "user_id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: own-row preference, no fixture rows; the blind read proves the denial"
+    }
+  ],
+  "definer_functions": [
+    "claim_email_outbox(integer,interval)",
+    "complete_email_outbox(uuid,boolean,text,boolean)",
+    "email_notify_tick()",
+    "enqueue_notification_email(uuid)",
+    "notify_workflow_user(uuid,uuid,text,text,text,text,uuid,text,text)",
+    "set_email_event_setting(text,boolean,text[])",
+    "set_email_locale(text)",
+    "set_my_email_opt_out(boolean)"
+  ],
+  "edge_functions": [
+    "email-notify"
+  ]
+}
