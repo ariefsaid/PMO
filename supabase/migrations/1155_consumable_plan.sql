@@ -1,7 +1,7 @@
--- 1076_consumable_plan.sql — #2577 consumable needs from usage standards: the per-work-order consumable plan.
+-- 1155_consumable_plan.sql — #2577 consumable needs from usage standards: the per-work-order consumable plan.
 -- Spec docs/specs/consumable-usage-standards.spec.md (FR-CUS-005..010, 014..016) · plan docs/plans/2026-11-20-consumable-usage-standards.md.
 -- Proven by supabase/tests/cus_plan.test.sql (AC-CUS-001, 004..007, 011, 012, 014). Standards are in 1075.
--- Reversible via supabase/migrations/rollback/1076_consumable_plan_down.sql.
+-- Reversible via supabase/migrations/rollback/1155_consumable_plan_down.sql.
 --
 -- The plan is a STORED SNAPSHOT (OD-CUS-6): generated from the work order's lines x the matching active standards,
 -- regenerated only on request, flagged "out of date" from a fingerprint of its inputs. Quantities of stock items only;
