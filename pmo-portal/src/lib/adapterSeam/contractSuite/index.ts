@@ -6,6 +6,7 @@ import { censusSuite } from './census.suite.ts';
 import { companyDefaultsSuite } from './companyDefaults.suite.ts';
 import { cutoverPurchaseSuite } from './cutoverPurchase.suite.ts';
 import { cutoverSuite } from './cutover.suite.ts';
+import { fiscalYearSuite } from './fiscalYear.suite.ts';
 import type { Suite } from './harness.ts';
 import { imprestTransferSuite } from './imprestTransfer.suite.ts';
 import { invoicePairSuite } from './invoicePair.suite.ts';
@@ -55,6 +56,7 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'journal.post': journalPostSuite,
   'journal.reverse': journalReverseSuite,
   'company-defaults.set': companyDefaultsSuite,
+  'fiscal-year.ensure': fiscalYearSuite,
 };
 
 /**

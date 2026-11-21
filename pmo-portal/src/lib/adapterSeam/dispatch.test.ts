@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { dispatchExternallyOwnedWrite, toDispatchError } from './dispatch.ts';
+import { dispatchExternallyOwnedWrite, dispatchMoneyWrite, toDispatchError } from './dispatch.ts';
 import { createReferenceAdapter, REFERENCE_DOMAIN } from './referenceAdapter.ts';
 import type { AdapterCommand } from './contract.ts';
 import { AppError } from '../appError.ts';
 import { routeWrite } from './router.ts';
+import { createFakeOutbox } from './dispatch.money.test.ts';
 
 const command: AdapterCommand = {
   domain: REFERENCE_DOMAIN,
@@ -236,5 +237,108 @@ describe('toDispatchError (LOW-1 — the shared thrown-value classification)', (
       code: 'payment-in-flight-for-bill',
       message: 'A payment for this bill is already in progress. Wait for it to finish before paying again.',
     });
+  });
+});
+
+describe('Task 4: fiscal-year adapter carries the real claim fence in outboxCommit', () => {
+  it('passes outboxCommit with id, generation, digest, and intent identity to fiscal_year_setup adapter', async () => {
+    const fake = createFakeOutbox();
+    const intentId = 'e0000000-0000-0000-0000-000000000001';
+    const fiscalCmd: AdapterCommand = {
+      domain: 'fiscal_year_setup',
+      operation: 'create',
+      record: { id: intentId, company: 'Acme Co', span: { start: '2027-01-01', end: '2027-12-31' } },
+      idempotencyKey: `setup:fiscal-year:${intentId}`,
+    };
+    const commit = vi.fn(async (_c: AdapterCommand) => ({
+      externalRecordId: '2027',
+      canonical: { id: intentId, year_name: '2027' },
+    }));
+    const adapter = {
+      tier: 'erpnext',
+      capabilityMap: new Set(['fiscal_year_setup']),
+      commit,
+    };
+
+    await dispatchMoneyWrite({
+      adapter,
+      command: fiscalCmd,
+      writeReadModel: vi.fn(),
+      recordExternalRef: vi.fn(),
+      money: fake.deps,
+      outboxRecordId: intentId,
+    });
+
+    expect(commit).toHaveBeenCalledTimes(1);
+    const passedCommand = commit.mock.calls[0]![0];
+    expect(passedCommand.outboxCommit).toBeDefined();
+    expect(passedCommand.outboxCommit).toEqual({
+      id: expect.any(String),
+      generation: 1,
+      payloadDigest: null,
+      identity: intentId,
+    });
+  });
+
+  it('another domain receives no outboxCommit field', async () => {
+    const fake = createFakeOutbox();
+    const nonFiscalCmd: AdapterCommand = {
+      domain: 'procurement',
+      operation: 'create',
+      record: { id: 'pmo-doc-1', erp_doc_kind: 'purchase-order' },
+      idempotencyKey: 'po-key-1',
+    };
+    const commit = vi.fn(async (_c: AdapterCommand) => ({
+      externalRecordId: 'PO-0001',
+      canonical: { id: 'pmo-doc-1' },
+    }));
+    const adapter = {
+      tier: 'erpnext',
+      capabilityMap: new Set(['procurement']),
+      commit,
+    };
+
+    await dispatchMoneyWrite({
+      adapter,
+      command: nonFiscalCmd,
+      writeReadModel: vi.fn(),
+      recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+
+    expect(commit).toHaveBeenCalledTimes(1);
+    const passedCommand = commit.mock.calls[0]![0];
+    expect(passedCommand.outboxCommit).toBeUndefined();
+  });
+
+  it('a superseded claim cannot make a reservation', async () => {
+    const fake = createFakeOutbox();
+    const intentId = 'e0000000-0000-0000-0000-000000000002';
+    const fiscalCmd: AdapterCommand = {
+      domain: 'fiscal_year_setup',
+      operation: 'create',
+      record: { id: intentId, company: 'Acme Co' },
+      idempotencyKey: `setup:fiscal-year:${intentId}`,
+    };
+    const commit = vi.fn(async (c: AdapterCommand) => {
+      if (c.outboxCommit && c.outboxCommit.generation < 2) {
+        throw new AppError('reservation failed: generation stale', 'command-held');
+      }
+      return { externalRecordId: '2027', canonical: { id: intentId } };
+    });
+    const adapter = {
+      tier: 'erpnext',
+      capabilityMap: new Set(['fiscal_year_setup']),
+      commit,
+    };
+
+    await expect(dispatchMoneyWrite({
+      adapter,
+      command: fiscalCmd,
+      writeReadModel: vi.fn(),
+      recordExternalRef: vi.fn(),
+      money: fake.deps,
+      outboxRecordId: intentId,
+    })).rejects.toMatchObject({ code: 'command-held' });
   });
 });

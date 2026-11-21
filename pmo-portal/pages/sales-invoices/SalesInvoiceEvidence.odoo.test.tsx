@@ -14,7 +14,6 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoiceEvidence: (_id: string | undefined, enabled: boolean) => { h.evidenceEnabled.push(enabled); return h.evidence; },
-  useIncomingPayments: () => h.payments,
 }));
 vi.mock('@/src/hooks/useOdooRevenue', () => ({
   useOdooRevenueCommands: () => h.commands,
@@ -29,7 +28,7 @@ vi.mock('@/src/hooks/useOdooPurchase', () => ({
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Finance', effectiveRole: 'Finance' }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-me' } }) }));
 
-import { SalesInvoiceEvidenceSection } from './SalesInvoiceEvidence';
+import { SalesInvoiceEvidenceWithPayments } from './SalesInvoiceEvidence';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 
 const invoice = (over: Partial<SalesInvoiceRow> = {}) => ({
@@ -42,7 +41,8 @@ const invoice = (over: Partial<SalesInvoiceRow> = {}) => ({
   odoo_state: 'posted', odoo_attention: null, odoo_read_at: '2026-11-03T10:00:00Z', ...over,
 } as SalesInvoiceRow);
 
-const mount = (inv = invoice()) => render(<FinanceI18nTestProvider><SalesInvoiceEvidenceSection invoice={inv} odoo /></FinanceI18nTestProvider>);
+/** The receipt read the record page/drawer owns; this panel only renders what it is handed. */
+const mount = (inv = invoice()) => render(<FinanceI18nTestProvider><SalesInvoiceEvidenceWithPayments invoice={inv} odoo payments={h.payments as never} /></FinanceI18nTestProvider>);
 
 beforeEach(() => {
   h.evidence = { data: { lines: [], contact: null }, isPending: false, isError: false, refetch: vi.fn() };
