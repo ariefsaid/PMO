@@ -103,6 +103,7 @@ const MaterialRequestsPage = lazyWithPreload(() => import('./pages/MaterialReque
 const MaterialRequestNewPage = lazyWithPreload(() => import('./pages/MaterialRequestNew'));
 const MaterialRequestDetailPage = lazyWithPreload(() => import('./pages/MaterialRequestDetail'));
 const DeliveryNotePrintPage = lazyWithPreload(() => import('./pages/DeliveryNotePrint'));
+const PurchaseOrderPrintPage = lazyWithPreload(() => import('./pages/PurchaseOrderPrint'));
 const MaterialRequestSettingsPage = lazyWithPreload(() => import('./pages/MaterialRequestSettings'));
 const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
 const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAvailability'));
@@ -225,6 +226,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/sales/:opportunityId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
   { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList'] },
   { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate'] },
+  { path: '/procurement/:procurementId/purchase-orders/:orderId/print', chunks: [PurchaseOrderPrintPage], namespaces: ['procurement'] },
   { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
   { path: '/procurement/:procurementId', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
   { path: '/timesheets', chunks: [TimesheetsPage], namespaces: ['timesheets'] },
@@ -431,6 +433,7 @@ export const appRouteConfig: RouteObject[] = [
     )),
   },
   { path: '/procurement/new', element: gated('procurement', <ProcurementCreate />) },
+  { path: '/procurement/:procurementId/purchase-orders/:orderId/print', element: gated('procurement', <PurchaseOrderPrintPage />) },
   // Tabbed record shell (mirrors /projects/:id/:tab). The bare /procurement/:id keeps working
   //   (defaults to the Overview tab); :tab deep-links a panel.
   { path: '/procurement/:procurementId', element: gated('procurement', <ProcurementDetails />) },

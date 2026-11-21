@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   usePurchaseOrderSettings,
   usePurchaseOrderSettingsMutations,
-  PO_SETTINGS_QUERY_KEY,
 } from './usePurchaseOrderSettings';
 import { repositories } from '@/src/lib/repositories';
 

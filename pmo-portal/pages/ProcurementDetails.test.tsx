@@ -1942,6 +1942,12 @@ vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpe
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpOrphans: () => ({ data: [], isError: false, isPending: false }) }));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));
+const poSettingsMock = vi.hoisted(() => ({
+  data: { enabled: false, signatureBlocks: [], authorisedCollectors: [] },
+}));
+vi.mock('@/src/hooks/usePurchaseOrderSettings', () => ({
+  usePurchaseOrderSettings: () => poSettingsMock,
+}));
 
 describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', () => {
   const invoicedOver = {
@@ -2269,5 +2275,31 @@ describe('Procurement detail restructure fixes', () => {
     expect(screen.getByText('Choose a supplier first')).toBeInTheDocument();
     expect(screen.getByText('Cancelled')).toBeInTheDocument();
     expect(rows[5]).toHaveTextContent('Paid');
+  });
+
+  describe('AC-POP-001 / AC-POP-002: purchase order print action in ProcurementDetails', () => {
+    it('AC-POP-002: when PO print is disabled, more menu does not include Print purchase order', async () => {
+      poSettingsMock.data = { enabled: false, signatureBlocks: [], authorisedCollectors: [] };
+      detailState.data = {
+        ...baseProcurement,
+        purchase_orders: [{ id: 'po-101', po_number: 'PO-101' } as never],
+      };
+      renderPage('proc-001');
+      const trigger = await screen.findByRole('button', { name: /more procurement actions/i });
+      await userEvent.click(trigger);
+      expect(screen.queryByTestId('print-purchase-order')).toBeNull();
+    });
+
+    it('AC-POP-001: when PO print is enabled and PO exists, more menu includes Print purchase order', async () => {
+      poSettingsMock.data = { enabled: true, signatureBlocks: [], authorisedCollectors: [] };
+      detailState.data = {
+        ...baseProcurement,
+        purchase_orders: [{ id: 'po-101', po_number: 'PO-101' } as never],
+      };
+      renderPage('proc-001');
+      const trigger = await screen.findByRole('button', { name: /more procurement actions/i });
+      await userEvent.click(trigger);
+      expect(await screen.findByTestId('print-purchase-order')).toBeInTheDocument();
+    });
   });
 });
