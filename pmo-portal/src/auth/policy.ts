@@ -129,6 +129,7 @@ export type Entity =
   | 'stockDocument'
   | 'materialRequest'
   | 'approvalChain'
+  | 'purchaseType'
   | 'standIn'
   | 'approvalStepPin'
   | 'materialAllowance'
@@ -407,6 +408,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   /** The org's approval chain and daily cut-off (FR-MRQ-005/014): Admin only, mirroring mrq_set_chain / mrq_set_cutoff. */
   approvalChain: { view: allow(ALL), manage: allowUnlessViewOnly(ADMIN) },
+  /** The org's purchase types and the switch that turns them on (#2697): Admin only, mirroring set_purchase_types_enabled / upsert_purchase_type. */
+  purchaseType: { view: allow(ALL), manage: allowUnlessViewOnly(ADMIN) },
   /** Stand-ins (FR-MRQ-009): the person away names their own; an Admin names anyone's (mrq_set_stand_in). */
   standIn: {
     view: allow(ALL),

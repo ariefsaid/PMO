@@ -37,6 +37,7 @@ import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
+import RentalPanel from '@/src/components/procurement/RentalPanel';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
@@ -777,6 +778,16 @@ const ProcurementDetails: React.FC = () => {
         />
       )}
       </div>
+
+      {/* #2697: type, rental period, extension links and the guided extend step. Mounted only on a typed purchase, so an organisation
+          without purchase types renders exactly what it did before. */}
+      {p.purchase_type_id && (
+        <div className="mb-3">
+          <RentalPanel procurementId={p.id} title={p.title} status={p.status} purchaseTypeId={p.purchase_type_id}
+            rentalFrom={p.rental_from} rentalTo={p.rental_to} extendsId={p.extends_procurement_id}
+            lines={(p.items ?? []).map((i) => ({ id: i.id, name: i.name, description: i.description ?? null, quantity: Number(i.quantity), rate: Number(i.rate) }))} />
+        </div>
+      )}
 
       {/* Deep-linkable detail sections, directly under the header (as on the project record). */}
       <Tabs<ProcTab>

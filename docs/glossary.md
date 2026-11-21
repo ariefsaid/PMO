@@ -109,6 +109,12 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Purchase request** — a numbered, dated request record under a procurement case, with a status and amount; the case's opening document.
 
+**Purchase type** (#2697) — one of the organisation's own list of kinds of purchase (goods, service and rental are the starter rows an Admin gets when switching the feature on; the Admin renames, adds or retires them). A purchase carries at most one, chosen when it is raised and never changed after. The list is data: no rule reads a type's name. Off by default; a purchase with no type behaves exactly as before.
+
+**Rental purchase** (#2697) — a purchase whose type is flagged `is_rental` ("has a rental period"). It carries a rental period (from and to dates). The flag, not the type's name, makes a purchase a rental.
+
+**Rental extension** (#2697) — the guided "Extend rental" step on a live rental purchase: it creates a NEW purchase (its own order, in Draft) for a later period, linked to the original, and takes the normal approval and spend routing. The original is not changed. The extension starts after the original's end, never overlaps another extension of the same original, and can itself be extended.
+
 **Purchase order** — a numbered, dated order record under a procurement case, with a status and amount.
 
 **Goods receipt** — a numbered receipt record under a procurement case, optionally linked to a purchase order, with a receipt date and status.

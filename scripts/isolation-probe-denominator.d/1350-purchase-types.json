@@ -1,0 +1,14 @@
+{
+  "tables": [
+    { "table": "org_purchase_type_settings", "has_org": true, "pk": "org_id", "columns": "org_id,enabled", "b_read": "own-org-only",
+      "by_id": "n/a: one settings row per organisation; the org-scoped read proves it" },
+    { "table": "purchase_types", "has_org": true, "pk": "id", "columns": "id,org_id,name", "b_read": "own-org-only", "by_id": "applicable" }
+  ],
+  "definer_functions": [
+    "purchase_types_enabled(uuid)",
+    "set_purchase_types_enabled(boolean)",
+    "upsert_purchase_type(uuid,text,text,boolean,integer)",
+    "set_purchase_type_active(uuid,boolean)",
+    "extend_rental_procurement(uuid,uuid,date,date,jsonb)"
+  ]
+}
