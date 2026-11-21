@@ -87,7 +87,7 @@ select lives_ok(
 );
 
 -- 5. AC-DNP-004: org_terminology accepts 'deliveryNote'
-select pg_temp._as('26870000-0000-0000-0000-00000000000a1');
+select pg_temp._as('26870000-0000-0000-0000-0000000000a1');
 select lives_ok(
   $$ insert into public.org_terminology (org_id, term_key, locale, singular, plural)
      values ('26870000-0000-0000-0000-00000000000a', 'deliveryNote', 'en', 'Goods Issue Note', 'Goods Issue Notes') $$,
