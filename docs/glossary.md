@@ -1048,3 +1048,9 @@ the material close-out: joint count, loss report, material completion report). T
 **Labour class** — an organisation-defined label on a labour cost rate (defaults direct, indirect and guard, renameable) that breaks a work order's labour cost down in plan versus actual (#2670).
 
 **Priced hours** — approved timesheet hours on a date the person has an applicable labour cost rate; **overtime hours** are a person's hours beyond the rate's day length on one date, across all their approved lines. Labour cost is internal costing outside the ledger: it adds to a work order's direct cost, never to project actuals (#2670).
+
+## Profit per discipline (#2669)
+
+**Discipline revenue** — the validated progress of a project at the contract rate frozen at validation, grouped by the discipline of the contract line it was recorded against. A contract line with no discipline rolls under "No discipline". Only current, validated reports count; a validated line frozen without a rate is named as unrated and makes that discipline's revenue incomplete, never zero.
+
+**Discipline margin** — discipline revenue less the discipline's direct cost and its allocated shared cost. Shown after shared cost (the headline) and, beside it, before shared cost. A loss reads "Loss of X". Revenue and cost in different currencies are never blended. The Admin turns the view on with the organisation setting **Profit per discipline** (off by default).
