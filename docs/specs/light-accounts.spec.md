@@ -79,6 +79,7 @@ delivery note, attendance, roster.
 | AC-LA-011 | `/my` shows four sections; Foreman also the roster; Field user not; clock-in lists rostered work orders and calls `attendance_record` with `phone_check_in`; deliveries shows the empty seam; EN and ID strings. | vitest |
 | AC-LA-012 | Seat report on Administration shows full and light counts; unchanged when no light roles. | vitest |
 | AC-LA-013 | Given a light account, each of six guarded definer RPCs refuses with `LIGHT_ACCOUNT`. | pgTAP |
+| AC-LA-014 | The standing sweep: every public security-definer function `authenticated` can execute either refuses a light account in its body or is on the named allowlist (each entry with its reason), and every public table carrying `org_id` either carries the restrictive light or own-row select policy or is on the named allowlist; the project-documents bucket carries the restrictive light read policy. A later function or table without either fails the sweep. | pgTAP |
 | AC-LA-E2E | A Foreman signs in, lands on `/my`, ticks crew attendance, and a typed URL for a project returns to `/my`. | E2E (curated, serial) |
 
 Mutation checks (named, not run by the builder): drop the `tasks` restrictive policy (AC-LA-002 red); make `actor_is_light()` return false
@@ -116,6 +117,8 @@ Who holds a light role is set in the existing Edit role form; the seat report is
 
 **FR-013** Where a security-definer RPC returns project, budget, price, billing or list data to `authenticated`, it shall refuse a light account first (`assert_not_light()`, SQLSTATE 42501, message `LIGHT_ACCOUNT: ...`). Security-INVOKER reads (executive dashboard, projects delivery, sales pipeline, win rate, finance budget review, budget projection, project milestones and milestone dates, budget distribution gaps, fiscal years, project budget, budget push status) need no guard: restrictive RLS makes them return zero rows to a light account.
 Guarded in 1209: every security-definer function that returns data to `authenticated` (the 78 names listed in the migration), except the helpers the shell and the home path call (`auth_role`, `actor_authorization_state`), the attendance path (`attendance_record`, `attendance_generate_timesheet`, which the crew tick uses), `my_home`, and the operator functions, which have their own gate. A name that cannot be rewritten fails the migration. pgTAP checks every guarded body carries the guard, the exempt ones do not, and a light account can still record attendance (AC-LA-013).
+Guarded in 1461: the write-side definers a light account has no screen for (material and client requisitions, procurement and stock documents, timesheets, daily reports, equipment usage, imprest, billing stages and retention, and the assistant credit bookkeeping). A function a light account legitimately calls stays on the sweep's allowlist with its reason.
+The standing sweep (AC-LA-014, `2711_light_account_boundary_sweep.test.sql`) is the contract for later work: a new definer or `org_id` table that is neither guarded nor on the named allowlist fails it, whichever lane it lands from.
 
 ## 7. Not in this ticket
 
