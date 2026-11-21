@@ -1,5 +1,5 @@
 -- 1179_third_party_inspections.test.sql — #2580 (docs/specs/third-party-inspections.spec.md; plan docs/plans/2026-11-20-third-party-inspections.md).
--- Migrations under test: 1179_third_party_inspections.sql, 1131_third_party_inspection_rpcs.sql, 1132_third_party_inspection_history.sql.
+-- Migrations under test: 1179_third_party_inspections.sql, 1180_third_party_inspection_rpcs.sql, 1132_third_party_inspection_history.sql.
 -- AC-TPI-004 no direct status write, no skipped step · AC-TPI-005 report needs a file and a real result, 10-file cap ·
 -- AC-TPI-006 a reported inspection's files are append-only · AC-TPI-008 waiver rules · AC-TPI-009 section refused pre-#2576 ·
 -- AC-TPI-010 cancel only when required for no gate · AC-TPI-013 org / Engineer limits · AC-TPI-017 the creator cannot waive ·

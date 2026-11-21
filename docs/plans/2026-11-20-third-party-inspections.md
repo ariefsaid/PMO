@@ -32,7 +32,7 @@ daily (`tpi-overdue`, 01:41 UTC) and is callable by `service_role` only.
    `stamp_org_id`, no client write grant, column-level SELECT without the estimate), `guard_tpi_transition` (every state rule in one
    trigger), `third_party_inspection_files` (append-only once reported, 10 live files, `on delete restrict`), private bucket
    `inspection-reports` (15 MB; pdf, images, Office) + storage RLS.
-2. **1131 writers** — `supabase/migrations/1131_third_party_inspection_rpcs.sql`: `tpi_create`, `tpi_record_invitation`,
+2. **1131 writers** — `supabase/migrations/1180_third_party_inspection_rpcs.sql`: `tpi_create`, `tpi_record_invitation`,
    `tpi_record_execution`, `tpi_record_report`, `tpi_waive`, `tpi_cancel` (role gates + actor/date stamps + audit rows).
 3. **1132 record history** — registers the entity (parent: its work order), the capture trigger and the `record_history_visible` arm;
    `record_changes_catalog_gate.test.sql` now counts 18 entities.

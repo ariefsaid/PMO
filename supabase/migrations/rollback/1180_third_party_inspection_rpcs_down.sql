@@ -1,4 +1,4 @@
--- 1131_third_party_inspection_rpcs_down.sql — reverse 1131 (#2580).
+-- 1180_third_party_inspection_rpcs_down.sql — reverse 1131 (#2580).
 drop function if exists public.tpi_cancel(uuid,text);
 drop function if exists public.tpi_waive(uuid,text);
 drop function if exists public.tpi_record_report(uuid,text);
