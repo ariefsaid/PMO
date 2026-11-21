@@ -38,40 +38,42 @@ insert into public.issue_department_groups (id, org_id, name, issue_types) value
   ('26780000-0000-0000-0000-0000000000c2', '26780000-0000-0000-0000-00000000000a', 'Electrical & Controls', array['Electrical', 'Instrumentation']);
 
 -- Incidents for Org A
--- 1: Civil, Nov 1, closed 24h later
-insert into incident_reports (id, org_id, incident_date, type, severity, status, created_at, closed_at, reported_by) values
-  ('26780000-0000-0000-0000-000000000001', '26780000-0000-0000-0000-00000000000a', '2026-11-01', 'Civil', 'Low', 'Closed',
-   '2026-11-01 08:00:00+00', '2026-11-02 08:00:00+00', '26780000-0000-0000-0000-0000000000a1');
+-- Migration 1026 stamps closed_at := now() when status = 'Closed'.
+-- We set created_at relative to now() so (closed_at - created_at) is exactly deterministic:
+-- 1: Civil, created 24h ago, closed at now() => 24 hours
+insert into incident_reports (id, org_id, incident_date, type, severity, status, created_at, reported_by) values
+  ('26780000-0000-0000-0000-000000000001', '26780000-0000-0000-0000-00000000000a', current_date, 'Civil', 'Low', 'Closed',
+   now() - interval '24 hours', '26780000-0000-0000-0000-0000000000a1');
 
--- 2: Civil, Nov 3, closed 60h later
-insert into incident_reports (id, org_id, incident_date, type, severity, status, created_at, closed_at, reported_by) values
-  ('26780000-0000-0000-0000-000000000002', '26780000-0000-0000-0000-00000000000a', '2026-11-03', 'Civil', 'Medium', 'Closed',
-   '2026-11-03 08:00:00+00', '2026-11-05 20:00:00+00', '26780000-0000-0000-0000-0000000000a1');
+-- 2: Civil, created 60h ago, closed at now() => 60 hours
+insert into incident_reports (id, org_id, incident_date, type, severity, status, created_at, reported_by) values
+  ('26780000-0000-0000-0000-000000000002', '26780000-0000-0000-0000-00000000000a', current_date, 'Civil', 'Medium', 'Closed',
+   now() - interval '60 hours', '26780000-0000-0000-0000-0000000000a1');
 
--- 3: Excavation, Nov 4, open and overdue
+-- 3: Excavation, created 70h ago, open and overdue
 insert into incident_reports (id, org_id, incident_date, type, severity, status, due_at, created_at, reported_by) values
-  ('26780000-0000-0000-0000-000000000003', '26780000-0000-0000-0000-00000000000a', '2026-11-04', 'Excavation', 'High', 'Open',
-   '2026-11-06 17:00:00+00', '2026-11-04 08:00:00+00', '26780000-0000-0000-0000-0000000000a1');
+  ('26780000-0000-0000-0000-000000000003', '26780000-0000-0000-0000-00000000000a', current_date, 'Excavation', 'High', 'Open',
+   now() - interval '2 hours', now() - interval '70 hours', '26780000-0000-0000-0000-0000000000a1');
 
--- 4: Electrical, Nov 5, closed 10h later
-insert into incident_reports (id, org_id, incident_date, type, severity, status, created_at, closed_at, reported_by) values
-  ('26780000-0000-0000-0000-000000000004', '26780000-0000-0000-0000-00000000000a', '2026-11-05', 'Electrical', 'Low', 'Closed',
-   '2026-11-05 08:00:00+00', '2026-11-05 18:00:00+00', '26780000-0000-0000-0000-0000000000a1');
+-- 4: Electrical, created 10h ago, closed at now() => 10 hours
+insert into incident_reports (id, org_id, incident_date, type, severity, status, created_at, reported_by) values
+  ('26780000-0000-0000-0000-000000000004', '26780000-0000-0000-0000-00000000000a', current_date, 'Electrical', 'Low', 'Closed',
+   now() - interval '10 hours', '26780000-0000-0000-0000-0000000000a1');
 
--- 5: Piping (unmapped), Nov 6, closed 12h later
-insert into incident_reports (id, org_id, incident_date, type, severity, status, created_at, closed_at, reported_by) values
-  ('26780000-0000-0000-0000-000000000005', '26780000-0000-0000-0000-00000000000a', '2026-11-06', 'Piping', 'Low', 'Closed',
-   '2026-11-06 08:00:00+00', '2026-11-06 20:00:00+00', '26780000-0000-0000-0000-0000000000a1');
+-- 5: Piping (unmapped), created 12h ago, closed at now() => 12 hours
+insert into incident_reports (id, org_id, incident_date, type, severity, status, created_at, reported_by) values
+  ('26780000-0000-0000-0000-000000000005', '26780000-0000-0000-0000-00000000000a', current_date, 'Piping', 'Low', 'Closed',
+   now() - interval '12 hours', '26780000-0000-0000-0000-0000000000a1');
 
--- 6: October issue (outside Nov date range)
-insert into incident_reports (id, org_id, incident_date, type, severity, status, created_at, closed_at, reported_by) values
-  ('26780000-0000-0000-0000-000000000006', '26780000-0000-0000-0000-00000000000a', '2026-10-15', 'Civil', 'Low', 'Closed',
-   '2026-10-15 08:00:00+00', '2026-10-16 08:00:00+00', '26780000-0000-0000-0000-0000000000a1');
+-- 6: Past issue (outside date range)
+insert into incident_reports (id, org_id, incident_date, type, severity, status, created_at, reported_by) values
+  ('26780000-0000-0000-0000-000000000006', '26780000-0000-0000-0000-00000000000a', current_date - 60, 'Civil', 'Low', 'Closed',
+   now() - interval '60 days', '26780000-0000-0000-0000-0000000000a1');
 
 -- Incident for Org B
-insert into incident_reports (id, org_id, incident_date, type, severity, status, created_at, closed_at, reported_by) values
-  ('26780000-0000-0000-0000-0000000000b9', '26780000-0000-0000-0000-00000000000b', '2026-11-01', 'Civil', 'Low', 'Closed',
-   '2026-11-01 08:00:00+00', '2026-11-02 08:00:00+00', '26780000-0000-0000-0000-0000000000b1');
+insert into incident_reports (id, org_id, incident_date, type, severity, status, created_at, reported_by) values
+  ('26780000-0000-0000-0000-0000000000b9', '26780000-0000-0000-0000-00000000000b', current_date, 'Civil', 'Low', 'Closed',
+   now() - interval '24 hours', '26780000-0000-0000-0000-0000000000b1');
 
 -- ── 1. AC-CTR-008: Tables exist and have RLS enabled ─────────────────
 select ok(
@@ -118,49 +120,49 @@ select throws_ok(
 );
 
 -- ── 3. AC-CTR-004 & AC-CTR-005: Raw Type Grouping Mode ────────────────
--- With date filter for November 2026:
+-- With date filter around current_date:
 -- Civil: 2 closed (24h, 60h => avg = 42, median = 42), 0 open, 0 overdue
 select is(
-  (select total_issues from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'type') where department = 'Civil'),
+  (select total_issues from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'type') where department = 'Civil'),
   2::bigint,
-  'AC-CTR-003: Civil total in Nov is 2 (Oct issue excluded)'
+  'AC-CTR-003: Civil total is 2 (60-day-old issue excluded by date filter)'
 );
 select is(
-  (select closed_issues from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'type') where department = 'Civil'),
+  (select closed_issues from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'type') where department = 'Civil'),
   2::bigint,
   'AC-CTR-004: Civil closed count is 2'
 );
 select is(
-  (select round(avg_closing_hours, 1) from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'type') where department = 'Civil'),
+  (select round(avg_closing_hours, 1) from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'type') where department = 'Civil'),
   42.0::numeric,
   'AC-CTR-004: Civil average closing hours is 42.0h'
 );
 select is(
-  (select round(median_closing_hours, 1) from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'type') where department = 'Civil'),
+  (select round(median_closing_hours, 1) from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'type') where department = 'Civil'),
   42.0::numeric,
   'AC-CTR-004: Civil median closing hours is 42.0h'
 );
 
 -- Excavation: 1 open, 1 overdue, 0 closed
 select is(
-  (select open_issues from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'type') where department = 'Excavation'),
+  (select open_issues from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'type') where department = 'Excavation'),
   1::bigint,
   'AC-CTR-005: Excavation has 1 open issue'
 );
 select is(
-  (select overdue_issues from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'type') where department = 'Excavation'),
+  (select overdue_issues from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'type') where department = 'Excavation'),
   1::bigint,
   'AC-CTR-005: Excavation has 1 overdue issue'
 );
 select is(
-  (select avg_closing_hours from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'type') where department = 'Excavation'),
+  (select avg_closing_hours from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'type') where department = 'Excavation'),
   null,
   'AC-CTR-004: Excavation has null avg closing hours because none closed'
 );
 
 -- Electrical: 1 closed, 10h
 select is(
-  (select round(avg_closing_hours, 1) from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'type') where department = 'Electrical'),
+  (select round(avg_closing_hours, 1) from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'type') where department = 'Electrical'),
   10.0::numeric,
   'AC-CTR-004: Electrical average closing hours is 10.0h'
 );
@@ -169,46 +171,46 @@ select is(
 -- 'Civil & Earthworks' includes 'Civil' and 'Excavation'
 -- Total = 3 (2 Civil closed + 1 Excavation open), Closed = 2, Open = 1, Overdue = 1, Avg = 42.0
 select is(
-  (select total_issues from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'department_groups') where department = 'Civil & Earthworks'),
+  (select total_issues from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'department_groups') where department = 'Civil & Earthworks'),
   3::bigint,
   'AC-CTR-006: Civil & Earthworks department group combines Civil and Excavation issues (total 3)'
 );
 select is(
-  (select closed_issues from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'department_groups') where department = 'Civil & Earthworks'),
+  (select closed_issues from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'department_groups') where department = 'Civil & Earthworks'),
   2::bigint,
   'AC-CTR-006: Civil & Earthworks has 2 closed issues'
 );
 select is(
-  (select open_issues from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'department_groups') where department = 'Civil & Earthworks'),
+  (select open_issues from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'department_groups') where department = 'Civil & Earthworks'),
   1::bigint,
   'AC-CTR-006: Civil & Earthworks has 1 open issue'
 );
 select is(
-  (select overdue_issues from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'department_groups') where department = 'Civil & Earthworks'),
+  (select overdue_issues from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'department_groups') where department = 'Civil & Earthworks'),
   1::bigint,
   'AC-CTR-006: Civil & Earthworks has 1 overdue issue'
 );
 select is(
-  (select round(avg_closing_hours, 1) from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'department_groups') where department = 'Civil & Earthworks'),
+  (select round(avg_closing_hours, 1) from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'department_groups') where department = 'Civil & Earthworks'),
   42.0::numeric,
   'AC-CTR-006: Civil & Earthworks avg closing hours is 42.0h'
 );
 
 -- Electrical & Controls: 1 closed (10h)
 select is(
-  (select total_issues from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'department_groups') where department = 'Electrical & Controls'),
+  (select total_issues from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'department_groups') where department = 'Electrical & Controls'),
   1::bigint,
   'AC-CTR-006: Electrical & Controls department group has 1 issue'
 );
 
 -- AC-CTR-007: 'Piping' is unmapped in groups mode, rolls up under 'Unassigned'
 select is(
-  (select total_issues from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'department_groups') where department = 'Unassigned'),
+  (select total_issues from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'department_groups') where department = 'Unassigned'),
   1::bigint,
   'AC-CTR-007: Unmapped Piping issue rolls up under Unassigned'
 );
 select is(
-  (select round(avg_closing_hours, 1) from public.get_issue_closing_time_report('2026-11-01', '2026-11-30', 'department_groups') where department = 'Unassigned'),
+  (select round(avg_closing_hours, 1) from public.get_issue_closing_time_report(current_date - 10, current_date + 1, 'department_groups') where department = 'Unassigned'),
   12.0::numeric,
   'AC-CTR-007: Unassigned closing time matches Piping issue (12.0h)'
 );
