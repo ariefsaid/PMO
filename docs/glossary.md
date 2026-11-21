@@ -1072,3 +1072,14 @@ the material close-out: joint count, loss report, material completion report). T
 - **Day checkpoint** — a copy of a checkpoint for one work order, crew and date, with its due instant; once recorded it carries the server time, the person, an optional note and a photo, and never changes.
 - **Started on time** — the crew's `start` checkpoint was recorded at or before its due time plus grace. Reported as a count of days, not an average of minutes.
 - **Lost time by cause** — idle minutes of submitted or validated daily site reports, summed by the organisation's own lost-time cause list.
+
+**Safety day** — one record per work order and date holding the five daily safety parts: the fitness check, the toolbox talk with its
+attendance photo, the pre-work checklist, the permit to work and the safety officer's report. It is a draft until submitted, then
+locked; a correction is a new version naming the one it replaces, with a reason. The check types, permit types and checklist items
+come from lists the client keeps. Off until an Admin switches safety records on (#2596).
+
+**Safe hours** — worked hours (present attendance, locked or approved) since the date of the project's last lost-time incident, or
+since the start of attendance when there is none. Hidden with a reason when there is nothing to count from; never shown as 0.
+
+**Lost-time incident** — an incident marked as one that cost working time. Only an incident manager (Admin, Executive, Project
+Manager, Finance) sets the mark; it restarts the safe-hours count for the project.

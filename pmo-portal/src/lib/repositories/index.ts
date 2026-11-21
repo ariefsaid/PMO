@@ -21,6 +21,7 @@ import { projectStageRepository } from './projectStages';
 import { rateCatalogueRepository } from './rateCatalogue';
 import { dailySiteReportRepository } from './dailySiteReports';
 import { workOrderCandidateRepository } from './workOrderCandidates';
+import { safetyDayRepository } from './safetyDays';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { fxRatesRepository } from './fxRates';
 import { financialStatementsRepository } from './financialStatements';
@@ -134,6 +135,7 @@ export const repositories: Repositories = {
   closeoutChecklist: closeoutChecklistRepository,
   dailySiteReport: dailySiteReportRepository,
   workOrderCandidate: workOrderCandidateRepository,
+  safetyDay: safetyDayRepository,
   stock: stockRepository,
   workOrderAcceptance: workOrderAcceptanceRepository,
   procurementFiles: procurementFilesRepository,

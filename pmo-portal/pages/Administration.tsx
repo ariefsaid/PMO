@@ -35,6 +35,7 @@ import OrgProcurementGates from './admin/OrgProcurementGates';
 import SiteReportLists from './admin/SiteReportLists';
 import SiteCheckpointTemplate from './admin/SiteCheckpointTemplate';
 import WorkOrderCandidateTemplate from './admin/WorkOrderCandidateTemplate';
+import SafetyLists from './admin/SafetyLists';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
@@ -296,6 +297,7 @@ const SelectedAdministrationPanel: React.FC<{
             <SiteReportLists />
             <SiteCheckpointTemplate />
             <WorkOrderCandidateTemplate />
+            <SafetyLists />
             <CostDisciplines />
             <WorkOrderCloseoutTemplate />
           </div>

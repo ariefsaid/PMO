@@ -328,6 +328,8 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   // #2061: the phone Home (my queue) is a composition of already-modular surfaces, not a module
   // of its own — register its title so the breadcrumb reads "Home", never "Not found".
   '/home': 'Home',
+  // #2596: the monthly safety summary is a routable page behind the organisation setting, not a rail module.
+  '/safety': 'Safety summary',
 };
 
 /**
@@ -359,6 +361,8 @@ export function railParentForPath(pathname: string): string | undefined {
   if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
   // #2518: a work order's page belongs to Projects.
   if (/^\/work-orders\/[^/]+$/.test(pathname)) return '/projects';
+  // #2596: a safety day belongs to its work order, so to Projects.
+  if (/^\/safety-days\/[^/]+$/.test(pathname)) return '/projects';
   return RAIL_PARENT_FOR_PATH[pathname];
 }
 

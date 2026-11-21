@@ -26,6 +26,7 @@ import type { ProjectStageRepository } from './contracts/projectStages';
 import type { RateCatalogueRepository } from './contracts/rateCatalogue';
 import type { DailySiteReportRepository } from './contracts/dailySiteReports';
 import type { WorkOrderCandidateRepository } from './contracts/workOrderCandidates';
+import type { SafetyDayRepository } from './contracts/safetyDays';
 import type { SubcontractRepository } from './contracts/subcontracts';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
 import type { ProjectOverviewRepository } from './contracts/projectOverview';
@@ -132,6 +133,7 @@ export interface Repositories {
   rateCatalogue: RateCatalogueRepository;
   dailySiteReport: DailySiteReportRepository;
   workOrderCandidate: WorkOrderCandidateRepository;
+  safetyDay: SafetyDayRepository;
   company: CompanyRepository;
   document: DocumentRepository;
   agentAttachment: AgentAttachmentRepository;

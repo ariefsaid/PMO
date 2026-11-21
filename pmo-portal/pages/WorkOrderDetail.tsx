@@ -24,6 +24,7 @@ import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { CloseoutSection } from './work-order-detail/CloseoutSection';
 import { IssuesSection } from './work-order-detail/IssuesSection';
 import { SiteCheckpointFlag } from './work-order-detail/SiteCheckpointFlag';
+import { SafetySection } from './work-order-detail/SafetySection';
 import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 
 /**
@@ -109,6 +110,7 @@ const WorkOrderDetail: React.FC = () => {
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
         <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
+        <SafetySection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         {issuesOn && <IssuesSection issues={issues.data ?? []} isPending={issues.isPending} isError={issues.isError} onRetry={() => void issues.refetch()} />}
         <OpenTasksSection tasks={openTasks.data ?? []} isPending={openTasks.isPending} isError={openTasks.isError} onRetry={() => void openTasks.refetch()} />
       </RecordStack>
