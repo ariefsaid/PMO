@@ -122,8 +122,8 @@ select lives_ok($$ insert into incident_reports (incident_date, type, severity) 
 select throws_ok($$ insert into incident_reports (incident_date, type, severity, reported_by)
   values (current_date, 'Hazard', 'Low', '27100000-0000-0000-0000-0000000000a7') $$, '42501', null,
   'AC-LA-005 a light account cannot report an issue in another person''s name');
-select lives_ok($$ delete from work_orders where id = '27100000-0000-0000-0000-000000000401' $$,
-  'AC-LA-005 a light account''s delete of a work order touches nothing');
+select throws_ok($$ delete from work_orders where id = '27100000-0000-0000-0000-000000000401' $$, '42501', null,
+  'AC-LA-005 a light account''s delete of a work order is refused');
 reset role;
 select is((select count(*)::int from work_orders where id = '27100000-0000-0000-0000-000000000401'), 1,
   'AC-LA-005 a light account cannot delete a work order');
