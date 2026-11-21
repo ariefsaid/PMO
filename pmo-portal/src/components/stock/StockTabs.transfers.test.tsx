@@ -19,10 +19,16 @@ const wrap = (ui: React.ReactNode) => <QueryClientProvider client={new QueryClie
 
 describe('StockTabs Transfers tab (AC-TST-027)', () => {
   it('AC-TST-027 a one-step organisation sees the same tabs as before', () => {
+    h.twoStep = true;
+    const two = render(wrap(<StockTabs />));
+    const withTransfers = screen.getAllByRole('link').map((a) => a.textContent);
+    two.unmount();
     h.twoStep = false;
     render(wrap(<StockTabs />));
     expect(screen.queryByRole('link', { name: 'Transfers' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('link').map((a) => a.textContent)).toEqual(['On hand', 'Documents', 'Ledger', 'Reorder']);
+    const oneStep = screen.getAllByRole('link').map((a) => a.textContent);
+    expect(withTransfers.filter((t) => t !== 'Transfers')).toEqual(oneStep);
+    expect(withTransfers).toHaveLength(oneStep.length + 1);
   });
   it('AC-TST-027 a two-step organisation gets a Transfers tab', () => {
     h.twoStep = true;

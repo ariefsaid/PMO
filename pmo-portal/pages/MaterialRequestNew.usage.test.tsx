@@ -20,6 +20,10 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useMaterialRequestMutations: () => ({ saveDraft: h.saveDraft, submit: h.submit }),
   useLinePlans: () => ({ data: [{ itemId: 'i1', planQty: 10, priorQty: 4 }], isPending: false, isError: false }),
 }));
+vi.mock('@/src/hooks/useWorkOrderSectionMaterials', () => ({
+  useLiveSections: () => ({ data: [], isPending: false, isError: false }),
+  useSectionLinePlans: () => ({ data: [], isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Site Alpha', short_name: null }] }) }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'w1', title: 'Slab', wo_number: 'WO-1', status: 'Issued' }], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useStock', () => ({
