@@ -498,6 +498,11 @@ verify_jwt = false
 [functions.telegram-notify]
 verify_jwt = false
 
+# ── Edge Function: email-notify ───────────────────────────────────────────────
+# verify_jwt = false: invoked by pg_cron (migration 1222) via net.http_post; the handler checks its own dedicated bearer.
+[functions.email-notify]
+verify_jwt = false
+
 # ── Edge Function: health ──────────────────────────────────────────────────────
 # verify_jwt = false: public, anonymous uptime probe (observability floor, FR-OF-015/016/017)
 # — no auth, no DB, no secret read.

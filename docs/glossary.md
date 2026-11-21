@@ -1070,3 +1070,8 @@ decides a request they made, are the subject of, or entered, whatever their role
 **On leave (roster marker)** — a chip beside a rostered person who has approved leave on the day shown. It is information only and does
 not stop attendance being ticked.
 
+**Scheduled report** — an organisation-defined record that emails a report of one kind to a list of people and roles on a daily or weekly
+schedule, at a local send time in the organisation's timezone. Nothing exists until an Admin creates one.
+
+**Report kind** — one of a small fixed set of generic reports a scheduled report can send: the daily progress summary (from the day's site
+reports) and overdue tasks. The body is computed per recipient, so a figure the recipient's role may not see is left out.

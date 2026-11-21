@@ -102,6 +102,7 @@ export type Entity =
   | 'integration'
   | 'orgAccounting'
   | 'orgFeedback'
+  | 'orgEmailNotifications'
   | 'costAttribution'
   | 'workOrderPlan'
   | 'sharedCostSplit'
@@ -855,6 +856,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   // #1532 S9: the org's feedback-and-surveys switch. Mirrors admin_set_feedback_surveys (0419: active Admin). UX ONLY.
   orgFeedback: { manage: allow(ADMIN) },
+  // #2711: which events send email, the extra roles copied, the email language. Mirrors set_email_* (1223: active Admin). UX ONLY.
+  orgEmailNotifications: { manage: allow(ADMIN) },
   // #1271: cost attribution rules — mirrors save/end/preview_cost_attribution (0376: active Admin or Finance).
   // UX ONLY — the RPCs are the authority (ADR-0016).
   costAttribution: { manage: allow(COST_ATTRIBUTION_WRITE) },

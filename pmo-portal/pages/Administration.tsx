@@ -23,6 +23,7 @@ import AdministrationFeatures from './AdministrationFeatures';
 import YourPlan from './YourPlan';
 import { FeedbackSurveysSetting } from '@/src/components/feedback/FeedbackSurveysSetting';
 import AdministrationExchangeRates from './AdministrationExchangeRates';
+import { EmailNotificationsSetting } from '@/src/components/emailNotifications/EmailNotificationsSetting';
 import AdministrationTerminology from './AdministrationTerminology';
 import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
@@ -278,6 +279,7 @@ const SelectedAdministrationPanel: React.FC<{
           <SectionName name={label('integrations')} />
           <IntegrationsView />
           <FeedbackSurveysSetting />
+          <EmailNotificationsSetting />
         </div>
       );
     case 'accounting':

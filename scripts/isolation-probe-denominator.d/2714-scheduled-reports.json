@@ -1,0 +1,28 @@
+{
+  "tables": [
+    {
+      "table": "scheduled_reports",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: Admin-only settings, no fixture rows; the blind read proves the denial"
+    },
+    {
+      "table": "scheduled_report_runs",
+      "has_org": true,
+      "pk": "report_id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: service-only run record, no client SELECT grant; the blind read proves the denial"
+    }
+  ],
+  "definer_functions": [
+    "archive_scheduled_report(uuid)",
+    "save_scheduled_report(uuid,text,text,text,integer,time,uuid[],text[],boolean)",
+    "scheduled_report_content(text,uuid,uuid,date,date,text,text)",
+    "scheduled_report_tick()",
+    "set_scheduled_report_enabled(uuid,boolean)"
+  ],
+  "edge_functions": []
+}
