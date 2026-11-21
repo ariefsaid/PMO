@@ -14,7 +14,8 @@
  *   • a manifest entry absent from the real surface is STALE (the `check-e2e-skips.mjs` rule: a stale
  *     allowlist entry is itself a defect).
  *
- * Run with `--self-test` to prove it can redden on both. Same shape as check-e2e-skips.mjs.
+ * Run with `--self-test` to prove it can redden on both, and that probe A-row ids must match each
+ * table's real primary-key type (#2636). Same shape as check-e2e-skips.mjs.
  *
  * Usage:  node scripts/check-isolation-denominator.mjs
  *         node scripts/check-isolation-denominator.mjs --self-test
@@ -271,6 +272,13 @@ export function readDenominator(filePath) {
   return parsed;
 }
 
+// Tables whose primary key is an integer rather than a uuid (#2636). The probe's A-row id must
+// match the table's REAL pk type: a positive integer for these, a uuid everywhere else. Keep in
+// step with the denominator — today only stock_ledger (seq bigint identity, 0413_stock_posting_engine.sql).
+// Exported: fixture generators (and the probe driver) must derive id shapes from this map, not
+// assume uuid.
+export const INTEGER_PK_TABLES = new Set(['stock_ledger']);
+
 export function validateProbeInputs(env = process.env) {
   const d = readDenominator(DENOMINATOR_PATH);
   if (Object.hasOwn(env, 'TABLES_JSON')) {
@@ -285,7 +293,10 @@ export function validateProbeInputs(env = process.env) {
   if (!Array.isArray(rows)) throw new Error('A_ROWS_JSON must contain an array');
   for (const row of rows) {
     const t = d.tables.find(t => t.table === row?.table);
-    if (!t || t.by_id !== 'applicable' || row.pk !== t.pk || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(row.id) || seen.has(row.table)) throw new Error('A_ROWS_JSON must contain unique applicable {table,pk,id} records matching the denominator');
+    const idMatchesPk = INTEGER_PK_TABLES.has(t?.table)
+      ? Number.isInteger(row?.id) && row.id > 0
+      : /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(row?.id);
+    if (!t || t.by_id !== 'applicable' || row.pk !== t.pk || !idMatchesPk || seen.has(row.table)) throw new Error('A_ROWS_JSON must contain unique applicable {table,pk,id} records matching the denominator');
     seen.add(row.table);
   }
   return d;
@@ -448,6 +459,34 @@ function selfTest() {
     }
     console.log('✓ self-test caught STALE entry (diagnostics echoed from the child CLI):');
     for (const line of diagnosticsOf(s)) console.log(`    ${line.trim()}`);
+
+    // Defect 3 — PK-TYPE (#2636): an A-row id must match its table's REAL primary-key type —
+    // stock_ledger's pk is `seq` (bigint identity), not a uuid; every other by-id-applicable
+    // table has a uuid pk. In-process: the validator reads the checked-in manifest, no database.
+    const aRowsPath = (rows) => {
+      const p = path.join(dir, 'a-rows.json');
+      fs.writeFileSync(p, JSON.stringify(rows));
+      return p;
+    };
+    const probeFindings = (rows) => {
+      try { validateProbeInputs({ A_ROWS_JSON: aRowsPath(rows) }); return null; }
+      catch (err) { return err.message; }
+    };
+    if (probeFindings([{ table: 'stock_ledger', pk: 'seq', id: 42 }]) !== null) {
+      throw new Error('self-test: integer-pk A-row (stock_ledger.seq) NOT accepted');
+    }
+    for (const bad of [0, 1.5, '42']) {
+      if (probeFindings([{ table: 'stock_ledger', pk: 'seq', id: bad }]) === null) {
+        throw new Error(`self-test: non-integer A-row id ${JSON.stringify(bad)} NOT rejected for stock_ledger`);
+      }
+    }
+    if (probeFindings([{ table: 'companies', pk: 'id', id: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d' }]) !== null) {
+      throw new Error('self-test: uuid A-row id NOT accepted for a uuid-pk table');
+    }
+    if (probeFindings([{ table: 'companies', pk: 'id', id: 42 }]) === null) {
+      throw new Error('self-test: integer A-row id NOT rejected for a uuid-pk table');
+    }
+    console.log('✓ self-test: probe A-row ids must match the real pk type (positive integer for stock_ledger.seq, uuid elsewhere).');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

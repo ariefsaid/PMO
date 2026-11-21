@@ -16,11 +16,12 @@ import {
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
-import { COMPANY_DEFAULTS, getErpSetupIncompleteness, missingAccountCategories, requiredBudgetCategories } from './erpSetupIncompleteness';
-import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
+import { COMPANY_DEFAULTS, fiscalYearOperatorTask, getErpSetupIncompleteness, missingAccountCategories, requiredBudgetCategories } from './erpSetupIncompleteness';
 import { ErpSendStates } from './ErpSendStates';
 import { ProjectMatchReview } from './ProjectMatchReview';
 import { ConnectProposalReview } from './ConnectProposalReview';
+import { AccountLinkNotes, DirectCostAccounts } from './DirectCostAccounts';
+import { useAccountLinkNotes } from './useAccountLinkNotes';
 import { AppError } from '@/src/lib/appError';
 import type { CompanyDefaultSlot } from '@/src/lib/repositories/types';
 import { matchCompanyDefaultsRefusal } from '@/src/lib/i18n/companyDefaultsRefusal';
@@ -202,7 +203,9 @@ export function ErpSetupChecklist(
     expenses: t('integrations.erpSetup.domainNames.expenses', 'Expenses'),
   };
   const domainText = (value: string) => domainNames[value] ?? domainLabel(value);
+  const accountLinkNotes = useAccountLinkNotes();
   const incomplete = setup.data ? getErpSetupIncompleteness(setup.data) : null;
+  const fiscalYearTask = setup.data ? fiscalYearOperatorTask(setup.data) : null;
   const hasOutstandingSetup = incomplete ? Object.values(incomplete).some(Boolean) : false;
   const actionLink =
     'text-sm font-medium text-foreground underline underline-offset-4 break-words';
@@ -304,13 +307,6 @@ export function ErpSetupChecklist(
                       },
                     )}
                   </p>
-                  {((missing) => missing.length > 0 && (
-                    <p className='mt-1 break-words text-muted-foreground'>
-                      {t('administration:integrations.send.accountantTask', 'A direct-cost account is missing for: {{categories}}. Your operator will add it.', {
-                        categories: missing.map((category) => budgetCategoryLabel(category, t)).join(', '),
-                      })}
-                    </p>
-                  ))(missingAccountCategories(setup.data))}
                 </div>
                 <div className='grid gap-2 sm:flex sm:flex-wrap sm:justify-end'>
                   <Button variant='outline' size='sm' onClick={onRefreshCompany}>
@@ -353,7 +349,7 @@ export function ErpSetupChecklist(
                   )}
                 </Button>
               </li>
-              <li id='erp-setup-budget-map' hidden={!incomplete?.budget} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
+              <li id='erp-setup-budget-map' hidden={!incomplete?.budget && accountLinkNotes.length === 0} className='grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
                 <div>
                   <p className='font-medium'>
                     {t('uxs08.budgetLabel', 'Budget account setup')}
@@ -368,6 +364,8 @@ export function ErpSetupChecklist(
                       },
                     )}
                   </p>
+                  {((missing) => missing.length > 0 && <DirectCostAccounts categories={missing} />)(missingAccountCategories(setup.data))}
+                  <AccountLinkNotes />
                 </div>
                 <Link
                   className={actionLink}
@@ -394,6 +392,27 @@ export function ErpSetupChecklist(
                     'Review employee links',
                   )}
                 </Link>
+              </li>
+              {/* #1599 ECX-5: guidance for the last fiscal-year check. */}
+              <li id='erp-setup-fiscal-year' hidden={!fiscalYearTask} className='py-3'>
+                <p className='font-medium'>{t('administration:integrations.fiscalYear.label', 'Next fiscal year')}</p>
+                <p className='mt-1 break-words text-muted-foreground'>
+                  {fiscalYearTask?.kind === 'missing-role'
+                    ? t('administration:integrations.fiscalYear.missingRole', 'Ask your Admin to grant the integration user Read and Create permissions on the Fiscal Year document type in ERPNext. PMO checks again on the next sync.')
+                    : fiscalYearTask?.kind === 'no-current-year'
+                    ? t('administration:integrations.fiscalYear.noCurrentYear', 'Ask your Admin to add or enable a Fiscal Year covering today in ERPNext and assign it to the linked company. PMO checks again on the next sync.')
+                    : fiscalYearTask?.kind === 'disabled-year'
+                    ? t('administration:integrations.fiscalYear.disabledYear', 'Ask your Admin to review the disabled Fiscal Year {{year}} in ERPNext and enable it only if it is the intended period. PMO checks again on the next sync.', { year: fiscalYearTask.year })
+                    : fiscalYearTask?.kind === 'ambiguous-overlap'
+                    ? t('administration:integrations.fiscalYear.ambiguousOverlap', 'Ask your Admin to correct Fiscal Year date ranges and company assignments in ERPNext so one enabled year applies. PMO checks again on the next sync.')
+                    : fiscalYearTask?.kind === 'review-settings'
+                    ? t('administration:integrations.fiscalYear.reviewSettings', 'Ask your Admin to review Fiscal Year settings in ERPNext for the linked company. PMO checks again on the next sync.')
+                    : fiscalYearTask?.kind === 'held'
+                    ? t('administration:integrations.fiscalYear.held', 'Operator attention is needed because PMO could not confirm the next fiscal year.')
+                    : fiscalYearTask?.kind === 'refused'
+                    ? t('administration:integrations.fiscalYear.refusedNoReason', 'Operator attention is needed because PMO could not create the next fiscal year.')
+                    : null}
+                </p>
               </li>
               <li id='erp-setup-project-links' hidden={!incomplete?.projects} className='py-3'>
                 <p className='font-medium'>

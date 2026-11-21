@@ -390,6 +390,24 @@
         "itemLinked": "This item is already linked."
       }
     },
+    "accounts": {
+      "missing": "No direct-cost account for: {{categories}}",
+      "create": "Create accounts",
+      "dialog": "Create direct-cost accounts",
+      "help": "PMO creates one account for each category under the group you choose, then links it to the category.",
+      "accepted": "Requests accepted: {{categories}}.",
+      "groupsError": "Could not load expense groups. Try again.",
+      "groupsRetry": "Retry",
+      "noGroups": "PMO has not read the expense groups yet. Try again after the next update.",
+      "group": "Expense group",
+      "groupPlaceholder": "Choose a group",
+      "name": "Account name for {{category}}",
+      "failed": "PMO could not ask for this account. Try again.",
+      "linkedElsewhere": "{{name}} was already in the ERP under {{group}}, so PMO linked it there.",
+      "held": "PMO could not confirm whether the account was created. Contact your administrator.",
+      "failedDetails": "PMO could not complete this account request. Check the details or contact your administrator.",
+      "unusable": "The ERP already has an account with this name that cannot hold direct costs. Choose another name."
+    },
     "connect": {
       "title": "Match records",
       "subtitle": "Review and connect records between PMO and your connected system.",
@@ -469,6 +487,17 @@
       "nounItem": "items",
       "nounEmployee": "people",
       "nounAccount": "accounts"
+    },
+    "fiscalYear": {
+      "label": "Next fiscal year",
+      "missingRole": "Ask your Admin to grant the integration user Read and Create permissions on the Fiscal Year document type in ERPNext. PMO checks again on the next sync.",
+      "noCurrentYear": "Ask your Admin to add or enable a Fiscal Year covering today in ERPNext and assign it to the linked company. PMO checks again on the next sync.",
+      "disabledYear": "Ask your Admin to review the disabled Fiscal Year {{year}} in ERPNext and enable it only if it is the intended period. PMO checks again on the next sync.",
+      "held": "Operator attention is needed because PMO could not confirm the next fiscal year.",
+      "refused": "Operator attention is needed because PMO could not create the next fiscal year.",
+      "refusedNoReason": "Operator attention is needed because PMO could not create the next fiscal year.",
+      "ambiguousOverlap": "Ask your Admin to correct Fiscal Year date ranges and company assignments in ERPNext so one enabled year applies. PMO checks again on the next sync.",
+      "reviewSettings": "Ask your Admin to review Fiscal Year settings in ERPNext for the linked company. PMO checks again on the next sync."
     },
     "m365App": {
       "heading": "Microsoft 365 app",

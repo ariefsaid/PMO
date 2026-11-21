@@ -101,6 +101,23 @@ describe('ERP setup checklist', () => {
     expect(document.getElementById('erp-setup-project-links')).toHaveAttribute('hidden');
   });
 
+  it('AC-ECX-031 keeps the budget row, and the note on where an account was linked, when the linked account was the last missing category', async () => {
+    erpSetup.getErpSetup.mockResolvedValueOnce({
+      defaults:{company:'Example Company',default_payable_account:'Creditors',default_expense_account:'Expenses',default_cash_account:'Cash',default_bank_account:'Bank',cost_center:'Main',default_activity_type:'Delivery',default_receivable_account:'Debtors'},
+      domains:['companies'],unmappedProjects:[],budgetMappedCategories:[...Constants.public.Enums.budget_category],unlinkedEmployeeCount:0,
+    });
+    erpSetup.listConnectProposals.mockResolvedValue({
+      proposals: [{ id: 'p1', kind: 'account', outcome: 'send', state: 'applied', reason_text: 'Site labour already exists under Indirect Expenses - EC; linked there.', snapshot: {} }],
+      nextAfterId: null,
+    } as never);
+    wrapWithRole('Admin', <IntegrationsView />);
+    const note = await screen.findByText('Site labour was already in the ERP under Indirect Expenses - EC, so PMO linked it there.');
+    expect(document.getElementById('erp-setup-budget-map')).not.toHaveAttribute('hidden');
+    expect(document.getElementById('erp-setup-budget-map')).toContainElement(note);
+    expect(note.closest('ul')).toHaveClass('mt-4');
+    erpSetup.listConnectProposals.mockResolvedValue({ proposals: [], nextAfterId: null } as never);
+  });
+
   it('UX-S08 shows only the unresolved employee or project row', async () => {
     erpSetup.getErpSetup.mockResolvedValueOnce({
       defaults:{company:'Example Company',default_payable_account:'Creditors',default_expense_account:'Expenses',default_cash_account:'Cash',default_bank_account:'Bank',cost_center:'Main',default_activity_type:'Delivery',default_receivable_account:'Debtors'},

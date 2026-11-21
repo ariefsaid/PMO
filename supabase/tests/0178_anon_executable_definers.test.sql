@@ -263,7 +263,7 @@
 --
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(10);
 
 -- This is duplicated from 0185 as a visible proof contract. A future client RPC must retain its
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
@@ -283,6 +283,11 @@ select plan(9);
 -- hand from the list). SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, the Admin/Finance
 -- role, the caller's org, no ERP, and author ≠ voider unless the sole active member. Proven by
 -- supabase/tests/subcontract_bill_void.test.sql.
+-- ⚑ AMENDED BY 0975 (#1599 ECX-4): `request_account_send` joins the retained set (+1, count 195 on dev's 194, re-derived by hand from the
+-- list). SECURITY DEFINER writer called through external-set-company under the member's own JWT; it re-asserts active
+-- membership, the Admin/Finance role, the caller's org, an activated ERPNext binding with a company, the budget category and a
+-- mirrored expense group of that company before it queues one send (audited). Proven by supabase/tests/erp_account_send.test.sql
+-- (AC-ECX-031). `account_send_groups` writes nothing, so the sweep does not name it.
 -- ⚑ AMENDED BY 0907 (#564): `admin_move_credit_allocation` joins the retained set (+1). SECURITY DEFINER writer under a
 -- member's JWT that re-asserts active membership, the Admin role and that both users belong to the caller's org before
 -- it moves credit; proven by supabase/tests/0907_credit_allocations.test.sql and
@@ -412,6 +417,17 @@ select ok(not has_function_privilege('anon','public.record_erp_statement_nightly
 select ok(not has_function_privilege('anon','public.m365_org_app_status(uuid)','EXECUTE')
   and not has_function_privilege('authenticated','public.m365_org_app_status(uuid)','EXECUTE'),
   'AC-M365AV-001 the organization app status read adds no anonymous or authenticated execute');
+
+-- 1147 (#1599 ECX-5) adds four service-only functions for fiscal year ensure. Pinned explicitly here.
+select ok(not has_function_privilege('anon','public.prepare_fiscal_year_intent(uuid,uuid,text,text,timestamptz,date,date,text)','EXECUTE')
+  and not has_function_privilege('authenticated','public.prepare_fiscal_year_intent(uuid,uuid,text,text,timestamptz,date,date,text)','EXECUTE')
+  and not has_function_privilege('anon','public.begin_fiscal_year_post(uuid,uuid,uuid,bigint)','EXECUTE')
+  and not has_function_privilege('authenticated','public.begin_fiscal_year_post(uuid,uuid,uuid,bigint)','EXECUTE')
+  and not has_function_privilege('anon','public.record_fiscal_year_status(uuid,uuid,text,text,timestamptz,uuid,uuid,bigint,jsonb)','EXECUTE')
+  and not has_function_privilege('authenticated','public.record_fiscal_year_status(uuid,uuid,text,text,timestamptz,uuid,uuid,bigint,jsonb)','EXECUTE')
+  and not has_function_privilege('anon','public.record_fiscal_year_observation(uuid,uuid,text,text,timestamptz,timestamptz,jsonb)','EXECUTE')
+  and not has_function_privilege('authenticated','public.record_fiscal_year_observation(uuid,uuid,text,text,timestamptz,timestamptz,jsonb)','EXECUTE'),
+  'AC-ECX-040 fiscal year ensure RPCs add no anonymous or authenticated execute');
 
 select * from finish();
 rollback;

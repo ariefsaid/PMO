@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — adds one uniquely named location and uniquely coded catalogue items to the first live project and deletes them afterwards; reads the seeded Admin only.
+// @e2e-isolation: self-isolated — creates its own project, adds one uniquely named location and uniquely coded catalogue items, then deletes them; reads the seeded Admin only.
 /**
  * AC-IMT-014 — the unit-rate template, filled and imported through the real screen (#2530).
  * Goal oracle: a bad row is not imported and comes back in a downloadable file with its reason; fixing it in that file and

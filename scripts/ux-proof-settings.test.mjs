@@ -49,6 +49,22 @@ test('pattern normalisation falls back to uuid detection for routes outside the 
   assert.equal(routePatternFor('/mystery/abc', TABLE), '/mystery/abc');
 });
 
+test('lowercase :id params collapse uuid and numeric record ids (#2637)', () => {
+  const lowercaseTable = ['/work-orders', '/work-orders/:id', '/master-data/:kind', '/projects/:projectId/:tab'];
+  const p = (r) => routePatternFor(r, lowercaseTable);
+  assert.equal(p('/work-orders/3F2B8C1E-9D4A-4E7B-8A61-0C5D2E9F7A14'), '/work-orders/:id');
+  assert.equal(p('/work-orders/3f2b8c1e-9d4a-4e7b-8a61-0c5d2e9f7a14'), '/work-orders/:id');
+  assert.equal(p('/work-orders/1042/'), '/work-orders/:id');
+  assert.equal(p('/master-data/units'), '/master-data/units');
+  assert.equal(p('/projects/p-1/budget'), '/projects/:id/budget');
+});
+
+test('baselineKey resolves a concrete work-order url to the lowercase :id baseline (#2637)', () => {
+  const budget = { '/work-orders/:id@1440@exec': 50 };
+  const route = '/work-orders/3f2b8c1e-9d4a-4e7b-8a61-0c5d2e9f7a14';
+  assert.equal(bk(budget, route, 1440, 'exec', ['/work-orders/:id']), '/work-orders/:id@1440@exec');
+});
+
 test('baselineKey: exact legacy key wins, else the pattern key shared by every record id', () => {
   const budget = { '/work-orders/:id@1440@exec': 50, '/work-orders/WO-1@1440@exec': 40 };
   assert.equal(bk(budget, '/work-orders/WO-1', 1440, 'exec', TABLE), '/work-orders/WO-1@1440@exec');
@@ -68,6 +84,10 @@ test('the shipped App.tsx route table yields the work-order and asset detail pat
   const { readFileSync } = await import('node:fs');
   const paths = routeTablePaths(readFileSync(new URL('../pmo-portal/App.tsx', import.meta.url), 'utf8'));
   assert.ok(paths.includes('/projects/:projectId'));
+  assert.ok(paths.includes('/work-orders/:id'));
   assert.equal(routePatternFor('/equipment/assets/abc-1', paths), '/equipment/assets/:id');
   assert.equal(routePatternFor('/projects/abc-1/budget', paths), '/projects/:id/budget');
+  assert.equal(routePatternFor('/work-orders/3F2B8C1E-9D4A-4E7B-8A61-0C5D2E9F7A14', paths), '/work-orders/:id');
+  assert.equal(routePatternFor('/work-orders/3f2b8c1e-9d4a-4e7b-8a61-0c5d2e9f7a14', paths), '/work-orders/:id');
+  assert.equal(routePatternFor('/work-orders/1042', paths), '/work-orders/:id');
 });
