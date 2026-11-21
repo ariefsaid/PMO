@@ -20,6 +20,7 @@ import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { EquipmentRentalTerms } from './EquipmentRentalTerms';
 import { ExpiryDocumentsCard } from './ExpiryDocumentsCard';
+import { VendorResponsePanel } from './VendorResponsePanel';
 import { EquipmentCostingForm } from './EquipmentCostingForm';
 import { basisLabel, driverLabel, unitLabel } from './equipmentLabels';
 import { fromIso, monthStart } from './equipmentWeek';
@@ -283,6 +284,7 @@ const EquipmentAssetDetail: React.FC = () => {
           {asset.external_ref && <span>{t('equipment:assets.refLine', 'ERP reference {{ref}}', { ref: asset.external_ref })}</span>}
         </span>} />
       {may('manage', 'equipmentAvailability', { record: { viewOnly: realRole !== effectiveRole } }) && <EquipmentRentalTerms key={asset.id} asset={asset} />}
+      <VendorResponsePanel asset={asset} today={today} />
       <ExpiryDocumentsCard kind="equipment" subjectId={asset.id} />
       <UsageCard assetId={asset.id} today={today} projectName={projectName} />
       {may('view', 'equipmentCosting') && <CostingCard asset={asset} assetRow={asset} projectName={projectName} money={money} />}

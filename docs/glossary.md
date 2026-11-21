@@ -1097,3 +1097,6 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Issue task** — a task linked to a site issue through `incident_tasks`; one issue has many, one task serves one issue (#2677).
 
 **Root cause** — the cause of an issue, recorded apart from the visible problem (description) and the close note (#2677).
+
+- **Breakdown** — an equipment downtime period: from the first down status until the next ready or standby status. Identified by asset and start date; never stored.
+- **Response time** (vendor) — whole minutes from the reported time of a breakdown to the recorded time the rental vendor responded; a breakdown with no recorded response is awaiting, not zero.

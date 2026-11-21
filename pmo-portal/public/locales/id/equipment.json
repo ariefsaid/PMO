@@ -398,5 +398,33 @@
     "error": "Orang ini tidak dapat dimuat",
     "notFound": "Orang ini tidak ditemukan",
     "notFoundSub": "Mungkin sudah diarsipkan, atau Anda tidak punya akses."
+  },
+  "vendorResponse": {
+    "title": "Respons vendor terhadap kerusakan",
+    "summaryTitle": "Waktu respons vendor, 12 bulan terakhir",
+    "noVendor": "Tanpa vendor sewa",
+    "awaiting": "Menunggu respons",
+    "record": "Catat respons",
+    "edit": "Ubah",
+    "remove": "Hapus",
+    "removeTitle": "Hapus respons ini?",
+    "removeBody": "Kerusakan kembali menunggu respons.",
+    "removed": "Respons dihapus",
+    "recordTitle": "Respons vendor, kerusakan sejak {{date}}",
+    "save": "Simpan respons",
+    "saved": "Respons vendor disimpan",
+    "respondedAt": "Vendor merespons",
+    "reportedAt": "Dilaporkan (opsional, bawaan awal hari pertama)",
+    "note": "Catatan (opsional)",
+    "vendor": "Penyedia sewa",
+    "breakdowns": "Kerusakan",
+    "responded": "Direspons",
+    "awaitingCount": "Menunggu",
+    "median": "Nilai tengah",
+    "average": "Rata-rata",
+    "slowest": "Terlama",
+    "days": "{{count}} hr",
+    "hours": "{{count}} j",
+    "minutes": "{{count}} mnt"
   }
 }
