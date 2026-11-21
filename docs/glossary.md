@@ -1042,3 +1042,5 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+**Usage threshold** (*ambang pemakaian*) — one of two percentages of a work order's planned material quantity, set per organisation by an Admin on the material-request settings (empty = off). When a submitted material request takes an item's use (already used plus the request's quantity) to or past a threshold, the request shows a warning and the project's manager gets one notification for that work order, item and threshold. A warning never blocks a request (#2686).
