@@ -85,14 +85,17 @@ select is((select array_agg(right(x::text,2) order by x::text) from spend_approv
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000010',null,null,100000,'IDR','02695000-0000-0000-0000-0000000000a6') r, unnest(r.approver_ids) x), '{a4}'::text[], 'AC-TIER-002: amount 100000 reaches {a4}');
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000010',null,null,999999,'IDR','02695000-0000-0000-0000-0000000000a6') r, unnest(r.approver_ids) x), '{a4}'::text[], 'AC-TIER-002: amount 999999 reaches {a4}');
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000010',null,null,1000000,'IDR','02695000-0000-0000-0000-0000000000a6') r, unnest(r.approver_ids) x), '{a5}'::text[], 'AC-TIER-002: amount 1000000 reaches {a5}');
+-- Each org's route is read as a member of that org (spend_approvers RLS is org-scoped).
+set local request.jwt.claims = '{"sub":"02695000-0000-0000-0000-0000000000b0","role":"authenticated"}';
 -- AC-TIER-001: tiers off, every row regardless of min_amount.
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000011',null,null,500,'IDR','02695000-0000-0000-0000-0000000000b6') r, unnest(r.approver_ids) x), '{b3,b4}'::text[], 'AC-TIER-001: tiers off, both members decide a small amount');
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000011',null,null,5000000,'IDR','02695000-0000-0000-0000-0000000000b6') r, unnest(r.approver_ids) x), '{b3,b4}'::text[], 'AC-TIER-001: tiers off, both members decide a large amount');
--- AC-TIER-004: below every minimum the lowest tier decides, never flat (org D has a base tier; build a no-base org check via A's 400-tier project list below).
+set local request.jwt.claims = '{"sub":"02695000-0000-0000-0000-0000000000a0","role":"authenticated"}';
 -- AC-TIER-006: unknown, negative, foreign currency take the highest tier.
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000010',null,null,null,'IDR','02695000-0000-0000-0000-0000000000a6') r, unnest(r.approver_ids) x), '{a5}'::text[], 'AC-TIER-006: NULL amount takes the top tier');
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000010',null,null,-5,'IDR','02695000-0000-0000-0000-0000000000a6') r, unnest(r.approver_ids) x), '{a5}'::text[], 'AC-TIER-006: negative amount takes the top tier');
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000010',null,null,500,'USD','02695000-0000-0000-0000-0000000000a6') r, unnest(r.approver_ids) x), '{a5}'::text[], 'AC-TIER-006: a foreign-currency amount takes the top tier');
+set local request.jwt.claims = '{"sub":"02695000-0000-0000-0000-0000000000d0","role":"authenticated"}';
 -- AC-TIER-005: the top tier's only member is disabled: Admin, not a lower tier.
 select is((select route from spend_approval_route('02695000-0000-0000-0000-000000000013',null,null,2000000,'IDR','02695000-0000-0000-0000-0000000000d6')), 'admin', 'AC-TIER-005: nobody eligible in the top tier routes to an Admin');
 select is((select route from spend_approval_route('02695000-0000-0000-0000-000000000013',null,null,500,'IDR','02695000-0000-0000-0000-0000000000d6')), 'org', 'AC-TIER-005: a small amount still reaches the base tier');
@@ -100,6 +103,7 @@ select is((select route from spend_approval_route('02695000-0000-0000-0000-00000
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000010','02695000-0000-0000-0000-000000000101','Materials',300,'IDR','02695000-0000-0000-0000-0000000000a6') r, unnest(r.approver_ids) x), '{a1}'::text[], 'AC-TIER-007: a within-budget 300 reaches the project base tier');
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000010','02695000-0000-0000-0000-000000000101','Materials',500,'IDR','02695000-0000-0000-0000-0000000000a6') r, unnest(r.approver_ids) x), '{a2}'::text[], 'AC-TIER-007: a within-budget 500 reaches the project 400 tier');
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-000000000010','02695000-0000-0000-0000-000000000101','Materials',150000,'IDR','02695000-0000-0000-0000-0000000000a6') r, unnest(r.approver_ids) x), '{a4}'::text[], 'AC-TIER-007: an over-budget 150000 reaches the senior 100000 tier');
+set local request.jwt.claims = '{"sub":"02695000-0000-0000-0000-0000000000e3","role":"authenticated"}';
 -- AC-TIER-004: only tiers from 50000 exist (org E); a 10000 request is decided by the lowest tier, never flat.
 select is((select array_agg(right(x::text,2) order by x::text) from spend_approval_route('02695000-0000-0000-0000-00000000000e',null,null,10000,'IDR','02695000-0000-0000-0000-0000000000e6') r, unnest(r.approver_ids) x), '{e3}'::text[], 'AC-TIER-004: below every minimum the lowest tier decides');
 select is((select route from spend_approval_route('02695000-0000-0000-0000-00000000000e',null,null,10000,'IDR','02695000-0000-0000-0000-0000000000e6')), 'org', 'AC-TIER-004: the route is org, not flat');
@@ -123,7 +127,7 @@ set local request.jwt.claims = '{"sub":"02695000-0000-0000-0000-0000000000a0","r
 select is((select array_agg(right((a->>'id'),2) order by a->>'id') from get_procurement_approval_routes(array['02695000-0000-0000-0000-000000000403']::uuid[]) g, jsonb_array_elements(g.approvers) a), '{a4}'::text[], 'AC-TIER-011: the display read lists the enforced tier');
 -- AC-TIER-008: setting writes are Admin-only.
 set local request.jwt.claims = '{"sub":"02695000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select throws_ok($$ update spend_approval_settings set tiers_enabled = false where org_id = '02695000-0000-0000-0000-000000000010' $$,'42501',null,'AC-TIER-008: a PM cannot change the setting (or the update touches nothing)');
+select lives_ok($$ update spend_approval_settings set tiers_enabled = false where org_id = '02695000-0000-0000-0000-000000000010' $$,'AC-TIER-008: a PM update matches no row (RLS filters it, no error) and changes nothing');
 select is((select tiers_enabled from spend_approval_settings where org_id = '02695000-0000-0000-0000-000000000010'), true, 'AC-TIER-008: the setting is unchanged after the PM attempt');
 set local request.jwt.claims = '{"sub":"02695000-0000-0000-0000-0000000000a0","role":"authenticated"}';
 select lives_ok($$ update spend_approval_settings set tiers_enabled = false where org_id = '02695000-0000-0000-0000-000000000010' $$,'AC-TIER-008: the Admin turns tiers off');
