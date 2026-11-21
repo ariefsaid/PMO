@@ -1211,8 +1211,17 @@
       "badAmount": "Enter an amount of zero or more.",
       "reminderLegend": "Reminder",
       "reminder": "Remind me about work that is done but not claimed",
-      "reminderHelp": "Information only. Off by default. Holding a claim to next month can be deliberate."
-    }
+      "reminderHelp": "Information only. Off by default. Holding a claim to next month can be deliberate.",
+      "afterDays": "Flag after (days)",
+      "afterDaysHelp": "Lines accepted longer ago than this are flagged. Leave empty for no limit; with no limit nothing is flagged.",
+      "afterDaysBad": "Enter a whole number of days from 1 to 3650."
+    },
+    "ageSince_one": "{{count}} day since accepted",
+    "ageSince_other": "{{count}} days since accepted",
+    "overLimit_one": "Over the {{count}}-day limit",
+    "overLimit_other": "Over the {{count}}-day limit",
+    "overCount_one": "{{count}} line is over the day limit",
+    "overCount_other": "{{count}} lines are over the day limit"
   },
   "workOrderReference": "Work order"
 }

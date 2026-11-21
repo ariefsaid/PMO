@@ -1211,8 +1211,17 @@
       "badAmount": "Masukkan jumlah nol atau lebih.",
       "reminderLegend": "Pengingat",
       "reminder": "Ingatkan saya tentang pekerjaan yang selesai tetapi belum diklaim",
-      "reminderHelp": "Hanya informasi. Mati secara bawaan. Menahan klaim ke bulan depan bisa disengaja."
-    }
+      "reminderHelp": "Hanya informasi. Mati secara bawaan. Menahan klaim ke bulan depan bisa disengaja.",
+      "afterDays": "Tandai setelah (hari)",
+      "afterDaysHelp": "Baris yang diterima lebih lama dari ini ditandai. Kosongkan jika tanpa batas; tanpa batas tidak ada yang ditandai.",
+      "afterDaysBad": "Masukkan bilangan bulat hari dari 1 sampai 3650."
+    },
+    "ageSince_one": "{{count}} hari sejak diterima",
+    "ageSince_other": "{{count}} hari sejak diterima",
+    "overLimit_one": "Melewati batas {{count}} hari",
+    "overLimit_other": "Melewati batas {{count}} hari",
+    "overCount_one": "{{count}} baris melewati batas hari",
+    "overCount_other": "{{count}} baris melewati batas hari"
   },
   "workOrderReference": "Work Order / SPK"
 }

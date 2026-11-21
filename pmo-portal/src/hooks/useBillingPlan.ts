@@ -25,8 +25,9 @@ export function useBillingPlanSettings(enabled = true) {
 export function useSaveBillingPlanSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { monthlyTarget: number | null; targetCurrency: string | null; reminderOn: boolean; month?: { month: string; target: number | null } }) => {
+    mutationFn: async (input: { monthlyTarget: number | null; targetCurrency: string | null; reminderOn: boolean; afterDays?: number | null; month?: { month: string; target: number | null } }) => {
       await repositories.billingStages.savePlanSettings({ monthlyTarget: input.monthlyTarget, targetCurrency: input.targetCurrency, reminderOn: input.reminderOn });
+      if (input.afterDays !== undefined) await repositories.billingStages.savePlanReminder({ reminderOn: input.reminderOn, afterDays: input.afterDays });
       if (input.month) await repositories.billingStages.saveMonthTarget(input.month.month, input.month.target);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['billing-plan-settings'] }),

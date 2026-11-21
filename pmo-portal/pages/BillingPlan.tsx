@@ -9,20 +9,22 @@ import { BillingPlanSettingsModal } from '@/src/components/finance/BillingPlanSe
 import { useBillingPlanCandidates, useBillingPlanSettings } from '@/src/hooks/useBillingPlan';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { addMonths, groupByProject, monthOf, overClaimWarning, planTotals, resolveTarget, type PlanCandidate } from '@/src/lib/billingPlan';
+import { addMonths, doneNotClaimedAge, groupByProject, isOverLimit, monthOf, overClaimWarning, planTotals, resolveTarget, type PlanCandidate } from '@/src/lib/billingPlan';
 import { PLAN_LIMIT } from '@/src/lib/db/billingPlan';
 import { formatCurrency, formatMonthYearShort, formatNumberExact } from '@/src/lib/format';
 
 /**
  * #2682 — the monthly billing plan (docs/specs/monthly-billing-plan.spec.md): accepted-not-yet-claimed work as a pick list against the
  * month's target. Candidates only: ticks are view state (nothing is stored), nothing here raises a claim or an invoice, and over-claim
- * is a warning, never a block. The age cell of each line is the place #2675 adds "done, not yet claimed: N days".
+ * is a warning, never a block. #2675: each line shows the age of "done, not yet claimed" as information; the highlight and count exist only while the reminder is on with a day limit.
  */
 
-const LineRow: React.FC<{ c: PlanCandidate; picked: boolean; onToggle: () => void }> = ({ c, picked, onToggle }) => {
+const LineRow: React.FC<{ c: PlanCandidate; picked: boolean; onToggle: () => void; limit: number | null; alertOn: boolean }> = ({ c, picked, onToggle, limit, alertOn }) => {
   const { t } = useTranslation('finance');
   const title = c.kind === 'line' ? `${c.itemCode ?? ''} ${c.description ?? ''}`.trim() : (c.description ?? '');
   const warn = picked && overClaimWarning(c);
+  const age = doneNotClaimedAge(c.acceptedOn, c.today);
+  const over = isOverLimit(age, limit, alertOn);
   return (
     <li data-testid="billing-plan-line" className="flex min-h-11 items-start gap-3 border-b border-border py-2 last:border-b-0">
       <Checkbox checked={picked} onChange={onToggle} label={t('billingPlan.pick', { defaultValue: 'Pick {{item}}', item: title })} />
@@ -39,8 +41,13 @@ const LineRow: React.FC<{ c: PlanCandidate; picked: boolean; onToggle: () => voi
           </StatusPill>
         )}
       </div>
-      {/* #2675: the age of "done, not yet claimed" goes in this cell. */}
-      <span data-testid="billing-plan-age-slot" className="hidden" />
+      {/* #2675: the age of "done, not yet claimed": information on every line; flagged only when the reminder is on and over the limit. */}
+      <span data-testid="billing-plan-age-slot" className="flex flex-col items-end gap-1 text-control text-muted-foreground">
+        {age !== null && <span data-testid="billing-plan-age" className="tabular-nums">{t('billingPlan.ageSince', { count: age, defaultValue_one: '{{count}} day since accepted', defaultValue_other: '{{count}} days since accepted' })}</span>}
+        {over && limit !== null && (
+          <StatusPill variant="overdue" data-testid="billing-plan-over-limit">{t('billingPlan.overLimit', { count: limit, defaultValue_one: 'Over the {{count}}-day limit', defaultValue_other: 'Over the {{count}}-day limit' })}</StatusPill>
+        )}
+      </span>
       <span className="tabular-nums text-control font-medium">{formatCurrency(c.value, c.currency)}</span>
     </li>
   );
@@ -73,6 +80,12 @@ const BillingPlan: React.FC = () => {
   const month = today ? addMonths(monthOf(today), offset) : null;
   const settings = settingsQuery.data ?? null;
   const target = month && settings ? resolveTarget(settings, settings.monthTargets, month) : null;
+  const alertOn = settings?.reminderOn === true;
+  const limit = settings?.doneNotClaimedAfterDays ?? null;
+  const overCount = useMemo(
+    () => (alertOn && limit !== null ? rows.filter((r) => isOverLimit(doneNotClaimedAge(r.acceptedOn, r.today), limit, true)).length : 0),
+    [rows, alertOn, limit],
+  );
   const totals = useMemo(() => planTotals(rows, picked, target), [rows, picked, target]);
   const monthLabel = month ? formatMonthYearShort(month) : '';
 
@@ -133,6 +146,11 @@ const BillingPlan: React.FC = () => {
             </dd>
           </div>
         </dl>
+        {overCount > 0 && (
+          <p data-testid="billing-plan-over-count" className="mt-2 text-control text-muted-foreground">
+            {t('billingPlan.overCount', { count: overCount, defaultValue_one: '{{count}} line is over the day limit', defaultValue_other: '{{count}} lines are over the day limit' })}
+          </p>
+        )}
         {totals.otherCurrencies.map((o) => (
           <p key={o.currency} data-testid="billing-plan-other-currency" className="mt-2 text-control text-muted-foreground">
             {t('billingPlan.otherCurrency', { defaultValue: '{{amount}} picked in {{currency}}, not counted toward the target.', amount: formatCurrency(o.total, o.currency), currency: o.currency })}
@@ -175,7 +193,7 @@ const BillingPlan: React.FC = () => {
                 {allPicked ? t('billingPlan.unpickProject', 'Clear project') : t('billingPlan.pickProject', 'Pick all')}
               </Button>
             </h2>
-            <ul>{g.candidates.map((c) => <LineRow key={c.key} c={c} picked={picked.has(c.key)} onToggle={() => toggle(c.key)} />)}</ul>
+            <ul>{g.candidates.map((c) => <LineRow key={c.key} c={c} picked={picked.has(c.key)} onToggle={() => toggle(c.key)} limit={limit} alertOn={alertOn} />)}</ul>
           </section>
         );
       })}

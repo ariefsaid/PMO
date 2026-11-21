@@ -123,3 +123,24 @@ export function groupByProject(candidates: PlanCandidate[]): ProjectGroup[] {
   }
   return [...groups.values()];
 }
+
+const DAY_MS = 86_400_000;
+const dayNumber = (iso: string): number => {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  return Math.floor(Date.UTC(y, m - 1, d) / DAY_MS);
+};
+
+/**
+ * #2675 — how long accepted work has waited without a claim: whole days from the date of the latest confirmed acceptance to the
+ * organisation's today (both come from the candidates read, in the organisation's time zone; the device clock never enters).
+ * No acceptance date = no age; a date after today counts as 0. Information only.
+ */
+export function doneNotClaimedAge(acceptedOn: string | null, today: string): number | null {
+  if (!acceptedOn) return null;
+  return Math.max(0, dayNumber(today) - dayNumber(acceptedOn));
+}
+
+/** The alert exists only while the reminder is on AND the organisation set a day limit; then a line is over it when older than the limit. */
+export function isOverLimit(age: number | null, limit: number | null, reminderOn: boolean): boolean {
+  return reminderOn && limit !== null && age !== null && age > limit;
+}

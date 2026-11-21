@@ -9,7 +9,7 @@ import type { PlanSettings } from '@/src/lib/db/billingPlan';
 /**
  * #2682 — the plan's settings, for Admin and Finance (the database enforces it; the control is hidden for everyone else): the default
  * monthly target and its currency, a target for the month on screen, and the done-not-claimed reminder switch (off by default; the
- * reminder itself is information, built in #2675).
+ * reminder itself is information), and the day limit after which a line is flagged (#2675; empty = no limit, nothing flagged).
  */
 const asInput = (n: number | null) => (n === null ? '' : formatMoneyInputValue(n));
 
@@ -26,6 +26,8 @@ export const BillingPlanSettingsModal: React.FC<{
   const [currency, setCurrency] = useState(settings.targetCurrency ?? defaultCurrency);
   const [monthTarget, setMonthTarget] = useState(asInput(existingMonth));
   const [reminder, setReminder] = useState(settings.reminderOn);
+  const initialDays = settings.doneNotClaimedAfterDays == null ? '' : String(settings.doneNotClaimedAfterDays);
+  const [days, setDays] = useState(initialDays);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const [tried, setTried] = useState(false);
 
@@ -37,9 +39,12 @@ export const BillingPlanSettingsModal: React.FC<{
   const t1 = parse(target);
   const t2 = parse(monthTarget);
   const needsCurrency = (t1.value !== null || t2.value !== null) && !/^[A-Za-z]{3}$/.test(currency.trim());
-  const invalid = t1.bad || t2.bad || needsCurrency;
+  const daysTrim = days.trim();
+  const daysValue = daysTrim === '' ? null : Number(daysTrim);
+  const daysBad = daysTrim !== '' && !(/^\d+$/.test(daysTrim) && daysValue !== null && daysValue >= 1 && daysValue <= 3650);
+  const invalid = t1.bad || t2.bad || needsCurrency || daysBad;
   const monthLabel = formatMonthYearShort(month);
-  const dirty = target !== asInput(settings.monthlyTarget) || monthTarget !== asInput(existingMonth) || reminder !== settings.reminderOn
+  const dirty = target !== asInput(settings.monthlyTarget) || monthTarget !== asInput(existingMonth) || reminder !== settings.reminderOn || days !== initialDays
     || currency !== (settings.targetCurrency ?? defaultCurrency);
 
   const badMsg = t('billingPlan.settings.badAmount', 'Enter an amount of zero or more.');
@@ -62,6 +67,7 @@ export const BillingPlanSettingsModal: React.FC<{
           monthlyTarget: t1.value,
           targetCurrency: hasTarget || t2.value !== null ? currency.trim().toUpperCase() : (settings.targetCurrency ?? null),
           reminderOn: reminder,
+          afterDays: daysValue,
           month: monthTarget.trim() === '' && existingMonth === null ? undefined : { month, target: t2.value },
         }, {
           onSuccess: onClose,
@@ -90,6 +96,11 @@ export const BillingPlanSettingsModal: React.FC<{
             </p>
           </div>
         </div>
+        <FormGrid>
+          <NumberField id="plan-after-days" label={t('billingPlan.settings.afterDays', 'Flag after (days)')} value={days} onChange={setDays}
+            error={tried && daysBad ? t('billingPlan.settings.afterDaysBad', 'Enter a whole number of days from 1 to 3650.') : undefined}
+            helper={t('billingPlan.settings.afterDaysHelp', 'Lines accepted longer ago than this are flagged. Leave empty for no limit; with no limit nothing is flagged.')} fullWidth />
+        </FormGrid>
       </FormSection>
     </EntityFormModal>
   );
