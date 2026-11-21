@@ -1,5 +1,5 @@
 -- 1097_work_order_section_dsr_link.test.sql — #2576: a daily-report progress line may name a section of its report's work order.
--- Migrations under test: 1171_work_order_section_children.sql (daily-report part), 1098 (work_order_section_progress).
+-- Migrations under test: 1171_work_order_section_children.sql (daily-report part), 1172 (work_order_section_progress).
 -- AC-WOS-003 (progress-line path) a section of another work order is refused · AC-WOS-006 an archived section takes no new line ·
 -- AC-WOS-002 (progress) the validated quantity per section plus the remainder is the work-order total · FR-WOS-016 only the
 -- current validated version counts · a correction keeps each line's section.
