@@ -19,7 +19,7 @@ const shots = async (page: import('@playwright/test').Page, locator: import('@pl
   }
 };
 
-test('AC-DPR-013 the project tab shows revenue next to cost and margin per discipline', async ({ page }) => {
+test('AC-DPR-013 the project tab shows revenue next to cost and margin per discipline', async ({ page, browser }) => {
   const serviceKey = requireServiceRoleKey();
   if (!serviceKey) throw new Error('AC-DPR-013 requires the local fixture service client');
   const admin: SupabaseClient = createClient(requireMatchingLocalSupabaseUrls(undefined, undefined), serviceKey, { auth: { persistSession: false } });
@@ -113,10 +113,19 @@ test('AC-DPR-013 the project tab shows revenue next to cost and margin per disci
     await shots(page, picker, 'contract-line-discipline-picker');
     await page.keyboard.press('Escape');
 
-    await page.goto('/administration/accounting');
-    const card = page.locator('#org-discipline-profit');
-    await expect(card).toBeVisible({ timeout: 15_000 });
-    await shots(page, card, 'admin-setting-card');
+    // Administration is an Admin area: the setting card is captured as the seed Admin, in its own context.
+    const adminContext = await browser.newContext({ deviceScaleFactor: 2 });
+    try {
+      const adminPage = await adminContext.newPage();
+      await pinEnglishLocale(adminPage);
+      await signIn(adminPage, 'admin@acme.test');
+      await adminPage.goto('/administration/accounting');
+      const card = adminPage.locator('#org-discipline-profit');
+      await expect(card).toBeVisible({ timeout: 15_000 });
+      await shots(adminPage, card, 'admin-setting-card');
+    } finally {
+      await adminContext.close();
+    }
   } catch (e) {
     failure = e;
   } finally {
