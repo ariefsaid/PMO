@@ -28,7 +28,7 @@ daily (`tpi-overdue`, 01:41 UTC) and is callable by `service_role` only.
 
 ## Tasks (as built)
 
-1. **1130 tracker** — `supabase/migrations/1130_third_party_inspections.sql` (+ rollback): `third_party_inspections` (RLS + FORCE,
+1. **1130 tracker** — `supabase/migrations/1179_third_party_inspections.sql` (+ rollback): `third_party_inspections` (RLS + FORCE,
    `stamp_org_id`, no client write grant, column-level SELECT without the estimate), `guard_tpi_transition` (every state rule in one
    trigger), `third_party_inspection_files` (append-only once reported, 10 live files, `on delete restrict`), private bucket
    `inspection-reports` (15 MB; pdf, images, Office) + storage RLS.
@@ -53,7 +53,7 @@ daily (`tpi-overdue`, 01:41 UTC) and is callable by `service_role` only.
 | AC-TPI-001 | `supabase/tests/1134_third_party_inspection_reads.test.sql`; `pages/work-order-detail/InspectionsSection.test.tsx` (display) | pgTAP + Unit |
 | AC-TPI-002 | `supabase/tests/1133_third_party_inspection_purchase.test.sql` | pgTAP |
 | AC-TPI-003 | 1133 test (link refusals) | pgTAP |
-| AC-TPI-004 | `supabase/tests/1130_third_party_inspections.test.sql` | pgTAP |
+| AC-TPI-004 | `supabase/tests/1179_third_party_inspections.test.sql` | pgTAP |
 | AC-TPI-005 | 1130 test | pgTAP |
 | AC-TPI-006 | 1130 test | pgTAP |
 | AC-TPI-007 | 1134 test; `src/lib/db/thirdPartyInspections.test.ts` (completeness rule) | pgTAP + Unit |
@@ -71,7 +71,7 @@ daily (`tpi-overdue`, 01:41 UTC) and is callable by `service_role` only.
 
 ## Verify
 
-`flock /tmp/db.lock bash -c 'supabase db reset && supabase test db supabase/tests/1130_third_party_inspections.test.sql supabase/tests/1133_third_party_inspection_purchase.test.sql supabase/tests/1134_third_party_inspection_reads.test.sql supabase/tests/record_changes_catalog_gate.test.sql'`;
+`flock /tmp/db.lock bash -c 'supabase db reset && supabase test db supabase/tests/1179_third_party_inspections.test.sql supabase/tests/1133_third_party_inspection_purchase.test.sql supabase/tests/1134_third_party_inspection_reads.test.sql supabase/tests/record_changes_catalog_gate.test.sql'`;
 in `pmo-portal`: `npx vitest run pages/work-order-detail/InspectionsSection.test.tsx src/auth/policy.thirdPartyInspection.test.ts src/lib/db/thirdPartyInspections.test.ts`.
 
 ## Not built

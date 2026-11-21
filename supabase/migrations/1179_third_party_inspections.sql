@@ -1,6 +1,6 @@
--- 1130_third_party_inspections.sql — #2580: third-party inspection tracker (the table, its report files, the bucket).
+-- 1179_third_party_inspections.sql — #2580: third-party inspection tracker (the table, its report files, the bucket).
 -- Spec docs/specs/third-party-inspections.spec.md (Review 20 Nov binding); plan docs/plans/2026-11-20-third-party-inspections.md.
--- Proven by supabase/tests/1130_third_party_inspections.test.sql (+ 1133 / 1134 files for the purchase link and the reads).
+-- Proven by supabase/tests/1179_third_party_inspections.test.sql (+ 1133 / 1134 files for the purchase link and the reads).
 --   §1 third_party_inspections: one row per external test of a work order. No client write grant at all: every change is an
 --      RPC (1131) and every rule below is a table trigger, so a definer or fixture path cannot skip a gate.
 --   §2 guard_tpi_transition: the state rules in ONE place (forward only; invite needs the purchase; execute not in the future;
@@ -9,7 +9,7 @@
 --   §4 private bucket inspection-reports (15 MB; pdf, images, Office) + storage RLS.
 -- No cost table, no cost writer: cost is read from the linked procurement case (1134).
 --
--- ── REVERSE (also rollback/1130_third_party_inspections_down.sql) ───────────────────────────────────
+-- ── REVERSE (also rollback/1179_third_party_inspections_down.sql) ───────────────────────────────────
 --   drop policies on storage.objects for inspection-reports; delete from storage.buckets where id = 'inspection-reports';
 --   drop table public.third_party_inspection_files; drop table public.third_party_inspections;
 --   drop functions guard_tpi_transition, guard_tpi_file, can_add_inspection_file.
