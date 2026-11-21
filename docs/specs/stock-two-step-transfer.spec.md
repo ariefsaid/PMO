@@ -195,6 +195,8 @@ Each is broken, the named AC must go red, then restored (`supabase/tests/1305_st
 `mut:proof_check` (AC-TST-018) · `mut:writeoff_admin` (AC-TST-011) · `mut:confirm_immutable` (AC-TST-015) · `mut:guest_name` (AC-TST-016) ·
 `mut:transit_system_only` (AC-TST-005) · `mut:mode_off_guard` (AC-TST-002) · `mut:timing_admin` (AC-TST-029) · `mut:late_actor` (AC-TST-031) · `mut:timing_block` (the one-step paper block follows the timing, AC-TST-030).
 
+Authority for the count rules: the table checks on `stock_transfer_lines` (`count_cap`, `accept_sum`, `quality_fail`) are the authority, so they hold for any writer. `receive_stock_transfer` only adds clear messages for the cases it can name (missing quality result, decimals, line coverage). The 1306 file therefore also writes each violation directly as the table owner and expects `23514`, so each mutation turns a named assertion red.
+
 ## 8. Out of scope
 Hardware (smart locks, scanners). Splitting one shortfall resolution across several actions. Receiving more than was sent. Work-order to
 work-order transfer (#2691). Reservations (#2693). Offline capture. A direct accounting connector. Inventory run in a connected ERP: the

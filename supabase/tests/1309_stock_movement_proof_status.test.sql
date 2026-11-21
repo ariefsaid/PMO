@@ -91,7 +91,8 @@ select throws_ok($$ select tst_xfer('26940000-0000-0000-0000-000000002001', '269
 reset role;
 update organizations set stock_proof_timing = 'may_follow' where id = '26940000-0000-0000-0000-00000000000a';
 select tst_as('26940000-0000-0000-0000-0000000000a1');
-select set_config('tst.d1', tst_xfer('26940000-0000-0000-0000-000000002001', '26940000-0000-0000-0000-000000002002', '26940000-0000-0000-0000-000000001002', 5)::text, false);
+select set_config('tst.d1', '00000000-0000-0000-0000-000000000000', false);      -- a failed post must fail AC-TST-030 by name, not abort the file
+select lives_ok($$ select set_config('tst.d1', tst_xfer('26940000-0000-0000-0000-000000002001', '26940000-0000-0000-0000-000000002002', '26940000-0000-0000-0000-000000001002', 5)::text, false) $$, 'AC-TST-030 may_follow: the one-step transfer of a paper-rule item posts without its paper');
 select is(tst_bal('26940000-0000-0000-0000-000000002002', '26940000-0000-0000-0000-000000001002'), '5.000/0.00', 'AC-TST-030 may_follow: the transfer posts without its paper');
 select tst_xfer('26940000-0000-0000-0000-000000002001', '26940000-0000-0000-0000-000000002002', '26940000-0000-0000-0000-000000001001', 5);
 select is((select proof_status || '/' || missing || '/' || mode || '/' || required_proof from get_stock_movement_proof_status() where movement_id = tst_tr('d1')),
