@@ -13,14 +13,65 @@
   "languageId": "Indonesian",
   "extraRoles": "Also email these roles",
   "events": {
-    "approval_request": { "title": "Approval requests", "description": "Something is waiting for a person to approve." },
-    "billing_step": { "title": "Billing steps", "description": "The next owner of a billing step." },
-    "overdue_item": { "title": "Overdue items", "description": "A task or issue is past its date." },
-    "document_expiry": { "title": "Expiring documents", "description": "A document is close to its expiry date." }
+    "approval_request": {
+      "title": "Approval requests",
+      "description": "Something is waiting for a person to approve."
+    },
+    "billing_step": {
+      "title": "Billing steps",
+      "description": "The next owner of a billing step."
+    },
+    "overdue_item": {
+      "title": "Overdue items",
+      "description": "A task or issue is past its date."
+    },
+    "document_expiry": {
+      "title": "Expiring documents",
+      "description": "A document is close to its expiry date."
+    }
   },
   "optOut": {
     "title": "Email notifications",
     "description": "Turn off the emails PMO sends about approvals, overdue items and expiring documents. In-app notifications are not affected.",
     "label": "Send me email notifications"
+  },
+  "scheduled": {
+    "title": "Scheduled reports",
+    "intro": "Email a report to people or roles on a schedule. Times are in the organisation timezone. Each person sees only the figures their role allows.",
+    "loadError": "Scheduled reports could not be loaded.",
+    "empty": "No scheduled reports yet.",
+    "add": "Add a scheduled report",
+    "edit": "Edit",
+    "archive": "Archive",
+    "archiveTitle": "Archive this scheduled report",
+    "archiveBody": "It stops sending. Emails already sent are not affected.",
+    "formLabel": "Scheduled report",
+    "name": "Name",
+    "kind": "Report",
+    "frequency": "Repeats",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "weekday": "On",
+    "time": "Send time",
+    "roles": "Send to these roles",
+    "people": "And these people",
+    "recipientsHint": "Pick at least one role or person.",
+    "save": "Save report",
+    "cancel": "Cancel",
+    "dailyAt": "Every day at {{time}}",
+    "weeklyAt": "{{day}} at {{time}}",
+    "kinds": {
+      "daily_progress": "Daily progress summary",
+      "overdue_tasks": "Overdue tasks"
+    },
+    "days": {
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday",
+      "7": "Sunday"
+    }
   }
 }

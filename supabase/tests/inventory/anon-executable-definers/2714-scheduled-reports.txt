@@ -1,0 +1,4 @@
+# 1228: scheduled report writers; Admin of the caller's own organisation; 1225_scheduled_reports pgTAP
+save_scheduled_report
+set_scheduled_report_enabled
+archive_scheduled_report

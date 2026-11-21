@@ -1042,3 +1042,9 @@ manager accepts or rejects it, with the reason recorded.
 
 **Close-out checklist** — the ordered list of items a work order must complete before it closes (certificates, close-out documents and
 the material close-out: joint count, loss report, material completion report). The closer is recorded.
+
+**Scheduled report** — an organisation-defined record that emails a report of one kind to a list of people and roles on a daily or weekly
+schedule, at a local send time in the organisation's timezone. Nothing exists until an Admin creates one.
+
+**Report kind** — one of a small fixed set of generic reports a scheduled report can send: the daily progress summary (from the day's site
+reports) and overdue tasks. The body is computed per recipient, so a figure the recipient's role may not see is left out.

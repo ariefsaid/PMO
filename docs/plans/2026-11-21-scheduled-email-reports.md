@@ -12,7 +12,7 @@ Spec: `docs/specs/scheduled-email-reports.spec.md`. Test-first. Stacked on #2711
 - `1226_scheduled_report_content.sql` - `scheduled_report_body(p_kind, p_org, p_recipient, p_period)`: definer, service/definer-only; computes per-recipient figures with the recipient's role and project-manager relation applied explicitly (a copy of the dsr_may_see_revenue audience keyed on the recipient, not on auth.uid()).
 - `1227_scheduled_report_tick.sql` - `scheduled_report_tick()` + `cron.schedule('scheduled-report-tick','*/5 * * * *')`; local date/time from `organizations.default_timezone`; recipient resolution as FR-SCH-006; stale-row failure inside `claim_email_outbox` (replaced, same signature, returns subject/body for report rows).
 - `1228_scheduled_report_rpcs.sql` - Admin-only `save_scheduled_report`, `set_scheduled_report_enabled`, `archive_scheduled_report`; `list_scheduled_reports` is a plain Admin-select on the table.
-- `1229` reserved (unused unless review needs it).
+- `1229` reserved (unused). Retention purge (90 days) lives inside the tick.
 
 ## Edge function `supabase/functions/email-notify/`
 Extend `templates.ts` with a `scheduled_report` event (en/id lead and foot; subject and body from the row) and `index.ts` to pass row subject/body through; tests added to `index.test.ts` importing `./index.ts`, mocking `globalThis.fetch`.

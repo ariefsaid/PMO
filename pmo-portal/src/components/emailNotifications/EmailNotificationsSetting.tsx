@@ -7,6 +7,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { usePermission } from '@/src/auth/usePermission';
 import { EMAIL_EVENTS, type EmailEvent, type EmailEventSetting, type EmailLocale } from '@/src/lib/db/emailNotifications';
 import { NOTIFY_ROLES } from '@/src/lib/db/documentExpiry';
+import { ScheduledReportsSetting } from './ScheduledReportsSetting';
 
 const KEY = ['emailNotificationSettings'] as const;
 
@@ -127,6 +128,7 @@ export const EmailNotificationsSetting: React.FC = () => {
               />
             </div>
           ) : null}
+          <ScheduledReportsSetting eventsOn={query.data.events.some((e: EmailEventSetting) => e.enabled)} />
         </>
       )}
     </section>

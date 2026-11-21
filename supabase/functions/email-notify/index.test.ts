@@ -109,3 +109,33 @@ Deno.test('AC-EML-012: every event renders in both languages from the notificati
   assert(renderEmail('overdue_item', 'id', 't', null).text.includes('terlambat'), 'Bahasa Indonesia text');
   assert(renderEmail('overdue_item', 'en', 't', null).text.includes('overdue'), 'English text');
 });
+
+const REPORT_ROW = {
+  id: 'out-r1', to_email: 'r@example.test', event_key: 'scheduled_report', locale: 'id', title: 'Daily progress',
+  body: 'Daily progress\nRingkasan kemajuan\nAlpha Site: 1 laporan', attempts: 1,
+};
+
+Deno.test('AC-SCH-009: a scheduled-report row is sent once through the same path with the idempotency key', async () => {
+  setEnv(BASE_ENV);
+  await withMocks([REPORT_ROW], 200, async (calls) => {
+    const res = await handleEmailNotifyRequest(req());
+    assertEquals(res.status, 200);
+    const sends = calls.filter((c) => c.url.hostname === 'api.resend.com');
+    assertEquals(sends.length, 1);
+    assertEquals(sends[0].headers.get('Idempotency-Key'), 'out-r1');
+    assertEquals(sends[0].body.subject, 'Daily progress');
+    assert(sends[0].body.text.includes('Alpha Site: 1 laporan'), 'the report body is the text part');
+    assert(sends[0].body.text.includes('laporan terjadwal'), 'Bahasa Indonesia lead');
+    assert(sends[0].body.html.includes('<br>'), 'html keeps the line breaks');
+    const done = calls.find((c) => c.url.pathname.endsWith('complete_email_outbox'));
+    assertEquals(done?.body, { p_id: 'out-r1', p_ok: true, p_error: null, p_permanent: false });
+  });
+});
+
+Deno.test('AC-SCH-009: the scheduled_report template renders in both languages and escapes the parameters', () => {
+  const en = renderEmail('scheduled_report', 'en', 'Name <x>', 'Line one\nLine & two');
+  assert(en.text.includes('scheduled report') && en.text.includes('Line & two'), 'English text');
+  assert(en.html.includes('Name &lt;x&gt;') && en.html.includes('Line one<br>Line &amp; two'), 'html escapes and breaks lines');
+  assert(renderEmail('scheduled_report', 'id', 't', null).text.includes('laporan terjadwal'), 'Bahasa Indonesia text');
+  assert(!/pmo-|acme|org /i.test(en.text.replace(/PMO/g, '')), 'no organisation name in the template');
+});
