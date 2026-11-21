@@ -39,6 +39,7 @@ describe('AC-PCI-015 check-in decision list', () => {
     h.requests.mockResolvedValue([row]);
     mount();
     expect(await screen.findByText(/Sari/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Check-ins waiting for you' })).toHaveTextContent('Check-ins waiting for you');
     expect(screen.getByText(/Outside the work area/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(h.decide).toHaveBeenCalledWith('r1', true, null));

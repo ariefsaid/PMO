@@ -36,7 +36,7 @@ export const CheckInRequests: React.FC = () => {
 
   return (
     <Card className="mb-4" aria-label={t('crews:checkIn.requestsTitle', 'Check-ins waiting for you')}>
-      <CardHead title={t('crews:checkIn.requestsTitle', 'Check-ins waiting for you')} />
+      <CardHead>{t('crews:checkIn.requestsTitle', 'Check-ins waiting for you')}</CardHead>
       <CardPad className="space-y-3">
         <p className="text-control text-muted-foreground">
           {t('crews:checkIn.requestsHelper', 'These people clocked in from their phone outside the work area, off the roster, or without a position. Approving records their attendance.')}

@@ -55,7 +55,7 @@ export const CheckInSettings: React.FC = () => {
 
   return (
     <Card className="mt-4" aria-label={t('crews:checkIn.areaTitle', 'Check-in area')}>
-      <CardHead title={t('crews:checkIn.areaTitle', 'Check-in area')} />
+      <CardHead>{t('crews:checkIn.areaTitle', 'Check-in area')}</CardHead>
       <CardPad className="space-y-3">
         {canArea && (
           <>
