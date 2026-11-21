@@ -1,9 +1,9 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListState, RecordSection } from '@/src/components/ui';
-import { usePermission } from '@/src/auth/usePermission';
+import { PerformanceGate } from '@/src/components/performance/PerformanceGate';
 import { formatIsoDay } from '@/src/lib/format';
-import { useProjectPerformance, usePerformanceSettings } from '@/src/hooks/useWorkOrderPerformance';
+import { useProjectPerformance } from '@/src/hooks/useWorkOrderPerformance';
 import { deriveProjectPerformance, deriveWorkOrderPerformance } from '@/src/lib/workOrderPerformance';
 import { Link } from 'react-router';
 import { PerformanceFigures } from '../work-order-detail/PerformanceIndices';
@@ -13,12 +13,9 @@ import { PerformanceFigures } from '../work-order-detail/PerformanceIndices';
  * sums over its issued and closed work orders, never an average of their indices. Renders nothing at all, and issues
  * no request, until the organisation turns the panels on (AC-CSP-018).
  */
-export const ProjectPerformance: React.FC<{ projectId: string }> = ({ projectId }) => {
-  const may = usePermission();
-  const settings = usePerformanceSettings();
-  if (!may('view', 'workOrderPerformance') || settings.data?.enabled !== true) return null;
-  return <ProjectPerformancePanel projectId={projectId} />;
-};
+export const ProjectPerformance: React.FC<{ projectId: string }> = ({ projectId }) => (
+  <PerformanceGate><ProjectPerformancePanel projectId={projectId} /></PerformanceGate>
+);
 
 const ProjectPerformancePanel: React.FC<{ projectId: string }> = ({ projectId }) => {
   const { t } = useTranslation('workOrderPva');

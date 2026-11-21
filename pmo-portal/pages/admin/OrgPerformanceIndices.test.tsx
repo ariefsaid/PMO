@@ -1,8 +1,10 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
-import { bandsValid } from './OrgPerformanceIndices';
+import { bandsValid } from '@/src/lib/workOrderPerformance';
 
 const h = vi.hoisted(() => ({ settings: { data: undefined as unknown, isError: false, refetch: vi.fn() }, save: vi.fn(), canManage: true }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (a: string, e: string) => h.canManage && a === 'manage' && e === 'orgPerformanceIndices' }));
@@ -11,6 +13,10 @@ vi.mock('@/src/hooks/useWorkOrderPerformance', () => ({
   useSavePerformanceSettings: () => ({ mutateAsync: h.save, isPending: false }),
 }));
 import OrgPerformanceIndices from './OrgPerformanceIndices';
+
+const renderCard = () => render(
+  <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{ currentUser: { org_id: 'org-1' } } as never}><ToastProvider><OrgPerformanceIndices /></ToastProvider></AuthContext.Provider></QueryClientProvider>,
+);
 
 beforeEach(() => {
   h.settings = { data: { enabled: false, bands: { low: '0.90', high: '1.10' } }, isError: false, refetch: vi.fn() };
@@ -30,7 +36,7 @@ describe('AC-CSP-020 band validation', () => {
 
 describe('OrgPerformanceIndices', () => {
   it('shows the defaults, off, and saves the switch and bands', async () => {
-    render(<ToastProvider><OrgPerformanceIndices /></ToastProvider>);
+    renderCard();
     expect((screen.getByLabelText(/Lower limit/) as HTMLInputElement).value).toBe('0.90');
     expect((screen.getByLabelText(/Upper limit/) as HTMLInputElement).value).toBe('1.10');
     const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
@@ -42,14 +48,14 @@ describe('OrgPerformanceIndices', () => {
     await waitFor(() => expect(h.save).toHaveBeenCalledWith({ enabled: true, low: 0.8, high: 1.25 }));
   });
   it('will not save an invalid band', () => {
-    render(<ToastProvider><OrgPerformanceIndices /></ToastProvider>);
+    renderCard();
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.change(screen.getByLabelText(/Lower limit/), { target: { value: '1.2' } });
     expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
   });
   it('is read-only for a role that cannot manage it', () => {
     h.canManage = false;
-    render(<ToastProvider><OrgPerformanceIndices /></ToastProvider>);
+    renderCard();
     expect(screen.getByTestId('org-performance-indices-readonly').textContent).toContain('Only an Admin can change this.');
     expect(screen.queryByRole('checkbox')).toBeNull();
   });

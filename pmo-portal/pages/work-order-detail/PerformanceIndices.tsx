@@ -1,11 +1,11 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListState, RecordSection } from '@/src/components/ui';
-import { usePermission } from '@/src/auth/usePermission';
+import { PerformanceGate } from '@/src/components/performance/PerformanceGate';
 import { formatExactMoney, formatIsoDay } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { parseExactCents } from '@/src/lib/exactDecimal';
-import { useProjectPerformance, usePerformanceSettings } from '@/src/hooks/useWorkOrderPerformance';
+import { useProjectPerformance } from '@/src/hooks/useWorkOrderPerformance';
 import {
   deriveWorkOrderPerformance,
   type Bands,
@@ -109,12 +109,9 @@ export const PerformanceFigures: React.FC<{
 };
 
 /** The work-order page's panel. Renders nothing at all, and issues no request, until the organisation turns it on. */
-export const PerformanceIndices: React.FC<{ projectId: string; workOrderId: string }> = ({ projectId, workOrderId }) => {
-  const may = usePermission();
-  const settings = usePerformanceSettings();
-  if (!may('view', 'workOrderPerformance') || settings.data?.enabled !== true) return null;
-  return <PerformancePanel projectId={projectId} workOrderId={workOrderId} />;
-};
+export const PerformanceIndices: React.FC<{ projectId: string; workOrderId: string }> = ({ projectId, workOrderId }) => (
+  <PerformanceGate><PerformancePanel projectId={projectId} workOrderId={workOrderId} /></PerformanceGate>
+);
 
 const PerformancePanel: React.FC<{ projectId: string; workOrderId: string }> = ({ projectId, workOrderId }) => {
   const { t } = useTranslation('workOrderPva');

@@ -164,3 +164,8 @@ export function deriveProjectPerformance(rows: readonly PerformanceRow[], bands:
   const p = build({ ev, pv, ac }, { unrated: 0, acStatus: 'complete', undated: 0, hasDates: true }, bands);
   return { ...p, includedCount: inc.length, excludedCount };
 }
+
+/** The limits are valid when 0 < low < 1 < high (the database enforces the same rule, `organizations_performance_bands`). */
+export function bandsValid(low: number | null, high: number | null): boolean {
+  return low !== null && high !== null && low > 0 && low < 1 && high > 1;
+}

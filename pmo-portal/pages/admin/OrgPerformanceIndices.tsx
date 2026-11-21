@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, ListState, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { usePerformanceSettings, useSavePerformanceSettings } from '@/src/hooks/useWorkOrderPerformance';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { bandsValid } from '@/src/lib/workOrderPerformance';
 
 /** Parses a band typed as 0.9 or 0,9; null when it is not a number. */
 function parseBand(raw: string): number | null {
@@ -11,16 +14,11 @@ function parseBand(raw: string): number | null {
   return raw.trim() !== '' && Number.isFinite(n) ? n : null;
 }
 
-/** The limits are valid when 0 < low < 1 < high (the database enforces the same rule). */
-export function bandsValid(low: number | null, high: number | null): boolean {
-  return low !== null && high !== null && low > 0 && low < 1 && high > 1;
-}
-
 /**
  * Admin control for the cost and schedule performance panels (#2597): the on/off switch (off by default, so every
  * existing screen is unchanged) and the two reading limits (OD-SCOPE-2: limits are settings, not code).
  */
-const OrgPerformanceIndices: React.FC = () => {
+const OrgPerformanceIndicesCard: React.FC = () => {
   const { t } = useTranslation('administration');
   const may = usePermission();
   const canManage = may('manage', 'orgPerformanceIndices');
@@ -76,7 +74,7 @@ const OrgPerformanceIndices: React.FC = () => {
             <TextField id="org-performance-high" label={t('performanceIndices.high', 'Upper limit (above this reads as ahead)')} value={high} onChange={setHigh} onBlur={() => undefined}
               error={highN !== null && !(highN > 1) ? t('performanceIndices.invalid', 'Lower limit must be between 0 and 1, and the upper limit above 1.') : undefined}
               helper={t('performanceIndices.helper', 'The lower limit must be above 0 and below 1; the upper limit above 1. Defaults are 0.90 and 1.10.')} disabled={save.isPending} />
-            <Button type="button" onClick={() => void onSave()} disabled={!valid || !dirty} loading={save.isPending}>
+            <Button type="button" variant="primary" onClick={() => void onSave()} disabled={!valid || !dirty} loading={save.isPending}>
               {save.isPending ? t('performanceIndices.saving', 'Saving…') : t('performanceIndices.save', 'Save')}
             </Button>
           </div>
@@ -89,6 +87,14 @@ const OrgPerformanceIndices: React.FC = () => {
       </div>
     </section>
   );
+};
+
+/** Outside a signed-in, query-backed tree (a bare render) the card renders nothing. */
+const OrgPerformanceIndices: React.FC = () => {
+  const queryClient = useContext(QueryClientContext);
+  const auth = useContext(AuthContext);
+  if (!queryClient || !auth) return null;
+  return <OrgPerformanceIndicesCard />;
 };
 
 export default OrgPerformanceIndices;

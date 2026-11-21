@@ -2,6 +2,8 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { I18nextProvider } from 'react-i18next';
 import { createInstance } from 'i18next';
 import enPva from '../../public/locales/en/workOrderPva.json';
@@ -38,7 +40,9 @@ const i18n = (lng: 'en' | 'id') => {
     resources: { id: { workOrderPva: idPva }, en: { workOrderPva: enPva } }, react: { useSuspense: false } });
   return i;
 };
-const wrap = (ui: React.ReactElement, lng: 'en' | 'id' = 'en') => render(<MemoryRouter><I18nextProvider i18n={i18n(lng)}>{ui}</I18nextProvider></MemoryRouter>);
+const wrap = (ui: React.ReactElement, lng: 'en' | 'id' = 'en') => render(
+  <QueryClientProvider client={new QueryClient()}><AuthContext.Provider value={{ currentUser: { org_id: 'org-1' } } as never}><MemoryRouter><I18nextProvider i18n={i18n(lng)}>{ui}</I18nextProvider></MemoryRouter></AuthContext.Provider></QueryClientProvider>,
+);
 
 beforeEach(() => {
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });

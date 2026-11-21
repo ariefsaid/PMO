@@ -98,7 +98,7 @@ export async function getPerformanceSettings(): Promise<PerformanceSettings> {
 
 /** Admin only: the database refuses anyone else (no row changes, surfaced as a refusal). */
 export async function setPerformanceSettings(patch: { enabled?: boolean; low?: number; high?: number }): Promise<void> {
-  const { data: orgs, error } = await supabase.from('organizations').select('id');
+  const { data: orgs, error } = await supabase.from('organizations').select('id').limit(2);
   if (error) throw new AppError(error.message, error.code);
   if (orgs?.length !== 1) throw new Error('Exactly one organization must be readable before changing this setting.');
   const update: { performance_indices_enabled?: boolean; performance_band_low?: number; performance_band_high?: number } = {};
