@@ -1,4 +1,4 @@
--- 1098_work_order_section_reads.sql — #2576: the roll-up read and the readiness roll-up.
+-- 1172_work_order_section_reads.sql — #2576: the roll-up read and the readiness roll-up.
 -- Spec docs/specs/work-order-sections.spec.md (FR-WOS-014 plan part, 016, 017, 020, 021; NFR-WOS-001/003);
 -- plan docs/plans/2026-11-20-work-order-sections.md. Proven by supabase/tests/1169_work_order_sections.test.sql
 -- (AC-WOS-001, 002, 012, 014). Not a money path: both reads are security INVOKER, so every row is read under the
@@ -15,7 +15,7 @@
 -- work_order_section_readiness: per work order, counts of LIVE sections per readiness and "all ready" (at least one live
 -- section and every live section ready). A work order with no live section has no row.
 --
--- ── REVERSE (also supabase/migrations/rollback/1098_work_order_section_reads_down.sql) ───────────────────────
+-- ── REVERSE (also supabase/migrations/rollback/1172_work_order_section_reads_down.sql) ───────────────────────
 
 create function public.work_order_section_rollup(p_work_order_id uuid)
   returns table (

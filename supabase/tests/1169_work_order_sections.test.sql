@@ -1,6 +1,6 @@
 -- 1169_work_order_sections.test.sql — #2576 work-order sections (docs/specs/work-order-sections.spec.md).
 -- Migrations under test: 1169_work_order_sections.sql, 1170_work_order_section_plan_lines.sql,
--- 1171_work_order_section_children.sql, 1098_work_order_section_reads.sql.
+-- 1171_work_order_section_children.sql, 1172_work_order_section_reads.sql.
 -- AC-WOS-001 a work order with no sections reads as before · AC-WOS-002 the roll-up invariant (400 + 350 + 250 = 1,000) ·
 -- AC-WOS-003 a child naming a section of another work order is refused by the composite key · AC-WOS-004 a code is
 -- reserved for the work order's life · AC-WOS-005 cancelled/closed work orders · AC-WOS-006 an archive is blocked by an
