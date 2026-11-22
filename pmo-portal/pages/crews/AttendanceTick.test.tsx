@@ -192,4 +192,23 @@ describe('attendance tick screen (#2528)', () => {
     await user.click(within(row).getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(h.decide).toHaveBeenCalledWith({ workerId: 'v1', weekStart: '2026-11-16', decision: 'approve', reason: null }));
   });
+
+  it('AC-PAY-006 Approve is disabled on a week the viewer recorded, and says why', () => {
+    h.role = 'Project Manager';
+    h.uid = 'pm1';
+    h.awaiting = { data: [{ worker_id: 'v1', work_date: '2026-11-17', hours: 8, overtime_hours: null, work_order_title: 'Bridge repair', recorded_by_ids: ['ctl', 'pm1'] }], isPending: false, isError: false, refetch: vi.fn() };
+    renderAt();
+    const row = screen.getByRole('row', { name: /Vendor One/ });
+    const approve = within(row).getByRole('button', { name: 'Approve' });
+    expect(approve).toBeDisabled();
+    expect(approve).toHaveAccessibleDescription('You recorded these hours, so someone else approves them.');
+  });
+
+  it('AC-PAY-006 Approve stays enabled for a manager who recorded none of the days', () => {
+    h.role = 'Project Manager';
+    h.uid = 'pm2';
+    h.awaiting = { data: [{ worker_id: 'v1', work_date: '2026-11-17', hours: 8, overtime_hours: null, work_order_title: 'Bridge repair', recorded_by_ids: ['ctl', 'pm1'] }], isPending: false, isError: false, refetch: vi.fn() };
+    renderAt();
+    expect(within(screen.getByRole('row', { name: /Vendor One/ })).getByRole('button', { name: 'Approve' })).toBeEnabled();
+  });
 });

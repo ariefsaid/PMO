@@ -162,13 +162,14 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
   );
 };
 
-interface AwaitingWeek { workerId: string; weekStart: string; hours: number; days: number; orders: string[] }
+interface AwaitingWeek { workerId: string; weekStart: string; hours: number; days: number; orders: string[]; recordedByViewer: boolean }
 
 /** Weeks of people with no login waiting for a supervisor (FR-CRW-016). */
 const AwaitingApproval: React.FC = () => {
   const { t } = useTranslation('crews');
   const writeError = useCrewErrorText();
   const { toast } = useToast();
+  const viewerId = useAuth().currentUser?.id ?? null;
   const awaiting = useAwaitingAttendance(true);
   const workers = useCrewWorkers();
   const { decideWeek } = useAttendanceMutations();
@@ -179,14 +180,15 @@ const AwaitingApproval: React.FC = () => {
     for (const r of awaiting.data ?? []) {
       const weekStart = isoWeekStart(r.work_date);
       const key = `${r.worker_id}:${weekStart}`;
-      const w = byKey.get(key) ?? { workerId: r.worker_id, weekStart, hours: 0, days: 0, orders: [] };
+      const w = byKey.get(key) ?? { workerId: r.worker_id, weekStart, hours: 0, days: 0, orders: [], recordedByViewer: false };
+      if (viewerId !== null && (r.recorded_by_ids ?? []).includes(viewerId)) w.recordedByViewer = true;
       w.hours += Number(r.hours ?? 0) + Number(r.overtime_hours ?? 0);
       w.days += 1;
       if (r.work_order_title && !w.orders.includes(r.work_order_title)) w.orders.push(r.work_order_title);
       byKey.set(key, w);
     }
     return [...byKey.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-  }, [awaiting.data]);
+  }, [awaiting.data, viewerId]);
   const nameOf = (id: string) => workers.data?.find((w) => w.id === id)?.display_name ?? '—';
   const decide = async (w: AwaitingWeek, decision: 'approve' | 'reject', reason: string | null) => {
     setProblem(null);
@@ -214,7 +216,9 @@ const AwaitingApproval: React.FC = () => {
                 <td className="py-2 text-right">
                   <div className="inline-flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => setReturning(w)}>{t('crews:return', 'Return')}</Button>
-                    <Button variant="primary" size="sm" onClick={() => void decide(w, 'approve', null)}>{t('crews:approve', 'Approve')}</Button>
+                    <Button variant="primary" size="sm" disabled={w.recordedByViewer} aria-describedby={w.recordedByViewer ? `sod-${w.workerId}-${w.weekStart}` : undefined}
+                      onClick={() => void decide(w, 'approve', null)}>{t('crews:approve', 'Approve')}</Button>
+                    {w.recordedByViewer && <span id={`sod-${w.workerId}-${w.weekStart}`} className="sr-only">{t('crews:errors.sod', 'You recorded these hours, so someone else approves them.')}</span>}
                   </div>
                 </td>
               </tr>

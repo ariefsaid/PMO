@@ -2,7 +2,7 @@
 /**
  * AC-PAY-010 — two records of a worker's day, one figure paid (pay-time). The field controller ticks the crew at 8 hours and sends
  * the week; a Project Manager (who recorded none of the tick) adds a second record of 5 hours on the site report; an Admin decides
- * the second record stands; another manager approves the week.
+ * the second record stands; an Executive, who recorded neither figure, approves the week.
  * Goal oracle: the approved day carries 5 hours and the work-order cost read counts that day once, at 5, with the 8 kept as evidence.
  *
  * Cleanup: approved attendance is immutable by design (AC-CRW-011), so this run's records stay; every row is scoped to this run's
@@ -117,12 +117,12 @@ test('AC-PAY-010 a second record of 5 hours against the foreman\'s 8 is decided 
   await expect(visibleToast(page, 'Decision saved')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId(`dsr-people-row-${ana.id}`)).toContainText('Stands: 5 h');
 
-  // 4. The field controller sends the week; the Project Manager approves it.
+  // 4. The field controller sends the week; an Executive (not the Project Manager who entered the second record, who is refused by the separation rule) approves it.
   await signIn(page, 'engineer@acme.test');
   await page.goto(`/crews?view=attendance&wo=${workOrderId}`);
   await page.getByRole('button', { name: 'Send the week for approval' }).click();
   await expect(visibleToast(page, 'Week sent for approval')).toBeVisible({ timeout: 15_000 });
-  await signIn(page, 'pm@acme.test');
+  await signIn(page, 'exec@acme.test');
   await page.goto('/crews?view=attendance');
   const approve = page.getByRole('row', { name: ana.name });
   await expect(approve.getByText('5 hours')).toBeVisible({ timeout: 20_000 });
