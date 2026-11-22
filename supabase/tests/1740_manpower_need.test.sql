@@ -2,7 +2,7 @@
 -- AC-MPN-001..007. Mutation markers (`mut:`) in 1740/1741 name the rules the spec's mutation check breaks.
 begin;
 create extension if not exists pgtap;
-select plan(33);
+select plan(44);
 
 insert into organizations (id, name, default_currency) values
   ('17400000-0000-0000-0000-00000000000a', 'MPN Org',       'IDR'),
@@ -14,6 +14,7 @@ insert into auth.users (id, email) values
   ('17400000-0000-0000-0000-0000000000a4', 'mpn-eng@example.com'),
   ('17400000-0000-0000-0000-0000000000a5', 'mpn-hr@example.com'),
   ('17400000-0000-0000-0000-0000000000a6', 'mpn-fin@example.com'),
+  ('17400000-0000-0000-0000-0000000000a7', 'mpn-susp@example.com'),
   ('17400000-0000-0000-0000-0000000000b1', 'mpn-xorg@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('17400000-0000-0000-0000-0000000000a1', '17400000-0000-0000-0000-00000000000a', 'MPN Admin', 'mpn-admin@example.com', 'Admin', 'active'),
@@ -22,6 +23,7 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('17400000-0000-0000-0000-0000000000a4', '17400000-0000-0000-0000-00000000000a', 'MPN Eng',   'mpn-eng@example.com',   'Engineer', 'active'),
   ('17400000-0000-0000-0000-0000000000a5', '17400000-0000-0000-0000-00000000000a', 'MPN HR',    'mpn-hr@example.com',    'Engineer', 'active'),
   ('17400000-0000-0000-0000-0000000000a6', '17400000-0000-0000-0000-00000000000a', 'MPN Fin',   'mpn-fin@example.com',   'Finance', 'active'),
+  ('17400000-0000-0000-0000-0000000000a7', '17400000-0000-0000-0000-00000000000a', 'MPN Susp',  'mpn-susp@example.com',  'Project Manager', 'suspended'),
   ('17400000-0000-0000-0000-0000000000b1', '17400000-0000-0000-0000-00000000000b', 'MPN XOrg',  'mpn-xorg@example.com',  'Admin', 'active');
 -- An Engineer at the base level whose built-in role is HR (carries the HR capability).
 update profiles set built_in_role = 'hr_officer' where id = '17400000-0000-0000-0000-0000000000a5';
@@ -64,6 +66,8 @@ select pg_temp.act_as('17400000-0000-0000-0000-0000000000a2');   -- Project Mana
 insert into manpower_needs (id, project_id, discipline_id, headcount, needed_by, work_order_id, crew_id, note) values
   ('17400000-0000-0000-0000-000000000a01', '17400000-0000-0000-0000-0000000000d1', '17400000-0000-0000-0000-000000000e01', 3,
    current_date + 14, '17400000-0000-0000-0000-000000000401', '17400000-0000-0000-0000-000000000c01', 'shutdown');
+insert into manpower_needs (id, project_id, discipline_id, headcount, needed_by) values
+  ('17400000-0000-0000-0000-000000000a02', '17400000-0000-0000-0000-0000000000d1', '17400000-0000-0000-0000-000000000e01', 2, current_date + 30);
 select is((select status from manpower_needs where id = '17400000-0000-0000-0000-000000000a01'), 'open', 'AC-MPN-001 a new need is open');
 select is((select org_id from manpower_needs where id = '17400000-0000-0000-0000-000000000a01'), '17400000-0000-0000-0000-00000000000a'::uuid, 'AC-MPN-001 org is stamped, never sent');
 select is((select created_by from manpower_needs where id = '17400000-0000-0000-0000-000000000a01'), '17400000-0000-0000-0000-0000000000a2'::uuid, 'AC-MPN-001 the creator is recorded');
@@ -88,12 +92,20 @@ select throws_ok($$ insert into manpower_need_people (need_id, person_id) values
 
 -- AC-MPN-004 progress reuses the checklist: nobody cleared yet -> 3 linked, all in progress, none open
 select is((select (filled, in_progress, open_count) from manpower_need_progress() where need_id = '17400000-0000-0000-0000-000000000a01')::text, '(0,3,0)', 'AC-MPN-004 linked people who are not cleared are in progress, not filled');
+-- AC-MPN-011 the writer is pointed at the need that still has places to fill (a01 is full of links, a02 is empty)
+select is((select count(*)::int from public.my_manpower_to_fill()), 1, 'AC-MPN-011 a writer sees the one open need with places to fill');
+select is((select open_count from public.my_manpower_to_fill()), 2, 'AC-MPN-011 the pointer carries the open places');
 reset role;
 insert into person_clearances (org_id, person_id, item_id, done_on) values
   ('17400000-0000-0000-0000-00000000000a', '17400000-0000-0000-0000-000000000f01', '17400000-0000-0000-0000-000000000b01', current_date - 1);
 set local role authenticated;
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a2');
 select is((select (asked, filled, in_progress, open_count) from manpower_need_progress() where need_id = '17400000-0000-0000-0000-000000000a01')::text, '(3,1,2,0)', 'AC-MPN-004 one cleared person: asked 3, filled 1, in progress 2');
+-- AC-MPN-004 the people team sees the counts although it cannot read the clearances (counts only)
+select pg_temp.act_as('17400000-0000-0000-0000-0000000000a5');
+select is((select (filled, in_progress) from manpower_need_progress() where need_id = '17400000-0000-0000-0000-000000000a01')::text, '(1,2)', 'AC-MPN-004 an HR officer sees filled 1, in progress 2 for the need they fill');
+select pg_temp.act_as('17400000-0000-0000-0000-0000000000a7');
+select is((select count(*)::int from manpower_need_progress()), 0, 'AC-MPN-004 a suspended member of the organisation gets no progress row');
 reset role;
 update person_clearances set expires_on = current_date - 1, done_on = current_date - 5 where person_id = '17400000-0000-0000-0000-000000000f01';
 set local role authenticated;
@@ -111,6 +123,11 @@ select lives_ok($$ update manpower_needs set headcount = 4 where id = '17400000-
 update manpower_needs set status = 'met' where id = '17400000-0000-0000-0000-000000000a01';
 select throws_ok($$ insert into manpower_need_people (need_id, person_id) values ('17400000-0000-0000-0000-000000000a01', '17400000-0000-0000-0000-000000000f04') $$, '23514', 'MPN_CLOSED: people can be linked only while the need is open', 'AC-MPN-003 a met need takes no more people');
 select lives_ok($$ update manpower_needs set status = 'open' where id = '17400000-0000-0000-0000-000000000a01' $$, 'AC-MPN-005 a need can be reopened');
+select pg_temp.act_as('17400000-0000-0000-0000-0000000000a4');
+select is((select count(*)::int from public.my_manpower_to_fill()), 0, 'AC-MPN-011 an Engineer without an HR role is not pointed at needs to fill');
+select pg_temp.act_as('17400000-0000-0000-0000-0000000000a5');
+select is((select count(*)::int from public.my_manpower_to_fill()), 2, 'AC-MPN-011 an HR officer is pointed at both open needs');
+select pg_temp.act_as('17400000-0000-0000-0000-0000000000a2');
 select throws_ok($$ delete from manpower_needs where id = '17400000-0000-0000-0000-000000000a01' $$, '42501', null, 'AC-MPN-005 a need is never deleted');
 
 -- AC-MPN-006 who writes
@@ -122,10 +139,25 @@ select pg_temp.act_as('17400000-0000-0000-0000-0000000000a5');
 select lives_ok($$ insert into manpower_needs (project_id, discipline_id, headcount, needed_by) values ('17400000-0000-0000-0000-0000000000d1', '17400000-0000-0000-0000-000000000e01', 1, current_date) $$, 'AC-MPN-006 an HR officer writes through the HR capability');
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a4');
 select throws_ok($$ insert into manpower_needs (project_id, discipline_id, headcount, needed_by) values ('17400000-0000-0000-0000-0000000000d1', '17400000-0000-0000-0000-000000000e01', 1, current_date) $$, '42501', null, 'AC-MPN-001 an Engineer without an HR role cannot create');
-select is((select count(*)::int from manpower_needs), 4, 'AC-MPN-001 an Engineer reads the needs');
+select is((select count(*)::int from manpower_needs), 5, 'AC-MPN-001 an Engineer reads the needs');
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a6');
 select throws_ok($$ insert into manpower_need_people (need_id, person_id) values ('17400000-0000-0000-0000-000000000a01', '17400000-0000-0000-0000-000000000f04') $$, '42501', null, 'AC-MPN-001 Finance cannot link people');
-select is((select count(*)::int from manpower_needs), 4, 'AC-MPN-001 Finance reads the needs');
+select is((select count(*)::int from manpower_needs), 5, 'AC-MPN-001 Finance reads the needs');
+select is((select count(*)::int from public.my_manpower_to_fill()), 0, 'AC-MPN-011 Finance is not pointed at needs to fill');
+
+-- AC-MPN-011 a need that is met or cancelled leaves the list; AC-MPN-010 its creator hears it once, never from their own action
+select pg_temp.act_as('17400000-0000-0000-0000-0000000000a2');
+update manpower_needs set status = 'met' where id = '17400000-0000-0000-0000-000000000a01';
+select is((select count(*)::int from notifications where owner_id = '17400000-0000-0000-0000-0000000000a2' and title = 'Manpower need met'), 0, 'AC-MPN-010 the creator is not told about their own action');
+select pg_temp.act_as('17400000-0000-0000-0000-0000000000a5');
+select is((select count(*)::int from public.my_manpower_to_fill()), 1, 'AC-MPN-011 a met need leaves the list');
+select pg_temp.act_as('17400000-0000-0000-0000-0000000000a1');
+update manpower_needs set status = 'cancelled' where id = '17400000-0000-0000-0000-000000000a02';
+update manpower_needs set note = 'edited' where id = '17400000-0000-0000-0000-000000000a02';
+select pg_temp.act_as('17400000-0000-0000-0000-0000000000a5');
+select is((select count(*)::int from public.my_manpower_to_fill()), 0, 'AC-MPN-011 a cancelled need leaves the list');
+select pg_temp.act_as('17400000-0000-0000-0000-0000000000a2');
+select is((select count(*)::int from notifications where owner_id = '17400000-0000-0000-0000-0000000000a2' and title = 'Manpower need cancelled'), 1, 'AC-MPN-010 the creator is told once when another person cancels (a later edit adds no notice)');
 
 -- another organisation sees and writes nothing
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000b1');

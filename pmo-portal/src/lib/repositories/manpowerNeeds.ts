@@ -4,7 +4,7 @@ import { wrap } from './repositoryErrors';
 import type { ManpowerNeedRepository } from './contracts/manpowerNeeds';
 
 export type {
-  ManpowerNeedRow, ManpowerNeedInput, ManpowerNeedPatch, ManpowerProgressRow, ManpowerLinkRow, ManpowerStatus,
+  ManpowerNeedRow, ManpowerNeedInput, ManpowerNeedPatch, ManpowerProgressRow, ManpowerLinkRow, ManpowerToFillRow, ManpowerStatus,
 } from '@/src/lib/db/manpowerNeeds';
 
 export const manpowerNeedRepository: ManpowerNeedRepository = {
@@ -15,5 +15,6 @@ export const manpowerNeedRepository: ManpowerNeedRepository = {
   update: (id, patch) => wrap(() => needs.updateManpowerNeed(id, patch)),
   link: (needId, personId) => wrap(() => needs.linkManpowerPerson(needId, personId)),
   unlink: (linkId) => wrap(() => needs.unlinkManpowerPerson(linkId)),
+  toFill: () => wrap(() => needs.listManpowerToFill()),
   canManage: () => wrap(() => needs.canManageManpower()),
 };

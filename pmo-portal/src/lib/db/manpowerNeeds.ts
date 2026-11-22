@@ -43,6 +43,8 @@ export interface ManpowerProgressRow {
   open_count: number;
 }
 
+export interface ManpowerToFillRow { need_id: string; project_id: string; needed_by: string; open_count: number }
+
 export interface ManpowerLinkRow { id: string; need_id: string; person_id: string }
 
 const COLUMNS = 'id, project_id, discipline_id, headcount, needed_by, work_order_id, crew_id, note, status';
@@ -106,4 +108,11 @@ export async function canManageManpower(): Promise<boolean> {
   const { data, error } = await supabase.rpc('manpower_can_manage');
   if (error) fail(error);
   return data === true;
+}
+
+/** Open needs with places still to fill, for the people who may write needs; the database returns nothing for anyone else. */
+export async function listManpowerToFill(): Promise<ManpowerToFillRow[]> {
+  const { data, error } = await supabase.rpc('my_manpower_to_fill');
+  if (error) fail(error);
+  return data ?? [];
 }

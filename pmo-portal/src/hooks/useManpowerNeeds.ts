@@ -15,6 +15,10 @@ export function useManpowerProgress() {
 export function useManpowerLinks() {
   return useOrgQuery([KEY, 'links'], () => repo.links());
 }
+/** The needs-you pointer's rows: derived on read by the database, so a met or cancelled need is simply absent next time. */
+export function useManpowerToFill(enabled: boolean) {
+  return useOrgQuery([KEY, 'to-fill'], () => repo.toFill(), { enabled, staleness: 'live' });
+}
 /** Whether the database lets this person write needs; false while unknown so no control shows early. */
 export function useCanManageManpower() {
   return useOrgQuery([KEY, 'can-manage'], () => repo.canManage(), { staleness: 'session' });

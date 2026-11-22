@@ -32233,6 +32233,15 @@ export type Database = {
         }[]
       }
       my_home: { Args: never; Returns: Json }
+      my_manpower_to_fill: {
+        Args: never
+        Returns: {
+          need_id: string
+          needed_by: string
+          open_count: number
+          project_id: string
+        }[]
+      }
       my_waiting_billing_steps: {
         Args: never
         Returns: {

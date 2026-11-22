@@ -12,7 +12,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
     }),
   },
 }));
-import { canManageManpower, createManpowerNeed, linkManpowerPerson, listManpowerProgress, unlinkManpowerPerson, updateManpowerNeed } from './manpowerNeeds';
+import { canManageManpower, listManpowerToFill, createManpowerNeed, linkManpowerPerson, listManpowerProgress, unlinkManpowerPerson, updateManpowerNeed } from './manpowerNeeds';
 
 describe('manpower needs DAL', () => {
   beforeEach(() => { h.insert.mockReset(); h.rpc.mockReset(); h.update.mockReset(); h.del.mockReset(); });
@@ -49,5 +49,11 @@ describe('manpower needs DAL', () => {
     expect(await canManageManpower()).toBe(true);
     h.rpc.mockResolvedValue({ data: null, error: null });
     expect(await canManageManpower()).toBe(false);
+  });
+
+  it('reads the to-fill rows from the database function', async () => {
+    h.rpc.mockResolvedValue({ data: [{ need_id: 'n', project_id: 'p', needed_by: '2999-01-01', open_count: 2 }], error: null });
+    expect(await listManpowerToFill()).toEqual([{ need_id: 'n', project_id: 'p', needed_by: '2999-01-01', open_count: 2 }]);
+    expect(h.rpc).toHaveBeenCalledWith('my_manpower_to_fill');
   });
 });

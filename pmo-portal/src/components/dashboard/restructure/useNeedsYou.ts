@@ -37,6 +37,10 @@ import { selectOverdueTaskCount } from './overdueTasks';
 import { useWaitingSteps } from '@/src/hooks/useBillingSteps';
 import { summariseWaitingSteps } from '@/src/lib/waitingSteps';
 import type { WaitingStepsFact } from '@/src/lib/waitingSteps';
+import { useManpowerToFill } from '@/src/hooks/useManpowerNeeds';
+import { summariseManpowerToFill } from '@/src/lib/waitingManpower';
+import type { WaitingManpowerFact } from '@/src/lib/waitingManpower';
+import { formatDay } from '@/src/lib/format';
 
 export type NeedsTone = 'warn' | 'neutral' | 'lost';
 
@@ -90,6 +94,8 @@ export interface NeedsYouFacts {
   returnedExpenses?: number;
   /** Billing steps waiting on the viewer's role (#2680): a pointer derived on read, absent when none, unread or the read failed. */
   waitingBillingSteps?: WaitingStepsFact;
+  /** Manpower needs with places still to fill, for whoever the database lets fill them: derived on read, absent when none, unread or the read failed. */
+  waitingManpower?: WaitingManpowerFact;
 }
 
 type Translate = (key: string, defaultValue: string, options?: Record<string, unknown>) => string;
@@ -217,6 +223,17 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       label: counted(t, 'needs.billingSteps', 'billing step waiting on your role', 'billing steps waiting on your role', w.count),
       detail: w.oldestOverdueDays !== null ? t('needs.billingStepsOverdue', 'oldest {{count}} days overdue', { count: w.oldestOverdueDays }) : undefined,
       href: w.href, tone: w.overdue > 0 ? 'lost' : 'warn',
+    });
+  }
+
+  // Any role: the database returns rows only to those who may write needs (the crew authority or the HR capability).
+  if (facts.waitingManpower) {
+    const w = facts.waitingManpower;
+    add({
+      id: 'manpower-to-fill', count: w.count,
+      label: counted(t, 'needs.manpowerToFill', 'manpower need with places to fill', 'manpower needs with places to fill', w.count),
+      detail: t('needs.manpowerToFillDetail', w.openPlaces === 1 ? '{{count}} place open, earliest needed {{date}}' : '{{count}} places open, earliest needed {{date}}', { count: w.openPlaces, date: formatDay(w.earliestNeededBy) }),
+      href: w.href, tone: 'warn',
     });
   }
 
@@ -371,6 +388,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const invoiceApprovals = useInvoicesAwaitingViewer();
   // #2680: steps waiting on the viewer's role. Additive: a failed or unread query adds no item and never blocks the list.
   const waitingStepsQuery = useWaitingSteps(Boolean(orgId && role && role !== 'Engineer'));
+  // Manpower needs to fill: additive like the billing steps; the database answers only for those who may fill, so no role test here.
+  const manpowerToFillQuery = useManpowerToFill(Boolean(orgId && role));
 
   const procApprovals = useMemo(
     () => pendingProcurementApprovals(procurementsQuery.data, userId, realRole === 'Admin'),
@@ -446,6 +465,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     timesheetsToApprove: role === 'Project Manager' && !timesheetsAwaitingQuery.isPending && !timesheetsAwaitingQuery.isError ? timesheetsAwaitingQuery.data?.length ?? 0 : undefined,
     timesheetStatus: currentTimesheet?.status ?? (currentWeek && !timesheetsQuery.isPending && !timesheetsQuery.isError ? 'Draft' : null),
     engineerTasks: role === 'Engineer' && !myTasksQuery.isPending && !myTasksQuery.isError && currentWeek ? engineerTasksCount : undefined,
+    waitingManpower: manpowerToFillQuery.isSuccess ? summariseManpowerToFill(manpowerToFillQuery.data ?? []) ?? undefined : undefined,
     waitingBillingSteps: waitingStepsQuery.isSuccess ? summariseWaitingSteps(waitingStepsQuery.data ?? []) ?? undefined : undefined,
     returnedExpenses: role === 'Engineer' && !expenseClaimsQuery.isPending && !expenseClaimsQuery.isError ? currentReturnedExpenses.length : undefined,
   };
