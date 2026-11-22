@@ -17,15 +17,14 @@ test('JOB-WAIT-1 an Engineer who approves the first step finds the request on th
     // Home: the waiting card names the step and links the request.
     const card = page.getByTestId('eng-waiting-for-you');
     await expect(card).toBeVisible({ timeout: 20_000 });
-    await expect(card.getByRole('link', { name: /Material request, step 1: Site check/ }).first()).toHaveAttribute('href', new RegExp(`/material-requests/${fx.requestId}$`));
+    await expect(card.locator(`a[href$="/material-requests/${fx.requestId}"]`)).toContainText('Material request, step 1: Site check');
     const headline = Number(((await card.getByRole('heading').first().textContent()) ?? '').match(/\((\d+)\)/)?.[1] ?? NaN);
     expect(headline).toBeGreaterThanOrEqual(1);
 
-    // The menu has an Approvals entry (the Engineer role has none by default) and its badge is the same number.
-    await page.getByRole('button', { name: /more/i }).click().catch(() => undefined);
-    const entry = page.getByRole('link', { name: /Approvals/ }).first();
+    // The phone menu has an Approvals entry (the Engineer role has none by default) and its badge is the same number.
+    const entry = page.getByRole('navigation', { name: 'Phone navigation' }).getByRole('link', { name: /pending Approvals/ });
     await expect(entry).toBeVisible();
-    await expect(entry).toContainText(String(headline));
+    await expect(entry).toContainText(`${headline} pending`);
 
     // The inbox lists the request, and its "All pending" count is that number.
     await entry.click();

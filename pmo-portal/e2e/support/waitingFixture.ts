@@ -39,7 +39,8 @@ export async function submittedOverPlanRequest(who: string, stepRole: 'Engineer'
     sfx, projectId: fx.projectId, woIds: fx.workOrders.map((w) => w.id), boqId, requestId: id, requestNumber: number, chainBefore: before,
     workOrderLabel: `${wo.number} · ${wo.title}`, project: `${who}-${sfx} project`, itemLabel: `${item.code} · ${item.name}`,
     restore: async () => {
-      await admin.from('material_requests').delete().eq('id', id);
+      // A request's history is append-only, so it cannot be deleted: withdraw it so it leaves every approver's waiting list.
+      await user.rpc('mrq_cancel', { p_request_id: id, p_reason: 'e2e cleanup' });
       await cleanupAll(admin, [
         ['boq_material_allowances', 'boq_item_id', [boqId]], ['work_order_lines', 'work_order_id', fx.workOrders.map((w) => w.id)],
         ['boq_items', 'id', [boqId]], ['work_orders', 'id', fx.workOrders.map((w) => w.id)], ['projects', 'id', [fx.projectId]],

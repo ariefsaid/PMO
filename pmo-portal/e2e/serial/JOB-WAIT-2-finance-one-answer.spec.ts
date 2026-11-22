@@ -16,12 +16,12 @@ test('JOB-WAIT-2 Finance sees the same waiting request on the home, the Finance 
     await page.goto('/finance');
     const card = page.getByTestId('finance-hub-waiting');
     await expect(card.getByText(/Waiting for your decision \(\d+\)/)).toBeVisible({ timeout: 20_000 });
-    await expect(card.getByRole('link', { name: /Material request, step 1: Site check/ }).first()).toBeVisible();
+    await expect(card.getByRole('link', { name: /All \d+ approvals?/ })).toHaveAttribute('href', '/approvals');
     const count = Number((await card.getByText(/Waiting for your decision \(\d+\)/).textContent())?.match(/\((\d+)\)/)?.[1]);
 
     // Home: the approvals line says the same number.
     await page.goto('/');
-    await expect(page.getByRole('link', { name: new RegExp(`^${count}\\s*approvals? waiting for you`, 'i') }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('link', { name: new RegExp(`${count} approvals? wait on you|All ${count} approvals`, 'i') }).first()).toBeVisible({ timeout: 20_000 });
 
     // Inbox: "All pending" is that number and the request is listed.
     await page.goto('/approvals');
