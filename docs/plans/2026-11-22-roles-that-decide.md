@@ -18,7 +18,7 @@ separate commits so the Director can split it.
 | `mrq_set_chain` | 1001:157 | 1530 guard line | accepts `job_role` |
 | `mrq_submit` | 1333 | 1461 guard line | snapshot copies `job_role` |
 | `create_purchase_order` | 0712 | 1530 guard line | `or actor_may_order_purchases()` |
-| `transition_procurement` | 1017:13 | 1461 guard line | ordering branch |
+| `transition_procurement` | 1580 (after the land merge; 1017 before) | carries the 1461 guard line | ordering branch |
 
 Each restated body is copied from the row above **with** the guard line the dynamic rewrite inserted (it is in `pg_get_functiondef`
 at head though no migration spells it); the orchestrator checks each against `pg_get_functiondef`. `npm run check:restated-functions`
