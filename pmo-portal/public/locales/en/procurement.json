@@ -974,7 +974,9 @@
     "openCollectorLine": "________________________________________",
     "name": "Name",
     "signature": "Signature",
-    "signatureDate": "Date"
+    "signatureDate": "Date",
+    "section": "Purchase order",
+    "off": "Printing the purchase order is off. An Admin turns it on in Administration, Accounting, Purchase order printing."
   },
   "poSettings": {
     "heading": "Purchase order printing",

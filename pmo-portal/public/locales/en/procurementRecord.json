@@ -73,7 +73,8 @@
   "waiting": {
     "approval": "Waiting for approval",
     "engineerApproval": "Waiting for approval by a project manager or Finance",
-    "payment": "Payment: waiting for Finance"
+    "payment": "Payment: waiting for Finance",
+    "approvalGoesTo": "Waiting for approval. It goes to {{name}}."
   },
   "record": {
     "purchaseRequest": "Purchase request",

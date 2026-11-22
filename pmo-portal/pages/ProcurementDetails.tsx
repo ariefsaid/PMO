@@ -413,8 +413,15 @@ const ProcurementDetails: React.FC = () => {
         budget: formatCurrency(p.approvalRoute.lineBudget, p.currency),
       })
     : null;
+  // The requester is told who decides it: the route already picks the approver by amount, so a request above the first
+  // approver's amount shows the senior approver here instead of an anonymous "waiting".
+  const requesterRouteNames = p.status === 'Requested' && isRequester && p.approvalRoute && p.approvalRoute.approvers.length > 0
+    ? p.approvalRoute.approvers.map((approver) => approver.fullName).join(t('procurementDetail.route.nameJoiner', ' or '))
+    : null;
   const waitingNote = p.status === 'Requested' && isRequester
-    ? isEngineer
+    ? requesterRouteNames
+      ? t('procurementRecord:waiting.approvalGoesTo', 'Waiting for approval. It goes to {{name}}.', { name: requesterRouteNames })
+      : isEngineer
       ? t('procurementRecord:waiting.engineerApproval', 'Waiting for approval by a project manager or Finance')
       : t('procurementRecord:waiting.approval', 'Waiting for approval')
     : p.status === 'Vendor Invoiced' && !actionFor('Paid')
@@ -836,6 +843,14 @@ const ProcurementDetails: React.FC = () => {
       >
         {tab === 'timeline' && <RecordStack>
           <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
+          <PaymentChannelSection procurementId={p.id} canSet={canSetPaymentChannel} />
+          {primaryPo && (
+            <RecordSection data-testid="procurement-po-print" title={t('procurement:purchaseOrderPrint.section', 'Purchase order')}>
+              {poPrintEnabled
+                ? <Button variant="outline" size="sm" data-testid="print-purchase-order-inline" onClick={() => navigate(`/procurement/${p.id}/purchase-orders/${primaryPo.id}/print`)}>{t('procurement:purchaseOrderPrint.printAction', 'Print purchase order')}</Button>
+                : <p className="text-control text-muted-foreground" data-testid="po-print-off">{t('procurement:purchaseOrderPrint.off', 'Printing the purchase order is off. An Admin turns it on in Administration, Accounting, Purchase order printing.')}</p>}
+            </RecordSection>
+          )}
           {historyOpen && <RecordSection data-testid="procurement-full-history" title={t('procurementRecord:timeline.fullHistory', 'Full history')} actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></RecordSection>}
         </RecordStack>}
 

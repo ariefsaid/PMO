@@ -974,7 +974,9 @@
     "openCollectorLine": "________________________________________",
     "name": "Nama",
     "signature": "Tanda tangan",
-    "signatureDate": "Tanggal"
+    "signatureDate": "Tanggal",
+    "section": "Pesanan pembelian",
+    "off": "Cetak pesanan pembelian belum aktif. Admin mengaktifkannya di Administrasi, Akuntansi, Cetak pesanan pembelian."
   },
   "poSettings": {
     "heading": "Pencetakan pesanan pembelian",

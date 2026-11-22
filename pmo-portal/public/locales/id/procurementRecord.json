@@ -73,7 +73,8 @@
   "waiting": {
     "approval": "Menunggu persetujuan",
     "engineerApproval": "Menunggu persetujuan dari manajer proyek atau Finance",
-    "payment": "Pembayaran: menunggu Finance"
+    "payment": "Pembayaran: menunggu Finance",
+    "approvalGoesTo": "Menunggu persetujuan. Diteruskan ke {{name}}."
   },
   "record": {
     "purchaseRequest": "Permintaan pembelian",
