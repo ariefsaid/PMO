@@ -38,6 +38,9 @@ insert into profiles (id, org_id, full_name, email, role, status, built_in_role)
   ('17000000-0000-0000-0000-0000000000a7', '17000000-0000-0000-0000-00000000020a', 'PT Worker', 'pt-worker@example.com', 'Engineer', 'active', null),
   ('17000000-0000-0000-0000-0000000000a8', '17000000-0000-0000-0000-00000000020a', 'PT PCM',    'pt-pcm@example.com',    'Project Manager', 'active', 'project_control_manager'),
   ('17000000-0000-0000-0000-0000000000a9', '17000000-0000-0000-0000-00000000020a', 'PT Worker2', 'pt-worker2@example.com', 'Engineer', 'active', null);
+-- The Project Manager is the second login worker's line manager: the base approval route WOULD let them approve that timesheet,
+-- so only the recorder separation can refuse them (AC-PAY-006, last assertion).
+update profiles set manager_id = '17000000-0000-0000-0000-0000000000a4' where id = '17000000-0000-0000-0000-0000000000a9';
 insert into projects (id, org_id, name, status, project_manager_id) values
   ('17000000-0000-0000-0000-0000000000d1', '17000000-0000-0000-0000-00000000020a', 'PT Site', 'Ongoing Project', '17000000-0000-0000-0000-0000000000a4');
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
@@ -216,8 +219,10 @@ set local role authenticated;
 select pg_temp.act_as('17000000-0000-0000-0000-0000000000a4');
 select is((dsr_report_hours('17000000-0000-0000-0000-0000000005a1') ->> 'people_hours')::numeric, 13.00::numeric,
   'AC-PAY-005 the site report counts the day once');
-select is((select jsonb_array_length(attendance_report_day_hours('17000000-0000-0000-0000-0000000005a1') -> 'workers')), 3,
-  'FR-PAY-007 the manager sees each rostered worker on the site report');
+-- Every person the fixture places in the rostered crew (No Login One, Login Two, No Login Three, No Login Four, Login Five) is rostered on this day.
+select is((select jsonb_array_length(attendance_report_day_hours('17000000-0000-0000-0000-0000000005a1') -> 'workers')),
+  5,
+  'FR-PAY-007 the manager sees exactly the rostered workers on the site report (all five placed in the crew)');
 select is((select w -> 'second' ->> 'standing' from jsonb_array_elements(attendance_report_day_hours('17000000-0000-0000-0000-0000000005a1') -> 'workers') w
             where w ->> 'name' = 'No Login One'), 'second', 'FR-PAY-007 the report shows which figure stands');
 select pg_temp.act_as('17000000-0000-0000-0000-0000000000a6');
