@@ -1,0 +1,367 @@
+{
+ "terms": [
+  {
+   "key": "workOrder",
+   "en": { "singular": [ "work order" ],
+    "plural": [ "work orders" ]
+   },
+   "id": { "singular": [ "work order", "SPK", "Work Order / SPK", "perintah kerja" ],
+    "plural": [ "work order", "SPK", "Work Order / SPK", "perintah kerja" ]
+   },
+   "variants": {
+    "en": [ "job order" ],
+    "id": []
+   }
+  },
+  {
+   "key": "project",
+   "en": { "singular": [ "project" ],
+    "plural": [ "projects" ]
+   },
+   "id": { "singular": [ "proyek", "proyeknya", "antarproyek" ],
+    "plural": [ "proyek", "proyeknya", "antarproyek" ]
+   }
+  },
+  {
+   "key": "clientSuppliedStock",
+   "en": { "singular": [ "client-supplied item", "client-supplied stock" ],
+    "plural": [ "client-supplied items", "client-supplied stock" ]
+   },
+   "id": { "singular": [ "item pasokan klien", "material pasokan klien", "stok titipan klien" ],
+    "plural": [ "item pasokan klien", "material pasokan klien", "stok titipan klien" ]
+   }
+  },
+  {
+   "key": "purchaseRequest",
+   "en": { "singular": [ "purchase request" ],
+    "plural": [ "purchase requests" ]
+   },
+   "id": { "singular": [ "permintaan pembelian" ],
+    "plural": [ "permintaan pembelian" ]
+   }
+  },
+  {
+   "key": "discipline",
+   "en": { "singular": [ "discipline" ],
+    "plural": [ "disciplines" ]
+   },
+   "id": { "singular": [ "disiplin" ],
+    "plural": [ "disiplin" ]
+   }
+  },
+  {
+   "key": "materialRequest",
+   "en": { "singular": [ "material request" ],
+    "plural": [ "material requests" ]
+   },
+   "id": { "singular": [ "permintaan material" ],
+    "plural": [ "permintaan material" ]
+   }
+  },
+  {
+   "key": "billOfQuantities",
+   "en": { "singular": [ "bill of quantities" ],
+    "plural": [ "bill of quantities" ]
+   },
+   "id": { "singular": [ "bill of quantities", "daftar kuantitas" ],
+    "plural": [ "bill of quantities", "daftar kuantitas" ]
+   }
+  },
+  {
+   "key": "contractItem",
+   "en": { "singular": [ "contract item" ],
+    "plural": [ "contract items" ]
+   },
+   "id": { "singular": [ "item kontrak" ],
+    "plural": [ "item kontrak" ]
+   }
+  },
+  {
+   "key": "dailyRevenue",
+   "en": { "singular": [ "day revenue", "daily revenue" ],
+    "plural": [ "day revenue", "daily revenue" ]
+   },
+   "id": { "singular": [ "pendapatan hari itu", "pendapatan harian" ],
+    "plural": [ "pendapatan hari itu", "pendapatan harian" ]
+   }
+  },
+  {
+   "key": "acceptedQuantity",
+   "en": { "singular": [ "accepted quantity" ],
+    "plural": [ "accepted quantities" ]
+   },
+   "id": { "singular": [ "kuantitas yang diterima", "kuantitas diterima" ],
+    "plural": [ "kuantitas yang diterima", "kuantitas diterima" ]
+   }
+  },
+  {
+   "key": "costVariation",
+   "en": { "singular": [ "cost variation" ],
+    "plural": [ "cost variations" ]
+   },
+   "id": { "singular": [ "variasi biaya" ],
+    "plural": [ "variasi biaya" ]
+   }
+  },
+  {
+   "key": "deliveryNote",
+   "en": { "singular": [ "delivery note" ],
+    "plural": [ "delivery notes" ]
+   },
+   "id": { "singular": [ "surat jalan", "nota pengiriman" ],
+    "plural": [ "surat jalan", "nota pengiriman" ]
+   }
+  },
+  {
+   "key": "stockCount",
+   "en": { "singular": [ "stock count" ],
+    "plural": [ "stock counts" ]
+   },
+   "id": { "singular": [ "stok opname" ],
+    "plural": [ "stok opname" ]
+   }
+  },
+  {
+   "key": "imprest",
+   "en": { "singular": [ "site cash", "imprest" ],
+    "plural": [ "site cash", "imprests" ]
+   },
+   "id": { "singular": [ "kas lapangan" ],
+    "plural": [ "kas lapangan" ]
+   },
+   "variants": {
+    "en": [ "petty cash" ],
+    "id": [ "site cash", "petty cash", "kas kecil" ]
+   }
+  },
+  {
+   "key": "standIn",
+   "en": { "singular": [ "stand-in" ],
+    "plural": [ "stand-ins" ]
+   },
+   "id": { "singular": [ "pengganti" ],
+    "plural": [ "pengganti" ]
+   },
+   "scope": [ "materialRequests" ]
+  },
+  {
+   "key": "progressClaim",
+   "en": { "singular": [ "progress claim" ],
+    "plural": [ "progress claims" ]
+   },
+   "id": { "singular": [ "klaim progres" ],
+    "plural": [ "klaim progres" ]
+   }
+  },
+  {
+   "key": "serviceRequest",
+   "en": { "singular": [ "service request" ],
+    "plural": [ "service requests" ]
+   },
+   "id": { "singular": [ "permintaan layanan" ],
+    "plural": [ "permintaan layanan" ]
+   }
+  },
+  {
+   "key": "purchaseOrder",
+   "en": { "singular": [ "purchase order" ],
+    "plural": [ "purchase orders" ]
+   },
+   "id": { "singular": [ "purchase order", "pesanan pembelian" ],
+    "plural": [ "purchase order", "pesanan pembelian" ]
+   }
+  },
+  {
+   "key": "dailySiteReport",
+   "en": { "singular": [ "daily site report", "daily report", "site report" ],
+    "plural": [ "daily site reports", "daily reports", "site reports" ]
+   },
+   "id": { "singular": [ "laporan harian lapangan", "laporan harian", "laporan lapangan" ],
+    "plural": [ "laporan harian lapangan", "laporan harian", "laporan lapangan" ]
+   }
+  },
+  {
+   "key": "surveyQuantity",
+   "en": { "singular": [ "survey quantity" ],
+    "plural": [ "survey quantities" ]
+   },
+   "id": { "singular": [ "kuantitas survei" ],
+    "plural": [ "kuantitas survei" ]
+   }
+  },
+  {
+   "key": "quantityChangeRequest",
+   "en": { "singular": [ "quantity change request" ],
+    "plural": [ "quantity change requests" ]
+   },
+   "id": { "singular": [ "permintaan perubahan kuantitas" ],
+    "plural": [ "permintaan perubahan kuantitas" ]
+   }
+  },
+  {
+   "key": "workOrderTransfer",
+   "en": { "singular": [ "transfer between work orders", "work-order transfer" ],
+    "plural": [ "transfers between work orders", "work-order transfers" ]
+   },
+   "id": { "singular": [ "transfer antar work order", "transfer antar perintah kerja", "pemindahan antar work order" ],
+    "plural": [ "transfer antar work order", "transfer antar perintah kerja", "pemindahan antar work order" ]
+   }
+  },
+  {
+   "key": "billingPlan",
+   "en": { "singular": [ "billing plan" ],
+    "plural": [ "billing plans" ]
+   },
+   "id": { "singular": [ "rencana penagihan" ],
+    "plural": [ "rencana penagihan" ]
+   }
+  },
+  {
+   "key": "billingStep",
+   "en": { "singular": [ "billing step" ],
+    "plural": [ "billing steps" ]
+   },
+   "id": { "singular": [ "langkah penagihan", "tahap penagihan" ],
+    "plural": [ "langkah penagihan", "tahap penagihan" ]
+   }
+  },
+  {
+   "key": "handoverCertificate",
+   "en": { "singular": [ "handover certificate", "handover confirmation" ],
+    "plural": [ "handover certificates", "handover confirmations" ]
+   },
+   "id": { "singular": [ "sertifikat serah terima", "konfirmasi serah terima" ],
+    "plural": [ "sertifikat serah terima", "konfirmasi serah terima" ]
+   }
+  },
+  {
+   "key": "stockTransfer",
+   "en": { "singular": [ "stock transfer" ],
+    "plural": [ "stock transfers" ]
+   },
+   "id": { "singular": [ "transfer stok" ],
+    "plural": [ "transfer stok" ]
+   }
+  },
+  {
+   "key": "stockReceipt",
+   "en": { "singular": [ "stock receipt", "goods receipt" ],
+    "plural": [ "stock receipts", "goods receipts" ]
+   },
+   "id": { "singular": [ "penerimaan barang" ],
+    "plural": [ "penerimaan barang" ]
+   }
+  },
+  {
+   "key": "stockReturn",
+   "en": { "singular": [ "stock return" ],
+    "plural": [ "stock returns" ]
+   },
+   "id": { "singular": [ "pengembalian stok" ],
+    "plural": [ "pengembalian stok" ]
+   }
+  },
+  {
+   "key": "reservation",
+   "en": { "singular": [ "reservation" ],
+    "plural": [ "reservations" ]
+   },
+   "id": { "singular": [ "reservasi" ],
+    "plural": [ "reservasi" ]
+   }
+  },
+  {
+   "key": "crew",
+   "en": { "singular": [ "crew" ],
+    "plural": [ "crews" ]
+   },
+   "id": { "singular": [ "kru", "regu", "crew" ],
+    "plural": [ "kru", "regu", "crew" ]
+   }
+  },
+  {
+   "key": "roster",
+   "en": { "singular": [ "roster" ],
+    "plural": [ "rosters" ]
+   },
+   "id": { "singular": [ "roster" ],
+    "plural": [ "roster" ]
+   }
+  },
+  {
+   "key": "issue",
+   "en": { "singular": [ "issue" ],
+    "plural": [ "issues" ]
+   },
+   "id": { "singular": [ "isu", "masalah" ],
+    "plural": [ "isu", "masalah" ]
+   },
+   "scope": [ "incidents", "notifications", "emailNotifications", "crewTools" ]
+  },
+  {
+   "key": "checkpoint",
+   "en": { "singular": [ "checkpoint" ],
+    "plural": [ "checkpoints" ]
+   },
+   "id": { "singular": [ "checkpoint", "titik periksa" ],
+    "plural": [ "checkpoint", "titik periksa" ]
+   }
+  },
+  {
+   "key": "milestone",
+   "en": { "singular": [ "milestone" ],
+    "plural": [ "milestones" ]
+   },
+   "id": { "singular": [ "milestone", "tonggak" ],
+    "plural": [ "milestone", "tonggak" ]
+   }
+  },
+  {
+   "key": "dailyTarget",
+   "en": { "singular": [ "daily target" ],
+    "plural": [ "daily targets" ]
+   },
+   "id": { "singular": [ "target harian" ],
+    "plural": [ "target harian" ]
+   }
+  },
+  {
+   "key": "rootCause",
+   "en": { "singular": [ "root cause" ],
+    "plural": [ "root causes" ]
+   },
+   "id": { "singular": [ "akar masalah" ],
+    "plural": [ "akar masalah" ]
+   }
+  },
+  {
+   "key": "safetyRecordType",
+   "en": { "singular": [ "safety record" ],
+    "plural": [ "safety records" ]
+   },
+   "id": { "singular": [ "catatan keselamatan" ],
+    "plural": [ "catatan keselamatan" ]
+   }
+  },
+  {
+   "key": "candidateWorkOrder",
+   "en": { "singular": [ "candidate work order", "candidate" ],
+    "plural": [ "candidate work orders", "candidates" ]
+   },
+   "id": { "singular": [ "kandidat work order", "kandidat" ],
+    "plural": [ "kandidat work order", "kandidat" ]
+   },
+   "scope": [ "project", "finance", "administration", "refusals" ]
+  },
+  {
+   "key": "closeOut",
+   "en": { "singular": [ "close-out", "closeout" ],
+    "plural": [ "close-outs", "closeouts" ]
+   },
+   "id": { "singular": [ "closeout", "close-out", "penutupan" ],
+    "plural": [ "closeout", "close-out", "penutupan" ]
+   },
+   "scope": [ "closeout", "project", "projectTabs", "workInHand" ]
+  }
+ ]
+}

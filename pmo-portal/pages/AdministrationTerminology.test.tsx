@@ -22,6 +22,7 @@ vi.mock('@/src/lib/db/orgRoleNames', async (orig) => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o1' } }) }));
 
 import AdministrationTerminology from './AdministrationTerminology';
+import { TERM_KEYS } from '@/src/lib/i18n/orgTerms';
 
 const wrap = () =>
   render(
@@ -34,6 +35,15 @@ const wrap = () =>
 
 describe('AC-TERM-004 Administration › Terminology', () => {
   beforeEach(() => { vi.clearAllMocks(); permissions.write = true; });
+  it('AC-TR-002 lists a card, with its default wording in both languages, for every registry term', async () => {
+    wrap();
+    await screen.findByTestId('term-card-workOrder');
+    for (const key of TERM_KEYS) {
+      expect(screen.getByTestId(`term-card-${key}`)).toBeTruthy();
+      expect(screen.getByTestId(`term-row-${key}-id`)).toBeTruthy();
+    }
+    expect(screen.getByTestId('term-card-billingStep').textContent).toContain('billing step');
+  });
   it('shows terminology without write controls to a read-only viewer', async () => {
     permissions.write = false;
     wrap();
