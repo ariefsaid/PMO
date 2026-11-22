@@ -34,6 +34,68 @@ export type Database = {
   }
   public: {
     Tables: {
+      absence_reports: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          org_id: string
+          person_id: string
+          reason: string
+          reported_by: string
+          work_date: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          org_id?: string
+          person_id: string
+          reason: string
+          reported_by: string
+          work_date: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          org_id?: string
+          person_id?: string
+          reason?: string
+          reported_by?: string
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "absence_reports_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "absence_reports_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "absence_reports_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "absence_reports_reported_by_fkey"
+            columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_attachments: {
         Row: {
           archived_at: string | null
@@ -13043,21 +13105,21 @@ export type Database = {
           enabled_at: string | null
           org_id: string
           updated_at: string
-          updated_by: string
+          updated_by: string | null
         }
         Insert: {
           enabled?: boolean
           enabled_at?: string | null
           org_id: string
           updated_at?: string
-          updated_by: string
+          updated_by?: string | null
         }
         Update: {
           enabled?: boolean
           enabled_at?: string | null
           org_id?: string
           updated_at?: string
-          updated_by?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -13443,6 +13505,11 @@ export type Database = {
           leave_approver_role: string | null
           leave_requests_enabled: boolean
           lifecycle_state: string | null
+          module_billing_extras: boolean
+          module_people_crews: boolean
+          module_purchasing_extras: boolean
+          module_site_day: boolean
+          module_stock: boolean
           name: string
           performance_band_high: number
           performance_band_low: number
@@ -13499,6 +13566,11 @@ export type Database = {
           leave_approver_role?: string | null
           leave_requests_enabled?: boolean
           lifecycle_state?: string | null
+          module_billing_extras?: boolean
+          module_people_crews?: boolean
+          module_purchasing_extras?: boolean
+          module_site_day?: boolean
+          module_stock?: boolean
           name: string
           performance_band_high?: number
           performance_band_low?: number
@@ -13555,6 +13627,11 @@ export type Database = {
           leave_approver_role?: string | null
           leave_requests_enabled?: boolean
           lifecycle_state?: string | null
+          module_billing_extras?: boolean
+          module_people_crews?: boolean
+          module_purchasing_extras?: boolean
+          module_site_day?: boolean
+          module_stock?: boolean
           name?: string
           performance_band_high?: number
           performance_band_low?: number
@@ -27458,12 +27535,13 @@ export type Database = {
       actor_bypasses_rls:
         | { Args: never; Returns: boolean }
         | { Args: { p_role: unknown }; Returns: boolean }
+      actor_has_person_documents_access: { Args: never; Returns: boolean }
       actor_has_role_capability: {
         Args: { p_capability: string }
         Returns: boolean
       }
-      actor_holds_built_in_role: { Args: { p_key: string }; Returns: boolean }
       actor_is_light: { Args: never; Returns: boolean }
+      actor_may_see_medical_documents: { Args: never; Returns: boolean }
       actor_may_see_prices: { Args: never; Returns: boolean }
       actor_may_see_prices_now: { Args: never; Returns: boolean }
       actor_sees_prices: { Args: never; Returns: boolean }
@@ -27622,6 +27700,7 @@ export type Database = {
         Args: { p_cursor: string; p_org_id: string; p_rows: Json }
         Returns: number
       }
+      apply_org_switch_defaults: { Args: { p_org: string }; Returns: undefined }
       approve_bill_match_exception: {
         Args: { p_invoice_id: string; p_reason: string }
         Returns: Json
@@ -27873,6 +27952,7 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      backfill_org_modules: { Args: { p_org: string }; Returns: undefined }
       backfill_procurement_approved_total: { Args: never; Returns: undefined }
       backfill_project_stage_entries: {
         Args: { p_project_id?: string }
@@ -28070,14 +28150,7 @@ export type Database = {
         Args: { p_key: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
-      built_in_role_may_approve: { Args: { p_key: string }; Returns: boolean }
-      built_in_role_may_prepare: { Args: { p_key: string }; Returns: boolean }
-      built_in_role_may_stand_in: {
-        Args: { p_absent_key: string; p_actor_key: string }
-        Returns: boolean
-      }
       built_in_role_sees_prices: { Args: { p_key: string }; Returns: boolean }
-      built_in_role_tier: { Args: { p_key: string }; Returns: string }
       bv16_migration_0293_revert: { Args: never; Returns: undefined }
       calculate_standalone_tax_amount: {
         Args: {
@@ -31973,6 +32046,10 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: boolean
       }
+      may_see_medical_documents: {
+        Args: { p_profile: string }
+        Returns: boolean
+      }
       merge_external_org_binding_config: {
         Args: { p_external_tier: string; p_org_id: string; p_patch: Json }
         Returns: undefined
@@ -34215,6 +34292,10 @@ export type Database = {
         Args: { p_org_id: string; p_rows: Json; p_table: string }
         Returns: number
       }
+      report_absence: {
+        Args: { p_note?: string; p_reason: string }
+        Returns: string
+      }
       report_crew_tool: {
         Args: {
           p_id: string
@@ -34622,6 +34703,15 @@ export type Database = {
       }
       seed_document_categories: { Args: { p_org: string }; Returns: undefined }
       seed_org_defaults: { Args: { p_org_id: string }; Returns: undefined }
+      seed_payment_channels: {
+        Args: { p_by?: string; p_org: string }
+        Returns: undefined
+      }
+      seed_purchase_line_categories: {
+        Args: { p_org: string }
+        Returns: undefined
+      }
+      seed_purchase_types: { Args: { p_org: string }; Returns: undefined }
       select_procurement_quote: {
         Args: { p_quotation_id: string }
         Returns: undefined
@@ -34897,7 +34987,7 @@ export type Database = {
           enabled_at: string | null
           org_id: string
           updated_at: string
-          updated_by: string
+          updated_by: string | null
         }
         SetofOptions: {
           from: "*"
