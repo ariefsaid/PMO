@@ -24,6 +24,8 @@ begin
   perform public.assert_not_light();   -- a light account decides nothing and sees no list (1209)
   if v_role is null or v_uid is null then return; end if;
   return query
+  select waiting.kind, waiting.record_id, waiting.project_id, waiting.title, waiting.created_at
+    from (
   -- daily_report
   select 'daily_report'::text, d.id, d.project_id,
          (coalesce(w.wo_number || ' · ', '') || w.title || ' · ' || to_char(d.work_date, 'YYYY-MM-DD'))::text,
@@ -81,7 +83,8 @@ begin
     from public.equipment_plans e
     join public.projects pj on pj.id = e.project_id
    where e.org_id = v_org and e.status = 'Submitted' and public.equipment_plan_approver_ok(e.id)
-  limit 500;
+    ) as waiting(kind, record_id, project_id, title, created_at)
+   order by waiting.created_at asc nulls last, waiting.kind asc, waiting.record_id asc;
 end; $$;
 revoke all on function public.my_waiting_decisions() from public, anon;
 grant execute on function public.my_waiting_decisions() to authenticated;

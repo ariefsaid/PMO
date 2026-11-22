@@ -2,7 +2,7 @@
 -- Migration under test: 1560_waiting_decisions.sql. Each case asserts what the SAME gate as the deciding function lets the caller decide.
 begin;
 create extension if not exists pgtap;
-select plan(20);
+select plan(24);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15600000-0000-0000-0000-00000000000a', 'Wait Org', 'IDR', 'Asia/Jakarta'), ('15600000-0000-0000-0000-00000000000b', 'Wait Other Org', 'IDR', 'Asia/Jakarta');
@@ -59,6 +59,46 @@ insert into stock_warehouses (id, org_id, code, name, kind) values
 insert into stock_transfers (id, org_id, number, from_warehouse_id, to_warehouse_id, transit_warehouse_id, to_user_id, status, sent_by) values
   ('15600000-0000-0000-0000-000000000801', '15600000-0000-0000-0000-00000000000a', 'TR-W1', '15600000-0000-0000-0000-000000000701', '15600000-0000-0000-0000-000000000702', '15600000-0000-0000-0000-000000000703', '15600000-0000-0000-0000-0000000000a4', 'Sent', '15600000-0000-0000-0000-0000000000a3');
 
+-- More than the former 500-row cap, with tied timestamps across kinds. The delivery and work-order
+-- rows are deliberately after the daily-report branch in the UNION so an unordered cap loses them.
+insert into daily_site_reports (id, org_id, project_id, work_order_id, work_date, status, author_id, submitted_at)
+select ('15600000-0000-0000-0000-' || lpad(to_hex(i), 12, '0'))::uuid,
+       '15600000-0000-0000-0000-00000000000a', '15600000-0000-0000-0000-0000000000d1',
+       '15600000-0000-0000-0000-000000000401', current_date - i - 2, 'submitted',
+       '15600000-0000-0000-0000-0000000000a2', '2000-01-01 00:00:00+00'
+  from generate_series(1, 501) as i;
+insert into procurements (id, org_id, title, project_id, status, requested_by_id, updated_at) values
+  ('15600000-0000-0000-0000-000000000602', '15600000-0000-0000-0000-00000000000a', 'Tied delivery', '15600000-0000-0000-0000-0000000000d1', 'Ordered', '15600000-0000-0000-0000-0000000000a4', '2000-01-01 00:00:00+00');
+
+set local role authenticated;
+
+select pg_temp._as('15600000-0000-0000-0000-0000000000a1');
+select is((select count(*)::int from public.my_waiting_decisions()), 506,
+  '#1122: the shared waiting list includes every eligible row beyond 500 across decision kinds');
+select is((select count(*)::int from public.my_waiting_decisions() where kind = 'daily_report'), 503,
+  '#1122: the over-limit fixture has 501 tied daily reports plus the two existing eligible reports');
+select ok((select bool_and(
+             created_at > prior_created_at
+             or (created_at = prior_created_at and kind > prior_kind)
+             or (created_at = prior_created_at and kind = prior_kind and record_id > prior_record_id))
+             from (
+               select created_at, kind, record_id,
+                      lag(created_at) over (order by ordinality) as prior_created_at,
+                      lag(kind) over (order by ordinality) as prior_kind,
+                      lag(record_id) over (order by ordinality) as prior_record_id
+                 from public.my_waiting_decisions() with ordinality as waiting(kind, record_id, project_id, title, created_at, ordinality)
+             ) ordered
+            where prior_created_at is not null),
+  '#1122: every row has a strict timestamp, kind and record-id order');
+select is((select array_agg(kind || ':' || record_id::text order by ordinality)
+             from public.my_waiting_decisions() with ordinality as waiting(kind, record_id, project_id, title, created_at, ordinality)
+            where ordinality between 501 and 502),
+  array['daily_report:15600000-0000-0000-0000-0000000001f5', 'delivery_record:15600000-0000-0000-0000-000000000602'],
+  '#1122: timestamp ties are ordered by kind and then record id, including a later UNION kind');
+reset role;
+update daily_site_reports set status = 'validated', validated_by = '15600000-0000-0000-0000-0000000000a1', validated_at = now()
+ where id between '15600000-0000-0000-0000-000000000001'::uuid and '15600000-0000-0000-0000-0000000001f5'::uuid;
+update procurements set status = 'Received' where id = '15600000-0000-0000-0000-000000000602';
 set local role authenticated;
 
 select is(pg_temp._kinds('15600000-0000-0000-0000-0000000000a1'), 'daily_report,daily_report,delivery_record,work_order_issue',
