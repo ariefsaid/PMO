@@ -46,6 +46,16 @@ test('JOB-PM-7 the delivery record names who confirms it, Finance confirms it fr
   await page.getByRole('dialog').getByRole('button', { name: /Confirm BAST|Konfirmasi BAST/ }).click();
   await expect(row).toContainText(/Confirmed|Dikonfirmasi/, { timeout: 15_000 });
 
+  // Starting from the confirmed BAST carries its work order and accepted quantity into the claim.
+  await page.goto(`/projects/${fx.projectId}/work-orders`);
+  const order = page.getByTestId(`customer-order-${fx.workOrderId}`);
+  await order.getByRole('button', { name: /Start a claim from this BAST|Mulai klaim dari BAST ini/ }).click();
+  const claim = page.getByRole('dialog');
+  await expect(claim.getByLabel(/^(Bills|Menagih)$/i)).toHaveValue(fx.workOrderId);
+  await expect(claim.getByLabel(/SURVEY/)).toHaveValue('4');
+  await claim.getByRole('button', { name: /Cancel|Batal/ }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: /Discard|Buang/ }).click();
+
   // The claims board is one tap from the Finance page.
   await page.goto('/finance');
   await page.getByTestId('finance-hub-claims-board-link').click();
