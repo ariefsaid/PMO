@@ -12,6 +12,8 @@ import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 
 const state = vi.hoisted(() => ({ role: 'Project Manager', key: 'hr_manager' as string | null, safety: false }));
 
+const standing = vi.hoisted(() => ({ offered: true }));
+vi.mock('@/src/hooks/useWaitingForYou', () => ({ useApprovalsEntryOffered: () => standing.offered }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: state.role, realRole: state.role }) }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({
   data: { crm: true, procurement: true, timesheets: true, revenue: true, management_pack: true, financial_statements: true, imprest: true, stock: true, sales_pipeline: true, incidents: true },
@@ -83,10 +85,17 @@ describe('walk fix — menu entries and daily order', () => {
     expect(hrefs()).toContain('/finance/billing-board');
   });
 
-  it('JOB-NAV-APPROVALS: an Engineer keeps the approvals inbox', () => {
+  it('JOB-NAV-APPROVALS: an Engineer who can decide anything keeps the approvals inbox', () => {
     state.role = 'Engineer'; state.key = 'engineer';
     renderRail();
     expect(hrefs()).toContain('/approvals');
+  });
+
+  it('JOB-NAV-APPROVALS: an Engineer with no standing has no approvals inbox', () => {
+    state.role = 'Engineer'; state.key = 'engineer'; standing.offered = false;
+    renderRail();
+    expect(hrefs()).not.toContain('/approvals');
+    standing.offered = true;
   });
 
   it('a person with no function key keeps the access level order', () => {

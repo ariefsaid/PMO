@@ -16,6 +16,10 @@ import React from 'react';
  *  - Engineer (IC): /approvals nav absent.
  */
 
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
+const auth = { currentUser: { id: 'u1', org_id: 'org-1' } } as unknown as AuthContextValue;
+const standing = vi.hoisted(() => ({ offered: true }));
+vi.mock('@/src/hooks/useWaitingForYou', () => ({ useApprovalsEntryOffered: () => standing.offered }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({
     effectiveRole: testRole,
@@ -60,9 +64,9 @@ import { RailDrawerContext } from '../railDrawerContext';
 const renderRailAs = (role: string) => {
   testRole = role;
   return render(
-    <MemoryRouter>
+    <AuthContext.Provider value={role === 'Engineer' ? auth : undefined}><MemoryRouter>
       <RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider>
-    </MemoryRouter>,
+    </MemoryRouter></AuthContext.Provider>,
   );
 };
 
@@ -90,11 +94,17 @@ describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
     expect(screen.getByRole('link', { name: /approvals/i })).toBeInTheDocument();
   });
 
-  it('AC-W2-IXD-003: an Engineer keeps the Approvals nav item (owner walk 2026-12: a person who can decide anything must find the inbox)', () => {
+  it('AC-W2-IXD-003: an Engineer who can decide anything keeps the Approvals nav item (owner walk 2026-12: a person who can decide must find the inbox)', () => {
     renderRailAs('Engineer');
-    // Until the decide-anything read lands (lane fix/walk-waiting) every full account sees the inbox;
-    // the database still decides who can approve, and the page says when nothing waits.
+    // Standing is a stable fact about the person (a step, a pin, a stand-in, a report, a warehouse); the page says when nothing waits.
     expect(screen.getByRole('link', { name: /approvals/i })).toHaveAttribute('href', '/approvals');
+  });
+
+  it('AC-W2-IXD-003: an Engineer with no standing has no Approvals nav item', () => {
+    standing.offered = false;
+    renderRailAs('Engineer');
+    expect(screen.queryByRole('link', { name: /approvals/i })).not.toBeInTheDocument();
+    standing.offered = true;
   });
 
   it('AC-W2-IXD-003: an Executive sees the Approvals nav item', () => {

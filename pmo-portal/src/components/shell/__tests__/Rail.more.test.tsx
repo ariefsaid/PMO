@@ -12,6 +12,10 @@ import { RailDrawerContext } from '../railDrawerContext';
 
 const roleState = vi.hoisted(() => ({ role: 'Executive' }));
 
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
+const auth = { currentUser: { id: 'u1', org_id: 'org-1' } } as unknown as AuthContextValue;
+const standing = vi.hoisted(() => ({ offered: true }));
+vi.mock('@/src/hooks/useWaitingForYou', () => ({ useApprovalsEntryOffered: () => standing.offered }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: roleState.role, realRole: roleState.role }),
 }));
@@ -32,11 +36,11 @@ vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => false }));
 
 const renderRail = (entry = '/', drawer = false) =>
   render(
-    <MemoryRouter initialEntries={[entry]}>
+    <AuthContext.Provider value={roleState.role === 'Engineer' ? auth : undefined}><MemoryRouter initialEntries={[entry]}>
       <RailDrawerContext.Provider value={drawer}>
         <Rail />
       </RailDrawerContext.Provider>
-    </MemoryRouter>,
+    </MemoryRouter></AuthContext.Provider>,
   );
 
 beforeEach(() => { roleState.role = 'Executive'; });

@@ -154,13 +154,12 @@ export const useWaitingForYou = useLiveWaitingForYou;
 
 /**
  * Whether to offer the Approvals entry to a login whose role is not on the entry's role list: anyone who can decide anything
- * (`my_decision_standing`: a chain-step role, a pin, a stand-in, a line manager) or has something waiting now (a requester
- * whose delivery is due). Optimistic while the answer loads or fails, so the entry never flickers out.
+ * (`my_decision_standing`: a chain-step role, a pin, a stand-in, a line manager, a warehouse keeper). Standing is a fact about the
+ * person, never "something is pending", so the entry does not come and go with the queue. Optimistic while the answer loads or fails.
  */
 export function useApprovalsEntryOffered(): boolean {
   const standing = useDecisionStanding();
-  const waiting = useWaitingForYou();
   // A manager whose only week is approved still has the correction path to reach: the timesheet eligibility read keeps counting it.
   const timesheetWork = useHasTimesheetApprovalWork();
-  return Boolean(standing.data || standing.isPending || standing.isError || waiting.entries.length > 0 || timesheetWork.data || timesheetWork.isPending || timesheetWork.isError);
+  return Boolean(standing.data || standing.isPending || standing.isError || timesheetWork.data || timesheetWork.isPending || timesheetWork.isError);
 }

@@ -209,6 +209,7 @@ export const MODULES: ModuleDef[] = [
     label: 'Approvals', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.approvals',
     path: '/approvals',
+    roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
   {
     module: 'views',
