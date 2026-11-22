@@ -23,6 +23,7 @@ function makeI18n(lng: 'en' | 'id') {
   void i18n.init({
     lng,
     fallbackLng: 'en',
+    fallbackNS: 'common',
     ns: ['common', 'siteReport', 'status', 'waitingList'],
     defaultNS: 'siteReport',
     resources: { en: bundle('en'), id: bundle('id') },
@@ -250,16 +251,16 @@ describe('site report record', () => {
   });
 
   describe('who-next waiting line (FR-WAIT-006; server route over dsr_may_validate)', () => {
-    it('a named eligible PM is spoken with the project-approver role and Finance/Admin as true alternatives, EN and ID', () => {
+    it('a named eligible PM is spoken with their own database role and Finance/Admin as true alternatives, EN and ID', () => {
       h.detail = make('submitted');
       h.route = { routeKind: 'project_manager', approvers: [{ id: 'pm', name: 'Rina Wati', role: 'Project Manager' }] };
       const first = renderPage('en');
-      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for Rina Wati, project approver or Finance or Admin');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for Rina Wati, Project Manager or Finance or Admin');
       expect(h.routeIdCalls).toContain('r1');
       first.unmount();
 
       renderPage('id');
-      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Menunggu Rina Wati, penyetuju proyek atau Keuangan atau Admin');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Menunggu Rina Wati, Manajer proyek atau Keuangan atau Admin');
     });
 
     it('the server role fallback (no eligible PM: unassigned, inactive, light, or wrong-role) names no person, EN and ID', () => {
@@ -268,7 +269,7 @@ describe('site report record', () => {
       const first = renderPage('en');
       expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for Finance or Admin');
       expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('Rina Wati');
-      expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('project approver');
+      expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('Project Manager');
       first.unmount();
 
       renderPage('id');
@@ -291,7 +292,7 @@ describe('site report record', () => {
       h.route = { routeKind: 'nobody', approvers: [] };
       const first = renderPage('en');
       expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Nobody active can validate this report right now.');
-      expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('project approver');
+      expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('Project Manager');
       first.unmount();
 
       renderPage('id');
@@ -317,6 +318,21 @@ describe('site report record', () => {
       renderPage('en');
       expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent("Couldn't verify who can approve right now.");
       expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    });
+
+    it('keeps a known positive route through a failed background refresh, and never presents a stale nobody as fresh (fa943)', () => {
+      h.detail = make('submitted');
+      h.route = { routeKind: 'project_manager', approvers: [{ id: 'pm', name: 'Rina Wati', role: 'Project Manager' }] };
+      h.routeError = true;
+      const first = renderPage('en');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for Rina Wati, Project Manager or Finance or Admin');
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+      first.unmount();
+
+      h.route = { routeKind: 'nobody', approvers: [] };
+      renderPage('en');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent("Couldn't verify who can approve right now.");
+      expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('Nobody active can validate');
     });
 
     it('non-waiting states show no line and ask for no route (the read is bound to Submitted)', () => {

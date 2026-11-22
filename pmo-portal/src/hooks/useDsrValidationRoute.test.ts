@@ -36,12 +36,20 @@ await t.init({
   interpolation: { escapeValue: false },
 });
 
-const labels = (lng: 'en' | 'id'): DsrWaitingRoleLabels => ({
-  projectApprover: t.getFixedT(lng, 'waitingList')('waitingFor.roleProject'),
-  financeAdmin: t.getFixedT(lng, 'waitingList')('waitingFor.roleFinanceAdmin'),
-  nobody: t.getFixedT(lng, 'siteReport')('detail.nobodyCanValidate'),
-  unavailable: t.getFixedT(lng, 'common')('uxs32.routeUnavailable'),
-});
+const ROLE_KEY: Record<string, string> = {
+  Engineer: 'engineer', 'Project Manager': 'projectManager', Finance: 'finance', Executive: 'executive', Admin: 'admin',
+};
+
+// The real seam is useRoleLabels() over common:admin.roles.*; this mirrors that mapping per language.
+const labels = (lng: 'en' | 'id'): DsrWaitingRoleLabels => {
+  const roles = load(lng, 'common').admin.roles as Record<string, string>;
+  return {
+    role: (role: string) => roles[ROLE_KEY[role] ?? ''] ?? role,
+    financeAdmin: t.getFixedT(lng, 'waitingList')('waitingFor.roleFinanceAdmin'),
+    nobody: t.getFixedT(lng, 'siteReport')('detail.nobodyCanValidate'),
+    unavailable: t.getFixedT(lng, 'common')('uxs32.routeUnavailable'),
+  };
+};
 
 function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -83,11 +91,18 @@ describe('FR-WAIT-006 useDsrValidationRoute', () => {
 });
 
 describe('FR-WAIT-006 dsrWaitingForText — route facts, not a flat label', () => {
-  it('names the actual PM with the real role, and Finance/Admin as the true alternatives', () => {
+  it('names the actual PM with their own database role, and Finance/Admin as the true alternatives', () => {
     expect(dsrWaitingForText({
       routeKind: 'project_manager',
       approvers: [{ id: 'pm', name: 'Rina Wati', role: 'Project Manager' }],
-    }, t.t, labels('en'))).toBe('Waiting for Rina Wati, project approver or Finance or Admin');
+    }, t.t, labels('en'))).toBe('Waiting for Rina Wati, Project Manager or Finance or Admin');
+  });
+
+  it('falls back to the stored role value when the role-label seam has no word for it', () => {
+    expect(dsrWaitingForText({
+      routeKind: 'project_manager',
+      approvers: [{ id: 'pm', name: 'Rina Wati', role: 'Project Manager' }],
+    }, t.t, { ...labels('en'), role: () => '' })).toBe('Waiting for Rina Wati, Project Manager or Finance or Admin');
   });
 
   it('speaks the Finance/Admin fallback as roles when no PM is (or can be) named', () => {
@@ -111,7 +126,7 @@ describe('FR-WAIT-006 dsrWaitingForText — route facts, not a flat label', () =
     expect(dsrWaitingForText({
       routeKind: 'project_manager',
       approvers: [{ id: 'pm', name: 'Rina Wati', role: 'Project Manager' }],
-    }, t.t, labels('id'))).toBe('Menunggu Rina Wati, penyetuju proyek atau Keuangan atau Admin');
+    }, t.t, labels('id'))).toBe('Menunggu Rina Wati, Manajer proyek atau Keuangan atau Admin');
     expect(dsrWaitingForText({ routeKind: 'finance_admin', approvers: [] }, t.t, labels('id')))
       .toBe('Menunggu Keuangan atau Admin');
     expect(dsrWaitingForText({ routeKind: 'nobody', approvers: [] }, t.t, labels('id')))

@@ -42,8 +42,8 @@ export function useDsrValidationRoute(reportId: string | null | undefined) {
 }
 
 export interface DsrWaitingRoleLabels {
-  /** The project-manager role word (waitingList:waitingFor.roleProject). */
-  projectApprover: string;
+  /** The localized word for a coarse user_role ("Project Manager", "Finance", …), from the role-label seam. */
+  role: (role: string) => string;
   /** The Admin/Finance alternative (waitingList:waitingFor.roleFinanceAdmin). */
   financeAdmin: string;
   /** The proven-empty route (siteReport:detail.nobodyCanValidate). */
@@ -53,10 +53,11 @@ export interface DsrWaitingRoleLabels {
 }
 
 /**
- * Words the route for the requester. A named project manager is spoken with their actual name and the
- * project-approver role; Admin/Finance are spoken as the true role-level alternatives, never a flat
- * mislabel. Loading/pending is the caller's concern; this only turns COMPLETE server facts into the
- * shared sentence. `unavailable` is not a route to show (the page is not on a Submitted report).
+ * Words the route for the requester. The named project manager is spoken with the database's own
+ * role word ("Project Manager") through the existing role-label seam, never a generic relabel;
+ * Admin/Finance are spoken as the true role-level alternatives. Loading/pending is the caller's
+ * concern; this only turns COMPLETE server facts into the shared sentence. `unavailable` is not a
+ * route to show (the page is not on a Submitted report).
  *
  * A known empty route says, in the reader's language, that nobody active can validate right now — it
  * never invents a project approver for a project with no (eligible) PM.
@@ -75,9 +76,11 @@ export function dsrWaitingForText(
   // The server always names the PM on a project-manager route; a body without one is not a route to
   // show (showing "nobody" would be a claim it did not make).
   if (!pm) return null;
+  // The real role word; a label missing from the seam falls back to the stored enum value.
+  const roleWord = labels.role(pm.role)?.trim() || pm.role;
   return waitingForText({
     names: [pm.name],
-    role: labels.projectApprover,
+    role: roleWord,
     alternativeRoles: [labels.financeAdmin],
   }, t);
 }

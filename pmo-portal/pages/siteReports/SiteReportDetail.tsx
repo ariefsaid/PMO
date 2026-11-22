@@ -21,6 +21,8 @@ import { formatCurrency, formatDay } from '@/src/lib/format';
 import { dsrReportRevenue } from '@/src/lib/dsrRevenue';
 import { waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
 import { dsrWaitingForText, useDsrValidationRoute } from '@/src/hooks/useDsrValidationRoute';
+import { useRoleLabels } from '../admin-users/roleLabels';
+import type { UserRole } from '@/src/lib/db/adminUsers';
 import type { DsrReportDetail } from '@/src/lib/db/dailySiteReports';
 import {
   siteReportDraftInput, siteReportFormFromDetail, validateSiteReportForm, workingMinutes, type SiteReportForm,
@@ -59,6 +61,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const narrow = useIsNarrow();
   const userId = useAuth().currentUser?.id ?? null;
   const { realRole } = useEffectiveRole();
+  const roleLabels = useRoleLabels();
   const { report } = detail;
   const project = useProject(report.project_id).data ?? null;
   const ctx = { realRole, currentUserId: userId, record: { author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
@@ -73,20 +76,28 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   // SECURITY INVOKER over the existing report/project/profile policies and binds ONE visible Submitted
   // report; a draft/returned/validated report pays no read. While it loads, no name is claimed; a failed
   // read says so (with a retry); a proven empty route says nobody active can validate — a project with no
-  // (eligible) PM never invents a project approver.
+  // (eligible) PM never invents a project approver. The named person is spoken with the database's own
+  // role word ("Project Manager") through the shared role-label seam.
   const route = useDsrValidationRoute(report.status === 'submitted' ? report.id : null);
   const waitingLabels = {
-    projectApprover: waitingRoleLabel('roleProject', t),
+    role: (role: string) => roleLabels.label(role as UserRole),
     financeAdmin: waitingRoleLabel('roleFinanceAdmin', t),
     nobody: t('detail.nobodyCanValidate', 'Nobody active can validate this report right now.'),
     unavailable: t('common:uxs32.routeUnavailable', "Couldn't verify who can approve right now."),
   };
+  // A known POSITIVE route (a named PM, or at least one eligible Admin/Finance) is still worth saying
+  // while a background refresh fails. A known 'nobody' is NOT: it is a definitive statement that the
+  // failed refresh may already have falsified, so the screen states the uncertainty instead.
+  const knownRoute = route.data ?? null;
+  const keepKnownRoute = knownRoute !== null
+    && knownRoute.routeKind !== 'nobody'
+    && knownRoute.routeKind !== 'unavailable';
   const waitingLine = report.status !== 'submitted'
     ? null
-    : route.data
-      ? dsrWaitingForText(route.data, t, waitingLabels)
-      : route.isError
-        ? waitingLabels.unavailable
+    : route.isError
+      ? (keepKnownRoute && knownRoute ? dsrWaitingForText(knownRoute, t, waitingLabels) : waitingLabels.unavailable)
+      : knownRoute
+        ? dsrWaitingForText(knownRoute, t, waitingLabels)
         : null;
 
   const lookups = useDsrLookups(report.work_order_id, report.id);
