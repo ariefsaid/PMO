@@ -442,9 +442,9 @@ insert into public.leave_types (id, org_id, name)
 insert into public.leave_requests (id, org_id, person_id, leave_type_id, start_date, end_date, entered_by)
   select 'a6120000-0000-4000-8000-000000000312', 'a6120000-0000-4000-8000-00000000000a',
          person, 'a6120000-0000-4000-8000-000000000311', current_date, current_date + 1, profile from _iso_a;
-insert into public.material_request_usage_alerts (id, org_id, work_order_id, item_id, slot, pct, use_qty, plan_qty)
+insert into public.material_request_usage_alerts (id, org_id, work_order_id, item_id, pct, use_qty, plan_qty)
   select 'a6120000-0000-4000-8000-000000000313', 'a6120000-0000-4000-8000-00000000000a',
-         wo, item, 1, 50, 1, 2 from _iso_a;
+         wo, item, 50, 1, 2 from _iso_a;
 insert into public.org_billing_plan_settings (org_id, updated_by)
   select 'a6120000-0000-4000-8000-00000000000a', profile from _iso_a;
 insert into public.org_payment_channel_settings (org_id, enabled, updated_by)

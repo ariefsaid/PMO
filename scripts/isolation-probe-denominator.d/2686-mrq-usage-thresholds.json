@@ -2,5 +2,5 @@
   "tables": [
     {"table":"material_request_usage_alerts","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
   ],
-  "definer_functions": ["mrq_set_usage_thresholds(numeric,numeric)", "mrq_usage_check(uuid)"]
+  "definer_functions": ["set_material_usage_threshold(numeric)", "usage_check_work_order(uuid)", "usage_check_trigger()", "usage_installed_qty(uuid,uuid)", "usage_warning_recipient(uuid,uuid)", "mrq_installed_for(uuid,uuid[])"]
 }
