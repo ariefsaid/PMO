@@ -2,12 +2,16 @@ import { afterEach, describe, expect, it } from 'vitest';
 import i18next from 'i18next';
 import { orgTermsPlugin } from './index';
 import { setOrgTerms } from './orgTerms';
+import { resetActiveLocale, setActiveLocale } from '../locale/activeLocale';
 import en from '../../../public/locales/en/notifications.json';
 import id from '../../../public/locales/id/notifications.json';
 import { NOTIFICATION_TITLE_KEYS, notificationBody, notificationTitle } from './notificationCopy';
 
 describe('notification wording', () => {
-  afterEach(() => setOrgTerms({}));
+  afterEach(() => {
+    setOrgTerms({});
+    resetActiveLocale();
+  });
   it.each(['budgetCancellationHeld', 'budgetRetryAuthorization'])('renders the %s app template', async (key) => {
     const inst = i18next.createInstance();
     await inst.use(orgTermsPlugin).init({ lng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en } } });
@@ -97,131 +101,206 @@ describe('notification wording', () => {
   });
 
   describe('fix-waiting item 4: approval notification body reader-language localization', () => {
-    it('formats approved timesheet notification week label in the reader language for English and Bahasa', async () => {
+    it('formats approved timesheet notification week label in the reader language for English and Bahasa with real producer+guard literal shape', async () => {
+      // Real producer + 1025/1611 guard row shape: message_key is 'literal', message_params carries body
       const timesheetRow = {
         title: 'Your timesheet was approved',
-        body: 'Timesheet week of 2026-01-05',
-        message_key: null,
-        message_params: null,
-        metadata: { entity: { type: 'timesheet', id: '02370000-0000-0000-0000-000000000021', label: 'Timesheet week of 2026-01-05' } },
+        body: 'Timesheet week of 2026-08-10',
+        message_key: 'literal',
+        message_params: { body: 'Timesheet week of 2026-08-10' },
+        metadata: { entity: { type: 'timesheet', id: '02370000-0000-0000-0000-000000000021', label: 'Timesheet week of 2026-08-10' } },
       };
 
-      // English
+      // English (active locale en, month Aug)
+      setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
       const enInst = i18next.createInstance();
       await enInst.init({ lng: 'en', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
       const enT = enInst.t.bind(enInst);
       expect(notificationTitle(timesheetRow, enT)).toBe('Your timesheet was approved');
-      expect(notificationBody(timesheetRow, enT)).toBe('Timesheet week of 5 Jan 2026');
+      expect(notificationBody(timesheetRow, enT)).toBe('Timesheet week of 10 Aug 2026');
 
-      // Bahasa Indonesia
+      // Bahasa Indonesia (active locale id, month Agu)
+      setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
       const idInst = i18next.createInstance();
       await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
       const idT = idInst.t.bind(idInst);
       expect(notificationTitle(timesheetRow, idT)).toBe('Timesheet Anda disetujui');
-      expect(notificationBody(timesheetRow, idT)).toBe('Timesheet minggu 5 Jan 2026');
+      expect(notificationBody(timesheetRow, idT)).toBe('Timesheet minggu 10 Agu 2026');
     });
 
-    it('formats timesheet awaiting approval week label in reader language and handles timesheetApproved message_key', async () => {
+    it('formats timesheet awaiting approval week label and handles historical null-key rows', async () => {
+      setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
       const idInst = i18next.createInstance();
       await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
       const idT = idInst.t.bind(idInst);
 
+      // Real producer + guard awaiting row shape
       const awaitingRow = {
         title: 'Timesheet awaiting your approval',
-        body: 'Timesheet week of 2026-01-05',
+        body: 'Timesheet week of 2026-08-10',
+        message_key: 'literal',
+        message_params: { body: 'Timesheet week of 2026-08-10' },
+        metadata: { entity: { type: 'timesheet', id: '02370000-0000-0000-0000-000000000021' } },
+      };
+      expect(notificationBody(awaitingRow, idT)).toBe('Timesheet minggu 10 Agu 2026');
+
+      // Historical pre-1025 row with null message_key
+      const historicalRow = {
+        title: 'Your timesheet was approved',
+        body: 'Timesheet week of 2026-08-10',
         message_key: null,
         message_params: null,
         metadata: { entity: { type: 'timesheet', id: '02370000-0000-0000-0000-000000000021' } },
       };
-      expect(notificationBody(awaitingRow, idT)).toBe('Timesheet minggu 5 Jan 2026');
-
-      const messageKeyRow = {
-        title: 'Your timesheet was approved',
-        body: null,
-        message_key: 'timesheetApproved',
-        message_params: { date: '2026-01-05' },
-      };
-      expect(notificationBody(messageKeyRow, idT)).toBe('Timesheet minggu 5 Jan 2026');
+      expect(notificationBody(historicalRow, idT)).toBe('Timesheet minggu 10 Agu 2026');
     });
 
-    it('leaves user rejection reason unchanged and does not translate arbitrary user text or reasons', async () => {
+    it('leaves user rejection reasons untouched in literal and historical rows, and localizes blank rejection fallback', async () => {
+      setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
       const idInst = i18next.createInstance();
       await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
       const idT = idInst.t.bind(idInst);
 
-      // Timesheet rejection with user reason (from 1562)
+      // Timesheet rejection with user reason (from 1562, stamped literal by 1611 guard)
       const userReasonRow = {
         title: 'Your timesheet was rejected',
         body: 'Hours exceed project allocation',
-        message_key: null,
-        message_params: null,
+        message_key: 'literal',
+        message_params: { body: 'Hours exceed project allocation' },
         metadata: { entity: { type: 'timesheet', id: '02370000-0000-0000-0000-000000000022' } },
       };
+      expect(notificationTitle(userReasonRow, idT)).toBe('Timesheet Anda dikembalikan');
       expect(notificationBody(userReasonRow, idT)).toBe('Hours exceed project allocation');
 
-      // Procurement rejection with user reason (from 0237/0349)
+      // Timesheet rejection with blank reason (fallback to v_label in 1562, stamped literal by 1611 guard)
+      const blankReasonFallbackRow = {
+        title: 'Your timesheet was rejected',
+        body: 'Timesheet week of 2026-08-10',
+        message_key: 'literal',
+        message_params: { body: 'Timesheet week of 2026-08-10' },
+        metadata: { entity: { type: 'timesheet', id: '02370000-0000-0000-0000-000000000022' } },
+      };
+      expect(notificationBody(blankReasonFallbackRow, idT)).toBe('Timesheet minggu 10 Agu 2026');
+
+      // Procurement rejection with user note (stamped literal by guard)
       const procurementReasonRow = {
         title: 'Your procurement was rejected',
         body: 'Missing quote',
-        message_key: null,
-        message_params: null,
+        message_key: 'literal',
+        message_params: { body: 'Missing quote' },
         metadata: { entity: { type: 'procurement_case', id: '02370000-0000-0000-0000-000000000011' } },
       };
       expect(notificationBody(procurementReasonRow, idT)).toBe('Missing quote');
     });
 
-    it('leaves unknown body, no raw key, and non-timesheet rows unchanged', async () => {
+    it('localizes QCR generated approval bodies in English and Bahasa while preserving exact user reason suffix', async () => {
+      const enInst = i18next.createInstance();
+      await enInst.init({ lng: 'en', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+      const enT = enInst.t.bind(enInst);
+
       const idInst = i18next.createInstance();
       await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
       const idT = idInst.t.bind(idInst);
 
-      // Unknown row with matching string but no timesheet producer identity
-      const unknownRowWithoutProducer = {
-        title: 'General announcement',
-        body: 'Timesheet week of 2026-01-05',
-        message_key: null,
-        message_params: null,
-        metadata: null,
+      // QCR awaiting approval (1176:476-477 + guard)
+      const qcrAwaitingRow = {
+        title: 'Quantity change request awaiting approval',
+        body: 'A quantity change request has been submitted for your approval.',
+        message_key: 'literal',
+        message_params: { body: 'A quantity change request has been submitted for your approval.' },
+        metadata: { entity: { type: 'quantity_change_request', id: '1176-uuid' } },
       };
-      expect(notificationBody(unknownRowWithoutProducer, idT)).toBe('Timesheet week of 2026-01-05');
+      expect(notificationBody(qcrAwaitingRow, enT)).toBe('A quantity change request has been submitted for your approval.');
+      expect(notificationBody(qcrAwaitingRow, idT)).toBe('Permintaan perubahan kuantitas telah diajukan untuk persetujuan Anda.');
+
+      // QCR approved internally (1177:47-49 + guard)
+      const qcrApprovedRow = {
+        title: 'Quantity change request approved',
+        body: 'Your quantity change request was approved internally. Record when it is sent to the client.',
+        message_key: 'literal',
+        message_params: { body: 'Your quantity change request was approved internally. Record when it is sent to the client.' },
+        metadata: { entity: { type: 'quantity_change_request', id: '1177-uuid' } },
+      };
+      expect(notificationBody(qcrApprovedRow, enT)).toBe('Your quantity change request was approved internally. Record when it is sent to the client.');
+      expect(notificationBody(qcrApprovedRow, idT)).toBe('Permintaan perubahan kuantitas Anda telah disetujui secara internal. Catat saat dikirim ke klien.');
+
+      // QCR returned with user reason (1177:70-71 + guard)
+      const qcrReturnedRow = {
+        title: 'Quantity change request returned',
+        body: 'Your quantity change request was returned: Exceeds client variance ceiling by 15%',
+        message_key: 'literal',
+        message_params: { body: 'Your quantity change request was returned: Exceeds client variance ceiling by 15%' },
+        metadata: { entity: { type: 'quantity_change_request', id: '1177-uuid' } },
+      };
+      expect(notificationBody(qcrReturnedRow, enT)).toBe('Your quantity change request was returned: Exceeds client variance ceiling by 15%');
+      expect(notificationBody(qcrReturnedRow, idT)).toBe('Permintaan perubahan kuantitas Anda dikembalikan: Exceeds client variance ceiling by 15%');
+    });
+
+    it('leaves unknown bodies, metadata/title mismatches, and null bodies unchanged', async () => {
+      setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+      const idInst = i18next.createInstance();
+      await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+      const idT = idInst.t.bind(idInst);
+
+      // Title matches timesheet but body is arbitrary non-grammar text
+      const nonGrammarBodyRow = {
+        title: 'Your timesheet was approved',
+        body: 'Custom manual memo',
+        message_key: 'literal',
+        message_params: { body: 'Custom manual memo' },
+        metadata: { entity: { type: 'timesheet' } },
+      };
+      expect(notificationBody(nonGrammarBodyRow, idT)).toBe('Custom manual memo');
+
+      // Body matches timesheet week grammar but metadata and title are not timesheet
+      const mismatchEntityRow = {
+        title: 'Document updated',
+        body: 'Timesheet week of 2026-08-10',
+        message_key: 'literal',
+        message_params: { body: 'Timesheet week of 2026-08-10' },
+        metadata: { entity: { type: 'project_document' } },
+      };
+      expect(notificationBody(mismatchEntityRow, idT)).toBe('Timesheet week of 2026-08-10');
+
+      // Body matches QCR grammar but entity is not QCR
+      const mismatchQcrRow = {
+        title: 'Task assigned',
+        body: 'A quantity change request has been submitted for your approval.',
+        message_key: 'literal',
+        message_params: { body: 'A quantity change request has been submitted for your approval.' },
+        metadata: { entity: { type: 'task' } },
+      };
+      expect(notificationBody(mismatchQcrRow, idT)).toBe('A quantity change request has been submitted for your approval.');
 
       // Unknown row with no title and no metadata
-      expect(notificationBody({ body: 'Timesheet week of 2026-01-05', message_key: null, message_params: null }, idT)).toBe('Timesheet week of 2026-01-05');
+      expect(notificationBody({ body: 'Timesheet week of 2026-08-10', message_key: 'literal', message_params: { body: 'Timesheet week of 2026-08-10' } }, idT)).toBe('Timesheet week of 2026-08-10');
+
+      // Null body row (MRQ approved has null body in 1561)
+      const mrqApprovedRow = {
+        title: 'Your material request was approved',
+        body: null,
+        message_key: 'literal',
+        message_params: { body: null },
+        metadata: { entity: { type: 'material_request', id: 'mrq-uuid', label: 'MR-001' } },
+      };
+      expect(notificationBody(mrqApprovedRow, idT)).toBeNull();
+
+      // Null body in historical null-key row
+      expect(notificationBody({ body: null, message_key: null, message_params: null }, idT)).toBeNull();
 
       // Unrecognized message key
       expect(notificationBody({ body: 'System maintenance scheduled', message_key: 'unrecognized_key', message_params: {} }, idT)).toBe('System maintenance scheduled');
     });
 
-    it('preserves record identity labels and null bodies without translation', async () => {
-      const idInst = i18next.createInstance();
-      await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
-      const idT = idInst.t.bind(idInst);
-
-      // MRQ approved has null body (entity label holds record number MR-001)
-      const mrqApprovedRow = {
-        title: 'Your material request was approved',
-        body: null,
-        message_key: null,
-        message_params: null,
-        metadata: { entity: { type: 'material_request', id: 'mrq-uuid', label: 'MR-001' } },
-      };
-      expect(notificationBody(mrqApprovedRow, idT)).toBeNull();
-
-      // Equipment plan approved has null body
-      const eqpApprovedRow = {
-        title: 'Your equipment plan was approved',
-        body: null,
-        message_key: null,
-        message_params: null,
-        metadata: { entity: { type: 'equipment_plan', id: 'eqp-uuid', label: 'Project Alpha · 2026-11' } },
-      };
-      expect(notificationBody(eqpApprovedRow, idT)).toBeNull();
-    });
-
-    it('timesheet week label catalogue key exists and differs between English and Bahasa', () => {
-      expect((en as Record<string, unknown>).timesheetWeek).toBe('Timesheet week of {{date}}');
-      expect((id as Record<string, unknown>).timesheetWeek).toBe('Timesheet minggu {{date}}');
-      expect((id as Record<string, unknown>).timesheetWeek).not.toBe((en as Record<string, unknown>).timesheetWeek);
+    it('catalogue keys exist and differ between English and Bahasa catalogues', () => {
+      const checkKeys = ['timesheetWeek', 'qcrAwaitingBody', 'qcrApprovedBody', 'qcrReturnedBody'] as const;
+      for (const key of checkKeys) {
+        const enVal = (en as Record<string, unknown>)[key];
+        const idVal = (id as Record<string, unknown>)[key];
+        expect(typeof enVal).toBe('string');
+        expect(typeof idVal).toBe('string');
+        expect(idVal, `${key} must differ in Bahasa`).not.toBe(enVal);
+      }
     });
   });
 });

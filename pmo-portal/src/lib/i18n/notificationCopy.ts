@@ -22,6 +22,44 @@ function getMetadataEntityType(metadata: Json | null | undefined): string | null
   return null;
 }
 
+function localizeApprovalNotificationBody(row: NotificationCopy, body: string, t: TFunction): string | null {
+  // Timesheet approval / awaiting / blank-rejection fallback week label
+  const timesheetMatch = /^Timesheet week of (\d{4}-\d{2}-\d{2})$/.exec(body);
+  if (timesheetMatch) {
+    const isTimesheetProducer =
+      row.title === 'Your timesheet was approved' ||
+      row.title === 'Timesheet awaiting your approval' ||
+      row.title === 'Your timesheet was rejected' ||
+      getMetadataEntityType(row.metadata) === 'timesheet';
+    if (isTimesheetProducer) {
+      const iso = timesheetMatch[1];
+      const formattedDate = formatIsoDay(iso) !== '—' ? formatIsoDay(iso) : iso;
+      return t('notifications:timesheetWeek', 'Timesheet week of {{date}}', { date: formattedDate });
+    }
+  }
+
+  // Quantity change request (QCR, 1176/1177) awaiting, approved, and returned prefix
+  const isQcrProducer =
+    row.title === 'Quantity change request awaiting approval' ||
+    row.title === 'Quantity change request approved' ||
+    row.title === 'Quantity change request returned' ||
+    getMetadataEntityType(row.metadata) === 'quantity_change_request';
+  if (isQcrProducer) {
+    if (body === 'A quantity change request has been submitted for your approval.') {
+      return t('notifications:qcrAwaitingBody', 'A quantity change request has been submitted for your approval.');
+    }
+    if (body === 'Your quantity change request was approved internally. Record when it is sent to the client.') {
+      return t('notifications:qcrApprovedBody', 'Your quantity change request was approved internally. Record when it is sent to the client.');
+    }
+    const qcrReturnedMatch = /^Your quantity change request was returned: ([\s\S]+)$/.exec(body);
+    if (qcrReturnedMatch) {
+      return t('notifications:qcrReturnedBody', 'Your quantity change request was returned: {{reason}}', { reason: qcrReturnedMatch[1] });
+    }
+  }
+
+  return null;
+}
+
 /** Old and unrecognised records keep their original body. Parameters are always user text. */
 export function notificationBody(row: NotificationCopy, t: TFunction): string | null {
   const params = row.message_params && typeof row.message_params === 'object' && !Array.isArray(row.message_params) ? row.message_params : {};
@@ -46,34 +84,16 @@ export function notificationBody(row: NotificationCopy, t: TFunction): string | 
         : t('notifications:leaveRejected', 'Your leave request was rejected: {{type}}, {{from}} to {{to}}.', what);
       return what.note ? t('notifications:leaveNote', '{{base}} Note: {{note}}', { base, note: what.note }) : base;
     }
-    case 'timesheetApproved':
-    case 'timesheetWeek': {
-      const day = (key: string) => { const v = text(key, ''); return v ? formatIsoDay(v) : ''; };
-      const rawDate = text('date', '') || text('week', '') || (typeof row.body === 'string' ? row.body : '');
-      const parsedIso = /^(\d{4}-\d{2}-\d{2})$/.exec(rawDate) || /^Timesheet week of (\d{4}-\d{2}-\d{2})$/.exec(rawDate);
-      const iso = parsedIso ? parsedIso[1] : (day('date') || day('week'));
-      const formattedDate = iso ? (formatIsoDay(iso) !== '—' ? formatIsoDay(iso) : iso) : rawDate;
-      return t('notifications:timesheetWeek', 'Timesheet week of {{date}}', { date: formattedDate });
+    case 'literal': {
+      if (row.body === null) return null;
+      const rawBody = text('body', row.body);
+      return localizeApprovalNotificationBody(row, rawBody, t) ?? t('notifications:literal', '{{body}}', { body: rawBody });
     }
-    case 'literal':
-      return row.body === null ? null : t('notifications:literal', '{{body}}', { body: text('body', row.body) });
     default: {
-      if (row.body) {
-        const timesheetMatch = /^Timesheet week of (\d{4}-\d{2}-\d{2})$/.exec(row.body);
-        if (timesheetMatch) {
-          const isTimesheetProducer =
-            row.title === 'Your timesheet was approved' ||
-            row.title === 'Timesheet awaiting your approval' ||
-            row.title === 'Your timesheet was rejected' ||
-            getMetadataEntityType(row.metadata) === 'timesheet';
-          if (isTimesheetProducer) {
-            const iso = timesheetMatch[1];
-            const formattedDate = formatIsoDay(iso) !== '—' ? formatIsoDay(iso) : iso;
-            return t('notifications:timesheetWeek', 'Timesheet week of {{date}}', { date: formattedDate });
-          }
-        }
+      if (row.body !== null) {
+        return localizeApprovalNotificationBody(row, row.body, t) ?? row.body;
       }
-      return row.body;
+      return null;
     }
   }
 }
