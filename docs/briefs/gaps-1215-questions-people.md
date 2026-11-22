@@ -15,16 +15,19 @@ Each line: question · recommended answer · what was built meanwhile.
 - May the receiving foreman record a follow without telling the home crew's foreman? · Yes; the home roster shows the person away and the follow is on the day record and audit. · Built: no notice to the home foreman.
 
 ## manpower-request
-- Who approves a request? · A manager-level member other than the requester, one decision. · Built: that rule, enforced in the database.
-- Is the organisation's trade (discipline) list the right list for the role asked for? · Yes; the Admin adds missing trades there. · Built: needs name a discipline.
-- Should assigning a person also place them in a crew? · No; crews are still arranged on the Crews page. · Built: assignment is its own record.
-
-## medical-release
-- Does a rejected release keep the worker off the roster until a new decision? · Yes; the manager may decide again, audited. · Built: rejected holds; re-decision allowed.
-- May the manager release before the leave end date? · Yes, from the day the leave is approved. · Built: as recommended.
-- Does PMO ship a "sick" leave type? · No; the Admin marks which of their own leave types need a release. · Built: a per-type mark, off by default.
+- Is the organisation's trade (discipline) list the right list for the position needed? · Yes until a position list exists. · Built: needs name a discipline.
+- Should linking a person to a need also place them in a crew? · No; crews are still arranged on the Crews page. · Built: the link is its own record.
 
 ## no-login-labour-cost
 - Overtime on attendance days: price by the timesheet's day-length rule, or by the overtime field on attendance? · Day-length rule (one rule, as logins already get). · Built: day-length rule.
 - Should a class rate also price a login person who has no person or access-level rate? · Not now. · Built: class rates price no-login crew members only.
 - Price by crew position as well as by labour class? · No; positions are free names per crew, the class list is organisation-wide. · Built: class only.
+
+## pay-time
+- Who may enter the second (surveyor or timekeeper) time record by default? · The quantity surveyor role plus manager levels; the organisation adds a timekeeper role in the setting. · Built: a setting with that default, editable by Admin.
+- Should a source win automatically? · No; until a manager decides, the foreman's site-report figure stands and the week cannot be approved. · Built: as recommended.
+- Which role decides a disagreement? · Leave it empty (today's week approvers) until the organisation names one. · Built: setting, empty by default.
+
+## medical-release (minimal form)
+- Should a deferral expire? · No; the manager decides again. · Built: a deferred release can be decided again; an approved one is final.
+- May an Admin decide for a person with no direct manager? · No; set a manager first. · Built: only the direct manager decides.
