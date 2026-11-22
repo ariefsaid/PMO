@@ -783,11 +783,6 @@
       "saved": "Daftar disimpan",
       "duplicate": "Nama itu sudah ada dalam daftar"
     },
-    "builtInRoles": {
-      "label": "Tawarkan peran bawaan",
-      "title": "Peran bawaan",
-      "helper": "Tawarkan 28 peran untuk fungsi-fungsi kontraktor, dalam tiga tingkat. Masing-masing berawal dari satu dari lima tingkat akses, sehingga mengaktifkannya tidak mengubah apa pun sampai seseorang diberi peran. Orang yang sudah diberi peran tetap memilikinya jika Anda menonaktifkannya."
-    },
     "hidePrices": {
       "title": "Sembunyikan harga dari peminta",
       "loadError": "Pengaturan sembunyikan harga tidak dapat dimuat",
@@ -822,12 +817,7 @@
       "saved": "Target kehadiran disimpan",
       "title": "Target kehadiran",
       "turnOff": "Matikan"
-      },
-    "crewLoans": {
-      "title": "Pinjaman kru",
-      "label": "Izinkan meminjamkan pekerja antar kru",
-      "helper": "Pekerja yang dipinjamkan mengikuti jadwal dan kehadiran kru tujuan selama masa pinjaman. Jika mati, halaman Kru tidak menampilkan pinjaman."
-    }
+      }
   },
   "exchangeRates": {
     "displayOnly": "Hanya setara tampilan",
@@ -1085,7 +1075,6 @@
   "performanceIndices": {
     "title": "Kinerja biaya dan jadwal",
     "description": "Menetapkan batas yang dipakai untuk membaca indeks kinerja biaya dan jadwal pada perintah kerja.",
-    "enabled": "Tampilkan indeks kinerja",
     "low": "Batas bawah (di bawah ini dianggap bermasalah)",
     "high": "Batas atas (di atas ini dianggap lebih cepat)",
     "helper": "Batas bawah harus di atas 0 dan di bawah 1; batas atas di atas 1. Bawaan 0,90 dan 1,10.",
@@ -1099,19 +1088,9 @@
     "on": "Aktif",
     "off": "Nonaktif"
   },
-  "idleCost": {
-    "title": "Waktu menganggur sebagai biaya",
-    "intro": "Hitung jam menganggur yang tercatat pada laporan harian lapangan dengan biaya per jam rata-rata pekerjaan, per alasan. Ditampilkan terpisah dari biaya langsung, yang sudah mencakup jam tersebut. Memerlukan biaya tenaga kerja dalam uang.",
-    "loadError": "Pengaturan ini tidak dapat dimuat",
-    "switch": "Hitung jam menganggur dalam uang",
-    "adminOnly": "Hanya Admin atau Keuangan yang dapat mengubah pengaturan ini.",
-    "needsLabour": "Belum ada yang tampil sampai biaya tenaga kerja dalam uang diaktifkan."
-  },
   "issueClosingReport": {
     "title": "Laporan waktu penyelesaian isu",
     "helper": "Pilih cara laporan waktu penyelesaian mengelompokkan isu, dan atur kelompok departemen.",
-    "enableLabel": "Aktifkan laporan waktu penyelesaian",
-    "enableHelper": "Menampilkan laporan waktu penyelesaian pada daftar insiden.",
     "groupingMode": "Pengelompokan bawaan",
     "modeType": "Berdasarkan jenis isu",
     "modeDepartmentGroups": "Berdasarkan grup departemen kustom",
@@ -1136,10 +1115,7 @@
     "notCleared": "Belum lolos",
     "cancel": "Batal",
     "setting": {
-      "heading": "Daftar periksa izin ke lokasi",
-      "loadError": "Pengaturan ini tidak dapat dimuat",
-      "label": "Lacak siapa yang diizinkan ke lokasi",
-      "help": "Menambahkan bagian Izin ke lokasi tempat Anda mendaftar kebutuhan setiap orang dan mencatat kapan selesai. Tidak ada hal lain yang berubah."
+      "loadError": "Pengaturan ini tidak dapat dimuat"
     },
     "off": {
       "title": "Daftar periksa izin ke lokasi belum diaktifkan",

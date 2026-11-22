@@ -934,9 +934,7 @@
       "location": "Choose where the material is.",
       "duplicate": "Each item can be on one line only.",
       "exceeds": "The work order holds only {{qty}} of this item."
-    },
-    "setting": "Work-order transfers",
-    "settingHelp": "Lets stock keepers move leftover material between work orders of one project in a single document."
+    }
   },
   "reservations": {
     "column": "Free and reserved",
@@ -969,8 +967,6 @@
       "body": "{{n}} of this request comes from stock reserved for another work order, so it needs the borrowing approval."
     },
     "settings": {
-      "enable": "Reserve stock for work orders",
-      "enableHelp": "A work order can hold a quantity of an item at a location. Nothing is locked: stock shows as free and reserved. Off by default.",
       "mode": "When a request borrows reserved stock",
       "modeApprove": "Needs an extra approval step",
       "modeWarn": "Only show a warning",

@@ -6,8 +6,8 @@ import { useBillingPlanSettings, useSaveDoneNotClaimedReminder } from '@/src/hoo
 
 /**
  * #2675: the reminder about work that is done but not claimed: a switch (off by default; the reminder is information) and the day limit
- * after which a line is flagged (empty = no limit, nothing flagged). It sits inside the Billing extras module card (#2746). Admin and
- * Finance may write it (`set_billing_plan_reminder` is the authority, ADR-0016); the card it sits in is Admin-only.
+ * after which a line is flagged (empty = no limit, nothing flagged). It sits inside the Billing extras module card (#2746) as well as in the plan settings dialog Finance uses. Admin and
+ * Finance may write it (`set_billing_plan_reminder` is the authority, ADR-0016); this card is Admin-only, the dialog is not.
  */
 export const DoneNotClaimedReminder: React.FC = () => {
   const { t } = useTranslation('finance');

@@ -1214,6 +1214,7 @@
       "monthTarget": "Target untuk {{month}}",
       "monthTargetHelp": "Menggantikan target bawaan untuk bulan ini. Kosong memakai target bawaan.",
       "badAmount": "Masukkan jumlah nol atau lebih.",
+      "reminderLegend": "Pengingat",
       "reminderSave": "Simpan pengingat",
       "reminderLoadError": "Gagal memuat pengaturan pengingat",
       "reminder": "Ingatkan saya tentang pekerjaan yang selesai tetapi belum diklaim",

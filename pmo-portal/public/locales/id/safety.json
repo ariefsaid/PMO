@@ -13,7 +13,6 @@
     "checklist": "Daftar periksa sebelum kerja",
     "duplicate": "Entri itu sudah ada dalam daftar",
     "empty": "Belum ada isi",
-    "enable": "Catat keselamatan harian pada surat perintah kerja",
     "helper": "Catatan keselamatan harian per surat perintah kerja. Jenis pemeriksaan, jenis izin kerja, dan butir daftar periksa adalah milik Anda: tambahkan yang dipakai di lokasi Anda. Mengarsipkan menyembunyikan entri dari hari baru; hari yang sudah memakainya tetap menyimpannya.",
     "loadError": "Daftar tidak dapat dimuat",
     "permitTypes": "Jenis izin kerja",

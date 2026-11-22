@@ -85,11 +85,6 @@
       "none": "No discipline",
       "saved": "Discipline saved",
       "error": "Couldn't save the discipline"
-    },
-    "setting": {
-      "title": "Profit per discipline",
-      "label": "Show revenue next to cost per discipline",
-      "helper": "Adds a table to the project's plan-vs-actual section and a discipline field on contract lines. Off by default."
     }
   },
   "projectHours": "Project and contract hours",

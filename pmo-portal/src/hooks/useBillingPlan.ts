@@ -34,7 +34,7 @@ export function useSaveBillingPlanSettings() {
   });
 }
 
-/** #2675: the done-not-claimed reminder switch and its day limit, saved on their own (#2746 moved them into the Billing extras module card). */
+/** #2675: the done-not-claimed reminder switch and its day limit, saved on their own (#2746: the Billing extras module card shows them too; Finance keeps the plan modal). */
 export function useSaveDoneNotClaimedReminder() {
   const qc = useQueryClient();
   return useMutation({

@@ -934,9 +934,7 @@
       "location": "Pilih lokasi material.",
       "duplicate": "Setiap barang hanya boleh di satu baris.",
       "exceeds": "Perintah kerja hanya memegang {{qty}} barang ini."
-    },
-    "setting": "Transfer antar perintah kerja",
-    "settingHelp": "Memungkinkan penjaga gudang memindahkan sisa material antar perintah kerja dalam satu proyek dengan satu dokumen."
+    }
   },
   "reservations": {
     "column": "Bebas dan dicadangkan",
@@ -969,8 +967,6 @@
       "body": "{{n}} dari permintaan ini diambil dari stok yang dicadangkan untuk perintah kerja lain, jadi perlu persetujuan peminjaman."
     },
     "settings": {
-      "enable": "Cadangkan stok untuk perintah kerja",
-      "enableHelp": "Perintah kerja dapat menahan sejumlah barang di suatu lokasi. Tidak ada yang dikunci: stok tampil sebagai bebas dan dicadangkan. Nonaktif secara bawaan.",
       "mode": "Bila permintaan meminjam stok cadangan",
       "modeApprove": "Perlu langkah persetujuan tambahan",
       "modeWarn": "Hanya tampilkan peringatan",

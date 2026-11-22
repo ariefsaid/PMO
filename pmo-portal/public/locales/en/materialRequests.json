@@ -219,7 +219,6 @@
     "cutoffTime": "Time (24-hour, e.g. 12:00)",
     "delegator": "Person who is away",
     "deliveryNote": "Printable delivery note",
-    "deliveryNoteEnabled": "Enable printable delivery note",
     "deliveryNoteError": "Couldn't load delivery note settings",
     "deliveryNoteSaved": "Delivery note settings saved",
     "deliveryNoteSub": "Generate a printable delivery note with signature blocks for approved material requests.",

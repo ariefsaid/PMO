@@ -13,7 +13,6 @@
     "checklist": "Pre-work checklist",
     "duplicate": "That entry is already in the list",
     "empty": "Nothing listed yet",
-    "enable": "Record daily safety on work orders",
     "helper": "Daily safety records per work order. The check types, permit types and checklist items are yours: add what your sites use. Archiving hides an entry from new days; days that already use it keep it.",
     "loadError": "Couldn't load the list",
     "permitTypes": "Permit types",
