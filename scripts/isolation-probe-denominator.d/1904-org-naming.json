@@ -1,0 +1,6 @@
+{
+  "definer_functions": [
+    "org_naming(uuid)",
+    "org_term(uuid,text,text,boolean)"
+  ]
+}
