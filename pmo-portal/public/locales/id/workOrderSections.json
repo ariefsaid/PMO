@@ -28,7 +28,7 @@
     "inUseSub": "Masih ada catatan yang merujuk {{section}} ini. Arsipkan saja.",
     "item": "Barang itu tidak dapat direncanakan",
     "itemSub": "Pilih barang stok aktif milik organisasi ini.",
-    "status": "Work order ini tidak lagi menerima perubahan ini"
+    "status": "$t(common:terms.clientWorkOrder) ini tidak lagi menerima perubahan ini"
   },
   "foreman": "Mandor",
   "foremanPlaceholder": "Tanpa mandor",

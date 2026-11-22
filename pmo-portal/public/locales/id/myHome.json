@@ -10,16 +10,16 @@
   },
   "clockIn": {
     "title": "Absen masuk",
-    "empty": "Anda tidak terdaftar pada perintah kerja hari ini",
+    "empty": "Anda tidak terdaftar pada $t(common:terms.clientWorkOrder) hari ini",
     "hours": "Jam hari ini",
     "hoursRange": "Jam berkisar dari 0 sampai 24",
     "saved": "Sudah absen masuk",
     "action": "Absen masuk",
     "clockedIn": "Sudah absen masuk",
-    "offRoster": "Tidak ada di daftar ini? Minta pengawas Anda menambahkan Anda ke perintah kerja.",
+    "offRoster": "Tidak ada di daftar ini? Minta pengawas Anda menambahkan Anda ke $t(common:terms.clientWorkOrder).",
     "locating": "Membaca posisi Anda…",
     "pendingOutside": "Anda berada di luar area kerja. Supervisor diminta menyetujui absen ini.",
-    "pendingNotRostered": "Anda tidak terdaftar pada perintah kerja ini hari ini. Supervisor diminta menyetujui absen ini.",
+    "pendingNotRostered": "Anda tidak terdaftar pada $t(common:terms.clientWorkOrder) ini hari ini. Supervisor diminta menyetujui absen ini.",
     "pendingNoPosition": "Dikirim ke supervisor untuk disetujui.",
     "positionDenied": "Lokasi diblokir untuk situs ini. Izinkan di peramban Anda, atau minta supervisor menyetujui absen Anda.",
     "positionUnavailable": "Posisi Anda tidak dapat dibaca. Coba lagi, atau minta supervisor menyetujui absen Anda.",
@@ -31,7 +31,7 @@
   "roster": {
     "title": "Regu saya hari ini",
     "error": "Regu tidak dapat dimuat",
-    "empty": "Tidak ada regu pada perintah kerja ini hari ini"
+    "empty": "Tidak ada regu pada $t(common:terms.clientWorkOrder) ini hari ini"
   },
   "deliveries": {
     "title": "Pengiriman untuk dikonfirmasi"

@@ -65,7 +65,7 @@
     "to": "Sampai",
     "toReports": "Kembali ke laporan lapangan",
     "truncated": "Menampilkan 200 regu pertama, persentase tepat waktu terendah lebih dulu.",
-    "workOrder": "Perintah kerja"
+    "workOrder": "$t(common:terms.clientWorkOrder)"
   },
   "detail": {
     "correction": "Koreksi: {{reason}}",
@@ -191,7 +191,7 @@
     "fix": "Laporan sudah divalidasi. Koreksi laporan setelah stok atau lokasi lapangan diperbaiki, maka material dikeluarkan lagi.",
     "reason": {
       "short": "kurang {{n}} di {{location}}",
-      "noLocation": "perintah kerja ini belum punya lokasi lapangan",
+      "noLocation": "$t(common:terms.clientWorkOrder) ini belum punya lokasi lapangan",
       "noWorkItem": "belum ada butir kontrak yang disebut untuk material ini",
       "failed": "ditolak oleh stok ({{reason}})",
       "notStocked": "tidak dilacak di stok"

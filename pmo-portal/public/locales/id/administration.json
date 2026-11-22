@@ -613,8 +613,8 @@
   "admin": {
     "candidateTemplate": {
       "saved": "Daftar pemeriksaan disimpan",
-      "title": "Daftar pemeriksaan kandidat perintah kerja",
-      "helper": "Pemeriksaan yang dilakukan sebelum kandidat perintah kerja diterima. Kandidat menyalin daftar ini saat dibuka, sehingga perubahan berikutnya tidak mengubah kandidat yang sudah terbuka.",
+      "title": "Daftar pemeriksaan kandidat $t(common:terms.clientWorkOrder)",
+      "helper": "Pemeriksaan yang dilakukan sebelum kandidat $t(common:terms.clientWorkOrder) diterima. Kandidat menyalin daftar ini saat dibuka, sehingga perubahan berikutnya tidak mengubah kandidat yang sudah terbuka.",
       "loadError": "Daftar pemeriksaan tidak dapat dimuat",
       "empty": "Belum ada pemeriksaan. Tanpa pemeriksaan, kandidat dapat langsung diterima.",
       "itemLabel": "Pemeriksaan {{n}}",
@@ -711,7 +711,7 @@
     },
       "siteCheckpoints": {
         "title": "Titik pemeriksaan harian",
-        "helper": "Titik pemeriksaan dalam satu hari kerja, beserta waktu jatuh temponya. Pengawas lapangan mencatat tiap titik dengan foto; yang terlambat mengingatkan pelapor dan menandai perintah kerja. Tanpa titik pemeriksaan, tidak ada yang dibuat atau diingatkan.",
+        "helper": "Titik pemeriksaan dalam satu hari kerja, beserta waktu jatuh temponya. Pengawas lapangan mencatat tiap titik dengan foto; yang terlambat mengingatkan pelapor dan menandai $t(common:terms.clientWorkOrder). Tanpa titik pemeriksaan, tidak ada yang dibuat atau diingatkan.",
         "loadError": "Titik pemeriksaan tidak dapat dimuat",
         "empty": "Belum ada titik pemeriksaan. Tidak ada yang dibuat atau diingatkan sampai Anda menambahkannya.",
         "name": "Nama",
@@ -998,7 +998,7 @@
   },
   "labourCost": {
     "title": "Biaya tenaga kerja",
-    "intro": "Ubah jam lembar waktu yang disetujui menjadi biaya dalam uang pada setiap perintah kerja, dengan tarif biaya yang Anda tetapkan untuk seseorang atau satu peran. Ini hanya biaya, bukan gaji.",
+    "intro": "Ubah jam lembar waktu yang disetujui menjadi biaya dalam uang pada setiap $t(common:terms.clientWorkOrder), dengan tarif biaya yang Anda tetapkan untuk seseorang atau satu peran. Ini hanya biaya, bukan gaji.",
     "loadError": "Pengaturan biaya tenaga kerja gagal dimuat",
     "switch": "Hitung jam yang disetujui sebagai biaya dalam uang",
     "adminOnly": "Hanya Admin atau Keuangan yang dapat mengubah pengaturan biaya tenaga kerja.",
@@ -1062,7 +1062,7 @@
   },
   "performanceIndices": {
     "title": "Kinerja biaya dan jadwal",
-    "description": "Menampilkan indeks kinerja biaya dan jadwal pada proyek dan perintah kerja. Nonaktif sampai Anda mengaktifkannya.",
+    "description": "Menampilkan indeks kinerja biaya dan jadwal pada proyek dan $t(common:terms.clientWorkOrder). Nonaktif sampai Anda mengaktifkannya.",
     "enabled": "Tampilkan indeks kinerja",
     "low": "Batas bawah (di bawah ini dianggap bermasalah)",
     "high": "Batas atas (di atas ini dianggap lebih cepat)",

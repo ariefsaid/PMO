@@ -191,7 +191,7 @@
       "Payment": "Pembayaran"
     },
     "groupRef": "Ref. grup",
-    "workOrder": "Work Order / SPK"
+    "workOrder": "$t(common:terms.clientWorkOrder)"
   },
   "files": {
     "heading": "Lampiran",

@@ -125,7 +125,7 @@
         "confirmDelivery": "Konfirmasi draf BAST",
         "finalConfirmed": "Final terkonfirmasi",
         "confirmed": "Terkonfirmasi",
-        "openWorkOrder": "Buka Work Order / SPK"
+        "openWorkOrder": "Buka $t(common:terms.clientWorkOrder)"
       },
       "closing": {
         "closedAt": "Ditutup pada {{amount}} (belum termasuk PPN)",
