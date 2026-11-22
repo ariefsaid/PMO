@@ -9,6 +9,7 @@
 --   quantity_change     qcr_assert_approver (1177): Admin/Executive/Finance, never the author, an editor or the submitter
 --   certificate         approve_subcontract_certificate (1186): Admin/Finance/Executive, never the preparer or submitter
 --   equipment_plan      equipment_plan_approver_ok (1358): called as it is
+--   transfer_receipt    receive_stock_transfer (1308): a Sent transfer addressed to the caller or kept by them at its destination, never one they sent (stock_assert_not_self_receive)
 -- my_decision_standing(): true when the caller can decide anything at all (a decision role, a chain-step role, a pin, an in-window
 -- stand-in, or a line manager), so the Approvals entry is offered to everyone who may decide, even with nothing waiting.
 -- Reads only: no table, no policy change, no new grant beyond execute for authenticated.
@@ -65,6 +66,14 @@ begin
     join public.procurements pr on pr.id = c.procurement_id
    where c.org_id = v_org and c.status = 'submitted' and v_role in ('Admin', 'Finance', 'Executive')
      and c.prepared_by is distinct from v_uid and c.submitted_by is distinct from v_uid
+  union all
+  -- transfer_receipt: narrower than the gate on purpose (a senior role may receive any transfer; only those addressed to the caller or kept by them are waiting for them)
+  select 'transfer_receipt'::text, x.id, w.project_id, (x.number || ' · ' || w.name)::text, x.sent_at
+    from public.stock_transfers x
+    join public.stock_warehouses w on w.id = x.to_warehouse_id
+   where x.org_id = v_org and x.status = 'Sent' and x.sent_by is distinct from v_uid
+     and (x.to_user_id = v_uid or exists (select 1 from public.stock_warehouse_keepers k
+                                           where k.org_id = x.org_id and k.user_id = v_uid and k.warehouse_id = x.to_warehouse_id))
   union all
   -- equipment_plan
   select 'equipment_plan'::text, e.id, e.project_id, (pj.name || ' · ' || to_char(e.plan_month, 'YYYY-MM'))::text, coalesce(e.submitted_at, e.created_at)

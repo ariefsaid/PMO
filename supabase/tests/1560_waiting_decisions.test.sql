@@ -2,7 +2,7 @@
 -- Migration under test: 1560_waiting_decisions.sql. Each case asserts what the SAME gate as the deciding function lets the caller decide.
 begin;
 create extension if not exists pgtap;
-select plan(18);
+select plan(19);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15600000-0000-0000-0000-00000000000a', 'Wait Org', 'IDR', 'Asia/Jakarta'), ('15600000-0000-0000-0000-00000000000b', 'Wait Other Org', 'IDR', 'Asia/Jakarta');
@@ -51,6 +51,14 @@ insert into daily_site_reports (id, org_id, project_id, work_order_id, work_date
 insert into procurements (id, org_id, title, project_id, status, requested_by_id) values
   ('15600000-0000-0000-0000-000000000601', '15600000-0000-0000-0000-00000000000a', 'Wait delivery', '15600000-0000-0000-0000-0000000000d1', 'Ordered', '15600000-0000-0000-0000-0000000000a4');
 
+-- A transfer the PM sent, addressed to engineer 2.
+insert into stock_warehouses (id, org_id, code, name, kind) values
+  ('15600000-0000-0000-0000-000000000701', '15600000-0000-0000-0000-00000000000a', 'WC', 'Wait central', 'central'),
+  ('15600000-0000-0000-0000-000000000702', '15600000-0000-0000-0000-00000000000a', 'WS', 'Wait site', 'site'),
+  ('15600000-0000-0000-0000-000000000703', '15600000-0000-0000-0000-00000000000a', 'WT', 'Wait transit', 'site');
+insert into stock_transfers (id, org_id, number, from_warehouse_id, to_warehouse_id, transit_warehouse_id, to_user_id, status, sent_by) values
+  ('15600000-0000-0000-0000-000000000801', '15600000-0000-0000-0000-00000000000a', 'TR-W1', '15600000-0000-0000-0000-000000000701', '15600000-0000-0000-0000-000000000702', '15600000-0000-0000-0000-000000000703', '15600000-0000-0000-0000-0000000000a4', 'Sent', '15600000-0000-0000-0000-0000000000a3');
+
 set local role authenticated;
 
 select is(pg_temp._kinds('15600000-0000-0000-0000-0000000000a1'), 'daily_report,daily_report,delivery_record,work_order_issue',
@@ -61,8 +69,10 @@ select is(pg_temp._kinds('15600000-0000-0000-0000-0000000000a3'), 'daily_report,
   'AC-WAIT-003 the project''s manager validates the report, receives the delivery, and issues the Admin-set order but not their own');
 select is(pg_temp._kinds('15600000-0000-0000-0000-0000000000a8'), '',
   'AC-WAIT-004 a Project Manager of another project sees none of these');
-select is(pg_temp._kinds('15600000-0000-0000-0000-0000000000a4'), 'delivery_record',
-  'AC-WAIT-005 the requester of an ordered purchase can confirm its delivery');
+select is(pg_temp._kinds('15600000-0000-0000-0000-0000000000a4'), 'delivery_record,transfer_receipt',
+  'AC-WAIT-005 the requester of an ordered purchase confirms its delivery, and the person a transfer is addressed to receives it');
+select is(pg_temp._kinds('15600000-0000-0000-0000-0000000000a3'), 'daily_report,delivery_record,work_order_issue',
+  'AC-WAIT-005b the person who sent the transfer is not asked to receive it');
 select is(pg_temp._kinds('15600000-0000-0000-0000-0000000000a5'), 'daily_report,daily_report,work_order_issue,work_order_issue',
   'AC-WAIT-006 Finance validates the report and may issue both orders (won-value authority), but cannot receive another person''s delivery');
 select is(pg_temp._kinds('15600000-0000-0000-0000-0000000000a7'), 'work_order_issue,work_order_issue',
@@ -105,11 +115,11 @@ select is(public.my_decision_standing(), true, 'AC-WAIT-014 a line manager has s
 reset role;
 select is(has_function_privilege('anon', 'public.my_waiting_decisions()', 'execute'), false, 'AC-WAIT-015 anon cannot run the list');
 select is(has_function_privilege('authenticated', 'public.my_decision_standing()', 'execute'), true, 'AC-WAIT-016 a signed-in person can ask their standing');
-select is((select array_agg(k order by k) from unnest(array['certificate','daily_report','delivery_record','equipment_plan','quantity_change','work_order_issue']) k
+select is((select array_agg(k order by k) from unnest(array['certificate','daily_report','delivery_record','equipment_plan','quantity_change','transfer_receipt','work_order_issue']) k
             where position('''' || k || '''::text' in (select prosrc from pg_proc where proname = 'my_waiting_decisions')) > 0),
-  array['certificate','daily_report','delivery_record','equipment_plan','quantity_change','work_order_issue'],
+  array['certificate','daily_report','delivery_record','equipment_plan','quantity_change','transfer_receipt','work_order_issue'],
   'AC-WAIT-017 the function answers for exactly the enumerated kinds; a new kind must be added here and to the inbox registry');
-select is((select count(*)::int from regexp_matches((select prosrc from pg_proc where proname = 'my_waiting_decisions'), '''[a-z_]+''::text', 'g')), 6,
+select is((select count(*)::int from regexp_matches((select prosrc from pg_proc where proname = 'my_waiting_decisions'), '''[a-z_]+''::text', 'g')), 7,
   'AC-WAIT-018 and no kind is answered that the enumeration does not name');
 select * from finish();
 rollback;
