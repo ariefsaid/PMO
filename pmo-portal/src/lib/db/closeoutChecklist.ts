@@ -105,7 +105,10 @@ export async function listOpenCloseoutDue(): Promise<OpenCloseoutDueRow[]> {
       .eq('work_orders.status', 'Issued')
       .order('id', { ascending: true });
     if (afterId !== null) q = q.gt('id', afterId);
-    return q.limit(limit) as unknown as PromiseLike<{ data: Raw[] | null; error: { message: string; code?: string } | null }>;
+    // Typed straight off the generated query: the embedded `status` is only a filter (and an extra
+    // result field), so `data` is assignable to `Raw` — no untyped cast needed.
+    const { data, error } = await q.limit(limit);
+    return { data, error };
   });
   return rows.map((r) => ({ workOrderId: r.work_order_id, dueOn: r.due_on ?? null, doneOn: r.done_on ?? null }));
 }
