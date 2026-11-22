@@ -1,12 +1,12 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import { SIGNED_URL_EXPIRY_SECONDS } from '@/src/lib/fileConstants';
 
 /**
  * Timed checkpoints DAL (#2594, migrations 1385..1388). Reads are RPCs or RLS selects; every write is a server RPC
  * (`set_site_checkpoint_list`, `record_site_checkpoint`). The recorded time and person are stamped by the server and are
- * never sent. org_id is never sent. Generated types predate 1385, so this module uses a narrow shape and validates what
- * comes back instead of defaulting a missing field.
+ * never sent. org_id is never sent. A jsonb read is validated field by field rather than defaulted.
  */
 export interface CheckpointTemplateItem {
   name: string;
@@ -33,21 +33,8 @@ export interface PunctualityFilter { from: string; to: string; projectId?: strin
 
 export const SITE_CHECKPOINT_PHOTOS_BUCKET = 'site-checkpoint-photos';
 
-type Err = { message: string; code?: string } | null;
-interface Loose {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the PostgREST builder chain; generated types predate 1385
-  from(table: string): any;
-  rpc(fn: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: Err }>;
-}
-const db = supabase as unknown as Loose;
 const fail = (error: { message: string; code?: string }): never => { throw new AppError(error.message, error.code); };
 const malformed = (what: string): never => { throw new AppError(`Unexpected ${what} from the server`); };
-
-async function call(fn: string, args: Record<string, unknown>): Promise<unknown> {
-  const { data, error } = await db.rpc(fn, args);
-  if (error) fail(error);
-  return data;
-}
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown, what: string): string => (typeof v === 'string' ? v : malformed(what));
@@ -59,7 +46,7 @@ const bool = (v: unknown, what: string): boolean => (typeof v === 'boolean' ? v 
 const hhmm = (v: unknown): string => str(v, 'checkpoint time').slice(0, 5);
 
 export async function getCheckpointList(): Promise<CheckpointTemplateItem[]> {
-  const { data, error } = await db.from('site_checkpoint_templates')
+  const { data, error } = await supabase.from('site_checkpoint_templates')
     .select('position, name, marks_work_start, due_time, grace_minutes, photo_required').order('position', { ascending: true }).limit(12);
   if (error) fail(error);
   if (!Array.isArray(data)) return malformed('checkpoint list');
@@ -74,11 +61,18 @@ export async function getCheckpointList(): Promise<CheckpointTemplateItem[]> {
 
 /** Replaces the whole list (Admin only, server-checked). An empty list switches the feature off. */
 export async function setCheckpointList(items: CheckpointTemplateItem[]): Promise<number> {
-  return num(await call('set_site_checkpoint_list', { p_items: items }), 'saved count');
+  const { data, error } = await supabase.rpc('set_site_checkpoint_list', {
+    p_items: items.map((i) => ({
+      name: i.name, marks_work_start: i.marks_work_start, due_time: i.due_time, grace_minutes: i.grace_minutes, photo_required: i.photo_required,
+    })),
+  });
+  if (error) fail(error);
+  return num(data, 'saved count');
 }
 
 export async function listDayCheckpoints(workOrderId: string, date: string): Promise<DayCheckpoint[]> {
-  const data = await call('site_checkpoints_for_day', { p_work_order: workOrderId, p_date: date });
+  const { data, error } = await supabase.rpc('site_checkpoints_for_day', { p_work_order: workOrderId, p_date: date });
+  if (error) fail(error);
   if (!Array.isArray(data)) return malformed('checkpoints');
   return data.map((r: unknown) => {
     if (!isObj(r)) return malformed('checkpoint');
@@ -96,7 +90,9 @@ export async function listDayCheckpoints(workOrderId: string, date: string): Pro
 }
 
 export async function getWorkOrderFlag(workOrderId: string, date?: string | null): Promise<boolean> {
-  return bool(await call('work_order_checkpoint_flag', { p_work_order: workOrderId, p_date: date ?? null }), 'flag');
+  const { data, error } = await supabase.rpc('work_order_checkpoint_flag', { p_work_order: workOrderId, p_date: nullableArg(date ?? null) });
+  if (error) fail(error);
+  return bool(data, 'flag');
 }
 
 export function buildCheckpointPhotoPath(c: { org_id: string; work_order_id: string; crew_id: string; work_date: string; id: string }, file: File): string {
@@ -120,7 +116,10 @@ export async function recordCheckpoint(input: RecordInput): Promise<void> {
     const { error: upErr } = await bucket.upload(path, input.file, { contentType: input.file.type || undefined, upsert: false });
     if (upErr) throw new AppError(upErr.message);
   }
-  const { error } = await db.rpc('record_site_checkpoint', { p_checkpoint: input.checkpoint.id, p_photo_path: path, p_note: input.note });
+  // Both optional parameters DEFAULT to null, so null is the same request as omitting them.
+  const { error } = await supabase.rpc('record_site_checkpoint', {
+    p_checkpoint: input.checkpoint.id, p_photo_path: nullableArg(path), p_note: nullableArg(input.note),
+  });
   if (error) {
     if (path) await bucket.remove([path]);
     fail(error);
@@ -134,9 +133,10 @@ export async function checkpointPhotoUrl(path: string): Promise<string> {
 }
 
 export async function getCrewPunctuality(filter: PunctualityFilter): Promise<PunctualityResult> {
-  const data = await call('crew_start_punctuality', {
-    p_from: filter.from, p_to: filter.to, p_project: filter.projectId ?? null, p_work_order: filter.workOrderId ?? null,
+  const { data, error } = await supabase.rpc('crew_start_punctuality', {
+    p_from: filter.from, p_to: filter.to, p_project: nullableArg(filter.projectId ?? null), p_work_order: nullableArg(filter.workOrderId ?? null),
   });
+  if (error) fail(error);
   if (!isObj(data) || !Array.isArray(data.crews)) return malformed('crews view');
   return {
     from: str(data.from, 'from'), to: str(data.to, 'to'), truncated: bool(data.truncated, 'truncated'),
@@ -161,9 +161,10 @@ export async function getCrewPunctuality(filter: PunctualityFilter): Promise<Pun
 }
 
 export async function getLostTimeByCause(filter: PunctualityFilter): Promise<LostTimeResult> {
-  const data = await call('site_lost_time_by_cause', {
-    p_from: filter.from, p_to: filter.to, p_project: filter.projectId ?? null, p_work_order: filter.workOrderId ?? null,
+  const { data, error } = await supabase.rpc('site_lost_time_by_cause', {
+    p_from: filter.from, p_to: filter.to, p_project: nullableArg(filter.projectId ?? null), p_work_order: nullableArg(filter.workOrderId ?? null),
   });
+  if (error) fail(error);
   if (!isObj(data) || !Array.isArray(data.rows)) return malformed('lost time');
   return {
     from: str(data.from, 'from'), to: str(data.to, 'to'), total_minutes: num(data.total_minutes, 'total'), report_count: num(data.report_count, 'reports'),
@@ -176,7 +177,7 @@ export async function getLostTimeByCause(filter: PunctualityFilter): Promise<Los
 
 /** The columns the record call needs from a checkpoint row (the day list omits org and work date, which the caller knows). */
 export async function getCheckpointRecordRefs(id: string): Promise<{ id: string; org_id: string; work_order_id: string; crew_id: string; work_date: string }> {
-  const { data, error } = await db.from('site_checkpoints').select('id, org_id, work_order_id, crew_id, work_date').eq('id', id).maybeSingle();
+  const { data, error } = await supabase.from('site_checkpoints').select('id, org_id, work_order_id, crew_id, work_date').eq('id', id).maybeSingle();
   if (error) fail(error);
   if (!isObj(data)) return malformed('checkpoint');
   return { id: str(data.id, 'id'), org_id: str(data.org_id, 'org'), work_order_id: str(data.work_order_id, 'work order'), crew_id: str(data.crew_id, 'crew'), work_date: str(data.work_date, 'date') };

@@ -20,9 +20,10 @@ export interface MyHome { today: string; tasks: MyHomeTask[]; work_orders: MyHom
 export interface MyDelivery { id: string; description: string }
 
 export async function getMyHome(): Promise<MyHome> {
-  // `my_home` is not in the generated types until the next regeneration; the cast is the whole seam.
-  const { data, error } = await supabase.rpc('my_home' as never);
+  const { data, error } = await supabase.rpc('my_home');
   if (error) throw new AppError(error.message, error.code);
+  // `my_home` is declared `returns jsonb`, so its generated type is `Json` and carries no shape; the interface above is
+  // the contract, and every field is defaulted rather than trusted.
   const home = data as unknown as MyHome | null;
   return { today: home?.today ?? '', tasks: home?.tasks ?? [], work_orders: home?.work_orders ?? [], issues: home?.issues ?? [] };
 }
@@ -40,8 +41,9 @@ export async function getMyDeliveries(): Promise<MyDelivery[]> {
 
 export interface SeatReport { full: number; light: number; total: number }
 export async function getSeatReport(): Promise<SeatReport> {
-  const { data, error } = await supabase.rpc('org_seat_report' as never);
+  const { data, error } = await supabase.rpc('org_seat_report');
   if (error) throw new AppError(error.message, error.code);
+  // `org_seat_report` is declared `returns jsonb` too: `Json` in, the shape stated here, each figure defaulted.
   const r = data as unknown as Partial<SeatReport> | null;
   return { full: Number(r?.full ?? 0), light: Number(r?.light ?? 0), total: Number(r?.total ?? 0) };
 }

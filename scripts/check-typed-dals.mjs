@@ -19,19 +19,17 @@
 // WHAT IS FLAGGED: `as unknown as` and `as never` in any non-test `.ts` under `src/lib/db/`
 // (`database.types.ts` excluded). Comments are stripped first, so a note ABOUT a cast is fine.
 //
-// THE EXEMPTIONS, in three kinds, each with its own reason:
+// THE EXEMPTIONS, in two kinds, each with its own reason:
 //   • PRE_GATE_DEBT     — files that already carried a cast before this gate landed. Grouped, one
 //                         shared reason. Cleaning them is ordinary work, not this gate's job.
-//   • BLOCKED_ON_TYPES  — a round file whose objects are NOT in `database.types.ts` yet. ⚑ STALENESS IS
-//                         DERIVED: the gate works out which objects the file calls (`rpc`/`from`/
-//                         `table`/`call` + a string literal) and which of those the generated types
-//                         lack. The entry expires the moment the file uses no untyped object any
-//                         more, i.e. the day the types are regenerated the cast has to go. No
-//                         hand-kept list of names to drift.
 //   • SHAPE_NOT_IN_TYPES— a checked object whose generated type cannot carry the real contract: an
 //                         RPC declared `returns jsonb`, or a `numeric` argument that this module
 //                         sends as exact decimal TEXT. `until` is a regex that must STILL match the
 //                         generated file; when it stops, the entry is stale and someone must look.
+//
+// ⚑ THERE IS NO "the types are stale" EXEMPTION, on purpose. A file whose objects are missing from
+// `database.types.ts` is why this gate exists: regenerate the types. The 21 round files that once
+// carried such an entry are on the generated types now (ARCH-C6).
 //
 // ⚠️ WHAT THIS GATE DOES NOT CATCH: a row shape asserted with a plain `as Foo` where the generated row
 // agrees structurally, and an `any`-typed VALUE (not a cast) reaching the client. It stops the two
@@ -80,35 +78,6 @@ const PRE_GATE_DEBT = [
 ];
 
 /**
- * Round files whose objects are absent from `database.types.ts`. The gate derives WHICH objects, so
- * these carry no name list to drift; the entry expires when the file no longer touches an untyped one.
- * @type {Array<{file: string, reason: string}>}
- */
-const BLOCKED_ON_TYPES = [
-  { file: 'src/lib/db/clearance.ts', reason: 'Migrations 1235-1237 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/documentCategories.ts', reason: 'Migrations 1090-1093 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/dsrStockIssue.ts', reason: 'Migrations 1325/1333 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/emailNotifications.ts', reason: 'Migrations 1220-1223 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/equipmentVendorResponse.ts', reason: 'Migrations 1372-1374 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/hidePrices.ts', reason: 'Migrations 1215-1218 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/leave.ts', reason: 'Migrations 1240-1242 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/myHome.ts', reason: 'The home and seat-report RPCs were never regenerated into the types.' },
-  { file: 'src/lib/db/paymentChannels.ts', reason: 'Migrations 1355/1356 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/phoneCheckIn.ts', reason: 'Migrations 1212 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/quantityChanges.ts', reason: 'Migrations 1176 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/safetyDays.ts', reason: 'Migrations 1410/1411 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/scheduledReports.ts', reason: 'The scheduled-report table and functions were never regenerated into the types.' },
-  { file: 'src/lib/db/siteCheckpoints.ts', reason: 'Migrations 1385 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/stockReservations.ts', reason: 'Migration 1315 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/stockTransfers.ts', reason: 'The transfer tables and functions were never regenerated into the types.' },
-  { file: 'src/lib/db/stockWorkOrderTransfer.ts', reason: 'The work-order transfer objects were never regenerated into the types.' },
-  { file: 'src/lib/db/workOrderCandidates.ts', reason: 'Migrations 1405 objects were never regenerated into the types.' },
-  { file: 'src/lib/db/workOrderDailyTarget.ts', reason: 'The daily-target objects were never regenerated into the types.' },
-  { file: 'src/lib/db/workOrderMaterialProgress.ts', reason: 'The work-order stock settings table was never regenerated into the types.' },
-  { file: 'src/lib/db/workOrderRevenuePlan.ts', reason: 'Migrations 1415 objects were never regenerated into the types.' },
-];
-
-/**
  * A checked object whose generated type cannot carry the real contract. `until` must still match the
  * generated file — when it stops matching, the exemption is stale and the cast has to go.
  * @type {Array<{file: string, reason: string, until: string}>}
@@ -122,6 +91,22 @@ const SHAPE_NOT_IN_TYPES = [
     reason: '`subcontract_certificate_view`/`bill_subcontract_certificate` are declared `returns jsonb`; their shapes are stated in the module.' },
   { file: 'src/lib/db/usageStandards.ts', until: 'cus_adjust_plan_line: \\{[\\s\\S]*?p_adjusted_qty: number',
     reason: 'A `numeric` argument goes on the wire as exact decimal TEXT (NFR-CUS-002), which the generated argument type (`number`) cannot state.' },
+  { file: 'src/lib/db/dsrStockIssue.ts', until: 'dsr_stock_status: \\{ Args: \\{ p_report: string \\}; Returns: Json',
+    reason: '`dsr_stock_status` is declared `returns jsonb`, so its lines and decimal-string quantities are stated in the module.' },
+  { file: 'src/lib/db/myHome.ts', until: 'my_home: \\{ Args: never; Returns: Json',
+    reason: '`my_home` and `org_seat_report` are declared `returns jsonb`, so their shapes are stated in the module.' },
+  { file: 'src/lib/db/phoneCheckIn.ts', until: 'phone_check_in: \\{[\\s\\S]*?Returns: Json',
+    reason: '`phone_check_in` is declared `returns jsonb`, so its status/outcome shape is stated in the module.' },
+  { file: 'src/lib/db/quantityChanges.ts', until: 'record_quantity_forecast: \\{[\\s\\S]*?p_quantity: number',
+    reason: 'A `numeric` quantity goes on the wire as exact decimal TEXT, which the generated argument type (`number`) cannot state.' },
+  { file: 'src/lib/db/safetyDays.ts', until: 'work_order_roster: \\{[\\s\\S]*?members: Json',
+    reason: '`work_order_roster.members` and `get_safety_summary_detail` are declared `jsonb`, so their shapes are stated in the module.' },
+  { file: 'src/lib/db/stockReservations.ts', until: 'reserve_stock: \\{[\\s\\S]*?p_quantity: number',
+    reason: 'A `numeric` quantity goes on the wire as exact decimal TEXT (NFR-STK-007), and `get_stock_free_reserved` is `returns jsonb`; the generated types can state neither.' },
+  { file: 'src/lib/db/stockWorkOrderTransfer.ts', until: 'get_work_order_returnable: \\{[\\s\\S]*?Returns: Json',
+    reason: '`get_work_order_returnable` is declared `returns jsonb`, so its decimal-string lines are stated in the module.' },
+  { file: 'src/lib/db/workOrderRevenuePlan.ts', until: 'wo_revenue_plan_set_day: \\{[\\s\\S]*?p_amount: number',
+    reason: 'A `numeric` plan amount goes on the wire as exact decimal TEXT, which the generated argument type (`number`) cannot state.' },
 ];
 
 /** Strip comments so a note ABOUT a cast does not count as one. Strings are left alone. */
@@ -138,7 +123,7 @@ export function findCasts(src) {
   return out;
 }
 
-/** The public-schema object names `database.types.ts` knows, so a call target can be looked up. */
+/** The public-schema object names `database.types.ts` knows. The gate refuses to run on zero. */
 export function parseTypeNames(src) {
   const names = new Set();
   const pub = src.split('\n  public: {')[1];
@@ -154,32 +139,15 @@ export function parseTypeNames(src) {
   return names;
 }
 
-/** Every database object a DB module calls: `rpc(…)`, `from(…)`, `table(…)`, `call(…)` + a string literal. */
-export function parseCalledNames(src) {
-  const names = new Set();
-  const re = /(?:(?:\b(?:supabase|db|client)\s*\.\s*)?\b(?:rpc|from|table|call|callRpc|rpcCall)\s*\(\s*)'([a-z][a-z0-9_]{2,})'/g;
-  for (const m of stripComments(src).matchAll(re)) names.add(m[1]);
-  return names;
-}
-
 /** Split found casts and exemptions into what is new and what is stale. */
-export function compare(found, texts, typeNames, exempt = {}) {
+export function compare(found, exempt = {}) {
   const preGate = new Set(exempt.preGate ?? []);
-  const blocked = new Map((exempt.blocked ?? []).map((b) => [b.file, b]));
   const shapes = new Map((exempt.shapes ?? []).map((s) => [s.file, s]));
-  const known = (file) => preGate.has(file) || blocked.has(file) || shapes.has(file);
-  const fresh = found.filter((f) => !known(f.file));
+  const fresh = found.filter((f) => !preGate.has(f.file) && !shapes.has(f.file));
   const hit = new Set(found.map((f) => f.file));
 
   const stale = [];
   for (const f of preGate) if (!hit.has(f)) stale.push(`${f} (no cast left — delete the exemption)`);
-  for (const [file, b] of blocked) {
-    if (!hit.has(file)) stale.push(`${file} (no cast left — delete the exemption)`);
-    else {
-      const untyped = [...parseCalledNames(texts.get(file) ?? '')].filter((n) => !typeNames.has(n));
-      if (untyped.length === 0) stale.push(`${file} (${b.reason} but every object it calls is generated now — drop the cast)`);
-    }
-  }
   for (const [file, s] of shapes) {
     if (!hit.has(file)) stale.push(`${file} (no cast left — delete the exemption)`);
     else if (!new RegExp(s.until).test(exempt.typesText ?? '')) stale.push(`${file} (the generated contract changed; ${s.reason})`);
@@ -204,16 +172,13 @@ function main() {
     process.exit(1);
   }
   const found = [];
-  const texts = new Map();
   for (const abs of walk(resolve(REPO, DB_DIR))) {
     // Key = `src/lib/db/<name>`, the form the exemptions use, so a lookup can never miss on a prefix.
     const file = relative(resolve(REPO, 'pmo-portal'), abs);
-    const text = readFileSync(abs, 'utf8');
-    texts.set(file, text);
-    for (const c of findCasts(text)) found.push({ file, ...c });
+    for (const c of findCasts(readFileSync(abs, 'utf8'))) found.push({ file, ...c });
   }
-  const { fresh, stale } = compare(found, texts, typeNames, {
-    preGate: PRE_GATE_DEBT, blocked: BLOCKED_ON_TYPES, shapes: SHAPE_NOT_IN_TYPES, typesText,
+  const { fresh, stale } = compare(found, {
+    preGate: PRE_GATE_DEBT, shapes: SHAPE_NOT_IN_TYPES, typesText,
   });
   for (const f of fresh) {
     console.error(`UNTYPED DB ACCESS: ${f.file}:${f.line}\n  ${f.snippet}\n  call the generated type instead: drop the cast, or regenerate database.types.ts.`);
@@ -223,7 +188,7 @@ function main() {
     console.error(`\ncheck-typed-dals: ${fresh.length} new cast(s), ${stale.length} stale exemption(s).`);
     process.exit(1);
   }
-  const exempted = PRE_GATE_DEBT.length + BLOCKED_ON_TYPES.length + SHAPE_NOT_IN_TYPES.length;
+  const exempted = PRE_GATE_DEBT.length + SHAPE_NOT_IN_TYPES.length;
   console.log(`✓ src/lib/db reads and writes through the generated types (${typeNames.size} generated objects, 0 unexcused casts, ${exempted} documented exemption(s))`);
 }
 
@@ -271,27 +236,17 @@ if (isRunAsMain && process.argv.includes('--self-test')) {
   t('parses a ONE-LINE function name', types.has('one_liner'));
   t('does not invent names', types.size === 3);
 
-  const called = parseCalledNames("await supabase.rpc('leave_request_submit', {}); await from('leave_types'); const t = table('x1'); await call('person_clearance_items');");
-  t('reads the call target of each helper', ['leave_request_submit', 'leave_types', 'person_clearance_items'].every((n) => called.has(n)));
-
   const at = (file) => [{ file, line: 1, snippet: 'supabase as unknown as Loose' }];
-  const untyped = 'await supabase.rpc(\'missing_thing\');';
-  const typed = "await supabase.from('companies');";
-  const c1 = compare(at('a.ts'), new Map(), types);
+  const c1 = compare(at('a.ts'));
   t('a new cast is fresh', c1.fresh.length === 1 && c1.stale.length === 0);
-  const c2 = compare(at('a.ts'), new Map(), types, { preGate: ['a.ts'] });
+  const c2 = compare(at('a.ts'), { preGate: ['a.ts'] });
   t('an exempt pre-gate file is not fresh', c2.fresh.length === 0 && c2.stale.length === 0);
-  const c3 = compare([], new Map(), types, { preGate: ['a.ts'] });
+  const c3 = compare([], { preGate: ['a.ts'] });
   t('a pre-gate exemption with no cast left is stale', c3.stale.length === 1);
-  const blocked = [{ file: 'b.ts', reason: 'not generated yet' }];
-  const c4 = compare(at('b.ts'), new Map([['b.ts', untyped]]), types, { blocked });
-  t('a blocked file that still calls an untyped object is not stale', c4.fresh.length === 0 && c4.stale.length === 0);
-  const c5 = compare(at('b.ts'), new Map([['b.ts', typed]]), types, { blocked });
-  t('a blocked file whose objects are all generated IS stale', c5.stale.length === 1);
   const shapes = [{ file: 'c.ts', reason: 'jsonb', until: 'one_liner: \\{[\\s\\S]*?Args' }];
-  const c6 = compare(at('c.ts'), new Map([['c.ts', typed]]), types, { shapes, typesText: 'one_liner: { Args: { p: string }; Returns: undefined }' });
+  const c6 = compare(at('c.ts'), { shapes, typesText: 'one_liner: { Args: { p: string }; Returns: undefined }' });
   t('a shape exemption whose regex still matches is not stale', c6.fresh.length === 0 && c6.stale.length === 0);
-  const c7 = compare(at('c.ts'), new Map([['c.ts', typed]]), types, { shapes, typesText: 'one_liner: { Args: { p: string }; Returns: undefined } }'.replace('Args', 'XX') });
+  const c7 = compare(at('c.ts'), { shapes, typesText: 'one_liner: { Args: { p: string }; Returns: undefined } }'.replace('Args', 'XX') });
   t('a shape exemption whose regex stopped matching IS stale', c7.stale.length === 1);
 
   if (fails.length) {

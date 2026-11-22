@@ -6,7 +6,12 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from, rpc } }));
 import * as dal from './documentCategories';
 import { AppError } from '@/src/lib/appError';
 
-const select = (data: unknown, error: unknown = null) => ({ select: () => ({ order: () => ({ order: () => Promise.resolve({ data, error }) }) }) });
+/** The paged builder chain both lists use: select → order ×n → range. */
+const select = (data: unknown, error: unknown = null) => {
+  const chain = { range: () => Promise.resolve({ data, error }) } as Record<string, unknown>;
+  chain.order = () => chain;
+  return { select: () => chain };
+};
 
 beforeEach(() => { from.mockReset(); rpc.mockReset(); });
 
@@ -14,7 +19,7 @@ describe('document categories DAL (#2579)', () => {
   it('joins each category with its viewer roles', async () => {
     from.mockImplementation((name: string) => name === 'document_categories'
       ? select([{ id: 'c1', name: 'Invoice', is_system: false, sort_order: 20, archived_at: null }, { id: 'c2', name: 'Drawing', is_system: true, sort_order: 10, archived_at: null }])
-      : { select: () => Promise.resolve({ data: [{ category_id: 'c1', role: 'Finance' }, { category_id: 'c1', role: 'Admin' }], error: null }) });
+      : select([{ category_id: 'c1', role: 'Finance' }, { category_id: 'c1', role: 'Admin' }]));
     const list = await dal.listDocumentCategories();
     expect(list.find((c) => c.id === 'c1')?.roles).toEqual(['Finance', 'Admin']);
     expect(list.find((c) => c.id === 'c2')?.roles).toEqual([]);

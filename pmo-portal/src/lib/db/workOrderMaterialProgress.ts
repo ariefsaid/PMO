@@ -4,6 +4,7 @@
  * the Admin-only save; this file only reads, writes and maps. Quantities stay decimal strings (NFR-STK-007).
  */
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { toAppError } from '@/src/lib/appError';
 
 export interface MaterialProgressItem {
@@ -43,15 +44,15 @@ export async function getWorkOrderMaterialProgress(workOrderId: string): Promise
 
 /** Admin only (the database refuses anyone else). null clears the threshold, which turns the warning off. */
 export async function setWorkOrderIssueThreshold(thresholdPct: number | null): Promise<number | null> {
-  // Null clears the threshold and the SQL parameter accepts it, but the generated argument type is `number`.
-  const { data, error } = await supabase.rpc('set_work_order_issue_threshold', { p_threshold_pct: thresholdPct as number });
+  // Null clears the threshold; the SQL parameter accepts it, but the generated argument type is `number`.
+  const { data, error } = await supabase.rpc('set_work_order_issue_threshold', { p_threshold_pct: nullableArg(thresholdPct) });
   if (error) throw toAppError(error);
   return num(data);
 }
 
 /** The organisation's current threshold, or null when it is unset (RLS shows only the caller's own row). */
 export async function getWorkOrderIssueThreshold(): Promise<number | null> {
-  const { data, error } = await supabase.from('work_order_stock_settings' as never).select('issue_progress_threshold_pct').maybeSingle();
+  const { data, error } = await supabase.from('work_order_stock_settings').select('issue_progress_threshold_pct').maybeSingle();
   if (error) throw toAppError(error);
-  return num((data as { issue_progress_threshold_pct: number | string | null } | null)?.issue_progress_threshold_pct);
+  return num(data?.issue_progress_threshold_pct);
 }
