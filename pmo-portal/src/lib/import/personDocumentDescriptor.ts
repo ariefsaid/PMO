@@ -2,7 +2,7 @@ import type { TFunction } from 'i18next';
 import { repositories } from '@/src/lib/repositories';
 import type { ExpiryDocumentRow } from '@/src/lib/db/documentExpiry';
 import type { ImportDescriptor, RowChange } from './types';
-import { labelOf, makeField, requiredText } from './importShared';
+import { labelOf, makeField } from './importShared';
 import { makeRefLookup } from './refLookup';
 
 /** One row of the document sheet, resolved: the person and type are ids, the optional cells are null when blank. */

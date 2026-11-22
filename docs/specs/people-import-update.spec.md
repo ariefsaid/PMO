@@ -22,7 +22,8 @@ Verdict: the ask is NOT answered today (match yes, update no, change preview no)
 ## Requirements (EARS)
 
 - FR-PIU-001 When the file's person code (trimmed, case-insensitive) equals the code of a live person, the importer shall treat the row as an update of that person; otherwise as a new person.
-- FR-PIU-002 The people template shall have Employee code, Display name and an optional Job title column. No salary, contact, tax, bank, location or login-link data is read.
+- FR-PIU-002 The people template shall have Employee code, Display name, and optional Job title and Manager email columns (template version 2; version 1 files are still accepted). No salary, contact, tax, bank, location or login-link data is read.
+- FR-PIU-013 (manager key, steering 2026-11-22) The manager is named by the manager's sign-in email, the one unique, human-known key on a profile that every active member can already read (the register's manager link is an app user, who need not be a person in the register, so a person code would not always exist). The match is case- and space-insensitive and only active users match. An unknown or disabled email is a row error naming "Manager email". A blank cell leaves the stored manager; a manager is set or changed, never cleared. `people.manager_id` is already writable (insert and update grants, 0970).
 - FR-PIU-003 (blank rule) When a cell for an update row is blank, or the column is not in the file, the importer shall leave the stored value unchanged. It shall never clear a field. A person absent from the file is never changed, archived or deleted. Display name is required on every row, so it is never blank.
 - FR-PIU-004 When the file value equals the stored value (trimmed), the row shall be "No change" and shall write nothing.
 - FR-PIU-005 The preview shall list every row as New, Will update (naming each field with stored value and new value), No change, or Invalid (with the reason), with counts of each, and shall perform zero writes. The confirm button states what it will do ("Add 3 and update 12"), and is disabled with a reason when nothing would change.
@@ -33,6 +34,18 @@ Verdict: the ask is NOT answered today (match yes, update no, change preview no)
 - FR-PIU-010 If the existing-people read fails, the wizard shall refuse to confirm (an update preview cannot be shown) with a retry, rather than guess; this differs from today's insert-only behaviour, where a failed read never blocks.
 - FR-PIU-011 The result step reports added, updated, no change, and failed counts, and the failed-rows file (existing) lists failures.
 - FR-PIU-012 The Import button stays gated by `can()` (Admin today) and RLS; org is never read from the file or client. All new strings in English and Bahasa Indonesia, including refusal sentences in `src/lib/refusals.ts`. Layout works at 390px and 1440px; status is conveyed by text, not colour alone.
+
+## Person document import (steering 2026-11-22)
+
+One downloadable template, ONE sheet: **Person code, Document type, Number, Issue date, Expiry date** (document name in the wizard: "Import documents", beside "Import people" on the People screen).
+
+- FR-PDI-001 A row names a live person by person code and an active person document type by name; an unknown person or type is a row error naming the field. Dates are year-month-day; expiry is required; an issue date after the expiry date is a row error.
+- FR-PDI-002 (match) When the person has a live (not archived) document of that type, the row updates it: the one expiring last when there are several. Otherwise the row adds a document. A person code and type repeated in the file is a row error naming the first row.
+- FR-PDI-003 (blank rule) A blank number or issue date leaves the stored value. The note, attached file and archived state are never touched; nothing is archived or deleted.
+- FR-PDI-004 The preview shows New, Will update (each changed field, old to new), No change and Invalid, with counts, and writes nothing; the confirm states "Add n and update m" (same wizard, same machinery as people).
+- FR-PDI-005 (who may write, one rule) The Import documents button and every write use the rule the person page's Add document already uses: `can('create','expiryDocument',{record:{kind:'person',medical:false}})`, which on the merged role-capabilities branch (origin/feat/role-capabilities-one-gate, commit ebaf4808, merged into this branch) is Admin or a holder of the people-documents capability. No second rule is added. The database is the authority: `expiry_documents` insert/update policies (migration 1536 of that branch) refuse any other caller per row, and the row fails with the refusal's sentence.
+- FR-PDI-006 (medical) A document type that is medical is never imported, by anyone: its rows are errors telling the person to record it on the person page. A medical document carries a status the sheet has no column for, and writing it stays under the branch's medical rule (Admin only, `actor_may_see_medical_documents` to read).
+- FR-PDI-007 The template, its example row, hints, statuses and every message exist in English and Bahasa Indonesia. User docs line: the template and its rules are described in this spec and in the glossary entry **People import**.
 
 ## Acceptance criteria (Given / When / Then)
 
@@ -49,6 +62,17 @@ Verdict: the ask is NOT answered today (match yes, update no, change preview no)
 - AC-PIU-011 Given the Bahasa Indonesia language, then the status words, field-change lines, button and refusal are in Bahasa Indonesia. (unit locale test)
 - AC-PIU-012 Regression: companies, contacts, equipment, crews and other descriptors that use `existingKeys` behave exactly as before (their existing tests stay green unchanged).
 
+- AC-PIU-013 Given a manager email of an active user, then the person's manager is set; an unknown or disabled email is a row error; blank leaves the stored manager; a changed manager previews as stored email to new email. (unit)
+- AC-PDI-001 Template columns and the example validates. (unit)
+- AC-PDI-002 Unknown person or type, a bad date, issue after expiry: row errors naming the field. (unit)
+- AC-PDI-003 A medical type is refused for every role. (unit)
+- AC-PDI-004 A repeated person and type in the file is an error naming the first row. (unit)
+- AC-PDI-005/006 A live document of the type is updated (the latest-expiring one); none means add; the preview names old to new. (unit; e2e)
+- AC-PDI-007 Blank number and issue date never clear; note, file and status untouched. (unit)
+- AC-PDI-008 Identical values are No change and write nothing. (unit)
+- AC-PDI-009 A new document is created with the person, type and dates only. (unit)
+- AC-PDI-010 The button shows exactly when the person-documents rule allows creating a non-medical person document. (unit gate test; pgTAP of the branch, 2718, owns the database side)
+
 ## Boundary and design
 
 - Extend the shared wizard, not a people-only screen: `ImportDescriptor` gains an OPTIONAL `matchExisting` block (`load(): Promise<Map<key, record>>`, `keyOf`, `diff(record, cells) -> field changes[]`, `update(record, cells)`, plus the wording). A descriptor without it behaves as today. `RowValidation` gains `action: 'new'|'update'|'same'` and `changes`. The wizard's commit loop calls `update` for update rows. Only the people descriptor opts in.
@@ -62,6 +86,7 @@ None. The behaviour is on for every organisation. Old behaviour (already there =
 
 ## Open questions for the customer
 
+0. (Resolved by steering, 2026-11-22.) Scope now includes the manager column and the document import above.
 1. Should a person who has left (absent from the file, or flagged inactive) be archived by the import? Recommended: no. Out of scope; leaving staff are archived on the register (they stay visible in Former staff). Revisit as its own item with an explicit "Active" column.
 2. Which columns are in the daily export beyond code, name and job title (department, manager, site)? Recommended: keep to the three; anything else needs a register field first and is a separate item.
 3. Should project managers be allowed to run it? Today the button is Admin-only although RLS also lets Project Manager write. Recommended: keep Admin-only (owner ruling on the register stands).

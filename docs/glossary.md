@@ -913,6 +913,15 @@ app (a person may optionally link to an app user profile). Kept under Administra
 automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, ... per organisation when
 left blank, editable and unique among live people. Archiving hides a person and their warnings (soft, ADR-0018).
 
+**People import** (*impor personel*) — the daily sync of the people register from a file. A row is matched by **person code**
+(live people only): a known code updates that person's display name, job title and manager, a new code adds one, and a
+preview lists every add and each changed field (old to new) before the confirm. A blank cell or absent column leaves the
+stored value (the import never clears a field and never archives anyone). The manager is named by sign-in email and must
+be an active user. **Person document import** is its sibling: one sheet of person code, document type, number, issue date
+and expiry date adds a document or updates the person's live document of that type (the one expiring last); medical
+types are never imported. Both write under the caller's own permissions (people: Admin and Project Manager; documents:
+the people-documents rule).
+
 **Former staff** (*mantan personel*) — a person on the register who has left, recorded by archiving them. They stay on
 record with their code and documents, leave the default active list and the expiry warnings, and appear only under the
 register's Former staff view (#2703). Restoring is a separate, later capability.

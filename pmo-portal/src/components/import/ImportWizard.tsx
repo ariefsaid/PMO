@@ -241,7 +241,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
                     disabled={wiz.counts.valid === 0 || wiz.existingStatus === 'loading' || (matchOf(descriptor) != null && wiz.existingStatus === 'failed')}
                     aria-describedby={nothingNew(wiz) ? NOTHING_NEW_ID : undefined}
                   >
-                    {matchOf(descriptor) ? matchButtonLabel(t, wiz.matchCounts) : t('import:wizard.importButton', {
+                    {matchOf(descriptor) && wiz.existingStatus === 'ready' ? matchButtonLabel(t, wiz.matchCounts) : t('import:wizard.importButton', {
                       count: wiz.counts.valid,
                       entity: entityWord(descriptor, i18n.resolvedLanguage ?? i18n.language, wiz.counts.valid === 1),
                       defaultValue_one: 'Import {{count}} {{entity}}',

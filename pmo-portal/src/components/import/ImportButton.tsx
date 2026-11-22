@@ -52,7 +52,7 @@ export function ImportButton<Input>({
   const [open, setOpen] = useState(false);
 
   // FR-IMP-006: hide (not disable) the affordance for a non-create role.
-  if (!may('create', entity, permissionCtx)) return null;
+  if (!(permissionCtx ? may('create', entity, permissionCtx) : may('create', entity))) return null;
 
   return (
     <>

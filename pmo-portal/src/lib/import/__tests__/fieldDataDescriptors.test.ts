@@ -103,7 +103,8 @@ describe('people', () => {
   const d = makePeopleImportDescriptor({ people: async () => [], managers: [] });
   it('AC-IMT-011: the template holds code, name, job title and manager email, no sensitive column', () => {
     expect(d.fields.map((f) => f.key)).toEqual(['code', 'name', 'job_title', 'manager_id']);
-    expect(d.fields.map((f) => f.label.toLowerCase()).join(' ')).not.toMatch(/salary|email|phone|tax|bank|location|address/);
+    // The manager's sign-in email is a lookup key for an existing user, never stored contact data on the person.
+    expect(d.fields.map((f) => f.label.toLowerCase()).filter((l) => l !== 'manager email').join(' ')).not.toMatch(/salary|email|phone|tax|bank|location|address/);
   });
   it('requires code and name, and creates the code and name given (blank optional cells are not sent)', async () => {
     const v = run(d, ['Employee code', 'Display name'], [['E-1', ''], ['E-2', 'Sam']]);
