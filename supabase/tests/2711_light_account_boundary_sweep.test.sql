@@ -154,7 +154,7 @@ insert into la_fn_allow values
   ('stock_wo_transfers_on', 'helper', 'post_stock_wo_transfer checks the switch through it'),
   ('receive_stock_transfer', 'field_path', 'the delivery confirmation path: a field account confirms the count and the photo'),
   ('record_stock_handover', 'field_path', 'the handover confirmation path: a field account signs for the delivery addressed to it'),
-  ('report_absence', 'field_path', 'the field home, clock-in, attendance and own-leave paths');
+  ('report_absence', 'field_path', 'a light worker reports only their own absence');
 
 create temp table la_table_allow (t text primary key, why text not null);
 insert into la_table_allow values
@@ -342,7 +342,7 @@ select is((select coalesce(string_agg(fn, ', ' order by fn), '') from la_fn_allo
   'leave_on_date', 'leave_request_cancel', 'leave_request_submit', 'leave_requestable_people',
   'my_home', 'phone_check_in', 'set_my_email_opt_out', 'actor_authorization_state',
   'org_seat_report', 'resolved_org_features', 'resolved_org_plan', 'receive_stock_transfer',
-  'record_stock_handover']) x),
+  'record_stock_handover', 'report_absence']) x),
   'AC-LA-014 the field-path allowlist is exactly the ruled field-account paths');
 select is((
   select coalesce(string_agg(distinct p.proname, ', ' order by p.proname), '')
