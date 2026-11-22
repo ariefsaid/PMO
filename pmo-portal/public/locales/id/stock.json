@@ -878,7 +878,7 @@
     }
   },
   "transferSettings": {
-    "manage": "Transfer, reservasi, dan pemindahan antar work order",
+    "manage": "Transfer dan bukti",
     "mode": "Cara transfer dilakukan",
     "oneStep": "Satu langkah: langsung diposting",
     "twoStep": "Dua langkah: kirim, lalu terima dengan penghitungan",

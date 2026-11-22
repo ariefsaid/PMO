@@ -878,7 +878,7 @@
     }
   },
   "transferSettings": {
-    "manage": "Transfers, reservations and moves between work orders",
+    "manage": "Transfers and proof",
     "mode": "How transfers are made",
     "oneStep": "One step: post at once",
     "twoStep": "Two steps: send, then receive with a count",

@@ -30,7 +30,7 @@ describe('StockTransferSettings (AC-TST-026, AC-TST-033)', () => {
   it('AC-TST-026 two-step adds confirmation and either per tag, and the quality-check list writes per item', async () => {
     h.settings = { mode: 'two_step', proofTiming: 'before_posting' };
     renderIt();
-    await userEvent.click(screen.getByRole('button', { name: 'Transfers, reservations and moves between work orders' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Transfers and proof' }));
     const tag = screen.getByRole('combobox', { name: 'Client supplied' });
     expect(Array.from(tag.querySelectorAll('option')).map((o) => o.value)).toEqual(['none', 'paper', 'confirmation', 'either']);
     expect(tag).toHaveValue('paper');                                                                       // a legacy paper_required tag reads as paper
