@@ -46,9 +46,25 @@ test('JOB-E4 the month\'s rental bill carries a 3-day deduction with its proof p
   const result = page.getByRole('region', { name: 'Check result' });
   await expect(result.getByText('IDR 3,000', { exact: true })).toBeVisible({ timeout: 20_000 });
   await expect(result.getByText('IDR 27,000', { exact: true })).toBeVisible();
-  await expect(result.getByText('IDR 500', { exact: true })).toBeVisible();
+  await expect(result.getByText('Over-billed by IDR 500', { exact: true })).toBeVisible(); // said in words, not invoice-minus-expected
+  await expect(result.getByText(/Days with no status recorded are counted as rented/)).toBeVisible();
   await result.getByRole('button', { name: 'Open ticket.png' }).first().click();
   const link = result.getByRole('link', { name: 'ticket.png' }).first();
   await expect(link).toHaveAttribute('href', /token=/);
   expect((await page.request.get((await link.getAttribute('href')) ?? '')).ok()).toBe(true);
+});
+
+test('JOB-E4 the equipment manager (Project Manager) reads the same check result but cannot include unproven days', async ({ page }) => {
+  await signIn(page, 'pm@acme.test');
+  await page.goto('/equipment/availability');
+  await page.getByRole('button', { name: 'Rental invoice check' }).click();
+  await page.getByLabel('Rented machine').selectOption(assetId);
+  await page.getByLabel('Invoice period from').fill('2026-09-01');
+  await page.getByLabel('Invoice period to').fill('2026-09-30');
+  await page.getByLabel('Vendor invoice amount').fill('27500.00');
+  await page.getByRole('button', { name: 'Check invoice' }).click();
+  const result = page.getByRole('region', { name: 'Check result' });
+  await expect(result.getByText('IDR 3,000', { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(result.getByText('Over-billed by IDR 500', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Reason to include unproven days')).toHaveCount(0);
 });

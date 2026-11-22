@@ -53,6 +53,8 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectPickerOptions: () => ({ data: [{ id: 'pj1', name: 'EQU P1', short_name: null, project_manager_id: 'u-pm' }, { id: 'pj2', name: 'EQU P2', short_name: null, project_manager_id: 'u-other' }] }),
 }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({ useLatestStatusDays: () => ({ data: h.latest }) }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'wo1', wo_number: 'WO-12', title: 'Pile cap', status: 'Active' }], isLoading: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: () => ({ data: [{ id: 'd1', code: 'CIV', name: 'Civil' }] }) }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [{ id: 'u-eng', full_name: 'Engineer' }, { id: 'u-pm', full_name: 'Reviewer' }] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org1' } }) }));
 
@@ -514,6 +516,77 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(enabled.indexOf(cell('2026-09-11') as HTMLInputElement)).toBeLessThan(enabled.indexOf(cell('2026-09-07', 'EQU P2') as HTMLInputElement));
     expect(visited).toContain(cell('2026-09-07', 'EQU P2'));
+  });
+
+  it('AC-EQM-003 a clash with someone else\'s entry names whose entry holds the day, links to it, and keeps the typed hours', async () => {
+    h.userId = 'u-pm';
+    h.entries = [entry({ id: 'theirs', author_id: 'u-eng', status: 'Submitted', work_date: '2026-09-10' }), entry({ id: 'mine', author_id: 'u-pm', work_date: '2026-09-09' })];
+    h.save = vi.fn().mockRejectedValue(Object.assign(new Error('duplicate key value violates unique constraint "equipment_usage_one_per_day"'), { code: '23505' }));
+    const user = userEvent.setup();
+    renderPage('Project Manager');
+    const box = cell('2026-09-10');
+    await user.type(box, '6');
+    await user.tab();
+    const alert = (await screen.findByText(/Engineer already logged Loader 1 for EQU P1 on/)).closest('p') as HTMLElement;
+    expect(alert).toHaveAttribute('role', 'alert');
+    expect(alert).toHaveTextContent('Your 6 hours was not saved');
+    expect(within(alert).getByRole('link', { name: 'See their entry' })).toHaveAttribute('href', '/equipment?tab=approvals&week=2026-09-07&asset=a1');
+    expect(alert).not.toHaveTextContent(/already exists/i);
+    expect(cell('2026-09-10')).toHaveValue('6'); // the typed entry is kept
+  });
+
+  it('AC-EQM-003 when the other entry is not visible to the reader the sentence says someone else, still keeping the typed hours', async () => {
+    h.entries = [entry({ id: 'mine', work_date: '2026-09-09' })]; // a row for this machine and project exists; the 10th is held by someone not visible here
+    h.save = vi.fn().mockRejectedValue(Object.assign(new Error('duplicate'), { code: '23505' }));
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(cell('2026-09-10'), '5');
+    await user.tab();
+    expect((await screen.findByText(/Someone else already logged Loader 1 for EQU P1 on/)).closest('p')).toHaveAttribute('role', 'alert');
+    expect(cell('2026-09-10')).toHaveValue('5');
+  });
+
+  it('AC-EQM-004 a broken machine is marked in the picker and logging against it asks first', async () => {
+    h.entries = [];
+    h.latest = [{ asset_id: 'a1', status: 'broken' }];
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Add row' }));
+    await user.click(screen.getByRole('combobox', { name: 'Equipment' }));
+    const option = await screen.findByRole('option', { name: /EQU-1 · Loader 1/ });
+    expect(option).toHaveTextContent('Broken');
+    await user.click(option);
+    await user.click(screen.getByRole('combobox', { name: 'Project' }));
+    await user.click(await screen.findByRole('option', { name: /^EQU P1$/ }));
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    expect(screen.queryByRole('row', { name: /Loader 1/ })).not.toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Loader 1 is marked Broken. Log hours against it anyway?');
+    await user.click(within(dialog).getByRole('button', { name: 'Log hours anyway' }));
+    expect(await screen.findByRole('row', { name: /Loader 1/ })).toBeInTheDocument();
+  });
+
+  it('AC-EQM-005 the row shows the chosen work order and discipline', () => {
+    h.entries = [{ ...entry({}), work_order_id: 'wo1', discipline_id: 'd1' }];
+    renderPage();
+    expect(screen.getByTestId('row-attribution')).toHaveTextContent('Work order WO-12 · Discipline Civil');
+  });
+
+  it('AC-EQM-005 submit-week sits below the hours and says what happens next and who approves', () => {
+    renderPage();
+    const note = screen.getByText(/Submitting sends 1 draft entry for approval/);
+    expect(note).toHaveTextContent('Approver: Reviewer');
+    expect(within(note.closest('section') as HTMLElement).getByRole('button', { name: 'Submit week' })).toBeInTheDocument();
+    const grid = screen.getByRole('table');
+    expect(grid.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('AC-EQM-005 saving a cell gives feedback that it was saved', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(cell('2026-09-10'), '5');
+    await user.tab();
+    expect((await screen.findAllByText(/Saved: Loader 1, /)).length).toBeGreaterThan(0);
   });
 
   it('AC-EQU-017 the usage page has no axe violations', async () => {
