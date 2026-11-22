@@ -2,6 +2,17 @@
 
 **Status:** approved (coordinator), Phase 2 built (lane gap-material). Map #2516. Extends `docs/specs/material-issued-vs-progress.spec.md` (#2674, shipped) and follows the alert pattern of `docs/specs/material-request-usage-thresholds.spec.md` (#2686, shipped). IDs `FR-MVP-###`, `AC-MVP-###`, `OQ-MVP-#`. Plan: `docs/plans/2026-11-22-material-vs-progress.md`. Scope rulings: OD-SCOPE-2 (every figure and recipient list is a setting), OD-SCOPE-6 (a warning is information, never a block).
 
+## REVISION (coordinator steering, binding): reuse the usage-warning path, one recipient rule
+
+This item is built AFTER usage-warning (branch `feat/gap-material-usage-warning`, migration 1860 adds `work_orders.responsible_person_id` and the alert path) and reuses it. The earlier text below describes the first design; where it differs, this section wins:
+
+- **Recipients (replaces FR-MVP-006 and FR-MVP-010):** the work order's responsible person (`work_orders.responsible_person_id`), falling back to the project's manager. The same rule as usage-warning, read from its helper, not a second one. The `ahead_alert_roles` setting, `set_work_order_ahead_alert_roles`, the roles panel and the `STK_ALERT_ROLE*` refusals are DROPPED (migration 1870, its panel and tests are removed at resume). Whatever usage-warning does when neither person exists is what this does.
+- **Alert record (replaces FR-MVP-002..004, FR-MVP-012 and migration 1871):** a new alert KIND on usage-warning's once-per-work-order-item alert row and its notify helper. No `work_order_material_alerts` table, no own check or notify code. Episode semantics (resolve when the item stops warning, new episode notifies again) follow what usage-warning's row supports; if its row cannot reopen, an episode is a new row keyed by kind, work order and item, and the question goes to the coordinator.
+- **Measure:** unchanged. `get_work_order_material_vs_progress` (1341) decides who warns; the triggers on a posted issue/return, a validated or superseded report and a confirmed acceptance, the explicit skip for a system actor, an inactive member, another organisation or a light account (AC-MVP-007), the quiet first run after release (AC-MVP-010) and threshold clear/change handling all stay, now writing to the shared alert path.
+- **Where it shows (extends FR-MVP-008/009):** the count on the project work-order card badge, ALSO on the work-order page (`/work-orders/:id`, header), and in the waiting list (needs-you). The notification opens the work-order page's count and the project tab as today.
+- **Settings:** no new setting at all (the threshold of 1340 remains the only one). Default statement unchanged: on only where the threshold is set.
+- **Tests that stay valid:** the badge, needs-you summary, bell link, DAL test and e2e are re-pointed at the shared alert path's read; pgTAP `1870_work_order_ahead_alert.test.sql` is rewritten against it (ACs 001-008, 010 keep their meaning; AC-MVP-009 is withdrawn). Nothing is built on migrations 1870-1873 as committed; they are WIP and are replaced.
+
 ## Job story
 
 When material issued to a work order runs ahead of the progress reported for it, I want an alert to the people who control the work order, per work order, not only a banner on the project page, so that over-issue is acted on without someone having to open the right card.
@@ -56,7 +67,7 @@ Warning, issued share, progress share and gap are exactly those of `material-iss
 | AC-MVP-006 | Given no project manager, when an alert opens, then every active Admin except the actor is notified; given extra roles set, then active holders of those roles are notified too; inactive members, other organisations and the actor are not. | pgTAP |
 | AC-MVP-007 | Given a posting by a system actor (no organisation context), when it commits, then it succeeds and no alert is written (the same state evaluated for a member opens it). | pgTAP |
 | AC-MVP-008 | Given a Foreman or Field user, when they read alerts, they see none and receive no notification; another organisation's member sees none. | pgTAP (tenancy) |
-| AC-MVP-009 | Given a non-Admin, when they call the extra-roles save, then refused 42501; an unknown role is refused with the catalogue code; Admin saves and one audit row exists. | pgTAP |
+| AC-MVP-009 (WITHDRAWN, no roles setting) | Given a non-Admin, when they call the extra-roles save, then refused 42501; an unknown role is refused with the catalogue code; Admin saves and one audit row exists. | pgTAP |
 | AC-MVP-010 | Given the first evaluation after release over already-warning items, then alerts open with `notified_user_ids` empty and no notification is written. | pgTAP |
 | AC-MVP-011 | Given an open alert, then the work-order card shows the count without opening the stock expander, in English and Bahasa Indonesia, at 390px and 1440px; with none, the card is unchanged. | Unit (Vitest/RTL) |
 | AC-MVP-012 | Given open alerts for the viewer, then needs-you lists "N work orders with material ahead of progress" with a link; with none, nothing; after resolve, it disappears on next read. | Unit |

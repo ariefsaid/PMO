@@ -1,5 +1,7 @@
 # Plan: Material issued ahead of progress raises an alert (material-vs-progress)
 
+> **REVISED (coordinator steering).** Build starts after usage-warning pushes migration 1860 (`work_orders.responsible_person_id`) and its alert path; this branch then merges `feat/gap-material-usage-warning`. Recipients = responsible person, else project manager (usage-warning's helper). Alert = a new kind on usage-warning's alert row and notify helper. DROP: `ahead_alert_roles`, `set_work_order_ahead_alert_roles`, `work_order_material_alerts`, the roles panel, `STK_ALERT_ROLE*` refusals, AC-MVP-009. KEEP: the 1341 measure, the event triggers and explicit skips, the quiet backfill, the card badge, the needs-you entry, the bell link, strings, glossary. ADD: the count on the work-order page header. Migrations 1870 to 1879 are used for the triggers and the backfill only; the committed 1870-1873 are WIP and get replaced. The sections below describe the first design.
+
 Spec: `docs/specs/material-vs-progress.spec.md`. Branch `feat/gap-material-material-vs-progress`. Migrations 1870 to 1873 (assigned 1870-1879), each with a rollback in `supabase/migrations/rollback/`. Executor: Orca worker. Not money-path (reads the ledger, posts nothing); DB rules are still proved in pgTAP with mutation checks. The builder runs no DB, pgTAP, e2e or screenshot job.
 
 ## Migrations
