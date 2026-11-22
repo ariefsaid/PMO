@@ -50,6 +50,12 @@ import { ContractCascade } from '../ContractCascade';
 import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: WorkOrderListsProvider loads the organisation's lists for real now; this cascade test reads them quiet.
+vi.mock('@/src/lib/repositories/workOrderLists', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories/workOrderLists')>();
+  return { ...actual, workOrderListRepository: { ...actual.workOrderListRepository, list: async () => [] } };
+});
 import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
@@ -510,7 +516,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.billing = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
     h.orders = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
     h.childLines.mockClear();
-    renderCascade('/', <ToastProvider><WorkOrdersTab projectId={project.id} currency={project.currency} /></ToastProvider>);
+    renderCascade('/', <QueryClientTestProvider><ToastProvider><WorkOrdersTab projectId={project.id} currency={project.currency} /></ToastProvider></QueryClientTestProvider>);
     expect(h.childLines).toHaveBeenCalledWith(project.id);
     expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
   });

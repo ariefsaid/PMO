@@ -67,6 +67,17 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({ useInvoiceTmClaimNative: () 
 import BillingTab from '../tabs/BillingTab';
 vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: WorkOrderListsProvider loads the organisation's lists for real now, so the tab renders
+// inside the shared test query client; the lists themselves read quiet defaults here.
+vi.mock('@/src/lib/repositories/workOrderLists', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories/workOrderLists')>();
+  return { ...actual, workOrderListRepository: { ...actual.workOrderListRepository, list: async () => [] } };
+});
+const WorkOrdersTabInClient = (props: React.ComponentProps<typeof WorkOrdersTab>) => (
+  <QueryClientTestProvider><WorkOrdersTab {...props} /></QueryClientTestProvider>
+);
+
 
 // C5/C6: in-page billing figures are whole and bare; the currency sits once in the summary heading.
 const money = (value: number) => formatNumberMax2(value);
@@ -194,7 +205,7 @@ const woBilling = (over: Record<string, unknown> = {}) => ({
 const SIGNED = { id: 'd1', org_id: 'o', project_id: 'p1', code: null, category: 'Report', title: 'Signed BAST 1', revision: 'A', status: 'Issued', doc_date: null, author_id: null, file_path: 'docs/d1.pdf', created_at: '' };
 
 function renderWorkOrders(projectManagerId: string | null = 'u-pm') {
-  render(<MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="IDR" clientId="c1" projectManagerId={projectManagerId} /></ToastProvider></MemoryRouter>);
+  render(<MemoryRouter><ToastProvider><WorkOrdersTabInClient projectId="p1" currency="IDR" clientId="c1" projectManagerId={projectManagerId} /></ToastProvider></MemoryRouter>);
   return userEvent.setup();
 }
 const disclosure = () => screen.getByTestId('customer-order-wo-1');
