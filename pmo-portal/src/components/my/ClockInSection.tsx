@@ -1,19 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, FieldError, TextField, useToast } from '@/src/components/ui';
-import type { MyHomeWorkOrder } from '@/src/lib/repositories/myHome';
-import { useClockIn } from '@/src/hooks/useMyHome';
+import type { MyHomeCheckIn, MyHomeWorkOrder } from '@/src/lib/repositories/myHome';
+import { builtInRoleName } from '@/src/auth/builtInRoles';
 import { usePhoneCheckIn } from '@/src/hooks/usePhoneCheckIn';
 import { useRefusalText } from '@/src/lib/refusals';
 import {
   clearResumeGuard, documentAllowsGeolocation, hardNavigateForGeolocation, PositionError, readPositionOnce, type PositionFailure,
 } from '@/src/lib/position';
+import { formatInstantTime } from '@/src/lib/format';
 import { MySection } from './MySection';
 
 /**
- * Clock in at a work order where the person is rostered today. Calls the existing attendance path (`phone_check_in`).
+ * Clock in at a work order where the person is rostered today, or whose crew the person leads (a Foreman). Every tap is the
+ * `phone_check_in` RPC, which records through the attendance path. The card says what became of the tap: clocked in with the time,
+ * waiting for the supervisor (and who decides), or refused with the reason; the state comes from the database (`my_home`), so it
+ * survives a reload and a second tap never meets "already clocked in".
  * SEAM FOR #2705: `locationCheck` runs before the write and may refuse (returns a reason) or pass (null). Absent, no location is tested.
- * A work order the person is not rostered on is not offered; the off-roster case is a request to the supervisor.
  *
  * #2705: a work order with a check-in area (`has_area`) reads the position ONCE on the tap (the only place the app asks the browser
  * for it) and sends it to the `phone_check_in` RPC, which decides inside / outside; outside, off-roster or no position becomes a
@@ -21,20 +24,24 @@ import { MySection } from './MySection';
  */
 export const ClockInSection: React.FC<{
   today: string; workOrders: MyHomeWorkOrder[];
+  /** The built-in role key that decides outside-area check-ins; null = the crew's Foreman or a crew manager. */
+  deciderRole?: string | null;
   locationCheck?: (workOrderId: string) => Promise<string | null>;
-}> = ({ today, workOrders, locationCheck }) => {
-  const { t } = useTranslation('myHome');
+}> = ({ workOrders, deciderRole = null, locationCheck }) => {
+  const { t, i18n } = useTranslation('myHome');
   const refusal = useRefusalText();
   const { toast } = useToast();
-  const clockIn = useClockIn();
   const checkIn = usePhoneCheckIn();
   const [hours, setHours] = useState('8');
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<Record<string, boolean>>({});
-  const [note, setNote] = useState<Record<string, string>>({});
+  // What this tap just did, shown at once; the database state (`wo.check_in`) takes over after the next read.
+  const [seen, setSeen] = useState<Record<string, MyHomeCheckIn>>({});
   const [noFix, setNoFix] = useState<Record<string, PositionFailure>>({});
   const [reading, setReading] = useState<string | null>(null);
   const resumed = useRef(false);
+  const keyOf = (wo: MyHomeWorkOrder) => `${wo.work_order_id}:${wo.crew_id}`;
+  const timeText = (at: string | null | undefined) => at ? formatInstantTime(at) : '';
+  const who = deciderRole ? builtInRoleName(deciderRole, i18n.language) : t('myHome:clockIn.whoDefault', 'your supervisor');
 
   const failureText = (f: PositionFailure) => ({
     denied: t('myHome:clockIn.positionDenied', 'Location is blocked for this site. Allow it in your browser, or ask your supervisor to approve your check-in.'),
@@ -42,21 +49,16 @@ export const ClockInSection: React.FC<{
     timeout: t('myHome:clockIn.positionTimeout', 'Reading your position took too long. Try again, or ask your supervisor to approve your check-in.'),
   })[f];
 
-  const outcomeText = (outcome: string | undefined) => outcome === 'not_rostered'
-    ? t('myHome:clockIn.pendingNotRostered', "You are not on this work order's roster today. Your supervisor has been asked to approve this check-in.")
-    : outcome === 'no_position'
-      ? t('myHome:clockIn.pendingNoPosition', 'Sent to your supervisor to approve.')
-      : t('myHome:clockIn.pendingOutside', 'You are outside the work area. Your supervisor has been asked to approve this check-in.');
-
   const send = async (wo: MyHomeWorkOrder, h: number, position?: { lat: number; lng: number; accuracy: number }) => {
     try {
-      const res = await checkIn.mutateAsync({ workOrderId: wo.work_order_id, crewId: wo.crew_id, hours: h, position, noPosition: !position });
+      const res = await checkIn.mutateAsync({ workOrderId: wo.work_order_id, crewId: wo.crew_id, hours: h, position, noPosition: !position && Boolean(wo.has_area) });
+      const at = new Date().toISOString();
       if (res.status === 'recorded') {
-        setDone((d) => ({ ...d, [wo.work_order_id]: true }));
+        setSeen((d) => ({ ...d, [keyOf(wo)]: { state: 'clocked_in', at } }));
         toast(t('myHome:clockIn.saved', 'Clocked in'), undefined, 'success');
       } else {
-        setNote((n) => ({ ...n, [wo.work_order_id]: outcomeText(res.outcome) }));
-        setNoFix((f) => { const next = { ...f }; delete next[wo.work_order_id]; return next; });
+        setSeen((d) => ({ ...d, [keyOf(wo)]: { state: 'pending', at, outcome: res.outcome } }));
+        setNoFix((f) => { const next = { ...f }; delete next[keyOf(wo)]; return next; });
       }
     } catch (err) {
       const { headline, detail } = refusal(err);
@@ -71,33 +73,29 @@ export const ClockInSection: React.FC<{
       setError(t('myHome:clockIn.reloadFailed', 'Reload this page, then tap Clock in again.'));
       return;
     }
-    setReading(wo.work_order_id);
+    setReading(keyOf(wo));
     try {
       const fix = await readPositionOnce();
       clearResumeGuard();
       await send(wo, h, fix);
     } catch (err) {
-      if (err instanceof PositionError) setNoFix((f) => ({ ...f, [wo.work_order_id]: err.reason }));
-      else setError(String(err instanceof Error ? err.message : err));
+      if (err instanceof PositionError) setNoFix((f) => ({ ...f, [keyOf(wo)]: err.reason }));
+      else { const { headline, detail } = refusal(err); setError(detail || headline); }
     } finally { setReading(null); }
   };
 
   const go = async (wo: MyHomeWorkOrder) => {
     setError(null);
     const h = Number(hours);
-    if (!wo.my_worker_id || !Number.isFinite(h) || h < 0 || h > 24) { setError(t('myHome:clockIn.hoursRange', 'Hours run from 0 to 24')); return; }
+    if (!Number.isFinite(h) || h < 0 || h > 24) { setError(t('myHome:clockIn.hoursRange', 'Hours run from 0 to 24')); return; }
     const blocked = locationCheck ? await locationCheck(wo.work_order_id) : null;
     if (blocked) { setError(blocked); return; }
     if (wo.has_area) { await goWithArea(wo, h); return; }
-    try {
-      await clockIn.mutateAsync({ workOrderId: wo.work_order_id, date: today, workerId: wo.my_worker_id, hours: h });
-      setDone((d) => ({ ...d, [wo.work_order_id]: true }));
-      toast(t('myHome:clockIn.saved', 'Clocked in'), undefined, 'success');
-    } catch (err) {
-      const { headline, detail } = refusal(err);
-      setError(detail || headline);
-    }
+    await send(wo, h);
   };
+
+  // A fresh read of the home is the truth: what this tap showed gives way to it.
+  useEffect(() => { setSeen({}); }, [workOrders]);
 
   // After the hard navigation (`/my?clockin=<work order>`) the tap resumes once, in a document that allows geolocation.
   useEffect(() => {
@@ -112,41 +110,56 @@ export const ClockInSection: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workOrders]);
 
-  const busy = clockIn.isPending || checkIn.isPending || reading !== null;
+  const busy = checkIn.isPending || reading !== null;
+  const stateOf = (wo: MyHomeWorkOrder): MyHomeCheckIn | null => seen[keyOf(wo)] ?? wo.check_in ?? null;
+  const stateText = (c: MyHomeCheckIn) => c.state === 'clocked_in'
+    ? t('myHome:clockIn.clockedInAt', 'Clocked in at {{time}}', { time: timeText(c.at) })
+    : c.state === 'pending'
+      ? `${c.outcome === 'not_rostered' ? t('myHome:clockIn.pendingNotRostered', "You are not on this work order's roster today.") + ' '
+        : c.outcome === 'outside' ? t('myHome:clockIn.pendingOutsideShort', 'You are outside the work area.') + ' ' : ''}${
+        t('myHome:clockIn.waiting', 'Sent at {{time}}. Waiting for {{who}} to approve.', { time: timeText(c.at), who })}`
+      : t('myHome:clockIn.refused', '{{who}} refused this check-in: {{reason}}', { who, reason: c.reason ?? '' });
   return (
     <MySection id="my-clock-in" title={t('myHome:clockIn.title', 'Clock in')}>
       {workOrders.length === 0 ? (
-        <p className="text-control text-muted-foreground">{t('myHome:clockIn.empty', 'You are not rostered on a work order today')}</p>
+        <p className="text-control text-muted-foreground">{t('myHome:clockIn.empty', 'You are not rostered on a work order today. Ask your supervisor.')}</p>
       ) : (
         <>
           <TextField label={t('myHome:clockIn.hours', 'Hours today')} type="number" inputMode="decimal" value={hours} onChange={setHours} />
           <ul className="space-y-2">
-            {workOrders.map((wo) => (
-              <li key={wo.work_order_id} className="rounded-md border border-border p-3">
-                <p className="text-control font-semibold">{wo.title}</p>
-                <p className="text-control text-muted-foreground">{wo.project_name} · {wo.crew_name}</p>
-                <Button variant="primary" className="mt-2 min-h-11" disabled={busy || done[wo.work_order_id] || Boolean(note[wo.work_order_id]) || !wo.my_worker_id} onClick={() => void go(wo)}>
-                  {done[wo.work_order_id] ? t('myHome:clockIn.clockedIn', 'Clocked in') : t('myHome:clockIn.action', 'Clock in')}
-                </Button>
-                {reading === wo.work_order_id && <p role="status" className="mt-2 text-control text-muted-foreground">{t('myHome:clockIn.locating', 'Reading your position…')}</p>}
-                {noFix[wo.work_order_id] && (
-                  <div className="mt-2 space-y-2">
-                    <p role="alert" className="text-control">{failureText(noFix[wo.work_order_id])}</p>
-                    <Button variant="outline" className="min-h-11" disabled={busy} onClick={() => void send(wo, Number(hours))}>
-                      {t('myHome:clockIn.askSupervisor', 'Ask my supervisor')}
+            {workOrders.map((wo) => {
+              const k = keyOf(wo);
+              const c = stateOf(wo);
+              return (
+                <li key={k} className="rounded-md border border-border p-3">
+                  <p className="text-control font-semibold">{wo.title}</p>
+                  <p className="text-control text-muted-foreground">{wo.project_name}</p>
+                  <p className="text-control">{t('myHome:clockIn.crew', 'Crew: {{crew}}', { crew: wo.crew_name })}</p>
+                  {c && <p role="status" data-testid="clock-in-state" className="mt-2 text-control font-semibold">{stateText(c)}</p>}
+                  {!wo.my_worker_id && (
+                    <p className="mt-2 text-control">{t('myHome:clockIn.noPersonHere', 'You are not in the workforce list yet, so you cannot clock in. Ask your supervisor to add you.')}</p>
+                  )}
+                  {wo.my_worker_id && (!c || c.state === 'rejected') && (
+                    <Button variant="primary" className="mt-2 min-h-11" disabled={busy} onClick={() => void go(wo)}>
+                      {c ? t('myHome:clockIn.again', 'Clock in again') : t('myHome:clockIn.action', 'Clock in')}
                     </Button>
-                  </div>
-                )}
-                {note[wo.work_order_id] && <p role="status" className="mt-2 text-control">{note[wo.work_order_id]}</p>}
-              </li>
-            ))}
+                  )}
+                  {reading === k && <p role="status" className="mt-2 text-control text-muted-foreground">{t('myHome:clockIn.locating', 'Reading your position…')}</p>}
+                  {noFix[k] && (
+                    <div className="mt-2 space-y-2">
+                      <p role="alert" className="text-control">{failureText(noFix[k])}</p>
+                      <Button variant="outline" className="min-h-11" disabled={busy} onClick={() => void send(wo, Number(hours))}>
+                        {t('myHome:clockIn.askSupervisor', 'Ask my supervisor')}
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
       {error && <FieldError>{error}</FieldError>}
-      <p className="text-control text-muted-foreground">
-        {t('myHome:clockIn.offRoster', 'Not on this list? Ask your supervisor to add you to the work order.')}
-      </p>
     </MySection>
   );
 };

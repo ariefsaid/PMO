@@ -130,6 +130,19 @@ describe('attendance tick screen (#2528)', () => {
     expect(await screen.findByText('This day is approved. Re-open the timesheet to correct it.')).toBeInTheDocument();
   });
 
+  it('AC-WCI-050 a site supervisor who is not the crew\'s Foreman and not a crew manager sees greyed fields and one sentence saying who ticks', () => {
+    h.uid = 'site-supervisor';
+    renderAt();
+    expect(screen.getByText("Only this crew's Foreman or a crew manager ticks this roster.")).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Hours for the crew' })).toBeDisabled();
+  });
+
+  it('AC-WCI-050 the crew\'s Foreman gets no such sentence and can tick', () => {
+    renderAt();
+    expect(screen.queryByText("Only this crew's Foreman or a crew manager ticks this roster.")).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Hours for the crew' })).toBeEnabled();
+  });
+
   it('requires the displayed attendance to be saved before sending the week', () => {
     renderAt();
     expect(screen.getByRole('button', { name: 'Send the week for approval' })).toBeDisabled();

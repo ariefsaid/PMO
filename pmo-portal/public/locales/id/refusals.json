@@ -335,5 +335,9 @@
   "WRP_OFF": "Rencana pendapatan belum diaktifkan untuk organisasi ini.",
   "WRP_RANGE": "Pilih rentang paling lama dua tahun.",
   "WRP_ROLE": "Anda tidak dapat melihat pendapatan proyek ini.",
-  "WRP_SETTINGS": "Pilih satu sampai tujuh hari kerja yang berbeda, 1 untuk Senin sampai 7 untuk Minggu."
+  "WRP_SETTINGS": "Pilih satu sampai tujuh hari kerja yang berbeda, 1 untuk Senin sampai 7 untuk Minggu.",
+  "ORDER_NEEDS_SUPPLIER": "Pilih supplier dulu",
+  "ORDER_NEEDS_SUPPLIER_detail": "Pesanan perlu supplier. Pilih supplier, lalu catat pesanannya.",
+  "WO_AREA": "Area absen itu tidak valid",
+  "WO_AREA_detail": "Isi lintang -90 sampai 90, bujur -180 sampai 180 dan radius di atas 0 sampai 50.000 meter, atau kosongkan ketiganya."
 }

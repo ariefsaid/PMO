@@ -6,6 +6,7 @@ import {
   type Column, type SubmitError,
 } from '@/src/components/ui';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
+import { isMissingImprestLimit } from '@/src/lib/imprestRefusal';
 import { useImprestFloatPages, useImprestPosition, useEstablishFloat } from '@/src/hooks/useImprest';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
@@ -91,7 +92,9 @@ const EstablishFloatModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
         onClose();
         navigate(`/imprest/${floatId}`);
       } catch (err) {
-        setSubmitError(classifyMutationError(err));
+        const known = isMissingImprestLimit(err);
+        const c = classifyMutationError(err);
+        setSubmitError(known ? { ...c, detail: t('imprest:establish.needsLimit', 'Site cash cannot be set up yet: the organisation has no site cash limit. An Admin sets it in Administration, Accounting, Purchase rules.') } : c);
       }
     });
   };

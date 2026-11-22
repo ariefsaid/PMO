@@ -335,5 +335,9 @@
   "WRP_OFF": "The revenue plan is not switched on for this organisation.",
   "WRP_RANGE": "Choose a range of at most two years.",
   "WRP_ROLE": "You cannot see revenue on this project.",
-  "WRP_SETTINGS": "Choose one to seven different weekdays, 1 for Monday to 7 for Sunday."
+  "WRP_SETTINGS": "Choose one to seven different weekdays, 1 for Monday to 7 for Sunday.",
+  "ORDER_NEEDS_SUPPLIER": "Choose the supplier first",
+  "ORDER_NEEDS_SUPPLIER_detail": "An order needs its supplier. Choose it, then record the order.",
+  "WO_AREA": "That check-in area is not valid",
+  "WO_AREA_detail": "Give a latitude from -90 to 90, a longitude from -180 to 180 and a radius above 0 up to 50,000 metres, or leave all three empty."
 }
