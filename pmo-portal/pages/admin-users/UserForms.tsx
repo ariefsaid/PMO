@@ -51,7 +51,7 @@ const makeValidateInvite =
   (v: InviteFormValues): Partial<Record<keyof InviteFormValues, string>> => {
     const errors: Partial<Record<keyof InviteFormValues, string>> = {};
     const email = v.email.trim();
-    if (builtInEnabled && !v.builtIn) errors.builtIn = t('admin.users.inviteForm.jobRoleRequired', 'Choose the job role.');
+    if (builtInEnabled && !v.builtIn) errors.builtIn = t('administration:admin.users.builtIn.inviteRequired', 'Choose the job role.');
     if (!email) errors.email = t('admin.users.inviteForm.emailRequired', 'Email is required.');
     else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       errors.email = t('admin.users.inviteForm.emailInvalid', 'Enter a valid email address.');
@@ -136,9 +136,9 @@ export const InviteFormModal: React.FC<{
               selectedOption={builtInField.value ? jobRoleOptions.find((o) => o.value === builtInField.value) ?? null : null}
               onChange={(v) => builtInField.onChange(v)}
               loadOptions={loadJobRoles}
-              placeholder={t('admin.users.inviteForm.jobRolePlaceholder', 'Choose a job role')}
-              searchPlaceholder={t('admin.users.inviteForm.jobRoleSearch', 'Search job roles')}
-              noun={t('admin.users.inviteForm.jobRoleNoun', 'job role')}
+              placeholder={t('administration:admin.users.builtIn.invitePlaceholder', 'Choose a job role')}
+              searchPlaceholder={t('administration:admin.users.builtIn.inviteSearch', 'Search job roles')}
+              noun={t('administration:admin.users.builtIn.inviteNoun', 'job role')}
               error={form.errors.builtIn}
             />
             {chosenBase && (
@@ -233,9 +233,9 @@ export const RoleFormModal: React.FC<{
     <EntityFormModal
       open
       title={builtInEnabled
-        ? t('admin.users.roleForm.titleJobRole', { defaultValue: 'Change job role: {{name}}', name: user.full_name })
+        ? t('administration:admin.users.builtIn.formTitle', { defaultValue: 'Change job role: {{name}}', name: user.full_name })
         : t('admin.users.roleForm.title', { defaultValue: 'Edit access level: {{name}}', name: user.full_name })}
-      submitLabel={builtInEnabled ? t('admin.users.roleForm.submitJobRole', 'Save job role') : t('admin.users.roleForm.submit', 'Save access level')}
+      submitLabel={builtInEnabled ? t('administration:admin.users.builtIn.formSubmit', 'Save job role') : t('admin.users.roleForm.submit', 'Save access level')}
       onSubmit={handleSubmit}
       submitError={submitError}
       onClose={onClose}

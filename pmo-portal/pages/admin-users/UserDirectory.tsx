@@ -245,7 +245,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
     const isSelf = !!currentUserId && currentUserId === u.id;
     if (canManage && !isSelf) {
       items.push(
-        { label: builtInRolesOn ? t('admin.users.menu.editJobRole', 'Change job role') : t('admin.users.menu.editRole', 'Edit access level'), onClick: () => onEditRole(u) },
+        { label: builtInRolesOn ? t('administration:admin.users.builtIn.menuEdit', 'Change job role') : t('admin.users.menu.editRole', 'Edit access level'), onClick: () => onEditRole(u) },
         { label: t('admin.users.menu.changeManager', 'Change manager'), onClick: () => onChangeManager(u) },
       );
     }

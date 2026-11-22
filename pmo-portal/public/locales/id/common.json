@@ -1,5 +1,9 @@
 {
-  "fileInput": {"choose": "Pilih berkas", "none": "Belum ada berkas dipilih", "many": "{{count}} berkas"},
+  "fileInput": {
+    "choose": "Pilih berkas",
+    "none": "Belum ada berkas dipilih",
+    "many": "{{count}} berkas"
+  },
   "terms": {
     "clientWorkOrder": "Work order",
     "dashboard": "Dasbor",
@@ -571,8 +575,7 @@
         "editRole": "Ubah tingkat akses",
         "changeManager": "Ubah manajer",
         "reEnable": "Aktifkan kembali",
-        "disable": "Nonaktifkan",
-        "editJobRole": "Ubah jabatan"
+        "disable": "Nonaktifkan"
       },
       "toast": {
         "roleUpdated": "Role diperbarui",
@@ -622,18 +625,12 @@
         "email": "Email",
         "roleHelper": "Menentukan apa yang dapat dilihat dan dilakukan orang ini setelah masuk.",
         "emailRequired": "Email wajib diisi.",
-        "emailInvalid": "Masukkan alamat email yang valid.",
-        "jobRoleRequired": "Pilih jabatannya.",
-        "jobRolePlaceholder": "Pilih jabatan",
-        "jobRoleSearch": "Cari jabatan",
-        "jobRoleNoun": "jabatan"
+        "emailInvalid": "Masukkan alamat email yang valid."
       },
       "roleForm": {
         "title": "Ubah tingkat akses: {{name}}",
         "submit": "Simpan tingkat akses",
-        "helper": "Menentukan apa yang dapat dilihat dan dilakukan pengguna ini. Perubahan berlaku segera dan dikonfirmasi terlebih dahulu.",
-        "titleJobRole": "Ubah jabatan: {{name}}",
-        "submitJobRole": "Simpan jabatan"
+        "helper": "Menentukan apa yang dapat dilihat dan dilakukan pengguna ini. Perubahan berlaku segera dan dikonfirmasi terlebih dahulu."
       },
       "managerForm": {
         "title": "Ubah manajer: {{name}}",

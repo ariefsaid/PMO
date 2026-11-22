@@ -656,7 +656,14 @@
         "none": "No job role (access level only)",
         "label": "Job role",
         "helper": "A job role starts from one access level and sets what this person sees and does for their job.",
-        "baseLevel": "Access level: {{level}} (set by the job role)"
+        "baseLevel": "Access level: {{level}} (set by the job role)",
+        "inviteRequired": "Choose the job role.",
+        "invitePlaceholder": "Choose a job role",
+        "inviteSearch": "Search job roles",
+        "inviteNoun": "job role",
+        "menuEdit": "Change job role",
+        "formTitle": "Change job role: {{name}}",
+        "formSubmit": "Save job role"
       },
       "roleConfirm": {
         "clearTitle": "Remove {{name}}'s built-in role?"

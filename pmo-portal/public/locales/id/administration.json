@@ -656,7 +656,14 @@
         "none": "Tanpa jabatan (hanya tingkat akses)",
         "label": "Jabatan",
         "helper": "Jabatan berawal dari satu tingkat akses dan menentukan apa yang dilihat dan dilakukan orang ini untuk pekerjaannya.",
-        "baseLevel": "Tingkat akses: {{level}} (ditentukan oleh jabatan)"
+        "baseLevel": "Tingkat akses: {{level}} (ditentukan oleh jabatan)",
+        "inviteRequired": "Pilih jabatannya.",
+        "invitePlaceholder": "Pilih jabatan",
+        "inviteSearch": "Cari jabatan",
+        "inviteNoun": "jabatan",
+        "menuEdit": "Ubah jabatan",
+        "formTitle": "Ubah jabatan: {{name}}",
+        "formSubmit": "Simpan jabatan"
       },
       "roleConfirm": {
         "clearTitle": "Hapus peran bawaan {{name}}?"

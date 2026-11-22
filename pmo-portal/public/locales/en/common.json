@@ -1,5 +1,9 @@
 {
-  "fileInput": {"choose": "Choose file", "none": "No file chosen", "many": "{{count}} files"},
+  "fileInput": {
+    "choose": "Choose file",
+    "none": "No file chosen",
+    "many": "{{count}} files"
+  },
   "terms": {
     "clientWorkOrder": "Work order",
     "dashboard": "Dashboard",
@@ -571,8 +575,7 @@
         "editRole": "Edit access level",
         "changeManager": "Change manager",
         "reEnable": "Re-enable",
-        "disable": "Disable",
-        "editJobRole": "Change job role"
+        "disable": "Disable"
       },
       "toast": {
         "roleUpdated": "Role updated",
@@ -622,18 +625,12 @@
         "email": "Email",
         "roleHelper": "Determines what this person can see and do once they sign in.",
         "emailRequired": "Email is required.",
-        "emailInvalid": "Enter a valid email address.",
-        "jobRoleRequired": "Choose the job role.",
-        "jobRolePlaceholder": "Choose a job role",
-        "jobRoleSearch": "Search job roles",
-        "jobRoleNoun": "job role"
+        "emailInvalid": "Enter a valid email address."
       },
       "roleForm": {
         "title": "Edit access level: {{name}}",
         "submit": "Save access level",
-        "helper": "Determines what this user can see and do. Changes take effect immediately and are confirmed first.",
-        "titleJobRole": "Change job role: {{name}}",
-        "submitJobRole": "Save job role"
+        "helper": "Determines what this user can see and do. Changes take effect immediately and are confirmed first."
       },
       "managerForm": {
         "title": "Change manager: {{name}}",
