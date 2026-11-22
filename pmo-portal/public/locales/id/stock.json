@@ -884,8 +884,8 @@
     }
   },
   "transferSettings": {
-    "manage": "Transfer dan bukti",
-    "mode": "Cara transfer dilakukan",
+    "manage": "Transfer stok dan bukti",
+    "mode": "Cara transfer stok dilakukan",
     "oneStep": "Satu langkah: langsung diposting",
     "twoStep": "Dua langkah: kirim, lalu terima dengan penghitungan",
     "modeHelp": "Dua langkah menjaga barang tetap dalam perjalanan sampai penerima menghitungnya. Pengirim menunjuk penerima; pengirim tidak menghitung kirimannya sendiri.",

@@ -20,8 +20,8 @@ const renderIt = () => render(<QueryClientProvider client={new QueryClient()}><T
 describe('TransferModeSettings (AC-TST-026, AC-TST-033)', () => {
   it('AC-TST-026 reads one-step by default and writes two-step when chosen', async () => {
     renderIt();
-    expect(screen.getByRole('combobox', { name: /How transfers are made/ })).toHaveValue('one_step');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /How transfers are made/ }), 'two_step');
+    expect(screen.getByRole('combobox', { name: /How stock transfers are made/ })).toHaveValue('one_step');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /How stock transfers are made/ }), 'two_step');
     await waitFor(() => expect(h.setMode).toHaveBeenCalledWith('two_step'));
   });
   it('AC-TST-033 the proof timing is chosen here', async () => {
@@ -33,7 +33,7 @@ describe('TransferModeSettings (AC-TST-026, AC-TST-033)', () => {
     h.settings = { mode: 'two_step', proofTiming: 'before_posting' };
     h.sent = [{ id: 'a' }, { id: 'b' }];
     renderIt();
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /How transfers are made/ }), 'one_step');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /How stock transfers are made/ }), 'one_step');
     expect(await screen.findByRole('alert')).toHaveTextContent('2 transfers are in transit');
     expect(h.setMode).not.toHaveBeenCalled();
   });

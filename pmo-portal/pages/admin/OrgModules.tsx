@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { OrgSwitchSetting } from '@/src/components/admin/OrgSwitchSetting';
 import { TransferModeSettings } from '@/src/components/stock/TransferModeSettings';
 import { DoneNotClaimedReminder } from '@/src/components/finance/DoneNotClaimedReminder';
-import IdleCostScopeField from './admin/IdleCostScopeField';
+import IdleCostScopeField from './IdleCostScopeField';
 import { ApproverInboxSetting } from '../materialRequests/ApproverInboxSetting';
 import type { OrgModuleKey } from '@/src/lib/repositories/orgSwitches';
 
