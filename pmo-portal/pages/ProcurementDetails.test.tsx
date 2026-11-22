@@ -2287,6 +2287,32 @@ describe('Procurement detail restructure fixes', () => {
     expect(rows[5]).toHaveTextContent('Paid');
   });
 
+  describe('JOB-PU24 things that exist but were not found', () => {
+    it('the requester is told who a request goes to, not just that it waits', () => {
+      detailState.data = {
+        ...baseProcurement, requested_by_id: 'u-alice',
+        approvalRoute: { procurementId: 'proc-001', route: 'org', reason: 'within_budget', approvers: [{ id: 'u-ed', fullName: 'Edi Direktur' }], requestAmount: 60000000, lineBudget: null, lineUsed: null },
+      };
+      renderPage();
+      expect(screen.getAllByText(/Waiting for approval. It goes to Edi Direktur./).length).toBeGreaterThan(0);
+    });
+
+    it('the printable purchase order is a visible action beside the order, not only inside the More menu', () => {
+      poSettingsMock.data = { enabled: true, signatureBlocks: [], authorisedCollectors: [] };
+      detailState.data = { ...baseProcurement, purchase_orders: [{ id: 'po-101', po_number: 'PO-101' } as never] };
+      renderPage('proc-001');
+      expect(screen.getByTestId('print-purchase-order-inline')).toBeInTheDocument();
+    });
+
+    it('when printing is off, the order says why and which role turns it on', () => {
+      poSettingsMock.data = { enabled: false, signatureBlocks: [], authorisedCollectors: [] };
+      detailState.data = { ...baseProcurement, purchase_orders: [{ id: 'po-101', po_number: 'PO-101' } as never] };
+      renderPage('proc-001');
+      expect(screen.queryByTestId('print-purchase-order-inline')).toBeNull();
+      expect(screen.getByTestId('po-print-off')).toHaveTextContent(/An Admin turns it on in Administration, Accounting, Purchase order printing/);
+    });
+  });
+
   describe('AC-POP-001 / AC-POP-002: purchase order print action in ProcurementDetails', () => {
     it('AC-POP-002: when PO print is disabled, more menu does not include Print purchase order', async () => {
       poSettingsMock.data = { enabled: false, signatureBlocks: [], authorisedCollectors: [] };

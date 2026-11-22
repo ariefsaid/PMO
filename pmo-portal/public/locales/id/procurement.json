@@ -105,7 +105,9 @@
     "paymentNeedsBillOdoo": "Catat invoice supplier di sini terlebih dahulu; setelah itu Anda dapat membayarnya dari sini.",
     "preCutover": "Dicatat sebelum terhubung ke ERP, tidak dikirim",
     "notSent": "Tidak dikirim",
-    "notSentReason": "Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP"
+    "notSentReason": "Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP",
+    "valueFromLines": "Dari baris pesanan",
+    "valueNotRecorded": "Nilai penerimaan ini belum dicatat"
   },
   "gates": {
     "heading": "Aturan pembelian",
@@ -117,7 +119,15 @@
     "receipt_before_invoice": "Wajib penerimaan barang sebelum invoice",
     "approval_before_payment": "Wajib persetujuan sebelum pembayaran",
     "saving": "Menyimpan…",
-    "saved": "Tersimpan"
+    "saved": "Tersimpan",
+    "imprestLimit": {
+      "heading": "Batas kas lapangan",
+      "help": "Pengeluaran tunggal terbesar yang ditanggung kas lapangan. Atur sebelum menetapkan kas lapangan. Hanya Admin yang dapat mengaturnya.",
+      "notSet": "Belum diatur. Kas lapangan belum bisa ditetapkan sebelum batas ini diatur.",
+      "current": "Batas saat ini: {{amount}}",
+      "label": "Batas per pengeluaran",
+      "save": "Simpan batas"
+    }
   },
   "documents": {
     "attachTo": "Lampirkan ke",
@@ -966,7 +976,9 @@
     "openCollectorLine": "________________________________________",
     "name": "Nama",
     "signature": "Tanda tangan",
-    "signatureDate": "Tanggal"
+    "signatureDate": "Tanggal",
+    "section": "Pesanan pembelian",
+    "off": "Cetak pesanan pembelian belum aktif. Admin mengaktifkannya di Administrasi, Akuntansi, Cetak pesanan pembelian."
   },
   "poSettings": {
     "heading": "Pencetakan pesanan pembelian",
@@ -1063,5 +1075,15 @@
     "lineLabel": "Baris {{name}}",
     "saveFailed": "Kategori dan tanggal tidak dapat disimpan untuk beberapa baris. Buka permintaan untuk mengaturnya.",
     "columnEmpty": "—"
+  },
+  "billHold": {
+    "rule": {
+      "title": "Tagihan ini tertahan oleh aturan pembelian.",
+      "body": "Organisasi Anda mewajibkan penerimaan barang sebelum tagihan supplier. Catat penerimaan barang dulu. Admin dapat mengubah aturan ini di Administrasi, Akuntansi, Aturan pembelian."
+    },
+    "match": {
+      "title": "Pembayaran tertahan sampai tagihan ini cocok.",
+      "body": "Tagihan dicocokkan dengan pesanan dan penerimaan barang. Jika tidak cocok, pembayaran tetap tertahan sampai penerimaan dicatat atau Admin atau Finance, selain orang yang mencatat tagihan, menyetujui pengecualian."
+    }
   }
 }

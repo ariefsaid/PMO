@@ -154,6 +154,7 @@ const StockReorder: React.FC = () => {
 
       <section aria-labelledby="reorder-panel-title" className="mt-6 rounded-lg border border-border bg-card p-4">
         <h2 id="reorder-panel-title" className="mb-3 text-base font-semibold">{t('reorder.panel.title')}</h2>
+        {!canEdit && <p className="mb-3 text-control" data-testid="reorder-who-sets">{t('reorder.whoSets')}</p>}
         {(!itemId || !warehouseId) && <p className="mb-3 text-control text-muted-foreground">{t('reorder.panel.pick')}</p>}
         <div className="grid gap-3 sm:grid-cols-2">
           <ItemPicker label={t('reorder.panel.item')} value={itemId || null} onChange={(v) => pick(v, warehouseId)} />

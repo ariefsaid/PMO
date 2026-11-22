@@ -130,7 +130,7 @@
     "cancelled": "Cancelled"
   },
   "acceptance": {
-    "draft": "Draft",
+    "draft": "Waiting for Finance or an Admin to confirm",
     "confirmed": "Confirmed",
     "withdrawn": "Withdrawn"
   },

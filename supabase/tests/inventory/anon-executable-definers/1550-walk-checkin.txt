@@ -1,0 +1,2 @@
+# Walk check-in fixes: client-callable SECURITY DEFINER names (authenticated only; anon revoked in 1550).
+set_work_order_check_in_area  # 1550: Admin, Executive, Project Manager or Finance of the work order's org; never a light account

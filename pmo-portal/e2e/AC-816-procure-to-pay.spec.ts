@@ -2,7 +2,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
-import { login, requireServiceRoleKey } from './helpers';
+import { login, pickComboboxOption, recordOrderWithConfirm, requireServiceRoleKey } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 // NOTE (IA-3 re-skin): the visible status pill now shows the human stage label
 // (e.g. "Purchase Request"); the raw lifecycle enum is asserted via the badge's
@@ -136,7 +136,14 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Approved', { timeout: 15_000 });
 
   // ── Step 3: admin records the PO (Approved → Ordered) — routine, single click ─
-  await page.getByRole('button', { name: 'Record order' }).click();
+  // An order needs its supplier: the first tap opens the supplier picker; then it is confirmed, naming supplier and amount.
+  await page.getByRole('button', { name: 'Record order' }).first().click();
+  const supplierDialog = page.getByRole('dialog', { name: 'Set supplier' });
+  await expect(supplierDialog).toBeVisible({ timeout: 10_000 });
+  await pickComboboxOption(supplierDialog, page, /Supplier/, /SunVolt Modules Co\./);
+  await supplierDialog.getByRole('button', { name: 'Save supplier' }).click();
+  await expect(supplierDialog).toBeHidden({ timeout: 10_000 });
+  await recordOrderWithConfirm(page, 'SunVolt Modules Co.');
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 15_000 });
   await expect(page.getByText(/^PO-\d{10}$/).first()).toBeVisible({ timeout: 10_000 });
 

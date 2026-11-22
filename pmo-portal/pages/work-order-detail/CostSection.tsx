@@ -20,6 +20,13 @@ interface Props {
 
 /** Sources whose money this section never reads: their lines carry hours or quantities only. */
 const HOURS_ONLY: readonly string[] = ['timesheet_entry', 'attendance_day', 'stock_document', 'equipment_usage'];
+const COMMITMENT_DEFAULTS: Record<string, string> = {
+  purchase_request: 'Not counted as direct cost yet: a request counts once its supplier bill is recorded.',
+  purchase_order: 'Not counted as direct cost yet: an order counts once its supplier bill is recorded.',
+  goods_receipt: 'Received, but not counted as direct cost yet: a receipt counts once its supplier bill is recorded.',
+};
+
+const COMMITMENT_SOURCES = ['purchase_request', 'purchase_order', 'goods_receipt'];
 
 /** Costs (FR-WORP-021/022): lines grouped by source then discipline; a total only where the money is readable. */
 export const CostSection: React.FC<Props> = ({ labels, links, groups, disciplines, isPending, isError, onRetry, moneyPending }) => {
@@ -44,7 +51,8 @@ export const CostSection: React.FC<Props> = ({ labels, links, groups, discipline
               {g.totals.length > 0 && <span className="tabular-nums font-medium" data-testid={`cost-total-${g.source}`}>{g.totals.map(money).join(" · ")}</span>}
               {g.totals.length === 0 && g.restricted && <span className="text-control text-muted-foreground" data-testid={`cost-restricted-${g.source}`}>{t('costs.restricted', 'Amount restricted for your role')}</span>}
               {g.totals.length === 0 && !g.restricted && moneyPending && <span className="text-control text-muted-foreground">{t('costs.loadingTotal', 'Total loading…')}</span>}
-              {g.totals.length === 0 && !g.restricted && !moneyPending && !HOURS_ONLY.includes(g.source) && <span className="text-control text-muted-foreground">{t('costs.unavailable', 'Amount unavailable')}</span>}
+              {g.totals.length === 0 && !g.restricted && !moneyPending && COMMITMENT_SOURCES.includes(g.source) && <span className="text-control text-muted-foreground" data-testid={`cost-commitment-${g.source}`}>{t(`costs.commitment.${g.source}`, COMMITMENT_DEFAULTS[g.source] ?? '')}</span>}
+              {g.totals.length === 0 && !g.restricted && !moneyPending && !HOURS_ONLY.includes(g.source) && !COMMITMENT_SOURCES.includes(g.source) && <span className="text-control text-muted-foreground">{t('costs.unavailable', 'Amount unavailable')}</span>}
             </div>
             {g.disciplines.map((d) => (
               <div key={d.disciplineId} className="mt-2" data-testid={`cost-discipline-${g.source}-${d.disciplineId}`}>
