@@ -39,7 +39,7 @@ test.afterEach(async () => {
 
 async function addRow(page: import('@playwright/test').Page, assetLabel: RegExp) {
   await page.getByRole('button', { name: 'Add row' }).click();
-  await page.getByRole('combobox', { name: 'Equipment' }).click();
+  await page.getByRole('combobox', { name: 'Equipment', exact: true }).click();
   await page.getByRole('option', { name: assetLabel }).click();
   await page.getByRole('combobox', { name: 'Project' }).click();
   await page.getByRole('option', { name: new RegExp(projectName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) }).first().click();
@@ -66,7 +66,7 @@ test('JOB-CF-EQ-4 a broken machine is marked in the picker and logging against i
   await signIn(page, 'pm@acme.test');
   await page.goto('/equipment?view=hours');
   await page.getByRole('button', { name: 'Add row' }).click();
-  await page.getByRole('combobox', { name: 'Equipment' }).click();
+  await page.getByRole('combobox', { name: 'Equipment', exact: true }).click();
   const option = page.getByRole('option', { name: new RegExp(brokenCode) });
   await expect(option).toContainText('Broken');
   await option.click();
