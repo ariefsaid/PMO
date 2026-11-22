@@ -10,6 +10,10 @@ const EXPECTED = [
   'certificate', 'equipment_plan',
 ];
 
+/** The translation stub these assertions read through: the English default with its `{{placeholders}}` filled. */
+const t = (_key: string, fallback: string, options?: Record<string, unknown>) =>
+  fallback.replace(/{{(\w+)}}/g, (_m, name) => String(options?.[name] ?? ''));
+
 describe('the registry of everything a login can decide', () => {
   it('AC-WAIT-040 lists exactly the enumerated kinds, so a kind added without a registry entry fails here', () => {
     expect([...WAITING_KINDS].sort()).toEqual([...EXPECTED].sort());
@@ -27,7 +31,6 @@ describe('the registry of everything a login can decide', () => {
   });
 
   it('AC-WAIT-042 the home list can draw a row for every kind: no kind falls through to the wrong row', () => {
-    const t = (_key: string, fallback: string, options?: Record<string, unknown>) => fallback.replace(/{{(\w+)}}/g, (_m, name) => String(options?.[name] ?? ''));
     const rows: Record<string, unknown> = {
       procurement: { id: 'p1', title: 'Pump', requested_by: { full_name: 'Ani' }, total_value: 1, currency: 'IDR' },
       timesheets: { id: 't1', owner: { full_name: 'Budi' }, week_start_date: '2026-11-16' },
