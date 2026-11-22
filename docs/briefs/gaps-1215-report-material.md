@@ -129,8 +129,8 @@ proof and a mutation check. Details stay out of this public file.
   and 1905 email claim returning the org, with rollbacks; email function renames terms and role names per organisation
   at send time (9 Deno tests pass); the bell rewrites database-written bodies in the reader's language. check:guards,
   typecheck, eslint clean. LEFT: merge slice A's registry (it runs on today's 16 keys); pgTAP
-  `1904_org_naming_lookup.test.sql` (covers 1905) never run; the last bell / notification-copy vitest run was not
-  confirmed. Telegram and ERP-feed texts were left unchanged (no terms, or already keyed through `t()`).
+  `1904_org_naming_lookup.test.sql` (covers 1905) never run. The bell / notification-copy related vitest run finished
+  green (119 files, 1611 tests). Telegram and ERP-feed texts were left unchanged (no terms, or already keyed through `t()`).
 - Slice B (screens en/id): NOT STARTED (worktree branch `feat/gap-material-terminology-reach-b` holds only the spec).
 - LEFT: finish C, build B, merge A+B+C+D into the item branch, merge into the lane branch, reset + whole pgTAP,
   check:guards, screenshots of the Administration terminology page, done ref.
