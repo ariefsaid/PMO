@@ -23,3 +23,8 @@ Each line: question · recommended answer · what was built meanwhile.
 - Does a rejected release keep the worker off the roster until a new decision? · Yes; the manager may decide again, audited. · Built: rejected holds; re-decision allowed.
 - May the manager release before the leave end date? · Yes, from the day the leave is approved. · Built: as recommended.
 - Does PMO ship a "sick" leave type? · No; the Admin marks which of their own leave types need a release. · Built: a per-type mark, off by default.
+
+## no-login-labour-cost
+- Overtime on attendance days: price by the timesheet's day-length rule, or by the overtime field on attendance? · Day-length rule (one rule, as logins already get). · Built: day-length rule.
+- Should a class rate also price a login person who has no person or access-level rate? · Not now. · Built: class rates price no-login crew members only.
+- Price by crew position as well as by labour class? · No; positions are free names per crew, the class list is organisation-wide. · Built: class only.
