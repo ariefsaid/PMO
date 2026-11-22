@@ -27805,6 +27805,10 @@ export type Database = {
         Returns: Json
       }
       attendance_can_record: { Args: { p_crew_id: string }; Returns: boolean }
+      attendance_clear_follow: {
+        Args: { p_work_date: string; p_worker_id: string }
+        Returns: number
+      }
       attendance_decide_week: {
         Args: {
           p_decision: string
@@ -36654,10 +36658,6 @@ export type Database = {
         Returns: number
       }
       worker_effective_crew: {
-        Args: { p_date: string; p_worker_id: string }
-        Returns: string
-      }
-      worker_followed_crew: {
         Args: { p_date: string; p_worker_id: string }
         Returns: string
       }

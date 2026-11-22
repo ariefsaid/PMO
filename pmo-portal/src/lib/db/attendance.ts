@@ -83,6 +83,13 @@ export async function recordAttendance(
   return Number(data ?? 0);
 }
 
+/** Undo a follow (crew managers): withdraws the followed day's records so the home crew can record it again. */
+export async function clearFollow(workerId: string, workDate: string): Promise<number> {
+  const { data, error } = await supabase.rpc('attendance_clear_follow', { p_worker_id: workerId, p_work_date: workDate });
+  fail(error);
+  return Number(data ?? 0);
+}
+
 /** The records already held for a work order on a date (the tick screen pre-fills from them). */
 export async function listAttendanceDay(workOrderId: string, workDate: string): Promise<AttendanceDayRow[]> {
   return fetchAllRowsByKeyset<AttendanceDayRow>(async (afterId, limit) => {

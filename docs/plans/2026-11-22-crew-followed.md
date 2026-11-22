@@ -18,3 +18,8 @@ Spec: `docs/specs/crew-followed.spec.md`. One builder, test first. Money-adjacen
 
 ## Gates
 `npm run check:guards`, `npm run typecheck`, eslint on touched files, `vitest related` + touched tests; no DB run by the builder (orchestrator's wave run).
+
+## Round 4 additions
+- 1769 also adds `attendance_clear_follow(worker, date)` (crew managers; audited; deletes the followed day records when none is submitted, approved or locked) and the `ATT_FOLLOW_RECORDED` refusal; 1768 makes `worker_effective_crew` an organisation-filtered definer and revokes client execute on `worker_followed_crew`. Fragments: `supabase/tests/inventory/anon-executable-definers/gap-people-crew-followed.txt`, the isolation denominator fragment, the light-account allowlist entry (`worker_effective_crew`, helper).
+- Mutation checks added: remove the `crew_can_manage()` test from the recorded-elsewhere rule, AC-013 red; drop the lock check in `attendance_clear_follow`, AC-014 red; re-grant execute on `worker_followed_crew`, AC-015 red.
+

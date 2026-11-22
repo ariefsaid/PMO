@@ -267,5 +267,10 @@
   "addFollowerNone": "Nobody else is placed in a crew today.",
   "addFollowerHint": "For someone who joined this crew today without a loan. Their hours are recorded here.",
   "followedFrom": "Followed from {{crew}}",
-  "followedToday": "Followed this crew today"
+  "followedToday": "Followed this crew today",
+  "undoFollow": "Undo follow",
+  "undoFollowFor": "Undo follow for {{name}}",
+  "undoFollowTitle": "Undo this follow?",
+  "undoFollowBody": "The hours recorded for {{name}} on this crew that day are withdrawn, so their own crew can record the day. Approved or submitted hours cannot be withdrawn.",
+  "followUndone": "Follow undone"
 }

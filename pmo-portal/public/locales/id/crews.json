@@ -267,5 +267,10 @@
   "addFollowerNone": "Tidak ada orang lain yang ditempatkan di kru hari ini.",
   "addFollowerHint": "Untuk orang yang bergabung dengan kru ini hari ini tanpa peminjaman. Jam kerjanya dicatat di sini.",
   "followedFrom": "Ikut kru ini, berasal dari {{crew}}",
-  "followedToday": "Ikut kru ini hari ini"
+  "followedToday": "Ikut kru ini hari ini",
+  "undoFollow": "Batalkan ikut kru",
+  "undoFollowFor": "Batalkan ikut kru untuk {{name}}",
+  "undoFollowTitle": "Batalkan ikut kru ini?",
+  "undoFollowBody": "Jam kerja {{name}} yang dicatat di kru ini pada hari itu ditarik kembali, sehingga kru asalnya bisa mencatat harinya. Jam yang sudah disetujui atau diajukan tidak bisa ditarik.",
+  "followUndone": "Ikut kru dibatalkan"
 }

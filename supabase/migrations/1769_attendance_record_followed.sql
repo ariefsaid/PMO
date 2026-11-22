@@ -113,6 +113,14 @@ begin
                           and p_work_date between ro.valid_from and coalesce(ro.valid_to, 'infinity'::date)) then
           raise exception 'ATT_FOLLOW_CREW: that crew is not rostered on this work order that day' using errcode = '23514';
         end if;
+        -- A follow does not stand beside a day already recorded for the person on another work order; a crew manager may
+        -- (they settle the two records).
+        if not public.crew_can_manage() and exists (
+             select 1 from public.attendance_days a
+              where a.worker_id = r.worker_id and a.work_date = p_work_date and a.work_order_id <> p_work_order_id
+                and a.status = 'present' and a.followed_crew_id is distinct from r.followed_crew_id) then
+          raise exception 'ATT_FOLLOW_RECORDED: this person is already recorded present on another work order that day' using errcode = '23514';
+        end if;
         v_follow := r.followed_crew_id;
       end if;
     end if;
@@ -435,3 +443,39 @@ begin
             jsonb_build_object('work_order_id', v_row.work_order_id, 'worker_id', v_row.worker_id));
   return jsonb_build_object('status', case when p_approve then 'approved' else 'rejected' end, 'id', v_row.id);
 end $$;;
+
+-- Undo a follow: a crew manager withdraws the followed record(s) of one person-day (the hours recorded under the follow go
+-- with them) so the home crew can record the day again. Refused once any of them is submitted, approved or locked.
+create function public.attendance_clear_follow(p_worker_id uuid, p_work_date date)
+  returns integer
+  language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_org uuid := public.auth_org_id();
+  v_rows public.attendance_days[];
+  v_n int;
+begin
+  perform public.assert_is_active_member();
+  perform public.assert_not_light();
+  if v_org is null or not public.crew_can_manage() then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  select coalesce(array_agg(a), '{}') into v_rows from public.attendance_days a
+   where a.worker_id = p_worker_id and a.work_date = p_work_date and a.org_id = v_org and a.followed_crew_id is not null;
+  if coalesce(array_length(v_rows, 1), 0) = 0 then
+    raise exception 'ATT_FOLLOW_NONE: no follow is recorded for this person that day' using errcode = '23514';
+  end if;
+  if exists (select 1 from unnest(v_rows) x
+              where x.submitted_at is not null or x.approved_at is not null or x.locked_at is not null or x.timesheet_entry_id is not null) then
+    raise exception 'ATT_FOLLOW_LOCKED: these hours are already submitted or approved; correct them through the timesheet correction path'
+      using errcode = '55000';
+  end if;
+  update public.phone_check_ins q set attendance_day_id = null
+   where q.attendance_day_id in (select x.id from unnest(v_rows) x);
+  delete from public.attendance_days a where a.id in (select x.id from unnest(v_rows) x);
+  get diagnostics v_n = row_count;
+  perform public.log_audit('attendance.follow_cleared', v_org, auth.uid(), p_worker_id,
+            jsonb_build_object('work_date', p_work_date, 'rows', (select jsonb_agg(to_jsonb(x) - 'org_id') from unnest(v_rows) x)));
+  return v_n;
+end $$;
+revoke all on function public.attendance_clear_follow(uuid, date) from public, anon;
+grant execute on function public.attendance_clear_follow(uuid, date) to authenticated;

@@ -12,7 +12,7 @@ comment on column public.attendance_days.followed_crew_id is
   'Set when the person followed a crew other than their own that day without a loan (#crew-followed). Equals crew_id. Written only by attendance_record.';
 
 -- SECURITY: a definer so the home crew's roster drops the person whatever the caller's row visibility; it returns only the
--- crew id, for the caller's own organisation. The receiving crew's roster reads the day rows with the caller's own visibility.
+-- crew id, for the caller's own organisation, and no client can execute it. The receiving crew's roster reads the day rows with the caller's own visibility.
 create function public.worker_followed_crew(p_worker_id uuid, p_date date)
   returns uuid language sql stable security definer set search_path = public, pg_temp as $$
   select a.followed_crew_id from public.attendance_days a
@@ -20,22 +20,25 @@ create function public.worker_followed_crew(p_worker_id uuid, p_date date)
      and a.org_id = public.auth_org_id()
    order by a.recorded_at, a.id limit 1
 $$;
-revoke all on function public.worker_followed_crew(uuid, date) from public, anon;
-grant execute on function public.worker_followed_crew(uuid, date) to authenticated;
+-- Not callable by a client: only worker_effective_crew (a definer owned by the same role) reads it.
+revoke all on function public.worker_followed_crew(uuid, date) from public, anon, authenticated;
 
+-- SECURITY: now a definer (it was invoker): it must reach worker_followed_crew, which no client may execute, and the roster
+-- and the recorder must agree whatever rows the caller can read. It returns one crew id of the caller's own organisation:
+-- the same fact the crew placements and loans already show every active member (hence the explicit org filters below).
 CREATE OR REPLACE FUNCTION public.worker_effective_crew(p_worker_id uuid, p_date date)
  RETURNS uuid
  LANGUAGE sql
- STABLE
+ STABLE SECURITY DEFINER
  SET search_path TO 'public', 'pg_temp'
 AS $function$
   select coalesce(
     (select l.host_crew_id from public.crew_loans l
-      where l.worker_id = p_worker_id and p_date between l.valid_from and l.valid_to
+      where l.worker_id = p_worker_id and l.org_id = public.auth_org_id() and p_date between l.valid_from and l.valid_to
       limit 1),
     public.worker_followed_crew(p_worker_id, p_date),
     (select m.crew_id from public.crew_members m
-      where m.worker_id = p_worker_id
+      where m.worker_id = p_worker_id and m.org_id = public.auth_org_id()
         and p_date between m.valid_from and coalesce(m.valid_to, 'infinity'::date)
         and not exists (select 1 from public.crew_members n   -- a newer placement covering the day wins (host crew)
                          where n.worker_id = m.worker_id and n.id <> m.id and n.valid_from > m.valid_from

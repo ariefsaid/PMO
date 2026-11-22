@@ -57,7 +57,7 @@ insert into la_fn_allow values
   ('org_has_feature', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('org_has_member_email', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('org_reads_erp_ledger', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
-  ('worker_followed_crew', 'helper', 'a Foreman''s own roster and tick read it through worker_effective_crew; it returns one crew id for a person and day in the caller''s organisation, no row (crew-followed)'),
+  ('worker_effective_crew', 'helper', 'a Foreman''s own roster and tick read it; it returns one crew id for a person and day in the caller''s organisation, the placement and loan fact every member already reads (crew-followed)'),
   ('org_seat_report', 'field_path', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('profile_prefs_unchanged', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('resolved_org_features', 'field_path', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
