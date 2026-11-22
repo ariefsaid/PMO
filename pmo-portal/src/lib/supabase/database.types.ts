@@ -30523,13 +30523,6 @@ export type Database = {
         Args: { p_fiscal_years: string[]; p_project_id: string }
         Returns: string
       }
-      followed_workers_on: {
-        Args: { p_date: string }
-        Returns: {
-          crew_id: string
-          worker_id: string
-        }[]
-      }
       fx_rate_on: {
         Args: { base: string; on_date: string; quote: string }
         Returns: {

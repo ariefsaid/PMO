@@ -11,8 +11,8 @@ create index attendance_days_followed_idx on public.attendance_days (work_date, 
 comment on column public.attendance_days.followed_crew_id is
   'Set when the person followed a crew other than their own that day without a loan (#crew-followed). Equals crew_id. Written only by attendance_record.';
 
--- SECURITY: definers so the roster of the home crew and of the receiving crew agree whatever the caller's row visibility;
--- they return only (worker, crew) of the caller's own organisation.
+-- SECURITY: a definer so the home crew's roster drops the person whatever the caller's row visibility; it returns only the
+-- crew id, for the caller's own organisation. The receiving crew's roster reads the day rows with the caller's own visibility.
 create function public.worker_followed_crew(p_worker_id uuid, p_date date)
   returns uuid language sql stable security definer set search_path = public, pg_temp as $$
   select a.followed_crew_id from public.attendance_days a
@@ -22,15 +22,6 @@ create function public.worker_followed_crew(p_worker_id uuid, p_date date)
 $$;
 revoke all on function public.worker_followed_crew(uuid, date) from public, anon;
 grant execute on function public.worker_followed_crew(uuid, date) to authenticated;
-
-create function public.followed_workers_on(p_date date)
-  returns table (worker_id uuid, crew_id uuid) language sql stable security definer set search_path = public, pg_temp as $$
-  select distinct a.worker_id, a.followed_crew_id from public.attendance_days a
-   where a.work_date = p_date and a.followed_crew_id is not null and a.org_id = public.auth_org_id()
-     and public.is_active_member()
-$$;
-revoke all on function public.followed_workers_on(date) from public, anon;
-grant execute on function public.followed_workers_on(date) to authenticated;
 
 CREATE OR REPLACE FUNCTION public.worker_effective_crew(p_worker_id uuid, p_date date)
  RETURNS uuid
@@ -85,8 +76,8 @@ AS $function$
                (select hc.name from public.crew_members hm join public.crews hc on hc.id = hm.crew_id
                  where hm.worker_id = f.worker_id and p_date between hm.valid_from and coalesce(hm.valid_to, 'infinity'::date)
                  order by hm.valid_from desc, hm.id limit 1)
-          from public.followed_workers_on(p_date) f
-         where f.crew_id in (select id from rostered)
+          from (select distinct a.followed_crew_id as crew_id, a.worker_id from public.attendance_days a
+                 where a.work_date = p_date and a.followed_crew_id in (select id from rostered)) f
       ) x
       join public.people_directory w on w.id = x.worker_id
      where public.worker_effective_crew(x.worker_id, p_date) = x.crew_id

@@ -1,4 +1,4 @@
--- Rollback of 1769: restore the 1465 attendance_record, phone_check_in and phone_check_in_decide. Run before the 1768 rollback.
+-- Rollback of 1769: restore the 1551 attendance_record, phone_check_in and phone_check_in_decide. Run before the 1768 rollback.
 create or replace function public.attendance_record(p_work_order_id uuid, p_work_date date, p_source text, p_rows jsonb)
   returns integer
   language plpgsql security definer set search_path = public, pg_temp as $$
@@ -68,6 +68,19 @@ begin
                                      and ro.crew_id = public.worker_effective_crew(w.id, p_work_date)
      where w.id = r.worker_id and w.org_id = v_org
        and p_work_date between ro.valid_from and coalesce(ro.valid_to, 'infinity'::date);
+    if v_crew is null and p_source = 'phone_check_in' then
+      -- 1551: a crew's Foreman is rostered through the crew he leads, not as a member of it. His own phone check-in, and the
+      -- supervisor's decision on it, record him against that crew (the one the check-in named; else the first he leads there).
+      select ro.crew_id, w.profile_id into v_crew, v_profile
+        from public.people w
+        join public.crews c on c.field_controller_id = w.profile_id and c.org_id = v_org
+        join public.work_order_crews ro on ro.work_order_id = p_work_order_id and ro.crew_id = c.id
+       where w.id = r.worker_id and w.org_id = v_org
+         and p_work_date between ro.valid_from and coalesce(ro.valid_to, 'infinity'::date)
+         and (coalesce(current_setting('pmo.phone_check_in_crew', true), '') = ''
+              or c.id::text = current_setting('pmo.phone_check_in_crew', true))      -- mut:foreman_crew
+       order by c.id limit 1;
+    end if;
     if v_crew is null then
       raise exception 'ATT_NOT_ROSTERED: this person is not in a crew rostered on this work order that day'
         using errcode = '23514';
@@ -202,6 +215,7 @@ declare
   v_id uuid;
   v_existing public.phone_check_ins;
   v_row jsonb;
+  v_leads boolean;
 begin
   perform public.assert_is_active_member();
   if v_uid is null or v_org is null then
@@ -216,16 +230,20 @@ begin
   end if;
   v_today := public.equipment_org_today(v_org);
   select pe.id into v_worker from public.people pe where pe.profile_id = v_uid and pe.org_id = v_org limit 1;
+  v_leads := exists (
+    select 1 from public.crews c join public.work_order_crews ro on ro.crew_id = c.id and ro.work_order_id = p_work_order_id
+     where c.field_controller_id = v_uid and c.org_id = v_org and (p_crew_id is null or c.id = p_crew_id)    -- mut:foreman_leads
+       and v_today between ro.valid_from and coalesce(ro.valid_to, 'infinity'::date));
   if v_worker is null then
     raise exception 'PCI_NO_PERSON: this account is not in the workforce register' using errcode = '23514';
   end if;
-  if p_crew_id is not null and not exists (
+  if p_crew_id is not null and not v_leads and not exists (
        select 1 from public.crew_members m
         where m.crew_id = p_crew_id and m.worker_id = v_worker and m.org_id = v_org
           and v_today between m.valid_from and coalesce(m.valid_to, 'infinity'::date)) then
     raise exception 'PCI_CREW: you are not in that crew today' using errcode = '23514';
   end if;
-  v_rostered := exists (
+  v_rostered := v_leads or exists (
     select 1 from public.crew_members m
       join public.work_order_crews ro on ro.crew_id = m.crew_id and ro.work_order_id = p_work_order_id
      where m.worker_id = v_worker and m.org_id = v_org and (p_crew_id is null or m.crew_id = p_crew_id)
@@ -234,6 +252,7 @@ begin
   v_row := jsonb_build_array(jsonb_build_object('worker_id', v_worker, 'status', 'present', 'hours', p_hours));
 
   -- No area: exactly today's path; no position is read or stored.
+  perform set_config('pmo.phone_check_in_crew', coalesce(p_crew_id::text, ''), true);
   if v_wo.area_lat is null then
     perform public.attendance_record(p_work_order_id, v_today, 'phone_check_in', v_row);
     return jsonb_build_object('status', 'recorded', 'outcome', 'no_area');
@@ -328,6 +347,7 @@ begin
     update public.phone_check_ins set status = 'approving', decided_by = v_uid, decided_at = now(), decision_reason = v_reason
      where id = v_row.id;
     perform set_config('pmo.phone_check_in', v_row.id::text, true);
+    perform set_config('pmo.phone_check_in_crew', coalesce(v_row.crew_id::text, ''), true);
     perform public.attendance_record(v_row.work_order_id, v_row.work_date, 'phone_check_in',
       jsonb_build_array(jsonb_build_object('worker_id', v_row.worker_id, 'status', 'present', 'hours', v_row.hours)));
     update public.phone_check_ins q set status = 'approved',

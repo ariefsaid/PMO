@@ -66,7 +66,6 @@ create or replace function public.work_order_roster(p_work_order_id uuid, p_date
    order by r.code, r.id
 $$;
 
-drop function public.followed_workers_on(date);
 drop function public.worker_followed_crew(uuid, date);
 drop index public.attendance_days_followed_idx;
 alter table public.attendance_days drop constraint attendance_days_followed_is_crew;
