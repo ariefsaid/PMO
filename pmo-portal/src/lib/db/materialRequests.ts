@@ -97,6 +97,8 @@ export interface WaitingStep {
   requestId: string;
   stepPosition: number;
   role: Role;
+  /** The job role that decides the step (roles-that-decide); null = the step decides by its access level. */
+  jobRole: string | null;
   label: string;
   /** The person this caller stands in for on this step; null when the caller holds the role. */
   actingFor: string | null;
@@ -105,6 +107,8 @@ export interface WaitingStep {
 
 export interface ChainStepInput {
   role: Role;
+  /** A job role key (roles-that-decide FR-RTD-004); null = the step decides by `role` as before. With a job role, `role` is its base level. */
+  jobRole: string | null;
   label: string;
   onlyOverPlan: boolean;
 }
@@ -132,6 +136,7 @@ const asPlanSource = (v: unknown): PlanSource | null => (typeof v === 'string' &
 export interface StepPin {
   position: number;
   role: Role;
+  jobRole: string | null;
   approverId: string;
 }
 
@@ -208,11 +213,11 @@ export function draftLineErrors(
 export type MaterialRequestRefusal =
   | 'sodAuthor' | 'sodTwice' | 'outOfOrder' | 'notApprover' | 'reasonRequired' | 'overPlanReason' | 'cutoff'
   | 'neededBy' | 'noChain' | 'sourceRequired' | 'noDestination' | 'notKeeper' | 'notPending' | 'notDraft'
-  | 'notAuthor' | 'workOrder' | 'standIn' | 'adminOnly' | 'notPinned' | 'pinForbidden' | 'pinInvalid' | 'invalid' | 'notFound' | 'destination' | 'manyDestinations' | 'section' | 'sectionLocked' | 'unknown';
+  | 'notAuthor' | 'workOrder' | 'standIn' | 'adminOnly' | 'notPinned' | 'pinForbidden' | 'pinInvalid' | 'notJobRole' | 'jobRoleOff' | 'jobRoleUnknown' | 'invalid' | 'notFound' | 'destination' | 'manyDestinations' | 'section' | 'sectionLocked' | 'unknown';
 
 const REFUSALS: Array<[string, MaterialRequestRefusal]> = [
   ['MRQ_SOD_AUTHOR', 'sodAuthor'], ['MRQ_SOD_TWICE', 'sodTwice'], ['MRQ_OUT_OF_ORDER', 'outOfOrder'],
-  ['MRQ_NOT_APPROVER', 'notApprover'], ['MRQ_REASON_REQUIRED', 'reasonRequired'], ['MRQ_OVER_PLAN_REASON', 'overPlanReason'],
+  ['MRQ_NOT_APPROVER', 'notApprover'], ['MRQ_NOT_JOB_ROLE', 'notJobRole'], ['MRQ_JOB_ROLE_OFF', 'jobRoleOff'], ['MRQ_JOB_ROLE_UNKNOWN', 'jobRoleUnknown'], ['MRQ_REASON_REQUIRED', 'reasonRequired'], ['MRQ_OVER_PLAN_REASON', 'overPlanReason'],
   ['MRQ_CUTOFF', 'cutoff'], ['MRQ_NEEDED_BY', 'neededBy'], ['MRQ_NO_CHAIN', 'noChain'], ['MRQ_SOURCE_REQUIRED', 'sourceRequired'],
   ['MRQ_NO_DESTINATION', 'noDestination'], ['MRQ_MANY_DESTINATIONS', 'manyDestinations'], ['STK_NOT_KEEPER', 'notKeeper'], ['MRQ_NOT_PENDING', 'notPending'],
   ['MRQ_NOT_DRAFT', 'notDraft'], ['MRQ_NOT_AUTHOR', 'notAuthor'], ['MRQ_WORK_ORDER', 'workOrder'], ['MRQ_STAND_IN', 'standIn'],
@@ -314,7 +319,7 @@ export async function listWaitingForMe(): Promise<WaitingStep[]> {
   if (error) fail(error);
   return (data ?? [])
     .map((w) => ({
-      requestId: w.request_id, stepPosition: w.step_position, role: w.role as Role, label: w.label,
+      requestId: w.request_id, stepPosition: w.step_position, role: w.role as Role, jobRole: w.job_role ?? null, label: w.label,
       actingFor: w.acting_for, submittedAt: w.submitted_at,
     }))
     .sort((a, b) => a.submittedAt.localeCompare(b.submittedAt) || a.requestId.localeCompare(b.requestId));
@@ -331,10 +336,10 @@ export async function getLinePlans(workOrderId: string, itemIds: string[], exclu
 }
 
 export async function listApprovalChain(): Promise<ChainStep[]> {
-  const { data, error } = await (supabase.from('approval_chain_steps').select('id, position, role, label, only_over_plan')
-    .order('position', { ascending: true }).limit(10) as unknown as DbResult<Array<{ id: string; position: number; role: Role; label: string; only_over_plan: boolean }>>);
+  const { data, error } = await supabase.from('approval_chain_steps').select('id, position, role, job_role, label, only_over_plan')
+    .order('position', { ascending: true }).limit(10);
   if (error) fail(error);
-  return (data ?? []).map((s) => ({ id: s.id, position: s.position, role: s.role, label: s.label, onlyOverPlan: s.only_over_plan }));
+  return (data ?? []).map((s) => ({ id: s.id, position: s.position, role: s.role, jobRole: s.job_role ?? null, label: s.label, onlyOverPlan: s.only_over_plan }));
 }
 
 export async function getMaterialRequestCutoff(): Promise<string | null> {
@@ -381,10 +386,10 @@ export async function listStandIns(): Promise<StandIn[]> {
 
 /** #2598: the pins set on one project, by chain position. */
 export async function listStepPins(projectId: string): Promise<StepPin[]> {
-  const { data, error } = await (supabase.from('approval_step_pins').select('position, role, approver_id').eq('project_id', projectId)
-    .order('position', { ascending: true }).limit(10) as unknown as DbResult<Array<{ position: number; role: Role; approver_id: string }>>);
+  const { data, error } = await supabase.from('approval_step_pins').select('position, role, job_role, approver_id').eq('project_id', projectId)
+    .order('position', { ascending: true }).limit(10);
   if (error) fail(error);
-  return (data ?? []).map((p) => ({ position: p.position, role: p.role, approverId: p.approver_id }));
+  return (data ?? []).map((p) => ({ position: p.position, role: p.role, jobRole: p.job_role ?? null, approverId: p.approver_id }));
 }
 
 // ── writes (one RPC each) ─────────────────────────────────────────────────────────────────────────────────────
@@ -432,7 +437,9 @@ export async function retryMaterialRequestTransfer(id: string, sourceWarehouseId
 
 export async function setApprovalChain(steps: ChainStepInput[]): Promise<void> {
   const { error } = await supabase.rpc('mrq_set_chain', {
-    p_steps: steps.map((s) => ({ role: s.role, label: s.label, only_over_plan: s.onlyOverPlan })),
+    p_steps: steps.map((s) => (s.jobRole
+      ? { job_role: s.jobRole, label: s.label, only_over_plan: s.onlyOverPlan }
+      : { role: s.role, label: s.label, only_over_plan: s.onlyOverPlan })),
   });
   if (error) fail(error);
 }

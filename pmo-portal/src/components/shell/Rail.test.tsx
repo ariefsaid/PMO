@@ -205,3 +205,17 @@ it('lets a Project Manager open the People register from the rail', () => {
   expect(screen.getByRole('link', { name: 'Administration' })).toHaveAttribute('href', '/administration/people');
   roleState.role = 'Admin';
 });
+
+it('lets an Engineer who holds the people-documents capability open the People register, and no other Engineer', () => {
+  roleState.role = 'Engineer';
+  const mount = (key: string | null) => render(
+    <AuthContext.Provider value={{ currentUser: { id: 'me', org_id: 'org-1', built_in_role: key }, role: 'Engineer' } as AuthContextValue}>
+      <MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter>
+    </AuthContext.Provider>);
+  const holder = mount('hr_officer');
+  expect(screen.getByRole('link', { name: 'Administration' })).toHaveAttribute('href', '/administration/people');
+  holder.unmount();
+  mount('planner');
+  expect(screen.queryByRole('link', { name: 'Administration' })).toBeNull();
+  roleState.role = 'Admin';
+});

@@ -528,6 +528,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          job_role: string | null
           label: string
           only_over_plan: boolean
           org_id: string
@@ -537,6 +538,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          job_role?: string | null
           label: string
           only_over_plan?: boolean
           org_id?: string
@@ -546,6 +548,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          job_role?: string | null
           label?: string
           only_over_plan?: boolean
           org_id?: string
@@ -553,6 +556,13 @@ export type Database = {
           role?: Database["public"]["Enums"]["user_role"]
         }
         Relationships: [
+          {
+            foreignKeyName: "approval_chain_steps_job_role_fkey"
+            columns: ["job_role"]
+            isOneToOne: false
+            referencedRelation: "built_in_roles"
+            referencedColumns: ["key"]
+          },
           {
             foreignKeyName: "approval_chain_steps_org_id_fkey"
             columns: ["org_id"]
@@ -622,6 +632,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          job_role: string | null
           org_id: string
           position: number
           project_id: string
@@ -632,6 +643,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          job_role?: string | null
           org_id?: string
           position: number
           project_id: string
@@ -642,6 +654,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          job_role?: string | null
           org_id?: string
           position?: number
           project_id?: string
@@ -654,6 +667,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_step_pins_job_role_fkey"
+            columns: ["job_role"]
+            isOneToOne: false
+            referencedRelation: "built_in_roles"
+            referencedColumns: ["key"]
           },
           {
             foreignKeyName: "approval_step_pins_org_id_fkey"
@@ -11625,6 +11645,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           id: string
+          job_role: string | null
           label: string
           org_id: string
           position: number
@@ -11639,6 +11660,7 @@ export type Database = {
           decided_at?: string | null
           decided_by?: string | null
           id?: string
+          job_role?: string | null
           label: string
           org_id?: string
           position: number
@@ -11653,6 +11675,7 @@ export type Database = {
           decided_at?: string | null
           decided_by?: string | null
           id?: string
+          job_role?: string | null
           label?: string
           org_id?: string
           position?: number
@@ -11663,6 +11686,13 @@ export type Database = {
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "material_request_steps_job_role_fkey"
+            columns: ["job_role"]
+            isOneToOne: false
+            referencedRelation: "built_in_roles"
+            referencedColumns: ["key"]
+          },
           {
             foreignKeyName: "material_request_steps_org_id_fkey"
             columns: ["org_id"]
@@ -17506,6 +17536,7 @@ export type Database = {
       purchase_order_settings: {
         Row: {
           authorised_collectors: string[]
+          order_job_roles: string[]
           org_id: string
           print_enabled: boolean
           signature_blocks: string[]
@@ -17514,6 +17545,7 @@ export type Database = {
         }
         Insert: {
           authorised_collectors?: string[]
+          order_job_roles?: string[]
           org_id?: string
           print_enabled?: boolean
           signature_blocks?: string[]
@@ -17522,6 +17554,7 @@ export type Database = {
         }
         Update: {
           authorised_collectors?: string[]
+          order_job_roles?: string[]
           org_id?: string
           print_enabled?: boolean
           signature_blocks?: string[]
@@ -27549,12 +27582,14 @@ export type Database = {
       actor_bypasses_rls:
         | { Args: never; Returns: boolean }
         | { Args: { p_role: unknown }; Returns: boolean }
+      actor_has_person_documents_access: { Args: never; Returns: boolean }
       actor_has_role_capability: {
         Args: { p_capability: string }
         Returns: boolean
       }
-      actor_holds_built_in_role: { Args: { p_key: string }; Returns: boolean }
       actor_is_light: { Args: never; Returns: boolean }
+      actor_may_order_purchases: { Args: never; Returns: boolean }
+      actor_may_see_medical_documents: { Args: never; Returns: boolean }
       actor_may_see_prices: { Args: never; Returns: boolean }
       actor_may_see_prices_now: { Args: never; Returns: boolean }
       actor_sees_prices: { Args: never; Returns: boolean }
@@ -28161,14 +28196,7 @@ export type Database = {
         Args: { p_key: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
-      built_in_role_may_approve: { Args: { p_key: string }; Returns: boolean }
-      built_in_role_may_prepare: { Args: { p_key: string }; Returns: boolean }
-      built_in_role_may_stand_in: {
-        Args: { p_absent_key: string; p_actor_key: string }
-        Returns: boolean
-      }
       built_in_role_sees_prices: { Args: { p_key: string }; Returns: boolean }
-      built_in_role_tier: { Args: { p_key: string }; Returns: string }
       bv16_migration_0293_revert: { Args: never; Returns: undefined }
       calculate_standalone_tax_amount: {
         Args: {
@@ -30795,6 +30823,10 @@ export type Database = {
         Args: { p_generation: number; p_id: string; p_reason: string }
         Returns: number
       }
+      holds_job_role: {
+        Args: { p_job_role: string; p_profile: string }
+        Returns: boolean
+      }
       holds_pipeline_value_authority: {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: boolean
@@ -32088,6 +32120,7 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: boolean
       }
+      may_see_medical_documents: { Args: { p_profile: string }; Returns: boolean }
       merge_external_org_binding_config: {
         Args: { p_external_tier: string; p_org_id: string; p_patch: Json }
         Returns: undefined
@@ -32133,6 +32166,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      mrq_fills_step: {
+        Args: {
+          p_job_role: string
+          p_profile: string
+          p_role: Database["public"]["Enums"]["user_role"]
+        }
+        Returns: boolean
+      }
       mrq_log: {
         Args: {
           p_acted_for: string
@@ -32148,6 +32189,7 @@ export type Database = {
       }
       mrq_pinned_to: {
         Args: {
+          p_job_role: string
           p_position: number
           p_project_id: string
           p_role: Database["public"]["Enums"]["user_role"]
@@ -32256,6 +32298,7 @@ export type Database = {
       mrq_step_authority: {
         Args: {
           p_author: string
+          p_job_role: string
           p_org: string
           p_pin: string
           p_role: Database["public"]["Enums"]["user_role"]
@@ -32281,6 +32324,7 @@ export type Database = {
         Args: never
         Returns: {
           acting_for: string
+          job_role: string
           label: string
           request_id: string
           role: Database["public"]["Enums"]["user_role"]
@@ -33032,6 +33076,7 @@ export type Database = {
         }
         Returns: string
       }
+      po_set_order_job_roles: { Args: { p_keys: string[] }; Returns: string[] }
       po_set_print_settings: {
         Args: {
           p_authorised_collectors: string[]

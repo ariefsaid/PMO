@@ -29,6 +29,7 @@ vi.mock('@/src/hooks/useUsers', () => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'o1', role: 'Engineer' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('@/src/components/shell', () => ({ BackBar: () => null }));
+vi.mock('@/src/hooks/useBuiltInRoles', () => ({ useBuiltInRolesEnabled: () => ({ data: false }) }));
 
 import MaterialRequestSettingsPage from './MaterialRequestSettings';
 

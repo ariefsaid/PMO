@@ -1,4 +1,5 @@
 import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
+import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
@@ -139,6 +140,8 @@ const ProcurementDetails: React.FC = () => {
   // effectiveRole) so the buttons shown match what the RPC will actually honor.
   const { realRole, effectiveRole } = useEffectiveRole();
   const may = usePermission();
+  // roles-that-decide FR-RTD-009: the database gate says whether this person orders by built-in role (view-as never widens it).
+  const mayOrderByRole = useMayOrderPurchases() && realRole === effectiveRole;
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -389,7 +392,7 @@ const ProcurementDetails: React.FC = () => {
       ? approvalRouteNote(p.approvalRoute, p.budget_category, t)
       : null;
   const hasValue = purchaseHasValue(p);
-  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue));
+  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue, mayOrderByRole));
   const actionFor = (to: ProcurementStatus) => actions.find((action) => action.to === to);
   const stateMain = stateMainAction(p.status, actions, t);
   const transitionMainAction = stateMain?.transition;

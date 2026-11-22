@@ -44,6 +44,7 @@ import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import WorkOrderCloseoutTemplate from './admin/WorkOrderCloseoutTemplate';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import PurchaseOrderSettingsSection from './admin/PurchaseOrderSettingsSection';
+import OrderJobRolesSection from './admin/OrderJobRolesSection';
 import OrgThreeWayMatch from './admin/OrgThreeWayMatch';
 import OrgPaymentChannels from './admin/OrgPaymentChannels';
 import OrgPurchaseLines from './admin/OrgPurchaseLines';
@@ -320,6 +321,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgDownPaymentItem />
             <OrgProcurementGates />
             <PurchaseOrderSettingsSection />
+            <OrderJobRolesSection />
             <OrgThreeWayMatch />
             <OrgPaymentChannels />
             <OrgPurchaseLines />

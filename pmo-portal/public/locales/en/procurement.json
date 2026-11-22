@@ -1106,5 +1106,21 @@
     "nothingToSave": "Change a line’s work order or discipline to save.",
     "saveFailed": "The request is saved, but the work order of some lines was not set.",
     "saveFailedNext": "Open the request and set them on the Items tab."
+  },
+  "orderRoles": {
+    "heading": "Who can order purchases",
+    "subline": "Admin, Executive, Project Manager and Finance can always order. Name built-in roles whose holders may also raise and send purchase orders, for approved purchases only.",
+    "loadError": "Couldn’t load who can order purchases",
+    "none": "No built-in role is named, so only the access levels above can order.",
+    "remove": "Remove",
+    "removeNamed": "Remove {{role}}",
+    "noRoleNote": "People who have no built-in role yet count when their access level is the one the named role is built on.",
+    "add": "Add a built-in role",
+    "choose": "Choose a built-in role",
+    "addButton": "Add",
+    "save": "Save",
+    "saved": "Who can order purchases saved",
+    "onlyAdmin": "Only an Admin can change this.",
+    "turnOn": "Turn on built-in roles in Administration > People > Built-in roles to name roles that can order."
   }
 }

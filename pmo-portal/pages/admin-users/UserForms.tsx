@@ -14,8 +14,8 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { UserDirectoryRow, UserManagerChoice, UserRole } from '@/src/lib/db/adminUsers';
 import { useRoleLabels } from './roleLabels';
-import { BUILT_IN_ROLES, BUILT_IN_ROLE_TIERS, baseLevelOf } from '@/src/auth/builtInRoles';
-import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
+import { baseLevelOf } from '@/src/auth/builtInRoles';
+import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
 import { FieldLoginFlag } from './FieldLoginFlag';
 import { isLightRoleKey } from '@/src/auth/lightAccount';
 import { initialsOf } from './avatar';
@@ -141,7 +141,6 @@ export const RoleFormModal: React.FC<{
 }> = ({ user, submitError, onClose, onSubmit, builtInEnabled = false, onSubmitBuiltIn }) => {
   const { t } = useTranslation();
   const roleNames = useRoleLabels();
-  const roleDisplayName = useBuiltInRoleName();
   const form = useEntityForm<RoleFormValues>({
     initialValues: { role: user.role, builtIn: user.built_in_role ?? '' },
     idPrefix: 'role-form',
@@ -151,23 +150,7 @@ export const RoleFormModal: React.FC<{
   const builtInField = form.fieldProps('builtIn');
   const heldKey = user.built_in_role ?? '';
 
-  const builtInOptions = useMemo(() => {
-    const tierLabel = {
-      manager: t('administration:admin.users.builtIn.tier.manager', 'Managers'),
-      officer: t('administration:admin.users.builtIn.tier.officer', 'Officers'),
-      field: t('administration:admin.users.builtIn.tier.field', 'Field'),
-    } as const;
-    return [
-      { value: '', label: t('administration:admin.users.builtIn.none', 'No built-in role (access level only)') },
-      ...BUILT_IN_ROLE_TIERS.flatMap((tier) => [
-        { value: `__${tier}`, label: tierLabel[tier], disabled: true },
-        ...BUILT_IN_ROLES.filter((role) => role.tier === tier).map((role) => ({
-          value: role.key,
-          label: roleDisplayName(role.key),
-        })),
-      ]),
-    ];
-  }, [t, roleDisplayName]);
+  const builtInOptions = useJobRoleOptions(t('administration:admin.users.builtIn.none', 'No built-in role (access level only)'));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

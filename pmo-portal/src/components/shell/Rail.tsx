@@ -9,7 +9,9 @@ import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { useLeaveEnabled } from '@/src/hooks/useLeave';
 import { Badge } from '@/src/components/ui/StatusPill';
-import { usePermission } from '@/src/auth/usePermission';
+import { useBuiltInRoleKey, usePermission } from '@/src/auth/usePermission';
+import { roleHasCapability } from '@/src/auth/builtInRoles';
+import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
 import { useOverdueInvoiceCount } from '@/src/hooks/useOverdueInvoiceCount';
 import { useHasTimesheetApprovalWork } from '@/src/hooks/useTimesheetApproval';
 import { AuthContext } from '@/src/auth/AuthContext';
@@ -191,6 +193,8 @@ export interface NavVisibility {
   hasEligibleTimesheets: boolean;
   /** #2708: the organisation switched leave requests on. Absent means off, so the entry stays out. */
   leaveEnabled?: boolean;
+  /** roles-that-decide FR-RTD-009: the person orders by built-in role (the database gate), so Procurement is theirs too. */
+  mayOrderPurchases?: boolean;
 }
 
 /**
@@ -198,11 +202,12 @@ export interface NavVisibility {
  * so the two never disagree about what a role may reach.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- pure gate shared with the phone bar
-export function visibleNavItems({ role, realRole, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled }: NavVisibility): NavItem[] {
+export function visibleNavItems({ role, realRole, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled, mayOrderPurchases }: NavVisibility): NavItem[] {
   return ALL_ITEMS.filter(
     (i) => (i.realRoleOnly
       ? realRole !== null && i.roles.includes(role) && i.roles.includes(realRole)
-      : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
+      : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets)
+         || (i.to === '/procurement' && mayOrderPurchases === true && role === realRole))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
   ).filter((i) => i.to !== '/views' || userViewsEnabled).filter((i) => i.to !== '/leave' || leaveEnabled === true);
 }
 
@@ -284,6 +289,9 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   // Sourced from the settled `useIsOperator()` projection — never the effective/preview role — so
   // a plain Engineer stays hidden while a genuine Operator gains the entry. Fail-closed (false).
   const isOperator = useIsOperator();
+  // The people-documents capability reaches the People register (the person list and their documents) from an officer level too.
+  const holdsPersonDocuments = roleHasCapability(useBuiltInRoleKey(), 'people_documents_view');
+  const mayOrderPurchases = useMayOrderPurchases();
   const railId = useId().replaceAll(':', '');
   const [collapsedGroups, setCollapsedGroups] = useState(readCollapsedGroups);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
@@ -317,7 +325,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
 
   if (!role) return null;
 
-  const items = visibleNavItems({ role, realRole: realRoleValue, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled });
+  const items = visibleNavItems({ role, realRole: realRoleValue, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled, mayOrderPurchases });
   const currentGroup = items.find((item) =>
     item.group && (pathInItem(location.pathname, item.to) || railParentForPath(location.pathname) === item.to),
   )?.group;
@@ -639,10 +647,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         </div>
       )}
 
-      {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || role === UserRole.ProjectManager || isOperator) && (
+      {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || role === UserRole.ProjectManager || holdsPersonDocuments || isOperator) && (
         <div className="flex-shrink-0 border-t border-border p-2.5">
           <NavLink
-            to={role === UserRole.Finance ? '/administration/exchange-rates' : role === UserRole.ProjectManager ? '/administration/people' : '/administration'}
+            to={role === UserRole.Finance ? '/administration/exchange-rates' : role === UserRole.ProjectManager || (holdsPersonDocuments && role === UserRole.Engineer) ? '/administration/people' : '/administration'}
             onClick={onNavigate}
             className={({ isActive }: { isActive: boolean }) =>
               cn(
