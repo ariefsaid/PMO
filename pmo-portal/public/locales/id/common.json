@@ -4272,6 +4272,7 @@
       "org_vendor_tax_accounts_change": "Akun pajak supplier diubah",
       "org_tax_default_change": "Pajak bawaan diubah",
       "org_down_payment_item_change": "Item uang muka diubah",
+      "org_setting_change": "Pengaturan organisasi diubah",
       "meeting_grant_create": "Akses rapat diberikan",
       "meeting_grant_revoke": "Akses rapat dicabut",
       "project_stage_entry_redate": "Tanggal tahap diubah",

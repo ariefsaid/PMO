@@ -4272,6 +4272,7 @@
       "org_vendor_tax_accounts_change": "Supplier tax accounts changed",
       "org_tax_default_change": "Tax defaults changed",
       "org_down_payment_item_change": "Down-payment items changed",
+      "org_setting_change": "Organisation setting changed",
       "meeting_grant_create": "Meeting access granted",
       "meeting_grant_revoke": "Meeting access revoked",
       "project_stage_entry_redate": "Stage date changed",

@@ -196,6 +196,7 @@ export function auditActionLabels(t: TFunction): Record<string, string> {
     'org.vendor_tax_accounts.change': t('history.action.org_vendor_tax_accounts_change', 'Supplier tax accounts changed'),
     'org.tax_default.change': t('history.action.org_tax_default_change', 'Tax defaults changed'),
     'org.down_payment_item.change': t('history.action.org_down_payment_item_change', 'Down-payment items changed'),
+    'org.setting.change': t('history.action.org_setting_change', 'Organisation setting changed'),
     'meeting.grant.create': t('history.action.meeting_grant_create', 'Meeting access granted'),
     'meeting.grant.revoke': t('history.action.meeting_grant_revoke', 'Meeting access revoked'),
     'project.stage_entry.redate': t('history.action.project_stage_entry_redate', 'Stage date changed'),

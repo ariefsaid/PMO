@@ -63,3 +63,13 @@ describe('#1638 stage entry history', () => {
     expect(result.current('project_stage_entry', 'source', 'unknown')).toBe('unknown');
   });
 });
+
+describe('#2746 organisation setting history', () => {
+  const translate = (key: string, options: { defaultValue?: string } | string) =>
+    typeof options === 'string' ? options : options.defaultValue ?? key;
+
+  it('AC-OSM-022 labels an organisation setting change', () => {
+    expect(auditActionLabels(translate as never)['org.setting.change']).toBe('Organisation setting changed');
+    expect(id.history.action.org_setting_change).toBe('Pengaturan organisasi diubah');
+  });
+});
