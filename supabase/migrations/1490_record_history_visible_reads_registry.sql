@@ -32,10 +32,7 @@ begin
   if v_table is null then
     raise exception 'record_history_visible: no visibility arm for entity type %',p_entity_type using errcode='P0001';
   end if;
-  begin  -- MUTATION C: a registration whose table cannot be read is swallowed instead of surfaced
-    execute format('select exists(select 1 from public.%I where id = $1)',v_table) into v_visible using p_entity_id;
-  exception when others then return false;
-  end;
+  execute format('select exists(select 1 from public.%I where id = $1)',v_table) into v_visible using p_entity_id;
   return v_visible;
 end $$;
 revoke all on function public.record_history_visible(text,uuid) from public,anon;
