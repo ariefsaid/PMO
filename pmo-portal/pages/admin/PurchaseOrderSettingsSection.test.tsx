@@ -64,12 +64,11 @@ describe('PurchaseOrderSettingsSection (#2688)', () => {
     });
   });
 
-  it('renders existing settings including toggle, signature blocks, and collectors', async () => {
+  it('renders existing settings, signature blocks and collectors, with no print switch (on for everyone, #2746)', async () => {
     renderComponent();
 
-    const toggle = await screen.findByRole('switch', { name: /enable printable purchase order/i });
-    expect(toggle).toHaveAttribute('aria-checked', 'true');
-
+    expect(await screen.findByText('Prepared by')).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     expect(screen.getByText('Prepared by')).toBeInTheDocument();
     expect(screen.getByText('Approved by')).toBeInTheDocument();
     expect(screen.getByText('Accepted by')).toBeInTheDocument();
@@ -82,28 +81,9 @@ describe('PurchaseOrderSettingsSection (#2688)', () => {
     h.canManage = false;
     renderComponent();
 
-    const toggle = await screen.findByRole('switch', { name: /enable printable purchase order/i });
-    expect(toggle).toBeDisabled();
+    expect(await screen.findByText('Prepared by')).toBeInTheDocument();
     expect(screen.getByText('Only an Admin can change this.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /save changes/i })).not.toBeInTheDocument();
-  });
-
-  it('allows Admin to toggle print enablement and save', async () => {
-    const user = userEvent.setup();
-    renderComponent();
-
-    const toggle = await screen.findByRole('switch', { name: /enable printable purchase order/i });
-    await user.click(toggle);
-
-    const saveButton = screen.getByRole('button', { name: /save changes/i });
-    await user.click(saveButton);
-
-    expect(h.setSettings).toHaveBeenCalledWith(
-      false,
-      DEFAULT_SETTINGS.signatureBlocks,
-      DEFAULT_SETTINGS.authorisedCollectors,
-    );
-    expect(await screen.findByText('Saved')).toBeInTheDocument();
   });
 
   it('allows Admin to add and remove authorised collectors', async () => {
@@ -167,8 +147,8 @@ describe('PurchaseOrderSettingsSection (#2688)', () => {
     const user = userEvent.setup();
     renderComponent();
 
-    const toggle = await screen.findByRole('switch', { name: /enable printable purchase order/i });
-    await user.click(toggle);
+    await user.type(await screen.findByLabelText(/new authorised collector/i), 'Ahmad Fauzi');
+    await user.click(screen.getByRole('button', { name: /add collector/i }));
 
     const saveButton = screen.getByRole('button', { name: /save changes/i });
     await user.click(saveButton);

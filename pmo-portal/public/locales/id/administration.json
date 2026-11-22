@@ -626,6 +626,7 @@
         "helper": "Catatan keselamatan harian, dan panel kinerja biaya dan jadwal pada perintah kerja."
       },
       "stock": {
+        "stepsHeading": "Langkah dan pemberitahuan (mati sampai Anda memilih)",
         "label": "Stok",
         "helper": "Transfer antar perintah kerja, reservasi dan peminjaman stok, transfer dua langkah, dan kotak persetujuan untuk permintaan material."
       },
@@ -634,6 +635,7 @@
         "helper": "Perencanaan baris pembelian, jenis pembelian, saluran pembayaran, pesanan pembelian yang bisa dicetak, dan surat jalan."
       },
       "billingExtras": {
+        "noticesHeading": "Pemberitahuan (mati sampai Anda memilih)",
         "label": "Tambahan penagihan",
         "helper": "Pendapatan per disiplin, rencana pendapatan, waktu menganggur sebagai biaya, dan pengingat untuk pekerjaan yang selesai tetapi belum ditagih."
       }

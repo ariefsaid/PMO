@@ -60,27 +60,19 @@ describe('BillingPlan done-not-claimed age (#2675)', () => {
     expect(screen.queryByRole('button', { name: /claim|invoice|raise|bill now/i })).toBeNull();
   });
 
-  it('AC-DNC-005 the day limit is saved with the reminder through the settings call; a bad value is refused', () => {
+  it('AC-DNC-005 the plan settings form no longer carries the reminder or the day limit; saving keeps the stored reminder untouched (they moved to the Billing extras module card, #2746)', () => {
+    state.settings = { ...base, reminderOn: true, doneNotClaimedAfterDays: 5 };
     renderPlan();
     fireEvent.click(screen.getByTestId('billing-plan-settings-button'));
     const dialog = screen.getByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('switch'));
-    fireEvent.change(within(dialog).getByLabelText('Flag after (days)'), { target: { value: '0' } });
+    expect(within(dialog).queryByRole('switch')).toBeNull();
+    expect(within(dialog).queryByLabelText('Flag after (days)')).toBeNull();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save settings' }));
-    expect(state.mutate).not.toHaveBeenCalled();
-    expect(within(dialog).getByText('Enter a whole number of days from 1 to 3650.')).toBeTruthy();
-    fireEvent.change(within(dialog).getByLabelText('Flag after (days)'), { target: { value: '14' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Save settings' }));
-    expect(state.mutate.mock.calls[0][0]).toMatchObject({ reminderOn: true, afterDays: 14 });
+    expect(state.mutate.mock.calls[0][0]).toMatchObject({ reminderOn: true });
+    expect(state.mutate.mock.calls[0][0]).not.toHaveProperty('afterDays');
   });
 
-  it('AC-DNC-005 an empty day limit saves as none; a role that may not edit has no control', () => {
-    renderPlan();
-    fireEvent.click(screen.getByTestId('billing-plan-settings-button'));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('switch'));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save settings' }));
-    expect(state.mutate.mock.calls[0][0]).toMatchObject({ reminderOn: true, afterDays: null });
-    cleanup();
+  it('AC-DNC-005 a role that may not edit has no settings control', () => {
     state.may = false;
     renderPlan();
     expect(screen.queryByTestId('billing-plan-settings-button')).toBeNull();

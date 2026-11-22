@@ -94,20 +94,19 @@ describe('IssueClosingReportSettings (AC-CTR-006, AC-CTR-007)', () => {
     expect(screen.queryByRole('heading', { name: /Issue closing-time report/i })).not.toBeInTheDocument();
   });
 
-  it('renders settings card with toggle switch and department groups', () => {
+  it('renders settings card with the grouping choice and department groups, and no on/off switch (on for everyone, #2746)', () => {
     renderSettings();
     expect(screen.getByRole('heading', { level: 2, name: /Issue closing-time report/i })).toBeInTheDocument();
-    expect(screen.getByRole('switch')).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     expect(screen.getByText('HSE & Safety')).toBeInTheDocument();
     expect(screen.getByText('Near Miss, Injury')).toBeInTheDocument();
   });
 
-  it('toggles report enabled status when switch is clicked', async () => {
+  it('changes the default grouping', async () => {
     renderSettings();
-    const toggle = screen.getByRole('switch');
-    await userEvent.click(toggle);
+    await userEvent.selectOptions(screen.getByLabelText('Default grouping'), 'department_groups');
 
-    expect(updateSettingsMutation.mutateAsync).toHaveBeenCalledWith({ enabled: true });
+    expect(updateSettingsMutation.mutateAsync).toHaveBeenCalledWith({ grouping_mode: 'department_groups' });
   });
 
   it('submits a new department group', async () => {

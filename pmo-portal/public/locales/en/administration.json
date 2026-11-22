@@ -626,6 +626,7 @@
         "helper": "Daily safety records, and the cost and schedule performance panels on work orders."
       },
       "stock": {
+        "stepsHeading": "Steps and notices (off until you choose)",
         "label": "Stock",
         "helper": "Work-order transfers, stock reservations and borrowing, two-step transfers and the approvals inbox for material requests."
       },
@@ -634,6 +635,7 @@
         "helper": "Purchase line planning, purchase types, payment channels, printable purchase orders and delivery notes."
       },
       "billingExtras": {
+        "noticesHeading": "Notices (off until you choose)",
         "label": "Billing extras",
         "helper": "Revenue per discipline, the revenue plan, idle time as cost, and the reminder for work that is done but not claimed."
       }

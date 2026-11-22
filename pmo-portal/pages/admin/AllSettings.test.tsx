@@ -9,7 +9,7 @@ import { ORG_SETTINGS, orgSettingKeys, ORG_SETTING_GROUPS } from '@/src/lib/orgS
 const h = vi.hoisted(() => ({ canView: true, switches: {} as Record<string, boolean | undefined>, leave: undefined as unknown }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canView }));
 vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: (key: string) => ({ data: h.switches[key] }) }));
-vi.mock('./allSettingsStatus', () => ({ STATUS_HOOKS: { leaveRequests: () => h.leave } }));
+vi.mock('./allSettingsStatus', () => ({ STATUS_HOOKS: { threeWayMatch: () => h.leave } }));
 import AllSettings from './AllSettings';
 
 const view = (ui: React.ReactNode = <AllSettings />) => render(<MemoryRouter>{ui}</MemoryRouter>);
@@ -26,18 +26,25 @@ describe('AllSettings (AC-OSM-033)', () => {
   });
 
   it('shows On or Off for a switch read through the module, and nothing while it is unread', () => {
-    h.switches = { crewLoans: true, clearance: false };
+    h.switches = { modulePeopleCrews: true, moduleSiteDay: false };
     view();
     const row = (name: string) => screen.getByRole('link', { name }).closest('li') as HTMLElement;
-    expect(within(row('Crew loans')).getByText('On')).toBeInTheDocument();
-    expect(within(row('Cleared-for-site checklist')).getByText('Off')).toBeInTheDocument();
-    expect(within(row('Daily safety records')).queryByText(/^(On|Off)$/)).toBeNull();
+    expect(within(row('Module: people and crews')).getByText('On')).toBeInTheDocument();
+    expect(within(row('Module: site day')).getByText('Off')).toBeInTheDocument();
+    expect(within(row('Module: stock')).queryByText(/^(On|Off)$/)).toBeNull();
+  });
+
+  it('shows the settings that are on for every organisation as such, and reads none of them', () => {
+    view();
+    const row = (name: string) => screen.getByRole('link', { name }).closest('li') as HTMLElement;
+    for (const name of ['Crew loans', 'Leave requests', 'Daily safety records', 'Purchase types']) expect(within(row(name)).getByText('On for everyone')).toBeInTheDocument();
+    expect(within(row('Hide prices from requesters')).queryByText('On for everyone')).toBeNull();
   });
 
   it('reads a setting that is not on the module through its own hook', () => {
     h.leave = true;
     view();
-    expect(within(screen.getByRole('link', { name: 'Leave requests' }).closest('li') as HTMLElement).getByText('On')).toBeInTheDocument();
+    expect(within(screen.getByRole('link', { name: 'Three-way match' }).closest('li') as HTMLElement).getByText('On')).toBeInTheDocument();
   });
 
   it('says who can change each setting', () => {

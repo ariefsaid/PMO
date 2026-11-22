@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { EntityFormModal, FormGrid, FormSection, NumberField, Switch, TextField, type SubmitError } from '@/src/components/ui';
+import { EntityFormModal, FormGrid, FormSection, NumberField, TextField, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, formatMonthYearShort, parseMoneyInput } from '@/src/lib/format';
 import { useSaveBillingPlanSettings } from '@/src/hooks/useBillingPlan';
@@ -8,8 +8,8 @@ import type { PlanSettings } from '@/src/lib/db/billingPlan';
 
 /**
  * #2682 — the plan's settings, for Admin and Finance (the database enforces it; the control is hidden for everyone else): the default
- * monthly target and its currency, a target for the month on screen, and the done-not-claimed reminder switch (off by default; the
- * reminder itself is information), and the day limit after which a line is flagged (#2675; empty = no limit, nothing flagged).
+ * monthly target and its currency, a target for the month on screen,.
+ * The done-not-claimed reminder and its day limit moved into the Billing extras module card in Administration (#2746); they are kept as they are here.
  */
 const asInput = (n: number | null) => (n === null ? '' : formatMoneyInputValue(n));
 
@@ -25,9 +25,6 @@ export const BillingPlanSettingsModal: React.FC<{
   const [target, setTarget] = useState(asInput(settings.monthlyTarget));
   const [currency, setCurrency] = useState(settings.targetCurrency ?? defaultCurrency);
   const [monthTarget, setMonthTarget] = useState(asInput(existingMonth));
-  const [reminder, setReminder] = useState(settings.reminderOn);
-  const initialDays = settings.doneNotClaimedAfterDays == null ? '' : String(settings.doneNotClaimedAfterDays);
-  const [days, setDays] = useState(initialDays);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const [tried, setTried] = useState(false);
 
@@ -39,13 +36,9 @@ export const BillingPlanSettingsModal: React.FC<{
   const t1 = parse(target);
   const t2 = parse(monthTarget);
   const needsCurrency = (t1.value !== null || t2.value !== null) && !/^[A-Za-z]{3}$/.test(currency.trim());
-  const daysTrim = days.trim();
-  const daysValue = daysTrim === '' ? null : Number(daysTrim);
-  const daysBad = daysTrim !== '' && !(/^\d+$/.test(daysTrim) && daysValue !== null && daysValue >= 1 && daysValue <= 3650);
-  const invalid = t1.bad || t2.bad || needsCurrency || daysBad;
+  const invalid = t1.bad || t2.bad || needsCurrency;
   const monthLabel = formatMonthYearShort(month);
-  const dirty = target !== asInput(settings.monthlyTarget) || monthTarget !== asInput(existingMonth) || reminder !== settings.reminderOn || days !== initialDays
-    || currency !== (settings.targetCurrency ?? defaultCurrency);
+  const dirty = target !== asInput(settings.monthlyTarget) || monthTarget !== asInput(existingMonth) || currency !== (settings.targetCurrency ?? defaultCurrency);
 
   const badMsg = t('billingPlan.settings.badAmount', 'Enter an amount of zero or more.');
   return (
@@ -66,8 +59,7 @@ export const BillingPlanSettingsModal: React.FC<{
         save.mutate({
           monthlyTarget: t1.value,
           targetCurrency: hasTarget || t2.value !== null ? currency.trim().toUpperCase() : (settings.targetCurrency ?? null),
-          reminderOn: reminder,
-          afterDays: daysValue,
+          reminderOn: settings.reminderOn,
           month: monthTarget.trim() === '' && existingMonth === null ? undefined : { month, target: t2.value },
         }, {
           onSuccess: onClose,
@@ -84,22 +76,6 @@ export const BillingPlanSettingsModal: React.FC<{
           <NumberField id="plan-month-target" label={t('billingPlan.settings.monthTarget', { defaultValue: 'Target for {{month}}', month: monthLabel })} localeAware
             value={monthTarget} onChange={setMonthTarget} error={tried && t2.bad ? badMsg : undefined}
             helper={t('billingPlan.settings.monthTargetHelp', 'Overrides the default for this month. Empty uses the default.')} fullWidth />
-        </FormGrid>
-      </FormSection>
-      <FormSection legend={t('billingPlan.settings.reminderLegend', 'Reminder')}>
-        <div className="flex items-start gap-3">
-          <Switch checked={reminder} onChange={setReminder} labelledBy="plan-reminder-label" describedBy="plan-reminder-help" />
-          <div>
-            <p id="plan-reminder-label" className="text-control font-medium">{t('billingPlan.settings.reminder', 'Remind me about work that is done but not claimed')}</p>
-            <p id="plan-reminder-help" className="text-control text-muted-foreground">
-              {t('billingPlan.settings.reminderHelp', 'Information only. Off by default. Holding a claim to next month can be deliberate.')}
-            </p>
-          </div>
-        </div>
-        <FormGrid>
-          <NumberField id="plan-after-days" label={t('billingPlan.settings.afterDays', 'Flag after (days)')} value={days} onChange={setDays}
-            error={tried && daysBad ? t('billingPlan.settings.afterDaysBad', 'Enter a whole number of days from 1 to 3650.') : undefined}
-            helper={t('billingPlan.settings.afterDaysHelp', 'Lines accepted longer ago than this are flagged. Leave empty for no limit; with no limit nothing is flagged.')} fullWidth />
         </FormGrid>
       </FormSection>
     </EntityFormModal>

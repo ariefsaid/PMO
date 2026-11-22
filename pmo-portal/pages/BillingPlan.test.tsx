@@ -107,11 +107,10 @@ describe('BillingPlan', () => {
     renderPlan();
     fireEvent.click(screen.getByTestId('billing-plan-settings-button'));
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByRole('switch').getAttribute('aria-checked')).toBe('false');
-    fireEvent.click(within(dialog).getByRole('switch'));
+    expect(within(dialog).queryByRole('switch')).toBeNull(); // the done-not-claimed reminder moved to the Billing extras module card (#2746)
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save settings' }));
     expect(state.mutate).toHaveBeenCalledTimes(1);
-    expect(state.mutate.mock.calls[0][0]).toMatchObject({ targetCurrency: 'IDR', reminderOn: true });
+    expect(state.mutate.mock.calls[0][0]).toMatchObject({ targetCurrency: 'IDR', reminderOn: false }); // the stored reminder is kept as it is
   });
 
   it('AC-MBP-015 a role that may not edit gets no settings control', () => {

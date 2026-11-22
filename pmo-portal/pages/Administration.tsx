@@ -158,7 +158,9 @@ const AdministrationNavigation: React.FC<{
   sections: AdministrationSection[];
   isOperator: boolean;
   label: (id: AdministrationSection) => string;
-}> = ({ section, sections, isOperator, label }) => {
+  /** The All settings page (#2746) is its own route, listed after the sections for an org Admin. */
+  showAllSettings?: boolean;
+}> = ({ section, sections, isOperator, label, showAllSettings }) => {
   const { t } = useTranslation();
   const linkClass = (active: boolean) =>
     cn(
@@ -200,6 +202,7 @@ const AdministrationNavigation: React.FC<{
           {[...listed, ...operatorListed].map((id) => (
             <option key={id} value={id}>{label(id)}</option>
           ))}
+          {showAllSettings && <option value="all-settings">{t('allSettings.title', 'All settings')}</option>}
         </select>
       </nav>
     );
@@ -209,6 +212,9 @@ const AdministrationNavigation: React.FC<{
     <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="mb-4 min-w-0 md:mb-6">
       <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-lg bg-secondary p-1">
         {links(listed)}
+        {showAllSettings && (
+          <Link to="/administration/all-settings" className={linkClass(false)}>{t('allSettings.title', 'All settings')}</Link>
+        )}
         {operatorListed.length > 0 && (
           <>
             <span className="shrink-0 px-1 text-control font-semibold text-muted-foreground md:ml-1 md:self-center">
@@ -523,7 +529,7 @@ const Administration: React.FC = () => {
         </>
       ) : (
         <>
-          <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />
+          <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} showAllSettings={isAdminViewer} />
           <SelectedAdministrationPanel
             section={section}
             orgId={currentUser?.org_id ?? ''}
