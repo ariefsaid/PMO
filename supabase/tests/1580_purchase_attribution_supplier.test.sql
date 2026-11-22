@@ -4,7 +4,7 @@
 -- in-transaction and an order without a supplier goes through.
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(13);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15800000-0000-0000-0000-00000000000a', 'PWA Org', 'IDR', 'Asia/Jakarta');

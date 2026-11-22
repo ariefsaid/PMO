@@ -146,11 +146,6 @@ begin
       using errcode = '42501';
   end if;
 
-  -- 1580: an order is never recorded without its supplier (a purchase that predates the connected system is exempt).
-  if p_to = 'Ordered' and v_vendor is null and not coalesce(public.pre_cutover_procurement(p_id), false) then
-    raise exception 'ORDER_NEEDS_SUPPLIER: choose the supplier before the order is recorded' using errcode = '23514';
-  end if;
-
   -- SoD-a (requester ≠ approver), outside the Admin skip (OD-PROC-8).
   if v_from = 'Requested' and p_to in ('Approved','Rejected') and v_uid = v_requester then
     raise exception 'separation of duties: requester cannot approve/reject own procurement' using errcode = '42501';
@@ -221,6 +216,12 @@ begin
         raise exception 'not authorized for transition % -> %', v_from, p_to using errcode = '42501';
       end if;
     end;
+  end if;
+
+  -- 1580: an order is never recorded without its supplier (a purchase that predates the connected system is exempt).
+  -- After every other check, so each existing refusal keeps its own message.
+  if p_to = 'Ordered' and v_vendor is null and not coalesce(public.pre_cutover_procurement(p_id), false) then
+    raise exception 'ORDER_NEEDS_SUPPLIER: choose the supplier before the order is recorded' using errcode = '23514';
   end if;
 
   -- 0766 (#1986): a purchase request captured while the purchase was still Draft is the request this transition submits.
