@@ -101,3 +101,7 @@ read `needs_review` only: AC-PAY-003 red. 4. Make the decision write the second 
    automatic winner; a person decides each disagreement. (If wanted later: a setting, default "none".)
 3. Which role decides? Recommend empty (today's approvers) until the customer names one.
 4. (Answered by the owner: build the Administration card.)
+
+## Tests whose steps changed
+- `pmo-portal/e2e/AC-PAY-010-second-record-decides-hours.spec.ts`: the approving step now signs in as a different manager-level account (an Executive). The Project Manager who entered the second record is, by the separation rule (FR-PAY-005, the author of a standing second record joins the day's recorders), refused as approver. The goal oracle is unchanged: one figure paid and costed (5), the other kept (8).
+- The week-approval list (`pmo-portal/pages/crews/AttendanceTick.tsx`) now reads each day's recorders and disables Approve, with the reason as its accessible description, on a week the viewer recorded (the same reason the database gives). The database stays the authority.
