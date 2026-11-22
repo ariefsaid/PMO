@@ -11,7 +11,7 @@ Code was read, not assumed (2026-11-22). The item becomes acceptance tests and n
 - A Foreman and a Field user are light accounts (`actor_is_light()`, `1205_light_accounts_helpers.sql:20-24`, true for the two job role keys).
 - Every priced purchase and stock base table carries a restrictive policy refusing a light account's reads: `light_account_deny` (1206, list at lines 17-27) narrowed to `light_account_deny_select` for the select-only tables by 1229 (`purchase_orders`, `procurement_invoices`, `payments` among them). `po_variation_lines` is not on that list; its own read policy joins a parent whose rows a field account cannot read (the 2711 sweep records it as such).
 - The masked views are `security_invoker`, so they read through those same tables: a field account gets no row (1216, 1217).
-- The priced definer reads refuse a light account on their first statement (`assert_not_light`, 1209).
+- The stock cost reads (`get_stock_on_hand`, `get_stock_ledger`, `get_stock_document_costs`) and `work_order_cost_amounts` refuse a light account (`assert_not_light`, 1209). `get_stock_erp_value` reads a table a field account cannot read and returns nothing. `stock_ledger`, `stock_balances` and the unit-cost column of `stock_document_lines` are readable by no signed-in role directly; their prices come only through those reads.
 - The price right itself: `actor_may_see_prices_now()` (`1215_hide_prices_setting.sql:36-44`) answers false for these two roles when hiding is on, because they hold no `sees_prices` row (`1200_builtin_role_catalogue.sql:80-94`).
 - The setting is off everywhere: `organizations.hide_prices_from_requesters` is `not null default false` (1215:7), only an Admin writes it, and its Administration card is held back (`HIDE_PRICES_SETTING_AVAILABLE = false`, `pmo-portal/src/lib/db/hidePrices.ts:5`; DD-R1215-1). No organisation uses the older behaviour.
 - Who else loses prices when hiding is on is unchanged by this item (today: eleven officer roles and any no-job-role person at the Engineer level). That is a separate customer question, not built here.
@@ -24,7 +24,7 @@ Code was read, not assumed (2026-11-22). The item becomes acceptance tests and n
 | Masked views | the same eleven, suffix `_masked` (1216, 1217) | same |
 | Derived amounts | `procurement_open_commitments_masked`, `project_committed_spend_masked` (1218) and their originals `procurement_open_commitments`, `project_committed_spend` | amount |
 | Stock cost seam | `stock_can_see_cost()` (1217) | boolean |
-| Priced definer reads | `get_stock_on_hand`, `get_stock_ledger`, `get_stock_document_costs`, `get_stock_erp_value`, `work_order_cost_amounts` | cost and value in the returned rows |
+| Priced definer reads | `get_stock_on_hand`, `get_stock_ledger`, `get_stock_document_costs`, `work_order_cost_amounts` (refused to a field account); `get_stock_erp_value` (returns no value) | cost and value in the returned rows |
 | Price-right answer | `get_may_see_prices`, `actor_may_see_prices`, `actor_may_see_prices_now` | boolean |
 
 Out of scope, as in the hide-prices spec section 3: budget, BOQ and revenue figures.
@@ -33,7 +33,7 @@ Out of scope, as in the hide-prices spec section 3: budget, BOQ and revenue figu
 
 - **FR-001** While a person holds the Foreman or Field user job role, the system shall return no priced value through any channel in section 2, with hiding on and with hiding off.
 - **FR-002** While hiding is on, the price-right answer shall be false for a Foreman and for a Field user.
-- **FR-003** The priced definer reads shall refuse (42501) a Foreman and a Field user.
+- **FR-003** The stock cost reads and `work_order_cost_amounts` shall refuse (42501) a Foreman and a Field user.
 - **FR-004** A person with an office role who may read the rows shall read the prices (control; proves the channels hold prices).
 - No refusal message is introduced and no setting or default changes.
 
@@ -45,13 +45,13 @@ Each is owned by `supabase/tests/1850_price_visibility_field_roles.test.sql` (pg
 |---|---|
 | AC-PVF-001 | One assertion per base table (11): the person reads no priced value. |
 | AC-PVF-002 | One assertion per masked view (11): the person reads no priced value. |
-| AC-PVF-003 | `procurement_open_commitments_masked`, `project_committed_spend_masked`, `procurement_open_commitments`, `project_committed_spend`, `stock_can_see_cost`: no amount, no true. |
-| AC-PVF-004 | The five priced definer reads are refused with 42501. |
+| AC-PVF-003 | `procurement_open_commitments_masked`, `project_committed_spend_masked`, `procurement_open_commitments`, `project_committed_spend`, `stock_can_see_cost`, `get_stock_erp_value`: no amount, no true. |
+| AC-PVF-004 | `get_stock_on_hand`, `get_stock_ledger`, `get_stock_document_costs`, `work_order_cost_amounts` are refused with 42501. |
 | AC-PVF-005 | Hiding on: `get_may_see_prices` and `actor_may_see_prices_now` answer false for each. |
 | AC-PVF-006 | The two actors hold the two job roles. |
-| AC-PVF-007 | Controls: an Admin and a Finance person read prices from every seeded base table and masked view; a Buyer reads a unit price through the masked view; committed spend is non-empty for the Admin. |
+| AC-PVF-007 | Controls: an Admin and a Finance person read prices from every seeded base table and masked view; a Buyer reads a unit price through the masked view; committed spend is non-empty for the Admin; the Admin reads stock values through the three stock reads. Payments have a seeded row; ledger, balances and stock unit cost have none readable by anyone directly, so their control is the stock reads. |
 
-Mutation checks are written in the test file header (the orchestrator runs them): drop a deny policy, make `actor_is_light()` false, remove a guard, remove a fixture row.
+Mutation check, run once on the lane DB: `actor_is_light()` made false turns five assertions red (committed spend x2, three stock reads); restored, 43 of 43 pass. Other breaks are in the file header.
 
 ## 5. Settings and defaults
 
