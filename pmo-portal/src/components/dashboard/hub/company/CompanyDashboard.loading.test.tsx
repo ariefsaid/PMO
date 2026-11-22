@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -55,6 +55,9 @@ vi.mock('@/src/hooks/useWaitingForYou', () => ({
     refetch: vi.fn(),
   }),
 }));
+vi.mock('@/src/hooks/useMyTasks', () => ({
+  useMyTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useUnbilledWorkOrders: () => ({ data: { totals: [], incompleteCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }) }));
@@ -70,7 +73,11 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 }));
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useManagementPack', () => ({ useManagementPack: () => read('pack') }));
-vi.mock('@/src/lib/db/dashboard', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/lib/db/dashboard')>()), getExecutiveDashboard: async () => dash }));
+vi.mock('@/src/lib/db/dashboard', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/lib/db/dashboard')>()),
+  getExecutiveDashboard: async () => dash,
+  getFinanceBudgetReview: () => Promise.resolve([]),
+}));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => read('dashboard'),
   usePMDashboardProjects: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -264,7 +271,7 @@ describe('AC-PCI-E2E / AC-WCI-060 phone check-ins waiting entry on CompanyDashbo
     h.checkInRequests = () => Promise.resolve([]);
     renderAdmin();
 
-    expect(await screen.findByTestId('check-in-probe')).toHaveTextContent('success');
+    await waitFor(() => expect(screen.getByTestId('check-in-probe')).toHaveTextContent('success'));
     expect(screen.getByTestId('check-in-probe')).toHaveAttribute('data-count', '0');
 
     expect(screen.queryByText(/check-in.*waiting for your decision/i)).not.toBeInTheDocument();
@@ -283,7 +290,7 @@ describe('AC-PCI-E2E / AC-WCI-060 phone check-ins waiting entry on CompanyDashbo
     h.checkInRequests = () => Promise.reject(new Error('RPC error'));
     renderAdmin();
 
-    expect(await screen.findByTestId('check-in-probe')).toHaveTextContent('error');
+    await waitFor(() => expect(screen.getByTestId('check-in-probe')).toHaveTextContent('error'));
 
     expect(screen.queryByText(/check-in.*waiting for your decision/i)).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Company figures' })).toBeInTheDocument();
@@ -293,7 +300,7 @@ describe('AC-PCI-E2E / AC-WCI-060 phone check-ins waiting entry on CompanyDashbo
     h.checkInRequests = () => Promise.resolve([pendingCheckIn]);
     renderFinance();
 
-    expect(await screen.findByTestId('check-in-probe')).toHaveTextContent('success');
+    await waitFor(() => expect(screen.getByTestId('check-in-probe')).toHaveTextContent('success'));
     expect(screen.getByTestId('check-in-probe')).toHaveAttribute('data-count', '1');
 
     expect(screen.queryByText(/check-in.*waiting for your decision/i)).not.toBeInTheDocument();
