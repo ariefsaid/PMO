@@ -129,10 +129,10 @@ select is((select target_days::int || '|' || (target_set_at = now())::text from 
 select is((select (target_days is null) = (target_set_at is null) from clearance_items where id = '28310000-0000-0000-0000-000000000c00'),
   true, 'AC-CTD-004 a target and its stamp are always present together');
 select pg_temp.as_user('b01');
-select is((with u as (update clearance_items set target_days = 9 where id = '28310000-0000-0000-0000-000000000c00' returning 1)
-           select count(*)::int from u), 1, 'AC-CTD-004 an Admin may set a target through the granted column');
-select is((with i as (insert into clearance_items (name, target_days) values ('Admin added', 9) returning target_set_at)
-           select count(*)::int from i where target_set_at is not null), 1,
+with u as (update clearance_items set target_days = 9 where id = '28310000-0000-0000-0000-000000000c00' returning 1)
+select is((select count(*)::int from u), 1, 'AC-CTD-004 an Admin may set a target through the granted column');
+with i as (insert into clearance_items (name, target_days) values ('Admin added', 9) returning target_set_at)
+select is((select count(*)::int from i where target_set_at is not null), 1,
   'AC-CTD-004 an item an Admin creates through the API is stamped too');
 select is(pg_temp.detail($q$update clearance_items set target_set_at = now() where id = '28310000-0000-0000-0000-000000000c01'$q$),
   '42501 ', 'AC-CTD-004 no client may write target_set_at itself');
@@ -147,8 +147,8 @@ select pg_temp.as_user('b02');
 select is(pg_temp.detail($q$insert into clearance_items (name, target_days) values ('PM item', 5)$q$),
   '42501 ', 'AC-CTD-004 a Project Manager cannot create a clearance item');
 select pg_temp.as_user('b04');
-select is((with u as (update clearance_items set target_days = 4 where id = '28310000-0000-0000-0000-000000000c01' returning 1)
-           select count(*)::int from u), 0, 'AC-CTD-004 an Engineer changes no clearance target');
+with u as (update clearance_items set target_days = 4 where id = '28310000-0000-0000-0000-000000000c01' returning 1)
+select is((select count(*)::int from u), 0, 'AC-CTD-004 an Engineer changes no clearance target');
 reset role;
 
 -- ── AC-CTD-005: the due day is the person's creation day + target, only for a person created at/after the stamp ─────────
