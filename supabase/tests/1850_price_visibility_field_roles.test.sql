@@ -3,14 +3,16 @@
 -- those tables, and the priced definer reads refuse a field account). This file is the acceptance proof, one assertion per channel, with the
 -- hide setting both on and off. A control (an Admin, a Finance person, a Buyer) must read prices through the same channels, so the proof cannot pass
 -- because the fixtures are empty.
--- MUTATION CHECKS (break the rule, the named assertion must go red, restore):
---   drop policy light_account_deny_select on procurement_items               -> 'AC-PVF-001 procurement_items ...' and 'AC-PVF-002 procurement_items_masked ...'
---   create or replace actor_is_light() to return false                       -> every AC-PVF-001/002/003 assertion that reads fixture rows
---   remove `perform public.assert_not_light();` / the guard from get_stock_on_hand -> 'AC-PVF-004 get_stock_on_hand is refused ...'
---   drop policy light_account_deny_select on purchase_orders                  -> 'AC-PVF-001 purchase_orders ...' and 'AC-PVF-002 purchase_orders_masked ...'
---   delete the fixture row from purchase_orders (as superuser)               -> 'AC-PVF-007 the control reads prices ...' (the proof cannot pass on empty data)
+-- MUTATION CHECKS (break the rule, the named assertions must go red, restore). Run once on the lane DB, 2026-11-22:
+--   insert before `select pg_temp.pvf_run(true);`:
+--     create or replace function public.actor_is_light() returns boolean language sql stable security definer
+--       set search_path = pg_catalog, public as $f$ select false $f$;
+--   -> red: AC-PVF-003 project_committed_spend_masked, AC-PVF-003 project_committed_spend,
+--           AC-PVF-004 get_stock_on_hand, get_stock_ledger, get_stock_document_costs (5 of 43); green again once removed.
+--   delete the purchase_orders (or payments) fixture row as superuser -> 'AC-PVF-007 the control reads prices ...' (the proof cannot pass on empty data)
+--   remove assert_not_light from get_stock_on_hand (create or replace without it) -> 'AC-PVF-004 get_stock_on_hand is refused ...'
 begin;
-select plan(42);
+select plan(43);
 
 
 insert into organizations (id, name) values
@@ -44,10 +46,10 @@ insert into boq_items (id, org_id, project_id, item_code, description, unit, qua
 -- P1 the Engineer's ordered subcontract case, PD the Engineer's draft, P2 the Buyer's, P3 the Storekeeper's, PB organisation B's.
 insert into procurements (id, org_id, title, project_id, requested_by_id, status, total_value, approved_total_value, approved_by_id, budget_category, currency, is_subcontract) values
   ('18500000-0000-0000-0000-000000000101','18500000-0000-0000-0000-000000000001','PVF P1','18500000-0000-0000-0000-0000000000d1','18500000-0000-0000-0000-0000000000e1','Ordered',100,120,'18500000-0000-0000-0000-0000000000a1','Subcontractors','IDR',true),
-  ('18500000-0000-0000-0000-000000000102','18500000-0000-0000-0000-000000000001','PVF PD','18500000-0000-0000-0000-0000000000d1','18500000-0000-0000-0000-0000000000e1','Draft',null,null,null,'Materials','IDR',false),
+  ('18500000-0000-0000-0000-000000000102','18500000-0000-0000-0000-000000000001','PVF PD','18500000-0000-0000-0000-0000000000d1','18500000-0000-0000-0000-0000000000e1','Draft',0,null,null,'Materials','IDR',false),
   ('18500000-0000-0000-0000-000000000103','18500000-0000-0000-0000-000000000001','PVF P2','18500000-0000-0000-0000-0000000000d1','18500000-0000-0000-0000-0000000000f1','Ordered',500,500,'18500000-0000-0000-0000-0000000000a1','Materials','IDR',false),
-  ('18500000-0000-0000-0000-000000000104','18500000-0000-0000-0000-000000000001','PVF P3','18500000-0000-0000-0000-0000000000d1','18500000-0000-0000-0000-0000000000a2','Draft',null,null,null,'Materials','IDR',false),
-  ('18500000-0000-0000-0000-000000000105','18500000-0000-0000-0000-000000000002','PVF PB',null,'18500000-0000-0000-0000-0000000000b2','Draft',null,null,null,'Materials','IDR',false);
+  ('18500000-0000-0000-0000-000000000104','18500000-0000-0000-0000-000000000001','PVF P3','18500000-0000-0000-0000-0000000000d1','18500000-0000-0000-0000-0000000000a2','Draft',0,null,null,'Materials','IDR',false),
+  ('18500000-0000-0000-0000-000000000105','18500000-0000-0000-0000-000000000002','PVF PB',null,'18500000-0000-0000-0000-0000000000b2','Draft',0,null,null,'Materials','IDR',false);
 insert into procurement_items (id, org_id, procurement_id, name, quantity, rate) values
   ('18500000-0000-0000-0000-000000000111','18500000-0000-0000-0000-000000000001','18500000-0000-0000-0000-000000000101','PVF I1',2,12.50),
   ('18500000-0000-0000-0000-000000000112','18500000-0000-0000-0000-000000000001','18500000-0000-0000-0000-000000000102','PVF ID',2,12.50),
@@ -76,7 +78,7 @@ insert into po_variation_lines (variation_id, boq_item_id, additional_quantity, 
   ('18500000-0000-0000-0000-000000000141', '18500000-0000-0000-0000-0000000000e9', 1, 10);
 select set_config('pmo.po_variation_write', '', true);
 insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, amount, currency, tax_treatment, tax_amount, erp_docstatus) values
-  ('18500000-0000-0000-0000-000000000151','18500000-0000-0000-0000-000000000001','18500000-0000-0000-0000-000000000101','PVF-VI1',current_date,'Approved',100,'IDR','none',0,1);
+  ('18500000-0000-0000-0000-000000000151','18500000-0000-0000-0000-000000000001','18500000-0000-0000-0000-000000000101','PVF-VI1',current_date,'Received',100,'IDR','exclusive',0,1);
 insert into stock_units (id, org_id, code, name) values ('18500000-0000-0000-0000-000000000161','18500000-0000-0000-0000-000000000001','m','metre');
 insert into stock_items (id, org_id, code, name, unit_id) values ('18500000-0000-0000-0000-000000000162','18500000-0000-0000-0000-000000000001','CBL','Cable','18500000-0000-0000-0000-000000000161');
 insert into stock_warehouses (id, org_id, code, name, kind, project_id) values
@@ -85,6 +87,14 @@ insert into stock_documents (id, org_id, number, kind, status, warehouse_id, occ
   ('18500000-0000-0000-0000-000000000164','18500000-0000-0000-0000-000000000001','RCV-PVF-1','receive','Draft','18500000-0000-0000-0000-000000000163','2026-11-16','18500000-0000-0000-0000-0000000000a1');
 insert into stock_document_lines (id, org_id, document_id, line_no, item_id, quantity, unit_cost) values
   ('18500000-0000-0000-0000-000000000165','18500000-0000-0000-0000-000000000001','18500000-0000-0000-0000-000000000164',1,'18500000-0000-0000-0000-000000000162',5,10);
+
+-- payments, stock ledger and stock balances: direct fixtures (the posting path is not under test here)
+insert into payments (id, org_id, procurement_id, pay_number, status, amount) values
+  ('18500000-0000-0000-0000-000000000171','18500000-0000-0000-0000-000000000001','18500000-0000-0000-0000-000000000101','PVF-PAY-1','Scheduled',100);
+insert into stock_ledger (org_id, document_id, line_id, item_id, warehouse_id, kind, qty_delta, value_delta, qty_after, value_after, occurred_on, posted_by) values
+  ('18500000-0000-0000-0000-000000000001','18500000-0000-0000-0000-000000000164','18500000-0000-0000-0000-000000000165','18500000-0000-0000-0000-000000000162','18500000-0000-0000-0000-000000000163','receive',5,50,5,50,'2026-11-16','18500000-0000-0000-0000-0000000000a1');
+insert into stock_balances (org_id, item_id, warehouse_id, qty_on_hand, value_on_hand) values
+  ('18500000-0000-0000-0000-000000000001','18500000-0000-0000-0000-000000000162','18500000-0000-0000-0000-000000000163',5,50);
 
 -- the second light account: a Field user (a5), and the two light actors' ids
 insert into auth.users (id, email) values ('18500000-0000-0000-0000-0000000000a5', 'pvf-a5@example.com');
@@ -111,10 +121,10 @@ insert into pvf_fn values
   ('procurement_open_commitments', $q$ select count(*) from public.procurement_open_commitments(array['18500000-0000-0000-0000-000000000101']::uuid[]) where amount is not null $q$, false),
   ('project_committed_spend', $q$ select count(*) from public.project_committed_spend('18500000-0000-0000-0000-0000000000d1') where amount is not null $q$, false),
   ('stock_can_see_cost', $q$ select count(*) from (select 1 where public.stock_can_see_cost()) q $q$, false),
-  ('get_stock_on_hand', $q$ select count(*) from (select public.get_stock_on_hand()) q $q$, true),
-  ('get_stock_ledger', $q$ select count(*) from (select public.get_stock_ledger()) q $q$, true),
-  ('get_stock_document_costs', $q$ select count(*) from (select public.get_stock_document_costs('18500000-0000-0000-0000-000000000164')) q $q$, true),
-  ('get_stock_erp_value', $q$ select count(*) from (select public.get_stock_erp_value('18500000-0000-0000-0000-000000000164')) q $q$, true),
+  ('get_stock_on_hand', $q$ select count(*) from (select public.get_stock_on_hand()::text as j) q where q.j ~ '(value_on_hand|avg_cost)' $q$, true),
+  ('get_stock_ledger', $q$ select count(*) from (select public.get_stock_ledger()::text as j) q where q.j ~ '(value_delta|value_after)' $q$, true),
+  ('get_stock_document_costs', $q$ select count(*) from (select public.get_stock_document_costs('18500000-0000-0000-0000-000000000164')::text as j) q where q.j ~ 'unit_cost' $q$, true),
+  ('get_stock_erp_value', $q$ select count(*) from (select public.get_stock_erp_value('18500000-0000-0000-0000-000000000164') as v) q where q.v is not null $q$, true),
   ('work_order_cost_amounts', $q$ select count(*) from public.work_order_cost_amounts('18500000-0000-0000-0000-0000000000d1') where amount is not null $q$, true);
 
 -- every observation: who, hide setting, channel, priced values read (or -1 when the table refuses the read), refused by a guard
@@ -209,16 +219,16 @@ select is((select count(*)::text || '/' || coalesce(sum(priced), 0)::text from p
   'AC-PVF-003 project_committed_spend: a Foreman and a Field user read no amount, hiding on and off');
 select is((select count(*)::text || '/' || coalesce(sum(priced), 0)::text from pvf_seen where channel = 'stock_can_see_cost' and actor in ('foreman','field_user')), '4/0',
   'AC-PVF-003 stock_can_see_cost: a Foreman and a Field user read no amount, hiding on and off');
+select is((select count(*)::text || '/' || coalesce(sum(priced), 0)::text from pvf_seen where channel = 'get_stock_erp_value' and actor in ('foreman','field_user')), '4/0',
+  'AC-PVF-003 get_stock_erp_value: a Foreman and a Field user read no amount, hiding on and off');
 
--- AC-PVF-004 the priced definer reads refuse a field account
+-- AC-PVF-004 the stock and cost reads refuse a field account
 select is((select count(*)::text || '/' || count(*) filter (where refused)::text from pvf_seen where channel = 'get_stock_on_hand' and actor in ('foreman','field_user')), '4/4',
   'AC-PVF-004 get_stock_on_hand is refused to a Foreman and a Field user, hiding on and off');
 select is((select count(*)::text || '/' || count(*) filter (where refused)::text from pvf_seen where channel = 'get_stock_ledger' and actor in ('foreman','field_user')), '4/4',
   'AC-PVF-004 get_stock_ledger is refused to a Foreman and a Field user, hiding on and off');
 select is((select count(*)::text || '/' || count(*) filter (where refused)::text from pvf_seen where channel = 'get_stock_document_costs' and actor in ('foreman','field_user')), '4/4',
   'AC-PVF-004 get_stock_document_costs is refused to a Foreman and a Field user, hiding on and off');
-select is((select count(*)::text || '/' || count(*) filter (where refused)::text from pvf_seen where channel = 'get_stock_erp_value' and actor in ('foreman','field_user')), '4/4',
-  'AC-PVF-004 get_stock_erp_value is refused to a Foreman and a Field user, hiding on and off');
 select is((select count(*)::text || '/' || count(*) filter (where refused)::text from pvf_seen where channel = 'work_order_cost_amounts' and actor in ('foreman','field_user')), '4/4',
   'AC-PVF-004 work_order_cost_amounts is refused to a Foreman and a Field user, hiding on and off');
 
@@ -239,19 +249,23 @@ select is((select count(*)::int from profiles where built_in_role in ('foreman',
 
 -- AC-PVF-007 controls: the same channels do hold prices for people who may read them (so the proof is not empty)
 select is_empty($$ select c.rel from pvf_channel c
-  where c.kind = 'table' and c.rel in ('procurements','procurement_items','procurement_invoices','purchase_orders','purchase_requests','purchase_order_lines','po_variation_lines','stock_document_lines')
+  where c.kind = 'table' and c.rel in ('procurements','procurement_items','procurement_invoices','purchase_orders','purchase_requests','payments','purchase_order_lines','po_variation_lines')
     and not exists (select 1 from pvf_seen s where s.channel = c.rel and s.actor = 'admin' and s.setting and s.priced > 0) $$,
   'AC-PVF-007 the control reads prices from every seeded base table, hiding on');
 select is_empty($$ select c.rel from pvf_channel c
-  where c.kind = 'view' and c.rel in ('procurements_masked','procurement_items_masked','procurement_invoices_masked','purchase_orders_masked','purchase_requests_masked','purchase_order_lines_masked','po_variation_lines_masked','stock_document_lines_masked')
+  where c.kind = 'view' and c.rel in ('procurements_masked','procurement_items_masked','procurement_invoices_masked','purchase_orders_masked','purchase_requests_masked','payments_masked','purchase_order_lines_masked','po_variation_lines_masked')
     and not exists (select 1 from pvf_seen s where s.channel = c.rel and s.actor = 'finance' and s.setting and s.priced > 0) $$,
   'AC-PVF-007 the control reads prices from every seeded masked view, hiding on');
 select is_empty($$ select c.rel from pvf_channel c
-  where c.kind = 'table' and c.rel in ('procurements','procurement_items','purchase_orders','purchase_requests','stock_document_lines')
+  where c.kind = 'table' and c.rel in ('procurements','procurement_items','purchase_orders','purchase_requests','payments')
     and not exists (select 1 from pvf_seen s where s.channel = c.rel and s.actor = 'admin' and not s.setting and s.priced > 0) $$,
   'AC-PVF-007 the control reads prices from the base tables, hiding off');
 select is((select priced > 0 from pvf_seen where actor = 'admin' and setting and channel = 'project_committed_spend'), true,
   'AC-PVF-007 the control reads a committed spend amount, hiding on');
+-- the stock cost columns and the ledger and balances are readable by no signed-in role directly; their prices come only through these reads
+select is_empty($$ select f.name from pvf_fn f where f.name in ('get_stock_on_hand','get_stock_ledger','get_stock_document_costs')
+    and not exists (select 1 from pvf_seen s where s.channel = f.name and s.actor = 'admin' and s.setting and s.priced > 0) $$,
+  'AC-PVF-007 the control reads stock values through the stock reads, hiding on');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"18500000-0000-0000-0000-0000000000f1","role":"authenticated"}';
 select is((select rate from procurement_items_masked where id = '18500000-0000-0000-0000-000000000113'), 12.50,
