@@ -458,8 +458,9 @@ select is((select prosecdef from pg_proc where oid = 'public.get_operational_wai
   'ACC-04 the route is SECURITY INVOKER (prosecdef = false), never a definer read');
 select is((select provolatile from pg_proc where oid = 'public.get_operational_waiting_route(text,uuid)'::regprocedure), 's',
   'ACC-05 the route is STABLE (it cannot write)');
-select ok('search_path=pg_catalog, public' = any (
-            (select proconfig from pg_proc where oid = 'public.get_operational_waiting_route(text,uuid)'::regprocedure)),
+select ok((select 'search_path=pg_catalog, public' = any(p.proconfig)
+             from pg_proc p
+            where p.oid = 'public.get_operational_waiting_route(text,uuid)'::regprocedure),
   'ACC-06 the function pins search_path = pg_catalog, public');
 select ok(strpos((select prosrc from pg_proc where oid = 'public.get_operational_waiting_route(text,uuid)'::regprocedure), 'work_order_issue') > 0
           and strpos((select prosrc from pg_proc where oid = 'public.get_operational_waiting_route(text,uuid)'::regprocedure), 'delivery_record') > 0

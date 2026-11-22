@@ -85,7 +85,6 @@ insert into projects (id, org_id, name, status, currency, project_manager_id) va
   ('15670000-0000-0000-0000-000000000104', '15670000-0000-0000-0000-00000000000a', 'Light PM', 'Ongoing Project', 'IDR', '15670000-0000-0000-0000-0000000000aa'),
   ('15670000-0000-0000-0000-000000000105', '15670000-0000-0000-0000-00000000000a', 'Wrong-role PM', 'Ongoing Project', 'IDR', '15670000-0000-0000-0000-0000000000a9'),
   ('15670000-0000-0000-0000-000000000106', '15670000-0000-0000-0000-00000000000a', 'PM is author', 'Ongoing Project', 'IDR', '15670000-0000-0000-0000-0000000000a8'),
-  ('15670000-0000-0000-0000-000000000107', '15670000-0000-0000-0000-00000000000a', 'Cross-org PM', 'Ongoing Project', 'IDR', '15670000-0000-0000-0000-0000000000b1'),
   ('15670000-0000-0000-0000-000000000108', '15670000-0000-0000-0000-00000000000a', 'Draft report project', 'Ongoing Project', 'IDR', null),
   ('15670000-0000-0000-0000-000000000109', '15670000-0000-0000-0000-00000000000b', 'Foreign project', 'Ongoing Project', 'IDR', null),
   ('15670000-0000-0000-0000-00000000010a', '15670000-0000-0000-0000-00000000000c', 'Finance-only org project', 'Ongoing Project', 'IDR', null),
@@ -94,6 +93,32 @@ insert into projects (id, org_id, name, status, currency, project_manager_id) va
   ('15670000-0000-0000-0000-00000000010d', '15670000-0000-0000-0000-00000000000f', 'Light-PM org project', 'Ongoing Project', 'IDR', '15670000-0000-0000-0000-0000000000f2'),
   ('15670000-0000-0000-0000-00000000010e', '15670000-0000-0000-0000-000000000010', 'Admin-only org project', 'Ongoing Project', 'IDR', null),
   ('15670000-0000-0000-0000-00000000010f', '15670000-0000-0000-0000-000000000011', 'Disabled-alternatives org project', 'Ongoing Project', 'IDR', null);
+
+-- Project 107 is the DEFENSIVE foreign-assignee fixture, and it is deliberately SYNTHETIC. A project in
+-- organisation A whose manager's profile is in organisation B is UNREACHABLE through the normal write
+-- path: 0900_project_manager_same_org refuses that state on INSERT and on any UPDATE naming
+-- project_manager_id or org_id (42501), and 0190_profiles_org_id_immutable (ENABLE ALWAYS, no exemption
+-- hook) refuses to move the profile's organisation. So there is no order of legal writes that produces
+-- it and no legal "owner fixture update" that reaches it. The row is injected here, inside this
+-- transaction only, with origin trigger behaviour silenced for exactly ONE single-row INSERT, to prove
+-- the read's OWN organisation predicate against such a row. It is NOT a legal legacy-migration path,
+-- NOT a shape a migration could have produced, and NOT evidence that any writer may create it — 0900's
+-- own pgTAP owns the refusal proof. origin behaviour is restored immediately below; the transaction
+-- rolls back in full.
+set local session_replication_role = replica;
+insert into projects (id, org_id, name, status, currency, project_manager_id) values
+  ('15670000-0000-0000-0000-000000000107', '15670000-0000-0000-0000-00000000000a', 'Cross-org PM', 'Ongoing Project', 'IDR', '15670000-0000-0000-0000-0000000000b1');
+set local session_replication_role = origin;
+-- Setup guard, no TAP assertion: every fixture built after this point and every assertion below must run
+-- with normal (origin) trigger behaviour restored, or the suite aborts instead of proving anything under
+-- replica semantics.
+do $$
+begin
+  if current_setting('session_replication_role') <> 'origin' then
+    raise exception 'session_replication_role is %, expected origin before the 1567 fixtures continue',
+      current_setting('session_replication_role');
+  end if;
+end $$;
 
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
   ('15670000-0000-0000-0000-000000000201', '15670000-0000-0000-0000-00000000000a', '15670000-0000-0000-0000-000000000101', 'WO PM assigned', 'Issued', 1000, 'exclusive', 0),
@@ -337,5 +362,14 @@ select throws_ok(
   '42501', null, '1567: the Admin author cannot validate, matching the nobody route');
 
 reset role;
+-- Completion guard, no TAP assertion: the replica window above is closed. If trigger behaviour were left
+-- silenced for any reason, this aborts the (uncommitted) transaction instead of reporting green.
+do $$
+begin
+  if current_setting('session_replication_role') <> 'origin' then
+    raise exception 'session_replication_role is %, expected origin at 1567 completion',
+      current_setting('session_replication_role');
+  end if;
+end $$;
 select * from finish();
 rollback;

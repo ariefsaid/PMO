@@ -339,7 +339,7 @@ select lives_ok($$ select public.report_absence('sick', 'leave off report') $$,
   'a worker in an organisation with leave requests disabled reports absence');
 select set_config('test.leave_off_report_id', (select id::text from public.absence_reports where org_id = '16310000-0000-0000-0000-00000000000c'), true);
 reset role;
-select is((select count(*)::int from public.absence_reports where id = current_setting('test.leave_off_report_id')),
+select is((select count(*)::int from public.absence_reports where id = current_setting('test.leave_off_report_id')::uuid),
           1, 'absence report row is saved in the leave-disabled organisation');
 select is((select count(*)::int from public.notifications
             where metadata->'entity'->>'id' = current_setting('test.leave_off_report_id')
