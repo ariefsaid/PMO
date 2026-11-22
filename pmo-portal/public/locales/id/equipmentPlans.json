@@ -17,6 +17,11 @@
     "Rejected": "Ditolak"
   },
   "rejectedWhy": "Ditolak: {{reason}}",
+  "route": {
+    "loading": "Mencari siapa yang menyetujui rencana ini…",
+    "loadError": "Tidak bisa membaca siapa yang menyetujui rencana ini",
+    "nobody": "Belum ada yang ditetapkan untuk menyetujui rencana ini."
+  },
   "lines": "Baris",
   "noLines": "Belum ada baris. Tambahkan kebutuhan proyek bulan ini.",
   "line": {

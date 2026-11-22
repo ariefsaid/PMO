@@ -25,6 +25,12 @@ export function useCanApprovePlan(planId: string | undefined, enabled: boolean) 
   return useOrgQuery([EQUIPMENT_PLAN_QUERY_ROOT, 'can-approve', planId], () => repo.canApprove(planId as string), { enabled: Boolean(planId) && enabled });
 }
 
+/** fix-waiting item 3 (1565): who a Submitted plan waits for, from the database's own route. DISPLAY ONLY — keyed by the
+ * plan, so two plans never share a route, and asked only while the plan is waiting (a Draft has nobody to wait for). */
+export function useEquipmentPlanApprovalRoute(planId: string | undefined, enabled: boolean) {
+  return useOrgQuery([EQUIPMENT_PLAN_QUERY_ROOT, 'route', planId], () => repo.route(planId as string), { enabled: Boolean(planId) && enabled });
+}
+
 export function usePlanSettingsMutations() {
   const qc = useQueryClient();
   const orgId = useOrgId();

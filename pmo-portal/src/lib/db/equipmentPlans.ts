@@ -2,6 +2,8 @@ import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import { formatDecimal, mulRound } from '@/src/lib/exactDecimal';
+import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
+import type { UserRole } from './adminUsers';
 
 /**
  * Monthly equipment and service plan (#2700, migrations 1358-1359; spec docs/specs/monthly-equipment-service-plan.spec.md).
@@ -151,4 +153,54 @@ export async function canApprovePlan(id: string): Promise<boolean> {
   const { data, error } = await supabase.rpc('equipment_plan_approver_ok', { p_plan_id: id });
   if (error) fail(error);
   return data === true;
+}
+
+/**
+ * fix-waiting item 3 (1565): who a Submitted plan waits for, from the database's own approval route.
+ * DISPLAY ONLY — `approve_equipment_plan` / `reject_equipment_plan` stay the authority; this read mirrors their route
+ * (equipment_plan_approver_ok's level: the senior-role step, the project's approvers, the organisation's senior set, or an
+ * Admin). `kind` names the level that answered; `approvers` is EMPTY when that level has nobody reachable (only the author
+ * with self-approval off, everybody inactive) — an honest empty, never a fallback that would change who decides.
+ */
+export type PlanRouteKind = 'project' | 'org' | 'admin' | 'senior_role' | 'disabled' | 'not_waiting' | 'unavailable';
+export interface PlanApprover {
+  id: string;
+  name: string;
+  /** The person's current user_role, as the database states it. */
+  role: UserRole;
+}
+export interface PlanApprovalRoute {
+  kind: PlanRouteKind;
+  approvers: PlanApprover[];
+}
+
+const PLAN_ROUTE_KINDS: readonly string[] = ['project', 'org', 'admin', 'senior_role', 'disabled', 'not_waiting', 'unavailable'];
+/** The `user_role` enum's five values, derived from the built-in role catalogue's base levels (one source, no literals). */
+const USER_ROLES: readonly string[] = [...new Set(BUILT_IN_ROLES.map((r) => r.base))];
+const malformedRoute = () => new AppError('The approval route response was malformed', 'plan-route-malformed');
+
+/** Narrow the RPC's jsonb to the route shape. A malformed body is an error, never an empty list that would read as
+ * "nobody approves this plan". */
+export function parsePlanApprovalRoute(data: unknown): PlanApprovalRoute {
+  const d = data as { approvers?: unknown; route_kind?: unknown } | null;
+  if (d === null || typeof d !== 'object' || !Array.isArray(d.approvers)) throw malformedRoute();
+  const routeKind = d.route_kind;
+  if (typeof routeKind !== 'string' || !PLAN_ROUTE_KINDS.includes(routeKind)) throw malformedRoute();
+  const approvers: PlanApprover[] = [];
+  for (const entry of d.approvers as unknown[]) {
+    const a = entry as { id?: unknown; name?: unknown; role?: unknown } | null;
+    if (a === null || typeof a !== 'object' || typeof a.id !== 'string' || a.id === ''
+        || typeof a.name !== 'string' || a.name.trim() === ''
+        || typeof a.role !== 'string' || !USER_ROLES.includes(a.role)) throw malformedRoute();
+    approvers.push({ id: a.id as string, name: a.name as string, role: a.role as UserRole });
+  }
+  return { kind: routeKind as PlanRouteKind, approvers };
+}
+
+export async function getPlanApprovalRoute(planId: string): Promise<PlanApprovalRoute> {
+  // ⚑ Its type declaration belongs to the shared generated-types seam (database.types.ts) and arrives with the batch
+  // that regenerates it; until then this call is the one place that needs that declaration.
+  const { data, error } = await supabase.rpc('get_equipment_plan_approval_route', { p_plan_id: planId });
+  if (error) fail(error);
+  return parsePlanApprovalRoute(data);
 }

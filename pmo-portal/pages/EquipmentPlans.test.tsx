@@ -6,6 +6,7 @@ import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
   role: 'Project Manager', userId: 'u1', enabled: true, plans: [] as unknown[], canApprove: false,
+  routeData: undefined as unknown, routePending: false, routeError: false, routeRefetch: vi.fn(), routeCalls: [] as Array<[string | undefined, boolean]>,
   save: vi.fn(), submit: vi.fn(), approve: vi.fn(), reject: vi.fn(), reopen: vi.fn(),
 }));
 const ok = { isPending: false, isError: false, refetch: vi.fn() };
@@ -14,6 +15,10 @@ vi.mock('@/src/hooks/useEquipmentPlans', () => ({
   usePlanCategories: () => ({ ...ok, data: [{ id: 'k1', name: 'Cranes', nameId: null, position: 1, active: true }] }),
   usePlansForMonth: () => ({ ...ok, data: h.plans }),
   useCanApprovePlan: () => ({ ...ok, data: h.canApprove }),
+  useEquipmentPlanApprovalRoute: (id: string | undefined, enabled: boolean) => {
+    h.routeCalls.push([id, enabled]);
+    return { isPending: h.routePending, isError: h.routeError, data: h.routeData, refetch: h.routeRefetch };
+  },
   usePlanMutations: () => ({
     save: { mutateAsync: h.save, isPending: false }, submit: { mutateAsync: h.submit, isPending: false }, approve: { mutateAsync: h.approve, isPending: false },
     reject: { mutateAsync: h.reject, isPending: false }, reopen: { mutateAsync: h.reopen, isPending: false },
@@ -46,7 +51,8 @@ const pickProject = async () => {
 describe('monthly equipment plan page (#2700)', () => {
   beforeEach(() => {
     h.role = 'Project Manager'; h.userId = 'u1'; h.enabled = true; h.plans = []; h.canApprove = false;
-    for (const f of [h.save, h.submit, h.approve, h.reject, h.reopen]) f.mockReset();
+    h.routeData = undefined; h.routePending = false; h.routeError = false; h.routeCalls.length = 0;
+    for (const f of [h.save, h.submit, h.approve, h.reject, h.reopen, h.routeRefetch]) f.mockReset();
   });
 
   it('AC-EQP-001 with the plan off the screen says so and offers no plan controls', () => {
@@ -146,5 +152,73 @@ describe('monthly equipment plan page (#2700)', () => {
     expect(screen.getByText('Rejected: Too many cranes')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Reopen to edit' }));
     expect(h.reopen).toHaveBeenCalledWith('pl1');
+  });
+
+  // ── fix-waiting item 3: the plan says who it waits for, from the database's own route (1565) ──────────────────────
+  it('AC-EQP-008 a Submitted plan names who it waits for, with that person\'s own role, and invents no step', async () => {
+    h.plans = [plan({ status: 'Submitted', createdBy: 'someone-else' })];
+    h.routeData = { kind: 'project', approvers: [{ id: 'u9', name: 'Ani', role: 'Finance' }] };
+    renderPage();
+    await pickProject();
+    const waiting = screen.getByTestId('plan-waiting-for');
+    expect(waiting.textContent).toBe('Waiting for Ani, Finance');
+    expect(waiting.textContent).not.toMatch(/step/i); // the plan is one decision: no invented "step 1 of 2"
+    expect(h.routeCalls.at(-1)).toEqual(['pl1', true]);
+  });
+
+  it('AC-EQP-008 two eligible approvers of one role are joined, and the role is stated once', async () => {
+    h.plans = [plan({ status: 'Submitted', createdBy: 'someone-else' })];
+    h.routeData = { kind: 'project', approvers: [{ id: 'u9', name: 'Ani', role: 'Finance' }, { id: 'u10', name: 'Budi', role: 'Finance' }] };
+    renderPage();
+    await pickProject();
+    expect(screen.getByTestId('plan-waiting-for').textContent).toBe('Waiting for Ani or Budi, Finance');
+  });
+
+  it('AC-EQP-008 approvers of different roles are named without claiming one role for all of them', async () => {
+    h.plans = [plan({ status: 'Submitted', createdBy: 'someone-else' })];
+    h.routeData = { kind: 'project', approvers: [{ id: 'u9', name: 'Ani', role: 'Finance' }, { id: 'u10', name: 'Budi', role: 'Project Manager' }] };
+    renderPage();
+    await pickProject();
+    const text = screen.getByTestId('plan-waiting-for').textContent ?? '';
+    expect(text).toBe('Waiting for Ani or Budi');
+    expect(text).not.toMatch(/Finance|Project Manager/);
+  });
+
+  it('AC-EQP-008 a configured route with nobody eligible says so instead of naming a person', async () => {
+    h.plans = [plan({ status: 'Submitted', createdBy: 'someone-else' })];
+    h.routeData = { kind: 'project', approvers: [] };
+    renderPage();
+    await pickProject();
+    const text = screen.getByTestId('plan-waiting-for').textContent ?? '';
+    expect(text).toBe('No one is set up to approve this plan yet.');
+    expect(text).not.toMatch(/Waiting for/);
+  });
+
+  it('AC-EQP-008 while the route is being read the plan keeps its own status and content', async () => {
+    h.plans = [plan({ status: 'Submitted', createdBy: 'someone-else' })];
+    h.routePending = true;
+    renderPage();
+    await pickProject();
+    expect(screen.getByTestId('plan-waiting-for').textContent).toBe('Finding who this plan waits for…');
+    expect(screen.getByText('Submitted')).toBeInTheDocument(); // the plan's own status is not replaced by the route
+    expect(screen.getByTestId('plan-line')).toBeInTheDocument();
+  });
+
+  it('AC-EQP-008 a failed route read says so and offers a retry that refetches the same route', async () => {
+    h.plans = [plan({ status: 'Submitted', createdBy: 'someone-else' })];
+    h.routeError = true;
+    renderPage();
+    await pickProject();
+    expect(screen.getByText("Couldn't read who approves this plan")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.routeRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-EQP-008 a plan that is not waiting asks for no route and says nothing about waiting', async () => {
+    h.plans = [plan()]; // Draft
+    renderPage();
+    await pickProject();
+    expect(screen.queryByTestId('plan-waiting-for')).not.toBeInTheDocument();
+    expect(h.routeCalls.at(-1)).toEqual(['pl1', false]);
   });
 });
