@@ -46,6 +46,10 @@
         "percentLine": "{{item}}: % to bill",
         "overClaimAccepted": "Warning: this is more than the {{headroom}} {{unit}} still claimable (accepted {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or confirm the next BAST first. You can still raise the claim.",
         "overClaimOrdered": "Warning: this is more than the {{headroom}} {{unit}} still claimable (ordered {{ceiling}}, already claimed {{claimed}}, nothing accepted yet). Lower it to {{headroom}}, or confirm a BAST first. You can still raise the claim.",
+        "overClaimSurveyed": "Warning: this is more than the {{headroom}} {{unit}} still claimable (surveyed {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or have the next survey confirmed first. You can still raise the claim.",
+        "overClaimSurveyedBlock": "Will be refused: this is more than the {{headroom}} {{unit}} still claimable (surveyed {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or have the next survey confirmed first.",
+        "overQualityReady": "Warning: with this claim, {{total}} {{unit}} is claimed but only {{quality}} {{unit}} has quality documents. Attach the quality documents to a survey, or lower it. You can still raise the claim.",
+        "surveyFigures": "Surveyed {{surveyed}} {{unit}}, of which quality-ready {{quality}}",
         "overClaimAcceptedBlock": "Will be refused: this is more than the {{headroom}} {{unit}} still claimable (accepted {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or confirm the next BAST first.",
         "overClaimOrderedBlock": "Will be refused: this is more than the {{headroom}} {{unit}} still claimable (ordered {{ceiling}}, already claimed {{claimed}}, nothing accepted yet). Lower it to {{headroom}}, or confirm a BAST first.",
         "errors": {

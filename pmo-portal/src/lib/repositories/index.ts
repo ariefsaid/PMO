@@ -57,6 +57,7 @@ import {
 import { taskRepository } from './tasks';
 import { billingStagesRepository } from './billingStages';
 import { closeoutChecklistRepository } from './closeoutChecklist';
+import { surveyRecordRepository } from './surveyRecords';
 import { workInHandRepository } from './workInHand';
 import { taskProofRepository } from './taskProofs';
 import { thirdPartyInspectionRepository } from './thirdPartyInspections';
@@ -146,6 +147,7 @@ export const repositories: Repositories = {
   rateCatalogue: rateCatalogueRepository,
   billingStages: billingStagesRepository,
   closeoutChecklist: closeoutChecklistRepository,
+  surveyRecord: surveyRecordRepository,
   dailySiteReport: dailySiteReportRepository,
   workOrderCandidate: workOrderCandidateRepository,
   safetyDay: safetyDayRepository,

@@ -22652,6 +22652,224 @@ export type Database = {
           },
         ]
       }
+      survey_participants: {
+        Row: {
+          company: string | null
+          id: string
+          name: string
+          org_id: string
+          profile_id: string | null
+          record_id: string
+          role_label: string | null
+        }
+        Insert: {
+          company?: string | null
+          id?: string
+          name: string
+          org_id: string
+          profile_id?: string | null
+          record_id: string
+          role_label?: string | null
+        }
+        Update: {
+          company?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          profile_id?: string | null
+          record_id?: string
+          role_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_participants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_participants_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_participants_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "survey_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_record_documents: {
+        Row: {
+          attached_at: string
+          attached_by: string
+          document_id: string
+          org_id: string
+          record_id: string
+        }
+        Insert: {
+          attached_at?: string
+          attached_by: string
+          document_id: string
+          org_id: string
+          record_id: string
+        }
+        Update: {
+          attached_at?: string
+          attached_by?: string
+          document_id?: string
+          org_id?: string
+          record_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_record_documents_attached_by_fkey"
+            columns: ["attached_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_record_documents_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_record_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_record_documents_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "survey_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_records: {
+        Row: {
+          archived_at: string | null
+          boq_item_id: string
+          confirm_basis: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          id: string
+          note: string | null
+          org_id: string
+          project_id: string
+          quality_ready_quantity: number
+          recorded_at: string
+          recorded_by: string
+          status: string
+          superseded_at: string | null
+          supersedes_id: string | null
+          survey_date: string
+          surveyed_quantity: number
+          work_order_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          boq_item_id: string
+          confirm_basis?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          id?: string
+          note?: string | null
+          org_id: string
+          project_id: string
+          quality_ready_quantity?: number
+          recorded_at?: string
+          recorded_by: string
+          status?: string
+          superseded_at?: string | null
+          supersedes_id?: string | null
+          survey_date: string
+          surveyed_quantity: number
+          work_order_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          boq_item_id?: string
+          confirm_basis?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          id?: string
+          note?: string | null
+          org_id?: string
+          project_id?: string
+          quality_ready_quantity?: number
+          recorded_at?: string
+          recorded_by?: string
+          status?: string
+          superseded_at?: string | null
+          supersedes_id?: string | null
+          survey_date?: string
+          surveyed_quantity?: number
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_records_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_records_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_records_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_records_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_records_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_records_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "survey_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_records_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_dependencies: {
         Row: {
           depends_on_id: string
@@ -27327,6 +27545,16 @@ export type Database = {
           },
         ]
       }
+      survey_certified_lines: {
+        Row: {
+          boq_item_id: string | null
+          certified_quantity: number | null
+          org_id: string | null
+          quality_ready_quantity: number | null
+          work_order_id: string | null
+        }
+        Relationships: []
+      }
       vendor_withholding_bill_register: {
         Row: {
           active_slip_id: string | null
@@ -28003,6 +28231,7 @@ export type Database = {
         Args: { p_backcharge: string }
         Returns: undefined
       }
+      archive_survey_draft: { Args: { p_id: string }; Returns: undefined }
       assemble_tm_claim: {
         Args: {
           p_exclude?: Json
@@ -28095,6 +28324,10 @@ export type Database = {
       attach_erp_journal_lines: {
         Args: { p_dry_run?: boolean; p_rows: Json }
         Returns: Json
+      }
+      attach_survey_document: {
+        Args: { p_document: string; p_id: string }
+        Returns: undefined
       }
       attendance_can_record: { Args: { p_crew_id: string }; Returns: boolean }
       attendance_decide_week: {
@@ -28910,6 +29143,7 @@ export type Database = {
         Args: { p_id: string }
         Returns: string
       }
+      confirm_survey: { Args: { p_id: string }; Returns: undefined }
       confirm_tm_signoff: { Args: { p_claim: string }; Returns: Json }
       confirm_work_order_acceptance: { Args: { p_id: string }; Returns: Json }
       connect_config_map_link: {
@@ -34324,6 +34558,19 @@ export type Database = {
         }
         Returns: string
       }
+      record_survey: {
+        Args: {
+          p_boq_item: string
+          p_date: string
+          p_note?: string
+          p_participants: Json
+          p_quality_ready: number
+          p_supersedes?: string
+          p_surveyed: number
+          p_work_order: string
+        }
+        Returns: string
+      }
       record_timesheet_command_held: {
         Args: {
           p_approved_at: string
@@ -36258,6 +36505,42 @@ export type Database = {
       submit_subcontract_certificate: {
         Args: { p_certificate: string }
         Returns: undefined
+      }
+      survey_lock_draft: {
+        Args: { p_id: string }
+        Returns: {
+          archived_at: string | null
+          boq_item_id: string
+          confirm_basis: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          id: string
+          note: string | null
+          org_id: string
+          project_id: string
+          quality_ready_quantity: number
+          recorded_at: string
+          recorded_by: string
+          status: string
+          superseded_at: string | null
+          supersedes_id: string | null
+          survey_date: string
+          surveyed_quantity: number
+          work_order_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "survey_records"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      survey_lock_work_order: {
+        Args: { p_work_order: string }
+        Returns: {
+          org_id: string
+          project_id: string
+        }[]
       }
       survey_quantity_for_line: {
         Args: { p_boq_item_id: string; p_work_order_id: string }

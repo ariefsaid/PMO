@@ -30,6 +30,7 @@ import { DailyTargetGate } from './work-order-detail/DailyTargetGate';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { CloseoutSection } from './work-order-detail/CloseoutSection';
 import { BillingStepsSection } from './work-order-detail/BillingStepsSection';
+import { SurveySection } from './work-order-detail/SurveySection';
 import { QuantityChangesSection } from './work-order-detail/QuantityChangesSection';
 import { SectionsSection } from './work-order-detail/SectionsSection';
 import { ConsumablePlanSection } from './work-order-detail/ConsumablePlanSection';
@@ -83,6 +84,14 @@ const WorkOrderDetail: React.FC = () => {
     () => (allocations.data ?? []).map((a) => {
       const item = (boq.data ?? []).find((b) => b.id === a.boq_item_id);
       return { value: a.id, label: item ? `${item.item_code} · ${item.description}` : a.boq_item_id };
+    }),
+    [allocations.data, boq.data],
+  );
+
+  const surveyLines = useMemo(
+    () => (allocations.data ?? []).flatMap((a) => {
+      const item = (boq.data ?? []).find((b) => b.id === a.boq_item_id);
+      return item && item.earning_basis !== 'lump_sum' ? [{ id: item.id, label: `${item.item_code} · ${item.description}`, unit: item.unit }] : [];
     }),
     [allocations.data, boq.data],
   );
@@ -175,6 +184,8 @@ const WorkOrderDetail: React.FC = () => {
           />
         )}
         <BillingStepsSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
+        {may('view', 'surveyRecord') && <SurveySection workOrderId={row.id} projectId={row.project_id} status={row.status}
+          projectManagerId={project.data?.project_manager_id ?? null} lines={surveyLines} />}
         <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         {may('view', 'quantityChange') && <QuantityChangesSection workOrderId={row.id} projectId={row.project_id} status={row.status} />}
         <InspectionsSection workOrderId={row.id} />
