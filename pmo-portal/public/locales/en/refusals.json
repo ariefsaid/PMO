@@ -355,5 +355,11 @@
   "MR_NO_MANAGER": "This person has no direct manager, so nobody can decide a release. Set their direct manager first, then open the release.",
   "ATT_FOLLOW_LOCKED": "These hours are already submitted or approved. Correct them through the timesheet correction path.",
   "ATT_FOLLOW_NONE": "No follow is recorded for this person that day. Reload to see the current roster.",
-  "ATT_FOLLOW_RECORDED": "This person is already recorded present on another work order that day. Ask their own crew's recorder, or a crew manager, to correct it first."
+  "ATT_FOLLOW_RECORDED": "This person is already recorded present on another work order that day. Ask their own crew's recorder, or a crew manager, to correct it first.",
+  "HC_CLASS": "Choose a labour class that is still in use, then save the head count again.",
+  "HC_COUNT": "A head count is a whole number from 1 to 500. Enter a number in that range.",
+  "HC_CREW_NOT_ROSTERED": "That crew is not on this work order on that date. Choose a crew that is, or add the crew to the work order first.",
+  "HC_DATE_FUTURE": "A head count cannot be recorded for a future date. Choose today or an earlier day.",
+  "HC_DATE_OLD": "The earliest date open for a head count is {{date}}. Ask an Admin if an earlier day must be recorded.",
+  "HC_LOCKED": "This head count is approved and final. Ask an Admin or Finance if it must be corrected."
 }

@@ -32,6 +32,11 @@ vi.mock('@/src/hooks/useCrews', () => ({
     generateWeek: { mutateAsync: h.generate }, decideWeek: { mutateAsync: h.decide }, clearFollow: { mutateAsync: h.clear },
   }),
 }));
+vi.mock('@/src/hooks/useHeadcount', () => ({
+  useHeadcountDay: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useHeadcountMutations: () => ({ record: { mutateAsync: vi.fn() }, approve: { mutateAsync: vi.fn() }, clear: { mutateAsync: vi.fn() } }),
+}));
+vi.mock('@/src/hooks/useLabourCost', () => ({ useLabourClasses: () => ({ data: [] }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.uid, org_id: 'org1' } }) }));
 
@@ -136,6 +141,13 @@ describe('attendance tick screen (#2528)', () => {
     renderAt();
     expect(screen.getByText("Only this crew's Foreman or a crew manager ticks this roster.")).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Hours for the crew' })).toBeDisabled();
+  });
+
+  it('AC-HC-011 the crew\'s day carries a head-count section under the roster, counting the named people ticked present', () => {
+    (h.day.data as unknown[]) = [{ id: 'd1', worker_id: 'w1', status: 'present', hours: 8, overtime_hours: null }, { id: 'd2', worker_id: 'w2', status: 'absent', hours: null, overtime_hours: null }];
+    renderAt();
+    expect(screen.getByRole('heading', { name: 'Head count' })).toBeInTheDocument();
+    expect(screen.getByText(/^1 named people are ticked present on this crew today/)).toBeInTheDocument();
   });
 
   it('AC-WCI-050 the crew\'s Foreman gets no such sentence and can tick', () => {

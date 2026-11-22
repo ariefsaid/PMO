@@ -355,5 +355,11 @@
   "MR_NO_MANAGER": "Orang ini belum punya atasan langsung, jadi tidak ada yang dapat memutuskan pelepasan. Tetapkan atasan langsungnya dahulu, lalu buka pelepasan.",
   "ATT_FOLLOW_LOCKED": "Jam kerja ini sudah diajukan atau disetujui. Perbaiki lewat jalur koreksi lembar waktu.",
   "ATT_FOLLOW_NONE": "Tidak ada ikut kru yang tercatat untuk orang ini pada hari itu. Muat ulang untuk melihat daftar terbaru.",
-  "ATT_FOLLOW_RECORDED": "Orang ini sudah tercatat hadir di $t(common:terms.clientWorkOrder) lain pada hari itu. Minta pencatat kru asalnya, atau pengelola kru, memperbaikinya dulu."
+  "ATT_FOLLOW_RECORDED": "Orang ini sudah tercatat hadir di $t(common:terms.clientWorkOrder) lain pada hari itu. Minta pencatat kru asalnya, atau pengelola kru, memperbaikinya dulu.",
+  "HC_CLASS": "Pilih kelas tenaga kerja yang masih dipakai, lalu simpan jumlah orang lagi.",
+  "HC_COUNT": "Jumlah orang adalah bilangan bulat dari 1 sampai 500. Isi angka dalam rentang itu.",
+  "HC_CREW_NOT_ROSTERED": "Kru itu tidak ada di work order ini pada tanggal tersebut. Pilih kru yang ada, atau tambahkan kru ke work order terlebih dahulu.",
+  "HC_DATE_FUTURE": "Jumlah orang tidak bisa dicatat untuk tanggal yang belum tiba. Pilih hari ini atau hari sebelumnya.",
+  "HC_DATE_OLD": "Tanggal paling awal yang terbuka untuk jumlah orang adalah {{date}}. Minta Admin jika hari yang lebih awal harus dicatat.",
+  "HC_LOCKED": "Jumlah orang ini sudah disetujui dan final. Minta Admin atau Keuangan jika harus dikoreksi."
 }

@@ -130,6 +130,7 @@
     "timesheet_entry": "Timesheet",
     "vendor_bill": "Vendor bill",
     "attendance_day": "Attendance",
+    "headcount_day": "Head count",
     "expense_claim": "Expense claim"
   },
   "split": {

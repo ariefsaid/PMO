@@ -9821,6 +9821,84 @@ export type Database = {
           },
         ]
       }
+      headcount_days: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          class_id: string
+          crew_id: string
+          head_count: number
+          id: string
+          org_id: string
+          recorded_at: string
+          recorded_by_ids: string[]
+          work_date: string
+          work_order_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          class_id: string
+          crew_id: string
+          head_count: number
+          id?: string
+          org_id?: string
+          recorded_at?: string
+          recorded_by_ids?: string[]
+          work_date: string
+          work_order_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          class_id?: string
+          crew_id?: string
+          head_count?: number
+          id?: string
+          org_id?: string
+          recorded_at?: string
+          recorded_by_ids?: string[]
+          work_date?: string
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "headcount_days_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "headcount_days_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "labour_cost_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "headcount_days_crew_id_fkey"
+            columns: ["crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "headcount_days_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "headcount_days_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       idle_cost_settings: {
         Row: {
           enabled: boolean
@@ -28035,6 +28113,7 @@ export type Database = {
         Args: { p_asset_id: string; p_week_start: string }
         Returns: Json
       }
+      approve_headcount_day: { Args: { p_id: string }; Returns: undefined }
       approve_journal: { Args: { p_id: string }; Returns: undefined }
       approve_procurement_amount: {
         Args: { p_amount: number; p_procurement_id: string }
@@ -28913,6 +28992,7 @@ export type Database = {
         Args: { p_asset: string; p_period_start: string }
         Returns: undefined
       }
+      clear_headcount_day: { Args: { p_id: string }; Returns: undefined }
       clear_shared_cost_split: {
         Args: { p_project_id: string }
         Returns: number
@@ -34340,6 +34420,16 @@ export type Database = {
           p_status: Json
         }
         Returns: boolean
+      }
+      record_headcount_day: {
+        Args: {
+          p_class_id: string
+          p_count: number
+          p_crew_id: string
+          p_work_date: string
+          p_work_order_id: string
+        }
+        Returns: string
       }
       record_history_table: { Args: { p_entity_type: string }; Returns: string }
       record_history_visible: {
