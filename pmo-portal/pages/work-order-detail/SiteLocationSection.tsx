@@ -37,7 +37,7 @@ export const SiteLocationSection: React.FC<{ workOrderId: string; projectId: str
       ) : (
         <p className="text-foreground">{name ?? t('siteLocation.none', 'Not set')}</p>
       )}
-      {saved && !setLocation.isError && <p role="status" className="mt-2 text-success-text" data-testid="wo-site-location-saved">{saved}</p>}
+      {saved && !setLocation.isError && <p role="status" className="mt-2 text-[hsl(var(--success-text))]" data-testid="wo-site-location-saved">{saved}</p>}
       {setLocation.isError && <p role="alert" className="text-destructive">{t('siteLocation.error', "Couldn't save the site location")}</p>}
     </RecordSection>
     </div>
