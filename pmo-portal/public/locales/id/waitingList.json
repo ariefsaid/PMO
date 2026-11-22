@@ -26,7 +26,7 @@
   "since": "Menunggu sejak {{date}}",
   "bast": {
     "row": "BAST klien ({{kind}}) tanggal {{date}}",
-    "final": "final",
+    "final": "akhir",
     "stage": "tahap"
   },
   "waitingFor": {

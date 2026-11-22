@@ -870,7 +870,7 @@
     "allApprovals_other": "Semua {{count}} persetujuan",
     "approvalInvoice": "Invoice klien",
     "approvalBast": "BAST klien ({{kind}}) tanggal {{date}}",
-    "approvalBastFinal": "final",
+    "approvalBastFinal": "akhir",
     "approvalBastStage": "tahap",
     "approvalTimesheet": "$t(common:terms.timesheet)",
     "waitingDays_one": "menunggu {{count}} hari",
