@@ -27,6 +27,7 @@ create or replace function public.set_purchase_line_planning(p_enabled boolean) 
 language plpgsql security definer set search_path = public, pg_catalog as $$
 declare v_org uuid := public.auth_org_id(); v_old boolean;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   if public.auth_role() is distinct from 'Admin' then
     raise exception 'Only an Admin can change purchase rules.' using errcode = '42501';
@@ -50,6 +51,7 @@ create or replace function public.set_purchase_types_enabled(p_enabled boolean) 
   language plpgsql security definer set search_path = pg_catalog, public as $$
 declare v_org uuid := public.auth_org_id();
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   if public.auth_role() is distinct from 'Admin' then
     raise exception 'PTYPE_ADMIN_ONLY: only an Admin can change purchase types' using errcode = '42501';
@@ -72,6 +74,7 @@ create or replace function public.set_payment_channel_settings(p_enabled boolean
 declare v_org uuid := public.auth_org_id(); v_uid uuid := auth.uid();
         v_old public.org_payment_channel_settings; v_row public.org_payment_channel_settings;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   if public.auth_role() is distinct from 'Admin' then
     raise exception 'only an Admin sets the payment channel feature' using errcode = '42501';
@@ -103,6 +106,25 @@ grant execute on function public.set_payment_channel_settings(boolean) to authen
 drop function if exists public.seed_purchase_line_categories(uuid);
 drop function if exists public.seed_purchase_types(uuid);
 drop function if exists public.seed_payment_channels(uuid, uuid);
+
+-- Audit function back to the 1510 body.
+create or replace function public.audit_org_setting_change() returns trigger
+  language plpgsql security definer set search_path = public as $$
+declare
+  c text;
+  o jsonb := case when tg_op = 'UPDATE' then to_jsonb(old) else '{}'::jsonb end;
+  n jsonb := to_jsonb(new);
+  v_org uuid := coalesce((n ->> 'org_id')::uuid, (n ->> 'id')::uuid);
+begin
+  foreach c in array tg_argv loop
+    if (o -> c) is distinct from (n -> c) then
+      perform public.log_audit('org.setting.change', v_org, auth.uid(), v_org,
+        jsonb_build_object('setting', tg_table_name || '.' || c, 'from', o -> c, 'to', n -> c)
+          || case when n ? 'event_key' then jsonb_build_object('event_key', n -> 'event_key') else '{}'::jsonb end);
+    end if;
+  end loop;
+  return new;
+end; $$;
 
 -- Audit trigger back to the 1510 column list, then the module columns go.
 drop trigger zz_audit_org_setting_change on public.organizations;
