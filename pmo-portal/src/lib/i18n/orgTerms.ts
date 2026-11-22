@@ -1,10 +1,16 @@
 /** Organisation terminology (#2529): rewrite shipped app copy using the active org's terms. */
+import registry from './terms.registry.json' with { type: 'json' };
 
 export const TERM_KEYS = [
   'workOrder', 'project', 'clientSuppliedStock', 'purchaseRequest', 'discipline', 'materialRequest',
   // #2712 expansion
   'billOfQuantities', 'contractItem', 'dailyRevenue', 'acceptedQuantity', 'costVariation', 'deliveryNote',
   'stockCount', 'imprest', 'standIn', 'progressClaim',
+  // #2799 reach
+  'serviceRequest', 'purchaseOrder', 'dailySiteReport', 'surveyQuantity', 'quantityChangeRequest', 'workOrderTransfer',
+  'billingPlan', 'billingStep', 'handoverCertificate', 'stockTransfer', 'stockReceipt', 'stockReturn', 'reservation',
+  'crew', 'roster', 'issue', 'checkpoint', 'milestone', 'dailyTarget', 'rootCause', 'safetyRecordType',
+  'candidateWorkOrder', 'closeOut',
 ] as const;
 export type TermKey = (typeof TERM_KEYS)[number];
 export const TERM_LOCALES = ['en', 'id'] as const;
@@ -17,54 +23,32 @@ export interface TermForms {
 /** locale → term → the org's override. Absent = shipped wording. */
 export type OrgTerms = Partial<Record<TermLocale, Partial<Record<TermKey, TermForms>>>>;
 
-/** The shipped surface forms each term is written as, per language. Plural forms first matter. */
-export const SHIPPED_FORMS: Record<TermLocale, Record<TermKey, { singular: string[]; plural: string[] }>> = {
-  en: {
-    workOrder: { singular: ['work order'], plural: ['work orders'] },
-    project: { singular: ['project'], plural: ['projects'] },
-    clientSuppliedStock: { singular: ['client-supplied stock'], plural: ['client-supplied stock'] },
-    purchaseRequest: { singular: ['purchase request'], plural: ['purchase requests'] },
-    discipline: { singular: ['discipline'], plural: ['disciplines'] },
-    materialRequest: { singular: ['material request'], plural: ['material requests'] },
-    billOfQuantities: { singular: ['bill of quantities'], plural: ['bill of quantities'] },
-    contractItem: { singular: ['contract item'], plural: ['contract items'] },
-    dailyRevenue: { singular: ['day revenue'], plural: ['day revenue'] },
-    acceptedQuantity: { singular: ['accepted quantity'], plural: ['accepted quantities'] },
-    costVariation: { singular: ['cost variation'], plural: ['cost variations'] },
-    deliveryNote: { singular: ['delivery note'], plural: ['delivery notes'] },
-    stockCount: { singular: ['stock count'], plural: ['stock counts'] },
-    imprest: { singular: ['imprest'], plural: ['imprests'] },
-    standIn: { singular: ['stand-in'], plural: ['stand-ins'] },
-    progressClaim: { singular: ['progress claim'], plural: ['progress claims'] },
-  },
-  id: {
-    workOrder: { singular: ['work order', 'SPK', 'Work Order / SPK'], plural: ['work order', 'SPK', 'Work Order / SPK'] },
-    project: { singular: ['proyek', 'proyeknya', 'antarproyek'], plural: ['proyek', 'proyeknya', 'antarproyek'] },
-    clientSuppliedStock: { singular: ['stok titipan klien'], plural: ['stok titipan klien'] },
-    purchaseRequest: { singular: ['permintaan pembelian'], plural: ['permintaan pembelian'] },
-    discipline: { singular: ['disiplin'], plural: ['disiplin'] },
-    materialRequest: { singular: ['permintaan material'], plural: ['permintaan material'] },
-    billOfQuantities: { singular: ['bill of quantities', 'daftar kuantitas'], plural: ['bill of quantities', 'daftar kuantitas'] },
-    contractItem: { singular: ['item kontrak'], plural: ['item kontrak'] },
-    dailyRevenue: { singular: ['pendapatan hari itu'], plural: ['pendapatan hari itu'] },
-    acceptedQuantity: { singular: ['kuantitas yang diterima', 'kuantitas diterima'], plural: ['kuantitas yang diterima', 'kuantitas diterima'] },
-    costVariation: { singular: ['variasi biaya'], plural: ['variasi biaya'] },
-    deliveryNote: { singular: ['surat jalan', 'nota pengiriman'], plural: ['surat jalan', 'nota pengiriman'] },
-    stockCount: { singular: ['stok opname'], plural: ['stok opname'] },
-    imprest: { singular: ['kas lapangan'], plural: ['kas lapangan'] },
-    standIn: { singular: ['pengganti'], plural: ['pengganti'] },
-    progressClaim: { singular: ['klaim progres'], plural: ['klaim progres'] },
-  },
-};
+/** The registry is the one list (#2799): key, shipped forms per language, optional namespace scope, known variant spellings.
+ *  The `TERM_KEYS` tuple above stays literal for exhaustive typing; `orgTerms.registry.test.ts` and `check-locale-terms.mjs` fail if it drifts. */
+interface RegistryForms { singular: string[]; plural: string[] }
+export interface RegistryTerm {
+  key: string;
+  en: RegistryForms;
+  id: RegistryForms;
+  scope?: string[];
+  variants?: { en: string[]; id: string[] };
+}
+export const TERM_REGISTRY: readonly RegistryTerm[] = registry.terms;
 
+/** The shipped surface forms each term is written as, per language. The first form is the default shown to an Admin. */
+export const SHIPPED_FORMS = { en: {}, id: {} } as Record<TermLocale, Record<TermKey, RegistryForms>>;
 /**
  * Terms whose shipped word also appears in unrelated sentences (Bahasa "pengganti" = any replacement) are
  * rewritten only in these i18next namespaces. Text built outside i18next (no namespace) is never rewritten
  * for a scoped term. Terms absent here apply everywhere.
  */
-export const TERM_SCOPE: Partial<Record<TermKey, readonly string[]>> = {
-  standIn: ['materialRequests'],
-};
+export const TERM_SCOPE: Partial<Record<TermKey, readonly string[]>> = {};
+for (const term of TERM_REGISTRY) {
+  const key = term.key as TermKey;
+  SHIPPED_FORMS.en[key] = term.en;
+  SHIPPED_FORMS.id[key] = term.id;
+  if (term.scope) TERM_SCOPE[key] = term.scope;
+}
 
 /** Human-readable shipped name per term, for the settings screen's defaults. */
 export function shippedTerm(locale: TermLocale, key: TermKey): TermForms {

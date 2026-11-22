@@ -132,7 +132,18 @@ Reads the registry file and every `pmo-portal/public/locales/{en,id}/*.json` lea
 
 Renaming roles' access, keys, `profiles.role` or enum values; a per-feature switch; translating stored English notification bodies into Bahasa (see Q5); any customer-specific word.
 
-## Open questions for the Director
+## Decisions (coordinator, 2026-11-22)
+
+- **Q1** Align the shipped form to the screens: English "client-supplied item" (old "client-supplied stock" stays a secondary form); Bahasa "item pasokan klien" / "material pasokan klien" (old "stok titipan klien" secondary). Bahasa screens that say "Dipasok klien" / "Dari klien" are slice B's to align.
+- **Q2** Ship the keys now; add the word to screens where one exists (slice B). Until then R2 allowlists the keys with no screen text, each with a reason that names the slice that removes it.
+- **Q3** One key, `safetyRecordType`; its shipped forms are "safety record" / "catatan keselamatan" (incident, near miss and toolbox talk are separate concepts and are not folded into it).
+- **Q4** Restate `claim_email_outbox` to return `org_id` (1905, slice C).
+- **Q5** Rename only; translating stored English notification text is a separate question, not in this work.
+- **Q6** The guard's R1 means a spelling the rewriter cannot reach.
+
+Slice A deviations from the plan: `TERM_KEYS` stays a literal tuple (exhaustive typing) and is asserted equal to the registry by test and by guard rule R3; `check-org-terms.mjs` keeps its 16-term source-literal ratchet (extending it to the 39 terms would flag source literals and is a later, separate cleanup).
+
+## Original questions (answered above)
 
 - **Q1** `clientSuppliedStock`: align the shipped form to the screens' "client-supplied item", or add "stok titipan klien" to Bahasa screens? (Plan assumes: change the shipped forms to what screens say, per FR-TR-004.)
 - **Q2** For new keys with no screen text (serviceRequest, surveyQuantity, stockReturn, stockTransfer, checkpoint-id): ship the key now (so a rename saves) and add the word to the screens in slice B, or hold the key until a feature uses it? Plan assumes ship and add the word where an existing screen names the thing.
