@@ -15239,6 +15239,7 @@ export type Database = {
           amount: number | null
           category_id: string | null
           description: string | null
+          discipline_id: string | null
           erp_docstatus: number | null
           erp_line_amount: number | null
           erp_modified: string | null
@@ -15255,6 +15256,7 @@ export type Database = {
           amount?: number | null
           category_id?: string | null
           description?: string | null
+          discipline_id?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: number | null
           erp_modified?: string | null
@@ -15271,6 +15273,7 @@ export type Database = {
           amount?: number | null
           category_id?: string | null
           description?: string | null
+          discipline_id?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: number | null
           erp_modified?: string | null
@@ -15303,6 +15306,13 @@ export type Database = {
             columns: ["procurement_id"]
             isOneToOne: false
             referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_items_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
             referencedColumns: ["id"]
           },
           {
@@ -26163,6 +26173,7 @@ export type Database = {
         Row: {
           amount: number | null
           description: string | null
+          discipline_id: string | null
           erp_docstatus: number | null
           erp_line_amount: number | null
           erp_modified: string | null
@@ -26177,6 +26188,7 @@ export type Database = {
         Insert: {
           amount?: never
           description?: string | null
+          discipline_id?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: never
           erp_modified?: string | null
@@ -26191,6 +26203,7 @@ export type Database = {
         Update: {
           amount?: never
           description?: string | null
+          discipline_id?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: never
           erp_modified?: string | null
@@ -33089,21 +33102,6 @@ export type Database = {
       procurement_open_commitment_masked: {
         Args: { p: Database["public"]["Views"]["procurements_masked"]["Row"] }
         Returns: number
-      }
-      procurement_line_parts: {
-        Args: {
-          p_default_discipline: string
-          p_default_wo: string
-          p_org: string
-          p_procurement: string
-        }
-        Returns: {
-          discipline_id: string
-          lined: boolean
-          share_amount: number
-          total_amount: number
-          work_order_id: string
-        }[]
       }
       procurement_open_commitments: {
         Args: { p_ids: string[] }

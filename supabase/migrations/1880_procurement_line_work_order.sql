@@ -1,66 +1,43 @@
--- 1880_procurement_line_work_order.sql — a work order on each purchase line (spec docs/specs/wo-per-purchase-line.spec.md).
--- FR-WPL-001..004, AC-WPL-001..003. Builds on ADR-0104 (work orders on the cost side).
--- A purchase line (procurement_items) gains an optional work order. It is the line's OWN value and always wins when cost is
--- read (1882); the purchase records' work orders (request, PO, receipt, bill) are the default for lines that name none.
--- The rule trigger refuses, for every writer, a work order of another project or org, a purchase with no project, and a
--- newly named cancelled work order. One write path for people: set_cost_attribution (source 'procurement_item'; a line takes
--- no discipline). Every change is audited per line. A purchase cannot move to another project while a line names a work order
--- of the old one. The column is new and NULL for every existing line, so no existing figure moves.
+-- 1880_procurement_line_work_order.sql — a work order and a discipline on each purchase line (docs/specs/wo-per-purchase-line.spec.md).
+-- FR-WPL-001..004, AC-WPL-001..003. Builds on ADR-0104 and 1580 (the purchase header's work order and discipline).
+-- TRACE ONLY: a line says which work order (and discipline) it is for. No cost read changes; the line value is shown, not summed.
+-- The rule is the ONE rule the documents use: check_cost_attribution (1580's body, unchanged) now also runs on procurement_items —
+-- its generic branch takes the project from the line's purchase. A work order of another project or org, a purchase with no project,
+-- a newly named cancelled work order and a discipline not on the organisation's live list are refused for every writer.
+-- One write path for people: set_cost_attribution (new source 'procurement_item'). Every change is audited per line. A purchase cannot
+-- move to another project while a line names a work order of the old one. The columns are new and NULL for every existing line.
 -- drops: set_cost_attribution's source-list line and its audit-filter line each gain 'procurement_item'; every other line is kept.
 -- Proven by supabase/tests/1880_procurement_line_work_order.test.sql (mutation checks in its header).
--- Reverse: supabase/migrations/rollback/1880_procurement_line_work_order_down.sql (drops the column: line work orders are lost).
+-- Reverse: supabase/migrations/rollback/1880_procurement_line_work_order_down.sql (drops the columns: line attribution is lost).
 
-alter table public.procurement_items add column work_order_id uuid references public.work_orders(id);
+alter table public.procurement_items
+  add column work_order_id uuid references public.work_orders(id),
+  add column discipline_id uuid references public.cost_disciplines(id);
 create index procurement_items_work_order_idx on public.procurement_items (work_order_id) where work_order_id is not null;
 
-create function public.check_procurement_line_work_order() returns trigger
-  language plpgsql security definer set search_path = public, pg_temp as $$
-declare
-  v_project uuid; v_wo_org uuid; v_wo_project uuid; v_wo_status public.work_order_status;
-begin
-  if new.work_order_id is null then return new; end if;
-  if tg_op = 'UPDATE' and new.work_order_id is not distinct from old.work_order_id
-     and new.procurement_id is not distinct from old.procurement_id then
-    return new;
-  end if;
-  select p.project_id into v_project from public.procurements p where p.id = new.procurement_id and p.org_id = new.org_id;
-  if v_project is null then
-    raise exception 'COST_WO_NO_PROJECT: this record has no project, so it cannot name a work order' using errcode = '23514';
-  end if;
-  select w.org_id, w.project_id, w.status into v_wo_org, v_wo_project, v_wo_status
-    from public.work_orders w where w.id = new.work_order_id;
-  if v_wo_org is distinct from new.org_id or v_wo_project is distinct from v_project then   -- mut:line_project
-    raise exception 'COST_WO_PROJECT: the work order belongs to another project' using errcode = '23514';
-  end if;
-  if v_wo_status = 'Cancelled' and (tg_op = 'INSERT' or new.work_order_id is distinct from old.work_order_id) then   -- mut:line_cancelled
-    raise exception 'COST_WO_CANCELLED: the work order is cancelled' using errcode = '23514';
-  end if;
-  return new;
-end $$;
-revoke all on function public.check_procurement_line_work_order() from public, anon, authenticated;
-create trigger procurement_items_zz_cost_attribution_check before insert or update of work_order_id, procurement_id
-  on public.procurement_items for each row execute function public.check_procurement_line_work_order();
+create trigger zz_cost_attribution_check before insert or update of work_order_id, discipline_id, procurement_id
+  on public.procurement_items for each row execute function public.check_cost_attribution();
 
 -- Audit at the table boundary, as 0951 does for timesheet lines, so a direct write and the RPC leave the same evidence.
-create function public.audit_procurement_line_work_order() returns trigger
+create function public.audit_procurement_line_attribution() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_before jsonb;
 begin
   if tg_op = 'INSERT' then
-    if new.work_order_id is null then return new; end if;
+    if new.work_order_id is null and new.discipline_id is null then return new; end if;
     v_before := jsonb_build_object('work_order_id', null, 'discipline_id', null);
   else
-    if new.work_order_id is not distinct from old.work_order_id then return new; end if;
-    v_before := jsonb_build_object('work_order_id', old.work_order_id, 'discipline_id', null);
+    if new.work_order_id is not distinct from old.work_order_id and new.discipline_id is not distinct from old.discipline_id then return new; end if;
+    v_before := jsonb_build_object('work_order_id', old.work_order_id, 'discipline_id', old.discipline_id);
   end if;
   perform public.log_audit('cost_attribution.set', new.org_id, auth.uid(), new.id,
     jsonb_build_object('source', 'procurement_item', 'before', v_before,
-      'after', jsonb_build_object('work_order_id', new.work_order_id, 'discipline_id', null)));
+      'after', jsonb_build_object('work_order_id', new.work_order_id, 'discipline_id', new.discipline_id)));
   return new;
 end $$;
-revoke all on function public.audit_procurement_line_work_order() from public, anon, authenticated;
-create trigger procurement_items_zz_cost_attribution_audit after insert or update of work_order_id on public.procurement_items
-  for each row execute function public.audit_procurement_line_work_order();
+revoke all on function public.audit_procurement_line_attribution() from public, anon, authenticated;
+create trigger zz_cost_attribution_audit after insert or update of work_order_id, discipline_id on public.procurement_items
+  for each row execute function public.audit_procurement_line_attribution();
 
 -- A purchase keeps its lines' work orders on its project (same shape as 0951 §3 for the records).
 create function public.guard_procurement_move_with_line_work_orders() returns trigger
@@ -101,9 +78,6 @@ begin
   if p_source is null or p_source not in ('purchase_request', 'purchase_order', 'goods_receipt', 'vendor_bill',
                                           'timesheet_entry', 'stock_document', 'equipment_usage', 'expense_claim', 'procurement_item') then
     raise exception 'unknown cost source' using errcode = '22023';
-  end if;
-  if p_source = 'procurement_item' and p_discipline_id is not null then
-    raise exception 'COST_LINE_DISCIPLINE: a purchase line takes a work order only; the discipline stays on the purchase records' using errcode = '23514';
   end if;
   select coalesce(array_agg(distinct i), '{}') into v_ids from unnest(coalesce(p_ids, '{}')) i where i is not null;
   if cardinality(v_ids) = 0 or cardinality(v_ids) > 500 then
@@ -165,7 +139,7 @@ begin
     when 'procurement_item' then
       perform 1 from public.procurement_items it where it.id = any(v_ids) and it.org_id = v_org for update of it;
       select count(*), count(*) filter (where v_priv or p.requested_by_id = v_uid),
-             jsonb_agg(jsonb_build_object('id', it.id, 'work_order_id', it.work_order_id, 'discipline_id', null))
+             jsonb_agg(jsonb_build_object('id', it.id, 'work_order_id', it.work_order_id, 'discipline_id', it.discipline_id))
         into v_found, v_allowed, v_before
         from public.procurement_items it join public.procurements p on p.id = it.procurement_id
        where it.id = any(v_ids) and it.org_id = v_org;
@@ -193,7 +167,7 @@ begin
     when 'timesheet_entry'  then update public.timesheet_entries set work_order_id = p_work_order_id, discipline_id = p_discipline_id where id = any(v_ids);
     when 'stock_document'   then update public.stock_documents   set work_order_id = p_work_order_id, discipline_id = p_discipline_id where id = any(v_ids);
     when 'expense_claim'    then update public.expense_claims    set work_order_id = p_work_order_id, discipline_id = p_discipline_id where id = any(v_ids);
-    when 'procurement_item' then update public.procurement_items set work_order_id = p_work_order_id where id = any(v_ids);
+    when 'procurement_item' then update public.procurement_items set work_order_id = p_work_order_id, discipline_id = p_discipline_id where id = any(v_ids);
     when 'equipment_usage'  then update public.equipment_usage_entries set work_order_id = p_work_order_id, discipline_id = p_discipline_id where id = any(v_ids);
   end case;
   get diagnostics v_n = row_count;

@@ -24,8 +24,6 @@
   "ATT_WEEK_EMPTY": "Orang ini tidak punya hari hadir di minggu itu.",
   "COST_ADVANCE": "Uang muka bukan biaya. Sebutkan work order pada klaim yang menyelesaikannya.",
   "COST_DISCIPLINE": "Disiplin itu sudah tidak ada di daftar organisasi Anda.",
-  "COST_LINE_DISCIPLINE": "Baris pembelian hanya bisa memakai work order.",
-  "COST_LINE_DISCIPLINE_detail": "Atur disiplin pada dokumen pembelian (permintaan, pesanan, penerimaan, atau tagihan) sebagai gantinya.",
   "COST_LINE_PROJECT_MOVE": "Baris pembelian ini ada pada work order proyeknya saat ini.",
   "COST_LINE_PROJECT_MOVE_detail": "Kosongkan dulu work order pada baris tersebut, lalu pindahkan pembelian ke proyek lain.",
   "COST_WO_CANCELLED": "$t(common:terms.clientWorkOrder) itu sudah dibatalkan.",

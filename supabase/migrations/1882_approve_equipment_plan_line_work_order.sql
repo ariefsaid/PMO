@@ -1,4 +1,11 @@
--- Reverse 1883: restore 1472's approve_equipment_plan (work order as description text), with the light-account guard.
+-- 1882_approve_equipment_plan_line_work_order.sql — FR-WPL-007, AC-WPL-013. Approving an equipment plan puts each plan line's work
+-- order on the rental purchase line it creates (the line's work_order_id, 1880), through set_cost_attribution; it was written into
+-- the item's description text (1359, OQ-EQP-3), which no cost read could use. A cancelled or other-project work order now refuses the
+-- approval with the cost rule's own refusal (COST_WO_CANCELLED / COST_WO_PROJECT) and nothing is created (one transaction).
+-- Restates approve_equipment_plan whole from 1472, plus the light-account guard 1480 injects at apply time. Idempotency, the gates,
+-- the rental type, the per-line payload and every ACL line are unchanged.
+-- drops: the description's 'Work order <number>' part (the work order is now the line's column).
+-- Proven by supabase/tests/equipment_plan_orders.test.sql (AC-WPL-013) and 1472_approve_equipment_plan_taken_reference.test.sql. Reverse: rollback/1882_approve_equipment_plan_line_work_order_down.sql.
 create or replace function public.approve_equipment_plan(p_id uuid) returns public.equipment_plans
   language plpgsql security definer set search_path = pg_catalog, public as $$
 declare
@@ -43,7 +50,6 @@ begin
     v_pid := md5('eqplan:' || v_line.id::text)::uuid;
     v_name := left(coalesce(v_line.description, v_line.asset_name), 200);
     v_note := concat_ws(' · ', 'Monthly plan ' || to_char(v_plan.plan_month, 'YYYY-MM'),
-                        case when v_line.work_order_id is not null then 'Work order ' || coalesce(v_line.wo_number, v_line.wo_title) end,
                         v_line.category_name);
     perform public.create_procurement_with_items(
       v_pid,
@@ -52,6 +58,10 @@ begin
                          'rental_from', v_line.date_from, 'rental_to', v_line.date_to),
       jsonb_build_array(jsonb_build_object('id', md5('eqplanitem:' || v_line.id::text)::uuid, 'name', v_name,
                          'description', v_note, 'quantity', v_line.quantity, 'rate', v_line.rate)));
+    -- 1882: the work order is the purchase line's own column now (it was text in the description), so cost follows it.
+    if v_line.work_order_id is not null then
+      perform public.set_cost_attribution('procurement_item', array[md5('eqplanitem:' || v_line.id::text)::uuid], v_line.work_order_id, null);
+    end if;
     update public.equipment_plan_lines set procurement_id = v_pid where id = v_line.id;
   end loop;
   update public.equipment_plans set status = 'Approved', approved_by = auth.uid(), approved_at = now() where id = p_id returning * into v_plan;

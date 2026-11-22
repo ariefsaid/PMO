@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({ orders: vi.fn(), set: vi.fn() }));
+vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: () => ({ data: [{ id: 'd1', code: 'CIV', name: 'Civil' }] }) }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => h.orders() }));
 vi.mock('@/src/lib/repositories/workOrderCosts', () => ({ workOrderCostRepository: { setAttribution: h.set } }));
 vi.mock('@/src/lib/refusals', () => ({ useRefusalLine: () => (e: unknown) => String((e as { message?: string })?.message ?? 'refused') }));
@@ -18,11 +19,11 @@ const ORDERS = [
 ];
 const ITEMS = [
   { id: 'l1', name: 'Cable', work_order_id: null },
-  { id: 'l2', name: 'Pipe', work_order_id: 'w1' },
+  { id: 'l2', name: 'Pipe', work_order_id: 'w1', discipline_id: 'd1' },
 ];
 const renderPanel = (editable: boolean, requestWorkOrder: string | null = 'w2') => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <LineWorkOrdersPanel items={ITEMS} projectId="p1" requestRecords={requestWorkOrder ? [{ work_order_id: requestWorkOrder }] : []} editable={editable} />
+    <LineWorkOrdersPanel items={ITEMS} projectId="p1" requestWorkOrderId={requestWorkOrder} editable={editable} />
   </QueryClientProvider>,
 );
 
@@ -45,6 +46,7 @@ describe('AC-WPL-011 LineWorkOrdersPanel', () => {
   it('read-only shows the text and no Save', () => {
     renderPanel(false);
     expect(screen.getAllByTestId('line-work-order-value').map((e) => e.textContent)).toEqual(['Same as the request (WO-2)', 'WO-1']);
+    expect(screen.getAllByTestId('line-discipline-value').map((e) => e.textContent)).toEqual(['No discipline', 'Civil']);
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   });
 
@@ -58,7 +60,14 @@ describe('AC-WPL-011 LineWorkOrdersPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(h.set).toHaveBeenCalledTimes(2));
     expect(h.set).toHaveBeenCalledWith('procurement_item', ['l1'], { workOrderId: 'w1', disciplineId: null });
-    expect(h.set).toHaveBeenCalledWith('procurement_item', ['l2'], { workOrderId: null, disciplineId: null });
+    expect(h.set).toHaveBeenCalledWith('procurement_item', ['l2'], { workOrderId: null, disciplineId: 'd1' });
+  });
+
+  it('a discipline picked for a line is saved with the line', async () => {
+    renderPanel(true);
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Discipline for Cable' }), 'd1');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(h.set).toHaveBeenCalledWith('procurement_item', ['l1'], { workOrderId: null, disciplineId: 'd1' }));
   });
 
   it('a refusal is shown in words and nothing claims to be saved', async () => {
@@ -71,7 +80,7 @@ describe('AC-WPL-011 LineWorkOrdersPanel', () => {
   });
 
   it('renders nothing for a purchase with no project', () => {
-    const { container } = render(<QueryClientProvider client={new QueryClient()}><LineWorkOrdersPanel items={ITEMS} projectId={null} requestRecords={[]} editable /></QueryClientProvider>);
+    const { container } = render(<QueryClientProvider client={new QueryClient()}><LineWorkOrdersPanel items={ITEMS} projectId={null} requestWorkOrderId={null} editable /></QueryClientProvider>);
     expect(container).toBeEmptyDOMElement();
   });
 });
@@ -79,18 +88,18 @@ describe('AC-WPL-011 LineWorkOrdersPanel', () => {
 describe('AC-WPL-011 LineWorkOrdersSection empty states', () => {
   const lines = [{ id: 'l1', name: 'Cable' }];
   it('with no project it says to choose one first', () => {
-    render(<LineWorkOrdersSection lines={lines} values={{}} onChange={() => {}} workOrders={null} />);
+    render(<LineWorkOrdersSection lines={lines} values={{}} onChange={() => {}} workOrders={null} disciplines={[]} />);
     expect(screen.getByTestId('line-work-orders-empty')).toHaveTextContent('Choose a project first');
     expect(screen.queryByRole('combobox')).toBeNull();
   });
   it('with a project that has no work orders it says what is missing and who adds them', () => {
-    render(<LineWorkOrdersSection lines={lines} values={{}} onChange={() => {}} workOrders={[]} />);
+    render(<LineWorkOrdersSection lines={lines} values={{}} onChange={() => {}} workOrders={[]} disciplines={[]} />);
     expect(screen.getByTestId('line-work-orders-empty')).toHaveTextContent('A project manager adds work orders');
     expect(screen.queryByRole('combobox')).toBeNull();
   });
   it('a cancelled work order stays visible, marked, on a line that already carries it', () => {
-    render(<LineWorkOrdersSection lines={lines} values={{ l1: 'w3' }} onChange={() => {}} workOrders={[{ id: 'w3', label: 'WO-3', cancelled: true }, { id: 'w1', label: 'WO-1' }]} />);
-    const labels = Array.from((screen.getByRole('combobox') as HTMLSelectElement).options).map((o) => o.text);
+    render(<LineWorkOrdersSection lines={lines} values={{ l1: { workOrderId: 'w3', disciplineId: '' } }} onChange={() => {}} workOrders={[{ id: 'w3', label: 'WO-3', cancelled: true }, { id: 'w1', label: 'WO-1' }]} disciplines={[]} />);
+    const labels = Array.from((screen.getByRole('combobox', { name: 'Work order for Cable' }) as HTMLSelectElement).options).map((o) => o.text);
     expect(labels).toEqual(['Same as the request', 'WO-1', 'WO-3 (cancelled)']);
   });
 });

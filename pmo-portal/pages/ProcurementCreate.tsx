@@ -22,7 +22,8 @@ import { LineItemsSection, type LineItemsSectionHandle } from './procurement/Lin
 import { LinePlanningSection } from './procurement/LinePlanningSection';
 import type { LinePlanningValue } from './procurement/linePlanningValue';
 import { LineWorkOrdersSection } from './procurement/LineWorkOrdersSection';
-import { ownWorkOrdersByLine } from './procurement/lineWorkOrderValue';
+import { ownAttributionByLine, type LineAttributionValue } from './procurement/lineWorkOrderValue';
+import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { AttributionRefusedError, workOrderCostRepository } from '@/src/lib/repositories/workOrderCosts';
 import { useRefusalLine } from '@/src/lib/refusals';
@@ -171,7 +172,8 @@ export default function ProcurementCreate() {
   const lineCategories = useLineCategories(linePlanningOn);
   const [planning, setPlanning] = useState<Record<string, LinePlanningValue>>({});
   // A work order per line (wo-per-purchase-line): '' = same as the request. A work order belongs to one project, so a project change clears the picks.
-  const [lineWorkOrders, setLineWorkOrders] = useState<Record<string, string>>({});
+  const [lineWorkOrders, setLineWorkOrders] = useState<Record<string, LineAttributionValue>>({});
+  const lineDisciplines = useCostDisciplines();
   const projectWorkOrders = useProjectWorkOrders(selectedProject ?? '');
   const refusalLine = useRefusalLine();
   useEffect(() => { setLineWorkOrders({}); }, [selectedProject]);
@@ -345,7 +347,7 @@ export default function ProcurementCreate() {
       }
       if (attemptHave === 'need') {
         // The draft exists; put each line that names its own work order on it. A refusal leaves the request saved and is reported once.
-        const own = ownWorkOrdersByLine(lineWorkOrders, input.lines.map((line) => line.id));
+        const own = ownAttributionByLine(lineWorkOrders, input.lines.map((line) => line.id));
         if (Object.keys(own).length > 0) {
           try { await workOrderCostRepository.attributeLines(procurement.id, own); }
           catch (err) {
@@ -527,7 +529,9 @@ export default function ProcurementCreate() {
             <LineWorkOrdersSection
               lines={lines}
               values={lineWorkOrders}
-              onChange={(lineId, workOrderId) => setLineWorkOrders((current) => ({ ...current, [lineId]: workOrderId }))}
+              onChange={(lineId, next) => setLineWorkOrders((current) => ({ ...current, [lineId]: next }))}
+              disciplines={(lineDisciplines.data ?? []).map((d) => ({ id: d.id, label: d.name }))}
+              requestWorkOrder={attribution.workOrderId ? { id: attribution.workOrderId, label: (projectWorkOrders.data ?? []).find((wo) => wo.id === attribution.workOrderId)?.wo_number ?? (projectWorkOrders.data ?? []).find((wo) => wo.id === attribution.workOrderId)?.title ?? '' } : null}
               workOrders={selectedProject ? (projectWorkOrders.data ?? []).map((wo) => ({ id: wo.id, label: wo.wo_number ?? wo.title, cancelled: wo.status === 'Cancelled' })) : null}
               busy={saving || Boolean(attempt)}
             />

@@ -67,20 +67,21 @@ export const workOrderCostRepository = {
     try { await wrap(() => setCostAttribution(source, [id], attribution)); } catch (err) { throw new AttributionRefusedError(err, id); }
   },
   /**
-   * A purchase's lines, each to its own work order (wo-per-purchase-line). `byLine` maps a line id to the work order picked
-   * for it (null / absent = "same as the request": nothing is written). Run right after the purchase is saved; a refusal
-   * becomes AttributionRefusedError carrying the purchase id, so the form says "saved, but…" and never offers a duplicating retry.
+   * A purchase's lines, each with its own work order and discipline (wo-per-purchase-line). `byLine` maps a line id to what it names
+   * ('' / null = "same as the request": left out by the caller). Run right after the purchase is saved; one write per distinct pair.
+   * A refusal becomes AttributionRefusedError carrying the purchase id, so the form says "saved, but…" and never offers a duplicating retry.
    */
-  attributeLines: async (purchaseId: string, byLine: Readonly<Record<string, string | null>>): Promise<void> => {
-    const groups = new Map<string, string[]>();
-    for (const [lineId, workOrderId] of Object.entries(byLine)) {
-      if (!workOrderId) continue;
-      groups.set(workOrderId, [...(groups.get(workOrderId) ?? []), lineId]);
+  attributeLines: async (purchaseId: string, byLine: Readonly<Record<string, { workOrderId: string; disciplineId: string }>>): Promise<void> => {
+    const groups = new Map<string, { attribution: CostAttribution; ids: string[] }>();
+    for (const [lineId, v] of Object.entries(byLine)) {
+      if (!v.workOrderId && !v.disciplineId) continue;
+      const key = `${v.workOrderId}|${v.disciplineId}`;
+      const g = groups.get(key) ?? { attribution: { workOrderId: v.workOrderId || null, disciplineId: v.disciplineId || null }, ids: [] };
+      g.ids.push(lineId);
+      groups.set(key, g);
     }
     try {
-      for (const [workOrderId, ids] of groups) {
-        await wrap(() => setCostAttribution('procurement_item', ids, { workOrderId, disciplineId: null }));
-      }
+      for (const g of groups.values()) await wrap(() => setCostAttribution('procurement_item', g.ids, g.attribution));
     } catch (err) { throw new AttributionRefusedError(err, purchaseId); }
   },
   costLines: (workOrderId: string): Promise<WorkOrderCostLine[]> => wrap(() => listWorkOrderCostLines(workOrderId)),

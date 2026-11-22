@@ -24,8 +24,6 @@
   "ATT_WEEK_EMPTY": "This person has no present days that week.",
   "COST_ADVANCE": "A cash advance is not a cost. Name the work order on the claim that settles it.",
   "COST_DISCIPLINE": "That discipline is no longer on your organisation's list.",
-  "COST_LINE_DISCIPLINE": "A purchase line takes a work order only.",
-  "COST_LINE_DISCIPLINE_detail": "Set the discipline on the purchase's records (request, order, receipt or bill) instead.",
   "COST_LINE_PROJECT_MOVE": "Lines of this purchase are on a work order of its current project.",
   "COST_LINE_PROJECT_MOVE_detail": "Clear the work order on those lines first, then move the purchase to the other project.",
   "COST_WO_CANCELLED": "That work order is cancelled.",

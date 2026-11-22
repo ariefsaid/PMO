@@ -1,5 +1,5 @@
 -- Reverse 1880: restore 1261's set_cost_attribution (with the light-account guard 1461 adds), drop the line triggers and the column.
--- Line work orders are lost (the column is dropped); the cost reads (1882) must be rolled back first.
+-- Line attribution is lost (the columns are dropped); roll back 1883, 1882 and 1881 first.
 create or replace function public.set_cost_attribution(p_source text, p_ids uuid[], p_work_order_id uuid, p_discipline_id uuid)
   returns integer
   language plpgsql security definer set search_path = public, pg_temp as $$
@@ -121,9 +121,8 @@ grant execute on function public.set_cost_attribution(text, uuid[], uuid, uuid) 
 
 drop trigger if exists a0_procurements_line_work_order_move_guard on public.procurements;
 drop function if exists public.guard_procurement_move_with_line_work_orders();
-drop trigger if exists procurement_items_zz_cost_attribution_audit on public.procurement_items;
-drop function if exists public.audit_procurement_line_work_order();
-drop trigger if exists procurement_items_zz_cost_attribution_check on public.procurement_items;
-drop function if exists public.check_procurement_line_work_order();
+drop trigger if exists zz_cost_attribution_audit on public.procurement_items;
+drop function if exists public.audit_procurement_line_attribution();
+drop trigger if exists zz_cost_attribution_check on public.procurement_items;
 drop index if exists public.procurement_items_work_order_idx;
-alter table public.procurement_items drop column if exists work_order_id;
+alter table public.procurement_items drop column if exists discipline_id, drop column if exists work_order_id;

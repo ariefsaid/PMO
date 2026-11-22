@@ -978,7 +978,8 @@
     "signature": "Signature",
     "signatureDate": "Date",
     "section": "Purchase order",
-    "off": "Printing the purchase order is off. An Admin turns it on in Administration, Accounting, Purchase order printing."
+    "off": "Printing the purchase order is off. An Admin turns it on in Administration, Accounting, Purchase order printing.",
+    "discipline": "Discipline"
   },
   "poSettings": {
     "heading": "Purchase order printing",
@@ -1085,5 +1086,25 @@
       "title": "Payment is held until this bill matches.",
       "body": "The bill is compared with its order and receipts. If it does not match, payment stays held until the receipt is recorded or an Admin or Finance user, other than the person who recorded the bill, approves an exception."
     }
+  },
+  "lineWorkOrders": {
+    "section": "Work order per line",
+    "intro": "Say which work order, and discipline, each line is for. When every line names the same work order, the request takes it.",
+    "field": "Work order for {{line}}",
+    "disciplineField": "Discipline for {{line}}",
+    "noDiscipline": "No discipline",
+    "unknownDiscipline": "A retired discipline",
+    "sameAsRequest": "Same as the request",
+    "sameAsRequestNamed": "Same as the request ({{workOrder}})",
+    "unknownWorkOrder": "A work order you cannot open",
+    "cancelled": "cancelled",
+    "noProject": "Choose a project first: work orders belong to a project, and each line can then be given one.",
+    "noWorkOrders": "This project has no work orders yet, so lines cannot be given one. A project manager adds work orders on the project’s Work orders tab.",
+    "differs": "The request is on {{workOrder}}; this line is for a different work order.",
+    "save": "Save",
+    "saved": "Saved",
+    "nothingToSave": "Change a line’s work order or discipline to save.",
+    "saveFailed": "The request is saved, but the work order of some lines was not set.",
+    "saveFailedNext": "Open the request and set them on the Items tab."
   }
 }

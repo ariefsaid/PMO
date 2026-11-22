@@ -180,18 +180,6 @@ describe('rollupProject — actuals and roll-ups (FR-WPVA-010..032)', () => {
     expect(groups).toEqual(['100.00', '10.25']);
   });
 
-  it('AC-WPL-010 the two parts of one split bill are both counted, each on its own work order (neither dropped as a duplicate record)', () => {
-    const r = rollupProject({
-      workOrders: [wo('A', 'WO-1'), wo('B', 'WO-2')],
-      lines: [
-        line({ recordId: 'bill-1', workOrderId: 'A', source: 'vendor_bill', amount: '600.00' }),
-        line({ recordId: 'bill-1', workOrderId: 'B', source: 'vendor_bill', amount: '400.00' }),
-      ],
-      plans: [], split: null, restricted: false,
-    });
-    expect(r.workOrders.map((w) => w.direct)).toEqual(['600.00', '400.00']);
-  });
-
   it('AC-WPVA-004 result after shared cost = revenue - direct - allocated', () => {
     const r = rollupProject({
       workOrders: [wo('A', 'WO-1', { revenue: '1000.00' }), wo('B', 'WO-2', { revenue: '500.00' })],

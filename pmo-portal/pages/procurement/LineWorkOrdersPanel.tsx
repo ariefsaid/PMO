@@ -6,11 +6,10 @@ import { useRefusalLine } from '@/src/lib/refusals';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { workOrderCostRepository } from '@/src/lib/repositories/workOrderCosts';
 import { LineWorkOrdersSection } from './LineWorkOrdersSection';
-import { requestWorkOrderOf, SAME_AS_REQUEST, type LineWorkOrderOption } from './lineWorkOrderValue';
+import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
+import { groupLinesByAttribution, lineValuesOf, NO_LINE_ATTRIBUTION, type LineAttributionValue, type LineWorkOrderOption } from './lineWorkOrderValue';
 
-type Line = { id: string; name: string; work_order_id?: string | null };
-
-const initial = (items: readonly Line[]): Record<string, string> => Object.fromEntries(items.map((i) => [i.id, i.work_order_id ?? SAME_AS_REQUEST]));
+type Line = { id: string; name: string; work_order_id?: string | null; discipline_id?: string | null };
 
 /**
  * The case's lines, each with the work order it is for. A line's own work order wins when cost is read; a line with none takes
@@ -20,38 +19,42 @@ const initial = (items: readonly Line[]): Record<string, string> => Object.fromE
 export const LineWorkOrdersPanel: React.FC<{
   items: readonly Line[];
   projectId: string | null | undefined;
-  requestRecords: readonly { work_order_id?: string | null }[];
+  /** The purchase header's work order (the request's). */
+  requestWorkOrderId: string | null | undefined;
   editable: boolean;
-}> = ({ items, projectId, requestRecords, editable }) => {
+}> = ({ items, projectId, requestWorkOrderId, editable }) => {
   const { t } = useTranslation('procurement');
   const refusalLine = useRefusalLine();
   const qc = useQueryClient();
   const orders = useProjectWorkOrders(projectId ?? '');
-  const [values, setValues] = useState<Record<string, string>>(() => initial(items));
+  const [values, setValues] = useState<Record<string, LineAttributionValue>>(() => lineValuesOf(items));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const signature = items.map((i) => `${i.id}:${i.work_order_id ?? ''}`).join('|');
-  useEffect(() => { setValues(initial(items)); }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
+  const disciplines = useCostDisciplines();
+  const signature = items.map((i) => `${i.id}:${i.work_order_id ?? ''}:${i.discipline_id ?? ''}`).join('|');
+  useEffect(() => { setValues(lineValuesOf(items)); }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const options: LineWorkOrderOption[] | null = useMemo(
     () => projectId ? (orders.data ?? []).map((wo) => ({ id: wo.id, label: wo.wo_number ?? wo.title, cancelled: wo.status === 'Cancelled' })) : null,
     [orders.data, projectId],
   );
-  const requestId = requestWorkOrderOf(requestRecords);
+  const requestId = requestWorkOrderId ?? null;
   const requestWorkOrder = requestId ? { id: requestId, label: options?.find((o) => o.id === requestId)?.label ?? t('lineWorkOrders.unknownWorkOrder', 'A work order you cannot open') } : null;
 
   if (items.length === 0 || !projectId) return null;
   if (orders.isLoading) return null;
 
+  const differs = (i: Line) => {
+    const v = values[i.id] ?? NO_LINE_ATTRIBUTION;
+    return v.workOrderId !== (i.work_order_id ?? '') || v.disciplineId !== (i.discipline_id ?? '');
+  };
   const save = async () => {
     setSaving(true); setSaved(false); setFailure(null);
     try {
-      const changed = items.filter((i) => (values[i.id] ?? SAME_AS_REQUEST) !== (i.work_order_id ?? SAME_AS_REQUEST));
-      const byTarget = new Map<string, string[]>();
-      for (const i of changed) byTarget.set(values[i.id] ?? SAME_AS_REQUEST, [...(byTarget.get(values[i.id] ?? SAME_AS_REQUEST) ?? []), i.id]);
-      for (const [target, ids] of byTarget) {
-        await workOrderCostRepository.setAttribution('procurement_item', ids, { workOrderId: target || null, disciplineId: null });
+      const changed = Object.fromEntries(items.filter((i) => differs(i)).map((i) => [i.id, values[i.id] ?? NO_LINE_ATTRIBUTION]));
+      for (const g of groupLinesByAttribution(changed)) {
+        await workOrderCostRepository.setAttribution('procurement_item', g.ids, { workOrderId: g.workOrderId, disciplineId: g.disciplineId });
       }
       setSaved(true);
       void qc.invalidateQueries({ queryKey: ['procurement'] });
@@ -62,11 +65,12 @@ export const LineWorkOrdersPanel: React.FC<{
       setSaving(false);
     }
   };
-  const dirty = items.some((i) => (values[i.id] ?? SAME_AS_REQUEST) !== (i.work_order_id ?? SAME_AS_REQUEST));
+  const dirty = items.some(differs);
   return (
     <div className="space-y-2" data-testid="line-work-orders-panel">
       <LineWorkOrdersSection
         lines={items} values={values} workOrders={options} requestWorkOrder={requestWorkOrder}
+        disciplines={(disciplines.data ?? []).map((d) => ({ id: d.id, label: d.name }))}
         onChange={(id, next) => { setSaved(false); setFailure(null); setValues((current) => ({ ...current, [id]: next })); }}
         readOnly={!editable} busy={saving}
       />

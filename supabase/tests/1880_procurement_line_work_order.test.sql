@@ -7,16 +7,16 @@
 -- a purchase cannot move away from its lines' work orders · every change is audited per line.
 -- Every denial asserts the errcode AND the message, so a different gate moving in front cannot pass it.
 --
--- MUTATION CHECKS (money-adjacent rule; each must turn this file RED, then be restored):
---   1. In 1880's check_procurement_line_work_order, break the project comparison (the line marked `-- mut:line_project`,
---      e.g. `if false then`)          -> the 'another project', 'another org' and 'direct write' tests go red.
---   2. Break the line marked `-- mut:line_cancelled` (e.g. `v_wo_status = 'Active'`)   -> the cancelled-work-order test goes red.
---   3. In set_cost_attribution's 'procurement_item' arm change `v_priv or p.requested_by_id = v_uid` to `true`
+-- MUTATION CHECKS (each must turn this file RED, then be restored; the rule is the shared check_cost_attribution of 1580):
+--   1. In check_cost_attribution, break the project comparison (`v_wo_project is distinct from v_project` -> `false`)
+--                                    -> the 'another project', 'another org' and 'direct write' tests go red.
+--   2. Break the cancelled test (`v_wo_status = 'Cancelled'` -> `v_wo_status = 'Issued'`)   -> the cancelled-work-order test goes red.
+--   3. Drop the trigger `zz_cost_attribution_check` on procurement_items (1880) -> every refusal test goes red (the line has no rule).
+--   4. In set_cost_attribution's 'procurement_item' arm change `v_priv or p.requested_by_id = v_uid` to `true`
 --                                    -> the 'another engineer is refused' test goes red.
---   4. Remove the `if p_source = 'procurement_item' and p_discipline_id is not null` block -> the discipline test goes red.
 begin;
 create extension if not exists pgtap;
-select plan(18);
+select plan(20);
 
 insert into organizations (id, name, default_currency) values ('18800000-0000-0000-0000-00000000000a', 'WPL Org', 'IDR'), ('18800000-0000-0000-0000-00000000000b', 'WPL Other Org', 'IDR');
 insert into auth.users (id, email) values
@@ -35,10 +35,14 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
   ('18800000-0000-0000-0000-000000000402', '18800000-0000-0000-0000-00000000000a', '18800000-0000-0000-0000-0000000000d1', 'WPL WO two',   'Issued', 10000, 'exclusive', 0),
   ('18800000-0000-0000-0000-000000000404', '18800000-0000-0000-0000-00000000000a', '18800000-0000-0000-0000-0000000000d2', 'WPL WO other project', 'Issued', 10000, 'exclusive', 0),
   ('18800000-0000-0000-0000-000000000409', '18800000-0000-0000-0000-00000000000b', '18800000-0000-0000-0000-0000000000d9', 'WPL WO other org', 'Issued', 10000, 'exclusive', 0);
+insert into cost_disciplines (id, org_id, code, name, archived_at) values
+  ('18800000-0000-0000-0000-000000000501', '18800000-0000-0000-0000-00000000000a', 'CIV', 'Civil', null);
 -- Rows below are written with triggers off: this file proves the line rule, not each create path.
 set local session_replication_role = replica;
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, cancelled_at, currency) values
   ('18800000-0000-0000-0000-000000000403', '18800000-0000-0000-0000-00000000000a', '18800000-0000-0000-0000-0000000000d1', 'WPL WO cancelled', 'Cancelled', 0, 'exclusive', 0, now(), 'IDR');
+insert into cost_disciplines (id, org_id, code, name, archived_at) values
+  ('18800000-0000-0000-0000-000000000502', '18800000-0000-0000-0000-00000000000a', 'OLD', 'Retired', now());
 insert into procurements (id, org_id, title, project_id, requested_by_id, status, total_value, approved_total_value, currency) values
   ('18800000-0000-0000-0000-000000000601', '18800000-0000-0000-0000-00000000000a', 'WPL purchase', '18800000-0000-0000-0000-0000000000d1', '18800000-0000-0000-0000-0000000000a4', 'Draft', 0, 0, 'IDR'),
   ('18800000-0000-0000-0000-000000000602', '18800000-0000-0000-0000-00000000000a', 'WPL purchase without a project', null, '18800000-0000-0000-0000-0000000000a4', 'Draft', 0, 0, 'IDR');
@@ -78,8 +82,12 @@ select throws_ok($$ select public.set_cost_attribution('procurement_item', array
 select is(public.set_cost_attribution('procurement_item', array['18800000-0000-0000-0000-000000000614']::uuid[], '18800000-0000-0000-0000-000000000403', null), 1,
   'AC-WPL-002 a line already on a work order keeps it when the work order is cancelled later');
 -- AC-WPL-003
-select throws_ok($$ select public.set_cost_attribution('procurement_item', array['18800000-0000-0000-0000-000000000611']::uuid[], '18800000-0000-0000-0000-000000000401', '18800000-0000-0000-0000-000000000501') $$,
-  '23514', 'COST_LINE_DISCIPLINE: a purchase line takes a work order only; the discipline stays on the purchase records', 'AC-WPL-003 a line takes no discipline');
+select is(public.set_cost_attribution('procurement_item', array['18800000-0000-0000-0000-000000000612']::uuid[], '18800000-0000-0000-0000-000000000402', '18800000-0000-0000-0000-000000000501'), 1,
+  'AC-WPL-001 a line takes a live discipline with its work order');
+select is((select discipline_id from public.procurement_items where id = '18800000-0000-0000-0000-000000000612'), '18800000-0000-0000-0000-000000000501'::uuid,
+  'AC-WPL-001 and holds it');
+select throws_ok($$ select public.set_cost_attribution('procurement_item', array['18800000-0000-0000-0000-000000000611']::uuid[], null, '18800000-0000-0000-0000-000000000502') $$,
+  '23514', 'COST_DISCIPLINE: the discipline is not on this organisation''s list', 'AC-WPL-002 a retired discipline is refused on a line');
 select pg_temp.act_as('18800000-0000-0000-0000-0000000000a5');
 select throws_ok($$ select public.set_cost_attribution('procurement_item', array['18800000-0000-0000-0000-000000000611']::uuid[], '18800000-0000-0000-0000-000000000401', null) $$,
   '42501', 'you cannot change the work order or discipline of this record', 'AC-WPL-003 another engineer is refused');
