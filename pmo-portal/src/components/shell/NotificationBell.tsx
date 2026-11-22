@@ -103,7 +103,7 @@ type InboxState =
   | { status: 'ready'; rows: NotificationRow[]; nextCursor: NotificationCursor | null };
 
 export const NotificationBell: React.FC = () => {
-  const { t } = useTranslation(['common', 'incidents', 'notifications']);
+  const { t, i18n } = useTranslation(['common', 'incidents', 'notifications']);
   const navigate = useNavigate();
   const { openPanel, openThread } = useAssistantPanel();
   const [unread, setUnread] = useState(0);
@@ -314,7 +314,7 @@ export const NotificationBell: React.FC = () => {
               {inbox.rows.map((row) => {
                 const isUnread = row.read_at === null;
                 const sev = severityStyle(row.severity);
-                const body = notificationBody(row, t);
+                const body = notificationBody(row, t, i18n.language);
                 // fix-waiting item 4: a decision notification says WHAT was decided (the record's number or name), not only that something was.
                 const entityLabel = readMetadata(row.metadata).entity?.label?.trim() || null;
                 return (
