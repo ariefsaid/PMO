@@ -1,4 +1,5 @@
 {
+  "fileInput": {"choose": "Pilih berkas", "none": "Belum ada berkas dipilih", "many": "{{count}} berkas"},
   "terms": {
     "clientWorkOrder": "Work order",
     "dashboard": "Dasbor",

@@ -4,6 +4,7 @@ import { cn } from './cn';
 import { Icon } from './icons';
 import { Button } from './Button';
 import { useMoneyInputMask } from './useMoneyInputMask';
+import { getDateLocale } from '@/src/lib/locale/activeLocale';
 
 // ---------------------------------------------------------------------------
 // Shared form field primitives (crud-components §2.1 / §2.2). Strictly
@@ -175,16 +176,43 @@ export const compactControlShell =
 
 export type FileInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>;
 
-/** Native file chooser for form and upload surfaces; preserves the browser FileList API. */
+/** File chooser for form and upload surfaces; preserves the browser FileList API and the input's id, label and ref. The native
+ *  control's own words ("Choose file", "No file chosen") follow the browser's language, not the app's, so the input is hidden
+ *  (still the focusable, labelled control) and the app draws the button and the chosen name in the reader's language. */
 export const FileInput = React.forwardRef<HTMLInputElement, FileInputProps>(
-  ({ className, ...props }, ref) => (
-    <input
-      {...props}
-      ref={ref}
-      type="file"
-      className={className}
-    />
-  ),
+  ({ className, onChange, disabled, multiple, ...props }, forwardedRef) => {
+    const { t } = useTranslation();
+    const inner = useRef<HTMLInputElement | null>(null);
+    const [chosen, setChosen] = React.useState('');
+    const setRef = (node: HTMLInputElement | null) => {
+      inner.current = node;
+      if (typeof forwardedRef === 'function') forwardedRef(node);
+      else if (forwardedRef) forwardedRef.current = node;
+    };
+    const describe = (input: HTMLInputElement) => {
+      const files = Array.from(input.files ?? []);
+      if (files.length === 0) return '';
+      return files.length === 1 ? files[0].name : t('fileInput.many', '{{count}} files', { count: files.length });
+    };
+    return (
+      <span className={cn('flex min-w-0 flex-wrap items-center gap-2', className)}>
+        <input
+          {...props}
+          ref={setRef}
+          type="file"
+          multiple={multiple}
+          disabled={disabled}
+          className="peer sr-only"
+          onChange={(e) => { setChosen(describe(e.currentTarget)); onChange?.(e); }}
+        />
+        <Button type="button" variant="outline" size="sm" tabIndex={-1} disabled={disabled}
+          className="peer-focus-visible:ring-2 peer-focus-visible:ring-ring" onClick={() => inner.current?.click()}>
+          {t('fileInput.choose', 'Choose file')}
+        </Button>
+        <span className="min-w-0 truncate text-control text-muted-foreground">{chosen || t('fileInput.none', 'No file chosen')}</span>
+      </span>
+    );
+  },
 );
 FileInput.displayName = 'FileInput';
 
@@ -274,6 +302,7 @@ export const TextField: React.FC<TextFieldProps> = ({
             aria-invalid={ctl['aria-invalid'] ?? rest['aria-invalid']}
             name={rest.name ?? ctl.id}
             type={effectiveType}
+            lang={rest.lang ?? (type === 'time' || type === 'month' || type === 'week' || type === 'datetime-local' || type === 'date' ? getDateLocale() : undefined)}
             autoComplete={defaultAutoComplete(type, rest.autoComplete)}
             spellCheck={defaultSpellCheck({ code, type, explicit: rest.spellCheck })}
             autoCorrect={rest.autoCorrect ?? (code ? 'off' : undefined)}

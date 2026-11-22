@@ -1,4 +1,5 @@
 {
+  "fileInput": {"choose": "Choose file", "none": "No file chosen", "many": "{{count}} files"},
   "terms": {
     "clientWorkOrder": "Work order",
     "dashboard": "Dashboard",
