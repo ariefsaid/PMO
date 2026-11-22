@@ -65,7 +65,9 @@ import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { useFeature } from '@/src/auth/useFeature';
 import { FEATURE_ENV_DEFAULT, type EntitleableKey } from '@/src/lib/features';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
+import type { Role } from '@/src/auth/AuthContext';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
+import { buildSettingsPaletteItems } from '@/src/lib/orgSettingsPalette';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 import { useReturnNavigate } from '@/src/hooks/useListReturn';
 import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
@@ -139,6 +141,7 @@ const ClosingTimeReportPage = lazyWithPreload(() => import('./pages/incidents/Cl
 const IncidentDetailPage = lazyWithPreload(() => import('./pages/IncidentDetail'));
 const AdministrationPage = lazyWithPreload(() => import('./pages/Administration'));
 const PersonClearancePage = lazyWithPreload(() => import('./pages/admin/PersonClearance'));
+const AllSettingsPage = lazyWithPreload(() => import('./pages/admin/AllSettings'));
 const IntegrationsPage = lazyWithPreload(() => import('./pages/Integrations'));
 const MyTasksPage = lazyWithPreload(() => import('./pages/MyTasks'));
 const CalendarPage = lazyWithPreload(() => import('./pages/Calendar'));
@@ -305,6 +308,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/clearance/:personId', chunks: [PersonClearancePage], namespaces: ['administration'] },
+  { path: '/administration/all-settings', chunks: [AllSettingsPage] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement', 'safety'] },
   { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement', 'safety'] },
   { path: '/finance', chunks: [FinanceHubPage], namespaces: ['finance', 'financeHub'] },
@@ -558,6 +562,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/administration/people', element: <AdministrationPage /> },
   { path: '/administration/clearance', element: <AdministrationPage /> },
   { path: '/administration/clearance/:personId', element: <PersonClearancePage /> },
+  { path: '/administration/all-settings', element: <AllSettingsPage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },
   { path: '/administration/accounting', element: <AdministrationPage /> },
   { path: '/administration/projects', element: <AdministrationPage /> },
@@ -887,6 +892,8 @@ export const ShellChrome: React.FC = () => {
         icon: 'admin' as const,
         run: () => navigate('/administration/users'),
       }] : []),
+      // "Settings" group: every organisation setting this role may change, found by name in either language (#2746)
+      ...buildSettingsPaletteItems(t, i18next, realRole as unknown as Role | undefined, navigate),
       // "Views" group — appended after "Navigate" when the feature is on (FR-VR-070..071)
       ...(userViewsEntitled
         ? buildViewsPaletteItems(userViewsList, navigate)
