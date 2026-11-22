@@ -13409,6 +13409,7 @@ export type Database = {
           attendance_conflict_tolerance_hours: number
           attendance_target_rate: number | null
           built_in_roles_enabled: boolean
+          claim_quantity_over_cap: string
           clearance_checklist_enabled: boolean
           created_at: string
           crew_loans_enabled: boolean
@@ -13465,6 +13466,7 @@ export type Database = {
           attendance_conflict_tolerance_hours?: number
           attendance_target_rate?: number | null
           built_in_roles_enabled?: boolean
+          claim_quantity_over_cap?: string
           clearance_checklist_enabled?: boolean
           created_at?: string
           crew_loans_enabled?: boolean
@@ -13521,6 +13523,7 @@ export type Database = {
           attendance_conflict_tolerance_hours?: number
           attendance_target_rate?: number | null
           built_in_roles_enabled?: boolean
+          claim_quantity_over_cap?: string
           clearance_checklist_enabled?: boolean
           created_at?: string
           crew_loans_enabled?: boolean
@@ -28487,6 +28490,15 @@ export type Database = {
         Args: { p_si_id: string }
         Returns: undefined
       }
+      claimable_headroom: {
+        Args: { p_accepted: number; p_claimed: number; p_ordered: number; p_surveyed: number }
+        Returns: {
+          basis: string
+          ceiling: number
+          headroom: number
+          signed_headroom: number
+        }[]
+      }
       cleanup_external_connect_attempt: {
         Args: {
           p_actor_id: string
@@ -35899,6 +35911,10 @@ export type Database = {
         Args: { p_certificate: string }
         Returns: undefined
       }
+      survey_quantity_for_line: {
+        Args: { p_boq_item_id: string; p_work_order_id: string }
+        Returns: number
+      }
       switch_budget_draft_mode: {
         Args: {
           p_assignments: Json
@@ -36583,6 +36599,23 @@ export type Database = {
         Returns: {
           reason: string
           work_order_id: string
+        }[]
+      }
+      work_order_line_accepted_quantity: {
+        Args: { p_boq_item_id: string; p_work_order_id: string }
+        Returns: number
+      }
+      work_order_line_claimed_quantity: {
+        Args: { p_boq_item_id: string; p_except_claim?: string; p_work_order_id: string }
+        Returns: number
+      }
+      work_order_line_headroom: {
+        Args: { p_boq_item_id: string; p_except_claim?: string; p_work_order_id: string }
+        Returns: {
+          basis: string
+          ceiling: number
+          headroom: number
+          signed_headroom: number
         }[]
       }
       work_order_roster: {
