@@ -98,6 +98,24 @@ describe('the Finance page shows the one waiting list', () => {
     expect(within(card).getByRole('link', { name: /All 2 approvals/ })).toHaveAttribute('href', '/approvals');
   });
 
+  it('JOB-PM-7 a client acceptance waiting for Finance appears in the same list and opens its exact work order', async () => {
+    w.list = {
+      ...w.list,
+      count: 1,
+      entries: [{
+        key: 'work_order_acceptance:acc-1', kind: 'work_order_acceptance', createdAt: '2026-11-18T00:00:00Z',
+        row: { id: 'acc-1', work_order_id: 'wo-77', acceptance_date: '2026-11-18', is_final: false, prepared_by: 'pm-1', prepared_at: '2026-11-18T00:00:00Z' },
+      }],
+    };
+    renderHub();
+    const card = await screen.findByTestId('finance-hub-waiting');
+    expect(within(card).getByText('Waiting for your decision (1)')).toBeInTheDocument();
+    const link = within(card).getByRole('link', { name: /Client acceptance \(stage\) of/ });
+    expect(link).toHaveAttribute('href', '/work-orders/wo-77');
+    expect(link.getAttribute('href')).not.toContain('acc-1');
+    expect(within(card).getByRole('link', { name: /All 1 approval/ })).toHaveAttribute('href', '/approvals');
+  });
+
   it('JOB-WAIT-2 says nothing is waiting when the list is empty, and never a count while the list is incomplete', async () => {
     renderHub();
     expect(await screen.findByText('Nothing is waiting for your decision.')).toBeInTheDocument();

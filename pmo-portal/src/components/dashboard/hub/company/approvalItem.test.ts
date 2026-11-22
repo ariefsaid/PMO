@@ -20,4 +20,14 @@ describe('approval work-list items (what · who · amount · how long)', () => {
     expect(item.what).toMatch(/^Ivan's timesheet, week of 2 Nov( 2026)?$/);
     expect(item).toMatchObject({ who: null, amount: null, href: '/approvals?scope=timesheets' });
   });
+  it('a client acceptance (BAST) names its stage and date, carries no amount, and opens its WORK ORDER — never its own id', () => {
+    const entry = {
+      key: 'work_order_acceptance:acc-1', kind: 'work_order_acceptance', createdAt: '2026-11-10T09:00:00Z',
+      row: { id: 'acc-1', work_order_id: 'wo-77', acceptance_date: '2026-11-10', is_final: true, prepared_at: '2026-11-10T09:00:00Z' },
+    } as unknown as ApprovalPopulationEntry;
+    const item = approvalItem(entry, t, now);
+    expect(item.href).toBe('/work-orders/wo-77');
+    expect(item.what).toMatch(/^Client acceptance \(final\) of 10 Nov( 2026)?$/);
+    expect(item).toMatchObject({ key: 'work_order_acceptance:acc-1', who: null, amount: null, days: 2 });
+  });
 });

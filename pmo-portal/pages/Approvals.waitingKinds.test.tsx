@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -11,11 +11,14 @@ import ApprovalsPage from './Approvals';
 const h = vi.hoisted(() => ({
   role: 'Engineer',
   database: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  // The client-acceptance (BAST) waiting read: its own caller-filtered source (1570), never `delivery_record`.
+  bast: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   standing: { data: false as boolean | undefined, isPending: false, isError: false },
 }));
 const idle = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 
 vi.mock('@/src/hooks/useWaitingDecisions', () => ({ useDatabaseWaiting: () => h.database, useDecisionStanding: () => h.standing }));
+vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useAcceptancesAwaitingConfirmation: () => h.bast }));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => idle, useMaterialRequest: () => ({ data: undefined }) }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: vi.fn() }) }));
@@ -54,6 +57,7 @@ const renderPage = (scope = 'all') => {
 beforeEach(() => {
   h.role = 'Engineer';
   h.database = { data: [], isPending: false, isError: false, refetch: vi.fn() };
+  h.bast = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.standing = { data: false, isPending: false, isError: false };
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -101,5 +105,34 @@ describe('the inbox lists the decisions the database says are waiting', () => {
     h.database = { data: undefined as unknown as unknown[], isPending: false, isError: true, refetch: vi.fn() };
     renderPage('all');
     expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+  });
+
+  // JOB-PM-7 (waiting half): Finance/Admin discover a client acceptance (BAST) in the same inbox that counts it, and a
+  // confirmed one leaves the item and the list — the section is gone, not a cached zero row.
+  const bastRow = {
+    id: 'acc-1', project_id: 'p1', work_order_id: 'wo-9', acceptance_date: '2026-11-20',
+    is_final: false, prepared_by: 'pm-1', prepared_at: '2026-11-20T08:00:00Z',
+  };
+
+  it('JOB-PM-7 Finance finds the waiting client acceptance in the inbox and opens its exact work order', () => {
+    h.role = 'Finance';
+    h.bast = { data: [bastRow], isPending: false, isError: false, refetch: vi.fn() };
+    renderPage('work_order_acceptance');
+    const section = screen.getByTestId('approvals-waiting-work_order_acceptance');
+    expect(within(section).getByText('Client acceptances to confirm (1)')).toBeInTheDocument();
+    const link = within(section).getByRole('link', { name: /Client acceptance \(stage\) of/ });
+    expect(link).toHaveAttribute('href', '/work-orders/wo-9');
+    expect(link.getAttribute('href')).not.toContain('acc-1');
+  });
+
+  it('JOB-PM-7 once the acceptance is confirmed the shared list no longer carries it (no cached zero row)', () => {
+    h.role = 'Finance';
+    h.bast = { data: [bastRow], isPending: false, isError: false, refetch: vi.fn() };
+    renderPage('all');
+    expect(screen.getByTestId('approvals-waiting-work_order_acceptance')).toBeInTheDocument();
+    cleanup();
+    h.bast = { data: [], isPending: false, isError: false, refetch: vi.fn() };
+    renderPage('all');
+    expect(screen.queryByTestId('approvals-waiting-work_order_acceptance')).toBeNull();
   });
 });

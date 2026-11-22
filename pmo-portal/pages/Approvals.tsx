@@ -25,6 +25,7 @@ import { useWaitingForYou } from '@/src/hooks/useWaitingForYou';
 import { useDecisionStanding } from '@/src/hooks/useWaitingDecisions';
 import { DATABASE_LISTED_KINDS, WAITING_KINDS, scopeLabelText, type DatabaseListedKind } from '@/src/lib/approvals/waitingKinds';
 import { WaitingDecisionSection } from './approvals/WaitingDecisionSection';
+import { WorkOrderAcceptanceSection } from './approvals/WorkOrderAcceptanceSection';
 import { MaterialRequestApprovalSection } from './approvals/MaterialRequestApprovalSection';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals, type ApprovalPopulationEntry, type ApprovalScope } from '@/src/lib/selectors/approvals';
@@ -100,6 +101,12 @@ const ApprovalsPage: React.FC = () => {
   // A failed read on its own never opens the page to someone with nothing to decide; once the page shows, the error is shown with a retry.
   const hasMaterialWork = materialCount > 0 || materialPending;
   const canShowMaterial = hasMaterialWork || (materialError && (canApproveProcurement || canApproveTimesheets || canApproveExpenses || canApproveInvoices));
+  // Client acceptances (BAST) are their own kind and their own read (1570), so they get their own scope. Offered when one
+  // waits, or while its read is unresolved/failed for someone who could decide it — never invented for a role that cannot.
+  const bastCount = waiting.countFor('work_order_acceptance');
+  const bastPending = waiting.pendingKinds.includes('work_order_acceptance');
+  const bastError = waiting.failedKinds.includes('work_order_acceptance');
+  const canShowBast = bastCount > 0 || bastPending || (bastError && (canApproveProcurement || canApproveTimesheets || canApproveExpenses || canApproveInvoices));
   const extraKinds = (['leave', 'imprest', ...DATABASE_LISTED_KINDS] as const).filter((kind) => waiting.countFor(kind) > 0);
   const databasePending = waiting.pendingKinds.includes('daily_report');
   const databaseError = waiting.failedKinds.includes('daily_report');
@@ -123,6 +130,7 @@ const ApprovalsPage: React.FC = () => {
     ...(canApproveInvoices && invoices.enabled !== false ? ['invoice' as const] : []),
     ...(canShowMaterial ? ['material' as const] : []),
     ...extraKinds,
+    ...(canShowBast ? ['work_order_acceptance' as const] : []),
   ];
   const availableScopes: Scope[] = [
     ...(availableKinds.length > 1 ? (['all'] as const) : []),
@@ -150,8 +158,8 @@ const ApprovalsPage: React.FC = () => {
   const pendingExpense = canShowExpenses ? expenseRows.length : 0;
   const invSettledEmpty = !invoices.isPending && !invoices.isError && pendingInv === 0;
   const expenseSettledEmpty = !expenseQuery.isPending && !expenseQuery.isError && pendingExpense === 0;
-  const allCaughtUp = procSettledEmpty && tsSettledEmpty && invSettledEmpty && expenseSettledEmpty && !canShowMaterial && extraKinds.length === 0 && !databasePending && !databaseError;
-  const allScopePending = (canApproveProcurement && procPending) || (canApproveTimesheets && (tsPending || correctionPending)) || (canShowExpenses && expenseQuery.isPending) || (canShowInvoices && invoices.isPending) || (canShowMaterial && materialPending) || databasePending;
+  const allCaughtUp = procSettledEmpty && tsSettledEmpty && invSettledEmpty && expenseSettledEmpty && !canShowMaterial && extraKinds.length === 0 && !canShowBast && !databasePending && !databaseError;
+  const allScopePending = (canApproveProcurement && procPending) || (canApproveTimesheets && (tsPending || correctionPending)) || (canShowExpenses && expenseQuery.isPending) || (canShowInvoices && invoices.isPending) || (canShowMaterial && materialPending) || (canShowBast && bastPending) || databasePending;
 
   const allPopulation = waiting.entries;
   const countFor = (kind: Scope) => allPopulation.filter((entry: ApprovalPopulationEntry) => entry.kind === kind).length;
@@ -203,7 +211,7 @@ const ApprovalsPage: React.FC = () => {
   };
   const selectedItem = queueItems.find((item) => item.key === selectedKey) ?? null;
 
-  if (!canApproveProcurement && !canApproveTimesheets && !canShowInvoices && !canShowMaterial && extraKinds.length === 0 && !standing.data && !standing.isPending) {
+  if (!canApproveProcurement && !canApproveTimesheets && !canShowInvoices && !canShowMaterial && extraKinds.length === 0 && !canShowBast && !standing.data && !standing.isPending) {
     return (
       <AccessDenied
         title={t('approvals.accessDenied.title', "You don't have access to approvals")}
@@ -221,18 +229,21 @@ const ApprovalsPage: React.FC = () => {
     const includesExpenses = (activeScope === 'all' || activeScope === 'expense') && canShowExpenses;
     const includesInvoices = (activeScope === 'all' || activeScope === 'invoice') && canShowInvoices;
     const includesMaterial = (activeScope === 'all' || activeScope === 'material') && canShowMaterial;
+    const includesBast = (activeScope === 'all' || activeScope === 'work_order_acceptance') && canShowBast;
     const currentPending = activeScope === 'procurement' ? procPending
       : activeScope === 'timesheets' ? tsPending || correctionPending
         : activeScope === 'expense' ? expenseQuery.isPending
           : activeScope === 'invoice' ? invoices.isPending
             : activeScope === 'material' ? materialPending
-            : (canApproveProcurement && procPending) || (canApproveTimesheets && (tsPending || correctionPending)) || (includesExpenses && expenseQuery.isPending) || (includesInvoices && invoices.isPending) || (includesMaterial && materialPending);
+            : activeScope === 'work_order_acceptance' ? bastPending
+            : (canApproveProcurement && procPending) || (canApproveTimesheets && (tsPending || correctionPending)) || (includesExpenses && expenseQuery.isPending) || (includesInvoices && invoices.isPending) || (includesMaterial && materialPending) || (includesBast && bastPending);
     const currentError = activeScope === 'procurement' ? procError
       : activeScope === 'timesheets' ? tsError || correctionError
         : activeScope === 'expense' ? expenseQuery.isError
           : activeScope === 'invoice' ? invoices.isError
             : activeScope === 'material' ? materialError
-            : (canApproveProcurement && procError) || (canApproveTimesheets && (tsError || correctionError)) || (includesExpenses && expenseQuery.isError) || (includesInvoices && invoices.isError) || (includesMaterial && materialError);
+            : activeScope === 'work_order_acceptance' ? bastError
+            : (canApproveProcurement && procError) || (canApproveTimesheets && (tsError || correctionError)) || (includesExpenses && expenseQuery.isError) || (includesInvoices && invoices.isError) || (includesMaterial && materialError) || (includesBast && bastError);
 
     const retryCurrentError = () => {
       if (activeScope === 'procurement') void refetchProc();
@@ -241,7 +252,7 @@ const ApprovalsPage: React.FC = () => {
         if (correctionError) void refetchCorrections();
       } else if (activeScope === 'expense') void expenseQuery.refetch();
       else if (activeScope === 'invoice') void invoices.refetch();
-      else if (activeScope === 'material') void waiting.refetch();
+      else if (activeScope === 'material' || activeScope === 'work_order_acceptance') void waiting.refetch();
       else {
         if (canApproveProcurement && procError) void refetchProc();
         if (canApproveTimesheets && tsError) void refetchTimesheets();
@@ -249,6 +260,7 @@ const ApprovalsPage: React.FC = () => {
         if (includesExpenses && expenseQuery.isError) void expenseQuery.refetch();
         if (includesInvoices && invoices.isError) void invoices.refetch();
         if (includesMaterial && materialError) void waiting.refetch();
+        if (includesBast && bastError) void waiting.refetch();
       }
     };
 
@@ -335,6 +347,7 @@ const ApprovalsPage: React.FC = () => {
           {DATABASE_LISTED_KINDS.includes(activeScope as DatabaseListedKind) && <WaitingDecisionSection kind={activeScope as DatabaseListedKind} entries={allPopulation} />}
           {activeScope === 'invoice' && canShowInvoices && <SalesInvoiceApprovalSection />}
           {activeScope === 'material' && canShowMaterial && <MaterialRequestApprovalSection />}
+          {activeScope === 'work_order_acceptance' && <WorkOrderAcceptanceSection entries={allPopulation} />}
         </div>
       ) : (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-start">
@@ -442,6 +455,7 @@ const ApprovalsPage: React.FC = () => {
       {activeScope === 'all' && canShowMaterial && <MaterialRequestApprovalSection />}
       {/* #2708: renders nothing while leave requests are off or none waits for this viewer. */}
       {activeScope === 'all' && <LeaveApprovalSection />}
+      {activeScope === 'all' && <WorkOrderAcceptanceSection entries={allPopulation} />}
       {activeScope === 'all' && DATABASE_LISTED_KINDS.map((kind) => <WaitingDecisionSection key={kind} kind={kind} entries={allPopulation} />)}
       {hasTimesheetRole && <PushAttentionSection />}
       {hasTimesheetRole && <EmployeeLinkConfirmSection />}

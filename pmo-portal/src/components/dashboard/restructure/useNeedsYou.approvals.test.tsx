@@ -39,6 +39,11 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
     : { data: h.timesheetsAwaiting, isPending: false, isError: false, refetch: vi.fn() },
 }));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+// A client acceptance (BAST) waiting on the viewer is its own caller-filtered read; held idle here so the approvals total
+// under test is fed only by the sources this spec controls.
+vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
+  useAcceptancesAwaitingConfirmation: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     fxRates: { context: () => Promise.resolve({ currency: 'USD', timezone: 'UTC' }) },

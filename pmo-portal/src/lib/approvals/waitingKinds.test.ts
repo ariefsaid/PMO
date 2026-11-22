@@ -6,7 +6,8 @@ import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
 /** Every record a login can decide, enumerated from the release (fix-waiting item 1). A new kind must be added HERE, to the registry and to its read. */
 const EXPECTED = [
   'procurement', 'timesheets', 'expense', 'invoice', 'material', 'leave', 'imprest',
-  'daily_report', 'work_order_issue', 'delivery_record', 'transfer_receipt', 'quantity_change', 'certificate', 'equipment_plan',
+  'daily_report', 'work_order_issue', 'delivery_record', 'work_order_acceptance', 'transfer_receipt', 'quantity_change',
+  'certificate', 'equipment_plan',
 ];
 
 describe('the registry of everything a login can decide', () => {
@@ -35,6 +36,7 @@ describe('the registry of everything a login can decide', () => {
       material: { requestId: 'm1', stepPosition: 1, label: 'Site lead' },
       leave: { id: 'l1', person_name: 'Dewi', start_date: '2026-11-20', end_date: '2026-11-21' },
       imprest: { id: 'r1', float_id: 'f1', number: 'REP-1' },
+      work_order_acceptance: { id: 'acc-1', work_order_id: 'wo-7', acceptance_date: '2026-11-20', is_final: true, prepared_at: '2026-11-20T00:00:00Z' },
     };
     for (const kind of WAITING_KINDS) {
       const row = isDatabaseListedKind(kind) ? { kind, recordId: 'rec-1', projectId: null, title: 'Row title', createdAt: '2026-11-20T00:00:00Z' } : rows[kind];
@@ -43,5 +45,19 @@ describe('the registry of everything a login can decide', () => {
       expect(item.what, kind).toBeTruthy();
       expect(item.href, kind).toMatch(/^\//);
     }
+  });
+
+  it('AC-WAIT-056 client acceptance (BAST) is its own kind, not the purchase-delivery kind, and opens its exact work order', () => {
+    // The purchase-receipt kind stays what it was: a BAST is never counted or linked as a `delivery_record`.
+    expect(WAITING_KIND_META.work_order_acceptance.scopeLabel).not.toBe(WAITING_KIND_META.delivery_record.scopeLabel);
+    expect(isDatabaseListedKind('work_order_acceptance')).toBe(false);
+    const entry = {
+      key: 'work_order_acceptance:acc-9', kind: 'work_order_acceptance', createdAt: '2026-11-20T00:00:00Z',
+      row: { id: 'acc-9', work_order_id: 'wo-9', acceptance_date: '2026-11-20', is_final: false, prepared_at: '2026-11-20T00:00:00Z' },
+    } as ApprovalPopulationEntry;
+    const item = approvalItem(entry, t, new Date('2026-11-22T00:00:00Z').getTime());
+    expect(item.href).toBe('/work-orders/wo-9');
+    expect(item.href).not.toContain('acc-9');
+    expect(item.what).toMatch(/Client acceptance/);
   });
 });

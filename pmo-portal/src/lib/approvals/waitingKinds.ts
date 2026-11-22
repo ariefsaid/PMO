@@ -7,7 +7,8 @@
  */
 export const WAITING_KINDS = [
   'procurement', 'timesheets', 'expense', 'invoice', 'material', 'leave', 'imprest',
-  'daily_report', 'work_order_issue', 'delivery_record', 'transfer_receipt', 'quantity_change', 'certificate', 'equipment_plan',
+  'daily_report', 'work_order_issue', 'delivery_record', 'work_order_acceptance', 'transfer_receipt', 'quantity_change',
+  'certificate', 'equipment_plan',
 ] as const;
 
 export type WaitingKind = (typeof WAITING_KINDS)[number];
@@ -37,6 +38,11 @@ export const WAITING_KIND_META: Record<WaitingKind, WaitingKindMeta> = {
   daily_report: { scopeKey: 'waitingList:scope.daily_report', scopeLabel: 'Daily reports', href: (id) => `/site-reports/${id}`, inboxSection: 'section' },
   work_order_issue: { scopeKey: 'waitingList:scope.work_order_issue', scopeLabel: 'Work orders to issue', href: (id) => `/work-orders/${id}`, inboxSection: 'section' },
   delivery_record: { scopeKey: 'waitingList:scope.delivery_record', scopeLabel: 'Deliveries to confirm', href: (id) => `/procurement/${id}`, inboxSection: 'section' },
+  // Client acceptance (BAST) confirmation is its own read (`acceptances_awaiting_my_confirmation`, 1570), never
+  // `delivery_record` — that kind is the PURCHASE receipt. `recordId` is the ACCEPTANCE id; the record it opens is
+  // the work order, so the caller must map through `work_order_id` (see `approvalItem`/its inbox section), never
+  // use this id as a work-order id.
+  work_order_acceptance: { scopeKey: 'waitingList:scope.work_order_acceptance', scopeLabel: 'Client acceptances to confirm', inboxSection: 'section' },
   transfer_receipt: { scopeKey: 'waitingList:scope.transfer_receipt', scopeLabel: 'Transfers to receive', href: (id) => `/stock/transfers/${id}`, inboxSection: 'section' },
   quantity_change: { scopeKey: 'waitingList:scope.quantity_change', scopeLabel: 'Quantity changes', href: (id) => `/quantity-changes/${id}`, inboxSection: 'section' },
   certificate: { scopeKey: 'waitingList:scope.certificate', scopeLabel: 'Subcontract certificates', href: (id) => `/subcontract-certificates/${id}`, inboxSection: 'section' },
@@ -61,6 +67,7 @@ export function scopeLabelText(kind: WaitingKind, t: Translate): string {
     case 'daily_report': return t('waitingList:scope.daily_report', 'Daily reports');
     case 'work_order_issue': return t('waitingList:scope.work_order_issue', 'Work orders to issue');
     case 'delivery_record': return t('waitingList:scope.delivery_record', 'Deliveries to confirm');
+    case 'work_order_acceptance': return t('waitingList:scope.work_order_acceptance', 'Client acceptances to confirm');
     case 'transfer_receipt': return t('waitingList:scope.transfer_receipt', 'Transfers to receive');
     case 'quantity_change': return t('waitingList:scope.quantity_change', 'Quantity changes');
     case 'certificate': return t('waitingList:scope.certificate', 'Subcontract certificates');
@@ -70,13 +77,14 @@ export function scopeLabelText(kind: WaitingKind, t: Translate): string {
 }
 
 /** The heading of a kind's inbox section, with the number waiting. */
-export function waitingHeadingText(kind: DatabaseListedKind | 'leave' | 'imprest', count: number, t: Translate): string {
+export function waitingHeadingText(kind: DatabaseListedKind | 'leave' | 'imprest' | 'work_order_acceptance', count: number, t: Translate): string {
   switch (kind) {
     case 'leave': return t('waitingList:heading.leave', 'Leave requests waiting for you ({{count}})', { count });
     case 'imprest': return t('waitingList:heading.imprest', 'Site cash waiting for you ({{count}})', { count });
     case 'daily_report': return t('waitingList:heading.daily_report', 'Daily reports to validate ({{count}})', { count });
     case 'work_order_issue': return t('waitingList:heading.work_order_issue', 'Work orders to issue ({{count}})', { count });
     case 'delivery_record': return t('waitingList:heading.delivery_record', 'Deliveries to confirm ({{count}})', { count });
+    case 'work_order_acceptance': return t('waitingList:heading.work_order_acceptance', 'Client acceptances to confirm ({{count}})', { count });
     case 'transfer_receipt': return t('waitingList:heading.transfer_receipt', 'Transfers to receive ({{count}})', { count });
     case 'quantity_change': return t('waitingList:heading.quantity_change', 'Quantity changes to decide ({{count}})', { count });
     case 'certificate': return t('waitingList:heading.certificate', 'Subcontract certificates to approve ({{count}})', { count });
