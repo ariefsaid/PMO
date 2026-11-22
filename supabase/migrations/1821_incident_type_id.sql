@@ -2,8 +2,8 @@
 -- `incident_reports.type` (text) stays as the stored label, so every reader and all history keep working.
 -- Backfill: one list entry per distinct lower(btrim(type)) per organisation (label = the most frequent spelling, ties
 -- by earliest use; blank = "Other"); an organisation with no issues gets "Other". `type` text is not rewritten.
--- Resolver: a person (auth.uid() not null) may only name a live entry of their own organisation, else 23514
--- ICM_TYPE_NOT_IN_LIST. A trusted context (auth.uid() null: migrations, jobs, imports, seed, fixtures) may name a new
+-- Resolver: a person (a signed-in caller under the client role) may only name a live entry of their own organisation, else 23514
+-- ICM_TYPE_NOT_IN_LIST. A trusted context (no signed-in client caller: migrations, jobs, imports, seed, fixtures) may name a new
 -- label and it is added to the list, so no import fails and the list stays complete.
 -- guard_incident_issue_fields (1391) is not restated: this trigger sorts after it, so a non-manager's type change is
 -- still refused there first. Proven by supabase/tests/1820_incident_types.test.sql.
@@ -44,6 +44,9 @@ create function public.resolve_incident_type() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_id uuid; v_label text; v_want text;
+  -- a person = a signed-in caller acting under the client role. `role` is the session setting a client request (and a test)
+  -- sets; it is not changed by this function being a definer, and a table-owner session with leftover JWT claims is not a person.
+  v_person boolean := auth.uid() is not null and current_setting('role', true) in ('authenticated', 'anon');
 begin
   if current_setting('pmo.incident_type_rename', true) = 'on' then return new; end if;
   if tg_op = 'UPDATE' and new.type is not distinct from old.type and new.type_id is not distinct from old.type_id then
@@ -53,20 +56,20 @@ begin
   if new.type_id is not null and (tg_op = 'INSERT' or new.type_id is distinct from old.type_id) then
     select t.id, t.label into v_id, v_label from public.incident_types t
      where t.id = new.type_id and t.org_id = new.org_id and t.archived_at is null;
-    if v_id is null and auth.uid() is not null then
+    if v_id is null and v_person then
       raise exception 'ICM_TYPE_NOT_IN_LIST: pick an issue type from the list, or ask an Admin to add it' using errcode = '23514';
     end if;
   end if;
 
   if v_id is null then
     v_want := left(nullif(btrim(coalesce(new.type, '')), ''), 80);
-    if v_want is null and auth.uid() is null then v_want := 'Other'; end if;
+    if v_want is null and not v_person then v_want := 'Other'; end if;
     if v_want is not null then
       select t.id, t.label into v_id, v_label from public.incident_types t
        where t.org_id = new.org_id and t.archived_at is null and lower(btrim(t.label)) = lower(v_want);
     end if;
     if v_id is null then
-      if auth.uid() is not null then
+      if v_person then
         raise exception 'ICM_TYPE_NOT_IN_LIST: pick an issue type from the list, or ask an Admin to add it' using errcode = '23514';
       end if;
       -- trusted context: add the label to the organisation's list
