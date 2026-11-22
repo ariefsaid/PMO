@@ -206,5 +206,18 @@
     "placeholder": "Mengapa ini terjadi, terpisah dari hambatan yang terlihat.",
     "save": "Simpan",
     "cancel": "Batal"
+  },
+  "nextSteps": {
+    "title": "Apa yang terjadi selanjutnya",
+    "inCharge": "Penanggung jawab: {{name}}.",
+    "nobody": "Belum ada penanggung jawab. Manajer proyek akan menunjuknya.",
+    "next": "Berikutnya: {{action}}.",
+    "nextOpen": "Berikutnya: penanggung jawab mulai memeriksanya.",
+    "nextInvestigating": "Berikutnya: penanggung jawab memperbaikinya lalu menutupnya.",
+    "whoCloses": "{{roles}} dapat menutup isu ini, dengan bukti.",
+    "rolePm": "Manajer Proyek",
+    "roleExecutive": "Eksekutif",
+    "roleAdmin": "Admin",
+    "and": "dan"
   }
 }
