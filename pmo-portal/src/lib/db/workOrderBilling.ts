@@ -2,6 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError } from '@/src/lib/appError';
 import type { WorkOrderStatus } from '@/src/lib/db/workOrders';
+import { fromCents, toCents } from '@/src/lib/reports/managementPack';
 
 /**
  * Work-order billing reads (OD-BILL-1, migration 0262). Both sources are SECURITY INVOKER — the caller's RLS is the
@@ -293,4 +294,41 @@ export async function listWorkOrderAcceptanceAge(projectId: string): Promise<Wor
     anchorDate: text(r.anchor_date, 'anchor_date'),
     days: num(r.days, 'days'),
   }));
+}
+
+/** One month of a work order's billed work. `month` is the first day (`YYYY-MM-01`); `toDate` is the current month so far. */
+export interface WorkOrderBilledMonth { month: string; billed: number; toDate: boolean }
+export interface WorkOrderBilledMonths {
+  currency: string;
+  asOf: string;
+  /** The billed figure could not be stated in the work order's own currency: no months are sent (as work in hand). */
+  incomplete: boolean;
+  months: WorkOrderBilledMonth[];
+  /** The months added in integer cents. */
+  total: number;
+}
+
+/**
+ * Billed work per month for ONE work order (rpc `get_work_order_billed_months`, migration 1790): the same calculation as the
+ * work-in-hand screen's window (`work_order_billed_months_core`), first billed month through the current month to date.
+ * The caller's RLS and role gate decide; org_id is never sent. A malformed figure is an ERROR, never a plausible 0.
+ */
+export async function getWorkOrderBilledMonths(workOrderId: string): Promise<WorkOrderBilledMonths> {
+  const { data, error } = await supabase.rpc('get_work_order_billed_months', { p_work_order: workOrderId });
+  if (error) throw new AppError(error.message, error.code);
+  const d = data as Record<string, unknown> | null;
+  if (d === null || typeof d !== 'object' || !Array.isArray(d.months)) throw new AppError('Work order billed months: response is malformed', MALFORMED);
+  const months = (d.months as unknown[]).map((m): WorkOrderBilledMonth => {
+    const r = (m ?? {}) as Record<string, unknown>;
+    const month = text(r.month, 'month');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(month)) throw new AppError('Work order billed months: month is not a date', MALFORMED);
+    return { month, billed: num(r.billed, 'billed'), toDate: flag(r.to_date, 'to_date') };
+  });
+  return {
+    currency: text(d.currency, 'currency'),
+    asOf: text(d.as_of, 'as_of'),
+    incomplete: flag(d.incomplete, 'incomplete'),
+    months,
+    total: fromCents(months.reduce((sum, m) => sum + toCents(m.billed), 0)),
+  };
 }

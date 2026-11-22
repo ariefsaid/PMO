@@ -55,7 +55,16 @@
     "stage": "Tahap",
     "lines": "baris",
     "confirmed": "Dikonfirmasi",
-    "draft": "Draf"
+    "draft": "Draf",
+    "perMonth": {
+      "title": "Ditagih per bulan",
+      "error": "Gagal memuat penagihan per bulan",
+      "empty": "Belum ada faktur yang diajukan.",
+      "basis": "Hanya menghitung faktur yang sudah diajukan, tanpa pajak, dalam mata uang perintah kerja. Draf dan klaim yang belum difakturkan tidak termasuk.",
+      "incomplete": "Beberapa faktur tidak dapat dijumlahkan dalam mata uang perintah kerja ini, sehingga angka bulanan tidak ditampilkan.",
+      "toDate": "sampai hari ini",
+      "total": "Total ditagih"
+    }
   },
   "documents": {
     "title": "Dokumen",

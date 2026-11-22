@@ -16,6 +16,17 @@ export function useWorkOrderBilling(projectId: string, enabled = true) {
   });
 }
 
+/** Billed per month for one work order. Keyed under 'work-order-billing' so billing invalidation refreshes it. */
+export function useWorkOrderBilledMonths(workOrderId: string | undefined, enabled = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: ['work-order-billing', orgId, 'billed-months', workOrderId],
+    queryFn: () => repositories.workOrder.billedMonths(workOrderId as string),
+    enabled: enabled && Boolean(orgId) && Boolean(workOrderId),
+  });
+}
+
 /** What is still to invoice across the organisation's issued and closed work orders (dashboards). */
 export function useUnbilledWorkOrders(enabled = true) {
   const { currentUser } = useAuth();

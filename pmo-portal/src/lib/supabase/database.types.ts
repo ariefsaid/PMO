@@ -30527,6 +30527,10 @@ export type Database = {
       }
       get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
       get_work_in_hand: { Args: { p_as_of?: string }; Returns: Json }
+      get_work_order_billed_months: {
+        Args: { p_as_of?: string; p_work_order: string }
+        Returns: Json
+      }
       get_work_order_material_vs_progress: {
         Args: { p_work_order_id: string }
         Returns: Json
@@ -36525,6 +36529,14 @@ export type Database = {
           requested_qty: number
           section_id: string
           work_order_plan_qty: number
+        }[]
+      }
+      work_order_billed_months_core: {
+        Args: { p_bound: string; p_work_orders: string[] }
+        Returns: {
+          billed: number
+          month: string
+          work_order_id: string
         }[]
       }
       work_order_section_progress: {

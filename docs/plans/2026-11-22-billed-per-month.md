@@ -1,25 +1,23 @@
 # Plan: Billed per month (spec `docs/specs/billed-per-month.spec.md`)
 
-Test-first. One migration (1790) only because the view lacks the date; no table, no function, no grant.
+Test-first. One migration (1790): the shared calculation, `get_work_in_hand` restated to read it, and the one new read. No table, no view change, no setting.
 
 ## Tasks
-1. **pgTAP red** `supabase/tests/1790_billed_on_month.test.sql` (AC-BPM-001..003; model fixtures on `supabase/tests/0262_work_order_billing_figures.test.sql`). Then `supabase/migrations/1790_work_order_billing_lines_billed_on.sql`: `create or replace view public.work_order_billing_lines with (security_invoker = true)` = body of the latest definition (`supabase/migrations/1046_opening_balances.sql` section 6, highest number; orchestrator confirms with `pg_get_viewdef`) plus a trailing `billed_on date`: invoice branch `w.invoice_date`; claim branch `(pc.created_at at time zone coalesce((select o.default_timezone from public.organizations o where o.id = pc.org_id), 'UTC'))::date`; opening branch `ob.as_of`. Keep grants (`revoke all ... ; grant select ... to authenticated`). Rollback `supabase/migrations/rollback/1790_work_order_billing_lines_billed_on_down.sql`: a view cannot lose a column by `create or replace`, and `work_order_billing` (and any other dependent) reads it, so the down file drops the dependents and the view in one transaction and recreates them from their pre-1790 bodies (lines view: 1046; `work_order_billing`: 0337). The orchestrator lists dependents with `pg_depend` before the wave run. `npm run check:restated-functions` must pass.
-2. **Types** `pmo-portal/src/lib/supabase/database.types.ts`: add `billed_on: string | null` to `work_order_billing_lines.Row` (alphabetical, mirror generated style).
-3. **Unit red** `pmo-portal/src/lib/billedByMonth.test.ts` (AC-BPM-004), then `pmo-portal/src/lib/billedByMonth.ts`: pure grouping in integer cents (helpers as `billingPlan.ts`/`progressBilling.ts`), no money rule of its own.
-4. **Data layer**: `listWorkOrderBilledLines(workOrderId)` in `pmo-portal/src/lib/db/workOrderBilling.ts` (+ test in `workOrderBilling.test.ts`): paged with `fetchAllPages`, `.select('record_id, billed, currency, billed_on')`, ordered by `record_id`, malformed month/amount is an error, never zero; repository entry `billedLines` in `src/lib/repositories/workOrders.ts` and the contract `src/lib/repositories/contracts/workOrders.ts`; hook `useWorkOrderBilledLines` in `src/hooks/useWorkOrderBilling.ts` (key under `'work-order-billing'` so existing billing invalidation refreshes it; enabled only with `canBilling`).
-5. **RTL red** `pmo-portal/pages/work-order-detail/BillingSection.test.tsx` (new; AC-BPM-005/006), then extend `BillingSection.tsx` with a "Billed per month" block (stacked rows, tokens, loading/error/empty states, no new gate) and pass the query from `pages/WorkOrderDetail.tsx` (same `canBilling` gate). Read `.claude/skills/restructure/SKILL.md` first.
-6. **Strings** `pmo-portal/public/locales/en/workOrders.json` and `id/workOrders.json` (`billing.perMonth.*`); locale parity guard.
-7. **e2e** `pmo-portal/e2e/AC-BPM-008-billed-per-month.spec.ts` (isolation tag per `docs/e2e-parallel-conventions.md`).
-8. **Docs**: `docs/glossary.md` (Billed month, No invoice date); spec status.
+1. **pgTAP** `supabase/tests/1790_work_order_billed_months.test.sql` (AC-BPM-001..005). Then `supabase/migrations/1790_work_order_billed_months.sql`: `work_order_billed_months_core(uuid[], date)` (security invoker, revoked from public/anon, granted to authenticated because its two invoker callers run as the caller); `get_work_in_hand` restated from `supabase/migrations/1148_work_in_hand.sql` (the only earlier definition; only the `w_ok` CTE changes, with a `-- drops:` marker); `get_work_order_billed_months` (security invoker; role gate Admin/Executive/Project Manager/Finance; P0002 when not found). Rollback `supabase/migrations/rollback/1790_work_order_billed_months_down.sql` restores the 1148 body and drops both new functions. `npm run check:restated-functions` passes.
+2. **Types** `pmo-portal/src/lib/supabase/database.types.ts`: `get_work_order_billed_months` and `work_order_billed_months_core`.
+3. **Data layer** `pmo-portal/src/lib/db/workOrderBilling.ts` `getWorkOrderBilledMonths` (+ `workOrderBilling.test.ts`, AC-BPM-007); repository `billedMonths` (`src/lib/repositories/workOrders.ts`, `contracts/workOrders.ts`); hook `useWorkOrderBilledMonths` in `src/hooks/useWorkOrderBilling.ts`.
+4. **RTL** `pmo-portal/pages/work-order-detail/BillingSection.test.tsx` (AC-BPM-006/008), then the block in `pages/work-order-detail/BillingSection.tsx`, wired in `pages/WorkOrderDetail.tsx` (same `canBilling` gate). `pages/WorkOrderDetail.test.tsx` mock gains the new hook (steps unchanged).
+5. **Strings** `pmo-portal/public/locales/{en,id}/workOrders.json` (`billing.perMonth.*`).
+6. **e2e** `pmo-portal/e2e/AC-BPM-008-billed-per-month.spec.ts` (AC-BPM-009 journey; isolation tag).
+7. **Docs** `docs/glossary.md` (Billed month).
 
 ## Traceability
 | AC | Test file | Layer |
 |---|---|---|
-| AC-BPM-001..003 | `supabase/tests/1790_billed_on_month.test.sql` | pgTAP |
-| AC-BPM-004 | `pmo-portal/src/lib/billedByMonth.test.ts` | unit |
-| AC-BPM-005, 006 | `pmo-portal/pages/work-order-detail/BillingSection.test.tsx` | unit (RTL) |
-| AC-BPM-007 | locale parity guard + screenshots | unit + capture |
-| AC-BPM-008 | `pmo-portal/e2e/AC-BPM-008-billed-per-month.spec.ts` | e2e |
+| AC-BPM-001..005 | `supabase/tests/1790_work_order_billed_months.test.sql` (+ unchanged `supabase/tests/work_in_hand.test.sql`) | pgTAP |
+| AC-BPM-006, 008 | `pmo-portal/pages/work-order-detail/BillingSection.test.tsx` | unit (RTL) |
+| AC-BPM-007 | `pmo-portal/src/lib/db/workOrderBilling.test.ts` | unit |
+| AC-BPM-009 | `pmo-portal/e2e/AC-BPM-008-billed-per-month.spec.ts` | e2e |
 
 ## Screenshots for the orchestrator
-`/work-orders/:id` as Finance at 390 px and 1440 px: billing in two months; one currency-mixed or un-totalled month; nothing billed; read error.
+`/work-orders/:id` as Finance at 390 px and 1440 px: billing in several months with the current month to date; nothing billed; a work order that cannot be totalled; read error.

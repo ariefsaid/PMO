@@ -55,7 +55,16 @@
     "stage": "Stage",
     "lines": "lines",
     "confirmed": "Confirmed",
-    "draft": "Draft"
+    "draft": "Draft",
+    "perMonth": {
+      "title": "Billed per month",
+      "error": "Couldn't load the billed months",
+      "empty": "No submitted invoice yet.",
+      "basis": "Counts submitted invoices only, excluding tax, in the work order currency. Drafts and claims not yet invoiced are not in these figures.",
+      "incomplete": "Some invoices could not be totalled in this work order's currency, so no monthly figures are shown.",
+      "toDate": "to date",
+      "total": "Total billed"
+    }
   },
   "documents": {
     "title": "Documents",

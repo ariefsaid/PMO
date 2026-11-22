@@ -24,7 +24,7 @@ import type {
   SetWorkOrderValueInput,
   ProjectDrawdown,
 } from '@/src/lib/db/workOrders';
-import type { WorkOrderAcceptanceAge, WorkOrderBillingRow, UnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
+import type { WorkOrderAcceptanceAge, WorkOrderBilledMonths, WorkOrderBillingRow, UnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
 import type {
   MilestoneRow,
   MilestoneWithProgress,
@@ -74,6 +74,8 @@ export interface WorkOrderRepository {
   drawdown(projectId: string): Promise<ProjectDrawdown | null>;
   /** OD-BILL-1: per-work-order billing for one project (view work_order_billing, RLS-scoped). */
   billing(projectId: string): Promise<WorkOrderBillingRow[]>;
+  /** Billed per month for one work order, first billed month through this month to date (rpc get_work_order_billed_months). */
+  billedMonths(workOrderId: string): Promise<WorkOrderBilledMonths>;
   /** OD-BILL-1 / #786: what is still to invoice across the org's issued and closed work orders. */
   unbilled(limit: number): Promise<UnbilledWorkOrders>;
   /** #1640: days since acceptance, not invoiced, per work order of one project (RLS-scoped view). */

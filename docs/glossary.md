@@ -452,6 +452,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Billing board** — a read-only screen listing every open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with the days on that step and an overdue chip. It is a view over the claims' own steps: nothing is stored for it, and a claim moves on only by completing its step on the claim. Bahasa Indonesia: Papan penagihan (#2681).
 
+**Billed month** — a calendar month in the work-order page's "Billed per month" list: the billed work (submitted invoices, excluding tax, no down payments, in the work order's currency) dated in that organisation-local month, the same figure as the work-in-hand screen. The current month reads "to date". Drafts and claims not yet invoiced are not in it. Bahasa Indonesia: Bulan penagihan.
+
 **Billing plan** — a screen at the Receivables header that lists billing candidates against a monthly target. Candidates only: ticks are view state, nothing is stored for them, and nothing raises a claim or an invoice. Over-claim shows as a warning, never a block. Bahasa Indonesia: Rencana penagihan (#2682).
 
 **Billing candidate** — accepted work that is not yet claimed: accepted quantity above claimed quantity on a work-order allocation (the Cascade's "Unclaimed"), or a money-only order with an amount left. "Progress not yet client-certified" in the ticket words (#2682).
