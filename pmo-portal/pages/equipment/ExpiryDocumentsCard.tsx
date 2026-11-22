@@ -11,7 +11,7 @@ import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDocumentTypes, useExpiryDocumentMutations, useSubjectDocuments } from '@/src/hooks/useDocumentExpiry';
 import { repositories } from '@/src/lib/repositories';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { EXPIRY_ATTACHMENT_ACCEPT, type ExpiryDocumentRow, type SubjectKind } from '@/src/lib/db/documentExpiry';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -134,7 +134,7 @@ export const ExpiryDocumentsCard: React.FC<{ kind: SubjectKind; subjectId: strin
     if (!archiving) return;
     setProblem(null);
     try { await archive.mutateAsync(archiving.id); toast(t('equipment:expiryEdit.archived', 'Document archived'), undefined, 'success'); setArchiving(null); }
-    catch (err) { const c = classifyMutationError(err); setProblem(`${c.headline}. ${c.detail}`); }
+    catch (err) { const c = classifyMutationError(err); setProblem(joinSentences(c.headline, c.detail)); }
   };
 
   const label = (d: ExpiryDocumentRow) => d.number ?? typeName(d.type_id);

@@ -1,6 +1,7 @@
 {
   "title": "My work",
   "signOut": "Sign out",
+  "settings": "Settings",
   "error": "Couldn't load your work",
   "tasks": {
     "title": "My tasks",
@@ -54,5 +55,8 @@
     "light": "Light accounts (Foreman, Field user)",
     "total": "Active seats",
     "helper": "A light account has one phone home screen. Price and seat counts are agreed with the owner."
+  },
+  "workOrders": {
+    "empty": "You are not on a work order today"
   }
 }

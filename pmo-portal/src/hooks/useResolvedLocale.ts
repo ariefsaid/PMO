@@ -3,6 +3,7 @@ import { repositories, type OrgLocaleDefaultsRow } from '@/src/lib/repositories'
 import { useAuth } from '@/src/auth/useAuth';
 import { resolveLocale, resolveOrgBusinessTimezone, type ResolvedLocale } from '@/src/lib/locale/resolveLocale';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
+import { usePreSessionLocale } from '@/src/lib/locale/preSessionLocale';
 
 const NO_ORG_DEFAULTS: OrgLocaleDefaultsRow = {
   defaultLocale: null,
@@ -46,10 +47,12 @@ export function useOrgBusinessTimezone(): string {
 export function useResolvedLocale(): ResolvedLocale {
   const { currentUser } = useAuth();
   const orgDefaults = useOrgLocaleDefaults();
+  // Before any session no organisation is known: the sign-in pages follow the browser language, or the choice made on them.
+  const preSession = usePreSessionLocale();
 
   return resolveLocale(
     {
-      locale: currentUser?.locale ?? null,
+      locale: currentUser ? (currentUser.locale ?? null) : preSession,
       numberLocale: currentUser?.number_locale ?? null,
       timezone: currentUser?.timezone ?? null,
     },

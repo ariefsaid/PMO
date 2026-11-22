@@ -1363,3 +1363,7 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Equipment manager** — the person who runs the machines: today a Project Manager (or Admin). They add and edit machines and their rental terms, set the working hours per day, the availability and use targets and the escalation limit, and read the rental invoice check; Finance keeps the costing and the unproven-days decision (equipment manager's day lane, migration 1600).
 
 **Hours log** — the weekly grid where hours on a machine are logged per project and day (`/equipment?view=hours`); Equipment itself opens on the machines and today's status.
+
+**Sign-in language** (*bahasa halaman masuk*) — the language of the pages seen before a session exists (sign-in, password reset). No organisation is known there, so the page follows the browser language (Bahasa Indonesia or English), shows a visible switch, and remembers the choice on the device. Once the person's profile loads, the normal order applies again: profile, then organisation, then English.
+
+**Work orders list** — the menu entry and page that lists every work order the reader may see, across projects, with its status. Its name everywhere is the terminology dictionary's term for work order, so one thing has one name on every screen. The project's contract card remains the other way in.

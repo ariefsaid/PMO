@@ -13,6 +13,7 @@ import { cn } from '@/src/components/ui/cn';
 import { PageHeader } from '@/src/components/ui/PageHeader';
 import { FigureHiddenLine, FigureScope } from '@/src/components/ui/FigureScope';
 import { ChartCard, StackedBar } from './charts';
+import { WorkOrdersTile } from './WorkOrdersTile';
 import {
   EngineerRecentEntriesPanel,
   EngineerReturnedCard,
@@ -190,6 +191,7 @@ export const EngineerDashboard: React.FC = () => {
             </ChartCard>
             {returned && <EngineerReturnedCard claims={returnedClaims} />}
           </div>
+          <WorkOrdersTile />
           {recentEl}
         </div>
       </FigureScope>
@@ -204,6 +206,7 @@ export const EngineerDashboard: React.FC = () => {
         <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} />
       </div>
       {!claimsError && <EngineerReturnedCard claims={returnedClaims} />}
+      <WorkOrdersTile />
       {recentEl}
     </div>
   );

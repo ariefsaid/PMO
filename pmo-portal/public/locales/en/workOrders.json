@@ -282,5 +282,14 @@
       "zeroValue": "The material is received into stock at no cost."
     },
     "importTakeoff": "Import take-off"
+  },
+  "all": {
+    "empty": "You have no work orders yet",
+    "error": "Couldn't load your work orders",
+    "noMatch": "No work order matches your search",
+    "search": "Search by number, title or project",
+    "seeAll": "See all",
+    "tileEmpty": "No open work orders",
+    "until": "until {{date}}"
   }
 }

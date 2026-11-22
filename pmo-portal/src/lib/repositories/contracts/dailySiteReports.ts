@@ -17,6 +17,8 @@ export interface DailySiteReportRepository {
   reportHours(reportId: string): Promise<DsrReportHours>;
   saveDraft(input: DsrDraftInput): Promise<string>;
   submit(id: string): Promise<void>;
+  /** The author takes a sent report back to a draft, until it is validated or returned. */
+  withdraw(id: string): Promise<void>;
   validate(id: string): Promise<void>;
   returnReport(id: string, reason: string): Promise<void>;
   correct(id: string, reason: string): Promise<string>;

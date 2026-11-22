@@ -5,7 +5,8 @@
     "return": "Kembalikan",
     "save": "Simpan draf",
     "submit": "Kirim",
-    "validate": "Validasi"
+    "validate": "Validasi",
+    "withdraw": "Tarik kembali"
   },
   "checkpoints": {
     "confirm": "Catat sekarang",
@@ -65,7 +66,7 @@
     "to": "Sampai",
     "toReports": "Kembali ke laporan lapangan",
     "truncated": "Menampilkan 200 regu pertama, persentase tepat waktu terendah lebih dulu.",
-    "workOrder": "Perintah kerja"
+    "workOrder": "$t(common:terms.clientWorkOrder)"
   },
   "detail": {
     "correction": "Koreksi: {{reason}}",
@@ -99,7 +100,8 @@
     "submitted": "Dikirim",
     "superseded": "Diganti oleh koreksi",
     "title": "Riwayat",
-    "validated": "Divalidasi"
+    "validated": "Divalidasi",
+    "withdrawn": "Ditarik kembali oleh pembuat"
   },
   "hours": {
     "addIdle": "Tambah waktu menganggur",
@@ -161,6 +163,8 @@
   "progress": {
     "add": "Tambah progres",
     "item": "Item kontrak",
+    "noItems": "$t(common:terms.clientWorkOrder) ini belum punya butir pekerjaan. Tanyakan kepada manajer proyek.",
+    "noItemsAsk": "$t(common:terms.clientWorkOrder) ini belum punya butir pekerjaan. Tanyakan kepada {{name}}.",
     "noRate": "Tanpa tarif",
     "none": "Belum ada progres",
     "pickItem": "Pilih item",
@@ -191,7 +195,7 @@
     "fix": "Laporan sudah divalidasi. Koreksi laporan setelah stok atau lokasi lapangan diperbaiki, maka material dikeluarkan lagi.",
     "reason": {
       "short": "kurang {{n}} di {{location}}",
-      "noLocation": "perintah kerja ini belum punya lokasi lapangan",
+      "noLocation": "$t(common:terms.clientWorkOrder) ini belum punya lokasi lapangan",
       "noWorkItem": "belum ada butir kontrak yang disebut untuk material ini",
       "failed": "ditolak oleh stok ({{reason}})",
       "notStocked": "tidak dilacak di stok"
@@ -211,6 +215,14 @@
     "returned": "Laporan dikembalikan",
     "saved": "Draf disimpan",
     "submitted": "Dikirim untuk validasi",
-    "validated": "Laporan divalidasi"
+    "validated": "Laporan divalidasi",
+    "withdrawn": "Laporan ditarik kembali. Anda bisa mengubahnya lagi."
+  },
+  "empty": {
+    "detail": "Isi sedikitnya satu: {{list}}.",
+    "headline": "Laporan ini masih kosong",
+    "hours": "jam mulai dan selesai",
+    "photo": "foto",
+    "progress": "kemajuan pekerjaan"
   }
 }

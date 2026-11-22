@@ -100,7 +100,7 @@ export function refusalText(err: unknown, t: TFunction, opts: RefusalOptions = {
 }
 
 /** The two lines as one sentence, for a screen with a single text slot. */
-export const refusalLine = ({ headline, detail }: Pick<RefusalSentence, 'headline' | 'detail'>): string => (detail ? `${headline}. ${detail}` : headline);
+export const refusalLine = ({ headline, detail }: Pick<RefusalSentence, 'headline' | 'detail'>): string => (detail ? joinSentences(headline, detail) : headline);
 
 /**
  * `refusalText` bound to the active language; loads the `refusals` catalogue with the component. The organisation's words for

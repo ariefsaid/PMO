@@ -963,7 +963,7 @@
     "procurementRef": "Referensi pengadaan",
     "vendor": "Pemasok / Vendor",
     "project": "Proyek",
-    "workOrder": "Perintah kerja",
+    "workOrder": "$t(common:terms.clientWorkOrder)",
     "reference": "Nomor referensi",
     "status": "Status",
     "currency": "Mata uang",

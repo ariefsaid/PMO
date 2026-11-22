@@ -4,7 +4,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { ProjectNameLink, useToast } from '@/src/components/ui';
 import type { useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { formatCurrency } from '@/src/lib/format';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { odooActionError } from '@/src/lib/procurement/odooActionError';
 import { odooOwnsProcurement } from '@/src/lib/adapterSeam/odoo/ownership';
 import type { CommandIntent } from '@/src/lib/repositories/types';
@@ -297,7 +297,7 @@ export function useProcurementDecision(
       }
       const { headline, detail } = threeWayMatchHeldMessage(err, t) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
-      setMutationError(detail ? `${headline}. ${detail}` : headline);
+      setMutationError(detail ? joinSentences(headline, detail) : headline);
     }
   };
 
@@ -371,7 +371,7 @@ export function useProcurementDecision(
         ? classifySubcontractBillError(err, t)
         : null) ?? odooActionError(err, odooOwnsProcurement(), t) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
-      setMutationError(detail ? `${headline}. ${detail}` : headline);
+      setMutationError(detail ? joinSentences(headline, detail) : headline);
     }
   };
 

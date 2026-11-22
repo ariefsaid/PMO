@@ -15,7 +15,7 @@ import { useOrgProfilesLoader } from '@/src/hooks/useOrgProfilesLoader';
 import { ImportButton } from '@/src/components/import';
 import { makePeopleImportDescriptor } from '@/src/lib/import';
 import { repositories } from '@/src/lib/repositories';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import type { PersonListRow, PeopleListStatus } from '@/src/lib/db/people';
 
 interface FormValues { name: string; code: string; job_title: string; profile_id: string }
@@ -115,7 +115,7 @@ const People: React.FC = () => {
     if (!archiving) return;
     setProblem(null);
     try { await archive.mutateAsync(archiving.id); toast(t('administration:people.archived', 'Person archived'), undefined, 'success'); setArchiving(null); }
-    catch (err) { const c = classifyMutationError(err); setProblem(`${c.headline}. ${c.detail}`); }
+    catch (err) { const c = classifyMutationError(err); setProblem(joinSentences(c.headline, c.detail)); }
   };
 
   const columns: Column<PersonListRow>[] = [

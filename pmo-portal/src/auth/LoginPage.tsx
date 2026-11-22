@@ -5,7 +5,7 @@ import { useAuth } from './useAuth';
 import { useServiceMessageText } from './useServiceMessageText';
 import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';
-import { AuthHeader, SuccessNotice, ErrorBanner, AuthInput } from './authFormPrimitives';
+import { AuthHeader, SuccessNotice, ErrorBanner, AuthInput, LanguageSwitch } from './authFormPrimitives';
 import {
   trackDemoPersonaSelected,
   trackAuthLoginSucceeded,
@@ -189,6 +189,7 @@ const LoginPage: React.FC = () => {
     <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
         <main>
+        <LanguageSwitch className="mb-2" />
         <AuthHeader className="mb-4" />
         <div className="mb-6 text-center">
           <h1 className="text-page font-bold tracking-[-0.02em] text-foreground">

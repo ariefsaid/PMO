@@ -100,6 +100,7 @@ const ProcurementDetails = lazyWithPreload(() => import('./pages/ProcurementDeta
 const ProcurementCreate = lazyWithPreload(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = lazyWithPreload(() => import('./pages/Timesheets'));
 const ImprestFloatsPage = lazyWithPreload(() => import('./pages/ImprestFloats'));
+const WorkOrdersPage = lazyWithPreload(() => import('./pages/WorkOrders'));
 const WorkOrderDetailPage = lazyWithPreload(() => import('./pages/WorkOrderDetail'));
 const ImprestFloatDetailPage = lazyWithPreload(() => import('./pages/ImprestFloatDetail'));
 const MaterialRequestsPage = lazyWithPreload(() => import('./pages/MaterialRequests'));
@@ -284,6 +285,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/material-requests/:requestId/delivery-note', chunks: [DeliveryNotePrintPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests/:requestId', chunks: [MaterialRequestDetailPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests', chunks: [MaterialRequestsPage], namespaces: ['materialRequests'] },
+  { path: '/work-orders', chunks: [WorkOrdersPage], namespaces: ['workOrders', 'status'] },
   { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk', 'safety'] },
   { path: '/safety-days/:dayId', chunks: [SafetyDayFormPage], namespaces: ['safety', 'status'] },
   { path: '/safety', chunks: [SafetySummaryPage], namespaces: ['safety'] },
@@ -303,7 +305,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/subcontract-certificates', chunks: [SubcontractCertificatesPage], namespaces: ['subcontractCertificates'] },
   { path: '/subcontract-certificates/:certificateId', chunks: [SubcontractCertificateDetailPage], namespaces: ['subcontractCertificates'] },
   { path: '/leave', chunks: [LeaveRequestsPage], namespaces: ['crews'] },
-  { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
+  { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment', 'administration'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/clearance/:personId', chunks: [PersonClearancePage], namespaces: ['administration'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement', 'safety'] },
@@ -528,6 +530,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/material-requests/:requestId/edit', element: <MaterialRequestNewPage /> },
   { path: '/material-requests/:requestId/delivery-note', element: <DeliveryNotePrintPage /> },
   { path: '/material-requests/:requestId', element: <MaterialRequestDetailPage /> },
+  { path: '/work-orders', element: <WorkOrdersPage /> },
   { path: '/work-orders/:id', element: <WorkOrderDetailPage /> },
   // #2596: daily safety records per work order and day, and the monthly safety summary.
   { path: '/safety-days/:dayId', element: <SafetyDayFormPage /> },

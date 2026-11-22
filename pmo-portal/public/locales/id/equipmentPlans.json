@@ -22,8 +22,8 @@
   "line": {
     "title": "Baris {{n}}",
     "description": "Yang dibutuhkan",
-    "workOrder": "Perintah kerja",
-    "noWorkOrder": "Tanpa perintah kerja",
+    "workOrder": "$t(common:terms.clientWorkOrder)",
+    "noWorkOrder": "Tanpa $t(common:terms.clientWorkOrder)",
     "category": "Kategori",
     "noCategory": "Tanpa kategori",
     "vendor": "Pemasok",

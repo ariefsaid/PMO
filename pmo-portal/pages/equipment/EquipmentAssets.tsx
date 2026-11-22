@@ -10,7 +10,7 @@ import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDeleteAsset, useEquipmentAssetPages, useUpdateAsset } from '@/src/hooks/useEquipment';
 import { LIST_LIMIT, type EquipmentAssetRow } from '@/src/lib/db/equipment';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { unitLabel } from './equipmentLabels';
 import { VendorResponseSummaryCard } from './VendorResponseSummary';
 
@@ -48,7 +48,7 @@ const EquipmentAssetsPage: React.FC = () => {
       const c = classifyMutationError(err);
       setProblem(c.classification === 'in_use'
         ? t('equipment:assets.inUse', 'This asset is in use by usage entries or costing. Archive it instead.')
-        : `${c.headline}. ${c.detail}`);
+        : joinSentences(c.headline, c.detail));
       setPending(null);
     }
   };

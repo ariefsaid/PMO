@@ -1,6 +1,7 @@
 {
   "title": "Pekerjaan saya",
   "signOut": "Keluar",
+  "settings": "Pengaturan",
   "error": "Pekerjaan Anda tidak dapat dimuat",
   "tasks": {
     "title": "Tugas saya",
@@ -10,14 +11,14 @@
   },
   "clockIn": {
     "title": "Absen masuk",
-    "empty": "Anda belum masuk jadwal perintah kerja hari ini. Tanyakan ke pengawas Anda.",
+    "empty": "Anda belum masuk jadwal $t(common:terms.clientWorkOrder) hari ini. Tanyakan ke pengawas Anda.",
     "hours": "Jam hari ini",
     "hoursRange": "Jam berkisar dari 0 sampai 24",
     "saved": "Sudah absen masuk",
     "action": "Absen masuk",
     "clockedIn": "Sudah absen masuk",
     "locating": "Membaca posisi Anda…",
-    "pendingNotRostered": "Anda tidak terdaftar pada perintah kerja ini hari ini.",
+    "pendingNotRostered": "Anda tidak terdaftar pada $t(common:terms.clientWorkOrder) ini hari ini.",
     "positionDenied": "Lokasi diblokir untuk situs ini. Izinkan di peramban Anda, atau minta supervisor menyetujui absen Anda.",
     "positionUnavailable": "Posisi Anda tidak dapat dibaca. Coba lagi, atau minta supervisor menyetujui absen Anda.",
     "positionTimeout": "Membaca posisi Anda terlalu lama. Coba lagi, atau minta supervisor menyetujui absen Anda.",
@@ -36,7 +37,7 @@
   "roster": {
     "title": "Regu saya hari ini",
     "error": "Regu tidak dapat dimuat",
-    "empty": "Tidak ada regu pada perintah kerja ini hari ini"
+    "empty": "Tidak ada regu pada $t(common:terms.clientWorkOrder) ini hari ini"
   },
   "deliveries": {
     "title": "Ada kiriman untuk Anda",
@@ -54,5 +55,8 @@
     "light": "Akun ringan (Mandor, Pengguna lapangan)",
     "total": "Kursi aktif",
     "helper": "Akun ringan memiliki satu layar utama di ponsel. Harga dan jumlah kursi disepakati dengan pemilik."
+  },
+  "workOrders": {
+    "empty": "Anda tidak terdaftar pada $t(common:terms.clientWorkOrder) hari ini"
   }
 }

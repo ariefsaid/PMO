@@ -32,7 +32,7 @@ import {
 } from '@/src/hooks/useProcurementDetail';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { formatDay, formatNumberExact, formatTableMoney } from '@/src/lib/format';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { DecisionSupportPanel } from '@/src/components/procurement/DecisionSupportPanel';
 import { useAuth } from '@/src/auth/useAuth';
 
@@ -83,7 +83,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
       );
     } catch (err) {
       const { headline, detail: errDetail } = classifyMutationError(err);
-      setDecisionError(errDetail ? `${headline}. ${errDetail}` : headline);
+      setDecisionError(errDetail ? joinSentences(headline, errDetail) : headline);
       toast(headline, errDetail, 'warning');
     }
   };

@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next';
+import { matchNotificationTitle } from './notificationTitles';
 import type { Json } from '@/src/lib/supabase/database.types';
 
 type NotificationCopy = { body: string | null; message_key: string | null; message_params: Json | null };
@@ -24,6 +25,18 @@ export function notificationBody(row: NotificationCopy, t: TFunction): string | 
   }
 }
 
+/**
+ * The headline in the reader's language. A title the database wrote in English is matched to its template
+ * (`notificationTitles.ts`) and rendered from the catalogue; one that matches no template is shown as stored.
+ */
 export function notificationTitle(row: { title: string; message_key: string | null }, t: TFunction): string {
-  return row.message_key === 'unassignedInvoice' ? t('notifications:unassignedInvoiceTitle', 'Invoice needs a project') : row.title;
+  if (row.message_key === 'unassignedInvoice') return t('notifications:unassignedInvoiceTitle', 'Invoice needs a project');
+  const match = matchNotificationTitle(row.title);
+  if (!match) return row.title;
+  const { nounKey, ...params } = match.params;
+  return t(`notifications:titles.${match.key}`, {
+    defaultValue: row.title,
+    ...params,
+    ...(typeof nounKey === 'string' ? { noun: t(`notifications:${nounKey}`) } : {}),
+  });
 }

@@ -5,7 +5,8 @@
     "return": "Return",
     "save": "Save draft",
     "submit": "Submit",
-    "validate": "Validate"
+    "validate": "Validate",
+    "withdraw": "Withdraw"
   },
   "checkpoints": {
     "confirm": "Record now",
@@ -99,7 +100,8 @@
     "submitted": "Submitted",
     "superseded": "Replaced by a correction",
     "title": "History",
-    "validated": "Validated"
+    "validated": "Validated",
+    "withdrawn": "Taken back by the author"
   },
   "hours": {
     "addIdle": "Add idle time",
@@ -161,6 +163,8 @@
   "progress": {
     "add": "Add progress",
     "item": "Contract item",
+    "noItems": "This work order has no items yet. Ask the project manager.",
+    "noItemsAsk": "This work order has no items yet. Ask {{name}}.",
     "noRate": "No rate",
     "none": "No progress recorded",
     "pickItem": "Choose an item",
@@ -211,6 +215,14 @@
     "returned": "Report returned",
     "saved": "Draft saved",
     "submitted": "Sent for validation",
-    "validated": "Report validated"
+    "validated": "Report validated",
+    "withdrawn": "Report taken back. You can edit it again."
+  },
+  "empty": {
+    "detail": "Add at least one of: {{list}}.",
+    "headline": "This report is empty",
+    "hours": "start and end time",
+    "photo": "a photo",
+    "progress": "progress"
   }
 }
