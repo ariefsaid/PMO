@@ -17,9 +17,9 @@ const Inner: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
   if (rows.length === 0) return null;
   const fmt = (n: number) => formatQuantity(String(n), getNumberLocale());
   return (
-    <div role="status" className="rounded-lg border border-warning/40 bg-warning/12 px-3.5 py-3 text-control text-warning-foreground" data-testid="wo-usage-warning">
+    <div role="status" className="mb-2 text-control text-warning-foreground" data-testid="wo-usage-warning">
       <p className="font-semibold">{t('usage.cardTitle', 'Installed material past the usage warning')}</p>
-      <ul className="mt-2 space-y-1">
+      <ul className="mt-1 space-y-1">
         {rows.map((r) => (
           <li key={r.itemId}>{t('usage.cardLine', '{{item}}: {{installed}} of {{plan}} {{unit}} planned installed, past the {{threshold}}% warning.', { item: r.itemName, installed: fmt(r.installedQty), plan: fmt(r.planQty), unit: r.unit, threshold: fmt(r.threshold) })}</li>
         ))}
