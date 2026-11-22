@@ -111,6 +111,7 @@ Open questions: `docs/briefs/gaps-1215-questions-billing.md`. Screenshots: `docs
   10. gates.
 
   Then the orchestrator merges into the lane, re-runs the whole wave proof, pushes `cloud/done/gap-billing-checklist-target-dates` and then `cloud/done/gap-billing`.
+- **Tests unrun:** everything for this item. Migrations 1830–1832 have never been applied to a database (no `db reset` run with them), and none of their pgTAP, unit, RTL or e2e tests exist yet. The billing-stage tests (1360, 1365, 1368) must be re-run against the restated runner.
 - **Mutation lines** (to run once built):
   - Drop `+ t.target_days` in the instantiate function.
   - Drop `overdue_notified_at is null` in the close-out scan.
