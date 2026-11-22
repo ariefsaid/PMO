@@ -25,6 +25,8 @@ select plan(8);
 create temp table la_fn_allow (fn text primary key, kind text not null check (kind in ('field_path','helper','trigger')), why text not null);
 insert into la_fn_allow values
   ('attendance_can_record', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
+  ('attendance_second_record_may_decide', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
+  ('attendance_second_record_may_enter', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('attendance_generate_timesheet', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
   ('attendance_record', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
   ('leave_authority', 'helper', 'the gate names a management role or an approver set the light seats never hold'),
