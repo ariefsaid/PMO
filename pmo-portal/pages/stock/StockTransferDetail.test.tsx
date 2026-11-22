@@ -9,7 +9,7 @@ import stockEn from '@/public/locales/en/stock.json';
 import stockId from '@/public/locales/id/stock.json';
 
 const h = vi.hoisted(() => ({
-  transfer: null as unknown, tags: [] as unknown[], items: [] as unknown[], timing: 'before_posting',
+  dn: true, transfer: null as unknown, tags: [] as unknown[], items: [] as unknown[], timing: 'before_posting',
   receive: vi.fn(), upload: vi.fn(), resolve: vi.fn(), recall: vi.fn(), record: vi.fn(),
 }));
 vi.mock('@/src/hooks/useStockTransfers', () => ({
@@ -19,6 +19,7 @@ vi.mock('@/src/hooks/useStockTransfers', () => ({
   useTransferSettings: () => ({ data: { mode: 'two_step', proofTiming: h.timing } }),
   useTransferRefresh: () => async () => [],
 }));
+vi.mock('@/src/hooks/useMaterialRequests', () => ({ useDeliveryNoteSettings: () => ({ data: { enabled: h.dn, signatureBlocks: [] } }) }));
 vi.mock('@/src/hooks/useStock', () => ({ useStockItems: () => ({ data: h.items }), useStockWarehouses: () => ({ data: [{ id: 'w1', name: 'Central store' }, { id: 'w2', name: 'Site one' }] }) }));
 vi.mock('@/src/hooks/useStockSiteWork', () => ({ useStockTags: () => ({ data: h.tags }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [{ id: 'me', full_name: 'Dest Keeper' }] }) }));
@@ -36,7 +37,7 @@ const transfer = (extra: Record<string, unknown> = {}) => ({ id: 't1', number: '
 beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
 beforeEach(() => {
   vi.clearAllMocks();
-  h.transfer = transfer(); h.tags = []; h.timing = 'before_posting';
+  h.transfer = transfer(); h.tags = []; h.timing = 'before_posting'; h.dn = true;
   h.items = [{ id: 'i1', code: 'PIPE', name: 'Pipe', tag_id: null, needs_quality_check: false }];
   h.receive.mockResolvedValue(undefined);
   h.upload.mockImplementation(async (_o: string, _t: string, _c: string, kind: string) => `org-1/t1/c1/${kind}.jpg`);
@@ -132,6 +133,18 @@ describe('StockTransferDetail receive (AC-TST-024)', () => {
     expect(stockId.transfers.receiveAction).toBe('Konfirmasi penerimaan');
     expect(stockId.handover.guestToggle).toBe('Penanda tangan tidak punya akun');
     expect(stockId.proof.outstanding).toBe('Bukti belum lengkap');
+  });
+});
+
+describe('StockTransferDetail print (#1122 item 7)', () => {
+  it('JOB-1122-7 a transfer offers "Print delivery note" when delivery notes are on, and not when they are off', async () => {
+    const view = renderPage();
+    expect(await screen.findByRole('link', { name: 'Print delivery note' })).toHaveAttribute('href', '/stock/transfers/t1/print');
+    view.unmount();
+    h.dn = false;
+    renderPage();
+    await screen.findByText(/TST-1/);
+    expect(screen.queryByRole('link', { name: 'Print delivery note' })).not.toBeInTheDocument();
   });
 });
 

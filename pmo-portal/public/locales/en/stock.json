@@ -854,7 +854,23 @@
     "recalledToast": "Transfer recalled",
     "receivedToast": "Receipt recorded",
     "proofAddedToast": "Proof recorded",
-    "senderWaits": "You sent this transfer, so someone else counts it on arrival. It is waiting for the receiver."
+    "senderWaits": "You sent this transfer, so someone else counts it on arrival. It is waiting for the receiver.",
+    "print": {
+      "action": "Print delivery note",
+      "title": "Delivery note",
+      "off": "Delivery notes are switched off for this organisation. An Admin turns them on under material request settings.",
+      "back": "Back to transfer",
+      "print": "Print",
+      "code": "Item code",
+      "description": "Description",
+      "quantity": "Quantity",
+      "unit": "Unit",
+      "date": "Date",
+      "from": "From",
+      "to": "To",
+      "name": "Name",
+      "signatureDate": "Date"
+    }
   },
   "handover": {
     "title": "Handover confirmation",

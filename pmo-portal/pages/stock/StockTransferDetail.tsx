@@ -10,6 +10,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useStockItems, useStockWarehouses } from '@/src/hooks/useStock';
+import { useDeliveryNoteSettings } from '@/src/hooks/useMaterialRequests';
 import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { useProofStatus, useStockTransfer, useTransferConfirmations, useTransferRefresh, useTransferSettings } from '@/src/hooks/useStockTransfers';
 import { formatDateTime } from '@/src/lib/format';
@@ -37,6 +38,7 @@ const StockTransferDetail: React.FC = () => {
   const confirmations = useTransferConfirmations(transferId);
   const proof = useProofStatus();
   const settings = useTransferSettings();
+  const deliveryNotes = useDeliveryNoteSettings();
   const items = useStockItems(true);
   const tags = useStockTags(true);
   const warehouses = useStockWarehouses(true);
@@ -91,7 +93,10 @@ const StockTransferDetail: React.FC = () => {
   return (
     <div className="max-w-3xl space-y-4 pb-24 md:pb-0">
       <PageHeader title={`${t('transfers.detailTitle')} ${transfer.number}`} />
-      <p className="text-sm text-muted-foreground"><Link to="/stock/transfers">{t('transfers.back')}</Link></p>
+      <p className="flex flex-wrap items-center gap-x-4 text-sm text-muted-foreground">
+        <Link to="/stock/transfers">{t('transfers.back')}</Link>
+        {deliveryNotes.data?.enabled && <Link to={`/stock/transfers/${transfer.id}/print`} className="font-medium text-foreground underline">{t('transfers.print.action')}</Link>}
+      </p>
       <section className="space-y-1 rounded-lg border border-border p-4" aria-label={t('transfers.summary')}>
         <div>{wh(transfer.fromWarehouseId)} → {wh(transfer.toWarehouseId)}</div>
         <div className="text-sm text-muted-foreground">{t(`transfers.status.${transfer.status}`)} · {t('transfers.sentBy', { name: person(transfer.sentBy), at: formatDateTime(new Date(transfer.sentAt)) })}</div>

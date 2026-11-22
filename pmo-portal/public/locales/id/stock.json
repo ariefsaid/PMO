@@ -854,7 +854,23 @@
     "recalledToast": "Transfer ditarik kembali",
     "receivedToast": "Penerimaan dicatat",
     "proofAddedToast": "Bukti dicatat",
-    "senderWaits": "Anda yang mengirim transfer ini, jadi orang lain yang menghitungnya saat tiba. Transfer menunggu penerima."
+    "senderWaits": "Anda yang mengirim transfer ini, jadi orang lain yang menghitungnya saat tiba. Transfer menunggu penerima.",
+    "print": {
+      "action": "Cetak surat jalan",
+      "title": "Surat jalan",
+      "off": "Surat jalan dimatikan untuk organisasi ini. Admin dapat menyalakannya di pengaturan permintaan material.",
+      "back": "Kembali ke transfer",
+      "print": "Cetak",
+      "code": "Kode barang",
+      "description": "Uraian",
+      "quantity": "Jumlah",
+      "unit": "Satuan",
+      "date": "Tanggal",
+      "from": "Dari",
+      "to": "Ke",
+      "name": "Nama",
+      "signatureDate": "Tanggal"
+    }
   },
   "handover": {
     "title": "Konfirmasi serah terima",
