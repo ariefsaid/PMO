@@ -27,6 +27,9 @@ vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual:
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
 // #2578: the quantity-changes section has its own test (QuantityChangesSection.test.tsx); this file pins the existing sections.
 vi.mock('./work-order-detail/QuantityChangesSection', () => ({ QuantityChangesSection: () => null }));
+vi.mock('./work-order-detail/MissingSection', () => ({ MissingSection: () => null }));
+vi.mock('@/src/hooks/useBillingSteps', () => ({ useWorkOrderSteps: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useOrgRoleNames', () => ({ useBuiltInRoleName: () => (k: string) => k }));
 // The sections block (#2576) has its own tests (SectionsSection.test.tsx); this page test only places it.
 vi.mock('./work-order-detail/SectionsSection', () => ({ SectionsSection: (p: { workOrder: { id: string } }) => <div data-testid="sections-stub">{p.workOrder.id}</div> }));
 vi.mock('./work-order-detail/ConsumablePlanSection', () => ({

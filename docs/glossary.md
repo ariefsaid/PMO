@@ -393,6 +393,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 ## Progress & billing
 
+**Missing list** (work order) — one advisory list on the work order page of what it still lacks: open steps, a step's required attachment not yet attached, quantity reported but not accepted, and quantity accepted but not claimed. Derived on every view from existing records, never stored; refuses nothing; exportable as CSV.
+
 **Bill of quantities item** — a project work item with a code, description, unit, quantity, rate and earning basis, used for measured work and billing.
 
 **Project progress entry** — a dated monthly record of a project's percent complete and an optional note.

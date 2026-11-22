@@ -291,5 +291,37 @@
     "stillToCollect": "Belum diambil",
     "title": "Material klien",
     "importTakeoff": "Impor take-off"
+  },
+  "missing": {
+    "title": "Masih kurang",
+    "export": "Ekspor CSV",
+    "fileStem": "Kekurangan",
+    "error": "Tidak dapat memuat apa yang masih kurang pada perintah kerja ini",
+    "empty": "Tidak ada yang kurang: tidak ada langkah terbuka, dan setiap kuantitas yang dilaporkan sudah diterima dan diklaim.",
+    "closed": "Perintah kerja ini sudah ditutup atau dibatalkan, jadi tidak ada yang menunggu.",
+    "whoAdds": "Yang menambahkan: {{who}}",
+    "kind": {
+      "step": "Langkah",
+      "step-attachment": "Lampiran langkah",
+      "quantity-accept": "Kuantitas untuk diterima",
+      "quantity-claim": "Kuantitas untuk diklaim"
+    },
+    "col": {
+      "item": "Butir",
+      "kind": "Jenis",
+      "reason": "Alasan",
+      "who": "Yang menambahkan"
+    },
+    "who": {
+      "role": "{{role}}",
+      "finance": "Keuangan atau Admin",
+      "team": "Tim proyek"
+    },
+    "reason": {
+      "stepOpen": "Langkah ini belum selesai.",
+      "stepAttachment": "Belum ada lampiran untuk langkah \"{{step}}\".",
+      "quantityAccept": "{{quantity}} {{unit}} dilaporkan tetapi belum diterima. Catat penerimaannya.",
+      "quantityClaim": "{{quantity}} {{unit}} diterima tetapi belum diklaim."
+    }
   }
 }

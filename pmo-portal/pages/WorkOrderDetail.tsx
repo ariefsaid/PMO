@@ -29,6 +29,10 @@ import { PerformanceIndices } from './work-order-detail/PerformanceIndices';
 import { DailyTargetGate } from './work-order-detail/DailyTargetGate';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { CloseoutSection } from './work-order-detail/CloseoutSection';
+import { MissingSection } from './work-order-detail/MissingSection';
+import { missingStepsFromSource } from '@/src/lib/workOrderMissing';
+import { useWorkOrderSteps } from '@/src/hooks/useBillingSteps';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { BillingStepsSection } from './work-order-detail/BillingStepsSection';
 import { SurveySection } from './work-order-detail/SurveySection';
 import { QuantityChangesSection } from './work-order-detail/QuantityChangesSection';
@@ -54,6 +58,8 @@ const WorkOrderDetail: React.FC = () => {
   const may = usePermission();
   const stockOn = useFeature('stock');
   const wo = useWorkOrder(id);
+  const woSteps = useWorkOrderSteps(wo.data ? id : undefined);
+  const roleName = useBuiltInRoleName();
   const projectId = wo.data?.project_id ?? '';
   const project = useProject(projectId || undefined);
   const issuesOn = useFeature('incidents');
@@ -187,6 +193,10 @@ const WorkOrderDetail: React.FC = () => {
         {may('view', 'surveyRecord') && <SurveySection workOrderId={row.id} projectId={row.project_id} status={row.status}
           projectManagerId={project.data?.project_manager_id ?? null} lines={surveyLines} />}
         <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
+        <MissingSection workOrderId={row.id} projectId={row.project_id} status={row.status} canBilling={canBilling}
+          steps={woSteps.data ? missingStepsFromSource(woSteps.data, roleName) : undefined} stepsLoading={woSteps.isLoading} stepsError={woSteps.isError} onRetrySteps={() => void woSteps.refetch()}
+          scopeLines={progress ? progress.lines.map((l) => ({ id: l.id, boqItemId: l.boqItemId, itemCode: l.itemCode, description: l.description, unit: l.unit, accepted: l.accepted })) : null}
+          scopeError={allocations.isError || boq.isError || bastList.isError} />
         {may('view', 'quantityChange') && <QuantityChangesSection workOrderId={row.id} projectId={row.project_id} status={row.status} />}
         <InspectionsSection workOrderId={row.id} />
         <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
