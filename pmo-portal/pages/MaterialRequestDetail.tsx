@@ -59,13 +59,14 @@ const MaterialRequestDetailPage: React.FC = () => {
   const needsSource = open?.position === last;
   const itemName = (id: string) => { const i = items?.find((x) => x.id === id); return i ? `${i.code} · ${i.name}` : '—'; };
   const sourceWarehouses = (warehouses ?? []).filter((w) => w.kind === 'central' && !w.archived_at);
-  const sourceOptions = sourceWarehouses.map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` }));
   const retrySourceOptions = sourceWarehouses
     .filter((w) => may('create', 'stockDocument', { record: { isKeeper: keepers?.some((k) => k.warehouse_id === w.id && k.user_id === currentUser?.id) ?? false } }))
     .map((w) => ({ value: w.id, label: `${w.code} · ${w.name}` }));
   // The retry RPC refuses both the author and anyone who is not a source-warehouse keeper or Admin.
   const canRetryTransfer = req.status === 'approved' && (!req.transferDocumentId || req.transferCancelled) &&
     req.createdBy !== currentUser?.id && retrySourceOptions.length > 0;
+  // Final approval records the decision alone; the keeper picks the warehouse and sends next (FR-MRQ-011).
+  const waitingOnKeeper = req.status === 'approved' && !req.transferDocumentId;
   const noApprover = req.status === 'pending' && !open;
   const canPrintDeliveryNote = Boolean(dnSettings?.enabled) && (req.status === 'approved' || req.status === 'fulfilled');
 
@@ -76,7 +77,7 @@ const MaterialRequestDetailPage: React.FC = () => {
     catch (err) { setDialogError(refusal(err)); }
   };
   const decide = (decision: 'approve' | 'return' | 'reject', reason?: string) => run(
-    () => m.decide.mutateAsync({ id: req.id, position: open!.position, decision, reason, sourceWarehouseId: decision === 'approve' && needsSource ? source : null }),
+    () => m.decide.mutateAsync({ id: req.id, position: open!.position, decision, reason, sourceWarehouseId: decision === 'approve' && needsSource && source ? source : null }),
     decision === 'approve' ? t('detail.approved', 'Step approved') : decision === 'return' ? t('detail.returned', 'Sent back to the requester') : t('detail.rejected', 'Request rejected'));
 
   return (
@@ -111,10 +112,10 @@ const MaterialRequestDetailPage: React.FC = () => {
             {req.transferCancelled && <p role="status" className="text-warning-foreground">{t('detail.transferCancelled', 'The transfer was cancelled. The request is still approved.')}</p>}
           </RecordSection>
         )}
-        {canRetryTransfer && (
+        {(canRetryTransfer || waitingOnKeeper) && (
           <RecordSection title={t('detail.transfer', 'Delivery')}>
-            {!req.transferDocumentId && <p role="alert">{t('detail.noTransfer', 'Approved, but the transfer draft could not be created.')}</p>}
-            <Button variant="outline" onClick={() => setDialog({ kind: 'retry' })}>{t('detail.retry', 'Create the transfer again')}</Button>
+            {waitingOnKeeper && <p role="status">{canRetryTransfer ? t('detail.keeperNext', 'Approved. Choose the warehouse and send the stock.') : t('detail.keeperWaiting', 'Approved. The stock keeper chooses the warehouse and sends the stock next.')}</p>}
+            {canRetryTransfer && <Button variant="outline" onClick={() => setDialog({ kind: 'retry' })}>{waitingOnKeeper ? t('detail.chooseAndSend', 'Choose warehouse and send') : t('detail.retry', 'Create the transfer again')}</Button>}
           </RecordSection>
         )}
 
@@ -161,17 +162,20 @@ const MaterialRequestDetailPage: React.FC = () => {
 
       <ConfirmDialog open={dialog?.kind === 'approve'} title={t('detail.approveTitle', 'Approve this step')} confirmLabel={t('detail.approve', 'Approve')}
         description={needsSource
-          ? <SelectField label={t('detail.source', 'Warehouse the material leaves from')} required value={source} onChange={setSource} fullWidth
-              options={[{ value: '', label: t('detail.chooseSource', 'Choose a warehouse') }, ...sourceOptions]} helper={t('detail.sourceHelp', 'You must keep this warehouse. The transfer is created as a draft.')} />
+          ? (retrySourceOptions.length > 0
+            ? <SelectField label={t('detail.sourceOptional', 'Warehouse the material leaves from (optional)')} value={source} onChange={setSource} fullWidth
+                options={[{ value: '', label: t('detail.leaveToKeeper', 'Leave it to the stock keeper') }, ...retrySourceOptions]} helper={t('detail.sourceHelp', 'Leave this empty and the stock keeper chooses the warehouse and sends the stock. If you choose one, the transfer is created as a draft.')} />
+            : t('detail.finalBody', 'Approving records your decision. The stock keeper chooses the warehouse and sends the stock.'))
           : t('detail.approveBody', 'Approve step {{n}} of {{number}}.', { n: open?.position, number: req.number })}
-        confirmDisabled={needsSource && !source} loading={m.decide.isPending} error={dialogError} onCancel={close} onConfirm={() => void decide('approve')} />
+        loading={m.decide.isPending} error={dialogError} onCancel={close} onConfirm={() => void decide('approve')} />
       <ReasonDialog open={dialog?.kind === 'return' || dialog?.kind === 'reject'} kind={dialog?.kind === 'reject' ? 'reject' : 'return'}
         subject={t('detail.subject', 'material request')} loading={m.decide.isPending} error={dialogError} onCancel={close}
         onConfirm={(reason) => void decide(dialog?.kind === 'reject' ? 'reject' : 'return', reason)} />
       <ConfirmDialog open={dialog?.kind === 'withdraw'} tone="destructive" title={t('detail.withdrawTitle', 'Withdraw this request')} confirmLabel={t('detail.withdraw', 'Withdraw request')}
         description={t('detail.withdrawBody', 'The request is cancelled and its approvers are no longer asked.')} loading={m.cancel.isPending} error={dialogError}
         onCancel={close} onConfirm={() => void run(() => m.cancel.mutateAsync({ id: req.id }), t('detail.withdrawn', 'Request withdrawn'))} />
-      <ConfirmDialog open={dialog?.kind === 'retry'} title={t('detail.retry', 'Create the transfer again')} confirmLabel={t('detail.retry', 'Create the transfer again')}
+      <ConfirmDialog open={dialog?.kind === 'retry'} title={waitingOnKeeper ? t('detail.chooseAndSend', 'Choose warehouse and send') : t('detail.retry', 'Create the transfer again')}
+        confirmLabel={waitingOnKeeper ? t('detail.chooseAndSend', 'Choose warehouse and send') : t('detail.retry', 'Create the transfer again')}
         description={<SelectField label={t('detail.source', 'Warehouse the material leaves from')} required value={source} onChange={setSource} fullWidth
           options={[{ value: '', label: t('detail.chooseSource', 'Choose a warehouse') }, ...retrySourceOptions]} />}
         confirmDisabled={!source} loading={m.retryTransfer.isPending} error={dialogError} onCancel={close}

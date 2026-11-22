@@ -1,8 +1,10 @@
-// @e2e-isolation: self-isolated — creates its own uniquely named item, unit, work order, central warehouse, site location and request each run (stock and request history are append-only, so none is deleted); sets the org's material-request chain (read only by this feature) to PM → Finance → Admin.
-/** AC-MRQ-015 — goal: a field controller on a phone raises an over-plan request, three approvers act in order, and the transfer draft with its delivery document is reachable from the request. */
+// @e2e-isolation: self-isolated — creates its own uniquely named item, unit, work order, central warehouse, site location and request each run (stock and request history are append-only, so none is deleted); sets the org's material-request chain (read only by this feature) to PM → Finance → Executive; makes the Finance seed user keeper of its own central warehouse.
+/** AC-MRQ-015 — goal: a field controller on a phone raises an over-plan request, three approvers act in order, the last one keeping no warehouse, and the stock keeper then chooses the warehouse and the transfer draft with its delivery document is reachable from the request. */
 import { test, expect, type Page } from '@playwright/test';
 import { signIn } from './helpers';
-import { SEED_PROJECT_ID, SEED_PROJECT_NAME, makeItem, runSuffix, userClient } from './support/stockFixture';
+import { SEED_PROJECT_ID, SEED_PROJECT_NAME, keeperOf, makeItem, runSuffix, userClient } from './support/stockFixture';
+
+const FINANCE_ID = '00000000-0000-0000-0000-0000000000a3';
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 test.setTimeout(180_000);
@@ -26,7 +28,7 @@ async function fixture() {
   const chain = await admin.rpc('mrq_set_chain', { p_steps: [
     { role: 'Project Manager', label: 'Plan check', only_over_plan: false },
     { role: 'Finance', label: 'Billable change', only_over_plan: false },
-    { role: 'Admin', label: 'Stock', only_over_plan: false },
+    { role: 'Executive', label: 'Stock', only_over_plan: false },
   ] });
   if (chain.error) throw new Error('chain: ' + chain.error.message);
   const wh = await admin.from('stock_warehouses').insert({ code: `E2E-MC${sfx}`, name: `E2E main ${sfx}`, kind: 'central' }).select('id, code, name').single();
@@ -35,6 +37,7 @@ async function fixture() {
   // material goes and the journey answers — instead of relying on no other test having added a location (they do).
   const site = await admin.from('stock_warehouses').insert({ code: `E2E-MS${sfx}`, name: `E2E site ${sfx}`, kind: 'site', project_id: SEED_PROJECT_ID }).select('id, code, name').single();
   if (site.error) throw new Error('site: ' + site.error.message);
+  await keeperOf(admin, wh.data.id, FINANCE_ID);
   return { item, wo: wo.data, warehouse: wh.data, site: site.data };
 }
 
@@ -43,12 +46,11 @@ async function pick(page: Page, label: RegExp, option: string) {
   await page.getByRole('option', { name: option }).click();
 }
 
-async function decide(page: Page, email: string, requestUrl: string, source?: string) {
+async function decide(page: Page, email: string, requestUrl: string) {
   await signIn(page, email);
   await page.goto(requestUrl);
   await page.getByRole('button', { name: 'Approve', exact: true }).click();
   const dialog = page.getByRole('alertdialog').or(page.getByRole('dialog'));
-  if (source) await dialog.getByLabel(/warehouse the material leaves from/i).selectOption({ label: source });
   await dialog.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(dialog).toBeHidden({ timeout: 15_000 });
 }
@@ -81,15 +83,32 @@ test('AC-MRQ-015: a field controller raises an over-plan request on a phone, thr
   await page.goto(requestUrl);
   await expect(page.getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
 
-  // Three approvers act in order: Project Manager, Finance, then Admin, who names the source warehouse.
+  // Three approvers act in order: Project Manager, Finance, then the Executive, who keeps no warehouse and is asked for none.
   await decide(page, 'pm@acme.test', requestUrl);
   await decide(page, 'finance@acme.test', requestUrl);
-  await decide(page, 'admin@acme.test', requestUrl, `${warehouse.code} · ${warehouse.name}`);
+  await signIn(page, 'exec@acme.test');
+  await page.goto(requestUrl);
+  await page.getByRole('button', { name: 'Approve', exact: true }).click();
+  const finalDialog = page.getByRole('alertdialog').or(page.getByRole('dialog'));
+  await expect(finalDialog.getByLabel(/warehouse the material leaves from/i)).toHaveCount(0);
+  await finalDialog.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(finalDialog).toBeHidden({ timeout: 15_000 });
 
-  // The request is approved, shows who acted on each step, and links to the transfer draft's delivery document.
+  // The request is approved, shows who acted on each step, and says the stock keeper acts next.
   await page.goto(requestUrl);
   await expect(page.getByText('Approved', { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId('mrq-chain').getByText('Approved')).toHaveCount(3);
+  await expect(page.getByText('Approved. The stock keeper chooses the warehouse and sends the stock next.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open the delivery document' })).toHaveCount(0);
+
+  // The keeper of the warehouse chooses it; the transfer draft and its delivery document are then reachable from the request.
+  await signIn(page, 'finance@acme.test');
+  await page.goto(requestUrl);
+  await page.getByRole('button', { name: 'Choose warehouse and send', exact: true }).click();
+  const sendDialog = page.getByRole('alertdialog').or(page.getByRole('dialog'));
+  await sendDialog.getByLabel(/warehouse the material leaves from/i).selectOption({ label: `${warehouse.code} · ${warehouse.name}` });
+  await sendDialog.getByRole('button', { name: 'Choose warehouse and send', exact: true }).click();
+  await expect(sendDialog).toBeHidden({ timeout: 15_000 });
   await page.getByRole('link', { name: 'Open the delivery document' }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}/, { timeout: 15_000 });
   await expect(page.getByText(item.code).first()).toBeVisible();
