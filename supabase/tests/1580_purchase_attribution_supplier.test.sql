@@ -1,10 +1,11 @@
 -- 1580_purchase_attribution_supplier.test.sql — walk-purchasing items 2 and 3. Migration under test: 1580.
 -- A purchase says where its cost goes when it is raised, and its request and order records carry that value; an order is
--- never recorded without a supplier. Every denial asserts errcode AND message. Mutation: the supplier rule is removed
--- in-transaction and an order without a supplier goes through.
+-- never recorded without a supplier by a signed-in person, on every path (the transition, create_purchase_order, a direct
+-- insert); the accounting-system mirror (no signed-in person) is not held. Every denial asserts errcode AND message.
+-- Mutation: the supplier gate is removed in-transaction and an order without a supplier goes through.
 begin;
 create extension if not exists pgtap;
-select plan(13);
+select plan(18);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15800000-0000-0000-0000-00000000000a', 'PWA Org', 'IDR', 'Asia/Jakarta');
@@ -60,14 +61,36 @@ select is((select work_order_id from purchase_requests where procurement_id = '1
 select pg_temp._as('15800000-0000-0000-0000-0000000000a2');
 select lives_ok($$ select public.transition_procurement('15800000-0000-0000-0000-000000000a01'::uuid, 'Approved') $$, 'Finance approves');
 
--- AC-PWA-004 an order is not recorded without a supplier.
+-- AC-PWA-004 an order is not recorded without a supplier, by the transition.
 select pg_temp._as('15800000-0000-0000-0000-0000000000a1');
 select throws_ok($$ select public.transition_procurement('15800000-0000-0000-0000-000000000a01'::uuid, 'Ordered') $$,
   '23514', 'ORDER_NEEDS_SUPPLIER: choose the supplier before the order is recorded', 'AC-PWA-004 no supplier, no order');
 select is((select status::text from procurements where id = '15800000-0000-0000-0000-000000000a01'), 'Approved', 'AC-PWA-004 the purchase is still Approved');
 
--- AC-PWA-005 with a supplier the order is recorded and carries the attribution.
+-- AC-PWA-006 nor by the record-capture path.
 reset role;
+insert into procurements (id, org_id, title, requested_by_id, currency, total_value, status, project_id) values
+  ('15800000-0000-0000-0000-000000000a04', '15800000-0000-0000-0000-00000000000a', 'No supplier A', '15800000-0000-0000-0000-0000000000a1', 'IDR', 100, 'Approved', '15800000-0000-0000-0000-0000000000c1'),
+  ('15800000-0000-0000-0000-000000000a05', '15800000-0000-0000-0000-00000000000a', 'Supplier B',    '15800000-0000-0000-0000-0000000000a1', 'IDR', 100, 'Approved', '15800000-0000-0000-0000-0000000000c1'),
+  ('15800000-0000-0000-0000-000000000a06', '15800000-0000-0000-0000-00000000000a', 'No supplier C', '15800000-0000-0000-0000-0000000000a1', 'IDR', 100, 'Approved', '15800000-0000-0000-0000-0000000000c1');
+update procurements set vendor_id = '15800000-0000-0000-0000-0000000000e1' where id = '15800000-0000-0000-0000-000000000a05';
+set local role authenticated;
+select pg_temp._as('15800000-0000-0000-0000-0000000000a1');
+select throws_ok($$ select public.create_purchase_order('15800000-0000-0000-0000-000000000a04'::uuid, 'REF-A', 'Issued', current_date, 100, null, null, null, null) $$,
+  '23514', 'ORDER_NEEDS_SUPPLIER: choose the supplier before the order is recorded', 'AC-PWA-006 create_purchase_order refuses an order with no supplier');
+select is((select count(*)::int from purchase_orders where procurement_id = '15800000-0000-0000-0000-000000000a04'), 0, 'AC-PWA-006 no order was written');
+select is((select status::text from procurements where id = '15800000-0000-0000-0000-000000000a04'), 'Approved', 'AC-PWA-006 the purchase did not advance to Ordered');
+select lives_ok($$ select public.create_purchase_order('15800000-0000-0000-0000-000000000a05'::uuid, 'REF-B', 'Issued', current_date, 100, null, null, null, null) $$,
+  'AC-PWA-006 create_purchase_order records an order that names a supplier');
+
+-- AC-PWA-007 the accounting-system mirror (no signed-in person) is not held.
+reset role;
+select set_config('request.jwt.claims', '', true);
+select lives_ok($$ insert into purchase_orders (org_id, procurement_id, po_number, status) values
+  ('15800000-0000-0000-0000-00000000000a', '15800000-0000-0000-0000-000000000a04', 'PO-MIRROR-1', 'Issued') $$,
+  'AC-PWA-007 an insert with no signed-in person is not held by the supplier rule');
+
+-- AC-PWA-005 with a supplier the transition records the order and it carries the attribution.
 update procurements set vendor_id = '15800000-0000-0000-0000-0000000000e1' where id = '15800000-0000-0000-0000-000000000a01';
 set local role authenticated;
 select pg_temp._as('15800000-0000-0000-0000-0000000000a1');
@@ -75,19 +98,17 @@ select lives_ok($$ select public.transition_procurement('15800000-0000-0000-0000
 select is((select discipline_id from purchase_orders where procurement_id = '15800000-0000-0000-0000-000000000a01'),
   '15800000-0000-0000-0000-0000000000f1'::uuid, 'AC-PWA-005 the order record carries the discipline');
 
--- Mutation: remove the supplier rule; an order with no supplier then goes through (the test above must go red without it).
+-- Mutation: remove the supplier gate; an order with no supplier then goes through (the refusals above go red without it).
 reset role;
 do $$ begin
-  execute replace(pg_get_functiondef('public.transition_procurement(uuid,procurement_status,text)'::regprocedure),
-    'if p_to = ''Ordered'' and v_vendor is null', 'if false and v_vendor is null');
+  execute replace(pg_get_functiondef('public.guard_purchase_order_supplier()'::regprocedure),
+    'if v_vendor is null and v_origin', 'if false and v_vendor is null and v_origin');
 end $$;
-insert into procurements (id, org_id, title, requested_by_id, currency, total_value, status, project_id) values
-  ('15800000-0000-0000-0000-000000000a03', '15800000-0000-0000-0000-00000000000a', 'No supplier', '15800000-0000-0000-0000-0000000000a1', 'IDR', 100, 'Approved', '15800000-0000-0000-0000-0000000000c1');
 set local role authenticated;
 select pg_temp._as('15800000-0000-0000-0000-0000000000a1');
-select lives_ok($$ select public.transition_procurement('15800000-0000-0000-0000-000000000a03'::uuid, 'Ordered') $$,
-  'mutation: with the supplier rule removed an order with no supplier is recorded');
-select is((select status::text from procurements where id = '15800000-0000-0000-0000-000000000a03'), 'Ordered', 'mutation: and the purchase is Ordered, so the rule is what held it');
+select lives_ok($$ select public.create_purchase_order('15800000-0000-0000-0000-000000000a06'::uuid, 'REF-C', 'Issued', current_date, 100, null, null, null, null) $$,
+  'mutation: with the supplier gate removed an order with no supplier is recorded');
+select is((select count(*)::int from purchase_orders where procurement_id = '15800000-0000-0000-0000-000000000a06'), 1, 'mutation: and the order exists, so the gate is what held it');
 
 select * from finish();
 rollback;

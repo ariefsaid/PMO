@@ -1,4 +1,6 @@
--- Rollback of 1580: restores the 1296 / 1017 / 1351 bodies and drops the columns.
+-- Rollback of 1580: restores the 1296 / 1017 / 1351 (+1461 guard) bodies, drops the supplier gate and the columns.
+drop trigger if exists zz_purchase_orders_supplier on public.purchase_orders;
+drop function if exists public.guard_purchase_order_supplier();
 drop trigger if exists zz_cost_attribution_check on public.procurements;
 drop index if exists public.procurements_work_order_idx;
 
@@ -77,6 +79,7 @@ declare
     'Cancelled',       jsonb_build_array());
   v_allowed_roles text[];
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   v_is_admin := (v_role = 'Admin');
   select status, org_id, requested_by_id, approved_by_id, project_id, budget_category, currency
@@ -260,6 +263,7 @@ declare
   v_subcontract boolean;                                                                          -- 0449
   v_ptype uuid; v_rfrom date; v_rto date; v_ext uuid;                                              -- 1351
 begin
+  perform public.assert_not_light();
   if v_uid is null or v_org is null or not coalesce(public.is_active_member(), false)
      or not coalesce(public.org_feature_enabled(v_org, 'procurement'), false) then
     raise exception 'Procurement creation is not permitted' using errcode = '42501';

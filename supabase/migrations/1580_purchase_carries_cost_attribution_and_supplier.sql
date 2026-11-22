@@ -1,14 +1,17 @@
 -- 1580_purchase_carries_cost_attribution_and_supplier.sql
--- Fix lane walk-purchasing (items 2 and 3).
+-- Fix lane walk-purchasing (cost attribution, order supplier).
 --   * procurements gain work_order_id / discipline_id: a purchase says where its cost goes when it is raised; its
 --     request and order records are stamped with it (the receipt and bill forms start from it on the screen).
 --   * check_cost_attribution (1296's body) gains the 'procurements' case, so the header's work order must be on the
 --     purchase's own project, the same rule as every other cost record.
---   * create_procurement_with_items (1351's body) accepts the two keys.
---   * transition_procurement (1017's body): the request and order records are stamped with the header attribution, and an
---     order is never recorded without a supplier: ORDER_NEEDS_SUPPLIER (23514). A purchase that predates the connected
---     system is exempt, as it is from the connected-system order guard above it.
--- Reverse: rollback/1580_purchase_carries_cost_attribution_and_supplier_down.sql (restores the 1017, 1296 and 1351 bodies).
+--   * create_procurement_with_items accepts the two keys and transition_procurement stamps the request and order records.
+--     Both are restated from their newest definition: the 1351 / 1017 bodies with the 1461 light-account guard line
+--     (`perform public.assert_not_light();`, first statement of the outer block) kept.
+--   * An order recorded by a signed-in person always names a supplier: a before-insert gate on purchase_orders raises
+--     ORDER_NEEDS_SUPPLIER (23514) for every path (the transition, create_purchase_order, a direct insert). It does not
+--     apply without a signed-in person (the accounting-system mirror runs as service role), to a purchase that predates the
+--     connected system, or to origin = 'erp_link'. It runs after the record gate, so each existing refusal keeps its message.
+-- Reverse: rollback/1580_purchase_carries_cost_attribution_and_supplier_down.sql.
 
 alter table public.procurements
   add column work_order_id uuid references public.work_orders(id),
@@ -71,6 +74,22 @@ revoke all on function public.check_cost_attribution() from public, anon, authen
 create trigger zz_cost_attribution_check before insert or update of work_order_id, discipline_id, project_id
   on public.procurements for each row execute function public.check_cost_attribution();
 
+create function public.guard_purchase_order_supplier() returns trigger
+language plpgsql security definer set search_path = public, pg_catalog as $$
+declare v_vendor uuid; v_origin text;
+begin
+  if auth.uid() is null then return new; end if;   -- the accounting-system mirror runs as service role
+  select p.vendor_id, p.origin into v_vendor, v_origin from public.procurements p where p.id = new.procurement_id;
+  if v_vendor is null and v_origin is distinct from 'erp_link'
+     and not coalesce(public.pre_cutover_procurement(new.procurement_id), false) then
+    raise exception 'ORDER_NEEDS_SUPPLIER: choose the supplier before the order is recorded' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke all on function public.guard_purchase_order_supplier() from public, anon, authenticated;
+create trigger zz_purchase_orders_supplier before insert on public.purchase_orders
+  for each row execute function public.guard_purchase_order_supplier();
+
 create or replace function public.transition_procurement(p_id uuid, p_to procurement_status, p_notes text default null)
   returns void language plpgsql security definer set search_path = public as $$
 declare
@@ -79,7 +98,7 @@ declare
   v_pr_id uuid; v_pr_no text;                                                                          -- 0766
   v_role user_role := auth_role(); v_uid uuid := auth.uid(); v_is_admin boolean;
   v_gate text;                                                                                         -- 0362
-  v_vendor uuid; v_wo uuid; v_disc uuid;                                                               -- 1580
+  v_wo uuid; v_disc uuid;                                                               -- 1580
   v_legal jsonb := jsonb_build_object(
     'Draft',           jsonb_build_array('Requested','Cancelled','Ordered','Received','Vendor Invoiced','Paid'),   -- 0362 skips
     'Requested',       jsonb_build_array('Approved','Rejected','Cancelled'),
@@ -94,10 +113,11 @@ declare
     'Cancelled',       jsonb_build_array());
   v_allowed_roles text[];
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   v_is_admin := (v_role = 'Admin');
-  select status, org_id, requested_by_id, approved_by_id, project_id, budget_category, currency, vendor_id, work_order_id, discipline_id   -- 1580
-    into v_from, v_org, v_requester, v_approver, v_project, v_category, v_currency, v_vendor, v_wo, v_disc
+  select status, org_id, requested_by_id, approved_by_id, project_id, budget_category, currency, work_order_id, discipline_id   -- 1580
+    into v_from, v_org, v_requester, v_approver, v_project, v_category, v_currency, v_wo, v_disc
     from public.procurements where id = p_id for update;
   if v_from is null then raise exception 'procurement not found' using errcode = 'P0002'; end if;
   if v_org is distinct from auth_org_id() then raise exception 'not authorized' using errcode = '42501'; end if;
@@ -218,12 +238,6 @@ begin
     end;
   end if;
 
-  -- 1580: an order is never recorded without its supplier (a purchase that predates the connected system is exempt).
-  -- After every other check, so each existing refusal keeps its own message.
-  if p_to = 'Ordered' and v_vendor is null and not coalesce(public.pre_cutover_procurement(p_id), false) then
-    raise exception 'ORDER_NEEDS_SUPPLIER: choose the supplier before the order is recorded' using errcode = '23514';
-  end if;
-
   -- 0766 (#1986): a purchase request captured while the purchase was still Draft is the request this transition submits.
   if p_to = 'Requested' then
     select r.id, r.pr_number into v_pr_id, v_pr_no from public.purchase_requests r
@@ -288,6 +302,7 @@ declare
   v_ptype uuid; v_rfrom date; v_rto date; v_ext uuid;                                              -- 1351
   v_wo uuid; v_disc uuid;                                                                          -- 1580
 begin
+  perform public.assert_not_light();
   if v_uid is null or v_org is null or not coalesce(public.is_active_member(), false)
      or not coalesce(public.org_feature_enabled(v_org, 'procurement'), false) then
     raise exception 'Procurement creation is not permitted' using errcode = '42501';
