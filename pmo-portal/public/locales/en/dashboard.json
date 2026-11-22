@@ -376,6 +376,7 @@
       "openProjects": "Open projects",
       "openSales": "Open sales",
       "openInvoices": "Open invoices",
+      "claimsBoard": "Claims board",
       "openProcurements": "Open procurements",
       "openFigure": "Open related records for {{metric}}.",
       "export": "Export",

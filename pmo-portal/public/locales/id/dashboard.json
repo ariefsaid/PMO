@@ -376,6 +376,7 @@
       "openProjects": "Buka proyek",
       "openSales": "Buka penjualan",
       "openInvoices": "Buka invoice",
+      "claimsBoard": "Papan klaim",
       "openProcurements": "Buka pengadaan",
       "openFigure": "Buka catatan terkait untuk {{metric}}.",
       "export": "Ekspor",

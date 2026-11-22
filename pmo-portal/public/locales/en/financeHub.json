@@ -176,7 +176,8 @@
     "netProfit": "Net profit",
     "helpAges": "Client balances by age count days past due, tax included. Supplier invoice age counts calendar days from the invoice date; invoices without a date have no age.",
     "payablesHelp": "Invoice age is counted from the supplier invoice date.",
-    "workInHand": "Work in hand"
+    "workInHand": "Work in hand",
+    "claimsBoard": "Claims board: by step and age"
   },
   "nav": {
     "finance": "Finance",
