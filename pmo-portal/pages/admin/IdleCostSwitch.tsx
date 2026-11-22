@@ -1,10 +1,11 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Checkbox, ListState, useToast } from '@/src/components/ui';
+import { Checkbox, ListState, SelectField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { useIdleCostEnabled, useSetIdleCostEnabled } from '@/src/hooks/useIdleCost';
+import { useIdleCostEnabled, useIdleCostScope, useSetIdleCostEnabled, useSetIdleCostScope } from '@/src/hooks/useIdleCost';
 import { useLabourCostEnabled } from '@/src/hooks/useLabourCost';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import type { IdleCostScope } from '@/src/lib/db/idleCost';
 
 /**
  * Administration › Idle time as cost (#2673, spec docs/specs/idle-hours-cost.spec.md). Admin and Finance switch it on;
@@ -20,6 +21,8 @@ export default function IdleCostSwitch() {
   const labourQ = useLabourCostEnabled(canView);
   const q = useIdleCostEnabled(canView);
   const set = useSetIdleCostEnabled();
+  const scopeQ = useIdleCostScope(canView);
+  const setScope = useSetIdleCostScope();
   if (!canView) return null;
   const labourOn = labourQ.data === true;
   const refusals = { '42501': t('idleCost.adminOnly', 'Only an Admin or Finance can change this setting.') };
@@ -32,6 +35,16 @@ export default function IdleCostSwitch() {
       : <Checkbox checked={q.data} disabled={!canManage || set.isPending}
           label={t('idleCost.switch', 'Cost idle hours in money')}
           onChange={(v) => set.mutate(v, { onError: (e) => { const c = classifyMutationError(e, refusals); toast(c.headline, c.detail, 'warning'); } })} />}
+    {q.data === true && scopeQ.data !== undefined && (
+      <SelectField id="idle-cost-scope" label={t('idleCost.scope', 'Idle cost covers')} value={scopeQ.data}
+        disabled={!canManage || setScope.isPending}
+        helper={t('idleCost.scopeHelper', 'People: idle hours times the crew present each day. Equipment: standby cost of rented equipment on days with idle time. Neither is added to direct cost.')}
+        onChange={(v) => setScope.mutate(v as IdleCostScope, { onError: (e) => { const c = classifyMutationError(e, refusals); toast(c.headline, c.detail, 'warning'); } })}
+        options={[
+          { value: 'labour_average', label: t('idleCost.scopeLabour', 'Idle hours at the average hourly cost') },
+          { value: 'people_and_equipment', label: t('idleCost.scopePeopleEquipment', 'People present and rented equipment on standby') },
+        ]} />
+    )}
     {q.data === true && !labourOn && <p role="status" className="text-sm text-muted-foreground">{t('idleCost.needsLabour', 'Nothing shows until labour cost in money is switched on.')}</p>}
     {!canManage && <p className="text-sm text-muted-foreground">{t('idleCost.adminOnly', 'Only an Admin or Finance can change this setting.')}</p>}
   </section>;

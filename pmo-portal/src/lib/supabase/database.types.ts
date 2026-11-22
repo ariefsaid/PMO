@@ -9913,18 +9913,21 @@ export type Database = {
         Row: {
           enabled: boolean
           org_id: string
+          scope: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           enabled?: boolean
           org_id?: string
+          scope?: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           enabled?: boolean
           org_id?: string
+          scope?: string
           updated_at?: string
           updated_by?: string | null
         }
@@ -35137,6 +35140,7 @@ export type Database = {
       }
       save_equipment_rental_term: { Args: { p_term: Json }; Returns: string }
       save_equipment_usage: { Args: { p_entry: Json }; Returns: Json }
+      save_idle_cost_scope: { Args: { p_scope: string }; Returns: undefined }
       save_idle_cost_setting: {
         Args: { p_enabled: boolean }
         Returns: undefined
@@ -37237,9 +37241,12 @@ export type Database = {
         Returns: {
           amount: string
           currency: string
+          equipment_amount: string
+          headcount_hours: string
           hourly_cost: string
           hours: string
           minutes: number
+          people_amount: string
           reason: string
           reason_id: string
           reason_label: string

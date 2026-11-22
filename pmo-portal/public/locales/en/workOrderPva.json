@@ -244,6 +244,9 @@
     "cost": "Cost",
     "total": "Total idle",
     "noRate": "No rate",
-    "note": "Shown apart: this time was already paid, so it is part of the direct cost above and is not added again. Cost at the work order's average hourly cost."
+    "note": "Shown apart: this time was already paid, so it is part of the direct cost above and is not added again. Cost at the work order's average hourly cost.",
+    "people": "People",
+    "equipment": "Equipment",
+    "noteFull": "Shown apart: the people hours are already in labour cost and the standby money is already in equipment cost, so they are not added again. People are the crew present each day at the work order's average hourly cost."
   }
 }

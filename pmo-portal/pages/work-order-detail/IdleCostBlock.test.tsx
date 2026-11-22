@@ -13,7 +13,7 @@ vi.mock('@/src/auth/AuthContext', async () => {
 vi.mock('@/src/hooks/useIdleCost', () => ({ useProjectIdleCost: () => ({ data: h.rows }) }));
 import { IdleCostBlock } from './IdleCostBlock';
 
-const row = (o: object) => ({ workOrderId: 'A', reasonId: 'r1', reasonLabel: 'Rain', minutes: 60, hours: '1.00', hourlyCost: '62500.00', amount: '62500.00', currency: 'IDR', reason: 'counted', ...o });
+const row = (o: object) => ({ workOrderId: 'A', reasonId: 'r1', reasonLabel: 'Rain', minutes: 60, hours: '1.00', hourlyCost: '62500.00', amount: '62500.00', currency: 'IDR', reason: 'counted', peopleAmount: null, equipmentAmount: null, headcountHours: null, ...o });
 beforeEach(() => { setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' }); h.rows = []; });
 
 describe('idle cost block', () => {
@@ -40,5 +40,36 @@ describe('idle cost block', () => {
     h.rows = [row({ amount: null, hourlyCost: null, reason: 'no-rate' })];
     render(<IdleCostBlock projectId="p1" workOrderId="A" testId="idle" />);
     expect(within(screen.getByTestId('idle-r1')).getByText('No rate')).toBeVisible();
+  });
+  it('AC-IWR-011 the default scope shows no People or Equipment column', () => {
+    h.rows = [row({})];
+    render(<IdleCostBlock projectId="p1" workOrderId="A" testId="idle" />);
+    expect(screen.queryByRole('columnheader', { name: 'People' })).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: 'Equipment' })).toBeNull();
+  });
+  it('AC-IWR-011 people and equipment show as columns beside one total, apart from direct cost', () => {
+    h.rows = [
+      row({ amount: '331250.00', peopleAmount: '281250.00', equipmentAmount: '50000.00', headcountHours: '4.50' }),
+      row({ reasonId: 'r2', reasonLabel: 'Waiting', amount: '618750.00', peopleAmount: '468750.00', equipmentAmount: '150000.00', headcountHours: '7.50' }),
+    ];
+    render(<IdleCostBlock projectId="p1" workOrderId="A" testId="idle" />);
+    expect(screen.getByRole('columnheader', { name: 'People' })).toBeVisible();
+    expect(screen.getByRole('columnheader', { name: 'Equipment' })).toBeVisible();
+    const rain = screen.getByTestId('idle-r1').textContent ?? '';
+    expect(rain).toContain(formatExactMoney('281250.00', 'IDR', 'en-US'));
+    expect(rain).toContain(formatExactMoney('50000.00', 'IDR', 'en-US'));
+    expect(rain).toContain(formatExactMoney('331250.00', 'IDR', 'en-US'));
+    const total = screen.getByTestId('idle-total').textContent ?? '';
+    expect(total).toContain(formatExactMoney('950000.00', 'IDR', 'en-US'));
+    expect(total).toContain(formatExactMoney('750000.00', 'IDR', 'en-US'));
+    expect(total).toContain(formatExactMoney('200000.00', 'IDR', 'en-US'));
+    expect(screen.getByText(/not added again/)).toBeVisible();
+  });
+  it('AC-IWR-011 a reason whose people have no rate says so and still shows its equipment', () => {
+    h.rows = [row({ amount: '50000.00', reason: 'no-rate', hourlyCost: null, peopleAmount: null, equipmentAmount: '50000.00', headcountHours: '3.00' })];
+    render(<IdleCostBlock projectId="p1" workOrderId="A" testId="idle" />);
+    const r = screen.getByTestId('idle-r1');
+    expect(within(r).getByText('No rate')).toBeVisible();
+    expect(r.textContent).toContain(formatExactMoney('50000.00', 'IDR', 'en-US'));
   });
 });

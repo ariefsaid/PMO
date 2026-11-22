@@ -5,10 +5,12 @@ import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 
 /** #2673 (AC-IHC-011): Admin and Finance switch idle cost on; others see it read-only or not at all. */
-const h = vi.hoisted(() => ({ role: 'Admin' as string, on: false, labour: true, mutate: vi.fn() }));
+const h = vi.hoisted(() => ({ role: 'Admin' as string, on: false, labour: true, mutate: vi.fn(), scope: 'labour_average' as string, setScope: vi.fn() }));
 vi.mock('@/src/hooks/useIdleCost', () => ({
   useIdleCostEnabled: () => ({ data: h.on, isError: false, refetch: vi.fn() }),
   useSetIdleCostEnabled: () => ({ isPending: false, mutate: h.mutate }),
+  useIdleCostScope: () => ({ data: h.scope, isError: false, refetch: vi.fn() }),
+  useSetIdleCostScope: () => ({ isPending: false, mutate: h.setScope }),
 }));
 vi.mock('@/src/hooks/useLabourCost', () => ({ useLabourCostEnabled: () => ({ data: h.labour }) }));
 vi.mock('@/src/auth/usePermission', async () => {
@@ -18,7 +20,7 @@ vi.mock('@/src/auth/usePermission', async () => {
 import IdleCostSwitch from './IdleCostSwitch';
 
 const setup = () => { render(<ToastProvider><IdleCostSwitch /></ToastProvider>); return userEvent.setup(); };
-beforeEach(() => { h.role = 'Admin'; h.on = false; h.labour = true; h.mutate.mockReset(); });
+beforeEach(() => { h.role = 'Admin'; h.on = false; h.labour = true; h.mutate.mockReset(); h.setScope.mockReset(); h.scope = 'labour_average'; });
 
 describe('idle cost switch', () => {
   it('AC-IHC-011 Admin switches it on', async () => {
@@ -46,5 +48,29 @@ describe('idle cost switch', () => {
     h.role = 'Engineer';
     const { container } = render(<ToastProvider><IdleCostSwitch /></ToastProvider>);
     expect(container.querySelector('[data-testid="idle-cost-settings"]')).toBeNull();
+  });
+  it('AC-IWR-012 Admin widens idle cost to people and equipment', async () => {
+    h.on = true;
+    const user = setup();
+    expect(screen.getByRole('combobox', { name: 'Idle cost covers' })).toHaveValue('labour_average');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Idle cost covers' }), 'people_and_equipment');
+    await waitFor(() => expect(h.setScope).toHaveBeenCalledWith('people_and_equipment', expect.anything()));
+  });
+  it('AC-IWR-012 a scope refusal shows its reason', async () => {
+    h.on = true;
+    h.setScope.mockImplementation((_v: string, o: { onError: (e: unknown) => void }) => o.onError({ code: '42501', message: 'not authorized' }));
+    const user = setup();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Idle cost covers' }), 'people_and_equipment');
+    // the toast also mirrors its text into a screen-reader live region, so more than one node carries it
+    expect((await screen.findAllByText('Only an Admin or Finance can change this setting.')).length).toBeGreaterThan(0);
+  });
+  it('AC-IWR-012 Executive sees the scope but cannot change it', () => {
+    h.role = 'Executive'; h.on = true;
+    setup();
+    expect(screen.getByRole('combobox', { name: 'Idle cost covers' })).toBeDisabled();
+  });
+  it('AC-IWR-012 the scope is hidden while idle cost is off (nothing to cover yet)', () => {
+    setup();
+    expect(screen.queryByRole('combobox', { name: 'Idle cost covers' })).toBeNull();
   });
 });

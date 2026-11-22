@@ -1149,7 +1149,11 @@
     "loadError": "Pengaturan ini tidak dapat dimuat",
     "switch": "Hitung jam menganggur dalam uang",
     "adminOnly": "Hanya Admin atau Keuangan yang dapat mengubah pengaturan ini.",
-    "needsLabour": "Belum ada yang tampil sampai biaya tenaga kerja dalam uang diaktifkan."
+    "needsLabour": "Belum ada yang tampil sampai biaya tenaga kerja dalam uang diaktifkan.",
+    "scope": "Biaya waktu menganggur mencakup",
+    "scopeHelper": "Tenaga kerja: jam menganggur dikali kru yang hadir setiap hari. Peralatan: biaya siaga peralatan sewa pada hari yang ada waktu menganggurnya. Keduanya tidak ditambahkan ke biaya langsung.",
+    "scopeLabour": "Jam menganggur dengan biaya per jam rata-rata",
+    "scopePeopleEquipment": "Kru yang hadir dan peralatan sewa yang siaga"
   },
   "issueClosingReport": {
     "title": "Laporan waktu penyelesaian isu",
