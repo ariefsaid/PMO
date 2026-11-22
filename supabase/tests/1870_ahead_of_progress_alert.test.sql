@@ -177,18 +177,20 @@ select is(pg_temp._open('26870000-0000-0000-0000-000000001401'), 1, 'AC-MVP-010 
 select is(pg_temp._told('26870000-0000-0000-0000-000000001401'), 'nobody', 'AC-MVP-010 recording that nobody was told');
 select is((pg_temp._notes('26870000-0000-0000-0000-0000000001a2', '%AHD WO one%') + pg_temp._notes('26870000-0000-0000-0000-0000000001a3', '%AHD WO one%'))::text, current_setting('ahd.n'), 'AC-MVP-010 and writing no notification');
 
--- ── AC-MVP-017 a responsible person who is a light account is skipped: the manager is told; a light account's needs-you is refused ─────
+-- ── AC-MVP-017 a responsible person who has become a light account is skipped: the manager is told; a light account's needs-you is refused ─────
 update material_installed_usage_alerts set resolved_at = now() where work_order_id = '26870000-0000-0000-0000-000000001401' and kind = 'issued_ahead' and resolved_at is null;
-update work_orders set responsible_person_id = '26870000-0000-0000-0000-0000000001a4' where id = '26870000-0000-0000-0000-000000001401';
+update work_orders set responsible_person_id = '26870000-0000-0000-0000-0000000001a3' where id = '26870000-0000-0000-0000-000000001401';
+-- the realistic path (the database refuses naming a field account directly): an office member is named, then becomes a field account
+update profiles set built_in_role = 'foreman' where id = '26870000-0000-0000-0000-0000000001a3';
 set local role authenticated;
 select pg_temp._as('26870000-0000-0000-0000-0000000001a1');
 select public.set_cost_attribution('stock_document', array[public.create_stock_document('{"kind":"issue","warehouse_id":"26870000-0000-0000-0000-000000001801","project_id":"26870000-0000-0000-0000-0000000001d1"}'::jsonb,
   '[{"item_id":"26870000-0000-0000-0000-000000001311","quantity":2,"boq_item_id":"26870000-0000-0000-0000-000000001201"}]'::jsonb, true)], '26870000-0000-0000-0000-000000001401', null);
 select is(pg_temp._open('26870000-0000-0000-0000-000000001401'), 1, 'AC-MVP-017 a new episode opens with a light account as the responsible person');
 select is(pg_temp._told('26870000-0000-0000-0000-000000001401'), '26870000-0000-0000-0000-0000000001a2', 'AC-MVP-017 the project manager is the one told');
-select is(pg_temp._notes('26870000-0000-0000-0000-0000000001a4', '%AHD WO one%'), 0, 'AC-MVP-017 the light account is not notified about something it cannot open');
+select is(pg_temp._notes('26870000-0000-0000-0000-0000000001a3', '%AHD WO one%'), 1, 'AC-MVP-017 the light account is not notified again (it holds only the first episode''s notification)');
 select is(pg_temp._notes('26870000-0000-0000-0000-0000000001a2', '%AHD WO one%'), 3, 'AC-MVP-017 the manager has the notification');
-select pg_temp._as('26870000-0000-0000-0000-0000000001a4');
+select pg_temp._as('26870000-0000-0000-0000-0000000001a3');
 select throws_ok($$ select count(*) from public.my_open_ahead_alerts() $$, '42501', null, 'AC-MVP-017 a light account is refused the needs-you read');
 select pg_temp._as('26870000-0000-0000-0000-0000000001a2');
 select is((select count(*)::int from public.my_open_ahead_alerts()), 1, 'AC-MVP-017 and the manager sees the work order in needs-you');
