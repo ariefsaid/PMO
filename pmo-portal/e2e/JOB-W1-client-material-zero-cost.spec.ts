@@ -44,14 +44,18 @@ test('JOB-W1 client material arrives at zero cost and reaches the work order wit
   const tagged = await admin.from('stock_items').update({ tag_id: tag.data.id }).eq('id', item.id);
   if (tagged.error) throw tagged.error;
 
-  // Receive 8 at zero cost.
+  // Receive 8 at zero cost (cost is fixed at zero and not asked; confirm dialog posts it).
   await page.goto('/stock/new/receive');
   await page.getByLabel(/^Warehouse/).selectOption({ label: label(central) });
   await chooseItem(page, item.code);
   await page.getByLabel(/^Quantity/).fill('8');
-  await page.getByLabel(/^Unit cost/).fill('0');
+  await expect(page.getByText('Client-supplied: the cost is fixed at zero.')).toBeVisible();
+  await expect(page.getByLabel(/^Unit cost/)).toHaveCount(0);
   await page.getByRole('button', { name: 'Post receipt' }).click();
+  await page.getByRole('dialog', { name: 'Post this receipt?' }).getByRole('button', { name: 'Post', exact: true }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
+  const receiptLine = await service.from('stock_document_lines').select('unit_cost').eq('item_id', item.id).single();
+  expect(Number(receiptLine.data?.unit_cost)).toBe(0);
 
   // Move it to the yard against the work order; the tag requires the slip before it posts.
   await page.goto('/stock/new/transfer');
@@ -76,4 +80,5 @@ test('JOB-W1 client material arrives at zero cost and reaches the work order wit
   const row = card.getByRole('row').filter({ hasText: yard.code });
   await expect(row).toContainText(tagName);
   await expect(row.getByRole('cell').nth(5)).toContainText('8');
+  await expect(row).toContainText('Client-supplied, no cost');
 });

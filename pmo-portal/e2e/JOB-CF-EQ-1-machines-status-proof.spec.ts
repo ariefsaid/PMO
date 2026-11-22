@@ -39,7 +39,7 @@ test('JOB-CF-EQ-1 Equipment opens on the machines; broken with note and photo is
 
   await row.getByRole('combobox', { name: `Status of ${code}` }).selectOption('broken');
   await row.getByLabel(`Note for ${code}`).fill('hydraulic hose burst');
-  await expect(row.getByText(/Counts as downtime/)).toBeVisible(); // one line on what the status does to planning
+  await expect(row.getByText(/counts as downtime/i)).toBeVisible(); // one line on what the status does to planning
   await row.getByLabel(`Photo for ${code}`).setInputFiles({ name: 'hose.png', mimeType: 'image/png', buffer: pixel });
   await page.getByRole('button', { name: 'Save statuses' }).click();
 
