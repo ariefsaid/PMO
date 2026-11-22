@@ -57,7 +57,7 @@ select is((select count(*)::int
           1, 'only the reporting person is marked');
 select is((select count(*)::int from public.notifications
             where owner_id = '16310000-0000-0000-0000-0000000000a1' and title = 'A crew member reports absent today'),
-          1, 'the crew''s field controller was told');
+          1, 'the crew''s field controller was told once, though the day was re-stated');
 
 -- Another organisation reads nothing.
 select set_config('request.jwt.claims', json_build_object('sub', '16310000-0000-0000-0000-0000000000b1', 'role', 'authenticated')::text, true);
