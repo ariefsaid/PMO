@@ -283,17 +283,17 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
   it('FR-STK-064 view-as is view-only: an Admin viewing as an Engineer sees no movement buttons', async () => {
     renderPage('Admin', 'Engineer');
     await screen.findByText('CEM');
-    expect(screen.queryByRole('link', { name: 'Issue to project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Receive goods' })).not.toBeInTheDocument();
   });
 
   it('FR-STK-064 movement actions appear only for a keeper (Admin always); a non-keeper sees none', async () => {
     const { unmount } = renderPage('Engineer');
     await screen.findByText('CEM');
-    expect(screen.queryByRole('link', { name: 'Issue to project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Receive goods' })).not.toBeInTheDocument();
     unmount();
     master.listKeepers.mockResolvedValue([{ warehouse_id: 'w1', user_id: 'me', org_id: 'org-1' }]);
     renderPage('Engineer');
-    expect(await screen.findByRole('link', { name: 'Issue to project' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Receive goods' })).toBeInTheDocument();
   });
 
   it('typing in search narrows the list by code or name', async () => {
@@ -384,11 +384,11 @@ describe('AC-STK-032 floor: every control on the balance list still works', () =
     expect(await screen.findByText('documents page')).toBeInTheDocument();
   });
 
-  it('AC-2077 Issue to project is one tab stop: a link with no button inside it', async () => {
+  it('AC-2077 Receive goods (the first action) is one tab stop: a link with no button inside it', async () => {
     const user = userEvent.setup();
     renderRouted();
-    const link = await screen.findByRole('link', { name: 'Issue to project' });
-    expect(link).toHaveAttribute('href', '/stock/new/issue');
+    const link = await screen.findByRole('link', { name: 'Receive goods' });
+    expect(link).toHaveAttribute('href', '/stock/new/receive');
     expect(link.querySelector('button')).toBeNull();
     const more = screen.getByRole('button', { name: 'More' });
     link.focus();
@@ -396,16 +396,16 @@ describe('AC-STK-032 floor: every control on the balance list still works', () =
     expect(more).toHaveFocus();
   });
 
-  it('Issue to project starts an issue movement', async () => {
+  it('JOB-1122-5 Receive goods is the first action and starts a receipt', async () => {
     renderRouted();
     await screen.findByText('CEM');
-    await userEvent.click(await screen.findByRole('link', { name: 'Issue to project' }));
-    expect(await screen.findByText('new movement: issue')).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('link', { name: 'Receive goods' }));
+    expect(await screen.findByText('new movement: receive')).toBeInTheDocument();
   });
 
   it('each movement in the More menu opens its own new-movement route', async () => {
     const movements = [
-      ['Receive', 'receive'],
+      ['Issue to project', 'issue'],
       ['Transfer', 'transfer'],
       ['Return from project', 'return'],
       ['Stock count', 'count'],

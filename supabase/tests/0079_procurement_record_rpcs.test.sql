@@ -48,6 +48,11 @@ insert into procurements (id, org_id, title, status, requested_by_id) values
 -- ── AC-PR-004: minting format + per-day increment ─────────────────────────────
 -- All calls as PM (Project Manager) in Org A.
 
+-- 1580: an order needs a supplier, so the fixture purchases are given one before the first signed-in write.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid where p.vendor_id is null;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00790000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
