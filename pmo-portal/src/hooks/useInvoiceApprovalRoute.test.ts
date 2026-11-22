@@ -51,7 +51,7 @@ function makeWrapper() {
   return { qc, Wrapper };
 }
 
-beforeEach(() => h.get.mockReset());
+beforeEach(() => { h.get.mockReset(); });
 
 describe('FR-WAIT-006 useInvoiceApprovalRoute', () => {
   it('reads ONE visible invoice through the typed repository, keyed by real org + user + invoice', async () => {
