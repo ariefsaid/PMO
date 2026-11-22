@@ -25,7 +25,7 @@ begin
   end if;
   update public.expiry_documents set expires_on = p_expires_on where id = d.id;
   select t.name into v_type from public.document_types t where t.id = d.type_id;
-  perform public.notify_person(d.person_id, 'document_renewed', v_type || ' renewed',
+  perform public.notify_person(d.person_id, 'document_renewal', v_type || ' renewed',
     v_type || ' renewed: now valid until ' || to_char(p_expires_on, 'FMDD Mon YYYY') || '.', '/equipment/people/' || d.person_id);
 end $$;
 revoke all on function public.record_document_renewal(uuid, date) from public, anon;

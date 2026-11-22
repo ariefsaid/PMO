@@ -1,7 +1,7 @@
 -- document_expiry_manager.test.sql — 1760/1761 (expiry-to-manager). Owns AC-EXM-001..005 (needs notify_person from 1750).
 begin;
 create extension if not exists pgtap;
-select plan(18);
+select plan(19);
 
 insert into organizations (id, name, default_currency, default_timezone) values ('17600000-0000-0000-0000-00000000000a', 'EXM Org', 'IDR', 'UTC');
 insert into auth.users (id, email) values
@@ -61,6 +61,8 @@ select is((select expires_on from expiry_documents where id = '17600000-0000-000
 select is((select count(*)::int from notifications where owner_id = '17600000-0000-0000-0000-0000000000a4' and title like '% renewed' and body like '%10 Feb 2027%'), 1, 'AC-EXM-005 the worker is told once, with the new date');
 select is((select count(*)::int from notifications where owner_id = '17600000-0000-0000-0000-0000000000a5'), 0, 'AC-EXM-005 the unlinked person''s notice goes nowhere (no-op, no error)');
 select is((select count(*)::int from notifications where body like '%fit%' and title like '% renewed'), 0, 'AC-EXM-005 no notice carries a medical status');
+
+select is((select count(*)::int from email_outbox o join notifications n on n.id = o.notification_id where n.owner_id = '17600000-0000-0000-0000-0000000000a4' and n.title like '% renewed'), 0, 'AC-EXM-005 the renewal notice queues no expiry email (its kind maps to no email event)');
 
 select * from finish();
 rollback;
