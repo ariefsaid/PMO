@@ -124,8 +124,3 @@ export function allocationHeadroom(workOrderPlan: string, allocations: readonly 
   }
   return { allocated: formatDecimal(sum, scale), remaining: formatDecimal(plan - sum, scale), overAllocated: sum > plan };
 }
-
-/** Whether a proposed allocation fits: it must not take the sum of allocations above the work order's plan. */
-export function allocationFits(workOrderPlan: string, otherAllocations: readonly string[], proposed: string, scale = 3): boolean {
-  return !allocationHeadroom(workOrderPlan, [...otherAllocations, proposed], scale).overAllocated;
-}

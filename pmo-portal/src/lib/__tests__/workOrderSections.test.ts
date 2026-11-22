@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allocationFits, allocationHeadroom, quantitiesByUnit, readinessRollup, rollupBySection } from '../workOrderSections';
+import { allocationHeadroom, quantitiesByUnit, readinessRollup, rollupBySection } from '../workOrderSections';
 
 describe('rollupBySection (AC-WOS-002: the roll-up invariant)', () => {
   it('direct budget: A 400.00 + B 350.00 + remainder 250.00 = 1,000.00 exactly', () => {
@@ -86,10 +86,8 @@ describe('allocationHeadroom (AC-WOS-008)', () => {
   it('allocations 60 and 30 against a plan of 100 leave 10', () => {
     expect(allocationHeadroom('100.000', ['60.000', '30.000'])).toEqual({ allocated: '90.000', remaining: '10.000', overAllocated: false });
   });
-  it('raising B to 50 does not fit; 40 does', () => {
-    expect(allocationFits('100.000', ['60.000'], '50.000')).toBe(false);
-    expect(allocationFits('100.000', ['60.000'], '40.000')).toBe(true);
-  });
+  // AC-WOS-008 (a proposed allocation must fit the plan) is enforced by the server on write; the modal shows the
+  // headroom words, so there is no client fits-rule to test here (#2753).
   it('a plan that later drops to 80 flags the item and rewrites nothing', () => {
     const r = allocationHeadroom('80.000', ['60.000', '30.000']);
     expect(r).toEqual({ allocated: '90.000', remaining: '-10.000', overAllocated: true });

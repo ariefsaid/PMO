@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sumDecimal } from './exactDecimal';
 import {
-  approvalBlock, countsTowardLimit, limitReached, lineValueCents, overContract, validateRequestedQuantity,
+  limitReached, lineValueCents, overContract, validateRequestedQuantity,
   versionValueChanges,
 } from './quantityChangeRules';
 
@@ -54,25 +54,9 @@ describe('quantityChangeRules', () => {
     expect(rows.slice(1).reduce((s, r) => s + (r.changeCents as bigint), 0n)).toBe(current - baseline);
   });
 
-  it('AC-QCR-011/027 approval is blocked for the author, any editor and the submitter, with the reason', () => {
-    const base = { status: 'pending_approval' as const, authorId: 'a', editorIds: ['a', 'e1', 'e2'], submittedBy: 'e2' };
-    expect(approvalBlock({ ...base, role: 'Finance', userId: 'a' }).reason).toBe('author');
-    expect(approvalBlock({ ...base, role: 'Finance', userId: 'e1' }).reason).toBe('editor');
-    expect(approvalBlock({ ...base, role: 'Finance', userId: 'e2' }).reason).toBe('editor');
-    expect(approvalBlock({ ...base, editorIds: ['a'], role: 'Finance', userId: 'e2' }).reason).toBe('submitter');
-    expect(approvalBlock({ ...base, role: 'Engineer', userId: 'z' }).reason).toBe('role');
-    expect(approvalBlock({ ...base, role: 'Project Manager', userId: 'z' }).reason).toBe('role');
-    expect(approvalBlock({ ...base, role: 'Admin', userId: 'z' }).reason).toBeNull();
-    expect(approvalBlock({ ...base, status: 'approved', role: 'Admin', userId: 'z' }).reason).toBe('status');
-  });
-
-  it('AC-QCR-008 only a draft withdrawn before it was ever submitted is left out of the limit', () => {
-    expect(countsTowardLimit({ status: 'withdrawn', withdrawn_from: 'draft', first_submitted_at: null })).toBe(false);
-    expect(countsTowardLimit({ status: 'withdrawn', withdrawn_from: 'returned', first_submitted_at: '2026-01-01' })).toBe(true);
-    expect(countsTowardLimit({ status: 'withdrawn', withdrawn_from: 'draft', first_submitted_at: '2026-01-01' })).toBe(true);
-    expect(countsTowardLimit({ status: 'draft', withdrawn_from: null, first_submitted_at: null })).toBe(true);
-  });
-
+  // AC-QCR-011/027 (approval separation) and AC-QCR-008 (which requests count toward the limit) are decided by the
+  // database (qcr_assert_approver / the budget read); the screen reads the server's reason, so there is no client
+  // restatement to test here (#2753).
   it('AC-QCR-006 the limit is reached at the count, and an empty limit never is', () => {
     expect(limitReached(2, 2)).toBe(true);
     expect(limitReached(1, 2)).toBe(false);
