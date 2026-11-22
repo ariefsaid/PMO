@@ -43,22 +43,27 @@ describe('MarkLeftDialog', () => {
 
   it('renders truthful label and helper stating first day off crew roster, not Last day of work', () => {
     renderDialog();
-    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Mark Budi Santoso as left' })).toBeInTheDocument();
-    expect(screen.getByLabelText('First day off crew roster')).toBeInTheDocument();
-    expect(screen.getByText('First day off crew roster', { selector: 'p' })).toBeInTheDocument();
+    const dialog = screen.getByRole('alertdialog');
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole('heading', { name: 'Mark Budi Santoso as left' })).toBeInTheDocument();
+    const input = within(dialog).getByRole('textbox', { name: /^First day off crew roster/i });
+    expect(input).toBeInTheDocument();
+    expect(within(dialog).getByLabelText(/^First day off crew roster/i)).toBe(input);
+    expect(within(dialog).getAllByText(/First day off crew roster/i).length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).queryByText(/Last day of work/i)).toBeNull();
     expect(screen.queryByText(/Last day of work/i)).toBeNull();
   });
 
   it('proves a concrete selected calendar date is sent unchanged to markLeft mutation', async () => {
     const user = userEvent.setup();
     renderDialog();
+    const dialog = screen.getByRole('alertdialog');
 
-    const input = screen.getByLabelText('First day off crew roster');
+    const input = within(dialog).getByRole('textbox', { name: /^First day off crew roster/i });
     await user.clear(input);
     await user.type(input, '2026-12-15');
 
-    const confirmButton = within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Mark as left' });
+    const confirmButton = within(dialog).getByRole('button', { name: 'Mark as left' });
     await user.click(confirmButton);
 
     expect(h.markLeft).toHaveBeenCalledTimes(1);
@@ -71,8 +76,9 @@ describe('MarkLeftDialog', () => {
   it('preserves supplied calendar date default when date is not manually changed', async () => {
     const user = userEvent.setup();
     renderDialog();
+    const dialog = screen.getByRole('alertdialog');
 
-    const confirmButton = within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Mark as left' });
+    const confirmButton = within(dialog).getByRole('button', { name: 'Mark as left' });
     await user.click(confirmButton);
 
     expect(h.markLeft).toHaveBeenCalledTimes(1);
@@ -84,8 +90,13 @@ describe('MarkLeftDialog', () => {
 
   it('renders localized truthful copy in Bahasa Indonesia', () => {
     renderDialogBahasa();
-    expect(screen.getByRole('heading', { name: 'Tandai Budi Santoso sudah keluar' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Hari pertama keluar dari susunan kru')).toBeInTheDocument();
+    const dialog = screen.getByRole('alertdialog');
+    expect(within(dialog).getByRole('heading', { name: 'Tandai Budi Santoso sudah keluar' })).toBeInTheDocument();
+    const input = within(dialog).getByRole('textbox', { name: /^Hari pertama keluar dari susunan kru/i });
+    expect(input).toBeInTheDocument();
+    expect(within(dialog).getByLabelText(/^Hari pertama keluar dari susunan kru/i)).toBe(input);
+    expect(within(dialog).getAllByText(/Hari pertama keluar dari susunan kru/i).length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).queryByText(/Hari kerja terakhir/i)).toBeNull();
     expect(screen.queryByText(/Hari kerja terakhir/i)).toBeNull();
   });
 
@@ -93,8 +104,9 @@ describe('MarkLeftDialog', () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     renderDialog(person, onClose);
+    const dialog = screen.getByRole('alertdialog');
 
-    const cancelButton = within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' });
+    const cancelButton = within(dialog).getByRole('button', { name: 'Cancel' });
     await user.click(cancelButton);
 
     expect(h.markLeft).not.toHaveBeenCalled();
@@ -103,13 +115,17 @@ describe('MarkLeftDialog', () => {
 
   it('displays refusal message when markLeft mutation rejects', async () => {
     const user = userEvent.setup();
-    h.markLeft.mockRejectedValue(new Error('PPL_NOT_FOUND'));
+    h.markLeft.mockRejectedValue(new Error('PPL_NOT_FOUND: the person was not found, or has already left'));
     renderDialog();
+    const dialog = screen.getByRole('alertdialog');
 
-    const confirmButton = within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Mark as left' });
+    const confirmButton = within(dialog).getByRole('button', { name: 'Mark as left' });
     await user.click(confirmButton);
 
     expect(h.markLeft).toHaveBeenCalledTimes(1);
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    const inlineError = await within(dialog).findByRole('alert');
+    expect(inlineError).toBeInTheDocument();
+    expect(inlineError).toHaveTextContent('That person was not found, or has already left.');
+    expect(dialog).toBeInTheDocument();
   });
 });
