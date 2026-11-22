@@ -206,7 +206,7 @@
     "approverInboxError": "Couldn't load this setting",
     "approverInboxLabel": "Show material request approvals in the approvals inbox and notify approvers",
     "approverInboxSaved": "Approvals inbox setting saved",
-    "approverInboxSub": "When on, each approver is notified when a request step becomes theirs, and the step is listed on the Approvals page. Off by default.",
+    "approverInboxSub": "When on, each approver is also notified in the app when a request step becomes theirs. The step is always listed on the Approvals page, whatever this says. Off by default.",
     "chain": "Approval chain",
     "chainError": "Couldn't load the chain",
     "chainSaved": "Approval chain saved",

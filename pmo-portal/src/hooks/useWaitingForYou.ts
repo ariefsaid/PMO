@@ -1,5 +1,4 @@
-import { useContext, useMemo } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
@@ -12,16 +11,35 @@ import { useLeaveRequests } from '@/src/hooks/useLeave';
 import { useImprestAwaiting } from '@/src/hooks/useImprest';
 import { useOrgId } from '@/src/hooks/useOrgId';
 import { useDatabaseWaiting, useDecisionStanding } from '@/src/hooks/useWaitingDecisions';
+import type { WaitingDecisionRow } from '@/src/lib/db/waitingDecisions';
+import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
+import type { ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
+import type { WaitingStep } from '@/src/lib/repositories/materialRequests';
+import type { LeaveRequestRow } from '@/src/lib/db/leave';
+type AwaitingImprest = Awaited<ReturnType<typeof import('@/src/lib/db/imprest').listAwaitingImprest>>;
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { availablePlanActions, availableReplenishmentActions } from '@/src/lib/imprest/imprestRules';
 import { approvalPopulation, pendingProcurementApprovals, type ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
 import { WAITING_KINDS, type WaitingKind } from '@/src/lib/approvals/waitingKinds';
 
 
-/** No data layer (a bare render): the list is unknown, never "nothing waiting". The client never changes within a mount. */
-const NO_DATA_LAYER: WaitingForYou = {
-  entries: [], count: undefined, countFor: () => 0, pendingKinds: [], failedKinds: [], isPending: true, isError: false, refetch: () => undefined,
-};
+interface QueryRead<T> { data: T | undefined; isPending: boolean; isError: boolean; refetch: () => unknown }
+const UNKNOWN = { data: undefined, isPending: true, isError: false, refetch: () => undefined };
+
+/**
+ * A bare render has no data layer: the real query hooks then throw "No QueryClient set" at their first internal hook, the same place on every
+ * render, so the order of hooks never changes. That kind is then unknown (pending), never "nothing waiting". Any other error is a bug and
+ * still throws. With a data layer this never catches anything.
+ */
+function withoutDataLayer<T>(read: () => T, fallback: T): T {
+  try {
+    return read();
+  } catch (error) {
+    if (error instanceof Error && /No QueryClient set/.test(error.message)) return fallback;
+    throw error;
+  }
+}
 
 export interface WaitingForYou {
   /** Everything the viewer can decide now, oldest first, one entry per record. The home list, the badge and the inbox all read THIS. */
@@ -52,17 +70,19 @@ function useLiveWaitingForYou(): WaitingForYou {
   const invoiceRole = can('transition', 'salesInvoice', { realRole });
   const expenseRole = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
 
-  const procurements = useProcurements({ status: 'Requested', enabled: signedIn && procurementRole });
+  /* eslint-disable react-hooks/rules-of-hooks -- each read is called exactly once per render, in a fixed order; the wrapper only turns "no data layer" into an unknown read */
+  const procurements = withoutDataLayer(() => useProcurements({ status: 'Requested', enabled: signedIn && procurementRole }), UNKNOWN as QueryRead<ProcurementWithRefs[]>);
   // Any authenticated real role can be an assigned timesheet approver; the read is caller-filtered.
-  const timesheets = useTimesheetsAwaitingApproval();
-  const expenses = useExpenseClaimsAwaitingDecision();
-  const invoices = useInvoicesAwaitingViewer();
+  const timesheets = withoutDataLayer(() => useTimesheetsAwaitingApproval(), UNKNOWN as QueryRead<TimesheetAwaitingApproval[]>);
+  const expenses = withoutDataLayer(() => useExpenseClaimsAwaitingDecision(), UNKNOWN as QueryRead<ExpenseClaimAwaiting[]>);
+  const invoices = withoutDataLayer(() => useInvoicesAwaitingViewer(), { rows: [], isPending: true, isError: false, enabled: false, refetch: () => undefined } as ReturnType<typeof useInvoicesAwaitingViewer>);
   // A material-request step is the viewer's whenever the database says so: the organisation's inbox setting only decides
   // whether a notification is also written, never whether the step is counted.
-  const material = useWaitingForMe(signedIn);
-  const leave = useLeaveRequests();
-  const imprest = useImprestAwaiting();
-  const database = useDatabaseWaiting(orgId, userId, signedIn);
+  const material = withoutDataLayer(() => useWaitingForMe(signedIn), UNKNOWN as QueryRead<WaitingStep[]>);
+  const leave = withoutDataLayer(() => useLeaveRequests(), UNKNOWN as QueryRead<LeaveRequestRow[]>);
+  const imprest = withoutDataLayer(() => useImprestAwaiting(), UNKNOWN as QueryRead<AwaitingImprest>);
+  const database = withoutDataLayer(() => useDatabaseWaiting(orgId, userId, signedIn), UNKNOWN as QueryRead<WaitingDecisionRow[]>);
+  /* eslint-enable react-hooks/rules-of-hooks */
 
   const entries = useMemo<ApprovalPopulationEntry[]>(() => {
     const procurementRows = procurementRole ? pendingProcurementApprovals(procurements.data, userId, realRole === 'Admin') : [];
@@ -129,11 +149,7 @@ function useLiveWaitingForYou(): WaitingForYou {
   };
 }
 
-export function useWaitingForYou(): WaitingForYou {
-  const client = useContext(QueryClientContext);
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- the client is fixed for the life of the tree
-  return client ? useLiveWaitingForYou() : NO_DATA_LAYER;
-}
+export const useWaitingForYou = useLiveWaitingForYou;
 
 /**
  * Whether to offer the Approvals entry to a login whose role is not on the entry's role list: anyone who can decide anything

@@ -206,7 +206,7 @@
     "approverInboxError": "Pengaturan ini tidak dapat dimuat",
     "approverInboxLabel": "Tampilkan persetujuan permintaan material di kotak masuk persetujuan dan beri tahu penyetuju",
     "approverInboxSaved": "Pengaturan kotak masuk persetujuan disimpan",
-    "approverInboxSub": "Jika aktif, setiap penyetuju diberi tahu saat langkah permintaan menjadi gilirannya, dan langkah itu tampil di halaman Persetujuan. Nonaktif secara bawaan.",
+    "approverInboxSub": "Jika aktif, setiap penyetuju juga diberi tahu di aplikasi saat langkah permintaan menjadi gilirannya. Langkah itu selalu tampil di halaman Persetujuan, apa pun pengaturan ini. Nonaktif secara bawaan.",
     "chain": "Rantai persetujuan",
     "chainError": "Rantai tidak dapat dimuat",
     "chainSaved": "Rantai persetujuan disimpan",

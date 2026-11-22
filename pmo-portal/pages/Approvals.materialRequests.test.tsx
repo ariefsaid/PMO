@@ -10,14 +10,10 @@ import ApprovalsPage from './Approvals';
 const h = vi.hoisted(() => ({
   setting: { data: undefined as boolean | undefined },
   waiting: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
-  waitingEnabled: vi.fn(),
   role: 'Engineer',
 }));
 const idle = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 
-vi.mock('@/src/hooks/useApproverInbox', () => ({
-  useMaterialInbox: () => { const on = h.setting.data === true; h.waitingEnabled(on); return on ? { on, ...h.waiting } : { on: false, data: undefined, isPending: false, isError: false, refetch: vi.fn() }; },
-}));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useWaitingForMe: () => h.waiting,
   useMaterialRequest: (id: string | undefined) => ({ data: id ? { id, number: `MR-${id}`, workOrderId: 'wo1', projectId: 'p1', neededBy: '2026-12-01' } : undefined }),
@@ -65,7 +61,6 @@ beforeEach(() => {
   h.waiting.data = [];
   h.waiting.isPending = false;
   h.waiting.isError = false;
-  h.waitingEnabled.mockClear();
   h.role = 'Engineer';
 });
 afterEach(() => vi.unstubAllGlobals());
