@@ -152,7 +152,9 @@
     "balancesNotSynced_one": "{{count}} unsynced balance",
     "balancesNotSynced_other": "{{count}} unsynced balances",
     "amountsMissing_one": "{{count}} amount missing",
-    "amountsMissing_other": "{{count}} amounts missing"
+    "amountsMissing_other": "{{count}} amounts missing",
+    "checkIns_one": "check-in waiting for your decision",
+    "checkIns_other": "check-ins waiting for your decision"
   },
   "figures": {
     "contractOnHand": "Contract on hand · excl. tax",

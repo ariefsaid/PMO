@@ -50,6 +50,12 @@ export const CheckInRequests: React.FC = () => {
                 {r.distance_m != null && ` · ${t('crews:checkIn.distance', '{{metres}} m from the area', { metres: formatNumberMax2(Number(r.distance_m)) })}`}
                 {r.crew_name && ` · ${r.crew_name}`} · {t('crews:checkIn.hours', '{{hours}} h', { hours: formatNumberMax2(Number(r.hours)) })}
               </p>
+              {r.area_lat != null && r.area_lng != null && r.area_radius_m != null && (
+                <p className="text-control text-muted-foreground">
+                  {t('crews:checkIn.requestArea', 'Work area: centre {{latitude}}, {{longitude}}, radius {{radius}} m',
+                    { latitude: r.area_lat, longitude: r.area_lng, radius: formatNumberMax2(r.area_radius_m) })}
+                </p>
+              )}
               <div className="mt-2 flex gap-2">
                 <Button variant="primary" className="min-h-11" disabled={decide.isPending} onClick={() => void run(r, true, null)}>
                   {t('crews:checkIn.approve', 'Approve')}

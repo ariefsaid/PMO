@@ -5,7 +5,7 @@
 import * as db from '@/src/lib/db/myHome';
 import { wrap } from './repositoryErrors';
 
-export type { MyHome, MyHomeTask, MyHomeWorkOrder, MyHomeIssue, MyDelivery, SeatReport } from '@/src/lib/db/myHome';
+export type { MyHome, MyHomeCheckIn, MyHomeTask, MyHomeWorkOrder, MyHomeIssue, MyDelivery, SeatReport } from '@/src/lib/db/myHome';
 
 export const myHomeRepository = {
   get: () => wrap(() => db.getMyHome()),

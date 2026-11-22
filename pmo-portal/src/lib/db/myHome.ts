@@ -6,15 +6,23 @@ import { AppError } from '@/src/lib/appError';
  * assigned tasks, work orders rostered today, reported issues. No price or budget field exists in the response.
  */
 export interface MyHomeTask { id: string; name: string; status: string; end_date: string | null; project_id: string; project_name: string }
+/** What became of today's clock-in on a work order (1552): clocked in at `at`, waiting for the supervisor, or refused with a reason. */
+export interface MyHomeCheckIn { state: 'clocked_in' | 'pending' | 'rejected'; at?: string | null; outcome?: string; reason?: string | null }
 export interface MyHomeWorkOrder {
   work_order_id: string; title: string; project_name: string; crew_id: string; crew_name: string;
   /** The person's own record in the workforce register; null when they have none (no clock-in then). */
   my_worker_id: string | null; is_controller: boolean;
   /** #2705: the work order has a check-in area, so a position is read on the tap. Absent or false = today's clock-in. */
   has_area?: boolean;
+  /** Today's clock-in result here; null or absent = not clocked in yet. */
+  check_in?: MyHomeCheckIn | null;
 }
 export interface MyHomeIssue { id: string; type: string; severity: string; status: string; incident_date: string; description: string | null }
-export interface MyHome { today: string; tasks: MyHomeTask[]; work_orders: MyHomeWorkOrder[]; issues: MyHomeIssue[] }
+export interface MyHome {
+  today: string; tasks: MyHomeTask[]; work_orders: MyHomeWorkOrder[]; issues: MyHomeIssue[];
+  /** Built-in role key that decides outside-area check-ins; null = the crew's Foreman or a crew manager. */
+  decider_role: string | null;
+}
 
 /** A delivery addressed to the person, to confirm with count and photo. Supplied by the handover ticket; none exists yet. */
 export interface MyDelivery { id: string; description: string }
@@ -25,7 +33,7 @@ export async function getMyHome(): Promise<MyHome> {
   // `my_home` is declared `returns jsonb`, so its generated type is `Json` and carries no shape; the interface above is
   // the contract, and every field is defaulted rather than trusted.
   const home = data as unknown as MyHome | null;
-  return { today: home?.today ?? '', tasks: home?.tasks ?? [], work_orders: home?.work_orders ?? [], issues: home?.issues ?? [] };
+  return { today: home?.today ?? '', tasks: home?.tasks ?? [], work_orders: home?.work_orders ?? [], issues: home?.issues ?? [], decider_role: home?.decider_role ?? null };
 }
 
 /** A light account may change only the status of its own task (database-enforced). */
