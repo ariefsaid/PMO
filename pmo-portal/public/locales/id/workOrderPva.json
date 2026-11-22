@@ -130,6 +130,7 @@
     "timesheet_entry": "Lembar waktu",
     "vendor_bill": "Invoice supplier",
     "attendance_day": "Kehadiran",
+    "headcount_day": "Jumlah orang",
     "expense_claim": "Klaim biaya"
   },
   "split": {

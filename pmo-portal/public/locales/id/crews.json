@@ -261,5 +261,33 @@
     "areaLocateTimeout": "Membaca posisi Anda terlalu lama. Coba lagi, atau ketik angkanya.",
     "requestArea": "Area kerja: titik tengah {{latitude}}, {{longitude}}, radius {{radius}} m"
   },
-  "tickReadOnly": "Hanya mandor regu ini atau pengelola regu yang bisa mengisi absensi ini."
+  "tickReadOnly": "Hanya mandor regu ini atau pengelola regu yang bisa mengisi absensi ini.",
+  "headCount": {
+    "title": "Jumlah orang",
+    "named": "{{n}} orang bernama sudah ditandai hadir pada kru ini hari ini. Hitung di sini hanya orang yang tidak tercatat namanya di daftar.",
+    "error": "Jumlah orang tidak dapat dimuat",
+    "empty": "Belum ada jumlah orang untuk hari ini. Mandor kru atau pengelola kru mengisinya di sini. Seseorang tercatat dengan nama dan ditandai di atas, atau dihitung di sini, tidak keduanya.",
+    "class": "Kelas tenaga kerja",
+    "people": "Orang",
+    "state": "Status",
+    "actions": "Tindakan",
+    "approved": "Disetujui",
+    "waiting": "Menunggu persetujuan",
+    "differentApprover": "Orang lain yang harus menyetujui baris ini.",
+    "approve": "Setujui",
+    "clear": "Hapus",
+    "chooseClass": "Pilih kelas",
+    "number": "Jumlah orang",
+    "replace": "Menyimpan kelas yang sama lagi sebelum disetujui akan mengganti jumlahnya.",
+    "save": "Simpan jumlah orang",
+    "readOnly": "Hanya Mandor kru ini atau pengelola kru yang mengisi jumlah orang.",
+    "pickClass": "Pilih kelas tenaga kerja.",
+    "countRange": "Isi bilangan bulat dari 1 sampai 500.",
+    "saved": "Jumlah orang disimpan",
+    "approvedToast": "Jumlah orang disetujui",
+    "sod": "Anda yang mengisi jumlah orang ini, jadi orang lain yang menyetujuinya.",
+    "clearTitle": "Hapus jumlah orang ini?",
+    "clearBody": "Jumlah untuk kelas dan hari ini dihapus. Anda bisa mengisinya lagi.",
+    "clearConfirm": "Hapus jumlah orang"
+  }
 }

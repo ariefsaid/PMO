@@ -1366,3 +1366,7 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
 
 **Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
+
+**Head-count line** — for one work order, one crew rostered on it that day, one date and one labour class, the number of people present who are not named in the roster (guards or helpers with no login). Entered by the crew's Foreman or a crew manager, never from a field account; it counts toward cost once a different Admin, Executive or Project Manager approves it, and is final once approved. A person is either named (costed through attendance or a timesheet) or counted here, never both. Cost is the number times the daily equivalent of the class rate in force on the date; its quantity is person-hours (the number times the rate's day length).
+
+**Daily equivalent** — a labour class rate stated per day: a daily rate is itself; an hourly rate times the rate's day length; a monthly rate divided by month length times day length. The conversions labour cost uses for one hour.

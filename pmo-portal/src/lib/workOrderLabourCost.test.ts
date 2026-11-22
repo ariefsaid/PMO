@@ -104,3 +104,41 @@ describe('rollupProject — approved hours of people with no login (no-login-lab
     expect(r.workOrders[0].labour).toEqual([{ classId: 'direct', hours: 10, amount: '440000.00' }]);
   });
 });
+
+const headcount = (workOrderId: string | null, classId: string | null, amount: string | null, hours: number | null, extra: Partial<CostAmountLine> = {}) =>
+  line({ source: 'headcount_day', workOrderId, labourClassId: classId, amount, quantity: hours, quantityUnit: 'hours', personId: null,
+         reason: amount === null ? 'no-rate' : 'counted', currency: amount === null ? null : 'IDR', ...extra });
+
+describe('rollupProject — daily head counts (guard-headcount)', () => {
+  it('AC-HC-010 head-count money joins the labour per class and the direct cost once, beside timesheet and attendance labour', () => {
+    const r = run([wo('A')], [
+      labour('A', 'direct', '400000.00', 8), attendance('A', 'guard', '160000.00', 8), headcount('A', 'guard', '960000.00', 24),
+    ]);
+    const f = r.workOrders[0];
+    expect(f.direct).toBe('1520000.00');
+    expect(f.labour).toEqual([
+      { classId: 'direct', hours: 8, amount: '400000.00' },
+      { classId: 'guard', hours: 32, amount: '1120000.00' },
+    ]);
+    expect(f.directBySource.headcount_day).toBe('960000.00');
+  });
+
+  it('AC-HC-010 head-count person-hours are crew hours but add no person to the crew size; an unpriced line adds nothing', () => {
+    const r = run([wo('A')], [
+      attendance('A', 'direct', '320000.00', 8, { personId: 'w1' }),
+      headcount('A', 'guard', '960000.00', 24),
+      headcount('A', null, null, null),
+    ]);
+    const f = r.workOrders[0];
+    expect(f.crewHours).toBe(32);
+    expect(f.crewSize).toBe(1);
+    expect(f.uncostedHours).toBe(0);
+  });
+
+  it('AC-HC-010 a Project Manager aggregate head-count row (no record, no date) still counts its hours and money', () => {
+    const r = run([wo('A')], [headcount('A', 'guard', '1120000.00', 32, { recordId: null, occurredOn: null })]);
+    expect(r.workOrders[0].crewHours).toBe(32);
+    expect(r.workOrders[0].labour).toEqual([{ classId: 'guard', hours: 32, amount: '1120000.00' }]);
+  });
+});
+

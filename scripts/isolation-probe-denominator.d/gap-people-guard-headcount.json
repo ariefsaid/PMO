@@ -1,0 +1,17 @@
+{
+  "definer_functions": [
+    "approve_headcount_day(uuid)",
+    "clear_headcount_day(uuid)",
+    "record_headcount_day(uuid,uuid,date,uuid,integer)"
+  ],
+  "tables": [
+    {
+      "table": "headcount_days",
+      "has_org": true,
+      "pk": "id",
+      "columns": "id,org_id",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ]
+}

@@ -16,6 +16,7 @@ import { formatDay, formatNumberMax2 } from '@/src/lib/format';
 import { toIso } from '../equipment/equipmentWeek';
 import { WorkOrderPicker } from './CrewPickers';
 import { useCrewErrorText } from './crewErrors';
+import { HeadCountSection } from './HeadCountSection';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const STATUSES: AttendanceStatus[] = ['present', 'absent', 'leave', 'off_rotation'];
@@ -269,6 +270,10 @@ export const AttendanceTick: React.FC = () => {
       )}
       {workOrderId && crew && !day.isPending && !day.isError && (
         <TickForm key={`${crew.crew_id}:${date}:${heldKey}`} crew={crew} workOrderId={workOrderId} date={date} held={day.data ?? []} canRecord={canRecord} />
+      )}
+      {workOrderId && crew && !day.isPending && !day.isError && (
+        <HeadCountSection key={`${crew.crew_id}:${date}`} crewId={crew.crew_id} fieldControllerId={crew.field_controller_id} workOrderId={workOrderId} date={date}
+          namedPresent={(day.data ?? []).filter((d) => d.status === 'present' && crew.members.some((m) => m.worker_id === d.worker_id)).length} />
       )}
     </div>
   );
