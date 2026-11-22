@@ -7,7 +7,7 @@ const { imprest, orgSettings } = vi.hoisted(() => ({
   orgSettings: { listSpendApprovers: vi.fn() },
   imprest: {
     listFloats: vi.fn(), getFloat: vi.fn(), getPosition: vi.fn(), getPlanUsage: vi.fn(), floatChoices: vi.fn(), listPlans: vi.fn(),
-    listPlanLines: vi.fn(), listReplenishments: vi.fn(), listCounts: vi.fn(), createPlan: vi.fn(), savePlanLine: vi.fn(),
+    listPlanLines: vi.fn(), listReplenishments: vi.fn(), listCounts: vi.fn(), listAwaitingImprest: vi.fn(), createPlan: vi.fn(), savePlanLine: vi.fn(),
     deletePlanLine: vi.fn(), setProcurementLimit: vi.fn(), establishFloat: vi.fn(), proposeFloatAmount: vi.fn(),
     decideFloatChange: vi.fn(), transitionPlan: vi.fn(), requestReplenishment: vi.fn(), transitionReplenishment: vi.fn(),
     recordCount: vi.fn(), listPostingStates: vi.fn(), setCashAccount: vi.fn(), countFloats: vi.fn(),
@@ -21,6 +21,7 @@ import {
   IMPREST_QUERY_ROOTS, useImprestFloats, useImprestFloatPages, useImprestPosition, useImprestPlans, useImprestReplenishments,
   useImprestCounts, useImprestFloatChoices, useImprestFloat, useRequestReplenishment, useTransitionPlan, useRecordCount, useEstablishFloat,
   useImprestPostingStates, useSetCashAccount,
+  useImprestAwaiting,
 } from './useImprest';
 import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
@@ -50,6 +51,23 @@ describe('AC-PAGE-024 useImprestFloatPages', () => {
     await waitFor(() => expect(imprest.listFloats).toHaveBeenLastCalledWith(3));
     expect(client.getQueryCache().getAll().every((q) => q.queryKey[0] === 'imprest-floats' && q.queryKey[1] === 'org-1')).toBe(true);
   });
+});
+
+it('site-cash awaiting exposes that its org-scoped query is enabled and loading', async () => {
+  imprest.listAwaitingImprest.mockResolvedValue({ plans: [], replenishments: [] });
+  const { result } = renderHook(() => useImprestAwaiting(), { wrapper: wrap(fresh()) });
+  expect(result.current.enabled).toBe(true);
+  expect(result.current.isPending).toBe(true);
+  await waitFor(() => expect(result.current.data).toEqual({ plans: [], replenishments: [] }));
+  expect(result.current.enabled).toBe(true);
+});
+
+it('site-cash awaiting is disabled without an org even while React Query reports pending', () => {
+  org = undefined;
+  const { result } = renderHook(() => useImprestAwaiting(), { wrapper: wrap(fresh()) });
+  expect(result.current.enabled).toBe(false);
+  expect(result.current.isPending).toBe(true);
+  expect(imprest.listAwaitingImprest).not.toHaveBeenCalled();
 });
 
 describe('AC-IMP-083 imprest hooks', () => {
