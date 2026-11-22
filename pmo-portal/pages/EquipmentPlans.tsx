@@ -128,7 +128,7 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
             <ListState variant="error" quiet title={t('route.loadError', "Couldn't read who approves this plan")} onRetry={() => void route.refetch()} />
           )}
           {route.data && route.data.approvers.length > 0 && <span>{waitingFor}</span>}
-          {honestEmptyRoute && <span>{t('route.nobody', 'No one is set up to approve this plan yet.')}</span>}
+          {honestEmptyRoute && <span>{t('route.nobody', 'No one can approve this plan yet.')}</span>}
         </div>
       )}
       {plan?.status === 'Rejected' && plan.rejectReason && <FormErrorStrip>{t('rejectedWhy', 'Rejected: {{reason}}', { reason: plan.rejectReason })}</FormErrorStrip>}

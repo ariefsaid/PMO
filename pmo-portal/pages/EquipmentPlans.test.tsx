@@ -190,7 +190,7 @@ describe('monthly equipment plan page (#2700)', () => {
     renderPage();
     await pickProject();
     const text = screen.getByTestId('plan-waiting-for').textContent ?? '';
-    expect(text).toBe('No one is set up to approve this plan yet.');
+    expect(text).toBe('No one can approve this plan yet.');
     expect(text).not.toMatch(/Waiting for/);
   });
 
