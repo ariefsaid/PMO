@@ -12,17 +12,21 @@ const h = vi.hoisted(() => ({
   classes: [{ id: 'c1', code: 'direct', name: 'Direct', archivedAt: null }, { id: 'c2', code: 'guard', name: 'Guard', archivedAt: null }],
   rates: [{ id: 'r1', subjectKind: 'role', personId: null, personName: null, roleKey: 'Engineer', classId: 'c1', basis: 'hourly', amount: '50000.00',
     overtimeMultiplier: '1.50', dayHours: '8.00', monthHours: '173.00', effectiveFrom: '2026-11-01', effectiveTo: null }],
-  repo: { setEnabled: vi.fn(), renameClass: vi.fn(), addClass: vi.fn(), archiveClass: vi.fn(), saveRate: vi.fn(), endRate: vi.fn(), archiveRate: vi.fn() },
+  repo: { setEnabled: vi.fn(), renameClass: vi.fn(), addClass: vi.fn(), archiveClass: vi.fn(), saveRate: vi.fn(), endRate: vi.fn(), archiveRate: vi.fn(),
+    saveAssignment: vi.fn(), endAssignment: vi.fn(), archiveAssignment: vi.fn() },
 }));
 vi.mock('@/src/hooks/useLabourCost', () => ({
   useLabourCostEnabled: () => ({ data: h.enabled, isError: false, refetch: vi.fn() }),
   useLabourClasses: () => ({ data: h.enabled ? h.classes : undefined, isError: false, refetch: vi.fn() }),
   useLabourRates: () => ({ data: h.enabled ? h.rates : undefined, isError: false, refetch: vi.fn() }),
+  useLabourClassAssignments: () => ({ data: [], isError: false, refetch: vi.fn() }),
+  usePeopleWithoutLogin: () => ({ data: [], isError: false, isPending: false, refetch: vi.fn() }),
   useLabourCostMutations: () => {
     const wrap = (fn: (...a: never[]) => unknown) => ({ isPending: false, mutate: (v: never, o?: { onSuccess?: () => void; onError?: (e: unknown) => void }) => { Promise.resolve(fn(v)).then(() => o?.onSuccess?.(), (e) => o?.onError?.(e)); }, mutateAsync: async (v: never) => fn(v) });
     return {
       setEnabled: wrap(h.repo.setEnabled), addClass: wrap(h.repo.addClass), renameClass: wrap(h.repo.renameClass), archiveClass: wrap(h.repo.archiveClass),
       saveRate: wrap(h.repo.saveRate), endRate: wrap(h.repo.endRate), archiveRate: wrap(h.repo.archiveRate),
+      saveAssignment: wrap(h.repo.saveAssignment), endAssignment: wrap(h.repo.endAssignment), archiveAssignment: wrap(h.repo.archiveAssignment),
     };
   },
 }));
@@ -101,6 +105,32 @@ describe('AC-LCM-018 labour cost settings', () => {
     await waitFor(() => expect(h.repo.saveRate).toHaveBeenCalledWith(expect.objectContaining({
       subjectKind: 'role', roleKey: 'Finance', classId: 'c1', basis: 'hourly', amount: '75000', overtimeMultiplier: '2', effectiveFrom: '2026-12-01',
     })));
+  });
+
+  it('AC-NLL-014 adds a class rate: the class is the subject, no person or role is asked', async () => {
+    h.enabled = true;
+    const user = setup();
+    await user.click(screen.getByRole('button', { name: 'Add rate' }));
+    const dialog = screen.getByRole('dialog');
+    await user.selectOptions(within(dialog).getByLabelText(/^Applies to/), 'class');
+    expect(within(dialog).queryByLabelText(/^Role/)).toBeNull();
+    expect(within(dialog).queryByLabelText(/^Person/)).toBeNull();
+    await user.selectOptions(within(dialog).getByLabelText(/^Class/), 'c2');
+    await user.type(within(dialog).getByLabelText(/^Amount/), '40000');
+    await user.type(within(dialog).getByLabelText(/^From/), '2026-12-01');
+    await user.click(within(dialog).getByRole('button', { name: 'Save rate' }));
+    await waitFor(() => expect(h.repo.saveRate).toHaveBeenCalledWith(expect.objectContaining({ subjectKind: 'class', classId: 'c2', amount: '40000', effectiveFrom: '2026-12-01' })));
+  });
+
+  it('AC-NLL-014 a class rate is listed as applying to people with no login in that class, and the crew member classes follow', () => {
+    h.enabled = true;
+    h.rates = [...h.rates, { id: 'r2', subjectKind: 'class', personId: null, personName: null, roleKey: null, classId: 'c2', basis: 'daily', amount: '400000.00',
+      overtimeMultiplier: '1.00', dayHours: '8.00', monthHours: '173.00', effectiveFrom: '2026-11-01', effectiveTo: null }];
+    setup();
+    const classRow = within(screen.getByTestId('labour-rates')).getByText('People with no login in this class').closest('tr') as HTMLElement;
+    expect(within(classRow).getByText('Guard')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Crew member classes' })).toBeVisible();
+    h.rates = h.rates.slice(0, 1);
   });
 
   it('shows the refusal reason when a rate would change priced hours', async () => {

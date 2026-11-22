@@ -11012,6 +11012,71 @@ export type Database = {
           },
         ]
       }
+      labour_class_assignments: {
+        Row: {
+          archived_at: string | null
+          class_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          org_id: string
+          worker_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          class_id: string
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          org_id?: string
+          worker_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          class_id?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          org_id?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labour_class_assignments_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "labour_cost_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labour_class_assignments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labour_class_assignments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labour_class_assignments_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       labour_cost_classes: {
         Row: {
           archived_at: string | null
@@ -25680,6 +25745,19 @@ export type Database = {
           },
         ]
       }
+      labour_cost_attendance_days: {
+        Row: {
+          crew_id: string | null
+          hours: number | null
+          id: string | null
+          org_id: string | null
+          project_id: string | null
+          work_date: string | null
+          work_order_id: string | null
+          worker_id: string | null
+        }
+        Relationships: []
+      }
       payments_masked: {
         Row: {
           amount: number | null
@@ -27612,6 +27690,7 @@ export type Database = {
       }
       archive_document_category: { Args: { p_id: string }; Returns: undefined }
       archive_equipment_usage: { Args: { p_id: string }; Returns: undefined }
+      archive_labour_class_assignment: { Args: { p_id: string }; Returns: undefined }
       archive_labour_cost_rate: { Args: { p_id: string }; Returns: undefined }
       archive_payment_channel: {
         Args: { p_archived: boolean; p_id: string }
@@ -29653,6 +29732,10 @@ export type Database = {
         Args: { p_id: string; p_to: string }
         Returns: undefined
       }
+      end_labour_class_assignment: {
+        Args: { p_end: string; p_id: string }
+        Returns: undefined
+      }
       end_labour_cost_rate: {
         Args: { p_end: string; p_id: string }
         Returns: undefined
@@ -30856,6 +30939,80 @@ export type Database = {
           active_party: string
           has_negative: boolean
           party_count: number
+        }[]
+      }
+      labour_attendance_priced_by: {
+        Args: { p_date: string; p_org: string; p_worker: string }
+        Returns: {
+          assignment_id: string
+          class_id: string
+          rate_id: string
+        }[]
+      }
+      labour_class_for: {
+        Args: { p_date: string; p_org: string; p_worker: string }
+        Returns: {
+          archived_at: string | null
+          class_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          org_id: string
+          worker_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "labour_class_assignments"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      labour_class_locked: {
+        Args: { p_from: string; p_id: string; p_kind: string; p_org: string }
+        Returns: boolean
+      }
+      labour_class_rate_for: {
+        Args: { p_class: string; p_date: string; p_org: string }
+        Returns: {
+          amount: number
+          archived_at: string | null
+          basis: string
+          class_id: string
+          created_at: string
+          created_by: string | null
+          day_hours: number
+          effective_from: string
+          effective_to: string | null
+          id: string
+          month_hours: number
+          org_id: string
+          overtime_multiplier: number
+          person_id: string | null
+          role_key: string | null
+          subject_kind: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "labour_cost_rates"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      labour_cost_class_lines: {
+        Args: { p_project_id: string }
+        Returns: {
+          amount: number
+          class_id: string
+          discipline_id: string
+          occurred_on: string
+          quantity: number
+          quantity_unit: string
+          record_id: string
+          source: string
+          work_order_id: string
+          worker_id: string
         }[]
       }
       labour_cost_enabled: { Args: { p_org: string }; Returns: boolean }
@@ -34411,6 +34568,7 @@ export type Database = {
         }
         Returns: string
       }
+      save_labour_class_assignment: { Args: { p: Json }; Returns: string }
       save_labour_cost_rate: { Args: { p: Json }; Returns: string }
       save_labour_cost_settings: {
         Args: { p_enabled: boolean }

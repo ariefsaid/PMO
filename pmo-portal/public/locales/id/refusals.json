@@ -98,6 +98,7 @@
   "EQP_SELF_APPROVAL": "Anda tidak dapat menyetujui rencana Anda sendiri.",
   "EQP_STATE": "Rencana ini tidak dalam keadaan yang memungkinkan hal itu.",
   "EQP_UNAVAILABLE": "Pilihan itu tidak tersedia.",
+  "LCM_CLASS_LOCKED": "Hari-hari ini sudah dihitung biayanya dengan kelas ini, jadi tidak bisa diubah. Mulai kelas baru setelah hari terakhir yang dihitung.",
   "LCM_RATE_LOCKED": "Jam ini sudah dihargai dengan tarif ini, jadi tarif tidak bisa diubah.",
   "LIGHT_ACCOUNT": "Akun ini hanya dapat mengubah status tugasnya sendiri.",
   "LOAN_CREW": "Pilih dua kru aktif yang berbeda di organisasi ini.",

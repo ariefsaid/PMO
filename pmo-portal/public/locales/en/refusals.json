@@ -98,6 +98,7 @@
   "EQP_SELF_APPROVAL": "You cannot approve your own plan.",
   "EQP_STATE": "This plan is not in a state that allows that.",
   "EQP_UNAVAILABLE": "That item is not available.",
+  "LCM_CLASS_LOCKED": "These days are already costed at this class, so it cannot change. Start a new class after the last costed day.",
   "LCM_RATE_LOCKED": "These hours are already priced by this rate, so it cannot change.",
   "LIGHT_ACCOUNT": "This account can only change the status of its own task.",
   "LOAN_CREW": "Choose two different live crews of this organisation.",
