@@ -215,7 +215,8 @@ const AwaitingApproval: React.FC = () => {
                 <td className="py-2 tabular-nums">{t('crews:hoursTotal', '{{hours}} hours', { hours: formatNumberMax2(w.hours) })}</td>
                 <td className="py-2 text-right">
                   <div className="inline-flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setReturning(w)}>{t('crews:return', 'Return')}</Button>
+                    <Button variant="outline" size="sm" disabled={w.recordedByViewer} aria-describedby={w.recordedByViewer ? `sod-${w.workerId}-${w.weekStart}` : undefined}
+                      onClick={() => setReturning(w)}>{t('crews:return', 'Return')}</Button>
                     <Button variant="primary" size="sm" disabled={w.recordedByViewer} aria-describedby={w.recordedByViewer ? `sod-${w.workerId}-${w.weekStart}` : undefined}
                       onClick={() => void decide(w, 'approve', null)}>{t('crews:approve', 'Approve')}</Button>
                     {w.recordedByViewer && <span id={`sod-${w.workerId}-${w.weekStart}`} className="sr-only">{t('crews:errors.sod', 'You recorded these hours, so someone else approves them.')}</span>}
