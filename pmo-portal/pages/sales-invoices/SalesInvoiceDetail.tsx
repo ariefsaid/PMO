@@ -6,6 +6,7 @@ import { Button, Icon, LifecycleStepper, ListState, ProjectNameLink, RecordHeade
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { invoiceTimelineSteps } from './invoiceTimeline';
 import { usePermission } from '@/src/auth/usePermission';
+import { waitingForText, waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
 import { formatCurrency, formatDayYear } from '@/src/lib/format';
 import { statusLabel } from '@/src/lib/status/statusMap';
@@ -65,6 +66,8 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
   const deliveryStep = viewTarget != null && viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid');
   const canDownloadPdf = deliveryStep && !viewTarget.received_date
     && may('download_pdf', 'salesInvoice', { record: { status: viewTarget.status, erp_docstatus: viewTarget.erp_docstatus } });
+  const isWaitingApproval = Boolean(viewTarget?.pmo_native && viewTarget?.status === 'Draft');
+  const waitingLine = isWaitingApproval ? waitingForText({ names: [], role: waitingRoleLabel('roleFinanceAdmin', t) }, t) : null;
   const invoiceTitleLabel = viewTargetNumber
     ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: '' }).trim()
     : null;
@@ -98,11 +101,18 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                   <span style={{ whiteSpace: 'nowrap' }}>{viewTargetNumber}</span>
                 </>
               ) : invoiceDisplayLabel(viewTarget)}
-              status={receiptAwaitingOdoo && !isPaid
-                ? <StatusPill variant="progress">{t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo')}</StatusPill>
-                : isPartlyPaid(viewTarget)
-                ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{statusLabel('salesInvoice', 'PartlyPaid', t)}</StatusPill>
-                : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{statusLabel('salesInvoice', viewTarget.status, t)}</StatusPill>}
+              status={<span className="inline-flex flex-wrap items-center gap-x-2">
+                {receiptAwaitingOdoo && !isPaid
+                  ? <StatusPill variant="progress">{t('finance:receivables.statusReceiptAwaitingOdoo', 'Receipt sent, awaiting Odoo')}</StatusPill>
+                  : isPartlyPaid(viewTarget)
+                  ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{statusLabel('salesInvoice', 'PartlyPaid', t)}</StatusPill>
+                  : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{statusLabel('salesInvoice', viewTarget.status, t)}</StatusPill>}
+                {waitingLine && (
+                  <span data-testid="invoice-waiting-for" className="text-control font-normal text-muted-foreground">
+                    {waitingLine}
+                  </span>
+                )}
+              </span>}
               meta={<>
                 {viewTarget.customer_name ?? '—'}
                 {viewTarget.work_order_id && <WorkOrderReference id={viewTarget.work_order_id} />}

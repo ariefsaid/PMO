@@ -8,10 +8,12 @@ const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch
 const mut = () => ({ mutateAsync: vi.fn().mockResolvedValue('x'), isPending: false });
 const h = vi.hoisted(() => ({
   userId: 'u-auth', realRole: 'Project Manager' as string, plans: null as unknown, lines: null as unknown,
+  route: null as unknown,
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestPlans: () => h.plans, useImprestPlanLines: () => h.lines,
+  useImprestRequesterRoute: () => h.route,
   useCreatePlan: () => h.m.createPlan, useSavePlanLine: () => h.m.savePlanLine,
   useDeletePlanLine: () => h.m.deletePlanLine, useTransitionPlan: () => h.m.transitionPlan,
 }));
@@ -36,6 +38,7 @@ describe('PlansSection — floor (floor-tests/imprest-float-record.md 19, 21, 24
     h.userId = 'u-auth'; h.realRole = 'Project Manager';
     h.plans = ok({ rows: [plan()], truncated: false });
     h.lines = ok([{ id: 'l1', plan_id: 'pl1', budget_category: 'Vehicle', planned_amount: 800000 }]);
+    h.route = ok({ route_kind: 'flat', approvers: [], action: 'approve' });
     h.m = { createPlan: mut(), savePlanLine: mut(), deletePlanLine: mut(), transitionPlan: mut() };
   });
 

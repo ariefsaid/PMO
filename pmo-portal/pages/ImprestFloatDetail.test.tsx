@@ -1,9 +1,22 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import i18next from 'i18next';
 import { fireEvent, render, screen, within, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import enWaitingList from '../public/locales/en/waitingList.json';
+import idWaitingList from '../public/locales/id/waitingList.json';
+import enImprest from '../public/locales/en/imprest.json';
+import idImprest from '../public/locales/id/imprest.json';
+import idCommon from '../public/locales/id/common.json';
+
+i18next.addResourceBundle('en', 'waitingList', enWaitingList, true, true);
+i18next.addResourceBundle('id', 'waitingList', idWaitingList, true, true);
+i18next.addResourceBundle('en', 'imprest', enImprest, true, true);
+i18next.addResourceBundle('id', 'imprest', idImprest, true, true);
+// The role half of "name (role)" comes from the existing role-label seam (common:admin.roles).
+i18next.addResourceBundle('id', 'common', { admin: { roles: idCommon.admin.roles } }, true, true);
 
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
 const mut = () => ({ mutateAsync: vi.fn().mockResolvedValue('x'), isPending: false });
@@ -11,6 +24,7 @@ const h = vi.hoisted(() => ({
   userId: 'u-fin', realRole: 'Finance' as string,
   floats: null as unknown, position: null as unknown, plans: null as unknown, planLines: null as unknown,
   reps: null as unknown, counts: null as unknown, claims: null as unknown, postings: null as unknown,
+  changes: null as unknown, route: null as unknown,
   warmed: [] as string[],
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
@@ -20,7 +34,8 @@ vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloat: () => h.floats,
   useImprestPosition: () => h.position,
   useImprestPlans: (id?: string) => { h.warmed.push(`plans:${id}`); return h.plans; },
-  useImprestFloatChanges: (id?: string) => { h.warmed.push(`changes:${id}`); return { data: [] }; },
+  useImprestFloatChanges: (id?: string) => { h.warmed.push(`changes:${id}`); return h.changes ?? { data: { rows: [] } }; },
+  useImprestRequesterRoute: () => h.route,
   useImprestPlanLines: () => h.planLines,
   useImprestReplenishments: () => h.reps,
   useImprestCounts: () => h.counts,
@@ -73,6 +88,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     h.counts = ok({ rows: [], truncated: false });
     h.claims = ok({ rows: [], truncated: false });
     h.postings = ok({ rows: [], truncated: false });
+    h.route = ok({ route_kind: 'finance_admin', approvers: [], action: 'approve' });
     h.m = { createPlan: mut(), savePlanLine: mut(), deletePlanLine: mut(), transitionPlan: mut(), requestReplenishment: mut(), transitionReplenishment: mut(), recordCount: mut() };
   });
 
@@ -465,5 +481,127 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     h.floats = ok({ ...FLOAT, erp_cash_account_ref: 'Site Cash - X' });
     renderPage();
     expect(screen.getByTestId('cash-account')).toHaveTextContent('Site Cash - X');
+  });
+
+  describe('fix-waiting item 3: replenishment and limit change who-next notes', () => {
+    beforeEach(() => { h.changes = null; });
+    afterEach(async () => {
+      cleanup();
+      await i18next.changeLanguage('en');
+    });
+
+    it('names Finance or Admin in English and Bahasa Indonesia when replenishment is Requested', async () => {
+      await i18next.changeLanguage('en');
+      h.route = ok({ route_kind: 'finance_admin', approvers: [], action: 'approve' });
+      h.reps = ok({ rows: [REP], truncated: false });
+      renderPage();
+      const waiting = screen.getByTestId('rep-waiting-for');
+      expect(waiting).toHaveTextContent('Waiting for Finance or Admin');
+
+      cleanup();
+      await i18next.changeLanguage('id');
+      renderPage();
+      const waitingId = screen.getByTestId('rep-waiting-for');
+      expect(waitingId).toHaveTextContent('Menunggu Keuangan atau Admin');
+    });
+
+    it('an Approved-unpaid replenishment waits for a named payer, not for approval', async () => {
+      await i18next.changeLanguage('en');
+      h.route = ok({ route_kind: 'finance_admin', approvers: [{ id: 'u-admin', name: 'Sari Admin', role: 'Admin' }], action: 'pay', admin_breakglass: false });
+      h.reps = ok({ rows: [{ ...REP, status: 'Approved', approved_by: 'u-fin' }], truncated: false });
+      renderPage();
+      expect(screen.queryByTestId('rep-waiting-for')).toBeNull();
+      expect(screen.getByTestId('rep-payer-waiting-for')).toHaveTextContent('Waiting for Sari Admin (Admin) to pay');
+
+      cleanup();
+      await i18next.changeLanguage('id');
+      renderPage();
+      expect(screen.getByTestId('rep-payer-waiting-for')).toHaveTextContent('Menunggu Sari Admin (Admin) membayar');
+    });
+
+    it('an old approval answer cannot render in the Approved pay slot', async () => {
+      h.route = ok({ route_kind: 'finance_admin', approvers: [], action: 'approve', admin_breakglass: false });
+      h.reps = ok({ rows: [{ ...REP, status: 'Approved', approved_by: 'u-fin' }], truncated: false });
+      renderPage();
+      expect(screen.queryByTestId('rep-payer-waiting-for')).toBeNull();
+    });
+
+    it('Paid and Rejected show neither an approval nor a payer line', async () => {
+      for (const nonWaitingStatus of ['Paid', 'Rejected']) {
+        cleanup();
+        h.reps = ok({ rows: [{ ...REP, status: nonWaitingStatus }], truncated: false });
+        renderPage();
+        expect(screen.queryByTestId('rep-waiting-for')).toBeNull();
+        expect(screen.queryByTestId('rep-payer-waiting-for')).toBeNull();
+      }
+    });
+
+    it('never claims custodian is eligible approver for replenishment', async () => {
+      setViewer('u-cust', 'Field Coordinator');
+      h.route = ok({ route_kind: 'finance_admin', approvers: [], action: 'approve' });
+      h.reps = ok({ rows: [REP], truncated: false });
+      renderPage();
+      const waiting = screen.getByTestId('rep-waiting-for');
+      expect(waiting).toHaveTextContent('Waiting for Finance or Admin');
+      // The custodian cannot approve their own replenishment
+      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    });
+
+    it('names the exact senior approver and role for a proposed limit change, in English and Bahasa Indonesia', async () => {
+      await i18next.changeLanguage('en');
+      h.route = ok({ route_kind: 'named', approvers: [{ id: 'u-snr', name: 'Sari Senior', role: 'Executive' }], action: 'approve', admin_breakglass: false });
+      h.changes = ok({ rows: [{ id: 'ch1', status: 'Proposed', proposed_amount: 8000000 }], truncated: false });
+      renderPage();
+      const limitWaiting = screen.getByTestId('limit-waiting-for');
+      expect(limitWaiting).toHaveTextContent('8,000,000');
+      expect(limitWaiting).toHaveTextContent('Waiting for Sari Senior (Executive)');
+      expect(limitWaiting.textContent).not.toContain('senior approver');
+
+      cleanup();
+      await i18next.changeLanguage('id');
+      renderPage();
+      expect(screen.getByTestId('limit-waiting-for')).toHaveTextContent('Menunggu Sari Senior (Eksekutif)');
+    });
+
+    it('an admin-only limit change says Admin, never "senior approver"', async () => {
+      h.route = ok({ route_kind: 'admin', approvers: [], action: 'approve' });
+      h.changes = ok({ rows: [{ id: 'ch1', status: 'Proposed', proposed_amount: 8000000 }], truncated: false });
+      renderPage();
+      expect(screen.getByTestId('limit-waiting-for')).toHaveTextContent('Waiting for Admin');
+      expect(screen.getByTestId('limit-waiting-for').textContent).not.toContain('senior approver');
+    });
+
+    it('an unavailable limit route keeps the amount but claims no decider', async () => {
+      h.route = ok({ route_kind: 'unavailable', approvers: [], action: null });
+      h.changes = ok({ rows: [{ id: 'ch1', status: 'Proposed', proposed_amount: 8000000 }], truncated: false });
+      renderPage();
+      expect(screen.getByTestId('limit-waiting-for')).toHaveTextContent('8,000,000');
+      expect(screen.queryByTestId('limit-waiting-route')).toBeNull();
+    });
+
+    it('a pending limit route is stated honestly', async () => {
+      h.reps = ok({ rows: [], truncated: false });
+      h.route = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+      h.changes = ok({ rows: [{ id: 'ch1', status: 'Proposed', proposed_amount: 8000000 }], truncated: false });
+      renderPage();
+      expect(screen.getByTestId('limit-waiting-route')).toHaveTextContent('Checking who decides…');
+    });
+
+    it('an errored limit route is stated honestly and can be retried', async () => {
+      const refetch = vi.fn();
+      h.reps = ok({ rows: [], truncated: false });
+      h.route = { data: undefined, isPending: false, isError: true, refetch };
+      h.changes = ok({ rows: [{ id: 'ch1', status: 'Proposed', proposed_amount: 8000000 }], truncated: false });
+      renderPage();
+      expect(screen.getByTestId('limit-waiting-route')).toHaveTextContent("Couldn't check who decides");
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
+      expect(refetch).toHaveBeenCalled();
+    });
+
+    it('when no limit change is Proposed, shows no limit change waiting line', async () => {
+      h.changes = ok({ rows: [], truncated: false });
+      renderPage();
+      expect(screen.queryByTestId('limit-waiting-for')).toBeNull();
+    });
   });
 });

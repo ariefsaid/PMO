@@ -11,6 +11,7 @@ const { imprest, orgSettings } = vi.hoisted(() => ({
     deletePlanLine: vi.fn(), setProcurementLimit: vi.fn(), establishFloat: vi.fn(), proposeFloatAmount: vi.fn(),
     decideFloatChange: vi.fn(), transitionPlan: vi.fn(), requestReplenishment: vi.fn(), transitionReplenishment: vi.fn(),
     recordCount: vi.fn(), listPostingStates: vi.fn(), setCashAccount: vi.fn(), countFloats: vi.fn(),
+    getRequesterRoute: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { imprest, orgSettings } }));
@@ -21,7 +22,7 @@ import {
   IMPREST_QUERY_ROOTS, useImprestFloats, useImprestFloatPages, useImprestPosition, useImprestPlans, useImprestReplenishments,
   useImprestCounts, useImprestFloatChoices, useImprestFloat, useRequestReplenishment, useTransitionPlan, useRecordCount, useEstablishFloat,
   useImprestPostingStates, useSetCashAccount,
-  useImprestAwaiting,
+  useImprestAwaiting, useImprestRequesterRoute,
 } from './useImprest';
 import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
@@ -122,5 +123,47 @@ describe('AC-IMP-083 imprest hooks', () => {
       const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
       for (const root of roots) expect(keys).toContain(JSON.stringify([root]));
     }
+  });
+});
+
+describe('#1568 requester who-next', () => {
+  it('AC-IMP-083 reads one record route under the org key and stays idle without a record', async () => {
+    imprest.getRequesterRoute.mockResolvedValue({ route_kind: 'named', approvers: [], action: 'approve', admin_breakglass: false });
+    const client = fresh();
+    const { result, rerender } = renderHook(
+      ({ id }: { id: string | null }) => useImprestRequesterRoute('plan', id),
+      { wrapper: wrap(client), initialProps: { id: 'pl1' } },
+    );
+    await waitFor(() => expect(result.current.data?.route_kind).toBe('named'));
+    expect(imprest.getRequesterRoute).toHaveBeenCalledWith('plan', 'pl1');
+    expect(client.getQueryCache().getAll().every((q) => q.queryKey[0] === 'imprest-requester-route' && q.queryKey[1] === 'org-1')).toBe(true);
+    rerender({ id: null });
+    await waitFor(() => expect(result.current.fetchStatus).toBe('idle'));
+    expect(imprest.getRequesterRoute).toHaveBeenCalledTimes(1);
+  });
+
+  it('binds the expected action into the key so the approval answer cannot serve the pay slot', async () => {
+    imprest.getRequesterRoute
+      .mockResolvedValueOnce({ route_kind: 'finance_admin', approvers: [], action: 'approve', admin_breakglass: false })
+      .mockResolvedValueOnce({
+        route_kind: 'finance_admin',
+        approvers: [{ id: 'u-admin', name: 'Sari Admin', role: 'Admin' }],
+        action: 'pay',
+        admin_breakglass: false,
+      });
+    const client = fresh();
+    const { result, rerender } = renderHook(
+      ({ action }: { action: 'approve' | 'pay' }) => useImprestRequesterRoute('replenishment', 'r1', action),
+      { wrapper: wrap(client), initialProps: { action: 'approve' as const } },
+    );
+    await waitFor(() => expect(result.current.data?.action).toBe('approve'));
+    // The record transitions Requested -> Approved: the same record id must not serve the cached approval answer.
+    rerender({ action: 'pay' as const });
+    await waitFor(() => expect(result.current.data?.action).toBe('pay'));
+    expect(imprest.getRequesterRoute).toHaveBeenCalledTimes(2);
+    expect(imprest.getRequesterRoute).toHaveBeenLastCalledWith('replenishment', 'r1');
+    const keys = client.getQueryCache().getAll().map((q) => JSON.stringify(q.queryKey));
+    expect(keys.some((k) => k.includes('"pay"'))).toBe(true);
+    expect(keys.some((k) => k.includes('"approve"'))).toBe(true);
   });
 });
