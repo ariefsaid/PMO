@@ -133,7 +133,7 @@ const TimelineWithReadableOrders: React.FC<TimelineWithOrdersProps & { records: 
 };
 
 const ProcurementDetails: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'waitingList']);
   const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
   // Active tab from the URL :tab param (deep-linkable, role-invariant default Overview).
   const tab = tabFromParam(tabParam);
@@ -152,8 +152,9 @@ const ProcurementDetails: React.FC = () => {
   const ownership = useDomainOwnershipMode('procurement');
   const itemEligibility = useProcurementItemEligibility(procurementId, ownership.mode === 'external');
   const detailQuery = useProcurementDetail(procurementId);
-  // An Ordered purchase waits on whoever the database's own receipt gate would let record its delivery now (1560/1017).
-  // Only fetched while Ordered; the receipt transition's matrix is the authority, this names the actual people.
+  // An Ordered purchase is ASSIGNED to the people 1560 puts on the receipt list (an Admin, the actual requester while
+  // their role may record a receipt, and this project's own PM) — not every Finance/Executive, not another project's
+  // PM, and no light account (the receipt gate refuses a light caller). Only fetched while Ordered.
   const receiptWaiting = useOperationalWaitingRoute('delivery_record', procurementId, detailQuery.data?.status === 'Ordered');
   const { label: roleLabel } = useRoleOptions();
   const linkedErpQuery = useLinkedErpDocuments(procurementId);
@@ -422,9 +423,9 @@ const ProcurementDetails: React.FC = () => {
     : null;
   // fix-waiting item 3: who the request waits for, from the route the database already computed (never a bare "Waiting for approval").
   const requestedRoute = p.approvalRoute;
-  // An Ordered purchase waits on the actual people its receipt gate would let record the delivery (the requester while
-  // their role allows it, the project's own manager, an Admin) — not every Finance/Executive. The viewer who can record
-  // it already has that action, so the line is for everyone else. Pending says nothing; a failed read offers a retry.
+  // An Ordered purchase is assigned to the actual people the database's receipt list names (the requester while their
+  // role allows it, this project's own manager, an Admin) — not every Finance/Executive. The viewer who can record it
+  // already has that action, so the line is for everyone else. Pending says nothing; a failed read offers a retry.
   const canReceiveHere = isRequester || RECEIPT_ROLES.has(role);
   const receiptWaitingNote = p.status === 'Ordered' && !canReceiveHere
     ? receiptWaiting.isError
@@ -761,7 +762,7 @@ const ProcurementDetails: React.FC = () => {
         meta={meta.length ? <span className="block overflow-hidden"><span data-testid="record-meta" className="flex flex-col gap-y-1 sm:-ml-4 sm:flex-row sm:flex-wrap sm:items-center [&_a]:font-normal">{meta.map((part, i) => <span key={part.key} className={i === 0 ? 'sm:whitespace-nowrap sm:pl-4' : 'sm:whitespace-nowrap'}>{i > 0 && <span data-meta-dot aria-hidden="true" className="hidden w-4 text-center text-muted-foreground sm:inline-block">·</span>}{part}</span>)}</span></span> : undefined}
         // Where no action is offered, the slot says who the purchase waits on (#1404).
         actions={waitingNote || !isNarrow ? <>
-          {waitingNote && <span className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
+          {waitingNote && <span data-testid="procurement-waiting" className="min-w-0 text-sm text-muted-foreground">{waitingNote}</span>}
           {!isNarrow && <RecordMenu items={recordMenuItems} label={t('procurementRecord:recordAnother', 'Record another document')} ariaLabel={t('procurementRecord:recordMenu', 'Record another document')} />}
         </> : undefined}
         // B4: below 640px the phone action bar owns the one filled main action and the menu.

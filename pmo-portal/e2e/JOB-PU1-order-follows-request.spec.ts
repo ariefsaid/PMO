@@ -17,7 +17,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await approved?.cleanup(); await draft?.cleanup(); await unsupplied?.cleanup(); });
 
-test('JOB-PU1 an order is raised from the approved request and carries its number; a draft offers no order action', async ({ page }) => {
+test('JOB-PU1 AC-WAIT-075 an order is raised from the approved request and carries its number; a draft offers no order action', async ({ page }) => {
   await login(page, 'finance@acme.test');
 
   await page.goto(draft.url);
@@ -38,6 +38,12 @@ test('JOB-PU1 an order is raised from the approved request and carries its numbe
   await recordOrderWithConfirm(page, SEED_SUPPLIER_NAME);
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 15_000 });
   await expect(page.getByText(/^PO-\d{10}$/).first()).toBeVisible({ timeout: 10_000 });
+
+  // AC-WAIT-075: the Finance viewer recording the order is told the exact person the receipt is assigned to, with
+  // their role — the requester who also manages this purchase's project, not a generic "Waiting" label.
+  await expect(page.getByTestId('procurement-waiting')).toContainText('Diego Salvatierra', { timeout: 20_000 });
+  await expect(page.getByTestId('procurement-waiting')).toContainText('Project Manager');
+  expect(await page.getByTestId('procurement-waiting').textContent()).toMatch(/^Waiting for /);
 });
 
 test('JOB-PU1 an order is not recorded without a supplier: the supplier is asked for first and nothing is ordered', async ({ page }) => {

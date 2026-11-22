@@ -106,4 +106,26 @@ describe('operationalWaitingForText', () => {
   it('says nothing while there is no answer at all', () => {
     expect(operationalWaitingForText(undefined, t)).toBeNull();
   });
+
+  it('never repeats a name when two assigned people share it', () => {
+    expect(operationalWaitingForText(
+      {
+        approvers: [
+          { id: 'u-1', name: 'Ani', role: 'Finance' },
+          { id: 'u-2', name: 'Ani', role: 'Admin' },
+        ],
+        routeKind: 'delivery_record',
+      },
+      t,
+      { roleLabel: (role) => role },
+    )).toBe('Waiting for Ani, Finance or Admin');
+  });
+
+  it('words a transfer with the actual role label the caller supplies, and no step fiction', () => {
+    expect(operationalWaitingForText(
+      { approvers: [{ id: 'u-1', name: 'Kasim', role: 'Engineer' }], routeKind: 'transfer_receipt' },
+      t,
+      { roleLabel: (role) => (role === 'Engineer' ? 'Engineer' : role), empty: 'none' },
+    )).toBe('Waiting for Kasim, Engineer');
+  });
 });

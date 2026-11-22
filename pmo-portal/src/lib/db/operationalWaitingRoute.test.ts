@@ -58,6 +58,13 @@ describe('operational waiting route DAL', () => {
     })).toEqual({ approvers: [{ id: 'u-1', name: 'Ani', role: 'Finance' }], routeKind: 'delivery_record' });
   });
 
+  it('keeps a known kind even when nobody is assigned, and has none only for an unknown kind', () => {
+    expect(mapOperationalWaitingRoute({ approvers: [], route_kind: 'work_order_issue' }))
+      .toEqual({ approvers: [], routeKind: 'work_order_issue' });
+    expect(mapOperationalWaitingRoute({ approvers: [], route_kind: null }))
+      .toEqual({ approvers: [], routeKind: null });
+  });
+
   it('raises a code-bearing AppError when the read is refused', async () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: 'not authorized', code: '42501' } });
 

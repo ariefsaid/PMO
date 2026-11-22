@@ -7,12 +7,12 @@ import type { OperationalWaitingKind, OperationalWaitingRoute } from '@/src/lib/
 import { waitingForText } from '@/src/lib/approvals/waitingFor';
 
 /**
- * Who a single record waits on while it is in one of the three operational waiting states.
+ * Who a single record is assigned to while it is in one of the three operational waiting states.
  *
- * The answer is caller-scoped (RLS names only people the viewer may see, and the route includes the viewer when they
- * are among the people who can act), so the cache key carries the org AND the real signed-in user; the read is enabled
- * only when the screen itself says the record is waiting. `retry: false` because a refusal is a fact: the screen offers
- * its own retry instead of silently hammering the database.
+ * The database names the assigned people (the labels come from organisation-visible profiles), so the cache key
+ * carries the org AND the real signed-in user: a light account's own read is empty and must not be served from a full
+ * account's cache. The read is enabled only when the screen itself says the record is waiting; `retry: false` because a
+ * refusal is a fact — the screen offers its own retry instead of silently hammering the database.
  */
 export function useOperationalWaitingRoute(
   kind: OperationalWaitingKind,

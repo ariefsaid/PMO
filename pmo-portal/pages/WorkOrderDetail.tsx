@@ -49,14 +49,15 @@ import { SiteLocationSection } from './work-order-detail/SiteLocationSection';
  * looks identical: not found). Its write surfaces are the sections block (#2576) and the close-out checklist (#2593), gated by `can()`.
  */
 const WorkOrderDetail: React.FC = () => {
-  const { t } = useTranslation('workOrders');
+  const { t } = useTranslation(['workOrders', 'waitingList']);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const may = usePermission();
   const stockOn = useFeature('stock');
   const wo = useWorkOrder(id);
-  // A Draft waits on whoever the database's own issue gate would let issue it now (1560/0337). 1560 only puts a Draft on
-  // the waiting list while it carries priced money with a recorded author, so the read is gated on those projected facts.
+  // A Draft is ASSIGNED to the people 1560 puts on the waiting list for the issue step — never everyone the issue gate
+  // would admit. 1560 only assigns a Draft while it carries priced money with a recorded author, so the read is gated
+  // on those same projected facts (a priced Draft with no author is assigned to nobody).
   const issueWaitingApplies = wo.data?.status === 'Draft'
     && Number(wo.data?.order_value ?? 0) > 0
     && Boolean(wo.data?.order_value_set_by);

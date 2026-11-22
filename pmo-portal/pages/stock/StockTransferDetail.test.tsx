@@ -176,7 +176,7 @@ describe('StockTransferDetail sender (#1122 item 1)', () => {
   });
 });
 
-describe('StockTransferDetail who it waits on (#1122 Waiting 3)', () => {
+describe('StockTransferDetail who it is assigned to (#1122 Waiting 3, AC-WAIT-072/073)', () => {
   it('reads the receipt route only while the transfer is Sent', () => {
     renderPage();
     expect(h.waiting.calls.at(-1)).toEqual(['transfer_receipt', 't1', true]);
@@ -185,13 +185,27 @@ describe('StockTransferDetail who it waits on (#1122 Waiting 3)', () => {
     expect(h.waiting.calls.at(-1)).toEqual(['transfer_receipt', 't1', false]);
   });
 
-  it('an unassigned transfer names the destination keeper, never every senior role', async () => {
+  it('an unassigned transfer names the destination keeper with their actual role, never every senior role', async () => {
     h.transfer = transfer({ sentBy: 'someone', toUserId: null });
     h.waiting.data = { approvers: [{ id: 'keeper', name: 'Keeper Kasim', role: 'Engineer' }], routeKind: 'transfer_receipt' };
     renderPage();
     const line = await screen.findByTestId('transfer-waiting');
-    expect(line.textContent).toBe('Waiting for Keeper Kasim');
+    expect(line.textContent).toBe('Waiting for Keeper Kasim, Engineer');
     expect(line.textContent).not.toMatch(/Admin|Finance|Executive/);
+  });
+
+  it('uses every actual role when the assigned people hold different ones', async () => {
+    h.transfer = transfer({ sentBy: 'someone', toUserId: null });
+    h.waiting.data = {
+      approvers: [
+        { id: 'keeper', name: 'Keeper Kasim', role: 'Engineer' },
+        { id: 'other', name: 'Tono Store', role: 'Finance' },
+      ],
+      routeKind: 'transfer_receipt',
+    };
+    renderPage();
+    const line = await screen.findByTestId('transfer-waiting');
+    expect(line.textContent).toBe('Waiting for Keeper Kasim or Tono Store, Engineer or Finance');
   });
 
   it('never repeats the addressed receiver: the summary already names them', async () => {
@@ -202,13 +216,13 @@ describe('StockTransferDetail who it waits on (#1122 Waiting 3)', () => {
     expect(screen.queryByTestId('transfer-waiting')).toBeNull();
   });
 
-  it('excludes the sender from the people it waits on', async () => {
+  it('renders exactly the people the server named; the sender is excluded by the route, not re-filtered here', async () => {
     h.transfer = transfer({ sentBy: 'me', toUserId: null });
     h.waiting.data = { approvers: [{ id: 'keeper', name: 'Keeper Kasim', role: 'Engineer' }], routeKind: 'transfer_receipt' };
     renderPage();
     const line = await screen.findByTestId('transfer-waiting');
-    expect(line.textContent).toBe('Waiting for Keeper Kasim');
-    expect(line.textContent).not.toContain('Dest Keeper');
+    expect(line.textContent).toBe('Waiting for Keeper Kasim, Engineer');
+    expect(line.textContent).not.toContain('me');
   });
 
   it('says nothing when nobody is assigned and no keeper is known', () => {
@@ -218,8 +232,15 @@ describe('StockTransferDetail who it waits on (#1122 Waiting 3)', () => {
     expect(screen.queryByTestId('transfer-waiting')).toBeNull();
   });
 
-  it('offers a retry when the route could not be read', async () => {
+  it('says nothing while the route is still being read', () => {
     h.transfer = transfer({ sentBy: 'me', toUserId: null });
+    h.waiting.isPending = true;
+    renderPage();
+    expect(screen.queryByTestId('transfer-waiting')).toBeNull();
+  });
+
+  it('offers a retry when the route could not be read, even when a receiver is addressed', async () => {
+    h.transfer = transfer({ sentBy: 'me', toUserId: 'me' });
     h.waiting.isError = true;
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));

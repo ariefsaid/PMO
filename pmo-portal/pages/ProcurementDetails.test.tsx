@@ -2356,9 +2356,9 @@ describe('Procurement detail restructure fixes', () => {
   });
 });
 
-// #1122 Waiting 3: an Ordered purchase (the delivery/receipt wait, NOT a BAST) names the actual people its own
-// receipt gate would let record the delivery, instead of advertising every Finance/Executive.
-describe('AC-PROC-RECEIPT-WAIT: who an Ordered purchase waits on', () => {
+// #1122 Waiting 3: an Ordered purchase (the delivery/receipt wait, NOT a BAST) is assigned to the people the database's
+// receipt list names, instead of advertising every Finance/Executive.
+describe('AC-WAIT-071/073: who an Ordered purchase is assigned to', () => {
   it('reads the receipt route only while the purchase is Ordered', () => {
     detailState.data = { ...baseProcurement };
     renderPage();
@@ -2369,7 +2369,7 @@ describe('AC-PROC-RECEIPT-WAIT: who an Ordered purchase waits on', () => {
     expect(receiptWaiting.calls.at(-1)).toEqual(['delivery_record', 'proc-001', true]);
   });
 
-  it('names the actual Admin, requester and project manager — never every Finance or Executive', () => {
+  it('renders exactly the people the receipt list names, with their actual roles', () => {
     mockEffectiveRole = 'Finance';
     detailState.data = { ...orderedProcurement, requested_by_id: 'u-other' };
     receiptWaiting.data = {
@@ -2383,7 +2383,6 @@ describe('AC-PROC-RECEIPT-WAIT: who an Ordered purchase waits on', () => {
     renderPage();
     const line = screen.getByText(/^Waiting for Ada Admin/);
     expect(line.textContent).toBe('Waiting for Ada Admin or Oscar Requester or Pia PM, Admin or Engineer or Project Manager');
-    expect(line.textContent).not.toMatch(/Finance|Executive/);
   });
 
   it('does not repeat the wait for the requester who already has the receipt action', () => {

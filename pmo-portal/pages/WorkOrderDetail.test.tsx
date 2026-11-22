@@ -345,8 +345,8 @@ describe('WorkOrderDetail', () => {
     expect(screen.queryByText('Issues')).toBeNull();
   });
 
-  // #1122 Waiting 3: a Draft work order names the actual people its issue gate would let issue it, not a role list.
-  describe('who a Draft waits on', () => {
+  // #1122 Waiting 3: a Draft work order names the people it is assigned to for the issue step, not a static role list.
+  describe('who a Draft is assigned to (AC-WAIT-070/073)', () => {
     it('reads the issue route only while the work order is a priced Draft with a recorded author', () => {
       renderPage();
       expect(issueWaiting.calls.at(-1)).toEqual(['work_order_issue', 'w1', false]);

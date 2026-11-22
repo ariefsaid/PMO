@@ -4,11 +4,12 @@ import { AppError } from '@/src/lib/appError';
 /**
  * Operational "who is it waiting on" read (fix-waiting item 3, Waiting 3). One RPC answers for the three record
  * screens whose waiting state had no per-person read: a Draft work order (issue), an Ordered purchase (record its
- * delivery/receipt) and a Sent stock transfer (receive it). The database owns every rule: its predicates are the
- * same ones the deciding transition and the 1560 waiting list use, so this layer only maps the answer.
+ * delivery/receipt) and a Sent stock transfer (receive it). The database owns every rule: it returns the waiting-list
+ * ASSIGNMENT for the kind (deliberately narrower than the write gate in places — see the migration header), so this
+ * layer only maps the answer.
  *
  * SECURITY INVOKER on the database side: the record and the people are read through the caller's own RLS, org_id is
- * never sent, and an unreadable or non-waiting record returns the same empty route (no existence leak).
+ * never sent, and an unreadable or non-waiting record returns the same empty assignment (no existence leak).
  */
 
 export const OPERATIONAL_WAITING_KINDS = ['work_order_issue', 'delivery_record', 'transfer_receipt'] as const;
@@ -23,7 +24,7 @@ export interface OperationalWaitingPerson {
 
 export interface OperationalWaitingRoute {
   approvers: OperationalWaitingPerson[];
-  /** The kind whose route was asked for, or null for an unknown/non-visible id. */
+  /** The known kind that was asked for, or null for an unknown kind. A known kind stays present even when nobody is assigned. */
   routeKind: string | null;
 }
 
