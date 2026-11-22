@@ -175,7 +175,7 @@ const StockOpeningHistory: React.FC = () => {
       ) : (
         <div className="flex flex-col gap-6">
           <section aria-labelledby="osh-template" className="flex flex-col gap-3">
-            <h2 id="osh-template" className="text-base font-semibold text-foreground">{t('stock:opening.template.title')}</h2>
+            <h2 id="osh-template" className="m-0 text-group font-semibold text-foreground">{t('stock:opening.template.title')}</h2>
             <DataTable
               rows={descriptor.fields} columns={templateColumns} rowKey={(f) => f.key} tableId="stock-opening-template" accessibleName={t('stock:opening.template.title')}
               mobileCardTitle={(f) => <span className="block min-h-11 font-semibold text-foreground">{f.label}</span>}
@@ -190,7 +190,7 @@ const StockOpeningHistory: React.FC = () => {
           </section>
 
           <section aria-labelledby="osh-file" className="flex flex-col gap-3">
-            <h2 id="osh-file" className="text-base font-semibold text-foreground">{t('stock:opening.file.title')}</h2>
+            <h2 id="osh-file" className="m-0 text-group font-semibold text-foreground">{t('stock:opening.file.title')}</h2>
             <div className="max-w-xs">
               <DateField label={t('stock:opening.asOf')} value={asOf} onChange={setAsOf} max={todayIso()} required />
             </div>
@@ -212,7 +212,7 @@ const StockOpeningHistory: React.FC = () => {
 
           {file && file.clientErrors.length > 0 && (
             <section aria-labelledby="osh-errors" className="flex flex-col gap-3">
-              <h2 id="osh-errors" className="text-base font-semibold text-foreground">{t('stock:opening.preview.title')}</h2>
+              <h2 id="osh-errors" className="m-0 text-group font-semibold text-foreground">{t('stock:opening.preview.title')}</h2>
               <DataTable rows={file.clientErrors.slice(0, MAX_SHOWN_CLIENT_ERRORS)} columns={errorColumns} rowKey={(e) => `${e.row}-${e.column}`} tableId="stock-opening-file-errors" accessibleName={t('stock:opening.preview.title')}
                 mobileCardTitle={(e) => <span className="block min-h-11 font-semibold text-foreground">{t('stock:opening.preview.rowN', { n: e.row })} · {e.column}</span>}
                 mobileCardDetails={(e) => <p className="text-sm text-destructive-text">{e.message}</p>} />
@@ -221,7 +221,7 @@ const StockOpeningHistory: React.FC = () => {
 
           {ready && (
             <section aria-labelledby="osh-preview" className="flex flex-col gap-3">
-              <h2 id="osh-preview" className="text-base font-semibold text-foreground">{t('stock:opening.preview.title')}</h2>
+              <h2 id="osh-preview" className="m-0 text-group font-semibold text-foreground">{t('stock:opening.preview.title')}</h2>
               {previewing && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
               {preview.isError && (
                 <p role="alert" className="text-sm font-medium text-destructive-text">{refusal(preview.error).headline}</p>
