@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({ dispatchDomainCommand: vi.fn() }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ clearOwnershipCache: vi.fn(), setTaskOwnership: vi.fn(), routeDomainWrite: vi.fn() }));
 vi.mock('@/src/lib/db/workOrderAcceptances', () => ({
+  listAcceptancesAwaitingConfirmation: vi.fn(),
   listProjectAcceptances: vi.fn(), listWorkOrderLines: vi.fn(), createWorkOrderLine: vi.fn(), updateWorkOrderLine: vi.fn(),
   deleteWorkOrderLine: vi.fn(), prepareWorkOrderAcceptance: vi.fn(), withdrawWorkOrderAcceptance: vi.fn(), confirmWorkOrderAcceptance: vi.fn(),
 }));
@@ -21,6 +22,13 @@ describe('workOrderAcceptance repository', () => {
     await repo().listLines('wo-1');
     expect(dal.listProjectAcceptances).toHaveBeenCalledWith('p1');
     expect(dal.listWorkOrderLines).toHaveBeenCalledWith('wo-1');
+  });
+
+  it('AC-WAIT-056 the caller-scoped waiting read delegates to its own DAL entry point and returns it unchanged', async () => {
+    const rows = [{ id: 'acc-1', project_id: 'p1', work_order_id: 'wo-1', acceptance_date: '2026-11-20', is_final: false, prepared_by: 'pm-1', prepared_at: '2026-11-20T00:00:00Z' }];
+    vi.mocked(dal.listAcceptancesAwaitingConfirmation).mockResolvedValue(rows);
+    await expect(repo().listAwaitingConfirmation()).resolves.toBe(rows);
+    expect(dal.listAcceptancesAwaitingConfirmation).toHaveBeenCalledWith();
   });
 
   it('AC-CQ-002 allocation create, update and delete delegate exactly', async () => {

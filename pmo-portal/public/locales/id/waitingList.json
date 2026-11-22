@@ -8,7 +8,8 @@
     "leave": "Permohonan cuti menunggu Anda ({{count}})",
     "quantity_change": "Perubahan kuantitas untuk diputuskan ({{count}})",
     "transfer_receipt": "Transfer barang untuk diterima ({{count}})",
-    "work_order_issue": "Work order untuk diterbitkan ({{count}})"
+    "work_order_issue": "Work order untuk diterbitkan ({{count}})",
+    "work_order_acceptance": "BAST klien untuk dikonfirmasi ({{count}})"
   },
   "scope": {
     "leave": "Permohonan cuti",
@@ -19,9 +20,15 @@
     "transfer_receipt": "Transfer untuk diterima",
     "quantity_change": "Perubahan kuantitas",
     "certificate": "Sertifikat subkontraktor",
-    "equipment_plan": "Rencana peralatan"
+    "equipment_plan": "Rencana peralatan",
+    "work_order_acceptance": "BAST klien untuk dikonfirmasi"
   },
   "since": "Menunggu sejak {{date}}",
+  "bast": {
+    "row": "BAST klien ({{kind}}) tanggal {{date}}",
+    "final": "final",
+    "stage": "tahap"
+  },
   "waitingFor": {
     "named": "Menunggu {{who}}",
     "or": " atau ",

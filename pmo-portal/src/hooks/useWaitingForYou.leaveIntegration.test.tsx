@@ -37,6 +37,9 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => idleR
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestAwaiting: () => ({ data: { plans: [], replenishments: [] }, isPending: false, isError: false, enabled: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
+  useAcceptancesAwaitingConfirmation: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useWaitingDecisions', () => ({
   useDatabaseWaiting: () => idleRead,
   useDecisionStanding: () => ({ data: false, isPending: false, isError: false }),

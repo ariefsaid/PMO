@@ -92,6 +92,13 @@ vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' })
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
 const imprestState = { data: { plans: [] as unknown[], replenishments: [] as unknown[] }, isPending: false, isError: false, refetch: vi.fn() };
+// A client acceptance (BAST) waiting on the viewer is its own kind from its own caller-filtered read; these tests keep it
+// idle so the kind under test is the surface, and the page still shows the same shared list.
+const bastState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useWorkOrderAcceptances', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/hooks/useWorkOrderAcceptances')>()),
+  useAcceptancesAwaitingConfirmation: () => bastState,
+}));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => imprestState }));
 const correctionState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };

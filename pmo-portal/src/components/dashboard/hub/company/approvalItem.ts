@@ -8,6 +8,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { WaitingStep } from '@/src/lib/repositories/materialRequests';
 import type { LeaveRequestRow } from '@/src/lib/db/leave';
 import type { WaitingDecisionRow } from '@/src/lib/db/waitingDecisions';
+import type { AcceptanceAwaitingConfirmationRow } from '@/src/lib/db/workOrderAcceptances';
 import { isDatabaseListedKind, scopeLabelText, WAITING_KIND_META } from '@/src/lib/approvals/waitingKinds';
 
 export interface ApprovalItem { key: string; what: string; who: string | null; amount: string | null; days: number | null; href: string }
@@ -43,6 +44,20 @@ export function approvalItem(entry: ApprovalPopulationEntry, t: (key: string, fa
     case 'leave': {
       const row = entry.row as LeaveRequestRow;
       return { key: entry.key, what: t('home.approvalLeave', '{{name}}: leave {{from}} to {{to}}', { name: row.person_name, from: formatDay(row.start_date), to: formatDay(row.end_date) }), who: null, amount: null, days, href: '/approvals?scope=leave' };
+    }
+    case 'work_order_acceptance': {
+      // Client acceptance (BAST): the acceptance is decided on its WORK ORDER, so the link carries the real
+      // work_order_id — never the acceptance id, which is a different record (and not a route).
+      const row = entry.row as AcceptanceAwaitingConfirmationRow;
+      const kind = row.is_final ? t('home.approvalBastFinal', 'final') : t('home.approvalBastStage', 'stage');
+      return {
+        key: entry.key,
+        what: t('home.approvalBast', 'Client acceptance ({{kind}}) of {{date}}', { kind, date: formatDay(row.acceptance_date) }),
+        who: null,
+        amount: null,
+        days,
+        href: `/work-orders/${row.work_order_id}`,
+      };
     }
     case 'imprest': {
       const row = entry.row as { id: string; float_id: string; number?: string | null; month?: string | null };

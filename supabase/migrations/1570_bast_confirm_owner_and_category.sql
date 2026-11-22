@@ -5,6 +5,10 @@
 -- (b) The data the waiting-list lane needs: the acceptances waiting for the caller to confirm.
 --     Mirrors confirm_work_order_acceptance (0339): Admin and Finance confirm; the preparer may not, unless
 --     they are the only active member. Read under the caller's own RLS; nothing is written.
+--     NO row cap here: a cap would make the waiting list's count silently short (PostgREST truncates at
+--     db-max-rows with no error anyway), so the client pages this read to its end. The deterministic
+--     order is what makes that paging safe; eligibility to confirm is NOT a promise the write succeeds
+--     (the document/line prerequisites and the SoD refusal still live in confirm_work_order_acceptance).
 -- Rollback: rollback/1570_bast_confirm_owner_and_category_down.sql
 begin;
 
@@ -44,7 +48,6 @@ language sql stable security invoker set search_path = public as $$
                 from public.profiles p
                where p.org_id = (select public.auth_org_id()) and p.status = 'active'))   -- the uuid form of is_active_member is not executable by a signed-in role; a banned-but-active member counts here, which only hides the item (fail closed)
    order by a.prepared_at, a.id
-   limit 200
 $$;
 revoke all on function public.acceptances_awaiting_my_confirmation() from public, anon;
 grant execute on function public.acceptances_awaiting_my_confirmation() to authenticated;

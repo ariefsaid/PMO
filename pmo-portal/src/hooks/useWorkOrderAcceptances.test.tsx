@@ -5,6 +5,7 @@ import React from 'react';
 
 const h = vi.hoisted(() => ({
   listByProject: vi.fn(async () => [{ id: 'a1', lines: [] }]),
+  listAwaitingConfirmation: vi.fn(async () => [{ id: 'acc-1', work_order_id: 'wo-1' }]),
   listProjectLines: vi.fn(async () => [{ id: 'l1' }]),
   createLine: vi.fn(async () => ({ id: 'l1' })),
   updateLine: vi.fn(async () => undefined),
@@ -17,7 +18,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { workOrderAcceptance: 
 const auth = vi.hoisted(() => ({ orgId: 'org-1' as string | undefined }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.orgId ? { id: 'u-1', org_id: auth.orgId } : null }) }));
 
-import { useWorkOrderAcceptances, useWorkOrderAcceptanceMutations, useProjectWorkOrderLines } from './useWorkOrderAcceptances';
+import { useWorkOrderAcceptances, useWorkOrderAcceptanceMutations, useProjectWorkOrderLines, useAcceptancesAwaitingConfirmation } from './useWorkOrderAcceptances';
 
 function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -59,8 +60,27 @@ describe('contract-quantity read hooks', () => {
     const { wrapper } = setup();
     renderHook(() => useWorkOrderAcceptances('p1'), { wrapper });
     renderHook(() => useProjectWorkOrderLines('p1'), { wrapper });
+    renderHook(() => useAcceptancesAwaitingConfirmation(true), { wrapper });
     expect(h.listByProject).not.toHaveBeenCalled();
     expect(h.listProjectLines).not.toHaveBeenCalled();
+    expect(h.listAwaitingConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('AC-WAIT-056 the BAST waiting read is keyed by the real organisation AND the real user', async () => {
+    const { client, wrapper } = setup();
+    const { result } = renderHook(() => useAcceptancesAwaitingConfirmation(true), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(h.listAwaitingConfirmation).toHaveBeenCalledWith();
+    expect(client.getQueryData(['work-order-acceptances', 'org-1', 'u-1', 'awaiting-confirmation']))
+      .toEqual([{ id: 'acc-1', work_order_id: 'wo-1' }]);
+    expect(client.getQueryData(['work-order-acceptances', 'org-1', 'someone-else', 'awaiting-confirmation'])).toBeUndefined();
+  });
+
+  it('AC-WAIT-056 a viewer the shipped BAST screen cannot offer Confirm to issues no waiting read', async () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useAcceptancesAwaitingConfirmation(false), { wrapper });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(h.listAwaitingConfirmation).not.toHaveBeenCalled();
   });
 });
 
@@ -90,11 +110,17 @@ describe('useWorkOrderAcceptanceMutations (cache design, ADR-0091)', () => {
       id = await result.current.prepare.mutateAsync({ workOrderId: 'wo-1', acceptanceDate: '2026-10-20', isFinal: false, lines: [], documentId: null, note: null });
     });
     expect(id).toBe('acc-1');
-    expect(keys(spy)).toEqual([['work-order-acceptances', 'org-1', 'p1']]);
+    expect(keys(spy)).toEqual([
+      ['work-order-acceptances', 'org-1', 'p1'],
+      ['work-order-acceptances', 'org-1', 'u-1', 'awaiting-confirmation'],
+    ]);
     spy.mockClear();
     await act(async () => { await result.current.withdraw.mutateAsync('acc-1'); });
     expect(h.withdraw).toHaveBeenCalledWith('acc-1');
-    expect(keys(spy)).toEqual([['work-order-acceptances', 'org-1', 'p1']]);
+    expect(keys(spy)).toEqual([
+      ['work-order-acceptances', 'org-1', 'p1'],
+      ['work-order-acceptances', 'org-1', 'u-1', 'awaiting-confirmation'],
+    ]);
   });
 
   it('AC-CQ-008 confirming refreshes acceptances, billing, work orders, drawdown, order billing and still-to-invoice', async () => {
@@ -104,7 +130,8 @@ describe('useWorkOrderAcceptanceMutations (cache design, ADR-0091)', () => {
     await act(async () => { response = await result.current.confirm.mutateAsync('acc-1'); });
     expect(response).toEqual({ closingValue: 1, dpHeld: 0 });
     expect(keys(spy)).toEqual(expect.arrayContaining([
-      ['work-order-acceptances', 'org-1', 'p1'], ['project-billing', 'org-1', 'p1'], ['work-orders', 'org-1', 'p1'],
+      ['work-order-acceptances', 'org-1', 'p1'], ['work-order-acceptances', 'org-1', 'u-1', 'awaiting-confirmation'],
+      ['project-billing', 'org-1', 'p1'], ['work-orders', 'org-1', 'p1'],
       ['project-drawdown', 'org-1', 'p1'], ['work-order-billing', 'org-1', 'p1'], ['unbilled-work-orders', 'org-1'],
     ]));
   });

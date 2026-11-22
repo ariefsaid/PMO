@@ -11,7 +11,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 import {
-  confirmWorkOrderAcceptance, createWorkOrderLine, deleteWorkOrderLine, listProjectAcceptances, listWorkOrderLines,
+  confirmWorkOrderAcceptance, createWorkOrderLine, deleteWorkOrderLine, listAcceptancesAwaitingConfirmation, listProjectAcceptances, listWorkOrderLines,
   prepareWorkOrderAcceptance, updateWorkOrderLine, withdrawWorkOrderAcceptance,
 } from './workOrderAcceptances';
 
@@ -124,5 +124,60 @@ describe('work-order acceptance DAL', () => {
   it('AC-CQ-006 a refused confirmation surfaces the server code and message', async () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: 'closing value above order net', code: 'BW001' } });
     await expect(confirmWorkOrderAcceptance('acc-1')).rejects.toMatchObject({ code: 'BW001', message: 'closing value above order net' });
+  });
+});
+
+/**
+ * The waiting list is a COUNT, so a page cap is a wrong answer: PostgREST silently truncates at db-max-rows.
+ * These pin the read to the whole set, the exact empty set, and a failed later page rejecting the whole read.
+ */
+describe('acceptances awaiting my confirmation (caller-filtered waiting read, 1570)', () => {
+  const awaiting = (id: string, preparedAt: string) => ({
+    id, project_id: 'p1', work_order_id: `wo-${id}`, acceptance_date: '2026-11-20',
+    is_final: false, prepared_by: 'pm-1', prepared_at: preparedAt,
+  });
+  const page = (rows: unknown[] | null, error: { message: string; code?: string } | null = null) => ({ data: rows, error });
+  type Page = ReturnType<typeof page>;
+  function rpcPages(pages: Page[]) {
+    const ranges: Array<[number, number]> = [];
+    h.rpc.mockImplementation(() => ({
+      range: (from: number, to: number) => {
+        ranges.push([from, to]);
+        return Promise.resolve(pages[ranges.length - 1] ?? page([]));
+      },
+    }));
+    return ranges;
+  }
+
+  it('AC-WAIT-056 reads every page past the 1000-row response cap and asks for the real range windows', async () => {
+    const ranges = rpcPages([
+      page(Array.from({ length: 1000 }, (_, i) => awaiting(`a${i}`, '2026-11-20T00:00:00Z'))),
+      page([awaiting('last', '2026-11-21T00:00:00Z')]),
+    ]);
+    const rows = await listAcceptancesAwaitingConfirmation();
+    expect(h.rpc).toHaveBeenNthCalledWith(1, 'acceptances_awaiting_my_confirmation');
+    expect(ranges).toEqual([[0, 999], [1000, 1999]]);
+    expect(rows).toHaveLength(1001);
+    expect(rows.at(-1)?.id).toBe('last');
+  });
+
+  it('AC-WAIT-056 an exactly empty first page is a complete empty list, not a pending or fabricated row', async () => {
+    const ranges = rpcPages([page([])]);
+    await expect(listAcceptancesAwaitingConfirmation()).resolves.toEqual([]);
+    expect(ranges).toEqual([[0, 999]]);
+  });
+
+  it('AC-WAIT-056 a later page error rejects the whole read so a short list is never shown as complete', async () => {
+    rpcPages([
+      page(Array.from({ length: 1000 }, (_, i) => awaiting(`a${i}`, '2026-11-20T00:00:00Z'))),
+      page(null, { message: 'canceling statement', code: '57014' }),
+    ]);
+    await expect(listAcceptancesAwaitingConfirmation()).rejects.toMatchObject({ code: '57014', message: 'canceling statement' });
+  });
+
+  it('AC-WAIT-056 the stitched list keeps the function\'s prepared_at then id order', async () => {
+    rpcPages([page([awaiting('b', '2026-11-21T00:00:00Z'), awaiting('c', '2026-11-20T00:00:00Z'), awaiting('a', '2026-11-21T00:00:00Z')])]);
+    const rows = await listAcceptancesAwaitingConfirmation();
+    expect(rows.map((row) => row.id)).toEqual(['c', 'a', 'b']);
   });
 });

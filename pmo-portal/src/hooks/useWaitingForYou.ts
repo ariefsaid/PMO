@@ -7,6 +7,7 @@ import { useHasTimesheetApprovalWork, useTimesheetsAwaitingApproval } from '@/sr
 import { useExpenseClaimsAwaitingDecision } from '@/src/hooks/useExpenseClaims';
 import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
 import { useWaitingForMe } from '@/src/hooks/useMaterialRequests';
+import { useAcceptancesAwaitingConfirmation } from '@/src/hooks/useWorkOrderAcceptances';
 import { useLeaveRequests } from '@/src/hooks/useLeave';
 import { useImprestAwaiting } from '@/src/hooks/useImprest';
 import { useOrgId } from '@/src/hooks/useOrgId';
@@ -17,6 +18,7 @@ import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition
 import type { ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
 import type { WaitingStep } from '@/src/lib/repositories/materialRequests';
 import type { LeaveRequestRow } from '@/src/lib/db/leave';
+import type { AcceptanceAwaitingConfirmationRow } from '@/src/lib/db/workOrderAcceptances';
 type AwaitingImprest = Awaited<ReturnType<typeof import('@/src/lib/db/imprest').listAwaitingImprest>>;
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { availablePlanActions, availableReplenishmentActions } from '@/src/lib/imprest/imprestRules';
@@ -72,6 +74,10 @@ function useLiveWaitingForYou(): WaitingForYou {
   const procurementAdmin = can('decide', 'procurement', { realRole });
   const invoiceRole = can('transition', 'salesInvoice', { realRole });
   const expenseRole = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
+  // Client acceptance (BAST) is confirmable by Admin/Finance only — the same applicability the shipped BAST screen
+  // uses to offer its Confirm control (`can('confirm','workOrderAcceptance')`). Not a new gate: the database read
+  // enforces the same rule, and a role that cannot confirm issues no read (so it is never reported pending).
+  const bastApplicable = can('confirm', 'workOrderAcceptance', { realRole, record: { status: 'Draft' } });
 
   /* eslint-disable react-hooks/rules-of-hooks -- each read is called exactly once per render, in a fixed order; the wrapper only turns "no data layer" into an unknown read */
   const procurements = withoutDataLayer(() => useProcurements({ status: 'Requested', enabled: signedIn && procurementRole }), UNKNOWN as QueryRead<ProcurementWithRefs[]>);
@@ -84,6 +90,11 @@ function useLiveWaitingForYou(): WaitingForYou {
   const material = withoutDataLayer(() => useWaitingForMe(signedIn), UNKNOWN as QueryRead<WaitingStep[]>);
   const leave = withoutDataLayer(() => useLeaveRequests(), { ...UNKNOWN, enabled: false, prerequisitePending: false, prerequisiteError: false } as LeaveRead);
   const imprest = withoutDataLayer(() => useImprestAwaiting(), { ...UNKNOWN, enabled: false } as ImprestRead);
+  // A separate caller-filtered database read (1570), never `my_waiting_decisions` and never `delivery_record`.
+  const bast = withoutDataLayer(
+    () => useAcceptancesAwaitingConfirmation(signedIn && bastApplicable),
+    UNKNOWN as QueryRead<AcceptanceAwaitingConfirmationRow[]>,
+  );
   const database = withoutDataLayer(() => useDatabaseWaiting(orgId, userId, signedIn), UNKNOWN as QueryRead<WaitingDecisionRow[]>);
   /* eslint-enable react-hooks/rules-of-hooks */
 
@@ -108,11 +119,14 @@ function useLiveWaitingForYou(): WaitingForYou {
       material: (material.data ?? []).map((row) => ({ key: `material:${row.requestId}`, kind: 'material', createdAt: row.submittedAt, row })),
       leave: (leave.enabled ? leave.data ?? [] : []).filter((r) => r.can_decide).map((row) => ({ key: `leave:${row.id}`, kind: 'leave', createdAt: row.start_date, row })),
       imprest: imprestEntries,
+      work_order_acceptance: (bast.data ?? []).map((row) => ({
+        key: `work_order_acceptance:${row.id}`, kind: 'work_order_acceptance' as const, createdAt: row.prepared_at, row,
+      })),
       daily_report: [], work_order_issue: [], delivery_record: [], transfer_receipt: [], quantity_change: [], certificate: [], equipment_plan: [],
     };
     for (const row of database.data ?? []) byKind[row.kind].push({ key: `${row.kind}:${row.recordId}`, kind: row.kind, createdAt: row.createdAt, row });
     return WAITING_KINDS.flatMap((kind) => byKind[kind]);
-  }, [database.data, expenseRole, expenses.data, imprest.data, invoiceRole, invoices.enabled, invoices.rows, leave.data, leave.enabled, material.data, procurementAdmin, procurementRole, procurements.data, realRole, timesheets.data, userId]);
+  }, [bast.data, database.data, expenseRole, expenses.data, imprest.data, invoiceRole, invoices.enabled, invoices.rows, leave.data, leave.enabled, material.data, procurementAdmin, procurementRole, procurements.data, realRole, timesheets.data, userId]);
 
   const population = useMemo(() => approvalPopulation(entries, 'all'), [entries]);
 
@@ -135,6 +149,7 @@ function useLiveWaitingForYou(): WaitingForYou {
     daily_report: { pending: signedIn && database.isPending, error: database.isError },
     work_order_issue: { pending: signedIn && database.isPending, error: database.isError },
     delivery_record: { pending: signedIn && database.isPending, error: database.isError },
+    work_order_acceptance: { pending: signedIn && bastApplicable && bast.isPending, error: signedIn && bastApplicable && bast.isError },
     transfer_receipt: { pending: signedIn && database.isPending, error: database.isError },
     quantity_change: { pending: signedIn && database.isPending, error: database.isError },
     certificate: { pending: signedIn && database.isPending, error: database.isError },
@@ -144,7 +159,7 @@ function useLiveWaitingForYou(): WaitingForYou {
   const failedKinds = WAITING_KINDS.filter((kind) => state[kind].error);
   const refetch = () => {
     void procurements.refetch(); void timesheets.refetch(); void expenses.refetch(); void invoices.refetch(); void material.refetch();
-    void leave.refetch(); void imprest.refetch(); void database.refetch();
+    void leave.refetch(); void imprest.refetch(); void bast.refetch(); void database.refetch();
   };
 
   return {
