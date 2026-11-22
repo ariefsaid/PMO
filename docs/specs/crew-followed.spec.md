@@ -59,3 +59,4 @@ A day record may carry `followed_crew_id`: "this worker followed this crew on th
 
 ## Tests whose steps changed
 - `pmo-portal/pages/crews/crewErrors.test.tsx` "a phone clock-in for a crew the person is not in says so, not 'refresh'": the expected `PCI_CREW` sentence is now "That crew is not on this work order today" (FR-FOL-010 rewords it because a person may now pick a crew they are not in). Goal unchanged: the crew refusal is named specifically, not the generic refresh message.
+- `supabase/tests/2705_phone_clock_in.test.sql` test 13 "AC-PCI-007 a crew the person is not in is refused": the crew picked is now `c03`, which is not rostered on that work order, instead of `c02`, which is. FR-FOL-010 lets a person pick any crew rostered on the work order, as a request to follow, so the old pick is accepted. Goal unchanged: a crew that cannot be followed is refused with 23514.

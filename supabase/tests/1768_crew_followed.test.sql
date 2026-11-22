@@ -58,8 +58,10 @@ insert into crew_members (org_id, crew_id, worker_id, valid_from)
 insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values
   ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000401', '28680000-0000-0000-0000-000000000c01', pg_temp.today() - 40),
   ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000402', '28680000-0000-0000-0000-000000000c02', pg_temp.today() - 40),
-  ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000402', '28680000-0000-0000-0000-000000000c04', pg_temp.today() - 40),
   ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000403', '28680000-0000-0000-0000-000000000c03', pg_temp.today() - 40);
+-- The archived crew's roster placement is ended first (the base's archive guard refuses a crew still rostered).
+insert into work_order_crews (org_id, work_order_id, crew_id, valid_from, valid_to) values
+  ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000402', '28680000-0000-0000-0000-000000000c04', pg_temp.today() - 40, pg_temp.today() - 20);
 update crews set archived_at = now() where id = '28680000-0000-0000-0000-000000000c04';
 insert into crew_loans (worker_id, home_crew_id, host_crew_id, valid_from, valid_to) values
   ('28680000-0000-0000-0000-000000000f07', '28680000-0000-0000-0000-000000000c01', '28680000-0000-0000-0000-000000000c03', pg_temp.d(-7), pg_temp.d(-7));
