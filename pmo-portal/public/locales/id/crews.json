@@ -132,9 +132,10 @@
   "tabs": {
     "attendance": "Kehadiran",
     "crews": "Kru",
+    "manpower": "Tenaga kerja",
+    "rate": "Tingkat",
     "roster": "Jadwal kru",
-    "tools": "Alat",
-    "rate": "Tingkat"
+    "tools": "Alat"
   },
   "tabsLabel": "Tampilan kru",
   "tickErrors": {
@@ -250,5 +251,54 @@
     "supervisorRole": "Siapa yang memutuskan absen di luar area",
     "supervisorRoleDefault": "Pengendali lapangan kru atau pengelola kru",
     "supervisorRoleHelper": "Pemegang peran ini yang memutuskan. Orang yang absen tidak pernah memutuskan absennya sendiri."
+  },
+  "manpower": {
+    "title": "Kebutuhan tenaga kerja",
+    "new": "Catat kebutuhan",
+    "newTitle": "Catat kebutuhan tenaga kerja",
+    "save": "Catat kebutuhan",
+    "saved": "Kebutuhan dicatat",
+    "project": "Proyek",
+    "chooseProject": "Pilih proyek",
+    "position": "Posisi",
+    "choosePosition": "Pilih posisi",
+    "noPositions": "Belum ada posisi. Admin menambahkannya di layar Disiplin biaya.",
+    "headcountRange": "Masukkan bilangan bulat 1 sampai 500",
+    "neededBy": "Dibutuhkan paling lambat",
+    "neededByOn": "Dibutuhkan paling lambat {{date}}",
+    "workOrderNeedsProject": "Pilih proyek terlebih dahulu.",
+    "noWorkOrder": "Seluruh proyek",
+    "crew": "Kru",
+    "noCrew": "Kru mana pun",
+    "note": "Catatan",
+    "asked": "Diminta",
+    "filled": "Terisi",
+    "inProgress": "Dalam proses",
+    "open": "Kosong",
+    "progressLabel": "{{filled}} dari {{asked}} terisi",
+    "people": "Orang yang ditautkan",
+    "unlinkNamed": "Lepas {{name}}",
+    "unlinked": "Orang dilepas",
+    "linkPerson": "Tautkan orang",
+    "linked": "Orang ditautkan",
+    "allLinked": "Semua tempat sudah terisi orang. Naikkan jumlah kebutuhan untuk menautkan lagi.",
+    "markMet": "Tandai terpenuhi",
+    "markMetWhy": "Tersedia setelah setiap tempat diisi orang yang sudah lolos pemeriksaan.",
+    "markedMet": "Ditandai terpenuhi",
+    "cancel": "Batalkan kebutuhan",
+    "cancelTitle": "Batalkan kebutuhan ini?",
+    "cancelBody": "Orang yang ditautkan tetap tercatat. Kebutuhan dapat dibuka lagi nanti.",
+    "cancelled": "Kebutuhan dibatalkan",
+    "reopen": "Buka lagi",
+    "reopened": "Kebutuhan dibuka lagi",
+    "error": "Kebutuhan tenaga kerja tidak dapat dimuat",
+    "empty": "Belum ada kebutuhan tenaga kerja",
+    "emptyWriter": "Catat posisi yang dibutuhkan sebuah lokasi dan batas waktunya.",
+    "emptyReader": "Manajer proyek atau tim SDM mencatat posisi yang dibutuhkan sebuah lokasi.",
+    "status": {
+      "open": "Terbuka",
+      "met": "Terpenuhi",
+      "cancelled": "Dibatalkan"
+    }
   }
 }

@@ -1,0 +1,2 @@
+# 1740: the database answer to "may this person write manpower needs", read by the screen.
+manpower_can_manage
