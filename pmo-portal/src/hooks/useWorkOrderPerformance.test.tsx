@@ -27,12 +27,16 @@ vi.mock('@/src/lib/repositories/workOrderRevenuePlan', async (importOriginal) =>
   };
 });
 
-import { useModuleOn } from './useOrgSwitch';
+import { orgSwitchKey, useModuleOn } from './useOrgSwitch';
 import { useRevenuePlanSettings } from './useWorkOrderRevenuePlan';
 import { PERFORMANCE_SETTINGS_KEY, usePerformanceSettings } from './useWorkOrderPerformance';
+import type { OrgModuleKey } from '@/src/lib/repositories/orgSwitches';
 
 const settingsSelection = 'performance_indices_enabled, performance_band_low, performance_band_high';
 const client = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const moduleData = (qc: QueryClient, module: OrgModuleKey) => qc.getQueryData<boolean>(orgSwitchKey('org-1', module));
+const waitForModuleData = (qc: QueryClient, module: OrgModuleKey, expected: boolean) =>
+  waitFor(() => expect(moduleData(qc, module)).toBe(expected));
 const wrapper = (qc: QueryClient) => ({ children }: { children: React.ReactNode }) => (
   <AuthContext.Provider value={{ currentUser: { org_id: 'org-1' } } as never}>
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
@@ -81,14 +85,21 @@ describe('usePerformanceSettings shell prerequisite', () => {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 
     expect(supabaseStub.selections).toEqual([]);
+    expect(moduleData(qc, 'moduleSiteDay')).toBeUndefined();
     expect(qc.getQueryData([PERFORMANCE_SETTINGS_KEY, 'org-1'])).toBeUndefined();
   });
 
-  it('reads the module once after the shell cache is ready', async () => {
+  it('enables module and performance reads when the shell cache becomes ready while mounted', async () => {
     const qc = client();
-    qc.setQueryData(['org-locale-defaults', 'org-1'], { default_timezone: 'Asia/Jakarta' });
     const { result } = renderHook(() => usePerformanceSettings(), { wrapper: wrapper(qc) });
 
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(supabaseStub.selections).toEqual([]);
+    expect(moduleData(qc, 'moduleSiteDay')).toBeUndefined();
+
+    act(() => qc.setQueryData(['org-locale-defaults', 'org-1'], { default_timezone: 'Asia/Jakarta' }));
+
+    await waitForModuleData(qc, 'moduleSiteDay', true);
     await waitFor(() => expect(result.current.data?.enabled).toBe(true));
 
     expect(supabaseStub.selections.filter((selection) => selection === 'module_site_day')).toHaveLength(1);
@@ -102,6 +113,7 @@ describe('usePerformanceSettings shell prerequisite', () => {
     qc.setQueryData(['org-locale-defaults', 'org-1'], { default_timezone: 'Asia/Jakarta' });
     const { result } = renderHook(() => usePerformanceSettings(), { wrapper: wrapper(qc) });
 
+    await waitForModuleData(qc, 'moduleSiteDay', false);
     await waitFor(() => expect(result.current.data?.enabled).toBe(false));
 
     expect(qc.getQueryData([PERFORMANCE_SETTINGS_KEY, 'org-1'])).toMatchObject({ enabled: true });
@@ -114,25 +126,33 @@ describe('usePerformanceSettings shell prerequisite', () => {
     qc.setQueryData(['org-locale-defaults', 'org-1'], { default_timezone: 'Asia/Jakarta' });
     const { result } = renderHook(() => usePerformanceSettings(), { wrapper: wrapper(qc) });
 
+    await waitForModuleData(qc, 'moduleSiteDay', true);
     await waitFor(() => expect(result.current.data?.enabled).toBe(enabled));
 
     expect(qc.getQueryData([PERFORMANCE_SETTINGS_KEY, 'org-1'])).toMatchObject({ enabled });
   });
 
-  it('keeps other module consumers active with the default enabled argument', async () => {
-    const { result } = renderHook(() => useModuleOn('moduleStock'), { wrapper: wrapper(client()) });
+  it('queries by default and reflects an off server value for a direct module consumer', async () => {
+    supabaseStub.row.module_stock = false;
+    const qc = client();
+    const { result } = renderHook(() => useModuleOn('moduleStock'), { wrapper: wrapper(qc) });
 
-    await waitFor(() => expect(result.current).toBe(true));
+    await waitForModuleData(qc, 'moduleStock', false);
+    await waitFor(() => expect(result.current).toBe(false));
 
     expect(supabaseStub.selections).toEqual(['module_stock']);
   });
 
-  it('keeps an existing feature-module settings consumer active by default', async () => {
-    const { result } = renderHook(() => useRevenuePlanSettings(), { wrapper: wrapper(client()) });
+  it('keeps the existing feature-module settings consumer enabled by default and waits for its module', async () => {
+    supabaseStub.row.module_billing_extras = false;
+    const qc = client();
+    const { result } = renderHook(() => useRevenuePlanSettings(), { wrapper: wrapper(qc) });
 
-    await waitFor(() => expect(result.current.data?.enabled).toBe(true));
+    await waitForModuleData(qc, 'moduleBillingExtras', false);
+    await waitFor(() => expect(result.current.data?.enabled).toBe(false));
 
     expect(supabaseStub.selections).toEqual(['module_billing_extras']);
     expect(revenueSettings).toHaveBeenCalledTimes(1);
+    expect(qc.getQueryData(['revenue-plan-settings', 'org-1'])).toMatchObject({ enabled: true });
   });
 });
