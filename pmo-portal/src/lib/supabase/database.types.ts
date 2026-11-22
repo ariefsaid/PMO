@@ -32359,8 +32359,8 @@ export type Database = {
         Args: never
         Returns: {
           asked: number
-          filled: number
-          in_progress: number
+          filled: number | null
+          in_progress: number | null
           linked: number
           need_id: string
           open_count: number

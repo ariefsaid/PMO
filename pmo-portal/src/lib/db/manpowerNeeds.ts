@@ -38,8 +38,9 @@ export interface ManpowerProgressRow {
   need_id: string;
   asked: number;
   linked: number;
-  filled: number;
-  in_progress: number;
+  /** Null where the caller is not shown who is cleared (the screen shows a dash). */
+  filled: number | null;
+  in_progress: number | null;
   open_count: number;
 }
 

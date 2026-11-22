@@ -37,12 +37,14 @@ const NeedCard: React.FC<CardProps> = ({ need, progress, position, project, link
     try { await job(); toast(done, undefined, 'success'); } catch (err) { onProblem(writeError(err)); }
   };
   const asked = progress?.asked ?? need.headcount;
+  // filled and in progress are null where the database does not show this person who is cleared: show a dash, never a made-up zero.
+  const hidden = progress !== undefined && (progress.filled === null || progress.in_progress === null);
   const filled = progress?.filled ?? 0;
   const inProgress = progress?.in_progress ?? 0;
   const open = progress?.open_count ?? need.headcount;
   const linkable = peopleOptions.filter((o) => !links.some((l) => l.personId === o.value));
   const canLink = canManage && need.status === 'open' && links.length < need.headcount;
-  const readyToClose = need.status === 'open' && open === 0 && inProgress === 0;
+  const readyToClose = need.status === 'open' && !hidden && open === 0 && inProgress === 0;
   return (
     <Card data-testid={`manpower-need-${need.id}`}>
       <CardHead actions={<StatusPill variant={statusVariant[need.status]}>{statusLabel(t, need.status)}</StatusPill>}>
@@ -51,16 +53,19 @@ const NeedCard: React.FC<CardProps> = ({ need, progress, position, project, link
       <CardPad>
         <p className="text-sm text-muted-foreground">{t('crews:manpower.neededByOn', 'Needed by {{date}}', { date: formatDay(need.needed_by) })}{need.note ? ` · ${need.note}` : ''}</p>
         <div className="mt-3">
-          <ProgressBar value={asked > 0 ? (filled / asked) * 100 : 0} tone="success"
-            aria-label={t('crews:manpower.progressLabel', '{{filled}} of {{asked}} filled', { filled, asked })} />
+          {!hidden && (
+            <ProgressBar value={asked > 0 ? (filled / asked) * 100 : 0} tone="success"
+              aria-label={t('crews:manpower.progressLabel', '{{filled}} of {{asked}} filled', { filled, asked })} />
+          )}
           <dl className="mt-2 grid grid-cols-4 gap-2 text-sm">
             {[
-              [t('crews:manpower.asked', 'Asked'), asked], [t('crews:manpower.filled', 'Filled'), filled],
-              [t('crews:manpower.inProgress', 'In progress'), inProgress], [t('crews:manpower.open', 'Open'), open],
+              [t('crews:manpower.asked', 'Asked'), asked], [t('crews:manpower.filled', 'Filled'), hidden ? '—' : filled],
+              [t('crews:manpower.inProgress', 'In progress'), hidden ? '—' : inProgress], [t('crews:manpower.open', 'Open'), open],
             ].map(([label, n]) => (
               <div key={label}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="tabular-nums font-medium">{n}</dd></div>
             ))}
           </dl>
+          {hidden && <p className="mt-1 text-xs text-muted-foreground">{t('crews:manpower.countsHidden', 'Filled and in progress are shown to the people team and to the roles that read the clearance checklist.')}</p>}
         </div>
         {links.length > 0 && (
           <ul className="mt-3 divide-y divide-border" aria-label={t('crews:manpower.people', 'People linked')}>
