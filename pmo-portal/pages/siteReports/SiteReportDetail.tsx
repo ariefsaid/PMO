@@ -16,7 +16,7 @@ import {
   useDailySiteReport, useDailySiteReportMutations, useDailySiteReportRevenue, useDsrLookups, useWorkOrderValidatedRevenue,
 } from '@/src/hooks/useDailySiteReports';
 import { repositories } from '@/src/lib/repositories';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import { dsrReportRevenue } from '@/src/lib/dsrRevenue';
 import type { DsrReportDetail } from '@/src/lib/db/dailySiteReports';
@@ -105,12 +105,12 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
         const headline = t('empty.headline', 'This report is empty');
         const d = t('empty.detail', { defaultValue: 'Add at least one of: {{list}}.', list });
         toast(headline, d, 'warning');
-        setDialogError(`${headline}. ${d}`);
+        setDialogError(joinSentences(headline, d));
         return false;
       }
       const { headline, detail: d } = classifyMutationError(err);
       toast(headline, d, 'warning');
-      setDialogError(d ? `${headline}. ${d}` : headline);
+      setDialogError(d ? joinSentences(headline, d) : headline);
       return false;
     }
   };
@@ -354,7 +354,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
             navigate(`/site-reports/${id}`);
           } catch (err) {
             const { headline, detail: d } = classifyMutationError(err);
-            setDialogError(d ? `${headline}. ${d}` : headline);
+            setDialogError(d ? joinSentences(headline, d) : headline);
           }
         })()}
       />

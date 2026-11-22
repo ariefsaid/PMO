@@ -304,7 +304,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/subcontract-certificates', chunks: [SubcontractCertificatesPage], namespaces: ['subcontractCertificates'] },
   { path: '/subcontract-certificates/:certificateId', chunks: [SubcontractCertificateDetailPage], namespaces: ['subcontractCertificates'] },
   { path: '/leave', chunks: [LeaveRequestsPage], namespaces: ['crews'] },
-  { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
+  { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment', 'administration'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/clearance/:personId', chunks: [PersonClearancePage], namespaces: ['administration'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement', 'safety'] },

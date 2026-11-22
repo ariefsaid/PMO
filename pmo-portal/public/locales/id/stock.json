@@ -35,7 +35,8 @@
       "site": "Lokasi proyek",
       "yard": "Halaman proyek",
       "staging": "Area penyiapan",
-      "vendor": "Vendor luar"
+      "vendor": "Vendor luar",
+      "transit": "Dalam perjalanan"
     },
     "noKeepers": "Belum ada penjaga",
     "active": "Aktif",

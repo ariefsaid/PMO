@@ -16,7 +16,7 @@ import {
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useUsers } from '@/src/hooks/useUsers';
 import { type EquipmentAssetRow, type EquipmentUsageWithRejecter as EquipmentUsageRow, type UsageInput } from '@/src/lib/db/equipment';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay, formatNumberMax2, formatWeekdayDay } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { addDays, fromIso, mondayOf, toIso, weekDays } from './equipmentWeek';
@@ -145,7 +145,7 @@ const EquipmentUsagePage: React.FC = () => {
 
   const classifiedFailure = (err: unknown) => {
     const c = classifyMutationError(err);
-    return c.detail ? `${c.headline}. ${c.detail}` : c.headline;
+    return c.detail ? joinSentences(c.headline, c.detail) : c.headline;
   };
   const fail = (err: unknown) => setProblem(classifiedFailure(err));
 
@@ -177,7 +177,7 @@ const EquipmentUsagePage: React.FC = () => {
       // A NEW entry takes its row's work order and discipline (#2517); the entry is saved even if that step is refused.
       if (!entry) {
         try { await workOrderCostRepository.attributeCreated('equipment_usage', result.id, row.attribution); }
-        catch (err) { const d = describeAttributionError(err, t); setProblem(`${d.headline}. ${d.detail}`); }
+        catch (err) { const d = describeAttributionError(err, t); setProblem(joinSentences(d.headline, d.detail)); }
       }
       setWarnings((w) => {
         const next = { ...w };

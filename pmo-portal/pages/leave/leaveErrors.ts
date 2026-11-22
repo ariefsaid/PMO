@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 
 /** One sentence for a refused leave write (#2708). The database names the rule in a stable prefix (`LV_SOD: …`). */
 export function leaveErrorMessage(t: TFunction, err: unknown): string {
@@ -15,6 +15,6 @@ export function leaveErrorMessage(t: TFunction, err: unknown): string {
     case 'LV_DECIDED': return t('crews:leave.errors.decided', 'This request has already been decided. Reload to see it.');
     case 'LV_NOTE': return t('crews:leave.errors.note', 'Give a reason when rejecting.');
     case 'LV_DISABLED': return t('crews:leave.errors.disabled', 'Leave requests are not switched on.');
-    default: { const c = classifyMutationError(err); return `${c.headline}. ${c.detail}`; }
+    default: { const c = classifyMutationError(err); return joinSentences(c.headline, c.detail); }
   }
 }

@@ -6,7 +6,7 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useApproveJournal, useJournal, useMayApproveJournal, usePostJournal, useRequestJournalReversal, useReturnJournal, useSubmitJournal } from '@/src/hooks/useJournals';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDayYear, formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatExactCents, parseExactCents } from '@/src/lib/exactDecimal';
@@ -87,7 +87,7 @@ export const JournalDrawer: React.FC<JournalDrawerProps> = ({ row, currency, cur
     } catch (err) {
       if (err instanceof ApprovedSendFailure) setSendFailed(true);
       const c = classifyMutationError(err instanceof ApprovedSendFailure ? err.cause : err, journalErrorOverrides(t));
-      setError(`${c.headline}. ${c.detail}`);
+      setError(joinSentences(c.headline, c.detail));
     } finally {
       setBusy(false);
     }

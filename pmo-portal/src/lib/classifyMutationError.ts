@@ -444,3 +444,12 @@ export function trackBatchSaveFailed(
     safeTrack(() => trackBulkImportFailed(boundedModule, classification, count));
   }
 }
+
+/**
+ * A headline and its detail as one message: "<headline>. <detail>". Several headlines already end in a full stop, so a plain
+ * template printed "That already exists.. Another record…"; the stop is added only when the headline does not carry one.
+ */
+export function joinSentences(headline: string, detail: string): string {
+  const head = headline.trimEnd();
+  return `${/[.!?…]$/.test(head) ? head : `${head}.`} ${detail}`;
+}

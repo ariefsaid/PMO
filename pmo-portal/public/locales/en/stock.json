@@ -35,7 +35,8 @@
       "site": "Site",
       "yard": "Yard",
       "staging": "Staging",
-      "vendor": "Vendor"
+      "vendor": "Vendor",
+      "transit": "In transit"
     },
     "noKeepers": "No keeper",
     "active": "Active",

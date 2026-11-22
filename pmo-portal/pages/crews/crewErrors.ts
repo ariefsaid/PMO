@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { STALE_VERSION_CODE } from '@/src/lib/repositories/crews';
 import { formatDay } from '@/src/lib/format';
 
@@ -52,5 +52,5 @@ export function crewErrorMessage(t: TFunction, err: unknown): string {
   }
   if (message.startsWith('separation of duties')) return t('crews:errors.sod', 'You recorded these hours, so someone else approves them.');
   const c = classifyMutationError(err);
-  return `${c.headline}. ${c.detail}`;
+  return joinSentences(c.headline, c.detail);
 }

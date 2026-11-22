@@ -557,7 +557,7 @@
       "invite": "Undang pengguna",
       "columns": {
         "user": "Pengguna",
-        "role": "Role",
+        "role": "Peran",
         "status": "Status",
         "manager": "Manajer"
       },
@@ -567,7 +567,7 @@
       },
       "noManager": "Tanpa manajer",
       "menu": {
-        "editRole": "Edit role",
+        "editRole": "Ubah peran",
         "changeManager": "Ubah manajer",
         "reEnable": "Aktifkan kembali",
         "disable": "Nonaktifkan"
