@@ -151,7 +151,7 @@ export const WorkOrderRoster: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <WorkOrderPicker id="roster-work-order" value={workOrderId} onChange={(v) => setFilter('wo', v ?? '')} />
+        <WorkOrderPicker id="roster-work-order" remember value={workOrderId} onChange={(v) => setFilter('wo', v ?? '')} />
         <DateField label={t('crews:date', 'Date')} value={date} onChange={(v) => setFilter('date', v === today ? '' : v)} />
       </div>
       {problem && <p role="alert" className="text-sm text-destructive-text">{problem}</p>}

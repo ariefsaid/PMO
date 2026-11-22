@@ -74,6 +74,13 @@ describe('work-order roster for a date (#2528)', () => {
     expect(within(crew).queryByText('Role')).toBeNull();
   });
 
+  it('fix/walk-people item 11: the roster opens on the work order used last when the address names none', () => {
+    window.localStorage.setItem('pmo.crews.lastWorkOrder', 'wo1');
+    renderAt('/crews?view=roster');
+    expect(h.rosterArgs.some((a) => (a as unknown[])[0] === 'wo1')).toBe(true);
+    window.localStorage.removeItem('pmo.crews.lastWorkOrder');
+  });
+
   it('asks for a work order first', () => {
     renderAt('/crews?view=roster');
     expect(screen.getByText('Choose a work order to see who serves it')).toBeInTheDocument();
