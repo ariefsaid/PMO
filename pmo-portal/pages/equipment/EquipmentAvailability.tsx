@@ -1,67 +1,40 @@
 import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { DateField } from '@/src/components/ui/DateField';
 import { useTranslation } from 'react-i18next';
-import { FileInput } from '@/src/components/ui/FormFields';
-import { FileCell } from '@/src/components/FileCell';
-import { Button, Checkbox, ListPage, ListState, SelectField, StatusPill, TextField, useToast } from '@/src/components/ui';
-import { CanWrite, usePermission } from '@/src/auth/usePermission';
+import { Button, Checkbox, DataTable, ListPage, ListState, SelectField, TextField, useToast, type Column } from '@/src/components/ui';
+import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useEquipmentAssetPages } from '@/src/hooks/useEquipment';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
-import {
-  useAttachProof, useDowntimeFlags, useEquipmentMetrics, useEquipmentWorkingHours, useSetStatusBulk, useStatusDays, useLatestStatusDays, useEquipmentProofs,
-} from '@/src/hooks/useEquipmentAvailability';
+import { useEquipmentMetrics, useEquipmentWorkingHours } from '@/src/hooks/useEquipmentAvailability';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { isDownStatus, type EquipmentStatus } from '@/src/lib/equipmentMetrics';
 import { monthStart } from './equipmentWeek';
 import RentalInvoiceCheck from './RentalInvoiceCheck';
 import { EquipmentTargetSettings, EquipmentTargetsProvider } from './EquipmentTargets';
 import { useEquipmentTargetValues } from '@/src/hooks/useEquipmentTargets';
+import { MachineStatusSection } from './MachineStatusSection';
+import { STATUSES, statusEffect, statusLabel } from './equipmentStatusLabels';
+import { formatIsoDay } from '@/src/lib/format';
 
-const STATUSES: EquipmentStatus[] = ['ready', 'standby', 'broken', 'at_vendor', 'waiting_parts'];
-
-/** Static t() calls so the catalogue gates see every key (the pattern of `equipmentLabels`). */
-function statusLabel(t: ReturnType<typeof useTranslation>['t'], s: EquipmentStatus): string {
-  switch (s) {
-    case 'ready': return t('equipment:availability.status.ready', 'Ready');
-    case 'standby': return t('equipment:availability.status.standby', 'Standby');
-    case 'broken': return t('equipment:availability.status.broken', 'Broken');
-    case 'at_vendor': return t('equipment:availability.status.at_vendor', 'At vendor');
-    case 'waiting_parts': return t('equipment:availability.status.waiting_parts', 'Waiting for parts');
-  }
-}
-
-function ProofUpload({ code, onFile }: { code: string; onFile: (file: File | undefined) => void }) {
-  const { t } = useTranslation();
-  const input = React.useRef<HTMLInputElement>(null);
-  return <span className="[&_button]:text-control [&_svg]:size-4">
-    <FileCell status="Draft" filePath={null} title={code} onUpload={() => input.current?.click()} />
-    <FileInput ref={input} tabIndex={-1} className="sr-only" aria-label={t('equipment:availability.proofFor', 'Attach proof for {{code}}', { code })} accept="image/*,application/pdf" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; onFile(file); }} />
-  </span>;
-}
-
-/** Equipment → Availability (#2526): set today's status for every machine (phone-first), see availability and utilisation,
- *  with organisation-scoped terms and working hours. UX only; the RPCs enforce. */
 const EquipmentAvailabilityScreen: React.FC = () => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
   const writeCtx = { record: { viewOnly: realRole !== effectiveRole } };
-  const canManageTargets = may('manage', 'equipmentTarget', writeCtx);
   const timezone = useOrgBusinessTimezone();
   const today = useOrgToday(timezone);
   const monthFrom = monthStart(today);
 
   const [view, setView] = useState<'status' | 'check'>('status');
-  const canCheck = may('approve', 'equipmentAvailability', writeCtx);
-  const [chosenStatusDate, setStatusDate] = useState<string | null>(null);
-  const statusDate = chosenStatusDate ?? today;
-  const [notes, setNotes] = useState<Record<string, string>>({});
-  const [uploadedProofs, setUploadedProofs] = useState<Set<string>>(() => new Set());
+  // 1600: the equipment manager reads the invoice check; only Admin and Finance may state a reason to include unproven days.
+  const canCheck = may('manage', 'equipmentAvailability', writeCtx) || may('approve', 'equipmentAvailability', writeCtx);
+  const canIncludeUnproven = may('approve', 'equipmentAvailability', writeCtx);
+  const canConfigure = may('configure', 'equipmentAvailability', writeCtx);
   const assets = useEquipmentAssetPages();
   const [assetPage, setAssetPage] = useState(0);
+  const [dirty, setDirty] = useState(false);
   const pages = assets.data?.pages ?? [];
   const rows = pages[assetPage]?.rows ?? [];
   const nextPage = async () => {
@@ -69,46 +42,7 @@ const EquipmentAvailabilityScreen: React.FC = () => {
     const next = await assets.fetchNextPage();
     if (next.data && next.data.pages.length > assetPage + 1) { setAssetPage(assetPage + 1); setMetricAssets([]); }
   };
-  const queryDate = statusDate || today;
-  const status = useStatusDays(monthStart(queryDate), queryDate, rows.map((a) => a.id));
-  const latest = useLatestStatusDays(rows.map((a) => a.id), queryDate);
-  const proofStates = useEquipmentProofs(rows.map((a) => a.id), statusDate);
-  const provenAssets = new Set((proofStates.data ?? []).filter((p) => p.proven).map((p) => p.asset_id));
-  const flags = useDowntimeFlags();
-  const flagged = new Set((flags.data ?? []).map((f) => f.asset_id));
-  const lastStatus = useMemo(() => {
-    const m = new Map<string, EquipmentStatus>();
-    for (const s of latest.data ?? []) m.set(s.asset_id, s.status);
-    return m;
-  }, [latest.data]);
-  const todays = useMemo(() => new Map((status.data ?? []).filter((s) => s.status_date === statusDate).map((s) => [s.asset_id, s.status])), [status.data, statusDate]);
-
-  const [draft, setDraft] = useState<Record<string, EquipmentStatus>>({});
   const [problem, setProblem] = useState<string | null>(null);
-  const bulk = useSetStatusBulk();
-  const proof = useAttachProof();
-
-  const save = async () => {
-    setProblem(null);
-    const items = Object.entries(draft).map(([asset_id, st]) => ({ asset_id, status: st, ...(notes[asset_id]?.trim() ? { note: notes[asset_id].trim() } : {}) }));
-    if (items.length === 0) return;
-    try {
-      await bulk.mutateAsync({ date: statusDate, items });
-      setDraft({});
-      setNotes({});
-      setUploadedProofs((prior) => { const next = new Set(prior); for (const item of items) next.delete(`${item.asset_id}:${statusDate}`); return next; });
-      toast(t('equipment:availability.saved', 'Status saved'), undefined, 'success');
-    } catch (err) { setProblem(classifyMutationError(err).headline); }
-  };
-  const attach = async (assetId: string, file: File | undefined) => {
-    if (!file) return;
-    setProblem(null);
-    try {
-      await proof.mutateAsync({ assetId, date: statusDate, file });
-      setUploadedProofs((prior) => new Set(prior).add(`${assetId}:${statusDate}`));
-      toast(t('equipment:availability.proofSaved', 'Proof attached'), undefined, 'success');
-    } catch (err) { setProblem(classifyMutationError(err).headline); }
-  };
 
   const canMetrics = may('view', 'equipmentCosting');
   const [chosenMetricFrom, setMetricFrom] = useState<string | null>(null);
@@ -120,13 +54,27 @@ const EquipmentAvailabilityScreen: React.FC = () => {
   const [hours, setHours] = useState('');
   const workingHours = useEquipmentWorkingHours();
   const targets = useEquipmentTargetValues();
-  const escalationLimit = targets.escalation_down_days;
   const availabilityTarget = targets.availability_target_pct;
   const utilisationTarget = targets.utilisation_target_pct;
   const belowTarget = (value: string | number | null | undefined, target: number | null) => target != null && value != null && Number(value) < Number(target);
   const metrics = useEquipmentMetrics(metricAssets.length ? rows.filter((a) => metricAssets.includes(a.id)).map((a) => a.id) : rows.map((a) => a.id), metricFrom, metricTo, grain, canMetrics && rows.length > 0);
   const byAsset = new Map(rows.map((a) => [a.id, a]));
-
+  type MetricRow = NonNullable<typeof metrics.data>[number];
+  const metricRows = useMemo(() => (metrics.data ?? []).filter((m) => byAsset.has(m.asset_id)), [metrics.data, rows]); // eslint-disable-line react-hooks/exhaustive-deps -- byAsset derives from rows
+  const metricColumns: Column<MetricRow>[] = [
+    { key: 'asset', header: t('equipment:availability.asset', 'Asset'), kind: 'primary', rowHeader: true, cell: (m) => <span className="record-id whitespace-nowrap font-medium">{byAsset.get(m.asset_id)?.code}</span> },
+    { key: 'period', header: t('equipment:availability.period', 'Period'), cell: (m) => <span className="whitespace-nowrap">{formatIsoDay(m.bucket_start)}</span> },
+    { key: 'availability', align: 'num',
+      header: <span>{t('equipment:availability.availability', 'Availability')}{availabilityTarget != null && <span className="ml-1 font-normal text-muted-foreground">{t('equipment:availability.targetNote', '(target {{target}}%)', { target: availabilityTarget })}</span>}</span>,
+      cell: (m) => <span className="whitespace-nowrap">{m.availability_pct != null ? `${m.availability_pct}%` : '—'}
+        {belowTarget(m.availability_pct, availabilityTarget) && <span className="ml-1 text-destructive-text">{t('equipment:availability.belowTarget', 'Below target')}</span>}</span> },
+    { key: 'utilisation', align: 'num',
+      header: <span>{t('equipment:availability.utilisation', 'Utilisation')}{utilisationTarget != null && <span className="ml-1 font-normal text-muted-foreground">{t('equipment:availability.targetNote', '(target {{target}}%)', { target: utilisationTarget })}</span>}</span>,
+      cell: (m) => <span>{m.utilisation_pct != null ? `${m.utilisation_pct}%` : '—'}
+        {belowTarget(m.utilisation_pct, utilisationTarget) && <span className="ml-1 text-destructive-text">{t('equipment:availability.belowTarget', 'Below target')}</span>}
+        {m.pending_usage_entries > 0 && <span className="ml-1 text-muted-foreground">{t('equipment:availability.pendingUsage', '({{n}} awaiting approval)', { n: m.pending_usage_entries })}</span>}</span> },
+    { key: 'unrecorded', header: t('equipment:availability.unrecordedDays', 'Unrecorded days'), align: 'num', cell: (m) => m.unrecorded_days ?? '—' },
+  ];
 
   return (
     <ListPage title={t('equipment:availability.title', 'Availability')}>
@@ -138,56 +86,25 @@ const EquipmentAvailabilityScreen: React.FC = () => {
       {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
       {assets.isPending && <ListState variant="loading" shape="table" rows={4} />}
       {assets.isError && <ListState variant="error" title={t('equipment:availability.assetsError', "Couldn't load equipment")} onRetry={() => void assets.refetch()} />}
-      {latest.isError && <p role="alert">{t('equipment:availability.latestError', 'Could not load last statuses')}</p>}
-      {proofStates.isError && <p role="alert">{t('equipment:availability.proofsError', 'Could not load evidence status')}</p>}
-      {status.isError && <p role="alert">{t('equipment:availability.statusError', 'Could not load statuses')}</p>}
       {!assets.isPending && !assets.isError && rows.length === 0 && (
         <ListState variant="empty" title={t('equipment:availability.empty', 'No equipment yet')}
-          sub={t('equipment:availability.emptySub', 'Add assets under Equipment → Assets, then set their daily status here.')} />
+          sub={t('equipment:availability.emptySub', 'Add equipment from the Equipment screen, then set its daily status here.')} />
       )}
-      {view === 'status' && !assets.isError && !status.isError && rows.length > 0 && (
-        <section aria-labelledby="eav-status-h" className="mb-6">
-          <h2 id="eav-status-h" className="text-base font-semibold mb-2">{t('equipment:availability.statusHeading', 'Equipment status')}</h2>
-          <div className="mb-3 max-w-xs"><TextField label={t('equipment:availability.statusDate', 'Status date')} type="date" value={statusDate} onChange={(v) => { setStatusDate(v); setDraft({}); setNotes({}); }} /></div>
-          <ul className="divide-y divide-border rounded-md border border-border">
-            {rows.map((a) => {
-              const current = draft[a.id] ?? todays.get(a.id);
-              const prev = lastStatus.get(a.id);
-              const down = current ? isDownStatus(current) : false;
-              return (
-                <li key={a.id} className="flex flex-wrap items-center gap-3 p-3">
-                  <span className="min-w-40 flex-1">
-                    <Link to={`/equipment/assets/${a.id}`} className="touch-target inline-flex items-center font-medium text-primary-text hover:underline">{a.code}</Link> <span className="text-muted-foreground">{a.name}</span>
-                    {current && !may('create', 'equipmentAvailability', writeCtx) && <span className="ml-2">{statusLabel(t, current)}</span>}
-                    {(uploadedProofs.has(`${a.id}:${statusDate}`) || (!proofStates.isFetching && provenAssets.has(a.id))) && down && !draft[a.id] && <StatusPill variant="won" className="ml-2">{t('equipment:availability.proven', 'Proven')}</StatusPill>}
-                    {down && todays.has(a.id) && !draft[a.id] && proofStates.data && !proofStates.isFetching && !proofStates.isError && !uploadedProofs.has(`${a.id}:${statusDate}`) && !provenAssets.has(a.id) && <StatusPill variant="warn" className="ml-2">{t('equipment:availability.noProof', 'No proof')}</StatusPill>}
-                    {flagged.has(a.id) && <span role="status" className="ml-2 text-destructive-text text-sm">{t('equipment:availability.flagged', 'Down more than {{n}} days', { n: escalationLimit })}</span>}
-                    {!todays.has(a.id) && !draft[a.id] && <span className="ml-2 text-sm text-muted-foreground">{prev ? t('equipment:availability.last', 'Last: {{status}}', { status: statusLabel(t, prev) }) : t('equipment:availability.unrecorded', 'Not recorded')}</span>}
-                  </span>
-                  <CanWrite entity="equipmentAvailability" action="create" ctx={writeCtx}>
-                    <SelectField hideLabel label={t('equipment:availability.statusFor', 'Status of {{code}}', { code: a.code })} value={current ?? ''}
-                      onChange={(v) => setDraft((d) => ({ ...d, [a.id]: v as EquipmentStatus }))}
-                      options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...STATUSES.map((s) => ({ value: s, label: statusLabel(t, s) }))]} />
-                    {draft[a.id] && <TextField label={t('equipment:availability.noteFor', 'Note for {{code}}', { code: a.code })} value={notes[a.id] ?? ''} onChange={(v) => setNotes((n) => ({ ...n, [a.id]: v }))} />}
-                    {down && todays.has(a.id) && !draft[a.id] && (
-                      <ProofUpload code={a.code} onFile={(file) => void attach(a.id, file)} />
-                    )}
-                  </CanWrite>
-                </li>
-              );
-            })}
-          </ul>
-          <CanWrite entity="equipmentAvailability" action="create" ctx={writeCtx}>
-            <Button variant="primary" className="mt-3" disabled={!statusDate || Object.keys(draft).length === 0 || bulk.isPending} onClick={() => void save()}>
-              {t('equipment:availability.saveStatuses', 'Save statuses')}
-            </Button>
-          </CanWrite>
-        </section>
+      {view === 'status' && !assets.isError && rows.length > 0 && (
+        <>
+          <MachineStatusSection rows={rows} allowDate onDirtyChange={setDirty} onProblem={setProblem} />
+          <section aria-labelledby="eav-effects-h" className="mb-6">
+            <h2 id="eav-effects-h" className="text-base font-semibold mb-2">{t('equipment:availability.effectsHeading', 'What each status does to planning')}</h2>
+            <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[10rem_1fr]">
+              {STATUSES.map((st) => <React.Fragment key={st}><dt className="font-medium">{statusLabel(t, st)}</dt><dd className="text-muted-foreground">{statusEffect(t, st)}</dd></React.Fragment>)}
+            </dl>
+          </section>
+        </>
       )}
 
       {(assetPage > 0 || assetPage + 1 < pages.length || assets.hasNextPage) && <div className="flex gap-2 mb-4">
-        <Button variant="outline" disabled={assetPage === 0 || Object.keys(draft).length > 0} onClick={() => { setAssetPage(assetPage - 1); setMetricAssets([]); }}>{t('equipment:availability.previousPage', 'Previous equipment page')}</Button>
-        <Button variant="outline" disabled={(!assets.hasNextPage && assetPage + 1 >= pages.length) || Object.keys(draft).length > 0 || assets.isFetchingNextPage} onClick={() => void nextPage()}>{t('equipment:availability.nextPage', 'Next equipment page')}</Button>
+        <Button variant="outline" disabled={assetPage === 0 || dirty} onClick={() => { setAssetPage(assetPage - 1); setMetricAssets([]); }}>{t('equipment:availability.previousPage', 'Previous equipment page')}</Button>
+        <Button variant="outline" disabled={(!assets.hasNextPage && assetPage + 1 >= pages.length) || dirty || assets.isFetchingNextPage} onClick={() => void nextPage()}>{t('equipment:availability.nextPage', 'Next equipment page')}</Button>
       </div>}
 
       {view === 'status' && canMetrics && rows.length > 0 && (
@@ -202,46 +119,24 @@ const EquipmentAvailabilityScreen: React.FC = () => {
           </details>
           <div className="grid gap-3 sm:grid-cols-3 mb-3">
             <SelectField label={t('equipment:availability.interval', 'Metric interval')} value={grain} onChange={(v) => setGrain(v as 'day' | 'week' | 'month')} options={[{ value: 'day', label: t('equipment:availability.day', 'Day') }, { value: 'week', label: t('equipment:availability.week', 'Week') }, { value: 'month', label: t('equipment:availability.month', 'Month') }]} />
-            <TextField label={t('equipment:availability.metricFrom', 'Metric period from')} type="date" value={metricFrom} onChange={setMetricFrom} />
-            <TextField label={t('equipment:availability.metricTo', 'Metric period to')} type="date" value={metricTo} onChange={setMetricTo} />
+            <DateField label={t('equipment:availability.metricFrom', 'Metric period from')} value={metricFrom} onChange={setMetricFrom} />
+            <DateField label={t('equipment:availability.metricTo', 'Metric period to')} value={metricTo} onChange={setMetricTo} />
           </div>
-          {canManageTargets && <div className="mb-3 flex flex-wrap items-end gap-2">
+          {canConfigure && <div className="mb-3 flex flex-wrap items-end gap-2">
             <TextField label={t('equipment:availability.workingHours', 'Working hours per day')} inputMode="decimal" value={hours} onChange={setHours} />
             <Button variant="outline" disabled={!hours || workingHours.isPending} onClick={() => { void workingHours.mutateAsync(hours).then(() => { setHours(''); toast(t('equipment:availability.hoursSaved', 'Working hours saved'), undefined, 'success'); }).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.saveHours', 'Save working hours')}</Button>
           </div>}
-          {canManageTargets && <EquipmentTargetSettings onProblem={setProblem} />}
+          {canConfigure && <EquipmentTargetSettings onProblem={setProblem} />}
           {metrics.isError && <p role="alert">{t('equipment:availability.metricsError', 'Could not load metrics for this period.')}</p>}
-          <table className="w-full text-sm">
-            <thead><tr className="text-left">
-              <th scope="col">{t('equipment:availability.asset', 'Asset')}</th>
-              <th scope="col">{t('equipment:availability.period', 'Period')}</th>
-              <th scope="col">{t('equipment:availability.availability', 'Availability')}{availabilityTarget != null && <span className="ml-1 font-normal text-muted-foreground">{t('equipment:availability.targetNote', '(target {{target}}%)', { target: availabilityTarget })}</span>}</th>
-              <th scope="col">{t('equipment:availability.utilisation', 'Utilisation')}{utilisationTarget != null && <span className="ml-1 font-normal text-muted-foreground">{t('equipment:availability.targetNote', '(target {{target}}%)', { target: utilisationTarget })}</span>}</th>
-              <th scope="col">{t('equipment:availability.unrecordedDays', 'Unrecorded days')}</th>
-            </tr></thead>
-            <tbody>{(metrics.data ?? []).map((m) => {
-              const a = byAsset.get(m.asset_id);
-              if (!a) return null;
-              return (
-                <tr key={`${a.id}-${m.bucket_start}`}>
-                  <th scope="row" className="font-medium">{a.code}</th><td>{m.bucket_start}</td>
-                  <td>{m?.availability_pct != null ? `${m.availability_pct}%` : '—'}
-                    {belowTarget(m?.availability_pct, availabilityTarget) && <span className="ml-1 text-destructive-text">{t('equipment:availability.belowTarget', 'Below target')}</span>}</td>
-                  <td>{m?.utilisation_pct != null ? `${m.utilisation_pct}%` : '—'}
-                    {belowTarget(m?.utilisation_pct, utilisationTarget) && <span className="ml-1 text-destructive-text">{t('equipment:availability.belowTarget', 'Below target')}</span>}
-                    {m && m.pending_usage_entries > 0 && <span className="ml-1 text-muted-foreground">{t('equipment:availability.pendingUsage', '({{n}} awaiting approval)', { n: m.pending_usage_entries })}</span>}</td>
-                  <td>{m?.unrecorded_days ?? '—'}</td>
-                </tr>
-              );
-            })}</tbody>
-          </table>
+          <p className="mb-2 text-sm text-muted-foreground">{t('equipment:availability.unrecordedNote', 'Unrecorded days are days in service with no status. Days before the organisation started recording are not counted.')}</p>
+          <DataTable<MetricRow> embedded rows={metricRows} columns={metricColumns} rowKey={(m) => `${m.asset_id}-${m.bucket_start}`} tableId="equipment-metrics"
+            accessibleName={t('equipment:availability.metricsHeading', 'This month')}
+            state={metricRows.length === 0 && !metrics.isPending && !metrics.isError ? 'empty' : undefined}
+            emptyTitle={t('equipment:availability.metricsEmpty', 'No figures for this period')} />
         </section>
       )}
 
-
-
-
-      {view === 'check' && canCheck && <RentalInvoiceCheck assets={rows.filter((a) => (a as { ownership?: string }).ownership === 'rented')} today={today} monthFrom={monthFrom} statusLabel={(value) => statusLabel(t, value)} />}
+      {view === 'check' && canCheck && <RentalInvoiceCheck assets={rows.filter((a) => (a as { ownership?: string }).ownership === 'rented')} today={today} monthFrom={monthFrom} canIncludeUnproven={canIncludeUnproven} statusLabel={(value) => statusLabel(t, value)} />}
     </ListPage>
   );
 };

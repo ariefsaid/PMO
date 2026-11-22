@@ -20,11 +20,14 @@ test.beforeEach(async () => {
   vendorName = `Hire vendor ${code}`;
   vendorId = must('vendor', await db.from('companies').insert({ org_id: ORG_ID, name: vendorName, type: 'Vendor' }).select('id').single()).id;
 });
+const pmCode = `${code}-PM`;
 test.afterEach(async () => {
-  const asset = await db.from('equipment_assets').select('id').eq('code', code).maybeSingle();
-  if (asset.data) {
-    for (const table of ['equipment_rental_terms', 'equipment_status_days', 'equipment_status_history']) await db.from(table).delete().eq('asset_id', asset.data.id);
-    await db.from('equipment_assets').delete().eq('id', asset.data.id);
+  for (const c of [code, pmCode]) {
+    const asset = await db.from('equipment_assets').select('id').eq('code', c).maybeSingle();
+    if (asset.data) {
+      for (const table of ['equipment_rental_terms', 'equipment_status_days', 'equipment_status_history']) await db.from(table).delete().eq('asset_id', asset.data.id);
+      await db.from('equipment_assets').delete().eq('id', asset.data.id);
+    }
   }
   await db.from('companies').delete().eq('id', vendorId);
 });
@@ -52,4 +55,25 @@ test('JOB-E1 a crane registered as rented from a vendor shows its terms and is o
   await page.goto('/equipment/availability');
   await page.getByRole('button', { name: 'Rental invoice check' }).click();
   await expect(page.getByLabel('Rented machine').locator('option', { hasText: code })).toHaveCount(1, { timeout: 20_000 });
+});
+
+test('JOB-E1 the equipment manager adds a rented machine from the Equipment screen, vendor and rate on the same form', async ({ page }) => {
+  await signIn(page, 'pm@acme.test');
+  await page.goto('/equipment');
+  await page.getByRole('button', { name: 'New equipment' }).click();
+  const form = page.getByRole('dialog');
+  await form.getByLabel(/^Code/).fill(pmCode);
+  await form.getByLabel(/^Name/).fill('Rented grader');
+  await form.getByLabel('Owned or rented').selectOption('rented');
+  await form.getByLabel(/^Vendor/).selectOption({ label: vendorName });
+  await form.getByRole('textbox', { name: /^Rate/ }).fill('900000');
+  await form.getByLabel('Rental start').fill('2026-09-01');
+  await form.getByRole('button', { name: 'Create asset' }).click();
+  await expect(visibleToast(page, 'Rented equipment added')).toBeVisible({ timeout: 15_000 });
+
+  // The goal: the machine is in the register, rented, and its rental terms name the vendor, editable by the same role.
+  await page.goto(`/equipment/assets?q=${pmCode}`);
+  await page.getByRole('link', { name: 'Open Rented grader' }).first().click();
+  await expect(page.getByText(new RegExp(vendorName)).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('button', { name: 'Save rental terms' })).toBeVisible();
 });

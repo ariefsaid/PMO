@@ -51,7 +51,25 @@
     "title": "Aset",
     "truncated": "Hanya {{count}} aset pertama yang ditampilkan. Arsipkan aset yang tidak dipakai lagi.",
     "unit": "Satuan bawaan",
-    "unitLine": "Dicatat dalam {{unit}}"
+    "unitLine": "Dicatat dalam {{unit}}",
+    "errors": {
+      "vendor": "Pilih vendor tempat alat ini disewa.",
+      "rate": "Isi tarif sewa.",
+      "rentedFrom": "Isi tanggal mulai sewa.",
+      "rentedTo": "Sewa tidak boleh berakhir sebelum dimulai."
+    },
+    "createdRented": "Alat sewaan ditambahkan",
+    "updated": "Alat disimpan",
+    "editTitle": "Ubah alat",
+    "save": "Simpan",
+    "ownership": "Milik sendiri atau sewa",
+    "owned": "Milik sendiri",
+    "rented": "Sewa",
+    "perDay": "Per hari",
+    "perMonth": "Per bulan",
+    "termsElsewhere": "Periode sewa dan perubahan tarif ada di halaman alat itu sendiri.",
+    "openRecord": "Buka halaman alat",
+    "edit": "Ubah"
   },
   "availability": {
     "amountInvalid": "Masukkan jumlah sebagai angka dengan paling banyak 2 desimal",
@@ -61,7 +79,7 @@
     "noRentedOnPage": "Tidak ada peralatan sewa di halaman ini",
     "title": "Ketersediaan",
     "empty": "Belum ada alat",
-    "emptySub": "Tambahkan aset di Alat → Aset, lalu atur status hariannya di sini.",
+    "emptySub": "Tambahkan alat dari layar Peralatan, lalu atur statusnya di sini setiap hari.",
     "todayHeading": "Status hari ini",
     "flagged": "Rusak lebih dari {{n}} hari",
     "last": "Terakhir: {{status}}",
@@ -149,7 +167,27 @@
     "saveTargets": "Simpan target",
     "targetsSaved": "Target disimpan",
     "targetNote": "(sasaran {{target}}%)",
-    "belowTarget": "Di bawah target"
+    "belowTarget": "Di bawah target",
+    "effect": {
+      "ready": "Dihitung tersedia. Boleh direncanakan untuk bekerja.",
+      "standby": "Dihitung tersedia, tidak bekerja. Rencanakan sebagai cadangan.",
+      "broken": "Tidak tersedia. Jangan masukkan ke rencana; dihitung sebagai waktu henti.",
+      "at_vendor": "Tidak tersedia selama di vendor. Dihitung sebagai waktu henti.",
+      "waiting_parts": "Tidak tersedia sampai suku cadang datang. Dihitung sebagai waktu henti."
+    },
+    "effectsHeading": "Pengaruh tiap status pada perencanaan",
+    "proofFailed": "Status tersimpan, tetapi foto untuk {{codes}} gagal diunggah. Lampirkan lagi dari barisnya.",
+    "statusToday": "Status hari ini. Untuk hari lain, buka Ketersediaan.",
+    "notifiedBroken": "Ditandai rusak: {{codes}}. Belum ada yang dikirimi pesan saat ini. Pengguna Admin dan Project Manager diberi tahu jika alat tetap rusak lebih dari {{n}} hari; alat sudah tampil sebagai rusak di halaman ini.",
+    "photoFor": "Foto atau dokumen untuk {{code}} (opsional)",
+    "photoInputFor": "Foto untuk {{code}}",
+    "overBilled": "Tagihan lebih tinggi {{amount}}",
+    "underBilled": "Tagihan lebih rendah {{amount}}",
+    "invoiceMatches": "Tagihan sesuai dengan jumlah yang diharapkan",
+    "unrecordedRented": "Hari tanpa status tercatat dihitung sebagai hari sewa; hanya hari rusak yang tercatat yang dipotong.",
+    "onlyFinanceIncludes": "Hari rusak tanpa bukti tidak dipotong. Hanya Admin atau Finance yang dapat memasukkannya, dengan alasan.",
+    "unrecordedNote": "Hari tanpa catatan adalah hari beroperasi tanpa status. Hari sebelum organisasi mulai mencatat tidak dihitung.",
+    "metricsEmpty": "Tidak ada angka untuk periode ini"
   },
   "basis": {
     "actual_cost": "Biaya aktual menurut pemakaian",
@@ -247,7 +285,10 @@
     },
     "subject": "Orang / peralatan",
     "title": "Dokumen akan kedaluwarsa",
-    "type": "Dokumen"
+    "type": "Dokumen",
+    "open": "Buka",
+    "openRecord": "Buka catatan {{name}}",
+    "renewLabel": "Perpanjang {{type}} milik {{name}}"
   },
   "nav": {
     "assets": "Aset",
@@ -359,7 +400,22 @@
     "trips": "Perjalanan",
     "waiting": "Menunggu persetujuan",
     "entrySubject": "entri pemakaian",
-    "chartLabel": "Pekerjaan per bulan, {{unit}}"
+    "chartLabel": "Pekerjaan per bulan, {{unit}}",
+    "workOrderLine": "Perintah kerja {{name}}",
+    "disciplineLine": "Disiplin {{name}}",
+    "savedCell": "Tersimpan: {{asset}}, {{day}}",
+    "clashNamed": "{{name}} sudah mencatat {{asset}} untuk {{project}} pada {{day}}.",
+    "clashUnnamed": "Orang lain sudah mencatat {{asset}} untuk {{project}} pada {{day}}.",
+    "clashKept": "Isian Anda {{typed}} belum tersimpan. Angkanya masih ada di kolom, jadi bisa Anda ubah atau salin.",
+    "clashLink": "Lihat catatannya",
+    "downTitle": "Mesin ini sedang rusak",
+    "downBody": "{{asset}} berstatus {{status}}. Tetap catat jam untuk mesin ini?",
+    "downConfirm": "Tetap catat jam",
+    "submitSection": "Kirim minggu ini",
+    "submitWhat": "Mengirim akan meneruskan {{count}} {{entries}} draf untuk disetujui. Anda tidak bisa mengubahnya sampai disetujui atau dikembalikan. Penyetuju: {{approver}}.",
+    "entryOne": "catatan",
+    "entryMany": "catatan",
+    "anAdmin": "seorang Admin"
   },
   "expiryEdit": {
     "title": "Dokumen",
@@ -392,7 +448,11 @@
     "emptySub": "Sertifikat dan izin tampil di sini beserta tanggal kedaluwarsanya.",
     "errType": "Pilih jenis dokumen",
     "errExpiry": "Isi tanggal kedaluwarsa",
-    "errOrder": "Tanggal kedaluwarsa harus sama dengan atau setelah tanggal terbit"
+    "errOrder": "Tanggal kedaluwarsa harus sama dengan atau setelah tanggal terbit",
+    "renew": "Perpanjang",
+    "renewTitle": "Perpanjang dokumen",
+    "renewed": "Dokumen diperpanjang",
+    "errRenew": "Tanggal kedaluwarsa baru harus setelah yang sekarang ({{date}})"
   },
   "people": {
     "error": "Orang ini tidak dapat dimuat",
@@ -425,6 +485,20 @@
     "slowest": "Terlama",
     "days": "{{count}} hr",
     "hours": "{{count}} j",
-    "minutes": "{{count}} mnt"
+    "minutes": "{{count}} mnt",
+    "day": "Tanggal",
+    "hour": "Jam (00–23)",
+    "minute": "Menit"
+  },
+  "home": {
+    "newEquipment": "Alat baru",
+    "links": "Halaman peralatan",
+    "hoursLog": "Catatan jam",
+    "monthlyPlan": "Rencana peralatan bulanan",
+    "turnOnPlan": "Aktifkan rencana peralatan bulanan",
+    "register": "Semua alat dan syarat sewa",
+    "emptyCan": "Tambahkan mesin pertama dengan Alat baru.",
+    "firstPage": "Menampilkan {{count}} mesin pertama. Sisanya ada di Ketersediaan.",
+    "machines": "Mesin dan status hari ini"
   }
 }

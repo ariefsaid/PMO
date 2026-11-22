@@ -846,7 +846,7 @@ parts. One per machine per day; separate from what the machine did (usage).
 
 **Physical availability** (*ketersediaan*) — the share of a machine's recorded in-service days on which it was ready or
 standby, shown to one decimal. A day with no status is unrecorded and counts in neither the top nor the bottom of the
-fraction; the screen names how many.
+fraction; the screen names how many. Days before the organisation's first day (its creation, or its earliest recorded status or usage) are not counted as unrecorded.
 
 **Utilisation** (*pemanfaatan*) — approved work hours divided by available days times the organisation's working hours per
 day. Standby is available but not utilised; unapproved usage is left out and named.
@@ -1360,3 +1360,6 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
 
 **Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
+**Equipment manager** — the person who runs the machines: today a Project Manager (or Admin). They add and edit machines and their rental terms, set the working hours per day, the availability and use targets and the escalation limit, and read the rental invoice check; Finance keeps the costing and the unproven-days decision (equipment manager's day lane, migration 1600).
+
+**Hours log** — the weekly grid where hours on a machine are logged per project and day (`/equipment?view=hours`); Equipment itself opens on the machines and today's status.
