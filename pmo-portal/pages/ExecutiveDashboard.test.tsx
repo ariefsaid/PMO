@@ -763,7 +763,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
 
   it('All approvals opens the approvals destination from the overview waits card', async () => {
     needsState.approvals = [{
-      kind: 'timesheet', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
+      kind: 'timesheets', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
       row: { week_start_date: '2026-10-19', owner: { full_name: 'Team member' } },
     }];
     renderPage();
@@ -774,7 +774,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
 
   it('the finding line approvals clause opens approvals', async () => {
     needsState.approvals = [{
-      kind: 'timesheet', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
+      kind: 'timesheets', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
       row: { week_start_date: '2026-10-19', owner: { full_name: 'Team member' } },
     }];
     renderPage();

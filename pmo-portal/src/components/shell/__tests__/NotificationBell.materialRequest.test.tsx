@@ -36,3 +36,19 @@ describe('AC-MRI-016 bell opens the material request', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/material-requests/mr-7'));
   });
 });
+
+describe('fix-waiting item 4: a return notification says what was returned and why, and opens it', () => {
+  it('JOB-WAIT-4 shows the reason and the record label, and opens a returned daily report', async () => {
+    listNotifications.mockResolvedValue([{
+      id: 'n2', org_id: 'org-1', owner_id: 'u1', severity: 'warning', title: 'Your daily report was sent back', message_key: 'literal', message_params: { body: 'Photo is blurred' },
+      body: 'Photo is blurred', metadata: { entity: { type: 'daily_site_report', id: 'dr-1', label: 'WO-7 · Slab · 2026-11-20' } },
+      read_at: null, created_at: '2026-11-21T08:00:00.000Z',
+    }]);
+    render(<MemoryRouter><NotificationBell /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    expect(await screen.findByTestId('notification-entity-label')).toHaveTextContent('WO-7 · Slab · 2026-11-20');
+    expect(screen.getByText('Photo is blurred')).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: /your daily report was sent back/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/site-reports/dr-1'));
+  });
+});

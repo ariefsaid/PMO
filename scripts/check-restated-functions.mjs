@@ -34,7 +34,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const MIGRATIONS = path.join(REPO, 'supabase', 'migrations');
 
-/** The first migration written after this guard existed. Below it, history. */
+/** The first migration written after this guard existed. Below it, history. A migration that is
+ *  renumbered (a parallel lane wrote the same number) moves FLOOR with it: the node test pins the
+ *  number so a renumber is visible, and the guard keeps comparing every definition it can read. */
 export const FLOOR = 1490;
 
 /** Every forward migration, in apply order (number, then file name). rollback/ is not a forward migration. */

@@ -9,17 +9,19 @@ import { CanWrite } from '@/src/auth/usePermission';
 import { usePerson } from '@/src/hooks/useDocumentExpiry';
 import { useClearanceEnabled, useClearanceStateMutations, useClearanceSummary, usePersonChecklist } from '@/src/hooks/useClearance';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatIsoDay } from '@/src/lib/format';
+import { formatCalendarDayInTimeZone, formatIsoDay } from '@/src/lib/format';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { ClearanceState, PersonChecklistRow } from '@/src/lib/repositories/clearance';
 
 const STATE_VARIANT: Record<ClearanceState, StatusVariant> = { done: 'won', expiring: 'warn', expired: 'overdue', missing: 'neutral' };
 
 /** Record or correct when one item was done, with an optional expiry and a short note. */
-const StateForm: React.FC<{ personId: string; row: PersonChecklistRow; onClose: () => void }> = ({ personId, row, onClose }) => {
+const StateForm: React.FC<{ personId: string; row: PersonChecklistRow; onClose: () => void; onRemove?: () => void }> = ({ personId, row, onClose, onRemove }) => {
   const { t } = useTranslation('administration');
   const { toast } = useToast();
   const { save } = useClearanceStateMutations(personId);
-  const [doneOn, setDoneOn] = useState(row.done_on ?? '');
+  // The date done starts as today on the organisation calendar; an existing record keeps its own.
+  const [doneOn, setDoneOn] = useState(row.done_on ?? formatCalendarDayInTimeZone(new Date(), getActiveLocale().timezone));
   const [expiresOn, setExpiresOn] = useState(row.expires_on ?? '');
   const [note, setNote] = useState(row.note ?? '');
   const [doneError, setDoneError] = useState<string>();
@@ -46,6 +48,11 @@ const StateForm: React.FC<{ personId: string; row: PersonChecklistRow; onClose: 
         <TextField id="clearance-note" label={t('clearance.person.note', 'Note (optional)')} value={note} onChange={setNote}
           helper={t('clearance.person.noteHelp', 'Keep it short. Do not record medical detail here.')} />
       </FormGrid>
+      {onRemove && (
+        <div className="mt-4 border-t border-border pt-3">
+          <Button variant="ghost" type="button" onClick={onRemove}>{t('clearance.person.remove', 'Remove')}</Button>
+        </div>
+      )}
     </EntityFormModal>
   );
 };
@@ -95,20 +102,34 @@ export default function PersonClearance() {
                   <li key={row.item_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                     <div className="min-w-0">
                       <p className="break-words font-medium">{row.name}{!row.is_required && <span className="ml-2 text-control font-normal text-muted-foreground">{t('clearance.items.optionalTag', 'Optional')}</span>}</p>
-                      {row.done_on && (
+                      {row.document_type_id && (
                         <p className="text-control text-muted-foreground">
-                          {t('clearance.person.doneLine', 'Done {{date}}', { date: formatIsoDay(row.done_on) })}
-                          {row.expires_on && ` · ${t('clearance.person.expiresLine', 'Expires {{date}}', { date: formatIsoDay(row.expires_on) })}`}
+                          {row.expires_on
+                            ? t('clearance.person.fromDocument', 'From the {{type}} document', { type: row.document_type_name ?? '' })
+                            : t('clearance.person.noDocument', 'No {{type}} document yet. Add it on the person’s record.', { type: row.document_type_name ?? '' })}
+                        </p>
+                      )}
+                      {(row.done_on || (row.document_type_id && row.expires_on)) && (
+                        <p className="text-control text-muted-foreground">
+                          {row.done_on && t('clearance.person.doneLine', 'Done {{date}}', { date: formatIsoDay(row.done_on) })}
+                          {row.done_on && row.expires_on ? ' · ' : ''}
+                          {row.expires_on && t('clearance.person.expiresLine', 'Expires {{date}}', { date: formatIsoDay(row.expires_on) })}
                         </p>
                       )}
                       {row.note && <p className="break-words text-control text-muted-foreground">{row.note}</p>}
                     </div>
                     <div className="flex items-center gap-2">
                       <StatusPill variant={STATE_VARIANT[row.state]}>{stateLabel[row.state]}</StatusPill>
-                      <CanWrite action="edit" entity="personClearance">
-                        <Button variant="outline" size="sm" aria-label={t('clearance.person.editLabel', '{{action}} {{name}}', { action: row.done_on ? t('clearance.person.edit', 'Edit') : t('clearance.person.record', 'Record'), name: row.name })} onClick={() => setEditing(row)}>{row.done_on ? t('clearance.person.edit', 'Edit') : t('clearance.person.record', 'Record')}</Button>
-                        {row.done_on && <Button variant="ghost" size="sm" aria-label={t('clearance.person.removeLabel', 'Remove {{name}}', { name: row.name })} onClick={() => setClearing(row)}>{t('clearance.person.remove', 'Remove')}</Button>}
-                      </CanWrite>
+                      {row.document_type_id ? (
+                        <Link to={`/equipment/people/${personId}`} className="text-control underline-offset-2 hover:underline"
+                          aria-label={t('clearance.person.documentLabel', '{{action}} {{name}}', { action: row.expires_on ? t('clearance.person.openDocument', 'Open the document') : t('clearance.person.addDocument', 'Add the document'), name: row.document_type_name ?? row.name })}>
+                          {row.expires_on ? t('clearance.person.openDocument', 'Open the document') : t('clearance.person.addDocument', 'Add the document')}
+                        </Link>
+                      ) : (
+                        <CanWrite action="edit" entity="personClearance">
+                          <Button variant="outline" size="sm" aria-label={t('clearance.person.editLabel', '{{action}} {{name}}', { action: row.done_on ? t('clearance.person.edit', 'Edit') : t('clearance.person.record', 'Record'), name: row.name })} onClick={() => setEditing(row)}>{row.done_on ? t('clearance.person.edit', 'Edit') : t('clearance.person.record', 'Record')}</Button>
+                        </CanWrite>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -116,7 +137,7 @@ export default function PersonClearance() {
             )}
         </div>
       </section>
-      {editing && <StateForm personId={personId} row={editing} onClose={() => setEditing(null)} />}
+      {editing && <StateForm personId={personId} row={editing} onClose={() => setEditing(null)} onRemove={editing.done_on ? () => { setClearing(editing); setEditing(null); } : undefined} />}
       {clearing && (
         <ConfirmDialog open title={t('clearance.person.removeTitle', 'Remove this date?')}
           description={t('clearance.person.removeBody', 'The item goes back to not done for this person.')}

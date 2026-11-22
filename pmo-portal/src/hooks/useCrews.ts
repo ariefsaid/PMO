@@ -23,6 +23,11 @@ export function useCrews() {
   return useOrgQuery(['crews'], () => crewRepository.list());
 }
 
+/** Every placement with its dates, for "who is in a crew now". Read only when asked for (`enabled`). */
+export function useAllCrewMembers(enabled: boolean) {
+  return useOrgQuery(['crew-members', 'all'], () => crewRepository.allMembers(), { enabled });
+}
+
 export function useCrewRoles(crewId: string | null) {
   return useOrgQuery(['crew-roles', crewId], () => crewRepository.roles(crewId as string), { enabled: Boolean(crewId) });
 }
@@ -59,6 +64,12 @@ export function useCrewMutations() {
     place: useMutation({ mutationFn: (input: PlacementInput) => crewRepository.place(input), ...after }),
     endPlacement: useMutation({
       mutationFn: (v: { id: string; version: number; valid_from: string; valid_to: string; standard_role_id: string | null }) =>
+        crewRepository.correctPlacement(v.id, v.version, { valid_from: v.valid_from, valid_to: v.valid_to, standard_role_id: v.standard_role_id }),
+      ...after,
+    }),
+    /** Set the crew role of a running placement; its dates stay. */
+    setPlacementRole: useMutation({
+      mutationFn: (v: { id: string; version: number; valid_from: string; valid_to: string | null; standard_role_id: string | null }) =>
         crewRepository.correctPlacement(v.id, v.version, { valid_from: v.valid_from, valid_to: v.valid_to, standard_role_id: v.standard_role_id }),
       ...after,
     }),

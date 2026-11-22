@@ -71,10 +71,7 @@
     "addLineItem": "Add at least one line item before submitting."
   },
   "waiting": {
-    "approval": "Waiting for approval",
-    "engineerApproval": "Waiting for approval by a project manager or Finance",
-    "payment": "Payment: waiting for Finance",
-    "approvalGoesTo": "Waiting for approval. It goes to {{name}}."
+    "payment": "Payment: waiting for Finance"
   },
   "record": {
     "purchaseRequest": "Purchase request",

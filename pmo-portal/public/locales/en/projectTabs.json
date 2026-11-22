@@ -120,7 +120,6 @@
         "selfConfirmHint": "You prepared this. Another Admin or Finance user must confirm it, unless you are the only active member.",
         "waitingOn": "Waiting for Finance or an Admin to confirm",
         "startClaim": "Start a claim from this BAST",
-        "startClaimHint": "Confirmed. Open billing to start the claim.",
         "soleOperator": "Confirmed by the only active member",
         "stage": "Stage",
         "toast": {

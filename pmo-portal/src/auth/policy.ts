@@ -213,7 +213,6 @@ export type Entity =
   | 'leaveRequest'
   | 'checkInSettings'
   | 'imprestLimit'
-  | 'equipmentTarget'
   | 'workOrderIssueThreshold'
   | 'stockReservation';
 
@@ -312,6 +311,8 @@ const EQUIPMENT_COSTING_WRITE: Role[] = ['Admin', 'Finance'];
 const EQUIPMENT_STATUS_WRITE: Role[] = ['Admin', 'Project Manager', 'Engineer'];
 /** #2526: rental terms and the invoice check are money — mirrors equipment_can_edit_terms / equipment_rental_check. */
 const EQUIPMENT_RENTAL_MONEY: Role[] = ['Admin', 'Finance'];
+/** 1600: the equipment manager writes rental terms and reads the invoice check; stating a reason to include unproven days stays EQUIPMENT_RENTAL_MONEY. */
+const EQUIPMENT_RENTAL_TERMS: Role[] = ['Admin', 'Finance', 'Project Manager'];
 const EQUIPMENT_REGISTER_WRITE: Role[] = ['Admin', 'Project Manager'];
 /** #1514: who may set the CLIENT contract rate and assign people to it — mirrors save/end_contract_rate_line
  *  and set/end_contract_rate_assignee (0515: Admin, Finance). Cost and revenue are separate settings, never shared. */
@@ -770,6 +771,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(ALL), // ANY member incl. Engineer (requester server-stamped)
     edit: allow(ALL), // record-scoped (requester while Draft/Rejected) at the call-site
     transition: allow([...MASTER_DATA]), // FE shows; SoD identity + RPC are the authority
+    /** An Admin may decide any request, not only the ones routed to them (the waiting list counts all of them for an Admin). */
+    decide: allow(ADMIN),
     setPaymentChannel: (role, ctx) =>
       ctx.record?.viewOnly !== true &&
       (((ctx.record?.status === 'Draft' || ctx.record?.status === 'Rejected') &&
@@ -1199,12 +1202,15 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * (`set_equipment_status`, `save_equipment_rental_term`, `equipment_metrics`) are the authority.
    *   view   ← every active member reads status (the bulk screen); metrics need the approval audience (`equipment_metrics`).
    *   create ← set status / attach proof: Admin, PM, Engineer (the field controller). Not Finance or Executive.
-   *   manage ← rental terms: Admin, Finance. A field controller never edits rates.
+   *   manage ← rental terms and reading the invoice check: Admin, Finance and the equipment manager (Project Manager, 1600). A field controller never edits rates.
+   *   configure ← working hours per day, availability and use targets, the escalation limit: Admin and the equipment manager (1600).
+   *   approve ← stating a reason to include unproven days in the invoice check (a stored, audited record): Admin, Finance.
      */
   equipmentAvailability: {
     view: allow(ALL),
     create: allowUnlessViewOnly(EQUIPMENT_STATUS_WRITE),
-    manage: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
+    manage: allowUnlessViewOnly(EQUIPMENT_RENTAL_TERMS),
+    configure: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),
     approve: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
   },
   /**
@@ -1427,8 +1433,6 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   checkInSettings: { manage: allowUnlessViewOnly(ADMIN) },
   // The organisation's site-cash limit (`set_imprest_procurement_limit` is Admin-only). UX ONLY.
   imprestLimit: { manage: allow(ADMIN) },
-  // #2701: equipment targets and working hours (1470: active Admin). UX ONLY.
-  equipmentTarget: { manage: allowUnlessViewOnly(ADMIN) },
   // #2584: work order issue threshold (1340: active Admin). UX ONLY.
   workOrderIssueThreshold: { manage: allowUnlessViewOnly(ADMIN) },
   // #2584 / #2689: stock reservations (1440: location keeper or master-data roles). UX ONLY.

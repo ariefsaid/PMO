@@ -12,7 +12,7 @@ import {
 import { useMeetingMutations } from '@/src/hooks/useMeetings';
 import { useToast } from '@/src/components/ui';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatClockTime, formatDay, instantToZonedDatetimeLocal, zonedDatetimeLocalToInstant } from '@/src/lib/format';
 import type { MeetingWithRefs } from '@/src/lib/db/meetings';
 import type { ProjectPickerOption } from '@/src/lib/db/projects';
@@ -108,7 +108,7 @@ const MeetingHeader: React.FC<MeetingHeaderProps> = ({
       toast(t('meetingDetail.toast.updated', 'Meeting updated'), savedDraft.title, 'success');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
-      setSaveError(detail ? `${headline}. ${detail}` : headline);
+      setSaveError(detail ? joinSentences(headline, detail) : headline);
       toast(headline, detail, 'warning');
     }
   };

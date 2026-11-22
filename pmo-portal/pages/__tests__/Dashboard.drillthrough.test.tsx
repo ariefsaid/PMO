@@ -60,6 +60,7 @@ const pack = {
 };
 
 // Keep the company-hub data sources deterministic so these checks bind KPI destinations and names.
+vi.mock('@/src/hooks/useWaitingForYou', () => ({ useWaitingForYou: () => ({ entries: [], count: 0, countFor: () => 0, pendingKinds: [], failedKinds: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: { totals: [], incompleteCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }),
 }));

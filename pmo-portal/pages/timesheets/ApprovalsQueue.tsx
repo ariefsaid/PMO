@@ -23,7 +23,7 @@ import { useTimesheetsAwaitingApproval, useTimesheetMutations } from '@/src/hook
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
 import { TimesheetBulkControls, useTimesheetBulkApprove, weekLabel as bulkWeekLabel } from './TimesheetBulkApprove';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { formatNumberExact, formatWeekday } from '@/src/lib/format';
 
@@ -120,7 +120,7 @@ function useApprovalDecision() {
       toast(okHeadline, okDetail, 'success');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
-      setDecisionError(detail ? `${headline}. ${detail}` : headline);
+      setDecisionError(detail ? joinSentences(headline, detail) : headline);
       toast(headline, detail, 'warning');
     }
   };

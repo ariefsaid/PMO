@@ -6,7 +6,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import { useDailySiteReportMutations } from '@/src/hooks/useDailySiteReports';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { localToday as todayIso } from '@/src/lib/efaktur';
 
@@ -44,7 +44,7 @@ export const NewSiteReportDialog: React.FC<{ onClose: () => void; onCreated: (id
     } catch (err) {
       const code = (err as { code?: string }).code;
       if (code === '23505') setError(t('new.exists', 'A report exists for this date'));
-      else { const { headline, detail } = classifyMutationError(err); setError(detail ? `${headline}. ${detail}` : headline); }
+      else { const { headline, detail } = classifyMutationError(err); setError(detail ? joinSentences(headline, detail) : headline); }
     }
   };
 

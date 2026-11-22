@@ -64,7 +64,7 @@
   "noMembers": "No people in this crew yet",
   "noMembersDay": "Nobody is placed in this crew that day",
   "noPlacements": "No crew has been rostered here",
-  "noRole": "No role",
+  "noRole": "Not set yet",
   "noWorkOrders": "No open work orders.",
   "open": "Open",
   "person": "Person",
@@ -105,7 +105,7 @@
   "retry": "Retry",
   "return": "Return",
   "returned": "Week returned",
-  "roleName": "Role",
+  "roleName": "Crew role",
   "rosterCrew": "Roster a crew",
   "rosterEnded": "Roster placement ended",
   "rosterError": "Couldn't load the roster",
@@ -222,7 +222,13 @@
     "type": "Type",
     "typeName": "New type",
     "typesHeading": "Leave types",
-    "waiting": "Waiting for your decision ({{count}})"
+    "waiting": "Waiting for your decision ({{count}})",
+    "pickPerson": "Choose a person",
+    "waitingManager": "Waiting for {{manager}} or any {{role}} to decide",
+    "waitingRole": "Waiting for any {{role}} to decide",
+    "approvedBy": "Approved by {{name}}",
+    "rejectedBy": "Rejected by {{name}}",
+    "goesTo": "Your line manager or any {{role}} approves this. You get a notification with the result."
   },
   "checkIn": {
     "requestsTitle": "Check-ins waiting for you",
@@ -261,5 +267,19 @@
     "areaLocateTimeout": "Reading your position took too long. Try again, or type the numbers.",
     "requestArea": "Work area: centre {{latitude}}, {{longitude}}, radius {{radius}} m"
   },
+  "roleNotSet": "Crew role not set",
+  "changeRole": "Change crew role",
+  "setRole": "Set crew role",
+  "roleSet": "Crew role saved",
+  "setRoleTitle": "Crew role for {{name}}",
+  "saveRole": "Save crew role",
+  "pickRole": "Choose a crew role",
+  "noRoleNote": "Not counted above: {{count}} with no crew role set.",
+  "noRoleFix": "Set their crew role under Crews",
+  "addNewPerson": "Add \"{{name}}\" as a new person",
+  "newPersonChip": "{{name}} (new person)",
+  "personPickOrType": "Choose a person, or type a new name",
+  "personPick": "Choose a person",
+  "personSearch": "Search or type a name",
   "tickReadOnly": "Only this crew's Foreman or a crew manager ticks this roster."
 }

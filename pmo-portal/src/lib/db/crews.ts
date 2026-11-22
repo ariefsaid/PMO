@@ -215,9 +215,9 @@ export async function listAllStandardRoles(): Promise<Pick<CrewStandardRoleRow, 
 }
 
 /** Every placement, for the members import's already-there check (#2551). */
-export async function listAllCrewMembers(): Promise<Pick<CrewMemberRow, 'id' | 'crew_id' | 'worker_id' | 'valid_from'>[]> {
+export async function listAllCrewMembers(): Promise<Pick<CrewMemberRow, 'id' | 'crew_id' | 'worker_id' | 'valid_from' | 'valid_to'>[]> {
   return fetchAllRowsByKeyset(async (afterId, limit) => {
-    let q = supabase.from('crew_members').select('id, crew_id, worker_id, valid_from').order('id', { ascending: true });
+    let q = supabase.from('crew_members').select('id, crew_id, worker_id, valid_from, valid_to').order('id', { ascending: true });
     if (afterId !== null) q = q.gt('id', afterId);
     return q.limit(limit);
   });

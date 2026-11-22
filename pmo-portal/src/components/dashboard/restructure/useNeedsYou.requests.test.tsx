@@ -33,6 +33,8 @@ vi.mock('@/src/lib/db/dashboard', () => ({
   getPMDashboardProjects: () => Promise.resolve([]),
 }));
 vi.mock('@/src/lib/db/timesheetTransition', () => ({ listTimesheetsAwaitingApproval: () => Promise.resolve([]) }));
+vi.mock('@/src/hooks/useTimesheetApproval', () => ({ useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     fxRates: { context: () => Promise.resolve({ currency: 'USD', timezone: 'UTC' }) },
@@ -71,6 +73,8 @@ describe('useNeedsYou reads only what the role renders (PERF-DASH-1)', () => {
 
   it('the procurement list the hook reads is the lean one', () => {
     render('Executive');
-    expect(h.procurementsOpts.every((o) => (o as { lean?: boolean }).lean === true)).toBe(true);
+    // The shared waiting list reads the small Requested-only list; every other read of the hook is the lean one.
+    const others = h.procurementsOpts.filter((o) => (o as { status?: string }).status !== 'Requested');
+    expect(others.every((o) => (o as { lean?: boolean }).lean === true)).toBe(true);
   });
 });

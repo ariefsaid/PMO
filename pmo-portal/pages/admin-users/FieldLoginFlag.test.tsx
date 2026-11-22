@@ -48,7 +48,7 @@ describe('Edit role form', () => {
         <RoleFormModal user={{ id: 'u1', full_name: 'T P', email: 't@example.com', role: 'Engineer', built_in_role: null, status: 'active', org_id: 'o1', manager_id: null, manager: null }}
           submitError={null} onClose={() => {}} onSubmit={() => {}} builtInEnabled />
       </QueryClientProvider>);
-    await userEvent.setup().selectOptions(screen.getByLabelText('Built-in role'), 'foreman');
+    await userEvent.setup().selectOptions(screen.getByLabelText('Job role'), 'foreman');
     expect(await screen.findByRole('status')).toHaveTextContent('not in the workforce list');
   });
 });

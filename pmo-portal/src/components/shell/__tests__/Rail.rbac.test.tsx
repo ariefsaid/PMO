@@ -90,11 +90,11 @@ describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
     expect(screen.getByRole('link', { name: /approvals/i })).toBeInTheDocument();
   });
 
-  it('AC-W2-IXD-003: an Engineer does NOT see the Approvals nav item (IC — cannot approve)', () => {
+  it('AC-W2-IXD-003: an Engineer keeps the Approvals nav item (owner walk 2026-12: a person who can decide anything must find the inbox)', () => {
     renderRailAs('Engineer');
-    // OD-W2-2: Engineer approval stays OFF. An IC reaching Approvals only sees an empty queue
-    // that says "from your reports" — misleading if they have no reports. Remove the nav item.
-    expect(screen.queryByRole('link', { name: /approvals/i })).not.toBeInTheDocument();
+    // Until the decide-anything read lands (lane fix/walk-waiting) every full account sees the inbox;
+    // the database still decides who can approve, and the page says when nothing waits.
+    expect(screen.getByRole('link', { name: /approvals/i })).toHaveAttribute('href', '/approvals');
   });
 
   it('AC-W2-IXD-003: an Executive sees the Approvals nav item', () => {

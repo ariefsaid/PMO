@@ -207,7 +207,7 @@ describe('AC-S15-001 / M18 project billing start', () => {
       await user.click(screen.getByRole('button', { name: 'Ajukan invoice' }));
       expect(screen.getByRole('dialog', { name: 'Mulai membuat invoice' })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /Invoice kontrak/ })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Work Order \/ SPK pelanggan/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Work order pelanggan/ })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Klaim kuantitas atau progres/ })).toBeInTheDocument();
     } finally {
       await financeTestI18n.changeLanguage('en');

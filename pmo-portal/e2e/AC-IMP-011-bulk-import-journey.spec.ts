@@ -66,10 +66,14 @@ test(
       buffer: xlsx,
     });
 
-    // ── Step 3: mapping auto-resolved → Next ───────────────────────────────────
+    // ── Step 3: a sheet that is exactly the template opens the preview at once; any other sheet shows the matching → Next ──
     const nextBtn = dialog.getByRole('button', { name: /^next$/i });
-    await expect(nextBtn).toBeEnabled({ timeout: 8_000 });
-    await nextBtn.click();
+    const previewSummary = dialog.getByTestId('import-summary');
+    await expect(nextBtn.or(previewSummary)).toBeVisible({ timeout: 8_000 });
+    if (await nextBtn.isVisible()) {
+      await expect(nextBtn).toBeEnabled();
+      await nextBtn.click();
+    }
 
     // ── Step 4: preview — 1 valid, 1 invalid, 2 total; NO write yet ────────────
     const summary = dialog.getByTestId('import-summary');

@@ -72,6 +72,9 @@
       "5": "Friday",
       "6": "Saturday",
       "7": "Sunday"
-    }
+    },
+    "sendEvery": "Send this report every …",
+    "sendEveryTitle": "Email this report on a schedule",
+    "savedFromReport": "Done. This report will be emailed on schedule."
   }
 }

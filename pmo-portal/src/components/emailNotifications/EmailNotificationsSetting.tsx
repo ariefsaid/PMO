@@ -128,7 +128,7 @@ export const EmailNotificationsSetting: React.FC = () => {
               />
             </div>
           ) : null}
-          <ScheduledReportsSetting eventsOn={query.data.events.some((e: EmailEventSetting) => e.enabled)} />
+          <ScheduledReportsSetting />
         </>
       )}
     </section>

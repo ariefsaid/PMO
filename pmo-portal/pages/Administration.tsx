@@ -4,14 +4,13 @@ import WorkOrderLists from './admin/WorkOrderLists';
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router';
+import { Link, Navigate, useLocation } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useOperatorMembership } from '@/src/auth/useIsOperator';
 import { cn } from '@/src/components/ui/cn';
 import { GateNotice, ListState, PageHeader } from '@/src/components/ui';
-import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import AdminUsers from './AdminUsers';
 import People from './admin/People';
 import Clearance from './admin/Clearance';
@@ -183,33 +182,12 @@ const AdministrationNavigation: React.FC<{
       </Link>
     ));
 
-  const narrow = useIsNarrow();
-  const navigate = useNavigate();
   const listed = [...ORGANIZATION_SECTIONS, 'clearance' as const, 'cost-attribution' as const].filter((id) => sections.includes(id));
   const operatorListed = isOperator ? OPERATOR_SECTIONS : [];
 
-  if (narrow) {
-    // A phone shows every section in one control instead of a strip that scrolls out of sight.
-    const ariaLabel = t('admin.nav.ariaLabel', 'Administration sections');
-    return (
-      <nav aria-label={ariaLabel} className="mb-4 min-w-0">
-        <select
-          aria-label={ariaLabel}
-          value={section}
-          onChange={(event) => navigate(`/administration/${event.target.value}`)}
-          className="h-11 w-full rounded-md border border-input bg-card px-3 text-[16px] font-semibold"
-        >
-          {[...listed, ...operatorListed].map((id) => (
-            <option key={id} value={id}>{label(id)}</option>
-          ))}
-        </select>
-      </nav>
-    );
-  }
-
   return (
     <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="mb-4 min-w-0 md:mb-6">
-      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-lg bg-secondary p-1">
+      <div className="grid min-w-0 max-w-full grid-cols-2 items-stretch gap-1 rounded-lg bg-secondary p-1 md:flex md:flex-wrap md:items-center">
         {links(listed)}
         {operatorListed.length > 0 && (
           <>

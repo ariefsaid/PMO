@@ -8,7 +8,8 @@ import { Button, ConfirmDialog, ListState, ReasonDialog, RecordHeader, RecordSec
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
-import { useDeliveryNoteSettings, useMaterialRequest, useMaterialRequestMutations, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
+import { useDeliveryNoteSettings, useMaterialRequest, useMaterialRequestMutations, useStepPins, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
+import { waitingForText } from '@/src/lib/approvals/waitingFor';
 import { useStockItems, useStockKeepers, useStockWarehouses } from '@/src/hooks/useStock';
 import { formatDay } from '@/src/lib/format';
 import { RequestStatusPill, RequestWorkOrder, StepStatusPill } from './materialRequests/shared';
@@ -23,6 +24,7 @@ const MaterialRequestDetailPage: React.FC = () => {
   // Both catalogues load before first paint: the approve dialog and the stock pickers render `stock` text, and a namespace that is
   // still loading when the dialog opens suspends the route and re-mounts this page, losing the open dialog (#2685, SPA arrival).
   const { t } = useTranslation(['materialRequests', 'stock']);
+  const { t: tc } = useTranslation('common');
   const { requestId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -39,6 +41,7 @@ const MaterialRequestDetailPage: React.FC = () => {
   const { data: warehouses } = useStockWarehouses();
   const { data: keepers } = useStockKeepers();
   const m = useMaterialRequestMutations();
+  const pins = useStepPins(q.data?.projectId);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [source, setSource] = useState('');
   const [dialogError, setDialogError] = useState<string | null>(null);
@@ -67,6 +70,11 @@ const MaterialRequestDetailPage: React.FC = () => {
   const canRetryTransfer = req.status === 'approved' && (!req.transferDocumentId || req.transferCancelled) &&
     req.createdBy !== currentUser?.id && retrySourceOptions.length > 0;
   const noApprover = req.status === 'pending' && !open;
+  // fix-waiting item 3: who the open step waits for. A pinned person is named; otherwise the step's role.
+  const pinned = open ? (pins.data ?? []).find((pin) => pin.position === open.position) : undefined;
+  const waitingLine = req.status === 'pending' && open
+    ? waitingForText({ names: pinned ? [name(pinned.approverId)] : [], role: pinned ? open.label : `${open.label} · ${open.role}`, step: { n: open.position, of: last } }, tc)
+    : null;
   const canPrintDeliveryNote = Boolean(dnSettings?.enabled) && (req.status === 'approved' || req.status === 'fulfilled');
 
   const close = () => { setDialog(null); setDialogError(null); };
@@ -119,6 +127,7 @@ const MaterialRequestDetailPage: React.FC = () => {
         )}
 
         <RecordSection title={t('detail.chain', 'Approval')}>
+ {waitingLine && <p role="status" data-testid="mrq-waiting-for" className="mb-2 font-medium">{waitingLine}</p>}
           {noApprover && <p role="status" className="mb-2 text-warning-foreground">{t('detail.noApprover', 'No approver is available for the open step. Ask an administrator.')}</p>}
           {round.length === 0 ? <p className="text-muted-foreground">{t('detail.notSent', 'Not sent for approval yet.')}</p> : (
             <ol className="space-y-2" data-testid="mrq-chain">

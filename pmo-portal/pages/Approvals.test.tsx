@@ -92,6 +92,7 @@ vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' })
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
 const imprestState = { data: { plans: [] as unknown[], replenishments: [] as unknown[] }, isPending: false, isError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => imprestState }));
 const correctionState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
@@ -192,7 +193,7 @@ const LocationProbe = () => {
   const location = useLocation();
   return <output data-testid="approvals-location">{location.pathname}{location.search}</output>;
 };
-const renderPage = (scope: 'all' | 'timesheets' | 'procurement' | 'expense' = 'timesheets', largeScreen = true) => {
+const renderPage = (scope: 'all' | 'timesheets' | 'procurement' | 'expense' | 'imprest' = 'timesheets', largeScreen = true) => {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation(() => ({
     matches: largeScreen,
     addEventListener: vi.fn(),
@@ -393,7 +394,8 @@ it('C9 the site-cash approval link opens its float record', async () => {
     amount: 1000, float: { custodian_id: 'u-cust', project: { name: 'North Terminal' }, currency: 'IDR' },
   }] };
   const user = userEvent.setup();
-  renderPage('expense');
+  // fix-waiting: site cash is its own kind in the shared waiting list, so it has its own scope (deliberate UX change; the goal, opening the float, is unchanged).
+  renderPage('imprest');
   await user.click(screen.getByRole('link', { name: 'REP-1' }));
   expect(screen.getByTestId('approvals-location')).toHaveTextContent('/imprest/f1');
 });

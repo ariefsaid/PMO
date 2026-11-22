@@ -3,7 +3,7 @@
 -- flag read the setting. AC-ETS-001, 003, 004, 005, 006 (AC-ETS-002 is the untouched equipment_status.test.sql).
 begin;
 create extension if not exists pgtap;
-select plan(28);
+select plan(27);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('27010000-0000-0000-0000-00000000000a', 'ETS Org A', 'IDR', 'UTC'),
@@ -53,10 +53,8 @@ select is((select count(*)::int from equipment_downtime_escalations('27010000-00
 select is((select count(*)::int from equipment_downtime_escalations('27010000-0000-0000-0000-00000000000a', '2026-09-22')), 0,
   'AC-ETS-001 at the default limit a 2-day downtime is not flagged');
 
--- ── AC-ETS-004 only an Admin changes the settings ──
+-- ── AC-ETS-004 only an Admin or a Project Manager changes the settings (1600 adds the Project Manager; proven in 1600_equipment_manager_asset_writes.test.sql) ──
 set local role authenticated;
-select pg_temp.act_as('27010000-0000-0000-0000-0000000000a3');
-select throws_ok($$ select set_equipment_targets(90, 50, 5) $$, '42501', 'not authorized', 'AC-ETS-004 a Project Manager cannot change the settings');
 select pg_temp.act_as('27010000-0000-0000-0000-0000000000a2');
 select throws_ok($$ select set_equipment_targets(90, 50, 5) $$, '42501', 'not authorized', 'AC-ETS-004 Finance cannot change the settings');
 select pg_temp.act_as('27010000-0000-0000-0000-0000000000a4');

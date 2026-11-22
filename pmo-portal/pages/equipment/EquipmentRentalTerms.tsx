@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DateField } from '@/src/components/ui/DateField';
 import { useTranslation } from 'react-i18next';
 import { Button, NumberField, SelectField, TextField, useToast } from '@/src/components/ui';
 import { useCompanies } from '@/src/hooks/useCompanies';
@@ -43,9 +44,9 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
             <NumberField localeAware label={t('equipment:availability.rate', 'Rate')} value={rate} onChange={setRate} />
             <SelectField label={t('equipment:availability.basis', 'Rate basis')} value={basis} onChange={(v) => setBasis(v as 'day' | 'month')} options={[{ value: 'day', label: t('equipment:availability.day', 'Day') }, { value: 'month', label: t('equipment:availability.month', 'Month') }]} />
             <TextField label={t('equipment:availability.currency', 'Currency')} value={currency} onChange={setCurrency} />
-            <TextField label={t('equipment:availability.rentedFrom', 'Rental start')} type="date" value={rentedFrom} onChange={setRentedFrom} />
-            <TextField label={t('equipment:availability.inService', 'In service from (optional)')} type="date" value={inService} onChange={setInService} />
-            <TextField label={t('equipment:availability.rentedTo', 'Rental end (optional)')} type="date" value={rentedTo} onChange={setRentedTo} />
+            <DateField label={t('equipment:availability.rentedFrom', 'Rental start')} value={rentedFrom} onChange={setRentedFrom} />
+            <DateField label={t('equipment:availability.inService', 'In service from (optional)')} value={inService} onChange={setInService} />
+            <DateField label={t('equipment:availability.rentedTo', 'Rental end (optional)')} value={rentedTo} onChange={setRentedTo} />
           </div>
           <Button variant="primary" className="mt-3" disabled={!termAsset || !vendor || !rate || !rentedFrom || saveTerm.isPending} onClick={() => void submitTerm()}>{t('equipment:availability.saveTerms', 'Save rental terms')}</Button>
           <details className="mt-3"><summary>{t('equipment:availability.otherAssetActions', 'Other asset actions')}</summary>
