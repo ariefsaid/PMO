@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { expect } from '@playwright/test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { serviceClient } from './jobFixtures';
 import { SEED_PROJECT_ID, makeItem, runSuffix, userClient } from './stockFixture';
@@ -25,8 +26,10 @@ export async function mrqSetup(steps: Array<{ role: string; label: string }>, cu
 export async function submittedRequest(email: string, workOrderId: string, itemId: string, daysAhead = 3): Promise<string> {
   const user = await userClient(email);
   const needed = new Date(Date.now() + daysAhead * 86_400_000).toISOString().slice(0, 10);
+  // A project with several delivery locations needs the request to name one (#2608); earlier serial journeys leave extra sites on the seed project.
+  const loc = await user.from('stock_warehouses').select('id').eq('project_id', SEED_PROJECT_ID).in('kind', ['site', 'yard', 'staging']).is('archived_at', null).order('code').limit(1);
   const saved = await user.rpc('mrq_save_draft', {
-    p_request_id: null, p_header: { work_order_id: workOrderId, needed_by: needed, to_warehouse_id: null, note: null },
+    p_request_id: null, p_header: { work_order_id: workOrderId, needed_by: needed, to_warehouse_id: loc.data?.[0]?.id ?? null, note: null },
     p_lines: [{ item_id: itemId, quantity: '2', over_plan_reason: 'JOB journey' }], p_client_request_id: randomUUID(),
   });
   if (saved.error) throw new Error('draft: ' + saved.error.message);
@@ -40,10 +43,13 @@ export async function clearStandIns(admin: SupabaseClient) {
   for (const r of data ?? []) await admin.rpc('mrq_revoke_stand_in', { p_id: r.id });
 }
 
-/** Press "Send for approval"; a line over plan asks for a reason first, so give one and press again. */
+/** Press "Send for approval"; a project with several locations asks where it goes (#2608), a line over plan asks for a reason first: answer, press again. */
 export async function sendForApproval(page: import('@playwright/test').Page) {
   const send = page.getByRole('button', { name: 'Send for approval' });
   const reason = page.getByLabel(/why do you need more than the plan/i);
+  await expect(send).toBeEnabled({ timeout: 5_000 }).catch(() => undefined); // the locations have loaded once it is
+  const dest = page.getByLabel('Deliver to');
+  if (await dest.isVisible() && !(await dest.inputValue())) await dest.selectOption({ index: 1 });
   await send.click();
   if (await reason.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true, () => false) && !(await reason.inputValue())) {
     await reason.fill('Extra for the slab');
