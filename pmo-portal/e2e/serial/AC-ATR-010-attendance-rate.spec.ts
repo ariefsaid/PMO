@@ -4,7 +4,7 @@
  *
  * Journey: with a 90 % target set, a crew of three on one rostered day (one present, one absent, one with no record)
  * is opened by the Project Manager under Crews › Rate. The crew reads expected 3, present 1, absent 1, no record 1,
- * rate 50 % against a 90 % target, marked below target. Goal oracle: the rate, the target and the mark agree with the
+ * rate 33.33 % (1 of 3 countable) against a 90 % target, marked below target. Goal oracle: the rate, the target and the mark agree with the
  * records the database holds — no separate number anyone typed.
  *
  * Isolation: unique project, crew, people and work order per run; the organisation's previous target is restored in
@@ -116,7 +116,7 @@ test('AC-ATR-010 a crew\'s rate, target and below-target mark agree with the rec
 
   const row = page.getByRole('row', { name: new RegExp(crewCode) });
   await expect(row).toBeVisible({ timeout: 20_000 });
-  await expect(row).toContainText('50%');
+  await expect(row).toContainText('33.33%');
   await expect(row).toContainText('90%');
   await expect(row.getByText('Below target')).toBeVisible();
 
