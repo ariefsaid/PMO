@@ -5,20 +5,17 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui/Toast';
+import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 import { CompanyDashboard } from './CompanyDashboard';
 
-type WorkOrderRow = {
-  id: string;
-  wo_number: string;
-  title: string;
-  status: 'Draft' | 'Issued' | 'Closed' | 'Cancelled';
-  project_id?: string;
+type WorkOrderFixture = Pick<WorkOrderRow, 'id' | 'wo_number' | 'title' | 'status'> & {
+  project_id?: WorkOrderRow['project_id'];
   project_name?: string | null;
 };
 
 const h = vi.hoisted(() => ({
   workOrders: {
-    data: [] as WorkOrderRow[] | undefined,
+    data: [] as WorkOrderFixture[] | undefined,
     isPending: false,
     isError: false,
     refetch: vi.fn(),
@@ -233,6 +230,7 @@ describe('CompanyDashboard work orders entry (JOB-NAV-WO, Defect 4)', () => {
       h.workOrders.data = [
         { id: 'wo-1', wo_number: 'WO-101', title: 'Trenching Area A', status: 'Issued' },
         { id: 'wo-2', wo_number: 'WO-102', title: 'Paving Road', status: 'Draft' },
+        { id: 'wo-0', wo_number: null, title: 'Unnumbered Survey', status: 'Draft' },
         { id: 'wo-3', wo_number: 'WO-103', title: 'Finished Piling', status: 'Closed' },
         { id: 'wo-4', wo_number: 'WO-104', title: 'Void Drainage', status: 'Cancelled' },
       ];
@@ -249,6 +247,11 @@ describe('CompanyDashboard work orders entry (JOB-NAV-WO, Defect 4)', () => {
       const draftLink = within(tile).getByRole('link', { name: /WO-102 · Paving Road/ });
       expect(draftLink).toHaveAttribute('href', '/work-orders/wo-2');
       expect(within(draftLink).getByText('Draft')).toBeInTheDocument();
+
+      // Unnumbered order (nullable wo_number)
+      const unnumberedLink = within(tile).getByRole('link', { name: 'Unnumbered Survey' });
+      expect(unnumberedLink).toHaveAttribute('href', '/work-orders/wo-0');
+      expect(within(unnumberedLink).getByText('Draft')).toBeInTheDocument();
 
       // Closed and Cancelled orders are filtered out from open list
       expect(within(tile).queryByText(/WO-103/)).not.toBeInTheDocument();
