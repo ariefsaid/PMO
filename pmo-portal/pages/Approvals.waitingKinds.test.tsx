@@ -271,7 +271,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       };
       renderPage('leave');
       expect(screen.getByText("Couldn't load the selected queue")).toBeInTheDocument();
-      expect(screen.getByText("Check your connection and retry.")).toBeInTheDocument();
+      expect(screen.getByText("Try again to refresh this queue.")).toBeInTheDocument();
       const retryBtn = screen.getByRole('button', { name: /retry/i });
       await userEvent.click(retryBtn);
       expect(refetchLeave).toHaveBeenCalled();
@@ -291,7 +291,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       };
       renderPage('leave');
       expect(screen.getByText("Couldn't load the selected queue")).toBeInTheDocument();
-      expect(screen.getByText("Check your connection and retry.")).toBeInTheDocument();
+      expect(screen.getByText("Try again to refresh this queue.")).toBeInTheDocument();
       expect(screen.getByText("Cached medical leave")).toBeInTheDocument();
       const retryBtn = screen.getByRole('button', { name: /retry/i });
       await userEvent.click(retryBtn);
@@ -358,7 +358,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       };
       renderPage('imprest');
       expect(screen.getByText("Couldn't load the selected queue")).toBeInTheDocument();
-      expect(screen.getByText("Check your connection and retry.")).toBeInTheDocument();
+      expect(screen.getByText("Try again to refresh this queue.")).toBeInTheDocument();
       const retryBtn = screen.getByRole('button', { name: /retry/i });
       await userEvent.click(retryBtn);
       expect(refetchImprest).toHaveBeenCalled();

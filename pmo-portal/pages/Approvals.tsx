@@ -394,7 +394,7 @@ const ApprovalsPage: React.FC = () => {
               <ListState
                 variant="error"
                 title={t('approvals.previewError.title', "Couldn't load the selected queue")}
-                sub={t('approvals.scopedError.sub', 'Check your connection and retry.')}
+                sub={t('approvals.queue.loadErrorSub', 'Try again to refresh this queue.')}
                 onRetry={() => void waiting.refetch()}
               />
             ) : waiting.pendingKinds.includes('imprest') && waiting.countFor('imprest') === 0 ? (
@@ -410,7 +410,7 @@ const ApprovalsPage: React.FC = () => {
                   <ListState
                     variant="error"
                     title={t('approvals.previewError.title', "Couldn't load the selected queue")}
-                    sub={t('approvals.scopedError.sub', 'Check your connection and retry.')}
+                    sub={t('approvals.queue.loadErrorSub', 'Try again to refresh this queue.')}
                     onRetry={() => void waiting.refetch()}
                   />
                 </div>
