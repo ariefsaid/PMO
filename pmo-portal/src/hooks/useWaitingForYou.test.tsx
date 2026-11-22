@@ -15,8 +15,8 @@ const h = vi.hoisted(() => ({
   expenses: { data: [] as unknown[], isPending: false, isError: false, refetch: () => undefined } as Record<string, unknown>,
   invoices: { rows: [] as unknown[], isPending: false, isError: false, refetch: () => undefined } as Record<string, unknown>,
   material: { data: [] as unknown[], isPending: false, isError: false, refetch: () => undefined } as Record<string, unknown>,
-  leave: { data: [] as unknown[], isPending: false, isError: false, refetch: () => undefined } as Record<string, unknown>,
-  imprest: { data: { plans: [], replenishments: [] } as unknown, isPending: false, isError: false, refetch: () => undefined } as Record<string, unknown>,
+  leave: { data: [] as unknown[], isPending: false, isError: false, enabled: true, prerequisitePending: false, prerequisiteError: false, refetch: () => undefined } as Record<string, unknown>,
+  imprest: { data: { plans: [], replenishments: [] } as unknown, isPending: false, isError: false, enabled: true, refetch: () => undefined } as Record<string, unknown>,
   database: { data: [] as unknown[], isPending: false, isError: false, refetch: () => undefined } as Record<string, unknown>,
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' }, role: h.role }) }));
@@ -42,8 +42,8 @@ beforeEach(() => {
   h.expenses = { data: [], isPending: false, isError: false, refetch: () => undefined };
   h.invoices = { rows: [], isPending: false, isError: false, refetch: () => undefined };
   h.material = { data: [{ requestId: 'm1', stepPosition: 1, role: 'Engineer', label: 'Site lead', actingFor: null, submittedAt: '2026-11-03T00:00:00Z' }], isPending: false, isError: false, refetch: () => undefined };
-  h.leave = { data: [{ id: 'l1', can_decide: true, start_date: '2026-11-04' }, { id: 'l2', can_decide: false, start_date: '2026-11-05' }], isPending: false, isError: false, refetch: () => undefined };
-  h.imprest = { data: { plans: [], replenishments: [] }, isPending: false, isError: false, refetch: () => undefined };
+  h.leave = { data: [{ id: 'l1', can_decide: true, start_date: '2026-11-04' }, { id: 'l2', can_decide: false, start_date: '2026-11-05' }], isPending: false, isError: false, enabled: true, prerequisitePending: false, prerequisiteError: false, refetch: () => undefined };
+  h.imprest = { data: { plans: [], replenishments: [] }, isPending: false, isError: false, enabled: true, refetch: () => undefined };
   h.database = { data: [dbRow('daily_report', 'd1', '2026-11-06T00:00:00Z'), dbRow('work_order_issue', 'w1', '2026-11-07T00:00:00Z'), dbRow('delivery_record', 'x1', '2026-11-08T00:00:00Z')], isPending: false, isError: false, refetch: () => undefined };
 });
 
@@ -77,6 +77,73 @@ describe('useWaitingForYou', () => {
     expect(result.current.isError).toBe(true);
     expect(result.current.failedKinds).toEqual(['material']);
     expect(result.current.count).toBeUndefined();
+  });
+
+  it('AC-WAIT-050 withholds the total while enabled leave requests are still loading', () => {
+    h.leave = { data: undefined, isPending: true, isError: false, enabled: true, prerequisitePending: false, prerequisiteError: false, refetch: () => undefined };
+    const { result } = renderHook(() => useWaitingForYou(), { wrapper });
+    expect(result.current.count).toBeUndefined();
+    expect(result.current.pendingKinds).toContain('leave');
+  });
+
+  it('AC-WAIT-050 withholds the total when the enabled leave request read fails', () => {
+    h.leave = { data: undefined, isPending: false, isError: true, enabled: true, prerequisitePending: false, prerequisiteError: false, refetch: () => undefined };
+    const { result } = renderHook(() => useWaitingForYou(), { wrapper });
+    expect(result.current.count).toBeUndefined();
+    expect(result.current.failedKinds).toContain('leave');
+  });
+
+  it('AC-WAIT-050 withholds the total while applicable site-cash decisions are loading', () => {
+    h.imprest = { data: undefined, isPending: true, isError: false, enabled: true, refetch: () => undefined };
+    const { result } = renderHook(() => useWaitingForYou(), { wrapper });
+    expect(result.current.count).toBeUndefined();
+    expect(result.current.pendingKinds).toContain('imprest');
+  });
+
+  it('AC-WAIT-050 withholds the total when the applicable site-cash read fails', () => {
+    h.imprest = { data: undefined, isPending: false, isError: true, enabled: true, refetch: () => undefined };
+    const { result } = renderHook(() => useWaitingForYou(), { wrapper });
+    expect(result.current.count).toBeUndefined();
+    expect(result.current.failedKinds).toContain('imprest');
+  });
+
+  it('AC-WAIT-050 does not wait on site-cash reads for a role that cannot decide site-cash work', () => {
+    h.role = 'Engineer';
+    h.imprest = { data: undefined, isPending: true, isError: false, enabled: true, refetch: () => undefined };
+    const { result } = renderHook(() => useWaitingForYou(), { wrapper });
+    expect(result.current.count).toBe(result.current.entries.length);
+    expect(result.current.pendingKinds).not.toContain('imprest');
+  });
+
+  it('AC-WAIT-050 does not let a disabled leave query block the total while React Query reports it pending', () => {
+    h.leave = { data: undefined, isPending: true, isError: false, enabled: false, prerequisitePending: false, prerequisiteError: false, refetch: () => undefined };
+    const { result } = renderHook(() => useWaitingForYou(), { wrapper });
+    expect(result.current.count).toBe(result.current.entries.length);
+    expect(result.current.pendingKinds).not.toContain('leave');
+  });
+
+  it('AC-WAIT-050 moves leave from a pending prerequisite through its enabled read to the complete total', () => {
+    h.leave = { data: undefined, isPending: true, isError: false, enabled: false, prerequisitePending: true, prerequisiteError: false, refetch: () => undefined };
+    const { result, rerender } = renderHook(() => useWaitingForYou(), { wrapper });
+    expect(result.current.count).toBeUndefined();
+    expect(result.current.pendingKinds).toContain('leave');
+
+    h.leave = { data: undefined, isPending: true, isError: false, enabled: true, prerequisitePending: false, prerequisiteError: false, refetch: () => undefined };
+    rerender();
+    expect(result.current.count).toBeUndefined();
+    expect(result.current.pendingKinds).toContain('leave');
+
+    h.leave = { data: [], isPending: false, isError: false, enabled: true, prerequisitePending: false, prerequisiteError: false, refetch: () => undefined };
+    rerender();
+    expect(result.current.count).toBe(result.current.entries.length);
+    expect(result.current.pendingKinds).not.toContain('leave');
+  });
+
+  it('AC-WAIT-050 treats an unknown leave prerequisite error as a failed read', () => {
+    h.leave = { data: undefined, isPending: false, isError: false, enabled: false, prerequisitePending: false, prerequisiteError: true, refetch: () => undefined };
+    const { result } = renderHook(() => useWaitingForYou(), { wrapper });
+    expect(result.current.count).toBeUndefined();
+    expect(result.current.failedKinds).toContain('leave');
   });
 
   it('AC-WAIT-054 an Engineer who is a material approver or a delivery requester is counted (no role list decides who has a list)', () => {

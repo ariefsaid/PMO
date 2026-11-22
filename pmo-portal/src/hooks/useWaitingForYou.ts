@@ -26,6 +26,8 @@ import { WAITING_KINDS, type WaitingKind } from '@/src/lib/approvals/waitingKind
 
 interface QueryRead<T> { data: T | undefined; isPending: boolean; isError: boolean; refetch: () => unknown }
 const UNKNOWN = { data: undefined, isPending: false, isError: false, refetch: () => undefined };
+type LeaveRead = QueryRead<LeaveRequestRow[]> & { enabled: boolean; prerequisitePending: boolean; prerequisiteError: boolean };
+type ImprestRead = QueryRead<AwaitingImprest> & { enabled: boolean };
 
 /**
  * A bare render has no data layer: the real query hooks then throw "No QueryClient set" at their first internal hook, the same place on every
@@ -80,8 +82,8 @@ function useLiveWaitingForYou(): WaitingForYou {
   // A material-request step is the viewer's whenever the database says so: the organisation's inbox setting only decides
   // whether a notification is also written, never whether the step is counted.
   const material = withoutDataLayer(() => useWaitingForMe(signedIn), UNKNOWN as QueryRead<WaitingStep[]>);
-  const leave = withoutDataLayer(() => useLeaveRequests(), UNKNOWN as QueryRead<LeaveRequestRow[]>);
-  const imprest = withoutDataLayer(() => useImprestAwaiting(), UNKNOWN as QueryRead<AwaitingImprest>);
+  const leave = withoutDataLayer(() => useLeaveRequests(), { ...UNKNOWN, enabled: false, prerequisitePending: false, prerequisiteError: false } as LeaveRead);
+  const imprest = withoutDataLayer(() => useImprestAwaiting(), { ...UNKNOWN, enabled: false } as ImprestRead);
   const database = withoutDataLayer(() => useDatabaseWaiting(orgId, userId, signedIn), UNKNOWN as QueryRead<WaitingDecisionRow[]>);
   /* eslint-enable react-hooks/rules-of-hooks */
 
@@ -121,8 +123,15 @@ function useLiveWaitingForYou(): WaitingForYou {
     expense: { pending: expenseRole && expenses.isPending, error: expenseRole && expenses.isError },
     invoice: { pending: invoiceRole && invoices.isPending, error: invoiceRole && invoices.isError },
     material: { pending: signedIn && material.isPending, error: material.isError },
-    leave: { pending: false, error: false },   // switched off or failing leave never blocks the rest of the list
-    imprest: { pending: false, error: false }, // a failed site-cash read keeps its own message in the inbox section
+    leave: {
+      pending: signedIn && (leave.prerequisitePending || (leave.enabled && leave.isPending)),
+      error: signedIn && (leave.prerequisiteError || (leave.enabled && leave.isError)),
+    },
+    // The read is org-wide, while the Site cash decision actions are limited to approval-rank roles.
+    imprest: {
+      pending: signedIn && can('view', 'imprestPlan', { realRole }) && imprest.enabled && imprest.isPending,
+      error: signedIn && can('view', 'imprestPlan', { realRole }) && imprest.enabled && imprest.isError,
+    },
     daily_report: { pending: signedIn && database.isPending, error: database.isError },
     work_order_issue: { pending: signedIn && database.isPending, error: database.isError },
     delivery_record: { pending: signedIn && database.isPending, error: database.isError },
