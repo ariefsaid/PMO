@@ -64,6 +64,11 @@ create or replace function pg_temp.act_as(p_uid uuid) returns void language sql 
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
 $$;
 
+-- 1580: an order needs a supplier, so the fixture purchases are given one before the first signed-in write.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid where p.vendor_id is null;
 set local role authenticated;
 select pg_temp.act_as('17830000-0000-0000-0000-0000000000a1');
 select public.operator_toggle_feature('17830000-0000-0000-0000-000000000001', 'procurement', false);

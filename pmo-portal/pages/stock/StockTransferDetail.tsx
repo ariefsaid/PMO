@@ -10,6 +10,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useStockItems, useStockWarehouses } from '@/src/hooks/useStock';
+import { useDeliveryNoteSettings } from '@/src/hooks/useMaterialRequests';
 import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { useProofStatus, useStockTransfer, useTransferConfirmations, useTransferRefresh, useTransferSettings } from '@/src/hooks/useStockTransfers';
 import { formatDateTime } from '@/src/lib/format';
@@ -37,6 +38,7 @@ const StockTransferDetail: React.FC = () => {
   const confirmations = useTransferConfirmations(transferId);
   const proof = useProofStatus();
   const settings = useTransferSettings();
+  const deliveryNotes = useDeliveryNoteSettings();
   const items = useStockItems(true);
   const tags = useStockTags(true);
   const warehouses = useStockWarehouses(true);
@@ -69,6 +71,8 @@ const StockTransferDetail: React.FC = () => {
   const proofRow = (proof.data ?? []).find((p) => p.movementId === transfer.id);
   const openShort = transfer.lines.filter((l) => l.qtyCounted !== null && l.qtyCounted !== l.qtySent && l.shortResolution === null);
   const mine = me?.id === transfer.sentBy;
+  // The sender never counts their own shipment (a second person recounts); only an Admin may, and the database audits it (STK_SELF_RECEIVE).
+  const canCount = !mine || isAdmin;
 
   const run = async (fn: () => Promise<void>, done: string) => {
     setBusy(true); setError('');
@@ -89,7 +93,10 @@ const StockTransferDetail: React.FC = () => {
   return (
     <div className="max-w-3xl space-y-4 pb-24 md:pb-0">
       <PageHeader title={`${t('transfers.detailTitle')} ${transfer.number}`} />
-      <p className="text-sm text-muted-foreground"><Link to="/stock/transfers">{t('transfers.back')}</Link></p>
+      <p className="flex flex-wrap items-center gap-x-4 text-sm text-muted-foreground">
+        <Link to="/stock/transfers">{t('transfers.back')}</Link>
+        {deliveryNotes.data?.enabled && <Link to={`/stock/transfers/${transfer.id}/print`} className="font-medium text-foreground underline">{t('transfers.print.action')}</Link>}
+      </p>
       <section className="space-y-1 rounded-lg border border-border p-4" aria-label={t('transfers.summary')}>
         <div>{wh(transfer.fromWarehouseId)} → {wh(transfer.toWarehouseId)}</div>
         <div className="text-sm text-muted-foreground">{t(`transfers.status.${transfer.status}`)} · {t('transfers.sentBy', { name: person(transfer.sentBy), at: formatDateTime(new Date(transfer.sentAt)) })}</div>
@@ -100,7 +107,7 @@ const StockTransferDetail: React.FC = () => {
       </section>
       <FormErrorStrip>{error || undefined}</FormErrorStrip>
 
-      {transfer.status === 'Sent' && !viewOnly ? (
+      {transfer.status === 'Sent' && !viewOnly && canCount ? (
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (canSubmit) void receive(); }} noValidate>
           <h2 className="text-base font-semibold">{t('transfers.receiveTitle')}</h2>
           <ul className="space-y-3">{transfer.lines.map((l) => { const c = countOf(l); const rejected = Number(normalizeDecimal(c.counted) || 0) - Number(normalizeDecimal(c.accepted) || 0); const f = flagged(itemById.get(l.itemId)); return (
@@ -124,6 +131,7 @@ const StockTransferDetail: React.FC = () => {
         </form>
       ) : (
         <section aria-label={t('transfers.lines')} className="space-y-2">
+          {transfer.status === 'Sent' && !viewOnly && !canCount && <p className="rounded-lg border border-border p-3 text-sm" role="status">{t('transfers.senderWaits')}</p>}
           <h2 className="text-base font-semibold">{t('transfers.lines')}</h2>
           <ul className="space-y-2">{transfer.lines.map((l) => (
             <li key={l.id} className="rounded-lg border border-border p-3 text-sm">

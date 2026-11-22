@@ -16,6 +16,8 @@ import type { UserDirectoryRow, UserManagerChoice, UserRole } from '@/src/lib/db
 import { useRoleLabels } from './roleLabels';
 import { baseLevelOf } from '@/src/auth/builtInRoles';
 import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
+import { FieldLoginFlag } from './FieldLoginFlag';
+import { isLightRoleKey } from '@/src/auth/lightAccount';
 import { initialsOf } from './avatar';
 
 /**
@@ -212,6 +214,7 @@ export const RoleFormModal: React.FC<{
             fullWidth
           />
         )}
+        {builtInEnabled && isLightRoleKey(builtInField.value) && <FieldLoginFlag userId={user.id} roleKey={builtInField.value || null} />}
       </FormSection>
     </EntityFormModal>
   );

@@ -5,7 +5,11 @@ import { repositories } from '@/src/lib/repositories';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import type { CatalogueItem, CatalogueRate, CatalogueVariant } from '@/src/lib/db/rateCatalogue';
 
-export interface PricingChoice { itemId: string; variantId: string; asOf: string; rate: number | null }
+export interface PricingChoice {
+  itemId: string; variantId: string; asOf: string; rate: number | null;
+  /** The picked catalogue item's own code, description and unit, so the line arrives filled. */
+  item?: { itemCode: string; description: string; unit: string };
+}
 export default function RatePicker({ projectId, today, currency, onChange, initial, retryKey = 0 }: { retryKey?: number; projectId: string; today: string; currency: string; initial?: { itemId: string; variantId: string; asOf: string }; onChange: (choice: PricingChoice | null) => void }) {
   const { t } = useTranslation('project');
   const [items, setItems] = useState<CatalogueItem[]>([]);
@@ -25,7 +29,10 @@ export default function RatePicker({ projectId, today, currency, onChange, initi
   }, [projectId]);
   useEffect(() => { void load(); }, [load, retryKey]);
   const current = useMemo(() => rates.filter((r) => r.item_id === itemId && r.variant_id === variantId && r.effective_from <= asOf).sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0], [rates, itemId, variantId, asOf]);
-  useEffect(() => { onChange(itemId ? { itemId, variantId, asOf, rate: current?.rate ?? null } : null); }, [itemId, variantId, asOf, current, onChange]);
+  const picked = useMemo(() => items.find((i) => i.id === itemId), [items, itemId]);
+  useEffect(() => {
+    onChange(itemId ? { itemId, variantId, asOf, rate: current?.rate ?? null, ...(picked ? { item: { itemCode: picked.item_code ?? '', description: picked.description ?? '', unit: picked.unit ?? '' } } : {}) } : null);
+  }, [itemId, variantId, asOf, current, picked, onChange]);
   if (status === 'loading') return <p role="status">{t('rateCatalogue.loading', 'Loading rates…')}</p>;
   if (status === 'error') return <div role="alert">{t('rateCatalogue.loadError', 'Could not load rates')} <Button variant="outline" onClick={() => void load()}>{t('rateCatalogue.retry', 'Retry')}</Button></div>;
   return <div className="space-y-3">
