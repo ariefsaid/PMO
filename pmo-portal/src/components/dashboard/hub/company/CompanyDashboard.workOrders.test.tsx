@@ -249,8 +249,9 @@ describe('CompanyDashboard work orders entry (JOB-NAV-WO, Defect 4)', () => {
       expect(within(draftLink).getByText('Draft')).toBeInTheDocument();
 
       // Unnumbered order (nullable wo_number)
-      const unnumberedLink = within(tile).getByRole('link', { name: 'Unnumbered Survey' });
+      const unnumberedLink = within(tile).getByRole('link', { name: /Unnumbered Survey/ });
       expect(unnumberedLink).toHaveAttribute('href', '/work-orders/wo-0');
+      expect(within(unnumberedLink).getByText('Unnumbered Survey')).toBeInTheDocument();
       expect(within(unnumberedLink).getByText('Draft')).toBeInTheDocument();
 
       // Closed and Cancelled orders are filtered out from open list
