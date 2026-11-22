@@ -909,6 +909,82 @@ export type Database = {
           },
         ]
       }
+      attendance_second_records: {
+        Row: {
+          decided_at: string | null
+          decided_by: string | null
+          decision_reason: string | null
+          hours: number | null
+          id: string
+          note: string | null
+          org_id: string
+          overtime_hours: number | null
+          recorded_at: string
+          recorded_by_ids: string[]
+          standing: string | null
+          status: string
+          work_date: string
+          work_order_id: string
+          worker_id: string
+        }
+        Insert: {
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          hours?: number | null
+          id?: string
+          note?: string | null
+          org_id?: string
+          overtime_hours?: number | null
+          recorded_at?: string
+          recorded_by_ids?: string[]
+          standing?: string | null
+          status: string
+          work_date: string
+          work_order_id: string
+          worker_id: string
+        }
+        Update: {
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_reason?: string | null
+          hours?: number | null
+          id?: string
+          note?: string | null
+          org_id?: string
+          overtime_hours?: number | null
+          recorded_at?: string
+          recorded_by_ids?: string[]
+          standing?: string | null
+          status?: string
+          work_date?: string
+          work_order_id?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_second_records_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_second_records_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_second_records_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_events: {
         Row: {
           action: string
@@ -13388,6 +13464,8 @@ export type Database = {
         Row: {
           attendance_backdate_days: number
           attendance_conflict_tolerance_hours: number
+          attendance_decider_roles: string[]
+          attendance_second_record_roles: string[]
           attendance_target_rate: number | null
           built_in_roles_enabled: boolean
           clearance_checklist_enabled: boolean
@@ -13444,6 +13522,8 @@ export type Database = {
         Insert: {
           attendance_backdate_days?: number
           attendance_conflict_tolerance_hours?: number
+          attendance_decider_roles?: string[]
+          attendance_second_record_roles?: string[]
           attendance_target_rate?: number | null
           built_in_roles_enabled?: boolean
           clearance_checklist_enabled?: boolean
@@ -13500,6 +13580,8 @@ export type Database = {
         Update: {
           attendance_backdate_days?: number
           attendance_conflict_tolerance_hours?: number
+          attendance_decider_roles?: string[]
+          attendance_second_record_roles?: string[]
           attendance_target_rate?: number | null
           built_in_roles_enabled?: boolean
           clearance_checklist_enabled?: boolean
@@ -27770,6 +27852,23 @@ export type Database = {
         }
         Returns: number
       }
+      attendance_report_day_hours: { Args: { p_report: string }; Returns: Json }
+      attendance_second_record: {
+        Args: { p_rows: Json; p_work_date: string; p_work_order_id: string }
+        Returns: number
+      }
+      attendance_second_record_decide: {
+        Args: {
+          p_reason: string
+          p_stand: string
+          p_work_date: string
+          p_work_order_id: string
+          p_worker_id: string
+        }
+        Returns: undefined
+      }
+      attendance_second_record_may_decide: { Args: never; Returns: boolean }
+      attendance_second_record_may_enter: { Args: never; Returns: boolean }
       attest_timesheet_no_erp_document: {
         Args: { p_reason: string; p_timesheet_id: string }
         Returns: undefined
@@ -34558,6 +34657,10 @@ export type Database = {
           feature_key: string
           source: string
         }[]
+      }
+      set_attendance_time_roles: {
+        Args: { p_decider_roles: string[]; p_second_record_roles: string[] }
+        Returns: undefined
       }
       set_billing_plan_month_target: {
         Args: { p_month: string; p_target: number }
