@@ -3,7 +3,7 @@
 -- Shipped code under test: supabase/migrations/1568_imprest_requester_route.sql.
 begin;
 create extension if not exists pgtap;
-select plan(62);
+select plan(78);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15680000-0000-0000-0000-00000000000a', 'RT Org',       'IDR', 'Asia/Jakarta'),
@@ -84,6 +84,67 @@ insert into imprest_floats (id, org_id, project_id, custodian_id, float_amount, 
   -- F7: the S3 total-over-float case (lowered after its plan was submitted).
   ('15680000-0000-0000-0000-0000000000d7', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c7', '15680000-0000-0000-0000-0000000000a2', 200000000, 'IDR', '15680000-0000-0000-0000-0000000000a1');
 
+-- ── O3/O4: isolated raw-ban branch controls (flat / plan join-empty / limit join-empty / payer / Requested count) ──
+-- These orgs exist only so a candidate can be raw-banned while profiles.status stays 'active': the authority arms
+-- filter status only, so they still name the raw-banned person; the read's own is_active_member filter is the only
+-- thing that empties the result. The observer is a separate active approval-rank member.
+insert into organizations (id, name, default_currency, default_timezone) values
+  ('15680000-0000-0000-0000-00000000000c', 'O3 Raw Ban Org', 'IDR', 'Asia/Jakarta'),
+  ('15680000-0000-0000-0000-00000000000d', 'O4 Raw Ban Org', 'IDR', 'Asia/Jakarta');
+insert into auth.users (id, email) values
+  ('15680000-0000-0000-0000-0000000000c1', 'o3-author@example.com'),
+  ('15680000-0000-0000-0000-0000000000c2', 'o3-cust@example.com'),
+  ('15680000-0000-0000-0000-0000000000c4', 'o3-prop@example.com'),
+  ('15680000-0000-0000-0000-0000000000d1', 'o4-author@example.com'),
+  ('15680000-0000-0000-0000-0000000000d2', 'o4-cust@example.com'),
+  ('15680000-0000-0000-0000-0000000000d4', 'o4-prior@example.com');
+insert into auth.users (id, email, banned_until) values
+  ('15680000-0000-0000-0000-0000000000c3', 'o3-dead@example.com',  now() + interval '1 day'),
+  ('15680000-0000-0000-0000-0000000000c5', 'o3-admin@example.com', now() + interval '1 day'),
+  ('15680000-0000-0000-0000-0000000000d3', 'o4-dead@example.com',  now() + interval '1 day');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('15680000-0000-0000-0000-0000000000c1', '15680000-0000-0000-0000-00000000000c', 'O3 Author',   'o3-author@example.com', 'Project Manager', 'active'),
+  ('15680000-0000-0000-0000-0000000000c2', '15680000-0000-0000-0000-00000000000c', 'O3 Cust',     'o3-cust@example.com',   'Finance',         'active'),
+  ('15680000-0000-0000-0000-0000000000c3', '15680000-0000-0000-0000-00000000000c', 'O3 Dead',     'o3-dead@example.com',   'Finance',         'active'),
+  ('15680000-0000-0000-0000-0000000000c4', '15680000-0000-0000-0000-00000000000c', 'O3 Proposer', 'o3-prop@example.com',   'Finance',         'active'),
+  ('15680000-0000-0000-0000-0000000000c5', '15680000-0000-0000-0000-00000000000c', 'O3 Admin',    'o3-admin@example.com',  'Admin',           'active'),
+  ('15680000-0000-0000-0000-0000000000d1', '15680000-0000-0000-0000-00000000000d', 'O4 Author',   'o4-author@example.com', 'Project Manager', 'active'),
+  ('15680000-0000-0000-0000-0000000000d2', '15680000-0000-0000-0000-00000000000d', 'O4 Cust',     'o4-cust@example.com',   'Finance',         'active'),
+  ('15680000-0000-0000-0000-0000000000d3', '15680000-0000-0000-0000-00000000000d', 'O4 Dead',     'o4-dead@example.com',   'Finance',         'active'),
+  ('15680000-0000-0000-0000-0000000000d4', '15680000-0000-0000-0000-00000000000d', 'O4 Prior',    'o4-prior@example.com',  'Admin',           'active');
+insert into projects (id, org_id, name, status, project_manager_id) values
+  ('15680000-0000-0000-0000-0000000000e1', '15680000-0000-0000-0000-00000000000c', 'O3 Flat Site',   'Ongoing Project', '15680000-0000-0000-0000-0000000000c1'),
+  ('15680000-0000-0000-0000-0000000000e2', '15680000-0000-0000-0000-00000000000c', 'O3 Routed Site', 'Ongoing Project', '15680000-0000-0000-0000-0000000000c1'),
+  ('15680000-0000-0000-0000-0000000000e3', '15680000-0000-0000-0000-00000000000d', 'O4 Cash Site',   'Ongoing Project', '15680000-0000-0000-0000-0000000000d1');
+insert into spend_approvers (org_id, project_id, profile_id) values
+  ('15680000-0000-0000-0000-00000000000c', '15680000-0000-0000-0000-0000000000e2', '15680000-0000-0000-0000-0000000000c3'),
+  ('15680000-0000-0000-0000-00000000000c', null, '15680000-0000-0000-0000-0000000000c3');
+insert into budget_versions (id, org_id, project_id, name, version, status) values
+  ('15680000-0000-0000-0000-000000000fa1', '15680000-0000-0000-0000-00000000000c', '15680000-0000-0000-0000-0000000000e1', 'v1', 1, 'Draft'),
+  ('15680000-0000-0000-0000-000000000fa2', '15680000-0000-0000-0000-00000000000c', '15680000-0000-0000-0000-0000000000e2', 'v1', 1, 'Draft');
+insert into budget_line_items (org_id, budget_version_id, category, budgeted_amount) values
+  ('15680000-0000-0000-0000-00000000000c', '15680000-0000-0000-0000-000000000fa1', 'Vehicle', 100000000),
+  ('15680000-0000-0000-0000-00000000000c', '15680000-0000-0000-0000-000000000fa2', 'Vehicle', 100000000);
+update budget_versions set status = 'Active'
+ where id in ('15680000-0000-0000-0000-000000000fa1', '15680000-0000-0000-0000-000000000fa2');
+insert into imprest_floats (id, org_id, project_id, custodian_id, float_amount, currency, created_by) values
+  ('15680000-0000-0000-0000-0000000000e8', '15680000-0000-0000-0000-00000000000c', '15680000-0000-0000-0000-0000000000e1', '15680000-0000-0000-0000-0000000000c2', 100000000, 'IDR', '15680000-0000-0000-0000-0000000000c1'),
+  ('15680000-0000-0000-0000-0000000000e9', '15680000-0000-0000-0000-00000000000c', '15680000-0000-0000-0000-0000000000e2', '15680000-0000-0000-0000-0000000000c2', 100000000, 'IDR', '15680000-0000-0000-0000-0000000000c1'),
+  ('15680000-0000-0000-0000-0000000000ea', '15680000-0000-0000-0000-00000000000d', '15680000-0000-0000-0000-0000000000e3', '15680000-0000-0000-0000-0000000000d2', 100000000, 'IDR', '15680000-0000-0000-0000-0000000000d1');
+insert into imprest_plans (id, org_id, float_id, month, status, author_id, submitted_at) values
+  ('15680000-0000-0000-0000-0000000001a1', '15680000-0000-0000-0000-00000000000c', '15680000-0000-0000-0000-0000000000e8',
+   date_trunc('month', now() at time zone 'Asia/Jakarta')::date, 'Submitted', '15680000-0000-0000-0000-0000000000c1', now()),
+  ('15680000-0000-0000-0000-0000000001a2', '15680000-0000-0000-0000-00000000000c', '15680000-0000-0000-0000-0000000000e9',
+   date_trunc('month', now() at time zone 'Asia/Jakarta')::date, 'Submitted', '15680000-0000-0000-0000-0000000000c1', now());
+insert into imprest_plan_lines (plan_id, budget_category, planned_amount) values
+  ('15680000-0000-0000-0000-0000000001a1', 'Vehicle', 1000000),
+  ('15680000-0000-0000-0000-0000000001a2', 'Vehicle', 1000000);
+insert into imprest_float_changes (id, org_id, float_id, proposed_amount, status, proposed_by) values
+  ('15680000-0000-0000-0000-0000000001a3', '15680000-0000-0000-0000-00000000000c', '15680000-0000-0000-0000-0000000000e9', 200000000, 'Proposed', '15680000-0000-0000-0000-0000000000c4');
+insert into imprest_replenishments (id, org_id, float_id, kind, number, status, amount, requested_by, approved_by) values
+  ('15680000-0000-0000-0000-0000000001b1', '15680000-0000-0000-0000-00000000000d', '15680000-0000-0000-0000-0000000000ea', 'replenishment', 'O4-REP-1', 'Requested', 3500000, '15680000-0000-0000-0000-0000000000d2', null),
+  ('15680000-0000-0000-0000-0000000001b2', '15680000-0000-0000-0000-00000000000d', '15680000-0000-0000-0000-0000000000ea', 'replenishment', 'O4-REP-2', 'Approved',  3500000, '15680000-0000-0000-0000-0000000000d2', '15680000-0000-0000-0000-0000000000d4');
+
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
 $$;
@@ -113,7 +174,10 @@ insert into imprest_plans (id, org_id, float_id, month, status, author_id, submi
   ('15680000-0000-0000-0000-000000000195', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d7',
    date_trunc('month', now() at time zone 'Asia/Jakarta')::date, 'Submitted', '15680000-0000-0000-0000-0000000000a4', now()),
   ('15680000-0000-0000-0000-000000000196', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d1',
-   date_trunc('month', now() at time zone 'Asia/Jakarta')::date, 'Submitted', '15680000-0000-0000-0000-0000000000a4', now());
+   date_trunc('month', now() at time zone 'Asia/Jakarta')::date, 'Submitted', '15680000-0000-0000-0000-0000000000a4', now()),
+  -- Branch control: an empty per-line intersection whose only Admin is the plan author (so no eligible Admin).
+  ('15680000-0000-0000-0000-000000000197', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d4',
+   '2027-08-01', 'Submitted', '15680000-0000-0000-0000-0000000000a1', now());
 insert into imprest_plan_lines (plan_id, budget_category, planned_amount) values
   ('15680000-0000-0000-0000-000000000151', 'Vehicle', 1000000),
   ('15680000-0000-0000-0000-000000000152', 'Vehicle', 150000000),
@@ -129,7 +193,9 @@ insert into imprest_plan_lines (plan_id, budget_category, planned_amount) values
   ('15680000-0000-0000-0000-000000000193', 'Vehicle', 1000000),
   ('15680000-0000-0000-0000-000000000194', 'Vehicle', 1000000),
   ('15680000-0000-0000-0000-000000000195', 'Vehicle', 90000000),
-  ('15680000-0000-0000-0000-000000000196', 'Vehicle', 1000000);
+  ('15680000-0000-0000-0000-000000000196', 'Vehicle', 1000000),
+  ('15680000-0000-0000-0000-000000000197', 'Vehicle', 6000000),
+  ('15680000-0000-0000-0000-000000000197', 'Materials', 1000000);
 
 -- S3 (b): the float is lowered after the plan was submitted (lawful: 50,000,000 is above the 0 funded),
 -- so approval now fails the total ceiling while rejection is still a legal decision.
@@ -382,6 +448,106 @@ select is((select status from public.imprest_plans where id = '15680000-0000-000
   'FR-WAIT-006 the feature-off plan reaches Rejected');
 reset role;
 delete from org_features where org_id = '15680000-0000-0000-0000-00000000000a' and feature_key = 'imprest';
+
+-- ── bounded branch-discriminating additions (root msg_cfe8ecacd2d5) ─────────────────────────────────────────────
+-- A. Empty per-line intersection with NO eligible Admin. Positive control: p7 (same branch, an eligible Admin).
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000a3');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000197')->>'route_kind', 'unavailable',
+  'FR-WAIT-006 an empty per-line intersection with no eligible Admin is an honest empty, not a fabricated fallback');
+
+-- B. Plan join-empty: the authority arm still names the raw-banned project approver; only the read-local active
+-- filter empties the name join, and the sole Admin is raw-banned. Fixture precondition is owner-side.
+reset role;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000c1');
+select is((select approver_ids @> array['15680000-0000-0000-0000-0000000000c3']::uuid[]
+             from public.spend_approval_route('15680000-0000-0000-0000-00000000000c', '15680000-0000-0000-0000-0000000000e2',
+                   'Vehicle', 1000000, 'IDR', '15680000-0000-0000-0000-0000000000c1', null, now())),
+  true, 'FIXTURE PRECONDITION (owner-side route arm): spend_approval_route still names the raw-banned project approver');
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000c1');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-0000000001a2')->>'route_kind', 'unavailable',
+  'FR-WAIT-006 all named plan candidates raw-banned and the sole Admin raw-banned => unavailable');
+reset role;
+update auth.users set banned_until = null where id = '15680000-0000-0000-0000-0000000000c3';
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000c1');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-0000000001a2')->>'route_kind', 'named',
+  'FR-WAIT-006 positive control: the plan join names the approver once the raw ban is lifted');
+select is(pg_temp.names(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-0000000001a2')),
+  array['O3 Dead'], 'FR-WAIT-006 the positive control names the once-banned approver');
+reset role;
+update auth.users set banned_until = now() + interval '1 day' where id = '15680000-0000-0000-0000-0000000000c3';
+
+-- C. Limit join-empty: same two guards on the limit branch; the precondition uses the revoked senior helper
+-- owner-side because authenticated cannot execute it.
+reset role;
+select is((select approver_ids @> array['15680000-0000-0000-0000-0000000000c3']::uuid[]
+             from public.imprest_senior_route('15680000-0000-0000-0000-00000000000c', '15680000-0000-0000-0000-0000000000c4')),
+  true, 'FIXTURE PRECONDITION (owner-side revoked helper): imprest_senior_route still names the raw-banned senior');
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000c1');
+select is(public.get_imprest_requester_route('limit_change', '15680000-0000-0000-0000-0000000001a3')->>'route_kind', 'unavailable',
+  'FR-WAIT-006 all named limit candidates raw-banned and the sole Admin raw-banned => unavailable');
+reset role;
+update auth.users set banned_until = null where id = '15680000-0000-0000-0000-0000000000c3';
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000c1');
+select is(public.get_imprest_requester_route('limit_change', '15680000-0000-0000-0000-0000000001a3')->>'route_kind', 'named',
+  'FR-WAIT-006 positive control: the limit join names the senior once the raw ban is lifted');
+select is(pg_temp.names(public.get_imprest_requester_route('limit_change', '15680000-0000-0000-0000-0000000001a3')),
+  array['O3 Dead'], 'FR-WAIT-006 the limit positive control names the once-banned senior');
+reset role;
+update auth.users set banned_until = now() + interval '1 day' where id = '15680000-0000-0000-0000-0000000000c3';
+
+-- D. Banned sole flat candidate: ban the other Finance candidate too, leaving only raw-banned approval-rank people.
+reset role;
+update auth.users set banned_until = now() + interval '1 day' where id = '15680000-0000-0000-0000-0000000000c4';
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000c1');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-0000000001a1')->>'route_kind', 'unavailable',
+  'FR-WAIT-006 a flat plan whose every non-SoD candidate is raw-banned is an honest empty');
+reset role;
+update auth.users set banned_until = null where id = '15680000-0000-0000-0000-0000000000c3';
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000c1');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-0000000001a1')->>'route_kind', 'flat',
+  'FR-WAIT-006 positive control: the flat route returns once a candidate is active');
+reset role;
+update auth.users set banned_until = now() + interval '1 day' where id = '15680000-0000-0000-0000-0000000000c3';
+update auth.users set banned_until = null where id = '15680000-0000-0000-0000-0000000000c4';
+
+-- E. Banned sole payer (O4): the prior approver is SoD-excluded, so d3 is the only payer and is raw-banned.
+reset role;
+update auth.users set banned_until = now() + interval '1 day' where id = '15680000-0000-0000-0000-0000000000d4';
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000d1');
+select is(public.get_imprest_requester_route('replenishment', '15680000-0000-0000-0000-0000000001b2')->>'route_kind', 'unavailable',
+  'FR-WAIT-006 an Approved-unpaid replenishment whose sole payer is raw-banned is an honest empty');
+reset role;
+update auth.users set banned_until = null where id = '15680000-0000-0000-0000-0000000000d3';
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000d1');
+select is(public.get_imprest_requester_route('replenishment', '15680000-0000-0000-0000-0000000001b2')->>'route_kind', 'finance_admin',
+  'FR-WAIT-006 positive control: the pay route returns once the payer is active');
+select is(pg_temp.names(public.get_imprest_requester_route('replenishment', '15680000-0000-0000-0000-0000000001b2')),
+  array['O4 Dead'], 'FR-WAIT-006 the positive control names the once-banned payer');
+reset role;
+update auth.users set banned_until = now() + interval '1 day' where id = '15680000-0000-0000-0000-0000000000d3';
+
+-- F. Requested count filter: the prior Admin is also raw-banned, so the Requested count is zero.
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000d1');
+select is(public.get_imprest_requester_route('replenishment', '15680000-0000-0000-0000-0000000001b1')->>'route_kind', 'unavailable',
+  'FR-WAIT-006 the Requested count sees no active Finance/Admin after the requester/custodian exclusion');
+reset role;
+update auth.users set banned_until = null where id = '15680000-0000-0000-0000-0000000000d3';
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000d1');
+select is(public.get_imprest_requester_route('replenishment', '15680000-0000-0000-0000-0000000001b1')->>'route_kind', 'finance_admin',
+  'FR-WAIT-006 positive control: the Requested approval route returns once a Finance candidate is active');
+reset role;
+update auth.users set banned_until = now() + interval '1 day' where id = '15680000-0000-0000-0000-0000000000d3';
 
 -- Light account: refused with the 1209 convention.
 reset role;
