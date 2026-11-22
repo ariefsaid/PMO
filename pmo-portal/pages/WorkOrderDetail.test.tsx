@@ -18,7 +18,7 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts, useWorkOrderAcceptanceMutations: () => ({ confirm: { isPending: false, mutateAsync: vi.fn().mockResolvedValue({ closingValue: null, dpHeld: 0 }) } }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-finance' } }) }));
-vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing }));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderBilledMonths: () => ({ data: undefined, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.docs }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
   useWorkOrderCostLines: () => h.lines, useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: () => h.discs, useWorkOrderTimesheetLabels: () => h.labels,

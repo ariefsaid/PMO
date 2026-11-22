@@ -22,7 +22,7 @@ import {
   transitionWorkOrder,
   getProjectDrawdown,
 } from '@/src/lib/db/workOrders';
-import { listWorkOrderAcceptanceAge, listWorkOrderBilling, getUnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
+import { getWorkOrderBilledMonths, listWorkOrderAcceptanceAge, listWorkOrderBilling, getUnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
 import {
   listBoqItems,
   createBoqItem,
@@ -82,6 +82,7 @@ export const workOrderRepository: WorkOrderRepository = {
   transition: (id, to, opts) => wrap(() => transitionWorkOrder(id, to, opts)),
   drawdown: (projectId) => wrap(() => getProjectDrawdown(projectId)),
   billing: (projectId) => wrap(() => listWorkOrderBilling(projectId)),
+  billedMonths: (workOrderId) => wrap(() => getWorkOrderBilledMonths(workOrderId)),
   unbilled: (limit) => wrap(() => getUnbilledWorkOrders(limit)),
   acceptanceAge: (projectId) => wrap(() => listWorkOrderAcceptanceAge(projectId)),
 };

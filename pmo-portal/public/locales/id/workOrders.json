@@ -66,7 +66,16 @@
     "confirmFinalTitle": "Konfirmasi BAST akhir?",
     "confirmBody": "Kuantitas yang diterima dicatat per BAST ini. Pesanan kerja tetap terbuka dan belum ada yang ditagihkan.",
     "confirmFinalBody": "Mengonfirmasi BAST akhir menutup pesanan kerja pada kuantitas yang diterima. Tindakan ini tidak dapat dibatalkan.",
-    "confirmedToast": "BAST dikonfirmasi"
+    "confirmedToast": "BAST dikonfirmasi",
+    "perMonth": {
+      "title": "Ditagih per bulan",
+      "error": "Gagal memuat penagihan per bulan",
+      "empty": "Belum ada faktur yang diajukan.",
+      "basis": "Hanya menghitung faktur yang sudah diajukan, tanpa pajak, dalam mata uang perintah kerja. Draf dan klaim yang belum difakturkan tidak termasuk.",
+      "incomplete": "Beberapa faktur tidak dapat dijumlahkan dalam mata uang perintah kerja ini, sehingga angka bulanan tidak ditampilkan.",
+      "toDate": "sampai hari ini",
+      "total": "Total ditagih"
+    }
   },
   "documents": {
     "title": "Dokumen",

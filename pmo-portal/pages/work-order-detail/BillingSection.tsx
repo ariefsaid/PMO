@@ -1,13 +1,15 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, RecordSection, StatusPill } from '@/src/components/ui';
-import { formatCurrency, formatDay, formatNumberExact } from '@/src/lib/format';
-import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
+import { formatCurrency, formatDay, formatMonthYearShort, formatNumberExact } from '@/src/lib/format';
+import type { WorkOrderBilledMonths, WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 
 interface Props {
   /** null = the caller may not see billing (section hidden); undefined row = no figures for this work order. */
   billing: { row: WorkOrderBillingRow | null; isPending: boolean; isError: boolean; onRetry: () => void } | null;
+  /** Billed per month: null = the caller may not see billing (no block, no read). */
+  perMonth?: { months: WorkOrderBilledMonths | undefined; isPending: boolean; isError: boolean; onRetry: () => void } | null;
   acceptances: WorkOrderAcceptanceWithLines[] | null;
   acceptancesPending: boolean;
   acceptancesError: boolean;
@@ -17,10 +19,12 @@ interface Props {
 }
 
 /** Billing and acceptances (FR-WORP-023): the shipped `work_order_billing` figures and the BAST list — no second formula. */
-export const BillingSection: React.FC<Props> = ({ billing, acceptances, acceptancesPending, acceptancesError, onRetryAcceptances, confirm }) => {
+export const BillingSection: React.FC<Props> = ({ billing, perMonth = null, acceptances, acceptancesPending, acceptancesError, onRetryAcceptances, confirm }) => {
   const { t } = useTranslation('workOrders');
   const title = t('billing.title', 'Billing and acceptances');
   const row = billing?.row ?? null;
+  const pm = perMonth?.months;
+  const monthsNewestFirst = pm ? [...pm.months].reverse() : [];
   const fig = (k: string, label: string, v: number) => (
     <div key={k} data-testid={`billing-${k}`}><dt className="text-control text-muted-foreground">{label}</dt>
       <dd className="tabular-nums font-medium">{formatCurrency(v, row!.currency)}</dd></div>
@@ -39,6 +43,39 @@ export const BillingSection: React.FC<Props> = ({ billing, acceptances, acceptan
             {fig('remaining', t('billing.remaining', 'Remaining'), row.remaining)}
             {!row.figuresComplete && <p className="col-span-full text-control text-muted-foreground">{t('billing.incomplete', 'Some invoices could not be totalled, so these figures are incomplete.')}</p>}
           </dl>
+        )}
+        {perMonth && (
+          <div data-testid="billed-per-month-block">
+            <h3 className="mb-3 font-medium">{t('billing.perMonth.title', 'Billed per month')}</h3>
+            {perMonth.isPending && <ListState variant="loading" rows={1} />}
+            {perMonth.isError && <ListState variant="error" title={t('billing.perMonth.error', "Couldn't load the billed months")} onRetry={perMonth.onRetry} />}
+            {pm && !perMonth.isError && (
+              <>
+                <p className="mb-2 text-control text-muted-foreground">{t('billing.perMonth.basis', 'Counts submitted invoices only, excluding tax, in the work order currency. Drafts and claims not yet invoiced are not in these figures.')}</p>
+                {pm.incomplete && <p className="text-control text-muted-foreground" data-testid="billed-per-month-incomplete">{t('billing.perMonth.incomplete', "Some invoices could not be totalled in this work order's currency, so no monthly figures are shown.")}</p>}
+                {!pm.incomplete && pm.months.length === 0 && <p className="text-control text-muted-foreground">{t('billing.perMonth.empty', 'No submitted invoice yet.')}</p>}
+                {!pm.incomplete && pm.months.length > 0 && (
+                  <>
+                    <ul className="divide-y divide-border" data-testid="billed-per-month">
+                      {monthsNewestFirst.map((m) => (
+                        <li key={m.month} className="flex items-baseline justify-between gap-2 py-1.5" data-testid={`billed-month-${m.month.slice(0, 7)}`}>
+                          <span>
+                            {formatMonthYearShort(m.month)}
+                            {m.toDate && <span className="ml-2 text-control text-muted-foreground">{t('billing.perMonth.toDate', 'to date')}</span>}
+                          </span>
+                          <span className="tabular-nums font-medium">{formatCurrency(m.billed, pm.currency)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-2 flex items-baseline justify-between gap-2 font-medium" data-testid="billed-per-month-total">
+                      <span>{t('billing.perMonth.total', 'Total billed')}</span>
+                      <span className="tabular-nums">{formatCurrency(pm.total, pm.currency)}</span>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
         )}
         <div>
           <h3 className="mb-3 font-medium">{t('billing.acceptances', 'Acceptances')}</h3>

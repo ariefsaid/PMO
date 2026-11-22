@@ -34,7 +34,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
-import { getUnbilledWorkOrders, listWorkOrderAcceptanceAge, listWorkOrderBilling, parseUnbilledWorkOrders } from './workOrderBilling';
+import { getUnbilledWorkOrders, listWorkOrderAcceptanceAge, getWorkOrderBilledMonths, listWorkOrderBilling, parseUnbilledWorkOrders } from './workOrderBilling';
 
 const ROW = {
   work_order_id: 'wo-1', project_id: 'p1', status: 'Issued', currency: 'USD', order_net: 500000, invoiced: '330000.00',
@@ -184,5 +184,34 @@ describe('work-order acceptance age DAL (#1640)', () => {
       { work_order_id: 'wo-2', wo_number: 'WO-2', title: 'B', project_id: 'p1', project_name: 'P', status: 'Closed', currency: 'USD', remaining: 5, days_since_closed: 3 },
     ] });
     expect(doc.rows.map((r) => r.daysSinceAcceptance)).toEqual([12, null]);
+  });
+});
+
+describe('billed months for one work order (billed per month)', () => {
+  const doc = (extra: Record<string, unknown> = {}) => ({ as_of: '2026-12-05', timezone: 'Asia/Jakarta', currency: 'IDR', incomplete: false,
+    months: [{ month: '2026-11-01', billed: '0.00', to_date: false }, { month: '2026-12-01', billed: '40000.10', to_date: true }], ...extra });
+  it('AC-BPM-004 asks the database for the one work order and reads the months as numbers, total in cents', async () => {
+    h.state.rpc = { data: doc({ months: [{ month: '2026-10-01', billed: '0.10', to_date: false }, { month: '2026-11-01', billed: '0.20', to_date: true }] }), error: null };
+    const r = await getWorkOrderBilledMonths('wo-1');
+    expect(h.calls.rpc).toEqual([['get_work_order_billed_months', { p_work_order: 'wo-1' }]]);
+    expect(r.months).toEqual([{ month: '2026-10-01', billed: 0.1, toDate: false }, { month: '2026-11-01', billed: 0.2, toDate: true }]);
+    expect(r.total).toBe(0.3);
+    expect(r).toMatchObject({ currency: 'IDR', asOf: '2026-12-05', incomplete: false });
+  });
+  it('an incomplete work order carries no months', async () => {
+    h.state.rpc = { data: doc({ incomplete: true, months: [] }), error: null };
+    expect(await getWorkOrderBilledMonths('wo-1')).toMatchObject({ incomplete: true, months: [], total: 0 });
+  });
+  it('a malformed month or amount is an error, never a figure', async () => {
+    h.state.rpc = { data: doc({ months: [{ month: '2026-11-01', billed: 'x', to_date: false }] }), error: null };
+    await expect(getWorkOrderBilledMonths('wo-1')).rejects.toMatchObject({ code: 'malformed-billing' });
+    h.state.rpc = { data: doc({ months: [{ month: 'soon', billed: '1', to_date: false }] }), error: null };
+    await expect(getWorkOrderBilledMonths('wo-1')).rejects.toMatchObject({ code: 'malformed-billing' });
+    h.state.rpc = { data: null, error: null };
+    await expect(getWorkOrderBilledMonths('wo-1')).rejects.toMatchObject({ code: 'malformed-billing' });
+  });
+  it('a refusal is an error', async () => {
+    h.state.rpc = { data: null, error: { message: 'not authorized', code: '42501' } };
+    await expect(getWorkOrderBilledMonths('wo-1')).rejects.toMatchObject({ code: '42501' });
   });
 });

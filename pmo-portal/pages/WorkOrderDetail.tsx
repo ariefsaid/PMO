@@ -11,7 +11,7 @@ import { useFeature } from '@/src/auth/useFeature';
 import { useProject } from '@/src/hooks/useProjects';
 import { useBoqItems } from '@/src/hooks/useProgressBilling';
 import { useWorkOrderAcceptanceMutations, useWorkOrderAcceptances } from '@/src/hooks/useWorkOrderAcceptances';
-import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
+import { useWorkOrderBilledMonths, useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useCostDisciplines, useWorkOrderCostLines, useWorkOrderCostMoney, useWorkOrderCostLinks, useWorkOrderTimesheetLabels } from '@/src/hooks/useWorkOrderCosts';
 import { useProjectPlanVsActual } from '@/src/hooks/useWorkOrderPlanVsActual';
@@ -67,6 +67,7 @@ const WorkOrderDetail: React.FC = () => {
   const [confirmFor, setConfirmFor] = useState<{ acceptance: WorkOrderAcceptanceWithLines; error: string | null } | null>(null);
   const canBilling = may('view', 'salesInvoice');
   const billing = useWorkOrderBilling(projectId, canBilling && Boolean(wo.data));
+  const billedMonths = useWorkOrderBilledMonths(id, canBilling && Boolean(wo.data));
   const docs = useDocuments(projectId);
   const costLines = useWorkOrderCostLines(wo.data ? id ?? null : null);
   const flatLines = useMemo(() => Object.values(costLines.data ?? {}).flat(), [costLines.data]);
@@ -142,6 +143,7 @@ const WorkOrderDetail: React.FC = () => {
         {/* #2672: the daily target view; same switch and role gate as the plan above. */}
         <DailyTargetGate workOrderId={row.id} />
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
+          perMonth={canBilling ? { months: billedMonths.data, isPending: billedMonths.isPending, isError: billedMonths.isError, onRetry: () => void billedMonths.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()}
           confirm={{
             canConfirm: (a) => row.status === 'Issued' && may('confirm', 'workOrderAcceptance', { currentUserId: currentUser?.id ?? null, record: { status: a.status, prepared_by: a.prepared_by } }),
