@@ -169,6 +169,15 @@ describe('WorkOrderDetail', () => {
     expect(screen.getByTestId('cost-line-hour1').textContent).toContain('Timesheet');
     expect(screen.getByTestId('cost-line-hour1').textContent).not.toContain('hour1');
   });
+  it('names an approved no-login attendance day as attendance, never by its id, and does not call its amount unavailable', () => {
+    h.lines = q({ attendance_day: [{ ...ln('attendance_day', 'att1', null), reference: null, quantity: 8, quantityUnit: 'hours' }] });
+    h.money = q({});
+    renderPage();
+    const line = screen.getByTestId('cost-line-att1');
+    expect(line.textContent).toContain('Attendance');
+    expect(line.textContent).not.toContain('att1');
+    expect(within(screen.getByTestId('cost-group-attendance_day')).queryByText('Amount unavailable')).toBeNull();
+  });
   it('explains when costs have no available amount', () => {
     h.lines = q({ timesheet_entry: [ln('timesheet_entry', 'hour1', null)] });
     h.money = q({});

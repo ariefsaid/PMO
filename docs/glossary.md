@@ -1340,7 +1340,13 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Live certificate** — one that is submitted, approved or billed; only a live certificate holds measured work or a backcharge.
 **Labour cost rate** — what an hour of a person's time costs the organisation: set per person or per role, hourly, daily or fixed monthly, with an overtime multiplier, a labour class and a start date. Cost only, never pay (#2670).
 
-**Labour class** — an organisation-defined label on a labour cost rate (defaults direct, indirect and guard, renameable) that breaks a work order's labour cost down in plan versus actual (#2670).
+**Labour class** — an organisation-defined label on a labour cost rate (defaults direct, indirect and guard, renameable) that breaks a work order's labour cost down in plan versus actual (#2670). A person with no login also holds one, through a labour class assignment.
+
+**Class rate** — a labour cost rate whose subject is a labour class rather than a person or a role. It prices the costed attendance days of the people who hold that class; it never prices a timesheet. Same basis, overtime multiplier, day and month length, dates and history lock as any labour cost rate.
+
+**Labour class assignment** — the labour class a person in the people register holds from a start date, with an optional end. Dated like a rate, so reclassifying a person never re-prices a day already costed. Set by Admin or Finance.
+
+**Costed attendance day** — a present, approved attendance day of a person that is not linked to a timesheet line and has no approved timesheet line of that person's login on the same project and date. The one place a worker's day is counted once across timesheets and attendance (`labour_cost_attendance_days`).
 
 **Priced hours** — approved timesheet hours on a date the person has an applicable labour cost rate; **overtime hours** are a person's hours beyond the rate's day length on one date, across all their approved lines. Labour cost is internal costing outside the ledger: it adds to a work order's direct cost, never to project actuals (#2670).
 

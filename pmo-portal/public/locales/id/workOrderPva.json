@@ -128,7 +128,9 @@
     "purchase_request": "Permintaan pembelian",
     "stock_document": "Pergerakan stok",
     "timesheet_entry": "Lembar waktu",
-    "vendor_bill": "Invoice supplier"
+    "vendor_bill": "Invoice supplier",
+    "attendance_day": "Kehadiran",
+    "expense_claim": "Klaim biaya"
   },
   "split": {
     "clear": "Pakai pembagian bawaan",

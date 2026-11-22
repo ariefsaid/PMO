@@ -128,7 +128,9 @@
     "purchase_request": "Purchase request",
     "stock_document": "Stock movement",
     "timesheet_entry": "Timesheet",
-    "vendor_bill": "Vendor bill"
+    "vendor_bill": "Vendor bill",
+    "attendance_day": "Attendance",
+    "expense_claim": "Expense claim"
   },
   "split": {
     "clear": "Use the default split",

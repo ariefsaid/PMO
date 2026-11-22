@@ -70,6 +70,16 @@ describe('AC-WCA-012 the read seam', () => {
     expect(grouped.stock_document).toEqual([]);
   });
 
+  it('approved no-login attendance in the read seam is kept under its own source, never dropped', async () => {
+    h.result.value = {
+      data: [{ id: 'att1', source: 'attendance_day', project_id: 'p1', work_order_id: 'wo1', discipline_id: 'd1', occurred_on: '2026-11-17', reference: null, quantity: 8, quantity_unit: 'hours' }],
+      error: null,
+    };
+    const grouped = await workOrderCostRepository.costLinesBySource('wo1');
+    expect(dal.COST_SOURCES).toContain('attendance_day');
+    expect(grouped.attendance_day).toEqual([expect.objectContaining({ recordId: 'att1', quantity: 8, quantityUnit: 'hours' })]);
+  });
+
   it('AC-WCA-012 lines come back oldest first', async () => {
     h.result.value = {
       data: [

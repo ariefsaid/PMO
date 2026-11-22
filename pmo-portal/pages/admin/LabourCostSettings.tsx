@@ -4,9 +4,10 @@ import { Button, Checkbox, ConfirmDialog, DateField, EntityFormModal, FormGrid, 
 import { usePermission } from '@/src/auth/usePermission';
 import { useUsers } from '@/src/hooks/useUsers';
 import { useLabourClasses, useLabourCostEnabled, useLabourCostMutations, useLabourRates } from '@/src/hooks/useLabourCost';
-import { validateRateInput, type LabourClass, type LabourRate, type LabourRateInput, type RateBasis } from '@/src/lib/db/labourCost';
+import { validateRateInput, type LabourClass, type LabourRate, type LabourRateInput, type RateBasis, type RateSubject } from '@/src/lib/db/labourCost';
 import { formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import LabourClassAssignments from './LabourClassAssignments';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
 /**
@@ -40,7 +41,7 @@ export default function LabourCostSettings() {
   const refusals = {
     '42501': t('labourCost.adminOnly', 'Only an Admin or Finance can change labour cost settings.'),
     '23514': t('labourCost.locked', 'This would change hours already priced on approved timesheets. Start the new rate after the last priced day.'),
-    '23505': t('labourCost.duplicate', 'A rate for this person or role already starts on that date.'),
+    '23505': t('labourCost.duplicate', 'A rate for this person, role or class already starts on that date.'),
   };
   const fail = (e: unknown) => { const c = classifyMutationError(e, refusals); toast(c.headline, c.detail, 'warning'); };
   const classes = classesQ.data ?? [];
@@ -93,7 +94,7 @@ export default function LabourCostSettings() {
           </tr></thead>
           <tbody>{rates.map((r) => (
             <tr key={r.id} className="border-t border-border align-top">
-              <td className="py-2 pr-4 font-medium">{r.subjectKind === 'person' ? (r.personName ?? '') : r.roleKey}</td>
+              <td className="py-2 pr-4 font-medium">{r.subjectKind === 'person' ? (r.personName ?? '') : r.subjectKind === 'class' ? t('labourCost.subjectClassCell', 'People with no login in this class') : r.roleKey}</td>
               <td className="py-2 pr-4">{className(r.classId)}</td>
               <td className="py-2 pr-4 text-right tabular-nums">{money(r.amount)} {t(`labourCost.basis.${r.basis}`, r.basis)}
                 {Number(r.overtimeMultiplier) > 1 && <div className="text-muted-foreground">{t('labourCost.overtimeShort', 'Overtime ×{{n}}', { n: Number(r.overtimeMultiplier) })}</div>}</td>
@@ -104,6 +105,7 @@ export default function LabourCostSettings() {
               </span></td>}
             </tr>))}</tbody>
         </table></div>}
+      <LabourClassAssignments classes={classes} canManage={canManage} />
     </>}
 
     {classForm && <ClassFormModal target={classForm} refusals={refusals} onClose={() => setClassForm(null)}
@@ -150,7 +152,7 @@ const ClassFormModal: React.FC<{ target: ClassForm; refusals: Record<string, str
 const RateFormModal: React.FC<{ classes: LabourClass[]; refusals: Record<string, string>; onClose: () => void; onSave: (i: LabourRateInput) => Promise<void> }> = ({ classes, refusals, onClose, onSave }) => {
   const { t } = useTranslation('administration');
   const users = useUsers();
-  const [subjectKind, setSubjectKind] = useState<'person' | 'role'>('role');
+  const [subjectKind, setSubjectKind] = useState<RateSubject>('role');
   const [personId, setPersonId] = useState('');
   const [roleKey, setRoleKey] = useState('');
   const [classId, setClassId] = useState(classes[0]?.id ?? '');
@@ -170,9 +172,10 @@ const RateFormModal: React.FC<{ classes: LabourClass[]; refusals: Record<string,
     submitDisabled={problem !== null} dirty={amount !== '' || from !== ''} submitError={err} onClose={onClose}
     onSubmit={(e) => { e.preventDefault(); if (problem) return; setErr(null); onSave(input).catch((x: unknown) => setErr(classifyMutationError(x, refusals))); }}>
     <FormGrid>
-      <SelectField label={t('labourCost.appliesTo', 'Applies to')} value={subjectKind} onChange={(v) => setSubjectKind(v as 'person' | 'role')} fullWidth
-        options={[{ value: 'role', label: t('labourCost.subjectRole', 'A role') }, { value: 'person', label: t('labourCost.subjectPerson', 'One person') }]} />
-      {subjectKind === 'person'
+      <SelectField label={t('labourCost.appliesTo', 'Applies to')} value={subjectKind} onChange={(v) => setSubjectKind(v as RateSubject)} fullWidth
+        options={[{ value: 'role', label: t('labourCost.subjectRole', 'A role') }, { value: 'person', label: t('labourCost.subjectPerson', 'One person') },
+          { value: 'class', label: t('labourCost.subjectClass', 'A labour class (people with no login)') }]} />
+      {subjectKind === 'class' ? null : subjectKind === 'person'
         ? <SelectField label={t('labourCost.person', 'Person')} value={personId} onChange={setPersonId} fullWidth
             options={[{ value: '', label: t('labourCost.choosePerson', 'Choose a person') }, ...(users.data ?? []).map((u) => ({ value: u.id, label: u.full_name ?? u.email ?? u.id }))]} />
         : <SelectField label={t('labourCost.role', 'Role')} value={roleKey} onChange={setRoleKey} fullWidth required

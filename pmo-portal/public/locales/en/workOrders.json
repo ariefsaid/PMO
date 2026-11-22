@@ -32,7 +32,9 @@
       "vendor_bill": "Vendor bills",
       "timesheet_entry": "Timesheets",
       "stock_document": "Stock movements",
-      "equipment_usage": "Equipment usage"
+      "equipment_usage": "Equipment usage",
+      "attendance_day": "Attendance (people with no login)",
+      "expense_claim": "Expense claims"
     },
     "unavailable": "Amount unavailable",
     "notCosted": "Not yet costed",
@@ -42,7 +44,8 @@
       "purchase_request": "Not counted as direct cost yet: a request counts once its supplier bill is recorded.",
       "purchase_order": "Not counted as direct cost yet: an order counts once its supplier bill is recorded.",
       "goods_receipt": "Received, but not counted as direct cost yet: a receipt counts once its supplier bill is recorded."
-    }
+    },
+    "attendanceLabel": "Attendance"
   },
   "billing": {
     "title": "Billing and acceptances",
