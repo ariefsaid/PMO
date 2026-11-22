@@ -49,7 +49,7 @@ describe('MarkLeftDialog', () => {
     const input = within(dialog).getByRole('textbox', { name: /^First day off crew roster/i });
     expect(input).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/^First day off crew roster/i)).toBe(input);
-    expect(within(dialog).getAllByText(/First day off crew roster/i).length).toBeGreaterThanOrEqual(1);
+    expect(input).toHaveAccessibleDescription('First day off crew roster');
     expect(within(dialog).queryByText(/Last day of work/i)).toBeNull();
     expect(screen.queryByText(/Last day of work/i)).toBeNull();
   });
@@ -95,7 +95,7 @@ describe('MarkLeftDialog', () => {
     const input = within(dialog).getByRole('textbox', { name: /^Hari pertama keluar dari susunan kru/i });
     expect(input).toBeInTheDocument();
     expect(within(dialog).getByLabelText(/^Hari pertama keluar dari susunan kru/i)).toBe(input);
-    expect(within(dialog).getAllByText(/Hari pertama keluar dari susunan kru/i).length).toBeGreaterThanOrEqual(1);
+    expect(input).toHaveAccessibleDescription('Hari pertama keluar dari susunan kru');
     expect(within(dialog).queryByText(/Hari kerja terakhir/i)).toBeNull();
     expect(screen.queryByText(/Hari kerja terakhir/i)).toBeNull();
   });
