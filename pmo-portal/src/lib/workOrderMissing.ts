@@ -8,7 +8,7 @@ import type { ExportTable } from '@/src/lib/export';
  * quantity accepted but not claimed.
  */
 export interface MissingStepAttachment { id: string; name: string; required: boolean; attached: boolean }
-/** One step of the work order, as a step source supplies it. `ownerRole` is the role that adds it (a role name from the organisation's data). */
+/** One step of the work order, as a step source supplies it. `ownerRole` is who adds it, already as text: the assignee's name, else the role's label (organisation data). */
 export interface MissingStep {
   id: string;
   position: number;
@@ -85,4 +85,26 @@ export interface MissingExportLabels {
 /** The screen's rows, in the screen's order, as the shared export table. */
 export function toMissingExport(rows: readonly MissingRow[], labels: MissingExportLabels): ExportTable {
   return { header: labels.header, body: rows.map((r) => { const d = labels.describe(r); return [r.name, d.kind, d.reason, d.who]; }) };
+}
+
+/** The work order's billing step as the step source (`work_order_billing_steps`) returns it, reduced to what the mapping reads. */
+export interface SourceStep {
+  id: string; position: number; name: string; ownerRoleKey: string | null; assigneeName: string | null;
+  doneOn: string | null; skippedOn: string | null;
+  documents: Array<{ id: string; name: string; required: boolean; documentId: string | null }>;
+}
+
+/**
+ * Maps the work order's step list to the missing list's input. Done = done or skipped. Who adds = the assignee's name, else the
+ * owner role's label, else nobody in particular (the list then says the project team).
+ */
+export function missingStepsFromSource(steps: readonly SourceStep[], roleLabel: (roleKey: string) => string): MissingStep[] {
+  return steps.map((s) => ({
+    id: s.id,
+    position: s.position,
+    name: s.name,
+    ownerRole: s.assigneeName ?? (s.ownerRoleKey ? roleLabel(s.ownerRoleKey) : null),
+    done: Boolean(s.doneOn || s.skippedOn),
+    attachments: s.documents.map((d) => ({ id: d.id, name: d.name, required: d.required, attached: d.documentId !== null })),
+  }));
 }

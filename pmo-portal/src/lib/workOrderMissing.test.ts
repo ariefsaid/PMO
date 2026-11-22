@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveWorkOrderMissing, toMissingExport, type MissingStep } from './workOrderMissing';
+import { deriveWorkOrderMissing, missingStepsFromSource, toMissingExport, type MissingStep } from './workOrderMissing';
 
 const none = { steps: [], scopeLines: [], reconciliation: [], status: 'Issued' };
 const step = (o: Partial<MissingStep>): MissingStep => ({ id: 's1', position: 1, name: 'Step one', ownerRole: null, done: false, attachments: [], ...o });
@@ -56,5 +56,25 @@ describe('toMissingExport', () => {
     const table = toMissingExport(rows, { header: ['Item', 'Kind', 'Why', 'Who'], describe: (r) => ({ kind: 'k', reason: 'why ' + r.name, who: 'w' }) });
     expect(table.header).toEqual(['Item', 'Kind', 'Why', 'Who']);
     expect(table.body).toEqual([['Step one', 'k', 'why Step one', 'w'], ['Step two', 'k', 'why Step two', 'w']]);
+  });
+});
+
+describe('missingStepsFromSource', () => {
+  const src = (o: object) => ({ id: 's1', position: 1, name: 'Step one', ownerRoleKey: null, assigneeName: null, doneOn: null, skippedOn: null, documents: [], ...o });
+  const label = (k: string) => 'Label of ' + k;
+
+  it('AC-WML-008 done or skipped steps are done; open ones are not', () => {
+    const m = missingStepsFromSource([src({}), src({ id: 's2', doneOn: '2026-11-01' }), src({ id: 's3', skippedOn: '2026-11-01' })], label);
+    expect(m.map((s) => s.done)).toEqual([false, true, true]);
+  });
+
+  it('AC-WML-008 who adds is the assignee name, else the role label, else nobody', () => {
+    const m = missingStepsFromSource([src({ assigneeName: 'Dewi', ownerRoleKey: 'r1' }), src({ id: 's2', ownerRoleKey: 'r1' }), src({ id: 's3' })], label);
+    expect(m.map((s) => s.ownerRole)).toEqual(['Dewi', 'Label of r1', null]);
+  });
+
+  it('AC-WML-008 a slot with a document is attached, without one is not, and the required flag carries', () => {
+    const m = missingStepsFromSource([src({ documents: [{ id: 'a', name: 'A', required: true, documentId: 'd' }, { id: 'b', name: 'B', required: false, documentId: null }] })], label);
+    expect(m[0].attachments).toEqual([{ id: 'a', name: 'A', required: true, attached: true }, { id: 'b', name: 'B', required: false, attached: false }]);
   });
 });

@@ -5,7 +5,10 @@ import { Button } from '@/src/components/ui/Button';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { SelectField, TextArea, TextField } from '@/src/components/ui/FormFields';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { useStepTemplateMutations, useStepTemplates } from '@/src/hooks/useBillingSteps';
+import { useDefaultStepTemplate, useStepTemplateMutations, useStepTemplates } from '@/src/hooks/useBillingSteps';
+import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
+import { useRefusalLine, useRefusalText } from '@/src/lib/refusals';
 import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import type { StepInput, StepTemplate } from '@/src/lib/db/billingSteps';
 
@@ -14,16 +17,19 @@ import type { StepInput, StepTemplate } from '@/src/lib/db/billingSteps';
  * client's team defines themselves (step names, owner roles, target days, documents). Nothing is supplied by PMO. Finance or an
  * Admin writes; loading a template onto a project or a claim copies it, so editing a template later changes nothing already made.
  */
-interface Row { key: number; name: string; ownerRole: string; target: string; clientSide: boolean; optionalStep: boolean; required: string; optional: string }
+interface Row { key: number; name: string; ownerRole: string; ownerRoleKey: string; hiddenFrom: string[]; target: string; clientSide: boolean; optionalStep: boolean; required: string; optional: string }
+/** Field accounts own no step and are never named in a hidden-from list: the database refuses them, so they are not offered. */
+const FULL_ROLE_KEYS = BUILT_IN_ROLES.filter((r) => r.tier !== 'field').map((r) => r.key);
 
 const lines = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean);
 const toRow = (s: StepTemplate['steps'][number], key: number): Row => ({
-  key, name: s.name, ownerRole: s.ownerRole ?? '', target: s.targetDays == null ? '' : String(s.targetDays), clientSide: Boolean(s.clientSide),
+  key, name: s.name, ownerRole: s.ownerRole ?? '', ownerRoleKey: s.ownerRoleKey ?? '', hiddenFrom: s.hiddenFromRoleKeys ?? [], target: s.targetDays == null ? '' : String(s.targetDays), clientSide: Boolean(s.clientSide),
   optionalStep: Boolean(s.optional), required: (s.documents ?? []).filter((d) => d.required).map((d) => d.name).join('\n'),
   optional: (s.documents ?? []).filter((d) => !d.required).map((d) => d.name).join('\n'),
 });
 const toStep = (r: Row): StepInput => ({
-  name: r.name.trim(), ownerRole: r.ownerRole === '' ? null : r.ownerRole, targetDays: r.target.trim() === '' ? null : Number(r.target),
+  name: r.name.trim(), ownerRole: r.ownerRole === '' ? null : r.ownerRole,
+  ownerRoleKey: r.ownerRoleKey === '' ? null : r.ownerRoleKey, hiddenFromRoleKeys: r.hiddenFrom, targetDays: r.target.trim() === '' ? null : Number(r.target),
   clientSide: r.clientSide, optional: r.optionalStep,
   documents: [...lines(r.required).map((name) => ({ name, required: true })), ...lines(r.optional).map((name) => ({ name, required: false }))],
 });
@@ -32,6 +38,8 @@ const validTarget = (v: string) => v.trim() === '' || (/^\d+$/.test(v.trim()) &&
 const TemplateForm: React.FC<{ template: StepTemplate | null; onClose: () => void }> = ({ template, onClose }) => {
   const { t } = useTranslation('project');
   const roles = useRoleOptions();
+  const roleName = useBuiltInRoleName();
+  const refusalText = useRefusalText();
   const { save } = useStepTemplateMutations();
   const nextKey = useRef(0);
   const [name, setName] = useState(template?.name ?? '');
@@ -41,6 +49,7 @@ const TemplateForm: React.FC<{ template: StepTemplate | null; onClose: () => voi
   const [dirty, setDirty] = useState(false);
   const update = (key: number, patch: Partial<Row>) => { setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r))); setDirty(true); };
   const roleOptions = [{ value: '', label: t('projectDetail.billing.steps.noOwner', 'Nobody in particular') }, ...roles.options];
+  const keyOptions = [{ value: '', label: t('projectDetail.billing.steps.noOwner', 'Nobody in particular') }, ...FULL_ROLE_KEYS.map((k) => ({ value: k, label: roleName(k) }))];
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +60,8 @@ const TemplateForm: React.FC<{ template: StepTemplate | null; onClose: () => voi
       await save.mutateAsync({ templateId: template?.id ?? null, name: name.trim(), steps: rows.map(toStep) });
       onClose();
     } catch (err) {
-      setSubmitError(classifyMutationError(err));
+      const r = refusalText(err);
+      setSubmitError(r.known ? { headline: r.headline, detail: r.detail || undefined } : classifyMutationError(err));
     }
   };
 
@@ -76,6 +86,20 @@ const TemplateForm: React.FC<{ template: StepTemplate | null; onClose: () => voi
                 onClick={() => { setRows((rs) => rs.filter((r) => r.key !== row.key)); setDirty(true); }}>{t('projectDetail.billing.terms.removeShort', 'Remove')}</Button>
             </span>
           </div>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <SelectField compact label={t('projectDetail.billing.steps.workOrderOwner', 'Owner on a work order')} value={row.ownerRoleKey} options={keyOptions}
+              onChange={(v) => update(row.key, { ownerRoleKey: v })} />
+            <SelectField compact label={t('projectDetail.billing.steps.hideFrom', 'Hide this step from a role')} value="" placeholder={t('projectDetail.billing.steps.hidePick', 'Choose a role')}
+              options={FULL_ROLE_KEYS.filter((k) => !row.hiddenFrom.includes(k)).map((k) => ({ value: k, label: roleName(k) }))}
+              onChange={(v) => { if (v) update(row.key, { hiddenFrom: [...row.hiddenFrom, v] }); }} />
+          </div>
+          {row.hiddenFrom.length > 0 && <ul className="mt-2 flex flex-wrap gap-2 text-sm" aria-label={t('projectDetail.billing.steps.hiddenList', 'Hidden from')}>
+            {row.hiddenFrom.map((k) => <li key={k} className="flex items-center gap-1 rounded-md border border-border px-2 py-1">
+              {t('projectDetail.billing.steps.hiddenFrom', 'Hidden from {{role}}', { role: roleName(k) })}
+              <Button type="button" variant="outline" size="sm" aria-label={t('projectDetail.billing.steps.unhide', 'Show to {{role}} again', { role: roleName(k) })}
+                onClick={() => update(row.key, { hiddenFrom: row.hiddenFrom.filter((x) => x !== k) })}>{t('projectDetail.billing.terms.removeShort', 'Remove')}</Button>
+            </li>)}
+          </ul>}
           <div className="mt-3 flex flex-wrap gap-4">
             <Checkbox checked={row.clientSide} onChange={(v) => update(row.key, { clientSide: v })} label={t('projectDetail.billing.stages.clientSide', "In the client's system")}>
               {t('projectDetail.billing.stages.clientSide', "In the client's system")}
@@ -92,7 +116,7 @@ const TemplateForm: React.FC<{ template: StepTemplate | null; onClose: () => voi
       </li>)}
     </ol>
     <Button type="button" variant="outline" size="sm" className="mt-3"
-      onClick={() => { setRows((rs) => [...rs, { key: nextKey.current++, name: '', ownerRole: '', target: '', clientSide: false, optionalStep: false, required: '', optional: '' }]); setDirty(true); }}>
+      onClick={() => { setRows((rs) => [...rs, { key: nextKey.current++, name: '', ownerRole: '', ownerRoleKey: '', hiddenFrom: [], target: '', clientSide: false, optionalStep: false, required: '', optional: '' }]); setDirty(true); }}>
       {t('projectDetail.billing.templates.addStep', 'Add step')}
     </Button>
   </EntityFormModal>;
@@ -103,6 +127,8 @@ export const BillingStepTemplatesModal: React.FC<{ onClose: () => void }> = ({ o
   const roles = useRoleOptions();
   const templates = useStepTemplates();
   const { archive } = useStepTemplateMutations();
+  const defaults = useDefaultStepTemplate();
+  const line = useRefusalLine();
   const [editing, setEditing] = useState<StepTemplate | 'new' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,7 +148,15 @@ export const BillingStepTemplatesModal: React.FC<{ onClose: () => void }> = ({ o
             {tpl.steps.some((s) => s.ownerRole) ? ` · ${[...new Set(tpl.steps.map((s) => s.ownerRole).filter(Boolean))].map((r) => roles.label(r)).join(', ')}` : ''}
           </span>
         </span>
-        <span className="flex gap-2">
+        <span className="flex flex-wrap items-center gap-2">
+          {defaults.query.data === tpl.id
+            ? <>
+                <span className="text-sm font-medium" data-testid="default-step-template">{t('projectDetail.billing.templates.isDefault', 'Used for new work orders')}</span>
+                <Button type="button" variant="outline" size="sm" disabled={defaults.set.isPending} aria-label={t('projectDetail.billing.templates.clearDefaultNamed', 'Stop using {{name}} for new work orders', { name: tpl.name })}
+                  onClick={() => { setError(null); defaults.set.mutateAsync(null).catch((e: unknown) => setError(line(e))); }}>{t('projectDetail.billing.templates.clearDefault', 'Stop using')}</Button>
+              </>
+            : <Button type="button" variant="outline" size="sm" disabled={defaults.set.isPending} aria-label={t('projectDetail.billing.templates.useDefaultNamed', 'Use {{name}} for new work orders', { name: tpl.name })}
+                onClick={() => { setError(null); defaults.set.mutateAsync(tpl.id).catch((e: unknown) => setError(line(e))); }}>{t('projectDetail.billing.templates.useDefault', 'Use for new work orders')}</Button>}
           <Button type="button" variant="outline" size="sm" aria-label={t('projectDetail.billing.templates.editNamed', 'Edit {{name}}', { name: tpl.name })} onClick={() => setEditing(tpl)}>{t('projectDetail.billing.templates.edit', 'Edit')}</Button>
           <Button type="button" variant="outline" size="sm" aria-label={t('projectDetail.billing.templates.archiveNamed', 'Archive {{name}}', { name: tpl.name })}
             disabled={archive.isPending}

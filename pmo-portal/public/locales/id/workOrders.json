@@ -304,7 +304,7 @@
       "who": "Yang menambahkan"
     },
     "who": {
-      "role": "Seorang {{role}}",
+      "role": "{{role}}",
       "finance": "Keuangan atau Admin",
       "team": "Tim proyek"
     },

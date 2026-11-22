@@ -748,6 +748,8 @@ before it closes (the organisation names the items; PMO ships none). A work orde
 it closes only when every required item is done. A material joint count, loss report or completion report is an item of
 the same list, not a separate mechanism.
 
+**Work-order billing steps** (*langkah penagihan surat perintah kerja*) — an advisory list copied onto a work order when it is issued, from the organisation's default billing step template (none chosen: no list). Each step has an owner role (a built-in role), an optional named person, target days, attachments and a status; it never gates an invoice (the claim's own billing stages do). Read through *see billing steps*, acted on through *run billing steps* (or as the step's owner role or named person); a role the template hides a step from does not see it, and the named person is exempt (billing-steps.spec.md).
+
 **Close-out item** (*butir penutupan*) — one line of a work order's checklist: required or optional, with an attached
 issued or approved project document, a done date and who marked it. Items are done in order; an item's age counts from the
 previous item's done date (the issue date for the first).
@@ -1210,9 +1212,10 @@ the material close-out: joint count, loss report, material completion report). T
 
 **Base access level** — one of today's five levels (Executive, Project Manager, Finance, Engineer, Admin) that every existing rule reads from `profiles.role`. While a person holds a built-in role it is set to that role's base level and moves only with it.
 
-**Role tier** — manager, officer or field. Managers approve, officers prepare, field roles are light accounts; a manager stands in for a manager, never upward.
+**Role tier** — manager, officer or field: catalogue data on each built-in role; field roles are light accounts.
 
-**Role capability** — a narrow difference from the base level held by named built-in roles only (for example posting stock, validating a daily report, running billing stages). Other features read it through `actor_has_role_capability`.
+**Role capability** — a narrow addition to the base level held by named built-in roles only (today: seeing prices, reading medical-document status and dates, reading, adding and renewing every person's non-medical documents). Each capability is read by one database gate function that every channel (app rule, email, screen) calls, and the screen reads it only through `can()`. A catalogue entry with no gate yet is listed as held for a ruling in `supabase/tests/2716`.
+
 ## Leave requests (#2708)
 
 **Leave request** — a request by or for a person to be away for an inclusive range of days, of a type from the organisation's own list.

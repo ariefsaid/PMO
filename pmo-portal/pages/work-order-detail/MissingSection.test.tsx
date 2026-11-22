@@ -25,7 +25,7 @@ describe('MissingSection', () => {
   it('AC-WML-006 lists steps passed through the seam, their missing attachments and who adds them', () => {
     render(<MissingSection {...props} steps={[step]} />);
     expect(screen.getByTestId('missing-step')).toHaveTextContent('Step one');
-    expect(screen.getByTestId('missing-step')).toHaveTextContent('A Finance');
+    expect(screen.getByTestId('missing-step')).toHaveTextContent('Who adds it: Finance');
     expect(screen.getByTestId('missing-step-attachment')).toHaveTextContent('Doc a');
     expect(screen.getByTestId('missing-step-attachment')).toHaveTextContent('Nothing is attached yet for step "Step one"');
   });

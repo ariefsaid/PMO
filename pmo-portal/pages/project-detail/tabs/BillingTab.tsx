@@ -650,7 +650,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         : <ClaimEvidenceList evidence={claimDetailFor.evidence} documents={documents.data ?? []} />}
     </section>
     {claimDetailFor.kind === 'progress' && <ClaimBillingStages claimId={claimDetailFor.id} projectId={projectId} currency={currency}
-      invoiced={Boolean(claimDetailFor.invoice)} withdrawn={Boolean(claimDetailFor.withdrawn_at)} today={orgToday} />}
+      invoiced={Boolean(claimDetailFor.invoice)} withdrawn={Boolean(claimDetailFor.withdrawn_at)} workOrderId={claimDetailFor.work_order_id} today={orgToday} />}
   </Drawer>;
 
   const timeAndMaterials = canViewMoney && <TimeAndMaterials projectId={projectId} projectManagerId={projectManagerId} currency={currency}

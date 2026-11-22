@@ -15,7 +15,7 @@ When I open a work order, I want one list of what it still lacks (steps, attachm
 - FR-WML-001 The work order page shall show one "Still missing" section listing the gaps below, derived on every view and never stored. Every row is advisory: nothing here refuses anything.
 - FR-WML-002 Row kinds: (a) each open step of the work order; (b) each required attachment of an open step not yet attached; (c) quantity reported but not accepted (reported progress minus confirmed accepted, above zero; unknown when the item is shared with another work order, so no row); (d) quantity accepted but not claimed (accepted minus billed, above zero).
 - FR-WML-003 Each row says what is missing, why, and who adds it: a step or its attachment, the step's owner role when set, else the project team; a quantity to accept, the project team; a quantity to claim, Finance or an Admin. Wording is a translation string; role names come from data.
-- FR-WML-004 Steps enter only through a typed input (`MissingStep[]`: id, position, name, owner role, done, attachments). Until a step source is wired the section receives none and shows quantity rows only.
+- FR-WML-004 Steps enter only through a typed input (`MissingStep[]`: id, position, name, who, done, attachments). The source is the work order's billing step list (`useWorkOrderSteps`, no new query), mapped by `missingStepsFromSource`: open = not done and not skipped; attachments = the step's document slots, attached when a document is set; who adds = the assignee's name, else the owner role's label, else the project team. A viewer without the see right gets no step rows from the read, and the list shows none (no error).
 - FR-WML-005 Export CSV downloads the visible rows, in screen order, through the shared export hook (`Missing_<date>.csv`; columns item, kind, why, who adds it).
 - FR-WML-006 A closed or cancelled work order shows no list (the section says so). A source that fails shows its own error with retry, never a partial list as complete; loading shows a loading state; an empty list says nothing is missing and offers no export. Quantity rows need the billing read; a caller who may not see billing gets the step rows only.
 - NFR-WML-001 Always on, no setting, no migration, no new table. English and Bahasa Indonesia strings in `workOrders` (`missing.*`); `DESIGN.md` tokens; stacked rows at 390px.
@@ -29,7 +29,8 @@ When I open a work order, I want one list of what it still lacks (steps, attachm
 | AC-WML-004 | Given two different step inputs, when derived, then only the step rows differ. | Unit |
 | AC-WML-005 | Given rows, when exported, then header and body follow the rows in order. | Unit |
 | AC-WML-006 | Given the section, when it renders with steps, quantities, loading, error, empty, closed, no billing access, then each state shows its copy; Export calls the shared CSV export. | RTL `pages/work-order-detail/MissingSection.test.tsx` |
-| AC-WML-007 | Given a work order with nothing outstanding, when the page opens, then the section shows the empty message and no export. | E2E `e2e/AC-WML-007-missing-list.spec.ts` |
+| AC-WML-007 | Given a work order with an open step and a required slot unattached, when the page opens, then both are listed with who adds them and Export downloads them; when the document is attached and the step finished, then its rows leave. | E2E `e2e/AC-WML-007-missing-list.spec.ts` |
+| AC-WML-008 | Given the step list rows, when mapped, then done/skipped are done, who is assignee, else role label, else none, and attachments follow the slots. | Unit |
 
 ## Owner questions
 Reported quantity is read as the reconciliation's `progressQty` (progress to date), not the separate measured figure; say if the owner means measured work.

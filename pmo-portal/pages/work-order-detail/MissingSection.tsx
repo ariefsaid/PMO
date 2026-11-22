@@ -46,7 +46,7 @@ export const MissingSection: React.FC<MissingSectionProps> = ({ projectId, workO
   const isError = stepsError || scopeError || (canBilling && recon.isError);
   const retry = () => { onRetrySteps?.(); void recon.refetch(); };
 
-  const whoText = (r: MissingRow) => (r.who.key === 'role' ? t('missing.who.role', 'A {{role}}', { role: r.who.role })
+  const whoText = (r: MissingRow) => (r.who.key === 'role' ? t('missing.who.role', '{{role}}', { role: r.who.role })
     : r.who.key === 'finance' ? t('missing.who.finance', 'Finance or an Admin') : t('missing.who.team', 'The project team'));
   const reasonText = (r: MissingRow) => {
     const p = { ...r.reasonParams, quantity: typeof r.reasonParams.quantity === 'number' ? formatNumberExact(r.reasonParams.quantity) : '' };
