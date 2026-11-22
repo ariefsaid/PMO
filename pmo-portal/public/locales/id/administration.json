@@ -615,6 +615,30 @@
     "retry": "Coba lagi"
   },
   "admin": {
+    "modules": {
+      "intro": "Setiap modul menyalakan atau mematikan sekelompok fitur untuk semua orang di organisasi Anda. Mematikan modul menyembunyikan layar dan pengaturannya. Tidak ada yang dihapus, dan menyalakannya kembali mengembalikan semuanya.",
+      "peopleCrews": {
+        "label": "Orang dan kru",
+        "helper": "Peran bawaan, daftar periksa izin ke lokasi, permintaan cuti, dan pinjaman kru."
+      },
+      "siteDay": {
+        "label": "Hari kerja di lokasi",
+        "helper": "Catatan keselamatan harian, dan panel kinerja biaya dan jadwal pada perintah kerja."
+      },
+      "stock": {
+        "label": "Stok",
+        "helper": "Transfer antar perintah kerja, reservasi dan peminjaman stok, transfer dua langkah, dan kotak persetujuan untuk permintaan material."
+      },
+      "purchasingExtras": {
+        "label": "Tambahan pembelian",
+        "helper": "Perencanaan baris pembelian, jenis pembelian, saluran pembayaran, pesanan pembelian yang bisa dicetak, dan surat jalan."
+      },
+      "billingExtras": {
+        "label": "Tambahan penagihan",
+        "helper": "Pendapatan per disiplin, rencana pendapatan, waktu menganggur sebagai biaya, dan pengingat untuk pekerjaan yang selesai tetapi belum ditagih."
+      }
+    },
+    "modulesNav": "Modul",
     "candidateTemplate": {
       "saved": "Daftar pemeriksaan disimpan",
       "title": "Daftar pemeriksaan kandidat perintah kerja",
@@ -1058,7 +1082,7 @@
   },
   "performanceIndices": {
     "title": "Kinerja biaya dan jadwal",
-    "description": "Menampilkan indeks kinerja biaya dan jadwal pada proyek dan perintah kerja. Nonaktif sampai Anda mengaktifkannya.",
+    "description": "Menetapkan batas yang dipakai untuk membaca indeks kinerja biaya dan jadwal pada perintah kerja.",
     "enabled": "Tampilkan indeks kinerja",
     "low": "Batas bawah (di bawah ini dianggap bermasalah)",
     "high": "Batas atas (di atas ini dianggap lebih cepat)",
@@ -1083,7 +1107,7 @@
   },
   "issueClosingReport": {
     "title": "Laporan waktu penyelesaian isu",
-    "helper": "Aktifkan laporan waktu penyelesaian dan atur pengelompokan departemen.",
+    "helper": "Pilih cara laporan waktu penyelesaian mengelompokkan isu, dan atur kelompok departemen.",
     "enableLabel": "Aktifkan laporan waktu penyelesaian",
     "enableHelper": "Menampilkan laporan waktu penyelesaian pada daftar insiden.",
     "groupingMode": "Pengelompokan bawaan",

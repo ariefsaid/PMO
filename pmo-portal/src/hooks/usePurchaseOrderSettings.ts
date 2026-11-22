@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
+import { enabledOffWhenModuleOff } from '@/src/hooks/moduleGate';
 
 export const PO_SETTINGS_QUERY_KEY = 'purchase-order-settings';
 
@@ -9,11 +10,11 @@ export const PO_SETTINGS_QUERY_KEY = 'purchase-order-settings';
  */
 export function usePurchaseOrderSettings() {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
+  return enabledOffWhenModuleOff('modulePurchasingExtras', useQuery({
     queryKey: [PO_SETTINGS_QUERY_KEY, orgId],
     queryFn: () => repositories.procurement.purchaseOrderSettings(),
     enabled: Boolean(orgId),
-  });
+  }));
 }
 
 /**

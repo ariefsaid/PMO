@@ -2,6 +2,7 @@ import { useContext } from 'react';
 import { QueryClient, QueryClientContext, useMutation, useQuery } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { paymentChannelRepository as repo } from '@/src/lib/repositories/paymentChannels';
+import { useModuleOn } from '@/src/hooks/useOrgSwitch';
 
 const KEY = 'payment-channels';
 
@@ -31,7 +32,8 @@ export function usePaymentChannelsOn() {
     enabled: ready,
     staleTime: 5 * 60 * 1000,
   }, client);
-  return { on: query.data === true, query };
+  const moduleOn = useModuleOn('modulePurchasingExtras');
+  return { on: query.data === true && moduleOn, query };
 }
 
 /** The org's channels (live and archived), read only while the feature is on. */

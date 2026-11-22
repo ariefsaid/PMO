@@ -1011,7 +1011,7 @@
   },
   "paymentChannel": {
     "heading": "Kanal pembayaran",
-    "intro": "Catat bagaimana setiap permintaan pembelian akan dibayar. Nonaktif sampai Anda mengaktifkannya.",
+    "intro": "Catat bagaimana setiap permintaan pembelian akan dibayar. Ubah daftar saluran di sini.",
     "switchLabel": "Catat kanal pembayaran pada permintaan pembelian",
     "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
     "loadError": "Kanal pembayaran tidak dapat dimuat",

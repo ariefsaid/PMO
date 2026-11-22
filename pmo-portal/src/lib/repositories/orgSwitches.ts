@@ -16,26 +16,40 @@ import { safetyDayRepository } from './safetyDays';
 import { stockWorkOrderTransferRepository } from './stockWorkOrderTransfer';
 
 // ponytail: a literal until database.types.ts is regenerated (typed-client ticket); then derive it from the organizations Row.
-type OrgColumn = 'clearance_checklist_enabled';
+type OrgColumn =
+  | 'clearance_checklist_enabled'
+  | 'module_people_crews' | 'module_site_day' | 'module_stock' | 'module_purchasing_extras' | 'module_billing_extras';
+
+export type OrgModuleKey = 'modulePeopleCrews' | 'moduleSiteDay' | 'moduleStock' | 'modulePurchasingExtras' | 'moduleBillingExtras';
 
 export interface OrgSwitch {
   source: { read: () => Promise<boolean>; write: (on: boolean) => Promise<unknown> } | { column: OrgColumn };
   manage: Entity;
+  /** The module the feature lives in: the module off reads the switch as off (UI only). Absent for a module switch itself. */
+  module?: OrgModuleKey;
   writers: readonly Role[];
   /** Query roots refetched after a change (what the switch's old mutation refreshed). */
   refreshes?: readonly string[];
 }
 
 export const ORG_SWITCHES = {
-  crewLoans: { source: { read: crewLoanRepository.enabled, write: crewLoanRepository.setEnabled }, manage: 'orgAccounting', writers: ['Admin'] },
-  clearance: { source: { column: 'clearance_checklist_enabled' }, manage: 'clearanceItem', writers: ['Admin'], refreshes: ['clearance'] },
-  builtInRoles: { source: { read: builtInRolesRepository.getEnabled, write: builtInRolesRepository.setEnabled }, manage: 'orgAccounting', writers: ['Admin'] },
-  disciplineProfit: { source: { read: disciplineProfitRepository.isEnabled, write: disciplineProfitRepository.setEnabled }, manage: 'orgAccounting', writers: ['Admin'] },
-  safetyRecords: { source: { read: safetyDayRepository.isEnabled, write: safetyDayRepository.setEnabled }, manage: 'safetyLists', writers: ['Admin'], refreshes: ['safety-days'] },
-  stockWoTransfers: { source: { read: stockWorkOrderTransferRepository.enabled, write: stockWorkOrderTransferRepository.setEnabled }, manage: 'warehouse', writers: ['Admin'] },
+  crewLoans: { source: { read: crewLoanRepository.enabled, write: crewLoanRepository.setEnabled }, module: 'modulePeopleCrews', manage: 'orgAccounting', writers: ['Admin'] },
+  clearance: { source: { column: 'clearance_checklist_enabled' }, module: 'modulePeopleCrews', manage: 'clearanceItem', writers: ['Admin'], refreshes: ['clearance'] },
+  builtInRoles: { source: { read: builtInRolesRepository.getEnabled, write: builtInRolesRepository.setEnabled }, module: 'modulePeopleCrews', manage: 'orgAccounting', writers: ['Admin'] },
+  disciplineProfit: { source: { read: disciplineProfitRepository.isEnabled, write: disciplineProfitRepository.setEnabled }, module: 'moduleBillingExtras', manage: 'orgAccounting', writers: ['Admin'] },
+  safetyRecords: { source: { read: safetyDayRepository.isEnabled, write: safetyDayRepository.setEnabled }, module: 'moduleSiteDay', manage: 'safetyLists', writers: ['Admin'], refreshes: ['safety-days'] },
+  stockWoTransfers: { source: { read: stockWorkOrderTransferRepository.enabled, write: stockWorkOrderTransferRepository.setEnabled }, module: 'moduleStock', manage: 'warehouse', writers: ['Admin'] },
+  // The five modules (#2746): UI only, one check per module; no database guard reads them.
+  modulePeopleCrews: { source: { column: 'module_people_crews' }, manage: 'orgAccounting', writers: ['Admin'] },
+  moduleSiteDay: { source: { column: 'module_site_day' }, manage: 'orgAccounting', writers: ['Admin'] },
+  moduleStock: { source: { column: 'module_stock' }, manage: 'orgAccounting', writers: ['Admin'] },
+  modulePurchasingExtras: { source: { column: 'module_purchasing_extras' }, manage: 'orgAccounting', writers: ['Admin'] },
+  moduleBillingExtras: { source: { column: 'module_billing_extras' }, manage: 'orgAccounting', writers: ['Admin'] },
 } satisfies Record<string, OrgSwitch>;
 
 export type OrgSwitchKey = keyof typeof ORG_SWITCHES;
+/** The five modules, in the order the Administration card lists them. */
+export const ORG_MODULES: readonly OrgModuleKey[] = ['modulePeopleCrews', 'moduleSiteDay', 'moduleStock', 'modulePurchasingExtras', 'moduleBillingExtras'];
 export const orgSwitch = (key: OrgSwitchKey): OrgSwitch => ORG_SWITCHES[key];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same untyped organizations access as db/clearance.ts until the types are regenerated

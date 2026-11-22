@@ -1,41 +1,35 @@
-import React, { useId, useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { Button, ConfirmDialog, FieldError, ListState, Switch, TextField } from '@/src/components/ui';
+import { Button, ConfirmDialog, FieldError, ListState, TextField } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import { usePaymentChannelList, usePaymentChannelMutations, usePaymentChannelsOn } from '@/src/hooks/usePaymentChannels';
 import type { PaymentChannel } from '@/src/lib/repositories/paymentChannels';
 
 /**
- * #2698 — Administration: the organisation's payment channel switch and its list of channels. Off until an Admin turns it
- * on (the first switch-on seeds a starter list the Admin then edits). UX gate only: the RPCs are the authority.
+ * #2698 — Administration: the organisation's list of payment channels. Payment channels are on for everyone (#2746), start from a
+ * starter list the Admin then edits, and are hidden with the Purchasing extras module. UX gate only: the RPCs are the authority.
  */
 export default function OrgPaymentChannels() {
   const { t } = useTranslation();
   const canManage = usePermission()('manage', 'orgAccounting');
-  const labelId = useId();
   const { on, query: onQuery } = usePaymentChannelsOn();
   const list = usePaymentChannelList(on);
   const m = usePaymentChannelMutations();
   const [newName, setNewName] = useState('');
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const [archiving, setArchiving] = useState<PaymentChannel | null>(null);
-  const lastError = [m.setEnabled, m.save, m.archive].find((x) => x.isError);
+  const lastError = [m.save, m.archive].find((x) => x.isError);
   const error = lastError ? classifyMutationError(lastError.error) : null;
-  const busy = m.setEnabled.isPending || m.save.isPending || m.archive.isPending;
+  const busy = m.save.isPending || m.archive.isPending;
 
   return (
     <section aria-labelledby="payment-channels-heading">
       <h2 id="payment-channels-heading" tabIndex={-1} className="scroll-mt-4 text-group font-semibold">{t('procurement:paymentChannel.heading', 'Payment channels')}</h2>
       <div className="mt-3 max-w-md">
-        <p className="mb-2 text-control text-muted-foreground">{t('procurement:paymentChannel.intro', 'Record how each purchase request will be paid. Off until you turn it on.')}</p>
-        {onQuery.isPending ? <ListState variant="loading" rows={2} /> : (
-          <label className={cn('flex min-h-11 items-start gap-3 py-1.5 text-control', canManage ? 'cursor-pointer' : 'cursor-default')}>
-            <Switch checked={on} onChange={(next) => { m.setEnabled.reset(); m.setEnabled.mutate(next); }} labelledBy={labelId} disabled={!canManage || busy} className="mt-0.5" />
-            <span id={labelId} className="font-medium">{t('procurement:paymentChannel.switchLabel', 'Record a payment channel on purchase requests')}</span>
-          </label>
-        )}
+        <p className="mb-2 text-control text-muted-foreground">{t('procurement:paymentChannel.intro', 'Record how each purchase request will be paid. Edit the list of channels here.')}</p>
+        {onQuery.isPending && <ListState variant="loading" rows={2} />}
         {!canManage && <p className="mt-2 text-control text-muted-foreground">{t('procurement:paymentChannel.onlyAdmin', 'Only an Admin can change this.')}</p>}
         {on && (list.isError ? <ListState variant="error" title={t('procurement:paymentChannel.loadError', 'Couldn’t load payment channels')} onRetry={() => void list.refetch()} />
           : list.isPending ? <ListState variant="loading" rows={4} />

@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { workOrderRevenuePlanRepository as repo } from '@/src/lib/repositories/workOrderRevenuePlan';
+import { enabledOffWhenModuleOff } from '@/src/hooks/moduleGate';
 
 /** #2671: the organisation's revenue-plan switch (off by default). Keys carry org_id (tenant scope). */
 export function useRevenuePlanSettings() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery({ queryKey: ['revenue-plan-settings', orgId], queryFn: () => repo.settings(), enabled: Boolean(orgId) });
+  return enabledOffWhenModuleOff('moduleBillingExtras', useQuery({ queryKey: ['revenue-plan-settings', orgId], queryFn: () => repo.settings(), enabled: Boolean(orgId) }));
 }
 
 export function useSetRevenuePlanSettings() {

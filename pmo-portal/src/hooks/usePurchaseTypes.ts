@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { purchaseTypeRepository as repo } from '@/src/lib/repositories/purchaseTypes';
 import type { PurchaseTypeInput, RentalExtensionInput } from '@/src/lib/repositories/purchaseTypes';
 import { useOrgId } from '@/src/hooks/useOrgId';
+import { offWhenModuleOff } from '@/src/hooks/moduleGate';
 
 /** Purchase types (#2697) over the repository seam. Keys carry org_id (tenant scope); every write refreshes the whole root. */
 export const PURCHASE_TYPE_QUERY_ROOT = 'purchase-types';
@@ -9,7 +10,7 @@ export const PURCHASE_TYPE_QUERY_ROOT = 'purchase-types';
 /** FR-PTR-002: whether the organisation turned purchase types on. While loading or off, no type affordance is shown. */
 export function usePurchaseTypesEnabled() {
   const orgId = useOrgId();
-  return useQuery({ queryKey: [PURCHASE_TYPE_QUERY_ROOT, orgId, 'enabled'], queryFn: () => repo.enabled(), enabled: Boolean(orgId) });
+  return offWhenModuleOff('modulePurchasingExtras', useQuery({ queryKey: [PURCHASE_TYPE_QUERY_ROOT, orgId, 'enabled'], queryFn: () => repo.enabled(), enabled: Boolean(orgId) }));
 }
 
 export function usePurchaseTypes() {

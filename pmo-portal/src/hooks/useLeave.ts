@@ -2,6 +2,7 @@ import { useContext } from 'react';
 import { QueryClient, QueryClientContext, useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { leaveRepository, type LeaveRequestInput, type LeaveSettings } from '@/src/lib/repositories/leave';
+import { useModuleOn } from '@/src/hooks/useOrgSwitch';
 
 /** Leave requests (#2708) over the repository seam (ADR-0017). Keys carry org_id. Off means off: every read below the
  *  settings read waits for `enabled`, so an organisation that never switched it on makes no leave call but one. */
@@ -22,7 +23,8 @@ export function useLeaveSettings() {
 
 /** True only when the organisation switched leave requests on. Unknown (loading, failed) is false. */
 export function useLeaveEnabled(): boolean {
-  return useLeaveSettings().data?.enabled === true;
+  const moduleOn = useModuleOn('modulePeopleCrews');
+  return useLeaveSettings().data?.enabled === true && moduleOn;
 }
 
 export function useLeaveTypes() {

@@ -15,7 +15,6 @@ import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import AdminUsers from './AdminUsers';
 import People from './admin/People';
 import Clearance from './admin/Clearance';
-import ClearanceSetting from './admin/ClearanceSetting';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import DocumentTypes from './admin/DocumentTypes';
 import AdministrationCredits from './AdministrationCredits';
@@ -31,9 +30,7 @@ import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 import { AccountingHelp } from './admin/AccountingHelp';
 import OrgTaxDefault from './admin/OrgTaxDefault';
-import LeaveRequestsSetting from './admin/LeaveRequestsSetting';
 import OrgFiscalYearStart from './admin/OrgFiscalYearStart';
-import OrgDisciplineProfit from './admin/OrgDisciplineProfit';
 import OrgBuiltInRoles from './admin/OrgBuiltInRoles';
 import OrgHidePrices from './admin/OrgHidePrices';
 import { HIDE_PRICES_SETTING_AVAILABLE } from '@/src/lib/db/hidePrices';
@@ -51,7 +48,8 @@ import SiteReportLists from './admin/SiteReportLists';
 import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
 import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
-import OrgCrewLoans from './admin/OrgCrewLoans';
+import OrgModules from './admin/OrgModules';
+import { ModuleGate } from '@/src/components/admin/ModuleGate';
 import SiteCheckpointTemplate from './admin/SiteCheckpointTemplate';
 import WorkOrderCandidateTemplate from './admin/WorkOrderCandidateTemplate';
 import SafetyLists from './admin/SafetyLists';
@@ -61,7 +59,6 @@ import OrgAttendanceTarget from './admin/OrgAttendanceTarget';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
 import LabourCostSettings from './admin/LabourCostSettings';
-import IdleCostSwitch from './admin/IdleCostSwitch';
 import ExpenseAccountMap from './admin/ExpenseAccountMap';
 import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 
@@ -70,6 +67,7 @@ export type AdministrationSection =
   | 'people'
   | 'clearance'
   | 'integrations'
+  | 'modules'
   | 'accounting'
   | 'projects'
   | 'plan'
@@ -82,7 +80,7 @@ export type AdministrationSection =
   | 'features';
 
 /** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
-const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'integrations', 'accounting', 'projects', 'plan', 'credits', 'terminology', 'document-categories', 'exchange-rates'];
+const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'people', 'integrations', 'modules', 'accounting', 'projects', 'plan', 'credits', 'terminology', 'document-categories', 'exchange-rates'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
 /** #1271: Finance's second destination, beside Exchange rates. Admin/Executive reach cost attribution inside Accounting setup, so it is not in their nav. */
 const FINANCE_SECTIONS: AdministrationSection[] = ['people', 'exchange-rates', 'cost-attribution'];
@@ -94,6 +92,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   people: 'People',
   clearance: 'Clearance',
   integrations: 'Organization integrations',
+  modules: 'Modules',
   accounting: 'Accounting setup',
   projects: 'Project setup',
   plan: 'Your plan',
@@ -116,6 +115,7 @@ const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string>
   people: t('administration:people.navLabel', SECTION_LABEL_DEFAULTS.people),
   clearance: t('administration:clearance.navLabel', SECTION_LABEL_DEFAULTS.clearance),
   integrations: t('admin.nav.integrations', SECTION_LABEL_DEFAULTS.integrations),
+  modules: t('administration:admin.modulesNav', SECTION_LABEL_DEFAULTS.modules),
   accounting: t('admin.nav.accounting', SECTION_LABEL_DEFAULTS.accounting),
   projects: t('admin.nav.projects', SECTION_LABEL_DEFAULTS.projects),
   plan: t('plans:yourPlan.navLabel', SECTION_LABEL_DEFAULTS.plan),
@@ -282,18 +282,15 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-people" className="min-w-0">
           <SectionName name={label('people')} />
           <People />
-          <OrgCrewLoans />
           <DocumentTypes />
-          <OrgBuiltInRoles />
-          <ClearanceSetting />
+          <ModuleGate module="modulePeopleCrews"><OrgBuiltInRoles /></ModuleGate>
         </div>
       );
     case 'clearance':
       return (
         <div data-testid="administration-panel-clearance" className="min-w-0">
           <SectionName name={label('clearance')} />
-          <Clearance />
-          <LeaveRequestsSetting />
+          <ModuleGate module="modulePeopleCrews"><Clearance /></ModuleGate>
           {HIDE_PRICES_SETTING_AVAILABLE && <OrgHidePrices />}
         </div>
       );
@@ -306,6 +303,13 @@ const SelectedAdministrationPanel: React.FC<{
           <EmailNotificationsSetting />
         </div>
       );
+    case 'modules':
+      return (
+        <div data-testid="administration-panel-modules" className="min-w-0">
+          <SectionName name={label('modules')} />
+          <OrgModules />
+        </div>
+      );
     case 'accounting':
       return (
         <div data-testid="administration-panel-accounting" className="min-w-0">
@@ -313,16 +317,15 @@ const SelectedAdministrationPanel: React.FC<{
           <div className="space-y-6 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-6">
             <OrgTaxDefault />
             <OrgFiscalYearStart />
-            <OrgDisciplineProfit />
             <SpendApprovers />
             <OrgWithholdingAccount />
             <OrgVendorTaxAccounts />
             <OrgDownPaymentItem />
             <OrgProcurementGates />
-            <PurchaseOrderSettingsSection />
+            <ModuleGate module="modulePurchasingExtras"><PurchaseOrderSettingsSection /></ModuleGate>
             <OrgThreeWayMatch />
-            <OrgPaymentChannels />
-            <OrgPurchaseLines />
+            <ModuleGate module="modulePurchasingExtras"><OrgPaymentChannels /></ModuleGate>
+            <ModuleGate module="modulePurchasingExtras"><OrgPurchaseLines /></ModuleGate>
             <BudgetAccountMap />
             <ExpenseAccountMap />
           </div>
@@ -333,7 +336,6 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-cost-attribution" className="min-w-0">
           <CostAttribution />
           <div className="mt-6 border-t border-border pt-6"><LabourCostSettings /></div>
-          <div className="mt-6 border-t border-border pt-6"><IdleCostSwitch /></div>
         </div>
       );
     case 'projects':
@@ -344,15 +346,15 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
             <SiteReportLists />
-            <RevenuePlanSettings />
+            <ModuleGate module="moduleBillingExtras"><RevenuePlanSettings /></ModuleGate>
             <NonWorkingDatesCard />
             <SiteCheckpointTemplate />
             <WorkOrderCandidateTemplate />
-            <SafetyLists />
+            <ModuleGate module="moduleSiteDay"><SafetyLists /></ModuleGate>
             <CostDisciplines />
             <WorkOrderCloseoutTemplate />
             <WorkOrderLists />
-            <OrgPerformanceIndices />
+            <ModuleGate module="moduleSiteDay"><OrgPerformanceIndices /></ModuleGate>
             <OrgAttendanceTarget />
             <IssueClosingReportSettings />
           </div>

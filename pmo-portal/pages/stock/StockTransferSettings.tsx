@@ -8,7 +8,6 @@ import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { useTransferRefresh, useTransferSettings } from '@/src/hooks/useStockTransfers';
 import { stockTransfersRepository as repo, type ProofRule, type ProofTiming, type TransferMode } from '@/src/lib/repositories/stockTransfers';
 import { useQueryClient } from '@tanstack/react-query';
-import { WoTransferToggle } from '@/src/components/stock/WoTransferToggle';
 import { ReservationsSlot } from '@/src/components/stock/ReservationsSlot';
 import { ReservationSettings } from '@/src/components/stock/ReservationSettings';
 import { DsrStockIssueSetting } from '@/src/components/stock/DsrStockIssueSetting';
@@ -43,7 +42,6 @@ export const StockTransferSettings: React.FC = () => {
             options={[{ value: 'one_step', label: t('transferSettings.oneStep') }, { value: 'two_step', label: t('transferSettings.twoStep') }]} helper={t('transferSettings.modeHelp')} />
           <SelectField label={t('transferSettings.timing')} value={settings.data.proofTiming} onChange={(v) => change.mutate(() => repo.settings.setTiming(v as ProofTiming))}
             options={[{ value: 'before_posting', label: t('transferSettings.beforePosting') }, { value: 'may_follow', label: t('transferSettings.mayFollow') }]} helper={t('transferSettings.timingHelp')} />
-          <WoTransferToggle />
           <ReservationsSlot><ReservationSettings /><DsrStockIssueSetting /></ReservationsSlot>
           {(tags.data ?? []).length > 0 && (
             <div className="space-y-2">

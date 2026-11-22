@@ -66,34 +66,6 @@ const TypeRow: React.FC<{ type: PurchaseType | null; canManage: boolean; nextPos
   );
 };
 
-const SwitchSection: React.FC<{ canManage: boolean }> = ({ canManage }) => {
-  const { t } = useTranslation('purchaseTypes');
-  const { toast } = useToast();
-  const refusal = useRefusalText();
-  const enabled = usePurchaseTypesEnabled();
-  const m = usePurchaseTypeMutations();
-  const [value, setValue] = useState<boolean | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const shown = value ?? enabled.data ?? false;
-  const save = async () => {
-    setError(null);
-    try { await m.setEnabled.mutateAsync(shown); setValue(null); toast(t('settings.saved', 'Purchase types updated'), undefined, 'success'); }
-    catch (err) { setError(refusal(err)); }
-  };
-  return (
-    <RecordSection title={t('settings.switchTitle', 'Use purchase types')} subline={t('settings.switchSub', 'When on, a request can be marked with a type such as goods, service or rental. Off keeps every screen as it is.')}>
-      {enabled.isError && <ListState variant="error" title={t('settings.loadError', "Couldn't load purchase types")} onRetry={() => void enabled.refetch()} />}
-      {error && <FormErrorStrip>{error}</FormErrorStrip>}
-      {!enabled.isError && (
-        <div className="flex flex-wrap items-center gap-3">
-          <Checkbox checked={shown} onChange={setValue} disabled={!canManage || enabled.isPending} label={t('settings.enabled', 'Purchase types are on')} />
-          {canManage && <Button variant="primary" size="sm" disabled={value === null} loading={m.setEnabled.isPending} onClick={() => void save()}>{t('settings.save', 'Save')}</Button>}
-        </div>
-      )}
-    </RecordSection>
-  );
-};
-
 const TypeList: React.FC<{ canManage: boolean }> = ({ canManage }) => {
   const { t } = useTranslation('purchaseTypes');
   const enabled = usePurchaseTypesEnabled();
@@ -115,7 +87,7 @@ const TypeList: React.FC<{ canManage: boolean }> = ({ canManage }) => {
   );
 };
 
-/** Admin screen for the organisation's purchase types (#2697): the on/off switch and the list. Other roles see it read-only. */
+/** Admin screen for the organisation's purchase types (#2697): the list. Purchase types are on for everyone (#2746) and hidden with the Purchasing extras module. Other roles see it read-only. */
 const PurchaseTypeSettingsPage: React.FC = () => {
   const { t } = useTranslation('purchaseTypes');
   const navigate = useNavigate();
@@ -126,7 +98,6 @@ const PurchaseTypeSettingsPage: React.FC = () => {
       <h1 className="mb-4 text-xl font-semibold">{t('settings.title', 'Purchase types')}</h1>
       {!canManage && <p className="mb-3 text-muted-foreground">{t('settings.adminOnly', 'Only an Admin can change purchase types.')}</p>}
       <RecordStack>
-        <SwitchSection canManage={canManage} />
         <TypeList canManage={canManage} />
       </RecordStack>
     </div>

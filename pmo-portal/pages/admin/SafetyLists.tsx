@@ -4,7 +4,6 @@ import { Button, FieldError, ListState, TextField, useToast } from '@/src/compon
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useSafetyList, useSafetyMutations } from '@/src/hooks/useSafetyDays';
-import { OrgSwitchSetting } from '@/src/components/admin/OrgSwitchSetting';
 import type { SafetyListKind } from '@/src/lib/db/safetyDays';
 
 function ListEditor({ kind, title }: { kind: SafetyListKind; title: string }) {
@@ -66,8 +65,8 @@ function ListEditor({ kind, title }: { kind: SafetyListKind; title: string }) {
 }
 
 /**
- * Administration › Projects › Safety records (#2596, FR-DSF-018, OD-SCOPE-2): the switch, and the three lists the client
- * keeps: fitness-check types, permit types and pre-work checklist items. Nothing is preset. Admin-only (UX); the Admin-only
+ * Administration › Projects › Safety records (#2596, FR-DSF-018, OD-SCOPE-2): the three lists the client keeps (safety records are on for
+ * everyone, #2746, and hidden with the Site day module): fitness-check types, permit types and pre-work checklist items. Nothing is preset. Admin-only (UX); the Admin-only
  * row rules and set_safety_records_enabled are the authority (ADR-0016).
  */
 const SafetyLists: React.FC = () => {
@@ -77,10 +76,9 @@ const SafetyLists: React.FC = () => {
   return (
     <section id="safety-records" tabIndex={-1} className="scroll-mt-4" aria-labelledby="safety-records-heading">
       <h2 id="safety-records-heading" className="text-group font-semibold tracking-[-0.01em]">{t('admin.title', 'Safety records')}</h2>
-      <div className="mt-3">
-        <OrgSwitchSetting setting="safetyRecords" label={t('admin.enable', 'Record daily safety on work orders')}
-          helper={t('admin.helper', 'Daily safety records per work order. The check types, permit types and checklist items are yours: add what your sites use. Archiving hides an entry from new days; days that already use it keep it.')} />
-      </div>
+      <p className="mt-3 max-w-prose text-control text-muted-foreground">
+        {t('admin.helper', 'Daily safety records per work order. The check types, permit types and checklist items are yours: add what your sites use. Archiving hides an entry from new days; days that already use it keep it.')}
+      </p>
       <div className="mt-6 grid gap-6 md:grid-cols-3">
         <ListEditor kind="check_type" title={t('admin.checkTypes', 'Fitness check types')} />
         <ListEditor kind="permit_type" title={t('admin.permitTypes', 'Permit types')} />

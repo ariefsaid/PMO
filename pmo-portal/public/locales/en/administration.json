@@ -615,6 +615,30 @@
     "retry": "Retry"
   },
   "admin": {
+    "modules": {
+      "intro": "Each module switches a group of features on or off for everyone in your organisation. Turning a module off hides its screens and settings. Nothing is deleted, and turning it back on brings everything back.",
+      "peopleCrews": {
+        "label": "People and crews",
+        "helper": "Built-in roles, the clearance checklist for site access, leave requests and crew loans."
+      },
+      "siteDay": {
+        "label": "Site day",
+        "helper": "Daily safety records, and the cost and schedule performance panels on work orders."
+      },
+      "stock": {
+        "label": "Stock",
+        "helper": "Work-order transfers, stock reservations and borrowing, two-step transfers and the approvals inbox for material requests."
+      },
+      "purchasingExtras": {
+        "label": "Purchasing extras",
+        "helper": "Purchase line planning, purchase types, payment channels, printable purchase orders and delivery notes."
+      },
+      "billingExtras": {
+        "label": "Billing extras",
+        "helper": "Revenue per discipline, the revenue plan, idle time as cost, and the reminder for work that is done but not claimed."
+      }
+    },
+    "modulesNav": "Modules",
     "candidateTemplate": {
       "saved": "Checklist saved",
       "title": "Candidate work order checklist",
@@ -1058,7 +1082,7 @@
   },
   "performanceIndices": {
     "title": "Cost and schedule performance",
-    "description": "Shows the cost and schedule performance indices on projects and work orders. Off until you turn it on.",
+    "description": "Sets the limits the cost and schedule performance indices are read against on work orders.",
     "enabled": "Show performance indices",
     "low": "Lower limit (below this reads as a problem)",
     "high": "Upper limit (above this reads as ahead)",
@@ -1083,7 +1107,7 @@
   },
   "issueClosingReport": {
     "title": "Issue closing-time report",
-    "helper": "Enable the closing-time report and configure department groupings.",
+    "helper": "Choose how the closing-time report groups issues, and set up department groups.",
     "enableLabel": "Enable closing-time report",
     "enableHelper": "Makes the closing-time report available on the Incidents register.",
     "groupingMode": "Default grouping",

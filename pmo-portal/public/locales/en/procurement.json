@@ -1011,7 +1011,7 @@
   },
   "paymentChannel": {
     "heading": "Payment channels",
-    "intro": "Record how each purchase request will be paid. Off until you turn it on.",
+    "intro": "Record how each purchase request will be paid. Edit the list of channels here.",
     "switchLabel": "Record a payment channel on purchase requests",
     "onlyAdmin": "Only an Admin can change this.",
     "loadError": "Couldn’t load payment channels",
