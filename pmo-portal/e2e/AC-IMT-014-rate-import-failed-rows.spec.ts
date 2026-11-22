@@ -63,8 +63,14 @@ test('AC-IMT-014 a rate file with one bad row imports the good row, returns the 
   const header = template[0];
   const row = (code: string, date: string) => header.map((h) => ({ 'Item code': code, Description: `Imported ${code}`, Unit: 'm', 'Effective from': date, [variant]: '120' } as Record<string, string>)[h] ?? '');
   await wizard.getByLabel(/choose an \.xlsx file/i).setInputFiles(await fileOf([header, row(`${run}-A`, '2026-01-01'), row(`${run}-B`, 'not a date')]));
-  await wizard.getByRole('button', { name: /^next$/i }).click();
+  // Under ADR-0027, an uploaded sheet matching the downloaded template opens preview directly; any other sheet requires mapping -> Next
+  const nextBtn = wizard.getByRole('button', { name: /^next$/i });
   const summary = wizard.getByTestId('import-summary');
+  await expect(nextBtn.or(summary)).toBeVisible({ timeout: 20_000 });
+  if (await nextBtn.isVisible()) {
+    await expect(nextBtn).toBeEnabled();
+    await nextBtn.click();
+  }
   await expect(summary).toContainText('1 valid', { timeout: 20_000 });
   await expect(summary).toContainText('1 invalid');
   await wizard.getByRole('button', { name: /import 1 /i }).click();
@@ -86,8 +92,14 @@ test('AC-IMT-014 a rate file with one bad row imports the good row, returns the 
   await drawer.getByRole('button', { name: /^import$/i }).click();
   const again = page.getByRole('dialog').last();
   await again.getByLabel(/choose an \.xlsx file/i).setInputFiles(await fileOf(failed));
-  await again.getByRole('button', { name: /^next$/i }).click();
-  await expect(again.getByTestId('import-summary')).toContainText('1 valid', { timeout: 20_000 });
+  const againNextBtn = again.getByRole('button', { name: /^next$/i });
+  const againSummary = again.getByTestId('import-summary');
+  await expect(againNextBtn.or(againSummary)).toBeVisible({ timeout: 20_000 });
+  if (await againNextBtn.isVisible()) {
+    await expect(againNextBtn).toBeEnabled();
+    await againNextBtn.click();
+  }
+  await expect(againSummary).toContainText('1 valid', { timeout: 20_000 });
   await again.getByRole('button', { name: /import 1 /i }).click();
   await expect(again.getByTestId('import-result-summary')).toContainText('1 created', { timeout: 30_000 });
   await again.getByRole('button', { name: /^done$/i }).click();
