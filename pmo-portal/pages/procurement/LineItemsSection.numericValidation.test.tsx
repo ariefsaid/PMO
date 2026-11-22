@@ -36,7 +36,7 @@ const oneItem: ProcurementItemRow[] = [
     erp_docstatus: null,
     erp_line_amount: null,
     erp_modified: null,
-    category_id: null, needed_by: null,
+    category_id: null, needed_by: null, work_order_id: null,
   },
 ];
 

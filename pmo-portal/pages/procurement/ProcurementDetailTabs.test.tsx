@@ -11,7 +11,7 @@ const item: ProcurementItemRow = {
   id: 'item-1', org_id: 'org-1', procurement_id: 'proc-1', name: 'Clip', description: null,
   quantity: 2, rate: 15.25, amount: 30.5,
   erp_docstatus: null, erp_line_amount: null, erp_modified: null,
-  category_id: null, needed_by: null,
+  category_id: null, needed_by: null, work_order_id: null,
 };
 
 function mockPhoneViewport() {

@@ -4,7 +4,7 @@ import { Card, CardHead, CardPad, SelectField } from '@/src/components/ui';
 import { lineDiffersFromRequest, lineWorkOrderChoices, SAME_AS_REQUEST, type LineWorkOrderOption } from './lineWorkOrderValue';
 
 export interface LineWorkOrdersSectionProps {
-  lines: { id: string; name: string }[];
+  lines: readonly { id: string; name: string }[];
   /** lineId → work order id; '' (or absent) = same as the request. */
   values: Record<string, string>;
   onChange: (lineId: string, workOrderId: string) => void;
