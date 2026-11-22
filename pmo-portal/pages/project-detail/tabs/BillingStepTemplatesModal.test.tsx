@@ -242,4 +242,21 @@ describe('BillingStepTemplatesModal', () => {
       steps: [expect.objectContaining({ name: 'Certify', ownerRoleKey: 'quantity_surveyor', hiddenFromRoleKeys: ['quality_manager'] })],
     })));
   });
+
+  it('a save or Done inside the modal does not submit the form it is opened from (the Billing terms modal stays open)', async () => {
+    const user = userEvent.setup();
+    const outerSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+    const onClose = vi.fn();
+    render(<ToastProvider><form onSubmit={outerSubmit}><BillingStepTemplatesModal onClose={onClose} /></form></ToastProvider>);
+    await user.click(screen.getByRole('button', { name: 'New template' }));
+    await user.click(screen.getByRole('button', { name: 'Add step' }));
+    await user.type(screen.getByLabelText('Template name'), 'Nested');
+    await user.type(screen.getAllByLabelText('Step name')[0], 'One');
+    await user.click(screen.getByRole('button', { name: 'Save template' }));
+    await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(outerSubmit).not.toHaveBeenCalled();
+  });
 });
