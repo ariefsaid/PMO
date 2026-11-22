@@ -30468,6 +30468,10 @@ export type Database = {
         }
         Returns: Json
       }
+      get_invoice_approval_route: {
+        Args: { p_invoice_id: string }
+        Returns: Json
+      }
       get_issue_closing_time_report: {
         Args: {
           p_date_from?: string

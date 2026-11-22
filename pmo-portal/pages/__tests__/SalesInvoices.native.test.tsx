@@ -89,6 +89,15 @@ vi.mock('@/src/components/ui', async (importOriginal) => {
   return { ...real, useToast: () => ({ toast: h.toast }) };
 });
 
+// The invoice who-next note (1569) subscribes through its own standalone repository seam. This page proof is not
+// about that note; keep the real hook/UI mounted but answer the seam with a settled, typed empty route so no real
+// read leaks into this unrelated journey.
+vi.mock('@/src/lib/repositories/invoiceApprovalRoute', () => ({
+  invoiceApprovalRouteRepository: {
+    get: vi.fn(async () => ({ routeKind: 'unavailable', approvers: [] })),
+  },
+}));
+
 import SalesInvoices from '../SalesInvoices';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
