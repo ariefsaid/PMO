@@ -534,6 +534,17 @@ insert into public.work_order_checklist_items (id, org_id, label)
 insert into public.work_order_closeout_items (id, org_id, work_order_id, project_id, position, name, required)
   select 'a6120000-0000-4000-8000-000000000330', 'a6120000-0000-4000-8000-00000000000a',
          wo, project, 1, 'Isolation closeout', true from _iso_a;
+-- #2800: the seed org carries no people or clearance items either, so the new notice table's by-id read and its no-write
+-- probe would both skip. Give A one person, one clearance item and one notice row.
+insert into public.people (id, org_id, code, name, created_by)
+  select 'a6120000-0000-4000-8000-000000000340', 'a6120000-0000-4000-8000-00000000000a', 'ISO-P1',
+         'Isolation person', profile from _iso_a;
+insert into public.clearance_items (id, org_id, name, is_required, sort_order, created_by)
+  select 'a6120000-0000-4000-8000-000000000341', 'a6120000-0000-4000-8000-00000000000a',
+         'Isolation clearance item', true, 1, profile from _iso_a;
+insert into public.person_clearance_overdue_notices (id, org_id, person_id, item_id)
+  values ('a6120000-0000-4000-8000-000000000342', 'a6120000-0000-4000-8000-00000000000a',
+          'a6120000-0000-4000-8000-000000000340', 'a6120000-0000-4000-8000-000000000341');
 insert into public.work_order_groups (id, org_id, code, name)
   select 'a6120000-0000-4000-8000-000000000331', 'a6120000-0000-4000-8000-00000000000a', 'ISO-GROUP', 'Isolation group' from _iso_a;
 insert into public.work_order_revenue_plan (id, org_id, project_id, work_order_id, plan_date, amount, created_by)
