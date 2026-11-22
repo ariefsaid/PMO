@@ -135,6 +135,8 @@ describe('stockDocuments DAL', () => {
     expect(sel).not.toContain('*');
     expect(sel).not.toContain('unit_cost');
     expect(sel).toContain('stock_document_lines');
+    // The organisation's tag rides on the already-embedded item: a tagged line is marked, an ordinary one is not.
+    expect(sel).toContain('tag:stock_tags(name)');
   });
 
   it('the work-item picker never selects the rate (an Engineer storekeeper must not receive prices)', async () => {

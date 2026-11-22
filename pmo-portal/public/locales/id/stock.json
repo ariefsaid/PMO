@@ -764,6 +764,12 @@
     "shortOpen_one": "{{count}} selisih terbuka",
     "shortOpen_other": "{{count}} selisih terbuka",
     "sentToast": "Transfer terkirim",
+    "sendConfirm": {
+      "title": "Kirim transfer ini?",
+      "where": "Dari {{from}} ke {{to}}",
+      "undo": "Stok langsung keluar dari gudang asal; penerima menghitungnya saat tiba.",
+      "confirm": "Kirim transfer"
+    },
     "receiver": "Penerima (opsional)",
     "receiverNone": "Siapa pun penjaga tujuan",
     "receiverHelp": "Pilih orang yang akan menghitung barang saat tiba: penjaga gudang tujuan atau akun lapangan. Anda tidak bisa memilih diri sendiri.",

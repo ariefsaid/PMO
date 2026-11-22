@@ -376,6 +376,16 @@ it('shows who uploaded the file and when', async () => {
   expect(within(entry).getByText(/2026/)).toBeInTheDocument();
 });
 
+it('JOB-1122-2 marks a tagged item on the document lines with the organisation’s own tag and leaves an ordinary line unmarked', async () => {
+  documents.get.mockResolvedValue(detail({ lines: [
+    { id: 'l1', line_no: 1, item_id: 'i1', quantity: '30', counted_quantity: null, expected_quantity: null, direction: null, boq_item_id: 'b1', source_line_id: null, item: { code: 'CEM', name: 'Cement 50kg', tag: { name: 'Client supplied' }, unit: { code: 'bag', whole_only: true } } },
+    { id: 'l2', line_no: 2, item_id: 'i2', quantity: '5', counted_quantity: null, expected_quantity: null, direction: null, boq_item_id: 'b1', source_line_id: null, item: { code: 'CAB', name: 'Cable 4mm', tag: null, unit: { code: 'm', whole_only: false } } },
+  ] }));
+  renderPage();
+  expect(await screen.findByText('Client supplied')).toBeInTheDocument();
+  expect(screen.getAllByTestId('stock-item-tag')).toHaveLength(1);
+});
+
 it('lets other readers see attachments without giving them upload controls', async () => {
   documents.get.mockResolvedValue(detail({ created_by: 'another-user' }));
   files.list.mockResolvedValue([{ id: 'f1', file_path: 'org-1/d1/f1/slip.pdf', label: 'Slip', uploaded_by: 'me', created_at: '2026-10-30T03:00:00Z', archived_at: null }]);

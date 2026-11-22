@@ -166,7 +166,7 @@
     "homeCrew": "Home crew",
     "hostCrew": "Host crew",
     "hostNotScheduled": "{{crew}} is not on any work order on these days, so this person would show on no roster and no hours would count. Schedule {{crew}} on a work order first, or choose another crew.",
-    "hostPartlyScheduled": "{{crew}} is not on any work order on {{days}}. This person will show on no roster on those days.",
+    "hostPartlyScheduled": "{{crew}} is not on any work order on {{days}}. On those days this person stays on the {{home}} roster.",
     "lend": "Lend worker",
     "lendTitle": "Lend a worker to another crew",
     "lent": "Worker lent",

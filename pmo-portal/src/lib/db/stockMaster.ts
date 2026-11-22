@@ -50,6 +50,18 @@ export const listStockItems = (filters: boolean | StockItemFilters = false): Pro
     return q;
   }, f.limit);
 };
+export interface StockItemTagName { itemId: string; tagName: string }
+type TaggedItemRow = { id: string; tag: { name: string } | null };
+
+/**
+ * Every item carrying one of the organisation's tags, with that tag's configured name (FR-SSW-010/011). Deliberately
+ * narrow: only tagged items, and only the item id plus its tag name. Screens whose read RPC does not carry the tag
+ * join it here; an ordinary item is absent, so no label (and no zero) is invented for it.
+ */
+export const listItemTagNames = (): Promise<StockItemTagName[]> =>
+  readAll<TaggedItemRow>((a, b) => supabase.from('stock_items').select('id, tag:stock_tags(name)')
+    .not('tag_id', 'is', null).order('id').range(a, b) as unknown as PromiseLike<{ data: TaggedItemRow[] | null; error: { message: string; code?: string } | null }>)
+    .then((rows) => rows.flatMap((r) => (r.tag?.name ? [{ itemId: r.id, tagName: r.tag.name }] : [])));
 export const listStockWarehouses = (includeArchived = false) =>
   readAll<StockWarehouseRow>((a, b) => {
     let q = supabase.from('stock_warehouses').select('*').order('code').order('id').range(a, b);
