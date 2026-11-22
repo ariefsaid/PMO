@@ -250,5 +250,32 @@
     "supervisorRole": "Siapa yang memutuskan absen di luar area",
     "supervisorRoleDefault": "Pengendali lapangan kru atau pengelola kru",
     "supervisorRoleHelper": "Pemegang peran ini yang memutuskan. Orang yang absen tidak pernah memutuskan absennya sendiri."
+  },
+  "release": {
+    "sectionLabel": "Pelepasan medis",
+    "heading": "Pelepasan medis ({{count}})",
+    "openButton": "Buka pelepasan",
+    "formTitle": "Buka pelepasan medis",
+    "open": "Buka pelepasan",
+    "opened": "Pelepasan dibuka",
+    "pickPerson": "Pilih orang",
+    "date": "Tanggal kembali",
+    "note": "Catatan (tanpa rincian medis)",
+    "none": "Tidak ada pelepasan yang menunggu. Tim SDM membukanya saat pekerja siap kembali.",
+    "from": "Tanggal kembali {{date}}",
+    "managerDecides": "Atasan langsungnya yang memutuskan. Orang ini tidak dapat dijadwalkan sampai disetujui.",
+    "approved": "Pelepasan disetujui",
+    "defer": "Tunda",
+    "deferred": "Pelepasan ditunda",
+    "subject": "pelepasan medis",
+    "deferTitle": "Tunda pelepasan",
+    "deferLabel": "Alasan menunda",
+    "deferHelp": "Tim SDM melihat ini. Jangan menulis rincian medis.",
+    "heldReason": "Tidak dapat dicatat sampai atasan langsungnya menyetujui pelepasan medis.",
+    "status": {
+      "pending": "Pelepasan menunggu",
+      "approved": "Dilepas",
+      "deferred": "Pelepasan ditunda"
+    }
   }
 }

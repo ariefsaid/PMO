@@ -208,6 +208,7 @@ export type Entity =
   | 'attendanceRate'
   | 'attendanceTarget'
   | 'leaveRequest'
+  | 'medicalRelease'
   | 'checkInSettings'
   | 'equipmentTarget'
   | 'workOrderIssueThreshold'
@@ -1196,6 +1197,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     cancel: allowUnlessViewOnly(ALL),
     decide: allowUnlessViewOnly(ALL),
     manage: allowUnlessViewOnly(ADMIN),
+  },
+  /**
+   * Medical release (migrations 1750-1752). UX ONLY: `medical_release_create` and `medical_release_decide` are the authority
+   * (the people team opens; the person's direct manager decides; never the person or the opener). A view-as session does neither.
+   */
+  medicalRelease: {
+    decide: allowUnlessViewOnly(ALL),
+    create: allowUnlessViewOnly(ALL),
   },
   crew: { view: allow(ALL), create: allowUnlessViewOnly(DELIVERY), manage: allowUnlessViewOnly(DELIVERY) },
   attendance: {

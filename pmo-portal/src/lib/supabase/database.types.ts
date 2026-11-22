@@ -11900,6 +11900,84 @@ export type Database = {
           },
         ]
       }
+      medical_releases: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          entered_by: string
+          id: string
+          note: string | null
+          org_id: string
+          person_id: string
+          release_date: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          entered_by: string
+          id?: string
+          note?: string | null
+          org_id?: string
+          person_id: string
+          release_date: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          entered_by?: string
+          id?: string
+          note?: string | null
+          org_id?: string
+          person_id?: string
+          release_date?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medical_releases_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medical_releases_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medical_releases_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medical_releases_entered_by_fkey"
+            columns: ["entered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medical_releases_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_access_grants: {
         Row: {
           granted_at: string
@@ -31889,6 +31967,36 @@ export type Database = {
       may_record_project_progress: {
         Args: { p_project_id: string }
         Returns: boolean
+      }
+      medical_release_can_enter: { Args: never; Returns: boolean }
+      medical_release_create: {
+        Args: { p_date: string; p_note: string; p_person_id: string }
+        Returns: string
+      }
+      medical_release_decide: {
+        Args: { p_decision: string; p_id: string; p_note: string }
+        Returns: string
+      }
+      medical_release_holds: {
+        Args: { p_date: string }
+        Returns: {
+          person_id: string
+          state: string
+        }[]
+      }
+      medical_releases_visible: {
+        Args: never
+        Returns: {
+          can_decide: boolean
+          decided_at: string
+          decision_note: string
+          id: string
+          note: string
+          person_id: string
+          person_name: string
+          release_date: string
+          status: string
+        }[]
       }
       merge_external_org_binding_config: {
         Args: { p_external_tier: string; p_org_id: string; p_patch: Json }

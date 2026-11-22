@@ -250,5 +250,32 @@
     "supervisorRole": "Who decides outside-area check-ins",
     "supervisorRoleDefault": "The crew's field controller or a crew manager",
     "supervisorRoleHelper": "Anyone holding this role decides. The person who checked in never decides their own."
+  },
+  "release": {
+    "sectionLabel": "Medical releases",
+    "heading": "Medical releases ({{count}})",
+    "openButton": "Open a release",
+    "formTitle": "Open a medical release",
+    "open": "Open release",
+    "opened": "Release opened",
+    "pickPerson": "Choose a person",
+    "date": "Return date",
+    "note": "Note (no medical detail)",
+    "none": "No release is waiting. The people team opens one when a worker is ready to return.",
+    "from": "Return date {{date}}",
+    "managerDecides": "Their direct manager decides. They cannot be rostered until it is approved.",
+    "approved": "Release approved",
+    "defer": "Defer",
+    "deferred": "Release deferred",
+    "subject": "medical release",
+    "deferTitle": "Defer the release",
+    "deferLabel": "Reason for deferring",
+    "deferHelp": "The people team sees this. Do not write medical detail.",
+    "heldReason": "Cannot be recorded until their direct manager approves the medical release.",
+    "status": {
+      "pending": "Release pending",
+      "approved": "Released",
+      "deferred": "Release deferred"
+    }
   }
 }

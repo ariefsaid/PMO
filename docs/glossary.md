@@ -1221,6 +1221,10 @@ decides a request they made, are the subject of, or entered, whatever their role
 
 **Leave approver role** — the organisation setting naming which role decides leave requests besides the line manager; empty means Admin.
 
+**Medical release** — a decision, for one person and a return date, that the person may be rostered again after sickness or injury. The people team opens it; the person's direct manager approves it or defers it with a reason. While it is pending or deferred the database refuses to roster the person (crew placement, loan, attendance) on or after that date. It holds a decision and a short note, never medical content; the manager sees the state only.
+
+**Direct manager** — the person's `people.manager_id`, else the manager of their linked login. The one who decides a medical release.
+
 **On leave (roster marker)** — a chip beside a rostered person who has approved leave on the day shown. It is information only and does
 not stop attendance being ticked.
 

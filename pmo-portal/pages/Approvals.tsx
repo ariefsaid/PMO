@@ -14,6 +14,7 @@ import { ProcurementBulkConfirm, ProcurementBulkSelect, ProcurementBulkToolbar }
 import { useProcurementBulkApprove } from './approvals/useProcurementBulkApprove';
 import { ExpenseClaimApprovalSection } from './approvals/ExpenseClaimApprovalSection';
 import { LeaveApprovalSection } from './approvals/LeaveApprovalSection';
+import { MedicalReleaseSection } from './approvals/MedicalReleaseSection';
 import { ImprestApprovalSection } from './approvals/ImprestApprovalSection';
 import { SalesInvoiceApprovalSection } from './approvals/SalesInvoiceApprovalSection';
 import { PushAttentionSection } from './approvals/PushAttentionSection';
@@ -434,6 +435,8 @@ const ApprovalsPage: React.FC = () => {
       {activeScope === 'all' && canShowMaterial && <MaterialRequestApprovalSection />}
       {/* #2708: renders nothing while leave requests are off or none waits for this viewer. */}
       <LeaveApprovalSection />
+      {/* Renders nothing while no release is open and the viewer cannot open one. */}
+      <MedicalReleaseSection />
       {hasTimesheetRole && <PushAttentionSection />}
       {hasTimesheetRole && <EmployeeLinkConfirmSection />}
       {canApproveTimesheets && <ReopenableApprovedSection hasPending={allPopulation.length > 0 || procPending || tsPending || expenseQuery.isPending || invoices.isPending} />}
