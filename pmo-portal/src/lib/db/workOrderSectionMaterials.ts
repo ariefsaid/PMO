@@ -39,7 +39,7 @@ export interface SectionAllocation { id: string; sectionId: string; itemId: stri
 export async function listAllocations(workOrderId: string): Promise<SectionAllocation[]> {
   const rows = await fetchAllPages<{ id: string; section_id: string; item_id: string; quantity: string }>((from, to) =>
     supabase.from('work_order_section_material_plan').select('id, section_id, item_id, quantity::text').eq('work_order_id', workOrderId)
-      .order('id', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: Array<{ id: string; section_id: string; item_id: string; quantity: string }> | null; error: { message: string; code?: string } | null }>);
+      .order('id', { ascending: true }).range(from, to));
   return rows.map((r) => ({ id: r.id, sectionId: r.section_id, itemId: r.item_id, quantity: String(r.quantity) }));
 }
 

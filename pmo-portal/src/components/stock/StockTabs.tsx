@@ -68,7 +68,7 @@ export const StockTabs: React.FC = () => {
     <nav
       ref={scrollerRef}
       aria-label={t('tabs.label')}
-      className={cn('mb-4 flex gap-1 overflow-x-auto border-b border-border', moreToRight && 'scroll-fade-x')}
+      className={cn('mb-4 flex flex-wrap gap-x-1 border-b border-border md:flex-nowrap md:overflow-x-auto', moreToRight && 'scroll-fade-x')}
     >
       {tabs.map((x) => (
         <NavLink

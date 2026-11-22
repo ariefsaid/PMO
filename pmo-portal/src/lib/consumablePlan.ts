@@ -1,9 +1,11 @@
 /**
  * consumablePlan.ts (#2577) — the pure maths of the work-order consumable plan. It mirrors the SQL generation
  * (`cus_plan_matches`/`cus_generate_plan`, migration 1076) so the screen can preview a regeneration; the SQL function
- * is the authority. Exact decimals throughout (BigInt, never a JS float): rounded ONCE per item, half up at 3 decimals.
+ * is the authority. Exact decimals throughout (BigInt via the one decimal module `exactDecimal`, #2748, never a JS
+ * float): rounded ONCE per item, half up at 3 decimals.
  */
 
+import { formatDecimal, parseDecimal } from '@/src/lib/exactDecimal';
 import { subtractDecimal } from '@/src/lib/stockFormat';
 
 export interface UsageStandard {
@@ -21,19 +23,11 @@ export interface PlanBasisRow { boqItemId: string; code: string; workQty: string
 export interface PlanItem { itemId: string; generatedQty: string; basis: PlanBasisRow[] }
 export interface ComputedPlan { items: PlanItem[]; noStandard: PlanLineInput[] }
 
-/** Decimal string -> BigInt scaled by 10^dp (truncating extra digits is never needed: inputs are numeric(14,3)/(14,6)/(5,2)). */
+/** Decimal string -> BigInt scaled by 10^dp; throws on malformed (inputs are numeric(14,3)/(14,6)/(5,2), so finer digits never occur). */
 function scaled(value: string, dp: number): bigint {
-  const m = /^(-?)(\d*)(?:\.(\d*))?$/.exec(value.trim());
-  if (!m || (m[2] === '' && !m[3])) throw new Error(`not a decimal: ${value}`);
-  const frac = (m[3] ?? '').padEnd(dp, '0').slice(0, dp);
-  const n = BigInt((m[2] || '0') + frac);
-  return m[1] === '-' ? -n : n;
-}
-function format(n: bigint, dp: number): string {
-  const neg = n < 0n;
-  const digits = (neg ? -n : n).toString().padStart(dp + 1, '0');
-  const body = dp === 0 ? digits : `${digits.slice(0, -dp)}.${digits.slice(-dp)}`;
-  return neg && n !== 0n ? `-${body}` : body;
+  const units = parseDecimal(value.trim(), dp);
+  if (units === null) throw new Error(`not a decimal: ${value}`);
+  return units;
 }
 
 const norm = (s: string) => s.trim().toLowerCase();
@@ -66,7 +60,7 @@ export function computeConsumablePlan(lines: PlanLineInput[], standards: UsageSt
     }
   }
   const drop = 10n ** BigInt(RESULT_SCALE - 3);
-  const items = [...byItem].map(([itemId, e]) => ({ itemId, generatedQty: format((e.total + drop / 2n) / drop, 3), basis: e.basis }))
+  const items = [...byItem].map(([itemId, e]) => ({ itemId, generatedQty: formatDecimal((e.total + drop / 2n) / drop, 3), basis: e.basis }))
     .sort((a, b) => (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0));
   return { items, noStandard };
 }

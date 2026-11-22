@@ -46,6 +46,13 @@ function render(ui: React.ReactElement) {
   );
 }
 
+/** A file that is exactly the template opens the preview at once (nothing to match); any other file shows the matching first. */
+async function continueToPreview() {
+  await waitFor(() => expect(screen.queryByRole('button', { name: /^next$/i }) ?? screen.queryByTestId('import-summary')).toBeTruthy());
+  const next = screen.queryByRole('button', { name: /^next$/i });
+  if (next) { await waitFor(() => expect(next).toBeEnabled()); await userEvent.click(next); }
+}
+
 describe('ImportWizard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,14 +79,13 @@ describe('ImportWizard', () => {
     const user = userEvent.setup();
     render(<ImportWizard descriptor={custom} onClose={vi.fn()} />);
     await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
-    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    await continueToPreview();
     expect(await screen.findByRole('button', { name: /import 1 job/i })).toBeEnabled();
   });
 
   it('renames app field labels without changing imported column headers or cell values', async () => {
     setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } } });
-    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({ headers: ['Project', 'Type'], rows: [['Project Phoenix', 'Client']] });
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({ headers: ['Project', 'Type', 'Notes'], rows: [['Project Phoenix', 'Client', 'x']] });
     const custom = { ...descriptor, fields: [{ key: 'name', label: 'Project', labelIsAppCopy: true, required: true, validate: () => null }, descriptor.fields[1]] } as unknown as ImportDescriptor<Co>;
     const user = userEvent.setup();
     render(<ImportWizard descriptor={custom} onClose={vi.fn()} />);
@@ -141,8 +147,7 @@ describe('ImportWizard', () => {
 
     await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
     // mapping step auto-mapped → Next
-    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    await continueToPreview();
 
     // The preview uses the shared responsive table while preserving the dry-run goal.
     expect(await screen.findByTestId('dt-table-branch')).toBeInTheDocument();
@@ -169,7 +174,7 @@ describe('ImportWizard', () => {
     const user = userEvent.setup();
     render(<ImportWizard descriptor={descriptor} onClose={vi.fn()} />);
     await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
-    await user.click(await screen.findByRole('button', { name: /^next$/i }));
+    await continueToPreview();
     expect(await screen.findByRole('button', { name: /download rows not imported/i })).toBeEnabled();
     expect(create).not.toHaveBeenCalled();
   });
@@ -183,8 +188,7 @@ describe('ImportWizard', () => {
     };
     render(<ImportWizard descriptor={wide} onClose={vi.fn()} />);
     await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
-    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    await continueToPreview();
     const table = await screen.findByRole('table');
     for (const name of ['Row', 'Company name', 'Type', 'Status']) {
       expect(within(table).getByRole('columnheader', { name })).toBeInTheDocument();
@@ -202,6 +206,8 @@ describe('ImportWizard', () => {
   it('CMP-007: edited mappings stay in the wizard after close and route-leave confirmations', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
+    // An extra column means the file is not exactly the template, so the matching step is shown.
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({ headers: ['Company name', 'Type', 'Notes'], rows: [['Acme', 'Client', 'x']] });
     render(<ImportWizard descriptor={descriptor} onClose={onClose} />);
     await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
     await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
@@ -233,8 +239,7 @@ describe('ImportWizard', () => {
     render(<ImportWizard descriptor={descriptor} onClose={onClose} />);
 
     await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
-    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    await continueToPreview();
 
     // one explicit write action
     await user.click(await screen.findByRole('button', { name: /import 1 companies/i }));
@@ -270,8 +275,7 @@ describe('ImportWizard', () => {
     render(<ImportWizard descriptor={descriptor} onClose={vi.fn()} />);
 
     await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
-    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    await continueToPreview();
     // on preview
     await screen.findByTestId('import-summary');
     await user.click(screen.getByRole('button', { name: /^back$/i }));
@@ -296,8 +300,7 @@ describe('ImportWizard', () => {
     render(<ImportWizard descriptor={descriptor} onClose={vi.fn()} />);
 
     await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
-    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    await continueToPreview();
     await user.click(await screen.findByRole('button', { name: /import 2 companies/i }));
 
     const summary = await screen.findByTestId('import-result-summary');
@@ -353,8 +356,7 @@ describe('ImportWizard', () => {
     render(<ImportWizard descriptor={descriptor} onClose={onClose} />);
 
     await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
-    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    await continueToPreview();
     await user.click(await screen.findByRole('button', { name: /import 1 companies/i }));
     // Mid-write: the wizard shows progress and must not be dismissible.
     expect(await screen.findByRole('heading', { name: /importing/i })).toBeInTheDocument();

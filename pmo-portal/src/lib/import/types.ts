@@ -114,6 +114,13 @@ export interface ImportDescriptor<Input> {
     nothingNew: string;
   };
   /**
+   * OPTIONAL match-and-update (people import): the records already on the target, keyed, so a row that matches one
+   * is previewed as an update (each changed field, old to new) or as no change, and a row that matches none as new.
+   * Zero writes at preview; on confirm `update` runs for the update rows and `create` for the new ones. Supersedes
+   * `existingKeys` for the descriptor that sets it. A failed `load` blocks the confirm (an update cannot be previewed blind).
+   */
+  matchExisting?: MatchExisting;
+  /**
    * OPTIONAL downloadable template (#2530, FR-IMT-001): the wizard offers "Download template" when this is present.
    * `version` goes into the file; an upload of the current or the previous version is accepted, any other is refused.
    * `example` is one row keyed by field key; `lists` gives closed lists (field key → values) as dropdowns.
@@ -127,6 +134,25 @@ export interface ImportDescriptor<Input> {
   toInput: (cells: Record<string, string>) => Input;
   /** The entity's existing create repository fn. RLS stamps org_id + gates the role. */
   create: (input: Input) => Promise<unknown>;
+}
+
+/** One field an update would change, in the reader's words. */
+export interface RowChange { field: string; from: string; to: string }
+
+export interface MatchExisting {
+  /** Live records only, each with the key `keyOf` produces for a row that matches it. */
+  load: () => Promise<Iterable<[key: string, record: unknown]>>;
+  /** The row's key, written exactly as `load` writes it. */
+  keyOf: (cells: Record<string, string>) => string;
+  /** What the row would change on the record; empty = no change. A blank cell never appears here (it never clears). */
+  changes: (record: unknown, cells: Record<string, string>) => RowChange[];
+  update: (record: unknown, cells: Record<string, string>) => Promise<unknown>;
+  /** Under a no-change row's Status. */
+  noChange: string;
+  /** One line when `load` failed (confirm stays disabled). */
+  unavailable: string;
+  /** The disabled button's reason, when no row would add or change anything. */
+  nothingToDo: string;
 }
 
 /** A parsed worksheet: header labels + raw data-row cell strings. */
@@ -146,6 +172,9 @@ export interface RowValidation {
   valid: boolean;
   /** The row's key is already on the target (`existingKeys`): not valid, not an error; it will be skipped. */
   already?: boolean;
+  /** With `matchExisting`: `new` adds a record, `update` changes a matched one (`changes` lists how). */
+  action?: 'new' | 'update';
+  changes?: RowChange[];
 }
 
 export interface ImportResult {
@@ -160,6 +189,8 @@ export interface ImportResult {
   /** Which rows were skipped (0-based sheet row indexes), so the result can name them. */
   skippedIndexes: number[];
   failed: { index: number; reason: string }[];
+  /** Rows that changed an existing record (`matchExisting`). */
+  updated?: number;
 }
 
 /**

@@ -1,3 +1,4 @@
+export type { Role } from './AuthContext';
 import type { Role } from './AuthContext';
 import { ALL_ROLES, MASTER_DATA_ROLES, REVENUE_WRITE_ROLES } from './coarseRoles';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
@@ -72,7 +73,11 @@ export type Action =
   | 'send'
   | 'recordReservation'
   | 'recordRelease'
-  | 'recordPickup';
+  | 'recordPickup'
+  | 'return'
+  | 'attribute'
+  | 'toggleRole'
+  | 'setPaymentChannel';
 
 export type Entity =
   | 'project'
@@ -199,10 +204,16 @@ export type Entity =
   | 'tmSignoff'
   | 'crew'
   | 'attendance'
+  | 'headcount'
   | 'crewTool'
   | 'attendanceRate'
   | 'attendanceTarget'
-  | 'leaveRequest';
+  | 'leaveRequest'
+  | 'medicalRelease'
+  | 'checkInSettings'
+  | 'imprestLimit'
+  | 'workOrderIssueThreshold'
+  | 'stockReservation';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -295,6 +306,8 @@ const EQUIPMENT_COSTING_WRITE: Role[] = ['Admin', 'Finance'];
 const EQUIPMENT_STATUS_WRITE: Role[] = ['Admin', 'Project Manager', 'Engineer'];
 /** #2526: rental terms and the invoice check are money — mirrors equipment_can_edit_terms / equipment_rental_check. */
 const EQUIPMENT_RENTAL_MONEY: Role[] = ['Admin', 'Finance'];
+/** 1600: the equipment manager writes rental terms and reads the invoice check; stating a reason to include unproven days stays EQUIPMENT_RENTAL_MONEY. */
+const EQUIPMENT_RENTAL_TERMS: Role[] = ['Admin', 'Finance', 'Project Manager'];
 const EQUIPMENT_REGISTER_WRITE: Role[] = ['Admin', 'Project Manager'];
 /** #1514: who may set the CLIENT contract rate and assign people to it — mirrors save/end_contract_rate_line
  *  and set/end_contract_rate_assignee (0515: Admin, Finance). Cost and revenue are separate settings, never shared. */
@@ -668,6 +681,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       !!ctx.currentUserId &&
       ctx.record?.claimant_id === ctx.currentUserId &&
       (ctx.record?.status === 'Draft' || ctx.record?.status === 'Rejected'),
+    attribute: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (has(['Admin', 'Executive', 'Finance', 'Project Manager'], role) ||
+        (has(ALL, role) &&
+          !!ctx.currentUserId &&
+          ctx.record?.claimant_id === ctx.currentUserId &&
+          (ctx.record?.status === 'Draft' || ctx.record?.status === 'Rejected'))),
   },
   /**
    * Site imprest (#1515, 0422-0424). Floats, plans and replenishments are visible to approval rank (RLS). Status moves
@@ -725,6 +745,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(ALL), // ANY member incl. Engineer (requester server-stamped)
     edit: allow(ALL), // record-scoped (requester while Draft/Rejected) at the call-site
     transition: allow([...MASTER_DATA]), // FE shows; SoD identity + RPC are the authority
+    /** An Admin may decide any request, not only the ones routed to them (the waiting list counts all of them for an Admin). */
+    decide: allow(ADMIN),
+    setPaymentChannel: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (((ctx.record?.status === 'Draft' || ctx.record?.status === 'Rejected') &&
+        (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.requested_by_id === ctx.currentUserId))) ||
+       (has(['Finance', 'Admin'], role) && ctx.record?.status !== 'Paid' && ctx.record?.status !== 'Cancelled')),
     // no archive / no hard delete — Cancel only (handled as a transition)
   },
   procItem: {
@@ -975,6 +1002,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // #1671: voiding a mistyped PMO-native subcontract bill is a post-capture bill write, Admin/Finance like the
     // line attribution and e-Faktur. UX only — void_subcontract_bill (0885) enforces role, author SoD and the ERP boundary.
     void: allow(REVENUE_WRITE),
+    // Recording a supplier bill from the payables list: Admin or Finance, never while viewing as another role. UX only — the bill RPCs decide.
+    create: allowUnlessViewOnly(REVENUE_WRITE),
   },
   erpPurchaseLink: {
     // ADR-0093: linking an ERPNext purchase document into a purchase (FR-PFE-020) — the ERP-purchase audience; an
@@ -1068,7 +1097,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     manage: allow(ADMIN),
   },
   // #2579: document categories and their viewer roles. Mirrors the management functions of migration 1093 (active Admin). UX ONLY — they are the authority (ADR-0016).
-  documentCategory: { manage: allow(ADMIN) },
+  documentCategory: {
+    manage: allow(ADMIN),
+    view: (role, ctx) =>
+      role === 'Admin' ||
+      (!!role && Array.isArray(ctx.record?.roles) && (ctx.record.roles as unknown[]).includes(role)),
+    toggleRole: (_role, ctx) => ctx.record?.role !== 'Admin',
+  },
   // #1532 S9: the org's feedback-and-surveys switch. Mirrors admin_set_feedback_surveys (0419: active Admin). UX ONLY.
   orgFeedback: { manage: allow(ADMIN) },
   // #2711: which events send email, the extra roles copied, the email language. Mirrors set_email_* (1223: active Admin). UX ONLY.
@@ -1138,12 +1173,15 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * (`set_equipment_status`, `save_equipment_rental_term`, `equipment_metrics`) are the authority.
    *   view   ← every active member reads status (the bulk screen); metrics need the approval audience (`equipment_metrics`).
    *   create ← set status / attach proof: Admin, PM, Engineer (the field controller). Not Finance or Executive.
-   *   manage ← rental terms: Admin, Finance. A field controller never edits rates.
+   *   manage ← rental terms and reading the invoice check: Admin, Finance and the equipment manager (Project Manager, 1600). A field controller never edits rates.
+   *   configure ← working hours per day, availability and use targets, the escalation limit: Admin and the equipment manager (1600).
+   *   approve ← stating a reason to include unproven days in the invoice check (a stored, audited record): Admin, Finance.
      */
   equipmentAvailability: {
     view: allow(ALL),
     create: allowUnlessViewOnly(EQUIPMENT_STATUS_WRITE),
-    manage: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
+    manage: allowUnlessViewOnly(EQUIPMENT_RENTAL_TERMS),
+    configure: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),
     approve: allowUnlessViewOnly(EQUIPMENT_RENTAL_MONEY),
   },
   /**
@@ -1170,8 +1208,27 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     decide: allowUnlessViewOnly(ALL),
     manage: allowUnlessViewOnly(ADMIN),
   },
+  /**
+   * Medical release (migrations 1750-1752). UX ONLY: `medical_release_create` and `medical_release_decide` are the authority
+   * (the people team opens; the person's direct manager decides; never the person or the opener). A view-as session does neither.
+   */
+  medicalRelease: {
+    decide: allowUnlessViewOnly(ALL),
+    create: allowUnlessViewOnly(ALL),
+  },
   crew: { view: allow(ALL), create: allowUnlessViewOnly(DELIVERY), manage: allowUnlessViewOnly(DELIVERY) },
   attendance: {
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (
+      has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+    approve: (role, ctx) => ctx.record?.viewOnly !== true && has(DELIVERY, role) && !(
+      !!ctx.currentUserId && Array.isArray(ctx.record?.recorder_ids) && (ctx.record.recorder_ids as unknown[]).includes(ctx.currentUserId)),
+  },
+  /**
+   * Daily head count of people with no name on the roster (guard-headcount, migration 1710). UX ONLY: `record_headcount_day`
+   * (`attendance_can_record`, never a field account), `approve_headcount_day` (a crew manager who entered none of it) and the
+   * RLS are the authority (ADR-0016). Same shape as `attendance`: `record.field_controller_id`, `record.recorder_ids`.
+   */
+  headcount: {
     create: (role, ctx) => ctx.record?.viewOnly !== true && (
       has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
     approve: (role, ctx) => ctx.record?.viewOnly !== true && has(DELIVERY, role) && !(
@@ -1359,7 +1416,20 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     approve: (role, ctx) =>
       ctx.record?.viewOnly !== true && has(['Admin', 'Finance', 'Executive'], role) &&
       !(ctx.currentUserId && (ctx.record?.prepared_by === ctx.currentUserId || ctx.record?.submitted_by === ctx.currentUserId)),
+    return: allowUnlessViewOnly(['Admin', 'Finance', 'Executive']),
     bill: allowUnlessViewOnly(['Admin', 'Finance']),
+  },
+  // #2705: phone check-in settings — who decides outside-area check-ins (1210: active Admin). UX ONLY.
+  checkInSettings: { manage: allowUnlessViewOnly(ADMIN) },
+  // The organisation's site-cash limit (`set_imprest_procurement_limit` is Admin-only). UX ONLY.
+  imprestLimit: { manage: allow(ADMIN) },
+  // #2584: work order issue threshold (1340: active Admin). UX ONLY.
+  workOrderIssueThreshold: { manage: allowUnlessViewOnly(ADMIN) },
+  // #2584 / #2689: stock reservations (1440: location keeper or master-data roles). UX ONLY.
+  stockReservation: {
+    manage: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (ctx.record?.isKeeper === true || has(MASTER_DATA, role)),
   },
   // The subcontractor rate card is cost data (FR-SPC-003): Admin and Finance write, Executive reads.
   subcontractRate: {

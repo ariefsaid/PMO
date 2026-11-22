@@ -11,11 +11,12 @@ import { useCrewLoanMutations, useCrewLoans, useCrewLoansEnabled } from '@/src/h
 import type { CrewLoanRow } from '@/src/lib/repositories/crews';
 import { formatDay } from '@/src/lib/format';
 import { toIso } from '../equipment/equipmentWeek';
-import { crewErrorMessage } from './crewErrors';
+import { useCrewErrorText } from './crewErrors';
 
 /** Lend a worker from their home crew to another crew for a period (FR-LOAN-001/002). */
 const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const { lend } = useCrewLoanMutations();
   const crews = useCrews();
@@ -46,7 +47,7 @@ const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         toast(t('crews:loans.lent', 'Worker lent'), undefined, 'success');
         onClose();
       } catch (err) {
-        setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: crewErrorMessage(t, err) });
+        setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: writeError(err) });
       }
     });
   };
@@ -78,6 +79,7 @@ const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
  */
 export const CrewLoans: React.FC = () => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -103,7 +105,7 @@ export const CrewLoans: React.FC = () => {
     try {
       await endLoan.mutateAsync({ id: l.id, version: l.version, valid_from: l.valid_from, valid_to: today < l.valid_from ? l.valid_from : today });
       toast(t('crews:loans.ended', 'Loan ended'), undefined, 'success');
-    } catch (err) { setProblem(crewErrorMessage(t, err)); }
+    } catch (err) { setProblem(writeError(err)); }
   };
   const columns: Column<CrewLoanRow>[] = [
     { key: 'person', header: t('crews:person', 'Person'), kind: 'primary', rowHeader: true, cell: (l) => workerName(l.worker_id) },

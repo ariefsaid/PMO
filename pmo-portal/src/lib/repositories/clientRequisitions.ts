@@ -1,16 +1,15 @@
 /**
  * repositories/clientRequisitions.ts (#2585) — the seam over client material requisitions (ADR-0017). Standalone module
  * (the `materialRequests.ts` shape): imported directly by its consumers. Every rule is enforced by the database RPCs;
- * errors keep their Postgres code via `wrap`, and `clientRequisitionRefusal` turns the message into a stable key.
+ * errors keep their Postgres code via `wrap`.
  */
 import * as dal from '@/src/lib/db/clientRequisitions';
 import { wrap } from './repositoryErrors';
 
 export type {
   ClientRequisitionStatus, ClientRequisitionRow, ClientRequisitionLineInput, ClientRequisitionPickup, ClientRequisitionEvent,
-  ClientRequisitionLineRow, WorkOrderClientMaterial, ClientRequisitionRefusal, ParsedRefusal,
+  ClientRequisitionLineRow, WorkOrderClientMaterial,
 } from '@/src/lib/db/clientRequisitions';
-export { clientRequisitionRefusal } from '@/src/lib/db/clientRequisitions';
 
 export const clientRequisitionRepository = {
   forWorkOrder: (workOrderId: string) => wrap(() => dal.getWorkOrderClientMaterial(workOrderId)),

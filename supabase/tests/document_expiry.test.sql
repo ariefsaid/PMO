@@ -27,10 +27,10 @@ insert into people (id, org_id, code, name, manager_id, profile_id) values
   ('25270000-0000-0000-0000-0000000000e9', '25270000-0000-0000-0000-00000000000b', 'P-X', 'Foreign Person', null, null);
 insert into equipment_assets (id, org_id, code, name) values
   ('25270000-0000-0000-0000-0000000000d1', '25270000-0000-0000-0000-00000000000a', 'EQ-1', 'Crane One');
-insert into document_types (id, org_id, name, applies_to, is_medical, notify_roles) values
-  ('25270000-0000-0000-0000-0000000000f1', '25270000-0000-0000-0000-00000000000a', 'Work permit', 'person', false, '{}'),
-  ('25270000-0000-0000-0000-0000000000f2', '25270000-0000-0000-0000-00000000000a', 'Medical check', 'person', true, '{}'),
-  ('25270000-0000-0000-0000-0000000000f3', '25270000-0000-0000-0000-00000000000a', 'Equipment certificate', 'equipment', false, '{}');
+insert into document_types (id, org_id, name, applies_to, is_medical) values
+  ('25270000-0000-0000-0000-0000000000f1', '25270000-0000-0000-0000-00000000000a', 'Work permit', 'person', false),
+  ('25270000-0000-0000-0000-0000000000f2', '25270000-0000-0000-0000-00000000000a', 'Medical check', 'person', true),
+  ('25270000-0000-0000-0000-0000000000f3', '25270000-0000-0000-0000-00000000000a', 'Equipment certificate', 'equipment', false);
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);

@@ -72,6 +72,11 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
     };
   },
 }));
+// fix-waiting: the entry for a role off the Approvals list is offered by `useApprovalsEntryOffered`; these cases drive it with the timesheet-work signal they were written for.
+vi.mock('@/src/hooks/useWaitingForYou', async () => {
+  const { useHasTimesheetApprovalWork } = await import('@/src/hooks/useTimesheetApproval');
+  return { useApprovalsEntryOffered: () => { const work = useHasTimesheetApprovalWork(); return Boolean(work.data || work.isPending || work.isError); } };
+});
 vi.mock('./ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
 vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: () => ({ isPending: true }) }));
 

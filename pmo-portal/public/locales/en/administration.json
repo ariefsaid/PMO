@@ -647,10 +647,21 @@
           "officer": "Officers",
           "field": "Field"
         },
-        "none": "No built-in role (access level only)",
-        "label": "Built-in role",
-        "helper": "A built-in role starts from one access level and sets what this person sees and does for their job.",
-        "baseLevel": "Access level: {{level}} (set by the built-in role)"
+        "none": "No job role (access level only)",
+        "label": "Job role",
+        "helper": "A job role starts from one access level and sets what this person sees and does for their job.",
+        "baseLevel": "Access level: {{level}} (set by the job role)",
+        "inviteRequired": "Choose the job role.",
+        "invitePlaceholder": "Choose a job role",
+        "inviteSearch": "Search job roles",
+        "inviteNoun": "job role",
+        "menuEdit": "Change job role",
+        "formTitle": "Change job role: {{name}}",
+        "formSubmit": "Save job role"
+      },
+      "fieldLogin": {
+        "noPerson": "This login is not in the workforce list, so it cannot clock in. Add this person to the workforce list, then place them in a crew.",
+        "noCrew": "This person is not in any crew, so the clock-in shows nothing. Place them in a crew (a Foreman: set them as the crew lead)."
       },
       "roleConfirm": {
         "clearTitle": "Remove {{name}}'s built-in role?"
@@ -682,7 +693,12 @@
         "retry": "This address is already being invited",
         "retryDetail": "Try again in a moment.",
         "seatLimit": "Your plan has no seats left",
-        "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again."
+        "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again.",
+        "notSent": "The invitation was not sent",
+        "notSentDetail": "The email could not be sent, so nothing was saved. What you typed is still here: check the address and try again. If it keeps failing, tell your Operator that invitation emails are not going out.",
+        "rateLimited": "Too many invitations in a short time. Nothing was saved. Wait a minute, then invite again.",
+        "roleNotSet": "Invitation sent, job role not saved",
+        "roleNotSetDetail": "{{email}} was invited. Open their row and choose Change job role to set it."
       },
       "statusError": {
         "seatLimit": "Your plan has no seats left",
@@ -693,6 +709,12 @@
         "alreadyInvitedDetail": "{{email}} already has a valid invite. No new email was sent.",
         "inviteResent": "Invite sent again",
         "inviteResentDetail": "The earlier link for {{email}} had expired. A new link is on its way."
+      },
+      "setup": {
+        "unlinked": "Login not linked to a person, so they cannot be placed in a crew.",
+        "linkAction": "Link them to a person",
+        "noCrew": "Not in any crew, so they have no work to check in to.",
+        "crewAction": "Add them to a crew"
       }
     },
     "spendApprovers": {
@@ -709,31 +731,31 @@
       "whoNow": "Who can approve now",
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
     },
-      "siteCheckpoints": {
-        "title": "Day checkpoints",
-        "helper": "The checkpoints of a working day, with the time each is due. The field controller records each with a photo; a late one reminds the reporter and flags the work order. With no checkpoints, nothing is created or reminded.",
-        "loadError": "Couldn't load the checkpoints",
-        "empty": "No checkpoints yet. Nothing is created or reminded until you add one.",
-        "name": "Name",
-        "time": "Due time",
-        "grace": "Grace (minutes)",
-        "photo": "Photo required",
-        "photoLabel": "Photo required for {{name}}",
-        "start": "Marks the start of work",
-        "startLabel": "Marks the start of work for {{name}}",
-        "up": "Move up",
-        "down": "Move down",
-        "remove": "Remove",
-        "add": "Add checkpoint",
-        "save": "Save checkpoints",
-        "saved": "Checkpoints saved",
-        "invalid": {
-          "name": "Every checkpoint needs a name of up to 120 characters",
-          "time": "Every checkpoint needs a due time",
-          "grace": "Grace is a whole number from 0 to 120 minutes",
-          "start": "Only one checkpoint can mark the start of work"
-        }
-      },
+    "siteCheckpoints": {
+      "title": "Day checkpoints",
+      "helper": "The checkpoints of a working day, with the time each is due. The field controller records each with a photo; a late one reminds the reporter and flags the work order. With no checkpoints, nothing is created or reminded.",
+      "loadError": "Couldn't load the checkpoints",
+      "empty": "No checkpoints yet. Nothing is created or reminded until you add one.",
+      "name": "Name",
+      "time": "Due time",
+      "grace": "Grace (minutes)",
+      "photo": "Photo required",
+      "photoLabel": "Photo required for {{name}}",
+      "start": "Marks the start of work",
+      "startLabel": "Marks the start of work for {{name}}",
+      "up": "Move up",
+      "down": "Move down",
+      "remove": "Remove",
+      "add": "Add checkpoint",
+      "save": "Save checkpoints",
+      "saved": "Checkpoints saved",
+      "invalid": {
+        "name": "Every checkpoint needs a name of up to 120 characters",
+        "time": "Every checkpoint needs a due time",
+        "grace": "Grace is a whole number from 0 to 120 minutes",
+        "start": "Only one checkpoint can mark the start of work"
+      }
+    },
     "siteReportLists": {
       "title": "Site report lists",
       "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",
@@ -798,12 +820,24 @@
       "saved": "Attendance target saved",
       "title": "Attendance target",
       "turnOff": "Turn off"
-      },
+    },
     "crewLoans": {
       "title": "Crew loans",
       "label": "Allow lending workers between crews",
       "helper": "A lent worker follows the host crew on its roster and attendance for the loan period. Off, the Crews page shows no loans.",
       "loadError": "Couldn't load the crew loans setting",
+      "adminOnly": "Only an Admin can change this."
+    },
+    "attendanceRoles": {
+      "title": "Time records",
+      "intro": "Name who may enter a second record of a worker's day (a surveyor or timekeeper) and who decides which hours stand when two records differ. A second record never changes paid hours on its own.",
+      "secondLabel": "May enter a second record",
+      "secondHelper": "An Admin, Executive or Project Manager always may.",
+      "deciderLabel": "Decides which hours stand",
+      "deciderHelper": "Leave empty to use today's approvers (Admin, Executive, Project Manager). Nobody decides hours they recorded.",
+      "save": "Save",
+      "saved": "Time record roles saved",
+      "loadError": "Couldn't load the time record roles",
       "adminOnly": "Only an Admin can change this."
     }
   },
@@ -889,25 +923,32 @@
     "user": "App user (optional)",
     "userPlaceholder": "Not an app user",
     "userSearch": "Search users",
-    "archived": "Person archived",
     "actions": "Actions",
     "editLabel": "Edit {{name}}",
     "edit": "Edit",
-    "archiveLabel": "Archive {{name}}",
-    "archive": "Archive",
     "add": "Add person",
+    "importDocuments": "Import documents",
+    "importPeople": "Import people",
     "error": "Couldn't load people",
     "errorSub": "The request failed. Check your connection and try again.",
     "retry": "Retry",
     "empty": "No people yet. Add the first person to record their documents.",
-    "archiveTitle": "Archive person",
-    "archiveBody": "They leave the active list and the expiry warnings, and stay on record under Former staff.",
     "staffStatus": "Staff status",
     "active": "Active",
     "former": "Former staff",
     "all": "All",
-    "formerEmpty": "No former staff. People you archive appear here.",
-    "navLabel": "People"
+    "formerEmpty": "No former staff. People you mark as left appear here.",
+    "navLabel": "People",
+    "manager": "Direct manager (optional)",
+    "managerPlaceholder": "No manager set",
+    "managerSearch": "Search users",
+    "managerHelp": "The manager is warned first when this person's documents are about to expire, and records the renewal.",
+    "markLeft": "Mark as left",
+    "markLeftLabel": "Mark {{name}} as left",
+    "leftTitle": "Mark {{name}} as left",
+    "leftBody": "They move to Former staff and leave every crew roster from this day. Their documents, hours and history stay on record.",
+    "leftOn": "Last day of work",
+    "markedLeft": "{{name}} is now former staff"
   },
   "roleNames": {
     "title": "Role names",
@@ -974,7 +1015,11 @@
     "medicalCol": "Medical",
     "yes": "Yes",
     "roles": "Roles notified",
-    "rolesHelp": "The person's manager is always notified. Leave empty to use the default for this kind.",
+    "rolesHelp": "Tick the roles to warn before a document of this type expires. A person's direct manager is always warned too.",
+    "notifyPerson": "Also tell the person",
+    "thePerson": "The person",
+    "manager": "Direct manager",
+    "noOne": "No one is warned",
     "actions": "Actions",
     "edit": "Edit",
     "archive": "Archive",
@@ -1003,7 +1048,7 @@
     "switch": "Cost approved hours in money",
     "adminOnly": "Only an Admin or Finance can change labour cost settings.",
     "locked": "This would change hours already priced on approved timesheets. Start the new rate after the last priced day.",
-    "duplicate": "A rate for this person or role already starts on that date.",
+    "duplicate": "A rate for this person, role or class already starts on that date.",
     "classes": "Labour classes",
     "addClass": "Add class",
     "archived": "archived",
@@ -1037,6 +1082,27 @@
     "saveRate": "Save rate",
     "subjectRole": "A role",
     "subjectPerson": "One person",
+    "subjectClass": "A labour class (people with no login)",
+    "subjectClassCell": "People with no login in this class",
+    "assignments": {
+      "title": "Crew member classes",
+      "add": "Assign a class",
+      "intro": "People with no login are costed by their class: a class rate prices their approved attendance.",
+      "empty": "No crew member has a labour class yet. Admin or Finance adds one here; until then their approved hours carry no rate.",
+      "person": "Person",
+      "personNoun": "person",
+      "personNounPlural": "people",
+      "personHelp": "People in the register with no login.",
+      "noPeople": "Everyone in the people register has a login. Add the crew member under People first.",
+      "endLabel": "End {{name}}",
+      "archiveLabel": "Archive {{name}}",
+      "saved": "Class assigned",
+      "endTitle": "End this class",
+      "lastDay": "Last day in this class",
+      "archiveTitle": "Archive this class?",
+      "archiveDescription": "It stops applying. A class that already costs approved days cannot be archived: end it instead.",
+      "archiveConfirm": "Archive class"
+    },
     "person": "Person",
     "choosePerson": "Choose a person",
     "role": "Role",
@@ -1107,7 +1173,7 @@
     "saved": "Settings saved",
     "groupSaved": "Department group saved",
     "groupDeleted": "Department group deleted"
-    },
+  },
   "clearance": {
     "items": {
       "errName": "Enter the item name",
@@ -1131,7 +1197,10 @@
       "archiveBody": "It leaves every checklist and no longer counts toward being cleared. Dates already recorded are kept.",
       "archived": "Item archived",
       "editLabel": "Edit {{name}}",
-      "archiveLabel": "Archive {{name}}"
+      "archiveLabel": "Archive {{name}}",
+      "documentType": "Takes its dates from this document",
+      "noDocumentType": "None: record the date on the checklist",
+      "documentTypeHelp": "Pick the document type, such as a licence. The expiry is then kept once, on the person’s document, and also appears on the expiring list."
     },
     "cancel": "Cancel",
     "people": {
@@ -1180,7 +1249,12 @@
       "removed": "Date removed",
       "link": "Cleared-for-site checklist",
       "editLabel": "{{action}} {{name}}",
-      "removeLabel": "Remove {{name}}"
+      "removeLabel": "Remove {{name}}",
+      "documentLabel": "{{action}} {{name}}",
+      "openDocument": "Open the document",
+      "addDocument": "Add the document",
+      "fromDocument": "From the {{type}} document",
+      "noDocument": "No {{type}} document yet. Add it on the person’s record."
     },
     "state": {
       "done": "Done",

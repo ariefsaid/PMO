@@ -35,7 +35,8 @@
       "site": "Site",
       "yard": "Yard",
       "staging": "Staging",
-      "vendor": "Vendor"
+      "vendor": "Vendor",
+      "transit": "In transit"
     },
     "noKeepers": "No keeper",
     "active": "Active",
@@ -87,7 +88,9 @@
           "body": "Check it before adding a duplicate. You can still create this one.",
           "checkUnavailable": "Could not check existing item names. You can still create this one.",
           "listLabel": "Similar items"
-        }
+        },
+        "consumable": "Consumable (used up on site, such as welding rod or nails)",
+        "consumableHelp": "Consumables are issued from the site store as the daily site report says they were used."
       },
       "warehouse": {
         "newTitle": "New warehouse",
@@ -166,54 +169,8 @@
     "itemPicker": "No stock items yet: add one in Stock setup."
   },
   "errors": {
-    "STK_ZERO_COST": "This item must be received at zero cost.",
-    "STK_TAG_LOCKED": "This tag cannot be changed after stock has moved.",
-    "STK_PAPER_REQUIRED": "Attach the required paper before posting this transfer.",
-    "STK_FILE_LOCKED": "A posted attachment must be archived with a reason.",
-    "STK_FILE_MISSING": "Upload the attachment before adding it to the document.",
-    "STK_INSUFFICIENT": "Not enough stock on hand for this movement.",
-    "STK_NOT_KEEPER": "Only a keeper of this warehouse can do this.",
-    "STK_OWNED_BY_ERP": "Stock is managed in your accounting system, so it cannot be changed here.",
-    "STK_SELF_APPROVE": "You cannot approve your own adjustment.",
-    "STK_RANK": "Your role is not allowed to do this.",
-    "STK_PROJECT_NOT_ACTIVE": "The project is not active, so stock cannot be issued to it.",
-    "STK_BOQ_MISMATCH": "That work item does not belong to the project.",
-    "STK_RETURN_EXCEEDS": "You cannot return more than was issued.",
-    "STK_ARCHIVED": "This record is archived.",
     "STK_FRACTION": "This unit only allows whole numbers.",
-    "STK_BACKDATE": "Only an Admin can date a movement more than 31 days back, and no one can date one in the future.",
-    "STK_HAS_STOCK": "Stock is still on hand, so this cannot be archived.",
-    "STK_UNIT_LOCKED": "This unit is already used by stock documents, so it cannot be changed.",
-    "STK_INVALID": "Some of the details are not valid.",
-    "STK_NOT_FOUND": "That record was not found in your organisation.",
-    "STK_TOO_MANY": "Too many rows to show. Narrow the filter.",
-    "STK_KIND_UNAVAILABLE": "This kind of document is not available yet.",
-    "STK_IMMUTABLE": "A posted or cancelled document cannot be changed.",
-    "STK_STALE": "This draft changed since you opened it. Review the new version, then post.",
-    "STK_INSUFFICIENT_DETAIL": "Only {{available}} on hand; you asked for {{requested}}.",
-    "STK_ACTOR": "Only an active member of this organisation can post stock.",
-    "STK_COMPANY": "The Odoo company no longer matches this connection. Ask an Admin to check the Odoo setup.",
-    "STK_COMMAND": "This document is not a current draft that can be posted. Open it again and review it.",
-    "STK_OWNERSHIP": "Stock is not managed in Odoo for this organisation.",
-    "STK_PENDING": "This document is being posted in Odoo, so it cannot change right now.",
-    "STK_COMMANDS_LIVE": "Stock postings are still in progress in Odoo. Wait for them to finish first.",
-    "STK_DRAFTS_EXIST": "Post or cancel the draft stock documents before connecting stock to Odoo.",
-    "STK_TWO_STEP": "Your organisation sends transfers in two steps: send, then receive.",
-    "STK_TWO_STEP_OFF": "Two-step transfers are not turned on for your organisation.",
-    "STK_TRANSIT_LOCATION": "An in-transit location is managed by its transfer and cannot be used by hand.",
-    "STK_QUALITY": "This item needs a quality check: record pass or fail.",
-    "STK_SELF_RECEIVE": "The person who sent a transfer cannot be the one who receives it.",
-    "STK_NOT_RECEIVER": "You do not keep the destination and this transfer is not addressed to you.",
-    "STK_PROOF_REQUIRED": "This transfer needs its proof before it can be received.",
-    "STK_PROOF_MODE": "A handover confirmation can only be required when transfers are two-step.",
-    "STK_MODE_BLOCKED": "This cannot change while transfers are in transit, short, drafted or tied to a confirmation rule.",
-    "STK_FORBIDDEN": "Only an Admin can do this.",
-    "STK_WOT_OFF": "Work-order transfers are not turned on for your organisation.",
-    "STK_WOT_EXCEEDS": "That work order does not hold that much of the item.",
-    "STK_WOT_PROJECT": "Both work orders must belong to the same project.",
-    "STK_WOT_LOCATION": "The stock must be at a site, yard or staging location of the work orders' project.",
-    "STK_WOT_INCOMPLETE": "This work-order transfer is incomplete and was not saved.",
-    "STK_WOT_SYSTEM": "This document is written only by a work-order transfer."
+    "STK_TOO_MANY": "Too many rows to show. Narrow the filter."
   },
   "actions": {
     "cancel": "Cancel",
@@ -268,7 +225,8 @@
     "count": "{{shown}} balances",
     "countOne": "1 balance",
     "countOfTotal": "Showing {{shown}} of {{total}} balances",
-    "valueShown": "Value of shown balances"
+    "valueShown": "Value of shown balances",
+    "receiveGoods": "Receive goods"
   },
   "documents": {
     "title": "Documents",
@@ -477,7 +435,24 @@
       "quantity": "Enter a quantity above zero (up to 3 decimals).",
       "unitCost": "Enter the unit cost (zero or more)."
     },
-    "qtyUnitHelp": "Enter the quantity in {{unit}}."
+    "qtyUnitHelp": "Enter the quantity in {{unit}}.",
+    "confirmPost": {
+      "title": {
+        "receive": "Post this receipt?",
+        "transfer": "Post this transfer?",
+        "issue": "Post this issue?",
+        "return": "Post this return?"
+      },
+      "where": {
+        "receive": "Into {{from}}",
+        "transfer": "From {{from}} to {{to}}",
+        "issue": "Out of {{from}}",
+        "return": "Back into {{from}}"
+      },
+      "undo": "Once posted, a mistake is corrected with a correcting entry, not by editing.",
+      "confirm": "Post"
+    },
+    "clientMaterialCost": "Client-supplied: the cost is fixed at zero."
   },
   "count": {
     "sections": {
@@ -524,7 +499,8 @@
       "costNeeded": "Enter the unit cost: the system holds none of this item."
     },
     "costOnFile": "A unit cost is on file. Leave empty to keep it.",
-    "editingDraft": "Editing a saved draft: nothing changes in stock until you post it."
+    "editingDraft": "Editing a saved draft: nothing changes in stock until you post it.",
+    "whoPosts": "Save your count here. If anything differs from the book, a Project Manager or above posts it, not you. A count with no difference you can post yourself."
   },
   "consumption": {
     "from": "From month",
@@ -634,7 +610,8 @@
     "errors": {
       "levelInvalid": "Enter a level of 0 or more, with at most 3 decimals.",
       "quantityInvalid": "Enter a quantity above 0, with at most 3 decimals, or leave it empty."
-    }
+    },
+    "whoSets": "Levels are set by someone else. To get more of an item, use “Request purchase” on its row in the list above."
   },
   "refusal": {
     "missing-module-stock": "Odoo's Inventory app is not installed. Ask an Admin to install it, then post again.",
@@ -789,7 +766,7 @@
     "sentToast": "Transfer sent",
     "receiver": "Receiver (optional)",
     "receiverNone": "Anyone who keeps the destination",
-    "receiverHelp": "Name the person the delivery is addressed to.",
+    "receiverHelp": "Name the person who will count it on arrival: a keeper of the destination, or a field account. You cannot name yourself.",
     "viewOnly": "You are viewing as another role, so nothing can be sent.",
     "notFound": "Transfer not found",
     "detailTitle": "Transfer",
@@ -833,7 +810,24 @@
     "recallAction": "Recall",
     "recalledToast": "Transfer recalled",
     "receivedToast": "Receipt recorded",
-    "proofAddedToast": "Proof recorded"
+    "proofAddedToast": "Proof recorded",
+    "senderWaits": "You sent this transfer, so someone else counts it on arrival. It is waiting for the receiver.",
+    "print": {
+      "action": "Print delivery note",
+      "title": "Delivery note",
+      "off": "Delivery notes are switched off for this organisation. An Admin turns them on under material request settings.",
+      "back": "Back to transfer",
+      "print": "Print",
+      "code": "Item code",
+      "description": "Description",
+      "quantity": "Quantity",
+      "unit": "Unit",
+      "date": "Date",
+      "from": "From",
+      "to": "To",
+      "name": "Name",
+      "signatureDate": "Date"
+    }
   },
   "handover": {
     "title": "Handover confirmation",
@@ -884,17 +878,19 @@
     }
   },
   "transferSettings": {
-    "manage": "Transfers and proof",
+    "manage": "Transfers, reservations and moves between work orders",
     "mode": "How transfers are made",
     "oneStep": "One step: post at once",
     "twoStep": "Two steps: send, then receive with a count",
-    "modeHelp": "Two steps keep the goods in transit until the receiver counts them.",
+    "modeHelp": "Two steps keep the goods in transit until the receiver counts them. Senders name a receiver; the sender never counts their own shipment.",
     "timing": "When proof is demanded",
     "beforePosting": "Before the movement is posted or received",
     "mayFollow": "It may follow later (the movement stays proof outstanding)",
     "timingHelp": "Applies to tags that require proof.",
     "proofPerTag": "Proof that counts, per tag",
-    "qualityItems": "Items that need a quality check on receipt"
+    "qualityItems": "Items that need a quality check on receipt",
+    "inTransit_one": "{{count}} transfer is in transit. Switch back to one step after it is received or recalled.",
+    "inTransit_other": "{{count}} transfers are in transit. Switch back to one step after they are received or recalled."
   },
   "workOrderTransfer": {
     "title": "Move leftover between work orders",
@@ -980,21 +976,6 @@
       "roleHelp": "This role decides the last step of a borrowing request.",
       "label": "Name of the approval step",
       "labelDefault": "Borrowing approval"
-    },
-    "errors": {
-      "RSV_OFF": "Reservations are not turned on.",
-      "RSV_FORBIDDEN": "Only the location's keeper, a stock planner or an Admin can do this.",
-      "RSV_INVALID": "Check the values: the quantity needs up to three decimals, a whole number for whole-unit items, and a reason where asked.",
-      "RSV_NOT_FOUND": "That work order, item, location or reservation was not found.",
-      "RSV_WORK_ORDER": "The work order is closed or cancelled.",
-      "RSV_LOCATION": "Stock can be reserved at central, site, yard and staging locations that are not archived.",
-      "RSV_EXCEEDS_FREE": "Only {{n}} is free at this location.",
-      "RSV_EXCEEDS_REMAINING": "Only {{n}} remains on this reservation.",
-      "RSV_NOT_ACTIVE": "This reservation is no longer active.",
-      "RSV_NO_BORROW_APPROVER": "This request takes another work order's reserved stock and nobody is set to approve that. Ask an Admin.",
-      "RSV_BORROW_CHANGED": "More reserved stock would be borrowed than was approved. Send the request back and submit it again.",
-      "RSV_OVERDRAW": "The reservation holds less than the request uses.",
-      "RSV_IMMUTABLE": "A reservation cannot be deleted; release it instead."
     }
   },
   "dsrIssue": {

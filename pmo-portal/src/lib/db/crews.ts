@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
+import type { TablesInsert } from '@/src/lib/supabase/database.types';
 
 /**
  * Crews, the people in them and which crews serve a work order (#2528, migration 0988).
@@ -63,6 +64,9 @@ export interface RosterMember {
   standard_role_id: string | null;
   /** Off rotation that day (FR-CRW-010): the tick screen defaults them to off rotation. */
   off_rotation?: boolean;
+  /** Recorded on the day as following this crew without a loan; `from_crew_name` is where they are placed. */
+  followed?: boolean;
+  from_crew_name?: string | null;
 }
 
 export interface RosterRole {
@@ -214,9 +218,9 @@ export async function listAllStandardRoles(): Promise<Pick<CrewStandardRoleRow, 
 }
 
 /** Every placement, for the members import's already-there check (#2551). */
-export async function listAllCrewMembers(): Promise<Pick<CrewMemberRow, 'id' | 'crew_id' | 'worker_id' | 'valid_from'>[]> {
+export async function listAllCrewMembers(): Promise<Pick<CrewMemberRow, 'id' | 'crew_id' | 'worker_id' | 'valid_from' | 'valid_to'>[]> {
   return fetchAllRowsByKeyset(async (afterId, limit) => {
-    let q = supabase.from('crew_members').select('id, crew_id, worker_id, valid_from').order('id', { ascending: true });
+    let q = supabase.from('crew_members').select('id, crew_id, worker_id, valid_from, valid_to').order('id', { ascending: true });
     if (afterId !== null) q = q.gt('id', afterId);
     return q.limit(limit);
   });
@@ -224,7 +228,10 @@ export async function listAllCrewMembers(): Promise<Pick<CrewMemberRow, 'id' | '
 
 export async function createCrewWorker(input: CrewWorkerInput): Promise<CrewWorkerRow> {
   const { display_name, ...person } = input;
-  const { data, error } = await supabase.from('people').insert({ ...person, name: display_name }).select('id, display_name:name, archived_at').single();
+  // `people.code` (P-0001, …) is assigned by the database's people_assign_code trigger (migration 1042), which
+  // introspection cannot see, so the generated Insert type requires a column the client must never send.
+  const row = { ...person, name: display_name } satisfies Omit<TablesInsert<'people'>, 'code'>;
+  const { data, error } = await supabase.from('people').insert(row as TablesInsert<'people'>).select('id, display_name:name, archived_at').single();
   fail(error);
   return data as CrewWorkerRow;
 }

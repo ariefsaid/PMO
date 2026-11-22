@@ -97,6 +97,17 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: WorkOrderListsProvider loads the organisation's lists for real now, so the tab renders
+// inside the shared test query client; the lists themselves read quiet defaults here.
+vi.mock('@/src/lib/repositories/workOrderLists', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories/workOrderLists')>();
+  return { ...actual, workOrderListRepository: { ...actual.workOrderListRepository, list: async () => [] } };
+});
+const WorkOrdersTabInClient = (props: React.ComponentProps<typeof WorkOrdersTab>) => (
+  <QueryClientTestProvider><WorkOrdersTab {...props} /></QueryClientTestProvider>
+);
+
 import { formatDay } from '@/src/lib/format';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -139,7 +150,7 @@ const renderTab = (role: Role = 'Project Manager') => {
   return render(
     <MemoryRouter>
       <ToastProvider>
-        <WorkOrdersTab projectId="p1" currency="USD" />
+        <WorkOrdersTabInClient projectId="p1" currency="USD" />
       </ToastProvider>
     </MemoryRouter>,
   );
@@ -296,7 +307,7 @@ describe('the rows', () => {
     listState.data = [row()];
     boqState.data = [{ id: 'b1', item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: 10, earning_basis: 'unit_rate' }];
     const user = userEvent.setup();
-    const tree = () => <MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
+    const tree = () => <MemoryRouter><ToastProvider><WorkOrdersTabInClient projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
     const view = render(tree());
     await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Allocate contract lines' }));
@@ -326,7 +337,7 @@ describe('the rows', () => {
     boqState.data = [{ id: 'b1', item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: 10, earning_basis: 'unit_rate' }];
     lineState.data = [{ id: 'allocation-1', work_order_id: 'wo-1', boq_item_id: 'b1', quantity: 2 }];
     const user = userEvent.setup();
-    const tree = () => <MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
+    const tree = () => <MemoryRouter><ToastProvider><WorkOrdersTabInClient projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
     const view = render(tree());
     await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Allocate contract lines' }));
@@ -410,7 +421,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     const user = userEvent.setup();
     const view = renderTab();
     await user.click(screen.getByRole('button', { name: /^Issue$/i }));
-    const refresh = () => view.rerender(<MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>);
+    const refresh = () => view.rerender(<MemoryRouter><ToastProvider><WorkOrdersTabInClient projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>);
     listState.isFetching = true; refresh();
     expect(screen.getByText('Checking issue eligibility…')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Issue work order/i })).toBeDisabled();
@@ -634,7 +645,7 @@ describe('over-commitment: the server refuses, the human answers, nothing auto-r
     await user.click(screen.getByRole('button', { name: 'Issue' }));
     await user.click(screen.getByRole('button', { name: 'Issue work order' }));
     await screen.findByRole('button', { name: 'Acknowledge and issue' });
-    const refresh = () => view.rerender(<MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>);
+    const refresh = () => view.rerender(<MemoryRouter><ToastProvider><WorkOrdersTabInClient projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>);
     listState.isFetching = true; refresh();
     expect(screen.getByRole('button', { name: 'Acknowledge and issue' })).toBeDisabled();
     listState.isFetching = false; listState.isError = true; refresh();

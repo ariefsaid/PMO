@@ -48,6 +48,8 @@ export async function getSupplyRiskSuggestion(companyId: string): Promise<Supply
   const { data, error } = await supabase.rpc('vendor_supply_risk_suggestion', { p_company_id: companyId });
   if (error) throw new AppError(error.message, error.code);
   if (data == null) return null;
+  // `vendor_supply_risk_suggestion` is declared `returns jsonb`, so the generated type is `Json` and this shape is
+  // stated here, not by the compiler (see scripts/check-typed-dals.mjs).
   const j = data as unknown as SuggestionJson;
   const currencies: SupplyRiskCurrency[] = (j.currencies ?? []).map((c) => ({
     currency: c.currency,
@@ -93,11 +95,6 @@ export async function setSupplyRiskStatus(companyId: string, status: SupplyRiskS
   if (error) throw new AppError(error.message, error.code);
 }
 
-interface WarningRaw {
-  work_order_id: string | null;
-  procurements: { vendor_id: string | null; companies: { id: string; name: string; supply_risk_status: string } | null } | null;
-}
-
 /**
  * Work orders of one project (or one work order) with an open order (Issued/Acknowledged) from a supplier whose status
  * is at_risk or inactive. Read-time (FR-VSR-012/014): nothing is stored on the work order. RLS-scoped.
@@ -117,7 +114,7 @@ export async function listSupplyRiskWarnings(scope: { projectId?: string; workOr
   if (error) throw new AppError(error.message, error.code);
   const seen = new Set<string>();
   const out: SupplyRiskWarning[] = [];
-  for (const row of (data ?? []) as unknown as WarningRaw[]) {
+  for (const row of data ?? []) {
     const company = row.procurements?.companies;
     if (!row.work_order_id || !company) continue;
     const key = `${row.work_order_id}|${company.id}`;

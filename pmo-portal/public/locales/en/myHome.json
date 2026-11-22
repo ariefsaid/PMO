@@ -1,6 +1,7 @@
 {
   "title": "My work",
   "signOut": "Sign out",
+  "settings": "Settings",
   "error": "Couldn't load your work",
   "tasks": {
     "title": "My tasks",
@@ -10,23 +11,28 @@
   },
   "clockIn": {
     "title": "Clock in",
-    "empty": "You are not rostered on a work order today",
+    "empty": "You are not rostered on a work order today. Ask your supervisor.",
     "hours": "Hours today",
     "hoursRange": "Hours run from 0 to 24",
     "saved": "Clocked in",
     "action": "Clock in",
     "clockedIn": "Clocked in",
-    "offRoster": "Not on this list? Ask your supervisor to add you to the work order.",
     "locating": "Reading your position…",
-    "pendingOutside": "You are outside the work area. Your supervisor has been asked to approve this check-in.",
-    "pendingNotRostered": "You are not on this work order's roster today. Your supervisor has been asked to approve this check-in.",
-    "pendingNoPosition": "Sent to your supervisor to approve.",
+    "pendingNotRostered": "You are not on this work order's roster today.",
     "positionDenied": "Location is blocked for this site. Allow it in your browser, or ask your supervisor to approve your check-in.",
     "positionUnavailable": "Your position could not be read. Try again, or ask your supervisor to approve your check-in.",
     "positionTimeout": "Reading your position took too long. Try again, or ask your supervisor to approve your check-in.",
     "askSupervisor": "Ask my supervisor",
     "reloading": "Opening the clock-in page to read your position…",
-    "reloadFailed": "Reload this page, then tap Clock in again."
+    "reloadFailed": "Reload this page, then tap Clock in again.",
+    "crew": "Crew: {{crew}}",
+    "clockedInAt": "Clocked in at {{time}}",
+    "waiting": "Sent at {{time}}. Waiting for {{who}} to approve.",
+    "whoDefault": "your supervisor",
+    "refused": "{{who}} refused this check-in: {{reason}}",
+    "again": "Clock in again",
+    "pendingOutsideShort": "You are outside the work area.",
+    "noPersonHere": "You are not in the workforce list yet, so you cannot clock in. Ask your supervisor to add you."
   },
   "roster": {
     "title": "My crew today",
@@ -34,7 +40,10 @@
     "empty": "No crew on this work order today"
   },
   "deliveries": {
-    "title": "Deliveries to confirm"
+    "title": "A delivery for you",
+    "lines_one": "{{count}} item line to count",
+    "lines_other": "{{count}} item lines to count",
+    "open": "Count and confirm"
   },
   "issues": {
     "title": "Issues I reported",
@@ -46,5 +55,8 @@
     "light": "Light accounts (Foreman, Field user)",
     "total": "Active seats",
     "helper": "A light account has one phone home screen. Price and seat counts are agreed with the owner."
+  },
+  "workOrders": {
+    "empty": "You are not on a work order today"
   }
 }

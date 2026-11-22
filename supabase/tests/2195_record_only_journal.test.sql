@@ -94,6 +94,11 @@ grant execute on function pg_temp.journal_group() to public;
 
 select public.upsert_erp_purchase_documents('21950000-0000-0000-0000-00000000000a',
  '[{"erp_doctype":"Purchase Invoice","erp_name":"PINV-TEST","supplier":"Example vendor","supplier_name":"Example vendor","erp_project":"ERP-A1","currency":"IDR","grand_total":50,"net_total":50,"erp_docstatus":1,"erp_modified":"2026-02-01"}]'::jsonb);
+-- 1580: an order needs a supplier, so the fixture purchases are given one before the first signed-in write.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid where p.vendor_id is null;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"21950000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select set_config('rop.before_actuals',(select coalesce(sum(actuals_to_date),0)::text from public.project_mapped_actuals('21950000-0000-0000-0000-0000000000d1')),true);

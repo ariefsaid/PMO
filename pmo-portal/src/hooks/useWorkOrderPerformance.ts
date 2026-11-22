@@ -1,7 +1,7 @@
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { workOrderPerformanceRepository } from '@/src/lib/repositories/workOrderPerformance';
-import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 export const PERFORMANCE_SETTINGS_KEY = 'org-performance-settings';
 
@@ -13,11 +13,9 @@ export function usePerformanceSettings() {
   // cache entry (skipToken: it never fetches) and reads the setting once the shell's own read has landed, so a page
   // that mounts without the shell makes no organisation request, and navigating makes none (the answer is cached).
   const shellOrgRead = useQuery({ queryKey: ['org-locale-defaults', orgId], queryFn: skipToken });
-  return useQuery({
-    queryKey: [PERFORMANCE_SETTINGS_KEY, orgId],
-    queryFn: () => workOrderPerformanceRepository.getSettings(),
+  return useOrgQuery([PERFORMANCE_SETTINGS_KEY], () => workOrderPerformanceRepository.getSettings(), {
     enabled: Boolean(currentUser) && shellOrgRead.data !== undefined,
-    ...SESSION_QUERY_OPTIONS,
+    staleness: 'session',
   });
 }
 
@@ -31,11 +29,5 @@ export function useSavePerformanceSettings() {
 
 /** One project's per-work-order figures. `enabled` must already include the setting and the role gate. */
 export function useProjectPerformance(projectId: string, enabled: boolean) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery({
-    queryKey: ['work-order-performance', orgId, projectId],
-    queryFn: () => workOrderPerformanceRepository.project(projectId),
-    enabled: enabled && Boolean(orgId) && Boolean(projectId),
-  });
+  return useOrgQuery(['work-order-performance', projectId], () => workOrderPerformanceRepository.project(projectId), { enabled: enabled && Boolean(projectId) });
 }

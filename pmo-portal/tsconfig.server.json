@@ -234,7 +234,6 @@
     "src/lib/invite/inviteHandler.ts",
     "src/lib/m365/graphPkce.ts",
     "src/lib/m365/graphTokenCrypto.ts",
-    "src/lib/subcontracts/certificateMath.ts",
     "src/vite-env.d.ts"
   ],
   "references": [

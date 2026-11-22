@@ -1,6 +1,11 @@
 {
+  "fileInput": {
+    "choose": "Pilih berkas",
+    "none": "Belum ada berkas dipilih",
+    "many": "{{count}} berkas"
+  },
   "terms": {
-    "clientWorkOrder": "Work Order / SPK",
+    "clientWorkOrder": "Work order",
     "dashboard": "Dasbor",
     "section": "Bagian",
     "sections": "Bagian",
@@ -557,7 +562,7 @@
       "invite": "Undang pengguna",
       "columns": {
         "user": "Pengguna",
-        "role": "Role",
+        "role": "Tingkat akses",
         "status": "Status",
         "manager": "Manajer"
       },
@@ -567,7 +572,7 @@
       },
       "noManager": "Tanpa manajer",
       "menu": {
-        "editRole": "Edit role",
+        "editRole": "Ubah tingkat akses",
         "changeManager": "Ubah manajer",
         "reEnable": "Aktifkan kembali",
         "disable": "Nonaktifkan"
@@ -623,8 +628,8 @@
         "emailInvalid": "Masukkan alamat email yang valid."
       },
       "roleForm": {
-        "title": "Ubah peran: {{name}}",
-        "submit": "Simpan role",
+        "title": "Ubah tingkat akses: {{name}}",
+        "submit": "Simpan tingkat akses",
         "helper": "Menentukan apa yang dapat dilihat dan dilakukan pengguna ini. Perubahan berlaku segera dan dikonfirmasi terlebih dahulu."
       },
       "managerForm": {
@@ -2071,10 +2076,10 @@
     "billing": {
       "assessment": {
         "errors": {
-          "month": "Isi bulan dengan format YYYY-MM",
+          "month": "Pilih bulan",
           "quantity": "Setiap kuantitas selesai harus 0 atau lebih dengan paling banyak 3 angka desimal"
         },
-        "month": "Bulan (YYYY-MM)",
+        "month": "Bulan",
         "note": "Catatan (opsional)",
         "quantityToDate": "{{item}}: selesai s.d. saat ini ({{unit}})",
         "record": "Catat progres",
@@ -2326,7 +2331,7 @@
         "net": "di luar PPN",
         "other": "dasar: {{basis}}"
       },
-      "ceiling": "Pagu kontrak",
+      "ceiling": "Pagu kontrak · nilai kontrak yang ditandatangani",
       "committed": "Sudah diterbitkan",
       "draft": "Draf",
       "error": {

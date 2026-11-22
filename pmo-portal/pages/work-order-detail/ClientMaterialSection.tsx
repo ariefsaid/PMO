@@ -14,7 +14,7 @@ import { rollupClientRequisitions, rollupEvents, type CsrLineFigures } from '@/s
 import type { ClientRequisitionLineRow, ClientRequisitionRow, ClientRequisitionStatus } from '@/src/lib/repositories/clientRequisitions';
 import { formatDay, formatNumberExact } from '@/src/lib/format';
 import { PickupDialog, ReleaseDialog, RequisitionFormDialog, ReservationDialog, type RequisitionDraftLine } from './ClientMaterialDialogs';
-import { toSubmitError, type Option } from './clientMaterialText';
+import { useSubmitError, type Option } from './clientMaterialText';
 
 interface Props {
   workOrderId: string;
@@ -49,6 +49,7 @@ const Figure: React.FC<{ label: string; value: string; testId?: string }> = ({ l
 export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId, workOrderStatus, allocationOptions }) => {
   const { t } = useTranslation('workOrders');
   const { t: tAll } = useTranslation();
+  const submitError = useSubmitError();
   const may = usePermission();
   const userId = useAuth().currentUser?.id;
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -106,7 +107,7 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
 
   const act = (fn: () => Promise<unknown>) => {
     setActionError(null);
-    void fn().catch((err: unknown) => setActionError(toSubmitError(t, err).headline));
+    void fn().catch((err: unknown) => setActionError(submitError(err).headline));
   };
 
   const statusLabel = (s: ClientRequisitionStatus) =>
@@ -254,7 +255,7 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
         <ConfirmDialog open tone="destructive" title={t('clientMaterial.cancelTitle', 'Cancel this requisition?')}
           description={t('clientMaterial.cancelBody', '{{number}} keeps its history but takes no more reservations or pickups.', { number: dialog.requisition.number })}
           confirmLabel={t('clientMaterial.cancelConfirm', 'Cancel requisition')} cancelLabel={t('clientMaterial.cancelKeep', 'Keep it')}
-          loading={m.cancel.isPending} error={m.cancel.isError ? toSubmitError(t, m.cancel.error).headline : undefined}
+          loading={m.cancel.isPending} error={m.cancel.isError ? submitError(m.cancel.error).headline : undefined}
           onCancel={() => { m.cancel.reset(); setDialog(null); }}
           onConfirm={() => void m.cancel.mutateAsync({ id: dialog.requisition.id }).then(() => setDialog(null)).catch(() => undefined)} />
       )}

@@ -17,7 +17,17 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render as rtlRender, screen, within } from '@testing-library/react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: the follow-up task button mounts with its host page now, so every render here runs
+// inside the shared test query client and the button's open-task read is stubbed quiet.
+const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(<QueryClientTestProvider>{ui}</QueryClientTestProvider>, options)) as typeof rtlRender;
+vi.mock('@/src/lib/repositories', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
+  return { repositories: { ...actual.repositories, task: { ...actual.repositories.task, findOpenForRecord: async () => null } } };
+});
+
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
@@ -392,7 +402,14 @@ describe('AC-IXD-PROC-W5-1 (c): SoD-blocked state — no decision actions, the r
     // u-alice (currentUser) is both Finance role AND the requester → SoD blocked
     detailState.data = { ...selfRequestedBase };
     renderPage();
-    expect(within(screen.getByTestId('record-header-actions')).getByText(/waiting for approval/i)).toBeInTheDocument();
+    // fix-waiting item 3: it names who it waits for instead of a bare "Waiting for approval".
+    expect(within(screen.getByTestId('record-header-actions')).getByText(/^waiting for /i)).toBeInTheDocument();
+  });
+
+  it('JOB-WAIT-3: the requester sees the named approver and the kind of approver from the route the database computed', () => {
+    detailState.data = { ...selfRequestedBase, approvalRoute: { procurementId: 'p1', route: 'org', reason: 'exceeds_line', approvers: [{ id: 'u-ani', fullName: 'Ani Wijaya' }], requestAmount: 1, lineBudget: null, lineUsed: null } };
+    renderPage();
+    expect(within(screen.getByTestId('record-header-actions')).getByText('Waiting for Ani Wijaya, senior approver')).toBeInTheDocument();
   });
 
   it('AC-IXD-PROC-W5-1c: SoD-blocked state has NO Approve/Reject in the header actions or its menu', async () => {

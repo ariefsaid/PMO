@@ -33,7 +33,17 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
   }),
 }));
 
-import { act, render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
+import { render as rtlRender, act, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: the follow-up task button mounts with its host page now, so every render here runs
+// inside the shared test query client and the button's open-task read is stubbed quiet.
+const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(<QueryClientTestProvider>{ui}</QueryClientTestProvider>, options)) as typeof rtlRender;
+vi.mock('@/src/lib/repositories', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
+  return { repositories: { ...actual.repositories, task: { ...actual.repositories.task, findOpenForRecord: async () => null } } };
+});
+
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -1020,7 +1030,7 @@ describe('Action bar covers mid-flow transitions', () => {
     first.unmount();
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage('proc-001', 'files');
-    expect(screen.getAllByText('Waiting for approval').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Waiting for project manager or Finance').length).toBeGreaterThan(0);
     expect(screen.queryByTestId('ledger-capture-open')).not.toBeInTheDocument();
   });
 
@@ -1831,11 +1841,11 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     });
     detailState.data = { ...baseProcurement, status: 'Paid', requested_by_id: 'u-other', purchase_requests: [request], invoices: [invoice], payments: [payment] };
     render(
-      <I18nextProvider i18n={i18n}>
+      <QueryClientTestProvider><I18nextProvider i18n={i18n}>
         <MemoryRouter initialEntries={['/procurement/proc-001']}>
           <Routes><Route path="/procurement/:procurementId" element={<ProcurementDetails />} /></Routes>
         </MemoryRouter>
-      </I18nextProvider>,
+      </I18nextProvider></QueryClientTestProvider>,
     );
     expect(within(screen.getByTestId('procurement-status-badge')).getByText('Dibayar')).toBeInTheDocument();
     expect(statusWordCount('Dibayar')).toBe(1);
@@ -1973,7 +1983,7 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     detailState.data = invoicedOver;
     const view = renderPage();
     fireEvent.click(screen.getByRole('button', { name: 'Approve higher amount' }));
-    const refresh = () => view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001']}><Routes><Route path="/procurement/:procurementId" element={<ProcurementDetails />} /></Routes></MemoryRouter>);
+    const refresh = () => view.rerender(<QueryClientTestProvider><MemoryRouter initialEntries={['/procurement/proc-001']}><Routes><Route path="/procurement/:procurementId" element={<ProcurementDetails />} /></Routes></MemoryRouter></QueryClientTestProvider>);
     detailState.isFetching = true; refresh();
     expect(screen.getByText('Checking approval eligibility…')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
@@ -2106,13 +2116,13 @@ describe('AC-1404: procurement detail composition and role-safe actions', () => 
 
     detailState.data = { ...baseProcurement, requested_by_id: 'u-alice' };
     renderPage();
-    expect(screen.getAllByText(/Waiting for approval/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^Waiting for project manager or Finance/i).length).toBeGreaterThan(0);
   });
 
   it('#1591: the waiting note wraps instead of forcing the header wider than a 320px viewport', () => {
     detailState.data = { ...baseProcurement, requested_by_id: 'u-alice' };
     renderPage();
-    const note = screen.getAllByText(/Waiting for approval/i)[0];
+    const note = screen.getAllByText(/^Waiting for project manager or Finance/i)[0];
     expect(note.className).not.toContain('whitespace-nowrap');
   });
 
@@ -2245,7 +2255,7 @@ describe('Procurement detail restructure fixes', () => {
     renderPage();
 
     const headerActions = screen.getByTestId('record-header-actions');
-    expect(within(headerActions).getByText('Waiting for approval by a project manager or Finance')).toBeInTheDocument();
+    expect(within(headerActions).getByText('Waiting for project manager or Finance')).toBeInTheDocument();
     expect(screen.queryByTestId('sod-ready-hint')).toBeNull();
   });
 
@@ -2275,6 +2285,32 @@ describe('Procurement detail restructure fixes', () => {
     expect(screen.getByText('Choose a supplier first')).toBeInTheDocument();
     expect(screen.getByText('Cancelled')).toBeInTheDocument();
     expect(rows[5]).toHaveTextContent('Paid');
+  });
+
+  describe('JOB-PU24 things that exist but were not found', () => {
+    it('the requester is told who a request goes to, not just that it waits', () => {
+      detailState.data = {
+        ...baseProcurement, requested_by_id: 'u-alice',
+        approvalRoute: { procurementId: 'proc-001', route: 'org', reason: 'within_budget', approvers: [{ id: 'u-ed', fullName: 'Edi Direktur' }], requestAmount: 60000000, lineBudget: null, lineUsed: null },
+      };
+      renderPage();
+      expect(screen.getAllByText(/Waiting for Edi Direktur, senior approver/).length).toBeGreaterThan(0);
+    });
+
+    it('the printable purchase order is a visible action beside the order, not only inside the More menu', () => {
+      poSettingsMock.data = { enabled: true, signatureBlocks: [], authorisedCollectors: [] };
+      detailState.data = { ...baseProcurement, purchase_orders: [{ id: 'po-101', po_number: 'PO-101' } as never] };
+      renderPage('proc-001');
+      expect(screen.getByTestId('print-purchase-order-inline')).toBeInTheDocument();
+    });
+
+    it('when printing is off, the order says why and which role turns it on', () => {
+      poSettingsMock.data = { enabled: false, signatureBlocks: [], authorisedCollectors: [] };
+      detailState.data = { ...baseProcurement, purchase_orders: [{ id: 'po-101', po_number: 'PO-101' } as never] };
+      renderPage('proc-001');
+      expect(screen.queryByTestId('print-purchase-order-inline')).toBeNull();
+      expect(screen.getByTestId('po-print-off')).toHaveTextContent(/An Admin turns it on in Administration, Accounting, Purchase order printing/);
+    });
   });
 
   describe('AC-POP-001 / AC-POP-002: purchase order print action in ProcurementDetails', () => {

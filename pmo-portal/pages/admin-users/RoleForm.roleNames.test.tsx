@@ -18,15 +18,15 @@ describe('Edit role shows the organisation\'s role names', () => {
     act(() => setOrgRoleNames({ en: { storekeeper: 'Yard Lead' } }));
     const onSubmitBuiltIn = vi.fn();
     render(<RoleFormModal user={person} submitError={null} onClose={() => {}} onSubmit={vi.fn()} onSubmitBuiltIn={onSubmitBuiltIn} builtInEnabled />);
-    const picker = screen.getByLabelText('Built-in role');
+    const picker = screen.getByLabelText('Job role');
     expect(Array.from(picker.querySelectorAll('option')).map((o) => o.textContent)).toContain('Yard Lead');
     expect(Array.from(picker.querySelectorAll('option')).map((o) => o.textContent)).not.toContain('Storekeeper');
     await userEvent.selectOptions(picker, 'storekeeper');
-    await userEvent.click(screen.getByRole('button', { name: 'Save role' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save job role' }));
     expect(onSubmitBuiltIn).toHaveBeenCalledWith(person, 'storekeeper');
   });
   it('shows today\'s names with no override', () => {
     render(<RoleFormModal user={person} submitError={null} onClose={() => {}} onSubmit={vi.fn()} onSubmitBuiltIn={vi.fn()} builtInEnabled />);
-    expect(Array.from(screen.getByLabelText('Built-in role').querySelectorAll('option')).map((o) => o.textContent)).toContain('Storekeeper');
+    expect(Array.from(screen.getByLabelText('Job role').querySelectorAll('option')).map((o) => o.textContent)).toContain('Storekeeper');
   });
 });

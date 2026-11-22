@@ -67,6 +67,14 @@ const MAX_IMPORTED_FILES = 64;
 const MAX_SOURCE_BYTES = 1_048_576;
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
 
+/**
+ * Machine-generated from the live database schema (`supabase gen types`) — it holds no user-facing text, and it is now
+ * past this gate's per-file ceiling (~1.1 MB of table/function types). Excluded by EXACT path, not by a `*.types.ts`
+ * pattern, so a hand-written module cannot hide from the gate behind the name.
+ */
+const GENERATED_SOURCE_FILES = new Set(['src/lib/supabase/database.types.ts']);
+const isGeneratedSource = (abs) => GENERATED_SOURCE_FILES.has(path.relative(APP, abs).split(path.sep).join('/'));
+
 // ── Source scanning ─────────────────────────────────────────────────────────────────────────
 
 /**
@@ -1077,7 +1085,7 @@ function expandEntryFile(spec) {
 function walkSources(abs, out = []) {
   if (!fs.existsSync(abs)) return out;
   if (fs.statSync(abs).isFile()) {
-    if (SOURCE_EXTENSIONS.has(path.extname(abs)) && !isTestFile(abs)) out.push(abs);
+    if (SOURCE_EXTENSIONS.has(path.extname(abs)) && !isTestFile(abs) && !isGeneratedSource(abs)) out.push(abs);
     return out;
   }
   for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
@@ -1085,7 +1093,7 @@ function walkSources(abs, out = []) {
     if (e.isDirectory()) {
       if (e.name === 'node_modules' || e.name === 'dist' || e.name === '__tests__') continue;
       walkSources(p, out);
-    } else if (SOURCE_EXTENSIONS.has(path.extname(e.name)) && !isTestFile(e.name)) {
+    } else if (SOURCE_EXTENSIONS.has(path.extname(e.name)) && !isTestFile(e.name) && !isGeneratedSource(p)) {
       out.push(p);
     }
   }

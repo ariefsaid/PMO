@@ -145,6 +145,10 @@ select set_eq(
             -- 0989 (#2528): attendance_days carries recorded_by and approved_by -> profiles. No DAL code embeds profiles
             -- from it; whatever ships first MUST qualify it with !constraint_name.
             ('attendance_days -> profiles'),
+            -- 1768 (crew-followed): attendance_days carries crew_id AND followed_crew_id, both -> crews. Checked before adding: no DAL,
+            -- repository, edge fn or e2e code embeds crews from attendance_days (or attendance_days from crews); the DAL selects
+            -- explicit columns. Any future embed must name its constraint (crews!attendance_days_followed_crew_id_fkey).
+            ('attendance_days -> crews'),
             -- 0447 (#1519): equipment_usage_entries carries author_id and approver_id -> profiles. No DAL code embeds
             -- profiles from it yet; whatever ships first MUST qualify it with !constraint_name.
             ('equipment_usage_entries -> profiles'),
@@ -227,6 +231,10 @@ select set_eq(
             -- the only DAL read (workOrderFinance.ts) selects plain columns, no profiles embed. Whatever ships first
             -- MUST qualify it with !constraint_name.
             ('work_order_plan_lines -> profiles'),
+            -- 1751 (medical release): medical_releases carries entered_by AND decided_by -> profiles. CHECKED BEFORE ADDING: the
+            -- only DAL (src/lib/db/medicalRelease.ts) reads through RPCs and a plain people select; nothing embeds profiles
+            -- from it. Whatever ships first MUST qualify it with !constraint_name.
+            ('medical_releases -> profiles'),
             -- 1245 (#2704): crew_loans carries home_crew_id AND host_crew_id, both -> crews. CHECKED BEFORE ADDING: the DAL
             -- (src/lib/db/crewLoans.ts) embeds no crews from it; whatever ships first MUST qualify it with !constraint_name.
             ('crew_loans -> crews'),

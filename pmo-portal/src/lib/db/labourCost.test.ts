@@ -20,6 +20,10 @@ describe('validateRateInput (#2670, mirrors save_labour_cost_rate; the database 
     expect(validateRateInput({ ...base, monthHours: '0' })).toBe('monthHours');
     expect(validateRateInput({ ...base, effectiveTo: '2026-10-01' })).toBe('dates');
   });
+  it('AC-NLL-009 a class rate names its class and needs no person or role', () => {
+    expect(validateRateInput({ ...base, subjectKind: 'class', roleKey: null, personId: null })).toBeNull();
+    expect(validateRateInput({ ...base, subjectKind: 'class', classId: '' })).toBe('class');
+  });
   it('AC-LCM-016 needs a subject and a class', () => {
     expect(validateRateInput({ ...base, roleKey: null })).toBe('subject');
     expect(validateRateInput({ ...base, subjectKind: 'person', personId: null })).toBe('subject');
@@ -31,10 +35,10 @@ describe('validateRateInput (#2670, mirrors save_labour_cost_rate; the database 
 const h = vi.hoisted(() => {
   type Res = { data: unknown; error: unknown };
   const results: Res[] = [];
-  const calls: Record<string, unknown[]> = { from: [], rpc: [], select: [], insert: [], update: [], eq: [], is: [], order: [], limit: [], maybeSingle: [] };
+  const calls: Record<string, unknown[]> = { from: [], rpc: [], select: [], insert: [], update: [], eq: [], is: [], order: [], limit: [], range: [], maybeSingle: [] };
   const next = (): Res => (results.length ? (results.shift() as Res) : { data: null, error: null });
   const builder: Record<string, unknown> = {};
-  for (const m of ['select', 'insert', 'update', 'eq', 'is', 'order', 'limit'] as const) {
+  for (const m of ['select', 'insert', 'update', 'eq', 'is', 'order', 'limit', 'range'] as const) {
     builder[m] = (...a: unknown[]) => { calls[m].push(a.length <= 1 ? a[0] : a); return builder; };
   }
   builder.maybeSingle = () => Promise.resolve(next());
@@ -46,8 +50,9 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  addLabourClass, archiveLabourRate, endLabourRate, getLabourCostEnabled, listLabourClasses,
-  listLabourRates, renameLabourClass, saveLabourRate, setLabourClassArchived, setLabourCostEnabled,
+  addLabourClass, archiveLabourClassAssignment, archiveLabourRate, endLabourClassAssignment, endLabourRate, getLabourCostEnabled,
+  listLabourClassAssignments, listLabourClasses, listLabourRates, listPeopleWithoutLogin, renameLabourClass,
+  saveLabourClassAssignment, saveLabourRate, setLabourClassArchived, setLabourCostEnabled, validateAssignmentInput,
 } from './labourCost';
 import { beforeEach, vi } from 'vitest';
 import { AppError } from '@/src/lib/appError';
@@ -150,5 +155,57 @@ describe('labour cost IO (#2670)', () => {
     h.push({ data: null, error: null });
     await archiveLabourRate('r1');
     expect(h.calls.rpc.at(-1)).toEqual(['archive_labour_cost_rate', { p_id: 'r1' }]);
+  });
+
+  it('AC-NLL-009 a class-rate save sends neither a person nor a role', async () => {
+    h.push({ data: 'r3', error: null });
+    await saveLabourRate({ ...base, subjectKind: 'class', roleKey: 'Engineer', personId: 'u1' });
+    const p = (h.calls.rpc.at(-1) as [string, { p: Record<string, unknown> }])[1].p;
+    expect(p).toMatchObject({ subject_kind: 'class', class_id: 'c1', person_id: null, role_key: null });
+  });
+});
+
+describe('labour class assignments IO (no-login-labour-cost)', () => {
+  it('AC-NLL-010 lists live assignments newest first with the person\'s name, paged', async () => {
+    h.push({ data: [{ id: 'a1', worker_id: 'w1', class_id: 'c1', effective_from: '2026-11-01', effective_to: null, worker: { name: 'Budi' } }], error: null });
+    await expect(listLabourClassAssignments()).resolves.toEqual([
+      { id: 'a1', workerId: 'w1', workerName: 'Budi', classId: 'c1', effectiveFrom: '2026-11-01', effectiveTo: null },
+    ]);
+    expect(h.calls.from).toEqual(['labour_class_assignments']);
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
+    expect(h.calls.range).toContainEqual([0, 999]);
+  });
+
+  it('AC-NLL-010 the person picker lists live people with no login, by name, paged', async () => {
+    h.push({ data: [{ id: 'w1', name: 'Budi', code: 'P-0001' }], error: null });
+    await expect(listPeopleWithoutLogin()).resolves.toEqual([{ id: 'w1', name: 'Budi', code: 'P-0001' }]);
+    expect(h.calls.from).toEqual(['people']);
+    expect(h.calls.is).toEqual(expect.arrayContaining([['profile_id', null], ['archived_at', null]]));
+    expect(h.calls.order).toContainEqual(['name', { ascending: true }]);
+  });
+
+  it('AC-NLL-010 validates before any call, then saves through its action with no org_id', async () => {
+    const ok = { workerId: 'w1', classId: 'c1', effectiveFrom: '2026-11-01', effectiveTo: null };
+    expect(validateAssignmentInput(ok)).toBeNull();
+    expect(validateAssignmentInput({ ...ok, workerId: '' })).toBe('person');
+    expect(validateAssignmentInput({ ...ok, classId: '' })).toBe('class');
+    expect(validateAssignmentInput({ ...ok, effectiveFrom: '' })).toBe('from');
+    expect(validateAssignmentInput({ ...ok, effectiveTo: '2026-10-01' })).toBe('dates');
+    await expect(saveLabourClassAssignment({ ...ok, workerId: '' })).rejects.toMatchObject({ code: 'validation' });
+    expect(h.rpc).not.toHaveBeenCalled();
+    h.push({ data: 'a1', error: null });
+    await expect(saveLabourClassAssignment(ok)).resolves.toBe('a1');
+    expect(h.calls.rpc).toEqual([['save_labour_class_assignment', { p: { worker_id: 'w1', class_id: 'c1', effective_from: '2026-11-01', effective_to: null } }]]);
+  });
+
+  it('AC-NLL-011 end and archive go through their actions, and a lock refusal keeps its code and sentence', async () => {
+    h.push({ data: null, error: null });
+    await endLabourClassAssignment('a1', '2026-11-30');
+    expect(h.calls.rpc.at(-1)).toEqual(['end_labour_class_assignment', { p_id: 'a1', p_end: '2026-11-30' }]);
+    h.push({ data: null, error: { message: 'LCM_CLASS_LOCKED: days are already costed by this class', code: '23514' } });
+    const err = await archiveLabourClassAssignment('a1').catch((e: unknown) => e);
+    expect(h.calls.rpc.at(-1)).toEqual(['archive_labour_class_assignment', { p_id: 'a1' }]);
+    expect(err).toBeInstanceOf(AppError);
+    expect(err).toMatchObject({ code: '23514', message: expect.stringContaining('LCM_CLASS_LOCKED') });
   });
 });

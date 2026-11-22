@@ -15,11 +15,11 @@ import {
   useQuantityChangeApproval, useQuantityChangeMutations, useQuantityChangeRequest, useQuantityVersions,
 } from '@/src/hooks/useQuantityChanges';
 import { repositories } from '@/src/lib/repositories';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
-import { lineValueCents, validateRequestedQuantity, versionValueChanges, sumMoney } from '@/src/lib/quantityChangeRules';
-import { formatExactCents } from '@/src/lib/exactDecimal';
+import { lineValueCents, validateRequestedQuantity, versionValueChanges } from '@/src/lib/quantityChangeRules';
+import { formatExactCents, sumDecimal } from '@/src/lib/exactDecimal';
 import { useRequestedQuantityErrorText } from './requestedQuantityError';
 import type { QcrDetail, QcrFileKind, QcrLine } from '@/src/lib/db/quantityChanges';
 
@@ -75,13 +75,13 @@ const RequestRecord: React.FC<{ detail: QcrDetail }> = ({ detail }) => {
     const before = lineValueCents(String(l.base_quantity), l.rate);
     return after !== null && before !== null ? formatExactCents(after - before) : null;
   };
-  const totalChange = sumMoney(lines.map((l) => valueChange(l)));
+  const totalChange = sumDecimal(lines.map((l) => valueChange(l)), 2);
 
   const run = async (work: () => Promise<unknown>, success: string) => {
     try { await work(); toast(success, workOrder?.label ?? '', 'success'); return true; } catch (err) {
       const { headline, detail: d } = classifyMutationError(err);
       toast(headline, d, 'warning');
-      setDialogError(d ? `${headline}. ${d}` : headline);
+      setDialogError(d ? joinSentences(headline, d) : headline);
       return false;
     }
   };

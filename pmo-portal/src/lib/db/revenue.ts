@@ -1,6 +1,7 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { isPphType } from '@/src/lib/vendorWithholding';
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import { isProjectFinances, parseContractExcess, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
@@ -306,7 +307,9 @@ export async function listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]> {
 export async function getSalesInvoice(id: string): Promise<SalesInvoiceRow | null> {
   const { data, error } = await supabase
     .from('sales_invoices')
-    .select(SALES_INVOICE_SELECT)
+    // `retention_held` is a PostgREST computed field (migration 1116), so no generated row type carries it; this read
+    // states the row shape at the boundary, the same way every other SI read in this file does.
+    .select<string, Record<string, unknown>>(SALES_INVOICE_SELECT)
     .eq('id', id)
     .maybeSingle();
   if (error) throwWrite(error);
@@ -836,8 +839,8 @@ export async function compareAndUnpairInvoice(pair: {
 }): Promise<void> {
   const { error } = await supabase.rpc('compare_and_unpair_invoice', {
     p_pmo_id: pair.pmoInvoiceId, p_expected_erp_id: pair.erpInvoiceId,
-    p_expected_paired_at: pair.pairedAt, p_expected_docstatus: pair.erpLifecycle.docstatus,
-    p_expected_cancelled_at: pair.erpLifecycle.cancelledAt,
+    p_expected_paired_at: pair.pairedAt, p_expected_docstatus: nullableArg(pair.erpLifecycle.docstatus),
+    p_expected_cancelled_at: nullableArg(pair.erpLifecycle.cancelledAt),
   });
   if (error) throwWrite(error);
 }

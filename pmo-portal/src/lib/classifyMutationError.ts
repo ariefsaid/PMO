@@ -41,7 +41,9 @@
  * (now-deleted) `save_failed` branch needed. See ADR-0067 for why the obvious fix ("just pass
  * the missing prop") would still have produced zero events.
  */
+import i18next from 'i18next';
 import { safeTrack } from './analytics/safeTrack';
+import { parseRefusal } from './refusals';
 import { trackSaveFailed, trackBulkImportFailed } from './analytics';
 
 /** Stable, PII-free classification slugs for the friction event (ADR-0067). Exported so bulk-loop
@@ -279,10 +281,23 @@ const TASK_RULE_MESSAGES = [
 ];
 const isTaskRule = (code: string | undefined, message: string): boolean =>
   code === '23514' && TASK_RULE_MESSAGES.includes(message);
-/** #2581 FR-CTR-014: a damaged or lost tool's task is set Done only by closing its report (migration 1081's guard). */
-const TOOL_TASK_DETAIL = 'This task is a tool report. Open Crews, Tools, and close the report there to finish it.';
-const isToolTaskRefusal = (code: string | undefined, message: string): boolean =>
-  code === '23514' && message.startsWith('CTR_RESOLVE_REQUIRED');
+/**
+ * The sentence for a database refusal (`FAMILY_CODE: text`): the `refusals` catalogue entry when that catalogue is loaded
+ * in the active language, else the database's own text without its code. The first call asks for the catalogue, so a
+ * refusal that arrives before it loads still never shows the code, and the next one reads in the person's language.
+ */
+function refusalDetail(err: unknown): string | undefined {
+  const r = parseRefusal(err);
+  if (!r) return undefined;
+  if (!i18next.isInitialized) return r.text;
+  const lng = i18next.language;
+  if (!i18next.hasResourceBundle(lng, 'refusals')) {
+    void i18next.loadNamespaces('refusals');
+    return r.text;
+  }
+  const figures = Object.keys(r.values).length ? i18next.t(`refusals:${r.code}_figures`, { ...r.values, defaultValue: '' }) : '';
+  return figures || i18next.t(`refusals:${r.code}`, { ...r.values, defaultValue: '' }) || r.text;
+}
 
 /**
  * #2587 (migration 1070): a second open task for the same record. The pre-insert guard raises 23505 with this message
@@ -344,11 +359,11 @@ export function classifyMutationError(
   const taskRule = isTaskRule(code, rawDetail);
   const openTaskForRecord = code === '23505' && OPEN_TASK_FOR_RECORD.test(rawDetail);
   const linkCheck = linkCheckDetail(code, rawDetail);
-  const toolTask = isToolTaskRefusal(code, rawDetail) ? TOOL_TASK_DETAIL : undefined;
+  const refusal = refusalDetail(err);
   const detail = detailOverride
     ?? (openTaskForRecord ? 'This record already has an open task. Open it instead of creating another.' : undefined)
     ?? linkCheck
-    ?? toolTask
+    ?? refusal
     ?? (taskRule ? rawDetail : undefined) ?? safeCheckDetail ?? generated ?? rawDetail;
 
   if (import.meta.env.DEV) {
@@ -443,4 +458,13 @@ export function trackBatchSaveFailed(
     if (!count || count <= 0) continue;
     safeTrack(() => trackBulkImportFailed(boundedModule, classification, count));
   }
+}
+
+/**
+ * A headline and its detail as one message: "<headline>. <detail>". Several headlines already end in a full stop, so a plain
+ * template printed "That already exists.. Another record…"; the stop is added only when the headline does not carry one.
+ */
+export function joinSentences(headline: string, detail: string): string {
+  const head = headline.trimEnd();
+  return `${/[.!?…]$/.test(head) ? head : `${head}.`} ${detail}`;
 }

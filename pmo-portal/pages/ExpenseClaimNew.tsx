@@ -21,7 +21,7 @@ import type { BudgetCategory, ExpenseLineInput, ExpenseType } from '@/src/lib/db
 import { RECEIPT_INPUT_ACCEPT } from '@/src/lib/db/expenseReceipts';
 import { BackBar } from '@/src/components/shell';
 import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
-import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { useAttributionErrorText } from '@/src/components/workOrders/costAttributionError';
 import { AttributionRefusedError, NO_ATTRIBUTION, workOrderCostRepository, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 import { expenseTypeLabel } from './expenses/expenseLabels';
 import { PostingReadinessNote } from './expenses/ExpenseClaimFormModal';
@@ -41,6 +41,7 @@ const LINE_GRID = 'grid grid-cols-[9rem_11.5rem_minmax(0,1fr)_8.5rem_2.75rem] ga
 /** One-page, unsaved claim capture. The parent + initial child use the recoverable capture repository. */
 const ExpenseClaimNew: React.FC = () => {
   const { t } = useTranslation();
+  const attributionError = useAttributionErrorText();
   const navigate = useNavigate();
   const { toast } = useToast();
   const may = usePermission();
@@ -152,7 +153,7 @@ const ExpenseClaimNew: React.FC = () => {
       // #2732: name the work order and discipline once the claim exists (ADR-0104: one write path). A refusal leaves the saved draft.
       try { await workOrderCostRepository.attributeOrRefuse('expense_claim', claimId, attribution); } catch (reason) {
         const refusal = reason instanceof AttributionRefusedError ? reason.refusal : reason;
-        const d = describeAttributionError(refusal, t);
+        const d = attributionError(refusal);
         toast(d.headline, d.detail, 'warning');
         navigate(`/expenses/${claimId}`, { replace: true });
         return;

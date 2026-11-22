@@ -25,10 +25,6 @@ vi.mock('@/src/hooks/useLeave', () => ({
 }));
 
 import LeaveSettingsPage from './LeaveSettings';
-import { leaveErrorMessage } from './leaveErrors';
-
-const t = ((_key: string, fallback?: string, opts?: Record<string, unknown>) =>
-  (fallback ?? '').replace(/\{\{(\w+)\}\}/g, (_m, k: string) => String(opts?.[k] ?? ''))) as never;
 
 const view = () => render(<MemoryRouter><ToastProvider><LeaveSettingsPage /></ToastProvider></MemoryRouter>);
 
@@ -111,16 +107,5 @@ describe('LeaveSettings', () => {
     await user.type(screen.getByLabelText('New type'), 'Annual leave');
     await user.click(screen.getByRole('button', { name: 'Add type' }));
     expect(await screen.findByText('That leave type already exists.')).toBeInTheDocument();
-  });
-});
-
-describe('leaveErrorMessage mapping', () => {
-  it('maps every LV_ prefix to its sentence', () => {
-    expect(leaveErrorMessage(t, { code: 'P0001', message: 'LV_OVERLAP: x' })).toContain('already has a pending or approved request');
-    expect(leaveErrorMessage(t, { code: 'P0001', message: 'LV_RANGE: x' })).toContain('last day is before the first');
-    expect(leaveErrorMessage(t, { code: 'P0001', message: 'LV_FORBIDDEN: x' })).toContain('cannot do this');
-    expect(leaveErrorMessage(t, { code: 'P0001', message: 'LV_DECIDED: x' })).toContain('already been decided');
-    expect(leaveErrorMessage(t, { code: 'P0001', message: 'LV_NOTE: x' })).toContain('reason when rejecting');
-    expect(leaveErrorMessage(t, { code: 'P0001', message: 'LV_DISABLED: x' })).toContain('not switched on');
   });
 });

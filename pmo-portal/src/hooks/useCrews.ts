@@ -1,9 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/src/auth/useAuth';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   attendanceRepository, crewRepository,
   type AttendanceRowInput, type CrewInput, type CrewWorkerInput, type PlacementInput, type RosterInput, type StandardRoleInput,
 } from '@/src/lib/repositories/crews';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /**
  * Crews, roster and attendance (#2528) over the repository seam (ADR-0017). Keys carry org_id (tenant scope).
@@ -14,61 +14,42 @@ export const CREW_QUERY_ROOTS = ['crews', 'crew-roles', 'crew-workers', 'crew-me
   'crew-work-orders'] as const;
 export const ATTENDANCE_QUERY_ROOTS = ['attendance-day', 'attendance-awaiting'] as const;
 
-const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
-
 function useInvalidate(roots: readonly string[]) {
   const qc = useQueryClient();
   return () => Promise.all(roots.map((r) => qc.invalidateQueries({ queryKey: [r] })));
 }
 
 export function useCrews() {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: ['crews', orgId], queryFn: () => crewRepository.list(), enabled: Boolean(orgId) });
+  return useOrgQuery(['crews'], () => crewRepository.list());
+}
+
+/** Every placement with its dates, for "who is in a crew now". Read only when asked for (`enabled`). */
+export function useAllCrewMembers(enabled = true) {
+  return useOrgQuery(['crew-members', 'all'], () => crewRepository.allMembers(), { enabled });
 }
 
 export function useCrewRoles(crewId: string | null) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['crew-roles', orgId, crewId], queryFn: () => crewRepository.roles(crewId as string), enabled: Boolean(orgId && crewId),
-  });
+  return useOrgQuery(['crew-roles', crewId], () => crewRepository.roles(crewId as string), { enabled: Boolean(crewId) });
 }
 
 export function useCrewWorkers() {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: ['crew-workers', orgId], queryFn: () => crewRepository.workers(), enabled: Boolean(orgId) });
+  return useOrgQuery(['crew-workers'], () => crewRepository.workers());
 }
 
 export function useCrewMembers(crewId: string | null) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['crew-members', orgId, crewId], queryFn: () => crewRepository.members(crewId as string), enabled: Boolean(orgId && crewId),
-  });
+  return useOrgQuery(['crew-members', crewId], () => crewRepository.members(crewId as string), { enabled: Boolean(crewId) });
 }
 
 export function useWorkOrderCrews(workOrderId: string | null) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['work-order-crews', orgId, workOrderId],
-    queryFn: () => crewRepository.workOrderCrews(workOrderId as string),
-    enabled: Boolean(orgId && workOrderId),
-  });
+  return useOrgQuery(['work-order-crews', workOrderId], () => crewRepository.workOrderCrews(workOrderId as string), { enabled: Boolean(workOrderId) });
 }
 
 export function useWorkOrderRoster(workOrderId: string | null, date: string | null) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['work-order-roster', orgId, workOrderId, date],
-    queryFn: () => crewRepository.rosterFor(workOrderId as string, date as string),
-    enabled: Boolean(orgId && workOrderId && date),
-  });
+  return useOrgQuery(['work-order-roster', workOrderId, date], () => crewRepository.rosterFor(workOrderId as string, date as string), { enabled: Boolean(workOrderId && date) });
 }
 
 export function useCrewWorkOrders() {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['crew-work-orders', orgId], queryFn: () => crewRepository.openWorkOrders(), enabled: Boolean(orgId),
-    staleTime: 60 * 1000,
-  });
+  return useOrgQuery(['crew-work-orders'], () => crewRepository.openWorkOrders(), { staleness: 'live' });
 }
 
 export function useCrewMutations() {
@@ -86,6 +67,12 @@ export function useCrewMutations() {
         crewRepository.correctPlacement(v.id, v.version, { valid_from: v.valid_from, valid_to: v.valid_to, standard_role_id: v.standard_role_id }),
       ...after,
     }),
+    /** Set the crew role of a running placement; its dates stay. */
+    setPlacementRole: useMutation({
+      mutationFn: (v: { id: string; version: number; valid_from: string; valid_to: string | null; standard_role_id: string | null }) =>
+        crewRepository.correctPlacement(v.id, v.version, { valid_from: v.valid_from, valid_to: v.valid_to, standard_role_id: v.standard_role_id }),
+      ...after,
+    }),
     roster: useMutation({ mutationFn: (input: RosterInput) => crewRepository.roster(input), ...after }),
     endRoster: useMutation({
       mutationFn: (v: { id: string; version: number; valid_from: string; valid_to: string }) =>
@@ -96,17 +83,11 @@ export function useCrewMutations() {
 }
 
 export function useAttendanceDay(workOrderId: string | null, date: string | null) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['attendance-day', orgId, workOrderId, date],
-    queryFn: () => attendanceRepository.day(workOrderId as string, date as string),
-    enabled: Boolean(orgId && workOrderId && date),
-  });
+  return useOrgQuery(['attendance-day', workOrderId, date], () => attendanceRepository.day(workOrderId as string, date as string), { enabled: Boolean(workOrderId && date) });
 }
 
 export function useAwaitingAttendance(enabled: boolean) {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: ['attendance-awaiting', orgId], queryFn: () => attendanceRepository.awaiting(), enabled: Boolean(orgId) && enabled });
+  return useOrgQuery(['attendance-awaiting'], () => attendanceRepository.awaiting(), { enabled });
 }
 
 export function useAttendanceMutations() {
@@ -119,6 +100,7 @@ export function useAttendanceMutations() {
       ...after,
     }),
     uploadPhoto: useMutation({ mutationFn: attendanceRepository.uploadPhoto, ...after }),
+    clearFollow: useMutation({ mutationFn: (v: { workerId: string; date: string }) => attendanceRepository.clearFollow(v.workerId, v.date), ...after }),
     generateWeek: useMutation({ mutationFn: (v: { workerId: string; weekStart: string }) => attendanceRepository.generateWeek(v.workerId, v.weekStart), ...after }),
     decideWeek: useMutation({
       mutationFn: (v: { workerId: string; weekStart: string; decision: 'approve' | 'reject'; reason: string | null }) =>

@@ -6,7 +6,9 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useLeaveMutations } from '@/src/hooks/useLeave';
 import type { LeaveRequestRow } from '@/src/lib/repositories/leave';
 import { formatDay } from '@/src/lib/format';
-import { leaveErrorMessage } from './leaveErrors';
+import { useLeaveErrorText } from '../crews/crewErrors';
+import { useRoleLabels } from '../admin-users/roleLabels';
+import type { UserRole } from '@/src/lib/db/adminUsers';
 
 const PILL: Record<LeaveRequestRow['status'], 'warn' | 'won' | 'lost' | 'neutral'> = {
   Pending: 'warn', Approved: 'won', Rejected: 'lost', Cancelled: 'neutral',
@@ -15,8 +17,10 @@ const PILL: Record<LeaveRequestRow['status'], 'warn' | 'won' | 'lost' | 'neutral
 /** Requests with the actions the database says the viewer may take (`can_decide`, `is_mine`). UX only: the RPC decides. */
 export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[] }> = ({ rows }) => {
   const { t } = useTranslation('crews');
+  const writeError = useLeaveErrorText();
   const { toast } = useToast();
   const { decide, cancel } = useLeaveMutations();
+  const roleLabels = useRoleLabels();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
   // can() AND the row flag from the database: the screen may be stricter than the RPC, never looser.
@@ -27,7 +31,7 @@ export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[] }> = ({ rows }
   const [problem, setProblem] = useState<string | null>(null);
   const run = async (fn: () => Promise<unknown>, done: string) => {
     setProblem(null);
-    try { await fn(); toast(done, undefined, 'success'); } catch (err) { setProblem(leaveErrorMessage(t, err)); }
+    try { await fn(); toast(done, undefined, 'success'); } catch (err) { setProblem(writeError(err)); }
   };
   const statusLabel: Record<LeaveRequestRow['status'], string> = {
     Pending: t('crews:leave.status.pending', 'Pending'), Approved: t('crews:leave.status.approved', 'Approved'),
@@ -46,6 +50,20 @@ export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[] }> = ({ rows }
                 {' · '}{t('crews:leave.days', '{{count}} days', { count: r.days })}
               </div>
               {r.reason && <div className="text-muted-foreground">{r.reason}</div>}
+              {r.status === 'Pending' && (
+                <div className="text-muted-foreground">
+                  {r.line_manager_name
+                    ? t('crews:leave.waitingManager', 'Waiting for {{manager}} or any {{role}} to decide', { manager: r.line_manager_name, role: roleLabels.label((r.approver_role ?? 'Admin') as UserRole) })
+                    : t('crews:leave.waitingRole', 'Waiting for any {{role}} to decide', { role: roleLabels.label((r.approver_role ?? 'Admin') as UserRole) })}
+                </div>
+              )}
+              {r.decided_by_name && (r.status === 'Approved' || r.status === 'Rejected') && (
+                <div className="text-muted-foreground">
+                  {r.status === 'Approved'
+                    ? t('crews:leave.approvedBy', 'Approved by {{name}}', { name: r.decided_by_name })
+                    : t('crews:leave.rejectedBy', 'Rejected by {{name}}', { name: r.decided_by_name })}
+                </div>
+              )}
               {r.decision_note && <div className="text-muted-foreground">{t('crews:leave.note', 'Note: {{note}}', { note: r.decision_note })}</div>}
             </div>
             <StatusPill variant={PILL[r.status]}>{statusLabel[r.status]}</StatusPill>

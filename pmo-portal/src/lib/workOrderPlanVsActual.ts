@@ -15,7 +15,8 @@ import type { CostSource } from './db/workOrderCosts';
  * Margin delegates to `deriveMargin` (FR-GM-001: one margin formula).
  */
 
-export type FinanceCostSource = CostSource | 'project_actuals' | 'purchase_balance' | 'other_revenue';
+/** `headcount_day`: an approved daily head count of people with no name on the roster (1722), priced by class. */
+export type FinanceCostSource = CostSource | 'headcount_day' | 'project_actuals' | 'purchase_balance' | 'other_revenue';
 export type CostReason = 'counted' | 'commitment' | 'stocked' | 'transfer' | 'no-rate' | 'not-posted' | 'unassigned' | 'split-when-custom' | 'outside-basis' | 'unresolved-direct' | 'other-revenue';
 export type PlanKind = 'direct_budget' | 'indirect_budget' | 'equipment_hours' | 'crew_hours';
 export const PLAN_KINDS: readonly PlanKind[] = ['direct_budget', 'indirect_budget', 'equipment_hours', 'crew_hours'];
@@ -36,9 +37,10 @@ export interface CostAmountLine {
   reason: CostReason;
   quantity: number | null;
   quantityUnit: string | null;
-  /** Timesheet lines only: whose hours they are (crew size is a count of distinct people). */
+  /** Labour lines only: whose hours they are — a login for a timesheet line, a person-register id for an attendance day
+   *  (crew size is a count of distinct people). */
   personId: string | null;
-  /** #2670: the labour class of a priced timesheet line (null/absent for every other line). */
+  /** #2670: the labour class of a priced timesheet line or attendance day (null/absent for every other line). */
   labourClassId?: string | null;
 }
 
@@ -270,7 +272,9 @@ export function rollupProject(input: RollupInput): ProjectRollup {
     // Draft/Submitted equipment usage and non-Approved timesheet weeks are not actual hours.
     const equip = woLines.filter((l) => l.source === 'equipment_usage' && l.reason !== 'not-posted');
     const timesheet = woLines.filter((l) => l.source === 'timesheet_entry');
-    const crew = timesheet.filter((l) => l.reason !== 'not-posted');
+    // Approved hours of people with no login (attendance, 1721) are crew hours too; the read returns approved days only.
+    // Approved daily head counts (1722) are crew hours too: person-hours, with no person, so they add no crew size.
+    const crew = [...timesheet.filter((l) => l.reason !== 'not-posted'), ...woLines.filter((l) => l.source === 'attendance_day' || l.source === 'headcount_day')];
     return {
       equipmentHours: sumHours(equip.filter((l) => l.quantityUnit === 'hours').map((l) => l.quantity ?? 0)),
       equipmentDays: sumHours(equip.filter((l) => l.quantityUnit === 'days').map((l) => l.quantity ?? 0)),
@@ -406,7 +410,7 @@ export function rollupProject(input: RollupInput): ProjectRollup {
 
     const labourByClass = new Map<string, { hours: number; cents: bigint }>();
     for (const l of own) {
-      if (l.source !== 'timesheet_entry' || !l.labourClassId) continue;
+      if ((l.source !== 'timesheet_entry' && l.source !== 'attendance_day' && l.source !== 'headcount_day') || !l.labourClassId) continue;
       const cur = labourByClass.get(l.labourClassId) ?? { hours: 0, cents: 0n };
       cur.hours += l.quantity ?? 0;
       cur.cents += moneyUnits(l.amount) ?? 0n;

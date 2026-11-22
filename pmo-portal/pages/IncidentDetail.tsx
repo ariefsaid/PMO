@@ -18,6 +18,7 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
+import { can } from '@/src/auth/policy';
 import { useIncident, useIncidentMutations, useIncidentFiles, useIncidentEvidenceMutations, useAssigneeOptions } from '@/src/hooks/useIncidents';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
@@ -131,6 +132,12 @@ const IncidentDetail: React.FC = () => {
   const assigneeName = incident.assignee_id ? assigneeOptions?.find((o) => o.value === incident.assignee_id)?.label ?? '…' : null;
   const workOrder = incident.work_order_id ? workOrders.data?.find((w) => w.id === incident.work_order_id) : null;
   const canAddEvidence = canEdit || isAssignee || Boolean(currentUser?.id && incident.reported_by === currentUser.id);
+  // The roles the closing rule allows (policy `incidentClose.transition`), named for the reader.
+  const roleWords: Record<string, string> = {
+    'Project Manager': t('nextSteps.rolePm', 'Project Manager'), Executive: t('nextSteps.roleExecutive', 'Executive'), Admin: t('nextSteps.roleAdmin', 'Admin'),
+  };
+  const closerNames = (['Project Manager', 'Executive', 'Admin'] as const).filter((r) => can('transition', 'incidentClose', { realRole: r })).map((r) => roleWords[r]);
+  const closerRoles = closerNames.length > 1 ? `${closerNames.slice(0, -1).join(', ')} ${t('nextSteps.and', 'and')} ${closerNames[closerNames.length - 1]}` : (closerNames[0] ?? '');
   const transitionCopy = transitionTo ? getTransitionCopy(t, transitionTo) : null;
 
   // Resolve the linked project's name from the cached FK options (falls back to a generic
@@ -236,6 +243,27 @@ const IncidentDetail: React.FC = () => {
             </Button>
           </div>
         </RecordActionZone>
+      )}
+
+      {incident.status !== 'Closed' && (
+        <div role="status" data-testid="incident-next-steps" className="mb-4 space-y-1 rounded-lg border border-border bg-card p-3 text-control">
+          <div className="font-semibold">{t('nextSteps.title', 'What happens next')}</div>
+          <p>
+            {assigneeName
+              ? t('nextSteps.inCharge', { defaultValue: 'Person in charge: {{name}}.', name: assigneeName })
+              : t('nextSteps.nobody', 'Nobody is in charge yet. The project manager picks the person in charge.')}
+          </p>
+          <p>
+            {incident.action
+              ? t('nextSteps.next', { defaultValue: 'Next: {{action}}.', action: incident.action })
+              : incident.status === 'Open'
+                ? t('nextSteps.nextOpen', 'Next: the person in charge starts looking into it.')
+                : t('nextSteps.nextInvestigating', 'Next: the person in charge fixes it and closes it.')}
+          </p>
+          <p className="text-muted-foreground">
+            {t('nextSteps.whoCloses', { defaultValue: '{{roles}} can close this issue, with proof.', roles: closerRoles })}
+          </p>
+        </div>
       )}
 
       {incident.escalated_at && incident.status !== 'Closed' && (

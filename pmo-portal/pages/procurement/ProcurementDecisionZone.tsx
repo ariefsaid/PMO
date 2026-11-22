@@ -40,6 +40,8 @@ import {
   type MobileDecisionAction,
 } from '@/src/components/ui';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
+import { purchaseAttribution } from './purchaseAttribution';
+import { BillHoldNotice } from './BillHoldNotice';
 import { RecordCaptureForm, RecordCaptureTrigger, type StagedRecord } from './RecordCaptureForm';
 import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
 import { RECORD_AMOUNT_ERROR, parseRecordAmount } from './recordAmount';
@@ -277,6 +279,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               when the user clicks it, co-locating invoice capture with the transition action. */}
           {showVICapture ? (
             <VIInlineCapture
+              hasReceipt={(p.receipts ?? []).length > 0}
               vendorId={p.vendor_id}
               currency={p.currency}
               subcontractPoId={p.is_subcontract ? p.purchase_orders[0]?.id : undefined}
@@ -352,6 +355,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                   kind="goods_receipt"
                   items={p.items}
                   projectId={p.project_id}
+                  defaultAttribution={purchaseAttribution(p)}
                   busy={mutations.createReceipt.isPending}
                   onCreate={() => Promise.resolve()}
                   onStage={(staged) => {
@@ -375,6 +379,8 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                 <RecordCaptureForm
                   kind="vendor_invoice"
                   projectId={p.project_id}
+                  hasReceipt={(p.receipts ?? []).length > 0}
+                  defaultAttribution={purchaseAttribution(p)}
                   vendorId={p.vendor_id}
                   itemsNet={itemsNetTotal(p.items)}
                   currency={p.currency}
@@ -449,9 +455,11 @@ interface VIInlineCaptureProps {
   currency?: string | null;
   /** A subcontract purchase's PO: its issued BoQ lines, when it has any, replace the free amount (#1513 S7.4). */
   subcontractPoId?: string;
+  /** Whether a receipt exists: the form says what can hold the bill. */
+  hasReceipt?: boolean;
 }
 
-const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel, vendorId = null, currency = null, subcontractPoId }) => {
+const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel, vendorId = null, currency = null, subcontractPoId, hasReceipt = false }) => {
   const { t } = useTranslation();
   const today = useOrgToday();
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
@@ -534,6 +542,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
 
   return (
     <div data-testid="vi-inline-capture" className="flex flex-col gap-3">
+      <BillHoldNotice hasReceipt={hasReceipt} />
       <p className="text-sm font-semibold text-muted-foreground">
         {t('procurementDetail.vendorInvoice.enterDetails', 'Enter the supplier invoice details:')}
       </p>

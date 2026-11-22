@@ -1,6 +1,8 @@
 /**
  * Pure quantity rules for the crew tools register (#2581, FR-CTR-004/007/014/015). The database (RPCs in 1082) is the
- * authority; this mirror drives the crew screen and the report sheet's inline check. Whole numbers only.
+ * authority; this mirror drives the crew screen and the report sheet's inline check. Whole numbers only. Closing a
+ * report goes through the close RPC and the reads are invalidated, so the held-after-close rule is not restated
+ * client-side (#2753).
  *
  *   held   = units the crew was issued and has not retired
  *   damaged / lost = sum of OPEN reports of that kind
@@ -48,12 +50,4 @@ export function canReport(
 ): { ok: boolean; usable: number } {
   const { usable } = summariseLine(held, reports, '0000-00-00');
   return { ok: Number.isInteger(qty) && qty >= 1 && qty <= usable, usable };
-}
-
-/** FR-CTR-014: the held quantity after closing a report. replaced/repaired keep it; written_off lowers it. */
-export function applyClose(held: number, report: Pick<ToolReport, 'kind' | 'qty'>, resolution: ToolResolution): number {
-  if (resolution === 'repaired' && report.kind !== 'damaged') {
-    throw new Error('repaired applies to a damaged report only');
-  }
-  return resolution === 'written_off' ? Math.max(held - report.qty, 0) : held;
 }

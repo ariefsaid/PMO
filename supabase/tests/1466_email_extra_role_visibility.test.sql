@@ -30,9 +30,9 @@ insert into email_event_settings (org_id, event_key, enabled, extra_roles) value
 
 insert into people (id, org_id, code, name) values
   ('14660000-0000-0000-0000-0000000000e1', '14660000-0000-0000-0000-00000000000a', 'P-1', 'EVX Person');
-insert into document_types (id, org_id, name, applies_to, is_medical, notify_roles) values
-  ('14660000-0000-0000-0000-0000000000f1', '14660000-0000-0000-0000-00000000000a', 'Work permit',   'person', false, '{}'),
-  ('14660000-0000-0000-0000-0000000000f2', '14660000-0000-0000-0000-00000000000a', 'Medical check', 'person', true,  '{}');
+insert into document_types (id, org_id, name, applies_to, is_medical) values
+  ('14660000-0000-0000-0000-0000000000f1', '14660000-0000-0000-0000-00000000000a', 'Work permit',   'person', false),
+  ('14660000-0000-0000-0000-0000000000f2', '14660000-0000-0000-0000-00000000000a', 'Medical check', 'person', true);
 insert into expiry_documents (id, org_id, subject_kind, person_id, type_id, number, expires_on) values
   ('14660000-0000-0000-0000-000000000101', '14660000-0000-0000-0000-00000000000a', 'person', '14660000-0000-0000-0000-0000000000e1', '14660000-0000-0000-0000-0000000000f1', 'WP-1', '2026-12-20');
 insert into expiry_documents (id, org_id, subject_kind, person_id, type_id, medical_status, expires_on) values

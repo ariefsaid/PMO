@@ -216,6 +216,7 @@ async function call(fn: string, args: Record<string, unknown>): Promise<unknown>
   return data;
 }
 export async function submitReport(id: string): Promise<void> { await call('dsr_submit', { p_report: id }); }
+export async function withdrawReport(id: string): Promise<void> { await call('dsr_withdraw', { p_report: id }); }
 export async function validateReport(id: string): Promise<void> { await call('dsr_validate', { p_report: id }); }
 export async function returnReport(id: string, reason: string): Promise<void> { await call('dsr_return', { p_report: id, p_reason: reason }); }
 export async function correctReport(id: string, reason: string): Promise<string> { return String(await call('dsr_correct', { p_report: id, p_reason: reason })); }

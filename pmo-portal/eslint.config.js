@@ -70,6 +70,93 @@ const PAGES_BOUNDARY = [
 
 const restrictImports = (...boundaries) => ['error', { patterns: boundaries.flat() }];
 
+// ══ Restricted syntax boundaries ════════════════════════════════════════
+// Flat config replaces no-restricted-syntax options wholesale per matched object.
+// Compose them per file class, mirroring no-restricted-imports above.
+const LOCALE_RESTRICTIONS = [
+  {
+    selector: 'MemberExpression[property.name=/^toLocale(String|DateString|TimeString)$/]',
+    message:
+      'Locale-sensitive display formatting bypasses src/lib/format.ts (single formatting seam, #468/#477). Import a formatter from src/lib/format instead.',
+  },
+  {
+    selector: "NewExpression[callee.object.name='Intl']",
+    message:
+      'Construct Intl formatters only in src/lib/format.ts (single formatting seam, #468/#477). Import a formatter from src/lib/format instead.',
+  },
+];
+
+const ROLE_LITERAL_RESTRICTIONS = [
+  {
+    selector:
+      'BinaryExpression[operator=/^([!=]==?)$/]:matches([left.name=/^(role|realRole|effectiveRole)$/], [right.name=/^(role|realRole|effectiveRole)$/], [left.property.name=/^(role|realRole|effectiveRole)$/], [right.property.name=/^(role|realRole|effectiveRole)$/], [left.value=/^(Admin|Executive|Project Manager|Finance|Engineer)$/], [right.value=/^(Admin|Executive|Project Manager|Finance|Engineer)$/]):matches([left.type="Literal"], [right.type="Literal"])',
+    message:
+      'Comparing a role to a string literal outside src/auth/ bypasses policy.ts and can() (ADR-0016, #2751). Move into a policy action called through can().',
+  },
+];
+
+const restrictSyntax = (...boundaries) => ['error', ...boundaries.flat()];
+
+// Pre-round legacy files with role literals (tracked for subsequent cleanup; all new code and round code is enforced).
+const LEGACY_ROLE_LITERAL_FILES = [
+  'App.tsx',
+  'components/ProcurementBoard.tsx',
+  'pages/AdminUsers.tsx',
+  'pages/Administration.tsx',
+  'pages/Approvals.tsx',
+  'pages/ExecutiveDashboard.tsx',
+  'pages/ImprestFloats.tsx',
+  'pages/MaterialRequestSettings.tsx',
+  'pages/Procurement.tsx',
+  'pages/ProcurementCreate.tsx',
+  'pages/ProcurementDetails.tsx',
+  'pages/ProjectBudget.tsx',
+  'pages/admin/BudgetAccountMap.tsx',
+  'pages/crews/CrewList.tsx',
+  'pages/finance/FinanceHub.tsx',
+  'pages/procurement/blocks/needsYou.ts',
+  'pages/procurement/list/ProcurementGroupedView.tsx',
+  'pages/procurement/list/ProcurementKpiRow.tsx',
+  'pages/project-detail/ProjectFinancesSection.tsx',
+  'pages/project-detail/ProjectOdooLink.tsx',
+  'pages/project-detail/ProjectSections.tsx',
+  'pages/project-detail/budget/BudgetErpNotice.tsx',
+  'pages/project-detail/tabs/TasksTab.tsx',
+  'pages/projects/useProjectListModel.ts',
+  'pages/stock/StockCount.tsx',
+  'pages/stock/StockMovementForm.tsx',
+  'pages/stock/StockTransferDetail.tsx',
+  'pages/stock/StockTransferSend.tsx',
+  'pages/stock/StockWorkOrderTransfer.tsx',
+  'src/components/budget/BudgetOccupantActions.tsx',
+  'src/components/dashboard/PMDashboard.tsx',
+  'src/components/dashboard/hub/company/CompanyDashboard.tsx',
+  'src/components/dashboard/restructure/useNeedsYou.ts',
+  'src/components/m365/DocumentLinkPermissions.tsx',
+  'src/components/m365/useRecordFolderAction.tsx',
+  'src/components/procurement/ProcurementBlock.tsx',
+  'src/components/shell/ApprovalsNavCount.tsx',
+  'src/components/shell/PhoneNavBar.tsx',
+  'src/components/shell/Rail.tsx',
+  'src/components/stock/ProofChaseCard.tsx',
+  'src/hooks/useDemoEligibility.ts',
+  'src/hooks/useFinancialStatements.ts',
+  'src/hooks/useInvoicePdfDownload.ts',
+  'src/hooks/useMicrosoftDocuments.ts',
+  'src/hooks/useProjectOverviewRead.ts',
+  'src/hooks/useProjectPosition.ts',
+  'src/lib/adapterSeam/erpnext/connectAdapter.ts',
+  'src/lib/adapterSeam/erpnext/contract.harness.ts',
+  'src/lib/adapterSeam/odoo/connectAdapter.ts',
+  'src/lib/adapterSeam/odoo/contract.harness.ts',
+  'src/lib/adapterSeam/odoo/normalise.ts',
+  'src/lib/db/timesheetTransition.ts',
+  'src/lib/expenses/expenseRules.ts',
+  'src/lib/invite/inviteHandler.ts',
+  'src/lib/procurement/mainAction.ts',
+  'src/lib/revenue/nativeInvoice.ts',
+];
+
 const TEST_FILES = ['src/**/*.test.*', 'src/**/*.spec.*', 'src/**/__tests__/**/*.{ts,tsx}'];
 
 export default tseslint.config(
@@ -135,14 +222,27 @@ export default tseslint.config(
     files: ['src/lib/analytics/client.ts'],
     rules: { 'no-restricted-imports': restrictImports(AGENT_RUNTIME, PAGES_BOUNDARY) },
   },
-  // ── locale drift guard (#477): display formatting lives ONLY in src/lib/format.ts ──
-  // toLocaleString / toLocaleDateString / new Intl.* hardcode or imply a locale and bypass the
-  // single formatting seam (#468). Exempt: format.ts itself (the seam), the export path (typed
-  // cells, DD-I18N-4 — a formatted string in a spreadsheet cell corrupts data), and tests.
-  // src/lib/locale/timezones.ts carries a line-scoped disable: it constructs a DateTimeFormat only
-  // to VALIDATE an IANA zone id, never to format.
+  // ── Restricted syntax (locale drift #477, role literal comparison #2751) ──
+  // 1. Ordinary TS files: both locale and role literal restrictions apply.
   {
     files: ['**/*.{ts,tsx}'],
+    ignores: [
+      'src/auth/**',
+      'src/lib/format.ts',
+      'src/lib/export/**',
+      'e2e/**',
+      '**/__tests__/**',
+      '**/*.test.*',
+      '**/*.spec.*',
+      ...LEGACY_ROLE_LITERAL_FILES,
+    ],
+    rules: {
+      'no-restricted-syntax': restrictSyntax(LOCALE_RESTRICTIONS, ROLE_LITERAL_RESTRICTIONS),
+    },
+  },
+  // 2. Pre-round legacy files and src/auth/**: exempt from role literal comparisons, but obey locale drift.
+  {
+    files: ['src/auth/**/*.{ts,tsx}', ...LEGACY_ROLE_LITERAL_FILES],
     ignores: [
       'src/lib/format.ts',
       'src/lib/export/**',
@@ -152,19 +252,14 @@ export default tseslint.config(
       '**/*.spec.*',
     ],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: 'MemberExpression[property.name=/^toLocale(String|DateString|TimeString)$/]',
-          message:
-            'Locale-sensitive display formatting bypasses src/lib/format.ts (single formatting seam, #468/#477). Import a formatter from src/lib/format instead.',
-        },
-        {
-          selector: "NewExpression[callee.object.name='Intl']",
-          message:
-            'Construct Intl formatters only in src/lib/format.ts (single formatting seam, #468/#477). Import a formatter from src/lib/format instead.',
-        },
-      ],
+      'no-restricted-syntax': restrictSyntax(LOCALE_RESTRICTIONS),
+    },
+  },
+  // 3. Format and export files: exempt from locale drift, but obey role literal comparisons.
+  {
+    files: ['src/lib/format.ts', 'src/lib/export/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': restrictSyntax(ROLE_LITERAL_RESTRICTIONS),
     },
   },
   {

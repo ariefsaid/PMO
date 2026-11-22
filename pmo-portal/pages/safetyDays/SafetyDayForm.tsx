@@ -8,7 +8,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useProject } from '@/src/hooks/useProjects';
 import { useSafetyDay, useSafetyMutations, useSafetyRoster } from '@/src/hooks/useSafetyDays';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { SAFETY_PART_LABEL } from '@/src/lib/safetyDay';
 import { deriveSafetyDayStatus } from '@/src/lib/safetyDay';
@@ -62,7 +62,7 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
   });
   const run = async (work: () => Promise<unknown>, success: string) => {
     try { await work(); toast(success, undefined, 'success'); return true; }
-    catch (err) { const { headline, detail: d } = classifyMutationError(err); toast(headline, d, 'warning'); setDialogError(d ? `${headline}. ${d}` : headline); return false; }
+    catch (err) { const { headline, detail: d } = classifyMutationError(err); toast(headline, d, 'warning'); setDialogError(d ? joinSentences(headline, d) : headline); return false; }
   };
   const submit = () => run(() => m.submitDay.mutateAsync(day.id), t('toast.submitted', 'Safety day submitted and locked'));
   const correct = async (reason: string) => {
@@ -72,7 +72,7 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
       setCorrecting(false);
       toast(t('toast.corrected', 'Correction started'), undefined, 'success');
       navigate(`/safety-days/${id}`);
-    } catch (err) { const { headline, detail: d } = classifyMutationError(err); setDialogError(d ? `${headline}. ${d}` : headline); }
+    } catch (err) { const { headline, detail: d } = classifyMutationError(err); setDialogError(d ? joinSentences(headline, d) : headline); }
   };
 
   return (

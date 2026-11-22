@@ -1,10 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { stockReservationsRepository as repo } from '@/src/lib/repositories/stockReservations';
-import { useContext } from 'react';
-import { AuthContext } from '@/src/auth/AuthContext';
-
-/** The signed-in organisation, read without throwing outside a provider: a screen with no session simply shows no reservation controls. */
-const useOrgId = (): string | undefined => useContext(AuthContext)?.currentUser?.org_id;
+import { useOptionalOrgId as useOrgId } from '@/src/hooks/useOrgId';
 
 /** The organisation's reservation settings (#2693), off by default. While unread or failed they read as off: nothing new shows. */
 export function useReservationSettings() {
@@ -32,8 +28,12 @@ export function useReservationRefresh() {
   const qc = useQueryClient();
   return () => Promise.all(['stock-reservation-settings', 'stock-free-reserved', 'wo-reservations', 'request-borrowing'].map((k) => qc.invalidateQueries({ queryKey: [k] })));
 }
+import { can, type Role } from '@/src/auth/policy';
+
 /** Who may reserve in the screen (UX only; the database decides): the location's keeper, a planner (master-data rank) or an Admin; never while viewing as another role. */
 export function mayReserve(realRole: string | null | undefined, viewOnly: boolean, isKeeper: boolean): boolean {
-  if (viewOnly) return false;
-  return isKeeper || realRole === 'Admin' || realRole === 'Project Manager' || realRole === 'Finance' || realRole === 'Executive';
+  return can('manage', 'stockReservation', {
+    realRole: (realRole as Role) ?? null,
+    record: { viewOnly, isKeeper },
+  });
 }

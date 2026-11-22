@@ -8,10 +8,12 @@ import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { useLeaveEnabled } from '@/src/hooks/useLeave';
+import { useSafetyNavEnabled } from '@/src/hooks/useSafetyDays';
+import { useTerms } from '@/src/lib/i18n/terms';
 import { Badge } from '@/src/components/ui/StatusPill';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOverdueInvoiceCount } from '@/src/hooks/useOverdueInvoiceCount';
-import { useHasTimesheetApprovalWork } from '@/src/hooks/useTimesheetApproval';
+import { useApprovalsEntryOffered } from '@/src/hooks/useWaitingForYou';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useFeature } from '@/src/auth/useFeature';
 import { AppVersion } from '@/src/components/AppVersion';
@@ -23,7 +25,8 @@ import {
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { useUserViews } from '@/src/hooks/useUserViews';
 import { MODULES, railParentForPath } from './routeMatch';
-import { groupOrderForRole, type NavigationGroup } from './navigationOrder';
+import { functionItemRank, groupOrderForRole, type NavigationGroup } from './navigationOrder';
+import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -63,18 +66,27 @@ export interface NavItem {
 // This is the one ordered navigation registry. Role, feature and real-role gates only remove
 // entries from this sequence; the order never changes for the current role. The `ALL_ITEMS` name
 // is load-bearing: scripts/check-module-completeness.mjs parses this block by it.
+/** Roles that always have the Approvals entry; any other role has it when it can decide something (`useApprovalsEntryOffered`). */
+const APPROVALS_ROLES: UserRole[] = [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin];
+
 // eslint-disable-next-line react-refresh/only-export-components -- registry constant co-located with its rail; HMR-only lint concern
 export const ALL_ITEMS: NavItem[] = [
-  { to: '/approvals', text: 'Approvals', icon: 'approvals', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/approvals', text: 'Approvals', icon: 'approvals', roles: APPROVALS_ROLES },
   { to: '/', text: 'Dashboard', icon: 'dashboard', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/sales', text: 'Sales Pipeline', icon: 'funnel', group: 'Sales', feature: 'sales_pipeline', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/companies', text: 'Companies', icon: 'companies', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // The work orders the reader may see, across projects (a front door; the project's contract card stays the other path).
+  { to: '/work-orders', text: 'Work orders', icon: 'doc', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/stock', text: 'Stock', icon: 'inbox', group: 'Delivery', feature: 'stock', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1519: every member logs equipment usage; the Assets and approvals views gate by role inside the page.
   { to: '/equipment', text: 'Equipment', icon: 'equipment', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // The asset register (machines, vehicles, tools). Reads are RLS-scoped, so every role gets the doorway.
+  { to: '/equipment/assets', text: 'Equipment assets', icon: 'folder', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // Safety: the monthly summary, only where the organisation switched the safety module on (`safetyEnabled`).
+  { to: '/safety', text: 'Safety summary', icon: 'circle-check', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1522: every member reads site reports; entry and validation gate by role inside the pages.
   { to: '/site-reports', text: 'Site reports', icon: 'reports', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #2528: crews, roster and attendance — every member reads; writes gate by role (and field controller) inside the page.
@@ -96,6 +108,8 @@ export const ALL_ITEMS: NavItem[] = [
   // the default), OFF once an ERP owns it; an explicit row still wins, so an Operator can turn it
   // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, Executive and Admin.
   { to: '/finance', text: 'Finance', icon: 'dollar', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  // The claims board: every open claim by step and age (needs the revenue module).
+  { to: '/finance/billing-board', text: 'Billing board', icon: 'cols', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/receivables', text: 'Receivables', icon: 'invoices', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/payables', text: 'Payables', icon: 'payments', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/reports', text: 'Reports', icon: 'chart-column', group: 'Finance', feature: 'management_pack', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
@@ -191,6 +205,8 @@ export interface NavVisibility {
   hasEligibleTimesheets: boolean;
   /** #2708: the organisation switched leave requests on. Absent means off, so the entry stays out. */
   leaveEnabled?: boolean;
+  /** The organisation switched the safety module on. Absent means off, so the entry stays out. */
+  safetyEnabled?: boolean;
 }
 
 /**
@@ -198,12 +214,12 @@ export interface NavVisibility {
  * so the two never disagree about what a role may reach.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- pure gate shared with the phone bar
-export function visibleNavItems({ role, realRole, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled }: NavVisibility): NavItem[] {
+export function visibleNavItems({ role, realRole, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled, safetyEnabled }: NavVisibility): NavItem[] {
   return ALL_ITEMS.filter(
     (i) => (i.realRoleOnly
       ? realRole !== null && i.roles.includes(role) && i.roles.includes(realRole)
       : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
-  ).filter((i) => i.to !== '/views' || userViewsEnabled).filter((i) => i.to !== '/leave' || leaveEnabled === true);
+  ).filter((i) => i.to !== '/views' || userViewsEnabled).filter((i) => i.to !== '/leave' || leaveEnabled === true).filter((i) => i.to !== '/safety' || safetyEnabled === true);
 }
 
 export interface RailProps {
@@ -242,12 +258,13 @@ export interface RailProps {
 export const Rail: React.FC<RailProps> = React.memo(function Rail(props) {
   const auth = useContext(AuthContext);
   const { effectiveRole } = useEffectiveRole();
-  return auth && effectiveRole === 'Engineer' ? <RailWithTimesheetEligibility {...props} /> : <RailContent {...props} />;
+  // Any login whose role is not on the Approvals list may still decide something (a chain step, a delegation, a team); ask once.
+  return auth && !APPROVALS_ROLES.includes(effectiveRole as UserRole) ? <RailWithDecisionStanding {...props} /> : <RailContent {...props} />;
 });
 
-const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
-  const work = useHasTimesheetApprovalWork();
-  return <RailContent {...props} hasEligibleTimesheets={Boolean(work.data || work.isPending || work.isError)} />;
+const RailWithDecisionStanding: React.FC<RailProps> = (props) => {
+  const offered = useApprovalsEntryOffered();
+  return <RailContent {...props} hasEligibleTimesheets={offered} />;
 };
 
 const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false, hasEligibleTimesheets = false, onPreloadHref }) => {
@@ -278,6 +295,11 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const { data: userViews } = useUserViews(userViewsEnabled);
   const agentAssistantEnabled = useFeature('agent_assistant');
   const leaveEnabled = useLeaveEnabled();
+  const safetyEnabled = useSafetyNavEnabled();
+  const terms = useTerms();
+  // The person's function (HR, safety, stock…) orders the menu by what they do daily; absent for a legacy account.
+  const authCtx = useContext(AuthContext);
+  const functionKey = BUILT_IN_ROLES.find((r) => r.key === authCtx?.currentUser?.built_in_role)?.functionKey ?? null;
 
   // AC-ADMIA-002: a REAL server-confirmed platform Operator (any base role) can reach
   // /administration by URL, so the rail's Administration footer must be discoverable for them.
@@ -317,7 +339,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
 
   if (!role) return null;
 
-  const items = visibleNavItems({ role, realRole: realRoleValue, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled });
+  const items = visibleNavItems({ role, realRole: realRoleValue, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled, safetyEnabled });
   const currentGroup = items.find((item) =>
     item.group && (pathInItem(location.pathname, item.to) || railParentForPath(location.pathname) === item.to),
   )?.group;
@@ -352,6 +374,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     '/imprest': t('imprest:nav.siteCash', 'Site cash'),
     '/material-requests': t('materialRequests:nav.materialRequests', 'Material requests'),
     '/equipment': t('equipment:nav.equipment', 'Equipment'),
+    '/equipment/assets': t('equipment:nav.assets', 'Equipment assets'),
+    '/work-orders': terms.clientWorkOrder,
+    '/safety': t('safety:summary.title', 'Safety summary'),
+    '/finance/billing-board': t('finance:billingBoard.title', 'Billing board'),
     '/site-reports': t('siteReport:nav', 'Site reports'),
     '/crews': t('crews:nav.crews', 'Crews'),
     '/leave': t('crews:leave.title', 'Leave'),
@@ -561,8 +587,21 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         <div className="relative min-h-0 flex-1">
           <div ref={scrollRegionRef} data-rail-scroll-region className={cn('min-h-0 h-full overflow-y-auto p-2.5', inDrawer && 'pt-4')}>
             {items.filter((item) => item.to === '/').map(renderItem)}
-            {groupOrderForRole(role).map((group) => {
-              const groupItems = items.filter((i) => i.group === group);
+            {/* HR's own desk: the people register first, not the last line behind Administration. */}
+            {functionKey === 'hr' && may('view', 'person') && (
+              <NavLink
+                to="/administration/people"
+                onClick={onNavigate}
+                className={({ isActive }: { isActive: boolean }) =>
+                  cn(NAV_LINK_BASE, isActive ? 'bg-nav-selected-surface font-semibold text-nav-active-text' : 'text-foreground hover:bg-surface-hover')}
+              >
+                <Icon name="user" />
+                <span>{t('administration:people.navLabel', 'People')}</span>
+              </NavLink>
+            )}
+            {groupOrderForRole(role, functionKey).map((group) => {
+              const groupItems = items.filter((i) => i.group === group)
+                .sort((a, b) => functionItemRank(functionKey, a.to) - functionItemRank(functionKey, b.to));
               if (groupItems.length === 0) return null;
               const expanded = group === currentGroup || !collapsedGroups.has(group);
               const groupId = `${railId}-group-${group.toLowerCase().replaceAll(' ', '-')}`;

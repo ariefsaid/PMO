@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import i18n from '@/src/lib/i18n';
+import { ToastProvider } from '@/src/components/ui';
 
 const q = (data: unknown, over: Record<string, unknown> = {}) => ({ data, isPending: false, isError: false, refetch: vi.fn(), ...over });
 const viewerOpen = vi.hoisted(() => vi.fn());
@@ -15,7 +16,8 @@ vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => h.wo, use
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (f: string) => f === 'stock' ? h.stock : f === 'incidents' ? h.issuesOn : false }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
-vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts }));
+vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts, useWorkOrderAcceptanceMutations: () => ({ confirm: { isPending: false, mutateAsync: vi.fn().mockResolvedValue({ closingValue: null, dpHeld: 0 }) } }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-finance' } }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.docs }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
@@ -48,7 +50,7 @@ const CurrentLocation: React.FC = () => {
 
 const WO = { id: 'w1', project_id: 'p1', wo_number: 'WO-0007', title: 'Pump install', status: 'Issued', currency: 'IDR', order_value: 1500000, client_po_number: 'PO-9' };
 const ln = (source: string, id: string, disciplineId: string | null) => ({ source, recordId: id, projectId: 'p1', workOrderId: 'w1', disciplineId, occurredOn: '2026-02-01', reference: id, quantity: null, quantityUnit: null });
-const renderPage = () => render(<MemoryRouter initialEntries={['/work-orders/w1']}><Routes><Route path="/work-orders/:id" element={<WorkOrderDetail />} /></Routes></MemoryRouter>);
+const renderPage = () => render(<ToastProvider><MemoryRouter initialEntries={['/work-orders/w1']}><Routes><Route path="/work-orders/:id" element={<WorkOrderDetail />} /></Routes></MemoryRouter></ToastProvider>);
 
 beforeEach(async () => {
   await i18n.changeLanguage('en');
@@ -166,6 +168,15 @@ describe('WorkOrderDetail', () => {
     renderPage();
     expect(screen.getByTestId('cost-line-hour1').textContent).toContain('Timesheet');
     expect(screen.getByTestId('cost-line-hour1').textContent).not.toContain('hour1');
+  });
+  it('names an approved no-login attendance day as attendance, never by its id, and does not call its amount unavailable', () => {
+    h.lines = q({ attendance_day: [{ ...ln('attendance_day', 'att1', null), reference: null, quantity: 8, quantityUnit: 'hours' }] });
+    h.money = q({});
+    renderPage();
+    const line = screen.getByTestId('cost-line-att1');
+    expect(line.textContent).toContain('Attendance');
+    expect(line.textContent).not.toContain('att1');
+    expect(within(screen.getByTestId('cost-group-attendance_day')).queryByText('Amount unavailable')).toBeNull();
   });
   it('explains when costs have no available amount', () => {
     h.lines = q({ timesheet_entry: [ln('timesheet_entry', 'hour1', null)] });
@@ -286,10 +297,10 @@ describe('WorkOrderDetail', () => {
 
   it('FR-WORP-025 lets the user open a task from the work order', async () => {
     h.tasks = q([{ id: 't1', project_id: 'p1', name: 'Torque the bolts', assignee: null, end_date: null }]);
-    render(<MemoryRouter initialEntries={['/work-orders/w1']}><Routes>
+    render(<ToastProvider><MemoryRouter initialEntries={['/work-orders/w1']}><Routes>
       <Route path="/work-orders/:id" element={<WorkOrderDetail />} />
       <Route path="/projects/:projectId/tasks" element={<><p>Project tasks route</p><CurrentLocation /></>} />
-    </Routes></MemoryRouter>);
+    </Routes></MemoryRouter></ToastProvider>);
 
     await userEvent.setup().click(screen.getByRole('link', { name: 'Torque the bolts' }));
 

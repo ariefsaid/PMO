@@ -1,5 +1,5 @@
 import type { StatusVariant } from '@/src/components/ui';
-import type { CertificateStatus, ExcludedReason } from '@/src/lib/db/subcontractCertificates';
+import type { CertificateStatus } from '@/src/lib/db/subcontractCertificates';
 
 /** Pill colour per certificate state: colour plus the label carry the state (screen rule). */
 export const STATUS_VARIANT: Record<CertificateStatus, StatusVariant> = {
@@ -9,12 +9,6 @@ export const STATUS_VARIANT: Record<CertificateStatus, StatusVariant> = {
 export const STATUSES: CertificateStatus[] = ['draft', 'submitted', 'returned', 'approved', 'billed', 'cancelled'];
 
 export const REASON_CODES = ['rework', 'damaged', 'safety', 'materials_supplied', 'other'] as const;
-
-/** Every excluded-source reason the derive can name (FR-SPC-006). */
-export const EXCLUDED_REASONS: ExcludedReason[] = [
-  'unrated_no_rate', 'unrated_currency', 'unrated_unit', 'unrated_above_po_rate', 'not_vendor_crew', 'report_not_validated',
-  'report_superseded', 'item_not_on_po', 'already_certified', 'deselected',
-];
 
 /** First day of a month as `YYYY-MM-01` from an `<input type="month">` value (`YYYY-MM`). */
 export function monthStart(value: string): string | null {

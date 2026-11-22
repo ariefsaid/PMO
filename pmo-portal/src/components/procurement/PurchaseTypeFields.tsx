@@ -1,8 +1,6 @@
-import React, { useContext, useEffect } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DateField, SelectField } from '@/src/components/ui';
-import { AuthContext } from '@/src/auth/AuthContext';
 import { usePurchaseTypes, usePurchaseTypesEnabled } from '@/src/hooks/usePurchaseTypes';
 import type { PurchaseTypeValue } from './purchaseTypeValue';
 import { purchaseTypePeriodErrors } from './purchaseTypeValue';
@@ -39,13 +37,8 @@ const Fields: React.FC<Props> = ({ value, onChange, showErrors, disabled }) => {
 };
 
 /**
- * Purchase type and rental period on the new-purchase form (#2697). Renders nothing unless the organisation turned purchase types on
- * and the form runs inside a signed-in session with a query client; so an organisation without them sees the form exactly as before.
+ * Purchase type and rental period on the new-purchase form (#2697). Renders nothing unless the organisation turned
+ * purchase types on, so an organisation without them sees the form exactly as before.
  */
-const PurchaseTypeFields: React.FC<Props> = (props) => {
-  const client = useContext(QueryClientContext);
-  const auth = useContext(AuthContext);
-  if (!client || !auth) return null;
-  return <Fields {...props} />;
-};
+const PurchaseTypeFields: React.FC<Props> = (props) => <Fields {...props} />;
 export default PurchaseTypeFields;

@@ -11,6 +11,11 @@ describe('AC-TERM-002 applyOrgTerms', () => {
     expect(applyOrgTerms('WORK ORDERS', 'en', t)).toBe('JOB CARDS');
     expect(applyOrgTerms('Open Work Orders', 'en', t)).toBe('Open Job Cards');
   });
+  it('uses a term exactly as typed when it has any capital letter: an acronym or a name is never re-cased', () => {
+    expect(applyOrgTerms('Create a new work order', 'en', wo('SPK', 'SPKs'))).toBe('Create a new SPK');
+    expect(applyOrgTerms('Open work orders', 'en', wo('SPK', 'SPKs'))).toBe('Open SPKs');
+    expect(applyOrgTerms('Buat work order baru', 'id', { id: { workOrder: { singular: 'Perintah Kerja', plural: 'Perintah Kerja' } } })).toBe('Buat Perintah Kerja baru');
+  });
   it('leaves text alone with no override, other locale, or partial words', () => {
     expect(applyOrgTerms('Work order', 'en', {})).toBe('Work order');
     expect(applyOrgTerms('Work order', 'id', wo('x', 'xs'))).toBe('Work order');

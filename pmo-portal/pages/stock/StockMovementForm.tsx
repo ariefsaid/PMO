@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, PageHeader, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
+  Button, ConfirmDialog, FormActions, FormGrid, FormSection, ListState, MobileActionBar, PageHeader, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
 } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { StockLinesLoading } from '@/src/components/stock/LinesLoading';
@@ -15,17 +15,18 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useIsTwoStep } from '@/src/hooks/useStockTransfers';
+import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import {
   useIssuableProjects, useIssuableWorkItems, useProjectIssueLines, useStockDocumentMutations, useStockItems, useStockKeepers, useStockUnits, useStockWarehouses,
 } from '@/src/hooks/useStock';
-import { parseStockError } from '@/src/lib/stockErrors';
+import { parseRefusal } from '@/src/lib/refusals';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
 import type { StockDocumentInput, StockDocumentKind, StockLineInput } from '@/src/lib/db/stockDocuments';
 import StockCount from './StockCount';
 import { DateField } from '@/src/components/ui/DateField';
 import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
-import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { useAttributionErrorText } from '@/src/components/workOrders/costAttributionError';
 import { AttributionRefusedError, NO_ATTRIBUTION, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 const KINDS = ['receive', 'transfer', 'issue', 'return'] as const;
@@ -56,6 +57,7 @@ const WorkItemSelect: React.FC<{ projectId: string; value: string; onChange: (v:
 
 const StockMovementForm: React.FC = () => {
   const { t } = useTranslation('stock');
+  const attributionError = useAttributionErrorText();
   const { kind: kindParam } = useParams<{ kind: string }>();
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -73,6 +75,7 @@ const StockMovementForm: React.FC = () => {
   const keepers = useStockKeepers();
   const items = useStockItems(false);
   const units = useStockUnits(true);
+  const tags = useStockTags(true);
   const projects = useIssuableProjects();
 
   const requestId = useRef<string>(crypto.randomUUID()); // stable across retries of one submit (FR-STK-015)
@@ -87,6 +90,7 @@ const StockMovementForm: React.FC = () => {
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const initialSnapshot = useRef(JSON.stringify({ warehouseId, toWarehouseId, projectId: params.get('project') ?? '', occurredOn, note, lines: [] }));
 
@@ -102,6 +106,8 @@ const StockMovementForm: React.FC = () => {
   const keptIds = useMemo(() => new Set((keepers.data ?? []).filter((k) => k.user_id === me).map((k) => k.warehouse_id)), [keepers.data, me]);
   const usable = useMemo(() => (warehouses.data ?? []).filter((w) => isAdmin || keptIds.has(w.id)), [warehouses.data, isAdmin, keptIds]);
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);
+  // Client-supplied material carries a zero-cost tag: it is marked on the line and its cost is fixed at zero, never asked.
+  const clientTag = (l: LineState) => { const tagId = l.itemId ? itemById.get(l.itemId)?.tag_id : null; return tagId ? (tags.data ?? []).find((g) => g.id === tagId && g.zero_cost) : undefined; };
   const wholeByUnit = useMemo(() => new Map((units.data ?? []).map((u) => [u.id, u.whole_only])), [units.data]);
 
   if (kind === 'transfer' && twoStep) return <Navigate to="/stock/transfers/new" replace />;
@@ -138,7 +144,7 @@ const StockMovementForm: React.FC = () => {
       if (!isPositiveDecimal(q)) e[`qty${l.key}`] = t('form.errors.quantity');
       else if (wholeOnlyItem(l) && !isWholeQuantity(q)) e[`qty${l.key}`] = t('errors.STK_FRACTION');
       if (kind === 'issue' && !l.boqItemId) e[`boq${l.key}`] = t('form.errors.workItem');
-      const cost = normalizeDecimal(l.unitCost);
+      const cost = clientTag(l) ? '0' : normalizeDecimal(l.unitCost);
       if (kind === 'receive' && !/^\d+(\.\d{1,4})?$/.test(cost)) e[`cost${l.key}`] = t('form.errors.unitCost');
       return {
         itemId: l.itemId ?? '', quantity: q,
@@ -170,6 +176,18 @@ const StockMovementForm: React.FC = () => {
     return item ? (units.data ?? []).find((u) => u.id === item.unit_id)?.code ?? '' : '';
   }
 
+  /** One guard before any posting: it names the item, the quantity and the place, so a wrong entry is caught before it reaches the ledger. */
+  function askToPost() {
+    const { input, errors } = validate();
+    setFieldErrors(errors);
+    if (input) setConfirming(true);
+  }
+  const placeName = (id: string) => { const w = (warehouses.data ?? []).find((x) => x.id === id); return w ? `${w.code} - ${w.name}` : ''; };
+  const summary = lines.map((l) => {
+    const item = l.itemId ? itemById.get(l.itemId) : undefined;
+    return `${item ? `${item.code} - ${item.name}` : ''}: ${normalizeDecimal(l.quantity)} ${unitCodeOfLine(l)}`.trim();
+  });
+
   async function submit(post = true) {
     const { input, errors } = validate();
     setFieldErrors(errors);
@@ -186,7 +204,7 @@ const StockMovementForm: React.FC = () => {
       if (err instanceof StockDispatchError) { notify(err); setSaved(true); navigate(`/stock/documents/${err.documentId}`); return; }
       // Posted, but the work order / discipline was refused: open the movement and say why (it is not created again).
       if (err instanceof AttributionRefusedError) {
-        const d = describeAttributionError(err.refusal, t);
+        const d = attributionError(err.refusal);
         requestId.current = crypto.randomUUID();
         toast(d.headline, d.detail, 'warning');
         setSaved(true);
@@ -194,9 +212,9 @@ const StockMovementForm: React.FC = () => {
         return;
       }
       setSubmitError(err);
-      const s = parseStockError(err);
+      const s = parseRefusal(err);
       if (s?.code === 'STK_INSUFFICIENT') {
-        const hit = lines.find((l) => { const c = l.itemId ? itemById.get(l.itemId)?.code : undefined; return c && s.message.includes(`${c} `); }) ?? lines[0];
+        const hit = lines.find((l) => { const c = l.itemId ? itemById.get(l.itemId)?.code : undefined; return c && s.text.includes(`${c} `); }) ?? lines[0];
         setFieldErrors({ [`qty${hit.key}`]: errorText(err) });
       }
     }
@@ -207,7 +225,7 @@ const StockMovementForm: React.FC = () => {
     label: `${l.document.number} · ${l.item?.code ?? ''} × ${l.quantity}${l.boq ? ` · ${l.boq.item_code}` : ''}`,
   }));
   const sourceById = new Map((issueLines.data ?? []).map((l) => [l.id, l]));
-  const insufficient = parseStockError(submitError)?.code === 'STK_INSUFFICIENT';
+  const insufficient = parseRefusal(submitError)?.code === 'STK_INSUFFICIENT';
 
   return (
     <div>
@@ -220,7 +238,7 @@ const StockMovementForm: React.FC = () => {
         <ListState variant="empty" icon="folder" title={t('form.noWarehouse.title')} sub={t('form.noWarehouse.sub')} />
       )}
       {!headerPending && !headerError && usable.length > 0 && (
-        <form data-testid="stock-movement-form" onSubmit={(e) => { e.preventDefault(); if (linesSettled) void submit(); }} noValidate className="space-y-4">
+        <form data-testid="stock-movement-form" onSubmit={(e) => { e.preventDefault(); if (linesSettled) askToPost(); }} noValidate className="space-y-4">
           {viewOnly && <p className="text-sm text-muted-foreground">{t('form.viewOnly')}</p>}
           <div data-testid="stock-movement-header">
           <FormSection legend={t('form.sections.where')}>
@@ -301,7 +319,13 @@ const StockMovementForm: React.FC = () => {
                         helper={kind === 'return' && src ? t('form.issuedHelper', { qty: src.quantity, unit: src.item?.unit.code ?? '' }) : unitCodeOfLine(l) ? t('form.qtyUnitHelp', 'Enter the quantity in {{unit}}.', { unit: unitCodeOfLine(l) }) : undefined}
                         error={fieldErrors[`qty${l.key}`]}
                       />
-                      {kind === 'receive' && (
+                      {kind === 'receive' && clientTag(l) && (
+                        <p className="self-end text-control" data-testid={`client-material-${l.key}`}>
+                          <span className="mr-2 rounded border border-border px-1.5 py-0.5 text-sm font-medium">{clientTag(l)!.name}</span>
+                          {t('form.clientMaterialCost')}
+                        </p>
+                      )}
+                      {kind === 'receive' && !clientTag(l) && (
                         <TextField
                           label={`${canSeeCost ? t('form.unitCost') : t('form.unitCostBlind')}${n}`}
                           required
@@ -349,6 +373,15 @@ const StockMovementForm: React.FC = () => {
           )}
         </form>
       )}
+      <ConfirmDialog
+        open={confirming}
+        title={t(`form.confirmPost.title.${kind}`)}
+        description={<><span className="block">{t(`form.confirmPost.where.${kind}`, { from: placeName(warehouseId), to: placeName(toWarehouseId) })}</span><ul className="mt-2 list-disc pl-5">{summary.map((x, i) => <li key={i}>{x}</li>)}</ul><span className="mt-2 block">{t('form.confirmPost.undo')}</span></>}
+        confirmLabel={t('form.confirmPost.confirm')}
+        loading={create.isPending}
+        onConfirm={() => { setConfirming(false); void submit(); }}
+        onCancel={() => setConfirming(false)}
+      />
       <UnsavedChangesDialog
         open={pendingLeave !== null}
         onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}

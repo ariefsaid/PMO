@@ -6,7 +6,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDecideFloatChange, useImprestFloatChanges, useProposeFloatAmount } from '@/src/hooks/useImprest';
 import { availableFloatChangeActions } from '@/src/lib/imprest/imprestRules';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import type { ImprestFloatChangeListRow } from '@/src/lib/db/imprest';
 import { formatCurrency, formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
@@ -64,7 +64,7 @@ export const FloatAmountSection: React.FC<{ floatId: string; custodianId: string
     try { await work(); toast(success, undefined, 'success'); close(); }
     catch (err) {
       const { headline, detail } = classifyMutationError(err);
-      setDecisionError(detail ? `${headline}. ${detail}` : headline);
+      setDecisionError(detail ? joinSentences(headline, detail) : headline);
       toast(headline, detail, 'warning');
     }
   };

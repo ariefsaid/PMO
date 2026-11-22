@@ -1,17 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { sumDecimal } from './exactDecimal';
 import {
-  approvalBlock, countsTowardLimit, limitReached, lineValueCents, overContract, reportedProgress, sumMoney, validateRequestedQuantity,
+  limitReached, lineValueCents, overContract, validateRequestedQuantity,
   versionValueChanges,
 } from './quantityChangeRules';
 
 // Hand calculation (spec): Excavation, rate 50,000, C = 1,000.000. Assessed 1,040; accepted 980; claimed 900. R = 1,100.
 describe('quantityChangeRules', () => {
-  it('AC-QCR-001 P is the greatest source and names it', () => {
-    expect(reportedProgress({ assessment: 1040, acceptance: 980, claim: 900, daily_report: 0 })).toEqual({ quantity: 1040, source: 'assessment' });
-    expect(reportedProgress({ assessment: 0, acceptance: 0, claim: 0, daily_report: 0 })).toEqual({ quantity: 0, source: null });
-    expect(reportedProgress({ assessment: 500, acceptance: 500, claim: 500, daily_report: 500 }).source).toBe('assessment');
-  });
-
   it('AC-QCR-001 over by 40, and exactly C is not over', () => {
     expect(overContract({ contract: 1000, progress: 1040, forecast: null, earningBasis: 'unit_rate' })).toEqual({ over: true, kind: 'progress', figure: 1040 });
     expect(overContract({ contract: 1000, progress: 1000, forecast: null, earningBasis: 'unit_rate' }).over).toBe(false);
@@ -44,7 +39,7 @@ describe('quantityChangeRules', () => {
     expect(rows[0].change).toBeNull();
     expect(rows[1].value).toBe('55000000.00');
     expect(rows[1].change).toBe('5000000.00');
-    expect(sumMoney(rows.map((r) => r.change))).toBe('5000000.00');
+    expect(sumDecimal(rows.map((r) => r.change), 2)).toBe('5000000.00');
   });
 
   it('NFR-QCR-001 value is rounded once per version so changes always telescope', () => {
@@ -59,25 +54,9 @@ describe('quantityChangeRules', () => {
     expect(rows.slice(1).reduce((s, r) => s + (r.changeCents as bigint), 0n)).toBe(current - baseline);
   });
 
-  it('AC-QCR-011/027 approval is blocked for the author, any editor and the submitter, with the reason', () => {
-    const base = { status: 'pending_approval' as const, authorId: 'a', editorIds: ['a', 'e1', 'e2'], submittedBy: 'e2' };
-    expect(approvalBlock({ ...base, role: 'Finance', userId: 'a' }).reason).toBe('author');
-    expect(approvalBlock({ ...base, role: 'Finance', userId: 'e1' }).reason).toBe('editor');
-    expect(approvalBlock({ ...base, role: 'Finance', userId: 'e2' }).reason).toBe('editor');
-    expect(approvalBlock({ ...base, editorIds: ['a'], role: 'Finance', userId: 'e2' }).reason).toBe('submitter');
-    expect(approvalBlock({ ...base, role: 'Engineer', userId: 'z' }).reason).toBe('role');
-    expect(approvalBlock({ ...base, role: 'Project Manager', userId: 'z' }).reason).toBe('role');
-    expect(approvalBlock({ ...base, role: 'Admin', userId: 'z' }).reason).toBeNull();
-    expect(approvalBlock({ ...base, status: 'approved', role: 'Admin', userId: 'z' }).reason).toBe('status');
-  });
-
-  it('AC-QCR-008 only a draft withdrawn before it was ever submitted is left out of the limit', () => {
-    expect(countsTowardLimit({ status: 'withdrawn', withdrawn_from: 'draft', first_submitted_at: null })).toBe(false);
-    expect(countsTowardLimit({ status: 'withdrawn', withdrawn_from: 'returned', first_submitted_at: '2026-01-01' })).toBe(true);
-    expect(countsTowardLimit({ status: 'withdrawn', withdrawn_from: 'draft', first_submitted_at: '2026-01-01' })).toBe(true);
-    expect(countsTowardLimit({ status: 'draft', withdrawn_from: null, first_submitted_at: null })).toBe(true);
-  });
-
+  // AC-QCR-011/027 (approval separation) and AC-QCR-008 (which requests count toward the limit) are decided by the
+  // database (qcr_assert_approver / the budget read); the screen reads the server's reason, so there is no client
+  // restatement to test here (#2753).
   it('AC-QCR-006 the limit is reached at the count, and an empty limit never is', () => {
     expect(limitReached(2, 2)).toBe(true);
     expect(limitReached(1, 2)).toBe(false);

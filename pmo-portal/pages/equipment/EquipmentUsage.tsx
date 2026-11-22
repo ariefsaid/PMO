@@ -14,14 +14,19 @@ import {
   useApproveWeek, useArchiveUsage, useEquipmentAssetPages, useEquipmentUsage, useInvalidateUsage, useSaveUsage, useTransitionUsage,
 } from '@/src/hooks/useEquipment';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
+import { useLatestStatusDays } from '@/src/hooks/useEquipmentAvailability';
+import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
+import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
+import { isDownStatus, type EquipmentStatus } from '@/src/lib/equipmentMetrics';
+import { statusLabel } from './equipmentStatusLabels';
 import { useUsers } from '@/src/hooks/useUsers';
 import { type EquipmentAssetRow, type EquipmentUsageWithRejecter as EquipmentUsageRow, type UsageInput } from '@/src/lib/db/equipment';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay, formatNumberMax2, formatWeekdayDay } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { addDays, fromIso, mondayOf, toIso, weekDays } from './equipmentWeek';
 import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
-import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { useAttributionErrorText } from '@/src/components/workOrders/costAttributionError';
 import { NO_ATTRIBUTION, workOrderCostRepository, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 type Field = 'quantity' | 'fuel_litres' | 'trips';
@@ -50,9 +55,27 @@ const UsageCell: React.FC<{ label: string; stored: string; disabled: boolean; on
   );
 };
 
+/** The work order and discipline a row's hours are charged to, shown on the row so a person sees where the hours go. */
+const RowAttribution: React.FC<{ projectId: string; attribution: CostAttribution }> = ({ projectId, attribution }) =>
+  attribution.workOrderId || attribution.disciplineId ? <RowAttributionLine projectId={projectId} attribution={attribution} /> : null;
+const RowAttributionLine: React.FC<{ projectId: string; attribution: CostAttribution }> = ({ projectId, attribution }) => {
+  const { t } = useTranslation();
+  const workOrders = useProjectWorkOrders(attribution.workOrderId ? projectId : '');
+  const disciplines = useCostDisciplines(Boolean(attribution.disciplineId));
+  const wo = attribution.workOrderId ? workOrders.data?.find((w) => w.id === attribution.workOrderId) : null;
+  const discipline = attribution.disciplineId ? disciplines.data?.find((d) => d.id === attribution.disciplineId) : null;
+  const parts = [
+    attribution.workOrderId ? t('equipment:usage.workOrderLine', 'Work order {{name}}', { name: wo ? (wo.wo_number ?? wo.title) : '…' }) : null,
+    attribution.disciplineId ? t('equipment:usage.disciplineLine', 'Discipline {{name}}', { name: discipline?.name ?? '…' }) : null,
+  ].filter(Boolean);
+  if (parts.length === 0) return null;
+  return <span className="block text-sm text-muted-foreground" data-testid="row-attribution">{parts.join(' · ')}</span>;
+};
+
 /** Equipment → Usage: a week grid to log, submit and approve (FR-EQU-071). RPCs enforce; `can()` only hides. */
 const EquipmentUsagePage: React.FC = () => {
   const { t } = useTranslation();
+  const attributionError = useAttributionErrorText();
   const { toast } = useToast();
   const navigate = useNavigate();
   const may = usePermission();
@@ -84,6 +107,9 @@ const EquipmentUsagePage: React.FC = () => {
   const [approving, setApproving] = useState<Pending>(null);
   const [approvingWeek, setApprovingWeek] = useState<{ assetId: string; count: number } | null>(null);
   const [rejecting, setRejecting] = useState<Pending>(null);
+  // A second person logging a machine-day someone else already holds (the unique day-per-machine rule): the typed hours stay in the cell.
+  const [clash, setClash] = useState<{ who: string | null; asset: string; project: string; day: string; typed: string; link: string | null } | null>(null);
+  const [confirmDown, setConfirmDown] = useState<{ asset: string; status: string } | null>(null);
 
   const days = useMemo(() => weekDays(weekStart), [weekStart]);
   const weekEnd = days[6];
@@ -105,10 +131,19 @@ const EquipmentUsagePage: React.FC = () => {
   // screen cannot do itself — the New asset control on the assets page.
   const noMachines = !assetsQ.isPending && !assetsQ.isError && assets.length === 0;
   const projects = useMemo(() => projectsQ.data ?? [], [projectsQ.data]);
+  const latestStatus = useLatestStatusDays(assets.map((a) => a.id), today);
+  const downStatus = useMemo(() => {
+    const m = new Map<string, EquipmentStatus>();
+    for (const row of latestStatus.data ?? []) if (isDownStatus(row.status)) m.set(row.asset_id, row.status);
+    return m;
+  }, [latestStatus.data]);
   const assetById = useMemo(() => new Map<string, EquipmentAssetRow>(assets.map((a) => [a.id, a])), [assets]);
   const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
   const userName = useMemo(() => new Map((usersQ.data ?? []).map((u) => [u.id, u.full_name])), [usersQ.data]);
-  const assetOptions = useMemo(() => assets.map((a) => ({ value: a.id, label: `${a.code} · ${a.name}` })), [assets]);
+  const assetOptions = useMemo(() => assets.map((a) => {
+    const down = downStatus.get(a.id);
+    return { value: a.id, label: `${a.code} · ${a.name}`, ...(down ? { sub: statusLabel(t, down) } : {}) };
+  }), [assets, downStatus, t]);
   const projectOptions = useMemo(() => projects.map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
   const assetName = (id: string) => assetById.get(id)?.name ?? '—';
   const projectName = (id: string) => { const p = projectById.get(id); return p ? projectDisplayName(p) : '—'; };
@@ -145,7 +180,7 @@ const EquipmentUsagePage: React.FC = () => {
 
   const classifiedFailure = (err: unknown) => {
     const c = classifyMutationError(err);
-    return c.detail ? `${c.headline}. ${c.detail}` : c.headline;
+    return c.detail ? joinSentences(c.headline, c.detail) : c.headline;
   };
   const fail = (err: unknown) => setProblem(classifiedFailure(err));
 
@@ -155,6 +190,7 @@ const EquipmentUsagePage: React.FC = () => {
     const unit = entry?.unit ?? asset?.default_unit ?? 'hours';
     const raw = text.trim().replace(',', '.');
     setProblem(null);
+    setClash(null);
     try {
       if (row.field === 'quantity' && raw === '') {
         if (entry && isEditable(entry)) await archive.mutateAsync(entry.id);
@@ -177,14 +213,27 @@ const EquipmentUsagePage: React.FC = () => {
       // A NEW entry takes its row's work order and discipline (#2517); the entry is saved even if that step is refused.
       if (!entry) {
         try { await workOrderCostRepository.attributeCreated('equipment_usage', result.id, row.attribution); }
-        catch (err) { const d = describeAttributionError(err, t); setProblem(`${d.headline}. ${d.detail}`); }
+        catch (err) { const d = attributionError(err); setProblem(joinSentences(d.headline, d.detail)); }
       }
       setWarnings((w) => {
         const next = { ...w };
         if (result.over_24h) next[date] = result.day_total_hours; else delete next[date];
         return next;
       });
-    } catch (err) { fail(err); }
+      setClash(null);
+      toast(t('equipment:usage.savedCell', 'Saved: {{asset}}, {{day}}', { asset: assetName(row.assetId), day: dayLabel(date) }), undefined, 'success');
+    } catch (err) {
+      if (classifyMutationError(err).classification === 'duplicate') {
+        // Whose entry holds the day: the row's own cell is empty for this person, so it belongs to someone else.
+        const other = entries.find((e) => e.asset_id === row.assetId && e.project_id === row.projectId && e.kind === row.kind && e.work_date === date && e.author_id !== userId);
+        setProblem(null);
+        setClash({
+          who: other ? (userName.get(other.author_id) ?? null) : null, asset: assetName(row.assetId), project: projectName(row.projectId),
+          day: dayLabel(date), typed: `${text.trim()} ${unit}`,
+          link: other && canApproveTab ? `/equipment?tab=approvals&week=${weekStart}&asset=${row.assetId}` : null,
+        });
+      } else fail(err);
+    }
   };
 
   const submitWeek = async () => {
@@ -212,6 +261,22 @@ const EquipmentUsagePage: React.FC = () => {
     }
   };
   const submittable = canLog && mine.some((e) => e.status === 'Draft' || e.status === 'Rejected');
+  const draftsToSubmit = mine.filter((e) => e.status === 'Draft' || e.status === 'Rejected');
+  const draftCount = draftsToSubmit.length;
+  // Who approves: the project manager of each project the drafts are on; an Admin when a project has none.
+  const approverText = useMemo(() => {
+    const names = new Set<string>();
+    let adminFallback = false;
+    for (const e of draftsToSubmit) {
+      const pm = projectById.get(e.project_id)?.project_manager_id;
+      const name = pm ? userName.get(pm) : null;
+      if (name) names.add(name); else adminFallback = true;
+    }
+    const list = [...names];
+    if (adminFallback) list.push(t('equipment:usage.anAdmin', 'an Admin'));
+    return list.join(', ');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- draftsToSubmit derives from mine
+  }, [mine, projectById, userName, t]);
   const columns: Column<GridRow>[] = [
     // Keep this semantic row header at its declared width; the shared `primary` kind enforces a
     // 240px minimum that pushes the Fuel and trips control outside the 1440px usage grid.
@@ -219,7 +284,7 @@ const EquipmentUsagePage: React.FC = () => {
       cell: (r) => r.field === 'quantity'
         ? <span className="font-medium">{assetName(r.assetId)}{r.kind === 'standby' && <span className="ml-1 text-sm font-normal text-muted-foreground">{t('equipment:usage.standby', 'standby')}</span>}</span>
         : <span className="pl-3 text-sm text-muted-foreground">{r.field === 'fuel_litres' ? t('equipment:usage.fuel', 'Fuel (litres)') : t('equipment:usage.trips', 'Trips')}</span> },
-    { key: 'project', header: t('equipment:usage.columns.project', 'Project'), size: 150, minSize: 110, cell: (r) => r.field === 'quantity' ? projectName(r.projectId) : null },
+    { key: 'project', header: t('equipment:usage.columns.project', 'Project'), size: 150, minSize: 110, cell: (r) => r.field === 'quantity' ? <><span>{projectName(r.projectId)}</span><RowAttribution projectId={r.projectId} attribution={r.attribution} /></> : null },
     ...days.map<Column<GridRow>>((d) => ({
       key: d, header: <span className={d === today ? 'whitespace-nowrap font-semibold text-foreground' : 'whitespace-nowrap'}>{dayHead(d)}</span>, align: 'num', colClassName: 'px-1', size: 80, minSize: 76,
       cell: (r) => {
@@ -254,8 +319,10 @@ const EquipmentUsagePage: React.FC = () => {
         </Button>) },
   ];
 
-  const addRow = () => {
+  const addRow = (confirmed = false) => {
     if (!draftRow.assetId || !draftRow.projectId) return;
+    const down = downStatus.get(draftRow.assetId);
+    if (down && !confirmed) { setConfirmDown({ asset: assetName(draftRow.assetId), status: statusLabel(t, down) }); return; }
     setAdded((rows) => [...rows, { assetId: draftRow.assetId!, projectId: draftRow.projectId!, kind: draftRow.kind, attribution: draftRow.attribution }]);
     setDraftRow({ assetId: null, projectId: null, kind: 'work', attribution: NO_ATTRIBUTION });
     setAdding(false);
@@ -341,13 +408,13 @@ const EquipmentUsagePage: React.FC = () => {
     <ListPage
       title={t('equipment:usage.title', 'Equipment')}
       count={tab === 'log' && !usageQ.isPending && !usageQ.isError && usageQ.data ? rowCount : undefined}
-      primaryAction={tab === 'log' && submittable ? <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
-        <Button variant="primary" disabled={transition.isPending || submitting} onClick={() => void submitWeek()}>{t('equipment:usage.submitWeek', 'Submit week')}</Button>
-      </CanWrite> : undefined}
       filters={header}
     >
-      <Link className="text-primary underline" to="/equipment/expiring">{t('equipment:nav.expiring', 'Expiring documents')}</Link>
-      <Button variant="outline" className="mb-3" onClick={() => navigate('/equipment/availability')}>{t('equipment:availability.title', 'Availability')}</Button>
+      <nav aria-label={t('equipment:home.links', 'Equipment pages')} className="mb-3 flex flex-wrap gap-x-4 gap-y-1">
+        <Link className="touch-target inline-flex items-center text-primary-text underline" to="/equipment">{t('equipment:home.machines', 'Machines and today\'s status')}</Link>
+        <Link className="touch-target inline-flex items-center text-primary-text underline" to="/equipment/availability">{t('equipment:availability.title', 'Availability')}</Link>
+        <Link className="touch-target inline-flex items-center text-primary-text underline" to="/equipment/expiring">{t('equipment:nav.expiring', 'Expiring documents')}</Link>
+      </nav>
       {canApproveTab && <Tabs items={tabs} value={tab} onChange={setTab} ariaLabel={t('equipment:usage.tabsLabel', 'Equipment usage views')} idBase="equipment-usage" className="mb-3" />}
       {/* The machine reads (picker, row names) page through the register: say how many are loaded so
           a machine past the first page is never silently missing from the picker. */}
@@ -357,6 +424,13 @@ const EquipmentUsagePage: React.FC = () => {
         action={{ label: t('equipment:assets.loadMore', 'Load more'), onClick: () => void assetsQ.fetchNextPage(), loading: assetsQ.isFetchingNextPage }} />}
       <div {...(canApproveTab ? { id: tabPanelId('equipment-usage', tab), role: 'tabpanel', 'aria-labelledby': tabId('equipment-usage', tab) } : {})}>
       {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
+      {clash && <p role="alert" className="mb-3 text-sm text-destructive-text">
+        {clash.who
+          ? t('equipment:usage.clashNamed', '{{name}} already logged {{asset}} for {{project}} on {{day}}.', { name: clash.who, asset: clash.asset, project: clash.project, day: clash.day })
+          : t('equipment:usage.clashUnnamed', 'Someone else already logged {{asset}} for {{project}} on {{day}}.', { asset: clash.asset, project: clash.project, day: clash.day })}{' '}
+        {t('equipment:usage.clashKept', 'Your {{typed}} was not saved. It is still in the box, so you can change it or copy it.', { typed: clash.typed })}{' '}
+        {clash.link && <Link className="text-primary-text underline" to={clash.link}>{t('equipment:usage.clashLink', 'See their entry')}</Link>}
+      </p>}
       {Object.entries(warnings).map(([date, hours]) => (
         <p key={date} role="status" className="mb-2 flex items-center gap-2 text-sm text-warning-foreground">
           <Icon name="alert" />
@@ -386,7 +460,7 @@ const EquipmentUsagePage: React.FC = () => {
                     options={[{ value: 'work', label: t('equipment:usage.kindWork', 'Work') }, { value: 'standby', label: t('equipment:usage.kindStandby', 'Standby') }]} /></div>
                   <CostAttributionFields idPrefix="equipment-row" itemClassName="w-64" projectId={draftRow.projectId} value={draftRow.attribution}
                     onChange={(attribution) => setDraftRow((d) => ({ ...d, attribution }))} />
-                  <Button variant="primary" disabled={!draftRow.assetId || !draftRow.projectId} onClick={addRow}>{t('equipment:usage.addRowConfirm', 'Add')}</Button>
+                  <Button variant="primary" disabled={!draftRow.assetId || !draftRow.projectId} onClick={() => addRow()}>{t('equipment:usage.addRowConfirm', 'Add')}</Button>
                   <Button variant="ghost" onClick={() => setAdding(false)}>{t('equipment:usage.cancel', 'Cancel')}</Button>
                 </div>}
             </div>
@@ -405,6 +479,13 @@ const EquipmentUsagePage: React.FC = () => {
             emptyAction={noMachines && canCreateAsset
               ? { label: t('equipment:assets.new', 'New asset'), onClick: () => navigate('/equipment/assets') }
               : undefined} />
+          {submittable && <CanWrite entity="equipmentUsage" action="create" ctx={writeCtx}>
+            <section aria-label={t('equipment:usage.submitSection', 'Submit the week')} className="mt-4 rounded-card border border-border p-3">
+              <p className="mb-2 text-sm">{t('equipment:usage.submitWhat', 'Submitting sends {{count}} draft {{entries}} for approval. You cannot change them until they are approved or returned. Approver: {{approver}}.', {
+                count: draftCount, entries: draftCount === 1 ? t('equipment:usage.entryOne', 'entry') : t('equipment:usage.entryMany', 'entries'), approver: approverText })}</p>
+              <Button variant="primary" disabled={transition.isPending || submitting} onClick={() => void submitWeek()}>{t('equipment:usage.submitWeek', 'Submit week')}</Button>
+            </section>
+          </CanWrite>}
         </>
       )}
       {!usageQ.isPending && !usageQ.isError && usageQ.data && tab === 'approvals' && canApproveTab && (
@@ -422,6 +503,14 @@ const EquipmentUsagePage: React.FC = () => {
             </section>))
       )}
       </div>
+      <ConfirmDialog
+        open={confirmDown !== null}
+        title={t('equipment:usage.downTitle', 'This machine is down')}
+        description={t('equipment:usage.downBody', '{{asset}} is marked {{status}}. Log hours against it anyway?', { asset: confirmDown?.asset ?? '', status: confirmDown?.status ?? '' })}
+        confirmLabel={t('equipment:usage.downConfirm', 'Log hours anyway')}
+        onCancel={() => setConfirmDown(null)}
+        onConfirm={() => { setConfirmDown(null); addRow(true); }}
+      />
       <ConfirmDialog
         open={approving !== null}
         title={t('equipment:usage.confirmApproveTitle', 'Approve usage entry?')}

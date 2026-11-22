@@ -102,7 +102,7 @@
           "quantities": "Accepted to date",
           "quantityLine": "{{item}}: accepted to date ({{unit}})",
           "save": "Save BAST",
-          "subtitle": "The client's acceptance of work, as cumulative quantities to date. Someone else confirms it; it does not create an invoice.",
+          "subtitle": "The client's acceptance of work, as cumulative quantities to date. Finance or an Admin confirms it; it does not create an invoice.",
           "titleEdit": "Edit BAST: {{wo}}",
           "titleNew": "Prepare BAST: {{wo}}"
         },
@@ -110,13 +110,15 @@
         "noDocument": "No signed BAST document linked",
         "prepare": "Prepare BAST",
         "selfConfirmHint": "You prepared this. Another Admin or Finance user must confirm it, unless you are the only active member.",
+        "waitingOn": "Waiting for Finance or an Admin to confirm",
+        "startClaim": "Start a claim from this BAST",
         "soleOperator": "Confirmed by the only active member",
         "stage": "Stage",
         "toast": {
           "closed": "Final BAST confirmed: closed at {{amount}}",
           "confirmed": "BAST confirmed",
           "prepared": "BAST prepared",
-          "preparedSub": "Someone else confirms it before it counts.",
+          "preparedSub": "Finance or an Admin confirms it before it counts.",
           "updated": "BAST draft updated",
           "withdrawn": "BAST withdrawn"
         },

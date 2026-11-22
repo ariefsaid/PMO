@@ -68,3 +68,10 @@ describe('refId', () => {
     expect(refId(lookup, '')).toBeNull();
   });
 });
+
+describe('makeRefLookup with a nameless record', () => {
+  it('skips a record whose name is missing instead of throwing, and still resolves the others', () => {
+    const lookup = makeRefLookup([{ id: 'x' } as unknown as { id: string; name: string }, { id: 'a', name: 'Alpha' }], 'Thing');
+    expect(lookup('alpha')).toEqual({ id: 'a', error: null });
+  });
+});

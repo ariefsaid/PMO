@@ -163,6 +163,15 @@ export const MODULES: ModuleDef[] = [
   // #1519: Equipment usage — every role logs; the Approvals view and amounts gate inside the pages.
   { module: 'equipment', icon: 'equipment', label: 'Equipment', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'equipment:nav.equipment', path: '/equipment', detail: { pattern: '/equipment/assets/:assetId', param: 'assetId' } },
+  // Work orders across projects: a front door for every role (reads are RLS-scoped); the rail mirrors it.
+  { module: 'work-orders', icon: 'doc', label: 'Orders', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'terms.clientWorkOrder', path: '/work-orders', detail: { pattern: '/work-orders/:id', param: 'id' } },
+  // The asset register; the rail mirrors it.
+  { module: 'equipment-assets', icon: 'folder', label: 'Equipment assets', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'equipment:nav.assets', path: '/equipment/assets', detail: { pattern: '/equipment/assets/:assetId', param: 'assetId' } },
+  // Safety summary: every role reads; the rail shows it only where the organisation switched the module on.
+  { module: 'safety', icon: 'circle-check', label: 'Safety summary', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'safety:summary.title', path: '/safety' },
   // #1522: daily site reports — every role reads; entry and validation gate inside the pages.
   { module: 'site-reports', icon: 'reports', label: 'Site reports', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'siteReport:nav', path: '/site-reports', detail: { pattern: '/site-reports/:reportId', param: 'reportId' } },
@@ -200,7 +209,6 @@ export const MODULES: ModuleDef[] = [
     label: 'Approvals', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.approvals',
     path: '/approvals',
-    roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
   {
     module: 'views',
@@ -217,6 +225,11 @@ export const MODULES: ModuleDef[] = [
     labelKey: 'financeHub:hub.title',
     path: '/finance',
     roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+  },
+  {
+    module: 'finance-billing-board', icon: 'cols', label: 'Billing board', // i18n-exempt: translated at render via labelKey
+    labelKey: 'finance:billingBoard.title', feature: 'revenue',
+    path: '/finance/billing-board', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
   {
     module: 'finance-receivables', icon: 'invoices', label: 'Receivables', // i18n-exempt: translated at render via labelKey

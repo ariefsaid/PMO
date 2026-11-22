@@ -179,7 +179,7 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    expect(screen.getByRole('menuitem', { name: /Edit role/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Edit access level/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Change manager/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Disable/i })).toBeInTheDocument();
   });
@@ -234,12 +234,12 @@ describe('Admin Users — edit role (AC-AU-003)', () => {
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit access level/i }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toBeInTheDocument();
     // change role PM -> Executive and submit
-    await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Executive');
-    await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Access level/i), 'Executive');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Save access level/i }));
     // High-impact: a confirm appears FIRST; the mutation has NOT fired yet.
     expect(mutations.updateRole.mutateAsync).not.toHaveBeenCalled();
     expect(screen.getByText(/Change Desmond Achebe's role to Executive\?/i)).toBeInTheDocument();
@@ -255,10 +255,10 @@ describe('Admin Users — edit role (AC-AU-003)', () => {
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit access level/i }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Admin');
-    await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Access level/i), 'Admin');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Save access level/i }));
     await userEvent.click(screen.getByRole('button', { name: /Change role/i }));
     const toast = await findToastAnnouncement('alert', /don't have permission/i);
     expect(toast).toHaveTextContent(/don't have permission/i);
@@ -305,13 +305,14 @@ describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
     await userEvent.click(screen.getByRole('button', { name: /invite user/i }));
     const dialog = screen.getByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText(/email/i), 'new.person@example.com');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/role/i), 'Finance');
+    await userEvent.selectOptions(within(dialog).getByLabelText(/access level/i), 'Finance');
     await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
     await waitFor(() =>
       expect(mutations.invite.mutateAsync).toHaveBeenCalledWith({
         email: 'new.person@example.com',
         role: 'Finance',
         pOrgId: null,
+        builtInRole: null,
       }),
     );
     // It does not call an unrelated mutation.
@@ -328,6 +329,19 @@ describe('Admin Users — invite affordance (FR-INV-004/005/006)', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
     const toast = await findToastAnnouncement('alert', /already in your workspace/i);
     expect(toast).toHaveTextContent(/already in your workspace/i);
+  });
+
+  it('fix/walk-people item 2: an invitation the email service could not send says it was not sent, never the transport text, and keeps what was typed', async () => {
+    mutations.invite.mutateAsync.mockRejectedValue(new AppError('Edge Function returned a non-2xx status code'));
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /invite user/i }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/email/i), 'someone@example.com');
+    await userEvent.click(within(dialog).getByRole('button', { name: /invite user/i }));
+    const toast = await findToastAnnouncement('alert', /The invitation was not sent/i);
+    expect(toast).toHaveTextContent(/nothing was saved/i);
+    expect(screen.queryByText(/non-2xx/i)).toBeNull();
+    expect(within(screen.getByRole('dialog')).getByLabelText(/email/i)).toHaveValue('someone@example.com');
   });
 
   it('an address that cannot be added (INVITE_NOT_ADDABLE) gets the one neutral message, not a generic failure', async () => {
@@ -412,10 +426,10 @@ describe('Admin Users — dialog error scoping (role confirm retry, no stale sub
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit access level/i }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Executive');
-    await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Access level/i), 'Executive');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Save access level/i }));
     await userEvent.click(screen.getByRole('button', { name: /Change role/i }));
     await findToastAnnouncement('alert', /don't have permission/i);
     // The confirmation itself survives the failure — the staged change is still on screen.
@@ -428,10 +442,10 @@ describe('Admin Users — dialog error scoping (role confirm retry, no stale sub
     await userEvent.click(
       within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit access level/i }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.selectOptions(within(dialog).getByLabelText(/Role/i), 'Executive');
-    await userEvent.click(within(dialog).getByRole('button', { name: /Save role/i }));
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Access level/i), 'Executive');
+    await userEvent.click(within(dialog).getByRole('button', { name: /Save access level/i }));
     await userEvent.click(screen.getByRole('button', { name: /Change role/i }));
     await findToastAnnouncement('alert', /don't have permission/i);
     await userEvent.click(screen.getByRole('button', { name: /Cancel/i }));
@@ -439,7 +453,7 @@ describe('Admin Users — dialog error scoping (role confirm retry, no stale sub
     await userEvent.click(
       within(screen.getByText('Priya Venkatesh').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
-    await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit access level/i }));
     const nextDialog = screen.getByRole('dialog');
     expect(within(nextDialog).queryByText(/don't have permission/i)).not.toBeInTheDocument();
   });

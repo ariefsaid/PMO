@@ -17,7 +17,7 @@ import type { CostAmountLine, CostReason, FinanceCostSource, PlanKind, PlanLine,
  */
 
 const MALFORMED = 'malformed-response';
-const SOURCES: readonly FinanceCostSource[] = ['purchase_request', 'purchase_order', 'goods_receipt', 'vendor_bill', 'timesheet_entry', 'stock_document', 'equipment_usage', 'project_actuals', 'purchase_balance', 'other_revenue'];
+const SOURCES: readonly FinanceCostSource[] = ['purchase_request', 'purchase_order', 'goods_receipt', 'vendor_bill', 'timesheet_entry', 'stock_document', 'equipment_usage', 'expense_claim', 'attendance_day', 'headcount_day', 'project_actuals', 'purchase_balance', 'other_revenue'];
 const REASONS: readonly CostReason[] = ['counted', 'commitment', 'stocked', 'transfer', 'no-rate', 'not-posted', 'unassigned', 'split-when-custom', 'outside-basis', 'unresolved-direct', 'other-revenue'];
 const KINDS: readonly PlanKind[] = ['direct_budget', 'indirect_budget', 'equipment_hours', 'crew_hours'];
 const EXACT = /^-?\d+(\.\d{1,2})?$/;
@@ -43,9 +43,10 @@ export async function listProjectCostAmounts(projectId: string): Promise<CostAmo
     supabase.rpc('work_order_cost_amounts', { p_project_id: projectId })
       .order('record_id', { ascending: true }).order('source', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: CostAmountRow[] | null; error: { message: string; code?: string } | null }>);
   return rows.map((r) => {
-    // Labour money for a Project Manager is aggregate (migration 1298): one row per work order, discipline and class,
-    // with no record id and no date. Every other row resolves to its record.
-    const aggregatedLabour = r.source === 'timesheet_entry' && r.reason === 'counted' && !!r.labour_class_id && r.record_id === null;
+    // Labour money for a Project Manager is aggregate (migrations 1298, 1721, 1722): one row per work order, discipline and
+    // class, with no record id and no date. Every other row resolves to its record.
+    const aggregatedLabour = (r.source === 'timesheet_entry' || r.source === 'attendance_day' || r.source === 'headcount_day') && r.reason === 'counted'
+      && !!r.labour_class_id && r.record_id === null;
     if (!SOURCES.includes(r.source as FinanceCostSource) || !REASONS.includes(r.reason as CostReason)
         || (!aggregatedLabour && !str(r.record_id))) {
       throw new AppError('Work-order cost read: unexpected row', MALFORMED);

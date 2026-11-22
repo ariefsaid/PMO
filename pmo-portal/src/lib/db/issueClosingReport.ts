@@ -1,14 +1,21 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import type { Tables, TablesInsert } from '@/src/lib/supabase/database.types';
+import { nullableArg } from './nullableArg';
 
 export interface IssueClosingReportSettings {
-  id?: string;
   org_id: string;
   enabled: boolean;
+  /** `text` with a CHECK ('type' | 'department_groups') in the database, which the generated type states as `string`. */
   grouping_mode: 'type' | 'department_groups';
-  created_at?: string | null;
-  updated_at?: string;
+  created_at: string;
+  updated_at: string;
+  updated_by: string | null;
 }
+
+/** The generated row says `grouping_mode: string`; the column's CHECK bounds it, so narrow where it is read. */
+const groupingMode = (row: Tables<'issue_closing_report_settings'>): IssueClosingReportSettings =>
+  ({ ...row, grouping_mode: row.grouping_mode as IssueClosingReportSettings['grouping_mode'] });
 
 export interface IssueDepartmentGroup {
   id: string;
@@ -60,7 +67,7 @@ export async function getIssueClosingReportSettings(): Promise<IssueClosingRepor
     .select('*')
     .maybeSingle();
   if (error) throwWrite(error);
-  return data ?? null;
+  return data ? groupingMode(data) : null;
 }
 
 /**
@@ -88,7 +95,7 @@ export async function updateIssueClosingReportSettings(
       .select('*')
       .single();
     if (error) throwWrite(error);
-    return data;
+    return groupingMode(data);
   }
 
   // Insert default/initial row
@@ -96,13 +103,15 @@ export async function updateIssueClosingReportSettings(
     enabled: input.enabled ?? false,
     grouping_mode: input.grouping_mode ?? 'type',
   };
+  // `org_id` is stamped by issue_closing_report_settings_stamp_org_id (migration 1424), which introspection cannot see,
+  // so the generated Insert type asks for a column the client must not send (ADR-0017).
   const { data, error } = await supabase
     .from('issue_closing_report_settings')
-    .insert(insert)
+    .insert(insert as TablesInsert<'issue_closing_report_settings'>)
     .select('*')
     .single();
   if (error) throwWrite(error);
-  return data;
+  return groupingMode(data);
 }
 
 /**
@@ -170,9 +179,9 @@ export async function getIssueClosingTimeReport(
   filter?: IssueClosingTimeReportFilter,
 ): Promise<IssueClosingTimeReportRow[]> {
   const { data, error } = await supabase.rpc('get_issue_closing_time_report', {
-    p_date_from: filter?.dateFrom || null,
-    p_date_to: filter?.dateTo || null,
-    p_grouping_mode: filter?.groupingMode || null,
+    p_date_from: nullableArg(filter?.dateFrom || null),
+    p_date_to: nullableArg(filter?.dateTo || null),
+    p_grouping_mode: nullableArg(filter?.groupingMode || null),
   });
   if (error) throwWrite(error);
   return (data ?? []).map((row: Record<string, unknown>) => ({

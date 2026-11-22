@@ -86,6 +86,50 @@ describe('listProjectCostAmounts', () => {
     expect(lines[0]).toMatchObject({ source: 'timesheet_entry', recordId: null, labourClassId: 'cls-direct', amount: '700000.00' });
   });
 
+  it('AC-NLL-012 an approved no-login attendance day parses, per row and as a Project Manager aggregate', async () => {
+    h.queue.push({ data: [
+      row({ source: 'attendance_day', record_id: 'att-1', person_id: 'worker-1', labour_class_id: 'cls-direct', amount: '320000.00', quantity: 8, quantity_unit: 'hours', work_order_id: 'A' }),
+      row({ source: 'attendance_day', record_id: null, occurred_on: null, labour_class_id: 'cls-direct', amount: '440000.00', quantity: 10, quantity_unit: 'hours', work_order_id: 'A' }),
+      row({ source: 'attendance_day', record_id: 'att-2', reason: 'no-rate', currency: null, amount: null, quantity: 8, quantity_unit: 'hours', work_order_id: 'A' }),
+    ], error: null });
+    const lines = await dal.listProjectCostAmounts('p1');
+    expect(lines.map((l) => [l.source, l.recordId, l.reason, l.amount])).toEqual([
+      ['attendance_day', 'att-1', 'counted', '320000.00'],
+      ['attendance_day', null, 'counted', '440000.00'],
+      ['attendance_day', 'att-2', 'no-rate', null],
+    ]);
+    expect(lines[0]).toMatchObject({ personId: 'worker-1', labourClassId: 'cls-direct', quantity: 8 });
+  });
+
+  it('AC-HC-010 a daily head-count line parses, per row (no person) and as a Project Manager aggregate', async () => {
+    h.queue.push({ data: [
+      row({ source: 'headcount_day', record_id: 'hc-1', person_id: null, labour_class_id: 'cls-guard', amount: '960000.00', quantity: 24, quantity_unit: 'hours', work_order_id: 'A' }),
+      row({ source: 'headcount_day', record_id: null, occurred_on: null, labour_class_id: 'cls-guard', amount: '1120000.00', quantity: 32, quantity_unit: 'hours', work_order_id: 'A' }),
+      row({ source: 'headcount_day', record_id: 'hc-2', reason: 'no-rate', currency: null, amount: null, quantity: null, quantity_unit: 'hours', work_order_id: 'A' }),
+    ], error: null });
+    const lines = await dal.listProjectCostAmounts('p1');
+    expect(lines.map((l) => [l.source, l.recordId, l.reason, l.amount])).toEqual([
+      ['headcount_day', 'hc-1', 'counted', '960000.00'],
+      ['headcount_day', null, 'counted', '1120000.00'],
+      ['headcount_day', 'hc-2', 'no-rate', null],
+    ]);
+    expect(lines[0]).toMatchObject({ personId: null, labourClassId: 'cls-guard', quantity: 24, quantityUnit: 'hours' });
+  });
+
+  it('a project with an expense claim naming a work order parses (a counted and a not-posted claim)', async () => {
+    h.queue.push({ data: [
+      row({ source: 'expense_claim', record_id: 'claim-1', amount: '150000.00', reference: 'EC-1', work_order_id: 'A' }),
+      row({ source: 'expense_claim', record_id: 'claim-2', amount: null, reason: 'not-posted', work_order_id: 'A' }),
+    ], error: null });
+    const lines = await dal.listProjectCostAmounts('p1');
+    expect(lines.map((l) => [l.source, l.reason, l.amount])).toEqual([['expense_claim', 'counted', '150000.00'], ['expense_claim', 'not-posted', null]]);
+  });
+
+  it('an unknown source is still an error, never a figure', async () => {
+    h.queue.push({ data: [row({ source: 'payroll_run' })], error: null });
+    await expect(dal.listProjectCostAmounts('p1')).rejects.toBeInstanceOf(AppError);
+  });
+
   it('a row without a record id outside the aggregate labour shape is an error, never a figure', async () => {
     h.queue.push({ data: [row({ record_id: null })], error: null });
     await expect(dal.listProjectCostAmounts('p1')).rejects.toBeInstanceOf(AppError);

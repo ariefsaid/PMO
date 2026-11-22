@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { listOrgRoleNames } from '@/src/lib/db/orgRoleNames';
 import { builtInRoleName, type RoleNameOverrides } from '@/src/auth/builtInRoles';
-import { useAuth } from '@/src/auth/useAuth';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 export const ORG_ROLE_NAMES_KEY = ['org-role-names'] as const;
 
@@ -26,13 +25,7 @@ const subscribe = (l: () => void) => {
 };
 
 export function useOrgRoleNames() {
-  const { currentUser } = useAuth();
-  return useQuery({
-    queryKey: [...ORG_ROLE_NAMES_KEY, currentUser?.org_id],
-    queryFn: listOrgRoleNames,
-    enabled: Boolean(currentUser),
-    staleTime: 5 * 60_000,
-  });
+  return useOrgQuery([...ORG_ROLE_NAMES_KEY], listOrgRoleNames, { staleness: 'session' });
 }
 
 /** Mount once under the auth + query providers, beside `useApplyOrgTerminology`. */

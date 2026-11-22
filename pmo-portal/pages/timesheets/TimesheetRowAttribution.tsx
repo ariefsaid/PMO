@@ -21,7 +21,7 @@ export function TimesheetRowAttribution({ rows, onChange }: {
         {rows.map((r) => (
           <li key={r.projectId} className="flex flex-wrap items-end gap-3">
             <span className="w-full text-sm font-medium text-foreground sm:w-48 sm:pb-2">{r.project}</span>
-            <CostAttributionFields idPrefix={`ts-${r.projectId}`} itemClassName="min-w-48 flex-1 sm:max-w-64" compact
+            <CostAttributionFields idPrefix={`ts-${r.projectId}`} itemClassName="min-w-48 flex-1 sm:max-w-64" compact preselectSingle
               projectId={r.projectId} value={r.attribution} onChange={(next) => onChange(r.projectId, next)} />
           </li>
         ))}

@@ -1,5 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/src/auth/useAuth';
+import { useContext } from 'react';
+import { QueryClient, QueryClientContext, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
+import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import { repositories } from '@/src/lib/repositories';
 import type { SafetyDay, SafetyDetailKind, SafetyListKind } from '@/src/lib/db/safetyDays';
 
@@ -15,37 +18,38 @@ export const safetyKeys = {
   summary: (orgId: string | undefined, project: string | null, month: string | null) => [...root(orgId), 'summary', project, month] as const,
   summaryDetail: (orgId: string | undefined, kind: string, project: string | null, month: string | null) => [...root(orgId), 'summary-detail', kind, project, month] as const,
 };
-const useOrg = () => useAuth().currentUser?.org_id;
+const useOrg = useOrgId;
 const repo = () => repositories.safetyDay;
 
 /** The organisation switch: off means no safety section, flag or route entry (AC-DSF-018). */
 export function useSafetyEnabled() {
-  const orgId = useOrg();
-  return useQuery({ queryKey: safetyKeys.enabled(orgId), queryFn: () => repo().isEnabled(), enabled: Boolean(orgId), staleTime: 300_000 });
+  return useOrgQuery(['safety-days', 'enabled'], () => repo().isEnabled(), { staleness: 'session' });
+}
+// The menu sits on shared chrome: outside a query provider or a session the safety switch is simply off (no throw, no request).
+const IDLE_CLIENT = new QueryClient();
+/** True only when the organisation switched safety on. Unknown (loading, failed, no session) is false. */
+export function useSafetyNavEnabled(): boolean {
+  const qc = useContext(QueryClientContext);
+  const orgId = useContext(AuthContext)?.currentUser?.org_id;
+  return useQuery({ queryKey: safetyKeys.enabled(orgId), queryFn: () => repo().isEnabled(), enabled: Boolean(orgId) && Boolean(qc), staleTime: 300_000 }, qc ?? IDLE_CLIENT).data === true;
 }
 export function useSafetyList(kind: SafetyListKind, includeArchived = false) {
-  const orgId = useOrg();
-  return useQuery({ queryKey: safetyKeys.list(orgId, kind, includeArchived), queryFn: () => repo().listItems(kind, includeArchived), enabled: Boolean(orgId) });
+  return useOrgQuery(['safety-days', 'list', kind, includeArchived], () => repo().listItems(kind, includeArchived));
 }
 export function useSafetyWorkOrderDays(workOrderId: string | undefined, from: string, to: string, enabled: boolean) {
-  const orgId = useOrg();
-  return useQuery({ queryKey: safetyKeys.days(orgId, workOrderId, from, to), queryFn: () => repo().workOrderDays(workOrderId as string, from, to), enabled: Boolean(orgId && workOrderId) && enabled });
+  return useOrgQuery(['safety-days', 'wo-days', workOrderId, from, to], () => repo().workOrderDays(workOrderId as string, from, to), { enabled: Boolean(workOrderId) && enabled });
 }
 export function useSafetyDay(id: string | undefined) {
-  const orgId = useOrg();
-  return useQuery({ queryKey: safetyKeys.detail(orgId, id), queryFn: () => repo().getDay(id as string), enabled: Boolean(orgId && id) });
+  return useOrgQuery(['safety-days', 'detail', id], () => repo().getDay(id as string), { enabled: Boolean(id) });
 }
 export function useSafetyRoster(workOrderId: string | undefined, date: string | undefined) {
-  const orgId = useOrg();
-  return useQuery({ queryKey: safetyKeys.roster(orgId, workOrderId, date), queryFn: () => repo().rosterWorkers(workOrderId as string, date as string), enabled: Boolean(orgId && workOrderId && date) });
+  return useOrgQuery(['safety-days', 'roster', workOrderId, date], () => repo().rosterWorkers(workOrderId as string, date as string), { enabled: Boolean(workOrderId && date) });
 }
 export function useSafetySummary(project: string | null, month: string | null) {
-  const orgId = useOrg();
-  return useQuery({ queryKey: safetyKeys.summary(orgId, project, month), queryFn: () => repo().getSummary(project, month), enabled: Boolean(orgId) });
+  return useOrgQuery(['safety-days', 'summary', project, month], () => repo().getSummary(project, month));
 }
 export function useSafetySummaryDetail(kind: SafetyDetailKind | null, project: string | null, month: string | null) {
-  const orgId = useOrg();
-  return useQuery({ queryKey: safetyKeys.summaryDetail(orgId, kind ?? '', project, month), queryFn: () => repo().getSummaryDetail(kind as SafetyDetailKind, project, month), enabled: Boolean(orgId && kind) });
+  return useOrgQuery(['safety-days', 'summary-detail', kind ?? '', project, month], () => repo().getSummaryDetail(kind as SafetyDetailKind, project, month), { enabled: Boolean(kind) });
 }
 
 export function useSafetyMutations() {

@@ -282,12 +282,16 @@ in at most one crew on any day. A correction is versioned and audited and never 
 
 **Roster (crew)** — which crews serve a work order on which dates; a crew serves one work order on any day.
 
+**Manpower need** (*kebutuhan tenaga kerja*) — a position and head count a project needs by a date, optionally for one work order and crew, with the people proposed linked to it. Its position comes from the organisation's Cost disciplines list. Progress is read, never typed: **asked** is the head count, **filled** counts linked people the cleared-for-site checklist says are cleared, **in progress** counts linked people not yet cleared, **open** is the places with no person linked. A need is open, met or cancelled; a person with the crew authority or the HR capability records and changes needs, everyone else reads.
+
 **Crew loan** — a worker lent from their home crew to a host crew for an inclusive date range (#2704). On those days the
 worker is on the host crew's roster and not the home crew's, and attendance lands on the host crew's work order; hours
 already submitted or approved never move. A worker has at most one loan on any day.
 
 **Effective crew** — the crew a worker is in on a date: the host crew on a loan day, otherwise the crew they are placed in.
 One database function answers it, so the roster and attendance agree.
+
+**Followed crew** — the crew a worker followed on one day without a loan, recorded on that day's attendance record by the receiving crew's foreman or a crew manager, or by a supervisor approving the worker's phone clock-in request that picked the crew. It then counts as the worker's effective crew for that day only; the home placement never changes.
 
 **Field controller** — the user who records a crew's daily attendance; may not approve the hours they recorded.
 
@@ -417,7 +421,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Work order line** — an allocation of a positive quantity of one project contract line (bill-of-quantities item) to a work order, so one contract line can be ordered across several work orders.
 
-**Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value.
+**Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value. **Who confirms:** Finance or an Admin, never the person who prepared it (unless they are the organisation's only active member); the Draft chip reads "Waiting for Finance or an Admin to confirm" (Bahasa: "Menunggu konfirmasi Keuangan atau Admin"). **Delivery record** is the plain-words name for a BAST, and the default document category "Delivery record (BAST)" holds its signed file.
 
 **Work order acceptance line** — the quantity accepted for one contract line on a work order acceptance; the latest confirmed quantity, not a sum, is what has been accepted to date.
 
@@ -790,7 +794,6 @@ is 0 at every step.
 
 **Material request** (*permintaan material*) — a request for stock items and quantities for one work order, with a
 needed-by date: Draft, Pending, Approved, Rejected, Cancelled or Fulfilled. An approved request becomes a stock
-**Transfer** draft to one of the work order's project's stock locations (its site, a yard or a staging location,
 named when the project has several); a keeper posts it, which marks the request Fulfilled. Not a purchase request:
 it moves stock the organisation already holds.
 
@@ -846,7 +849,7 @@ parts. One per machine per day; separate from what the machine did (usage).
 
 **Physical availability** (*ketersediaan*) — the share of a machine's recorded in-service days on which it was ready or
 standby, shown to one decimal. A day with no status is unrecorded and counts in neither the top nor the bottom of the
-fraction; the screen names how many.
+fraction; the screen names how many. Days before the organisation's first day (its creation, or its earliest recorded status or usage) are not counted as unrecorded.
 
 **Utilisation** (*pemanfaatan*) — approved work hours divided by available days times the organisation's working hours per
 day. Standby is available but not utilised; unapproved usage is left out and named.
@@ -912,6 +915,15 @@ medical type holds a status (fit / unfit) and dates only. Distinct from a projec
 app (a person may optionally link to an app user profile). Kept under Administration by Admin; app users are never added
 automatically. Each person has a **person code**, assigned by the database as `P-0001`, `P-0002`, ... per organisation when
 left blank, editable and unique among live people. Archiving hides a person and their warnings (soft, ADR-0018).
+
+**People import** (*impor personel*) — the daily sync of the people register from a file. A row is matched by **person code**
+(live people only): a known code updates that person's display name, job title and manager, a new code adds one, and a
+preview lists every add and each changed field (old to new) before the confirm. A blank cell or absent column leaves the
+stored value (the import never clears a field and never archives anyone). The manager is named by sign-in email and must
+be an active user. **Person document import** is its sibling: one sheet of person code, document type, number, issue date
+and expiry date adds a document or updates the person's live document of that type (the one expiring last); medical
+types are never imported. Both write under the caller's own permissions (people: Admin and Project Manager; documents:
+the person page's Add document rule).
 
 **Former staff** (*mantan personel*) — a person on the register who has left, recorded by archiving them. They stay on
 record with their code and documents, leave the default active list and the expiry warnings, and appear only under the
@@ -1221,6 +1233,8 @@ decides a request they made, are the subject of, or entered, whatever their role
 
 **Leave approver role** — the organisation setting naming which role decides leave requests besides the line manager; empty means Admin.
 
+**Medical release** — a decision, for one person and a return date, that the person may be rostered again after sickness or injury. The people team opens it; the person's direct manager approves it or defers it with a reason. While it is pending or deferred the database refuses to roster the person (crew placement, loan, attendance) on or after that date. It holds a decision and a short note, never medical content; the manager sees the state only.
+
 **On leave (roster marker)** — a chip beside a rostered person who has approved leave on the day shown. It is information only and does
 not stop attendance being ticked.
 
@@ -1302,7 +1316,6 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Proof chase list** (*daftar bukti tertunda*) — the card on the stock home listing movements whose required proof has not arrived, oldest first, with the days waiting and the missing proof. It is read live (never a stored snapshot), shown only while the organisation lets proof follow, and only to an Admin or a keeper of one of the movement's locations. See *Proof rule*.
 
-
 **Work-order transfer (WOT)** — one document that moves leftover material from one work order to another of the same project: a return from the first work order and an issue to the second, both at one project location, posted together or not at all. The stock does not leave the location; the first work order is relieved of its cost and the second is charged at the location's moving average. It is off until an Admin turns on the organisation setting "work-order transfers"; a posted one is corrected by a transfer the other way. Not a *Transfer* between locations. (#2691)
 
 **Free stock** — on hand at a location minus the active reservations there, never shown below zero; when on hand falls below what is reserved the screen says "reserved, short by n". It is computed on read, so it cannot drift from the ledger. A reservation is active until released, expired or consumed, or until its work order closes.
@@ -1327,7 +1340,13 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Live certificate** — one that is submitted, approved or billed; only a live certificate holds measured work or a backcharge.
 **Labour cost rate** — what an hour of a person's time costs the organisation: set per person or per role, hourly, daily or fixed monthly, with an overtime multiplier, a labour class and a start date. Cost only, never pay (#2670).
 
-**Labour class** — an organisation-defined label on a labour cost rate (defaults direct, indirect and guard, renameable) that breaks a work order's labour cost down in plan versus actual (#2670).
+**Labour class** — an organisation-defined label on a labour cost rate (defaults direct, indirect and guard, renameable) that breaks a work order's labour cost down in plan versus actual (#2670). A person with no login also holds one, through a labour class assignment.
+
+**Class rate** — a labour cost rate whose subject is a labour class rather than a person or a role. It prices the costed attendance days of the people who hold that class; it never prices a timesheet. Same basis, overtime multiplier, day and month length, dates and history lock as any labour cost rate.
+
+**Labour class assignment** — the labour class a person in the people register holds from a start date, with an optional end. Dated like a rate, so reclassifying a person never re-prices a day already costed. Set by Admin or Finance.
+
+**Costed attendance day** — a present, approved attendance day of a person that is not linked to a timesheet line and has no approved timesheet line of that person's login on the same project and date. The one place a worker's day is counted once across timesheets and attendance (`labour_cost_attendance_days`).
 
 **Priced hours** — approved timesheet hours on a date the person has an applicable labour cost rate; **overtime hours** are a person's hours beyond the rate's day length on one date, across all their approved lines. Labour cost is internal costing outside the ledger: it adds to a work order's direct cost, never to project actuals (#2670).
 
@@ -1356,3 +1375,39 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Idle cost** — the recorded idle hours of validated daily site reports, per idle reason, multiplied by the work order's hourly cost (priced labour amount divided by priced labour hours, a weighted average over its history). A lost-time view of cost already inside direct cost: shown apart, never added to it. OFF until an organisation switch and labour cost in money are both on (#2673).
 
 **Management profit and loss** — the Reports screen (management pack) read as a profit and loss PMO produces from its own records: recognised, invoiced and earned revenue per project and, while Profit per discipline is on, cost and margin on both revenue bases. It is not a ledger statement; trial balance, profit and loss and balance sheet come from a connected accounting system. An organisation with none connected is led from Statements and the Finance hub Net profit tile to it (#2734).
+
+**Direct manager** — the app user recorded as a person's manager on the people register (`people.manager_id`). They are warned first when that person's documents are about to expire and may record the renewal (a later expiry date) for their own people only; Admin keeps the existing write. Separate from the line-management link on user accounts. A medical release is decided by the direct manager, or, when none is set, by the manager of the person's linked login.
+
+**Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
+
+**Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
+
+**Second record** (*catatan kedua*) — a surveyor's or timekeeper's record of one worker's hours for one work order and day, kept beside the crew tick on the site report and never paid or costed on its own. Who may enter one is an organisation setting (a list of built-in roles; managers always may).
+
+**Standing hours** (*jam yang berlaku*) — the one figure the attendance day carries for a worker and day, which is the figure that is paid and costed. It is the site-report (crew tick) figure until a person the organisation names decides the second record stands instead; the figure not chosen stays on file as evidence. Nobody decides hours they recorded, and a day waiting for a decision cannot be sent on for approval (pay-time, `docs/specs/pay-time.spec.md`).
+
+**Head-count line** — for one work order, one crew rostered on it that day, one date and one labour class, the number of people present who are not named in the roster (guards or helpers with no login). Entered by the crew's Foreman or a crew manager, never from a field account; it counts toward cost once a different Admin, Executive or Project Manager approves it, and is final once approved. A person is either named (costed through attendance or a timesheet) or counted here, never both. Cost is the number times the daily equivalent of the class rate in force on the date; its quantity is person-hours (the number times the rate's day length).
+
+**Daily equivalent** — a labour class rate stated per day: a daily rate is itself; an hourly rate times the rate's day length; a monthly rate divided by month length times day length. The conversions labour cost uses for one hour.
+
+**Equipment manager** — the person who runs the machines: today a Project Manager (or Admin). They add and edit machines and their rental terms, set the working hours per day, the availability and use targets and the escalation limit, and read the rental invoice check; Finance keeps the costing and the unproven-days decision (equipment manager's day lane, migration 1600).
+
+**Hours log** — the weekly grid where hours on a machine are logged per project and day (`/equipment?view=hours`); Equipment itself opens on the machines and today's status.
+
+**Sign-in language** (*bahasa halaman masuk*) — the language of the pages seen before a session exists (sign-in, password reset). No organisation is known there, so the page follows the browser language (Bahasa Indonesia or English), shows a visible switch, and remembers the choice on the device. Once the person's profile loads, the normal order applies again: profile, then organisation, then English.
+
+**Work orders list** — the menu entry and page that lists every work order the reader may see, across projects, with its status. Its name everywhere is the terminology dictionary's term for work order, so one thing has one name on every screen. The project's contract card remains the other way in.
+
+## People, crews and their papers (fix/walk-people)
+
+**Access level** — one of the five levels (Engineer, Project Manager, Finance, Executive, Admin) that drives what a login can see and do. Shown in Bahasa Indonesia as "Tingkat akses". Never called "role" on its own.
+
+**Job role** — a built-in role (storekeeper, foreman, HR manager and the rest of the set) that starts from one access level. Shown as "Job role" / "Jabatan". When built-in roles are on, inviting a user asks the job role and the access level follows from it.
+
+**Crew role** — the position a person fills in a crew (welder, foreman of that crew…), counted against the crew's headcount. Shown as "Crew role" / "Posisi kru". A person placed with no crew role is not counted in the roster's figures and is shown as "Crew role not set".
+
+**Mark as left** — an Admin records the last day a person worked. They become former staff and leave every crew roster from that day; the history stays.
+
+**Waiting list** (*daftar yang menunggu*) — everything one login can be asked to decide right now, in one list: purchase approvals, timesheets, expense claims, customer invoices, material-request steps, leave, site cash, daily reports to validate, work orders to issue, deliveries to confirm, transfers to receive, quantity changes, subcontract certificates and equipment plans. The home "waits for you" list, the Approvals badge, the Finance page and the Approvals inbox are all this one list, so they agree; its headline count is its length. Each kind is a registered entry (`src/lib/approvals/waitingKinds.ts`), so a new kind of decision cannot be added without an inbox entry. The database decides what a login may decide; the list only shows it.
+
+**Decision standing** — whether a login can decide anything at all: a decision role, a role named in the approval chain, a pinned step, an in-window stand-in, or a line manager. A login with standing has the Approvals entry in its menu even when nothing waits.

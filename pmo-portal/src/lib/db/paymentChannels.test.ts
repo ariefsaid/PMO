@@ -5,7 +5,7 @@ const h = vi.hoisted(() => {
   const result = { value: { data: null as unknown, error: null as unknown } };
   const chain: Record<string, unknown> = {};
   const done = () => Promise.resolve(result.value);
-  for (const k of ['select', 'eq', 'in', 'not', 'order']) chain[k] = vi.fn(() => chain);
+  for (const k of ['select', 'eq', 'in', 'not', 'order', 'range']) chain[k] = vi.fn(() => chain);
   chain.maybeSingle = vi.fn(done);
   chain.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => done().then(res, rej);
   return { rpc: vi.fn(() => Promise.resolve(result.value)), from: vi.fn(() => chain), result, chain };

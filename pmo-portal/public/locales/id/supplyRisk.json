@@ -32,15 +32,15 @@
     "save": "Simpan status"
   },
   "exposure": {
-    "title": "Work Order / SPK dengan pesanan terbuka dari supplier ini",
+    "title": "$t(common:terms.clientWorkOrder) dengan pesanan terbuka dari supplier ini",
     "loading": "Memuat…",
-    "empty": "Tidak ada Work Order / SPK yang memiliki pesanan terbuka dari supplier ini.",
+    "empty": "Tidak ada $t(common:terms.clientWorkOrder) yang memiliki pesanan terbuka dari supplier ini.",
     "orders_one": "{{count}} pesanan terbuka",
     "orders_other": "{{count}} pesanan terbuka",
-    "projectLevel": "Pesanan tingkat proyek (tanpa Work Order / SPK)"
+    "projectLevel": "Pesanan tingkat proyek (tanpa $t(common:terms.clientWorkOrder))"
   },
   "warning": {
     "lead": "Peringatan supplier",
-    "body": "berstatus {{status}} dan memiliki pesanan terbuka pada Work Order / SPK ini."
+    "body": "berstatus {{status}} dan memiliki pesanan terbuka pada $t(common:terms.clientWorkOrder) ini."
   }
 }

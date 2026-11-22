@@ -14,10 +14,6 @@
   "noDisciplines": "Your organisation has no disciplines yet. An Admin adds them in Administration, Project setup.",
   "savedWithoutAttribution": "Saved, but the work order or discipline was not set",
   "refusal": {
-    "COST_WO_PROJECT": "That work order belongs to another project.",
-    "COST_WO_CANCELLED": "That work order is cancelled.",
-    "COST_WO_NO_PROJECT": "This record has no project, so it cannot go on a work order.",
-    "COST_DISCIPLINE": "That discipline is no longer on your organisation's list.",
     "generic": "Try again from the record."
   },
   "timesheetSection": "Work order and discipline per project",

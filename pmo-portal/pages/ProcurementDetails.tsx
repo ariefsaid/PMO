@@ -40,6 +40,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import RentalPanel from '@/src/components/procurement/RentalPanel';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
+import { waitingForText } from '@/src/lib/approvals/waitingFor';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { ProcurementDetailsTab, ProcurementItemsTab, ProcurementQuotesTab } from './procurement/ProcurementDetailTabs';
@@ -281,6 +282,7 @@ const ProcurementDetails: React.FC = () => {
   const { pendingConfirm, setPendingConfirm, onActionClick, commitConfirm, submitVICapture, confirmInFlight } =
     useProcurementDecision(detailQuery.data, mutations, {
       setTab, notesInput, setNotesInput, setMutationError, setShowCreateGR, setShowCreateVI, setShowVICapture, setCaptureKind,
+      openSupplierPicker: () => { setTab('files'); setSelectedVendorId(null); setVendorPickerOpen(true); },
     });
   useEffect(() => {
     if (!tabParam || !['overview', 'documents', 'history'].includes(tabParam)) return;
@@ -412,10 +414,16 @@ const ProcurementDetails: React.FC = () => {
         budget: formatCurrency(p.approvalRoute.lineBudget, p.currency),
       })
     : null;
+  // fix-waiting item 3: who the request waits for, from the route the database already computed (never a bare "Waiting for approval").
+  const requestedRoute = p.approvalRoute;
   const waitingNote = p.status === 'Requested' && isRequester
-    ? isEngineer
-      ? t('procurementRecord:waiting.engineerApproval', 'Waiting for approval by a project manager or Finance')
-      : t('procurementRecord:waiting.approval', 'Waiting for approval')
+    ? waitingForText({
+        names: (requestedRoute?.approvers ?? []).map((approver) => approver.fullName),
+        role: requestedRoute?.route === 'admin' ? t('waitingList:waitingFor.roleAdmin', 'Admin')
+          : requestedRoute?.route === 'org' ? t('waitingList:waitingFor.roleOrg', 'senior approver')
+          : requestedRoute?.route === 'project' ? t('waitingList:waitingFor.roleProject', 'project approver')
+          : t('waitingList:waitingFor.roleFlat', 'project manager or Finance'),
+      }, t)
     : p.status === 'Vendor Invoiced' && !actionFor('Paid')
       ? t('procurementRecord:waiting.payment', 'Payment: waiting for Finance')
       : null;
@@ -441,9 +449,10 @@ const ProcurementDetails: React.FC = () => {
     (isDraft || isRejected) && (isRequester || realRole === 'Admin') && may('edit', 'procurement');
   // #2698: the payment channel (shown only where the org switched it on). Requester or Admin while Draft/Rejected (the header
   // rule), or Finance/Admin until Paid or Cancelled. UX only: set_procurement_payment_channel (1356) is the authority.
-  const canSetPaymentChannel =
-    ((isDraft || isRejected) && (isRequester || realRole === 'Admin'))
-    || ((realRole === 'Finance' || realRole === 'Admin') && p.status !== 'Paid' && p.status !== 'Cancelled');
+  const canSetPaymentChannel = may('setPaymentChannel', 'procurement', {
+    record: { status: p.status, requested_by_id: p.requested_by_id, viewOnly: realRole !== effectiveRole },
+    currentUserId: currentUser?.id,
+  });
   // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
   const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
   const canEditItems = ownershipReady && isDraft && (isRequester || may('edit', 'procItem'));
@@ -835,6 +844,14 @@ const ProcurementDetails: React.FC = () => {
       >
         {tab === 'timeline' && <RecordStack>
           <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
+          <PaymentChannelSection procurementId={p.id} canSet={canSetPaymentChannel} />
+          {primaryPo && (
+            <RecordSection data-testid="procurement-po-print" title={t('procurement:purchaseOrderPrint.section', 'Purchase order')}>
+              {poPrintEnabled
+                ? <Button variant="outline" size="sm" data-testid="print-purchase-order-inline" onClick={() => navigate(`/procurement/${p.id}/purchase-orders/${primaryPo.id}/print`)}>{t('procurement:purchaseOrderPrint.printAction', 'Print purchase order')}</Button>
+                : <p className="text-control text-muted-foreground" data-testid="po-print-off">{t('procurement:purchaseOrderPrint.off', 'Printing the purchase order is off. An Admin turns it on in Administration, Accounting, Purchase order printing.')}</p>}
+            </RecordSection>
+          )}
           {historyOpen && <RecordSection data-testid="procurement-full-history" title={t('procurementRecord:timeline.fullHistory', 'Full history')} actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></RecordSection>}
         </RecordStack>}
 

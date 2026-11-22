@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 
@@ -26,7 +27,10 @@ export type CostSource =
   | 'timesheet_entry'
   | 'stock_document'
   | 'equipment_usage'
-  | 'expense_claim';
+  | 'expense_claim'
+  // Approved hours of a person with no login, held on the attendance itself (1037). Read-only here: hours come from
+  // attendance and are never attributed through `setCostAttribution`.
+  | 'attendance_day';
 
 export const COST_SOURCES: readonly CostSource[] = [
   'purchase_request',
@@ -37,6 +41,7 @@ export const COST_SOURCES: readonly CostSource[] = [
   'stock_document',
   'equipment_usage',
   'expense_claim',
+  'attendance_day',
 ];
 
 export interface CostDiscipline {
@@ -129,8 +134,8 @@ export async function setCostAttribution(source: CostSource, ids: string[], attr
   const { data, error } = await supabase.rpc('set_cost_attribution', {
     p_source: source,
     p_ids: ids,
-    p_work_order_id: attribution.workOrderId,
-    p_discipline_id: attribution.disciplineId,
+    p_work_order_id: nullableArg(attribution.workOrderId),
+    p_discipline_id: nullableArg(attribution.disciplineId),
   });
   if (error) throw new AppError(error.message, error.code);
   return Number(data ?? 0);

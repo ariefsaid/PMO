@@ -22,6 +22,7 @@
  * the single-source status registry (CW-2, DESIGN.md).
  */
 
+import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { billPaymentView } from '@/src/lib/adapterSeam/odoo/purchase/status';
 import type { ProcurementDetail } from './procurementLifecycle';
 import type { StatusVariant } from '@/src/components/ui/StatusPill';
@@ -62,6 +63,13 @@ export interface LedgerRow {
   groupRef?: string | null;
   /** Numeric amount (optional — RFQ and GR typically null). */
   amount: number | null;
+  /**
+   * A receipt stores no amount of its own. Where its value can be read from the order lines (one receipt, received in full)
+   * this carries it, so the receipt shows its value and says where it came from. Never added into any total.
+   */
+  valueFromLines?: number;
+  /** A receipt whose value cannot be read from the order lines (a partial receipt, several receipts, or lines with no price). */
+  valueUnknown?: boolean;
   /**
    * OD-TAX-1 §2 — the basis `amount` is stated on, for the record types that STORE one.
    *
@@ -233,6 +241,8 @@ interface MakeRowExtra {
   taxBaseUnknown?: boolean;
   taxAmount?: number | null;
   withheldAmount?: number | null;
+  valueFromLines?: number;
+  valueUnknown?: boolean;
 }
 
 function makeRow(
@@ -249,7 +259,7 @@ function makeRow(
   extra: MakeRowExtra = {},
 ): LedgerRow {
   const { groupRef, taxTreatment, taxRate, taxBaseNumerator, taxBaseDenominator, taxBaseUnknown, taxAmount, withheldAmount,
-    efakturNumber, efakturDate, efakturLocked, voidable, voided, poId } = extra;
+    efakturNumber, efakturDate, efakturLocked, voidable, voided, poId, valueFromLines, valueUnknown } = extra;
   const businessDate = date ?? createdAt;
   const { fileHref, fileTitle, fileCount, fileRef } = filePresence(files);
   return {
@@ -260,6 +270,8 @@ function makeRow(
     externalRef: externalRef ?? null,
     ...(groupRef ? { groupRef } : {}),
     amount: amount ?? null,
+    ...(valueFromLines !== undefined ? { valueFromLines } : {}),
+    ...(valueUnknown ? { valueUnknown } : {}),
     status,
     statusVariant: workflowVariant(status),
     fileHref,
@@ -370,7 +382,11 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
 
   // ── 5. Goods Receipts — business date = receipt_date ─────────────────────
   // GRs are non-financial (no amount); reference_number is the supplier delivery-note.
-  for (const gr of detail.receipts ?? []) {
+  const receipts = detail.receipts ?? [];
+  const linesValue = itemsNetTotal(detail.items ?? []);
+  for (const gr of receipts) {
+    // The value comes from the order lines, and only when it is honest: one receipt, received in full, every line priced.
+    const fromLines = receipts.length === 1 && gr.status === 'Complete' && linesValue !== null;
     rows.push(
       makeRow(
         'GR',
@@ -383,6 +399,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         gr.status,
         detail.currency,               // procurement_receipts is not a 0187 money table — parent's currency
         (gr as unknown as { files?: EmbeddedFileRow[] }).files,
+        fromLines ? { valueFromLines: linesValue } : { valueUnknown: true },
       ),
     );
   }

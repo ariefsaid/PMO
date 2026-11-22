@@ -1,0 +1,2 @@
+# Client-callable SECURITY DEFINER RPC names (one proname per line).
+person_mark_left  # 1610: Admin only (PPL_FORBIDDEN); revoked from public and anon, granted to authenticated

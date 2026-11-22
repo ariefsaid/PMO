@@ -4,9 +4,10 @@
  * the construction-manager role holder, and the document type names no extra roles.
  * Goal oracle: after the scheduled warning runs, the manager has the warning in their notifications and the worker does not.
  * Partly built: recipients are the person's manager plus roles named per document type, not an arbitrary rule.
+ * Second journey (expiry-to-manager): the manager records the renewal from the warning's list and the worker is told.
  */
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, visibleToast } from './helpers';
 import { ENGINEER_ID, inDays, need, ORG_ID, PM_ID, serviceClient, sql } from './support/jobJourney';
 
 test.setTimeout(120_000);
@@ -41,4 +42,22 @@ test('JOB-F14 a badge 14 days from expiry warns the manager and not the worker',
   await page.getByRole('button', { name: /^notifications/i }).click();
   await expect(page.getByRole('heading', { name: 'Notifications inbox' })).toBeVisible();
   await expect(page.getByText(new RegExp(`${run} badge expires`))).toHaveCount(0);
+});
+
+test('JOB-F14 the manager records the renewal and the worker is told the new date', async ({ page }) => {
+  const newDate = inDays(400);
+  const [y, m, d] = newDate.split('-').map(Number);
+  const newDateLabel = `${d} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${y}`; // the notice body's own format
+  await signIn(page, 'pm@acme.test');
+  await page.goto('/equipment/expiring');
+  await page.getByRole('button', { name: `Record renewal for ${run} Worker` }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('textbox', { name: /New expiry date/ }).fill(newDate);
+  await dialog.getByRole('button', { name: 'Record renewal' }).click();
+  await expect(visibleToast(page, new RegExp(`${run} Worker has been told`))).toBeVisible({ timeout: 20_000 });
+
+  await signIn(page, 'engineer@acme.test');
+  await page.goto('/');
+  await page.getByRole('button', { name: /^notifications/i }).click();
+  await expect(page.getByRole('list', { name: 'Notifications' }).getByText(`${run} badge renewed: now valid until ${newDateLabel}.`)).toBeVisible({ timeout: 20_000 });
 });

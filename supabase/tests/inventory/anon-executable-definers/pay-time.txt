@@ -1,0 +1,6 @@
+attendance_second_record
+attendance_second_record_decide
+attendance_report_day_hours
+attendance_second_record_may_enter
+attendance_second_record_may_decide
+set_attendance_time_roles

@@ -29,7 +29,7 @@ select lives_ok($$
 $$, 'AC-TX-001 an Admin writes every one of the 16 terms');
 select is((select count(*)::int from org_terminology), 16, 'AC-TX-001 sixteen rows stored');
 select throws_ok($$insert into org_terminology (term_key, locale, singular, plural) values ('progressAssessment','en','X','Xs')$$,
-  '23514', null, 'AC-TX-001 a term outside the 16 is refused');
+  '23503', null, 'AC-TX-001 a term outside the 16 is refused (foreign key to org_term_keys, 1491)');
 select throws_ok($$insert into org_terminology (term_key, locale, singular, plural) values ('standIn','id',repeat('x',61),'x')$$,
   '23514', null, 'AC-TX-001 a 61-character name is refused');
 

@@ -1,60 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import type { TFunction } from 'i18next';
-import { refusalMessage, toSubmitError, readQuantity } from './clientMaterialText';
+import { renderHook } from '@testing-library/react';
+import { readQuantity, useSubmitError } from './clientMaterialText';
 
-/** The client-material refusal words (spec Errors table): each stable database key gets its sentence
- * with the interpolated quantity, an unknown refusal classifies as usual, and typed quantities are
- * validated before an RPC ever sees them. */
-const t = ((_key: string, fallback: string, opts?: Record<string, unknown>) =>
-  fallback.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => String(opts?.[k] ?? ''))) as TFunction;
+/** The client-material refusal words (spec Errors table): each database rule gets its sentence with the figure it names,
+ * an unknown refusal classifies as usual, and typed quantities are validated before an RPC ever sees them. */
+const submitError = (err: unknown) => renderHook(() => useSubmitError()).result.current(err);
 
-describe('refusalMessage', () => {
-  it('names the excess when the reservation would overdraw the request', () => {
-    expect(refusalMessage(t, 'overRequested', '25')).toBe('Reserved would exceed requested by 25.');
+describe('useSubmitError', () => {
+  it('names the figure the database refusal carries', () => {
+    expect(submitError(new Error('CSR_OVER_REQUESTED: Reserved would exceed requested by 25'))).toEqual({ headline: 'Reserved would exceed requested by 25.' });
+    expect(submitError(new Error('CSR_RELEASE_BELOW_COLLECTED: a release of 30 would take reserved below the 40 already collected')).headline)
+      .toBe('A release cannot take reserved below the 40 already collected.');
+    expect(submitError(new Error('CSR_OVER_COLLECT: only 10 is still to collect')).headline).toBe('Only 10 is still to collect.');
   });
 
-  it('keeps a release above what was already collected', () => {
-    expect(refusalMessage(t, 'releaseBelowCollected', '40')).toBe('A release cannot take reserved below the 40 already collected.');
+  it('every remaining rule carries its own sentence', () => {
+    const say = (m: string) => submitError(new Error(m)).headline;
+    expect(say('CSR_NOT_CLIENT_SUPPLIED: x')).toBe('This item is not client-supplied.');
+    expect(say('STK_NOT_KEEPER: x')).toContain('keeper of this warehouse');
+    expect(say('STK_OWNED_BY_ERP: x')).toContain('managed in your accounting system');
+    expect(say('CSR_WORK_ORDER: x')).toContain('closed or cancelled');
+    expect(say('CSR_CANCELLED: x')).toContain('requisition is cancelled');
+    expect(say('CSR_NOT_OPEN: x')).toContain('Send the requisition first');
+    expect(say('CSR_NOT_DRAFT: x')).toContain('Only a draft requisition');
+    expect(say('CSR_HAS_PICKUP: x')).toContain('pickup is already posted');
+    expect(say('CSR_FORBIDDEN: x')).toContain('Your role cannot do this');
+    expect(say('CSR_ALLOCATION: x')).toContain('belongs to another work order');
+    expect(say('COST_WO_PROJECT: x')).toContain('belongs to another project');
+    expect(say('COST_WO_NO_PROJECT: x')).toContain('has no project');
+    expect(say('CSR_NOT_FOUND: x')).toContain('not available to you');
   });
 
-  it('caps a collection at what is still to collect', () => {
-    expect(refusalMessage(t, 'overCollect', '10')).toBe('Only 10 is still to collect.');
-  });
-
-  it('refuses lines that are not client-supplied without a quantity', () => {
-    expect(refusalMessage(t, 'notClientSupplied', null)).toBe('This item is not client-supplied.');
-  });
-
-  it('every remaining key carries its own sentence', () => {
-    expect(refusalMessage(t, 'notKeeper', null)).toContain('do not keep this location');
-    expect(refusalMessage(t, 'ownedByErp', null)).toContain('connected ERP');
-    expect(refusalMessage(t, 'workOrder', null)).toContain('closed or cancelled');
-    expect(refusalMessage(t, 'cancelled', null)).toContain('requisition is cancelled');
-    expect(refusalMessage(t, 'notOpen', null)).toContain('Send the requisition first');
-    expect(refusalMessage(t, 'notDraft', null)).toContain('Only a draft requisition');
-    expect(refusalMessage(t, 'hasPickup', null)).toContain('pickup is already posted');
-    expect(refusalMessage(t, 'forbidden', null)).toContain('Your role cannot do this');
-    expect(refusalMessage(t, 'allocation', null)).toContain('belongs to another work order');
-    expect(refusalMessage(t, 'otherProject', null)).toContain('belongs to another project');
-    expect(refusalMessage(t, 'noProject', null)).toContain('site, yard or staging location');
-    expect(refusalMessage(t, 'notFound', null)).toContain('not available to you');
-  });
-
-  it('an unknown key says nothing (the caller shows its own words)', () => {
-    expect(refusalMessage(t, 'unknown', null)).toBeNull();
-  });
-});
-
-describe('toSubmitError', () => {
-  it('uses our words for a known refusal key, carrying the quantity', () => {
-    const err = new Error('CSR_OVER_REQUESTED: reserved would exceed requested by 7');
-    expect(toSubmitError(t, err)).toEqual({ headline: 'Reserved would exceed requested by 7.' });
-  });
-
-  it('falls back to the classifier for an unrecognised refusal', () => {
-    const err = new Error('completely unexpected');
-    const result = toSubmitError(t, err);
-    expect(result.headline).toBeTruthy();
+  it('falls back to the classifier for an unrecognised failure', () => {
+    expect(submitError(new Error('completely unexpected')).headline).toBeTruthy();
   });
 });
 
