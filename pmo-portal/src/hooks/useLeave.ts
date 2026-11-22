@@ -1,7 +1,7 @@
 import { useContext } from 'react';
 import { QueryClient, QueryClientContext, useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
-import { AuthContext } from '@/src/auth/AuthContext';
 import { leaveRepository, type LeaveRequestInput, type LeaveSettings } from '@/src/lib/repositories/leave';
+import { useOrgId } from '@/src/hooks/useOrgId';
 
 /** Leave requests (#2708) over the repository seam (ADR-0017). Keys carry org_id. Off means off: every read below the
  *  settings read waits for `enabled`, so an organisation that never switched it on makes no leave call but one. */
@@ -9,7 +9,6 @@ const ROOTS = ['leave-requests', 'leave-on-date'] as const;
 // The leave reads sit on shared chrome (rail, approvals, roster). Outside a query provider or a session they are simply
 // off: no throw, no request, so the shell never depends on this feature being mounted.
 const IDLE_CLIENT = new QueryClient();
-const useOrgId = (): string | undefined => useContext(AuthContext)?.currentUser?.org_id;
 function useLeaveQuery<T>(key: QueryKey, fn: () => Promise<T>, enabled: boolean) {
   const qc = useContext(QueryClientContext);
   return useQuery({ queryKey: key, queryFn: fn, enabled: enabled && Boolean(qc) }, qc ?? IDLE_CLIENT);

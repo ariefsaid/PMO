@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import type { Role } from '@/src/auth/AuthContext';
+import { AuthContext, type Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
@@ -21,7 +21,14 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 
 import { WorkOrderRoster } from './WorkOrderRoster';
 
-const renderAt = (url: string) => render(<MemoryRouter initialEntries={[url]}><ToastProvider><WorkOrderRoster /></ToastProvider></MemoryRouter>);
+const renderAt = (url: string) => render(
+  <MemoryRouter initialEntries={[url]}>
+    {/* the app always mounts the auth provider; the leave read itself stays off (no query provider here) */}
+    <AuthContext.Provider value={{ currentUser: { id: 'u-1', org_id: 'org-1' }, role: 'Project Manager' } as never}>
+      <ToastProvider><WorkOrderRoster /></ToastProvider>
+    </AuthContext.Provider>
+  </MemoryRouter>,
+);
 
 describe('work-order roster for a date (#2528)', () => {
   beforeEach(() => {
