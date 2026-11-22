@@ -1,4 +1,5 @@
 -- 1562_timesheet_rejection_reason_notification.sql — requester is told the reason when a timesheet is rejected (fix-waiting item 4).
+-- drops: notify_timesheet_transition replaces the Rejected-branch body line with the trimmed rejection_reason and a v_label fallback; signature, header, definer, search_path, both recipient predicates, the no-op guard, the Approved arm and the grants are unchanged.
 -- In 0237, notify_timesheet_transition() wrote v_label ('Timesheet week of <start_date>') as the notification body
 -- for both Approved and Rejected transitions. 0855 added rejection_reason to public.timesheets and 0856 made it required
 -- when rejecting. This migration updates the Rejected branch of notify_timesheet_transition() to include the trimmed
