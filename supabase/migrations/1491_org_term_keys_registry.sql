@@ -23,9 +23,7 @@ insert into public.org_term_keys (term_key) values
   ('billOfQuantities'), ('contractItem'), ('dailyRevenue'), ('acceptedQuantity'), ('costVariation'), ('deliveryNote'),
   ('stockCount'), ('imprest'), ('standIn'), ('progressClaim');
 
-alter table public.org_terminology drop constraint if exists org_terminology_term_key_check;
-alter table public.org_terminology
-  add constraint org_terminology_term_key_fkey foreign key (term_key) references public.org_term_keys(term_key);
+-- MUTATION: no constraint at all (the FK is removed)
 
 -- Closing self-assertion: the seed and the shipped overrides must agree, so a deploy that lands half of this
 -- migration fails here rather than at the next Admin save.

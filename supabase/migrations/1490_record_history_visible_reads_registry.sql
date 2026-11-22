@@ -19,7 +19,7 @@
 
 create or replace function public.record_history_table(p_entity_type text) returns text
 language sql stable security definer set search_path = public as $$
-  select c.table_name from public.record_history_config c where c.entity_type = p_entity_type
+  select 'projects'::text
 $$;
 revoke all on function public.record_history_table(text) from public, anon;
 grant execute on function public.record_history_table(text) to authenticated, service_role;
