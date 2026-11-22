@@ -27,7 +27,7 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
 insert into crews (id, org_id, code, name, field_controller_id) values
   ('16310000-0000-0000-0000-000000000c01', '16310000-0000-0000-0000-00000000000a', 'AB-A', 'Crew', '16310000-0000-0000-0000-0000000000a1');
 insert into people (id, org_id, kind, name, profile_id) values
-  ('16310000-0000-0000-0000-000000000f01', '16310000-0000-0000-0000-00000000000a', 'employee', 'Absent Worker', '16310000-0000-0000-0000-0000000000a2'),
+  ('16310000-0000-0000-0000-000000000f01', '16310000-0000-0000-0000-00000000000a', 'own', 'Absent Worker', '16310000-0000-0000-0000-0000000000a2'),
   ('16310000-0000-0000-0000-000000000f02', '16310000-0000-0000-0000-00000000000a', 'vendor', 'Other Worker', null);
 insert into crew_members (org_id, crew_id, worker_id, valid_from)
   select '16310000-0000-0000-0000-00000000000a', '16310000-0000-0000-0000-000000000c01', v.x, a.d - 30
