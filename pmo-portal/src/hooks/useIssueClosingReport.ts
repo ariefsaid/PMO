@@ -89,3 +89,19 @@ export function useIssueClosingReport(filter?: IssueClosingTimeReportFilter, opt
     client ?? fallbackClient,
   );
 }
+
+export const WORK_ORDER_EFFECTIVE_HOURS_KEY = ['work-order-effective-hours'] as const;
+
+/** Effective working hours of one work order per day; waits for a work order and a bounded range. */
+export function useWorkOrderEffectiveHours(workOrderId: string | undefined, from: string | undefined, to: string | undefined, options?: { enabled?: boolean }) {
+  const client = React.useContext(QueryClientContext);
+  const ready = Boolean(workOrderId && from && to);
+  return useQuery(
+    {
+      queryKey: [...WORK_ORDER_EFFECTIVE_HOURS_KEY, workOrderId, from, to],
+      queryFn: () => repositories.issueClosingReport.getEffectiveHours(workOrderId ?? '', from ?? '', to ?? ''),
+      enabled: Boolean(client) && ready && (options?.enabled ?? true),
+    },
+    client ?? fallbackClient,
+  );
+}

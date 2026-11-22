@@ -1,0 +1,5 @@
+{
+  "tables": [
+    {"table":"incident_types","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ]
+}

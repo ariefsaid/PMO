@@ -48,6 +48,7 @@ import OrgThreeWayMatch from './admin/OrgThreeWayMatch';
 import OrgPaymentChannels from './admin/OrgPaymentChannels';
 import OrgPurchaseLines from './admin/OrgPurchaseLines';
 import SiteReportLists from './admin/SiteReportLists';
+import OrgIssueTypes from './admin/OrgIssueTypes';
 import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
 import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
@@ -344,6 +345,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
             <SiteReportLists />
+            <OrgIssueTypes />
             <RevenuePlanSettings />
             <NonWorkingDatesCard />
             <SiteCheckpointTemplate />

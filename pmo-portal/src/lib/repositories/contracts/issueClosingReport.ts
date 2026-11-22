@@ -4,6 +4,7 @@ import type {
   IssueDepartmentGroupInput,
   IssueClosingTimeReportRow,
   IssueClosingTimeReportFilter,
+  WorkOrderEffectiveHoursRow,
 } from '@/src/lib/db/issueClosingReport';
 
 export interface IssueClosingReportRepository {
@@ -13,4 +14,5 @@ export interface IssueClosingReportRepository {
   saveDepartmentGroup(input: IssueDepartmentGroupInput): Promise<IssueDepartmentGroup>;
   deleteDepartmentGroup(id: string): Promise<void>;
   getReport(filter?: IssueClosingTimeReportFilter): Promise<IssueClosingTimeReportRow[]>;
+  getEffectiveHours(workOrderId: string, from: string, to: string): Promise<WorkOrderEffectiveHoursRow[]>;
 }

@@ -84,6 +84,7 @@ import type {
   IncidentRepository,
 } from './contracts/incidents';
 import type { IssueClosingReportRepository } from './contracts/issueClosingReport';
+import type { IncidentTypeRepository } from './contracts/incidentTypes';
 import type { CommentRepository } from './contracts/comments';
 import type {
   IntegrationsRepository,
@@ -158,6 +159,7 @@ export interface Repositories {
   thirdPartyInspection: ThirdPartyInspectionRepository;
   incident: IncidentRepository;
   issueClosingReport: IssueClosingReportRepository;
+  incidentType: IncidentTypeRepository;
   comment: CommentRepository;
   milestone: MilestoneRepository;
   workOrder: WorkOrderRepository;
@@ -228,6 +230,7 @@ export type { StockMasterRepository, StockRepository } from './contracts/stock';
 export type { IncidentRepository } from './contracts/incidents';
 export type { ThirdPartyInspectionRepository } from './contracts/thirdPartyInspections';
 export type { IssueClosingReportRepository } from './contracts/issueClosingReport';
+export type { IncidentTypeRepository } from './contracts/incidentTypes';
 export type { CommentRepository } from './contracts/comments';
 export type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
 export type { BillingStagesRepository } from './contracts/billingStages';
