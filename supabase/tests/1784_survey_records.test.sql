@@ -9,7 +9,7 @@ create extension if not exists pgtap;
 select plan(51);
 create function pg_temp.err(q text) returns text language plpgsql as $f$ begin execute q; return null; exception when others then return sqlerrm; end $f$;
 
-insert into organizations(id,name) values ('17840000-0000-0000-0000-000000000001','Svy Org A'),('17840000-0000-0000-0000-000000000002','Svy Org B');
+insert into organizations(id,name,built_in_roles_enabled) values ('17840000-0000-0000-0000-000000000001','Svy Org A',true),('17840000-0000-0000-0000-000000000002','Svy Org B',true);
 insert into auth.users(id,email) values
  ('17840000-0000-0000-0000-000000000011','svy-admin@example.invalid'),('17840000-0000-0000-0000-000000000012','svy-fin@example.invalid'),
  ('17840000-0000-0000-0000-000000000013','svy-pm@example.invalid'),('17840000-0000-0000-0000-000000000014','svy-pm2@example.invalid'),

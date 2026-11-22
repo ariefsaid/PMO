@@ -30,6 +30,7 @@ declare
   v_project uuid; v_org uuid; v_id uuid; v_p jsonb; v_old public.survey_records; v_basis text;
 begin
   perform public.assert_not_light();
+  perform public.assert_is_active_member();
   select l.project_id, l.org_id into v_project, v_org from public.survey_lock_work_order(p_work_order) l;
   if not public.may_record_project_progress(v_project) then
     raise exception 'SVY_NOT_PERMITTED: you may record a survey on a project you manage, unless you are Finance, an Executive or an Admin' using errcode = '42501';
@@ -104,6 +105,7 @@ create function public.attach_survey_document(p_id uuid, p_document uuid) return
 declare v_r public.survey_records; v_d record;
 begin
   perform public.assert_not_light();
+  perform public.assert_is_active_member();
   v_r := public.survey_lock_draft(p_id);
   if not (v_r.recorded_by = auth.uid() or public.auth_role() in ('Admin','Finance')) then
     raise exception 'SVY_NOT_PERMITTED: only the person who recorded the survey, Finance or an Admin can change a draft' using errcode = '42501';
@@ -125,6 +127,7 @@ create function public.archive_survey_draft(p_id uuid) returns void
 declare v_r public.survey_records;
 begin
   perform public.assert_not_light();
+  perform public.assert_is_active_member();
   v_r := public.survey_lock_draft(p_id);
   if not (v_r.recorded_by = auth.uid() or public.auth_role() in ('Admin','Finance')) then
     raise exception 'SVY_NOT_PERMITTED: only the person who recorded the survey, Finance or an Admin can discard a draft' using errcode = '42501';
@@ -140,6 +143,7 @@ create function public.confirm_survey(p_id uuid) returns void
 declare v_r public.survey_records; v_basis text := 'standard'; v_sole boolean;
 begin
   perform public.assert_not_light();
+  perform public.assert_is_active_member();
   v_r := public.survey_lock_draft(p_id);
   if public.auth_role() not in ('Admin','Finance') then
     raise exception 'SVY_CONFIRM_ROLE: only Finance or an Admin can confirm a survey' using errcode = '42501';

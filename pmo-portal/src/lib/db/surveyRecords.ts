@@ -58,7 +58,7 @@ function fail(error: { message: string; code?: string }): never {
 /** The work order's live records (not discarded), newest first; superseded ones stay in the list as history. */
 export async function listSurveyRecords(workOrderId: string): Promise<SurveyRecord[]> {
   const { data, error } = await supabase.from('survey_records')
-    .select('id,boq_item_id,survey_date,surveyed_quantity,quality_ready_quantity,note,status,recorded_by,confirm_basis,supersedes_id,superseded_at,recorder:profiles!recorded_by(full_name),confirmer:profiles!confirmed_by(full_name),participants:survey_participants(id,name,company,role_label),documents:survey_record_documents(document_id)')
+    .select('id,boq_item_id,survey_date,surveyed_quantity,quality_ready_quantity,note,status,recorded_by,confirm_basis,supersedes_id,superseded_at,recorder:profiles!survey_records_recorded_by_fkey(full_name),confirmer:profiles!survey_records_confirmed_by_fkey(full_name),participants:survey_participants(id,name,company,role_label),documents:survey_record_documents(document_id)')
     .eq('work_order_id', workOrderId).is('archived_at', null)
     .order('survey_date', { ascending: false }).order('recorded_at', { ascending: false }).limit(RECORD_LIMIT);
   if (error) fail(error);
