@@ -38,11 +38,14 @@ function localizeApprovalNotificationBody(row: NotificationCopy, body: string, t
     }
   }
 
-  // Quantity change request (QCR, 1176/1177) awaiting, approved, and returned prefix
+  // Quantity change request (QCR, 1176/1177) awaiting, approved, returned prefix and the client decision.
+  // The titles are the ones 1176/1177 write; the metadata type is the identity `notify_workflow_user` stamps.
   const isQcrProducer =
     row.title === 'Quantity change request awaiting approval' ||
     row.title === 'Quantity change request approved' ||
     row.title === 'Quantity change request returned' ||
+    row.title === 'Quantity change accepted by the client' ||
+    row.title === 'Quantity change declined by the client' ||
     getMetadataEntityType(row.metadata) === 'quantity_change_request';
   if (isQcrProducer) {
     if (body === 'A quantity change request has been submitted for your approval.') {
@@ -50,6 +53,13 @@ function localizeApprovalNotificationBody(row: NotificationCopy, body: string, t
     }
     if (body === 'Your quantity change request was approved internally. Record when it is sent to the client.') {
       return t('notifications:qcrApprovedBody', 'Your quantity change request was approved internally. Record when it is sent to the client.');
+    }
+    // 1177:189-191 qcr_record_decision — the client accepted (a quantity DID change) or declined (none did).
+    if (body === 'The contract quantities were updated.') {
+      return t('notifications:qcrClientAcceptedBody', 'The contract quantities were updated.');
+    }
+    if (body === 'No quantity was changed.') {
+      return t('notifications:qcrClientDeclinedBody', 'No quantity was changed.');
     }
     const qcrReturnedMatch = /^Your quantity change request was returned: ([\s\S]+)$/.exec(body);
     if (qcrReturnedMatch) {

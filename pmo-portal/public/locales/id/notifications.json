@@ -45,6 +45,8 @@
   "qcrAwaitingBody": "Permintaan perubahan kuantitas telah diajukan untuk persetujuan Anda.",
   "qcrApprovedBody": "Permintaan perubahan kuantitas Anda telah disetujui secara internal. Catat saat dikirim ke klien.",
   "qcrReturnedBody": "Permintaan perubahan kuantitas Anda dikembalikan: {{reason}}",
+  "qcrClientAcceptedBody": "Kuantitas kontrak telah diperbarui.",
+  "qcrClientDeclinedBody": "Tidak ada kuantitas yang diubah.",
   "titles": {
     "taskAssigned": "Sebuah tugas diberikan kepada Anda",
     "taskOverdueReminder": "Pengingat: sebuah tugas terlambat",

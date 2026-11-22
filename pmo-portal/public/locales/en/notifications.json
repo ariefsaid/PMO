@@ -45,6 +45,8 @@
   "qcrAwaitingBody": "A quantity change request has been submitted for your approval.",
   "qcrApprovedBody": "Your quantity change request was approved internally. Record when it is sent to the client.",
   "qcrReturnedBody": "Your quantity change request was returned: {{reason}}",
+  "qcrClientAcceptedBody": "The contract quantities were updated.",
+  "qcrClientDeclinedBody": "No quantity was changed.",
   "titles": {
     "taskAssigned": "A task was assigned to you",
     "taskOverdueReminder": "Reminder: a task is overdue",
