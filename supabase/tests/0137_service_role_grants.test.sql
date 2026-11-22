@@ -72,6 +72,7 @@ select ok(
 -- stock_reservations + stock_reservation_events (1315).
 -- Also imprest_cash_counts (0424): write-once cash counts, written only by record_imprest_count; service_role's
 -- writes are revoked on purpose.
+-- Also imprest_plan_line_splits (1890): written only by save_/delete_imprest_plan_line_split; service_role writes revoked.
 -- m365_org_apps (0817) is definer-only: no API-role grant at all, the secret reference never leaves the definers.
 -- org_features (0070) remains service-readable but its switch writes use the audited RPC path.
 -- The plan registry (0530) is also RPC-only: service_role has no direct table grants and reads
@@ -102,6 +103,7 @@ select is(
         'stock_reservations',
         'stock_reservation_events',
         'imprest_cash_counts',
+        'imprest_plan_line_splits',
         'org_features',
         'm365_org_apps',
         'plans',

@@ -138,6 +138,7 @@
     {"table":"imprest_float_changes","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"imprest_floats","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"imprest_plan_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"imprest_plan_line_splits","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"imprest_plans","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"imprest_posting_erp_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"imprest_replenishments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
