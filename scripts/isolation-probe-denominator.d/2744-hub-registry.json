@@ -1,0 +1,15 @@
+{
+  "definer_functions": [
+    "record_history_table(text)"
+  ],
+  "tables": [
+    {
+      "table": "org_term_keys",
+      "has_org": false,
+      "pk": "term_key",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: code-owned key list, no org_id, no uuid id and no client grant; the blind read covers the declared B visibility"
+    }
+  ]
+}
