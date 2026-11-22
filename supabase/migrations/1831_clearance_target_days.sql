@@ -70,7 +70,10 @@ create function public.person_clearance_due()
   returns table (person_id uuid, item_id uuid, due_on date, overdue boolean)
   language plpgsql stable security invoker set search_path = public, pg_temp as $$
 begin
-  perform public.assert_not_light();
+  -- Preserve the light-account refusal at this invoker read boundary.
+  if public.actor_is_light() then
+    raise exception 'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this' using errcode = '42501';
+  end if;
   return query
   with ctx as (
     select o.id as org_id, o.default_timezone as tz, (now() at time zone coalesce(o.default_timezone, 'UTC'))::date as today
