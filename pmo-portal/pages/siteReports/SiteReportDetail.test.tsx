@@ -335,6 +335,16 @@ describe('site report record', () => {
       expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('Nobody active can validate');
     });
 
+    it('keeps a known Finance/Admin route through a failed background refresh too, with the retry and no stale claim', () => {
+      h.detail = make('submitted');
+      h.route = { routeKind: 'finance_admin', approvers: [] };
+      h.routeError = true;
+      renderPage('en');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for Finance or Admin');
+      expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('Nobody active can validate');
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    });
+
     it('non-waiting states show no line and ask for no route (the read is bound to Submitted)', () => {
       for (const st of ['draft', 'validated', 'returned'] as const) {
         h.detail = make(st);

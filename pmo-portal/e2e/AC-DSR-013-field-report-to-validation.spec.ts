@@ -17,12 +17,11 @@ import { signIn, requireServiceRoleKey } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
-// Seed contract (supabase/seed.sql §D): the seeded full Project Manager is Diego Salvatierra in the default seed
-// org, status 'active' and built_in_role NULL (not a light account), so he is eligible under dsr_may_validate.
-// The journey assigns him to its OWN project; the beforeEach invariant refuses to run if a retargeted environment
-// no longer holds that seat, rather than selecting some other profile.
+// Seed contract (supabase/seed.sql §D): the seeded full Project Manager id. The journey reads that ONE row in
+// beforeEach (org, role, status, built_in_role, name), refuses to run if a retargeted environment no longer holds
+// that active full seat, and assigns it to its OWN project. The expected requester line is built from the row's own
+// full_name, so a seed rename fails at the fixture rather than silently disagreeing with a second hardcoded copy.
 const SEEDED_PM_ID = '00000000-0000-0000-0000-0000000000a2';
-const SEEDED_PM_NAME = 'Diego Salvatierra';
 const VITE_ENV = loadEnv('development', process.cwd(), 'VITE_');
 const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
   process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
@@ -35,6 +34,7 @@ test.use({ viewport: { width: 390, height: 844 } });
 let admin: SupabaseClient | undefined;
 let projectId = '';
 let tag = '';
+let seededPmName = '';
 
 test.beforeEach(async () => {
   const key = requireServiceRoleKey();
@@ -42,13 +42,17 @@ test.beforeEach(async () => {
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
   tag = `DSR-013 ${Date.now()}`;
   const fail = (step: string, e: { message: string } | null) => { if (e) throw new Error(`AC-DSR-013 fixture ${step}: ${e.message}`); };
-  // The named route needs the seeded ACTIVE FULL Project Manager of THIS organisation. A retargeted E2E org (or a
-  // seed change) must fail here loudly instead of asserting a sentence the page cannot show.
-  const pm = await admin.from('profiles').select('id, org_id, role, status, built_in_role').eq('id', SEEDED_PM_ID).single();
+  // The named route needs the seeded ACTIVE FULL Project Manager of THIS organisation, and the expected sentence
+  // is bound to that row's own full_name. A retargeted E2E org (or a seed change) must fail here loudly instead of
+  // asserting a sentence the page cannot show.
+  const pm = await admin.from('profiles').select('id, org_id, role, status, built_in_role, full_name').eq('id', SEEDED_PM_ID).single();
   fail('project manager read', pm.error);
-  if (pm.data?.org_id !== ORG_ID || pm.data.role !== 'Project Manager' || pm.data.status !== 'active' || pm.data.built_in_role !== null) {
+  const pmRow = pm.data;
+  if (!pmRow || pmRow.org_id !== ORG_ID || pmRow.role !== 'Project Manager' || pmRow.status !== 'active'
+      || pmRow.built_in_role !== null || !pmRow.full_name?.trim()) {
     throw new Error(`AC-DSR-013 fixture: ${SEEDED_PM_ID} is not an active full Project Manager of organisation ${ORG_ID}`);
   }
+  seededPmName = pmRow.full_name;
   const project = await admin.from('projects').insert({ org_id: ORG_ID, name: tag, status: 'Ongoing Project', project_manager_id: SEEDED_PM_ID }).select('id').single();
   fail('project', project.error);
   projectId = project.data!.id;
@@ -98,8 +102,9 @@ test('AC-DSR-013 / FR-WAIT-006 a phone-entered field report reaches the QS queue
   await expect(page.getByRole('button', { name: 'Validate' })).toHaveCount(0);
   // FR-WAIT-006: the requester is told who the submitted report waits for, from the server-computed route: the
   // assigned PM is named with the database's own role, and Finance/Admin remain the true role-level alternatives.
+  // The name comes from the seeded profile row read in beforeEach, never a second hardcoded copy.
   await expect(page.getByTestId('dsr-waiting-for')).toHaveText(
-    `Waiting for ${SEEDED_PM_NAME}, Project Manager or Finance or Admin`,
+    `Waiting for ${seededPmName}, Project Manager or Finance or Admin`,
     { timeout: 15_000 },
   );
 

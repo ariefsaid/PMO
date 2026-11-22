@@ -1,13 +1,14 @@
 -- 1567_dsr_validation_route.sql — fix-waiting item 3 (FR-WAIT-006): a Submitted site report says who it waits for.
 -- REVERSE: supabase/migrations/rollback/1567_dsr_validation_route_down.sql
 --
--- ONE READ for ONE visible Submitted report. It projects the population that the CURRENT write authority
--- (1041 dsr_may_validate + dsr_validate, plus the 1530/1461 light-account guard on dsr_validate) already
--- lets validate — it does not add, widen or change any write, approval or SoD rule:
+-- ONE READ for ONE visible Submitted report. It shows who the current write authority would let validate
+-- on the supported account state (1041 dsr_may_validate + dsr_validate, with the 1530/1461 light-account
+-- guard) — it does not add, widen or change any write, approval or SoD rule:
 --   * the AUTHOR is excluded for every role: dsr_validate refuses the author first (FR-DSR-015, ADR-0019);
 --   * the assigned project manager is named ONLY when that profile is a real 'Project Manager', active,
---     not a light account (foreman / field_user, 1205) and not the author — the exact dsr_may_validate
---     conditions, which require auth_role() = 'Project Manager' AND projects.project_manager_id = auth.uid();
+--     not a light account (foreman / field_user, 1205) and not the author — the same role, assignment and
+--     author conditions dsr_may_validate applies (auth_role() = 'Project Manager' AND
+--     projects.project_manager_id = auth.uid());
 --   * Admin and Finance stay TRUE role-level alternatives for every other person in the organisation
 --     (dsr_may_validate admits either role), and only the role words are spoken for them: the screen never
 --     needs a people list, so this read returns no Admin/Finance names;
@@ -21,16 +22,9 @@
 -- refused by the active-caller assert before any row is read. The caller's organisation comes from the
 -- visible report row, never from the client.
 --
--- DELIBERATE LIMIT: profiles.status is the app-visible disabled state this invoker read can see. An
--- out-of-band auth.users.banned_until set without a status change is not readable by `authenticated`
--- (is_active_member(uuid) is revoked, and the definer actor_authorization_state is self-only). Such a
--- person is still refused by dsr_validate's own active assert; this read can name their existing profile
--- row. The route never becomes the authority: dsr_validate keeps deciding.
---
--- This is the minimum projection the requester sentence needs: the same predicates as the deciding
--- write (1041 dsr_may_validate + dsr_validate, plus the 1530 light-account guard), expressed as
--- SECURITY INVOKER over the policies that already bound the same rows (daily_site_reports_select,
--- projects_select, profiles_select). See docs/specs/daily-site-report.spec.md (FR-DSR-015) and
+-- The requester display is derived from supported account state; the existing validation RPC (dsr_validate)
+-- remains authoritative. This is a display projection, not a claim of exact authorization equivalence, and
+-- it changes no write, approval or SoD rule. See docs/specs/daily-site-report.spec.md (FR-DSR-015) and
 -- docs/specs/waiting-list.spec.md (FR-WAIT-006).
 
 create function public.get_dsr_validation_route(p_report_id uuid)
