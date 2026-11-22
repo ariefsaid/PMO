@@ -59,39 +59,39 @@ select is((select count(*)::int from survey_participants where record_id=(select
 select is((select org_id from survey_records where id=(select v from ids where k='s1')), '17840000-0000-0000-0000-000000000001'::uuid, 'AC-SCR-001 org_id is stamped by the database');
 select is((select status from survey_records where id=(select v from ids where k='s1')), 'draft', 'AC-SCR-001 it starts as a draft');
 select throws_ok($q$select survey_quantity_for_line('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041')$q$, '42501', null, 'AC-SCR-006 the seam is not callable by the signed-in role');
-select like(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-10',4,5,'[{"name":"X"}]'::jsonb)$q$), 'SVY_QUALITY_OVER:%', 'AC-SCR-002 quality-ready above surveyed is refused');
-select like(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-10',4,1,'[]'::jsonb)$q$), 'SVY_NEEDS_PARTICIPANT:%', 'AC-SCR-001 who took part is required');
-select like(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000044','2026-11-10',4,1,'[{"name":"X"}]'::jsonb)$q$), 'SVY_NOT_ALLOCATED:%', 'AC-SCR-001 a line not allocated to the work order is refused');
-select like(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000043','2026-11-10',1,1,'[{"name":"X"}]'::jsonb)$q$), 'SVY_LUMP_SUM:%', 'AC-SCR-001 a lump-sum line is refused');
-select like(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000033','17840000-0000-0000-0000-000000000041','2026-11-10',1,1,'[{"name":"X"}]'::jsonb)$q$), 'SVY_NOT_ISSUED:%', 'AC-SCR-001 only an issued work order takes a survey');
+select alike(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-10',4,5,'[{"name":"X"}]'::jsonb)$q$), 'SVY_QUALITY_OVER:%', 'AC-SCR-002 quality-ready above surveyed is refused');
+select alike(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-10',4,1,'[]'::jsonb)$q$), 'SVY_NEEDS_PARTICIPANT:%', 'AC-SCR-001 who took part is required');
+select alike(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000044','2026-11-10',4,1,'[{"name":"X"}]'::jsonb)$q$), 'SVY_NOT_ALLOCATED:%', 'AC-SCR-001 a line not allocated to the work order is refused');
+select alike(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000043','2026-11-10',1,1,'[{"name":"X"}]'::jsonb)$q$), 'SVY_LUMP_SUM:%', 'AC-SCR-001 a lump-sum line is refused');
+select alike(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000033','17840000-0000-0000-0000-000000000041','2026-11-10',1,1,'[{"name":"X"}]'::jsonb)$q$), 'SVY_NOT_ISSUED:%', 'AC-SCR-001 only an issued work order takes a survey');
 select throws_ok($q$update survey_records set surveyed_quantity = 99$q$, '42501', null, 'AC-SCR-004 no direct write grant exists for the signed-in role');
-select like(pg_temp.err($q$select confirm_survey((select v from ids where k='s1'))$q$), 'SVY_CONFIRM_ROLE:%', 'AC-SCR-003 a project manager cannot confirm');
+select alike(pg_temp.err($q$select confirm_survey((select v from ids where k='s1'))$q$), 'SVY_CONFIRM_ROLE:%', 'AC-SCR-003 a project manager cannot confirm');
 -- documents
-select like(pg_temp.err($q$select attach_survey_document((select v from ids where k='s1'),'17840000-0000-0000-0000-000000000052')$q$), 'SVY_DOCUMENT_INVALID:%', 'AC-SCR-011 another project''s document is refused');
-select like(pg_temp.err($q$select attach_survey_document((select v from ids where k='s1'),'17840000-0000-0000-0000-000000000053')$q$), 'SVY_DOCUMENT_INVALID:%', 'AC-SCR-011 a draft-status document is refused');
-select like(pg_temp.err($q$select attach_survey_document((select v from ids where k='s1'),'17840000-0000-0000-0000-000000000054')$q$), 'SVY_DOCUMENT_INVALID:%', 'AC-SCR-011 a document without a file is refused');
+select alike(pg_temp.err($q$select attach_survey_document((select v from ids where k='s1'),'17840000-0000-0000-0000-000000000052')$q$), 'SVY_DOCUMENT_INVALID:%', 'AC-SCR-011 another project''s document is refused');
+select alike(pg_temp.err($q$select attach_survey_document((select v from ids where k='s1'),'17840000-0000-0000-0000-000000000053')$q$), 'SVY_DOCUMENT_INVALID:%', 'AC-SCR-011 a draft-status document is refused');
+select alike(pg_temp.err($q$select attach_survey_document((select v from ids where k='s1'),'17840000-0000-0000-0000-000000000054')$q$), 'SVY_DOCUMENT_INVALID:%', 'AC-SCR-011 a document without a file is refused');
 -- quality-ready needs a document at confirm
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000012","role":"authenticated"}';
-select like(pg_temp.err($q$select confirm_survey((select v from ids where k='s1'))$q$), 'SVY_QUALITY_NEEDS_DOCUMENT:%', 'AC-SCR-016 a quality-ready quantity needs an attached document to confirm');
+select alike(pg_temp.err($q$select confirm_survey((select v from ids where k='s1'))$q$), 'SVY_QUALITY_NEEDS_DOCUMENT:%', 'AC-SCR-016 a quality-ready quantity needs an attached document to confirm');
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000013","role":"authenticated"}';
 select lives_ok($q$select attach_survey_document((select v from ids where k='s1'),'17840000-0000-0000-0000-000000000051')$q$, 'AC-SCR-011 an issued document with a file is accepted');
 -- who may record / confirm
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000014","role":"authenticated"}';
-select like(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-10',1,0,'[{"name":"X"}]'::jsonb)$q$), 'SVY_NOT_PERMITTED:%', 'AC-SCR-010 a manager of another project cannot record');
+select alike(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-10',1,0,'[{"name":"X"}]'::jsonb)$q$), 'SVY_NOT_PERMITTED:%', 'AC-SCR-010 a manager of another project cannot record');
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000015","role":"authenticated"}';
-select like(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-10',1,0,'[{"name":"X"}]'::jsonb)$q$), 'SVY_NOT_PERMITTED:%', 'AC-SCR-010 an engineer cannot record');
-select like(pg_temp.err($q$select confirm_survey((select v from ids where k='s1'))$q$), 'SVY_CONFIRM_ROLE:%', 'AC-SCR-010 an engineer cannot confirm');
+select alike(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-10',1,0,'[{"name":"X"}]'::jsonb)$q$), 'SVY_NOT_PERMITTED:%', 'AC-SCR-010 an engineer cannot record');
+select alike(pg_temp.err($q$select confirm_survey((select v from ids where k='s1'))$q$), 'SVY_CONFIRM_ROLE:%', 'AC-SCR-010 an engineer cannot confirm');
 -- SoD: Finance records, then cannot confirm it; the Admin can
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000012","role":"authenticated"}';
 insert into ids select 's2', record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000042','2026-11-11',3,0,'[{"name":"Finance Person"}]'::jsonb);
-select like(pg_temp.err($q$select confirm_survey((select v from ids where k='s2'))$q$), 'SVY_RECORDER_CONFIRMS:%', 'AC-SCR-003 the recorder cannot confirm their own survey');
+select alike(pg_temp.err($q$select confirm_survey((select v from ids where k='s2'))$q$), 'SVY_RECORDER_CONFIRMS:%', 'AC-SCR-003 the recorder cannot confirm their own survey');
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000011","role":"authenticated"}';
 select lives_ok($q$select confirm_survey((select v from ids where k='s2'))$q$, 'AC-SCR-003 another Admin confirms');
 select is((select confirm_basis from survey_records where id=(select v from ids where k='s2')), 'standard', 'AC-SCR-003 basis standard');
 select lives_ok($q$select confirm_survey((select v from ids where k='s1'))$q$, 'AC-SCR-003 the Admin confirms the quality-ready survey (document attached)');
 -- immutability
-select like(pg_temp.err($q$select attach_survey_document((select v from ids where k='s1'),'17840000-0000-0000-0000-000000000051')$q$), 'SVY_FROZEN:%', 'AC-SCR-004 a confirmed survey takes no more documents');
-select like(pg_temp.err($q$select archive_survey_draft((select v from ids where k='s1'))$q$), 'SVY_FROZEN:%', 'AC-SCR-004 a confirmed survey cannot be discarded');
+select alike(pg_temp.err($q$select attach_survey_document((select v from ids where k='s1'),'17840000-0000-0000-0000-000000000051')$q$), 'SVY_FROZEN:%', 'AC-SCR-004 a confirmed survey takes no more documents');
+select alike(pg_temp.err($q$select archive_survey_draft((select v from ids where k='s1'))$q$), 'SVY_FROZEN:%', 'AC-SCR-004 a confirmed survey cannot be discarded');
 reset role;
 select throws_ok($q$update survey_records set surveyed_quantity = 9 where id=(select v from ids where k='s1')$q$, '42501', null, 'AC-SCR-004 not even the owner can change a confirmed survey''s figures');
 select throws_ok($q$delete from survey_records where id=(select v from ids where k='s1')$q$, '42501', null, 'AC-SCR-004 a survey record cannot be deleted');
@@ -109,8 +109,8 @@ select ok((select certified_quantity = 7 and quality_ready_quantity = 3 from sur
 -- AC-SCR-005 correction
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000013","role":"authenticated"}';
 insert into ids select 's4', record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-13',2,0,'[{"name":"P"}]'::jsonb,(select v from ids where k='s3'));
-select like(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-13',1,0,'[{"name":"P"}]'::jsonb,(select v from ids where k='s3'))$q$), 'SVY_ALREADY_CORRECTED:%', 'AC-SCR-005 a second open correction of the same survey is refused');
-select like(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000042','2026-11-13',1,0,'[{"name":"P"}]'::jsonb,(select v from ids where k='s3'))$q$), 'SVY_NOT_CORRECTABLE:%', 'AC-SCR-005 a correction must name a survey of the same line');
+select alike(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-13',1,0,'[{"name":"P"}]'::jsonb,(select v from ids where k='s3'))$q$), 'SVY_ALREADY_CORRECTED:%', 'AC-SCR-005 a second open correction of the same survey is refused');
+select alike(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000042','2026-11-13',1,0,'[{"name":"P"}]'::jsonb,(select v from ids where k='s3'))$q$), 'SVY_NOT_CORRECTABLE:%', 'AC-SCR-005 a correction must name a survey of the same line');
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000011","role":"authenticated"}';
 select lives_ok($q$select confirm_survey((select v from ids where k='s4'))$q$, 'AC-SCR-005 the correction is confirmed');
 select ok((select certified_quantity = 6 from survey_certified_lines where boq_item_id='17840000-0000-0000-0000-000000000041'), 'AC-SCR-005 the corrected record no longer counts: 4 + 2 = 6');
@@ -128,14 +128,14 @@ select is(survey_quantity_for_line('17840000-0000-0000-0000-000000000031','17840
 select ok((select basis='surveyed' and ceiling=6 from work_order_line_headroom('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041')), 'AC-SCR-007 the headroom ceiling is on the surveyed basis');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000012","role":"authenticated"}';
-select like(pg_temp.err($q$select create_progress_claim('17840000-0000-0000-0000-000000000021','progress',p_work_order_id=>'17840000-0000-0000-0000-000000000031',p_lines=>'[{"boq_item_id":"17840000-0000-0000-0000-000000000041","quantity":6.001}]'::jsonb)$q$), 'CLM_OVER_CAP:%surveyed%', 'AC-SCR-007 on block a claim over the surveyed quantity is refused');
+select alike(pg_temp.err($q$select create_progress_claim('17840000-0000-0000-0000-000000000021','progress',p_work_order_id=>'17840000-0000-0000-0000-000000000031',p_lines=>'[{"boq_item_id":"17840000-0000-0000-0000-000000000041","quantity":6.001}]'::jsonb)$q$), 'CLM_OVER_CAP:%surveyed%', 'AC-SCR-007 on block a claim over the surveyed quantity is refused');
 select lives_ok($q$select create_progress_claim('17840000-0000-0000-0000-000000000021','progress',p_work_order_id=>'17840000-0000-0000-0000-000000000031',p_lines=>'[{"boq_item_id":"17840000-0000-0000-0000-000000000041","quantity":6}]'::jsonb)$q$, 'AC-SCR-007 a claim at the surveyed quantity is created');
 reset role;
 -- AC-SCR-008 another organisation
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000017","role":"authenticated"}';
 select is((select count(*)::int from survey_records) + (select count(*)::int from survey_participants) + (select count(*)::int from survey_record_documents) + (select count(*)::int from survey_certified_lines), 0, 'AC-SCR-008 another organisation sees no record, participant, document or certified line');
-select like(pg_temp.err($q$select confirm_survey((select v from ids where k='s2'))$q$), 'SVY_NOT_FOUND:%', 'AC-SCR-008 another organisation cannot confirm a record of this one');
+select alike(pg_temp.err($q$select confirm_survey((select v from ids where k='s2'))$q$), 'SVY_NOT_FOUND:%', 'AC-SCR-008 another organisation cannot confirm a record of this one');
 -- AC-SCR-009 light account
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000016","role":"authenticated"}';
 select is((select count(*)::int from survey_records) + (select count(*)::int from survey_certified_lines), 0, 'AC-SCR-009 a light account sees no survey record or certified line');
