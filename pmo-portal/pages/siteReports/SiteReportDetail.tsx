@@ -83,9 +83,11 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   };
   const waitingLine = report.status !== 'submitted'
     ? null
-    : route.isError
-      ? waitingLabels.unavailable
-      : dsrWaitingForText(route.data, t, waitingLabels);
+    : route.data
+      ? dsrWaitingForText(route.data, t, waitingLabels)
+      : route.isError
+        ? waitingLabels.unavailable
+        : null;
 
   const lookups = useDsrLookups(report.work_order_id, report.id);
   const stock = useQuery({ queryKey: ['daily-site-reports', 'stock-items'], queryFn: () => repositories.stock.master.listItems(false), enabled: editable || detail.consumables.length > 0 });
