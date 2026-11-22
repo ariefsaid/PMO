@@ -217,7 +217,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
       const scopeToggle = screen.getByLabelText('Approvals scope');
       expect(within(scopeToggle).getByText('Leave requests')).toBeInTheDocument();
-      const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
+      const allTab = within(scopeToggle).getByText('All pending').closest<HTMLElement>('[role="tab"], button');
       // Strong numeric oracle: no count badge rendered at all on All tab while unknown
       expect(within(allTab!).queryByText(/\d+/)).toBeNull();
     });
@@ -237,7 +237,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
       const scopeToggle = screen.getByLabelText('Approvals scope');
       expect(within(scopeToggle).getByText('Leave requests')).toBeInTheDocument();
-      const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
+      const allTab = within(scopeToggle).getByText('All pending').closest<HTMLElement>('[role="tab"], button');
       expect(within(allTab!).queryByText(/\d+/)).toBeNull();
     });
 
@@ -311,7 +311,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
       const scopeToggle = screen.getByLabelText('Approvals scope');
       expect(within(scopeToggle).getByText('Site cash')).toBeInTheDocument();
-      const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
+      const allTab = within(scopeToggle).getByText('All pending').closest<HTMLElement>('[role="tab"], button');
       expect(within(allTab!).queryByText(/\d+/)).toBeNull();
     });
 
@@ -328,7 +328,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
       const scopeToggle = screen.getByLabelText('Approvals scope');
       expect(within(scopeToggle).getByText('Site cash')).toBeInTheDocument();
-      const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
+      const allTab = within(scopeToggle).getByText('All pending').closest<HTMLElement>('[role="tab"], button');
       expect(within(allTab!).queryByText(/\d+/)).toBeNull();
     });
 
@@ -483,7 +483,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
       const scopeToggle = screen.getByLabelText('Approvals scope');
       expect(within(scopeToggle).getByText('Leave requests')).toBeInTheDocument();
-      const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
+      const allTab = within(scopeToggle).getByText('All pending').closest<HTMLElement>('[role="tab"], button');
       expect(within(allTab!).getByText('1')).toBeInTheDocument();
     });
 
@@ -515,7 +515,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
       const scopeToggle = screen.getByLabelText('Approvals scope');
       expect(within(scopeToggle).getByText('Site cash')).toBeInTheDocument();
-      const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
+      const allTab = within(scopeToggle).getByText('All pending').closest<HTMLElement>('[role="tab"], button');
       expect(within(allTab!).getByText('1')).toBeInTheDocument();
     });
   });
