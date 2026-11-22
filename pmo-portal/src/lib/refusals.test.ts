@@ -39,8 +39,10 @@ describe('parseRefusal', () => {
       .toEqual({ hours: '20', workOrder: 'WO-1' });
   });
   it('AC-SCS-012 reads the claimable headroom out of the claim-cap refusal', () => {
-    expect(parseRefusal({ message: 'CLM_OVER_CAP: only 2.000 unit still claimable on this work-order line (accepted 3.000, already claimed 1.000); lower the quantity or confirm the next acceptance' })?.values)
+    expect(parseRefusal({ message: 'CLM_OVER_CAP: only 2 unit still claimable on this work-order line (accepted 3, already claimed 1); lower the quantity or confirm the next acceptance' })?.values)
       .toEqual({ headroom: '2' });
+    expect(parseRefusal({ message: 'CLM_OVER_CAP: only 0 unit still claimable on this work-order line (ordered 10, already claimed 10); lower the quantity' })?.values)
+      .toEqual({ headroom: '0' });
   });
   it('is null for anything that is not a refusal', () => {
     expect(parseRefusal({ code: '42501', message: 'permission denied for table x' })).toBeNull();
