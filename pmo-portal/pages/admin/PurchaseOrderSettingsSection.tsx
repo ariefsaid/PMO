@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { Button, FieldError, ListState, TextField, useToast } from '@/src/components/ui';
-import { cn } from '@/src/components/ui/cn';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   usePurchaseOrderSettings,

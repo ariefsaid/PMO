@@ -58,13 +58,14 @@ describe('ModuleGate: the one check an Admin list or panel sits behind', () => {
 
 describe('a feature in a module reads off while its module is off (the stored value is untouched)', () => {
   const inModule = (Object.keys(ORG_SWITCHES) as OrgSwitchKey[]).filter((k) => 'module' in ORG_SWITCHES[k]);
+  const moduleOf = (k: OrgSwitchKey): OrgModuleKey => (ORG_SWITCHES[k] as { module: OrgModuleKey }).module;
 
   it('covers the six registry switches that live in a module', () => {
     expect(inModule.sort()).toEqual(['builtInRoles', 'clearance', 'crewLoans', 'disciplineProfit', 'safetyRecords', 'stockWoTransfers']);
   });
 
   it.each(inModule)('%s: stored on, module on reads on; module off reads off', async (key) => {
-    const module = ORG_SWITCHES[key].module as OrgModuleKey;
+    const module = moduleOf(key);
     stored[key] = true;
     const on = renderHook(() => useOrgSwitch(key), { wrapper: wrap });
     await waitFor(() => expect(on.result.current.data).toBe(true));

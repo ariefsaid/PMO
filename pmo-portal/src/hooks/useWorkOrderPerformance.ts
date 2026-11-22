@@ -1,4 +1,4 @@
-import { enabledOffWhenModuleOff } from '@/src/hooks/moduleGate';
+import { useEnabledOffWhenModuleOff } from '@/src/hooks/moduleGate';
 import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { workOrderPerformanceRepository } from '@/src/lib/repositories/workOrderPerformance';
@@ -14,7 +14,7 @@ export function usePerformanceSettings() {
   // cache entry (skipToken: it never fetches) and reads the setting once the shell's own read has landed, so a page
   // that mounts without the shell makes no organisation request, and navigating makes none (the answer is cached).
   const shellOrgRead = useQuery({ queryKey: ['org-locale-defaults', orgId], queryFn: skipToken });
-  return enabledOffWhenModuleOff('moduleSiteDay', useQuery({
+  return useEnabledOffWhenModuleOff('moduleSiteDay', useQuery({
     queryKey: [PERFORMANCE_SETTINGS_KEY, orgId],
     queryFn: () => workOrderPerformanceRepository.getSettings(),
     enabled: Boolean(currentUser) && shellOrgRead.data !== undefined,

@@ -4,7 +4,7 @@ import type {
   ChainStepInput, MaterialRequestFilter, MaterialRequestHeader, MaterialRequestLineInput, StepDecision,
 } from '@/src/lib/repositories/materialRequests';
 import { useOrgId } from '@/src/hooks/useOrgId';
-import { enabledOffWhenModuleOff } from '@/src/hooks/moduleGate';
+import { useEnabledOffWhenModuleOff } from '@/src/hooks/moduleGate';
 
 /** Material requests (#2524) over the repository seam (ADR-0017). Keys carry org_id (tenant scope); every write refreshes the whole root. */
 export const MATERIAL_REQUEST_QUERY_ROOT = 'material-requests';
@@ -47,7 +47,7 @@ export function useMaterialRequestCutoff() {
 }
 export function useDeliveryNoteSettings() {
   const orgId = useOrgId();
-  return enabledOffWhenModuleOff('modulePurchasingExtras', useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'delivery-note-settings'], queryFn: () => repo.deliveryNoteSettings(), enabled: Boolean(orgId) }));
+  return useEnabledOffWhenModuleOff('modulePurchasingExtras', useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'delivery-note-settings'], queryFn: () => repo.deliveryNoteSettings(), enabled: Boolean(orgId) }));
 }
 
 export function useUsageThresholds() {

@@ -22,7 +22,6 @@ export default function OrgPaymentChannels() {
   const [archiving, setArchiving] = useState<PaymentChannel | null>(null);
   const lastError = [m.save, m.archive].find((x) => x.isError);
   const error = lastError ? classifyMutationError(lastError.error) : null;
-  const busy = m.save.isPending || m.archive.isPending;
 
   return (
     <section aria-labelledby="payment-channels-heading">
