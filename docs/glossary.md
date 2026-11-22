@@ -1362,3 +1362,9 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
 
 **Claim ceiling / claimable quantity** (*batas klaim / kuantitas yang dapat ditagih*) — what a claim on one work-order line may still take: the surveyed quantity when there is one, otherwise the accepted (BAST) quantity (a BAST of zero counts), otherwise the ordered quantity, less what live claims and live opening balances already took (withdrawn and cancelled-invoice claims do not count). The claim form shows it as a warning; an organisation that sets **Claims over the claimable quantity** to Refuse (Administration, Accounting; Admin only; default Warn only) has the database refuse the claim instead (refusal code `CLM_OVER_CAP`). Lump-sum lines and claims with no work order are outside it. One rule in two places: `claimableHeadroom` (app) and `claimable_headroom` (database), tested against the same cases.
+
+**Survey record** (*catatan survei*) — what was measured on site for one work-order line: date, who took part (typed names, with or without an account), surveyed quantity, quality-ready quantity and attached documents. A draft becomes confirmed by Finance or an Admin who is not the recorder; a confirmed record is never edited, a correction is a new record that supersedes it.
+
+**Certified quantity** (*kuantitas tersertifikasi*) — the sum of the surveyed quantity of a work-order line's confirmed, not-superseded survey records. It is the claim ceiling's first choice.
+
+**Quality-ready quantity** (*kuantitas siap mutu*) — the part of a surveyed quantity that has quality documents attached. A claim past it only warns.

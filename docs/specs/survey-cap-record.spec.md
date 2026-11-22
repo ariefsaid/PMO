@@ -21,7 +21,7 @@ Whether the survey is internal or joint with the customer's supervisor is open, 
 - FR-SCR-2: The database shall refuse a record whose quality-ready quantity exceeds its surveyed quantity (check constraint).
 - FR-SCR-3: The system shall store the participants of a record as rows: a typed name (required), an optional company, an optional role label, and an optional link to an account. People without an account are typed names. No participant kind or role list is coded.
 - FR-SCR-4: The system shall allow attachments to a record by existing project documents (Issued or Approved, with a file, of the work order's project), many per record, through the same rule as the close-out attach.
-- FR-SCR-5: When a person who may record project progress records a survey on an Issued work order for a line allocated to it, the system shall create a `draft` record. A draft may be edited and its documents changed by its recorder or an Admin/Finance, and soft-archived (ADR-0018) while a draft.
+- FR-SCR-5: When a person who may record project progress records a survey on an Issued work order for a line allocated to it, the system shall create a `draft` record. A draft's documents may be attached, and the draft soft-archived (ADR-0018), by its recorder or an Admin/Finance. A wrong draft is discarded and recorded again (no edit path: there is one writer, `record_survey`).
 - FR-SCR-6: When Admin or Finance confirms a draft, the system shall set it `confirmed`. The recorder cannot confirm their own draft unless they are the organisation's only active member. Confirmation of a record that supersedes another marks the superseded one `superseded_at`, in the same transaction.
 - FR-SCR-7: A confirmed record is immutable: no update of its figures, date, participants or documents, no delete, no archive. Correction = a new draft with `supersedes_id` naming the confirmed record; at most one open draft per record superseded.
 - FR-SCR-8: The certified quantity of a work-order line = the sum of surveyed quantity over its confirmed, not-superseded, not-archived records; null when it has none. The certified quality-ready quantity is the same sum of quality-ready.
@@ -29,6 +29,7 @@ Whether the survey is internal or joint with the customer's supervisor is open, 
 - FR-SCR-10: The claim form shall pass the certified quantity as `surveyed` to `claimableHeadroom`, show surveyed and quality-ready beside the ceiling for the line, and show a warning (never a refusal) when the typed quantity passes quality-ready, with the next step. Where there is no survey, behaviour is exactly part A/B's.
 - FR-SCR-11: The work-order page shall list the surveys (date, line, surveyed, quality-ready, participants, documents, status) with record, confirm, correct and discard actions gated by `can()`; the empty state says who records it. EN and ID, 390 px and 1440 px.
 - FR-SCR-12: A light account shall be refused every read and write of these tables and functions. Another organisation's records are invisible and unusable. `org_id` is stamped by the database.
+- FR-SCR-14: When a draft with a quality-ready quantity above zero is confirmed, the database shall require at least one attached document (AC-SCR-016), so "quality-ready" always has documents behind it.
 - FR-SCR-13: Every refusal a person can meet shall have an English and a Bahasa Indonesia sentence in the refusals catalogue saying what to do next.
 
 ## Acceptance criteria (Given/When/Then) and owning layer
@@ -46,13 +47,14 @@ Whether the survey is internal or joint with the customer's supervisor is open, 
 - AC-SCR-012 Given a line with a certified quantity, the claim form shows surveyed and quality-ready beside the line, uses surveyed as the ceiling, warns past quality-ready and past surveyed, and does not block. EN and ID. (RTL)
 - AC-SCR-013 The survey list shows rows, hides actions the role lacks with the reason, and the empty state names who records it. EN and ID. (RTL)
 - AC-SCR-014 Journey: record a survey, confirm it as another person, open the claim form, type above quality-ready, see the warning. (e2e)
+- AC-SCR-016 Confirming a draft with quality-ready above zero and no document is refused; with a document it is confirmed. (pgTAP)
 - AC-SCR-015 Every refusal has EN and ID sentences. (`npm run check:guards` refusal gate)
 
 ## Settings and defaults
 None added. The surveyed ceiling already takes effect for a hard stop only where the organisation chose `block` (part B). On `warn` (default) the surveyed figure sharpens the form warning only.
 
-## Open question for the owner
-Should a survey of a line with a confirmed BAST be allowed to exceed the accepted quantity? Built meanwhile: yes (no cross-check); the ceiling takes the surveyed figure as the stronger fact, per the ruling in the job story.
+## Owner decision (coordinator, 2026-11-22)
+A survey may exceed the accepted (BAST) quantity; filed as an owner question. Built: no cross-check; the ceiling takes the surveyed figure first.
 
 ## Not in scope
 The BAST flow itself, lump-sum lines (a survey is per unit-rate line; lump-sum is a fraction of one lot), and any change to the work-order value cap.
