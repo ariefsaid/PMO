@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, CardPad, FieldError, SelectField, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { useAuth } from '@/src/auth/useAuth';
 import { BUILT_IN_ROLES, builtInRoleName } from '@/src/auth/builtInRoles';
 import { useSetSupervisorRole, useSetWorkOrderArea, useSupervisorRole, useWorkOrderArea } from '@/src/hooks/usePhoneCheckIn';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -18,13 +17,12 @@ export const CheckInSettings: React.FC = () => {
   const { t, i18n } = useTranslation('crews');
   const { toast } = useToast();
   const may = usePermission();
-  const { currentUser } = useAuth();
   const canArea = may('create', 'workOrder');
-  const isAdmin = currentUser?.role === 'Admin';
+  const canManageSupervisor = may('manage', 'checkInSettings');
   const [workOrderId, setWorkOrderId] = useState<string | null>(null);
   const area = useWorkOrderArea(workOrderId);
   const setArea = useSetWorkOrderArea();
-  const role = useSupervisorRole(isAdmin);
+  const role = useSupervisorRole(canManageSupervisor);
   const setRole = useSetSupervisorRole();
   const [lat, setLat] = useState(''); const [lng, setLng] = useState(''); const [radius, setRadius] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +33,7 @@ export const CheckInSettings: React.FC = () => {
     { value: '', label: t('crews:checkIn.supervisorRoleDefault', "The crew's field controller or a crew manager") },
     ...BUILT_IN_ROLES.map((r) => ({ value: r.key, label: builtInRoleName(r.key, i18n.language) })),
   ], [t, i18n.language]);
-  if (!canArea && !isAdmin) return null;
+  if (!canArea && !canManageSupervisor) return null;
 
   const fail = (err: unknown) => { const { headline, detail } = classifyMutationError(err); setError(detail || headline); };
   const save = async () => {
@@ -76,7 +74,7 @@ export const CheckInSettings: React.FC = () => {
             )}
           </>
         )}
-        {isAdmin && (
+        {canManageSupervisor && (
           <SelectField label={t('crews:checkIn.supervisorRole', 'Who decides outside-area check-ins')} value={role.data ?? ''}
             helper={t('crews:checkIn.supervisorRoleHelper', 'Anyone holding this role decides. The person who checked in never decides their own.')}
             options={roleOptions} disabled={role.isPending || setRole.isPending}

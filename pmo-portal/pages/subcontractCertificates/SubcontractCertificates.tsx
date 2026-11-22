@@ -169,8 +169,7 @@ const SubcontractCertificatesPage: React.FC = () => {
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
   const viewOnly = realRole !== effectiveRole;
-  // The server decides per project; the button shows for the roles that can prepare anywhere (a PM is refused on other projects).
-  const canPrepare = realRole === 'Admin' || realRole === 'Finance' || realRole === 'Project Manager' ? !viewOnly : false;
+  const canPrepare = may('prepare', 'subcontractCertificate', { record: { viewOnly } });
   const canManageRates = may('manage', 'subcontractRate', { record: { viewOnly } });
   const canSeeRates = may('view', 'subcontractRate');
   const { values, setFilter } = useUrlFilters(['view']);

@@ -14,7 +14,13 @@ const h = vi.hoisted(() => ({
   setArea: { mutateAsync: vi.fn(), isPending: false },
   setRole: { mutate: vi.fn(), isPending: false },
 }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string) => (action === 'create' ? h.canArea : true) }));
+vi.mock('@/src/auth/usePermission', () => ({
+  usePermission: () => (action: string, entity?: string) => {
+    if (action === 'create') return h.canArea;
+    if (action === 'manage' && entity === 'checkInSettings') return h.role === 'Admin';
+    return true;
+  },
+}));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'o1', role: h.role } }) }));
 vi.mock('@/src/hooks/usePhoneCheckIn', () => ({
   useWorkOrderArea: (id: string | null) => ({ data: id ? h.area : undefined, isPending: false }),

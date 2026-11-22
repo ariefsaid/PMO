@@ -441,9 +441,10 @@ const ProcurementDetails: React.FC = () => {
     (isDraft || isRejected) && (isRequester || realRole === 'Admin') && may('edit', 'procurement');
   // #2698: the payment channel (shown only where the org switched it on). Requester or Admin while Draft/Rejected (the header
   // rule), or Finance/Admin until Paid or Cancelled. UX only: set_procurement_payment_channel (1356) is the authority.
-  const canSetPaymentChannel =
-    ((isDraft || isRejected) && (isRequester || realRole === 'Admin'))
-    || ((realRole === 'Finance' || realRole === 'Admin') && p.status !== 'Paid' && p.status !== 'Cancelled');
+  const canSetPaymentChannel = may('setPaymentChannel', 'procurement', {
+    record: { status: p.status, requested_by_id: p.requested_by_id, viewOnly: realRole !== effectiveRole },
+    currentUserId: currentUser?.id,
+  });
   // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
   const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
   const canEditItems = ownershipReady && isDraft && (isRequester || may('edit', 'procItem'));

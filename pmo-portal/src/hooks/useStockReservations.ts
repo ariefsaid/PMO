@@ -32,8 +32,12 @@ export function useReservationRefresh() {
   const qc = useQueryClient();
   return () => Promise.all(['stock-reservation-settings', 'stock-free-reserved', 'wo-reservations', 'request-borrowing'].map((k) => qc.invalidateQueries({ queryKey: [k] })));
 }
+import { can, type Role } from '@/src/auth/policy';
+
 /** Who may reserve in the screen (UX only; the database decides): the location's keeper, a planner (master-data rank) or an Admin; never while viewing as another role. */
 export function mayReserve(realRole: string | null | undefined, viewOnly: boolean, isKeeper: boolean): boolean {
-  if (viewOnly) return false;
-  return isKeeper || realRole === 'Admin' || realRole === 'Project Manager' || realRole === 'Finance' || realRole === 'Executive';
+  return can('manage', 'stockReservation', {
+    realRole: (realRole as Role) ?? null,
+    record: { viewOnly, isKeeper },
+  });
 }
