@@ -39,7 +39,7 @@ import type { VendorInvoiceContext } from '@/src/components/procurement/vendorIn
 import { SubcontractBillLines } from './SubcontractBillLines';
 import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
 import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
-import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { useAttributionErrorText } from '@/src/components/workOrders/costAttributionError';
 import { AttributionRefusedError, NO_ATTRIBUTION, hasAttribution, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 import { type RecordKind, STATUS_OPTIONS, GROUP_REF_KINDS, localizedRecordKindLabel, statusOptionLabel, kindConfig } from './recordCaptureConfig';
@@ -215,6 +215,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
+  const attributionError = useAttributionErrorText();
   const cfg = kindConfig(kind, t);
   // #910 (DD-VPAY-8): the payment capture NEVER asks for a status — the form's `{Pending, Processed,
   // Cleared}` options are illegal against the `payments.status ('Scheduled','Paid')` CHECK (0035), so
@@ -414,7 +415,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       // #2517: the record was saved; only its work order / discipline was refused. Close the form (a retry would
       // create the record again) and say what to fix.
       if (err instanceof AttributionRefusedError) {
-        const d = describeAttributionError(err.refusal, t);
+        const d = attributionError(err.refusal);
         toast(d.headline, d.detail, 'warning');
         setFormDirty(false);
         onDirtyChange?.(false);

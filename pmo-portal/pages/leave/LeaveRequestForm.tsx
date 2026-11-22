@@ -7,7 +7,7 @@ import { useLeaveMutations, useLeaveTypes } from '@/src/hooks/useLeave';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { toIso } from '../equipment/equipmentWeek';
-import { leaveErrorMessage } from './leaveErrors';
+import { useLeaveErrorText } from '../crews/crewErrors';
 
 interface Requestable { id: string; name: string; is_self: boolean }
 
@@ -28,6 +28,7 @@ function useRequestablePeople() {
 /** Request leave or report sickness (FR-LV-002): a person, a type from the organisation's list, a range, an optional reason. */
 export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { t } = useTranslation('crews');
+  const writeError = useLeaveErrorText();
   const { toast } = useToast();
   const people = useRequestablePeople();
   const types = useLeaveTypes();
@@ -48,7 +49,7 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
       toast(t('crews:leave.requested', 'Request sent'), undefined, 'success');
       onClose();
     } catch (err) {
-      setError({ headline: t('crews:saveFailed', 'Not saved'), detail: leaveErrorMessage(t, err) });
+      setError({ headline: t('crews:saveFailed', 'Not saved'), detail: writeError(err) });
     }
   };
   return (

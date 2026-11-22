@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Checkbox, SelectField, TextField } from '@/src/components/ui';
 import { useReservationRefresh, useReservationSettings } from '@/src/hooks/useStockReservations';
 import { stockReservationsRepository as repo, type BorrowMode, type ReservationSettings as Settings } from '@/src/lib/repositories/stockReservations';
-import { useReservationErrorText } from './useReservationErrorText';
+import { useStockErrorText } from './useStockErrorText';
 
 const ROLES = ['Engineer', 'Project Manager', 'Finance', 'Executive', 'Admin'] as const;
 
@@ -13,7 +13,7 @@ export const ReservationSettings: React.FC = () => {
   const { t } = useTranslation('stock');
   const q = useReservationSettings();
   const refresh = useReservationRefresh();
-  const errorText = useReservationErrorText();
+  const errorText = useStockErrorText();
   const [error, setError] = useState('');
   const [label, setLabel] = useState<string | null>(null);
   const change = useMutation({

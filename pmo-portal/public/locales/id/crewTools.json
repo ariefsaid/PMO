@@ -24,19 +24,8 @@
   "error": "Kru gagal dimuat",
   "errors": {
     "alreadySent": "Laporan ini sudah terkirim.",
-    "closed": "Laporan ini sudah ditutup.",
     "duplicateSerial": "Nomor seri itu sudah dipakai alat lain yang aktif.",
-    "exceedsUsable": "Hanya {{usable}} yang bisa dipakai. Laporkan sebanyak itu atau kurang.",
-    "lineArchived": "Alat ini sudah diarsipkan.",
-    "notAllowed": "Peran Anda tidak dapat melakukan ini.",
-    "openReports": "Tutup dulu laporan terbuka alat ini.",
-    "photoMissing": "Sebuah foto gagal diunggah. Tambahkan lagi.",
-    "photoRequired": "Tambahkan foto alat yang rusak.",
-    "quantity": "Periksa jumlah: satu baris memegang minimal 1 (tepat 1 jika bernomor seri) dan tidak kurang dari laporan terbukanya.",
-    "reason": "Berikan alasan koreksi.",
-    "reference": "Pilih kru atau pengguna dari organisasi ini.",
-    "resolution": "Hanya alat yang rusak yang bisa diperbaiki.",
-    "resolveRequired": "Pilih penyelesaian untuk menutup laporan alat ini. Buka Kru, Alat."
+    "exceedsUsable": "Hanya {{usable}} yang bisa dipakai. Laporkan sebanyak itu atau kurang."
   },
   "held": "Dipegang",
   "kind": "Apa yang terjadi",

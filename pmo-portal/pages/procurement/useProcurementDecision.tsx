@@ -15,7 +15,7 @@ import { toastStateLabel } from '../../components/procurement';
 import { classifySubcontractBillError } from './subcontractBillError';
 import type { ActionVariant } from '@/src/lib/procurement/mainAction';
 import type { VendorInvoiceCapture } from './ProcurementDecisionZone';
-import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { useAttributionErrorText } from '@/src/components/workOrders/costAttributionError';
 import { AttributionRefusedError, workOrderCostRepository, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 
@@ -172,6 +172,7 @@ export function useProcurementDecision(
   ui: ProcurementDecisionUi,
 ) {
   const { t } = useTranslation();
+  const attributionError = useAttributionErrorText();
   const { toast } = useToast();
   const { setTab, notesInput, setNotesInput, setMutationError, setShowCreateGR, setShowCreateVI, setShowVICapture, setCaptureKind } = ui;
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
@@ -280,7 +281,7 @@ export function useProcurementDecision(
       await workOrderCostRepository.attributeOrRefuse(source, created, attribution);
       return true;
     } catch (err) {
-      const d = describeAttributionError(err instanceof AttributionRefusedError ? err.refusal : err, t);
+      const d = attributionError(err instanceof AttributionRefusedError ? err.refusal : err);
       toast(d.headline, d.detail, 'warning');
       return false;
     }

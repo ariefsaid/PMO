@@ -6,7 +6,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useLeaveMutations } from '@/src/hooks/useLeave';
 import type { LeaveRequestRow } from '@/src/lib/repositories/leave';
 import { formatDay } from '@/src/lib/format';
-import { leaveErrorMessage } from './leaveErrors';
+import { useLeaveErrorText } from '../crews/crewErrors';
 
 const PILL: Record<LeaveRequestRow['status'], 'warn' | 'won' | 'lost' | 'neutral'> = {
   Pending: 'warn', Approved: 'won', Rejected: 'lost', Cancelled: 'neutral',
@@ -15,6 +15,7 @@ const PILL: Record<LeaveRequestRow['status'], 'warn' | 'won' | 'lost' | 'neutral
 /** Requests with the actions the database says the viewer may take (`can_decide`, `is_mine`). UX only: the RPC decides. */
 export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[] }> = ({ rows }) => {
   const { t } = useTranslation('crews');
+  const writeError = useLeaveErrorText();
   const { toast } = useToast();
   const { decide, cancel } = useLeaveMutations();
   const may = usePermission();
@@ -27,7 +28,7 @@ export const LeaveRequestList: React.FC<{ rows: LeaveRequestRow[] }> = ({ rows }
   const [problem, setProblem] = useState<string | null>(null);
   const run = async (fn: () => Promise<unknown>, done: string) => {
     setProblem(null);
-    try { await fn(); toast(done, undefined, 'success'); } catch (err) { setProblem(leaveErrorMessage(t, err)); }
+    try { await fn(); toast(done, undefined, 'success'); } catch (err) { setProblem(writeError(err)); }
   };
   const statusLabel: Record<LeaveRequestRow['status'], string> = {
     Pending: t('crews:leave.status.pending', 'Pending'), Approved: t('crews:leave.status.approved', 'Approved'),

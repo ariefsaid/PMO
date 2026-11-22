@@ -12,13 +12,14 @@ import type { RosterCrew, WorkOrderCrewRow } from '@/src/lib/repositories/crews'
 import { formatDay } from '@/src/lib/format';
 import { toIso } from '../equipment/equipmentWeek';
 import { WorkOrderPicker } from './CrewPickers';
-import { crewErrorMessage } from './crewErrors';
+import { useCrewErrorText } from './crewErrors';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Roster a crew on the work order for a date range (FR-CRW-006). */
 const RosterCrewModal: React.FC<{ workOrderId: string; from: string; onClose: () => void }> = ({ workOrderId, from, onClose }) => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const crews = useCrews();
   const { roster } = useCrewMutations();
@@ -36,7 +37,7 @@ const RosterCrewModal: React.FC<{ workOrderId: string; from: string; onClose: ()
       toast(t('crews:rostered', 'Crew rostered'), undefined, 'success');
       onClose();
     } catch (err) {
-      setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: crewErrorMessage(t, err) });
+      setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: writeError(err) });
     } finally { setBusy(false); }
   };
   return (
@@ -104,6 +105,7 @@ const RosterCrewCard: React.FC<{ crew: RosterCrew; onLeave: ReadonlySet<string> 
 /** Crews → Roster: who serves a work order on a date, with shortfall, and the work order's roster placements. */
 export const WorkOrderRoster: React.FC = () => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -130,7 +132,7 @@ export const WorkOrderRoster: React.FC = () => {
     try {
       await endRoster.mutateAsync({ id: p.id, version: p.version, valid_from: p.valid_from, valid_to: today < p.valid_from ? p.valid_from : today });
       toast(t('crews:rosterEnded', 'Roster placement ended'), undefined, 'success');
-    } catch (err) { setProblem(crewErrorMessage(t, err)); }
+    } catch (err) { setProblem(writeError(err)); }
   };
   const columns: Column<WorkOrderCrewRow>[] = [
     { key: 'crew', header: t('crews:crew', 'Crew'), kind: 'primary', rowHeader: true, cell: (p) => crewName(p.crew_id) },

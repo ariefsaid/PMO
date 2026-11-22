@@ -49,7 +49,7 @@ describe('rental panel and the guided extension (#2697)', () => {
     view();
     await userEvent.click(screen.getByRole('button', { name: 'Extend rental' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Create extension order' }));
-    expect(await screen.findByText('another extension of this rental already covers part of that period')).toBeInTheDocument();
+    expect(await screen.findByText('Another extension of this rental already covers part of that period.')).toBeInTheDocument();
   });
 
   it('AC-PTR-004 a non-rental type, even one named Rental, has no Extend action', () => {

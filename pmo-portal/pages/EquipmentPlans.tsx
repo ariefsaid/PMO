@@ -11,7 +11,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
-import { usePlanRefusalText } from '@/src/hooks/usePlanRefusalText';
+import { useRefusalLine } from '@/src/lib/refusals';
 import { useCanApprovePlan, useEquipmentPlanSettings, usePlanCategories, usePlanMutations, usePlansForMonth } from '@/src/hooks/useEquipmentPlans';
 import { monthEnd, monthStart, planTotal, type EquipmentPlan, type PlanLineInput } from '@/src/lib/repositories/equipmentPlans';
 import { formatCurrency, formatDay, formatMonthYear, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -42,7 +42,7 @@ const monthOptions = (): Array<{ value: string; label: string }> => {
 const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPlan | null }> = ({ projectId, month, plan }) => {
   const { t } = useTranslation('equipmentPlans');
   const { toast } = useToast();
-  const refusal = usePlanRefusalText();
+  const refusal = useRefusalLine();
   const { currentUser } = useAuth();
   const canCreate = usePermission()('create', 'equipmentPlan');
   const m = usePlanMutations();

@@ -95,11 +95,7 @@
       "titleLabel": "Title",
       "referenceLabel": "Client reference",
       "offeredLabel": "Offered on",
-      "descriptionLabel": "Description",
-      "errNotReady": "These required checks are not ready: {{names}}",
-      "errDecided": "This candidate has already been decided.",
-      "errReason": "Give a reason of 1 to 500 characters.",
-      "errReplaces": "Only a rejected candidate of this project can be replaced."
+      "descriptionLabel": "Description"
     },
     "cascade": {
       "error": "Couldn't load the contract",

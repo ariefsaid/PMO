@@ -70,38 +70,6 @@ export interface WorkOrderClientMaterial {
   pickups: ClientRequisitionPickup[];
 }
 
-// ── refusals ──────────────────────────────────────────────────────────────────────────────────────────────────
-
-export type ClientRequisitionRefusal =
-  | 'overRequested' | 'releaseBelowCollected' | 'overCollect' | 'notClientSupplied' | 'notKeeper' | 'ownedByErp'
-  | 'workOrder' | 'cancelled' | 'notOpen' | 'notDraft' | 'hasPickup' | 'forbidden' | 'allocation' | 'invalid'
-  | 'otherProject' | 'noProject' | 'notFound' | 'unknown';
-
-const REFUSALS: Array<[string, ClientRequisitionRefusal]> = [
-  ['CSR_OVER_REQUESTED', 'overRequested'], ['CSR_RELEASE_BELOW_COLLECTED', 'releaseBelowCollected'], ['CSR_OVER_COLLECT', 'overCollect'],
-  ['CSR_NOT_CLIENT_SUPPLIED', 'notClientSupplied'], ['STK_NOT_KEEPER', 'notKeeper'], ['STK_OWNED_BY_ERP', 'ownedByErp'],
-  ['CSR_WORK_ORDER', 'workOrder'], ['CSR_CANCELLED', 'cancelled'], ['CSR_NOT_OPEN', 'notOpen'], ['CSR_NOT_DRAFT', 'notDraft'],
-  ['CSR_HAS_PICKUP', 'hasPickup'], ['CSR_FORBIDDEN', 'forbidden'], ['CSR_ALLOCATION', 'allocation'], ['CSR_INVALID', 'invalid'],
-  ['COST_WO_PROJECT', 'otherProject'], ['COST_WO_NO_PROJECT', 'noProject'], ['CSR_NOT_FOUND', 'notFound'],
-];
-
-export interface ParsedRefusal {
-  key: ClientRequisitionRefusal;
-  /** The quantity the message names (the excess, the remainder or the collected quantity), when it carries one. */
-  quantity: string | null;
-}
-
-/** Maps a database refusal to a stable key the screen translates. The message prefix is the contract (spec Errors table). */
-export function clientRequisitionRefusal(err: unknown): ParsedRefusal {
-  const msg = String((err as { message?: unknown } | null)?.message ?? '');
-  const key = REFUSALS.find(([prefix]) => msg.startsWith(prefix))?.[1] ?? 'unknown';
-  const quantity = key === 'overRequested' ? /by ([\d.]+)$/.exec(msg)?.[1]
-    : key === 'overCollect' ? /only ([\d.]+) is still/.exec(msg)?.[1]
-    : key === 'releaseBelowCollected' ? /below the ([\d.]+) already/.exec(msg)?.[1]
-    : undefined;
-  return { key, quantity: quantity ?? null };
-}
-
 // ── reads ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const fail = (error: { message: string; code?: string }): never => { throw new AppError(error.message, error.code); };

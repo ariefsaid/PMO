@@ -14,21 +14,10 @@
   "editTitle": "Ubah {{section}}",
   "empty": "Belum ada {{sections}}.",
   "errors": {
-    "allocationCap": "Melebihi rencana work order",
-    "allocationCapSub": "Jumlah rencana akan menjadi {{total}} terhadap rencana work order sebesar {{plan}}.",
-    "archiveBlocked": "Belum bisa diarsipkan",
-    "archived": "{{section}} itu sudah diarsipkan",
-    "archivedSub": "{{sections}} yang diarsipkan tidak menerima catatan baru. Pulihkan dulu.",
     "duplicateCode": "Kode itu sudah dipakai pada work order ini",
     "duplicateCodeSub": "Kode tetap dicadangkan, termasuk untuk {{sections}} yang diarsipkan. Pilih kode lain.",
-    "foreman": "Mandor harus pengguna aktif",
-    "foremanColumns": "Mandor hanya dapat mengatur kesiapan",
-    "foremanSub": "Pilih orang yang dapat masuk ke organisasi ini.",
     "inUse": "Sedang dipakai",
-    "inUseSub": "Masih ada catatan yang merujuk {{section}} ini. Arsipkan saja.",
-    "item": "Barang itu tidak dapat direncanakan",
-    "itemSub": "Pilih barang stok aktif milik organisasi ini.",
-    "status": "Work order ini tidak lagi menerima perubahan ini"
+    "inUseSub": "Masih ada catatan yang merujuk {{section}} ini. Arsipkan saja."
   },
   "foreman": "Mandor",
   "foremanPlaceholder": "Tanpa mandor",

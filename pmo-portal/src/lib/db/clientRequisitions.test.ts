@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AppError } from '@/src/lib/appError';
 
 /**
  * Client requisitions DAL + repository (#2585, migrations 1086/1087). The database decides every rule; this module carries
@@ -26,28 +25,6 @@ beforeEach(() => {
   h.from.mockClear(); h.rpc.mockClear();
   h.calls.from.length = 0; h.calls.rpc.length = 0; h.calls.eq.length = 0; h.calls.in.length = 0; h.calls.limit.length = 0;
   h.queue.length = 0;
-});
-
-describe('clientRequisitionRefusal (spec Errors table)', () => {
-  it.each([
-    ['CSR_OVER_REQUESTED: Reserved would exceed requested by 1.5', 'overRequested', '1.5'],
-    ['CSR_OVER_COLLECT: only 20 is still to collect', 'overCollect', '20'],
-    ['CSR_RELEASE_BELOW_COLLECTED: a release of 30 would take reserved below the 50 already collected', 'releaseBelowCollected', '50'],
-    ['CSR_NOT_CLIENT_SUPPLIED: This item is not client-supplied', 'notClientSupplied', null],
-    ['STK_NOT_KEEPER: you do not keep this warehouse', 'notKeeper', null],
-    ['STK_OWNED_BY_ERP: inventory is run in your connected ERP, so PMO does not post stock', 'ownedByErp', null],
-    ['CSR_WORK_ORDER: the work order is closed or cancelled', 'workOrder', null],
-    ['CSR_CANCELLED: the requisition is cancelled', 'cancelled', null],
-    ['CSR_HAS_PICKUP: a pickup is already posted, so the requisition cannot be cancelled', 'hasPickup', null],
-    ['COST_WO_NO_PROJECT: this record has no project, so it cannot name a work order', 'noProject', null],
-    ['COST_WO_PROJECT: the work order belongs to another project', 'otherProject', null],
-    ['something else', 'unknown', null],
-  ])('maps %s', (message, key, quantity) => {
-    expect(dal.clientRequisitionRefusal(new AppError(message))).toEqual({ key, quantity });
-  });
-  it('tolerates a non-error value', () => {
-    expect(dal.clientRequisitionRefusal(null).key).toBe('unknown');
-  });
 });
 
 describe('writes carry the call, never org_id, project or cost', () => {

@@ -13,13 +13,14 @@ import { useCrewMembers, useCrewMutations, useCrewRoles, useCrewWorkers, useCrew
 import type { CrewKind, CrewMemberRow, CrewRow } from '@/src/lib/repositories/crews';
 import { formatDay } from '@/src/lib/format';
 import { toIso } from '../equipment/equipmentWeek';
-import { crewErrorMessage } from './crewErrors';
+import { useCrewErrorText } from './crewErrors';
 
 interface RoleDraft { name: string; headcount: string }
 
 /** Create a crew with its standard roles (FR-CRW-001). */
 const NewCrewModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const { createCrew } = useCrewMutations();
   const users = useUsers();
@@ -54,7 +55,7 @@ const NewCrewModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         toast(t('crews:created', 'Crew created'), undefined, 'success');
         onClose();
       } catch (err) {
-        setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: crewErrorMessage(t, err) });
+        setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: writeError(err) });
       }
     });
   };
@@ -100,6 +101,7 @@ const NewCrewModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 /** Place a person in the crew from a date, with an optional end (FR-CRW-003). New people are added here too. */
 const PlacePersonModal: React.FC<{ crew: CrewRow; onClose: () => void }> = ({ crew, onClose }) => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const { realRole, effectiveRole } = useEffectiveRole();
   const canCreatePerson = realRole === effectiveRole && (realRole === 'Admin' || realRole === 'Project Manager');
@@ -136,7 +138,7 @@ const PlacePersonModal: React.FC<{ crew: CrewRow; onClose: () => void }> = ({ cr
         toast(t('crews:placed', 'Person placed'), undefined, 'success');
         onClose();
       } catch (err) {
-        setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: crewErrorMessage(t, err) });
+        setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: writeError(err) });
       }
     });
   };
@@ -168,6 +170,7 @@ const PlacePersonModal: React.FC<{ crew: CrewRow; onClose: () => void }> = ({ cr
 /** The selected crew's people, newest placement first, with end-placement (FR-CRW-003/005). */
 const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew, canManage }) => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const members = useCrewMembers(crew.id);
   const workers = useCrewWorkers();
@@ -187,7 +190,7 @@ const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew
     try {
       await endPlacement.mutateAsync({ id: m.id, version: m.version, valid_from: m.valid_from, valid_to: today < m.valid_from ? m.valid_from : today, standard_role_id: m.standard_role_id });
       toast(t('crews:ended', 'Placement ended'), undefined, 'success');
-    } catch (err) { setProblem(crewErrorMessage(t, err)); }
+    } catch (err) { setProblem(writeError(err)); }
   };
   const columns: Column<CrewMemberRow>[] = [
     { key: 'person', header: t('crews:person', 'Person'), kind: 'primary', rowHeader: true, cell: (m) => nameOf(m.worker_id) },
@@ -226,6 +229,7 @@ const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew
 /** Crews → the crew master (FR-CRW-001/002) and the selected crew's people. */
 export const CrewList: React.FC<{ creating: boolean; onCloseCreate: () => void; onCreate: () => void }> = ({ creating, onCloseCreate, onCreate }) => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -248,7 +252,7 @@ export const CrewList: React.FC<{ creating: boolean; onCloseCreate: () => void; 
       await archiveCrew.mutateAsync(c.id);
       if (selected === c.id) setSelected(null);
       toast(t('crews:archived', 'Crew archived'), undefined, 'success');
-    } catch (err) { setProblem(crewErrorMessage(t, err)); }
+    } catch (err) { setProblem(writeError(err)); }
   };
   const columns: Column<CrewRow>[] = [
     { key: 'code', header: t('crews:code', 'Code'), kind: 'primary', rowHeader: true, cell: (c) => <span className="record-id font-semibold text-foreground">{c.code}</span> },

@@ -14,10 +14,6 @@
   "noDisciplines": "Organisasi Anda belum memiliki disiplin. Admin menambahkannya di Administrasi, Pengaturan proyek.",
   "savedWithoutAttribution": "Tersimpan, tetapi $t(common:terms.clientWorkOrder) atau disiplin belum terpasang",
   "refusal": {
-    "COST_WO_PROJECT": "$t(common:terms.clientWorkOrder) itu milik proyek lain.",
-    "COST_WO_CANCELLED": "$t(common:terms.clientWorkOrder) itu sudah dibatalkan.",
-    "COST_WO_NO_PROJECT": "Catatan ini tidak punya proyek, jadi tidak bisa masuk ke $t(common:terms.clientWorkOrder).",
-    "COST_DISCIPLINE": "Disiplin itu sudah tidak ada di daftar organisasi Anda.",
     "generic": "Coba lagi dari catatannya."
   },
   "timesheetSection": "$t(common:terms.clientWorkOrder) dan disiplin per proyek",

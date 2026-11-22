@@ -12,7 +12,7 @@ import { useBelowReorder, useStockKeepers, useStockOnHand, useStockWarehouses } 
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue, sumDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import { parseStockError } from '@/src/lib/stockErrors';
+import { parseRefusal } from '@/src/lib/refusals';
 import type { StockOnHandRow } from '@/src/lib/db/stockReports';
 import { ReservedCell } from '@/src/components/stock/ReservedCell';
 import { ReservationForm } from '@/src/components/stock/ReservationForm';
@@ -159,7 +159,7 @@ const StockOnHand: React.FC = () => {
   const lookupError = warehouses.isError || keepers.isError || (belowOnly && below.isError);
   const state: 'loading' | 'empty' | 'error' | undefined =
     onHand.isError || lookupError ? 'error' : onHand.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;
-  const tooMany = parseStockError(onHand.error)?.code === 'STK_TOO_MANY';
+  const tooMany = parseRefusal(onHand.error)?.code === 'STK_TOO_MANY';
 
   const centralCount = rows.filter((r) => r.warehouseKind === 'central').length;
   const itemCount = new Set(rows.map((r) => r.itemId)).size;

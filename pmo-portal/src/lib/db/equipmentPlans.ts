@@ -50,17 +50,6 @@ export interface PlanLineInput {
 
 const fail = (error: { message: string; code?: string }): never => { throw new AppError(error.message, error.code); };
 
-/** Stable key for a refusal, from the database message prefix (`EQP_…:`). */
-export type PlanRefusal =
-  | 'ADMIN_ONLY' | 'OFF' | 'PREREQ' | 'INVALID' | 'DENIED' | 'DUPLICATE' | 'UNAVAILABLE' | 'REFERENCE' | 'DATE_RANGE'
-  | 'LOCKED' | 'STATE' | 'NOT_FOUND' | 'NOT_APPROVER' | 'SELF_APPROVAL' | 'NO_RENTAL_TYPE';
-
-export function planRefusal(error: unknown): { key: PlanRefusal; message: string } | null {
-  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
-  const m = /EQP_([A-Z_]+):\s*(.*)$/s.exec(message);
-  return m ? { key: m[1] as PlanRefusal, message: m[2] } : null;
-}
-
 /** The first day of the month holding `d` as `YYYY-MM-01`. */
 export const monthStart = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 

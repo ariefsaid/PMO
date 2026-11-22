@@ -12,7 +12,7 @@ import {
 } from '@/src/hooks/useWorkOrderSections';
 import { READINESS_VALUES, type Readiness, type SectionRollupRow } from '@/src/lib/repositories/workOrderSections';
 import { quantitiesByUnit, readinessRollup } from '@/src/lib/workOrderSections';
-import { sectionRefusal } from '@/src/lib/workOrderSectionRefusal';
+import { useSectionRefusal } from './useSectionRefusal';
 import { formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { SectionFormModal } from './SectionFormModal';
@@ -36,6 +36,7 @@ const TONE: Record<Readiness, StatusVariant> = { ready: 'won', blocked: 'overdue
 export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
   const { t } = useTranslation('workOrderSections');
   const terms = useTerms();
+  const sectionRefusal = useSectionRefusal();
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -102,18 +103,18 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
   const onReadiness = (row: SectionRollupRow, value: Readiness) => {
     setProblem(null);
     setReadiness.mutate({ id: row.sectionId as string, readiness: value, note: row.readinessNote }, {
-      onError: (err) => setProblem(sectionRefusal(err, t, terms).headline),
+      onError: (err) => setProblem(sectionRefusal(err).headline),
     });
   };
   const doArchive = async (row: SectionRollupRow, archived: boolean) => {
     setProblem(null);
     try { await archive.mutateAsync({ id: row.sectionId as string, archived }); toast(t('saved', 'Saved'), undefined, 'success'); setArchiving(null); }
-    catch (err) { const r = sectionRefusal(err, t, terms); setProblem([r.headline, r.detail].filter(Boolean).join(': ')); setArchiving(null); }
+    catch (err) { const r = sectionRefusal(err); setProblem([r.headline, r.detail].filter(Boolean).join(': ')); setArchiving(null); }
   };
   const doDelete = async (row: SectionRollupRow) => {
     setProblem(null);
     try { await remove.mutateAsync(row.sectionId as string); toast(t('saved', 'Saved'), undefined, 'success'); setDeleting(null); }
-    catch (err) { const r = sectionRefusal(err, t, terms); setProblem([r.headline, r.detail].filter(Boolean).join(': ')); setDeleting(null); }
+    catch (err) { const r = sectionRefusal(err); setProblem([r.headline, r.detail].filter(Boolean).join(': ')); setDeleting(null); }
   };
 
   const figures = (r: SectionRollupRow) => {

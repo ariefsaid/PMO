@@ -4,7 +4,7 @@ import { Button, FieldError, TextField, useToast } from '@/src/components/ui';
 import type { MyHomeWorkOrder } from '@/src/lib/repositories/myHome';
 import { useClockIn } from '@/src/hooks/useMyHome';
 import { usePhoneCheckIn } from '@/src/hooks/usePhoneCheckIn';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useRefusalText } from '@/src/lib/refusals';
 import {
   clearResumeGuard, documentAllowsGeolocation, hardNavigateForGeolocation, PositionError, readPositionOnce, type PositionFailure,
 } from '@/src/lib/position';
@@ -24,6 +24,7 @@ export const ClockInSection: React.FC<{
   locationCheck?: (workOrderId: string) => Promise<string | null>;
 }> = ({ today, workOrders, locationCheck }) => {
   const { t } = useTranslation('myHome');
+  const refusal = useRefusalText();
   const { toast } = useToast();
   const clockIn = useClockIn();
   const checkIn = usePhoneCheckIn();
@@ -58,7 +59,7 @@ export const ClockInSection: React.FC<{
         setNoFix((f) => { const next = { ...f }; delete next[wo.work_order_id]; return next; });
       }
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = refusal(err);
       setError(detail || headline);
     }
   };
@@ -85,15 +86,15 @@ export const ClockInSection: React.FC<{
     setError(null);
     const h = Number(hours);
     if (!wo.my_worker_id || !Number.isFinite(h) || h < 0 || h > 24) { setError(t('myHome:clockIn.hoursRange', 'Hours run from 0 to 24')); return; }
-    const refusal = locationCheck ? await locationCheck(wo.work_order_id) : null;
-    if (refusal) { setError(refusal); return; }
+    const blocked = locationCheck ? await locationCheck(wo.work_order_id) : null;
+    if (blocked) { setError(blocked); return; }
     if (wo.has_area) { await goWithArea(wo, h); return; }
     try {
       await clockIn.mutateAsync({ workOrderId: wo.work_order_id, date: today, workerId: wo.my_worker_id, hours: h });
       setDone((d) => ({ ...d, [wo.work_order_id]: true }));
       toast(t('myHome:clockIn.saved', 'Clocked in'), undefined, 'success');
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = refusal(err);
       setError(detail || headline);
     }
   };

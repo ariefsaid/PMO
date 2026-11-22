@@ -1,8 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DateField, EntityFormModal, FormGrid, FormSection, NumberField, type SubmitError } from '@/src/components/ui';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { purchaseTypeRefusal } from '@/src/lib/repositories/purchaseTypes';
+import { useRefusalText } from '@/src/lib/refusals';
 import { defaultExtensionPeriod } from '@/src/lib/rentalPeriod';
 import { formatDay, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { RentalExtensionInput } from '@/src/lib/repositories/purchaseTypes';
@@ -23,6 +22,7 @@ export interface RentalExtensionModalProps {
 /** The guided "Extend rental" step (FR-PTR-009): a new period and the carried-over lines, confirmed into a NEW purchase. */
 const RentalExtensionModal: React.FC<RentalExtensionModalProps> = ({ title, rentalFrom, rentalTo, lines, onClose, onSave, onDone }) => {
   const { t } = useTranslation('purchaseTypes');
+  const refusal = useRefusalText();
   const initial = defaultExtensionPeriod(rentalFrom, rentalTo);
   const newId = useRef(crypto.randomUUID());                                   // one id per open step, so a retry never makes a second purchase
   const lineIds = useRef(new Map(lines.map((l) => [l.id, crypto.randomUUID()])));
@@ -55,9 +55,8 @@ const RentalExtensionModal: React.FC<RentalExtensionModalProps> = ({ title, rent
     void onSave({ id: newId.current, from, to, lines: out })
       .then(onDone)
       .catch((error: unknown) => {
-        const refusal = purchaseTypeRefusal(error);
-        if (refusal) setSaveError({ headline: t('extend.refused', 'The rental could not be extended'), detail: refusal.message });
-        else { const c = classifyMutationError(error, undefined, { suppressCapture: true }); setSaveError({ headline: c.headline, detail: c.detail }); }
+        const r = refusal(error, { context: { suppressCapture: true } });
+        setSaveError(r.known ? { headline: t('extend.refused', 'The rental could not be extended'), detail: r.headline } : { headline: r.headline, detail: r.detail });
       })
       .finally(() => setBusy(false));
   };

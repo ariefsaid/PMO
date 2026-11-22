@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EntityFormModal, FormGrid, SelectField, TextField, useToast, type SubmitError } from '@/src/components/ui';
-import { useTerms } from '@/src/lib/i18n/terms';
 import { useSectionReadinessEvents, useSetSectionReadiness } from '@/src/hooks/useWorkOrderSections';
 import { READINESS_VALUES, type Readiness, type SectionRollupRow } from '@/src/lib/repositories/workOrderSections';
-import { sectionRefusal } from '@/src/lib/workOrderSectionRefusal';
+import { useSectionRefusal } from './useSectionRefusal';
 import { formatDate } from '@/src/lib/format';
 
 interface Props {
@@ -19,7 +18,7 @@ interface Props {
 /** A section's readiness, its note and its history (FR-WOS-019, AC-WOS-013): each change with who, when and the note. */
 export const SectionReadinessModal: React.FC<Props> = ({ workOrderId, section, canSet, names, onClose }) => {
   const { t } = useTranslation('workOrderSections');
-  const terms = useTerms();
+  const sectionRefusal = useSectionRefusal();
   const { toast } = useToast();
   const set = useSetSectionReadiness(workOrderId);
   const events = useSectionReadinessEvents(section.sectionId);
@@ -36,7 +35,7 @@ export const SectionReadinessModal: React.FC<Props> = ({ workOrderId, section, c
       toast(t('saved', 'Saved'), undefined, 'success');
       onClose();
     } catch (err) {
-      setSubmitError(sectionRefusal(err, t, terms));
+      setSubmitError(sectionRefusal(err));
     }
   };
   const label = (r: Readiness) => t(`readiness.${r}`, r === 'ready' ? 'Ready' : r === 'blocked' ? 'Blocked' : 'Not ready');
