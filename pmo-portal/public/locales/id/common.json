@@ -3370,6 +3370,7 @@
     "submitConfirm": {
       "confirmLabel": "Ajukan minggu ini",
       "description": "Ini mengirim seluruh minggu ke atasan Anda. Anda tidak dapat mengubahnya lagi sampai dikembalikan.",
+      "descriptionTo": "Ini mengirim {{hours}} jam untuk {{week}} kepada {{name}} untuk disetujui. Anda tidak dapat mengubah minggu ini lagi sampai dikembalikan.",
       "title": "Ajukan minggu ini untuk persetujuan?"
     },
     "title": "$t(common:terms.timesheet)",
@@ -3386,6 +3387,7 @@
       "saveFailed": "Gagal menyimpan",
       "submitted": {
         "detail": "Dikirim ke atasan Anda untuk disetujui",
+        "detailTo": "{{hours}} jam untuk {{week}} dikirim kepada {{name}} untuk disetujui",
         "headline": "$t(common:terms.timesheet) diajukan"
       }
     },

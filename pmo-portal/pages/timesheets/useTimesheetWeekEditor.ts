@@ -9,7 +9,7 @@ import type { useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { type EditRow, computeTotals, diffEntries, gridIsValid, parseHourCell, saveToastForChangeCount } from '@/src/lib/timesheet-edit';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDayRange } from '@/src/lib/format';
+import { formatDayRange, formatNumberMax2 } from '@/src/lib/format';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
 import { dayKey, planCopyLastWeekRows, weekSaveState } from './timesheetWeekModel';
 import { TimesheetStatus } from '../../types';
@@ -29,9 +29,11 @@ type Props = {
   lastWeekEntries: TimesheetEntryWithProject[];
   entryMutations: ReturnType<typeof useTimesheetEntryMutations>;
   submit: ReturnType<typeof useTimesheetMutations>['submit'];
+  /** Who the week goes to (the person's line manager), when known: the confirmation says it. */
+  approverName?: string | null;
 };
 
-export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, gridRows, weekDates, weekStartDate, weekStartString, allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit }: Props) {
+export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, gridRows, weekDates, weekStartDate, weekStartString, allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit, approverName }: Props) {
   const { t } = useTranslation(['common', 'timesheets']);
   const { toast } = useToast();
   const { saveWeek, deleteRow, isReconciling, reconciledDelete } = entryMutations;
@@ -490,9 +492,13 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
         onSuccess: () => {
           submittingRef.current = false;
           setConfirmSubmit(false);
+          // What was sent and to whom, so the tap is never silent: the week, its hours, the person it went to.
+          const sentHours = formatNumberMax2(editTotals.weekly);
           toast(
             t('timesheets.toast.submitted.headline', 'Timesheet submitted'),
-            t('timesheets.toast.submitted.detail', 'Sent to your line manager for approval'),
+            approverName
+              ? t('timesheets.toast.submitted.detailTo', { defaultValue: '{{hours}} hours for {{week}} sent to {{name}} for approval', hours: sentHours, week: weekRangeLabel, name: approverName })
+              : t('timesheets.toast.submitted.detail', 'Sent to your line manager for approval'),
             'success',
           );
         },
