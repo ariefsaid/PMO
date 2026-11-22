@@ -301,12 +301,13 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     void confirmSetStatus(pendingStatus.user, pendingStatus.status);
   };
 
+  const KNOWN_INVITE_CODES = new Set(['DUPLICATE_EMAIL', 'INVITE_UNAUTHORIZED', 'INVALID_ROLE', 'UNKNOWN_ORG', 'INVITE_NOT_ADDABLE', 'INVITE_RETRY', 'SEAT_LIMIT_REACHED']);
   // ── Invite (FR-INV-004/005): admin-invite-user edge fn — Admin-in-org OR Operator. ──
-  const submitInvite = async (email: string, role: UserRole, pOrgId: string | null) => {
+  const submitInvite = async (email: string, role: UserRole, pOrgId: string | null, builtIn: string | null) => {
     // A fresh attempt starts clean — an earlier failure never resurfaces in a new dialog.
     setInviteError(null);
     try {
-      const outcome = await invite.mutateAsync({ email, role, pOrgId });
+      const outcome = await invite.mutateAsync({ email, role, pOrgId, builtInRole: builtIn });
       // #2252: an identical repeat says whether a fresh link went out.
       if (outcome === 'already_invited') {
         toast(
@@ -332,13 +333,35 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
           t('admin.users.toast.inviteSentDetail', {
             defaultValue: '{{email}} has been invited as {{role}}.',
             email,
-            role: roleNames.label(role),
+            role: builtIn ? roleDisplayName(builtIn) : roleNames.label(role),
           }),
           'success',
         );
       }
       setInviteOpen(false);
     } catch (err) {
+      const code = (err as { code?: string } | null)?.code;
+      // The invitation went out; only the job role did not save. Close the dialog and say what to do.
+      if (code === 'INVITE_ROLE_NOT_SET') {
+        setInviteOpen(false);
+        toast(
+          t('administration:admin.users.inviteError.roleNotSet', 'Invitation sent, job role not saved'),
+          t('administration:admin.users.inviteError.roleNotSetDetail', '{{email}} was invited. Open their row and choose Change job role to set it.', { email }),
+          'warning',
+        );
+        return;
+      }
+      // Anything the server did not name (the email service refused, a timeout, a blocked call) reaches the screen as one plain
+      // sentence, never the transport text. What was typed stays in the dialog (#2252 keeps it open).
+      if (!code || !KNOWN_INVITE_CODES.has(code)) {
+        const headline = t('administration:admin.users.inviteError.notSent', 'The invitation was not sent');
+        const detail = code === 'RATE_LIMITED'
+          ? t('administration:admin.users.inviteError.rateLimited', 'Too many invitations in a short time. Nothing was saved. Wait a minute, then invite again.')
+          : t('administration:admin.users.inviteError.notSentDetail', 'The email could not be sent, so nothing was saved. What you typed is still here: check the address and try again. If it keeps failing, tell your Operator that invitation emails are not going out.');
+        setInviteError({ headline, detail });
+        toast(headline, detail, 'warning');
+        return;
+      }
       const { headline, detail } = classifyMutationError(err, {
         DUPLICATE_EMAIL: t('admin.users.inviteError.duplicateEmail', 'That person is already in your workspace.'),
         INVITE_UNAUTHORIZED: t('admin.users.inviteError.unauthorized', "You don't have permission to invite users."),
@@ -502,6 +525,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
           submitError={inviteError}
           onClose={() => setInviteOpen(false)}
           onSubmit={submitInvite}
+          builtInEnabled={builtInRolesEnabled}
         />
       )}
     </div>

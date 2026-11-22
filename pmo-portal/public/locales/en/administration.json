@@ -647,10 +647,10 @@
           "officer": "Officers",
           "field": "Field"
         },
-        "none": "No built-in role (access level only)",
-        "label": "Built-in role",
-        "helper": "A built-in role starts from one access level and sets what this person sees and does for their job.",
-        "baseLevel": "Access level: {{level}} (set by the built-in role)"
+        "none": "No job role (access level only)",
+        "label": "Job role",
+        "helper": "A job role starts from one access level and sets what this person sees and does for their job.",
+        "baseLevel": "Access level: {{level}} (set by the job role)"
       },
       "roleConfirm": {
         "clearTitle": "Remove {{name}}'s built-in role?"
@@ -682,7 +682,12 @@
         "retry": "This address is already being invited",
         "retryDetail": "Try again in a moment.",
         "seatLimit": "Your plan has no seats left",
-        "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again."
+        "seatLimitDetail": "Everyone on your plan already has a seat. Ask your Operator to upgrade the plan, then invite again.",
+        "notSent": "The invitation was not sent",
+        "notSentDetail": "The email could not be sent, so nothing was saved. What you typed is still here: check the address and try again. If it keeps failing, tell your Operator that invitation emails are not going out.",
+        "rateLimited": "Too many invitations in a short time. Nothing was saved. Wait a minute, then invite again.",
+        "roleNotSet": "Invitation sent, job role not saved",
+        "roleNotSetDetail": "{{email}} was invited. Open their row and choose Change job role to set it."
       },
       "statusError": {
         "seatLimit": "Your plan has no seats left",

@@ -557,7 +557,7 @@
       "invite": "Undang pengguna",
       "columns": {
         "user": "Pengguna",
-        "role": "Role",
+        "role": "Tingkat akses",
         "status": "Status",
         "manager": "Manajer"
       },
@@ -567,10 +567,11 @@
       },
       "noManager": "Tanpa manajer",
       "menu": {
-        "editRole": "Edit role",
+        "editRole": "Ubah tingkat akses",
         "changeManager": "Ubah manajer",
         "reEnable": "Aktifkan kembali",
-        "disable": "Nonaktifkan"
+        "disable": "Nonaktifkan",
+        "editJobRole": "Ubah jabatan"
       },
       "toast": {
         "roleUpdated": "Role diperbarui",
@@ -620,12 +621,18 @@
         "email": "Email",
         "roleHelper": "Menentukan apa yang dapat dilihat dan dilakukan orang ini setelah masuk.",
         "emailRequired": "Email wajib diisi.",
-        "emailInvalid": "Masukkan alamat email yang valid."
+        "emailInvalid": "Masukkan alamat email yang valid.",
+        "jobRoleRequired": "Pilih jabatannya.",
+        "jobRolePlaceholder": "Pilih jabatan",
+        "jobRoleSearch": "Cari jabatan",
+        "jobRoleNoun": "jabatan"
       },
       "roleForm": {
-        "title": "Ubah peran: {{name}}",
-        "submit": "Simpan role",
-        "helper": "Menentukan apa yang dapat dilihat dan dilakukan pengguna ini. Perubahan berlaku segera dan dikonfirmasi terlebih dahulu."
+        "title": "Ubah tingkat akses: {{name}}",
+        "submit": "Simpan tingkat akses",
+        "helper": "Menentukan apa yang dapat dilihat dan dilakukan pengguna ini. Perubahan berlaku segera dan dikonfirmasi terlebih dahulu.",
+        "titleJobRole": "Ubah jabatan: {{name}}",
+        "submitJobRole": "Simpan jabatan"
       },
       "managerForm": {
         "title": "Ubah manajer: {{name}}",

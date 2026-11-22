@@ -19,6 +19,7 @@ import { Avatar } from '@/src/components/ui/Avatar';
 import { initialsOf } from './avatar';
 import { useRoleLabels } from './roleLabels';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
+import { useBuiltInRolesEnabled } from '@/src/hooks/useBuiltInRoles';
 
 /**
  * The Administration › Users directory (CROSS-65 / XG01-002): the body block — toolbar + search,
@@ -93,6 +94,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
   const { t } = useTranslation();
   const roleNames = useRoleLabels();
   const roleDisplayName = useBuiltInRoleName();
+  const builtInRolesOn = useBuiltInRolesEnabled().data === true;
   const tableRef = useRef<HTMLDivElement>(null);
   // The input stays local and responsive; the SERVER query is only issued after the person stops
   // typing (300 ms), so one keystroke never becomes one whole-org read.
@@ -158,7 +160,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
     },
     {
       key: 'role',
-      header: t('admin.users.columns.role', 'Role'),
+      header: t('admin.users.columns.role', 'Access level'),
       cell: (u) => (
         <span>
           <StatusPill variant={roleVariant(u.role)}>{u.built_in_role ? roleDisplayName(u.built_in_role) : roleNames.label(u.role)}</StatusPill>
@@ -212,7 +214,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
     const isSelf = !!currentUserId && currentUserId === u.id;
     if (canManage && !isSelf) {
       items.push(
-        { label: t('admin.users.menu.editRole', 'Edit role'), onClick: () => onEditRole(u) },
+        { label: builtInRolesOn ? t('admin.users.menu.editJobRole', 'Change job role') : t('admin.users.menu.editRole', 'Edit access level'), onClick: () => onEditRole(u) },
         { label: t('admin.users.menu.changeManager', 'Change manager'), onClick: () => onChangeManager(u) },
       );
     }

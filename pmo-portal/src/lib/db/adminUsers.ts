@@ -267,6 +267,8 @@ export interface InviteUserInput {
   role: UserRole;
   /** Operator-only: target a specific org (server-validated). Ignored for a non-Operator caller. */
   pOrgId?: string | null;
+  /** A built-in role key (#2709): given with its base access level as `role`; set once the invitation is out. */
+  builtInRole?: string | null;
 }
 
 /**
@@ -304,7 +306,22 @@ export async function inviteUser(input: InviteUserInput): Promise<InviteOutcome>
     throw new AppError(code ?? message ?? 'Invite failed', code);
   }
   if (data?.error) throw new AppError(data.error, data.error);
+  if (input.builtInRole) await setInvitedBuiltInRole(input.email, input.builtInRole);
   return data?.invite_resent ? 'resent' : data?.already_invited ? 'already_invited' : 'sent';
+}
+
+/** The invitation is out; give the new profile its built-in role. A failure here is its own code so the screen can say the
+ *  invitation was sent and only the job role still needs setting (Change job role on the row). */
+async function setInvitedBuiltInRole(email: string, key: string): Promise<void> {
+  const escaped = email.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
+  const found = await supabase.from('profiles').select('id').ilike('email', escaped).limit(1);
+  const id = found.data?.[0]?.id as string | undefined;
+  if (found.error || !id) throw new AppError('INVITE_ROLE_NOT_SET', 'INVITE_ROLE_NOT_SET');
+  try {
+    await updateUserBuiltInRole(id, key);
+  } catch {
+    throw new AppError('INVITE_ROLE_NOT_SET', 'INVITE_ROLE_NOT_SET');
+  }
 }
 
 export interface SetUserStatusInput {

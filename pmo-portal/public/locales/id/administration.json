@@ -647,10 +647,10 @@
           "officer": "Petugas",
           "field": "Lapangan"
         },
-        "none": "Tanpa peran bawaan (hanya tingkat akses)",
-        "label": "Peran bawaan",
-        "helper": "Peran bawaan berawal dari satu tingkat akses dan menentukan apa yang dilihat dan dilakukan orang ini untuk pekerjaannya.",
-        "baseLevel": "Tingkat akses: {{level}} (ditentukan oleh peran bawaan)"
+        "none": "Tanpa jabatan (hanya tingkat akses)",
+        "label": "Jabatan",
+        "helper": "Jabatan berawal dari satu tingkat akses dan menentukan apa yang dilihat dan dilakukan orang ini untuk pekerjaannya.",
+        "baseLevel": "Tingkat akses: {{level}} (ditentukan oleh jabatan)"
       },
       "roleConfirm": {
         "clearTitle": "Hapus peran bawaan {{name}}?"
@@ -682,7 +682,12 @@
         "retry": "Alamat ini sedang diundang",
         "retryDetail": "Coba lagi sebentar lagi.",
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
-        "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu undang kembali."
+        "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu undang kembali.",
+        "notSent": "Undangan belum terkirim",
+        "notSentDetail": "Email tidak bisa dikirim, jadi belum ada yang tersimpan. Isian Anda masih ada di sini: periksa alamatnya lalu coba lagi. Jika terus gagal, beri tahu Operator bahwa email undangan tidak terkirim.",
+        "rateLimited": "Terlalu banyak undangan dalam waktu singkat. Belum ada yang tersimpan. Tunggu semenit, lalu undang lagi.",
+        "roleNotSet": "Undangan terkirim, jabatan belum tersimpan",
+        "roleNotSetDetail": "{{email}} sudah diundang. Buka barisnya dan pilih Ubah jabatan untuk mengaturnya."
       },
       "statusError": {
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",

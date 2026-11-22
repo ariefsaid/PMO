@@ -557,7 +557,7 @@
       "invite": "Invite user",
       "columns": {
         "user": "User",
-        "role": "Role",
+        "role": "Access level",
         "status": "Status",
         "manager": "Manager"
       },
@@ -567,10 +567,11 @@
       },
       "noManager": "No manager",
       "menu": {
-        "editRole": "Edit role",
+        "editRole": "Edit access level",
         "changeManager": "Change manager",
         "reEnable": "Re-enable",
-        "disable": "Disable"
+        "disable": "Disable",
+        "editJobRole": "Change job role"
       },
       "toast": {
         "roleUpdated": "Role updated",
@@ -620,12 +621,18 @@
         "email": "Email",
         "roleHelper": "Determines what this person can see and do once they sign in.",
         "emailRequired": "Email is required.",
-        "emailInvalid": "Enter a valid email address."
+        "emailInvalid": "Enter a valid email address.",
+        "jobRoleRequired": "Choose the job role.",
+        "jobRolePlaceholder": "Choose a job role",
+        "jobRoleSearch": "Search job roles",
+        "jobRoleNoun": "job role"
       },
       "roleForm": {
-        "title": "Edit role: {{name}}",
-        "submit": "Save role",
-        "helper": "Determines what this user can see and do. Changes take effect immediately and are confirmed first."
+        "title": "Edit access level: {{name}}",
+        "submit": "Save access level",
+        "helper": "Determines what this user can see and do. Changes take effect immediately and are confirmed first.",
+        "titleJobRole": "Change job role: {{name}}",
+        "submitJobRole": "Save job role"
       },
       "managerForm": {
         "title": "Change manager: {{name}}",
