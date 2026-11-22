@@ -179,7 +179,7 @@ describe('#1834 nav-link preload (onPreloadHref)', () => {
 
 
 describe('timesheet approval navigation', () => {
-  it('shows the entry for an engineer with an eligible correction and keeps it when none exist', () => {
+  it('shows the entry for an engineer with an eligible correction and hides it when none exist', () => {
     roleState.role = 'Engineer';
     eligibility.corrections = [{ id: 'eligible' }];
     const auth = {} as AuthContextValue;
@@ -187,8 +187,7 @@ describe('timesheet approval navigation', () => {
     render(tree());
     expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('href', '/approvals');
     act(() => eligibility.update({ corrections: [] }));
-    // Every full account keeps the inbox in its menu, with or without a decision waiting.
-    expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('href', '/approvals');
+    expect(screen.queryByRole('link', { name: 'Approvals' })).not.toBeInTheDocument();
     roleState.role = 'Admin';
   });
 });

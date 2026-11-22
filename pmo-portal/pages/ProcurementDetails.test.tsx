@@ -2294,7 +2294,7 @@ describe('Procurement detail restructure fixes', () => {
         approvalRoute: { procurementId: 'proc-001', route: 'org', reason: 'within_budget', approvers: [{ id: 'u-ed', fullName: 'Edi Direktur' }], requestAmount: 60000000, lineBudget: null, lineUsed: null },
       };
       renderPage();
-      expect(screen.getAllByText(/Waiting for approval. It goes to Edi Direktur./).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Waiting for Edi Direktur, senior approver/).length).toBeGreaterThan(0);
     });
 
     it('the printable purchase order is a visible action beside the order, not only inside the More menu', () => {

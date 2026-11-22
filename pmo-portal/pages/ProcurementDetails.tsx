@@ -414,22 +414,16 @@ const ProcurementDetails: React.FC = () => {
         budget: formatCurrency(p.approvalRoute.lineBudget, p.currency),
       })
     : null;
-  // The requester is told who decides it, from the route the database already computed (never a bare "Waiting for approval"): the
-  // named approvers when the route has them, otherwise the role that decides.
+  // fix-waiting item 3: who the request waits for, from the route the database already computed (never a bare "Waiting for approval").
   const requestedRoute = p.approvalRoute;
-  const requesterRouteNames = p.status === 'Requested' && isRequester && requestedRoute && requestedRoute.approvers.length > 0
-    ? requestedRoute.approvers.map((approver) => approver.fullName).join(t('procurementDetail.route.nameJoiner', ' or '))
-    : null;
   const waitingNote = p.status === 'Requested' && isRequester
-    ? requesterRouteNames
-      ? t('procurementRecord:waiting.approvalGoesTo', 'Waiting for approval. It goes to {{name}}.', { name: requesterRouteNames })
-      : waitingForText({
-          names: [],
-          role: requestedRoute?.route === 'admin' ? t('waitingList:waitingFor.roleAdmin', 'Admin')
-            : requestedRoute?.route === 'org' ? t('waitingList:waitingFor.roleOrg', 'senior approver')
-            : requestedRoute?.route === 'project' ? t('waitingList:waitingFor.roleProject', 'project approver')
-            : t('waitingList:waitingFor.roleFlat', 'project manager or Finance'),
-        }, t)
+    ? waitingForText({
+        names: (requestedRoute?.approvers ?? []).map((approver) => approver.fullName),
+        role: requestedRoute?.route === 'admin' ? t('waitingList:waitingFor.roleAdmin', 'Admin')
+          : requestedRoute?.route === 'org' ? t('waitingList:waitingFor.roleOrg', 'senior approver')
+          : requestedRoute?.route === 'project' ? t('waitingList:waitingFor.roleProject', 'project approver')
+          : t('waitingList:waitingFor.roleFlat', 'project manager or Finance'),
+      }, t)
     : p.status === 'Vendor Invoiced' && !actionFor('Paid')
       ? t('procurementRecord:waiting.payment', 'Payment: waiting for Finance')
       : null;
