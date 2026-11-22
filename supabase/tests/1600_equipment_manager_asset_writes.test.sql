@@ -4,18 +4,20 @@
 -- back to allow a reason, or drop 'Project Manager' from equipment_can_edit_terms, and the matching assertion turns red; restore.
 begin;
 create extension if not exists pgtap;
-select plan(19);
+select plan(22);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('16000000-0000-0000-0000-00000000000a', 'EMW Org A', 'IDR', 'UTC'),
   ('16000000-0000-0000-0000-00000000000b', 'EMW Org B', 'IDR', 'UTC');
+update organizations set built_in_roles_enabled = true where id = '16000000-0000-0000-0000-00000000000a';
 insert into auth.users (id, email) values
   ('16000000-0000-0000-0000-0000000000a1', 'emw-admin@example.com'),
   ('16000000-0000-0000-0000-0000000000a2', 'emw-fin@example.com'),
   ('16000000-0000-0000-0000-0000000000a3', 'emw-pm@example.com'),
   ('16000000-0000-0000-0000-0000000000a4', 'emw-eng@example.com'),
   ('16000000-0000-0000-0000-0000000000a5', 'emw-exec@example.com'),
-  ('16000000-0000-0000-0000-0000000000b3', 'emw-b-pm@example.com');
+  ('16000000-0000-0000-0000-0000000000b3', 'emw-b-pm@example.com'),
+  ('16000000-0000-0000-0000-0000000000a6', 'emw-field@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('16000000-0000-0000-0000-0000000000a1', '16000000-0000-0000-0000-00000000000a', 'EMW Admin', 'emw-admin@example.com', 'Admin', 'active'),
   ('16000000-0000-0000-0000-0000000000a2', '16000000-0000-0000-0000-00000000000a', 'EMW Fin', 'emw-fin@example.com', 'Finance', 'active'),
@@ -23,6 +25,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('16000000-0000-0000-0000-0000000000a4', '16000000-0000-0000-0000-00000000000a', 'EMW Eng', 'emw-eng@example.com', 'Engineer', 'active'),
   ('16000000-0000-0000-0000-0000000000a5', '16000000-0000-0000-0000-00000000000a', 'EMW Exec', 'emw-exec@example.com', 'Executive', 'active'),
   ('16000000-0000-0000-0000-0000000000b3', '16000000-0000-0000-0000-00000000000b', 'EMW B PM', 'emw-b-pm@example.com', 'Project Manager', 'active');
+insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
+  ('16000000-0000-0000-0000-0000000000a6', '16000000-0000-0000-0000-00000000000a', 'EMW Field', 'emw-field@example.com', 'Project Manager', 'active', 'field_user');
 insert into companies (id, org_id, name, type) values
   ('16000000-0000-0000-0000-0000000000e1', '16000000-0000-0000-0000-00000000000a', 'EMW Rental Co', 'Vendor');
 insert into equipment_assets (id, org_id, code, name, default_unit, ownership) values
@@ -92,6 +96,21 @@ select lives_ok($$ select equipment_rental_check('16000000-0000-0000-0000-000000
 reset role;
 select is((select count(*)::int from equipment_rental_checks where asset_id = '16000000-0000-0000-0000-0000000000f2'), 1,
   'AC-EQM-005 only the Finance reason was stored; the refused Project Manager call stored nothing');
+
+
+-- ── ending a rental period: another organisation and a field account are refused (1651) ──
+reset role;
+select set_config('emw.term', (select id::text from equipment_rental_terms where asset_id = '16000000-0000-0000-0000-0000000000f2' limit 1), true);
+set local role authenticated;
+select pg_temp.act_as('16000000-0000-0000-0000-0000000000b3');
+select throws_ok($$ select end_equipment_rental_term(current_setting('emw.term')::uuid, '2026-09-30') $$, 'P0002', 'rental period not found',
+  'AC-EQM-002 a Project Manager of another organisation cannot end this period');
+select pg_temp.act_as('16000000-0000-0000-0000-0000000000a6');
+select throws_ok($$ select end_equipment_rental_term(current_setting('emw.term')::uuid, '2026-09-30') $$, '42501', null,
+  'AC-EQM-002 a field account cannot end a rental period');
+reset role;
+select is((select rented_to from equipment_rental_terms where id = current_setting('emw.term')::uuid), null,
+  'AC-EQM-002 neither refused call changed the period');
 
 select * from finish();
 rollback;
