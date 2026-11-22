@@ -13,6 +13,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import { formatDay } from '@/src/lib/format';
 import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
 import { UsageThresholdsEditor } from './materialRequests/UsageThresholdsEditor';
+import { UsageInstalledSourceEditor } from './materialRequests/UsageInstalledSourceEditor';
 import { ApproverInboxSetting } from './materialRequests/ApproverInboxSetting';
 
 const ROLES: Role[] = ['Engineer', 'Project Manager', 'Finance', 'Executive', 'Admin'];
@@ -287,7 +288,7 @@ const MaterialRequestSettingsPage: React.FC = () => {
         <ChainEditor />
         <CanWrite entity="approvalChain" action="manage"><CutoffEditor /><ApproverInboxSetting /></CanWrite>
         <CanWrite entity="approvalChain" action="manage"><DeliveryNoteEditor /></CanWrite>
-        <CanWrite entity="approvalChain" action="manage"><UsageThresholdsEditor /></CanWrite>
+        <CanWrite entity="approvalChain" action="manage"><UsageThresholdsEditor /><UsageInstalledSourceEditor /></CanWrite>
         <StandInEditor />
       </RecordStack>
     </div>

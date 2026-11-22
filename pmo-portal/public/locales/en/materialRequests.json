@@ -266,7 +266,7 @@
   },
   "usage": {
     "title": "Usage warnings",
-    "sub": "Warn when a work order's material use reaches these percentages of plan. Leave a field empty to switch that warning off. Warnings never block a request.",
+    "sub": "Warn when a work order's material use reaches these percentages of plan. Leave a field empty to switch that warning off. Warnings never block a request. The first warning also tells the work order's site engineer when installed material reaches it.",
     "first": "First warning (% of plan)",
     "second": "Second warning (% of plan)",
     "save": "Save warnings",
@@ -275,6 +275,15 @@
     "invalidRange": "Enter a percentage from 1 to 1000.",
     "invalidOrder": "The second warning must be higher than the first.",
     "reached": "Use reaches {{reached}}% of plan, past the {{threshold}}% warning.",
-    "planZero": "No plan is set, so any use is past the {{threshold}}% warning."
+    "planZero": "No plan is set, so any use is past the {{threshold}}% warning.",
+    "installedTitle": "What counts as installed",
+    "installedSub": "The usage warning compares installed material with the plan. Choose where installed quantities come from.",
+    "installedLabel": "Installed material comes from",
+    "installedSiteReports": "Validated site reports",
+    "installedStockIssues": "Storekeeper issues to the work order (less returns)",
+    "installedSave": "Save source",
+    "installedSaved": "Source saved",
+    "cardTitle": "Installed material past the usage warning",
+    "cardLine": "{{item}}: {{installed}} of {{plan}} {{unit}} planned installed, past the {{threshold}}% warning."
   }
 }
