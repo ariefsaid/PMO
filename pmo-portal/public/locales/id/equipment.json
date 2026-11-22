@@ -392,7 +392,9 @@
     "emptySub": "Sertifikat dan izin tampil di sini beserta tanggal kedaluwarsanya.",
     "errType": "Pilih jenis dokumen",
     "errExpiry": "Isi tanggal kedaluwarsa",
-    "errOrder": "Tanggal kedaluwarsa harus sama dengan atau setelah tanggal terbit"
+    "errOrder": "Tanggal kedaluwarsa harus sama dengan atau setelah tanggal terbit",
+    "errStatus": "Pilih status medis: layak atau tidak layak",
+    "statusPlaceholder": "Pilih layak atau tidak layak"
   },
   "people": {
     "error": "Orang ini tidak dapat dimuat",

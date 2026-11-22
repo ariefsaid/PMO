@@ -37,4 +37,16 @@ describe('notification wording', () => {
     expect(notificationBody({ body: 'Project Phoenix', message_key: null, message_params: null }, inst.t.bind(inst))).toBe('Project Phoenix');
     expect(notificationBody({ body: 'Project Phoenix', message_key: 'unknown', message_params: {} }, inst.t.bind(inst))).toBe('Project Phoenix');
   });
+  it('fix/walk-people item 9: the leave result reads in the reader\'s language, with the note when there is one', async () => {
+    const inst = i18next.createInstance();
+    await inst.use(orgTermsPlugin).init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+    const t = inst.t.bind(inst);
+    const params = { type: 'Sakit', from: '2026-12-01', to: '2026-12-03', note: 'Dokumen kurang' };
+    expect(notificationTitle({ title: 'Leave rejected', message_key: 'leaveRejected' }, t)).toBe('Cuti ditolak');
+    const body = notificationBody({ body: 'stored', message_key: 'leaveRejected', message_params: params }, t);
+    expect(body).toContain('ditolak');
+    expect(body).toContain('Sakit');
+    expect(body).toContain('Dokumen kurang');
+    expect(notificationBody({ body: 'stored', message_key: 'leaveApproved', message_params: { ...params, note: null } }, t)).toContain('disetujui');
+  });
 });

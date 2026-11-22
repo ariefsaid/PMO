@@ -42,6 +42,8 @@ const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string; doc?:
     validate: (v) => {
       const e: Partial<Record<keyof FormValues, string>> = {};
       if (!v.type_id) e.type_id = t('equipment:expiryEdit.errType', 'Choose a document type');
+      const isMedical = doc ? doc.is_medical : Boolean((types.data ?? []).find((x) => x.id === v.type_id)?.is_medical);
+      if (isMedical && !v.medical_status) e.medical_status = t('equipment:expiryEdit.errStatus', 'Choose the medical status: fit or unfit');
       if (!v.expires_on) e.expires_on = t('equipment:expiryEdit.errExpiry', 'Enter the expiry date');
       else if (v.issued_on && v.issued_on > v.expires_on) e.expires_on = t('equipment:expiryEdit.errOrder', 'Expiry date must be on or after the issue date');
       return e;
@@ -61,7 +63,7 @@ const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string; doc?:
         issued_on: v.issued_on || null,
         expires_on: v.expires_on,
         location_note: medical ? null : v.location_note.trim() || null,
-        medical_status: medical ? ((v.medical_status || 'fit') as 'fit' | 'unfit') : null,
+        medical_status: medical ? (v.medical_status as 'fit' | 'unfit') : null,
       };
       try {
         if (doc) await update.mutateAsync({ id: doc.id, fields, file: medical ? null : file, previousPath: doc.attachment_path });
@@ -83,9 +85,9 @@ const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string; doc?:
           : <SelectField label={t('equipment:expiryEdit.type', 'Document type')} required placeholder={t('equipment:expiryEdit.typePlaceholder', 'Choose a type')}
               options={typeOptions} {...form.fieldProps('type_id')} />}
         {medical
-          ? <SelectField label={t('equipment:expiryEdit.status', 'Medical status')} required
+          ? <SelectField label={t('equipment:expiryEdit.status', 'Medical status')} required placeholder={t('equipment:expiryEdit.statusPlaceholder', 'Choose fit or unfit')}
               options={[{ value: 'fit', label: t('equipment:expiry.medical.fit', 'Fit') }, { value: 'unfit', label: t('equipment:expiry.medical.unfit', 'Unfit') }]}
-              {...form.fieldProps('medical_status')} value={form.values.medical_status || 'fit'} />
+              {...form.fieldProps('medical_status')} />
           : <TextField label={t('equipment:expiryEdit.number', 'Number')} spellCheck={false} {...form.fieldProps('number')} />}
         <DateField label={t('equipment:expiryEdit.issued', 'Issue date')} {...form.fieldProps('issued_on')} />
         <DateField label={t('equipment:expiryEdit.expires', 'Expiry date')} required {...form.fieldProps('expires_on')} />

@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { Json } from '@/src/lib/supabase/database.types';
+import { formatIsoDay } from '@/src/lib/format';
 
 type NotificationCopy = { body: string | null; message_key: string | null; message_params: Json | null };
 
@@ -18,6 +19,15 @@ export function notificationBody(row: NotificationCopy, t: TFunction): string | 
       return t('notifications:budgetPushFailed', 'PMO could not push the activated budget to ERPNext ({{reason}}) — ERPNext is still enforcing the previous budget (or none) for this project.', { reason: text('reason', 'unknown error') });
     case 'unassignedInvoice':
       return t('notifications:unassignedInvoice', 'Sales Invoice {{invoice}}{{amount}} arrived from ERPNext without a project and is in the Unassigned bucket. Assign it to a project.', { invoice: text('invoice', ''), amount: text('amount', '') });
+    case 'leaveApproved':
+    case 'leaveRejected': {
+      const day = (key: string) => { const v = text(key, ''); return v ? formatIsoDay(v) : ''; };
+      const what = { type: text('type', ''), from: day('from'), to: day('to'), note: text('note', '') };
+      const base = row.message_key === 'leaveApproved'
+        ? t('notifications:leaveApproved', 'Your leave request was approved: {{type}}, {{from}} to {{to}}.', what)
+        : t('notifications:leaveRejected', 'Your leave request was rejected: {{type}}, {{from}} to {{to}}.', what);
+      return what.note ? t('notifications:leaveNote', '{{base}} Note: {{note}}', { base, note: what.note }) : base;
+    }
     case 'literal':
       return row.body === null ? null : t('notifications:literal', '{{body}}', { body: text('body', row.body) });
     default: return row.body;
@@ -25,5 +35,7 @@ export function notificationBody(row: NotificationCopy, t: TFunction): string | 
 }
 
 export function notificationTitle(row: { title: string; message_key: string | null }, t: TFunction): string {
+  if (row.message_key === 'leaveApproved') return t('notifications:leaveApprovedTitle', 'Leave approved');
+  if (row.message_key === 'leaveRejected') return t('notifications:leaveRejectedTitle', 'Leave rejected');
   return row.message_key === 'unassignedInvoice' ? t('notifications:unassignedInvoiceTitle', 'Invoice needs a project') : row.title;
 }

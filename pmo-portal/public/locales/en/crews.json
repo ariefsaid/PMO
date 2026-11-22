@@ -245,7 +245,13 @@
     "type": "Type",
     "typeName": "New type",
     "typesHeading": "Leave types",
-    "waiting": "Waiting for your decision ({{count}})"
+    "waiting": "Waiting for your decision ({{count}})",
+    "pickPerson": "Choose a person",
+    "waitingManager": "Waiting for {{manager}} or any {{role}} to decide",
+    "waitingRole": "Waiting for any {{role}} to decide",
+    "approvedBy": "Approved by {{name}}",
+    "rejectedBy": "Rejected by {{name}}",
+    "goesTo": "Your line manager or any {{role}} approves this. You get a notification with the result."
   },
   "checkIn": {
     "requestsTitle": "Check-ins waiting for you",

@@ -392,7 +392,9 @@
     "emptySub": "Certificates and permits show here with their expiry dates.",
     "errType": "Choose a document type",
     "errExpiry": "Enter the expiry date",
-    "errOrder": "Expiry date must be on or after the issue date"
+    "errOrder": "Expiry date must be on or after the issue date",
+    "errStatus": "Choose the medical status: fit or unfit",
+    "statusPlaceholder": "Choose fit or unfit"
   },
   "people": {
     "error": "Couldn't load this person",

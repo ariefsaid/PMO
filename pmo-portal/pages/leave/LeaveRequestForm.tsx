@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { DateField, EntityFormModal, FormGrid, SelectField, TextArea, useToast, type SubmitError } from '@/src/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { useLeaveMutations, useLeaveTypes } from '@/src/hooks/useLeave';
+import { useLeaveMutations, useLeaveSettings, useLeaveTypes } from '@/src/hooks/useLeave';
+import { useRoleLabels } from '../admin-users/roleLabels';
+import type { UserRole } from '@/src/lib/db/adminUsers';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { toIso } from '../equipment/equipmentWeek';
@@ -32,6 +34,9 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
   const people = useRequestablePeople();
   const types = useLeaveTypes();
   const { submit } = useLeaveMutations();
+  const settings = useLeaveSettings();
+  const roleLabels = useRoleLabels();
+  const approver = roleLabels.label((settings.data?.approver_role ?? 'Admin') as UserRole);
   const liveTypes = (types.data ?? []).filter((x) => !x.archived_at);
   const [personId, setPersonId] = useState('');
   const [typeId, setTypeId] = useState('');
@@ -39,7 +44,9 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
   const [end, setEnd] = useState('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<SubmitError | null>(null);
-  const effectivePerson = personId || (people.data ?? []).find((p) => p.is_self)?.id || (people.data ?? [])[0]?.id || '';
+  // Nobody is pre-chosen when there is a choice to make; only a person who can request for no one but themselves needs no pick.
+  const onlySelf = (people.data ?? []).length === 1 ? (people.data ?? [])[0].id : '';
+  const effectivePerson = personId || onlySelf;
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -58,6 +65,7 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
       <FormGrid>
         {(people.data ?? []).length > 1 && (
           <SelectField label={t('crews:leave.person', 'Person')} required value={effectivePerson} onChange={setPersonId}
+            placeholder={t('crews:leave.pickPerson', 'Choose a person')}
             options={(people.data ?? []).map((p) => ({ value: p.id, label: p.name }))} />
         )}
         <SelectField label={t('crews:leave.type', 'Type')} required value={typeId} onChange={setTypeId}
@@ -65,6 +73,9 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
         <DateField label={t('crews:from', 'From')} required value={start} onChange={setStart} />
         <DateField label={t('crews:leave.lastDay', 'Last day')} value={end} onChange={setEnd} min={start} />
         <TextArea label={t('crews:leave.reason', 'Reason (optional)')} value={reason} onChange={setReason} fullWidth />
+        <p className="col-span-full text-sm text-muted-foreground">
+          {t('crews:leave.goesTo', 'Your line manager or any {{role}} approves this. You get a notification with the result.', { role: approver })}
+        </p>
       </FormGrid>
     </EntityFormModal>
   );

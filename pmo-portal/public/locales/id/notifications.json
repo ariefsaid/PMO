@@ -5,5 +5,10 @@
   "budgetPushFailed": "PMO tidak dapat mengirim anggaran aktif ke ERPNext ({{reason}}) — ERPNext masih menerapkan anggaran sebelumnya (atau tidak ada anggaran) untuk proyek ini.",
   "unassignedInvoiceTitle": "Invoice memerlukan proyek",
   "unassignedInvoice": "Invoice penjualan {{invoice}}{{amount}} tiba dari ERPNext tanpa proyek dan berada dalam daftar belum ditetapkan. Tetapkan invoice ke proyek.",
-  "literal": "{{body}}"
+  "literal": "{{body}}",
+  "leaveApproved": "Pengajuan cuti Anda disetujui: {{type}}, {{from}} sampai {{to}}.",
+  "leaveRejected": "Pengajuan cuti Anda ditolak: {{type}}, {{from}} sampai {{to}}.",
+  "leaveNote": "{{base}} Catatan: {{note}}",
+  "leaveApprovedTitle": "Cuti disetujui",
+  "leaveRejectedTitle": "Cuti ditolak"
 }

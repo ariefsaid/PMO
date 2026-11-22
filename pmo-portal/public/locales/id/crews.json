@@ -245,7 +245,13 @@
     "type": "Jenis",
     "typeName": "Jenis baru",
     "typesHeading": "Jenis cuti",
-    "waiting": "Menunggu keputusan Anda ({{count}})"
+    "waiting": "Menunggu keputusan Anda ({{count}})",
+    "pickPerson": "Pilih orangnya",
+    "waitingManager": "Menunggu keputusan {{manager}} atau {{role}} mana pun",
+    "waitingRole": "Menunggu keputusan {{role}} mana pun",
+    "approvedBy": "Disetujui oleh {{name}}",
+    "rejectedBy": "Ditolak oleh {{name}}",
+    "goesTo": "Atasan langsung Anda atau {{role}} mana pun yang menyetujui. Hasilnya akan masuk ke notifikasi Anda."
   },
   "checkIn": {
     "requestsTitle": "Absen menunggu Anda",

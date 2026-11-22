@@ -42,6 +42,12 @@ export interface LeaveRequestRow {
   decision_note: string | null;
   is_mine: boolean;
   can_decide: boolean;
+  /** Who decided it (1611); null while pending. */
+  decided_by_name: string | null;
+  /** The person's line manager, who can decide it; null when none is set (1611). */
+  line_manager_name: string | null;
+  /** The organisation's approver role key; any holder of it can decide (1611). */
+  approver_role: string | null;
 }
 export interface LeaveRequestInput { person_id: string; leave_type_id: string; start_date: string; end_date: string; reason?: string | null }
 

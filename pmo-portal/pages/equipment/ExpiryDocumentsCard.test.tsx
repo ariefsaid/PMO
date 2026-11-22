@@ -54,6 +54,21 @@ describe('ExpiryDocumentsCard (#2542)', () => {
     expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ type_id: 't1', number: 'EC-9', expires_on: '2027-03-01', file: null }));
   });
 
+  it('fix/walk-people item 5: a new medical document starts with no status and will not save until fit or unfit is chosen', async () => {
+    const user = userEvent.setup();
+    renderCard('person');
+    await user.click(screen.getByRole('button', { name: 'Add document' }));
+    await user.selectOptions(screen.getByLabelText(/Document type/), 't2');
+    const status = screen.getByLabelText(/Medical status/) as HTMLSelectElement;
+    expect(status.value).toBe('');
+    await typeDate(user, /Expiry date/, '2027-03-01');
+    await user.click(screen.getByRole('button', { name: 'Save document' }));
+    expect(h.create).not.toHaveBeenCalled();
+    await user.selectOptions(status, 'unfit');
+    await user.click(screen.getByRole('button', { name: 'Save document' }));
+    expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ type_id: 't2', medical_status: 'unfit' }));
+  });
+
   it('AC-DEE-002 edits only the editable fields of an existing document', async () => {
     const user = userEvent.setup();
     renderCard();
