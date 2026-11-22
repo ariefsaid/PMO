@@ -1,7 +1,7 @@
 -- document_expiry_manager.test.sql — 1760/1761 (expiry-to-manager). Owns AC-EXM-001..005 (needs notify_person from 1750).
 begin;
 create extension if not exists pgtap;
-select plan(19);
+select plan(20);
 
 insert into organizations (id, name, default_currency, default_timezone) values ('17600000-0000-0000-0000-00000000000a', 'EXM Org', 'IDR', 'UTC');
 insert into auth.users (id, email) values
@@ -67,6 +67,11 @@ select is((select count(*)::int from notifications where owner_id = '17600000-00
 select is((select count(*)::int from notifications where body like '%fit%' and title like '% renewed'), 0, 'AC-EXM-005 no notice carries a medical status');
 
 select is((select count(*)::int from email_outbox o join notifications n on n.id = o.notification_id where n.owner_id = '17600000-0000-0000-0000-0000000000a4' and n.title like '% renewed'), 0, 'AC-EXM-005 the renewal notice queues no expiry email (its kind maps to no email event)');
+
+-- audit: exactly one row for the manager's renewal of c3 (10 Jan 2027 -> 10 Feb 2027), by the manager. MUTATION: drop the log_audit call -> red.
+select is((select count(*)::int from audit_events where action = 'expiry_document.renewed' and entity_id = '17600000-0000-0000-0000-0000000000c3'
+             and actor_id = '17600000-0000-0000-0000-0000000000a3' and detail = jsonb_build_object('from', '2027-01-10'::date, 'to', '2027-02-10'::date)), 1,
+  'AC-EXM-004 a renewal writes exactly one audit row with the document, both dates and the actor');
 
 select * from finish();
 rollback;

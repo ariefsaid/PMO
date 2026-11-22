@@ -1,6 +1,6 @@
 -- 1761_record_document_renewal.sql — expiry-to-manager: the direct manager records the renewal (a later expiry date) for their own people only;
 -- Admin keeps the existing write and may also use it. The worker is then told through notify_person (defined in 1750, shared with the medical release).
--- Only expires_on changes. Medical documents are Admin-only (a manager never sees their status). Reverse: rollback/1761_record_document_renewal_down.sql
+-- Only expires_on changes, and the old and new dates are written to the audit trail. Medical documents are Admin-only (a manager never sees their status). Reverse: rollback/1761_record_document_renewal_down.sql
 
 create function public.record_document_renewal(p_document uuid, p_expires_on date) returns void
   language plpgsql security definer set search_path = public, pg_temp as $$
@@ -25,6 +25,8 @@ begin
     raise exception 'DXR_DATE_NOT_LATER: The new expiry date must be later than the current one.' using errcode = '22023';
   end if;
   update public.expiry_documents set expires_on = p_expires_on where id = d.id;
+  perform public.log_audit('expiry_document.renewed', d.org_id, v_uid, d.id,
+    jsonb_build_object('from', d.expires_on, 'to', p_expires_on));
   select t.name into v_type from public.document_types t where t.id = d.type_id;
   perform public.notify_person(d.person_id, 'document_renewal', v_type || ' renewed',
     v_type || ' renewed: now valid until ' || to_char(p_expires_on, 'FMDD Mon YYYY') || '.', '/equipment/people/' || d.person_id);

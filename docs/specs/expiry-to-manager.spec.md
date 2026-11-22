@@ -13,6 +13,7 @@
 - **FR-EXM-002** Each document type shall carry "also tell the person" (`notify_person`, default off, so every existing type keeps today's recipients). When on, the daily run also warns the person's linked active profile, once per document, expiry date and threshold.
 - **FR-EXM-003** A document type created with an explicitly empty role list shall keep it empty (manager only); role defaults apply only when no list is supplied. Existing types keep their stored lists.
 - **FR-EXM-004** When a person's direct manager records a renewal (a later expiry date) for a non-medical document of one of their own people, the database shall accept it and change only `expires_on`; a person who is not theirs, a medical document, an equipment document, or a date that is not later shall be refused with a sentence saying what to do next (English and Bahasa Indonesia). Admin keeps the existing write and may also use the same step.
+- **FR-EXM-004a** Recording a renewal writes one audit entry (`expiry_document.renewed`) with the document, the old and new dates and the actor.
 - **FR-EXM-005** After a renewal is recorded the person is told once, with the type and new date (no medical status), through the shared `notify_person` (migration 1750, defined by the medical-release item; a person with no active linked profile is a no-op).
 - **FR-EXM-006** The Expiring documents list shall offer "Record renewal" on person rows (not medical, not equipment) opening a form for the new date; the success message says the person has been told.
 
@@ -28,7 +29,7 @@
 `document_types.notify_person boolean not null default false` - default keeps today's recipients. No on/off switch for the feature.
 
 ## Mutation check plan
-Make the renewal RPC skip the manager test (`d.manager_id is distinct from v_uid` -> false): AC-EXM-004 "not your person" goes red. Drop the `notify_person` clause from the runner: AC-EXM-002 goes red. Restore the old `coalesce(cardinality(...)) = 0` default: AC-EXM-003 goes red.
+Drop the `log_audit` call in the renewal RPC: the audit-row assertion goes red. Make the renewal RPC skip the manager test (`d.manager_id is distinct from v_uid` -> false): AC-EXM-004 "not your person" goes red. Drop the `notify_person` clause from the runner: AC-EXM-002 goes red. Restore the old `coalesce(cardinality(...)) = 0` default: AC-EXM-003 goes red.
 
 ## Open questions (recommended)
 1. Fall back to the user account's line manager when a person has no direct manager? Recommended: later, once the roster work fixes which field is canonical.
