@@ -14,9 +14,9 @@
 --                 EQ2 04 Nov 5 h x 100000 standby (no idle day) = 500000.00
 --                 EQ2 05 Nov 5 h x 1000 work                    =   5000.00
 --                 EQ4 02 Nov 5 h x 0 (no standby rate)          =      0.00
---   no amount     EQ2 02 Nov Draft, EQ3 02 Nov other unit, the approved head-count line (its class has no rate), and
---                 the project-actuals remainder row.
--- Total = 1000000 labour + 1805000 hire = 2805000.00 over 13 rows; idle money never enters it (FR-IWR-005).
+--   no amount     EQ2 02 Nov Draft, EQ3 02 Nov other unit, the approved head-count line (its class has no rate). No
+--                 project-actuals remainder: actuals equal the allocated hire cost, so the read emits none.
+-- Total = 1000000 labour + 1805000 hire = 2805000.00 over 12 rows; idle money never enters it (FR-IWR-005).
 -- MUTATION NOTES (break the rule; the named assertion must go red; restore):
 --   head-count factor replaced by 1 ................................. AC-IWR-002/003 amounts
 --   average head count instead of per day ........................... AC-IWR-003 amount
@@ -27,7 +27,7 @@
 --   remove idle_cost_enabled return ................................. AC-IWR-009
 --   M8: add a nonzero idle-derived amount (e.g. 431250.00 on WO-A) to work_order_cost_amounts — a new union branch,
 --       a new row, or a changed existing amount ..................... AC-IWR-008 absolute row set AND money total
---       (extra row: 14 vs 13 rows; added to a row/total: sum moves). Absolute, not differential: the scope switch
+--       (extra row: 12 -> 13 rows; added to a row/total: sum moves). Absolute, not differential: the scope switch
 --       cannot change both sides, so the pre-existing md5 differential stays green under M8 by design.
 begin;
 create extension if not exists pgtap;
@@ -168,8 +168,9 @@ grant select on cost_before to authenticated;
 
 -- AC-IWR-008 absolute oracle (scope labour_average). The expected cost read is hand-written from the fixture facts in the
 -- header, never copied from the function and never re-derived from its pricing: 400000 + 600000 labour, the seven counted
--- hire rows, three no-amount rows and the project-actuals remainder. Idle cost is a separate read; adding it anywhere to
--- these actual costs changes this row set or the total (M8).
+-- hire rows and three no-amount rows (Draft, other unit, head-count with no class rate). There is no project-actuals
+-- remainder row: with no ERP ledger the actuals total is the allocated hire cost, so no remainder is emitted. Idle cost is
+-- a separate read; adding it anywhere to these actual costs changes this row set or the total (M8).
 create temp table expected_cost as
   select * from (values
     ('headcount_day'::text, '17310000-0000-0000-0000-000000000401'::uuid, null::numeric, null::numeric, 'hours'::text, 'no-rate'::text),
@@ -182,7 +183,6 @@ create temp table expected_cost as
     ('equipment_usage', '17310000-0000-0000-0000-000000000401', 5000.00, 5, 'hours', 'counted'),
     ('equipment_usage', '17310000-0000-0000-0000-000000000401', null, 1, 'days', 'no-rate'),
     ('equipment_usage', '17310000-0000-0000-0000-000000000401', 0.00, 5, 'hours', 'counted'),
-    ('project_actuals', null, null, null, null, 'unassigned'),
     ('timesheet_entry', '17310000-0000-0000-0000-000000000401', 400000.00, 8, 'hours', 'counted'),
     ('timesheet_entry', '17310000-0000-0000-0000-000000000401', 600000.00, 8, 'hours', 'counted')
   ) v(source, work_order_id, amount, quantity, quantity_unit, reason);

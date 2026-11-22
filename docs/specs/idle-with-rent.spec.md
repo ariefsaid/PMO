@@ -108,7 +108,7 @@ arithmetic. UX-only: visibility of the Administration control.
 5. Remove the `idle_cost_enabled` early return, or the scope check on the write (`labour_cost_gate`) -> AC-IWR-009/010 red.
 6. Make the scope default `people_and_equipment` -> AC-IWR-001 red.
 7. Include idle amount in `work_order_cost_amounts` (M8: a new nonzero idle-derived row or amount) -> AC-IWR-008's absolute
-   row set (13 rows) and money total (2805000.00) red under both scopes.
+   row set (12 rows) and money total (2805000.00) red under both scopes.
 
 ## 7. Questions for the customer (recommended answers)
 1. Head count = people marked present that day on the work order, whether or not their attendance is approved yet?
