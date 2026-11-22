@@ -1,85 +1,83 @@
 # Spec: Warn the site engineer when installed material passes a share of plan
 
-**Status:** proposed, Phase 1. Lane gap-material. Replaces the measure and the recipient of `docs/specs/material-request-usage-thresholds.spec.md` (#2686); that spec's FR-MUT-003..005 and 009 are superseded here. IDs `FR-UW-###`, `AC-UW-###`, `OQ-UW-#`. Plan: `docs/plans/2026-11-22-usage-warning.md`. Rulings in force: OD-SCOPE-2 (every number is a setting), OD-SCOPE-8 (material lines on a validated site report are the record of material used), warn and never block.
+**Status:** approved (coordinator), built in Phase 2, size M. Steering of the coordinator supersedes the first Phase 1 draft: a responsible person on the work order, an organisation setting for what counts as installed, a check wherever installed quantity changes, and the request-time warning (#2686) stays beside it unchanged. IDs `FR-UW-###`, `AC-UW-###`. Plan: `docs/plans/2026-11-22-usage-warning.md`. Map #2516. Rulings in force: OD-SCOPE-2 (every number is a setting), OD-SCOPE-8 (material lines on a validated site report are the record of material used), warn and never block.
 
 ## Job story
 
-When material installed on a work order passes a set share of the planned quantity, I want the site engineer told, so they go and check; and I want the measure to be the material actually installed (from validated site reports), with one threshold setting.
+When material installed on a work order passes a set share of the planned quantity, I want the site engineer told, so they go and check; and I want the measure to be the material actually installed, with one threshold setting.
 
 ## Today (verified on this branch, `origin/land/fix-1122`)
 
-The item text is right on all three points; the base builds a different design.
+- **Measure is requested, not installed.** `supabase/migrations/1331_mrq_usage_alerts.sql` `mrq_usage_check`: use = `mrq_prior_quantity(...) + l.quantity` (other live requests plus the request being submitted). Run from `mrq_submit` (`1333_mrq_submit_carry_usage_check.sql:75`), so only when a request is submitted.
+- **Recipient is the project manager** (`projects.project_manager_id`); `work_orders` has no person column (0193, 0337, 1320, 1400 add none).
+- **Two thresholds** (`usage_warn_pct_1`, `usage_warn_pct_2`, 1330) edited in `UsageThresholdsEditor.tsx`; alerts unique on `(work_order_id, item_id, slot)`.
+- **Installed material already exists as data:** `dsr_consumables` (1040) on reports that are validated, not superseded, not archived (the filter `qcr_figures` and `work_order_validated_revenue` use); and the stock ledger (`stock_ledger` kind issue/return, tagged to a work order through `stock_documents.work_order_id`, as `get_work_order_stock_balance` 1031 reads it).
+- **Plan figure:** `mrq_plan_quantity` (1156). **Prior art:** `scripts/prior-art.sh "usage warning"` finds nothing; `overrun` finds only contract-quantity detection (1175), a different measure.
 
-- **Measure = requested, not installed.** `supabase/migrations/1331_mrq_usage_alerts.sql` `mrq_usage_check`: `v_use := mrq_prior_quantity(...) + l.quantity`. `mrq_prior_quantity` (1001) sums lines of other live material requests (pending, approved, fulfilled) and `l.quantity` is the request being submitted. Nothing reads a site report. The spec text says the same ("quantity already used ... posted stock ... plus requests").
-- **Evaluated at request submit**, not when material is reported installed: `1333_mrq_submit_carry_usage_check.sql:75` calls `mrq_usage_check` inside `mrq_submit` (latest body; no later migration restates `mrq_submit`).
-- **Recipient = the project manager:** `mrq_usage_check` reads `projects.project_manager_id` and calls `notify_workflow_user(...)` to that person only; "the work order's engineer resolves to the project's manager" (spec ruling 2026-11-21). No work-order engineer column exists (`work_orders` has none; `0193`, `0337`, `1320`, `1400` add none).
-- **Two thresholds, not one:** `1330_mrq_usage_threshold_settings.sql` adds `material_request_settings.usage_warn_pct_1` and `usage_warn_pct_2`; `mrq_set_usage_thresholds(p1, p2)`; alerts unique on `(work_order_id, item_id, slot)`.
-- **Installed material already exists as data:** `dsr_consumables` (1040; `stock_item_id`, `quantity`, `report_id`) are the material lines of a daily site report. A report counts once it is `validated`, not superseded, not archived (same filter `qcr_figures` and `work_order_validated_revenue` use). Validation happens in `dsr_validate` (1041:263, status update then, at 266, the superseded version's `superseded_at`).
-- **Plan figure:** `mrq_plan_figure/mrq_plan_quantity` (1156): consumable plan line, else BoQ allowance, else 0.
-- **Screens:** `pages/materialRequests/UsageWarning.tsx` (request form `MaterialRequestNew.tsx:197`, detail `MaterialRequestDetail.tsx:146`) shows "Use reaches X% of plan" from `planQty + priorQty + quantity` (requested). Settings: `UsageThresholdsEditor.tsx` (two fields). `get usage thresholds`: `useUsageThresholds`.
-- **Search:** `scripts/prior-art.sh "usage warning"` finds nothing; `overrun` finds only the contract-quantity detection (1175), a different measure. Nothing else answers the ask.
+## What changes
 
-## What changes (design change, not a second path)
-
-The measure becomes installed material from validated site reports, the check runs when installed material changes, the recipient becomes the site engineer, and the two thresholds become one. The request-based check is removed (not left beside the new one).
+Added beside the request-time warning, which stays exactly as shipped (nothing in 1330-1333 is restated or removed): a new check on INSTALLED quantity, a new alert table, a responsible person on the work order, and a source setting. The first threshold column (`usage_warn_pct_1`) is the one threshold of the installed check; no second one is added.
 
 ## Settings
 
 | Setting | Where | Default |
 |---|---|---|
-| Usage warning threshold (percent of plan, 1 to 1000, or unset) | `material_request_settings.usage_warn_pct` (the existing `usage_warn_pct_1`, renamed; `usage_warn_pct_2` dropped); Admin-only `set_material_usage_threshold(p_pct)`; one field on the existing material-request settings screen | unset (off) |
+| Usage threshold (percent of plan) | `material_request_settings.usage_warn_pct_1`, existing, edited in the existing editor (its text now says the first warning also tells the site engineer) | unset (off) |
+| What counts as installed | `material_request_settings.usage_installed_source` (`site_reports` or `stock_issues`); Admin-only `set_usage_installed_source`; a select on the material-request settings screen | `site_reports` |
+| Responsible person | `work_orders.responsible_person_id`, nullable; set by whoever may edit the work order (Admin, Executive, Project Manager, Finance) through `set_work_order_responsible_person`; shown and editable on the work-order screen | null |
 
-**No on/off switch.** Unset means no warning, as today. The existing first threshold keeps its value; a second threshold, if one was set, is discarded (the job asks for one).
-
-**Is this an "approval route / visibility" change needing a default-keeps-old-behaviour setting? Ruling proposed: no.** It is a warning-only notification: no money figure, approval step or access changes. #2686 is unreleased on this branch and off by default (null), so no organisation depends on the requested-quantity behaviour. Flagged as OQ-UW-2 for confirmation anyway.
+**No on/off switch.** Unset threshold means no warning, as for the request-time one. **Not an approval-route or visibility change** (agreed by the coordinator): the feature is unreleased and off by default, a warning moves no money, approval or access.
 
 ## Requirements (EARS)
 
-- FR-UW-001 The system shall let an Admin set, change or clear one usage threshold for the organisation (1 to 1000, two decimals); the server refuses another value and any non-Admin or field account.
-- FR-UW-002 **Installed** quantity of an item on a work order shall be the sum of `dsr_consumables.quantity` over that work order's reports that are validated, not superseded and not archived. Requests, transfers and stock issues are not counted.
-- FR-UW-003 Where the threshold is set, when installed quantity of an item reaches that percent of plan (plan 0 with any installed quantity counts as reached), the system shall record one warning for the work order and item and write one in-app notification to the site engineer. Checked when a report is validated and when a correction replaces a validated report.
-- FR-UW-004 The site engineer is the author of the most recently validated live report on that work order that carries the item, so the person who entered the quantity is told. Where that person is inactive or outside the organisation the warning is recorded and nobody is notified. (OQ-UW-1.)
-- FR-UW-005 A warning is raised once per work order and item: later reports, corrections, a lowered threshold or a re-validation do not notify again.
-- FR-UW-006 Where the threshold is set and an item's installed quantity has reached it, the work-order material card, the material request form and the request detail shall show a warning line stating installed quantity, plan quantity and percent reached. It never disables Save, Submit, approval or any report action.
-- FR-UW-007 The warning, record and notification shall write nothing else and never block validation, a request or a stock posting; a failure of the check shall not roll back the validation.
-- FR-UW-008 Where the threshold is unset the system shall behave as before: no record, no notification, no screen change.
-- NFR-UW-001 `material_request_usage_alerts` keeps RLS on, org reads only, no client write path; the check is a security-definer function with `org_id` from the work order; new client-callable functions carry the light-account refusal (1480 convention).
-- NFR-UW-002 Warning text on screens is translated (English, Bahasa Indonesia). The notification body is plain English through `notify_workflow_user`, the deviation #2686 recorded; a translatable key follows with the shared template guard change.
+- FR-UW-010 The system shall hold one nullable responsible person per work order, an active member of the work order's organisation (the database refuses another organisation or a disabled member).
+- FR-UW-011 Whoever may edit the work order may name or clear the responsible person; the work-order screen shows it and offers the choice only to them, in English and Bahasa Indonesia; others read the name, or "Not set" with who sets it.
+- FR-UW-012 The responsible person is the site engineer the usage warning goes to.
+- FR-UW-002 **Installed** quantity of an item on a work order is, by the organisation's source (FR-UW-020): `site_reports`: the sum of material lines on the work order's reports that are validated, not superseded and not archived; `stock_issues`: posted issues less posted returns to the work order. Requests, transfers and the other source never count.
+- FR-UW-003 Where the first threshold is set, when installed quantity of an item reaches that percent of plan (plan 0 with any installed quantity counts as reached), the system shall record one warning for the work order and item and write one in-app notification.
+- FR-UW-004 The notification goes to the work order's responsible person; where there is none, or that person is not an active member, to the project's manager; where neither can be told the warning is recorded and nobody is notified. One function body holds this rule.
+- FR-UW-005 A warning is raised once per work order and item (unique `(work_order_id, item_id)`); later quantities, corrections, a lowered threshold or a changed source do not notify again.
+- FR-UW-006 The work-order card shows the recorded warnings (installed, plan, threshold) without opening anything else. It never disables an action.
+- FR-UW-007 The check runs whenever installed quantity can change: a site report is validated (an original), superseded (a correction replaced it, checked after the supersede so both versions are never counted together) or archived, and a stock issue or return is posted to a work order.
+- FR-UW-008 A failure of the check shall never block validating a report or posting a stock document: the trigger entry point swallows every error and logs it as a database warning.
+- FR-UW-009 Where the threshold is unset the check does nothing: no record, no notification, no screen change.
+- FR-UW-020 An Admin chooses what counts as installed (FR-UW-002); the server refuses anyone else.
+- NFR-UW-001 `material_installed_usage_alerts` has RLS on, org reads only, no client write path; `org_id` is stamped, never sent; new client-callable functions carry the light-account refusal (1480 convention).
+- NFR-UW-002 Screen text is English and Bahasa Indonesia. The notification body is plain English through `notify_workflow_user`, the deviation #2686 recorded.
 
 ## Acceptance criteria and owning layer
 
 | ID | Given / When / Then | Layer |
 |---|---|---|
-| AC-UW-001 | Given threshold 80, plan 100, when a report with 85 of the item is validated, then one warning row and one notification to that report's author. | pgTAP |
-| AC-UW-002 | Given installed 50 and 40 requested (pending request), threshold 80, then no warning: requested quantity is not counted (mutation: count requests, test red). | pgTAP |
-| AC-UW-003 | Given a warning raised, when another report, a correction or a lowered threshold follows, then no second row or notification. | pgTAP |
-| AC-UW-004 | Given a correction replaces a validated report so installed falls below then rises past the share, then installed counts the new version only (the old is excluded once superseded) and the warning is raised once. | pgTAP |
-| AC-UW-005 | Given the threshold unset, when reports of any size validate, then no row, no notification. (mutation: ignore the unset test.) | pgTAP |
+| AC-UW-001 | Given threshold 80, plan 100 and a responsible person, when a report with 85 is validated, then one warning and one notification to the responsible person, none to the project manager. | pgTAP |
+| AC-UW-002 | Given no responsible person (or a disabled one), then the project manager is told. | pgTAP |
+| AC-UW-003 | Given a warning raised, when more reports validate or the threshold is lowered, then no second row or notification. | pgTAP |
+| AC-UW-004 | Given a correction replaces a validated report, then installed counts the new version only; a correction from 50 to 60 raises nothing, to 85 raises once. | pgTAP |
+| AC-UW-005 | Given the threshold unset, then nothing is recorded or sent (mutation checks in the file header); a crossing that stood before the threshold was set is raised at the next change. | pgTAP |
 | AC-UW-006 | Given plan 0 and installed above 0, then the warning is raised. | pgTAP |
-| AC-UW-007 | Given the author is inactive, then the row exists and no notification; validation succeeds. | pgTAP |
-| AC-UW-008 | Given a non-Admin or a field account, when they set the threshold, refused (42501); another org reads no rows; 0, 1001 refused; null clears. | pgTAP |
-| AC-UW-009 | Given a request is submitted over the share by request quantity alone, then submit succeeds, no warning row is written (the request path no longer checks). | pgTAP |
-| AC-UW-010 | Given the threshold set and installed past it, when the request form shows that item, then the warning line states installed, plan and percent; Save and Submit stay enabled; unset shows nothing. | Unit |
-| AC-UW-011 | Given an Admin and a non-Admin on the settings screen, then only the Admin sees one threshold field, with its refusal sentences in English and Bahasa Indonesia. | Unit |
-| AC-UW-012 | Given a foreman reports installed material, an engineer validates, the author sees the notification and the work order card shows the warning. | e2e (one curated journey) |
+| AC-UW-007 | Given a submitted, unvalidated report, then it is not installed and raises nothing. | pgTAP |
+| AC-UW-008 | Given a non-Admin or an unknown value, when the source is set, refused; another organisation changes only its own and reads no warnings. | pgTAP |
+| AC-UW-009 | Given source `stock_issues`, then a posted issue records the warning, installed is issues less returns, and site-report quantities are ignored. | pgTAP |
+| AC-UW-010 | Given an Admin and a non-Admin on the settings screen, then only the Admin sees the installed-source select; saving sends the choice; a refusal is one sentence. | Unit |
+| AC-UW-011 | Given the work-order screen, then someone who may edit names or clears the responsible person; a reader sees the name or "Not set" and who sets it. | Unit |
+| AC-UW-012 | Given a validated report of 85 against plan 100 at 80 percent, then the responsible person is told and the work-order card shows the item. | e2e |
+| AC-UW-013..016 | The responsible person: default null, set and cleared; refused for a role that may not edit work orders, another organisation's person, a disabled member, another organisation's work order. | pgTAP (`work_order_responsible.test.sql`) |
+| AC-UW-017 | Given the check raises an error, then a report still validates and a stock issue still posts. | pgTAP |
+| AC-UW-018 | Given a report is archived, then the work order is checked. | pgTAP |
 
 ## Errors (refusal catalogue, English and Bahasa Indonesia, each says what to do next)
 
 | Condition | Code | Sentence (English) |
 |---|---|---|
-| Non-Admin sets the threshold | `MRQ_ADMIN_ONLY` | Only an Admin can change the usage warning. Ask an Admin to change it. |
-| Value outside 1 to 1000 | `MRQ_INVALID` | Enter a percent of plan from 1 to 1000, or leave it empty to turn the warning off. |
+| Non-Admin sets the source | `MRQ_USAGE_ADMIN_ONLY` | Only an Admin can change the usage warning. Ask an Admin to change it. |
+| Unknown source | `MRQ_USAGE_INVALID` | Choose site reports or stock issues as what counts as installed. |
+| Role may not edit the work order | `RSP_FORBIDDEN` | Your role cannot set the responsible person. Ask a project manager or an Admin. |
+| Person not an active member of this organisation | `RSP_PERSON` | Choose an active member of this organisation as the responsible person. |
 
-(Both codes exist in migrations; the plan checks `scripts/check-refusal-codes.mjs` and adds the Bahasa Indonesia sentences if either is absent.)
+## Existing tests whose steps change, and why
 
-## Existing tests that change, and why
+None of the request-time warning's tests change (it is untouched). `pages/MaterialRequestSettings.test.tsx` and `MaterialRequestSettings.usage.test.tsx` gain the mock of the new installed-source read because the Admin settings screen now renders the new select.
 
-- `supabase/tests/mrq_usage_thresholds.test.sql` (AC-MUT-*): rewritten as `usage_warning.test.sql`; its measure, trigger point, recipient and two-slot cases are the old design.
-- `pages/MaterialRequestSettings.usage.test.tsx`, `pages/materialRequests/UsageWarning.test.tsx`, `MaterialRequestNew.usage.test.tsx`, `MaterialRequestDetail.usage.test.tsx`, `src/lib/db/materialRequestsUsage.test.ts`: one field instead of two; the line reads installed quantity, not requested.
-- 1480's name sweeps list `mrq_set_usage_thresholds`; the renamed function is added there by restating its guard (plan).
+## Decisions (coordinator, 2026-11-22)
 
-## Open questions for the customer
-
-- **OQ-UW-1 Who is "the site engineer"?** PMO has no per-work-order engineer. Recommended: the person who entered the report that took installed material over the share (they are on site). Alternatives: every holder of a named role (setting), or the project manager as today. Built meanwhile: the report author, behind one function so the choice is one body.
-- **OQ-UW-2 Should the project manager still be told?** Recommended: no; the warning row shows on the work-order card for managers. Built meanwhile: engineer only.
-- **OQ-UW-3 Does one threshold replace two?** Recommended: yes, as the job asks. Built meanwhile: one.
+Site engineer = the work order's responsible person, project manager when none; the measure is installed (site reports by default, stock issues by setting); one threshold (the existing first); the request-time warning stays.
