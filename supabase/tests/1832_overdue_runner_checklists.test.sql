@@ -206,13 +206,19 @@ select is((select body from notifications where owner_id = '28320000-0000-0000-0
 select is((select metadata -> 'entity' ->> 'type' || ':' || (metadata -> 'entity' ->> 'id') from notifications
             where owner_id = '28320000-0000-0000-0000-000000000b02' and title = 'Close-out item is overdue'),
   'work_order:28320000-0000-0000-0000-000000000e01', 'AC-CTD-002 the close-out notice opens its work order');
-select is((select body from notifications where owner_id = '28320000-0000-0000-0000-000000000b01'
-            and title = 'Clearance item is overdue' and body like '%Clearance Two%'),
+-- Clearance Two owes two items and the runner correctly writes one notice per item, so both notices name the same person.
+-- Identify the intended Site induction notice by the runner-written identity (metadata.entity.label = item name,
+-- metadata.entity.id = person) for the body oracle, and by the exact expected body for the deeplink oracle, so neither
+-- assertion depends on the other and neither masks the second (Medical check) notice.
+select is((select n.body from notifications n
+            where n.owner_id = '28320000-0000-0000-0000-000000000b01' and n.title = 'Clearance item is overdue'
+              and n.metadata -> 'entity' ->> 'id' = '28320000-0000-0000-0000-000000000e12'
+              and n.metadata -> 'entity' ->> 'label' = 'Site induction'),
   'Clearance item "Site induction" for Clearance Two is 5 days past its 5-day target.',
   'AC-CTD-006 the clearance notice names the item, the person and the days over');
-select is((select metadata -> 'entity' ->> 'type' || ':' || (metadata -> 'entity' ->> 'id') from notifications
-            where owner_id = '28320000-0000-0000-0000-000000000b01'
-              and title = 'Clearance item is overdue' and body like '%Clearance Two%'),
+select is((select n.metadata -> 'entity' ->> 'type' || ':' || (n.metadata -> 'entity' ->> 'id') from notifications n
+            where n.owner_id = '28320000-0000-0000-0000-000000000b01' and n.title = 'Clearance item is overdue'
+              and n.body = 'Clearance item "Site induction" for Clearance Two is 5 days past its 5-day target.'),
   'person_clearance:28320000-0000-0000-0000-000000000e12', 'AC-CTD-006 the clearance notice opens the person''s checklist');
 select is((select body from notifications where owner_id = '28320000-0000-0000-0000-000000000b02' and title = 'Billing step is overdue'),
   'Billing step "Measure" of a progress claim on CTD run project is 1 day past its 10-day target.',
