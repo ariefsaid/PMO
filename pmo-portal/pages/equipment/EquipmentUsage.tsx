@@ -21,7 +21,7 @@ import { formatDay, formatNumberMax2, formatWeekdayDay } from '@/src/lib/format'
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { addDays, fromIso, mondayOf, toIso, weekDays } from './equipmentWeek';
 import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
-import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { useAttributionErrorText } from '@/src/components/workOrders/costAttributionError';
 import { NO_ATTRIBUTION, workOrderCostRepository, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 type Field = 'quantity' | 'fuel_litres' | 'trips';
@@ -53,6 +53,7 @@ const UsageCell: React.FC<{ label: string; stored: string; disabled: boolean; on
 /** Equipment → Usage: a week grid to log, submit and approve (FR-EQU-071). RPCs enforce; `can()` only hides. */
 const EquipmentUsagePage: React.FC = () => {
   const { t } = useTranslation();
+  const attributionError = useAttributionErrorText();
   const { toast } = useToast();
   const navigate = useNavigate();
   const may = usePermission();
@@ -177,7 +178,7 @@ const EquipmentUsagePage: React.FC = () => {
       // A NEW entry takes its row's work order and discipline (#2517); the entry is saved even if that step is refused.
       if (!entry) {
         try { await workOrderCostRepository.attributeCreated('equipment_usage', result.id, row.attribution); }
-        catch (err) { const d = describeAttributionError(err, t); setProblem(`${d.headline}. ${d.detail}`); }
+        catch (err) { const d = attributionError(err); setProblem(`${d.headline}. ${d.detail}`); }
       }
       setWarnings((w) => {
         const next = { ...w };

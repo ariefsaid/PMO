@@ -15,7 +15,7 @@ import { buildTickRows, initialTickState, isoWeekStart, type TickError, type Tic
 import { formatDay, formatNumberMax2 } from '@/src/lib/format';
 import { toIso } from '../equipment/equipmentWeek';
 import { WorkOrderPicker } from './CrewPickers';
-import { crewErrorMessage } from './crewErrors';
+import { useCrewErrorText } from './crewErrors';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const STATUSES: AttendanceStatus[] = ['present', 'absent', 'leave', 'off_rotation'];
@@ -25,6 +25,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
   crew, workOrderId, date, held, canRecord,
 }) => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const { record, uploadPhoto, generateWeek } = useAttendanceMutations();
   const [state, setState] = useState<TickState>(() => initialTickState(
@@ -66,7 +67,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
       setDirty(false);
       toast(t('crews:saved', 'Attendance saved'), undefined, 'success');
     } catch (err) {
-      setProblem(crewErrorMessage(t, err));
+      setProblem(writeError(err));
     } finally { setBusy(false); }
   };
 
@@ -79,7 +80,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
       try { await generateWeek.mutateAsync({ workerId: m.worker_id, weekStart }); } catch (err) {
         // A person with no present day that week has nothing to send; that is not a refusal.
         if (!String((err as { message?: string })?.message ?? '').startsWith('ATT_WEEK_EMPTY')) {
-          refused.push(`${m.display_name}: ${crewErrorMessage(t, err)}`);
+          refused.push(`${m.display_name}: ${writeError(err)}`);
         }
       }
     }
@@ -165,6 +166,7 @@ interface AwaitingWeek { workerId: string; weekStart: string; hours: number; day
 /** Weeks of people with no login waiting for a supervisor (FR-CRW-016). */
 const AwaitingApproval: React.FC = () => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const awaiting = useAwaitingAttendance(true);
   const workers = useCrewWorkers();
@@ -190,7 +192,7 @@ const AwaitingApproval: React.FC = () => {
     try {
       await decideWeek.mutateAsync({ workerId: w.workerId, weekStart: w.weekStart, decision, reason });
       toast(decision === 'approve' ? t('crews:approved', 'Week approved') : t('crews:returned', 'Week returned'), undefined, 'success');
-    } catch (err) { setProblem(crewErrorMessage(t, err)); }
+    } catch (err) { setProblem(writeError(err)); }
   };
   if (weeks.length === 0) return null;
   return (

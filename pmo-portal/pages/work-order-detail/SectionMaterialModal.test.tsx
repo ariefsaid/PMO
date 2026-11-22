@@ -6,6 +6,7 @@ import { I18nextProvider } from 'react-i18next';
 import { createInstance } from 'i18next';
 import enCommon from '../../public/locales/en/common.json';
 import enWos from '../../public/locales/en/workOrderSections.json';
+import enRefusals from '../../public/locales/en/refusals.json';
 import { ToastProvider } from '@/src/components/ui';
 import type { SectionRollupRow } from '@/src/lib/repositories/workOrderSections';
 
@@ -30,8 +31,8 @@ const section = { sectionId: 's1', code: 'A', name: 'North' } as SectionRollupRo
 
 async function mount() {
   const i18n = createInstance();
-  await i18n.init({ lng: 'en', ns: ['common', 'workOrderSections'], defaultNS: 'common', interpolation: { escapeValue: false },
-    resources: { en: { common: enCommon, workOrderSections: enWos } } });
+  await i18n.init({ lng: 'en', ns: ['common', 'workOrderSections', 'refusals'], defaultNS: 'common', interpolation: { escapeValue: false },
+    resources: { en: { common: enCommon, workOrderSections: enWos, refusals: enRefusals } } });
   return render(<I18nextProvider i18n={i18n}><ToastProvider><SectionMaterialModal workOrderId="w1" section={section} onClose={vi.fn()} /></ToastProvider></I18nextProvider>);
 }
 

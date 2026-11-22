@@ -4,6 +4,7 @@ import { classifyMutationError, type ClassifyContext } from '@/src/lib/classifyM
 import { formatDay } from '@/src/lib/format';
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
+import { useTerms } from '@/src/lib/i18n/terms';
 
 /**
  * The database refuses with `raise exception 'FAMILY_CODE: sentence'`. This is the one place the app reads that protocol:
@@ -72,6 +73,9 @@ export function parseRefusal(err: unknown): Refusal | null {
   return { family: m[1], code, text, values };
 }
 
+/** `known` is true when the sentence is a catalogue sentence for the database's own rule, false for the classifier's copy. */
+export interface RefusalSentence { headline: string; detail: string; known: boolean }
+
 export interface RefusalOptions {
   /** Extra values for the sentence, such as the organisation's words for an entity. */
   values?: Record<string, string>;
@@ -83,20 +87,34 @@ export interface RefusalOptions {
  * `<CODE>_figures` entry replaces the sentence when the refusal carries figures), else the shared classifier's product
  * copy. The server's own text and the code prefix never reach the screen.
  */
-export function refusalText(err: unknown, t: TFunction, opts: RefusalOptions = {}): { headline: string; detail: string } {
+export function refusalText(err: unknown, t: TFunction, opts: RefusalOptions = {}): RefusalSentence {
   const r = parseRefusal(err);
   if (r) {
     const vars = { ...r.values, ...opts.values, defaultValue: '' };
     const figures = Object.keys(r.values).length ? t(`refusals:${r.code}_figures`, vars) : '';
     const headline = figures || t(`refusals:${r.code}`, vars);
-    if (headline) return { headline, detail: t(`refusals:${r.code}_detail`, vars) };
+    if (headline) return { headline, detail: t(`refusals:${r.code}_detail`, vars), known: true };
   }
   const c = classifyMutationError(err, undefined, opts.context);
-  return { headline: c.headline, detail: r ? '' : c.detail };
+  return { headline: c.headline, detail: r ? '' : c.detail, known: false };
 }
 
-/** `refusalText` bound to the active language; loads the `refusals` catalogue with the component. */
-export function useRefusalText(): (err: unknown, opts?: RefusalOptions) => { headline: string; detail: string } {
+/** The two lines as one sentence, for a screen with a single text slot. */
+export const refusalLine = ({ headline, detail }: Pick<RefusalSentence, 'headline' | 'detail'>): string => (detail ? `${headline}. ${detail}` : headline);
+
+/**
+ * `refusalText` bound to the active language; loads the `refusals` catalogue with the component. The organisation's words for
+ * a work-order section reach every sentence as `{{section}}` / `{{sections}}`, so no sentence types the word.
+ */
+export function useRefusalText(): (err: unknown, opts?: RefusalOptions) => RefusalSentence {
   const { t } = useTranslation('refusals');
-  return (err, opts) => refusalText(err, t, opts);
+  const terms = useTerms();
+  const words = { section: terms.section.toLowerCase(), sections: terms.sections.toLowerCase() };
+  return (err, opts) => refusalText(err, t, { ...opts, values: { ...words, ...opts?.values } });
+}
+
+/** `useRefusalText` for a screen with one text slot: the sentence as a single line. */
+export function useRefusalLine(): (err: unknown, opts?: RefusalOptions) => string {
+  const text = useRefusalText();
+  return (err, opts) => refusalLine(text(err, opts));
 }

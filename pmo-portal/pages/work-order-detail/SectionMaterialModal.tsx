@@ -6,7 +6,7 @@ import { useStockItems, useStockUnits } from '@/src/hooks/useStock';
 import { useLinePlans } from '@/src/hooks/useMaterialRequests';
 import { useSectionAllocations, useSetAllocation } from '@/src/hooks/useWorkOrderSectionMaterials';
 import { allocationHeadroom, toUnits } from '@/src/lib/workOrderSections';
-import { sectionRefusal } from '@/src/lib/workOrderSectionRefusal';
+import { useSectionRefusal } from './useSectionRefusal';
 import type { SectionRollupRow } from '@/src/lib/repositories/workOrderSections';
 
 interface Props { workOrderId: string; section: SectionRollupRow; onClose: () => void }
@@ -21,6 +21,7 @@ const QTY = /^\d{1,11}(\.\d{1,3})?$/;
 export const SectionMaterialModal: React.FC<Props> = ({ workOrderId, section, onClose }) => {
   const { t } = useTranslation('workOrderSections');
   const terms = useTerms();
+  const sectionRefusal = useSectionRefusal();
   const { toast } = useToast();
   const set = useSetAllocation(workOrderId);
   const allocations = useSectionAllocations(workOrderId);
@@ -48,7 +49,7 @@ export const SectionMaterialModal: React.FC<Props> = ({ workOrderId, section, on
       await set.mutateAsync({ sectionId, itemId: id, quantity });
       toast(t('saved', 'Saved'), undefined, 'success');
     } catch (err) {
-      setSubmitError(sectionRefusal(err, t, terms));
+      setSubmitError(sectionRefusal(err));
     }
   };
   const add = async (e: React.FormEvent) => {

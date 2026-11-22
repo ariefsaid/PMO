@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { TFunction } from 'i18next';
+import i18next from 'i18next';
 import { parseRefusal, refusalText } from './refusals';
+
+/** The real instance from test/setup.ts, loaded with the shipped English catalogue. */
+const tReal = i18next.t.bind(i18next) as unknown as TFunction;
 
 /** A catalogue stand-in: `refusals:CODE` → sentence, `{{x}}` filled from options; a missing key returns the default. */
 const sentences: Record<string, string> = {
@@ -45,11 +49,11 @@ describe('parseRefusal', () => {
 describe('refusalText', () => {
   it('is the catalogue sentence for the code, never the server text or the code', () => {
     const r = refusalText({ code: '23514', message: 'PCI_CREW: you are not in that crew today' }, t);
-    expect(r).toEqual({ headline: 'You are not in that crew today.', detail: '' });
+    expect(r).toEqual({ headline: 'You are not in that crew today.', detail: '', known: true });
   });
   it('carries a second line when the code has a _detail entry', () => {
     expect(refusalText({ message: 'WOS_ITEM: the item is not a live stock item' }, t))
-      .toEqual({ headline: 'That item cannot be planned', detail: 'Choose a live stock item.' });
+      .toMatchObject({ headline: 'That item cannot be planned', detail: 'Choose a live stock item.' });
   });
   it('fills the figures in', () => {
     expect(refusalText({ message: 'ATT_DAY_CEILING: Ana already has 20 hours on WO-1 that day' }, t).headline).toBe('20 hours on WO-1.');
@@ -67,9 +71,32 @@ describe('refusalText', () => {
     const r = refusalText({ code: 'P0001', message: 'ZZZ_NEW: something raw' }, t, { context: { suppressCapture: true } });
     expect(r.headline).toBe("That move isn't allowed from the current stage.");
     expect(r.detail).toBe('');
+    expect(r.known).toBe(false);
   });
   it('a non-refusal error is the classifier headline and detail', () => {
     const r = refusalText({ code: '23505', message: 'duplicate key' }, t, { context: { suppressCapture: true } });
     expect(r).toMatchObject({ headline: 'That already exists.', detail: 'Another record already uses one of these values. Change it and try again.' });
+  });
+});
+
+describe('refusalText: the candidate work order rules (AC-CWO-002..007)', () => {
+  const en = (m: string) => refusalText(new Error(m), tReal).headline;
+  it('names the unmet checks, and every other rule reads as its sentence', () => {
+    expect(en('CWO_NOT_READY: not ready: medical, badge')).toBe('These required checks are not ready: medical, badge');
+    expect(en('CWO_DECIDED: gone')).toBe('This candidate has already been decided.');
+    expect(en('CWO_NA_NOTE: need note')).toBe('Add a note to mark this not applicable.');
+    expect(en('CWO_REASON: too long')).toBe('Give a reason of 1 to 500 characters.');
+    expect(en('CWO_REPLACES: wrong project')).toBe('Only a rejected candidate of this project can be replaced.');
+  });
+});
+
+describe('parseRefusal: stock and reservation rules (FR-STK-080, AC-RSV-002)', () => {
+  it('reads the first number of a reservation refusal, and none when it names none', () => {
+    expect(parseRefusal({ message: 'RSV_EXCEEDS_FREE: only 6 is free at this location' })?.values.n).toBe('6');
+    expect(parseRefusal({ message: 'RSV_NO_BORROW_APPROVER: ask an Admin' })?.values.n).toBe('');
+  });
+  it('reads a stock refusal with the sentence the database wrote', () => {
+    expect(parseRefusal({ code: 'P0001', message: 'STK_NOT_FOUND: the unit is not in your organisation' }))
+      .toMatchObject({ family: 'STK', code: 'STK_NOT_FOUND', text: 'the unit is not in your organisation' });
   });
 });

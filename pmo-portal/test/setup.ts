@@ -223,14 +223,15 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
 // and values were string-concatenated instead. Initialising a minimal synchronous instance here
 // makes `t` behave in tests as it does at runtime: a missing key resolves to its defaultValue WITH
 // interpolation applied. Resources stay empty on purpose — the suite asserts the English source
-// strings the call sites carry, never a catalogue (catalogues are fetched JSON, FR-L10N-043).
+// strings the call sites carry, never a catalogue (catalogues are fetched JSON, FR-L10N-043); the exception is `refusals`, whose sentences live only in the catalogue.
 import i18nextTest from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import refusalsEn from '../public/locales/en/refusals.json';
 
 void i18nextTest.use(initReactI18next).init({
   lng: 'en',
   fallbackLng: 'en',
-  resources: { en: { common: {} } },
+  resources: { en: { common: {}, refusals: refusalsEn } }, // refusals: the one catalogue whose sentences have no inline default
   defaultNS: 'common',
   initImmediate: false, // synchronous init — no async gap before the first render
   interpolation: { escapeValue: false }, // React escapes; double-escaping corrupts "D&B" etc.

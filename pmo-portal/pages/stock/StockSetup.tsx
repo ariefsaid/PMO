@@ -24,8 +24,7 @@ import { findNearDuplicateItems, indexStockItems, type IndexedStockItem } from '
 import { WorkOrderIssueThresholdPanel } from './WorkOrderIssueThresholdPanel';
 import { StockTransferSettings } from './StockTransferSettings';
 import { isOwnershipCacheSynced, routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { parseStockError } from '@/src/lib/stockErrors';
+import { useRefusalText } from '@/src/lib/refusals';
 import { useUrlFilters } from '@/src/components/ui/useUrlFilters';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { categoryVariant } from '@/src/lib/status/statusVariants';
@@ -43,11 +42,10 @@ const ENTITY = { units: 'stockUnit', items: 'stockItem', warehouses: 'warehouse'
 /** Stock error copy first (stable `STK_*` code), else the shared mutation classifier. */
 function useErrorCopy() {
   const { t } = useTranslation('stock');
+  const refusal = useRefusalText();
   return (err: unknown, operation: 'create' | 'update' | 'archive'): SubmitError => {
-    const stock = parseStockError(err);
-    if (stock) return { headline: t('setup.toast.failed'), detail: t(`errors.${stock.code}`) };
-    const { headline, detail } = classifyMutationError(err, undefined, { operation, suppressCapture: true });
-    return { headline, detail };
+    const r = refusal(err, { context: { operation, suppressCapture: true } });
+    return r.known ? { headline: t('setup.toast.failed'), detail: r.headline } : { headline: r.headline, detail: r.detail };
   };
 }
 

@@ -6,7 +6,7 @@ import { useProjectWorkOrdersForStock } from '@/src/hooks/useStockWorkOrderTrans
 import { useReservationRefresh } from '@/src/hooks/useStockReservations';
 import { stockReservationsRepository as repo } from '@/src/lib/repositories/stockReservations';
 import { isPositiveDecimal, normalizeDecimal } from '@/src/lib/stockFormat';
-import { useReservationErrorText } from './useReservationErrorText';
+import { useStockErrorText } from './useStockErrorText';
 
 interface Props { itemId: string; itemLabel: string; warehouseId: string; warehouseLabel: string; onClose: () => void }
 
@@ -16,7 +16,7 @@ const woLabel = (w: { wo_number?: string | null; title?: string | null; id: stri
 export const ReservationForm: React.FC<Props> = ({ itemId, itemLabel, warehouseId, warehouseLabel, onClose }) => {
   const { t } = useTranslation('stock');
   const { toast } = useToast();
-  const errorText = useReservationErrorText();
+  const errorText = useStockErrorText();
   const refresh = useReservationRefresh();
   const requestId = useRef(crypto.randomUUID());
   const projects = useIssuableProjects();

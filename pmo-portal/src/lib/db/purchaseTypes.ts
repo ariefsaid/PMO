@@ -19,17 +19,6 @@ export interface PurchaseType {
 type DbResult<T> = PromiseLike<{ data: T | null; error: { message: string; code?: string } | null }>;
 const fail = (error: { message: string; code?: string }): never => { throw new AppError(error.message, error.code); };
 
-/** Stable key for a refusal, from the database message prefix (`PTYPE_…:`). */
-export type PurchaseTypeRefusal =
-  | 'ADMIN_ONLY' | 'OFF' | 'UNAVAILABLE' | 'PERIOD_REQUIRED' | 'PERIOD_NOT_ALLOWED' | 'FIXED' | 'IN_USE' | 'INVALID'
-  | 'EXT_NOT_FOUND' | 'EXT_NOT_LIVE_RENTAL' | 'EXT_SAME_TYPE' | 'EXT_ORDER' | 'EXT_OVERLAP';
-
-export function purchaseTypeRefusal(error: unknown): { key: PurchaseTypeRefusal; message: string } | null {
-  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
-  const m = /PTYPE_([A-Z_]+):\s*(.*)$/s.exec(message);
-  return m ? { key: m[1] as PurchaseTypeRefusal, message: m[2] } : null;
-}
-
 interface TypeDbRow { id: string; name: string; name_id: string | null; is_rental: boolean; position: number; active: boolean }
 const toType = (r: TypeDbRow): PurchaseType => ({ id: r.id, name: r.name, nameId: r.name_id, isRental: r.is_rental, position: r.position, active: r.active });
 

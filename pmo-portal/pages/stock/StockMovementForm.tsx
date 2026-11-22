@@ -19,13 +19,13 @@ import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import {
   useIssuableProjects, useIssuableWorkItems, useProjectIssueLines, useStockDocumentMutations, useStockItems, useStockKeepers, useStockUnits, useStockWarehouses,
 } from '@/src/hooks/useStock';
-import { parseStockError } from '@/src/lib/stockErrors';
+import { parseRefusal } from '@/src/lib/refusals';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
 import type { StockDocumentInput, StockDocumentKind, StockLineInput } from '@/src/lib/db/stockDocuments';
 import StockCount from './StockCount';
 import { DateField } from '@/src/components/ui/DateField';
 import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
-import { describeAttributionError } from '@/src/components/workOrders/costAttributionError';
+import { useAttributionErrorText } from '@/src/components/workOrders/costAttributionError';
 import { AttributionRefusedError, NO_ATTRIBUTION, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 
 const KINDS = ['receive', 'transfer', 'issue', 'return'] as const;
@@ -56,6 +56,7 @@ const WorkItemSelect: React.FC<{ projectId: string; value: string; onChange: (v:
 
 const StockMovementForm: React.FC = () => {
   const { t } = useTranslation('stock');
+  const attributionError = useAttributionErrorText();
   const { kind: kindParam } = useParams<{ kind: string }>();
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -186,7 +187,7 @@ const StockMovementForm: React.FC = () => {
       if (err instanceof StockDispatchError) { notify(err); setSaved(true); navigate(`/stock/documents/${err.documentId}`); return; }
       // Posted, but the work order / discipline was refused: open the movement and say why (it is not created again).
       if (err instanceof AttributionRefusedError) {
-        const d = describeAttributionError(err.refusal, t);
+        const d = attributionError(err.refusal);
         requestId.current = crypto.randomUUID();
         toast(d.headline, d.detail, 'warning');
         setSaved(true);
@@ -194,9 +195,9 @@ const StockMovementForm: React.FC = () => {
         return;
       }
       setSubmitError(err);
-      const s = parseStockError(err);
+      const s = parseRefusal(err);
       if (s?.code === 'STK_INSUFFICIENT') {
-        const hit = lines.find((l) => { const c = l.itemId ? itemById.get(l.itemId)?.code : undefined; return c && s.message.includes(`${c} `); }) ?? lines[0];
+        const hit = lines.find((l) => { const c = l.itemId ? itemById.get(l.itemId)?.code : undefined; return c && s.text.includes(`${c} `); }) ?? lines[0];
         setFieldErrors({ [`qty${hit.key}`]: errorText(err) });
       }
     }
@@ -207,7 +208,7 @@ const StockMovementForm: React.FC = () => {
     label: `${l.document.number} · ${l.item?.code ?? ''} × ${l.quantity}${l.boq ? ` · ${l.boq.item_code}` : ''}`,
   }));
   const sourceById = new Map((issueLines.data ?? []).map((l) => [l.id, l]));
-  const insufficient = parseStockError(submitError)?.code === 'STK_INSUFFICIENT';
+  const insufficient = parseRefusal(submitError)?.code === 'STK_INSUFFICIENT';
 
   return (
     <div>

@@ -95,11 +95,7 @@
       "titleLabel": "Judul",
       "referenceLabel": "Referensi klien",
       "offeredLabel": "Ditawarkan pada",
-      "descriptionLabel": "Deskripsi",
-      "errNotReady": "Pemeriksaan wajib berikut belum siap: {{names}}",
-      "errDecided": "Kandidat ini sudah diputuskan.",
-      "errReason": "Berikan alasan sepanjang 1 sampai 500 karakter.",
-      "errReplaces": "Hanya kandidat proyek ini yang ditolak yang dapat digantikan."
+      "descriptionLabel": "Deskripsi"
     },
     "cascade": {
       "error": "Kontrak tidak dapat dimuat.",

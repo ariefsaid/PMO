@@ -57,15 +57,5 @@
     "retired": "Nonaktif",
     "loadError": "Jenis pembelian tidak dapat dimuat",
     "adminOnly": "Hanya Admin yang dapat mengubah jenis pembelian."
-  },
-  "refusal": {
-    "ADMIN_ONLY": "Hanya Admin yang dapat mengubah jenis pembelian.",
-    "OFF": "Jenis pembelian belum diaktifkan.",
-    "UNAVAILABLE": "Jenis itu tidak tersedia.",
-    "PERIOD_REQUIRED": "Pembelian sewa memerlukan masa sewa.",
-    "PERIOD_NOT_ALLOWED": "Hanya pembelian sewa yang memiliki masa sewa.",
-    "IN_USE": "Pembelian memakai jenis ini. Nonaktifkan dan tambahkan yang baru.",
-    "INVALID": "Periksa nama: 1 sampai 60 karakter.",
-    "FIXED": "Jenis dan masa sewa ditetapkan saat pembelian dibuat."
   }
 }

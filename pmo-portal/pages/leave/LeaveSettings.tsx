@@ -5,7 +5,7 @@ import { Button, Card, CardHead, CardPad, GateNotice, ListPage, SelectField, Swi
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useLeaveSettings, useLeaveSettingsMutations, useLeaveTypes } from '@/src/hooks/useLeave';
-import { leaveErrorMessage } from './leaveErrors';
+import { useLeaveErrorText } from '../crews/crewErrors';
 
 /** Base roles an organisation can name as the leave approver today; a built-in role key can be added to this list later. */
 const APPROVER_ROLES = ['Admin', 'Executive', 'Finance', 'Project Manager'] as const;
@@ -13,6 +13,7 @@ const APPROVER_ROLES = ['Admin', 'Executive', 'Finance', 'Project Manager'] as c
 /** /leave?view=settings (#2708, Admin): switch the feature on, pick the approver role, and keep the leave type list. */
 const LeaveSettingsPage: React.FC = () => {
   const { t } = useTranslation('crews');
+  const writeError = useLeaveErrorText();
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -30,7 +31,7 @@ const LeaveSettingsPage: React.FC = () => {
   if (!isAdmin) return <GateNotice variant="blocked">{t('crews:leave.adminOnly', 'Only an Admin can change leave settings')}</GateNotice>;
   const guard = async (fn: () => Promise<unknown>, done?: string) => {
     setProblem(null);
-    try { await fn(); if (done) toast(done, undefined, 'success'); } catch (err) { setProblem(leaveErrorMessage(t, err)); }
+    try { await fn(); if (done) toast(done, undefined, 'success'); } catch (err) { setProblem(writeError(err)); }
   };
   return (
     <ListPage title={t('crews:leave.settings', 'Leave settings')}>

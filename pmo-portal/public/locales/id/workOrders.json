@@ -237,22 +237,9 @@
     "recordRelease": "Catat pelepasan",
     "recordReservation": "Catat reservasi",
     "refusal": {
-      "allocation": "Baris kontrak itu milik perintah kerja lain.",
-      "cancelled": "Permintaan ini sudah dibatalkan.",
-      "forbidden": "Peran Anda tidak dapat melakukan ini.",
-      "hasPickup": "Pengambilan sudah dicatat, sehingga permintaan ini tidak dapat dibatalkan.",
-      "noProject": "Pilih lokasi lapangan, yard, atau staging milik proyek ini.",
-      "notClientSupplied": "Item ini bukan material pasokan klien.",
-      "notDraft": "Hanya permintaan berstatus draf yang dapat diubah atau dikirim.",
-      "notFound": "Data itu tidak tersedia untuk Anda.",
-      "notKeeper": "Anda bukan penanggung jawab lokasi ini.",
-      "notOpen": "Kirim permintaan terlebih dahulu.",
-      "otherProject": "Lokasi itu milik proyek lain.",
       "overCollect": "Hanya {{n}} yang belum diambil.",
       "overRequested": "Reservasi akan melebihi jumlah diminta sebesar {{n}}.",
-      "ownedByErp": "Stok dikelola di ERP yang terhubung, sehingga pengambilan tidak dapat dicatat di sini.",
-      "releaseBelowCollected": "Pelepasan tidak boleh membuat reservasi di bawah {{n}} yang sudah diambil.",
-      "workOrder": "Perintah kerja ini sudah ditutup atau dibatalkan."
+      "releaseBelowCollected": "Pelepasan tidak boleh membuat reservasi di bawah {{n}} yang sudah diambil."
     },
     "release": {
       "quantity": "Kuantitas dilepas",

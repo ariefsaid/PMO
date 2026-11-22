@@ -24,19 +24,8 @@
   "error": "Couldn't load crews",
   "errors": {
     "alreadySent": "This report was already sent.",
-    "closed": "This report is already closed.",
     "duplicateSerial": "That serial number is already on a live tool line.",
-    "exceedsUsable": "Only {{usable}} usable. Report that many or fewer.",
-    "lineArchived": "This tool line is archived.",
-    "notAllowed": "Your role cannot do this.",
-    "openReports": "Close this tool's open reports first.",
-    "photoMissing": "A photo did not upload. Add it again.",
-    "photoRequired": "Add a photo of the damaged tool.",
-    "quantity": "Check the quantity: a line holds at least 1 (exactly 1 with a serial number) and not less than its open reports.",
-    "reason": "Give a reason for the correction.",
-    "reference": "Choose a crew or user of this organisation.",
-    "resolution": "Only a damaged tool can be repaired.",
-    "resolveRequired": "Choose a resolution to finish this tool report. Open Crews, Tools."
+    "exceedsUsable": "Only {{usable}} usable. Report that many or fewer."
   },
   "held": "Held",
   "kind": "What happened",

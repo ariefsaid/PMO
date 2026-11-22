@@ -235,20 +235,7 @@
     "refusal": {
       "overRequested": "Reserved would exceed requested by {{n}}.",
       "releaseBelowCollected": "A release cannot take reserved below the {{n}} already collected.",
-      "overCollect": "Only {{n}} is still to collect.",
-      "notClientSupplied": "This item is not client-supplied.",
-      "notKeeper": "You do not keep this location.",
-      "ownedByErp": "Stock is run in your connected ERP, so a pickup cannot be recorded here.",
-      "workOrder": "This work order is closed or cancelled.",
-      "cancelled": "This requisition is cancelled.",
-      "notOpen": "Send the requisition first.",
-      "notDraft": "Only a draft requisition can be changed or sent.",
-      "hasPickup": "A pickup is already posted, so this requisition cannot be cancelled.",
-      "forbidden": "Your role cannot do this.",
-      "allocation": "That contract line belongs to another work order.",
-      "otherProject": "That location belongs to another project.",
-      "noProject": "Choose a site, yard or staging location of this project.",
-      "notFound": "That record is not available to you."
+      "overCollect": "Only {{n}} is still to collect."
     },
     "reserve": {
       "referenceRequired": "Enter the client's reference.",
