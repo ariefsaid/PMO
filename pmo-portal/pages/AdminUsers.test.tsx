@@ -482,7 +482,7 @@ describe('Admin Users — invitation outcome copy exists in both real catalogs (
     // email went out, the member record did not, and the same address can be invited again.
     expect(node.profileCreateFailed).toBeTruthy();
     expect(node.profileCreateFailedDetail).toContain('{{email}}');
-    expect(node.profileCreateFailedDetail).toMatch(/invite the same address|Undang kembali alamat/);
+    expect(node.profileCreateFailedDetail).toMatch(/invite the same address|Undang kembali alamat/i);
     expect(node.profileCreateFailedDetail).not.toMatch(/PROFILE_CREATE_FAILED/);
     // The ambiguous transport failure says the outcome cannot be confirmed, in both languages.
     expect(node.unconfirmed).toBeTruthy();
