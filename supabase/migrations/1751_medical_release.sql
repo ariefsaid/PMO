@@ -135,12 +135,25 @@ create function public.medical_release_blocks(p_worker uuid, p_last_day date) re
 $$;
 revoke all on function public.medical_release_blocks(uuid, date) from public, anon, authenticated;
 
--- Roster screens: people held on that date, as a state word only (pending or deferred).
+-- Roster screens: people held on that date, as a state word only (pending or deferred). Scoped to rostering roles: the
+-- people team, the person's direct manager, a crew manager, and whoever can record attendance for a crew the person is
+-- placed in or loaned to that day. Everyone else gets no rows.
 create function public.medical_release_holds(p_date date) returns table (person_id uuid, state text)
   language sql stable security definer set search_path = public, pg_temp as $$
   select distinct on (r.person_id) r.person_id, lower(r.status)
     from public.medical_releases r
    where public.is_active_member() and r.org_id = public.auth_org_id() and r.status <> 'Approved' and p_date >= r.release_date
+     and (public.medical_release_can_enter() or public.crew_can_manage() or public.medical_release_authority(r.person_id)
+          or exists (select 1 from (
+                       select m.crew_id from public.crew_members m
+                        where m.worker_id = r.person_id and p_date between m.valid_from and coalesce(m.valid_to, 'infinity'::date)
+                       union
+                       select l.home_crew_id from public.crew_loans l
+                        where l.worker_id = r.person_id and p_date between l.valid_from and l.valid_to
+                       union
+                       select l.host_crew_id from public.crew_loans l
+                        where l.worker_id = r.person_id and p_date between l.valid_from and l.valid_to) c
+                      where public.attendance_can_record(c.crew_id)))
    order by r.person_id, r.release_date desc
 $$;
 revoke all on function public.medical_release_holds(date) from public, anon;

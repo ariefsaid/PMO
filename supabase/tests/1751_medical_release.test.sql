@@ -2,12 +2,14 @@
 -- Migrations under test: 1751 (table, RPCs, reads) and 1752 (roster guards). notify_person has its own test (1750).
 -- MUTATION NOTES (break the rule; the named assertion must go red; restore):
 --   drop trigger zz_mr_attendance_days ............................ 'AC-MR-006 attendance ... refused'
+--   make the attendance guard refuse every status ................. 'AC-MR-006 recording them absent is allowed' / 'on leave ... is allowed'
+--   remove the scope predicate from medical_release_holds (keep only the date test) ... 'AC-MR-007 an Engineer outside the crew gets no rows' and 'a Field user of another crew gets no rows'
 --   drop trigger zz_mr_crew_members / zz_mr_crew_loans ............ 'AC-MR-006 a placement ... refused' / 'a loan ... refused'
 --   medical_release_authority returns true ......................... 'AC-MR-002 a peer cannot decide' and 'an Admin who is not the manager cannot decide'
 --   remove the SoD check from medical_release_decide ............... 'AC-MR-003 the opener cannot decide'
 begin;
 create extension if not exists pgtap;
-select plan(31);
+select plan(36);
 create or replace function pg_temp.today() returns date language sql stable as $$
   select public.equipment_org_today('17510000-0000-0000-0000-00000000010a') $$;
 
@@ -19,12 +21,16 @@ insert into auth.users (id, email) values
   ('17510000-0000-0000-0000-0000000001a2', 'mr-mgr@example.com'),
   ('17510000-0000-0000-0000-0000000001a3', 'mr-worker@example.com'),
   ('17510000-0000-0000-0000-0000000001a4', 'mr-peer@example.com'),
+  ('17510000-0000-0000-0000-0000000001a5', 'mr-foreman@example.com'),
+  ('17510000-0000-0000-0000-0000000001a6', 'mr-otherfm@example.com'),
   ('17510000-0000-0000-0000-0000000001b1', 'mr-xorg@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('17510000-0000-0000-0000-0000000001a1', '17510000-0000-0000-0000-00000000010a', 'MR Admin',  'mr-admin@example.com',  'Admin', 'active'),
   ('17510000-0000-0000-0000-0000000001a2', '17510000-0000-0000-0000-00000000010a', 'MR Mgr',    'mr-mgr@example.com',    'Project Manager', 'active'),
   ('17510000-0000-0000-0000-0000000001a3', '17510000-0000-0000-0000-00000000010a', 'MR Worker', 'mr-worker@example.com', 'Engineer', 'active'),
   ('17510000-0000-0000-0000-0000000001a4', '17510000-0000-0000-0000-00000000010a', 'MR Peer',   'mr-peer@example.com',   'Engineer', 'active'),
+  ('17510000-0000-0000-0000-0000000001a5', '17510000-0000-0000-0000-00000000010a', 'MR Foreman', 'mr-foreman@example.com', 'Engineer', 'active'),
+  ('17510000-0000-0000-0000-0000000001a6', '17510000-0000-0000-0000-00000000010a', 'MR Other Foreman', 'mr-otherfm@example.com', 'Engineer', 'active'),
   ('17510000-0000-0000-0000-0000000001b1', '17510000-0000-0000-0000-00000000010b', 'MR XOrg',   'mr-xorg@example.com',   'Admin', 'active');
 update profiles set manager_id = '17510000-0000-0000-0000-0000000001a2' where id = '17510000-0000-0000-0000-0000000001a3';
 -- f01: has a login, manager through the profile. f02: no login, manager on the person record.
@@ -37,8 +43,8 @@ insert into projects (id, org_id, name, status, project_manager_id) values
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
   ('17510000-0000-0000-0000-000000001401', '17510000-0000-0000-0000-00000000010a', '17510000-0000-0000-0000-0000000001d1', 'MR WO', 'Issued', 1000, 'exclusive', 0);
 insert into crews (id, org_id, code, name, field_controller_id) values
-  ('17510000-0000-0000-0000-000000001c01', '17510000-0000-0000-0000-00000000010a', 'MR-A', 'MR Crew A', '17510000-0000-0000-0000-0000000001a2'),
-  ('17510000-0000-0000-0000-000000001c02', '17510000-0000-0000-0000-00000000010a', 'MR-B', 'MR Crew B', '17510000-0000-0000-0000-0000000001a2');
+  ('17510000-0000-0000-0000-000000001c01', '17510000-0000-0000-0000-00000000010a', 'MR-A', 'MR Crew A', '17510000-0000-0000-0000-0000000001a5'),
+  ('17510000-0000-0000-0000-000000001c02', '17510000-0000-0000-0000-00000000010a', 'MR-B', 'MR Crew B', '17510000-0000-0000-0000-0000000001a6');
 -- both workers are placed in crew A before any release exists; the work order is served by crew A
 insert into crew_members (org_id, crew_id, worker_id, valid_from) values
   ('17510000-0000-0000-0000-00000000010a', '17510000-0000-0000-0000-000000001c01', '17510000-0000-0000-0000-000000001f01', pg_temp.today() - 30),
@@ -81,9 +87,12 @@ select throws_ok($$ select attendance_record('17510000-0000-0000-0000-0000000014
   '[{"worker_id": "17510000-0000-0000-0000-000000001f01", "status": "present", "hours": 8}]') $$,
   '23514', 'MR_BLOCKED: this person''s medical release is not approved; their direct manager must approve it before attendance is recorded',
   'AC-MR-006 attendance on a day on or after the release date is refused while it is pending');
-select throws_ok($$ select attendance_record('17510000-0000-0000-0000-000000001401', pg_temp.d('t'), 'roster_tick',
-  '[{"worker_id": "17510000-0000-0000-0000-000000001f01", "status": "absent"}]') $$,
-  '23514', null, 'AC-MR-006 any status is refused, not only present');
+select is(attendance_record('17510000-0000-0000-0000-000000001401', pg_temp.d('t'), 'roster_tick',
+  '[{"worker_id": "17510000-0000-0000-0000-000000001f01", "status": "absent"}]'), 1,
+  'AC-MR-006 recording them absent is allowed: only a row that puts the person to work is refused');
+select is(attendance_record('17510000-0000-0000-0000-000000001401', pg_temp.d('m1'), 'roster_tick',
+  '[{"worker_id": "17510000-0000-0000-0000-000000001f01", "status": "leave"}]'), 1,
+  'AC-MR-006 recording them on leave (no hours) is allowed');
 select is(attendance_record('17510000-0000-0000-0000-000000001401', pg_temp.d('m5'), 'roster_tick',
   '[{"worker_id": "17510000-0000-0000-0000-000000001f01", "status": "present", "hours": 8}]'), 1,
   'AC-MR-006 a day before the release date is allowed');
@@ -110,9 +119,20 @@ select throws_ok($$ update crew_members set valid_to = pg_temp.d('p7') where wor
 
 -- AC-MR-007 a state word for roster users; the row stays closed
 select pg_temp.act_as('17510000-0000-0000-0000-0000000001a4');
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a1');
 select is((select state from medical_release_holds(pg_temp.d('t')) where person_id = '17510000-0000-0000-0000-000000001f01'), 'pending',
-  'AC-MR-007 a roster user reads the state word');
+  'AC-MR-007 the people team reads the state word');
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a4');
+select is((select count(*)::int from medical_release_holds(pg_temp.d('t'))), 0, 'AC-MR-007 an Engineer outside the crew gets no rows');
 select is((select count(*)::int from medical_releases), 0, 'AC-MR-007 a user outside the release reads no row');
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a6');
+select is((select count(*)::int from medical_release_holds(pg_temp.d('t'))), 0, 'AC-MR-007 a Field user of another crew gets no rows');
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a5');
+select is((select state from medical_release_holds(pg_temp.d('t')) where person_id = '17510000-0000-0000-0000-000000001f01'), 'pending',
+  'AC-MR-007 the foreman of the person''s crew gets the state word');
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a2');
+select is((select state from medical_release_holds(pg_temp.d('t')) where person_id = '17510000-0000-0000-0000-000000001f01'), 'pending',
+  'AC-MR-007 the direct manager (a crew manager here) gets the state word');
 select pg_temp.act_as('17510000-0000-0000-0000-0000000001b1');
 select is((select count(*)::int from medical_release_holds(pg_temp.d('t'))), 0, 'AC-MR-007 another organisation reads nothing');
 select is((select count(*)::int from medical_releases_visible()), 0, 'AC-MR-007 another organisation sees no release');

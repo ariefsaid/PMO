@@ -1,5 +1,6 @@
 -- 1752_medical_release_guards.sql — while a release is Pending or Deferred the database refuses to roster the person for
--- any day on or after the release date: a new or extended crew placement, a new or extended loan, and an attendance row.
+-- any day on or after the release date: a new or extended crew placement, a new or extended loan, and an attendance row that
+-- puts the person to work (status present, the only status that carries hours). Absent, leave and off-rotation rows are allowed.
 -- Separate triggers (zz_mr_*), so guard_crew_refs, guard_crew_loan and attendance_record are not restated. A placement or
 -- row entirely before the release date, and a shrink of a placement, are untouched.
 -- Reverse: supabase/migrations/rollback/1752_medical_release_guards_down.sql
@@ -25,6 +26,7 @@ create trigger zz_mr_crew_loans before insert or update on public.crew_loans
 create function public.guard_medical_release_attendance() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
 begin
+  if new.status <> 'present' then return new; end if;
   -- an update that changes none of who, which day, status or hours (an approval or lock stamp) is not a new recording
   if tg_op = 'UPDATE' and new.worker_id = old.worker_id and new.work_date = old.work_date and new.status = old.status
      and new.hours is not distinct from old.hours and new.overtime_hours is not distinct from old.overtime_hours then
