@@ -28,6 +28,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('26990000-0000-0000-0000-0000000000b2','26990000-0000-0000-0000-000000000002','HP Engineer B','hp-b2@example.com','Engineer','active');
 -- built-in keys are given by the service path with the #2709 setting on for organization A
 update organizations set built_in_roles_enabled = true where id = '26990000-0000-0000-0000-000000000001';
+-- organization B must stay off; the setting is on by default now, so switch it off as a setup step
+update organizations set built_in_roles_enabled = false where id = '26990000-0000-0000-0000-000000000002';
 update profiles set built_in_role = 'buyer' where id = '26990000-0000-0000-0000-0000000000f1';
 update profiles set built_in_role = 'storekeeper' where id = '26990000-0000-0000-0000-0000000000a2';
 update profiles set built_in_role = 'finance_officer' where id = '26990000-0000-0000-0000-0000000000a3';

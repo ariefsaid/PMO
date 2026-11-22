@@ -21,7 +21,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('26870000-0000-0000-0000-0000000000a2', '26870000-0000-0000-0000-00000000000a', 'DNP User A',  'dnp-user-a@example.com',  'Engineer', 'active'),
   ('26870000-0000-0000-0000-0000000000b1', '26870000-0000-0000-0000-00000000000b', 'DNP Admin B', 'dnp-admin-b@example.com', 'Admin', 'active');
 
-insert into material_request_settings (org_id) values ('26870000-0000-0000-0000-00000000000a');
+-- (the organisation trigger already wrote the row, with delivery notes on; this file proves the setter from off, so switch it off first)
+insert into material_request_settings (org_id) values ('26870000-0000-0000-0000-00000000000a') on conflict (org_id) do update set delivery_note_enabled = false;
 
 create or replace function pg_temp._as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -36,7 +37,7 @@ select pg_temp._as('26870000-0000-0000-0000-0000000000a1');
 select is(
   (select delivery_note_enabled from material_request_settings where org_id = '26870000-0000-0000-0000-00000000000a'),
   false,
-  'FR-DNP-009 delivery_note_enabled defaults to false'
+  'FR-DNP-009 delivery_note_enabled reads false after the setup switched it off'
 );
 
 select is(

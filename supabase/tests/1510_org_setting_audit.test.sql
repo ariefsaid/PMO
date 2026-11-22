@@ -21,6 +21,12 @@ create function public.osa_last(p_setting text) returns jsonb language sql secur
   select detail || jsonb_build_object('actor', actor_id) from public.audit_events
    where action = 'org.setting.change' and detail ->> 'setting' = p_setting order by created_at desc, id desc limit 1 $$;
 
+-- 1670: these switches are on for a new organisation. The cases below prove a change from off, so each starts off, and the audit lines
+-- the set-up wrote are cleared: the test starts counting from here.
+update organizations set crew_loans_enabled = false, clearance_checklist_enabled = false, leave_requests_enabled = false,
+  safety_records_enabled = false where id = '27460000-0000-0000-0000-00000000000a';
+delete from audit_events where action = 'org.setting.change' and org_id = '27460000-0000-0000-0000-00000000000a';
+
 select osa_as('27460000-0000-0000-0000-0000000000a1');
 
 -- an RPC path

@@ -33,7 +33,7 @@ insert into work_orders (id, org_id, project_id, title, order_value, tax_treatme
   ('27003000-0000-0000-0000-0000000000d1', '27003000-0000-0000-0000-00000000000a', '27003000-0000-0000-0000-0000000000c1', 'EQP WO on project', 10, 'exclusive', 0),
   ('27003000-0000-0000-0000-0000000000d2', '27003000-0000-0000-0000-00000000000a', '27003000-0000-0000-0000-0000000000c2', 'EQP WO elsewhere',  10, 'exclusive', 0);
 -- the first type is a decoy: named like a rental, but not flagged; the flag, not the name, marks the real one
-insert into org_purchase_type_settings (org_id, enabled) values ('27003000-0000-0000-0000-00000000000a', true);
+insert into org_purchase_type_settings (org_id, enabled) values ('27003000-0000-0000-0000-00000000000a', true) on conflict (org_id) do update set enabled = true;
 insert into purchase_types (id, org_id, name, is_rental, position) values
   ('27003000-0000-0000-0000-0000000000f1', '27003000-0000-0000-0000-00000000000a', 'Rental', false, 1),
   ('27003000-0000-0000-0000-0000000000f2', '27003000-0000-0000-0000-00000000000a', 'Hire',   true,  2);

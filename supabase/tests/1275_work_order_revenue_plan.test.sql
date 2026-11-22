@@ -11,6 +11,8 @@ select plan(54);
 insert into organizations (id, name) values
   ('26710000-0000-0000-0000-00000000000a', 'WRP Org'),
   ('26710000-0000-0000-0000-00000000000b', 'WRP Other Org');
+-- these features are on by default now (with starter rows); this file proves the off state, so setup clears them as an explicit step
+delete from org_revenue_plan_settings where org_id in ('26710000-0000-0000-0000-00000000000a', '26710000-0000-0000-0000-00000000000b');
 insert into auth.users (id, email) values
   ('26710000-0000-0000-0000-0000000000a1', 'wrp-admin@example.com'),
   ('26710000-0000-0000-0000-0000000000a2', 'wrp-fin@example.com'),

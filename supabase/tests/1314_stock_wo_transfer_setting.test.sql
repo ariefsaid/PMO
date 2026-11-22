@@ -5,6 +5,8 @@ create extension if not exists pgtap;
 select * from no_plan();
 
 insert into organizations (id, name, default_currency, default_timezone) values ('26911000-0000-0000-0000-00000000000a', 'WOB Org', 'IDR', 'UTC'), ('26911000-0000-0000-0000-00000000000b', 'WOB Other Org', 'IDR', 'UTC');
+-- this switch is on by default now; this file proves the off state, so setup switches it off as an explicit step
+update organizations set stock_wo_transfers = false where id in ('26911000-0000-0000-0000-00000000000a', '26911000-0000-0000-0000-00000000000b');
 insert into auth.users (id, email) values ('26911000-0000-0000-0000-0000000000a1', 'wob-admin@example.com'), ('26911000-0000-0000-0000-0000000000a2', 'wob-keeper@example.com'), ('26911000-0000-0000-0000-0000000000b1', 'wob-other@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('26911000-0000-0000-0000-0000000000a1', '26911000-0000-0000-0000-00000000000a', 'WOB Admin', 'wob-admin@example.com', 'Admin', 'active'),
@@ -17,7 +19,7 @@ begin
 end $$;
 
 create function public.wob_audit() returns int language sql security definer as $$ select count(*)::int from public.audit_events where action = 'stock.wo_transfers' $$;
-select is((select stock_wo_transfers from organizations where id = '26911000-0000-0000-0000-00000000000a'), false, 'AC-WOT-019 an existing organisation starts with the setting off');
+select is((select stock_wo_transfers from organizations where id = '26911000-0000-0000-0000-00000000000a'), false, 'AC-WOT-019 an organisation that switched work-order transfers off has them off');
 select wob_as('26911000-0000-0000-0000-0000000000a2');
 select throws_ok($$ select set_stock_wo_transfers(true) $$, '42501', 'STK_FORBIDDEN: only an Admin changes work-order transfers', 'AC-WOT-019 a non-Admin cannot turn it on');
 select wob_as('26911000-0000-0000-0000-0000000000a1');
