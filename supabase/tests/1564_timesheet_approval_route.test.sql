@@ -59,14 +59,15 @@ update organizations set built_in_roles_enabled = true where id = '15640000-0000
 insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
   ('15640000-0000-0000-0000-0000000000ad', '15640000-0000-0000-0000-00000000000a', 'Light Manager', 'route-light-manager@example.com', 'Engineer', 'active', 'foreman');
 
--- Synthetic light Admin/Executive rows. The 1202 trigger forces the coarse role to the key's base
--- level, so a normal write cannot make a profile both Admin/Executive and light. The route arms must
--- still exclude that shape if it exists; disabling the sync trigger for these two fixture rows (inside
--- this rolled-back transaction) is the only legal way to create it for the predicate proof.
-alter table public.profiles disable trigger profiles_built_in_role_sync;
+-- Synthetic light Admin/Executive rows. The 1202 sync trigger (renamed profiles_zz_built_in_role_sync by
+-- 1232 for ordering) forces the coarse role to the key's base level, so a normal write cannot make a
+-- profile both Admin/Executive and light. The route arms must still exclude that shape if it exists;
+-- disabling the trigger for these two fixture rows (inside this rolled-back transaction) is the only
+-- legal way to create it for the predicate proof.
+alter table public.profiles disable trigger profiles_zz_built_in_role_sync;
 update public.profiles set built_in_role = 'foreman' where id = '15640000-0000-0000-0000-0000000000ba';
 update public.profiles set built_in_role = 'field_user' where id = '15640000-0000-0000-0000-0000000000bb';
-alter table public.profiles enable trigger profiles_built_in_role_sync;
+alter table public.profiles enable trigger profiles_zz_built_in_role_sync;
 
 -- The RAW manager assignments the authority compares against. Manager Two is active; Manager Disabled
 -- keeps a non-null manager_id; Other Org B is a cross-organisation manager row.
