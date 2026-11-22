@@ -1,5 +1,5 @@
 /** #2685 AC-MRI-016 — a material-request notification opens that request from the bell. */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -20,6 +20,7 @@ vi.mock('@/src/lib/db/notifications', () => ({
 }));
 
 import { NotificationBell } from '../NotificationBell';
+import { setOrgTerms } from '@/src/lib/i18n/orgTerms';
 
 beforeEach(() => mockNavigate.mockClear());
 
@@ -50,5 +51,22 @@ describe('fix-waiting item 4: a return notification says what was returned and w
     expect(screen.getByText('Photo is blurred')).toBeInTheDocument();
     await userEvent.click(await screen.findByRole('button', { name: /your daily report was sent back/i }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/site-reports/dr-1'));
+  });
+});
+
+describe('AC-TR-006 a stored English body shows the organisation\'s word', () => {
+  const base = { id: 'n3', org_id: 'org-1', owner_id: 'u1', severity: 'info', message_key: null, message_params: null, metadata: {}, read_at: null, created_at: '2026-11-21T08:00:00.000Z' };
+  afterEach(() => setOrgTerms({}));
+
+  it('renames a term in a database-written body, and leaves a person\'s return reason alone', async () => {
+    setOrgTerms({ en: { materialRequest: { singular: 'stores order', plural: 'stores orders' } } });
+    listNotifications.mockResolvedValue([
+      { ...base, title: 'Procurement awaiting your approval', body: 'The material request MR-9 needs a decision.' },
+      { ...base, id: 'n4', title: 'Your material request was sent back', body: 'Please fix the material request wording' },
+    ]);
+    render(<MemoryRouter><NotificationBell /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    expect(await screen.findByText('The stores order MR-9 needs a decision.')).toBeInTheDocument();
+    expect(screen.getByText('Please fix the material request wording')).toBeInTheDocument();
   });
 });

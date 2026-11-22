@@ -66,4 +66,15 @@ describe('notification wording', () => {
       }
     });
   });
+
+  it('AC-TR-006 rewrites a database-written body in the reader\'s language, never a person\'s words or an unknown title', () => {
+    const t = ((_k: string, d: string) => d) as unknown as Parameters<typeof notificationBody>[1];
+    setOrgTerms({ en: { project: { singular: 'job', plural: 'jobs' } }, id: { project: { singular: 'pekerjaan', plural: 'pekerjaan' } } });
+    const row = { title: 'Procurement awaiting your approval', body: 'Project Alpha needs a decision.', message_key: null, message_params: null };
+    expect(notificationBody(row, t, 'en')).toBe('Job Alpha needs a decision.');
+    expect(notificationBody(row, t, 'id')).toBe('Pekerjaan Alpha needs a decision.');
+    expect(notificationBody({ ...row, title: 'Your timesheet was rejected', body: 'Project is wrong' }, t, 'en')).toBe('Project is wrong');
+    expect(notificationBody({ ...row, title: 'Written by a person' }, t, 'en')).toBe('Project Alpha needs a decision.');
+    expect(notificationBody(row, t)).toBe('Project Alpha needs a decision.');
+  });
 });

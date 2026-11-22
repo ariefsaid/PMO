@@ -29604,6 +29604,7 @@ export type Database = {
           event_key: string
           id: string
           locale: string
+          org_id: string
           severity: string
           title: string
           to_email: string
@@ -34101,6 +34102,7 @@ export type Database = {
         Returns: boolean
       }
       org_name_key: { Args: { p_name: string }; Returns: string }
+      org_naming: { Args: { p_org: string }; Returns: Json }
       org_plan_limits: {
         Args: { p_org_id: string }
         Returns: {
@@ -34112,6 +34114,10 @@ export type Database = {
       }
       org_pmo_fiscal_start_month: { Args: never; Returns: number }
       org_reads_erp_ledger: { Args: never; Returns: boolean }
+      org_term: {
+        Args: { p_key: string; p_locale: string; p_org: string; p_plural?: boolean }
+        Returns: string
+      }
       org_seat_report: { Args: never; Returns: Json }
       org_seat_usage:
         | { Args: { p_org_id: string }; Returns: number }
