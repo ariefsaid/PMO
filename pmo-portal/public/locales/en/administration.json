@@ -1108,7 +1108,11 @@
     "loadError": "Couldn't load this setting",
     "switch": "Cost idle hours in money",
     "adminOnly": "Only an Admin or Finance can change this setting.",
-    "needsLabour": "Nothing shows until labour cost in money is switched on."
+    "needsLabour": "Nothing shows until labour cost in money is switched on.",
+    "scope": "Idle cost covers",
+    "scopeHelper": "People: idle hours times the crew present each day. Equipment: standby cost of rented equipment on days with idle time. Neither is added to direct cost.",
+    "scopeLabour": "Idle hours at the average hourly cost",
+    "scopePeopleEquipment": "People present and rented equipment on standby"
   },
   "issueClosingReport": {
     "title": "Issue closing-time report",

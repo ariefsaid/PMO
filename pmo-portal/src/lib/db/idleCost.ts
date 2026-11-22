@@ -10,7 +10,10 @@ import { sumDecimal } from '@/src/lib/exactDecimal';
 export interface IdleCostRow {
   workOrderId: string; reasonId: string; reasonLabel: string; minutes: number; hours: string;
   hourlyCost: string | null; amount: string | null; currency: string; reason: 'counted' | 'no-rate';
+  /** Only where the organisation's scope is people_and_equipment (1731); null under labour_average. */
+  peopleAmount: string | null; equipmentAmount: string | null; headcountHours: string | null;
 }
+export type IdleCostScope = 'labour_average' | 'people_and_equipment';
 const EXACT = /^-?\d{1,15}(\.\d{1,2})?$/;
 
 export async function getIdleCostEnabled(): Promise<boolean> {
@@ -24,16 +27,31 @@ export async function setIdleCostEnabled(enabled: boolean): Promise<void> {
   if (error) throw new AppError(error.message, error.code);
 }
 
+/** What idle cost covers (1730). No row means the default, labour_average: today's figure. */
+export async function getIdleCostScope(): Promise<IdleCostScope> {
+  const { data, error } = await supabase.from('idle_cost_settings').select('scope').maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  return data?.scope === 'people_and_equipment' ? 'people_and_equipment' : 'labour_average';
+}
+
+export async function setIdleCostScope(scope: IdleCostScope): Promise<void> {
+  const { error } = await supabase.rpc('save_idle_cost_scope', { p_scope: scope });
+  if (error) throw new AppError(error.message, error.code);
+}
+
 export async function listProjectIdleCost(projectId: string): Promise<IdleCostRow[]> {
   const { data, error } = await supabase.rpc('work_order_idle_cost', { p_project_id: projectId });
   if (error) throw new AppError(error.message, error.code);
   return (data ?? []).map((r) => {
-    if ((r.amount !== null && !EXACT.test(r.amount)) || !EXACT.test(r.hours) || (r.reason !== 'counted' && r.reason !== 'no-rate')) {
+    const exactOrNull = (v: string | null | undefined) => v == null || EXACT.test(v);
+    if ((r.amount !== null && !EXACT.test(r.amount)) || !exactOrNull(r.people_amount) || !exactOrNull(r.equipment_amount)
+      || !exactOrNull(r.headcount_hours) || !EXACT.test(r.hours) || (r.reason !== 'counted' && r.reason !== 'no-rate')) {
       throw new AppError('Idle cost read: unreadable row', 'malformed');
     }
     return {
       workOrderId: r.work_order_id, reasonId: r.reason_id, reasonLabel: r.reason_label, minutes: Number(r.minutes), hours: r.hours,
       hourlyCost: r.hourly_cost, amount: r.amount, currency: r.currency, reason: r.reason,
+      peopleAmount: r.people_amount ?? null, equipmentAmount: r.equipment_amount ?? null, headcountHours: r.headcount_hours ?? null,
     };
   });
 }
