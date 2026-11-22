@@ -25,7 +25,7 @@ import { WAITING_KINDS, type WaitingKind } from '@/src/lib/approvals/waitingKind
 
 
 interface QueryRead<T> { data: T | undefined; isPending: boolean; isError: boolean; refetch: () => unknown }
-const UNKNOWN = { data: undefined, isPending: true, isError: false, refetch: () => undefined };
+const UNKNOWN = { data: undefined, isPending: false, isError: false, refetch: () => undefined };
 
 /**
  * A bare render has no data layer: the real query hooks then throw "No QueryClient set" at their first internal hook, the same place on every
@@ -75,7 +75,7 @@ function useLiveWaitingForYou(): WaitingForYou {
   // Any authenticated real role can be an assigned timesheet approver; the read is caller-filtered.
   const timesheets = withoutDataLayer(() => useTimesheetsAwaitingApproval(), UNKNOWN as QueryRead<TimesheetAwaitingApproval[]>);
   const expenses = withoutDataLayer(() => useExpenseClaimsAwaitingDecision(), UNKNOWN as QueryRead<ExpenseClaimAwaiting[]>);
-  const invoices = withoutDataLayer(() => useInvoicesAwaitingViewer(), { rows: [], isPending: true, isError: false, enabled: false, refetch: () => undefined } as ReturnType<typeof useInvoicesAwaitingViewer>);
+  const invoices = withoutDataLayer(() => useInvoicesAwaitingViewer(), { rows: [], isPending: false, isError: false, enabled: false, refetch: () => undefined } as ReturnType<typeof useInvoicesAwaitingViewer>);
   // A material-request step is the viewer's whenever the database says so: the organisation's inbox setting only decides
   // whether a notification is also written, never whether the step is counted.
   const material = withoutDataLayer(() => useWaitingForMe(signedIn), UNKNOWN as QueryRead<WaitingStep[]>);
