@@ -273,7 +273,7 @@
   "WBS_DATE_BEFORE_START": "Langkah tidak dapat selesai sebelum dimulai.",
   "WBS_DATE_FUTURE": "Tanggal selesai tidak boleh di masa depan.",
   "WBS_DOCS_MISSING": "Lampirkan semua dokumen wajib sebelum menyelesaikan langkah ini.",
-  "WBS_DOC_INVALID": "Pilih dokumen berstatus diterbitkan atau disetujui yang memiliki berkas dan termasuk proyek surat perintah kerja ini.",
+  "WBS_DOC_INVALID": "Pilih dokumen berstatus diterbitkan atau disetujui yang memiliki berkas dari proyek surat perintah kerja ini dan yang boleh Anda lihat.",
   "WBS_NOT_FOUND": "Langkah penagihan itu tidak tersedia untuk Anda. Muat ulang surat perintah kerja lalu coba lagi.",
   "WBS_NOT_ISSUED": "Langkah penagihan hanya dapat diubah selama surat perintah kerja berstatus diterbitkan.",
   "WBS_NOT_OPTIONAL": "Hanya langkah penagihan opsional yang dapat dilewati.",
@@ -329,5 +329,7 @@
   "WRP_OFF": "Rencana pendapatan belum diaktifkan untuk organisasi ini.",
   "WRP_RANGE": "Pilih rentang paling lama dua tahun.",
   "WRP_ROLE": "Anda tidak dapat melihat pendapatan proyek ini.",
-  "WRP_SETTINGS": "Pilih satu sampai tujuh hari kerja yang berbeda, 1 untuk Senin sampai 7 untuk Minggu."
+  "WRP_SETTINGS": "Pilih satu sampai tujuh hari kerja yang berbeda, 1 untuk Senin sampai 7 untuk Minggu.",
+  "WBS_HIDDEN_ASSIGNEE": "Hanya Keuangan atau Admin yang dapat menunjuk orang yang disembunyikan dari langkah ini.",
+  "WBS_HIDDEN_ASSIGNEE_detail": "Minta Keuangan atau Admin menunjuk orang itu, atau pilih orang lain."
 }
