@@ -191,6 +191,8 @@ export interface RecordCaptureFormProps {
   onDirtyChange?: (dirty: boolean) => void;
   /** #2517: the purchase's project — its work orders are the ones a request, order, receipt or bill can go on. */
   projectId?: string | null;
+  /** Where the purchase's cost already goes (chosen at the request); the form starts on it. */
+  defaultAttribution?: CostAttribution;
 }
 
 // ---------------------------------------------------------------------------
@@ -212,6 +214,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   subcontractPoId,
   onDirtyChange,
   projectId = null,
+  defaultAttribution,
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -229,7 +232,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const paymentBillRequired = isPayment && !groupRefIsPmoAuthored();
   const [billError, setBillError] = useState<string | undefined>(undefined);
   const [referenceNumber, setReferenceNumber] = useState('');
-  const [attribution, setAttribution] = useState<CostAttribution>(NO_ATTRIBUTION);
+  const [attribution, setAttribution] = useState<CostAttribution>(defaultAttribution ?? NO_ATTRIBUTION);
   // #2517: the four purchase records that are costs can go on a work order and a discipline.
   const offersAttribution = kind === 'purchase_request' || kind === 'purchase_order' || kind === 'goods_receipt' || kind === 'vendor_invoice';
   const attributionField = offersAttribution && hasAttribution(attribution) ? { attribution } : {};

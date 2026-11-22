@@ -38,6 +38,7 @@ import { EfakturModal, type EfakturSaveValues } from '@/src/components/EfakturMo
 import { EfakturCell } from '@/src/components/EfakturCell';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
 import type { CreatePOInput, CreatePRInput } from './RecordCaptureForm';
+import { purchaseAttribution } from './purchaseAttribution';
 import { workOrderCostRepository } from '@/src/lib/repositories/workOrderCosts';
 import { LedgerFileCell } from './LedgerFileCell';
 import { WithholdingBreakdown } from './WithholdingBreakdown';
@@ -718,6 +719,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
           itemsNet={itemsNet}
           currency={detail.currency}
           projectId={detail.project_id}
+          defaultAttribution={purchaseAttribution(detail)}
           gates={gates}
           busy={captureBusy}
           onCreate={handleCreate}

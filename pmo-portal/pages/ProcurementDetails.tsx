@@ -281,6 +281,7 @@ const ProcurementDetails: React.FC = () => {
   const { pendingConfirm, setPendingConfirm, onActionClick, commitConfirm, submitVICapture, confirmInFlight } =
     useProcurementDecision(detailQuery.data, mutations, {
       setTab, notesInput, setNotesInput, setMutationError, setShowCreateGR, setShowCreateVI, setShowVICapture, setCaptureKind,
+      openSupplierPicker: () => { setTab('timeline'); setSelectedVendorId(null); setVendorPickerOpen(true); },
     });
   useEffect(() => {
     if (!tabParam || !['overview', 'documents', 'history'].includes(tabParam)) return;

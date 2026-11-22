@@ -228,5 +228,11 @@
     "pending": "Menunggu",
     "open": "Terbuka",
     "sent": "Terkirim"
+  },
+  "order": {
+    "needsSupplierTitle": "Pilih supplier dulu",
+    "needsSupplier": "Pesanan harus punya supplier. Pilih supplier-nya, lalu catat pesanan.",
+    "confirmTitle": "Catat pesanan ini?",
+    "confirmBody": "Pesan {{amount}} dari {{supplier}}. Ini hanya mencatat pesanan; pesanan tidak dikirim ke supplier."
   }
 }

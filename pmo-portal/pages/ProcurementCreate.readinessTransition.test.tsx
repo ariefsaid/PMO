@@ -3,6 +3,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
 
+const workOrders = vi.hoisted(() => ({ data: [] as unknown[] }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: workOrders.data, isLoading: false, isError: false, refetch: vi.fn() }) }));
 const mocks = vi.hoisted(() => ({
   createRequest: vi.fn(),
   createItem: vi.fn(),

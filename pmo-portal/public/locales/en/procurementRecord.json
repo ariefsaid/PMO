@@ -228,5 +228,11 @@
     "pending": "Pending",
     "open": "Open",
     "sent": "Sent"
+  },
+  "order": {
+    "needsSupplierTitle": "Choose the supplier first",
+    "needsSupplier": "An order needs its supplier. Choose it, then record the order.",
+    "confirmTitle": "Record this order?",
+    "confirmBody": "Order {{amount}} from {{supplier}}. This records the order; it does not send it to the supplier."
   }
 }
