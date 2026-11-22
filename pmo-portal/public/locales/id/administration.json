@@ -734,7 +734,11 @@
         "notSentDetail": "Email tidak bisa dikirim, jadi belum ada yang tersimpan. Isian Anda masih ada di sini: periksa alamatnya lalu coba lagi. Jika terus gagal, beri tahu Operator bahwa email undangan tidak terkirim.",
         "rateLimited": "Terlalu banyak undangan dalam waktu singkat. Belum ada yang tersimpan. Tunggu semenit, lalu undang lagi.",
         "roleNotSet": "Undangan terkirim, jabatan belum tersimpan",
-        "roleNotSetDetail": "{{email}} sudah diundang. Buka barisnya dan pilih Ubah jabatan untuk mengaturnya."
+        "roleNotSetDetail": "{{email}} sudah diundang. Buka barisnya dan pilih Ubah jabatan untuk mengaturnya.",
+        "profileCreateFailed": "Email undangan terkirim, penyiapan akun belum selesai",
+        "profileCreateFailedDetail": "{{email}} sudah menerima email undangan, tetapi data anggotanya belum dibuat, jadi mereka belum muncul di daftar anggota. Undang kembali alamat yang sama: tautan undangan yang tertunda dikirim ulang dan data anggota dicoba sekali lagi. Jika gagal dengan cara yang sama, beri tahu Operator Anda.",
+        "unconfirmed": "Tidak dapat memastikan undangan",
+        "unconfirmedDetail": "Kami tidak dapat memastikan apakah email undangan sudah terkirim — tidak ada jawaban yang diterima dari server. Isian Anda masih ada di sini: periksa alamatnya, lalu undang kembali orang yang sama. Jika undangan pertama sudah masuk, Anda akan diberi tahu bahwa mereka sudah diundang, bukan menerima email kedua. Jika terus gagal, beri tahu Operator Anda."
       },
       "statusError": {
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
