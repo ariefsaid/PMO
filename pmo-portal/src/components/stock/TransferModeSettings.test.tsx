@@ -34,7 +34,7 @@ describe('TransferModeSettings (AC-TST-026, AC-TST-033)', () => {
     h.sent = [{ id: 'a' }, { id: 'b' }];
     renderIt();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /How stock transfers are made/ }), 'one_step');
-    expect(await screen.findByRole('alert')).toHaveTextContent('2 transfers are in transit');
+    expect(await screen.findByRole('alert')).toHaveTextContent('2 stock transfers are in transit');
     expect(h.setMode).not.toHaveBeenCalled();
   });
 });
