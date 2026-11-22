@@ -143,9 +143,13 @@ reset role;
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, area_lat, area_lng, area_radius_m) values
   ('28680000-0000-0000-0000-000000000404', '28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-0000000000d1', 'FOL WO Area', 'Issued', 1000, 'exclusive', 0, 0, 0, 500),
   ('28680000-0000-0000-0000-000000000405', '28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-0000000000d1', 'FOL WO NoArea', 'Issued', 1000, 'exclusive', 0, null, null, null);
+-- Crews of their own: a crew serves one work order a day (the base's roster rule), so the area work orders get fresh crews.
+insert into crews (id, org_id, code, name, field_controller_id) values
+  ('28680000-0000-0000-0000-000000000c06', '28680000-0000-0000-0000-00000000000a', 'FL-F', 'Area crew',   '28680000-0000-0000-0000-0000000000a5'),
+  ('28680000-0000-0000-0000-000000000c07', '28680000-0000-0000-0000-00000000000a', 'FL-G', 'No-area crew', '28680000-0000-0000-0000-0000000000a5');
 insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values
-  ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000404', '28680000-0000-0000-0000-000000000c02', pg_temp.today() - 40),
-  ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000405', '28680000-0000-0000-0000-000000000c02', pg_temp.today() - 40);
+  ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000404', '28680000-0000-0000-0000-000000000c06', pg_temp.today() - 40),
+  ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000405', '28680000-0000-0000-0000-000000000c07', pg_temp.today() - 40);
 insert into people (id, org_id, kind, name, profile_id) values
   ('28680000-0000-0000-0000-000000000f09', '28680000-0000-0000-0000-00000000000a', 'employee', 'Phone Follower', '28680000-0000-0000-0000-0000000000a6');
 insert into crew_members (org_id, crew_id, worker_id, valid_from) values
@@ -154,14 +158,14 @@ set local role authenticated;
 select pg_temp.act_as('28680000-0000-0000-0000-0000000000a6');
 select throws_ok($$ select phone_check_in('28680000-0000-0000-0000-000000000404', '28680000-0000-0000-0000-000000000c05', 0.0001, 0, 10) $$, '23514', 'PCI_CREW: you are not in that crew today',
   'AC-FOL-011 a crew that is not on this work order is refused');
-select throws_ok($$ select phone_check_in('28680000-0000-0000-0000-000000000405', '28680000-0000-0000-0000-000000000c02', null, null, null) $$, '23514', null,
+select throws_ok($$ select phone_check_in('28680000-0000-0000-0000-000000000405', '28680000-0000-0000-0000-000000000c07', null, null, null) $$, '23514', null,
   'AC-FOL-011 with no check-in area a pick outside the person''s crew is refused with a way forward');
-select is(phone_check_in('28680000-0000-0000-0000-000000000404', '28680000-0000-0000-0000-000000000c02', 0.0001, 0, 10)->>'outcome', 'not_rostered',
+select is(phone_check_in('28680000-0000-0000-0000-000000000404', '28680000-0000-0000-0000-000000000c06', 0.0001, 0, 10)->>'outcome', 'not_rostered',
   'AC-FOL-011 inside the area, picking a rostered crew they are not in, becomes the supervisor request (not recorded)');
 select is((select count(*)::int from attendance_days where worker_id = '28680000-0000-0000-0000-000000000f09'), 0, 'AC-FOL-011 nothing is recorded before approval');
-select is((select crew_id from phone_check_ins where worker_id = '28680000-0000-0000-0000-000000000f09'), '28680000-0000-0000-0000-000000000c02'::uuid, 'AC-FOL-011 the request keeps the picked crew');
+select is((select crew_id from phone_check_ins where worker_id = '28680000-0000-0000-0000-000000000f09'), '28680000-0000-0000-0000-000000000c06'::uuid, 'AC-FOL-011 the request keeps the picked crew');
 select throws_ok($$ select attendance_record('28680000-0000-0000-0000-000000000404', pg_temp.today(), 'phone_check_in',
-  '[{"worker_id": "28680000-0000-0000-0000-000000000f09", "status": "present", "hours": 8, "followed_crew_id": "28680000-0000-0000-0000-000000000c02"}]'::jsonb) $$,
+  '[{"worker_id": "28680000-0000-0000-0000-000000000f09", "status": "present", "hours": 8, "followed_crew_id": "28680000-0000-0000-0000-000000000c06"}]'::jsonb) $$,
   '23514', 'ATT_FOLLOW_SOURCE: a phone check-in names a followed crew only when a supervisor approves it', 'AC-FOL-011 a person cannot record their own follow directly');
 select pg_temp.act_as('28680000-0000-0000-0000-0000000000a4');
 select throws_ok($$ select phone_check_in_decide((select id from phone_check_ins where worker_id = '28680000-0000-0000-0000-000000000f09'), true) $$, '42501', 'not authorized',
@@ -170,7 +174,7 @@ select pg_temp.act_as('28680000-0000-0000-0000-0000000000a5');
 select is(phone_check_in_decide((select id from phone_check_ins where worker_id = '28680000-0000-0000-0000-000000000f09'), true)->>'status', 'approved',
   'AC-FOL-012 the picked crew''s foreman approves the request');
 select is((select crew_id || ':' || followed_crew_id from attendance_days where worker_id = '28680000-0000-0000-0000-000000000f09' and work_date = pg_temp.today())::text,
-  '28680000-0000-0000-0000-000000000c02:28680000-0000-0000-0000-000000000c02', 'AC-FOL-012 on approval the day record carries the picked crew as followed');
+  '28680000-0000-0000-0000-000000000c06:28680000-0000-0000-0000-000000000c06', 'AC-FOL-012 on approval the day record carries the picked crew as followed');
 -- AC-FOL-013: a follow does not stand beside a day already recorded elsewhere, unless a crew manager records it.
 select pg_temp.act_as('28680000-0000-0000-0000-0000000000a4');
 select is(pg_temp.rec('401', -1, 'roster_tick', 'f05', null, 8), 1, 'AC-FOL-013 the home crew''s foreman records the day present');
