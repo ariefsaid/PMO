@@ -51,7 +51,25 @@
     "title": "Assets",
     "truncated": "Showing the first {{count}} assets. Archive the ones you no longer use.",
     "unit": "Default unit",
-    "unitLine": "Logged in {{unit}}"
+    "unitLine": "Logged in {{unit}}",
+    "errors": {
+      "vendor": "Choose the vendor the machine is rented from.",
+      "rate": "Enter the rental rate.",
+      "rentedFrom": "Enter the day the rental starts.",
+      "rentedTo": "The rental cannot end before it starts."
+    },
+    "createdRented": "Rented equipment added",
+    "updated": "Equipment saved",
+    "editTitle": "Edit equipment",
+    "save": "Save",
+    "ownership": "Owned or rented",
+    "owned": "Owned",
+    "rented": "Rented",
+    "perDay": "Per day",
+    "perMonth": "Per month",
+    "termsElsewhere": "Rental periods and rate changes are on the equipment's own page.",
+    "openRecord": "Open the equipment page",
+    "edit": "Edit"
   },
   "availability": {
     "amountInvalid": "Enter the amount as a number with at most 2 decimals",
@@ -61,7 +79,7 @@
     "noRentedOnPage": "No rented equipment on this page",
     "title": "Availability",
     "empty": "No equipment yet",
-    "emptySub": "Add assets under Equipment → Assets, then set their daily status here.",
+    "emptySub": "Add equipment from the Equipment screen, then set its daily status here.",
     "todayHeading": "Today's status",
     "flagged": "Down more than {{n}} days",
     "last": "Last: {{status}}",
@@ -149,7 +167,27 @@
     "saveTargets": "Save targets",
     "targetsSaved": "Targets saved",
     "targetNote": "(target {{target}}%)",
-    "belowTarget": "Below target"
+    "belowTarget": "Below target",
+    "effect": {
+      "ready": "Counts as available. Plan it for work.",
+      "standby": "Counts as available, not working. Plan it as spare.",
+      "broken": "Not available. Leave it out of plans; counts as downtime.",
+      "at_vendor": "Not available while it is at the vendor. Counts as downtime.",
+      "waiting_parts": "Not available until the parts arrive. Counts as downtime."
+    },
+    "effectsHeading": "What each status does to planning",
+    "proofFailed": "Status saved, but the photo for {{codes}} did not upload. Attach it again from the row.",
+    "statusToday": "Status for today. Pick a different day under Availability.",
+    "notifiedBroken": "Marked broken: {{codes}}. Nobody is messaged right away. Admin and Project Manager users are told if it stays down more than {{n}} days; the machine shows as down on this page now.",
+    "photoFor": "Photo or document for {{code}} (optional)",
+    "photoInputFor": "Photo for {{code}}",
+    "overBilled": "Over-billed by {{amount}}",
+    "underBilled": "Under-billed by {{amount}}",
+    "invoiceMatches": "The invoice matches the expected amount",
+    "unrecordedRented": "Days with no status recorded are counted as rented; only recorded down days are deducted.",
+    "onlyFinanceIncludes": "Unproven down days are not deducted. Only an Admin or Finance user can include them, with a reason.",
+    "unrecordedNote": "Unrecorded days are days in service with no status. Days before the organisation started recording are not counted.",
+    "metricsEmpty": "No figures for this period"
   },
   "basis": {
     "actual_cost": "Actual cost by usage",
@@ -247,7 +285,10 @@
     "medical": {
       "fit": "Fit",
       "unfit": "Unfit"
-    }
+    },
+    "open": "Open",
+    "openRecord": "Open the record of {{name}}",
+    "renewLabel": "Renew {{type}} of {{name}}"
   },
   "nav": {
     "assets": "Assets",
@@ -359,7 +400,22 @@
     "trips": "Trips",
     "waiting": "Waiting approval",
     "entrySubject": "usage entry",
-    "chartLabel": "Work per month, {{unit}}"
+    "chartLabel": "Work per month, {{unit}}",
+    "workOrderLine": "Work order {{name}}",
+    "disciplineLine": "Discipline {{name}}",
+    "savedCell": "Saved: {{asset}}, {{day}}",
+    "clashNamed": "{{name}} already logged {{asset}} for {{project}} on {{day}}.",
+    "clashUnnamed": "Someone else already logged {{asset}} for {{project}} on {{day}}.",
+    "clashKept": "Your {{typed}} was not saved. It is still in the box, so you can change it or copy it.",
+    "clashLink": "See their entry",
+    "downTitle": "This machine is down",
+    "downBody": "{{asset}} is marked {{status}}. Log hours against it anyway?",
+    "downConfirm": "Log hours anyway",
+    "submitSection": "Submit the week",
+    "submitWhat": "Submitting sends {{count}} draft {{entries}} for approval. You cannot change them until they are approved or returned. Approver: {{approver}}.",
+    "entryOne": "entry",
+    "entryMany": "entries",
+    "anAdmin": "an Admin"
   },
   "expiryEdit": {
     "title": "Documents",
@@ -392,7 +448,11 @@
     "emptySub": "Certificates and permits show here with their expiry dates.",
     "errType": "Choose a document type",
     "errExpiry": "Enter the expiry date",
-    "errOrder": "Expiry date must be on or after the issue date"
+    "errOrder": "Expiry date must be on or after the issue date",
+    "renew": "Renew",
+    "renewTitle": "Renew document",
+    "renewed": "Document renewed",
+    "errRenew": "The new expiry date must be after the current one ({{date}})"
   },
   "people": {
     "error": "Couldn't load this person",
@@ -425,6 +485,20 @@
     "slowest": "Slowest",
     "days": "{{count}} d",
     "hours": "{{count}} h",
-    "minutes": "{{count}} min"
+    "minutes": "{{count}} min",
+    "day": "Day",
+    "hour": "Hour (00–23)",
+    "minute": "Minute"
+  },
+  "home": {
+    "newEquipment": "New equipment",
+    "links": "Equipment pages",
+    "hoursLog": "Hours log",
+    "monthlyPlan": "Monthly equipment plan",
+    "turnOnPlan": "Turn on the monthly equipment plan",
+    "register": "All equipment and rental terms",
+    "emptyCan": "Add the first machine with New equipment.",
+    "firstPage": "Showing the first {{count}} machines. The rest are under Availability.",
+    "machines": "Machines and today's status"
   }
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { DateField } from '@/src/components/ui/DateField';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { FileInput } from '@/src/components/ui/FormFields';
@@ -140,7 +141,7 @@ export const MachineStatusSection: React.FC<Props> = ({ rows, allowDate = false,
       {latest.isError && <p role="alert">{t('equipment:availability.latestError', 'Could not load last statuses')}</p>}
       {proofStates.isError && <p role="alert">{t('equipment:availability.proofsError', 'Could not load evidence status')}</p>}
       {allowDate
-        ? <div className="mb-3 max-w-xs"><TextField label={t('equipment:availability.statusDate', 'Status date')} type="date" value={statusDate} onChange={(v) => { setStatusDate(v); reset(); }} /></div>
+        ? <div className="mb-3 max-w-xs"><DateField label={t('equipment:availability.statusDate', 'Status date')} value={statusDate} onChange={(v) => { setStatusDate(v); reset(); }} /></div>
         : <p className="mb-3 text-sm text-muted-foreground">{t('equipment:availability.statusToday', 'Status for today. Pick a different day under Availability.')}</p>}
       {justBroken.length > 0 && <p role="status" className="mb-3 rounded-card border border-border p-3 text-sm">
         {t('equipment:availability.notifiedBroken', 'Marked broken: {{codes}}. Nobody is messaged right away. Admin and Project Manager users are told if it stays down more than {{n}} days; the machine shows as down on this page now.', { codes: justBroken.join(', '), n: escalationLimit })}

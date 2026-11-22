@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   entries: [] as unknown[],
   setEntries: (() => undefined) as (e: unknown[]) => void,
   assets: [] as unknown[],
+  latest: [] as unknown[],
   usageArgs: [] as unknown[],
   query: { isPending: false, isError: false, refetch: vi.fn() },
   invalidateUsage: vi.fn(),
@@ -51,6 +52,7 @@ vi.mock('@/src/hooks/useEquipment', async () => {
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectPickerOptions: () => ({ data: [{ id: 'pj1', name: 'EQU P1', short_name: null, project_manager_id: 'u-pm' }, { id: 'pj2', name: 'EQU P2', short_name: null, project_manager_id: 'u-other' }] }),
 }));
+vi.mock('@/src/hooks/useEquipmentAvailability', () => ({ useLatestStatusDays: () => ({ data: h.latest }) }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [{ id: 'u-eng', full_name: 'Engineer' }, { id: 'u-pm', full_name: 'Reviewer' }] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org1' } }) }));
 
@@ -83,6 +85,7 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     vi.setSystemTime(new Date(2026, 8, 11, 9, 0, 0)); // Fri 11 Sep 2026: the week is Mon 7 - Sun 13 Sep
     h.userId = 'u-eng';
     h.entries = [entry({})];
+    h.latest = [];
     h.assets = [{ id: 'a1', code: 'EQU-1', name: 'Loader 1', default_unit: 'hours', archived_at: null }];
     h.usageArgs = [];
     h.assetsHasMore = false;
@@ -131,7 +134,8 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     h.entries = [{ ...entry({ status: 'Rejected', decision_notes: 'Correct the asset' }), rejected_by: 'u-pm', rejected_at: '2026-09-09T10:00:00Z', rejecter: { full_name: 'Reviewer' } }];
     renderPage();
     expect(screen.getByText(/Correct the asset/)).toBeInTheDocument();
-    expect(screen.getByText(/Reviewer/)).toBeInTheDocument();
+    // The submit-week note also names the approver (the same person), so look inside the returned banner.
+    expect(within(screen.getByText(/Correct the asset/).closest('[role="status"]') as HTMLElement).getByText(/Reviewer/)).toBeInTheDocument();
   });
 
   it('AC-RSN-005 keeps a legacy return reason visible during correction alongside other entries', () => {
@@ -143,7 +147,7 @@ describe('/equipment usage grid (AC-EQU-017)', () => {
     expect(screen.getByText('Correct legacy usage')).toBeInTheDocument();
     expect(screen.queryByText('Person unavailable')).not.toBeInTheDocument();
     expect(screen.getByText('Correct this usage')).toBeInTheDocument();
-    expect(screen.getByText(/Reviewer/)).toHaveTextContent('2026');
+    expect(within(screen.getByText('Correct this usage').closest('[role="status"]') as HTMLElement).getByText(/Reviewer/)).toHaveTextContent('2026');
     unmount();
     h.entries = [{ ...entry({ status: 'Rejected', decision_notes: null }), rejected_by: null, rejected_at: null, rejecter: null }];
     renderPage();

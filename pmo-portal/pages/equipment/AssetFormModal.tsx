@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DateField } from '@/src/components/ui/DateField';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -90,8 +91,8 @@ export const AssetFormModal: React.FC<{ asset?: EquipmentAssetRow; onClose: () =
           <SelectField label={t('equipment:availability.basis', 'Rate basis')} value={form.values.basis} onChange={(v) => form.setValue('basis', v)}
             options={[{ value: 'day', label: t('equipment:assets.perDay', 'Per day') }, { value: 'month', label: t('equipment:assets.perMonth', 'Per month') }]} />
           <TextField label={t('equipment:availability.currency', 'Currency')} value={form.values.currency} onChange={(v) => form.setValue('currency', v)} />
-          <TextField label={t('equipment:availability.rentedFrom', 'Rental start')} type="date" required {...f('rentedFrom')} />
-          <TextField label={t('equipment:availability.rentedTo', 'Rental end (optional)')} type="date" {...f('rentedTo')} />
+          <DateField label={t('equipment:availability.rentedFrom', 'Rental start')} required {...f('rentedFrom')} />
+          <DateField label={t('equipment:availability.rentedTo', 'Rental end (optional)')} {...f('rentedTo')} />
         </>}
       </FormGrid>
       {editing && asset && <p className="mt-3 text-sm text-muted-foreground">

@@ -30,7 +30,7 @@ const empty = (d?: ExpiryDocumentRow): FormValues => ({
 });
 
 /** Add or edit one expiring document (#2542). Type and subject are fixed once saved; a medical type holds a status and dates only. */
-const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string; doc?: ExpiryDocumentRow; onClose: () => void }> = ({ kind, subjectId, doc, onClose }) => {
+export const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string; doc?: ExpiryDocumentRow; renew?: boolean; onClose: () => void }> = ({ kind, subjectId, doc, renew = false, onClose }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const types = useDocumentTypes(kind);
@@ -38,9 +38,10 @@ const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string; doc?:
   const [file, setFile] = useState<File | null>(null);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const form = useEntityForm<FormValues>({
-    initialValues: empty(doc), idPrefix: 'expiry-doc', requiredFields: ['type_id', 'expires_on'], module: 'expiry_documents',
+    initialValues: renew && doc ? { ...empty(doc), issued_on: '', expires_on: '' } : empty(doc), idPrefix: 'expiry-doc', requiredFields: ['type_id', 'expires_on'], module: 'expiry_documents',
     validate: (v) => {
       const e: Partial<Record<keyof FormValues, string>> = {};
+      if (renew && doc && v.expires_on && v.expires_on <= doc.expires_on) e.expires_on = t('equipment:expiryEdit.errRenew', 'The new expiry date must be after the current one ({{date}})', { date: formatDay(doc.expires_on) });
       if (!v.type_id) e.type_id = t('equipment:expiryEdit.errType', 'Choose a document type');
       if (!v.expires_on) e.expires_on = t('equipment:expiryEdit.errExpiry', 'Enter the expiry date');
       else if (v.issued_on && v.issued_on > v.expires_on) e.expires_on = t('equipment:expiryEdit.errOrder', 'Expiry date must be on or after the issue date');
@@ -66,15 +67,15 @@ const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string; doc?:
       try {
         if (doc) await update.mutateAsync({ id: doc.id, fields, file: medical ? null : file, previousPath: doc.attachment_path });
         else await create.mutateAsync({ type_id: v.type_id, ...fields, file: medical ? null : file });
-        toast(t('equipment:expiryEdit.saved', 'Document saved'), undefined, 'success');
+        toast(renew ? t('equipment:expiryEdit.renewed', 'Document renewed') : t('equipment:expiryEdit.saved', 'Document saved'), undefined, 'success');
         onClose();
       } catch (err) { const c = classifyMutationError(err); setSubmitError({ headline: c.headline, detail: c.detail }); }
     });
   };
 
   return (
-    <EntityFormModal open title={doc ? t('equipment:expiryEdit.editTitle', 'Edit document') : t('equipment:expiryEdit.addTitle', 'Add document')}
-      submitLabel={t('equipment:expiryEdit.save', 'Save document')} onSubmit={submit} onClose={onClose}
+    <EntityFormModal open title={renew ? t('equipment:expiryEdit.renewTitle', 'Renew document') : doc ? t('equipment:expiryEdit.editTitle', 'Edit document') : t('equipment:expiryEdit.addTitle', 'Add document')}
+      submitLabel={renew ? t('equipment:expiryEdit.renew', 'Renew') : t('equipment:expiryEdit.save', 'Save document')} onSubmit={submit} onClose={onClose}
       loading={form.isSubmitting} dirty={form.isDirty || file !== null} submitError={submitError}
       errorSummary={form.hasAttemptedSubmit ? Object.entries(form.errors).map(([k, m]) => ({ fieldId: form.fieldProps(k as keyof FormValues).id, message: String(m) })) : undefined}>
       <FormGrid>

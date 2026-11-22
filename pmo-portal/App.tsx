@@ -111,7 +111,7 @@ const MaterialRequestSettingsPage = lazyWithPreload(() => import('./pages/Materi
 const PurchaseTypeSettingsPage = lazyWithPreload(() => import('./pages/PurchaseTypeSettings'));
 const EquipmentPlansPage = lazyWithPreload(() => import('./pages/EquipmentPlans'));
 const EquipmentPlanSettingsPage = lazyWithPreload(() => import('./pages/EquipmentPlanSettings'));
-const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
+const EquipmentHomePage = lazyWithPreload(() => import('./pages/equipment/EquipmentHome'));
 const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAvailability'));
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
 const ExpiringDocumentsPage = lazyWithPreload(() => import('./pages/equipment/ExpiringDocuments'));
@@ -288,7 +288,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/safety', chunks: [SafetySummaryPage], namespaces: ['safety'] },
   { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
   { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage], namespaces: ['imprest'] },
-  { path: '/equipment', chunks: [EquipmentUsagePage], namespaces: ['equipment'] },
+  { path: '/equipment', chunks: [EquipmentHomePage], namespaces: ['equipment'] },
   { path: '/equipment/assets', chunks: [EquipmentAssetsPage], namespaces: ['equipment'] },
   { path: '/equipment/expiring', chunks: [ExpiringDocumentsPage], namespaces: ['equipment'] },
   { path: '/equipment/availability', chunks: [EquipmentAvailabilityPage], namespaces: ['equipment'] },
@@ -533,7 +533,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/imprest', element: gated('imprest', <ImprestFloatsPage />) },
   { path: '/imprest/:floatId', element: gated('imprest', <ImprestFloatDetailPage />) },
   // #1519: equipment usage grid, asset reference and per-asset costing.
-  { path: '/equipment', element: <EquipmentUsagePage /> },
+  { path: '/equipment', element: <EquipmentHomePage /> },
   { path: '/equipment/assets', element: <EquipmentAssetsPage /> },
   { path: '/equipment/expiring', element: <ExpiringDocumentsPage /> },
   { path: '/equipment/availability', element: <EquipmentAvailabilityPage /> },
