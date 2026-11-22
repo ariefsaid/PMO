@@ -33,6 +33,7 @@ import { InspectionsSection } from './work-order-detail/InspectionsSection';
 import { ClientMaterialSection } from './work-order-detail/ClientMaterialSection';
 import { IssuesSection } from './work-order-detail/IssuesSection';
 import { SiteCheckpointFlag } from './work-order-detail/SiteCheckpointFlag';
+import { WorkOrderCheckpoints } from './work-order-detail/WorkOrderCheckpoints';
 import { SafetySection, SafetyTodayLink } from './work-order-detail/SafetySection';
 import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 import { SiteLocationSection } from './work-order-detail/SiteLocationSection';
@@ -122,6 +123,7 @@ const WorkOrderDetail: React.FC = () => {
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       <RecordStack>
         <SiteCheckpointFlag workOrderId={row.id} />
+        <WorkOrderCheckpoints workOrderId={row.id} projectManagerId={project.data?.project_manager_id ?? null} status={row.status} />
         <ScopeSection projectId={row.project_id} progress={progress} isPending={allocations.isPending || boq.isPending || bastList.isPending} isError={allocations.isError || boq.isError || bastList.isError}
           onRetry={() => { void allocations.refetch(); void boq.refetch(); void bastList.refetch(); }} />
         <SectionsSection workOrder={{ id: row.id, project_id: row.project_id, status: row.status, currency: row.currency }} />
