@@ -1356,3 +1356,14 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Idle cost** — the recorded idle hours of validated daily site reports, per idle reason, multiplied by the work order's hourly cost (priced labour amount divided by priced labour hours, a weighted average over its history). A lost-time view of cost already inside direct cost: shown apart, never added to it. OFF until an organisation switch and labour cost in money are both on (#2673).
 
 **Management profit and loss** — the Reports screen (management pack) read as a profit and loss PMO produces from its own records: recognised, invoiced and earned revenue per project and, while Profit per discipline is on, cost and margin on both revenue bases. It is not a ledger statement; trial balance, profit and loss and balance sheet come from a connected accounting system. An organisation with none connected is led from Statements and the Finance hub Net profit tile to it (#2734).
+
+## People, crews and their papers (fix/walk-people)
+
+**Access level** — one of the five levels (Engineer, Project Manager, Finance, Executive, Admin) that drives what a login can see and do. Shown in Bahasa Indonesia as "Tingkat akses". Never called "role" on its own.
+
+**Job role** — a built-in role (storekeeper, foreman, HR manager and the rest of the set) that starts from one access level. Shown as "Job role" / "Jabatan". When built-in roles are on, inviting a user asks the job role and the access level follows from it.
+
+**Crew role** — the position a person fills in a crew (welder, foreman of that crew…), counted against the crew's headcount. Shown as "Crew role" / "Posisi kru". A person placed with no crew role is not counted in the roster's figures and is shown as "Crew role not set".
+
+**Mark as left** — an Admin records the last day a person worked. They become former staff and leave every crew roster from that day; the history stays.
+
