@@ -37,31 +37,38 @@ alter table public.organizations
 grant update (module_people_crews, module_site_day, module_stock, module_purchasing_extras, module_billing_extras)
   on public.organizations to authenticated;
 
+-- One organisation's five modules from its own rows (the lists in the header). Used once here, kept so a test can prove it.
+create function public.backfill_org_modules(p_org uuid) returns void
+  language sql security definer set search_path = public, pg_catalog as $$
+  update public.organizations o set
+    module_people_crews = exists (select 1 from public.crews x where x.org_id = o.id)
+      or exists (select 1 from public.crew_loans x where x.org_id = o.id)
+      or exists (select 1 from public.leave_types x where x.org_id = o.id)
+      or exists (select 1 from public.leave_requests x where x.org_id = o.id)
+      or exists (select 1 from public.clearance_items x where x.org_id = o.id)
+      or exists (select 1 from public.person_clearances x where x.org_id = o.id)
+      or exists (select 1 from public.phone_check_ins x where x.org_id = o.id),
+    module_site_day = exists (select 1 from public.daily_site_reports x where x.org_id = o.id)
+      or exists (select 1 from public.site_checkpoints x where x.org_id = o.id)
+      or exists (select 1 from public.safety_days x where x.org_id = o.id)
+      or exists (select 1 from public.safety_list_items x where x.org_id = o.id),
+    module_stock = exists (select 1 from public.stock_documents x where x.org_id = o.id)
+      or exists (select 1 from public.stock_transfers x where x.org_id = o.id)
+      or exists (select 1 from public.stock_wo_transfers x where x.org_id = o.id)
+      or exists (select 1 from public.stock_reservations x where x.org_id = o.id)
+      or exists (select 1 from public.material_requests x where x.org_id = o.id),
+    module_purchasing_extras = exists (select 1 from public.purchase_types x where x.org_id = o.id)
+      or exists (select 1 from public.purchase_line_categories x where x.org_id = o.id)
+      or exists (select 1 from public.org_payment_channels x where x.org_id = o.id),
+    module_billing_extras = exists (select 1 from public.work_order_revenue_plan x where x.org_id = o.id)
+      or exists (select 1 from public.billing_plan_month_targets x where x.org_id = o.id)
+      or exists (select 1 from public.done_not_claimed_notices x where x.org_id = o.id)
+      or exists (select 1 from public.cost_disciplines x where x.org_id = o.id)
+  where o.id = p_org $$;
+revoke all on function public.backfill_org_modules(uuid) from public, anon, authenticated;
+
 alter table public.organizations disable trigger zz_audit_org_setting_change;
-update public.organizations o set
-  module_people_crews = exists (select 1 from public.crews x where x.org_id = o.id)
-    or exists (select 1 from public.crew_loans x where x.org_id = o.id)
-    or exists (select 1 from public.leave_types x where x.org_id = o.id)
-    or exists (select 1 from public.leave_requests x where x.org_id = o.id)
-    or exists (select 1 from public.clearance_items x where x.org_id = o.id)
-    or exists (select 1 from public.person_clearances x where x.org_id = o.id)
-    or exists (select 1 from public.phone_check_ins x where x.org_id = o.id),
-  module_site_day = exists (select 1 from public.daily_site_reports x where x.org_id = o.id)
-    or exists (select 1 from public.site_checkpoints x where x.org_id = o.id)
-    or exists (select 1 from public.safety_days x where x.org_id = o.id)
-    or exists (select 1 from public.safety_list_items x where x.org_id = o.id),
-  module_stock = exists (select 1 from public.stock_documents x where x.org_id = o.id)
-    or exists (select 1 from public.stock_transfers x where x.org_id = o.id)
-    or exists (select 1 from public.stock_wo_transfers x where x.org_id = o.id)
-    or exists (select 1 from public.stock_reservations x where x.org_id = o.id)
-    or exists (select 1 from public.material_requests x where x.org_id = o.id),
-  module_purchasing_extras = exists (select 1 from public.purchase_types x where x.org_id = o.id)
-    or exists (select 1 from public.purchase_line_categories x where x.org_id = o.id)
-    or exists (select 1 from public.org_payment_channels x where x.org_id = o.id),
-  module_billing_extras = exists (select 1 from public.work_order_revenue_plan x where x.org_id = o.id)
-    or exists (select 1 from public.billing_plan_month_targets x where x.org_id = o.id)
-    or exists (select 1 from public.done_not_claimed_notices x where x.org_id = o.id)
-    or exists (select 1 from public.cost_disciplines x where x.org_id = o.id);
+select public.backfill_org_modules(id) from public.organizations;
 
 -- ── starter rows: one function each; the setters call them (restated below) ──────────────────────────────────────────────
 create function public.seed_purchase_line_categories(p_org uuid) returns void

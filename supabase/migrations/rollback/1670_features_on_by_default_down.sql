@@ -3,6 +3,7 @@
 drop trigger if exists organizations_switch_defaults on public.organizations;
 drop function if exists public.organizations_switch_defaults();
 drop function if exists public.apply_org_switch_defaults(uuid);
+drop function if exists public.backfill_org_modules(uuid);
 
 alter table public.organizations
   alter column built_in_roles_enabled set default false, alter column clearance_checklist_enabled set default false,
