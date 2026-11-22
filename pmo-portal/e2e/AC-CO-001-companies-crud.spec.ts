@@ -173,7 +173,8 @@ test(
     await page.goto('/companies');
     await waitReady(page);
 
-    const link = page.getByRole('link', { name: /^Open / }).first();
+    // A seeded company: the first row can be another journey's transient company, gone by the time the new tab loads.
+    const link = page.getByRole('link', { name: 'Open Atlas Chemicals Plant' });
     await expect(link).toBeVisible();
     const href = await link.getAttribute('href');
     expect(href).toMatch(/^\/companies\/[0-9a-f-]+$/i);

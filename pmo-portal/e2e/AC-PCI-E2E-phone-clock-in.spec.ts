@@ -80,7 +80,7 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
   await signIn(page, 'engineer@acme.test', { home: '/my' });
   await page.goto('/my');
   await expect(page.getByRole('heading', { name: 'Clock in' })).toBeVisible();
-  await page.getByRole('button', { name: 'Clock in' }).click();
+  await page.getByRole('listitem').filter({ hasText: `${run} slab` }).getByRole('button', { name: 'Clock in' }).click();
   await expect(page.getByText(/outside the work area/i)).toBeVisible();
   const before = await admin.from('attendance_days').select('id').eq('work_order_id', workOrderId);
   expect(before.data ?? []).toHaveLength(0);
@@ -99,7 +99,7 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
   await worker.setGeolocation({ latitude: -6.2, longitude: 106.8, accuracy: 10 });
   await admin.from('attendance_days').delete().eq('work_order_id', workOrderId);
   await page.goto('/my');
-  await page.getByRole('button', { name: 'Clock in' }).click();
+  await page.getByRole('listitem').filter({ hasText: `${run} slab` }).getByRole('button', { name: 'Clock in' }).click();
   await expect(page.getByRole('button', { name: 'Clocked in' })).toBeVisible();
   await expect.poll(async () => ((await admin.from('attendance_days').select('source').eq('work_order_id', workOrderId)).data ?? []).map((r) => r.source)).toEqual(['phone_check_in']);
   await worker.close();
