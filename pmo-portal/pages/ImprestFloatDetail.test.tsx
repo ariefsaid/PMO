@@ -1,9 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import i18next from 'i18next';
 import { fireEvent, render, screen, within, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useParams } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import enWaitingList from '../public/locales/en/waitingList.json';
+import idWaitingList from '../public/locales/id/waitingList.json';
+
+i18next.addResourceBundle('en', 'waitingList', enWaitingList, true, true);
+i18next.addResourceBundle('id', 'waitingList', idWaitingList, true, true);
 
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
 const mut = () => ({ mutateAsync: vi.fn().mockResolvedValue('x'), isPending: false });
@@ -11,6 +17,7 @@ const h = vi.hoisted(() => ({
   userId: 'u-fin', realRole: 'Finance' as string,
   floats: null as unknown, position: null as unknown, plans: null as unknown, planLines: null as unknown,
   reps: null as unknown, counts: null as unknown, claims: null as unknown, postings: null as unknown,
+  changes: null as unknown,
   warmed: [] as string[],
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
@@ -20,7 +27,7 @@ vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloat: () => h.floats,
   useImprestPosition: () => h.position,
   useImprestPlans: (id?: string) => { h.warmed.push(`plans:${id}`); return h.plans; },
-  useImprestFloatChanges: (id?: string) => { h.warmed.push(`changes:${id}`); return { data: [] }; },
+  useImprestFloatChanges: (id?: string) => { h.warmed.push(`changes:${id}`); return h.changes ?? { data: { rows: [] } }; },
   useImprestPlanLines: () => h.planLines,
   useImprestReplenishments: () => h.reps,
   useImprestCounts: () => h.counts,
@@ -465,5 +472,66 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     h.floats = ok({ ...FLOAT, erp_cash_account_ref: 'Site Cash - X' });
     renderPage();
     expect(screen.getByTestId('cash-account')).toHaveTextContent('Site Cash - X');
+  });
+
+  describe('fix-waiting item 3: replenishment and limit change who-next notes', () => {
+    afterEach(async () => {
+      cleanup();
+      await i18next.changeLanguage('en');
+    });
+
+    it('names Finance or Admin in English and Bahasa Indonesia when replenishment is Requested', async () => {
+      await i18next.changeLanguage('en');
+      h.reps = ok({ rows: [REP], truncated: false });
+      renderPage();
+      const waiting = screen.getByTestId('rep-waiting-for');
+      expect(waiting).toHaveTextContent('Waiting for Finance or Admin');
+
+      cleanup();
+      await i18next.changeLanguage('id');
+      renderPage();
+      const waitingId = screen.getByTestId('rep-waiting-for');
+      expect(waitingId).toHaveTextContent('Menunggu Keuangan atau Admin');
+    });
+
+    it('non-waiting replenishment states (Approved, Paid, Rejected) show no waiting line', async () => {
+      for (const nonWaitingStatus of ['Approved', 'Paid', 'Rejected']) {
+        cleanup();
+        h.reps = ok({ rows: [{ ...REP, status: nonWaitingStatus }], truncated: false });
+        renderPage();
+        expect(screen.queryByTestId('rep-waiting-for')).toBeNull();
+      }
+    });
+
+    it('never claims custodian is eligible approver for replenishment', async () => {
+      setViewer('u-cust', 'Field Coordinator');
+      h.reps = ok({ rows: [REP], truncated: false });
+      renderPage();
+      const waiting = screen.getByTestId('rep-waiting-for');
+      expect(waiting).toHaveTextContent('Waiting for Finance or Admin');
+      // The custodian cannot approve their own replenishment
+      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    });
+
+    it('names senior approver in English and Bahasa Indonesia when limit change is Proposed', async () => {
+      await i18next.changeLanguage('en');
+      h.changes = ok({ rows: [{ id: 'ch1', status: 'Proposed', proposed_amount: 8000000 }], truncated: false });
+      renderPage();
+      const limitWaiting = screen.getByTestId('limit-waiting-for');
+      expect(limitWaiting).toHaveTextContent('Waiting for senior approver');
+      expect(limitWaiting).toHaveTextContent('8,000,000');
+
+      cleanup();
+      await i18next.changeLanguage('id');
+      renderPage();
+      const limitWaitingId = screen.getByTestId('limit-waiting-for');
+      expect(limitWaitingId).toHaveTextContent('Menunggu penyetuju senior');
+    });
+
+    it('when no limit change is Proposed, shows no limit change waiting line', async () => {
+      h.changes = ok({ rows: [], truncated: false });
+      renderPage();
+      expect(screen.queryByTestId('limit-waiting-for')).toBeNull();
+    });
   });
 });

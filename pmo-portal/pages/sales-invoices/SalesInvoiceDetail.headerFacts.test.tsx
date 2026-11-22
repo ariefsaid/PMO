@@ -5,6 +5,11 @@ import { MemoryRouter } from 'react-router';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
+import enWaitingList from '../../public/locales/en/waitingList.json';
+import idWaitingList from '../../public/locales/id/waitingList.json';
+
+financeTestI18n.addResourceBundle('en', 'waitingList', enWaitingList, true, true);
+financeTestI18n.addResourceBundle('id', 'waitingList', idWaitingList, true, true);
 
 const orderState = vi.hoisted(() => ({ visible: true, payments: [] as unknown[], paymentPending: false, paymentError: false, paymentReads: [] as unknown[][] }));
 vi.mock('@/src/hooks/useWorkOrderRecord', () => ({ useWorkOrder: () => ({ data: orderState.visible ? { id: 'wo1', wo_number: 'WO-1', title: 'Install' } : null }) }));
@@ -406,6 +411,90 @@ describe('#2442 paid sales invoice wording', () => {
     expect(within(idHeader).getAllByText('Belum dibayar').length).toBeGreaterThanOrEqual(1);
     expect(within(idHeader).queryByText('Tanggal pembayaran')).not.toBeInTheDocument();
     expect(screen.getByText('Siap dikirim')).toBeInTheDocument();
+  });
+
+  describe('fix-waiting item 3: native PMO invoice waiting-for who-next note', () => {
+    const renderInvoice = (inv: SalesInvoiceRow) => render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <SalesInvoiceDetail
+            viewTarget={inv}
+            projectName="Northwind Build"
+            isPending={false}
+            isError={false}
+            data={[inv]}
+            organizationToday="2026-10-16"
+            onBack={vi.fn()}
+            refetch={vi.fn()}
+            recordPrimaryAction={null}
+            invoiceDisplayLabel={() => inv.pmo_number ?? inv.si_number ?? 'INV-1'}
+            may={(() => false) as never}
+            pdfDownload={{ download: vi.fn(), inFlightIds: new Set<string>() } as never}
+            dialogs={null}
+          />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+
+    it('names Finance or Admin in English and Bahasa Indonesia when native PMO invoice is Draft', async () => {
+      await financeTestI18n.changeLanguage('en');
+      const nativeDraft: SalesInvoiceRow = {
+        ...target,
+        pmo_native: true,
+        status: 'Draft',
+        si_number: null,
+        pmo_number: 'PMO-2026-0002',
+      };
+      renderInvoice(nativeDraft);
+      const waiting = screen.getByTestId('invoice-waiting-for');
+      expect(waiting).toHaveTextContent('Waiting for Finance or Admin');
+
+      cleanup();
+      await financeTestI18n.changeLanguage('id');
+      renderInvoice(nativeDraft);
+      const waitingId = screen.getByTestId('invoice-waiting-for');
+      expect(waitingId).toHaveTextContent('Menunggu Keuangan atau Admin');
+    });
+
+    it('shows no waiting line on external ERP draft invoices', async () => {
+      const erpDraft: SalesInvoiceRow = {
+        ...target,
+        pmo_native: false,
+        status: 'Draft',
+        si_number: null,
+      };
+      renderInvoice(erpDraft);
+      expect(screen.queryByTestId('invoice-waiting-for')).toBeNull();
+    });
+
+    it('shows no waiting line on non-draft native PMO invoices (Unpaid, Paid, Cancelled)', async () => {
+      for (const nonDraftStatus of ['Unpaid', 'Paid', 'Cancelled'] as const) {
+        cleanup();
+        const nonDraftNative: SalesInvoiceRow = {
+          ...target,
+          pmo_native: true,
+          status: nonDraftStatus,
+        };
+        renderInvoice(nonDraftNative);
+        expect(screen.queryByTestId('invoice-waiting-for')).toBeNull();
+      }
+    });
+
+    it('never claims the author is self-approver', async () => {
+      await financeTestI18n.changeLanguage('en');
+      const nativeDraft: SalesInvoiceRow = {
+        ...target,
+        pmo_native: true,
+        status: 'Draft',
+        author_user_id: 'author-1',
+        author_user_ids: ['author-1'],
+      };
+      renderInvoice(nativeDraft);
+      const waiting = screen.getByTestId('invoice-waiting-for');
+      expect(waiting).toHaveTextContent('Waiting for Finance or Admin');
+      // Truthful server defined role category, no author self-approval claim
+      expect(waiting.textContent).not.toContain('author-1');
+    });
   });
 });
 

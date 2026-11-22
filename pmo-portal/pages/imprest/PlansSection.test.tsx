@@ -1,8 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import i18next from 'i18next';
+import { render, screen, within, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
+import enWaitingList from '../../public/locales/en/waitingList.json';
+import idWaitingList from '../../public/locales/id/waitingList.json';
+
+i18next.addResourceBundle('en', 'waitingList', enWaitingList, true, true);
+i18next.addResourceBundle('id', 'waitingList', idWaitingList, true, true);
 
 vi.mock('@/src/components/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/ui')>();
@@ -129,5 +135,53 @@ describe('FR-IMP-071 plans section', () => {
     h.plans = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
     renderIt();
     expect(screen.getByText("Couldn't load plans")).toBeInTheDocument();
+  });
+
+  describe('fix-waiting item 3: submitted plan names who it waits for', () => {
+    afterEach(async () => {
+      cleanup();
+      await i18next.changeLanguage('en');
+    });
+
+    it('names all four ApprovalRank roles including Executive in English when Submitted', async () => {
+      await i18next.changeLanguage('en');
+      h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
+      renderIt();
+      const waiting = screen.getByTestId('plan-waiting-for');
+      expect(waiting).toHaveTextContent('Waiting for Project Manager, Finance, Executive, or Admin');
+      expect(waiting.textContent).toContain('Executive');
+      expect(waiting.textContent).toContain('Project Manager');
+      expect(waiting.textContent).toContain('Finance');
+      expect(waiting.textContent).toContain('Admin');
+    });
+
+    it('names all four ApprovalRank roles in Bahasa Indonesia when Submitted', async () => {
+      await i18next.changeLanguage('id');
+      h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
+      renderIt();
+      const waiting = screen.getByTestId('plan-waiting-for');
+      expect(waiting).toHaveTextContent('Menunggu Manajer Proyek, Keuangan, Eksekutif, atau Admin');
+      expect(waiting.textContent).toContain('Eksekutif');
+    });
+
+    it('non-waiting states (Draft, Approved, Rejected, Cancelled) show no waiting line', async () => {
+      for (const nonWaitingStatus of ['Draft', 'Approved', 'Rejected', 'Cancelled']) {
+        cleanup();
+        h.plans = ok({ rows: [plan({ status: nonWaitingStatus })], truncated: false });
+        renderIt();
+        expect(screen.queryByTestId('plan-waiting-for')).toBeNull();
+      }
+    });
+
+    it('never claims the author is self-approver', async () => {
+      h.userId = 'u-auth';
+      h.realRole = 'Project Manager';
+      h.plans = ok({ rows: [plan({ status: 'Submitted', author_id: 'u-auth' })], truncated: false });
+      renderIt();
+      const waiting = screen.getByTestId('plan-waiting-for');
+      // States the role requirement without claiming the author personally approves their own plan
+      expect(waiting).toHaveTextContent('Waiting for Project Manager, Finance, Executive, or Admin');
+      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    });
   });
 });
