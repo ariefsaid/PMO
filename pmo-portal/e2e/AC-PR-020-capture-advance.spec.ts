@@ -179,6 +179,19 @@ test('AC-PR-022 advance action on the case page performs its stated action (hone
   const actionLabel = await actionBtn.textContent();
   await actionBtn.click();
 
+  // An order is recorded behind a confirmation that names its supplier and amount (JOB-PU1): confirm it. When the case has
+  // no supplier the button opens the supplier picker instead, which is the honest answer to a purchase that cannot be
+  // ordered yet; no status changes then and nothing was promised.
+  if (actionLabel?.trim() === 'Record order') {
+    const confirm = page.getByRole('dialog').filter({ hasText: 'Record this order?' });
+    const confirmShown = await confirm.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true, () => false);
+    if (!confirmShown) {
+      await expect(page.getByRole('dialog', { name: 'Set supplier' })).toBeVisible();
+      return;
+    }
+    await confirm.getByRole('button', { name: 'Record order' }).click();
+  }
+
   // The advance should change the status (routine steps have no confirm dialog)
   await expect(statusBadge).not.toHaveAttribute('data-status', currentStatus ?? '', {
     timeout: 15_000,
