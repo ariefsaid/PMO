@@ -81,7 +81,7 @@ export default function OrderJobRolesSection() {
               </ul>
             )}
             <p className="text-control text-muted-foreground">
-              {t('orderRoles.noRoleNote', 'People who have no built-in role yet count when their access level is the one the named role is built on.')}
+              {t('orderRoles.heldOnlyNote', 'Only people who hold a named built-in role can order. An access level alone is not enough, even when the role is built on it.')}
             </p>
             <div className="flex flex-wrap items-end gap-2">
               <SelectField label={t('orderRoles.add', 'Add a built-in role')} value={pick} onChange={setPick} options={options}

@@ -84,8 +84,11 @@ against the same cases. `can()` reads it; the database is the authority.
   Written through `po_set_order_job_roles(text[])` (Admin only, beside the existing Admin-only `po_set_print_settings`); a BEFORE
   trigger on the column holds the rules on every write path (the RPC and the existing Admin table policy): catalogue keys only, no
   field role, and a non-empty list only while built-in roles are on.
-- One gate, `actor_may_order_purchases() returns boolean`: true when the real signed-in person (never the view-as role) holds
-  one of their organisation's `order_job_roles` by `holds_job_role`. Granted to `anon` and `authenticated`: the read-scope
+- One gate, `actor_may_order_purchases() returns boolean`: true when the real signed-in person (never the view-as role) HOLDS
+  one of their organisation's `order_job_roles` (`holds_job_role` and the held key equals it; migration 1845). **This differs from
+  approval steps on purpose:** an approval step only chooses who among existing deciders acts, so a person with no built-in role
+  counting at their level (FR-RTD-003) keeps chains working; ordering widens who reads purchases and who places orders, so naming
+  Buyer must not reach every Engineer who has no built-in role yet. The settings screen says only holders count. Granted to `anon` and `authenticated`: the read-scope
   policies call it wrapped `(select ...)`, and the procurement-files storage policy is evaluated for every role, so a role that could
   not execute it would fail every storage read. It writes nothing and answers false outside an organisation. A scalar helper for the
   field-account sweep (`2711`). The setter `po_set_order_job_roles` is listed in the client-callable inventory
@@ -140,7 +143,7 @@ reading that column, once that branch lands.
   when the job role at that position changes.
 - **FR-RTD-008** While `built_in_roles_enabled` is off, the system shall refuse naming a job role on a step or in the ordering setting
   (`MRQ_JOB_ROLE_OFF`, `PO_JOB_ROLE_OFF`); clearing one is always allowed; steps already naming one keep deciding by FR-RTD-001.
-- **FR-RTD-009** Where an organisation names job roles that may order, the system shall let a person who fills one raise a purchase
+- **FR-RTD-009** Where an organisation names job roles that may order, the system shall let a person who holds one raise a purchase
   order, move an approved purchase to Ordered, mark its order issued, and read purchases and their order-side records.
 - **FR-RTD-010** The ordering setting shall never narrow today's levels and never let a job-role orderer skip approval, read vendor
   bills or payments, or approve a purchase.
@@ -164,11 +167,12 @@ reading that column, once that branch lands.
 | AC-RTD-009 | Given the setting off, naming a job role on a step or in `order_job_roles` is refused and nothing persists; clearing is accepted. Given a non-Admin, both writes are refused. | pgTAP |
 | AC-RTD-010 | Given the daily cut-off (already built), a next-day request after the cut-off is refused with the earliest date. | pgTAP, existing `mrq_submit_transfer.test.sql:62-86` |
 | AC-RTD-011 | Given `order_job_roles = {buyer}`, a Buyer raises a purchase order, moves an Approved purchase to Ordered and marks the order Issued; persisted rows read back. | pgTAP |
-| AC-RTD-012 | Given `order_job_roles = {buyer}`, a Buyer moving a Draft purchase straight to Ordered, approving a request, or reading a vendor bill or payment is refused / reads nothing; a Storekeeper and a no-key Engineer read only their own purchases (unchanged when the setting is empty). | pgTAP |
+| AC-RTD-012 | Given `order_job_roles = {buyer}`, a Buyer moving a Draft purchase straight to Ordered, approving a request, or reading a vendor bill or payment is refused / reads nothing; a Storekeeper and an Engineer with no built-in role cannot order and read only their own purchases (unchanged when the setting is empty). | pgTAP |
 | AC-RTD-013 | Given `order_job_roles` empty, every level's purchasing outcome is today's (existing 0350 and procurement tests unchanged). | pgTAP |
 | AC-RTD-014 | Given the chain editor with built-in roles on, an Admin picks a job role per step, sees its access level read-only, saves through the repository; with the setting off, the editor is today's. | vitest |
 | AC-RTD-015 | Given the purchase-order settings with built-in roles on, an Admin picks ordering job roles; a non-Admin sees them read-only. `can()` offers Order and the purchase list to a person who fills one. | vitest |
 | AC-RTD-016 | Given each new refusal code, then `refusals.json` has an English and a Bahasa Indonesia sentence (the refusal-code gate). | vitest / guard |
+| AC-RTD-018 | Given a stored person file that a medical document names, an HR Officer (people-documents right) cannot upload, overwrite or delete it; an Admin can; the HR Officer's non-medical files work as before (migration 1844). | pgTAP (`roles_that_decide_medical_files.test.sql`) |
 | AC-RTD-017 | Given an Admin in the browser with built-in roles on, when a step is set to a job role and a holder approves a request in order, then the request is approved. | E2E (serial lane, `e2e/serial/AC-RTD-017-job-role-approval-step.spec.ts`) |
 
 ### Mutation checks (each turns the named AC red, then is restored)
@@ -205,8 +209,8 @@ None of the existing journeys change steps: a step with no job role and an empty
 1. **People not yet given a job role.** Recommended: they count for every job role built on their access level (FR-RTD-003), so a
    chain keeps working while people are being given roles. Built meanwhile: that rule. The alternative (job role holders only) is one
    condition in `holds_job_role`.
-2. **Who orders.** Recommended: the Admin names Buyer in the ordering setting; until then nothing changes. Consequence of Q1: while an
-   Engineer has no job role, naming Buyer lets them order too; the settings screen says so. Built meanwhile: the setting, empty.
+2. **Who orders.** Answered: the Admin names Buyer in the ordering setting; until then nothing changes. Ordering counts only people
+   who hold the named role (Director, 2026-11-22: ordering widens purchase reads), so the Q1 rule does not apply to it.
 3. **Can a Buyer order an unapproved purchase?** Recommended: no, only after approval (FR-RTD-010). Built meanwhile: that rule.
 4. **Billing step owners and document viewers.** Answered: the billing lane's spec is pushed; §2.4 gives the exact calls. Their lane
    builds the billing code.

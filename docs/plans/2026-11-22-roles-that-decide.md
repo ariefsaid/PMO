@@ -66,6 +66,11 @@ the read scopes, checked against 0646's expected-text table).
     (Generate Purchase Order on Approved / Quote Selected), `src/components/shell/Rail.tsx` procurement nav. Tests: the section test, `policy` test, AC-RTD-015. Strings
     `public/locales/{en,id}/administration.json`, refusals.
 
+### C2. Alignments (1844, 1845)
+- `supabase/migrations/1844_expiry_person_files_align_medical.sql` (+ rollback): the stored-file write helper refuses, for anyone but
+  an Admin, an object a medical document names; `roles_that_decide_medical_files.test.sql` (AC-RTD-018).
+- `supabase/migrations/1845_order_roles_held_only.sql` (+ rollback): ordering needs the named role held; purchasing test AC-RTD-012.
+
 ### D. Docs (commit 5)
 15. `docs/glossary.md`: **Job role**, **Fills a job role**, **Ordering job roles**; `docs/specs/builtin-role-set.spec.md` §5 points
     at this spec; `docs/specs/material-requests.spec.md` FR-MRQ-005/007/023 name job roles.
