@@ -204,7 +204,8 @@
       "not_stocked": "Tidak dilacak",
       "failed": "Ditolak",
       "pending": "Menunggu"
-    }
+    },
+    "setLocation": "Atur lokasi lapangan di perintah kerja"
   },
   "title": "Laporan lapangan",
   "toast": {

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { RecordSection, StatusPill } from '@/src/components/ui';
 import { formatDay } from '@/src/lib/format';
@@ -6,7 +7,7 @@ import { isFlaggedLine, type DsrStockStatus } from '@/src/lib/db/dsrStockIssue';
 import { stockLineReason } from './stockLineReason';
 import { useDsrStockStatus } from '@/src/hooks/useDsrStockIssue';
 
-export const SiteReportStockView: React.FC<{ status: DsrStockStatus }> = ({ status }) => {
+export const SiteReportStockView: React.FC<{ status: DsrStockStatus; workOrderId?: string }> = ({ status, workOrderId }) => {
   const { t } = useTranslation('siteReport');
   const flagged = status.lines.filter((l) => isFlaggedLine(l.state));
   return (
@@ -30,6 +31,11 @@ export const SiteReportStockView: React.FC<{ status: DsrStockStatus }> = ({ stat
             ))}
           </ul>
           <p className="mt-2 text-muted-foreground">{t('stock.fix')}</p>
+          {workOrderId && flagged.some((l) => l.state === 'no_location') && (
+            <p className="mt-2">
+              <Link className="text-primary-text underline" to={`/work-orders/${workOrderId}#site-location`} data-testid="dsr-stock-set-location">{t('stock.setLocation', 'Set the site location on the work order')}</Link>
+            </p>
+          )}
         </div>
       )}
       {status.lines.length > 0 && (
@@ -47,8 +53,8 @@ export const SiteReportStockView: React.FC<{ status: DsrStockStatus }> = ({ stat
 };
 
 /** Shown on a validated report only while the organisation's setting is on; renders nothing when nothing was posted or flagged. */
-export const SiteReportStock: React.FC<{ reportId: string; enabled: boolean }> = ({ reportId, enabled }) => {
+export const SiteReportStock: React.FC<{ reportId: string; workOrderId?: string; enabled: boolean }> = ({ reportId, workOrderId, enabled }) => {
   const q = useDsrStockStatus(reportId, enabled);
   if (!enabled || !q.data) return null;
-  return <SiteReportStockView status={q.data} />;
+  return <SiteReportStockView status={q.data} workOrderId={workOrderId} />;
 };

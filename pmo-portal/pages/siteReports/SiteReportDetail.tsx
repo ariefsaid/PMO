@@ -266,7 +266,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           )}
         </RecordSection>}
 
-        {report.status === 'validated' && <SiteReportStock reportId={report.id} enabled={stockOn} />}
+        {report.status === 'validated' && <SiteReportStock reportId={report.id} workOrderId={report.work_order_id} enabled={stockOn} />}
 
         <RecordSection title={t('equipment.title', 'Equipment hours')} data-testid="dsr-equipment"
           actions={editable ? <Link to="/equipment" className="text-primary-text hover:underline">{t('equipment.add', 'Add usage')}</Link> : undefined}>

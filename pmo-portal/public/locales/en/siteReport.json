@@ -204,7 +204,8 @@
       "not_stocked": "Not tracked",
       "failed": "Refused",
       "pending": "Pending"
-    }
+    },
+    "setLocation": "Set the site location on the work order"
   },
   "title": "Site reports",
   "toast": {
