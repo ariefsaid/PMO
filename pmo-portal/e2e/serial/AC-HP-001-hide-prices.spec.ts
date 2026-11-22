@@ -10,16 +10,21 @@ import { ORG_ID, need, serviceClient } from '../support/jobFixtures';
  */
 test.setTimeout(240_000);
 
-async function setHidePrices(on: boolean): Promise<boolean> {
+async function readHidePrices(): Promise<boolean> {
   const admin = serviceClient('AC-HP-001');
   const current = need('read the hide prices setting', await admin.from('organizations').select('hide_prices_from_requesters').eq('id', ORG_ID).single());
-  need('set the hide prices setting', await admin.from('organizations').update({ hide_prices_from_requesters: on }).eq('id', ORG_ID));
   return current.hide_prices_from_requesters as boolean;
 }
 
+async function setHidePrices(on: boolean): Promise<void> {
+  const admin = serviceClient('AC-HP-001');
+  need('set the hide prices setting', await admin.from('organizations').update({ hide_prices_from_requesters: on }).eq('id', ORG_ID).select('id').single());
+}
+
 test('AC-HP-001: a requester sees no prices on the purchase list; Finance does', async ({ browser }) => {
-  const previous = await setHidePrices(true);
+  const previous = await readHidePrices();
   try {
+    await setHidePrices(true);
     const finance = await browser.newPage();
     await pinEnglishLocale(finance);
     await signIn(finance, 'finance@acme.test');
