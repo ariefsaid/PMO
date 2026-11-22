@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
+vi.mock('@/src/components/my/MyDeliveries', () => ({ MyDeliveries: () => null }));
 import ExecutiveDashboard from './ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 import { BahasaProvider } from '@/test/bahasa';
@@ -762,7 +763,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
 
   it('All approvals opens the approvals destination from the overview waits card', async () => {
     needsState.approvals = [{
-      kind: 'timesheet', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
+      kind: 'timesheets', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
       row: { week_start_date: '2026-10-19', owner: { full_name: 'Team member' } },
     }];
     renderPage();
@@ -773,7 +774,7 @@ describe('company home — Overview layout (the default: one page, charts carry 
 
   it('the finding line approvals clause opens approvals', async () => {
     needsState.approvals = [{
-      kind: 'timesheet', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
+      kind: 'timesheets', key: 'approval-1', createdAt: '2026-10-25T00:00:00Z',
       row: { week_start_date: '2026-10-19', owner: { full_name: 'Team member' } },
     }];
     renderPage();

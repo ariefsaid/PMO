@@ -22,6 +22,10 @@ select plan(32);
 insert into organizations (id, name) values
   ('26960000-0000-0000-0000-000000000001', 'PLP Org A'),
   ('26960000-0000-0000-0000-000000000002', 'PLP Org B');
+-- Line planning is on by default now, with starter categories. This file proves the OFF refusals and the first turn-on seeding,
+-- so setup puts both organisations back to off with no categories.
+update organizations set purchase_line_planning = false where id in ('26960000-0000-0000-0000-000000000001','26960000-0000-0000-0000-000000000002');
+delete from purchase_line_categories where org_id in ('26960000-0000-0000-0000-000000000001','26960000-0000-0000-0000-000000000002');
 insert into auth.users (id, email) values
   ('26960000-0000-0000-0000-0000000000a1', 'plp-admin-a@example.com'),
   ('26960000-0000-0000-0000-0000000000a2', 'plp-req@example.com'),
@@ -42,9 +46,9 @@ insert into procurement_items (id, org_id, procurement_id, name, quantity, rate)
   ('26960000-0000-0000-0000-000000000020', '26960000-0000-0000-0000-000000000001', '26960000-0000-0000-0000-000000000010', 'Draft line', 1, 10),
   ('26960000-0000-0000-0000-000000000021', '26960000-0000-0000-0000-000000000001', '26960000-0000-0000-0000-000000000011', 'Ordered line', 1, 10);
 
--- AC-PLP-004: OFF is the default; every path refuses a value.
+-- AC-PLP-004: with the setting OFF every path refuses a value.
 select is((select purchase_line_planning from organizations where id = '26960000-0000-0000-0000-000000000001'), false,
-  'AC-PLP-004 the setting is OFF by default');
+  'AC-PLP-004 the setting reads OFF once switched off');
 select throws_ok($$insert into procurement_items (org_id, procurement_id, name, needed_by) values
   ('26960000-0000-0000-0000-000000000001', '26960000-0000-0000-0000-000000000010', 'x', current_date)$$, '42501', null,
   'AC-PLP-004 a direct insert with a date is refused while OFF');

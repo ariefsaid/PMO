@@ -7,7 +7,7 @@ import { useCandidateMutations } from '@/src/hooks/useWorkOrderCandidates';
 import { repositories } from '@/src/lib/repositories';
 import type { AssessmentStatus } from '@/src/lib/candidateAssessment';
 import type { CandidateItem, WorkOrderCandidate } from '@/src/lib/db/workOrderCandidates';
-import { candidateErrorText } from './candidateErrors';
+import { refusalLine, useRefusalText } from '@/src/lib/refusals';
 
 /**
  * #2595 (FR-CWO-003/004/005): one candidate's assessment checklist: each item has an owner, a target date, a status, a note
@@ -24,6 +24,7 @@ export const CandidateChecklist: React.FC<{
   projectId: string;
 }> = ({ candidate, canEdit, today, projectId }) => {
   const { t } = useTranslation('project');
+  const refusal = useRefusalText();
   const { toast } = useToast();
   const m = useCandidateMutations(projectId);
   const profiles = useAssignableProfiles({ enabled: canEdit });
@@ -37,7 +38,7 @@ export const CandidateChecklist: React.FC<{
     not_applicable: t('projectDetail.candidates.status.notApplicable', 'Not applicable'),
   };
   const run = async (work: () => Promise<unknown>) => {
-    try { await work(); } catch (err) { toast(candidateErrorText(err, t), undefined, 'warning'); }
+    try { await work(); } catch (err) { toast(refusalLine(refusal(err)), undefined, 'warning'); }
   };
 
   if (candidate.items.length === 0 && !editable) {
@@ -80,6 +81,7 @@ const ItemRow: React.FC<{
   onRemoveProof: (proofId: string) => Promise<void>;
 }> = ({ item, editable, today, statusLabel, owners, onPatch, onUpload, onRemoveProof }) => {
   const { t } = useTranslation('project');
+  const refusal = useRefusalText();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [note, setNote] = useState(item.note ?? '');
@@ -89,7 +91,7 @@ const ItemRow: React.FC<{
 
   const openProof = async (path: string) => {
     try { window.open(await repositories.workOrderCandidate.proofUrl(path), '_blank', 'noopener'); }
-    catch (err) { toast(candidateErrorText(err, t), undefined, 'warning'); }
+    catch (err) { toast(refusalLine(refusal(err)), undefined, 'warning'); }
   };
 
   return (

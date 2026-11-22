@@ -12,7 +12,7 @@ import {
 } from '@/src/components/ui';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useMeetingMutations } from '@/src/hooks/useMeetings';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { upgradeNotes, type NoteBlock } from '@/src/lib/meetingNotes';
 import type { MinutesEditorHandle } from '@/src/components/meetings/MinutesEditor';
 import { MinutesEditor } from '@/src/components/meetings/minutesEditorChunk';
@@ -88,7 +88,7 @@ const MeetingMinutes = React.forwardRef<MeetingMinutesHandle, MeetingMinutesProp
       toast(t('meetingDetail.toast.minutesSaved', 'Minutes saved'), meeting.title, 'success');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
-      setSaveError(detail ? `${headline}. ${detail}` : headline);
+      setSaveError(detail ? joinSentences(headline, detail) : headline);
       toast(headline, detail, 'warning');
     }
   };

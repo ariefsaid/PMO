@@ -120,6 +120,9 @@ const ALLOWLIST = {
   'pmo-portal/src/lib/db/workOrderBilling.ts :: sales_invoices #1': 'bounded: .in(id) over the listed work orders / invoices',
   'pmo-portal/src/lib/db/workOrderBilling.ts :: projects #1': 'bounded: .in(id) over the listed work orders / invoices',
   'pmo-portal/src/lib/db/workOrderBilling.ts :: work_orders #1': 'bounded: .in(id) over the listed work orders / invoices',
+  'pmo-portal/src/lib/db/emailNotifications.ts :: email_event_settings #1': 'bounded: four event keys by CHECK (migration 1220), one row per key per org',
+  'pmo-portal/src/lib/db/paymentChannels.ts :: procurements #1': 'bounded: .in(id) over the request ids already in hand',
+  'pmo-portal/src/lib/db/scheduledReports.ts :: profiles #1': 'bounded: org members (users), well under 1000; revisit past ~1000 users',
 };
 
 function selfTest() {

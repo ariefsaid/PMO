@@ -7,11 +7,13 @@ import { ToastProvider } from '@/src/components/ui';
 import i18next from 'i18next';
 import stockEn from '@/public/locales/en/stock.json';
 import stockId from '@/public/locales/id/stock.json';
+import refusalsEn from '@/public/locales/en/refusals.json';
+import refusalsId from '@/public/locales/id/refusals.json';
 
 const h = vi.hoisted(() => ({ enabled: true, role: 'Engineer', real: 'Engineer', post: vi.fn(), navigate: vi.fn() }));
 vi.mock('react-router', async (orig) => ({ ...(await orig<typeof import('react-router')>()), useNavigate: () => h.navigate }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.enabled }) }));
 vi.mock('@/src/hooks/useStockWorkOrderTransfer', () => ({
-  useWoTransfersEnabled: () => h.enabled,
   useWoTransferRefresh: () => async () => [],
   useProjectWorkOrdersForStock: (p?: string) => ({ data: p ? [
     { id: 'wa', wo_number: 'WO-1', title: 'Slab', status: 'Issued' }, { id: 'wb', wo_number: 'WO-2', title: 'Wall', status: 'Issued' }, { id: 'wc', wo_number: 'WO-3', title: 'Old', status: 'Cancelled' }] : [] }),
@@ -95,8 +97,8 @@ describe('StockWorkOrderTransfer (AC-WOT-016, 017, 019)', () => {
     const id = keys(stockId.workOrderTransfer as Record<string, unknown>).sort();
     expect(id).toEqual(en);
     for (const code of ['STK_WOT_OFF', 'STK_WOT_EXCEEDS', 'STK_WOT_PROJECT', 'STK_WOT_LOCATION', 'STK_WOT_INCOMPLETE', 'STK_WOT_SYSTEM']) {
-      expect((stockEn.errors as Record<string, string>)[code]).toBeTruthy();
-      expect((stockId.errors as Record<string, string>)[code]).toBeTruthy();
+      expect((refusalsEn as Record<string, string>)[code]).toBeTruthy();
+      expect((refusalsId as Record<string, string>)[code]).toBeTruthy();
     }
   });
 });

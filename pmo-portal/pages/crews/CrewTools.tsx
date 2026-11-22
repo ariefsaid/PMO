@@ -16,7 +16,7 @@ import { canReport, summariseLine, type ToolReport, type ToolReportKind, type To
 import { FileInput } from '@/src/components/ui/FormFields';
 import { formatDay } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
-import { crewToolErrorMessage } from './crewToolErrors';
+import { useCrewToolErrorText } from './crewErrors';
 
 const asReport = (r: ToolReportRow): ToolReport => ({ id: r.id, kind: r.kind, qty: r.qty, status: r.status, due_on: r.due_on });
 
@@ -25,6 +25,7 @@ const ReportSheet: React.FC<{ line: ToolLineRow; reportId: string; onSubmitted: 
   line, reportId, onSubmitted, onClose,
 }) => {
   const { t } = useTranslation('crewTools');
+  const writeError = useCrewToolErrorText();
   const { toast } = useToast();
   const { report } = useToolMutations();
   const [kind, setKind] = useState<ToolReportKind>('damaged');
@@ -47,7 +48,7 @@ const ReportSheet: React.FC<{ line: ToolLineRow; reportId: string; onSubmitted: 
         onSubmitted();
         toast(t('crewTools:reported', 'Reported. The equipment coordinator has a task.'), undefined, 'success');
         onClose();
-      } catch (err) { setProblem(crewToolErrorMessage(t, err)); }
+      } catch (err) { setProblem(writeError(err)); }
     })();
   };
   return (
@@ -75,6 +76,7 @@ const ReportSheet: React.FC<{ line: ToolLineRow; reportId: string; onSubmitted: 
 /** Add or edit a tool line (FR-CTR-001/003). */
 const LineModal: React.FC<{ crewId: string; line: ToolLineRow | null; onClose: () => void }> = ({ crewId, line, onClose }) => {
   const { t } = useTranslation('crewTools');
+  const writeError = useCrewToolErrorText();
   const { toast } = useToast();
   const crews = useCrews();
   const { addLine, updateLine } = useToolMutations();
@@ -97,7 +99,7 @@ const LineModal: React.FC<{ crewId: string; line: ToolLineRow | null; onClose: (
         else await addLine.mutateAsync(input);
         toast(line ? t('crewTools:lineSaved', 'Tool saved') : t('crewTools:lineAdded', 'Tool added'), undefined, 'success');
         onClose();
-      } catch (err) { setProblem(crewToolErrorMessage(t, err)); }
+      } catch (err) { setProblem(writeError(err)); }
     })();
   };
   return (
@@ -123,6 +125,7 @@ const LineModal: React.FC<{ crewId: string; line: ToolLineRow | null; onClose: (
 /** Close a report with its resolution; this is also what sets the task Done (FR-CTR-014). */
 const CloseModal: React.FC<{ report: ToolReportRow; onClose: () => void }> = ({ report, onClose }) => {
   const { t } = useTranslation('crewTools');
+  const writeError = useCrewToolErrorText();
   const { toast } = useToast();
   const { close } = useToolMutations();
   const [resolution, setResolution] = useState<ToolResolution>('replaced');
@@ -140,7 +143,7 @@ const CloseModal: React.FC<{ report: ToolReportRow; onClose: () => void }> = ({ 
         await close.mutateAsync({ reportId: report.id, resolution });
         toast(t('crewTools:closed', 'Report closed'), undefined, 'success');
         onClose();
-      } catch (err) { setProblem(crewToolErrorMessage(t, err)); }
+      } catch (err) { setProblem(writeError(err)); }
     })();
   };
   return (
@@ -160,6 +163,7 @@ const CloseModal: React.FC<{ report: ToolReportRow; onClose: () => void }> = ({ 
 /** A crew manager corrects the kind or quantity of an open report, with a reason (FR-CTR-010). */
 const CorrectModal: React.FC<{ report: ToolReportRow; onClose: () => void }> = ({ report, onClose }) => {
   const { t } = useTranslation('crewTools');
+  const writeError = useCrewToolErrorText();
   const { toast } = useToast();
   const { correct } = useToolMutations();
   const [kind, setKind] = useState<ToolReportKind>(report.kind);
@@ -175,7 +179,7 @@ const CorrectModal: React.FC<{ report: ToolReportRow; onClose: () => void }> = (
         await correct.mutateAsync({ reportId: report.id, kind, qty: n, reason: reason.trim() });
         toast(t('crewTools:corrected', 'Report corrected'), undefined, 'success');
         onClose();
-      } catch (err) { setProblem(crewToolErrorMessage(t, err)); }
+      } catch (err) { setProblem(writeError(err)); }
     })();
   };
   return (
@@ -196,6 +200,7 @@ const CorrectModal: React.FC<{ report: ToolReportRow; onClose: () => void }> = (
 /** The equipment coordinator and the task's due days (FR-CTR-012): Admin and Project Manager. */
 const SettingsCard: React.FC = () => {
   const { t } = useTranslation('crewTools');
+  const writeError = useCrewToolErrorText();
   const { toast } = useToast();
   const settings = useToolSettings();
   const users = useUsers();
@@ -212,7 +217,7 @@ const SettingsCard: React.FC = () => {
         await setSettings.mutateAsync({ coordinatorId: coordValue || null, dueDays: Number(daysValue) });
         setCoordinator(null); setDays(null);
         toast(t('crewTools:settingsSaved', 'Coordinator saved'), undefined, 'success');
-      } catch (err) { setProblem(crewToolErrorMessage(t, err)); }
+      } catch (err) { setProblem(writeError(err)); }
     })();
   };
   return (
@@ -261,6 +266,7 @@ const ReportPhotos: React.FC<{ reportId: string }> = ({ reportId }) => {
 /** Crews → Tools: each crew's counted hand tools, the report sheet and the crew's open reports (#2581). */
 export const CrewTools: React.FC = () => {
   const { t } = useTranslation('crewTools');
+  const writeError = useCrewToolErrorText();
   const { toast } = useToast();
   const may = usePermission();
   const { currentUser } = useAuth();
@@ -312,7 +318,7 @@ export const CrewTools: React.FC = () => {
       try {
         await updateLine.mutateAsync({ id: l.id, patch: { archived_at: new Date().toISOString() } });
         toast(t('crewTools:lineArchived', 'Tool archived'), undefined, 'success');
-      } catch (err) { setProblem(crewToolErrorMessage(t, err)); }
+      } catch (err) { setProblem(writeError(err)); }
     })();
   };
 

@@ -1,42 +1,36 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/src/auth/useAuth';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { CertificateFilters, SetRateInput, RecordBackchargeInput, BillCertificateInput } from '@/src/lib/db/subcontractCertificates';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /**
  * Subcontractor progress certificates (#2584) over the repository seam (ADR-0017). Keys carry org_id (tenant scope).
  * Every write invalidates every certificate read: a transition changes the list, the view and the PO position.
  */
 const ROOT = 'subcontract-certificates';
-const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 
 export function useCertificates(filters: CertificateFilters) {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [ROOT, orgId, 'list', filters.status ?? '', filters.offset ?? 0], queryFn: () => repositories.subcontractCertificates.list(filters), enabled: Boolean(orgId) });
+  return useOrgQuery([ROOT, 'list', filters.status ?? '', filters.offset ?? 0], () => repositories.subcontractCertificates.list(filters));
 }
 
 export function useCertificateView(id: string | undefined) {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [ROOT, orgId, 'view', id], queryFn: () => repositories.subcontractCertificates.view(id as string), enabled: Boolean(orgId && id) });
+  return useOrgQuery([ROOT, 'view', id], () => repositories.subcontractCertificates.view(id as string), { enabled: Boolean(id) });
 }
 
 export function useSubcontractPos() {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [ROOT, orgId, 'pos'], queryFn: () => repositories.subcontractCertificates.subcontractPos(), enabled: Boolean(orgId) });
+  return useOrgQuery([ROOT, 'pos'], () => repositories.subcontractCertificates.subcontractPos());
 }
 
 export function useOpenBackcharges(vendorId: string | undefined, projectId: string | undefined) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: [ROOT, orgId, 'backcharges', vendorId, projectId],
-    queryFn: () => repositories.subcontractCertificates.openBackcharges(vendorId as string, projectId as string),
-    enabled: Boolean(orgId && vendorId && projectId),
-  });
+  return useOrgQuery(
+    [ROOT, 'backcharges', vendorId, projectId],
+    () => repositories.subcontractCertificates.openBackcharges(vendorId as string, projectId as string),
+    { enabled: Boolean(vendorId && projectId) },
+  );
 }
 
 export function useRateLines(vendorId?: string) {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [ROOT, orgId, 'rates', vendorId ?? ''], queryFn: () => repositories.subcontractCertificates.rateLines(vendorId), enabled: Boolean(orgId) });
+  return useOrgQuery([ROOT, 'rates', vendorId ?? ''], () => repositories.subcontractCertificates.rateLines(vendorId));
 }
 
 export function useCertificateMutations() {

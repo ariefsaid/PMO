@@ -7,6 +7,8 @@ select plan(14);
 insert into organizations (id, name, default_currency) values
   ('26730000-0000-0000-0000-00000000000a', 'Idle Cost Org', 'IDR'),
   ('26730000-0000-0000-0000-00000000000b', 'Other Idle Org', 'IDR');
+-- these features are on by default now (with starter rows); this file proves the off state, so setup clears them as an explicit step
+delete from idle_cost_settings where org_id in ('26730000-0000-0000-0000-00000000000a', '26730000-0000-0000-0000-00000000000b');
 insert into auth.users (id, email) values
   ('26730000-0000-0000-0000-0000000000a1', 'ic-fin@example.com'),
   ('26730000-0000-0000-0000-0000000000a2', 'ic-pm@example.com'),

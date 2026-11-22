@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-const h = vi.hoisted(() => ({ reset: vi.fn(), mutate: vi.fn(), proofUrl: vi.fn(), unproven: false }));
+const h = vi.hoisted(() => ({ reset: vi.fn(), mutate: vi.fn(), proofUrl: vi.fn(), unproven: false, diff: '500.00' }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({ useRentalCheck: () => ({
-  data: { rental_amount: '30000.00', deduction: '3000.00', expected_amount: '27000.00', difference: '500.00', currency: 'IDR', unproven_days: h.unproven ? ['2026-09-22'] : [], included_unproven_reason: null,
+  data: { rental_amount: '30000.00', deduction: '3000.00', expected_amount: '27000.00', difference: h.diff, currency: 'IDR', unproven_days: h.unproven ? ['2026-09-22'] : [], included_unproven_reason: null,
     days: [{ date: '2026-09-21', status: 'broken', proven: true, deducted: true, proofs: [{ id: 'p1', file_name: 'ticket.pdf', file_path: 'org/a/p/ticket.pdf' }] }] },
   mutateAsync: h.mutate, reset: h.reset, isPending: false,
 }) }));
@@ -13,10 +13,27 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { equipmentAvailability
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import RentalInvoiceCheck from './RentalInvoiceCheck';
 
-beforeEach(() => { vi.clearAllMocks(); h.unproven = false; h.proofUrl.mockResolvedValue('https://example.test/proof'); h.mutate.mockResolvedValue(undefined); });
+beforeEach(() => { vi.clearAllMocks(); h.unproven = false; h.diff = '500.00'; h.proofUrl.mockResolvedValue('https://example.test/proof'); h.mutate.mockResolvedValue(undefined); });
 const renderCheck = () => render(<RentalInvoiceCheck assets={[{ id: 'a', code: 'EQU-1', name: 'Machine' }]} today="2026-09-30" monthFrom="2026-09-01" statusLabel={() => 'Broken'} />);
 
 describe('rental invoice check', () => {
+  it('AC-EQM-008 says under-billed in words when the invoice is below the expected amount', () => {
+    h.diff = '-1250.00';
+    renderCheck();
+    expect(screen.getByText('Under-billed by IDR 1,250')).toBeInTheDocument();
+    expect(screen.queryByText(/Invoice minus expected/)).not.toBeInTheDocument();
+  });
+  it('AC-EQM-008 says the invoice matches when the difference is zero', () => {
+    h.diff = '0.00';
+    renderCheck();
+    expect(screen.getByText('The invoice matches the expected amount')).toBeInTheDocument();
+  });
+  it('AC-EQM-005 a reader who may not include unproven days is told who can, and gets no reason box', () => {
+    h.unproven = true;
+    render(<RentalInvoiceCheck assets={[{ id: 'a', code: 'EQU-1', name: 'Machine' }]} today="2026-09-30" monthFrom="2026-09-01" statusLabel={() => 'Broken'} canIncludeUnproven={false} />);
+    expect(screen.getByText(/Only an Admin or Finance user can include them/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Reason to include unproven days')).not.toBeInTheDocument();
+  });
   it('explains when the current equipment page has no rented assets', () => {
     render(<RentalInvoiceCheck assets={[]} today="2026-09-30" monthFrom="2026-09-01" statusLabel={() => 'Broken'} />);
     expect(screen.getByText('No rented equipment on this page')).toBeInTheDocument();
@@ -26,7 +43,8 @@ describe('rental invoice check', () => {
     expect(screen.getByText('IDR 30,000')).toBeInTheDocument();
     expect(screen.getByText('IDR 3,000')).toBeInTheDocument();
     expect(screen.getByText('IDR 27,000')).toBeInTheDocument();
-    expect(screen.getByText('IDR 500')).toBeInTheDocument();
+    expect(screen.getByText('Over-billed by IDR 500')).toBeInTheDocument(); // invoice minus expected, said in words
+    expect(screen.getByText(/counted as rented/)).toBeInTheDocument();
     expect(screen.getByText(/21 Sep 2026/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Open ticket.pdf' }));
     expect(await screen.findByRole('link', { name: 'ticket.pdf' })).toHaveAttribute('href', 'https://example.test/proof');

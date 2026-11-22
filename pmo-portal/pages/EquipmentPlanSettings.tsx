@@ -5,14 +5,14 @@ import { Button, Checkbox, ListState, RecordSection, RecordStack, SelectField, T
 import { BackBar } from '@/src/components/shell';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { usePermission } from '@/src/auth/usePermission';
-import { usePlanRefusalText } from '@/src/hooks/usePlanRefusalText';
+import { useRefusalLine } from '@/src/lib/refusals';
 import { useEquipmentPlanSettings, usePlanCategories, usePlanSettingsMutations } from '@/src/hooks/useEquipmentPlans';
 import { type ApprovalStep, type PlanCategory } from '@/src/lib/repositories/equipmentPlans';
 
 const CategoryRow: React.FC<{ category: PlanCategory | null; canManage: boolean; nextPosition: number }> = ({ category, canManage, nextPosition }) => {
   const { t } = useTranslation('equipmentPlans');
   const { toast } = useToast();
-  const refusal = usePlanRefusalText();
+  const refusal = useRefusalLine();
   const m = usePlanSettingsMutations();
   const [name, setName] = useState(category?.name ?? '');
   const [nameId, setNameId] = useState(category?.nameId ?? '');
@@ -52,7 +52,7 @@ const CategoryRow: React.FC<{ category: PlanCategory | null; canManage: boolean;
 const SwitchSection: React.FC<{ canManage: boolean }> = ({ canManage }) => {
   const { t } = useTranslation('equipmentPlans');
   const { toast } = useToast();
-  const refusal = usePlanRefusalText();
+  const refusal = useRefusalLine();
   const settings = useEquipmentPlanSettings();
   const m = usePlanSettingsMutations();
   const [draft, setDraft] = useState<{ enabled?: boolean; step?: ApprovalStep; self?: boolean }>({});

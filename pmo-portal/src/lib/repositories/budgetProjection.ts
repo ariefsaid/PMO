@@ -12,6 +12,7 @@
  * directly by its consumers, the same seam-over-the-DAL shape as `revenueDisplay.ts`).
  */
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from '@/src/lib/db/nullableArg';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 import { retryBudgetPush, type ActivateVersionResult } from '@/src/lib/db/budgets';
@@ -290,7 +291,7 @@ export async function fetchBudgetComparison(
 ): Promise<BudgetComparisonRow[]> {
   const { data, error } = await supabase.rpc('get_budget_comparison', {
     p_project_id: projectId,
-    p_fiscal_year: fiscalYear,
+    p_fiscal_year: nullableArg(fiscalYear),
   });
   if (error) throw toAppError(error);
   const num = (value: number | string | null | undefined): number | null =>

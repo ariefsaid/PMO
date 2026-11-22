@@ -32,7 +32,7 @@ const LeaveRequestsPage: React.FC = () => {
       {settings.isPending && <ListState variant="loading" rows={3} />}
       {!settings.isPending && !enabled && (
         <p className="text-sm text-muted-foreground">
-          {t('crews:leave.off', 'Leave requests are not switched on for your organisation.')}{' '}
+          {t('crews:leave.off', 'Leave requests are turned off for your organisation. An Admin can turn them on under Modules.')}{' '}
           {isAdmin && <Link className="text-primary-text hover:underline" to="/leave?view=settings">{t('crews:leave.openSettings', 'Open leave settings')}</Link>}
         </p>
       )}

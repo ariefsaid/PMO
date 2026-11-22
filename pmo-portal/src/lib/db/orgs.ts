@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import type { Json } from '@/src/lib/supabase/database.types';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
@@ -386,7 +387,7 @@ export async function setOrgFiscalYearStartMonth(month: number | null): Promise<
   if (month !== null && !(Number.isInteger(month) && month >= 1 && month <= 12)) {
     throw new AppError('The fiscal year start month must be 1 to 12.', '22023');
   }
-  const { error } = await supabase.rpc('set_org_fiscal_year_start_month', { p_month: month });
+  const { error } = await supabase.rpc('set_org_fiscal_year_start_month', { p_month: nullableArg(month) });
   if (error) throw new AppError(error.message, error.code);
 }
 

@@ -27,7 +27,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   const admin = await userClient('admin@acme.test');
   await admin.rpc('set_equipment_plan_settings', { p_enabled: false, p_approval_step: 'spend_approvers', p_allow_self_approval: false });
-  await admin.rpc('set_purchase_types_enabled', { p_enabled: false });
+  // Purchase types stay on: they are on for every organisation (#2746).
 });
 
 const chooseProject = async (page: import('@playwright/test').Page) => {

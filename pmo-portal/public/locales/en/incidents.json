@@ -180,7 +180,11 @@
     "durationDays": "{{days}} days",
     "durationHours": "{{count}} hrs",
     "durationMinutes": "{{count}} mins",
-    "disabledMessage": "The closing-time report is not enabled for this organisation. An administrator can enable it in Administration."
+    "disabledMessage": "The closing-time report is not enabled for this organisation. An administrator can enable it in Administration.",
+    "notLoaded": {
+      "title": "The report cannot be shown",
+      "sub": "Your role cannot view this report. Ask an administrator for access."
+    }
   },
   "notification": {
     "overdue": "Issue is overdue"
@@ -206,5 +210,18 @@
     "placeholder": "Why it happened, apart from the visible blocker.",
     "save": "Save",
     "cancel": "Cancel"
+  },
+  "nextSteps": {
+    "title": "What happens next",
+    "inCharge": "Person in charge: {{name}}.",
+    "nobody": "Nobody is in charge yet. The project manager picks the person in charge.",
+    "next": "Next: {{action}}.",
+    "nextOpen": "Next: the person in charge starts looking into it.",
+    "nextInvestigating": "Next: the person in charge fixes it and closes it.",
+    "whoCloses": "{{roles}} can close this issue, with proof.",
+    "rolePm": "Project Manager",
+    "roleExecutive": "Executive",
+    "roleAdmin": "Admin",
+    "and": "and"
   }
 }

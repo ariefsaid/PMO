@@ -30,7 +30,7 @@ amounts; `labour_cost_enabled(org)` (1250); labour cost Administration section (
 | 4 | DAL, repository, hook | `src/lib/db/idleCost.ts`, `src/lib/repositories/idleCost.ts`, `src/hooks/useIdleCost.ts` | vitest `idleCost.test.ts` |
 | 5 | Rollup (idle apart from direct cost) | `src/lib/workOrderPlanVsActual.ts` | AC-IHC-010 new cases in `workOrderPlanVsActual.test.ts` |
 | 6 | Idle block on work order and project view | `PlanVsActualSection.tsx` (+ small component `IdleCostBlock.tsx`), i18n en + id | AC-IHC-001, 010 vitest; no look-pinning |
-| 7 | Switch in Labour cost section | existing Labour cost Administration component, i18n | AC-IHC-011 vitest + `e2e/AC-IHC-011-idle-cost-switch.spec.ts` |
+| 7 | Idle cost on the work order (switch on by default, no card since #2746) | work order plan versus actual, i18n | AC-IHC-011 `e2e/serial/AC-IHC-011-idle-cost-switch.spec.ts` |
 | 8 | Glossary entry, screenshots (orchestrator runs), evidence path `docs/evidence/1215/2673/` | `docs/glossary.md` | n/a |
 
 Gates (builder): `npm run check:guards`, `npm run typecheck`, eslint on changed files, touched vitest files.

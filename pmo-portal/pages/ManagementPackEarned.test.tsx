@@ -6,7 +6,7 @@ import { rollupProject, type CostAmountLine, type PvaWorkOrder } from '@/src/lib
 /** #2733 AC-EBR-012 — the pack shows earned, billed, gap and margin on both bases from the project tab's own roll-up. */
 vi.unmock('@/pages/ManagementPackEarned'); // test/setup.ts stubs it for the pack suites
 const h = vi.hoisted(() => ({ setting: { data: true } as Record<string, unknown>, earned: {} as Record<string, unknown>, roll: [] as unknown[], role: 'Finance' }));
-vi.mock('@/src/hooks/useDisciplineProfit', () => ({ useDisciplineProfitEnabled: () => h.setting }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => h.setting }));
 vi.mock('@/src/hooks/useEarnedBilled', () => ({ usePackEarned: () => h.earned, usePackRollups: () => h.roll }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour' }] }) }));
 vi.mock('@/src/auth/usePermission', async () => {

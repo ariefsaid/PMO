@@ -12,11 +12,11 @@
 
 ## Requirements (EARS)
 - **FR-DEX-001** The system shall store person and equipment documents with type, number, issue date, expiry date, location note and attachment reference, scoped to the organisation.
-- **FR-DEX-002** While a document type is medical, the system shall store only a status (fit/unfit) and dates, and only Admin may read it.
+- **FR-DEX-002** While a document type is medical, the system shall store only a status (fit/unfit) and dates, and only Admin and the holders of the medical-documents capability (built-in HR roles, Administrator) may read it, in the app and in the expiry email.
 - **FR-DEX-003** When a document is within a configured threshold (default 30, 14, 7 days; 1–5 values per organisation), the daily run shall notify the person's manager and holders of the type's `notify_roles`, once per document, expiry date, threshold and recipient.
 - **FR-DEX-004** When the run is late, it shall send only the smallest threshold already crossed. Renewing (a new expiry date) restarts the sequence. Expired documents are not warned again.
 - **FR-DEX-005** The expiry list shall show every unarchived document expiring within N days (default 30, max 365), including already-expired ones, honouring the caller's read rights.
-- **FR-DEX-006** Admin keeps all documents, types, people and the warning days; a Project Manager keeps equipment documents. A manager reads their reports' non-medical documents. Server-side RLS and column grants enforce this; `is_medical` is stamped by trigger.
+- **FR-DEX-006** Admin keeps all documents, types, people and the warning days; a Project Manager keeps equipment documents. A manager reads their reports' non-medical documents. A holder of the people-documents capability reads, adds and renews every person's non-medical documents and reads the person list. Server-side RLS and column grants enforce this; `is_medical` is stamped by trigger.
 
 ## Acceptance criteria
 - **AC-DEX-001** Given a new type with no recipient list, then person types default to Admin and equipment types to Admin + Project Manager. *(pgTAP)*

@@ -19,7 +19,7 @@ const renderCard = () => render(
 );
 
 beforeEach(() => {
-  h.settings = { data: { enabled: false, bands: { low: '0.90', high: '1.10' } }, isError: false, refetch: vi.fn() };
+  h.settings = { data: { enabled: true, bands: { low: '0.90', high: '1.10' } }, isError: false, refetch: vi.fn() };
   h.save.mockReset(); h.save.mockResolvedValue(undefined); h.canManage = true;
 });
 afterEach(cleanup);
@@ -35,13 +35,13 @@ describe('AC-CSP-020 band validation', () => {
 });
 
 describe('OrgPerformanceIndices', () => {
-  it('shows the defaults, off, and saves the switch and bands', async () => {
+  it('shows the defaults, offers no switch (the panels are on for everyone, #2746), and saves the bands', async () => {
     renderCard();
+    expect(screen.queryByRole('checkbox')).toBeNull();
     expect((screen.getByLabelText(/Lower limit/) as HTMLInputElement).value).toBe('0.90');
     expect((screen.getByLabelText(/Upper limit/) as HTMLInputElement).value).toBe('1.10');
     const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
-    fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.change(screen.getByLabelText(/Lower limit/), { target: { value: '0.8' } });
     fireEvent.change(screen.getByLabelText(/Upper limit/), { target: { value: '1,25' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -49,7 +49,6 @@ describe('OrgPerformanceIndices', () => {
   });
   it('will not save an invalid band', () => {
     renderCard();
-    fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.change(screen.getByLabelText(/Lower limit/), { target: { value: '1.2' } });
     expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
   });

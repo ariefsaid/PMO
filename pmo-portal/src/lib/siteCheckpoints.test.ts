@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkpointState, startedOnTimeShare } from './siteCheckpoints';
+import { checkpointState } from './siteCheckpoints';
 
 const due = '2026-03-10T00:00:00.000Z';
 const at = (minutes: number) => new Date(Date.parse(due) + minutes * 60_000).toISOString();
@@ -17,14 +17,5 @@ describe('AC-STC-011 checkpoint state against due time plus grace', () => {
   });
   it('is pending while unrecorded inside the grace', () => {
     expect(checkpointState(row(null), new Date(at(10)))).toBe('pending');
-  });
-});
-
-describe('started on time share', () => {
-  it('counts days, never averages minutes', () => {
-    expect(startedOnTimeShare([{ status: 'on_time' }, { status: 'late' }, { status: 'not_started' }])).toEqual({ days: 3, onTime: 1, share: 1 / 3 });
-  });
-  it('is zero days and zero share with no days', () => {
-    expect(startedOnTimeShare([])).toEqual({ days: 0, onTime: 0, share: 0 });
   });
 });

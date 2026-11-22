@@ -89,6 +89,11 @@ describe('StockCount', () => {
     expect(await screen.findByRole('button', { name: 'Save draft' })).toBeEnabled();
   });
 
+  it('JOB-1122-11 a new count says before saving that a Project Manager posts any difference, not the keeper', async () => {
+    renderAt('/stock/new/count', 'Engineer');
+    expect(await screen.findByTestId('stock-count-who-posts')).toHaveTextContent(/Project Manager or above posts it, not you/);
+  });
+
   it('C16 an opened draft says it is being edited, and a new sheet does not', async () => {
     renderAt('/stock/documents/d1/edit');
     expect(await screen.findByText(/Editing a saved draft: nothing changes in stock until you post it\./)).toBeInTheDocument();

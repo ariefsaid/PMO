@@ -1157,7 +1157,7 @@
     "projectNoun": "proyek",
     "allDone": "Semua langkah selesai",
     "allDoneHint": "Siap ditagihkan. Umur dihitung sejak langkah terakhir.",
-    "workOrder": "Work Order {{number}}",
+    "workOrder": "$t(common:terms.clientWorkOrder) {{number}}",
     "progress": "{{done}} dari {{total}} langkah",
     "holder": "Menunggu {{role}}",
     "notStarted": "Belum dimulai",
@@ -1168,7 +1168,7 @@
     "truncated": "Menampilkan {{count}} yang tertua. Saring menurut proyek untuk melihat sisanya.",
     "error": "Papan penagihan tidak dapat dimuat",
     "empty": "Tidak ada klaim untuk ditampilkan",
-    "emptySub": "Klaim muncul di sini setelah memiliki langkah penagihan.",
+    "emptySub": "Klaim muncul di sini setelah memiliki langkah penagihan. Buka klaim di tab Penagihan proyek, lalu tambahkan langkahnya.",
     "entryLink": "Papan penagihan"
   },
   "billingPlan": {
@@ -1193,8 +1193,8 @@
     "pick": "Pilih {{item}}",
     "pickProject": "Pilih semua",
     "unpickProject": "Hapus proyek",
-    "workOrder": "Work Order {{number}}",
-    "noWorkOrderNumber": "Work Order",
+    "workOrder": "$t(common:terms.clientWorkOrder) {{number}}",
+    "noWorkOrderNumber": "$t(common:terms.clientWorkOrder)",
     "moneyOnly": "Tanpa baris kontrak",
     "unclaimedQty": "{{qty}} {{unit}} diterima, belum diklaim",
     "overClaimed": "Klaim berlebih: ini akan melewati kuantitas kontrak",
@@ -1215,6 +1215,8 @@
       "monthTargetHelp": "Menggantikan target bawaan untuk bulan ini. Kosong memakai target bawaan.",
       "badAmount": "Masukkan jumlah nol atau lebih.",
       "reminderLegend": "Pengingat",
+      "reminderSave": "Simpan pengingat",
+      "reminderLoadError": "Gagal memuat pengaturan pengingat",
       "reminder": "Ingatkan saya tentang pekerjaan yang selesai tetapi belum diklaim",
       "reminderHelp": "Hanya informasi. Mati secara bawaan. Menahan klaim ke bulan depan bisa disengaja.",
       "afterDays": "Tandai setelah (hari)",
@@ -1228,5 +1230,5 @@
     "overCount_one": "{{count}} baris melewati batas hari",
     "overCount_other": "{{count}} baris melewati batas hari"
   },
-  "workOrderReference": "Work Order / SPK"
+  "workOrderReference": "$t(common:terms.clientWorkOrder)"
 }

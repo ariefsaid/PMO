@@ -11,12 +11,12 @@ import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import type { Role } from '@/src/auth/AuthContext';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
-import type { WorkOrderLists } from '@/src/hooks/useWorkOrderLists';
+import type { WorkOrderListEntry, WorkOrderListKind } from '@/src/lib/repositories/workOrderLists';
 
 
 
-const { listState, drawdownState, mutations, lineState, boqState, quantityMutations, listsState } = vi.hoisted(() => ({
-  listsState: { value: null as unknown },
+const { listState, drawdownState, mutations, lineState, boqState, quantityMutations, listRows } = vi.hoisted(() => ({
+  listRows: { areas: [] as WorkOrderListEntry[], groups: [] as WorkOrderListEntry[] },
   listState: {
     data: [] as unknown[],
     isPending: false,
@@ -43,6 +43,11 @@ const { listState, drawdownState, mutations, lineState, boqState, quantityMutati
 
 // #1457: the invoice-overdue figure is bounded by the org's business day (fixed here per test file).
 vi.mock('@/src/components/tasks/WorkOrderOpenTasks', () => ({ WorkOrderOpenTasks: () => null }));
+// C11: the real WorkOrderListsProvider loads the lists now; the read is fed from these rows (default none).
+vi.mock('@/src/lib/repositories/workOrderLists', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories/workOrderLists')>();
+  return { ...actual, workOrderListRepository: { ...actual.workOrderListRepository, list: async (kind: WorkOrderListKind) => (kind === 'area' ? listRows.areas : listRows.groups) } };
+});
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
   useFxOrgDay: () => ({ day: '2026-06-01', isPending: false, isError: false, retry: vi.fn() }),
 }));
@@ -90,15 +95,10 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
-vi.mock('@/src/hooks/useWorkOrderLists', () => ({ useWorkOrderLists: () => listsState.value }));
-vi.mock('@/src/components/WorkOrderListsProvider', () => ({ WorkOrderListsProvider: ({ children }: { children: React.ReactNode }) => children }));
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 
-const entry = (id: string, name: string, archived_at: string | null = null) => ({ id, code: id.toUpperCase(), name, archived_at });
-const NO_LISTS: WorkOrderLists = { areas: [], groups: [], liveAreas: [], liveGroups: [], hasLists: false };
-const withLists = (areas: ReturnType<typeof entry>[], groups: ReturnType<typeof entry>[]): WorkOrderLists => ({
-  areas, groups, liveAreas: areas.filter((a) => !a.archived_at), liveGroups: groups.filter((g) => !g.archived_at), hasLists: true,
-});
+const entry = (id: string, name: string, archived_at: string | null = null): WorkOrderListEntry => ({ id, code: id.toUpperCase(), name, archived_at });
 
 const row = (over: Partial<WorkOrderRow> = {}): WorkOrderRow =>
   ({
@@ -113,11 +113,11 @@ const row = (over: Partial<WorkOrderRow> = {}): WorkOrderRow =>
 const renderTab = (url = '/') => {
   realRole = 'Project Manager';
   return render(
-    <MemoryRouter initialEntries={[url]}>
+    <QueryClientTestProvider><MemoryRouter initialEntries={[url]}>
       <ToastProvider>
         <WorkOrdersTab projectId="p1" currency="USD" />
       </ToastProvider>
-    </MemoryRouter>,
+    </MemoryRouter></QueryClientTestProvider>,
   );
 };
 
@@ -132,26 +132,26 @@ beforeEach(() => {
   listState.data = ORDERS; listState.isPending = false; listState.isFetching = false; listState.isError = false;
   boqState.data = []; lineState.data = [];
   for (const m of Object.values(mutations)) { m.mutateAsync.mockReset(); m.mutateAsync.mockResolvedValue(undefined); }
-  listsState.value = NO_LISTS;
+  listRows.areas = []; listRows.groups = [];
 });
 
 describe('AC-WAG-005 an organisation with no lists sees the tab as before', () => {
-  it('AC-WAG-005 shows no Group by control, no area text and no pill on the Draft row', () => {
+  it('AC-WAG-005 shows no Group by control, no area text and no pill on the Draft row', async () => {
     renderTab();
+    await screen.findByTestId('customer-order-wo-2');
     expect(screen.queryByRole('combobox', { name: 'Group by' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('wo-area-wo-1')).not.toBeInTheDocument();
     expect(screen.queryByTestId('wo-group-none')).not.toBeInTheDocument();
-    expect(screen.getByTestId('customer-order-wo-2')).toBeInTheDocument();
   });
 });
 
 describe('AC-WAG-006 grouping', () => {
-  beforeEach(() => { listsState.value = withLists(AREAS, []); });
+  beforeEach(() => { listRows.areas = AREAS; listRows.groups = []; });
 
   it('AC-WAG-006 offers Group by Area only, grouped by area with counts and "No area" last; None restores the flat list', async () => {
     const user = userEvent.setup();
     renderTab();
-    const control = screen.getByRole('combobox', { name: 'Group by' });
+    const control = await screen.findByRole('combobox', { name: 'Group by' });
     expect(within(control).queryByRole('option', { name: 'Group' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('wo-group-a-n')).not.toBeInTheDocument();
 
@@ -167,17 +167,17 @@ describe('AC-WAG-006 grouping', () => {
     expect(screen.getByTestId('customer-order-wo-3')).toBeInTheDocument();
   });
 
-  it('AC-WAG-006 opens already grouped from the link (?groupBy=area)', () => {
+  it('AC-WAG-006 opens already grouped from the link (?groupBy=area)', async () => {
     renderTab('/?groupBy=area');
-    expect(screen.getByTestId('wo-group-a-s')).toBeInTheDocument();
+    expect(await screen.findByTestId('wo-group-a-s')).toBeInTheDocument();
   });
 });
 
 describe('AC-WAG-007 rows show their status and area', () => {
-  it('AC-WAG-007 a Draft row shows a status pill and its area; an issued card shows its area', () => {
-    listsState.value = withLists(AREAS, []);
+  it('AC-WAG-007 a Draft row shows a status pill and its area; an issued card shows its area', async () => {
+    listRows.areas = AREAS;
     renderTab();
-    const draftRow = screen.getByTestId('wo-area-wo-1').closest('li') as HTMLElement;
+    const draftRow = (await screen.findByTestId('wo-area-wo-1')).closest('li') as HTMLElement;
     expect(within(draftRow).getByText('Draft')).toBeInTheDocument();
     expect(screen.getByTestId('wo-area-wo-1')).toHaveTextContent('Area North');
     expect(screen.getByTestId('wo-area-wo-2')).toHaveTextContent('Area South');

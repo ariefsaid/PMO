@@ -80,21 +80,11 @@
     "archivedDiscipline": "Disiplin diarsipkan",
     "revenueNote": "Pendapatan adalah progres tervalidasi pada tarif kontrak.",
     "picker": {
+      "noneYet": "Belum ada disiplin. Admin menambahkannya di Disiplin biaya, dalam Pengaturan proyek.",
       "label": "Disiplin (untuk laba per disiplin)",
       "none": "Tanpa disiplin",
       "saved": "Disiplin disimpan",
       "error": "Disiplin tidak dapat disimpan"
-    },
-    "setting": {
-      "title": "Laba per disiplin",
-      "label": "Tampilkan pendapatan di samping biaya per disiplin",
-      "helper": "Menambah tabel pada bagian rencana vs aktual proyek dan kolom disiplin pada baris kontrak. Nonaktif secara default.",
-      "save": "Simpan",
-      "saved": "Pengaturan disimpan",
-      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
-      "loadError": "Pengaturan tidak dapat dimuat",
-      "on": "Aktif",
-      "off": "Nonaktif"
     }
   },
   "projectHours": "Jam proyek dan kontrak",
@@ -157,8 +147,8 @@
   },
   "performance": {
     "title": "Kinerja biaya dan jadwal",
-    "basis": "Nilai yang diperoleh adalah progres laporan harian yang telah divalidasi pada tarif kontrak. Nilai rencana berjalan lurus antara tanggal mulai dan selesai perintah kerja. Biaya aktual adalah biaya langsung yang tercatat pada perintah kerja.",
-    "projectBasis": "Perintah kerja yang diterbitkan atau ditutup, dijumlahkan. Nilai yang diperoleh adalah progres tervalidasi pada tarif kontrak; rencana linear menurut kalender.",
+    "basis": "Nilai yang diperoleh adalah progres laporan harian yang telah divalidasi pada tarif kontrak. Nilai rencana berjalan lurus antara tanggal mulai dan selesai $t(common:terms.clientWorkOrder). Biaya aktual adalah biaya langsung yang tercatat pada $t(common:terms.clientWorkOrder).",
+    "projectBasis": "$t(common:terms.clientWorkOrder) yang diterbitkan atau ditutup, dijumlahkan. Nilai yang diperoleh adalah progres tervalidasi pada tarif kontrak; rencana linear menurut kalender.",
     "asOf": "Per {{date}}",
     "cpi": "Indeks kinerja biaya",
     "spi": "Indeks kinerja jadwal",
@@ -198,17 +188,17 @@
       "acIncompleteUndated_one": "Biaya belum dapat dijumlahkan: 1 baris biaya tanpa tanggal",
       "acIncompleteUndated_other": "Biaya belum dapat dijumlahkan: {{count}} baris biaya tanpa tanggal",
       "notComparable": "Tidak dapat dibandingkan: sebagian biaya dalam mata uang lain",
-      "excluded": "Tidak ada angka untuk perintah kerja draf atau dibatalkan"
+      "excluded": "Tidak ada angka untuk $t(common:terms.clientWorkOrder) draf atau dibatalkan"
     },
     "unknown": "Tidak diketahui",
-    "counted": "{{included}} perintah kerja dihitung, {{excluded}} tidak disertakan karena angkanya belum lengkap atau belum diterbitkan atau ditutup",
-    "truncated": "500 perintah kerja pertama ditampilkan; {{count}} lainnya tidak disertakan.",
-    "nothing": "Belum ada yang tercatat untuk perintah kerja ini.",
+    "counted": "{{included}} $t(common:terms.clientWorkOrder) dihitung, {{excluded}} tidak disertakan karena angkanya belum lengkap atau belum diterbitkan atau ditutup",
+    "truncated": "500 $t(common:terms.clientWorkOrder) pertama ditampilkan; {{count}} lainnya tidak disertakan.",
+    "nothing": "Belum ada yang tercatat untuk $t(common:terms.clientWorkOrder) ini.",
     "loadError": "Tidak dapat memuat kinerja biaya dan jadwal",
     "retry": "Coba lagi",
-    "workOrders": "Per perintah kerja",
+    "workOrders": "Per $t(common:terms.clientWorkOrder)",
     "col": {
-      "workOrder": "Perintah kerja"
+      "workOrder": "$t(common:terms.clientWorkOrder)"
     }
   },
   "earnedBilled": {
@@ -217,7 +207,7 @@
     "note": "Dihasilkan adalah progres harian tervalidasi pada tarif kontrak. Ditagih adalah klaim dan invoice, tanpa pajak.",
     "packNote": "Dihasilkan adalah progres harian tervalidasi sampai saat ini; biaya dan nilai tagihan sama dengan tab proyek, sehingga keduanya cocok.",
     "col": {
-      "workOrder": "Perintah kerja",
+      "workOrder": "$t(common:terms.clientWorkOrder)",
       "project": "Proyek",
       "earned": "Dihasilkan",
       "billed": "Ditagih",
@@ -225,13 +215,13 @@
       "marginEarned": "Margin atas yang dihasilkan",
       "marginBilled": "Margin atas yang ditagih"
     },
-    "byWorkOrder": "Per perintah kerja",
+    "byWorkOrder": "Per $t(common:terms.clientWorkOrder)",
     "byDiscipline": "Per disiplin",
     "notItemised": "Tidak dirinci",
     "notAvailable": "Tidak tersedia",
-    "incompleteWorkOrders": "Belum lengkap: sebagian perintah kerja belum punya progres tervalidasi atau tarif",
-    "withoutProgress": "{{count}} dari {{total}} perintah kerja belum punya progres tervalidasi.",
-    "empty": "Belum ada perintah kerja berstatus Diterbitkan atau Ditutup.",
+    "incompleteWorkOrders": "Belum lengkap: sebagian $t(common:terms.clientWorkOrder) belum punya progres tervalidasi atau tarif",
+    "withoutProgress": "{{count}} dari {{total}} $t(common:terms.clientWorkOrder) belum punya progres tervalidasi.",
+    "empty": "Belum ada $t(common:terms.clientWorkOrder) berstatus Diterbitkan atau Ditutup.",
     "loadError": "Pendapatan yang dihasilkan dan ditagih tidak dapat dimuat"
   },
   "idle": {

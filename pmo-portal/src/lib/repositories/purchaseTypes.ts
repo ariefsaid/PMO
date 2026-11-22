@@ -5,8 +5,7 @@
 import * as dal from '@/src/lib/db/purchaseTypes';
 import { wrap } from './repositoryErrors';
 
-export type { PurchaseType, PurchaseTypeInput, RentalExtensionInput, RentalLink, PurchaseTypeRefusal } from '@/src/lib/db/purchaseTypes';
-export { purchaseTypeRefusal } from '@/src/lib/db/purchaseTypes';
+export type { PurchaseType, PurchaseTypeInput, RentalExtensionInput, RentalLink } from '@/src/lib/db/purchaseTypes';
 
 export const purchaseTypeRepository = {
   enabled: () => wrap(() => dal.getPurchaseTypesEnabled()),

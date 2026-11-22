@@ -1168,7 +1168,7 @@
     "truncated": "Showing the {{count}} oldest. Filter by project to see the rest.",
     "error": "The billing board could not be loaded",
     "empty": "No claims to show",
-    "emptySub": "Claims appear here once they have billing steps.",
+    "emptySub": "Claims appear here once they have billing steps. Open a claim on the project's Billing tab and add its steps.",
     "entryLink": "Billing board"
   },
   "billingPlan": {
@@ -1215,6 +1215,8 @@
       "monthTargetHelp": "Overrides the default for this month. Empty uses the default.",
       "badAmount": "Enter an amount of zero or more.",
       "reminderLegend": "Reminder",
+      "reminderSave": "Save reminder",
+      "reminderLoadError": "Couldn't load the reminder setting",
       "reminder": "Remind me about work that is done but not claimed",
       "reminderHelp": "Information only. Off by default. Holding a claim to next month can be deliberate.",
       "afterDays": "Flag after (days)",

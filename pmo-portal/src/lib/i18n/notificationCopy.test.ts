@@ -4,7 +4,7 @@ import { orgTermsPlugin } from './index';
 import { setOrgTerms } from './orgTerms';
 import en from '../../../public/locales/en/notifications.json';
 import id from '../../../public/locales/id/notifications.json';
-import { notificationBody, notificationTitle } from './notificationCopy';
+import { NOTIFICATION_TITLE_KEYS, notificationBody, notificationTitle } from './notificationCopy';
 
 describe('notification wording', () => {
   afterEach(() => setOrgTerms({}));
@@ -36,5 +36,63 @@ describe('notification wording', () => {
     expect(notificationBody({ body: 'old body', message_key: 'budgetPushFailed', message_params: { reason: 'Project {{name}}' } }, inst.t.bind(inst))).toBe('Job failed: Project {{name}}.');
     expect(notificationBody({ body: 'Project Phoenix', message_key: null, message_params: null }, inst.t.bind(inst))).toBe('Project Phoenix');
     expect(notificationBody({ body: 'Project Phoenix', message_key: 'unknown', message_params: {} }, inst.t.bind(inst))).toBe('Project Phoenix');
+  });
+  it('fix/walk-people item 9: the leave result reads in the reader\'s language, with the note when there is one', async () => {
+    const inst = i18next.createInstance();
+    await inst.use(orgTermsPlugin).init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+    const t = inst.t.bind(inst);
+    const params = { type: 'Sakit', from: '2026-12-01', to: '2026-12-03', note: 'Dokumen kurang' };
+    expect(notificationTitle({ title: 'Leave rejected', message_key: 'leaveRejected' }, t)).toBe('Cuti ditolak');
+    const body = notificationBody({ body: 'stored', message_key: 'leaveRejected', message_params: params }, t);
+    expect(body).toContain('ditolak');
+    expect(body).toContain('Sakit');
+    expect(body).toContain('Dokumen kurang');
+    expect(notificationBody({ body: 'stored', message_key: 'leaveApproved', message_params: { ...params, note: null } }, t)).toContain('disetujui');
+  });
+
+  describe('fix-waiting item 4: titles the database writes reach the reader in their language', () => {
+    it('fix1122 renders the four migrated titles in both languages and keeps legacy and dynamic matches', async () => {
+      const expectedTitles: Record<string, Record<string, string>> = {
+        en: {
+          'A crew member reports absent today': 'A crew member reports absent today',
+          'Your daily report was sent back': 'Your daily report was sent back',
+          'Your material request was approved': 'Your material request was approved',
+          'Your subcontract certificate was sent back': 'Your subcontract certificate was sent back',
+        },
+        id: {
+          'A crew member reports absent today': 'Ada anggota kru yang melaporkan tidak hadir hari ini',
+          'Your daily report was sent back': 'Laporan harian Anda dikembalikan',
+          'Your material request was approved': 'Permintaan material Anda disetujui',
+          'Your subcontract certificate was sent back': 'Sertifikat subkontraktor Anda dikembalikan',
+        },
+      };
+
+      for (const [lng, titles] of Object.entries(expectedTitles)) {
+        const inst = i18next.createInstance();
+        await inst.init({ lng, fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+        const t = inst.t.bind(inst);
+        for (const [title, expected] of Object.entries(titles)) {
+          expect(notificationTitle({ title, message_key: 'literal' }, t)).toBe(expected);
+        }
+        expect(notificationTitle({ title: 'Equipment down more than 2 days', message_key: 'literal' }, t)).toBe(
+          lng === 'id' ? 'Peralatan rusak lebih dari 2 hari' : 'Equipment down more than 2 days',
+        );
+      }
+    });
+
+    it('JOB-WAIT-4 shows every known database title in Bahasa Indonesia on a Bahasa organisation, and keeps an unknown one as stored', async () => {
+      const inst = i18next.createInstance();
+      await inst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+      const t = inst.t.bind(inst);
+      expect(notificationTitle({ title: 'Your material request was sent back', message_key: 'literal' }, t)).toBe('Permintaan material Anda dikembalikan');
+      expect(notificationTitle({ title: 'Your procurement was approved', message_key: 'literal' }, t)).toBe('Pengadaan Anda disetujui');
+      expect(notificationTitle({ title: 'Something written by a person', message_key: 'literal' }, t)).toBe('Something written by a person');
+    });
+    it('AC-WAIT-060 every title in the table has English and Bahasa text, so none can reach a Bahasa screen in English', () => {
+      for (const key of Object.values(NOTIFICATION_TITLE_KEYS)) {
+        expect((en as { title: Record<string, string> }).title[key], `en ${key}`).toBeTruthy();
+        expect((id as { title: Record<string, string> }).title[key], `id ${key}`).toBeTruthy();
+      }
+    });
   });
 });

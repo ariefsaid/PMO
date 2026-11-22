@@ -209,6 +209,36 @@ export async function listProjectWorkOrders(projectId: string): Promise<WorkOrde
   return attachIssueEligibility(rows);
 }
 
+/** A work order as the cross-project list shows it: no money, just what to find and open it by. */
+export interface WorkOrderListRow {
+  id: string;
+  wo_number: string | null;
+  title: string;
+  status: WorkOrderStatus;
+  project_id: string;
+  start_date: string | null;
+  end_date: string | null;
+  project_name: string | null;
+}
+
+/**
+ * Every work order the reader may see, across projects (the menu's front door). RLS scopes the rows — org_id is NEVER
+ * sent. Newest first; money is not selected, so a screen built on this cannot show it.
+ */
+export async function listAllWorkOrders(): Promise<WorkOrderListRow[]> {
+  type Raw = Omit<WorkOrderListRow, 'project_name'> & { created_at: string; project: { name: string } | null };
+  const rows = await fetchAllRowsByKeyset<Raw>(async (afterId, limit) => {
+    let q = supabase
+      .from('work_orders')
+      .select('id, wo_number, title, status, project_id, start_date, end_date, created_at, project:projects(name)')
+      .order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit) as unknown as PromiseLike<{ data: Raw[] | null; error: { message: string; code?: string } | null }>;
+  });
+  rows.sort((a, b) => b.created_at.localeCompare(a.created_at) || a.id.localeCompare(b.id));
+  return rows.map(({ project, created_at: _created, ...row }) => ({ ...row, project_name: project?.name ?? null }));
+}
+
 /** One work order by id, or null when not found / not readable. RLS scopes the row. */
 export async function getWorkOrder(id: string): Promise<WorkOrderRow | null> {
   const { data, error } = await supabase

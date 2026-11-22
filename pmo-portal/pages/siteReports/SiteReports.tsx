@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, PageHeader, SelectField, StatusPill } from '@/src/components/ui';
+import { ScheduleThisReport } from '@/src/components/emailNotifications/ScheduleThisReport';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
@@ -50,7 +51,12 @@ const SiteReports: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title={t('title', 'Site reports')}
-        action={mayEnter ? <Button variant="primary" onClick={() => setNewOpen(true)}>{t('newReport', 'New report')}</Button> : undefined}
+        action={(
+          <div className="flex flex-wrap items-center gap-2">
+            <ScheduleThisReport kind="daily_progress" />
+            {mayEnter ? <Button variant="primary" onClick={() => setNewOpen(true)}>{t('newReport', 'New report')}</Button> : null}
+          </div>
+        )}
       />
       <CrewsLink />
 

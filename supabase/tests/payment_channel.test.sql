@@ -8,6 +8,9 @@ select plan(53);
 insert into organizations (id, name, default_currency) values
   ('26980000-0000-0000-0000-00000000000a', 'PCH Org A', 'IDR'),
   ('26980000-0000-0000-0000-00000000000b', 'PCH Org B', 'IDR');
+-- these features are on by default now (with starter rows); this file proves the off state, so setup clears them as an explicit step
+delete from org_payment_channels where org_id in ('26980000-0000-0000-0000-00000000000a', '26980000-0000-0000-0000-00000000000b');
+delete from org_payment_channel_settings where org_id in ('26980000-0000-0000-0000-00000000000a', '26980000-0000-0000-0000-00000000000b');
 insert into auth.users (id, email) values
   ('26980000-0000-0000-0000-0000000000a1', 'pch-admin@example.com'),
   ('26980000-0000-0000-0000-0000000000a2', 'pch-fin@example.com'),

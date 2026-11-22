@@ -1,24 +1,17 @@
 import { useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { CategoryRole, DocumentCategory } from '@/src/lib/db/documentCategories';
-import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { viewableCategories } from '@/src/lib/documentCategories';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
-/** Org-scoped key (orgId first) so the cache never bleeds across tenants (defence in depth; RLS is the authority). */
+/** Org-scoped key so the cache never bleeds across tenants (defence in depth; RLS is the authority). */
 export const DOCUMENT_CATEGORIES_KEY = ['document-categories'] as const;
 
 /** The organisation's categories with their viewer roles (#2579). Any active member may read the list; the documents are what is gated. */
 export function useDocumentCategories() {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<DocumentCategory[]>({
-    queryKey: [...DOCUMENT_CATEGORIES_KEY, orgId],
-    queryFn: () => repositories.documentCategory.list(),
-    enabled: Boolean(orgId),
-    staleTime: 60_000,
-  });
+  return useOrgQuery<DocumentCategory[]>([...DOCUMENT_CATEGORIES_KEY], () => repositories.documentCategory.list(), { staleness: 'live' });
 }
 
 /**

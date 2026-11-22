@@ -9,7 +9,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import {
   useAdminDocumentTypes, useDocumentTypeMutations, useDocumentWarningDays, useSetDocumentWarningDays,
 } from '@/src/hooks/useDocumentExpiry';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { NOTIFY_ROLES, parseWarningDays, type AdminDocumentTypeRow, type NotifyRole, type SubjectKind } from '@/src/lib/db/documentExpiry';
 
 interface TypeFormValues { name: string; applies_to: SubjectKind; is_medical: boolean; notify_roles: NotifyRole[] }
@@ -58,8 +58,8 @@ const TypeForm: React.FC<{ type?: AdminDocumentTypeRow; onClose: () => void }> =
         )}
         {!type && v.applies_to === 'person' && (
           <Checkbox checked={v.is_medical} onChange={(is_medical) => setV((c) => ({ ...c, is_medical }))}
-            label={t('documentTypes.medical', 'Medical document (status and date only, visible to Admin only)')}>
-            {t('documentTypes.medical', 'Medical document (status and date only, visible to Admin only)')}
+            label={t('documentTypes.medical', 'Medical document (status and date only, visible to Admin and HR)')}>
+            {t('documentTypes.medical', 'Medical document (status and date only, visible to Admin and HR)')}
           </Checkbox>
         )}
         <fieldset className="space-y-1">
@@ -132,7 +132,7 @@ const DocumentTypes: React.FC = () => {
     if (!archiving) return;
     setProblem(null);
     try { await archive.mutateAsync(archiving.id); toast(t('documentTypes.archived', 'Document type archived'), undefined, 'success'); setArchiving(null); }
-    catch (err) { const c = classifyMutationError(err); setProblem(`${c.headline}. ${c.detail}`); }
+    catch (err) { const c = classifyMutationError(err); setProblem(joinSentences(c.headline, c.detail)); }
   };
 
   const columns: Column<AdminDocumentTypeRow>[] = [

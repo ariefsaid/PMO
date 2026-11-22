@@ -38,9 +38,12 @@ export interface BoqItemFormModalProps {
   onError: (err: unknown) => void;
   /** Extra fields the caller owns (#2669: the line's discipline, saved on its own). */
   extra?: React.ReactNode;
+  /** The project's lines, so a catalogue item that already has a line offers that line first. */
+  existingLines?: BoqItemRow[];
+  onEditExisting?: (line: BoqItemRow) => void;
 }
 
-const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbolPrefix, onClose, onSave, onError, projectId, today, currency, extra }) => {
+const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbolPrefix, onClose, onSave, onError, projectId, today, currency, extra, existingLines, onEditExisting }) => {
   const { t } = useTranslation('project');
   const erpItems = useErpItemOptions('sales');
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
@@ -77,6 +80,18 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
   });
   const setFormRate = form.setValue;
   useEffect(() => { if (pricing) setFormRate('rate', pricing.rate === null ? '' : formatMoneyInputValue(pricing.rate)); }, [pricing, setFormRate]);
+  // Choosing a catalogue rate fills code, description and unit from the item; the person can still change them.
+  const pickedItemId = pricing?.itemId;
+  const pickedItem = pricing?.item;
+  useEffect(() => {
+    if (!pickedItemId || !pickedItem) return;
+    setFormRate('itemCode', pickedItem.itemCode);
+    setFormRate('description', pickedItem.description);
+    setFormRate('unit', pickedItem.unit);
+  }, [pickedItemId, pickedItem, setFormRate]);
+  const existingForPick = pickedItemId && !item
+    ? (existingLines ?? []).find((line) => line.catalogue_item_id === pickedItemId || (pickedItem ? line.item_code === pickedItem.itemCode : false))
+    : undefined;
   const itemField = form.fieldProps('itemCode');
   const descriptionField = form.fieldProps('description');
   const unitField = form.fieldProps('unit');
@@ -98,7 +113,9 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
     { value: 'unit_rate', label: t('projectTabs:contractQuantities.billing.boqForm.basisUnitRate', 'Unit rate: quantity × rate') },
     { value: 'lump_sum', label: t('projectTabs:contractQuantities.billing.boqForm.basisLumpSum', 'Lump sum: 1 lot, earned by percent') },
   ];
-  const itemLabel = t('projectDetail.billing.boqForm.item', 'ERP item');
+  const itemLabel = erpItems.connected
+    ? t('projectDetail.billing.boqForm.item', 'ERP item')
+    : t('projectDetail.billing.boqForm.itemCode', 'Item code');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,6 +158,12 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
     >
       <FormSection legend={t('projectDetail.billing.boqForm.legend', 'Line')}>
         {projectId && today && currency && <RatePicker retryKey={retryKey} projectId={projectId} today={today} currency={currency} onChange={setPricing} initial={item?.catalogue_item_id && item.catalogue_variant_id && item.catalogue_priced_as_of ? { itemId: item.catalogue_item_id, variantId: item.catalogue_variant_id, asOf: item.catalogue_priced_as_of } : undefined} />}
+        {existingForPick && onEditExisting && (
+          <div role="status" data-testid="boq-existing-line" className="flex flex-wrap items-center gap-2 text-sm">
+            <span>{t('projectDetail.billing.boqForm.existingLine', 'This item already has a line: {{code}}. Edit that line instead of adding a second one.', { code: existingForPick.item_code })}</span>
+            <Button variant="outline" size="sm" onClick={() => onEditExisting(existingForPick)}>{t('projectDetail.billing.boqForm.editExisting', 'Edit that line')}</Button>
+          </div>
+        )}
         <FormGrid>
           {erpItems.connected ? (
             <Combobox label={itemLabel} required value={itemField.value || null}

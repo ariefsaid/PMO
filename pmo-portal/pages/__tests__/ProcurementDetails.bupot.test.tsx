@@ -1,4 +1,14 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { render as rtlRender, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: the follow-up task button mounts with its host page now, so every render here runs
+// inside the shared test query client and the button's open-task read is stubbed quiet.
+const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(<QueryClientTestProvider>{ui}</QueryClientTestProvider>, options)) as typeof rtlRender;
+vi.mock('@/src/lib/repositories', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
+  return { repositories: { ...actual.repositories, task: { ...actual.repositories.task, findOpenForRecord: async () => null } } };
+});
+
 import React from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -85,11 +95,11 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     expect(screen.getByRole('combobox', { name: 'Supplier' })).toBeDisabled();
     expect(screen.getByText(/loading suppliers/i)).toBeVisible();
     h.vendor.isPending = false; h.vendor.isError = true;
-    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
+    view.rerender(<QueryClientTestProvider><MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter></QueryClientTestProvider>);
     fireEvent.click(screen.getByRole('button', { name: /retry suppliers/i }));
     expect(h.vendor.refetch).toHaveBeenCalled();
     h.vendor.isError = false; h.vendor.data = [{ value: 'updated', label: 'Updated supplier' }];
-    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
+    view.rerender(<QueryClientTestProvider><MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter></QueryClientTestProvider>);
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     expect(await screen.findByRole('option', { name: 'Updated supplier' })).toBeVisible();
   });
@@ -101,7 +111,7 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     const cached = await screen.findByRole('option', { name: 'New supplier' });
     h.vendor.isError = true;
-    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
+    view.rerender(<QueryClientTestProvider><MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter></QueryClientTestProvider>);
     expect(screen.getByRole('combobox', { name: 'Supplier' })).toBeDisabled();
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     fireEvent.click(cached);
@@ -109,7 +119,7 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: /retry suppliers/i }));
     expect(h.vendor.refetch).toHaveBeenCalled();
     h.vendor.isError = false; h.vendor.data = [{ value: 'updated', label: 'Updated supplier' }];
-    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
+    view.rerender(<QueryClientTestProvider><MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter></QueryClientTestProvider>);
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     fireEvent.click(await screen.findByRole('option', { name: 'Updated supplier' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save supplier' }));
@@ -129,7 +139,7 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
 
     await waitFor(() => expect(h.updateVendor).toHaveBeenCalledWith('vendor-new'));
     h.detail.data = { ...vendorlessBilled, vendor_id: 'vendor-new' };
-    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
+    view.rerender(<QueryClientTestProvider><MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter></QueryClientTestProvider>);
     fireEvent.click(screen.getByRole('button', { name: 'Record bukti potong' }));
     expect(screen.getByRole('dialog', { name: 'Record modal' })).toHaveTextContent('invoice-1');
   });

@@ -37,6 +37,12 @@ vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({
   CostAttributionFields: ({ idPrefix }: { idPrefix?: string }) => createElement('div', { 'data-testid': 'cost-attribution-stub', 'data-prefix': idPrefix }),
 }));
 
+// The supplier-bill form's hold note reads the purchase rules and the three-way-match setting (auth + queries), which the
+// record-capture suites do not provide. BillHoldNotice.test.tsx unmocks and proves it.
+vi.mock('@/pages/procurement/BillHoldNotice', () => ({
+  BillHoldNotice: () => createElement('div', { 'data-testid': 'bill-hold-stub' }),
+}));
+
 // #2732: the claim's work-order card reads its own queries (work orders, disciplines) and needs a query client, which the
 // ExpenseClaimDetail suites do not provide. ExpenseAttributionCard.test.tsx unmocks and proves it.
 vi.mock('@/pages/expenses/ExpenseAttributionCard', () => ({
@@ -223,14 +229,18 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
 // and values were string-concatenated instead. Initialising a minimal synchronous instance here
 // makes `t` behave in tests as it does at runtime: a missing key resolves to its defaultValue WITH
 // interpolation applied. Resources stay empty on purpose — the suite asserts the English source
-// strings the call sites carry, never a catalogue (catalogues are fetched JSON, FR-L10N-043).
+// strings the call sites carry, never a catalogue (catalogues are fetched JSON, FR-L10N-043); the exception is `refusals`, whose sentences live only in the catalogue.
 import i18nextTest from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import refusalsEn from '../public/locales/en/refusals.json';
+import refusalsId from '../public/locales/id/refusals.json';
 
 void i18nextTest.use(initReactI18next).init({
   lng: 'en',
   fallbackLng: 'en',
-  resources: { en: { common: {} } },
+  // refusals: the one catalogue whose sentences have no inline default. `id` carries it too, so a language with any
+  // resource still resolves to itself (i18next's `resolvedLanguage` skips a language that holds none).
+  resources: { en: { common: {}, refusals: refusalsEn }, id: { refusals: refusalsId } },
   defaultNS: 'common',
   initImmediate: false, // synchronous init — no async gap before the first render
   interpolation: { escapeValue: false }, // React escapes; double-escaping corrupts "D&B" etc.
@@ -292,3 +302,10 @@ if (typeof document !== 'undefined') {
     return instance;
   };
 }
+
+// fix-waiting: the two database reads behind the shared waiting list are held idle by default, so a test of one screen sees only the
+// kinds it feeds. A test of the list itself (or of a kind that needs them) overrides this with its own vi.mock of the module.
+vi.mock('@/src/hooks/useWaitingDecisions', () => ({
+  useDatabaseWaiting: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }),
+  useDecisionStanding: () => ({ data: false, isPending: false, isError: false }),
+}));

@@ -31,7 +31,8 @@ Issue #2673 (map #2516, target 15 December 2026). Status: **Approved, 2026-11-21
   limited to Admin, Executive, Finance and Project Manager; it reveals no person and no rate, and gives a Project Manager no hourly cost.
 - FR-IHC-006 Work-order plan versus actual shall show an "Idle time" block (per reason: hours and amount, plus a total)
   only where the read returns rows. Copy says "cost", never "pay". English and Bahasa Indonesia; phone and desktop.
-- FR-IHC-007 Administration > Labour cost shall carry the switch (Admin, Finance), using the shared form primitives.
+- FR-IHC-007 (superseded by #2746) The switch is on by default for every organisation and has no Administration card; its setter
+  (Admin, Finance) and the database gate stay. Nothing shows until labour cost in money is on (FR-IHC-006).
   Idle reasons stay maintained where they already are.
 
 ## 4. Acceptance criteria (owning layer in brackets)
@@ -48,13 +49,14 @@ Issue #2673 (map #2516, target 15 December 2026). Status: **Approved, 2026-11-21
 - AC-IHC-009 Given another organisation's project, then it reads as absent; a role outside the four is refused. [pgTAP 1255]
 - AC-IHC-010 Given idle rows, then the work order's direct cost and totals are unchanged and the block shows idle money
   apart from them. [vitest `workOrderPlanVsActual` + component]
-- AC-IHC-011 Given the Administration section, then Admin/Finance can toggle the switch; a refusal shows its reason; EN and
-  Bahasa Indonesia. [vitest + one e2e journey]
+- AC-IHC-011 Given labour cost in money is on and a work order with priced hours and validated idle time for two reasons, then its
+  plan versus actual lists each reason with hours and cost and a total; with labour cost off the block is absent. The switch is on
+  by default (no card, #2746). [one e2e journey]
 
 ## 5. Settings added and defaults (existing organisations see no change)
 | Setting | Where | Default | Enforced by |
 |---|---|---|---|
-| Idle hours as cost (switch) | `idle_cost_settings.enabled` (one row per org) | no row = OFF | RPC `save_idle_cost_setting(boolean)` Admin/Finance; read gated on it AND labour cost; pgTAP 1255 |
+| Idle hours as cost (switch) | `idle_cost_settings.enabled` (one row per org) | on by default (a row per organisation since #2746; no row reads OFF) | RPC `save_idle_cost_setting(boolean)` Admin/Finance; read gated on it AND labour cost; pgTAP 1255 |
 | Idle reasons | existing `dsr_idle_reasons` | client's own list | unchanged (1040) |
 No new rate: the hourly cost comes from #2670 rates. Database-enforced: who writes the switch, both-switch gate, report
 eligibility, org scoping, role gate. Not DB-enforced (UX only): visibility of the Administration control.

@@ -1,5 +1,6 @@
 import categories from './documentCategories.json';
 import type { Role } from '@/src/auth/AuthContext';
+import { can } from '@/src/auth/policy';
 import type { DocumentCategory } from '@/src/lib/db/documentCategories';
 
 type Translate = (key: string, fallback: string) => string;
@@ -14,6 +15,7 @@ export function documentCategoryLabel(t: Translate, value: string): string {
     case 'Submittal': return t('project:documentCategory.submittal', 'Submittal');
     case 'Certificate': return t('project:documentCategory.certificate', 'Certificate');
     case 'Other': return t('project:documentCategory.other', 'Other');
+    case 'Delivery record': return t('project:documentCategory.deliveryRecord', 'Delivery record (BAST)');
     case 'Reference': return t('project:documentCategory.reference', 'Reference');
     default: return value;
   }
@@ -31,7 +33,7 @@ export function categoryDisplay(t: Translate, category: Pick<DocumentCategory, '
  */
 export function viewableCategories(all: DocumentCategory[], role: Role | null, keepId?: string): DocumentCategory[] {
   if (!role) return [];
-  return all.filter((c) => (c.archived_at === null || c.id === keepId) && (role === 'Admin' || c.roles.includes(role)));
+  return all.filter((c) => (c.archived_at === null || c.id === keepId) && can('view', 'documentCategory', { realRole: role, record: { roles: c.roles } }));
 }
 
 /** Category options shared between the create/edit modal and the revision modal. The list itself is JSON so `pmo documents` reads the same one. */

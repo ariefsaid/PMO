@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
+import type { TablesInsert } from '@/src/lib/supabase/database.types';
 
 /**
  * Crews, the people in them and which crews serve a work order (#2528, migration 0988).
@@ -63,6 +64,8 @@ export interface RosterMember {
   standard_role_id: string | null;
   /** Off rotation that day (FR-CRW-010): the tick screen defaults them to off rotation. */
   off_rotation?: boolean;
+  /** The person told the crew leader they are not coming in that day (1631); the roster shows it, it is not attendance. */
+  reported_absent?: { reason: 'sick' | 'other'; note: string | null };
 }
 
 export interface RosterRole {
@@ -214,9 +217,9 @@ export async function listAllStandardRoles(): Promise<Pick<CrewStandardRoleRow, 
 }
 
 /** Every placement, for the members import's already-there check (#2551). */
-export async function listAllCrewMembers(): Promise<Pick<CrewMemberRow, 'id' | 'crew_id' | 'worker_id' | 'valid_from'>[]> {
+export async function listAllCrewMembers(): Promise<Pick<CrewMemberRow, 'id' | 'crew_id' | 'worker_id' | 'valid_from' | 'valid_to'>[]> {
   return fetchAllRowsByKeyset(async (afterId, limit) => {
-    let q = supabase.from('crew_members').select('id, crew_id, worker_id, valid_from').order('id', { ascending: true });
+    let q = supabase.from('crew_members').select('id, crew_id, worker_id, valid_from, valid_to').order('id', { ascending: true });
     if (afterId !== null) q = q.gt('id', afterId);
     return q.limit(limit);
   });
@@ -224,7 +227,10 @@ export async function listAllCrewMembers(): Promise<Pick<CrewMemberRow, 'id' | '
 
 export async function createCrewWorker(input: CrewWorkerInput): Promise<CrewWorkerRow> {
   const { display_name, ...person } = input;
-  const { data, error } = await supabase.from('people').insert({ ...person, name: display_name }).select('id, display_name:name, archived_at').single();
+  // `people.code` (P-0001, …) is assigned by the database's people_assign_code trigger (migration 1042), which
+  // introspection cannot see, so the generated Insert type requires a column the client must never send.
+  const row = { ...person, name: display_name } satisfies Omit<TablesInsert<'people'>, 'code'>;
+  const { data, error } = await supabase.from('people').insert(row as TablesInsert<'people'>).select('id, display_name:name, archived_at').single();
   fail(error);
   return data as CrewWorkerRow;
 }
@@ -267,6 +273,20 @@ export async function correctCrewMember(
   const { data, error } = await supabase.from('crew_members').update(patch).eq('id', id).eq('version', version).select('id');
   fail(error);
   if (!data || data.length === 0) throw new AppError('This placement changed since you opened it.', STALE_VERSION_CODE);
+}
+
+/** Every work-order placement of one crew, newest first (the lend form checks the host crew is scheduled). */
+export async function listCrewSchedule(crewId: string): Promise<WorkOrderCrewRow[]> {
+  const rows = await fetchAllRowsByKeyset<WorkOrderCrewRow>(async (afterId, limit) => {
+    let q = supabase
+      .from('work_order_crews')
+      .select('id, work_order_id, crew_id, valid_from, valid_to, version')
+      .eq('crew_id', crewId)
+      .order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit);
+  });
+  return rows.sort((a, b) => b.valid_from.localeCompare(a.valid_from) || a.id.localeCompare(b.id));
 }
 
 /** A work order's roster placements, newest first. */

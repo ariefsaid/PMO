@@ -25,6 +25,15 @@ describe('phoneCheckInRepository', () => {
     await expect(phoneCheckInRepository.decide('r1', false, 'not here')).rejects.toMatchObject({ code: '42501' });
     expect(h.rpc).toHaveBeenCalledWith('phone_check_in_decide', { p_request_id: 'r1', p_approve: false, p_reason: 'not here' });
   });
+  it('AC-WCI-040 setArea writes through the check-in area RPC, never a table update; clearing sends nulls; a refusal keeps its code', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: null });
+    await phoneCheckInRepository.setArea('w1', { lat: 1.5, lng: 2.5, radius_m: 80 });
+    expect(h.rpc).toHaveBeenCalledWith('set_work_order_check_in_area', { p_work_order: 'w1', p_lat: 1.5, p_lng: 2.5, p_radius_m: 80 });
+    await phoneCheckInRepository.setArea('w1', null);
+    expect(h.rpc).toHaveBeenLastCalledWith('set_work_order_check_in_area', { p_work_order: 'w1', p_lat: null, p_lng: null, p_radius_m: null });
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'only an Admin ...', code: '42501' } });
+    await expect(phoneCheckInRepository.setArea('w1', null)).rejects.toMatchObject({ code: '42501' });
+  });
   it('requests returns an empty list when the database returns nothing', async () => {
     h.rpc.mockResolvedValue({ data: null, error: null });
     expect(await phoneCheckInRepository.requests()).toEqual([]);

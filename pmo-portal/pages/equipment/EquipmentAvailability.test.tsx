@@ -179,7 +179,8 @@ describe('Equipment availability screen', () => {
   it('shows the selected day’s status to a read-only user', () => {
     h.role = 'Finance'; h.statusRows = [{ asset_id: 'a1', status_date: new Date().toISOString().slice(0, 10), status: 'broken' }];
     renderPage();
-    expect(screen.getByText('Broken')).toBeInTheDocument();
+    // 'Broken' is also the heading of the what-each-status-does list, so read the machine's own status.
+    expect(screen.getByTestId('today-status-EQU-1')).toHaveTextContent('Broken');
   });
 
   it('lets Finance record the in-service date of rented equipment', async () => {
@@ -195,7 +196,7 @@ describe('Equipment availability screen', () => {
     const view = renderPage();
     h.orgToday = '2026-01-02';
     view.rerender(<MemoryRouter><ToastProvider><EquipmentAvailabilityPage /></ToastProvider></MemoryRouter>);
-    expect(screen.getByLabelText('Status date')).toHaveValue('2026-01-02');
+    expect(screen.getByLabelText('Status date')).toHaveValue('2 Jan 2026'); // the date field shows the day in the app's one date style
     h.orgToday = '';
   });
 

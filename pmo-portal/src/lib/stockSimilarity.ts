@@ -77,10 +77,6 @@ export function boundedDistance(a: string, b: string, allowed: number): number |
   return previous[b.length] <= allowed ? previous[b.length] : null;
 }
 
-export function withinDistance(a: string, b: string, allowed: number): boolean {
-  return boundedDistance(a, b, allowed) !== null;
-}
-
 /**
  * Normalise the item list once. Archived items are dropped: they are out of the working item master
  * and hidden from the Setup list by default, so warning about one would name a row the person cannot see.

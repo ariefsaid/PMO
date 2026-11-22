@@ -13,8 +13,7 @@
     "checklist": "Daftar periksa sebelum kerja",
     "duplicate": "Entri itu sudah ada dalam daftar",
     "empty": "Belum ada isi",
-    "enable": "Catat keselamatan harian pada surat perintah kerja",
-    "helper": "Catatan keselamatan harian per surat perintah kerja. Jenis pemeriksaan, jenis izin kerja, dan butir daftar periksa adalah milik Anda: tambahkan yang dipakai di lokasi Anda. Mengarsipkan menyembunyikan entri dari hari baru; hari yang sudah memakainya tetap menyimpannya.",
+    "helper": "Catatan keselamatan harian per $t(common:terms.clientWorkOrder). Jenis pemeriksaan, jenis izin kerja, dan butir daftar periksa adalah milik Anda: tambahkan yang dipakai di lokasi Anda. Mengarsipkan menyembunyikan entri dari hari baru; hari yang sudah memakainya tetap menyimpannya.",
     "loadError": "Daftar tidak dapat dimuat",
     "permitTypes": "Jenis izin kerja",
     "rename": "Ubah nama",
@@ -31,7 +30,7 @@
       "yes": "Ya"
     },
     "answerLabel": "Jawaban untuk {{item}}",
-    "none": "Belum ada daftar periksa untuk organisasi ini",
+    "none": "Belum ada daftar periksa. Admin menambahkan butirnya di Catatan keselamatan, dalam Pengaturan proyek.",
     "note": "Catatan (wajib jika tidak)",
     "noteLabel": "Catatan untuk {{item}}",
     "title": "Daftar periksa sebelum kerja",
@@ -81,7 +80,7 @@
     "stillNeeded": "Masih dibutuhkan: {{parts}}",
     "title": "Hari keselamatan",
     "version": "Versi {{n}}",
-    "workOrder": "Surat perintah kerja"
+    "workOrder": "$t(common:terms.clientWorkOrder)"
   },
   "officer": {
     "add": "Tambah entri",
@@ -142,13 +141,13 @@
     },
     "hiddenDefault": "tidak dapat dihitung untuk periode ini",
     "month": "Bulan",
-    "off": "Catatan keselamatan belum diaktifkan untuk organisasi ini",
+    "off": "Catatan keselamatan dimatikan untuk organisasi ini. Admin dapat mengaktifkannya di Modul.",
     "print": "Cetak",
     "project": "Proyek",
     "showRows": "Tampilkan barisnya",
     "subtitle": "Jam kerja, insiden, dan catatan keselamatan untuk satu bulan.",
     "title": "Ringkasan keselamatan",
-    "workOrder": "Surat perintah kerja"
+    "workOrder": "$t(common:terms.clientWorkOrder)"
   },
   "toast": {
     "corrected": "Koreksi dimulai",
@@ -158,7 +157,7 @@
     "addPhoto": "Tambah foto kehadiran",
     "attendeeCount": "{{count}} peserta",
     "attendees": "Peserta dari daftar tugas",
-    "noRoster": "Tidak ada yang ditugaskan pada surat perintah kerja ini untuk tanggal ini",
+    "noRoster": "Tidak ada yang ditugaskan pada $t(common:terms.clientWorkOrder) ini untuk tanggal ini",
     "none": "Belum ada pembicaraan kotak peralatan",
     "photoCount": "{{count}} foto",
     "photoInput": "Foto kehadiran",
@@ -170,5 +169,18 @@
     "topic": "Topik",
     "viewPhoto": "Foto kehadiran {{n}}",
     "visitor": "Tamu yang disebutkan namanya (opsional)"
+  },
+  "today": {
+    "title": "Catatan keselamatan hari ini",
+    "none": "Belum dimulai"
+  },
+  "lock": {
+    "title": "Kunci hari keselamatan ini?",
+    "body": "Setelah dikunci, catatan ini tidak bisa diubah. Hanya koreksi dengan alasan yang bisa mengubahnya.",
+    "unchecked": "Belum diperiksa: {{names}}",
+    "needNote": "Tulis catatan untuk jawaban Tidak lebih dulu: {{items}}",
+    "errNote": "Item daftar periksa yang dijawab Tidak harus diberi catatan. Tulis catatannya, lalu kunci lagi.",
+    "errLocked": "Hari ini sudah dikunci. Muat ulang halaman.",
+    "errAuthor": "Hanya orang yang memulai hari keselamatan ini yang bisa mengunci."
   }
 }

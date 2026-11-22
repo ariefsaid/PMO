@@ -1,10 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { stockReservationsRepository as repo } from '@/src/lib/repositories/stockReservations';
-import { useContext } from 'react';
-import { AuthContext } from '@/src/auth/AuthContext';
+import { useOptionalOrgId as useOrgId } from '@/src/hooks/useOrgId';
+import { useModuleOn } from '@/src/hooks/useOrgSwitch';
+import { useStockOwnedByErp } from '@/src/hooks/useStockOwnedByErp';
 
-/** The signed-in organisation, read without throwing outside a provider: a screen with no session simply shows no reservation controls. */
-const useOrgId = (): string | undefined => useContext(AuthContext)?.currentUser?.org_id;
 
 /** The organisation's reservation settings (#2693), off by default. While unread or failed they read as off: nothing new shows. */
 export function useReservationSettings() {
@@ -12,7 +11,9 @@ export function useReservationSettings() {
   return useQuery({ queryKey: ['stock-reservation-settings', orgId], queryFn: () => repo.settings(), enabled: Boolean(orgId), staleTime: 60_000, retry: false });
 }
 export function useReservationsEnabled(): boolean {
-  return useReservationSettings().data?.enabled === true;
+  const moduleOn = useModuleOn('moduleStock');
+  const erpOwnsStock = useStockOwnedByErp();
+  return useReservationSettings().data?.enabled === true && moduleOn && !erpOwnsStock;
 }
 /** Free and reserved per item and location; fetched only while reservations are on. */
 export function useFreeReserved(enabled: boolean, warehouseId?: string) {
@@ -32,8 +33,12 @@ export function useReservationRefresh() {
   const qc = useQueryClient();
   return () => Promise.all(['stock-reservation-settings', 'stock-free-reserved', 'wo-reservations', 'request-borrowing'].map((k) => qc.invalidateQueries({ queryKey: [k] })));
 }
+import { can, type Role } from '@/src/auth/policy';
+
 /** Who may reserve in the screen (UX only; the database decides): the location's keeper, a planner (master-data rank) or an Admin; never while viewing as another role. */
 export function mayReserve(realRole: string | null | undefined, viewOnly: boolean, isKeeper: boolean): boolean {
-  if (viewOnly) return false;
-  return isKeeper || realRole === 'Admin' || realRole === 'Project Manager' || realRole === 'Finance' || realRole === 'Executive';
+  return can('manage', 'stockReservation', {
+    realRole: (realRole as Role) ?? null,
+    record: { viewOnly, isKeeper },
+  });
 }

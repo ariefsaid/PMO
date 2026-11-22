@@ -27,10 +27,4 @@ describe('ClaimOverdueMarker (AC-CBS-013)', () => {
     const { container } = render(withClient(<ClaimOverdueMarker claimId="c1" projectId="p1" />));
     expect(container).toBeEmptyDOMElement();
   });
-
-  it('renders nothing without a data layer', () => {
-    h.data = [{ claimId: 'c1', stepName: 'Client review', daysOver: 7 }];
-    const { container } = render(<ClaimOverdueMarker claimId="c1" projectId="p1" />);
-    expect(container).toBeEmptyDOMElement();
-  });
 });

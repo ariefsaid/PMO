@@ -7,7 +7,7 @@ import type { IssueClosingReportSettings, IssueDepartmentGroup } from '@/src/lib
 
 const { settingsState, updateSettingsMutation, groupsState, saveGroupMutation, removeGroupMutation } = vi.hoisted(() => ({
   settingsState: {
-    data: { id: 's1', org_id: 'org1', enabled: false, grouping_mode: 'type', updated_at: '2026-01-01T00:00:00Z' } as IssueClosingReportSettings | null,
+    data: { org_id: 'org1', enabled: false, grouping_mode: 'type', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', updated_by: null } as IssueClosingReportSettings | null,
     isPending: false,
     isError: false,
     refetch: vi.fn(),
@@ -69,13 +69,7 @@ describe('IssueClosingReportSettings (AC-CTR-006, AC-CTR-007)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCanManage = true;
-    settingsState.data = {
-      id: 's1',
-      org_id: 'org1',
-      enabled: false,
-      grouping_mode: 'type',
-      updated_at: '2026-01-01T00:00:00Z',
-    };
+    settingsState.data = { org_id: 'org1', enabled: false, grouping_mode: 'type', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', updated_by: null };
     groupsState.data = [
       {
         id: 'g1',
@@ -94,20 +88,19 @@ describe('IssueClosingReportSettings (AC-CTR-006, AC-CTR-007)', () => {
     expect(screen.queryByRole('heading', { name: /Issue closing-time report/i })).not.toBeInTheDocument();
   });
 
-  it('renders settings card with toggle switch and department groups', () => {
+  it('renders settings card with the grouping choice and department groups, and no on/off switch (on for everyone, #2746)', () => {
     renderSettings();
     expect(screen.getByRole('heading', { level: 2, name: /Issue closing-time report/i })).toBeInTheDocument();
-    expect(screen.getByRole('switch')).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     expect(screen.getByText('HSE & Safety')).toBeInTheDocument();
     expect(screen.getByText('Near Miss, Injury')).toBeInTheDocument();
   });
 
-  it('toggles report enabled status when switch is clicked', async () => {
+  it('changes the default grouping', async () => {
     renderSettings();
-    const toggle = screen.getByRole('switch');
-    await userEvent.click(toggle);
+    await userEvent.selectOptions(screen.getByLabelText('Default grouping'), 'department_groups');
 
-    expect(updateSettingsMutation.mutateAsync).toHaveBeenCalledWith({ enabled: true });
+    expect(updateSettingsMutation.mutateAsync).toHaveBeenCalledWith({ grouping_mode: 'department_groups' });
   });
 
   it('submits a new department group', async () => {

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Combobox, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListState, StatusPill, TextField, ViewToggle, useToast,
+  Button, Combobox, DataTable, EntityFormModal, FormGrid, Icon, ListState, StatusPill, TextField, ViewToggle, useToast,
   type Column, type SubmitError,
 } from '@/src/components/ui';
 
@@ -16,6 +16,7 @@ import { ImportButton } from '@/src/components/import';
 import { makePeopleImportDescriptor } from '@/src/lib/import';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { MarkLeftDialog } from './MarkLeftDialog';
 import type { PersonListRow, PeopleListStatus } from '@/src/lib/db/people';
 
 interface FormValues { name: string; code: string; job_title: string; profile_id: string }
@@ -86,23 +87,20 @@ const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, s
  *  default and the pre-#2703 read; Former staff and All are opt-in views, held in the URL. */
 const People: React.FC = () => {
   const { t } = useTranslation();
-  const { toast } = useToast();
   const { realRole, effectiveRole } = useEffectiveRole();
   const may = usePermission();
   const ctx = useMemo(() => ({ record: { viewOnly: realRole !== effectiveRole } }), [realRole, effectiveRole]);
   const { values: filters, setFilter } = useUrlFilters(['staff']);
   const staffView: PeopleListStatus = filters.staff === 'former' ? 'former' : filters.staff === 'all' ? 'all' : 'active';
   const q = usePeople(staffView);
-  const { archive } = usePeopleMutations();
   const [editing, setEditing] = useState<PersonListRow | 'new' | null>(null);
-  const [archiving, setArchiving] = useState<PersonListRow | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState<PersonListRow | null>(null);
   const loadProfiles = useOrgProfilesLoader();
   const [profileNames, setProfileNames] = useState<Map<string, string>>(new Map());
   const rows = q.data ?? [];
   const importDescriptor = useMemo(() => makePeopleImportDescriptor(async () => (await repositories.people.list()).map((p) => p.code), t), [t]);
   const canEdit = may('edit', 'person', ctx);
-  const canArchive = may('archive', 'person', ctx);
+  const canLeave = may('archive', 'person', ctx);
   const setStaffView = (next: typeof staffView) => setFilter('staff', next === 'active' ? '' : next);
 
   React.useEffect(() => {
@@ -110,13 +108,6 @@ const People: React.FC = () => {
     void loadProfiles().then((ps) => { if (live) setProfileNames(new Map(ps.map((p) => [p.id, p.full_name]))); }).catch(() => undefined);
     return () => { live = false; };
   }, [loadProfiles]);
-
-  const doArchive = async () => {
-    if (!archiving) return;
-    setProblem(null);
-    try { await archive.mutateAsync(archiving.id); toast(t('administration:people.archived', 'Person archived'), undefined, 'success'); setArchiving(null); }
-    catch (err) { const c = classifyMutationError(err); setProblem(`${c.headline}. ${c.detail}`); }
-  };
 
   const columns: Column<PersonListRow>[] = [
     { key: 'name', header: t('administration:people.name', 'Name'), kind: 'primary', rowHeader: true,
@@ -132,10 +123,10 @@ const People: React.FC = () => {
     { key: 'user', header: t('administration:people.user', 'App user (optional)'),
       cell: (p) => (p.profile_id ? <span>{profileNames.get(p.profile_id) ?? '…'}</span> : null) },
     { key: 'actions', header: <span className="sr-only">{t('administration:people.actions', 'Actions')}</span>,
-      cell: (p) => (!p.archived_at && (canEdit || canArchive)) ? (
+      cell: (p) => (!p.archived_at && (canEdit || canLeave)) ? (
         <span className="flex gap-1">
           {canEdit && <Button variant="ghost" size="sm" aria-label={t('administration:people.editLabel', 'Edit {{name}}', { name: p.name })} onClick={() => setEditing(p)}>{t('administration:people.edit', 'Edit')}</Button>}
-          {canArchive && <Button variant="ghost" size="sm" aria-label={t('administration:people.archiveLabel', 'Archive {{name}}', { name: p.name })} onClick={() => setArchiving(p)}>{t('administration:people.archive', 'Archive')}</Button>}
+          {canLeave && <Button variant="ghost" size="sm" aria-label={t('administration:people.markLeftLabel', 'Mark {{name}} as left', { name: p.name })} onClick={() => setLeaving(p)}>{t('administration:people.markLeft', 'Mark as left')}</Button>}
         </span>) : null },
   ];
 
@@ -164,15 +155,12 @@ const People: React.FC = () => {
       {!q.isPending && !q.isError && (rows.length === 0
         ? <ListState variant="empty"
             title={staffView === 'former'
-              ? t('administration:people.formerEmpty', 'No former staff. People you archive appear here.')
+              ? t('administration:people.formerEmpty', 'No former staff. People you mark as left appear here.')
               : t('administration:people.empty', 'No people yet. Add the first person to record their documents.')}
             action={staffView === 'active' && canEdit ? { label: t('administration:people.add', 'Add person'), onClick: () => setEditing('new') } : undefined} />
         : <DataTable<PersonListRow> rows={rows} columns={columns} rowKey={(p) => p.id} tableId="people-register" />)}
       {editing && <PersonForm person={editing === 'new' ? undefined : editing} profileNames={profileNames} onClose={() => setEditing(null)} />}
-      <ConfirmDialog open={archiving !== null} tone="destructive" title={t('administration:people.archiveTitle', 'Archive person')}
-        description={t('administration:people.archiveBody', 'They leave the register and the expiry list, and no more warnings are sent for their documents.')}
-        confirmLabel={t('administration:people.archive', 'Archive')} loading={archive.isPending} error={problem}
-        onConfirm={() => void doArchive()} onCancel={() => { setArchiving(null); setProblem(null); }} />
+      <MarkLeftDialog person={leaving} onClose={() => setLeaving(null)} />
     </div>
   );
 };

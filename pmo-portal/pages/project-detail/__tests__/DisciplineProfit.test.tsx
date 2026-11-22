@@ -12,8 +12,8 @@ const h = vi.hoisted(() => ({
   setting: { data: true } as Record<string, unknown>, pva: {} as Record<string, unknown>, revenue: {} as Record<string, unknown>,
   role: 'Finance' as string, revenueAsked: [] as boolean[],
 }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => h.setting }));
 vi.mock('@/src/hooks/useDisciplineProfit', () => ({
-  useDisciplineProfitEnabled: () => h.setting,
   useDisciplineRevenue: (_p: string, enabled: boolean) => { h.revenueAsked.push(enabled); return h.revenue; },
 }));
 vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: () => h.pva }));

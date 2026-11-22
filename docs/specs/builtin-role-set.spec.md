@@ -69,16 +69,15 @@ approval rights) is Engineer base. Deputy Project Manager is a manager (stands i
   evaluated on the resulting base level, so no one may assign a role whose base level they may not assign; no one may change their own key.
 - **FR-006** The system shall expose a role capability catalogue and `role_has_capability(key, capability)` (false for NULL/unknown),
   with the capabilities below, and `actor_has_role_capability(capability)` for the real signed-in, active person.
-- **FR-007** Capabilities: `stock_post` Storekeeper; `stock_approve` Material Coordinator; `daily_report_enter` Quantity Surveyor;
-  `daily_report_validate` Site Supervisor and Project Control Manager; `crew_time_approve` Construction Manager;
-  `billing_stage_run` Billing Officer; `invoice_raise` Finance Manager and Finance Officer; `people_documents_view` HR Manager,
-  HR Officer, Administrator; `medical_documents_view` HR Manager, HR Officer, Administrator. Held by no other role.
+- **FR-007** Capabilities: `sees_prices` (FR-008); `people_documents_view` HR Manager, HR Officer, Administrator (reads, adds and renews
+  every person's non-medical documents and reads the person list); `medical_documents_view` HR Manager, HR Officer, Administrator
+  (reads medical-document status and dates, in the app and in the expiry email; writes stay Admin only). `daily_report_enter`
+  Quantity Surveyor and `daily_report_validate` Site Supervisor and Project Control Manager are held in the catalogue for a ruling.
+  Held by no other role. Each read capability is read by one database gate function that every channel calls (`supabase/tests/2716`).
 - **FR-008** The system shall expose `built_in_role_sees_prices(key)` and `actor_sees_prices()`: true for every manager, Buyer,
   Finance Officer and Billing Officer; false for every other officer and field role; true for a NULL key (legacy people).
   Hiding prices is ticket #2699's setting and is NOT built here.
-- **FR-009** Tier rules: `built_in_role_tier(key)`; managers approve, officers prepare (helpers `built_in_role_may_approve`,
-  `built_in_role_may_prepare`); `built_in_role_may_stand_in(actor_key, absent_key)` is true only when both are managers and the
-  actor's base level ranks at or above the absent manager's (never stands in upward).
+- **FR-009** Each role has a tier (manager, officer, field) in the catalogue; field roles are light accounts.
 - **FR-010** The catalogue and capability tables shall be readable by signed-in people and writable by nobody through the API.
 - **FR-011** Frontend: `builtInRoles.ts` shall export the same 28 rows and capabilities, `roleHasCapability`, `roleSeesPrices`,
   `baseLevelOf`; a test shall fail if the frontend table and the migration seed differ.
@@ -103,8 +102,8 @@ approval rights) is Engineer base. Deputy Project Manager is a manager (stands i
 | AC-006 | Given an Executive, when assigning `administrator`, then refused and persisted key unchanged; when assigning `finance_officer` to an Engineer, then it persists with role Finance only if Executive outranks Finance. Given any actor assigning a key to self, then refused. | pgTAP |
 | AC-007 | Given each capability in FR-007, then exactly the listed keys hold it and no other (cell-by-cell over 28 x capabilities). | pgTAP |
 | AC-008 | Given the 28 keys, `built_in_role_sees_prices` matches FR-008; NULL key is true. | pgTAP |
-| AC-009 | Given a signed-in active person holding `storekeeper`, then `actor_has_role_capability('stock_post')` is true and `stock_approve` false; given a legacy person, all false and `actor_sees_prices()` true; given an inactive member, all false. | pgTAP |
-| AC-010 | Given tiers, then `may_stand_in` is true for Deputy PM for PM, false for PM for Executive, false for any officer. | pgTAP |
+| AC-009 | Given a signed-in active person holding `site_supervisor`, then `actor_has_role_capability('daily_report_validate')` is true and `medical_documents_view` false; given a legacy person, all false and `actor_sees_prices()` true; given an inactive member, all false. | pgTAP |
+| AC-010 | Given the catalogue, then each read capability has one gate function and the held ones are listed (`2716`); the medical and people-documents rules are proved in `2717` and `2718`. | pgTAP |
 | AC-011 | Given an authenticated client, when writing to the catalogue tables, then refused. | pgTAP |
 | AC-012 | Given the existing five roles, then `policy.ts` outcomes are unchanged (existing tests untouched). | vitest |
 | AC-013 | Given the setting off, when a key is set (update or insert, any actor), then refused (P0001) and the persisted key stays NULL; given a non-Admin or another organization's Admin, then the setting cannot be turned on; given the setting on, an Admin assigns and the key persists. | pgTAP |
@@ -123,10 +122,10 @@ to #2712. Which role sees which document category stays the client's setting.
 
 **Pointing approvals, notifications and document categories at a role.** No existing config table targets a `user_role` value
 (spend-approver routes name people; document categories and viewer roles are not on `dev` yet), so nothing is retrofitted. The seam is
-`actor_holds_built_in_role(key)` / `actor_has_role_capability(capability)` (SQL) and `roleHasCapability` / the stable role keys
+`actor_has_role_capability(capability)` (SQL, called by one gate function per capability) and `roleHasCapability` / the stable role keys
 (frontend); a later config table can store a role key with an FK to `built_in_roles(key)`.
 
 ## 6. Not in this ticket
 
 Custom roles, custom approvals, automations, custom fields (Q1 2027). Light-account screens (separate ticket). Price hiding (#2699).
-Daily report, billing-stage and stock screens consume the capability helpers in their own tickets.
+A screen that needs a new capability adds one catalogue row and one gate in its own ticket.

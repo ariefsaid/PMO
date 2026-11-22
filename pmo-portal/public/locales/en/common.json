@@ -1,4 +1,192 @@
 {
+  "allSettings": {
+    "alwaysOn": "On for everyone",
+    "title": "All settings",
+    "on": "On",
+    "off": "Off",
+    "group": {
+      "people": "People and crews",
+      "site": "Site and safety",
+      "stock": "Stock",
+      "purchasing": "Purchasing",
+      "money": "Billing and money",
+      "equipment": "Equipment",
+      "integrations": "Connections",
+      "notifications": "Notifications"
+    },
+    "item": {
+      "modulePeopleCrews": {
+        "name": "Module: people and crews",
+        "summary": "Turns built-in roles, the clearance checklist, leave requests and crew loans on or off for everyone."
+      },
+      "moduleSiteDay": {
+        "name": "Module: site day",
+        "summary": "Turns daily safety records and the work order performance panels on or off for everyone."
+      },
+      "moduleStock": {
+        "name": "Module: stock",
+        "summary": "Turns work-order transfers, reservations, two-step transfers and the material request approvals inbox on or off for everyone."
+      },
+      "modulePurchasingExtras": {
+        "name": "Module: purchasing extras",
+        "summary": "Turns line planning, purchase types, payment channels, purchase order print and delivery notes on or off for everyone."
+      },
+      "moduleBillingExtras": {
+        "name": "Module: billing extras",
+        "summary": "Turns revenue per discipline, the revenue plan, idle time as cost and the done-not-claimed reminder on or off for everyone."
+      },
+      "crewLoans": {
+        "name": "Crew loans",
+        "summary": "Lets a crew lend a worker to another crew for a period, shown on the Crews page."
+      },
+      "builtInRoles": {
+        "name": "Built-in roles",
+        "summary": "Offers 28 ready-made roles when you edit a person's role. Nothing changes until someone is given one."
+      },
+      "clearance": {
+        "name": "Cleared-for-site checklist",
+        "summary": "Adds a Clearance section where you record what each person needs before going to site."
+      },
+      "leaveRequests": {
+        "name": "Leave requests",
+        "summary": "Lets people request leave and names the role that approves it."
+      },
+      "phoneCheckIn": {
+        "name": "Phone check-in supervisor",
+        "summary": "Chooses the role that decides phone check-ins from outside the work area."
+      },
+      "attendanceTarget": {
+        "name": "Attendance target",
+        "summary": "Sets the attendance rate crews are measured against."
+      },
+      "crewTools": {
+        "name": "Crew tool reports",
+        "summary": "Sets the coordinator and the days a tool report may stay open."
+      },
+      "safetyRecords": {
+        "name": "Daily safety records",
+        "summary": "Adds a daily safety record to each work order, with your own check, permit and checklist lists."
+      },
+      "performanceIndices": {
+        "name": "Performance indices",
+        "summary": "Shows a performance panel on work orders and sets the bands it uses."
+      },
+      "revenuePlan": {
+        "name": "Revenue plan",
+        "summary": "Spreads each month's plan over working days to give daily targets."
+      },
+      "issueClosingReport": {
+        "name": "Issue closing report",
+        "summary": "Adds the issue closing time report and sets how it groups issues."
+      },
+      "quantityChangeLimit": {
+        "name": "Quantity change limit",
+        "summary": "Sets how far a quantity may rise over the contract before a change request is needed."
+      },
+      "stockTransfers": {
+        "name": "Stock transfers and proof",
+        "summary": "Chooses one-step or two-step transfers and when proof is attached."
+      },
+      "stockWoTransfers": {
+        "name": "Work-order transfers",
+        "summary": "Lets stock keepers move leftover material between work orders of one project."
+      },
+      "stockReservations": {
+        "name": "Stock reservations",
+        "summary": "Lets material be held for a work order, with optional borrowing from another reservation."
+      },
+      "dsrStockIssue": {
+        "name": "Site reports post stock",
+        "summary": "Makes a submitted site report issue the material it used from stock."
+      },
+      "woIssueThreshold": {
+        "name": "Material progress warning",
+        "summary": "Warns when material issued runs ahead of work progress by more than a set percentage."
+      },
+      "purchaseTypes": {
+        "name": "Purchase types",
+        "summary": "Lets each purchase carry a type such as rental, with your own list of types."
+      },
+      "purchaseLinePlanning": {
+        "name": "Purchase line planning",
+        "summary": "Lets purchase lines be planned against categories before they are ordered."
+      },
+      "threeWayMatch": {
+        "name": "Three-way match",
+        "summary": "Holds a vendor bill until it agrees with the order and the receipt, within your tolerances."
+      },
+      "purchaseOrderPrint": {
+        "name": "Purchase order print",
+        "summary": "Adds a printable purchase order with your signature blocks and authorised collectors."
+      },
+      "paymentChannels": {
+        "name": "Payment channels",
+        "summary": "Records how each purchase is to be paid, from your list of channels."
+      },
+      "spendApprovalTiers": {
+        "name": "Spend approval tiers",
+        "summary": "Routes a purchase to approvers by amount instead of a single approver list."
+      },
+      "hidePrices": {
+        "name": "Hide prices from requesters",
+        "summary": "Hides prices from people who only request material."
+      },
+      "materialRequests": {
+        "name": "Material request settings",
+        "summary": "Sets the approval chain, stand-ins, delivery notes and the approver inbox."
+      },
+      "procurementGates": {
+        "name": "Procurement gates",
+        "summary": "Chooses which steps a purchase must pass before it can move on."
+      },
+      "billingPlan": {
+        "name": "Billing plan",
+        "summary": "Sets the monthly billing target, its currency and the reminder for work done but not claimed."
+      },
+      "labourCost": {
+        "name": "Labour cost",
+        "summary": "Costs hours worked at your labour class rates."
+      },
+      "idleCost": {
+        "name": "Idle hours as cost",
+        "summary": "Counts idle hours as cost against the work order. Needs labour cost on."
+      },
+      "disciplineProfit": {
+        "name": "Revenue per discipline",
+        "summary": "Shows revenue next to cost for each discipline on a project."
+      },
+      "equipmentPlan": {
+        "name": "Monthly equipment plan",
+        "summary": "Adds a monthly equipment plan and sets who approves it."
+      },
+      "equipmentTargets": {
+        "name": "Equipment targets",
+        "summary": "Sets the availability and use targets and when a down machine is escalated."
+      },
+      "emailNotifications": {
+        "name": "Email notifications",
+        "summary": "Chooses which events send email, to whom besides the people involved, and in which language."
+      },
+      "scheduledReports": {
+        "name": "Scheduled reports",
+        "summary": "Emails a report to chosen people on a schedule."
+      },
+      "m365DefaultLibrary": {
+        "name": "Default document library",
+        "summary": "Chooses the Microsoft 365 library new project folders are created in."
+      },
+      "feedbackSurveys": {
+        "name": "Feedback surveys",
+        "summary": "Asks people short in-app feedback questions."
+      }
+    },
+    "paletteGroup": "Settings"
+  },
+  "fileInput": {
+    "choose": "Choose file",
+    "none": "No file chosen",
+    "many": "{{count}} files"
+  },
   "terms": {
     "clientWorkOrder": "Work order",
     "dashboard": "Dashboard",
@@ -557,7 +745,7 @@
       "invite": "Invite user",
       "columns": {
         "user": "User",
-        "role": "Role",
+        "role": "Access level",
         "status": "Status",
         "manager": "Manager"
       },
@@ -567,7 +755,7 @@
       },
       "noManager": "No manager",
       "menu": {
-        "editRole": "Edit role",
+        "editRole": "Edit access level",
         "changeManager": "Change manager",
         "reEnable": "Re-enable",
         "disable": "Disable"
@@ -623,8 +811,8 @@
         "emailInvalid": "Enter a valid email address."
       },
       "roleForm": {
-        "title": "Edit role: {{name}}",
-        "submit": "Save role",
+        "title": "Edit access level: {{name}}",
+        "submit": "Save access level",
         "helper": "Determines what this user can see and do. Changes take effect immediately and are confirmed first."
       },
       "managerForm": {
@@ -1913,7 +2101,6 @@
       "approve": "Approve",
       "cancelRequest": "Cancel procurement",
       "confirmReceipt": "Confirm Receipt",
-      "generatePurchaseOrder": "Generate Purchase Order",
       "markAsPaid": "Mark as Paid",
       "markVendorInvoiced": "Mark Supplier Invoiced",
       "selectQuote": "Compare and select a quote",
@@ -2071,10 +2258,10 @@
     "billing": {
       "assessment": {
         "errors": {
-          "month": "Enter the month as YYYY-MM",
+          "month": "Choose a month",
           "quantity": "Each quantity done to date must be 0 or more with at most 3 decimal places"
         },
-        "month": "Month (YYYY-MM)",
+        "month": "Month",
         "note": "Note (optional)",
         "quantityToDate": "{{item}}: done to date ({{unit}})",
         "record": "Record progress",
@@ -2326,7 +2513,7 @@
         "net": "net of tax",
         "other": "basis: {{basis}}"
       },
-      "ceiling": "Contract ceiling",
+      "ceiling": "Contract ceiling · signed contract value",
       "committed": "Issued drawdown",
       "draft": "Draft pipeline",
       "error": {
@@ -4272,6 +4459,7 @@
       "org_vendor_tax_accounts_change": "Supplier tax accounts changed",
       "org_tax_default_change": "Tax defaults changed",
       "org_down_payment_item_change": "Down-payment items changed",
+      "org_setting_change": "Organisation setting changed",
       "meeting_grant_create": "Meeting access granted",
       "meeting_grant_revoke": "Meeting access revoked",
       "project_stage_entry_redate": "Stage date changed",

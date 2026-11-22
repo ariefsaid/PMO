@@ -45,7 +45,7 @@
   },
   "settings": {
     "title": "Revenue plan",
-    "helper": "Plan each work order's revenue by date and read it against validated daily revenue. Off until you switch it on; switching it on changes nothing already entered.",
+    "helper": "Plan each work order's revenue by date and read it against validated daily revenue. Nothing already entered changes.",
     "enabled": "Use the revenue plan",
     "weekdays": "Working days",
     "weekdaysHelp": "A month amount is spread evenly over these weekdays.",

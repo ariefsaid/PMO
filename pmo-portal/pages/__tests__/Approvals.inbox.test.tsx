@@ -112,6 +112,7 @@ vi.mock('@/src/components/procurement/DecisionSupportPanel', () => ({
   ),
 }));
 
+vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
 vi.mock('@/pages/approvals/ImprestApprovalSection', () => ({ ImprestApprovalSection: () => null }));

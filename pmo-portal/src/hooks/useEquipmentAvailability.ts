@@ -1,35 +1,29 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import { useAuth } from '@/src/auth/useAuth';
 import type { EquipmentStatus } from '@/src/lib/equipmentMetrics';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** Equipment availability (#2526) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
-const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
 const KEY = 'equipment-availability';
 
 export function useStatusDays(from: string, to: string, assetIds: string[]) {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [KEY, orgId, 'status', from, to, assetIds], queryFn: () => repositories.equipmentAvailability.listStatusDays(from, to, assetIds), enabled: Boolean(orgId) && assetIds.length > 0 });
+  return useOrgQuery([KEY, 'status', from, to, assetIds], () => repositories.equipmentAvailability.listStatusDays(from, to, assetIds), { enabled: assetIds.length > 0 });
 }
 export function useLatestStatusDays(assetIds: string[], asOf: string) {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [KEY, orgId, 'latest', assetIds, asOf], queryFn: () => repositories.equipmentAvailability.listLatestStatusDays(assetIds, asOf), enabled: Boolean(orgId) && assetIds.length > 0 });
+  return useOrgQuery([KEY, 'latest', assetIds, asOf], () => repositories.equipmentAvailability.listLatestStatusDays(assetIds, asOf), { enabled: assetIds.length > 0 });
 }
 export function useEquipmentProofs(assetIds: string[], date: string) {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [KEY, orgId, 'proofs', assetIds, date], queryFn: () => repositories.equipmentAvailability.listEquipmentProofs(assetIds, date), enabled: Boolean(orgId && date) && assetIds.length > 0 });
+  return useOrgQuery([KEY, 'proofs', assetIds, date], () => repositories.equipmentAvailability.listEquipmentProofs(assetIds, date), { enabled: Boolean(date) && assetIds.length > 0 });
 }
 export function useDowntimeFlags() {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [KEY, orgId, 'flags'], queryFn: () => repositories.equipmentAvailability.listDowntimeFlags(), enabled: Boolean(orgId) });
+  return useOrgQuery([KEY, 'flags'], () => repositories.equipmentAvailability.listDowntimeFlags());
 }
 export function useEquipmentMetrics(assetIds: string[], from: string, to: string, grain: 'day' | 'week' | 'month', enabled: boolean) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: [KEY, orgId, 'metrics', assetIds, from, to, grain],
-    queryFn: () => repositories.equipmentAvailability.getMetrics(assetIds, from, to, grain),
-    enabled: Boolean(orgId) && enabled && assetIds.length > 0,
-  });
+  return useOrgQuery(
+    [KEY, 'metrics', assetIds, from, to, grain],
+    () => repositories.equipmentAvailability.getMetrics(assetIds, from, to, grain),
+    { enabled: enabled && assetIds.length > 0 },
+  );
 }
 export function useSetStatusBulk() {
   const qc = useQueryClient();
@@ -50,8 +44,7 @@ export function useAttachProof() {
   });
 }
 export function useRentalTermHistory(assetId: string, enabled: boolean) {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [KEY, orgId, 'terms', assetId], queryFn: () => repositories.equipmentAvailability.listRentalTerms(assetId), enabled: Boolean(orgId && assetId && enabled) });
+  return useOrgQuery([KEY, 'terms', assetId], () => repositories.equipmentAvailability.listRentalTerms(assetId), { enabled: Boolean(assetId) && enabled });
 }
 export function useRentalTerms() {
   const qc = useQueryClient();

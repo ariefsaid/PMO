@@ -14,21 +14,10 @@
   "editTitle": "Edit {{section}}",
   "empty": "No {{sections}} yet.",
   "errors": {
-    "allocationCap": "Above the work-order plan",
-    "allocationCapSub": "The planned quantities would add up to {{total}} against a work-order plan of {{plan}}.",
-    "archiveBlocked": "Can't archive yet",
-    "archived": "That {{section}} is archived",
-    "archivedSub": "Archived {{sections}} take no new records. Restore it first.",
     "duplicateCode": "That code is already used on this work order",
     "duplicateCodeSub": "Codes stay reserved, even for archived {{sections}}. Choose another.",
-    "foreman": "The foreman must be an active user",
-    "foremanColumns": "A foreman can only set readiness",
-    "foremanSub": "Choose someone who can sign in to this organisation.",
     "inUse": "In use",
-    "inUseSub": "Records still point at this {{section}}. Archive it instead.",
-    "item": "That item cannot be planned",
-    "itemSub": "Choose a live stock item of this organisation.",
-    "status": "This work order no longer takes this change"
+    "inUseSub": "Records still point at this {{section}}. Archive it instead."
   },
   "foreman": "Foreman",
   "foremanPlaceholder": "No foreman",

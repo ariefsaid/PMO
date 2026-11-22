@@ -7,6 +7,8 @@ select plan(30);
 insert into organizations (id, name, default_currency, default_timezone) values
   ('27330000-0000-0000-0000-0000000000a1', 'EBR Org A', 'USD', 'UTC'),
   ('27330000-0000-0000-0000-0000000000a2', 'EBR Org B', 'USD', 'UTC');
+-- this switch is on by default now; this file proves the off state, so setup switches it off as an explicit step
+update organizations set discipline_profit_enabled = false where id in ('27330000-0000-0000-0000-0000000000a1', '27330000-0000-0000-0000-0000000000a2');
 insert into auth.users (id, email) values
   ('27330000-0000-0000-0000-0000000000b1', 'ebr-eng@example.com'),
   ('27330000-0000-0000-0000-0000000000b2', 'ebr-pm@example.com'),

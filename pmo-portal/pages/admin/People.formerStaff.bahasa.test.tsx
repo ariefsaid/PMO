@@ -16,7 +16,7 @@ vi.mock('@/src/hooks/usePeople', () => ({
     ],
     isPending: false, isError: false, refetch: vi.fn(),
   }),
-  usePeopleMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: vi.fn() }, archive: { mutateAsync: vi.fn(), isPending: false } }),
+  usePeopleMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: vi.fn() }, markLeft: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 vi.mock('@/src/hooks/useOrgProfilesLoader', () => ({ useOrgProfilesLoader: () => () => Promise.resolve([]) }));
 

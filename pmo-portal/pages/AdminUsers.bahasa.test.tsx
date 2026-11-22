@@ -107,7 +107,7 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
     expect(screen.getByText('Semua pengguna')).toBeInTheDocument();
     expect(screen.getByLabelText('Cari pengguna')).toHaveAttribute('placeholder', 'Cari berdasarkan nama atau email…');
     expect(screen.getByRole('button', { name: 'Undang pengguna' })).toBeInTheDocument();
-    for (const h of ['Pengguna', 'Role', 'Status', 'Manajer']) {
+    for (const h of ['Pengguna', 'Tingkat akses', 'Status', 'Manajer']) {
       expect(screen.getAllByRole('columnheader', { name: h }).length).toBeGreaterThan(0);
     }
     expect(screen.getAllByText('Manajer proyek').length).toBeGreaterThan(0);
@@ -159,11 +159,11 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
     );
     expect(await screen.findByRole('menuitem', { name: 'Ubah manajer' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Nonaktifkan' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit role' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Ubah tingkat akses' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByRole('heading', { name: 'Ubah peran: Desmond Achebe' })).toBeInTheDocument();
-    await userEvent.selectOptions(within(dialog).getByLabelText(/^Role/), 'Executive');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan role' }));
+    expect(within(dialog).getByRole('heading', { name: 'Ubah tingkat akses: Desmond Achebe' })).toBeInTheDocument();
+    await userEvent.selectOptions(within(dialog).getByLabelText(/^Tingkat akses/), 'Executive');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan tingkat akses' }));
     const confirm = await screen.findByRole('dialog', { name: 'Ubah role Desmond Achebe menjadi Eksekutif?' });
     await userEvent.click(within(confirm).getByRole('button', { name: 'Ubah role' }));
     await waitFor(() => expect(mutations.updateRole.mutateAsync).toHaveBeenCalled());

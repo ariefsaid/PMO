@@ -7,16 +7,18 @@ import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({
   enabled: false, canManage: true, lend: vi.fn().mockResolvedValue(undefined), endLoan: vi.fn().mockResolvedValue(undefined),
   loans: [{ id: 'l1', worker_id: 'w1', home_crew_id: 'a', host_crew_id: 'b', valid_from: '2999-01-01', valid_to: '2999-01-05', version: 1 }] as unknown[],
+  schedule: [] as unknown[],
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canManage }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }) }));
 vi.mock('@/src/hooks/useCrews', () => ({
   useCrews: () => ({ data: [{ id: 'a', code: 'A1', name: 'Home crew', archived_at: null }, { id: 'b', code: 'B1', name: 'Host crew', archived_at: null }] }),
+  useCrewSchedule: (crewId: string | null) => ({ data: crewId === 'b' ? h.schedule : [] }),
   useCrewWorkers: () => ({ data: [{ id: 'w1', display_name: 'Lent Worker' }] }),
   useCrewMembers: (crewId: string | null) => ({ data: crewId === 'a' ? [{ id: 'm1', crew_id: 'a', worker_id: 'w1', valid_from: '2000-01-01', valid_to: null }] : [] }),
 }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.enabled }) }));
 vi.mock('@/src/hooks/useCrewLoans', () => ({
-  useCrewLoansEnabled: () => ({ data: h.enabled }),
   useCrewLoans: () => ({ data: h.loans, isPending: false, isError: false }),
   useCrewLoanMutations: () => ({ lend: { mutateAsync: h.lend }, endLoan: { mutateAsync: h.endLoan } }),
 }));
@@ -41,12 +43,31 @@ describe('AC-LOAN-010 crew loans card', () => {
     expect(screen.queryByRole('button', { name: 'Lend worker' })).not.toBeInTheDocument();
   });
 
+  it('AC-SD-002: a non-manager sees who can lend', () => {
+    h.canManage = false;
+    view();
+    expect(screen.getByTestId('crew-loans-who')).toHaveTextContent('Only people who manage crews');
+  });
+
+  it('AC-SD-002: refuses a loan when the host crew is on no work order, naming the crew', async () => {
+    const user = userEvent.setup();
+    h.schedule = [];
+    view();
+    await user.click(screen.getAllByRole('button', { name: 'Lend worker' })[0]);
+    await user.selectOptions(screen.getByRole('combobox', { name: /Home crew/ }), 'a');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Person/ }), 'w1');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Host crew/ }), 'b');
+    expect(screen.getByTestId('loan-host-coverage')).toHaveTextContent('Host crew is not on any work order');
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Lend worker' })).toBeDisabled();
+  });
+
   it('lends a worker from the home crew to another crew', async () => {
     const user = userEvent.setup();
     view();
     await user.click(screen.getAllByRole('button', { name: 'Lend worker' })[0]);
     await user.selectOptions(screen.getByRole('combobox', { name: /Home crew/ }), 'a');
     await user.selectOptions(screen.getByRole('combobox', { name: /Person/ }), 'w1');
+    h.schedule = [{ valid_from: '2000-01-01', valid_to: null }];
     await user.selectOptions(screen.getByRole('combobox', { name: /Host crew/ }), 'b');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Lend worker' }));
     await waitFor(() => expect(h.lend).toHaveBeenCalledWith(expect.objectContaining({ worker_id: 'w1', home_crew_id: 'a', host_crew_id: 'b' })));

@@ -1,0 +1,2 @@
+# #1631 absence report: client-callable SECURITY DEFINER names (authenticated only; anon revoked in 1631).
+report_absence  # 1631: writes only the caller's own absence report for their own person; notifies the roster keeper

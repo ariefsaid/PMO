@@ -13,6 +13,13 @@ import { RailDrawerContext } from '../railDrawerContext';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 
 const roleState = vi.hoisted(() => ({ role: 'Executive' }));
+const builtInRoleKeys = vi.hoisted(() => ({
+  Executive: 'executive',
+  'Project Manager': 'project_manager',
+  Finance: 'finance_manager',
+  Engineer: 'engineer',
+  Admin: 'administrator',
+}));
 
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: roleState.role, realRole: roleState.role }),
@@ -27,7 +34,10 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({ useHasTimesheetApprovalWork
 vi.mock('../ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
 vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: () => ({ isPending: true }) }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/auth/usePermission', () => ({
+  usePermission: () => () => true,
+  useBuiltInRoleKey: () => builtInRoleKeys[roleState.role as keyof typeof builtInRoleKeys] ?? null,
+}));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => false }));
 
 const renderWithRole = (ui: React.ReactElement) =>

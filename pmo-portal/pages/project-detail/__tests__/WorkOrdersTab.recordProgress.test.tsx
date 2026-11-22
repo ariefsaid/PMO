@@ -56,12 +56,23 @@ vi.mock('@/src/hooks/useManagementPack', () => ({
 }));
 vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: WorkOrderListsProvider loads the organisation's lists for real now, so the tab renders
+// inside the shared test query client; the lists themselves read quiet defaults here.
+vi.mock('@/src/lib/repositories/workOrderLists', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories/workOrderLists')>();
+  return { ...actual, workOrderListRepository: { ...actual.workOrderListRepository, list: async () => [] } };
+});
+const WorkOrdersTabInClient = (props: React.ComponentProps<typeof WorkOrdersTab>) => (
+  <QueryClientTestProvider><WorkOrdersTab {...props} /></QueryClientTestProvider>
+);
+
 
 function renderTab(over: { projectManagerId?: string | null; projectStatus?: string | null } = {}) {
   render(
     <MemoryRouter>
       <ToastProvider>
-        <WorkOrdersTab projectId="p1" currency="IDR" clientId="c1" projectName="Harbour survey"
+        <WorkOrdersTabInClient projectId="p1" currency="IDR" clientId="c1" projectName="Harbour survey"
           projectManagerId={over.projectManagerId === undefined ? 'u-pm' : over.projectManagerId}
           projectStatus={over.projectStatus === undefined ? 'Ongoing Project' : over.projectStatus} />
       </ToastProvider>

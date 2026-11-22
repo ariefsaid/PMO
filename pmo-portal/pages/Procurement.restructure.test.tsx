@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { pickOption } from '@/test/pickOption';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
@@ -159,8 +159,10 @@ describe('Procurement list restructure', () => {
       rows: [['First', 'Alpha Renamed', '']],
     });
     await userEvent.upload(screen.getByLabelText('Choose an .xlsx file'), new File(['x'], 'x.xlsx'));
-    await screen.findByText('Match columns');
-    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    // A file that is exactly the template opens the review at once; any other shows the matching first.
+    await waitFor(() => expect(screen.queryByText('Match columns') ?? screen.queryByText('Review before importing')).toBeTruthy());
+    const next = screen.queryByRole('button', { name: 'Next' });
+    if (next) await userEvent.click(next);
     await screen.findByText('Review before importing');
     expect(screen.queryByText('Project "Alpha Renamed" not found.')).not.toBeInTheDocument();
     expect(screen.getByText('Valid')).toBeInTheDocument();

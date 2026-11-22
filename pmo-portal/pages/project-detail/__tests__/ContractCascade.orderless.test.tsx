@@ -50,6 +50,12 @@ import { ContractCascade } from '../ContractCascade';
 import { summarizeInvoiceSettlement } from '@/src/lib/invoiceSettlement';
 vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: WorkOrderListsProvider loads the organisation's lists for real now; this cascade test reads them quiet.
+vi.mock('@/src/lib/repositories/workOrderLists', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories/workOrderLists')>();
+  return { ...actual, workOrderListRepository: { ...actual.workOrderListRepository, list: async () => [] } };
+});
 import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '@/test/financeI18nTestProvider';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
@@ -245,9 +251,9 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
   it('labels contract value and omits its self-comparison bar', () => {
     renderCascade();
     const cascade = within(screen.getByRole('list', { name: 'Contract' }));
-    const figure = cascade.getByRole('listitem', { name: /Contract value IDR\s500,000/ });
+    const figure = cascade.getByRole('listitem', { name: /Contract value · sum of contract lines IDR\s500,000/ });
 
-    expect(within(figure).getByText('Contract value')).toBeVisible();
+    expect(within(figure).getByText('Contract value · sum of contract lines')).toBeVisible();
     expect(within(figure).getByText('IDR 500,000')).toBeVisible();
     expect(within(figure).queryByRole('progressbar', { name: 'Contract' })).not.toBeInTheDocument();
   });
@@ -291,7 +297,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     renderCascade();
 
     const summary = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
-    for (const kept of ['Contract value', 'Invoiced', 'Paid', 'Overdue']) expect(within(summary).getByText(kept)).toBeInTheDocument();
+    for (const kept of ['Contract value · sum of contract lines', 'Invoiced', 'Paid', 'Overdue']) expect(within(summary).getByText(kept)).toBeInTheDocument();
     expect(summary).toHaveTextContent(/Down payment/);
     for (const dropped of ['Ordered', 'Delivered', 'Can invoice', 'Not yet ordered']) expect(within(summary).queryByText(dropped)).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Billing' })).not.toBeInTheDocument();
@@ -319,12 +325,21 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     renderCascade();
 
     const summary = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
-    for (const shown of ['Ordered', 'Delivered', 'Can invoice', 'Not yet ordered']) expect(within(summary).getByText(shown)).toBeInTheDocument();
+    for (const shown of ['Ordered · on customer orders', 'Delivered', 'Can invoice', 'Not yet ordered']) expect(within(summary).getByText(shown)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Billing' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Not yet ordered' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Contract lines' })).not.toBeInTheDocument();
     const headers = within(screen.getByRole('region', { name: 'Not yet ordered' })).getAllByRole('columnheader').map((header) => header.textContent);
     expect(headers).toEqual(expect.arrayContaining(['Item', 'Contract', 'Ordered', 'Remaining', 'Value']));
+  });
+
+  it('fix-billing item 4: the billable figure is zero while the only customer order is a draft, whatever value it carries', () => {
+    h.orders = { data: [{ id: 'wo-draft', status: 'Draft' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.orderBilling = { data: [{ workOrderId: 'wo-draft', status: 'Draft', orderNet: 5_000, lineCount: 0, figuresComplete: true, remaining: 5_000 }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+    const summary = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
+    expect(within(summary).getByText('Can invoice').parentElement).toHaveTextContent(/0/);
+    expect(within(summary).getByText('Can invoice').parentElement).not.toHaveTextContent(/5[.,]?000/);
   });
 
   it('names a draft customer order as the blocker and links to that order', () => {
@@ -510,7 +525,7 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.billing = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
     h.orders = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
     h.childLines.mockClear();
-    renderCascade('/', <ToastProvider><WorkOrdersTab projectId={project.id} currency={project.currency} /></ToastProvider>);
+    renderCascade('/', <QueryClientTestProvider><ToastProvider><WorkOrdersTab projectId={project.id} currency={project.currency} /></ToastProvider></QueryClientTestProvider>);
     expect(h.childLines).toHaveBeenCalledWith(project.id);
     expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
   });

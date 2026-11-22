@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import type { PlanLineInput, UsageStandard } from '@/src/lib/consumablePlan';
 
@@ -9,6 +10,8 @@ import type { PlanLineInput, UsageStandard } from '@/src/lib/consumablePlan';
  */
 
 export const USAGE_STANDARDS_PAGE_SIZE = 25;
+/** A `numeric` column or argument goes on the wire as the exact decimal TEXT the caller typed (NFR-CUS-002), which the
+ * generated type cannot state: it says `number`. The one cast in this module, and it is the number's text, not a float. */
 const asNumeric = (v: string) => v as unknown as number;
 
 export interface UsageStandardRow {
@@ -29,9 +32,10 @@ export interface UsageStandardInput {
 }
 export interface UsageStandardFilter { includeArchived: boolean; itemId?: string; workUnit?: string; page: number }
 
-type DbRow = { id: string; item_id: string; work_unit: string; boq_code_prefix: string | null; qty_per_unit: string; margin_pct: string; archived_at: string | null };
 const COLUMNS = 'id, item_id, work_unit, boq_code_prefix, qty_per_unit::text, margin_pct::text, archived_at';
-const toRow = (r: DbRow): UsageStandardRow => ({
+/** What `COLUMNS` returns: the select asks for `::text`, so the two numerics arrive as exact decimal text. */
+type SelectedRow = { id: string; item_id: string; work_unit: string; boq_code_prefix: string | null; qty_per_unit: string; margin_pct: string; archived_at: string | null };
+const toRow = (r: SelectedRow): UsageStandardRow => ({
   id: r.id, itemId: r.item_id, workUnit: r.work_unit, boqCodePrefix: r.boq_code_prefix, qtyPerUnit: r.qty_per_unit, marginPct: r.margin_pct, archivedAt: r.archived_at,
 });
 const escapeLike = (v: string) => v.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -46,7 +50,7 @@ export async function listUsageStandards(f: UsageStandardFilter): Promise<{ rows
   if (f.workUnit?.trim()) q = q.ilike('work_unit', `%${escapeLike(f.workUnit.trim())}%`);
   const { data, error, count } = await q;
   if (error) throw toAppError(error);
-  return { rows: ((data ?? []) as unknown as DbRow[]).map(toRow), total: count ?? 0 };
+  return { rows: (data ?? []).map(toRow), total: count ?? 0 };
 }
 
 /** FR-CUS-004: lines in live (Draft or Issued) work orders each active standard's rule matches. */
@@ -147,7 +151,8 @@ export async function generateConsumablePlan(workOrderId: string): Promise<numbe
 /** `adjustedQty` null reverts to the generated figure (and removes a hand-added line). */
 export async function adjustConsumablePlanLine(a: { workOrderId: string; itemId: string; adjustedQty: string | null; reason: string | null }): Promise<void> {
   const { error } = await supabase.rpc('cus_adjust_plan_line', {
-    p_work_order_id: a.workOrderId, p_item_id: a.itemId, p_adjusted_qty: a.adjustedQty === null ? null : asNumeric(a.adjustedQty), p_reason: a.reason,
+    p_work_order_id: a.workOrderId, p_item_id: a.itemId,
+    p_adjusted_qty: a.adjustedQty === null ? nullableArg(null as number | null) : asNumeric(a.adjustedQty), p_reason: nullableArg(a.reason),
   });
   if (error) throw toAppError(error);
 }
@@ -162,13 +167,12 @@ export async function getPlanInputs(workOrderId: string): Promise<{ lines: PlanL
   if (lines.error) throw toAppError(lines.error);
   if (standards.error) throw toAppError(standards.error);
   if ((lines.data?.length ?? 0) >= MAX_INPUT_ROWS || (standards.data?.length ?? 0) >= MAX_INPUT_ROWS) throw new AppError('Too many rows to preview.', 'CUS_TOO_MANY');
-  type LineDb = { boq_item_id: string; quantity: string; boq_items: { item_code: string; unit: string } | { item_code: string; unit: string }[] };
   return {
-    lines: ((lines.data ?? []) as unknown as LineDb[]).map((l) => {
+    lines: (lines.data ?? []).map((l) => {
       const b = Array.isArray(l.boq_items) ? l.boq_items[0] : l.boq_items;
       return { boqItemId: l.boq_item_id, code: b?.item_code ?? '', unit: b?.unit ?? '', quantity: l.quantity };
     }),
-    standards: ((standards.data ?? []) as unknown as DbRow[]).map((r) => ({ id: r.id, itemId: r.item_id, workUnit: r.work_unit, boqCodePrefix: r.boq_code_prefix, qtyPerUnit: r.qty_per_unit, marginPct: r.margin_pct })),
+    standards: (standards.data ?? []).map((r) => ({ id: r.id, itemId: r.item_id, workUnit: r.work_unit, boqCodePrefix: r.boq_code_prefix, qtyPerUnit: r.qty_per_unit, marginPct: r.margin_pct })),
   };
 }
 

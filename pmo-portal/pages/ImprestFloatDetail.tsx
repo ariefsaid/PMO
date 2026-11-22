@@ -16,7 +16,7 @@ import {
 import { availableFloatActions, availableReplenishmentActions, booksState, toCents, type ImprestAction } from '@/src/lib/imprest/imprestRules';
 import { LIST_LIMIT, type ImprestReplenishmentWithRejecter as ImprestReplenishmentRow } from '@/src/lib/db/imprest';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatMonthYearShort, parseMoneyInputAtScale } from '@/src/lib/format';
 import { PlansSection } from './imprest/PlansSection';
 import { FloatAmountSection } from './imprest/FloatAmountSection';
@@ -122,7 +122,7 @@ const ImprestFloatDetail: React.FC = () => {
     try { await work(); toast(success, flt.project?.name, 'success'); close(); }
     catch (err) {
       const { headline, detail } = classifyMutationError(err);
-      setDialogError(detail ? `${headline}. ${detail}` : headline);
+      setDialogError(detail ? joinSentences(headline, detail) : headline);
       toast(headline, detail, 'warning');
     }
   };

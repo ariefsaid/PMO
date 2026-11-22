@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyClose,
   canReport,
   summariseLine,
   type ToolReport,
@@ -50,25 +49,6 @@ describe('crew tool quantities', () => {
     expect(summariseLine(1, [rep({ id: 'a', kind: 'damaged', qty: 5 })], '2026-11-20').usable).toBe(0);
   });
 
-  it('AC-CTR-007 repaired and replaced keep held; written_off lowers it by the report quantity', () => {
-    const damaged = rep({ id: 'a', kind: 'damaged', qty: 1 });
-    const lost = rep({ id: 'b', kind: 'lost', qty: 2 });
-    const both = [damaged, lost];
-    // repaired the damaged one: held 6, open lost 2, usable 4
-    let held = applyClose(6, damaged, 'repaired');
-    expect(held).toBe(6);
-    expect(summariseLine(held, [lost], '2026-11-20').usable).toBe(4);
-    // lost closed replaced: held 6, usable 6
-    expect(summariseLine(applyClose(held, lost, 'replaced'), [], '2026-11-20').usable).toBe(6);
-    // lost closed written_off: held 4, usable 4
-    held = applyClose(held, lost, 'written_off');
-    expect(held).toBe(4);
-    expect(summariseLine(held, [], '2026-11-20').usable).toBe(4);
-    expect(both).toHaveLength(2);
-  });
-
-  it('AC-CTR-007 repaired is refused for a lost report and written_off may take held to 0', () => {
-    expect(() => applyClose(6, rep({ id: 'b', kind: 'lost', qty: 2 }), 'repaired')).toThrow();
-    expect(applyClose(2, rep({ id: 'c', kind: 'damaged', qty: 2 }), 'written_off')).toBe(0);
-  });
+  // AC-CTR-007 (held after a close: replaced/repaired keep it, written_off lowers it) is the close RPC's decision and
+  // the reads are invalidated after it, so there is no client restatement to test here (#2753).
 });

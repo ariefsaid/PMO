@@ -43,6 +43,13 @@ describe('AC-PLP-010 LinePlanningPanel', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   });
 
+  it('when on with no category yet, an editable panel says so and who adds them', async () => {
+    h.get.mockResolvedValue(true);
+    h.list.mockResolvedValue([]);
+    renderIt(true);
+    expect(await screen.findByTestId('line-planning-no-categories')).toHaveTextContent('No categories yet. An Admin adds them under Line planning in Accounting setup.');
+  });
+
   it('when editable on a Draft, saves only the changed line', async () => {
     h.get.mockResolvedValue(true);
     renderIt(true);

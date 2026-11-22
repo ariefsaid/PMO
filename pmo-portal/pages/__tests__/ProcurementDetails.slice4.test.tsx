@@ -17,7 +17,17 @@
 
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render as rtlRender, screen, within } from '@testing-library/react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: the follow-up task button mounts with its host page now, so every render here runs
+// inside the shared test query client and the button's open-task read is stubbed quiet.
+const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(<QueryClientTestProvider>{ui}</QueryClientTestProvider>, options)) as typeof rtlRender;
+vi.mock('@/src/lib/repositories', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
+  return { repositories: { ...actual.repositories, task: { ...actual.repositories.task, findOpenForRecord: async () => null } } };
+});
+
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
@@ -410,7 +420,7 @@ describe('AC-PR-S4-002: SoD gate messaging shows correctly', () => {
     detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
     // The restructured header (#1404) replaces the long self-approve paragraph with "Waiting for approval".
-    expect(headerActions().getByText(/waiting for approval/i)).toBeInTheDocument();
+    expect(headerActions().getByText(/^waiting for /i)).toBeInTheDocument();
     // No Approve button offered to the requester
     expect(screen.queryByRole('button', { name: /^approve$/i })).toBeNull();
   });

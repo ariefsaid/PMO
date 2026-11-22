@@ -6,8 +6,8 @@ import React from 'react';
 
 /** #2596 FR-DSF-011..013: hidden figures say why and never read 0; a count opens the rows behind it. */
 const h = vi.hoisted(() => ({ summary: null as unknown, kinds: [] as unknown[] }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: true, isPending: false }) }));
 vi.mock('@/src/hooks/useSafetyDays', () => ({
-  useSafetyEnabled: () => ({ data: true, isPending: false }),
   useSafetySummary: () => ({ data: h.summary, isPending: false, isError: false, refetch: vi.fn() }),
   useSafetySummaryDetail: (kind: string | null) => { h.kinds.push(kind); return { data: [{ date: '2026-03-12', work_order_id: 'w1', ref_id: null, label: '3' }], isPending: false, isError: false, refetch: vi.fn() }; },
 }));

@@ -43,7 +43,7 @@ insert into timesheet_entries (id, org_id, timesheet_id, project_id, work_order_
 set local session_replication_role = origin;
 -- Idle fixture: one validated report with 60 idle minutes on WO-A, idle switch on.
 insert into dsr_idle_reasons (id, org_id, label) values ('26960000-0000-0000-0000-00000000b001', '26960000-0000-0000-0000-00000000000a', 'Rain');
-insert into idle_cost_settings (org_id, enabled) values ('26960000-0000-0000-0000-00000000000a', true);
+insert into idle_cost_settings (org_id, enabled) values ('26960000-0000-0000-0000-00000000000a', true) on conflict (org_id) do update set enabled = true;
 insert into daily_site_reports (id, org_id, project_id, work_order_id, work_date, status, author_id, validated_by, validated_at, submitted_at) values
   ('26960000-0000-0000-0000-00000000d001', '26960000-0000-0000-0000-00000000000a', '26960000-0000-0000-0000-0000000000d1', '26960000-0000-0000-0000-000000000401', '2026-11-02', 'validated', '26960000-0000-0000-0000-0000000000a3', '26960000-0000-0000-0000-0000000000a1', now(), now());
 insert into dsr_idle_periods (org_id, report_id, position, minutes, reason_id) values

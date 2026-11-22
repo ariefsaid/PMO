@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, DecisionContextSummary, MobileDecisionBar, ReasonDialog, TextArea, TextField, useToast, type MobileDecisionAction } from '@/src/components/ui';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 import { settlementPreview, type ExpenseAction } from '@/src/lib/expenses/expenseRules';
 import { statusLabel } from '@/src/lib/status/statusMap';
@@ -50,7 +50,7 @@ export const ExpenseDecisionBar: React.FC<ExpenseDecisionBarProps> = ({ claim, a
       close();
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
-      setDecisionError(detail ? `${headline}. ${detail}` : headline);
+      setDecisionError(detail ? joinSentences(headline, detail) : headline);
       toast(headline, detail, 'warning');
     }
   };

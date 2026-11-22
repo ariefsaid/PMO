@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Calendar } from '@/src/components/shadcn/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/src/components/shadcn/popover';
 import { formatIsoDay } from '@/src/lib/format';
-import { getDateFnsLocale } from '@/src/lib/locale/activeLocale';
+import { getDateFnsLocale, getDateLocale } from '@/src/lib/locale/activeLocale';
 import { ISO_DAY, parseDayInput, toIsoDay } from '@/src/lib/parseDayInput';
 import { cn } from './cn';
 import { FieldShell, compactControlShell, formControlInvalid, formControlShell } from './FormFields';
@@ -125,6 +125,8 @@ export const DateField: React.FC<DateFieldProps> = ({
             aria-required={ctl['aria-required'] ?? rest['aria-required']}
             aria-invalid={ctl['aria-invalid'] ?? rest['aria-invalid']}
             name={rest.name ?? ctl.id}
+            // The browser names the day, month and year segments in the language of the control: say the app's, not the device's.
+            lang={rest.lang ?? getDateLocale()}
             type="date"
             min={min}
             max={max}

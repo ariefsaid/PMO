@@ -194,7 +194,7 @@ describe('ToolboxPart', () => {
 describe('ChecklistPart', () => {
   it('says when the organisation has no checklist', () => {
     view(<ChecklistPart detail={base} editable />);
-    expect(screen.getByText('No checklist is set up for this organisation')).toBeInTheDocument();
+    expect(screen.getByText('No checklist is set up yet. An Admin adds the items under Safety records in Project setup.')).toBeInTheDocument();
   });
 
   it('shows the saved answer and note read-only to a non-editor', () => {

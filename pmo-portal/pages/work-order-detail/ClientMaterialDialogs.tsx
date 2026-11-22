@@ -5,7 +5,7 @@ import { formatNumberExact } from '@/src/lib/format';
 import type { ClientRequisitionLineRow } from '@/src/lib/repositories/clientRequisitions';
 import type { CsrLineFigures } from '@/src/lib/clientRequisitionRollup';
 import type { StockItemRow } from '@/src/lib/db/stockMaster';
-import { readQuantity, toSubmitError, type Option } from './clientMaterialText';
+import { readQuantity, useSubmitError, type Option } from './clientMaterialText';
 
 // ── requisition form (create / edit draft) ───────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,7 @@ const blankLine = (): RequisitionDraftLine => ({ stockItemId: '', takeoff: '', r
 
 export const RequisitionFormDialog: React.FC<RequisitionFormProps> = ({ title, submitLabel, items, allocationOptions, initial, onClose, onSave }) => {
   const { t } = useTranslation('workOrders');
+  const submitError = useSubmitError();
   const [clientReference, setClientReference] = useState(initial.clientReference);
   const [lines, setLines] = useState<RequisitionDraftLine[]>(initial.lines.length ? initial.lines : [blankLine()]);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -51,7 +52,7 @@ export const RequisitionFormDialog: React.FC<RequisitionFormProps> = ({ title, s
     setSaveError(null);
     void onSave({ clientReference: clientReference.trim() || null, lines: out })
       .then(onClose)
-      .catch((err: unknown) => setSaveError(toSubmitError(t, err)))
+      .catch((err: unknown) => setSaveError(submitError(err)))
       .finally(() => setBusy(false));
   };
 
@@ -111,6 +112,7 @@ export const ReservationDialog: React.FC<LineDialogProps & {
   onSave: (v: { quantity: string; clientReference: string; reservedOn: string | null; note: string | null }) => Promise<unknown>;
 }> = ({ line, figures, onClose, onSave }) => {
   const { t } = useTranslation('workOrders');
+  const submitError = useSubmitError();
   const [quantity, setQuantity] = useState('');
   const [reference, setReference] = useState('');
   const [on, setOn] = useState('');
@@ -134,7 +136,7 @@ export const ReservationDialog: React.FC<LineDialogProps & {
     setBusy(true);
     setSaveError(null);
     void onSave({ quantity: q, clientReference: reference.trim(), reservedOn: on || null, note: note.trim() || null })
-      .then(onClose).catch((err: unknown) => setSaveError(toSubmitError(t, err))).finally(() => setBusy(false));
+      .then(onClose).catch((err: unknown) => setSaveError(submitError(err))).finally(() => setBusy(false));
   };
   return (
     <EntityFormModal open title={t('clientMaterial.reserve.title', 'Record reservation')} submitLabel={t('clientMaterial.reserve.submit', 'Record reservation')}
@@ -155,6 +157,7 @@ export const ReleaseDialog: React.FC<LineDialogProps & {
   onSave: (v: { quantity: string; reason: string }) => Promise<unknown>;
 }> = ({ line, figures, onClose, onSave }) => {
   const { t } = useTranslation('workOrders');
+  const submitError = useSubmitError();
   const [quantity, setQuantity] = useState('');
   const [reason, setReason] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -176,7 +179,7 @@ export const ReleaseDialog: React.FC<LineDialogProps & {
     setBusy(true);
     setSaveError(null);
     void onSave({ quantity: q, reason: reason.trim() })
-      .then(onClose).catch((err: unknown) => setSaveError(toSubmitError(t, err))).finally(() => setBusy(false));
+      .then(onClose).catch((err: unknown) => setSaveError(submitError(err))).finally(() => setBusy(false));
   };
   return (
     <EntityFormModal open title={t('clientMaterial.release.title', 'Record release')} submitLabel={t('clientMaterial.release.submit', 'Record release')}
@@ -195,6 +198,7 @@ export const PickupDialog: React.FC<LineDialogProps & {
   onSave: (v: { quantity: string; warehouseId: string; pickedUpOn: string | null; collector: string | null; paperReference: string | null }) => Promise<unknown>;
 }> = ({ line, figures, locations, onClose, onSave }) => {
   const { t } = useTranslation('workOrders');
+  const submitError = useSubmitError();
   const [quantity, setQuantity] = useState('');
   const [warehouseId, setWarehouseId] = useState(locations.length === 1 ? locations[0].value : '');
   const [on, setOn] = useState('');
@@ -217,7 +221,7 @@ export const PickupDialog: React.FC<LineDialogProps & {
     setBusy(true);
     setSaveError(null);
     void onSave({ quantity: q, warehouseId, pickedUpOn: on || null, collector: collector.trim() || null, paperReference: paper.trim() || null })
-      .then(onClose).catch((err: unknown) => setSaveError(toSubmitError(t, err))).finally(() => setBusy(false));
+      .then(onClose).catch((err: unknown) => setSaveError(submitError(err))).finally(() => setBusy(false));
   };
   return (
     <EntityFormModal open title={t('clientMaterial.pickup.title', 'Record pickup')} submitLabel={t('clientMaterial.pickup.submit', 'Record pickup')}

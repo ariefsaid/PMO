@@ -185,4 +185,14 @@ describe('needs-you dashboard selectors', () => {
 
     expect(atRisk).toMatchObject({ count: 1, href: '/projects?filter=at-risk', label: 'proyek berisiko' });
   });
+
+  it('JOB-WAIT-1 an Engineer who can decide something (a material step, a delivery) sees it on the home, the same count as the list', () => {
+    const items = buildNeedsItems('Engineer', { approvals: 3, timesheetStatus: 'Draft' }, translate, 'USD');
+    expect(items[0]).toMatchObject({ id: 'approvals', count: 3, href: '/approvals', label: 'approvals waiting for you' });
+  });
+
+  it('JOB-WAIT-1 a zero or unknown approvals count adds no row for an Engineer', () => {
+    expect(buildNeedsItems('Engineer', { approvals: 0 }, translate, 'USD').some((item) => item.id === 'approvals')).toBe(false);
+    expect(buildNeedsItems('Engineer', { approvals: undefined }, translate, 'USD').some((item) => item.id === 'approvals')).toBe(false);
+  });
 });

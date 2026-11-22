@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
-import type { Tables } from '@/src/lib/supabase/database.types';
+import type { Tables, TablesInsert } from '@/src/lib/supabase/database.types';
 
 /**
  * Contract-quantity DAL (migration 0337, ADR-0091). Allocations (`work_order_lines`) are RLS-scoped table
@@ -89,9 +89,12 @@ export async function listProjectWorkOrderLines(projectId: string): Promise<Work
 }
 
 export async function createWorkOrderLine(input: WorkOrderLineInput): Promise<WorkOrderLineRow> {
-  const { data, error } = await supabase.from('work_order_lines').insert({
+  // `org_id` is stamped by the org_id before-insert trigger (migration 0074) and the client never sends it (ADR-0017), but
+  // the generated Insert type requires it because introspection cannot see the trigger.
+  const row = {
     work_order_id: input.workOrderId, boq_item_id: input.boqItemId, quantity: input.quantity,
-  }).select().single();
+  } satisfies Omit<TablesInsert<'work_order_lines'>, 'org_id'>;
+  const { data, error } = await supabase.from('work_order_lines').insert(row as TablesInsert<'work_order_lines'>).select().single();
   if (error) fail(error);
   return data as WorkOrderLineRow;
 }

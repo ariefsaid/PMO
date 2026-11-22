@@ -23,6 +23,8 @@ const h = vi.hoisted(() => {
   builder.in = chain('in');
   builder.order = chain('order');
   builder.update = chain('update');
+  builder.ilike = () => builder;
+  builder.limit = () => builder;
   builder.range = (...args: unknown[]) => {
     ranges.push(args);
     return builder;
@@ -150,5 +152,22 @@ describe('inviteUser reports what the invite did (#2252)', () => {
   ])('answer %j is outcome %s', async (data, outcome) => {
     h.invoke.mockResolvedValueOnce({ data, error: null });
     await expect(inviteUser({ email: 'a@b.co', role: 'Engineer' })).resolves.toBe(outcome);
+  });
+});
+
+describe('inviteUser with a built-in role (fix/walk-people item 3)', () => {
+  it('sends the base access level, then gives the new profile its built-in role', async () => {
+    h.invoke.mockResolvedValueOnce({ data: { ok: true }, error: null });
+    h.pages.push({ data: [{ id: 'u9' }], error: null }, { data: [{ id: 'u9' }], error: null });
+    await expect(inviteUser({ email: 'a@b.co', role: 'Engineer', builtInRole: 'storekeeper' })).resolves.toBe('sent');
+    expect(h.invoke.mock.calls.at(-1)?.[1]).toMatchObject({ body: { email: 'a@b.co', role: 'Engineer' } });
+    expect(h.calls.update).toEqual([{ built_in_role: 'storekeeper' }]);
+    expect(h.calls.eq).toContainEqual(['id', 'u9']);
+  });
+
+  it('says the job role is not set when the invitation went out but the role write did not land', async () => {
+    h.invoke.mockResolvedValueOnce({ data: { ok: true }, error: null });
+    h.pages.push({ data: [], error: null });
+    await expect(inviteUser({ email: 'a@b.co', role: 'Engineer', builtInRole: 'storekeeper' })).rejects.toMatchObject({ code: 'INVITE_ROLE_NOT_SET' });
   });
 });
