@@ -55,7 +55,13 @@
     "stage": "Tahap",
     "lines": "baris",
     "confirmed": "Dikonfirmasi",
-    "draft": "Draf"
+    "draft": "Menunggu konfirmasi Keuangan atau Admin",
+    "confirmAction": "Konfirmasi BAST",
+    "confirmTitle": "Konfirmasi BAST ini?",
+    "confirmFinalTitle": "Konfirmasi BAST akhir?",
+    "confirmBody": "Kuantitas yang diterima dicatat per BAST ini. Pesanan kerja tetap terbuka dan belum ada yang ditagihkan.",
+    "confirmFinalBody": "Mengonfirmasi BAST akhir menutup pesanan kerja pada kuantitas yang diterima. Tindakan ini tidak dapat dibatalkan.",
+    "confirmedToast": "BAST dikonfirmasi"
   },
   "documents": {
     "title": "Dokumen",

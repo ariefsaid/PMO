@@ -1499,7 +1499,8 @@
     "submittal": "Submittal",
     "certificate": "Sertifikat",
     "other": "Lainnya",
-    "reference": "Referensi"
+    "reference": "Referensi",
+    "deliveryRecord": "Berita acara serah terima (BAST)"
   },
   "documentRevision": {
     "title": "Revisi baru",

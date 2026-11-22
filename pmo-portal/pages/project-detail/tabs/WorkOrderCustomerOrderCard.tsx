@@ -85,6 +85,8 @@ interface WorkOrderCustomerOrderCardProps {
   setLinesFor: (row: WorkOrderRow | null) => void;
   acceptancesRead: FigureReadState;
   linesRead: FigureReadState;
+  /** Starts a billing claim; absent when the viewer may not bill. */
+  onStartClaim?: () => void;
 }
 
 const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
@@ -121,6 +123,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
   setPending,
   setBastFor,
   setConfirmFor,
+  onStartClaim,
   setWithdrawFor,
   setLinesFor,
   acceptancesRead,
@@ -415,8 +418,25 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
       <div className="mt-4 flex flex-col gap-3">
         {linesRead.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void linesRead.refetch()} />}
         {acceptancesRead.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.acceptances.error', 'Couldn’t load the BASTs')} onRetry={() => void acceptancesRead.refetch()} />}
+        {pendingBast && row.status === 'Issued' && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2.5" data-testid={`bast-pending-${row.id}`}>
+            <span className="text-sm font-medium">{t('projectTabs:contractQuantities.workOrders.acceptances.waitingOn', 'Waiting for Finance or an Admin to confirm')}</span>
+            {canConfirm && (
+              <Button variant="primary" size="sm" onClick={() => setConfirmFor({ acceptance: pendingBast, error: null })}>
+                {t('projectTabs:contractQuantities.workOrders.acceptances.confirm', 'Confirm BAST')}
+              </Button>
+            )}
+          </div>
+        )}
+        {latestConfirmedBast && onStartClaim && (
+          <div className="flex flex-wrap items-center gap-2" data-testid={`bast-confirmed-${row.id}`}>
+            <Button variant="primary" size="sm" onClick={onStartClaim}>
+              {t('projectTabs:contractQuantities.workOrders.acceptances.startClaim', 'Start a claim from this BAST')}
+            </Button>
+          </div>
+        )}
         {(hasOrderLines || bastList.length > 0 || canPrepare || row.status === 'Issued') && (
-          <details className="group">
+          <details className="group" open={Boolean(pendingBast) || undefined}>
             <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
               {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST: {{wo}}', { wo: row.wo_number ?? row.title })}
               <span className="ml-2">{t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: rawLines.length, basts: bastList.length })}</span>

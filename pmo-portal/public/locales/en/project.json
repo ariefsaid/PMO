@@ -1499,7 +1499,8 @@
     "submittal": "Submittal",
     "certificate": "Certificate",
     "other": "Other",
-    "reference": "Reference"
+    "reference": "Reference",
+    "deliveryRecord": "Delivery record (BAST)"
   },
   "documentRevision": {
     "title": "New revision",
