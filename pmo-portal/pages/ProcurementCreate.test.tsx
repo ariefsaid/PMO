@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { render as rtlRender, act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: the purchase-type fields mount with the form now, so renders run inside the shared test
+// query client; with no signed-in org the reads stay disabled, as the page itself sees.
+const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(<QueryClientTestProvider>{ui}</QueryClientTestProvider>, options)) as typeof rtlRender;
+
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -100,7 +106,7 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.projectQuery.isPending = false;
     mocks.vendorQuery.isError = false;
     mocks.vendorQuery.data = [{ value: 'v2', label: 'New Supplier' }];
-    view.rerender(<MemoryRouter initialEntries={['/procurement/new?have=need']}><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></MemoryRouter>);
+    view.rerender(<QueryClientTestProvider><MemoryRouter initialEntries={['/procurement/new?have=need']}><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></MemoryRouter></QueryClientTestProvider>);
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     expect(await screen.findByRole('option', { name: /New Supplier/ })).toBeVisible();
   });

@@ -1,6 +1,12 @@
 /** AC-PLP-009 — the create form shows a category and a needed-by date per line only when line planning is on, and sets them after the draft exists. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render as rtlRender, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: the purchase-type fields mount with the form now, so renders run inside the shared test
+// query client; with no signed-in org the reads stay disabled, as the page itself sees.
+const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(<QueryClientTestProvider>{ui}</QueryClientTestProvider>, options)) as typeof rtlRender;
+
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
