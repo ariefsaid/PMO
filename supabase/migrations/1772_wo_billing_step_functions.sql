@@ -69,7 +69,8 @@ begin
     raise exception 'WBS_NOT_ISSUED: billing steps change only while the work order is issued' using errcode = '55000';
   end if;
   select * into v_s from public.work_order_billing_steps s where s.id = p_step for update;
-  v_own := v_s.assignee_id = v_me or (v_s.owner_role_key is not null and v_s.owner_role_key = v_key);
+  -- coalesce: a step with no named person must read as "not the named person", never NULL (a NULL would skip both refusals below)
+  v_own := coalesce(v_s.assignee_id = v_me, false) or coalesce(v_s.owner_role_key = v_key, false);
   if not (v_own or public.actor_may_run_billing_steps()) then
     raise exception 'WBS_NOT_YOURS: only the step''s person, a holder of its role or a person who runs billing steps can change it' using errcode = '42501';
   end if;
