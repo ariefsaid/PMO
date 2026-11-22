@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
-const h = vi.hoisted(() => ({ record: vi.fn(), holds: new Map<string, 'pending' | 'deferred'>() }));
+const h = vi.hoisted(() => ({ record: vi.fn(), holds: new Map<string, 'pending' | 'deferred'>(), failed: false }));
 vi.mock('@/src/hooks/useCrews', () => ({
   useWorkOrderRoster: () => ({
     data: [{
@@ -25,7 +25,7 @@ vi.mock('@/src/hooks/useCrews', () => ({
     record: { mutateAsync: h.record }, uploadPhoto: { mutateAsync: vi.fn() }, generateWeek: { mutateAsync: vi.fn() }, decideWeek: { mutateAsync: vi.fn() },
   }),
 }));
-vi.mock('@/src/hooks/useMedicalRelease', () => ({ useReleaseHolds: () => ({ data: h.holds }) }));
+vi.mock('@/src/hooks/useMedicalRelease', () => ({ useReleaseHolds: () => (h.failed ? { data: undefined, isError: true } : { data: h.holds }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer' as Role, effectiveRole: 'Engineer' as Role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'fc1', org_id: 'org1' } }) }));
 
@@ -34,7 +34,7 @@ import { AttendanceTick } from './AttendanceTick';
 const open = () => render(<MemoryRouter initialEntries={['/crews?view=attendance&wo=wo1&date=2026-11-18']}><ToastProvider><AttendanceTick /></ToastProvider></MemoryRouter>);
 
 describe('AC-MR-008 the tick screen and a worker whose medical release is not approved', () => {
-  beforeEach(() => { h.record = vi.fn().mockResolvedValue(1); h.holds = new Map([['w1', 'pending']]); });
+  beforeEach(() => { h.record = vi.fn().mockResolvedValue(1); h.holds = new Map([['w1', 'pending']]); h.failed = false; });
 
   it('shows the worker as release pending with the reason and disables their controls; others are unchanged', () => {
     open();
@@ -59,5 +59,12 @@ describe('AC-MR-008 the tick screen and a worker whose medical release is not ap
     await userEvent.setup().click(screen.getByRole('button', { name: 'Save attendance' }));
     await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
     expect(h.record.mock.calls[0][0].rows.map((r: { worker_id: string }) => r.worker_id)).toEqual(['w2']);
+  });
+
+  it('degrades gracefully when the holds read fails: no crash, nobody shown held, the database still refuses', () => {
+    h.failed = true;
+    open();
+    expect(screen.queryByText('Release pending')).toBeNull();
+    expect(within(screen.getByRole('row', { name: /Ana/ })).getByRole('combobox', { name: /Status for Ana/ })).toBeEnabled();
   });
 });

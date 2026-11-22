@@ -3,7 +3,8 @@
 -- MUTATION NOTES (break the rule; the named assertion must go red; restore):
 --   drop trigger zz_mr_attendance_days ............................ 'AC-MR-006 attendance ... refused'
 --   make the attendance guard refuse every status ................. 'AC-MR-006 recording them absent is allowed' / 'on leave ... is allowed'
---   remove the scope predicate from medical_release_holds (keep only the date test) ... 'AC-MR-007 an Engineer outside the crew gets no rows' and 'a Field user of another crew gets no rows'
+--   remove the scope predicate from medical_release_holds (keep only the date test) ... 'AC-MR-007 an Engineer outside the crew gets no rows' and 'a Foreman ... of another crew gets no rows'
+--   add `perform assert_not_light()` to medical_release_holds ... 'AC-MR-007 a Foreman (field account) gets the state word'
 --   drop trigger zz_mr_crew_members / zz_mr_crew_loans ............ 'AC-MR-006 a placement ... refused' / 'a loan ... refused'
 --   medical_release_authority returns true ......................... 'AC-MR-002 a peer cannot decide' and 'an Admin who is not the manager cannot decide'
 --   remove the SoD check from medical_release_decide ............... 'AC-MR-003 the opener cannot decide'
@@ -51,6 +52,8 @@ insert into crew_members (org_id, crew_id, worker_id, valid_from) values
   ('17510000-0000-0000-0000-00000000010a', '17510000-0000-0000-0000-000000001c01', '17510000-0000-0000-0000-000000001f02', pg_temp.today() - 30);
 insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values
   ('17510000-0000-0000-0000-00000000010a', '17510000-0000-0000-0000-000000001401', '17510000-0000-0000-0000-000000001c01', pg_temp.today() - 30);
+-- the foreman of crew A and of crew B are field (light) accounts
+update profiles set built_in_role = 'foreman' where id in ('17510000-0000-0000-0000-0000000001a5', '17510000-0000-0000-0000-0000000001a6');
 -- an attendance row recorded before any release
 insert into attendance_days (org_id, worker_id, work_order_id, crew_id, work_date, status, hours, source, recorded_by)
   values ('17510000-0000-0000-0000-00000000010a', '17510000-0000-0000-0000-000000001f01', '17510000-0000-0000-0000-000000001401',
@@ -126,10 +129,10 @@ select pg_temp.act_as('17510000-0000-0000-0000-0000000001a4');
 select is((select count(*)::int from medical_release_holds(pg_temp.d('t'))), 0, 'AC-MR-007 an Engineer outside the crew gets no rows');
 select is((select count(*)::int from medical_releases), 0, 'AC-MR-007 a user outside the release reads no row');
 select pg_temp.act_as('17510000-0000-0000-0000-0000000001a6');
-select is((select count(*)::int from medical_release_holds(pg_temp.d('t'))), 0, 'AC-MR-007 a Field user of another crew gets no rows');
+select is((select count(*)::int from medical_release_holds(pg_temp.d('t'))), 0, 'AC-MR-007 a Foreman (field account) of another crew gets no rows');
 select pg_temp.act_as('17510000-0000-0000-0000-0000000001a5');
 select is((select state from medical_release_holds(pg_temp.d('t')) where person_id = '17510000-0000-0000-0000-000000001f01'), 'pending',
-  'AC-MR-007 the foreman of the person''s crew gets the state word');
+  'AC-MR-007 a Foreman (field account) gets the state word for a held person in their own crew');
 select pg_temp.act_as('17510000-0000-0000-0000-0000000001a2');
 select is((select state from medical_release_holds(pg_temp.d('t')) where person_id = '17510000-0000-0000-0000-000000001f01'), 'pending',
   'AC-MR-007 the direct manager (a crew manager here) gets the state word');

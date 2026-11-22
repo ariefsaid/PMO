@@ -141,13 +141,20 @@ revoke all on function public.medical_release_blocks(uuid, date) from public, an
 -- Roster screens: people held on that date, as a state word only (pending or deferred). Scoped to rostering roles: the
 -- people team, the person's direct manager, a crew manager, and whoever can record attendance for a crew the person is
 -- placed in or loaned to that day. Everyone else gets no rows.
+-- A FIELD ACCOUNT MAY CALL THIS (a foreman ticks their own crew's roster): it carries no assert_not_light guard and calls no
+-- guarded helper, so the people-team and direct-manager tests are written inline. A field account qualifies only through
+-- attendance_can_record for a crew the person is in that day; the sweep allowlists it as a field path.
 create function public.medical_release_holds(p_date date) returns table (person_id uuid, state text)
   language sql stable security definer set search_path = public, pg_temp as $$
   select distinct on (r.person_id) r.person_id, lower(r.status)
     from public.medical_releases r
-   where public.assert_not_light() and public.is_active_member() and r.org_id = public.auth_org_id()
+   where public.is_active_member() and r.org_id = public.auth_org_id()
      and r.status <> 'Approved' and p_date >= r.release_date
-     and (public.medical_release_can_enter() or public.crew_can_manage() or public.medical_release_authority(r.person_id)
+     and (exists (select 1 from public.profiles me
+                   where me.id = auth.uid() and (me.role = 'Admin' or public.role_has_capability(me.built_in_role, 'people_documents_view')))
+          or public.crew_can_manage()
+          or exists (select 1 from public.people w left join public.profiles lp on lp.id = w.profile_id
+                      where w.id = r.person_id and coalesce(w.manager_id, lp.manager_id) = auth.uid())
           or exists (select 1 from (
                        select m.crew_id from public.crew_members m
                         where m.worker_id = r.person_id and p_date between m.valid_from and coalesce(m.valid_to, 'infinity'::date)
