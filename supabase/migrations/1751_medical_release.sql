@@ -25,13 +25,13 @@ create index medical_releases_org_status_idx on public.medical_releases (org_id,
 create trigger medical_releases_stamp_org_id before insert on public.medical_releases
   for each row execute function public.stamp_org_id();
 
--- The people team: the Admin level or the people-documents capability (HR Manager, HR Officer, Administrator). Reads the
--- capability table only; adds no read of any medical document.
+-- The people team: the Admin level or the one people-documents gate (actor_has_person_documents_access, 1536). Reads the
+-- gate only; adds no read of any medical document.
 create function public.medical_release_can_enter() returns boolean
   language sql stable security definer set search_path = public, pg_temp as $$
   select coalesce((select true from public.profiles p
                     where public.assert_not_light() and public.is_active_member() and p.id = auth.uid()
-                      and (p.role = 'Admin' or public.role_has_capability(p.built_in_role, 'people_documents_view'))), false)
+                      and (p.role = 'Admin' or public.actor_has_person_documents_access())), false)
 $$;
 revoke all on function public.medical_release_can_enter() from public, anon;
 grant execute on function public.medical_release_can_enter() to authenticated;
@@ -137,8 +137,8 @@ $$;
 revoke all on function public.medical_release_blocks(uuid, date) from public, anon, authenticated;
 
 -- Roster screens: people held on that date, as a state word only (pending or deferred). Scoped to rostering roles: the
--- people team, the person's direct manager, a crew manager, and whoever can record attendance for a crew the person is
--- placed in or loaned to that day. Everyone else gets no rows.
+-- people team (through the one gate, 1536), the person's direct manager, a crew manager, and whoever can record attendance
+-- for a crew the person is placed in or loaned to that day. Everyone else gets no rows.
 -- A FIELD ACCOUNT MAY CALL THIS (a foreman ticks their own crew's roster): it carries no assert_not_light guard and calls no
 -- guarded helper, so the people-team and direct-manager tests are written inline. A field account qualifies only through
 -- attendance_can_record for a crew the person is in that day; the sweep allowlists it as a field path.
@@ -149,7 +149,7 @@ create function public.medical_release_holds(p_date date) returns table (person_
    where public.is_active_member() and r.org_id = public.auth_org_id()
      and r.status <> 'Approved' and p_date >= r.release_date
      and (exists (select 1 from public.profiles me
-                   where me.id = auth.uid() and (me.role = 'Admin' or public.role_has_capability(me.built_in_role, 'people_documents_view')))
+                   where me.id = auth.uid() and (me.role = 'Admin' or public.actor_has_person_documents_access()))
           or public.crew_can_manage()
           or r.decider_id = auth.uid()
           or exists (select 1 from (

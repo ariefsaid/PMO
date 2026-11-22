@@ -6,15 +6,16 @@
 --   manpower_need_people  the people linked to a need. Progress is NOT stored: manpower_need_progress() (1741) reads the existing
 --                         cleared-for-site function, so "filled" is whatever the checklist says today.
 -- Writes go straight to the tables under RLS and column grants (no approval engine). Writers = manpower_can_manage(): the existing
--- crew authority (crew_can_manage, 1035) or a person whose built-in role holds the HR capability (1200/1203). No existing policy
--- changes. Reads: every active member of the organisation. org_id is stamped by trigger, never sent.
+-- crew authority (crew_can_manage, 1035) or a person the one people-documents gate answers yes for
+-- (actor_has_person_documents_access, 1536). No existing policy changes. Reads: every active member of the organisation.
+-- org_id is stamped by trigger, never sent.
 --
 -- REVERSE: supabase/migrations/rollback/1740_manpower_needs_down.sql
 
 create function public.manpower_can_manage() returns boolean
   language sql stable security definer set search_path = public, pg_temp as $$
   select public.is_active_member() and not public.actor_is_light()
-     and (public.crew_can_manage() or public.actor_has_role_capability('people_documents_view'))
+     and (public.crew_can_manage() or public.actor_has_person_documents_access())
 $$;
 revoke all on function public.manpower_can_manage() from public, anon;
 grant execute on function public.manpower_can_manage() to authenticated;
