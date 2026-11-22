@@ -93,3 +93,13 @@ describe('people import: match by code, update, never clear (AC-PIU)', () => {
     expect(h.create).toHaveBeenCalledWith({ code: 'E-9', name: 'Cici' });
   });
 });
+
+describe('a member row without an email', () => {
+  it('AC-PIU-013 does not crash the descriptor and is never matched as a manager', () => {
+    const noEmail = { id: 'm3' } as unknown as { id: string; email: string };
+    const d = makePeopleImportDescriptor({ people: async () => [], managers: [noEmail, ...managers] });
+    const v = validateRows([['E-1', 'A', '', 'lead@example.org'], ['E-2', 'B', '', 'undefined']], d.fields, autoMap(HEAD, d.fields));
+    expect(v[0].valid).toBe(true);
+    expect(v[1].errors.manager_id).toMatch(/not found/);
+  });
+});

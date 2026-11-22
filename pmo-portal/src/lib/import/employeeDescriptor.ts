@@ -28,7 +28,7 @@ const norm = (v: string | undefined) => (v ?? '').trim().toLowerCase();
 export function makePeopleImportDescriptor(deps: PeopleImportDeps, t?: TFunction): ImportDescriptor<PeopleImportInput> {
   const L = labelOf(t);
   const managerLabel = L('import:people.manager_id', 'Manager email');
-  const managerByEmail = makeRefLookup(deps.managers.map((m) => ({ id: m.id, name: m.email })), managerLabel);
+  const managerByEmail = makeRefLookup(deps.managers.filter((m) => m.email).map((m) => ({ id: m.id, name: m.email })), managerLabel);
   const emailOf = (id: string | null | undefined) => deps.managers.find((m) => m.id === id)?.email;
   const F = (key: string, en: string, id: string, required: boolean, validate: (r: string) => string | null, hint?: string, inRowTitle = false) =>
     makeField<PeopleImportInput>(key, L(`import:people.${key}`, en), required, validate, { aliases: [en, id], ...(inRowTitle ? { inRowTitle } : {}), ...(hint ? { hint } : {}) });
