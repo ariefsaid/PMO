@@ -149,6 +149,7 @@ const WorkOrderDetail: React.FC = () => {
           }} />
         {confirmFor && (
           <ConfirmDialog
+            open
             title={confirmFor.acceptance.is_final ? t('billing.confirmFinalTitle', 'Confirm the final BAST?') : t('billing.confirmTitle', 'Confirm this BAST?')}
             description={<div className="flex flex-col gap-2">
               <p>{confirmFor.acceptance.is_final

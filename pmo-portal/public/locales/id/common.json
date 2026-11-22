@@ -2071,10 +2071,10 @@
     "billing": {
       "assessment": {
         "errors": {
-          "month": "Isi bulan dengan format YYYY-MM",
+          "month": "Pilih bulan",
           "quantity": "Setiap kuantitas selesai harus 0 atau lebih dengan paling banyak 3 angka desimal"
         },
-        "month": "Bulan (YYYY-MM)",
+        "month": "Bulan",
         "note": "Catatan (opsional)",
         "quantityToDate": "{{item}}: selesai s.d. saat ini ({{unit}})",
         "record": "Catat progres",
