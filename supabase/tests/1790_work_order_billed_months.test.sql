@@ -101,6 +101,7 @@ set local request.jwt.claims = '{"sub":"17900000-0000-0000-0000-0000000000b1","r
 select throws_ok($$ select get_work_order_billed_months('17900000-0000-0000-0000-0000000000d1', '2026-12-05') $$, 'P0002', null,
   'AC-BPM-005 another organisation''s user finds no such work order');                                                            -- 15
 reset role;
+set local request.jwt.claims = '{}';   -- the previous caller's claims outlive `reset role`; a true no-sign-in has none
 select throws_ok($$ select get_work_order_billed_months('17900000-0000-0000-0000-0000000000d1', '2026-12-05') $$, '42501', null,
   'AC-BPM-005 with no sign-in there is no organisation, so it is refused');                                                       -- 16
 select ok(not has_function_privilege('anon', 'public.get_work_order_billed_months(uuid, date)', 'execute')
