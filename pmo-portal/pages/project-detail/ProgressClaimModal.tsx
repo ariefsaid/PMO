@@ -73,23 +73,49 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
   const dpValue = parseMoneyInputAtScale(dpAmount, 2);
   const suggested = dpValue === null ? null : suggestedRecoveryPct(dpValue, contractNet);
 
-  /** Over-claim warning (never a block, OD-SCOPE-6): a typed quantity past what the work-order line can still claim. */
+  /**
+   * Over-claim warning (never a block here, OD-SCOPE-6; the database stop is the organisation's own setting): a typed quantity past
+   * what the work-order line can still claim, and one past the quality-ready quantity. Where the line has a certified (surveyed)
+   * quantity the ceiling is that figure; the surveyed and quality-ready figures show beside the line.
+   */
   const overClaimHelper = (line: BoqItemRow): React.ReactNode => {
     if (scope === '' || line.earning_basis === 'lump_sum') return undefined;
     const allocation = contractLines.find((l) => l.boqItemId === line.id)?.allocations.find((a) => a.workOrderId === scope);
+    if (!allocation) return undefined;
+    const surveyed = allocation.surveyedQuantity ?? null;
+    const qualityReady = allocation.qualityReadyQuantity ?? null;
     const typed = parseMoneyInputAtScale((quantities[line.id] ?? '').trim(), 3);
-    if (!allocation || typed === null || typed <= 0) return undefined;
-    const room = claimableHeadroom({ ordered: allocation.quantity, claimed: allocation.claimedQuantity, accepted: allocation.acceptedQuantity });
-    if (milli(typed) <= milli(room.headroom)) return undefined;
-    const text = room.basis === 'accepted'
-      ? t('projectTabs:contractQuantities.billing.claimForm.overClaimAccepted', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (accepted {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or confirm the next BAST first. You can still raise the claim.',
-        { headroom: formatNumberExact(room.headroom), unit: line.unit, ceiling: formatNumberExact(room.ceiling), claimed: formatNumberExact(allocation.claimedQuantity) })
-      : t('projectTabs:contractQuantities.billing.claimForm.overClaimOrdered', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (ordered {{ceiling}}, already claimed {{claimed}}, nothing accepted yet). Lower it to {{headroom}}, or confirm a BAST first. You can still raise the claim.',
-        { headroom: formatNumberExact(room.headroom), unit: line.unit, ceiling: formatNumberExact(room.ceiling), claimed: formatNumberExact(allocation.claimedQuantity) });
+    const figures = surveyed === null ? null : (
+      <span data-testid={`claim-survey-${line.id}`} className="text-control text-muted-foreground">
+        {t('projectTabs:contractQuantities.billing.claimForm.surveyFigures', 'Surveyed {{surveyed}} {{unit}}, of which quality-ready {{quality}}',
+          { surveyed: formatNumberExact(surveyed), unit: line.unit, quality: formatNumberExact(qualityReady ?? 0) })}
+      </span>
+    );
+    let warning: string | null = null;
+    if (typed !== null && typed > 0) {
+      const room = claimableHeadroom({ ordered: allocation.quantity, claimed: allocation.claimedQuantity, accepted: allocation.acceptedQuantity, surveyed });
+      const values = { headroom: formatNumberExact(room.headroom), unit: line.unit, ceiling: formatNumberExact(room.ceiling), claimed: formatNumberExact(allocation.claimedQuantity) };
+      if (milli(typed) > milli(room.headroom)) {
+        warning = room.basis === 'surveyed'
+          ? t('projectTabs:contractQuantities.billing.claimForm.overClaimSurveyed', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (surveyed {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or have the next survey confirmed first. You can still raise the claim.', values)
+          : room.basis === 'accepted'
+            ? t('projectTabs:contractQuantities.billing.claimForm.overClaimAccepted', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (accepted {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or confirm the next BAST first. You can still raise the claim.', values)
+            : t('projectTabs:contractQuantities.billing.claimForm.overClaimOrdered', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (ordered {{ceiling}}, already claimed {{claimed}}, nothing accepted yet). Lower it to {{headroom}}, or confirm a BAST first. You can still raise the claim.', values);
+      } else if (qualityReady !== null && milli(allocation.claimedQuantity) + milli(typed) > milli(qualityReady)) {
+        warning = t('projectTabs:contractQuantities.billing.claimForm.overQualityReady', 'Warning: with this claim, {{total}} {{unit}} is claimed but only {{quality}} {{unit}} has quality documents. Attach the quality documents to a survey, or lower it. You can still raise the claim.',
+          { total: formatNumberExact((milli(allocation.claimedQuantity) + milli(typed)) / 1000), unit: line.unit, quality: formatNumberExact(qualityReady) });
+      }
+    }
+    if (figures === null && warning === null) return undefined;
     return (
-      <span data-testid={`claim-overclaim-${line.id}`} role="status" className="flex items-start gap-1.5 text-control font-medium text-warning-foreground">
-        <Icon name="alert" className="mt-0.5 size-[13px] shrink-0 text-warning-icon" />
-        {text}
+      <span className="flex flex-col gap-1">
+        {figures}
+        {warning !== null && (
+          <span data-testid={`claim-overclaim-${line.id}`} role="status" className="flex items-start gap-1.5 text-control font-medium text-warning-foreground">
+            <Icon name="alert" className="mt-0.5 size-[13px] shrink-0 text-warning-icon" />
+            {warning}
+          </span>
+        )}
       </span>
     );
   };

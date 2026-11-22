@@ -16,6 +16,10 @@ export interface AllocationFacts {
   quantity: number;
   claimedQuantity: number;
   acceptedQuantity: number | null;
+  /** The certified quantity: the sum of the work-order line's confirmed survey records. Absent/null = nothing certified. */
+  surveyedQuantity?: number | null;
+  /** The certified quantity that has quality documents. */
+  qualityReadyQuantity?: number | null;
   final: boolean;
 }
 

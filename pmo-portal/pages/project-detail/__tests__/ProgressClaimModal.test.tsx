@@ -234,3 +234,41 @@ describe('ProgressClaimModal over-claim warning (survey-cap-warn)', () => {
     expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('more than the 4 unit still claimable (ordered 5, already claimed 1, nothing accepted yet)');
   });
 });
+
+describe('ProgressClaimModal survey ceiling and quality-ready warning (survey-cap-record)', () => {
+  const surveyed = (surveyedQuantity: number | null, qualityReadyQuantity: number | null, accepted: number | null = null) =>
+    [lineFacts('b1', []), lineFacts('b2', [{ ...allocFacts('wo-1', 'b2', 5, 1, accepted), surveyedQuantity, qualityReadyQuantity }])];
+  const pickScope = async (user: ReturnType<typeof userEvent.setup>) => user.selectOptions(screen.getByLabelText(/Bills/), 'wo-1');
+
+  it('AC-SCR-012 shows surveyed and quality-ready beside the line, and uses surveyed as the ceiling over accepted', async () => {
+    const { user } = renderModal({ contractLines: surveyed(4, 2, 5) });
+    await pickScope(user);
+    expect(screen.getByTestId('claim-survey-b2')).toHaveTextContent('Surveyed 4 unit, of which quality-ready 2');
+    await user.type(screen.getByLabelText(/STATION/), '4');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('more than the 3 unit still claimable (surveyed 4, already claimed 1)');
+  });
+
+  it('AC-SCR-012 warns, without blocking, when the claim passes quality-ready but not surveyed', async () => {
+    const { onSave, user } = renderModal({ contractLines: surveyed(4, 2) });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '2');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('only 2 unit has quality documents');
+    await user.click(screen.getByRole('button', { name: 'Create claim' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ lines: [{ boqItemId: 'b2', quantity: 2 }] }));
+  });
+
+  it('AC-SCR-012 no warning at or below quality-ready, and nothing extra when nothing is surveyed', async () => {
+    const { user } = renderModal({ contractLines: surveyed(4, 2) });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '1');
+    expect(screen.queryByTestId('claim-overclaim-b2')).toBeNull();
+  });
+
+  it('AC-SCR-012 without a survey the form behaves as before and shows no survey figures', async () => {
+    const { user } = renderModal({ contractLines: surveyed(null, null) });
+    await pickScope(user);
+    expect(screen.queryByTestId('claim-survey-b2')).toBeNull();
+    await user.type(screen.getByLabelText(/STATION/), '5');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('ordered 5, already claimed 1');
+  });
+});

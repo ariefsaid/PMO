@@ -263,5 +263,24 @@ export function parseProjectBilling(data: unknown): ProjectBillingFacts | null {
 export async function getProjectBilling(projectId: string): Promise<ProjectBillingFacts | null> {
   const { data, error } = await supabase.rpc('get_project_billing', { p_project_id: projectId });
   if (error) fail(error);
-  return parseProjectBilling(data);
+  const facts = parseProjectBilling(data);
+  if (!facts) return facts;
+  // The certified (surveyed) and quality-ready quantities of each allocation, read under the caller's own access. Where nobody
+  // may read survey records the view is empty and every allocation keeps `null`, i.e. the claim ceiling falls back to accepted/ordered.
+  const workOrderIds = [...new Set(facts.contractLines.flatMap((line) => line.allocations.map((a) => a.workOrderId)))];
+  if (workOrderIds.length === 0) return facts;
+  const { data: certified, error: certifiedError } = await supabase.from('survey_certified_lines')
+    .select('work_order_id,boq_item_id,certified_quantity,quality_ready_quantity').in('work_order_id', workOrderIds).limit(5000);
+  if (certifiedError) fail(certifiedError);
+  const byLine = new Map((certified ?? []).map((r) => [`${r.work_order_id}:${r.boq_item_id}`, r]));
+  return {
+    ...facts,
+    contractLines: facts.contractLines.map((line) => ({
+      ...line,
+      allocations: line.allocations.map((a) => {
+        const c = byLine.get(`${a.workOrderId}:${line.boqItemId}`);
+        return c ? { ...a, surveyedQuantity: Number(c.certified_quantity), qualityReadyQuantity: Number(c.quality_ready_quantity) } : a;
+      }),
+    })),
+  };
 }
