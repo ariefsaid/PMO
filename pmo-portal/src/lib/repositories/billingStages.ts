@@ -7,6 +7,10 @@ import {
   addClaimStep, archiveStepTemplate, getOverdueStepsByClaim, getWaitingSteps, listStepTemplates, loadStepTemplateOntoClaim,
   loadStepTemplateOntoProject, moveClaimStep, removeClaimStep, saveStepTemplate, updateClaimStep,
 } from '@/src/lib/db/billingSteps';
+import {
+  assignWorkOrderStep, attachWorkOrderStepDocument, completeWorkOrderStep, getDefaultStepTemplateId, getWaitingWorkOrderSteps,
+  listBoardWorkOrderSteps, listWorkOrderSteps, setDefaultStepTemplate, skipWorkOrderStep,
+} from '@/src/lib/db/workOrderBillingSteps';
 import { getBillingBoard } from '@/src/lib/db/billingBoard';
 import { getPlanCandidates, getPlanSettings, saveMonthTarget, savePlanReminder, savePlanSettings } from '@/src/lib/db/billingPlan';
 import { wrap } from './repositoryErrors';
@@ -50,4 +54,13 @@ export const billingStagesRepository: BillingStagesRepository = {
   moveStep: (stageId, newPosition) => wrap(() => moveClaimStep(stageId, newPosition)),
   waitingSteps: () => wrap(() => getWaitingSteps()),
   overdueStepsByClaim: (projectId) => wrap(() => getOverdueStepsByClaim(projectId)),
+  workOrderSteps: (workOrderId) => wrap(() => listWorkOrderSteps(workOrderId)),
+  boardWorkOrderSteps: (projectId) => wrap(() => listBoardWorkOrderSteps(projectId)),
+  waitingWorkOrderSteps: () => wrap(() => getWaitingWorkOrderSteps()),
+  completeWorkOrderStep: (stepId, doneOn) => wrap(() => completeWorkOrderStep(stepId, doneOn)),
+  skipWorkOrderStep: (stepId) => wrap(() => skipWorkOrderStep(stepId)),
+  assignWorkOrderStep: (stepId, personId) => wrap(() => assignWorkOrderStep(stepId, personId)),
+  attachWorkOrderStepDocument: (stepId, slotId, documentId) => wrap(() => attachWorkOrderStepDocument(stepId, slotId, documentId)),
+  defaultStepTemplateId: () => wrap(() => getDefaultStepTemplateId()),
+  setDefaultStepTemplate: (templateId) => wrap(() => setDefaultStepTemplate(templateId)),
 };

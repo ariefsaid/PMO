@@ -1,0 +1,20 @@
+{
+  "tables": [
+    {"table": "org_billing_step_settings", "has_org": true, "pk": "org_id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"},
+    {"table": "work_order_billing_steps", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"},
+    {"table": "work_order_billing_step_documents", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"}
+  ],
+  "definer_functions": [
+    "actor_may_run_billing_steps()",
+    "actor_may_see_billing_steps()",
+    "assign_work_order_step(uuid,uuid)",
+    "attach_work_order_step_document(uuid,uuid,uuid)",
+    "complete_work_order_step(uuid,date)",
+    "lock_wo_billing_step(uuid)",
+    "notify_wo_step_opened(work_order_billing_steps)",
+    "set_billing_step_template_roles(uuid,jsonb)",
+    "set_default_billing_step_template(uuid)",
+    "skip_work_order_step(uuid)",
+    "wo_step_readable(uuid,text,text[])"
+  ]
+}

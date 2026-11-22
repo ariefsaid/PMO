@@ -8,6 +8,7 @@ import { useBillingBoard } from '@/src/hooks/useBillingBoard';
 import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import { groupBoard, type BoardCard, type BoardColumn } from '@/src/lib/billingBoard';
 import { BOARD_LIMIT } from '@/src/lib/db/billingBoard';
+import { BillingBoardWorkOrderSteps } from './BillingBoardWorkOrderSteps';
 
 /**
  * #2681 — the billing board: every open claim by step and age (docs/specs/billing-board.spec.md). A read-only view over the claims'
@@ -123,6 +124,7 @@ const BillingBoard: React.FC = () => {
           {columns.map((c) => <Column key={c.key || 'done'} column={c} />)}
         </div>
       )}
+      <BillingBoardWorkOrderSteps projectId={projectId} />
     </div>
   );
 };

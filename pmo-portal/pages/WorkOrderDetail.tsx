@@ -29,6 +29,7 @@ import { PerformanceIndices } from './work-order-detail/PerformanceIndices';
 import { DailyTargetGate } from './work-order-detail/DailyTargetGate';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { CloseoutSection } from './work-order-detail/CloseoutSection';
+import { BillingStepsSection } from './work-order-detail/BillingStepsSection';
 import { QuantityChangesSection } from './work-order-detail/QuantityChangesSection';
 import { SectionsSection } from './work-order-detail/SectionsSection';
 import { ConsumablePlanSection } from './work-order-detail/ConsumablePlanSection';
@@ -173,6 +174,7 @@ const WorkOrderDetail: React.FC = () => {
             onCancel={() => setConfirmFor(null)}
           />
         )}
+        <BillingStepsSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         {may('view', 'quantityChange') && <QuantityChangesSection workOrderId={row.id} projectId={row.project_id} status={row.status} />}
         <InspectionsSection workOrderId={row.id} />
