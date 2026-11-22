@@ -38,8 +38,9 @@
   order already on a line stays visible, marked. At create the lines are attributed right after the case is saved; a refusal says
   "saved, but ..." and why, and never undoes the case.
 - **FR-WPL-005** When every line of a purchase names the same (non-cancelled) work order, the system shall copy it to the purchase header's
-  work order; lines that differ, or any line with none, leave the header exactly as it is (the person may still set it by hand). The copy
-  changes only the header.
+  work order, only before submit (the purchase is Draft or Rejected); lines that differ, any line with none, or a purchase already
+  submitted leave the header exactly as it is (the person may still set it by hand; after submit the request and order records carry the
+  attribution and are re-attributed through their own path). The copy changes only the header.
 - **FR-WPL-006** The request (Items tab) shall show each line's work order and discipline, editable by the requester and by Admin,
   Executive, Finance and Project Manager (the database decides), read-only otherwise, and note, as information only, a line whose work order
   differs from the request's. The order print shall show each line's work order and discipline under the item.
@@ -68,8 +69,8 @@ a person has named a work order on every line, which is the new action itself. E
 - **AC-WPL-004** (pgTAP `1880`; `1215_hide_prices` unchanged) The masked line view carries the work order.
 - **AC-WPL-005** (pgTAP `1883`, mutation-checked) Every line on one work order: the header takes it; lines that differ or a line with none
   leave the header as it is.
-- **AC-WPL-006** (pgTAP `1883`) The copy changes only the header (the request record is untouched); a cancelled work order is never
-  copied; another purchase's header is untouched.
+- **AC-WPL-006** (pgTAP `1883`, mutation-checked) The copy changes only the header (the request record is untouched); a cancelled work
+  order is never copied; another purchase's header is untouched; after submit, every line naming one work order leaves the header unchanged.
 - **AC-WPL-007** (unit) The per-line picker and Items-tab panel: choices and default labels, information note on a difference, read-only
   text, empty states, saving only changed lines grouped by what they name, discipline saved, a refusal in words; the repository's grouped
   write and its "saved, but" error.

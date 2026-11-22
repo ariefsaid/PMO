@@ -4,12 +4,15 @@
 -- with none, leave the header exactly as it is · AC-WPL-006 the copy changes only the header: the request record the header
 -- would stamp is untouched, a cancelled work order is never copied, another purchase's header is untouched.
 --
--- MUTATION CHECK (must turn this file RED, then be restored): in 1883's copy_line_work_order_to_header, break the line marked
+-- MUTATION CHECKS (each must turn this file RED, then be restored):
+--   1. In 1883's copy_line_work_order_to_header, drop the status condition (the line marked `-- mut:copy_before_submit`)
+--      -> the 'after submit the header stays as it is' test goes red.
+--   2. In 1883's copy_line_work_order_to_header, break the line marked
 -- `-- mut:copy_all_same` (e.g. `v_named >= 0 and v_distinct >= 1`, copying when lines differ or any line has none)
 --   -> the 'lines that differ leave the header' and 'a line with none leaves the header' tests go red.
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(11);
 
 insert into organizations (id, name, default_currency) values ('18830000-0000-0000-0000-00000000000a', 'WPL Copy Org', 'IDR');
 insert into auth.users (id, email) values ('18830000-0000-0000-0000-0000000000a3', 'wpl-copy-pm@example.com'), ('18830000-0000-0000-0000-0000000000a4', 'wpl-copy-eng@example.com');
@@ -26,7 +29,8 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
 insert into procurements (id, org_id, title, project_id, requested_by_id, status, total_value, approved_total_value, currency) values
   ('18830000-0000-0000-0000-000000000601', '18830000-0000-0000-0000-00000000000a', 'WPL purchase one', '18830000-0000-0000-0000-0000000000d1', '18830000-0000-0000-0000-0000000000a4', 'Draft', 0, 0, 'IDR'),
   ('18830000-0000-0000-0000-000000000602', '18830000-0000-0000-0000-00000000000a', 'WPL purchase on a cancelled work order', '18830000-0000-0000-0000-0000000000d1', '18830000-0000-0000-0000-0000000000a4', 'Draft', 0, 0, 'IDR'),
-  ('18830000-0000-0000-0000-000000000603', '18830000-0000-0000-0000-00000000000a', 'WPL other purchase', '18830000-0000-0000-0000-0000000000d1', '18830000-0000-0000-0000-0000000000a4', 'Draft', 0, 0, 'IDR');
+  ('18830000-0000-0000-0000-000000000603', '18830000-0000-0000-0000-00000000000a', 'WPL other purchase', '18830000-0000-0000-0000-0000000000d1', '18830000-0000-0000-0000-0000000000a4', 'Draft', 0, 0, 'IDR'),
+  ('18830000-0000-0000-0000-000000000604', '18830000-0000-0000-0000-00000000000a', 'WPL submitted purchase', '18830000-0000-0000-0000-0000000000d1', '18830000-0000-0000-0000-0000000000a4', 'Requested', 0, 0, 'IDR');
 insert into purchase_requests (id, org_id, procurement_id, pr_number, status, date, currency) values
   ('18830000-0000-0000-0000-000000000611', '18830000-0000-0000-0000-00000000000a', '18830000-0000-0000-0000-000000000601', 'PR-WPL-COPY', 'Draft', '2026-11-16', 'IDR');
 insert into procurement_items (id, org_id, procurement_id, name, quantity, rate, work_order_id) values
@@ -35,7 +39,9 @@ insert into procurement_items (id, org_id, procurement_id, name, quantity, rate,
   ('18830000-0000-0000-0000-0000000006a3', '18830000-0000-0000-0000-00000000000a', '18830000-0000-0000-0000-000000000601', 'L3', 1, 100, null),
   ('18830000-0000-0000-0000-0000000006b1', '18830000-0000-0000-0000-00000000000a', '18830000-0000-0000-0000-000000000602', 'C1', 1, 100, '18830000-0000-0000-0000-000000000403'),
   ('18830000-0000-0000-0000-0000000006b2', '18830000-0000-0000-0000-00000000000a', '18830000-0000-0000-0000-000000000602', 'C2', 1, 100, '18830000-0000-0000-0000-000000000403'),
-  ('18830000-0000-0000-0000-0000000006c1', '18830000-0000-0000-0000-00000000000a', '18830000-0000-0000-0000-000000000603', 'O1', 1, 100, null);
+  ('18830000-0000-0000-0000-0000000006c1', '18830000-0000-0000-0000-00000000000a', '18830000-0000-0000-0000-000000000603', 'O1', 1, 100, null),
+  ('18830000-0000-0000-0000-0000000006d1', '18830000-0000-0000-0000-00000000000a', '18830000-0000-0000-0000-000000000604', 'S1', 1, 100, null),
+  ('18830000-0000-0000-0000-0000000006d2', '18830000-0000-0000-0000-00000000000a', '18830000-0000-0000-0000-000000000604', 'S2', 1, 100, null);
 set local session_replication_role = origin;
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
@@ -54,6 +60,10 @@ select is((select work_order_id from public.purchase_requests where id = '188300
 select is(public.set_cost_attribution('procurement_item', array['18830000-0000-0000-0000-0000000006b1']::uuid[], '18830000-0000-0000-0000-000000000403', null), 1, 'fixture: a harmless edit of a line already on a cancelled work order');
 select is(coalesce((select work_order_id::text from public.procurements where id = '18830000-0000-0000-0000-000000000602'), 'none') || '/' || coalesce((select work_order_id::text from public.procurements where id = '18830000-0000-0000-0000-000000000603'), 'none'),
   'none/none', 'AC-WPL-006 a cancelled work order is never copied, and another purchase''s header is untouched');
+select is(public.set_cost_attribution('procurement_item', array['18830000-0000-0000-0000-0000000006d1', '18830000-0000-0000-0000-0000000006d2']::uuid[], '18830000-0000-0000-0000-000000000401', null), 2,
+  'fixture: both lines of a submitted purchase name WO-1');
+select is((select work_order_id from public.procurements where id = '18830000-0000-0000-0000-000000000604'), null::uuid,
+  'AC-WPL-006 after submit the header stays as it is, even when every line names one work order');
 
 select * from finish();
 rollback;
