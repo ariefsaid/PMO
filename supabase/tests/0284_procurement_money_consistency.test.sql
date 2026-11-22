@@ -60,6 +60,12 @@ select is((select total_value from procurements where id='02840000-0000-0000-000
 select public.reconcile_procurement_line_totals();
 select is((select total_value from procurements where id='02840000-0000-0000-0000-000000000016'),250::numeric,'AC-PMC-002 migration reconciliation raises an underpriced submitted header to its line sum');
 select is((select total_value from procurements where id='02840000-0000-0000-0000-000000000017'),0::numeric,'AC-PMC-002 terminal cancelled rows are excluded from the backfill');
+-- 1580: an order needs a supplier, so every fixture purchase that is not yet ordered is given one.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid
+ where p.vendor_id is null and p.status in ('Draft','Requested','Approved','Vendor Quoted','Quote Selected');
 set local role authenticated;
 set local request.jwt.claims='{"sub":"02840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$select transition_procurement('02840000-0000-0000-0000-000000000010','Requested')$$,'AC-PMC-001 submitted line estimate transitions');

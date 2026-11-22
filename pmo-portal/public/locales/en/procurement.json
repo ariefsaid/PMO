@@ -105,7 +105,9 @@
     "paymentNeedsBillOdoo": "Record the supplier invoice here first; you can then pay it from here.",
     "preCutover": "Recorded before the ERP connection, not sent",
     "notSent": "Not sent",
-    "notSentReason": "Not sent: this purchase started before the ERP connection"
+    "notSentReason": "Not sent: this purchase started before the ERP connection",
+    "valueFromLines": "From the order lines",
+    "valueNotRecorded": "Value not recorded for this receipt"
   },
   "gates": {
     "heading": "Purchase rules",
@@ -117,7 +119,15 @@
     "receipt_before_invoice": "Receipt required before invoice",
     "approval_before_payment": "Approval required before payment",
     "saving": "Saving…",
-    "saved": "Saved"
+    "saved": "Saved",
+    "imprestLimit": {
+      "heading": "Site cash limit",
+      "help": "The largest single spend site cash covers. Set it before setting up site cash. Only an Admin can set it.",
+      "notSet": "Not set yet. Site cash cannot be set up until it is.",
+      "current": "Current limit: {{amount}}",
+      "label": "Limit per spend",
+      "save": "Save limit"
+    }
   },
   "documents": {
     "attachTo": "Attach to",
@@ -966,7 +976,9 @@
     "openCollectorLine": "________________________________________",
     "name": "Name",
     "signature": "Signature",
-    "signatureDate": "Date"
+    "signatureDate": "Date",
+    "section": "Purchase order",
+    "off": "Printing the purchase order is off. An Admin turns it on in Administration, Accounting, Purchase order printing."
   },
   "poSettings": {
     "heading": "Purchase order printing",
@@ -1063,5 +1075,15 @@
     "lineLabel": "Line {{name}}",
     "saveFailed": "The category and date could not be saved for some lines. Open the request to set them.",
     "columnEmpty": "—"
+  },
+  "billHold": {
+    "rule": {
+      "title": "This bill is held by a purchase rule.",
+      "body": "Your organisation requires a receipt before a supplier bill. Record the receipt first. An Admin can change the rule in Administration, Accounting, Purchase rules."
+    },
+    "match": {
+      "title": "Payment is held until this bill matches.",
+      "body": "The bill is compared with its order and receipts. If it does not match, payment stays held until the receipt is recorded or an Admin or Finance user, other than the person who recorded the bill, approves an exception."
+    }
   }
 }

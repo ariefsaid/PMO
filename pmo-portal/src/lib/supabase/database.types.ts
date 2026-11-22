@@ -15882,6 +15882,8 @@ export type Database = {
           total_value: number
           updated_at: string
           vendor_id: string | null
+          work_order_id: string | null
+          discipline_id: string | null
           vendor_invoiced_at: string | null
         }
         Insert: {
@@ -15922,6 +15924,8 @@ export type Database = {
           total_value?: number
           updated_at?: string
           vendor_id?: string | null
+          work_order_id?: string | null
+          discipline_id?: string | null
           vendor_invoiced_at?: string | null
         }
         Update: {
@@ -15962,6 +15966,8 @@ export type Database = {
           total_value?: number
           updated_at?: string
           vendor_id?: string | null
+          work_order_id?: string | null
+          discipline_id?: string | null
           vendor_invoiced_at?: string | null
         }
         Relationships: [
