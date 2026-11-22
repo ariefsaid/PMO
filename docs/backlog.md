@@ -10,6 +10,13 @@
 
 ### ⚑⚑⚑ CURRENT STATE — run the four commands below before quoting any number
 
+**2026-11-22 — the 15 December contractor build is on `main`, not on production** (#2736 into `dev`, #2737 into
+`main`; 66 tickets on the work-order map #2516; migrations up to 1485). Production is still v0.43.1. The release
+pull request for v0.44.0 (#2740) is open. Left before production: rendered review, owner screenshot sittings, a walk
+of each role's jobs (`docs/jtbd.md` §6), the client acceptance script. Held back: the price-visibility settings card
+(#2699, DD-R1215-1). Follow-ups: #2741 (three stock mutation-proof cases), #2742 (a failed serial lane should turn
+its own CI job red). Versions v0.41 to v0.43.1 shipped between the entry below and this one; see the roadmap (#1571).
+
 **2026-11-15 — hotfix on `main` and on production after v0.40.0** (`production` = `main`; database at migration
 0872; every edge function reports the hotfix commit). It lets an Admin's command-line sign-in make the three reads the
 purchase-capture preview needs (#2276). The preview does not yet complete on a large connected organization; that fix is

@@ -3938,3 +3938,13 @@ and the tab never disagree · a management view; statutory recognition and ledge
 ### Design record: base levels of the 28 built-in roles (#2709, 2026-11-21)
 A record of the design as built, not a new owner ruling; the owner's scope ruling is OD-SCOPE-3.
 Managers sit at Project Manager rank or above (Finance Manager at Finance, Executive and Administrator at their own level); officers at Engineer, except Billing Officer and Finance Officer at Finance; Foreman and Field user at Engineer. Project Administrator is Engineer (requests, no approval). Deputy Project Manager is a manager; Site Supervisor an officer; medical documents are held by HR Manager, HR Officer and Administrator only. Assignment is gated by one organization setting, default off, enforced in the database. Full table: `docs/specs/builtin-role-set.spec.md` section 2.
+
+## Director decisions from the 15 December build round (2026-11-22)
+
+- **DD-R1215-1 (#2699) The price-visibility setting ships switched off and without its settings card.** The setting and its masked purchase list are built; the card an Admin would use to turn it on is held back (`HIDE_PRICES_SETTING_AVAILABLE = false`) until the follow-up work on #2699 lands. Reversible by flipping the constant; the ticket stays open.
+- **DD-R1215-2 (#2678) The presenter of a toolbox talk is not a protected worker name.** The closing-time report may show who presented; a presenter is acting in a named site role, unlike a worker listed on attendance.
+- **DD-R1215-3 (#2703) The former-staff filter control is visible by default.** The ticket named no setting; the default rows are unchanged (former staff hidden until the filter is used), so a setting would add a step with no gain.
+- **DD-R1215-4 (#2710) A browser journey states a light account's landing explicitly.** The shared sign-in helper expects the home page; only a journey for a light account passes `{ home: '/my' }`. A full account landing on the phone home is a failure, so the helper must not accept both.
+- **DD-R1215-5 (#2706) An unrecorded member-day counts against the attendance rate in every proof.** This restates OD-ATR-2 for tests: the journey expects 1 present of 3 expected = 33.33 %, not 1 of 2 recorded.
+- **DD-R1215-6 One integration branch per round, proven as a batch.** A round's branches merge with `--no-ff` onto one branch; database, unit and one browser run prove the batch; a failure ledger is written before any fix worker starts. After a browser run the serial lane's own log is read, because the lane's job can report success while journeys fail (#2742).
+

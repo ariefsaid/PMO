@@ -301,7 +301,7 @@ superpowers' planning tier owns planning; do NOT also use gstack's planning tier
 - **Test pyramid (ADR-0010).** Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
   Unit (Vitest/RTL, mocked) for logic/components/render-empty-error-filter; Integration (**pgTAP**,
   `supabase test db`) for RLS/tenancy/role read+write contracts; E2E (Playwright, **one curated journey
-  per cross-stack `AC-###`** — **114 spec files / 148 `test()` cases** as of 2026-07-25 (was "~50"); the original "6–8" was an under-estimate, re-baselined 2026-06-21
+  per cross-stack `AC-###`** — **360 spec files / 589 `test()` cases** as of 2026-11-22 (was 114 / 148 on 2026-07-25, "~50" before); the original "6–8" was an under-estimate, re-baselined 2026-06-21
   after the charter audit confirmed all are genuine cross-stack journeys, none misplaced) for real
   cross-stack flows only. Coverage is never lost — never push an AC up a layer to satisfy a convention.
 - **AC-id tagging (traceability).** The owning test names its `AC-###` in its title/description so
