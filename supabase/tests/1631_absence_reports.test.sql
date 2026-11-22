@@ -42,7 +42,8 @@ select lives_ok($$ select public.report_absence('sick', 'fever') $$, 'a worker r
 select is((select count(*)::int from public.absence_reports), 1, 'the worker reads their own report');
 select lives_ok($$ select public.report_absence('other', null) $$, 'reporting again the same day replaces, not duplicates');
 select is((select reason from public.absence_reports), 'other', 'the latest report stands');
-select throws_ok($$ select public.report_absence('holiday', null) $$, '22022', null, 'an unknown reason is refused');
+-- 22023 invalid_parameter_value, the code every refusal in this schema raises (22022 is indicator_overflow).
+select throws_ok($$ select public.report_absence('holiday', null) $$, '22023', null, 'an unknown reason is refused');
 
 -- The roster shows the report as reported-absent for the keeper; the person without a report has none.
 select set_config('request.jwt.claims', json_build_object('sub', '16310000-0000-0000-0000-0000000000a1', 'role', 'authenticated')::text, true);

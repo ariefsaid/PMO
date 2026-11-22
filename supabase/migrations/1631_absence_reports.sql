@@ -72,31 +72,35 @@ begin
     on conflict (person_id, work_date) do update set reason = excluded.reason, note = excluded.note, created_at = now()
     returning id into v_id;
 
-  -- Tell the roster keeper: the field controller of every crew the person is in today, else the projects' managers.
-  for v_who in
-    select distinct c.field_controller_id
-      from public.crews c
-     where c.id = public.worker_effective_crew(v_person, v_today) and c.field_controller_id is not null
-  loop
-    perform public.notify_workflow_user(v_org, v_who, 'A crew member reports absent today',
-      v_name || ' reports not coming in today (' || p_reason || ').', 'info', 'absence_report', v_id, 'Absence');
-  end loop;
-  -- While leave requests are on: the line manager and the leave approver role.
+  -- Tell the roster keeper: the field controller of the crew the person is in today and, while leave requests are on,
+  -- the line manager and the leave approver role. There is ONE report per person per day, so each person is told once
+  -- for it: re-stating the same day updates that report and its wording on the roster, and must not stack a second
+  -- notification (a person in two of these groups is still told once).
   select coalesce(o.leave_requests_enabled, false), coalesce(o.leave_approver_role, 'Admin') into v_leave, v_role
     from public.organizations o where o.id = v_org;
   if v_leave then
     select p.manager_id into v_mgr from public.profiles p where p.id = v_uid;
-    for v_who in
-      select distinct x.id from (
-        select v_mgr as id
-        union all
-        select p.id from public.profiles p where p.org_id = v_org and p.role::text = v_role and p.status = 'active'
-      ) x where x.id is not null
-    loop
+  end if;
+  for v_who in
+    select distinct x.id from (
+      select c.field_controller_id as id
+        from public.crews c
+       where c.id = public.worker_effective_crew(v_person, v_today)
+      union all
+      select v_mgr as id where v_leave
+      union all
+      select p.id from public.profiles p
+       where v_leave and p.org_id = v_org and p.role::text = v_role and p.status = 'active'
+    ) x where x.id is not null
+  loop
+    if not exists (select 1 from public.notifications n
+                    where n.owner_id = v_who and n.org_id = v_org
+                      and n.metadata -> 'entity' ->> 'type' = 'absence_report'
+                      and n.metadata -> 'entity' ->> 'id' = v_id::text) then
       perform public.notify_workflow_user(v_org, v_who, 'A crew member reports absent today',
         v_name || ' reports not coming in today (' || p_reason || ').', 'info', 'absence_report', v_id, 'Absence');
-    end loop;
-  end if;
+    end if;
+  end loop;
   perform public.log_audit('absence.report', v_org, v_uid, v_id, jsonb_build_object('work_date', v_today, 'reason', p_reason));
   return v_id;
 end $$;
