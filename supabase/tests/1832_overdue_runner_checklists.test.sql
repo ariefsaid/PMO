@@ -47,17 +47,17 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('28320000-0000-0000-0000-000000000b09', '28320000-0000-0000-0000-000000000a02', 'CTDR B PM',     'ctdr-foreign-pm@example.com', 'Project Manager', 'active'),
   ('28320000-0000-0000-0000-000000000b31', '28320000-0000-0000-0000-000000000a03', 'CTDR C Admin',  'ctdr-off-admin@example.com', 'Admin', 'active');
 insert into companies (id, org_id, name, type) values
-  ('28320000-0000-0000-0000-000000000g01', '28320000-0000-0000-0000-000000000a01', 'CTDR Client A', 'Client'),
-  ('28320000-0000-0000-0000-000000000g02', '28320000-0000-0000-0000-000000000a02', 'CTDR Client B', 'Client'),
-  ('28320000-0000-0000-0000-000000000g03', '28320000-0000-0000-0000-000000000a03', 'CTDR Client C', 'Client');
+  ('28320000-0000-0000-0000-000000000ca1', '28320000-0000-0000-0000-000000000a01', 'CTDR Client A', 'Client'),
+  ('28320000-0000-0000-0000-000000000ca2', '28320000-0000-0000-0000-000000000a02', 'CTDR Client B', 'Client'),
+  ('28320000-0000-0000-0000-000000000ca3', '28320000-0000-0000-0000-000000000a03', 'CTDR Client C', 'Client');
 insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount, tax_rate,
                       tax_base_numerator, tax_base_denominator, subject_to_vat, client_id, project_manager_id) values
   ('28320000-0000-0000-0000-000000000c01', '28320000-0000-0000-0000-000000000a01', 'CTD run project', 'Ongoing Project', 'IDR',
-   90000000, 'exclusive', 0, null, 1, 1, false, '28320000-0000-0000-0000-000000000g01', '28320000-0000-0000-0000-000000000b02'),
+   90000000, 'exclusive', 0, null, 1, 1, false, '28320000-0000-0000-0000-000000000ca1', '28320000-0000-0000-0000-000000000b02'),
   ('28320000-0000-0000-0000-000000000c02', '28320000-0000-0000-0000-000000000a02', 'CTD run foreign project', 'Ongoing Project', 'IDR',
-   90000000, 'exclusive', 0, null, 1, 1, false, '28320000-0000-0000-0000-000000000g02', '28320000-0000-0000-0000-000000000b09'),
+   90000000, 'exclusive', 0, null, 1, 1, false, '28320000-0000-0000-0000-000000000ca2', '28320000-0000-0000-0000-000000000b09'),
   ('28320000-0000-0000-0000-000000000c03', '28320000-0000-0000-0000-000000000a03', 'CTD run off project', 'Ongoing Project', 'IDR',
-   90000000, 'exclusive', 0, null, 1, 1, false, '28320000-0000-0000-0000-000000000g03', '28320000-0000-0000-0000-000000000b31');
+   90000000, 'exclusive', 0, null, 1, 1, false, '28320000-0000-0000-0000-000000000ca3', '28320000-0000-0000-0000-000000000b31');
 -- Issued work orders as the owner (the origination guard scopes itself to the RLS trust boundary): one per recipient rule.
 insert into work_orders (id, org_id, project_id, wo_number, title, status, issued_by, issued_at, order_value, currency, tax_treatment, tax_amount) values
   ('28320000-0000-0000-0000-000000000e01', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000c01', 'WO-1', 'CTD run one', 'Issued', '28320000-0000-0000-0000-000000000b02', now(), 10000, 'IDR', 'exclusive', 0),
