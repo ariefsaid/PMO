@@ -28,3 +28,8 @@ Each line: question · recommended answer · what was built meanwhile.
 
 ## discipline-profit-check
 - How should shared people and equipment cost reach a discipline: by the work orders' share of direct cost (today), by revenue share, or by a rate the customer sets? · Keep the direct-cost share and the per-project custom split; add no per-discipline rate until asked · Nothing new built; shared cost shown as its own column, margin before and after it.
+- May a confirmed survey exceed the accepted quantity? · Yes, the surveyed figure is the cap the ask names; no cross-check · Built without a cross-check.
+- Confirming a survey follows the acceptance rule (recorder cannot confirm their own record unless they are the only active member, and that basis is stored) · Keep the same rule · Built that way.
+
+## Base-branch notes (not this lane's change)
+- The isolation-denominator guard reports a function from migration 1550 missing from its manifest on the base branch · Add the manifest entry in the fix round · Not changed in this lane.
