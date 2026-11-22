@@ -1,13 +1,7 @@
 -- 1833_clearance_due_read_guard.test.sql — #2800, AC-CTD-012 (focused invoker-guard proof, separate from the full 1831 file).
--- 1831's person_clearance_due() is SECURITY INVOKER and its body called public.assert_not_light(); 1205 revokes that helper
--- from authenticated, so an invoker call ran as the caller and every authenticated read (Admin included) failed 42501
--- "permission denied for function assert_not_light" — nobody could read the due list. The owner-approved fix (root
--- 4efc9ae18d21) inlines the same actor_is_light() refusal in the function: SECURITY INVOKER, grants, search_path and the
--- query are unchanged, no EXECUTE grant is added to the helper and there is no SECURITY DEFINER conversion.
---
--- MUTATION NOTES (executed on the VPS; private evidence records the raw red; restore after each):
---   restore `perform public.assert_not_light();` in place of the inline guard → the first positive read aborts 42501
---   delete the inline `if public.actor_is_light() then raise …` block → 'AC-CTD-012 a field account is refused …' fails
+-- The read runs SECURITY INVOKER at the caller's own boundary: an active management reader sees this organisation's due
+-- pairs, a light field account is refused with the account-boundary refusal, and the catalog shape keeps the function's
+-- invoker identity, pinned search_path and client EXECUTE grant.
 begin;
 create extension if not exists pgtap;
 select plan(14);
@@ -43,8 +37,7 @@ create function pg_temp.act_as(p_uid uuid) returns void language sql as $$
 $$;
 grant execute on function pg_temp.act_as(uuid) to authenticated;
 
--- The positive read comes first: before the fix this statement itself is the red (42501 permission denied for function
--- assert_not_light), because the invoker body calls a helper authenticated may not execute.
+-- The positive read comes first, as an active Admin.
 set local role authenticated;
 select pg_temp.act_as('28330000-0000-0000-0000-000000000b01');
 select is((select count(*)::int from person_clearance_due()), 1,

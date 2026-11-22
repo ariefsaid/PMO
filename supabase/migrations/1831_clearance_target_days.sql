@@ -70,9 +70,7 @@ create function public.person_clearance_due()
   returns table (person_id uuid, item_id uuid, due_on date, overdue boolean)
   language plpgsql stable security invoker set search_path = public, pg_temp as $$
 begin
-  -- The light refusal is inlined, not delegated: assert_not_light() is not executable by authenticated (1205 revokes it),
-  -- and this function stays SECURITY INVOKER, so `perform public.assert_not_light()` fails 42501 for every authenticated
-  -- reader. Same actor_is_light() condition, message and code as 1205; no EXECUTE grant and no definer conversion (#2800).
+  -- Preserve the light-account refusal at this invoker read boundary.
   if public.actor_is_light() then
     raise exception 'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this' using errcode = '42501';
   end if;
