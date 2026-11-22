@@ -2,17 +2,17 @@
 -- the roster keeper can read it, and unrelated workers cannot. The writer takes no person argument.
 -- Mutation checks: removing people.profile_id = auth.uid() lets the unlinked light actor write;
 -- removing people.org_id = auth_org_id() lets the cross-org-linked actor upsert the foreign person's row.
--- Leave-enabled recipient proof: controller + active configured line manager + active leave-role admin;
--- exclusions for disabled leave-role profiles, ineligible roles, and the reporting actor;
+-- Leave-enabled recipient proof: controller + active configured line manager + active configured leave role;
+-- non-vacuous candidate-fanout actor self-exclusion; exclusions for disabled leave-role profiles and unconfigured roles;
 -- deduplication when controller is also line manager; explicit leave-disabled fixture (controller only).
 begin;
 create extension if not exists pgtap;
-select plan(53);
+select plan(57);
 
-insert into organizations (id, name, default_currency, built_in_roles_enabled, leave_requests_enabled) values
-  ('16310000-0000-0000-0000-00000000000a', 'ABS Org', 'IDR', true, true),
-  ('16310000-0000-0000-0000-00000000000b', 'ABS Other Org', 'IDR', true, true),
-  ('16310000-0000-0000-0000-00000000000c', 'ABS Leave-Off Org', 'IDR', true, false);
+insert into organizations (id, name, default_currency, built_in_roles_enabled, leave_requests_enabled, leave_approver_role) values
+  ('16310000-0000-0000-0000-00000000000a', 'ABS Org', 'IDR', true, true, 'Finance'),
+  ('16310000-0000-0000-0000-00000000000b', 'ABS Other Org', 'IDR', true, true, null),
+  ('16310000-0000-0000-0000-00000000000c', 'ABS Leave-Off Org', 'IDR', true, false, 'Finance');
 insert into auth.users (id, email) values
   ('16310000-0000-0000-0000-0000000000a1', 'abs-foreman@example.com'),
   ('16310000-0000-0000-0000-0000000000a2', 'abs-field@example.com'),
@@ -24,19 +24,19 @@ insert into auth.users (id, email) values
   ('16310000-0000-0000-0000-0000000000a8', 'abs-cross-org@example.com'),
   ('16310000-0000-0000-0000-0000000000a9', 'abs-manager@example.com'),
   ('16310000-0000-0000-0000-0000000000aa', 'abs-admin@example.com'),
-  ('16310000-0000-0000-0000-0000000000ad', 'abs-disabled-admin@example.com'),
   ('16310000-0000-0000-0000-0000000000af', 'abs-finance@example.com'),
+  ('16310000-0000-0000-0000-0000000000fd', 'abs-disabled-finance@example.com'),
   ('16310000-0000-0000-0000-0000000000ae', 'abs-dedup-worker@example.com'),
   ('16310000-0000-0000-0000-0000000000b1', 'abs-xorg-admin@example.com'),
   ('16310000-0000-0000-0000-0000000000c1', 'abs-off-foreman@example.com'),
   ('16310000-0000-0000-0000-0000000000c2', 'abs-off-worker@example.com'),
   ('16310000-0000-0000-0000-0000000000c3', 'abs-off-manager@example.com'),
-  ('16310000-0000-0000-0000-0000000000c4', 'abs-off-admin@example.com');
+  ('16310000-0000-0000-0000-0000000000c4', 'abs-off-finance@example.com');
 insert into profiles (id, org_id, full_name, email, role, status, built_in_role, manager_id) values
   ('16310000-0000-0000-0000-0000000000a9', '16310000-0000-0000-0000-00000000000a', 'ABS Manager', 'abs-manager@example.com', 'Project Manager', 'active', null, null),
   ('16310000-0000-0000-0000-0000000000aa', '16310000-0000-0000-0000-00000000000a', 'ABS Admin', 'abs-admin@example.com', 'Admin', 'active', null, null),
-  ('16310000-0000-0000-0000-0000000000ad', '16310000-0000-0000-0000-00000000000a', 'ABS Disabled Admin', 'abs-disabled-admin@example.com', 'Admin', 'disabled', null, null),
   ('16310000-0000-0000-0000-0000000000af', '16310000-0000-0000-0000-00000000000a', 'ABS Finance', 'abs-finance@example.com', 'Finance', 'active', null, null),
+  ('16310000-0000-0000-0000-0000000000fd', '16310000-0000-0000-0000-00000000000a', 'ABS Disabled Finance', 'abs-disabled-finance@example.com', 'Finance', 'disabled', null, null),
   ('16310000-0000-0000-0000-0000000000a1', '16310000-0000-0000-0000-00000000000a', 'ABS Foreman', 'abs-foreman@example.com', 'Engineer', 'active', 'foreman', null),
   ('16310000-0000-0000-0000-0000000000a2', '16310000-0000-0000-0000-00000000000a', 'ABS Field', 'abs-field@example.com', 'Engineer', 'active', 'field_user', '16310000-0000-0000-0000-0000000000a9'),
   ('16310000-0000-0000-0000-0000000000a3', '16310000-0000-0000-0000-00000000000a', 'ABS Other Field', 'abs-other-field@example.com', 'Engineer', 'active', 'field_user', null),
@@ -48,7 +48,7 @@ insert into profiles (id, org_id, full_name, email, role, status, built_in_role,
   ('16310000-0000-0000-0000-0000000000ae', '16310000-0000-0000-0000-00000000000a', 'ABS Dedup Worker', 'abs-dedup-worker@example.com', 'Engineer', 'active', 'field_user', '16310000-0000-0000-0000-0000000000a1'),
   ('16310000-0000-0000-0000-0000000000b1', '16310000-0000-0000-0000-00000000000b', 'ABS XOrg Admin', 'abs-xorg-admin@example.com', 'Admin', 'active', null, null),
   ('16310000-0000-0000-0000-0000000000c3', '16310000-0000-0000-0000-00000000000c', 'ABS Off Manager', 'abs-off-manager@example.com', 'Project Manager', 'active', null, null),
-  ('16310000-0000-0000-0000-0000000000c4', '16310000-0000-0000-0000-00000000000c', 'ABS Off Admin', 'abs-off-admin@example.com', 'Admin', 'active', null, null),
+  ('16310000-0000-0000-0000-0000000000c4', '16310000-0000-0000-0000-00000000000c', 'ABS Off Finance', 'abs-off-finance@example.com', 'Finance', 'active', null, null),
   ('16310000-0000-0000-0000-0000000000c1', '16310000-0000-0000-0000-00000000000c', 'ABS Off Controller', 'abs-off-foreman@example.com', 'Engineer', 'active', 'foreman', null),
   ('16310000-0000-0000-0000-0000000000c2', '16310000-0000-0000-0000-00000000000c', 'ABS Off Worker', 'abs-off-worker@example.com', 'Engineer', 'active', 'field_user', '16310000-0000-0000-0000-0000000000c3');
 create temp table abs_today as
@@ -146,11 +146,11 @@ select is((select coalesce(jsonb_agg(to_jsonb(a) order by a.id), '[]'::jsonb)
 select set_config('request.jwt.claims', json_build_object('sub', '16310000-0000-0000-0000-0000000000a1', 'role', 'authenticated')::text, true);
 set local role authenticated;
 select is(public.actor_is_light(), true, 'the Foreman fixture is an active light account');
-select is((select count(*)::int from public.absence_reports where person_id = '16310000-0000-0000-0000-0000000000f01'), 1,
+select is((select count(*)::int from public.absence_reports where person_id = '16310000-0000-0000-0000-000000000f01'), 1,
   'the legitimate crew controller reads the Field user report');
 select is((select m->'reported_absent'->>'reason'
              from public.work_order_roster('16310000-0000-0000-0000-000000000401', (select d from abs_today)) r,
-                  jsonb_array_elements(r.members) m where m->>'worker_id' = '16310000-0000-0000-0000-0000000000f01'),
+                  jsonb_array_elements(r.members) m where m->>'worker_id' = '16310000-0000-0000-0000-000000000f01'),
           'other', 'the roster shows the reported absence');
 select is((select count(*)::int
              from public.work_order_roster('16310000-0000-0000-0000-000000000401', (select d from abs_today)) r,
@@ -160,14 +160,14 @@ select is((select count(*)::int from public.notifications
             where owner_id = '16310000-0000-0000-0000-0000000000a1' and title = 'A crew member reports absent today'),
           1, 'the crew''s field controller was told once, though the day was re-stated');
 
--- Leave-enabled absence notification recipients (controller + line manager + active leave approver role):
+-- Leave-enabled absence notification recipients (controller + line manager + active configured leave approver role):
 reset role;
 select is((select count(*)::int from public.notifications
             where owner_id = '16310000-0000-0000-0000-0000000000a9'
               and metadata->'entity'->>'id' = current_setting('test.absence_report_id')),
           1, 'the configured active line manager was told once');
 select is((select count(*)::int from public.notifications
-            where owner_id = '16310000-0000-0000-0000-0000000000aa'
+            where owner_id = '16310000-0000-0000-0000-0000000000af'
               and metadata->'entity'->>'id' = current_setting('test.absence_report_id')),
           1, 'the active configured leave approver role profile was told once');
 select is((select count(*)::int from public.notifications
@@ -177,14 +177,14 @@ select is((select count(*)::int from public.notifications
 select is((select array_agg(owner_id order by owner_id) from public.notifications
             where org_id = '16310000-0000-0000-0000-00000000000a'
               and metadata->'entity'->>'id' = current_setting('test.absence_report_id')),
-          array['16310000-0000-0000-0000-0000000000a1'::uuid, '16310000-0000-0000-0000-0000000000a9'::uuid, '16310000-0000-0000-0000-0000000000aa'::uuid],
-          'recipient identities match controller, line manager, and active leave-role admin');
+          array['16310000-0000-0000-0000-0000000000a1'::uuid, '16310000-0000-0000-0000-0000000000a9'::uuid, '16310000-0000-0000-0000-0000000000af'::uuid],
+          'recipient identities match controller, line manager, and active configured leave-role finance');
 select is((select count(*)::int from public.notifications
-            where owner_id = '16310000-0000-0000-0000-0000000000ad'),
+            where owner_id = '16310000-0000-0000-0000-0000000000fd'),
           0, 'disabled leave role profile is excluded from absence notifications');
 select is((select count(*)::int from public.notifications
-            where owner_id = '16310000-0000-0000-0000-0000000000af'),
-          0, 'ineligible role profile is excluded from absence notifications');
+            where owner_id = '16310000-0000-0000-0000-0000000000aa'),
+          0, 'unconfigured admin role profile is excluded when leave_approver_role is configured');
 select is((select count(*)::int from public.notifications
             where owner_id = '16310000-0000-0000-0000-0000000000a2'),
           0, 'reporting person is never notified of their own absence');
@@ -249,6 +249,25 @@ select is((select count(*)::int from public.absence_reports
               and reported_by = '16310000-0000-0000-0000-0000000000a8'), 0,
   'a refused cross-org attempt creates no report for the foreign person');
 
+-- Acting crew controller in candidate fan-out self-exclusion (non-vacuous actor exclusion proof):
+select set_config('request.jwt.claims', json_build_object('sub', '16310000-0000-0000-0000-0000000000a1', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select lives_ok($$ select public.report_absence('sick', null) $$,
+  'acting crew controller in candidate fan-out reports own absence');
+select set_config('test.controller_self_report_id', (select id::text from public.absence_reports where person_id = '16310000-0000-0000-0000-000000000f03'), true);
+reset role;
+select is((select count(*)::int from public.notifications
+            where owner_id = '16310000-0000-0000-0000-0000000000a1'
+              and metadata->'entity'->>'id' = current_setting('test.controller_self_report_id')),
+          0, 'acting crew controller in candidate fan-out receives no notification for their own absence report');
+select is((select count(*)::int from public.notifications
+            where owner_id = '16310000-0000-0000-0000-0000000000af'
+              and metadata->'entity'->>'id' = current_setting('test.controller_self_report_id')),
+          1, 'configured leave approver role receives notification when crew controller reports absent');
+select is((select count(*)::int from public.notifications
+            where metadata->'entity'->>'id' = current_setting('test.controller_self_report_id')),
+          1, 'exactly one notification written when reporter is the crew controller');
+
 -- Controller = line manager deduplication:
 select set_config('request.jwt.claims', json_build_object('sub', '16310000-0000-0000-0000-0000000000ae', 'role', 'authenticated')::text, true);
 set local role authenticated;
@@ -262,11 +281,11 @@ select is((select count(*)::int from public.notifications
           1, 'controller who is also line manager receives exactly one deduplicated notification');
 select is((select count(*)::int from public.notifications
             where metadata->'entity'->>'id' = current_setting('test.dedup_report_id')),
-          2, 'controller/manager dedup limits total notification count to two (controller and admin)');
+          2, 'controller/manager dedup limits total notification count to two (controller and finance)');
 select is((select array_agg(owner_id order by owner_id) from public.notifications
             where metadata->'entity'->>'id' = current_setting('test.dedup_report_id')),
-          array['16310000-0000-0000-0000-0000000000a1'::uuid, '16310000-0000-0000-0000-0000000000aa'::uuid],
-          'dedup recipient set contains controller/manager once and admin once');
+          array['16310000-0000-0000-0000-0000000000a1'::uuid, '16310000-0000-0000-0000-0000000000af'::uuid],
+          'dedup recipient set contains controller/manager once and configured leave role once');
 
 -- Explicit leave-disabled organisation fixture (controller only):
 select set_config('request.jwt.claims', json_build_object('sub', '16310000-0000-0000-0000-0000000000c2', 'role', 'authenticated')::text, true);
