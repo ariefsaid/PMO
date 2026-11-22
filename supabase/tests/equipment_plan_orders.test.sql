@@ -80,10 +80,10 @@ select is((select count(*)::int from procurements p join equipment_plan_lines l 
               and p.rental_from = l.date_from and p.rental_to = l.date_to and p.vendor_id = l.vendor_id
               and p.project_id = '27004000-0000-0000-0000-0000000000c1' and p.requested_by_id = '27004000-0000-0000-0000-0000000000a1'), 2,
   'AC-EQP-014 each is an ordinary Draft of the flagged rental type, with the line''s vendor and period, requested by the approver');
-select is((select i.quantity = 2 and i.rate = 1000 and i.description = 'Monthly plan 2026-01 · Work order EQP WO on project'
+select is((select i.quantity = 2 and i.rate = 1000 and i.description = 'Monthly plan 2026-01' and i.work_order_id = l.work_order_id
             from procurement_items i join equipment_plan_lines l on l.procurement_id = i.procurement_id
             where l.plan_id = '27004000-0000-0000-0000-000000000b01' and l.work_order_id is not null),
-  true, 'AC-EQP-010 the item carries the line''s quantity and rate, and the work order reference');
+  true, 'AC-EQP-010 / AC-WPL-013 the item carries the line''s quantity and rate, and the work order as its own column (not description text)');
 select is((select count(*)::int from procurements p join equipment_plan_lines l on l.procurement_id = p.id
             where l.plan_id = '27004000-0000-0000-0000-000000000b01' and p.status <> 'Draft'), 0, 'AC-EQP-014 nothing is advanced: the normal request, approval and routing still lie ahead');
 
