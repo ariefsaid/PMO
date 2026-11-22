@@ -46,6 +46,8 @@ test('JOB-F14 a badge 14 days from expiry warns the manager and not the worker',
 
 test('JOB-F14 the manager records the renewal and the worker is told the new date', async ({ page }) => {
   const newDate = inDays(400);
+  const [y, m, d] = newDate.split('-').map(Number);
+  const newDateLabel = `${d} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${y}`; // the notice body's own format
   await signIn(page, 'pm@acme.test');
   await page.goto('/equipment/expiring');
   await page.getByRole('button', { name: `Record renewal for ${run} Worker` }).click();
@@ -57,5 +59,5 @@ test('JOB-F14 the manager records the renewal and the worker is told the new dat
   await signIn(page, 'engineer@acme.test');
   await page.goto('/');
   await page.getByRole('button', { name: /^notifications/i }).click();
-  await expect(page.getByRole('list', { name: 'Notifications' }).getByText(new RegExp(`${run} badge renewed`))).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('list', { name: 'Notifications' }).getByText(`${run} badge renewed: now valid until ${newDateLabel}.`)).toBeVisible({ timeout: 20_000 });
 });
