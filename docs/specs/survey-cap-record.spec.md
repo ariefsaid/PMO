@@ -29,7 +29,9 @@ Whether the survey is internal or joint with the customer's supervisor is open, 
 - FR-SCR-10: The claim form shall pass the certified quantity as `surveyed` to `claimableHeadroom`, show surveyed and quality-ready beside the ceiling for the line, and show a warning (never a refusal) when the typed quantity passes quality-ready, with the next step. Where there is no survey, behaviour is exactly part A/B's.
 - FR-SCR-11: The work-order page shall list the surveys (date, line, surveyed, quality-ready, participants, documents, status) with record, confirm, correct and discard actions gated by `can()`; the empty state says who records it. EN and ID, 390 px and 1440 px.
 - FR-SCR-12: A light account shall be refused every read and write of these tables and functions. Another organisation's records are invisible and unusable. `org_id` is stamped by the database.
-- FR-SCR-14: When a draft with a quality-ready quantity above zero is confirmed, the database shall require at least one attached document (AC-SCR-016), so "quality-ready" always has documents behind it.
+- FR-SCR-14: When any draft is confirmed, the database shall require at least one attached document (the survey sheet), whatever its quality-ready quantity; the refusal says to attach the survey sheet (AC-SCR-016).
+- FR-SCR-15: When a document is attached, the database shall require that the caller may see the document's category (an Admin, or a role listed on the category, as the register's own visibility rule), and shall refuse a missing, foreign, wrong-state, file-less or not-visible document with the one same code, so the refusal is not an oracle for which documents exist (AC-SCR-017).
+- FR-SCR-16: The work-order Surveys section and the record form shall state plainly that each confirmed survey ADDS to the line's certified quantity (enter what this survey measured, not a running total), and that a mistaken survey is changed with Correct (supersede). The empty state says so too.
 - FR-SCR-13: Every refusal a person can meet shall have an English and a Bahasa Indonesia sentence in the refusals catalogue saying what to do next.
 
 ## Acceptance criteria (Given/When/Then) and owning layer
@@ -47,7 +49,9 @@ Whether the survey is internal or joint with the customer's supervisor is open, 
 - AC-SCR-012 Given a line with a certified quantity, the claim form shows surveyed and quality-ready beside the line, uses surveyed as the ceiling, warns past quality-ready and past surveyed, and does not block. EN and ID. (RTL)
 - AC-SCR-013 The survey list shows rows, hides actions the role lacks with the reason, and the empty state names who records it. EN and ID. (RTL)
 - AC-SCR-014 Journey: record a survey, confirm it as another person, open the claim form, type above quality-ready, see the warning. (e2e)
-- AC-SCR-016 Confirming a draft with quality-ready above zero and no document is refused; with a document it is confirmed. (pgTAP)
+- AC-SCR-016 Confirming a draft with no attached document is refused whatever its quality-ready quantity; with a document it is confirmed. (pgTAP)
+- AC-SCR-017 Attaching a document in a category the caller cannot see, or one that does not exist, is refused with the same code; an Admin can attach it. (pgTAP)
+- AC-SCR-018 The Surveys section states that confirmed surveys add and a mistaken one is changed with Correct. EN and ID. (RTL)
 - AC-SCR-015 Every refusal has EN and ID sentences. (`npm run check:guards` refusal gate)
 
 ## Settings and defaults

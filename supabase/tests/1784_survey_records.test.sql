@@ -6,7 +6,7 @@
 --   confirm_survey: delete the superseded_at update ........ 'AC-SCR-005 the corrected record no longer counts'
 begin;
 create extension if not exists pgtap;
-select plan(51);
+select plan(58);
 create function pg_temp.err(q text) returns text language plpgsql as $f$ begin execute q; return null; exception when others then return sqlerrm; end $f$;
 
 insert into organizations(id,name,built_in_roles_enabled) values ('17840000-0000-0000-0000-000000000001','Svy Org A',true),('17840000-0000-0000-0000-000000000002','Svy Org B',true);
@@ -48,6 +48,11 @@ insert into project_documents(id,org_id,project_id,code,category,title,status,au
  ('17840000-0000-0000-0000-000000000053','17840000-0000-0000-0000-000000000001','17840000-0000-0000-0000-000000000021','SD-3','Report','Svy draft doc','Draft','17840000-0000-0000-0000-000000000011','17840000-0000-0000-0000-000000000001/17840000-0000-0000-0000-000000000021/17840000-0000-0000-0000-000000000053/doc.pdf'),
  ('17840000-0000-0000-0000-000000000054','17840000-0000-0000-0000-000000000001','17840000-0000-0000-0000-000000000021','SD-4','Report','Svy fileless doc','Issued','17840000-0000-0000-0000-000000000011',null);
 
+insert into document_categories(id,org_id,name,sort_order) values ('17840000-0000-0000-0000-0000000000c1','17840000-0000-0000-0000-000000000001','Svy Private',900);
+insert into document_category_roles(category_id,org_id,role) values ('17840000-0000-0000-0000-0000000000c1','17840000-0000-0000-0000-000000000001','Admin');
+insert into project_documents(id,org_id,project_id,code,category,title,status,author_id,file_path) values
+ ('17840000-0000-0000-0000-000000000056','17840000-0000-0000-0000-000000000001','17840000-0000-0000-0000-000000000021','SD-6','Svy Private','Svy private sheet','Issued','17840000-0000-0000-0000-000000000011','17840000-0000-0000-0000-000000000001/17840000-0000-0000-0000-000000000021/17840000-0000-0000-0000-000000000056/doc.pdf');
+
 create temp table ids(k text, v uuid);
 grant all on ids to authenticated;
 set local role authenticated;
@@ -72,7 +77,7 @@ select alike(pg_temp.err($q$select attach_survey_document((select v from ids whe
 select alike(pg_temp.err($q$select attach_survey_document((select v from ids where k='s1'),'17840000-0000-0000-0000-000000000054')$q$), 'SVY_DOCUMENT_INVALID:%', 'AC-SCR-011 a document without a file is refused');
 -- quality-ready needs a document at confirm
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000012","role":"authenticated"}';
-select alike(pg_temp.err($q$select confirm_survey((select v from ids where k='s1'))$q$), 'SVY_QUALITY_NEEDS_DOCUMENT:%', 'AC-SCR-016 a quality-ready quantity needs an attached document to confirm');
+select alike(pg_temp.err($q$select confirm_survey((select v from ids where k='s1'))$q$), 'SVY_NEEDS_SHEET:%', 'AC-SCR-016 a survey with no attached sheet cannot be confirmed');
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000013","role":"authenticated"}';
 select lives_ok($q$select attach_survey_document((select v from ids where k='s1'),'17840000-0000-0000-0000-000000000051')$q$, 'AC-SCR-011 an issued document with a file is accepted');
 -- who may record / confirm
@@ -85,7 +90,11 @@ select alike(pg_temp.err($q$select confirm_survey((select v from ids where k='s1
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000012","role":"authenticated"}';
 insert into ids select 's2', record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000042','2026-11-11',3,0,'[{"name":"Finance Person"}]'::jsonb);
 select alike(pg_temp.err($q$select confirm_survey((select v from ids where k='s2'))$q$), 'SVY_RECORDER_CONFIRMS:%', 'AC-SCR-003 the recorder cannot confirm their own survey');
+select alike(pg_temp.err($q$select attach_survey_document((select v from ids where k='s2'),'17840000-0000-0000-0000-000000000056')$q$), 'SVY_DOCUMENT_INVALID:%', 'AC-SCR-017 a document in a category the caller cannot see is refused with the same code as a missing one');
+select alike(pg_temp.err($q$select attach_survey_document((select v from ids where k='s2'),'17840000-0000-0000-0000-0000000000ff')$q$), 'SVY_DOCUMENT_INVALID:%', 'AC-SCR-017 a document that does not exist is refused with the same code');
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000011","role":"authenticated"}';
+select alike(pg_temp.err($q$select confirm_survey((select v from ids where k='s2'))$q$), 'SVY_NEEDS_SHEET:%', 'AC-SCR-016 a survey with quality-ready 0 and no sheet is refused too');
+select lives_ok($q$select attach_survey_document((select v from ids where k='s2'),'17840000-0000-0000-0000-000000000056')$q$, 'AC-SCR-017 an Admin can see every category and attaches the sheet');
 select lives_ok($q$select confirm_survey((select v from ids where k='s2'))$q$, 'AC-SCR-003 another Admin confirms');
 select is((select confirm_basis from survey_records where id=(select v from ids where k='s2')), 'standard', 'AC-SCR-003 basis standard');
 select lives_ok($q$select confirm_survey((select v from ids where k='s1'))$q$, 'AC-SCR-003 the Admin confirms the quality-ready survey (document attached)');
@@ -102,6 +111,7 @@ select is(survey_quantity_for_line('17840000-0000-0000-0000-000000000031','17840
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000013","role":"authenticated"}';
 insert into ids select 's3', record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-12',3,0,'[{"name":"P"}]'::jsonb);
+select lives_ok($q$select attach_survey_document((select v from ids where k='s3'),'17840000-0000-0000-0000-000000000051')$q$, 'AC-SCR-016 the recorder attaches the survey sheet to the second survey');
 select is((select certified_quantity from survey_certified_lines where boq_item_id='17840000-0000-0000-0000-000000000041'), 4::numeric, 'AC-SCR-006 a draft does not count');
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000011","role":"authenticated"}';
 select lives_ok($q$select confirm_survey((select v from ids where k='s3'))$q$, 'AC-SCR-006 the second survey is confirmed');
@@ -109,6 +119,7 @@ select ok((select certified_quantity = 7 and quality_ready_quantity = 3 from sur
 -- AC-SCR-005 correction
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000013","role":"authenticated"}';
 insert into ids select 's4', record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-13',2,0,'[{"name":"P"}]'::jsonb,(select v from ids where k='s3'));
+select lives_ok($q$select attach_survey_document((select v from ids where k='s4'),'17840000-0000-0000-0000-000000000051')$q$, 'AC-SCR-016 the recorder attaches the survey sheet to the correction');
 select alike(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000041','2026-11-13',1,0,'[{"name":"P"}]'::jsonb,(select v from ids where k='s3'))$q$), 'SVY_ALREADY_CORRECTED:%', 'AC-SCR-005 a second open correction of the same survey is refused');
 select alike(pg_temp.err($q$select record_survey('17840000-0000-0000-0000-000000000031','17840000-0000-0000-0000-000000000042','2026-11-13',1,0,'[{"name":"P"}]'::jsonb,(select v from ids where k='s3'))$q$), 'SVY_NOT_CORRECTABLE:%', 'AC-SCR-005 a correction must name a survey of the same line');
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000011","role":"authenticated"}';
@@ -148,11 +159,13 @@ insert into auth.users(id,email) values ('17840000-0000-0000-0000-000000000018',
 insert into profiles(id,org_id,full_name,email,role,status) values ('17840000-0000-0000-0000-000000000018','17840000-0000-0000-0000-000000000003','Svy c admin','svy-c-admin@example.invalid','Admin','active');
 insert into projects(id,org_id,name,status,contract_value,tax_treatment,tax_amount,currency) values ('17840000-0000-0000-0000-000000000024','17840000-0000-0000-0000-000000000003','Svy Project C','Ongoing Project',1000,'exclusive',0,'USD');
 insert into work_orders(id,org_id,project_id,title,status,order_value,tax_treatment,tax_amount,currency) values ('17840000-0000-0000-0000-000000000034','17840000-0000-0000-0000-000000000003','17840000-0000-0000-0000-000000000024','Svy WOC','Issued',500,'exclusive',0,'USD');
+insert into project_documents(id,org_id,project_id,code,category,title,status,author_id,file_path) values ('17840000-0000-0000-0000-000000000055','17840000-0000-0000-0000-000000000003','17840000-0000-0000-0000-000000000024','SD-5','Report','Svy C sheet','Issued','17840000-0000-0000-0000-000000000018','17840000-0000-0000-0000-000000000003/17840000-0000-0000-0000-000000000024/17840000-0000-0000-0000-000000000055/doc.pdf');
 insert into boq_items(id,org_id,project_id,item_code,description,unit,quantity,rate,earning_basis) values ('17840000-0000-0000-0000-000000000046','17840000-0000-0000-0000-000000000003','17840000-0000-0000-0000-000000000024','SV6','Svy C line','unit',10,10,'unit_rate');
 insert into work_order_lines(org_id,work_order_id,boq_item_id,quantity) values ('17840000-0000-0000-0000-000000000003','17840000-0000-0000-0000-000000000034','17840000-0000-0000-0000-000000000046',10);
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"17840000-0000-0000-0000-000000000018","role":"authenticated"}';
 insert into ids select 's6', record_survey('17840000-0000-0000-0000-000000000034','17840000-0000-0000-0000-000000000046','2026-11-10',5,0,'[{"name":"Solo"}]'::jsonb);
+select lives_ok($q$select attach_survey_document((select v from ids where k='s6'),'17840000-0000-0000-0000-000000000055')$q$, 'AC-SCR-016 the sole operator attaches the survey sheet');
 select lives_ok($q$select confirm_survey((select v from ids where k='s6'))$q$, 'AC-SCR-003 the only active member may confirm their own survey');
 reset role;
 select is((select confirm_basis from survey_records where id=(select v from ids where k='s6')), 'sole_operator', 'AC-SCR-003 and the basis says so');

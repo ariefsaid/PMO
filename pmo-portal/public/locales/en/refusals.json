@@ -339,6 +339,6 @@
   "SVY_CONFIRM_ROLE_detail": "Ask Finance or an Admin to confirm it.",
   "SVY_RECORDER_CONFIRMS": "The person who recorded a survey cannot confirm it.",
   "SVY_RECORDER_CONFIRMS_detail": "Ask Finance or an Admin other than the recorder to confirm it.",
-  "SVY_QUALITY_NEEDS_DOCUMENT": "A survey with a quality-ready quantity needs its quality documents attached before it is confirmed.",
-  "SVY_QUALITY_NEEDS_DOCUMENT_detail": "Attach the documents, or set the quality-ready quantity to 0."
+  "SVY_NEEDS_SHEET": "Attach the survey sheet before confirming this survey.",
+  "SVY_NEEDS_SHEET_detail": "Attach the signed or recorded survey sheet (and any quality documents), then confirm."
 }

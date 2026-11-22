@@ -339,6 +339,6 @@
   "SVY_CONFIRM_ROLE_detail": "Minta Keuangan atau Admin untuk mengonfirmasinya.",
   "SVY_RECORDER_CONFIRMS": "Orang yang mencatat survei tidak dapat mengonfirmasinya.",
   "SVY_RECORDER_CONFIRMS_detail": "Minta Keuangan atau Admin selain pencatat untuk mengonfirmasinya.",
-  "SVY_QUALITY_NEEDS_DOCUMENT": "Survei dengan jumlah siap mutu harus dilampiri dokumen mutunya sebelum dikonfirmasi.",
-  "SVY_QUALITY_NEEDS_DOCUMENT_detail": "Lampirkan dokumennya, atau ubah jumlah siap mutu menjadi 0."
+  "SVY_NEEDS_SHEET": "Lampirkan lembar survei sebelum mengonfirmasi survei ini.",
+  "SVY_NEEDS_SHEET_detail": "Lampirkan lembar survei yang ditandatangani atau tercatat (dan dokumen mutu bila ada), lalu konfirmasi."
 }

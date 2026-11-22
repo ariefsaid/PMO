@@ -55,6 +55,11 @@ describe('AC-SCR-013 SurveySection', () => {
     expect(screen.getByRole('button', { name: 'Record a survey' })).toBeInTheDocument();
   });
 
+  it('AC-SCR-018 says plainly that each confirmed survey adds and a mistake is changed with Correct', () => {
+    renderIt();
+    expect(screen.getByText(/Each confirmed survey ADDS to the line's certified quantity/)).toHaveTextContent('not a running total; to change a mistaken survey use Correct');
+  });
+
   it('lists the surveys with participants, documents and status, and sums the certified quantity of confirmed ones only', () => {
     h.records = [
       rec({ id: 'r1', status: 'confirmed', confirmedByName: 'Budi Finance', surveyedQuantity: 4, qualityReadyQuantity: 2 }),

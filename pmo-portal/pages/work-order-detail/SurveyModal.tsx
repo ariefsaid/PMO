@@ -89,7 +89,8 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ workOrderId, lines, documents
             options={lines.map((l) => ({ value: l.id, label: l.label }))} error={errors.line} />
           <DateField id="survey-date" label={t('form.date', 'Survey date')} required value={date} max={today} onChange={setDate} error={errors.date} />
           <NumberField id="survey-surveyed" required localeAware error={errors.surveyed} value={surveyed} onChange={setSurveyed}
-            label={unit ? t('form.surveyed', 'Surveyed quantity ({{unit}})', { unit }) : t('form.surveyedNoUnit', 'Surveyed quantity')} />
+            label={unit ? t('form.surveyed', 'Surveyed quantity ({{unit}})', { unit }) : t('form.surveyedNoUnit', 'Surveyed quantity')}
+            helper={t('form.surveyedHelp', 'Only what this survey measured. Each confirmed survey adds to the certified quantity; a mistaken one is changed with Correct.')} />
           <NumberField id="survey-quality" localeAware error={errors.quality} value={quality} onChange={setQuality}
             label={t('form.quality', 'Quality-ready quantity')} helper={t('form.qualityHelp', 'The part of the surveyed quantity that has quality documents. Attach them below.')} />
         </FormGrid>
@@ -108,11 +109,11 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ workOrderId, lines, documents
         {errors.people && <p role="alert" className="mt-1 text-sm text-destructive-text">{errors.people}</p>}
         {people.length < 30 && <div className="mt-3"><Button variant="outline" size="sm" onClick={() => setPeople((cur) => [...cur, { ...BLANK }])}>{t('form.addPerson', 'Add a person')}</Button></div>}
       </FormSection>
-      <FormSection legend={t('form.documents', 'Quality documents')}>
+      <FormSection legend={t('form.documents', 'Survey sheet and quality documents')}>
         {documents.length === 0
-          ? <p className="text-sm text-muted-foreground">{t('form.noDocuments', 'No issued document with a file in the project register yet.')}</p>
+          ? <p className="text-sm text-muted-foreground">{t('form.noDocuments', 'No issued document with a file in the project register yet. Upload and issue the survey sheet there first; a survey cannot be confirmed without one.')}</p>
           : <>
-              <p className="text-sm text-muted-foreground">{t('form.documentsHelp', "From this project's register: issued or approved, with a file.")}</p>
+              <p className="text-sm text-muted-foreground">{t('form.documentsHelp', "Attach at least the survey sheet to confirm; add the quality documents for the quality-ready quantity. From this project's register: issued or approved, with a file.")}</p>
               <ul className="mt-2 space-y-1">
                 {documents.map((d) => (
                   <li key={d.id}>
