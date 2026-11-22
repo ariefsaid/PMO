@@ -137,6 +137,11 @@ select is((select coalesce(jsonb_agg(to_jsonb(a) order by a.category), '[]') fro
 reset role;
 
 -- ── AC-TPI-018 the trigger ───────────────────────────────────────────────────────────────────────────
+-- 1580: an order needs a supplier, so the fixture purchases are given one before the first signed-in write.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid where p.vendor_id is null;
 insert into purchase_orders (id, org_id, procurement_id, po_number, status, date, amount, currency) values
   ('25800000-0000-0000-0000-000000000631', '25800000-0000-0000-0000-00000000000a', '25800000-0000-0000-0000-000000000601', 'PO-NEW', 'Draft', '2026-11-17', 300, 'USD');
 select is((select work_order_id from purchase_orders where id = '25800000-0000-0000-0000-000000000631'), '25800000-0000-0000-0000-000000000401'::uuid,

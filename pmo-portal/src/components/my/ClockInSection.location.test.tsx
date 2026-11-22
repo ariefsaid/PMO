@@ -40,12 +40,12 @@ beforeEach(() => {
 });
 
 describe('AC-PCI-014 clock-in location', () => {
-  it('a work order with no area never asks for a location and uses the existing attendance path', async () => {
+  it('a work order with no area never asks for a location and sends the tap with no position and no request for one', async () => {
     mount([noArea]);
     await userEvent.click(screen.getByRole('button', { name: 'Clock in' }));
-    await waitFor(() => expect(h.record).toHaveBeenCalled());
+    await waitFor(() => expect(h.checkIn).toHaveBeenCalledWith({ workOrderId: 'w2', crewId: 'c1', hours: 8, position: undefined, noPosition: false }));
     expect(geo.getCurrentPosition).not.toHaveBeenCalled();
-    expect(h.checkIn).not.toHaveBeenCalled();
+    expect(h.record).not.toHaveBeenCalled();
   });
 
   it('a work order with an area reads the position exactly once per tap, never watches, and sends it with the crew', async () => {
@@ -56,7 +56,8 @@ describe('AC-PCI-014 clock-in location', () => {
     expect(geo.watchPosition).not.toHaveBeenCalled();
     expect(h.checkIn).toHaveBeenCalledWith({ workOrderId: 'w1', crewId: 'c1', hours: 8, position: { lat: 0.0005, lng: 0, accuracy: 12 }, noPosition: false });
     expect(h.record).not.toHaveBeenCalled();
-    expect(await screen.findByRole('button', { name: 'Clocked in' })).toBeDisabled();
+    expect(await screen.findByText(/Clocked in at/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Clock in/ })).not.toBeInTheDocument();
   });
 
   it('an outside result shows the supervisor note and is not shown as clocked in', async () => {
@@ -64,7 +65,8 @@ describe('AC-PCI-014 clock-in location', () => {
     mount([withArea]);
     await userEvent.click(screen.getByRole('button', { name: 'Clock in' }));
     expect(await screen.findByText(/outside the work area/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Clocked in' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Clocked in at/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Waiting for your supervisor to approve/)).toBeInTheDocument();
   });
 
   it('denied permission shows the message and the ask-supervisor action, which sends a request without a position', async () => {
