@@ -42,9 +42,11 @@ insert into lvr_ids select 'r2', leave_request_submit('27090000-0000-0000-0000-0
 select pg_temp.act_as('27090000-0000-0000-0000-0000000001a2');
 select lives_ok($$ select leave_request_decide((select id from lvr_ids where k = 'r2'), 'Rejected', 'Peak staffing required') $$, 'AC-LVR-002 the line manager rejects');
 select pg_temp.act_as('27090000-0000-0000-0000-0000000001a3');
-select is((select count(*)::int from notifications where owner_id = '27090000-0000-0000-0000-0000000001a3' and message_key = 'leaveRejected'), 1,
+select is((select count(*)::int from notifications where owner_id = '27090000-0000-0000-0000-0000000001a3' and message_key = 'leaveRejected'
+            and metadata->>'leave_request_id' = (select id from lvr_ids where k = 'r2')::text), 1,
   'AC-LVR-003 the requester is told when rejected, with the template key kept');
-select is((select body from notifications where owner_id = '27090000-0000-0000-0000-0000000001a3' and message_key = 'leaveRejected'),
+select is((select body from notifications where owner_id = '27090000-0000-0000-0000-0000000001a3' and message_key = 'leaveRejected'
+            and metadata->>'leave_request_id' = (select id from lvr_ids where k = 'r2')::text),
   'Type A · ' || (current_date + 20) || ' – ' || (current_date + 21) || ' · Peak staffing required',
   'AC-LVR-003 the rejection notification carries the leave details and reason');
 
