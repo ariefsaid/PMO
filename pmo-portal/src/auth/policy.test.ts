@@ -92,6 +92,10 @@ describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
     expect(allowedRoles('create', 'procurement')).toEqual(ALL_ROLES);
   });
 
+  it('AC-SD-001: view incident (the closing-time report) = ANY active member, as the report function allows', () => {
+    expect(allowedRoles('view', 'incident')).toEqual(ALL_ROLES);
+  });
+
   it('ADR-0016: create incident = ANY member (reporter server-stamped)', () => {
     expect(allowedRoles('create', 'incident')).toEqual(ALL_ROLES);
   });
