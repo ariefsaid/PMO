@@ -5,9 +5,10 @@
 -- MUTATION CHECKS (break the marked line, the named assertion MUST go red, then restore):
 --   mut:usage_installed_only (1862 usage_installed_qty, site_reports branch): drop the status/superseded/archived filter -> AC-UW-007 and AC-UW-004 red
 --   mut:usage_source (1862, stock_issues branch): count the site-report sum instead                                    -> AC-UW-009 red
---   mut:usage_unset (1862 usage_check_work_order): delete the `v_pct is null` return                                   -> AC-UW-005 red
+--   mut:usage_unset (1862 usage_check_work_order): replace the `v_pct is null` return with `v_pct := coalesce(v_pct, 0);`  -> AC-UW-005 red
+--      (merely deleting the return is not enough: the not-null column on pct still stops the insert, a second line of defence)
 --   mut:usage_share (1862): change `>=` to `<`                                                                        -> AC-UW-001 red
---   mut:usage_once (1862 unique constraint): drop it                                                                   -> AC-UW-003 red
+--   mut:usage_once (1862): drop the unique constraint and the `on conflict` clause                                     -> AC-UW-003 red (the file errors on the duplicate row)
 --   mut:usage_never_blocks (1862 usage_check_safe): delete the exception block                                         -> AC-UW-017 red
 --   the supersede clause of daily_site_reports_zz_usage_check: fire on a correction's own validation instead           -> AC-UW-004 red
 --   usage_warning_recipient: return the project manager first                                                          -> AC-UW-001 red
@@ -48,7 +49,7 @@ insert into stock_items (id, org_id, code, name, unit_id) values
   ('26860000-0000-0000-0000-000000001317', '26860000-0000-0000-0000-00000000010a', 'I7', 'Item 7', '26860000-0000-0000-0000-000000001301'),
   ('26860000-0000-0000-0000-000000001318', '26860000-0000-0000-0000-00000000010a', 'I8', 'Item 8', '26860000-0000-0000-0000-000000001301'),
   ('26860000-0000-0000-0000-000000001319', '26860000-0000-0000-0000-00000000010a', 'I9', 'Item 9', '26860000-0000-0000-0000-000000001301'),
-  ('26860000-0000-0000-0000-000000001317', '26860000-0000-0000-0000-00000000010a', 'I10', 'Item ten (no allowance)', '26860000-0000-0000-0000-000000001301');
+  ('26860000-0000-0000-0000-00000000131a', '26860000-0000-0000-0000-00000000010a', 'I10', 'Item ten (no allowance)', '26860000-0000-0000-0000-000000001301');
 insert into boq_material_allowances (org_id, boq_item_id, item_id, planned_quantity)
   select '26860000-0000-0000-0000-00000000010a', '26860000-0000-0000-0000-000000001201', i.id, 100 from stock_items i where i.org_id = '26860000-0000-0000-0000-00000000010a' and i.code <> 'I10';
 insert into stock_warehouses (id, org_id, code, name, kind) values ('26860000-0000-0000-0000-000000001501', '26860000-0000-0000-0000-00000000010a', 'UWC', 'UW central', 'central');
@@ -168,9 +169,9 @@ select is(pg_temp._alerts('26860000-0000-0000-0000-000000001312'), 1, 'AC-UW-003
 select is(pg_temp._told('26860000-0000-0000-0000-0000000001a3'), 2, 'AC-UW-003 and sends nothing more to the project manager');
 
 -- ── AC-UW-006 plan 0 ──────────────────────────────────────────────────────────────────────────────
-select pg_temp._rep('26860000-0000-0000-0000-000000002010', '26860000-0000-0000-0000-0000000001a4', date '2026-12-08', '26860000-0000-0000-0000-0000000013110', 1);
+select pg_temp._rep('26860000-0000-0000-0000-000000002010', '26860000-0000-0000-0000-0000000001a4', date '2026-12-08', '26860000-0000-0000-0000-00000000131a', 1);
 select pg_temp._val('26860000-0000-0000-0000-000000002010');
-select is((select plan_qty from public.material_installed_usage_alerts where item_id = '26860000-0000-0000-0000-0000000013110'), 0::numeric, 'AC-UW-006 an item with no plan and any installed quantity is past the share');
+select is((select plan_qty from public.material_installed_usage_alerts where item_id = '26860000-0000-0000-0000-00000000131a'), 0::numeric, 'AC-UW-006 an item with no plan and any installed quantity is past the share');
 
 -- ── AC-UW-002 a responsible person who is no longer active: the project manager is told ─────────────
 set local role authenticated;
