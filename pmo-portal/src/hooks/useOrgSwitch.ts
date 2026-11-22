@@ -2,6 +2,7 @@ import { useContext } from 'react';
 import { QueryClient, QueryClientContext, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useAuth } from '@/src/auth/useAuth';
+import { useStockOwnedByErp } from '@/src/hooks/useStockOwnedByErp';
 import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { orgSwitch, orgSwitchRepository, type OrgModuleKey, type OrgSwitchKey } from '@/src/lib/repositories/orgSwitches';
 
@@ -29,17 +30,19 @@ export function useModuleOn(module: OrgModuleKey | undefined): boolean {
   return q.data !== false;
 }
 
-/** A switch that lives in a module (the registry's `module`) reads off while its module is off; the stored value is untouched. */
+/** A switch that lives in a module (the registry's `module`) reads off while its module is off, or while an ERP owns the stock for a stock feature; the stored value is untouched. */
 export function useOrgSwitch(key: OrgSwitchKey, enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
   const moduleOn = useModuleOn(orgSwitch(key).module);
+  const erpOwnsStock = useStockOwnedByErp();
   const q = useQuery({
     queryKey: orgSwitchKey(orgId, key),
     queryFn: () => orgSwitchRepository.read(key),
     enabled: enabled && Boolean(orgId),
     ...SERVER_SESSION_QUERY_OPTIONS,
   });
-  return moduleOn || q.data === undefined ? q : { ...q, data: false };
+  const hidden = !moduleOn || (erpOwnsStock && orgSwitch(key).pmoStockOnly === true);
+  return hidden && q.data !== undefined ? { ...q, data: false } : q;
 }
 
 /** Calls the switch's own server write once; the server decides (ADR-0016). Then re-reads it and what depends on it. */

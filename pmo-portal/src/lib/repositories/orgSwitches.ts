@@ -27,6 +27,8 @@ export interface OrgSwitch {
   manage: Entity;
   /** The module the feature lives in: the module off reads the switch as off (UI only). Absent for a module switch itself. */
   module?: OrgModuleKey;
+  /** Hidden while a connected ERP owns the stock: the database refuses the feature there (UI only). */
+  pmoStockOnly?: true;
   writers: readonly Role[];
   /** Query roots refetched after a change (what the switch's old mutation refreshed). */
   refreshes?: readonly string[];
@@ -38,7 +40,7 @@ export const ORG_SWITCHES = {
   builtInRoles: { source: { read: builtInRolesRepository.getEnabled, write: builtInRolesRepository.setEnabled }, module: 'modulePeopleCrews', manage: 'orgAccounting', writers: ['Admin'] },
   disciplineProfit: { source: { read: disciplineProfitRepository.isEnabled, write: disciplineProfitRepository.setEnabled }, module: 'moduleBillingExtras', manage: 'orgAccounting', writers: ['Admin'] },
   safetyRecords: { source: { read: safetyDayRepository.isEnabled, write: safetyDayRepository.setEnabled }, module: 'moduleSiteDay', manage: 'safetyLists', writers: ['Admin'], refreshes: ['safety-days'] },
-  stockWoTransfers: { source: { read: stockWorkOrderTransferRepository.enabled, write: stockWorkOrderTransferRepository.setEnabled }, module: 'moduleStock', manage: 'warehouse', writers: ['Admin'] },
+  stockWoTransfers: { source: { read: stockWorkOrderTransferRepository.enabled, write: stockWorkOrderTransferRepository.setEnabled }, module: 'moduleStock', pmoStockOnly: true, manage: 'warehouse', writers: ['Admin'] },
   // The five modules (#2746): UI only, one check per module; no database guard reads them.
   modulePeopleCrews: { source: { column: 'module_people_crews' }, manage: 'orgAccounting', writers: ['Admin'] },
   moduleSiteDay: { source: { column: 'module_site_day' }, manage: 'orgAccounting', writers: ['Admin'] },

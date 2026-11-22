@@ -13,18 +13,22 @@ vi.mock('@/src/lib/repositories/orgSwitches', async (orig) => ({
   orgSwitchRepository: { read: (k: string) => Promise.resolve(stored[k] ?? true), write: vi.fn() },
 }));
 const leaveSettings = vi.fn();
+const reservationSettings = vi.fn();
+vi.mock('@/src/lib/repositories/stockReservations', () => ({ stockReservationsRepository: { settings: () => reservationSettings() } }));
 vi.mock('@/src/lib/repositories/leave', () => ({ leaveRepository: { settings: () => leaveSettings(), types: vi.fn(), visible: vi.fn(), onDate: vi.fn() } }));
 
 import { ORG_MODULES, ORG_SWITCHES, type OrgModuleKey, type OrgSwitchKey } from '@/src/lib/repositories/orgSwitches';
 import { useModuleOn, useOrgSwitch } from './useOrgSwitch';
 import { useLeaveEnabled } from './useLeave';
+import { useReservationsEnabled } from './useStockReservations';
+import { clearOwnershipCache, setProjectBindings, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 const client = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const wrap = ({ children }: { children: React.ReactNode }) => (
   <QueryClientProvider client={client()}><AuthContext.Provider value={{ currentUser: { org_id: 'org-1' } } as never}>{children}</AuthContext.Provider></QueryClientProvider>
 );
 
-beforeEach(() => { for (const k of Object.keys(stored)) delete stored[k]; leaveSettings.mockReset(); });
+beforeEach(() => { for (const k of Object.keys(stored)) delete stored[k]; leaveSettings.mockReset(); clearOwnershipCache(); });
 
 describe('useModuleOn (#2746)', () => {
   it('counts a module as on while its read is loading, so a page does not flash empty', () => {
@@ -84,5 +88,30 @@ describe('a feature in a module reads off while its module is off (the stored va
     const off = renderHook(() => useLeaveEnabled(), { wrapper: wrap });
     await waitFor(() => expect(leaveSettings).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(off.result.current).toBe(false));
+  });
+});
+
+describe('stock features stay hidden while an ERP owns the stock (the database refuses them there)', () => {
+  const erpOwnsStock = () => { setTaskOwnership([{ domain: 'inventory', externalTier: 'erpnext' }]); setProjectBindings([]); };
+
+  it('work-order transfers: on and PMO-owned reads on; ERP-owned reads off', async () => {
+    stored.stockWoTransfers = true;
+    const own = renderHook(() => useOrgSwitch('stockWoTransfers'), { wrapper: wrap });
+    await waitFor(() => expect(own.result.current.data).toBe(true));
+    own.unmount();
+    erpOwnsStock();
+    const erp = renderHook(() => useOrgSwitch('stockWoTransfers'), { wrapper: wrap });
+    await waitFor(() => expect(erp.result.current.data).toBe(false));
+  });
+
+  it('reservations: on and ERP-owned reads off', async () => {
+    reservationSettings.mockResolvedValue({ enabled: true });
+    const own = renderHook(() => useReservationsEnabled(), { wrapper: wrap });
+    await waitFor(() => expect(own.result.current).toBe(true));
+    own.unmount();
+    erpOwnsStock();
+    const erp = renderHook(() => useReservationsEnabled(), { wrapper: wrap });
+    await waitFor(() => expect(reservationSettings).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(erp.result.current).toBe(false));
   });
 });

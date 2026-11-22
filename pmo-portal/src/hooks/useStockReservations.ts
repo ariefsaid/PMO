@@ -3,6 +3,7 @@ import { stockReservationsRepository as repo } from '@/src/lib/repositories/stoc
 import { useContext } from 'react';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useModuleOn } from '@/src/hooks/useOrgSwitch';
+import { useStockOwnedByErp } from '@/src/hooks/useStockOwnedByErp';
 
 /** The signed-in organisation, read without throwing outside a provider: a screen with no session simply shows no reservation controls. */
 const useOrgId = (): string | undefined => useContext(AuthContext)?.currentUser?.org_id;
@@ -14,7 +15,8 @@ export function useReservationSettings() {
 }
 export function useReservationsEnabled(): boolean {
   const moduleOn = useModuleOn('moduleStock');
-  return useReservationSettings().data?.enabled === true && moduleOn;
+  const erpOwnsStock = useStockOwnedByErp();
+  return useReservationSettings().data?.enabled === true && moduleOn && !erpOwnsStock;
 }
 /** Free and reserved per item and location; fetched only while reservations are on. */
 export function useFreeReserved(enabled: boolean, warehouseId?: string) {
