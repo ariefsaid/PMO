@@ -87,7 +87,9 @@
           "body": "Periksa dulu sebelum menambah duplikat. Barang ini tetap bisa dibuat.",
           "checkUnavailable": "Tidak bisa memeriksa nama barang yang sudah ada. Barang ini tetap bisa dibuat.",
           "listLabel": "Barang serupa"
-        }
+        },
+        "consumable": "Barang habis pakai (terpakai di lapangan, mis. kawat las atau paku)",
+        "consumableHelp": "Barang habis pakai dikeluarkan dari gudang lokasi sesuai pemakaian di laporan harian lokasi."
       },
       "warehouse": {
         "newTitle": "Gudang baru",

@@ -87,7 +87,9 @@
           "body": "Check it before adding a duplicate. You can still create this one.",
           "checkUnavailable": "Could not check existing item names. You can still create this one.",
           "listLabel": "Similar items"
-        }
+        },
+        "consumable": "Consumable (used up on site, such as welding rod or nails)",
+        "consumableHelp": "Consumables are issued from the site store as the daily site report says they were used."
       },
       "warehouse": {
         "newTitle": "New warehouse",
