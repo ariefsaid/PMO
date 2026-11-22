@@ -161,12 +161,10 @@ describe('FR-TR-012 the resolved allowances are retired and the unbuilt concepts
     reason: string;
   }>;
 
-  it('keeps only the two pre-seeded concepts, each with a reason', () => {
+  it('keeps only the two service-request entries, each with a reason', () => {
     expect(allowlist.map((entry) => entry.key).sort()).toEqual([
       'serviceRequest',
       'serviceRequest',
-      'surveyQuantity',
-      'surveyQuantity',
     ]);
     expect(allowlist.every((entry) => entry.rule === 'R2' && entry.reason.trim().length > 0)).toBe(true);
   });

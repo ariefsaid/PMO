@@ -182,11 +182,11 @@
   },
   {
    "key": "surveyQuantity",
-   "en": { "singular": [ "survey quantity" ],
-    "plural": [ "survey quantities" ]
+   "en": { "singular": [ "survey quantity", "surveyed quantity" ],
+    "plural": [ "survey quantities", "surveyed quantities" ]
    },
-   "id": { "singular": [ "kuantitas survei" ],
-    "plural": [ "kuantitas survei" ]
+   "id": { "singular": [ "kuantitas survei", "kuantitas disurvei" ],
+    "plural": [ "kuantitas survei", "kuantitas disurvei" ]
    }
   },
   {
