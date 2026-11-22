@@ -1,4 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useContext } from 'react';
+import { QueryClient, QueryClientContext, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import type { SafetyDay, SafetyDetailKind, SafetyListKind } from '@/src/lib/db/safetyDays';
@@ -22,6 +24,14 @@ const repo = () => repositories.safetyDay;
 export function useSafetyEnabled() {
   const orgId = useOrg();
   return useQuery({ queryKey: safetyKeys.enabled(orgId), queryFn: () => repo().isEnabled(), enabled: Boolean(orgId), staleTime: 300_000 });
+}
+// The menu sits on shared chrome: outside a query provider or a session the safety switch is simply off (no throw, no request).
+const IDLE_CLIENT = new QueryClient();
+/** True only when the organisation switched safety on. Unknown (loading, failed, no session) is false. */
+export function useSafetyNavEnabled(): boolean {
+  const qc = useContext(QueryClientContext);
+  const orgId = useContext(AuthContext)?.currentUser?.org_id;
+  return useQuery({ queryKey: safetyKeys.enabled(orgId), queryFn: () => repo().isEnabled(), enabled: Boolean(orgId) && Boolean(qc), staleTime: 300_000 }, qc ?? IDLE_CLIENT).data === true;
 }
 export function useSafetyList(kind: SafetyListKind, includeArchived = false) {
   const orgId = useOrg();

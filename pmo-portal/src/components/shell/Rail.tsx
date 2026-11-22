@@ -8,6 +8,8 @@ import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { useLeaveEnabled } from '@/src/hooks/useLeave';
+import { useSafetyNavEnabled } from '@/src/hooks/useSafetyDays';
+import { useTerms } from '@/src/lib/i18n/terms';
 import { Badge } from '@/src/components/ui/StatusPill';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOverdueInvoiceCount } from '@/src/hooks/useOverdueInvoiceCount';
@@ -23,7 +25,8 @@ import {
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { useUserViews } from '@/src/hooks/useUserViews';
 import { MODULES, railParentForPath } from './routeMatch';
-import { groupOrderForRole, type NavigationGroup } from './navigationOrder';
+import { functionItemRank, groupOrderForRole, type NavigationGroup } from './navigationOrder';
+import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -290,6 +293,11 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const { data: userViews } = useUserViews(userViewsEnabled);
   const agentAssistantEnabled = useFeature('agent_assistant');
   const leaveEnabled = useLeaveEnabled();
+  const safetyEnabled = useSafetyNavEnabled();
+  const terms = useTerms();
+  // The person's function (HR, safety, stock…) orders the menu by what they do daily; absent for a legacy account.
+  const authCtx = useContext(AuthContext);
+  const functionKey = BUILT_IN_ROLES.find((r) => r.key === authCtx?.currentUser?.built_in_role)?.functionKey ?? null;
 
   // AC-ADMIA-002: a REAL server-confirmed platform Operator (any base role) can reach
   // /administration by URL, so the rail's Administration footer must be discoverable for them.
@@ -329,7 +337,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
 
   if (!role) return null;
 
-  const items = visibleNavItems({ role, realRole: realRoleValue, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled });
+  const items = visibleNavItems({ role, realRole: realRoleValue, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled, safetyEnabled });
   const currentGroup = items.find((item) =>
     item.group && (pathInItem(location.pathname, item.to) || railParentForPath(location.pathname) === item.to),
   )?.group;
@@ -364,6 +372,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     '/imprest': t('imprest:nav.siteCash', 'Site cash'),
     '/material-requests': t('materialRequests:nav.materialRequests', 'Material requests'),
     '/equipment': t('equipment:nav.equipment', 'Equipment'),
+    '/equipment/assets': t('equipment:nav.assets', 'Equipment assets'),
+    '/work-orders': terms.clientWorkOrder,
+    '/safety': t('safety:summary.title', 'Safety summary'),
+    '/finance/billing-board': t('finance:billingBoard.title', 'Billing board'),
     '/site-reports': t('siteReport:nav', 'Site reports'),
     '/crews': t('crews:nav.crews', 'Crews'),
     '/leave': t('crews:leave.title', 'Leave'),
@@ -573,8 +585,21 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         <div className="relative min-h-0 flex-1">
           <div ref={scrollRegionRef} data-rail-scroll-region className={cn('min-h-0 h-full overflow-y-auto p-2.5', inDrawer && 'pt-4')}>
             {items.filter((item) => item.to === '/').map(renderItem)}
-            {groupOrderForRole(role).map((group) => {
-              const groupItems = items.filter((i) => i.group === group);
+            {/* HR's own desk: the people register first, not the last line behind Administration. */}
+            {functionKey === 'hr' && may('view', 'person') && (
+              <NavLink
+                to="/administration/people"
+                onClick={onNavigate}
+                className={({ isActive }: { isActive: boolean }) =>
+                  cn(NAV_LINK_BASE, isActive ? 'bg-nav-selected-surface font-semibold text-nav-active-text' : 'text-foreground hover:bg-surface-hover')}
+              >
+                <Icon name="user" />
+                <span>{t('administration:people.navLabel', 'People')}</span>
+              </NavLink>
+            )}
+            {groupOrderForRole(role, functionKey).map((group) => {
+              const groupItems = items.filter((i) => i.group === group)
+                .sort((a, b) => functionItemRank(functionKey, a.to) - functionItemRank(functionKey, b.to));
               if (groupItems.length === 0) return null;
               const expanded = group === currentGroup || !collapsedGroups.has(group);
               const groupId = `${railId}-group-${group.toLowerCase().replaceAll(' ', '-')}`;
