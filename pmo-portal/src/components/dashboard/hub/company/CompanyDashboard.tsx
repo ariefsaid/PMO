@@ -13,8 +13,7 @@ import { LateText } from '@/src/components/ui/LateText';
 import { isMostUrgentLateRow } from '@/src/components/ui/lateTextRows';
 import { ListState } from '@/src/components/ui/ListState';
 import { PageHeader } from '@/src/components/ui/PageHeader';
-import { useFeature } from '@/src/auth/useFeature';
-import { useFinanceAccess } from '@/src/components/finance/useFinanceAccess';
+import { ClaimsBoardLink } from '@/src/components/finance/ClaimsBoardLink';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useHomeLayout } from '@/src/hooks/useHomeLayout';
 import { can } from '@/src/auth/policy';
@@ -72,8 +71,6 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const { realRole } = useEffectiveRole();
   const overview = useHomeLayout().homeLayout === 'overview';
   const canOpenAccounting = can('edit', 'budgetLine', { realRole });
-  const hasRevenue = useFeature('revenue');
-  const { canView: canViewFinance } = useFinanceAccess();
   const periodState = usePeriod();
   const figures = useCompanyFigures(periodState.period);
   const needs = useNeedsYou(role);
@@ -285,7 +282,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   // One tap from home to the board of claims by step and age; only where the board's own route is open to this person.
   const billingActions = (
     <>
-      {hasRevenue && canViewFinance && cardLink('/finance/billing-board', t('dashboard:hub.company.claimsBoard', 'Claims board'))}
+      <ClaimsBoardLink className={linkClass} chevron={<Icon name="chev" className="size-4" />} />
       {cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}
     </>
   );

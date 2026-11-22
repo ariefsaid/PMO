@@ -423,7 +423,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
             <span className="text-sm font-medium">{t('projectTabs:contractQuantities.workOrders.acceptances.waitingOn', 'Waiting for Finance or an Admin to confirm')}</span>
             {canConfirm && (
               <Button variant="primary" size="sm" onClick={() => setConfirmFor({ acceptance: pendingBast, error: null })}>
-                {t('projectTabs:contractQuantities.workOrders.acceptances.confirm', 'Confirm BAST')}
+                {t('projectTabs:contractQuantities.workOrders.acceptances.confirmDelivery', 'Confirm draft BAST')}
               </Button>
             )}
           </div>
