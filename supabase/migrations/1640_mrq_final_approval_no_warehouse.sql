@@ -1,4 +1,5 @@
 -- 1640_mrq_final_approval_no_warehouse.sql — walk finding: the last approver of a material request had to hold the source
+-- drops: mrq_decide_step rewrites its one line that makes the transfer so it runs only when an approver names a warehouse; the light-account guard and every other rule stay.
 -- warehouse, so an approver who keeps none (an Executive) was refused for good and the request waited for ever.
 -- Final approval now records the decision alone; choosing the warehouse and sending stock is the keeper's separate step
 -- (mrq_retry_transfer → create_stock_document → stock_assert_keeper, unchanged: only a keeper of that location, or an
