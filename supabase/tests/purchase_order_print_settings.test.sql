@@ -22,7 +22,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('26880000-0000-0000-0000-0000000000b1', '26880000-0000-0000-0000-00000000000b', 'POP Admin B', 'pop-admin-b@example.com', 'Admin', 'active');
 
 -- A pre-existing settings row for Org A, so the defaults are readable before any RPC call.
-insert into purchase_order_settings (org_id) values ('26880000-0000-0000-0000-00000000000a');
+-- (the organisation trigger already wrote the row, with printing on; this file proves the setter from off, so switch it off first)
+insert into purchase_order_settings (org_id) values ('26880000-0000-0000-0000-00000000000a') on conflict (org_id) do update set print_enabled = false;
 
 -- ── Org A: default row values (FR-POP-009) ────────────────────────────────────────────────────────
 set local role authenticated;
@@ -31,7 +32,7 @@ set local request.jwt.claims = '{"sub":"26880000-0000-0000-0000-0000000000a1","r
 select is(
   (select print_enabled from purchase_order_settings where org_id = '26880000-0000-0000-0000-00000000000a'),
   false,
-  'FR-POP-009 print_enabled defaults to false'
+  'FR-POP-009 print_enabled reads false after the setup switched it off'
 );
 
 select is(

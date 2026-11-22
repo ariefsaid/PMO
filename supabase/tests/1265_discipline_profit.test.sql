@@ -7,6 +7,8 @@ select plan(25);
 insert into organizations (id, name, default_currency, default_timezone) values
   ('26690000-0000-0000-0000-0000000000a1', 'DPR Org A', 'USD', 'UTC'),
   ('26690000-0000-0000-0000-0000000000a2', 'DPR Org B', 'USD', 'UTC');
+-- the setting is on by default now; these cases start from organisations that switched it off
+update organizations set discipline_profit_enabled = false where id in ('26690000-0000-0000-0000-0000000000a1','26690000-0000-0000-0000-0000000000a2');
 insert into auth.users (id, email) values
   ('26690000-0000-0000-0000-0000000000b1', 'dpr-eng@example.com'),
   ('26690000-0000-0000-0000-0000000000b2', 'dpr-pm@example.com'),
@@ -54,9 +56,9 @@ insert into dsr_progress_lines (id, org_id, report_id, position, work_order_line
   ('26690000-0000-0000-0000-000000000206', '26690000-0000-0000-0000-0000000000a1', '26690000-0000-0000-0000-000000000104', 1, '26690000-0000-0000-0000-000000000011', 1, 'm', 10, 'contract', 10.00, now()),
   ('26690000-0000-0000-0000-000000000207', '26690000-0000-0000-0000-0000000000a1', '26690000-0000-0000-0000-000000000104', 2, '26690000-0000-0000-0000-000000000012', 3, 'm', null, null, null, now());
 
--- ── AC-DPR-001: off by default; nothing returned ────────────────────────────────────────────────
+-- ── AC-DPR-001: switched off; nothing returned ────────────────────────────────────────────────
 select is((select discipline_profit_enabled from organizations where id = '26690000-0000-0000-0000-0000000000a1'), false,
-  'AC-DPR-001 the setting is off by default');
+  'AC-DPR-001 the setting reads off for an organisation that switched it off');
 
 -- ── AC-DPR-001: setting off → no rows; AC-DPR-015: only an Admin flips it ────────────────────────
 set local role authenticated;

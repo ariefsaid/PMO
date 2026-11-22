@@ -18,7 +18,7 @@ vi.mock('@/src/auth/useIsOperator', () => ({
   useIsOperator: () => false,
   useOperatorMembership: () => ({ isOperator: false, isPending: false, isError: false, retry: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: true }) }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: true }), useModuleOn: () => true }));
 vi.mock('@/src/lib/repositories/hidePrices', () => ({
   hidePricesRepository: { getEnabled: vi.fn().mockResolvedValue(false), setEnabled: vi.fn().mockResolvedValue(undefined), getMaySee: vi.fn().mockResolvedValue(true) },
 }));

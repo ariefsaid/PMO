@@ -32,6 +32,7 @@ const MappedStatus: React.FC<{ settingKey: StatusKey }> = ({ settingKey }) => {
 const hasStatusHook = (key: OrgSettingKey): key is StatusKey => key in STATUS_HOOKS;
 
 const Row: React.FC<{ settingKey: OrgSettingKey; name: string; summary: string }> = ({ settingKey, name, summary }) => {
+  const { t } = useTranslation();
   const entry: (typeof ORG_SETTINGS)[OrgSettingKey] = ORG_SETTINGS[settingKey];
   return (
     <li className="flex min-h-11 flex-wrap items-start justify-between gap-x-4 gap-y-1 py-3">
@@ -40,7 +41,8 @@ const Row: React.FC<{ settingKey: OrgSettingKey; name: string; summary: string }
         <p className="text-control text-muted-foreground">{summary}</p>
       </div>
       <div className="flex shrink-0 items-center gap-3 text-control text-muted-foreground">
-        {'switch' in entry ? <MigratedStatus switchKey={entry.switch} /> : hasStatusHook(settingKey) ? <MappedStatus settingKey={settingKey} /> : null}
+        {'alwaysOn' in entry ? <StatusPill variant="neutral">{t('allSettings.alwaysOn', 'On for everyone')}</StatusPill>
+          : 'switch' in entry ? <MigratedStatus switchKey={entry.switch} /> : hasStatusHook(settingKey) ? <MappedStatus settingKey={settingKey} /> : null}
         <span>{entry.writers.join(', ')}</span>
       </div>
     </li>

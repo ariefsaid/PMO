@@ -18,7 +18,12 @@ export const orgSettingGroupLabels = (t: TFunction): Record<string, string> => (
 });
 
 export const orgSettingText = (t: TFunction): Record<OrgSettingKey, { name: string; summary: string }> => ({
-  crewLoans: { name: t('allSettings.item.crewLoans.name', 'Crew loans'), summary: t('allSettings.item.crewLoans.summary', 'Lets a crew lend a worker to another crew for a period. Off, the Crews page shows no loans.') },
+  modulePeopleCrews: { name: t('allSettings.item.modulePeopleCrews.name', 'Module: people and crews'), summary: t('allSettings.item.modulePeopleCrews.summary', 'Turns built-in roles, the clearance checklist, leave requests and crew loans on or off for everyone.') },
+  moduleSiteDay: { name: t('allSettings.item.moduleSiteDay.name', 'Module: site day'), summary: t('allSettings.item.moduleSiteDay.summary', 'Turns daily safety records and the work order performance panels on or off for everyone.') },
+  moduleStock: { name: t('allSettings.item.moduleStock.name', 'Module: stock'), summary: t('allSettings.item.moduleStock.summary', 'Turns work-order transfers, reservations, two-step transfers and the material request approvals inbox on or off for everyone.') },
+  modulePurchasingExtras: { name: t('allSettings.item.modulePurchasingExtras.name', 'Module: purchasing extras'), summary: t('allSettings.item.modulePurchasingExtras.summary', 'Turns line planning, purchase types, payment channels, purchase order print and delivery notes on or off for everyone.') },
+  moduleBillingExtras: { name: t('allSettings.item.moduleBillingExtras.name', 'Module: billing extras'), summary: t('allSettings.item.moduleBillingExtras.summary', 'Turns revenue per discipline, the revenue plan, idle time as cost and the done-not-claimed reminder on or off for everyone.') },
+  crewLoans: { name: t('allSettings.item.crewLoans.name', 'Crew loans'), summary: t('allSettings.item.crewLoans.summary', 'Lets a crew lend a worker to another crew for a period, shown on the Crews page.') },
   builtInRoles: { name: t('allSettings.item.builtInRoles.name', 'Built-in roles'), summary: t('allSettings.item.builtInRoles.summary', 'Offers 28 ready-made roles when you edit a person\'s role. Nothing changes until someone is given one.') },
   clearance: { name: t('allSettings.item.clearance.name', 'Cleared-for-site checklist'), summary: t('allSettings.item.clearance.summary', 'Adds a Clearance section where you record what each person needs before going to site.') },
   leaveRequests: { name: t('allSettings.item.leaveRequests.name', 'Leave requests'), summary: t('allSettings.item.leaveRequests.summary', 'Lets people request leave and names the role that approves it.') },

@@ -9,6 +9,9 @@ select plan(21);
 insert into organizations (id, name, default_currency, default_timezone) values
   ('26971000-0000-0000-0000-00000000000a', 'PTP Org',       'IDR', 'Asia/Jakarta'),
   ('26971000-0000-0000-0000-00000000000b', 'PTP Other Org', 'IDR', 'Asia/Jakarta');
+-- these features are on by default now (with starter rows); this file proves the off state, so setup clears them as an explicit step
+delete from purchase_types where org_id in ('26971000-0000-0000-0000-00000000000a', '26971000-0000-0000-0000-00000000000b');
+delete from org_purchase_type_settings where org_id in ('26971000-0000-0000-0000-00000000000a', '26971000-0000-0000-0000-00000000000b');
 insert into auth.users (id, email) values
   ('26971000-0000-0000-0000-0000000000a1', 'ptp-admin@example.com'),
   ('26971000-0000-0000-0000-0000000000a2', 'ptp-pm@example.com'),
@@ -18,7 +21,7 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('26971000-0000-0000-0000-0000000000a2', '26971000-0000-0000-0000-00000000000a', 'PTP PM',    'ptp-pm@example.com',    'Project Manager', 'active'),
   ('26971000-0000-0000-0000-0000000000b1', '26971000-0000-0000-0000-00000000000b', 'PTP XAdmin','ptp-xadmin@example.com','Admin', 'active');
 -- the other organisation already has the feature on, with its own rental type
-insert into org_purchase_type_settings (org_id, enabled) values ('26971000-0000-0000-0000-00000000000b', true);
+insert into org_purchase_type_settings (org_id, enabled) values ('26971000-0000-0000-0000-00000000000b', true) on conflict (org_id) do update set enabled = true;
 insert into purchase_types (id, org_id, name, is_rental, position) values
   ('26971000-0000-0000-0000-0000000000f1', '26971000-0000-0000-0000-00000000000b', 'Rental', true, 1);
 

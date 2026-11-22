@@ -26,6 +26,10 @@ const BoqDisciplinePicker: React.FC<Props> = ({ projectId, itemId, disciplineId 
   React.useEffect(() => setValue(disciplineId ?? ''), [disciplineId]);
   if (!allowed || setting.data !== true) return null;
 
+  if (disciplines.data && disciplines.data.length === 0) {
+    return <p className="text-control text-muted-foreground" data-testid="boq-discipline-none">{t('profit.picker.noneYet', 'No disciplines yet. An Admin adds them under Cost disciplines in Project setup.')}</p>;
+  }
+
   const options = [
     { value: '', label: t('profit.picker.none', 'No discipline') },
     ...(disciplines.data ?? []).map((d) => ({ value: d.id, label: d.name })),

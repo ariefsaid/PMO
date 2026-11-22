@@ -11,6 +11,8 @@ select * from no_plan();
 insert into organizations (id, name) values
   ('26729000-0000-0000-0000-00000000000a', 'WDR Org'),
   ('26729000-0000-0000-0000-00000000000b', 'WDR Other Org');
+-- this feature is on by default now (with a settings row); this file proves the off state, so setup clears it as an explicit step
+delete from org_revenue_plan_settings where org_id in ('26729000-0000-0000-0000-00000000000a', '26729000-0000-0000-0000-00000000000b');
 insert into auth.users (id, email) values
   ('26729000-0000-0000-0000-0000000000a1', 'wdr-admin@example.com'),
   ('26729000-0000-0000-0000-0000000000a2', 'wdr-fin@example.com'),

@@ -22,6 +22,9 @@ const ChannelForm: React.FC<{ procurementId: string; currentId: string }> = ({ p
     .map((c) => ({ value: c.id, label: c.archived ? `${c.name} (${t('procurement:paymentChannel.archivedTag', 'Archived')})` : c.name }))];
   const error = setOnRequest.isError ? classifyMutationError(setOnRequest.error) : null;
   if (list.isPending) return null;
+  if (options.length === 1) {
+    return <p className="text-control text-muted-foreground" data-testid="payment-channel-none">{t('procurement:paymentChannel.noneYet', 'No payment channels yet. An Admin adds them under Payment channels in Accounting setup.')}</p>;
+  }
   return (
     <form
       className="flex max-w-md flex-col gap-3"

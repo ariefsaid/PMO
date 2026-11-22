@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useOrgId } from '@/src/hooks/useOrgId';
 import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import { idleCostRepository } from '@/src/lib/repositories/idleCost';
+import { useOffWhenModuleOff } from '@/src/hooks/moduleGate';
 
 /** #2673: idle hours as cost. Keys carry org_id (tenant scope). */
 export function useIdleCostEnabled(enabled = true) {
-  return useOrgQuery(['idle-cost', 'enabled'], idleCostRepository.enabled, { enabled, staleness: 'live' });
+  return useOffWhenModuleOff('moduleBillingExtras', useOrgQuery(['idle-cost', 'enabled'], idleCostRepository.enabled, { enabled, staleness: 'live' }));
 }
 
 /** Per work order and idle reason for one project; empty unless both switches are on. */

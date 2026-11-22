@@ -1,5 +1,6 @@
 {
   "allSettings": {
+    "alwaysOn": "On for everyone",
     "title": "All settings",
     "on": "On",
     "off": "Off",
@@ -14,9 +15,29 @@
       "notifications": "Notifications"
     },
     "item": {
+      "modulePeopleCrews": {
+        "name": "Module: people and crews",
+        "summary": "Turns built-in roles, the clearance checklist, leave requests and crew loans on or off for everyone."
+      },
+      "moduleSiteDay": {
+        "name": "Module: site day",
+        "summary": "Turns daily safety records and the work order performance panels on or off for everyone."
+      },
+      "moduleStock": {
+        "name": "Module: stock",
+        "summary": "Turns work-order transfers, reservations, two-step transfers and the material request approvals inbox on or off for everyone."
+      },
+      "modulePurchasingExtras": {
+        "name": "Module: purchasing extras",
+        "summary": "Turns line planning, purchase types, payment channels, purchase order print and delivery notes on or off for everyone."
+      },
+      "moduleBillingExtras": {
+        "name": "Module: billing extras",
+        "summary": "Turns revenue per discipline, the revenue plan, idle time as cost and the done-not-claimed reminder on or off for everyone."
+      },
       "crewLoans": {
         "name": "Crew loans",
-        "summary": "Lets a crew lend a worker to another crew for a period. Off, the Crews page shows no loans."
+        "summary": "Lets a crew lend a worker to another crew for a period, shown on the Crews page."
       },
       "builtInRoles": {
         "name": "Built-in roles",

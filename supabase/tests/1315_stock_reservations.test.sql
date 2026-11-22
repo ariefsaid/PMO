@@ -8,6 +8,8 @@ create extension if not exists pgtap;
 select * from no_plan();
 
 insert into organizations (id, name, default_currency, default_timezone) values ('26930000-0000-0000-0000-00000000000a', 'RSV Org', 'IDR', 'UTC'), ('26930000-0000-0000-0000-00000000000b', 'RSV Other Org', 'IDR', 'UTC');
+-- reservations are on by default now; these cases start from organisations that switched them off
+update organizations set stock_reservations = false where id in ('26930000-0000-0000-0000-00000000000a','26930000-0000-0000-0000-00000000000b');
 insert into auth.users (id, email) values ('26930000-0000-0000-0000-0000000000a1', 'rsv-admin@example.com'), ('26930000-0000-0000-0000-0000000000a2', 'rsv-keeper@example.com'), ('26930000-0000-0000-0000-0000000000a3', 'rsv-pm@example.com'),
   ('26930000-0000-0000-0000-0000000000a4', 'rsv-out@example.com'), ('26930000-0000-0000-0000-0000000000b1', 'rsv-xadmin@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
@@ -47,9 +49,9 @@ create function public.rsv_t_res(p_wo uuid, p_q numeric default null) returns te
   select quantity::text || '/' || consumed_qty::text || '/' || released_qty::text || '/' || status from public.stock_reservations where work_order_id = p_wo and item_id = '26930000-0000-0000-0000-000000001001' and (p_q is null or quantity = p_q) limit 1 $$;
 
 
--- off by default
+-- switched off
 select rsv_as('26930000-0000-0000-0000-0000000000a2');
-select is((select stock_reservations from organizations where id = '26930000-0000-0000-0000-00000000000a'), false, 'AC-RSV-007 an existing organisation starts with reservations off');
+select is((select stock_reservations from organizations where id = '26930000-0000-0000-0000-00000000000a'), false, 'AC-RSV-007 an organisation that switched reservations off has them off');
 select throws_ok($$ select reserve_stock('26930000-0000-0000-0000-000000000401', '26930000-0000-0000-0000-000000001001', '26930000-0000-0000-0000-000000002002', 4) $$, 'P0001', 'RSV_OFF: reservations are not turned on for your organisation', 'AC-RSV-007 reserve refuses while off');
 select is(public.get_stock_free_reserved(null, null), '[]'::jsonb, 'AC-RSV-007 the read returns nothing while off');
 select throws_ok($$ select set_stock_reservations(true) $$, '42501', 'RSV_FORBIDDEN: only an Admin changes reservation settings', 'AC-RSV-007 a non-Admin cannot turn it on');

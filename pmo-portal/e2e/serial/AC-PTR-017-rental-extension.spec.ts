@@ -12,10 +12,7 @@ test.beforeAll(async () => {
   const on = await admin.rpc('set_purchase_types_enabled', { p_enabled: true });
   if (on.error) throw new Error('enable: ' + on.error.message);
 });
-test.afterAll(async () => {
-  const admin = await userClient('admin@acme.test');
-  await admin.rpc('set_purchase_types_enabled', { p_enabled: false });
-});
+// Purchase types stay on after the run: they are on for every organisation (#2746).
 
 async function typeDay(page: Page, label: RegExp, iso: string) {
   const field = page.getByLabel(label);

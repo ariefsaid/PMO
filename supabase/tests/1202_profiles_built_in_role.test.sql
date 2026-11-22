@@ -7,6 +7,8 @@ select plan(36);
 insert into organizations (id, name) values
   ('12020000-0000-0000-0000-000000000001','BIR Org A'),
   ('12020000-0000-0000-0000-000000000002','BIR Org B (setting stays off)');
+-- The setting is on by default now; these cases are about the off state, so both orgs are switched off as a setup step.
+update organizations set built_in_roles_enabled = false where id in ('12020000-0000-0000-0000-000000000001','12020000-0000-0000-0000-000000000002');
 insert into auth.users (id, email) values
   ('12020000-0000-0000-0000-0000000000a1','bir-admin@example.com'),
   ('12020000-0000-0000-0000-0000000000e1','bir-exec@example.com'),
@@ -28,9 +30,9 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('12020000-0000-0000-0000-0000000000b1','12020000-0000-0000-0000-000000000002','BIR Admin B','bir-admin-b@example.com','Admin','active'),
   ('12020000-0000-0000-0000-0000000000b2','12020000-0000-0000-0000-000000000002','BIR Eng B','bir-eng-b@example.com','Engineer','active');
 
--- AC-005 legacy: no key anywhere, the setting defaults off, ordinary edits are untouched.
+-- AC-005 legacy: no key anywhere, the setting is off here, ordinary edits are untouched.
 select is((select built_in_roles_enabled from organizations where id = '12020000-0000-0000-0000-000000000001'), false,
-  'AC-005 the setting defaults to off');
+  'AC-005 the setting reads off for an organisation that switched it off');
 select is((select count(*)::int from profiles where built_in_role is not null), 0, 'AC-005 nobody holds a key');
 update profiles set role = 'Finance' where id = '12020000-0000-0000-0000-0000000000d2';
 select is((select role::text from profiles where id = '12020000-0000-0000-0000-0000000000d2'), 'Finance',

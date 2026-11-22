@@ -175,6 +175,7 @@
     "whoLends": "Hanya pengelola regu (administrator, eksekutif, manajer proyek) yang bisa meminjamkan pekerja. Hubungi salah satunya."
   },
   "leave": {
+    "noTypesToChoose": "Belum ada jenis cuti. Admin menambahkannya di Pengaturan cuti.",
     "addType": "Tambah jenis",
     "adminOnly": "Hanya Admin yang dapat mengubah pengaturan cuti",
     "approve": "Setujui",
@@ -197,7 +198,7 @@
     "noTypes": "Belum ada jenis cuti. Tambahkan jenis yang dipakai organisasi Anda.",
     "none": "Belum ada permintaan cuti.",
     "note": "Catatan: {{note}}",
-    "off": "Permintaan cuti belum diaktifkan untuk organisasi Anda.",
+    "off": "Permintaan cuti dimatikan untuk organisasi Anda. Admin dapat mengaktifkannya di Modul.",
     "onLeave": "Cuti",
     "openSettings": "Buka pengaturan cuti",
     "person": "Orang",
@@ -220,7 +221,6 @@
     },
     "subject": "permintaan cuti",
     "switchHeading": "Permintaan cuti",
-    "switchLabel": "Orang dapat mengajukan cuti dan melaporkan sakit",
     "title": "Cuti",
     "type": "Jenis",
     "typeName": "Jenis baru",

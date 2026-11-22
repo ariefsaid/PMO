@@ -2,10 +2,10 @@
 -- AC-LOAN-001 effective crew by date · AC-LOAN-002 roster · AC-LOAN-003 attendance follows the host crew ·
 -- AC-LOAN-004 overlap refused · AC-LOAN-005 approved hours never move · AC-LOAN-006 no loan, no change ·
 -- AC-LOAN-007 crew and placement validity · AC-LOAN-008 who writes, who reads · AC-LOAN-009 archive blocked ·
--- setting crew_loans_enabled (default off, Admin only).
+-- setting crew_loans_enabled (on by default, Admin only).
 begin;
 create extension if not exists pgtap;
-select plan(48);
+select plan(49);
 
 insert into organizations (id, name, default_currency) values
   ('27040000-0000-0000-0000-00000000000a', 'LOAN Org',       'IDR'),
@@ -197,7 +197,9 @@ select is((select count(*)::int from attendance_days where worker_id = '27040000
              and hours = 8), 2, 'AC-LOAN-005 the approved and submitted hours are unchanged');
 
 -- The setting: off by default; only an Admin turns it on.
-select is((select crew_loans_enabled from organizations where id = '27040000-0000-0000-0000-00000000000a'), false, 'crew_loans_enabled is off by default');
+select is((select crew_loans_enabled from organizations where id = '27040000-0000-0000-0000-00000000000a'), true, 'crew_loans_enabled is on by default');
+update organizations set crew_loans_enabled = false where id = '27040000-0000-0000-0000-00000000000a';
+select is((select crew_loans_enabled from organizations where id = '27040000-0000-0000-0000-00000000000a'), false, 'crew_loans_enabled reads off once switched off');
 set local role authenticated;
 select pg_temp.act_as('27040000-0000-0000-0000-0000000000a3');
 select throws_ok($$ select set_org_crew_loans_enabled(true) $$, '42501', 'only an Admin can change crew loans', 'a Project Manager cannot change the setting');

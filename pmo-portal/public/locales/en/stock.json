@@ -898,7 +898,7 @@
     "intro": "Leftover material moves from one work order to another as one document. The first work order is credited and the second is charged; the stock stays where it is.",
     "off": {
       "title": "Work-order transfers are off",
-      "sub": "An administrator can turn them on in Stock setup."
+      "sub": "An Admin can turn them on under Modules, in Stock. They stay off while an ERP owns the stock."
     },
     "project": "Project",
     "projectPlaceholder": "Choose a project",
@@ -930,9 +930,7 @@
       "location": "Choose where the material is.",
       "duplicate": "Each item can be on one line only.",
       "exceeds": "The work order holds only {{qty}} of this item."
-    },
-    "setting": "Work-order transfers",
-    "settingHelp": "Lets stock keepers move leftover material between work orders of one project in a single document."
+    }
   },
   "reservations": {
     "column": "Free and reserved",
@@ -965,8 +963,6 @@
       "body": "{{n}} of this request comes from stock reserved for another work order, so it needs the borrowing approval."
     },
     "settings": {
-      "enable": "Reserve stock for work orders",
-      "enableHelp": "A work order can hold a quantity of an item at a location. Nothing is locked: stock shows as free and reserved. Off by default.",
       "mode": "When a request borrows reserved stock",
       "modeApprove": "Needs an extra approval step",
       "modeWarn": "Only show a warning",

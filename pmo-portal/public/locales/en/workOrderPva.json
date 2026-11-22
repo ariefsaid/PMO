@@ -80,15 +80,11 @@
     "archivedDiscipline": "Archived discipline",
     "revenueNote": "Revenue is validated progress at the contract rate.",
     "picker": {
+      "noneYet": "No disciplines yet. An Admin adds them under Cost disciplines in Project setup.",
       "label": "Discipline (for profit per discipline)",
       "none": "No discipline",
       "saved": "Discipline saved",
       "error": "Couldn't save the discipline"
-    },
-    "setting": {
-      "title": "Profit per discipline",
-      "label": "Show revenue next to cost per discipline",
-      "helper": "Adds a table to the project's plan-vs-actual section and a discipline field on contract lines. Off by default."
     }
   },
   "projectHours": "Project and contract hours",

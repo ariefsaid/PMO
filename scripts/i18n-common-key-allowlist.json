@@ -404,5 +404,16 @@
   "allSettings.item.feedbackSurveys.name",
   "allSettings.item.feedbackSurveys.summary",
   "allSettings.paletteGroup",
-  "history.action.org_setting_change"
+  "history.action.org_setting_change",
+  "allSettings.alwaysOn",
+  "allSettings.item.modulePeopleCrews.name",
+  "allSettings.item.modulePeopleCrews.summary",
+  "allSettings.item.moduleSiteDay.name",
+  "allSettings.item.moduleSiteDay.summary",
+  "allSettings.item.moduleStock.name",
+  "allSettings.item.moduleStock.summary",
+  "allSettings.item.modulePurchasingExtras.name",
+  "allSettings.item.modulePurchasingExtras.summary",
+  "allSettings.item.moduleBillingExtras.name",
+  "allSettings.item.moduleBillingExtras.summary"
 ]

@@ -26,6 +26,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('27080000-0000-0000-0000-0000000001a4', '27080000-0000-0000-0000-00000000010a', 'LV Eng',    'lv-eng@example.com',    'Engineer', 'active'),
   ('27080000-0000-0000-0000-0000000001a5', '27080000-0000-0000-0000-00000000010a', 'LV Fin',    'lv-fin@example.com',    'Finance', 'active'),
   ('27080000-0000-0000-0000-0000000001b1', '27080000-0000-0000-0000-00000000010b', 'LV XOrg',   'lv-xorg@example.com',   'Admin', 'active');
+-- leave is on by default now; these cases start from organisations that switched it off
+update organizations set leave_requests_enabled = false where id in ('27080000-0000-0000-0000-00000000010a','27080000-0000-0000-0000-00000000010b');
 update profiles set manager_id = '27080000-0000-0000-0000-0000000001a2' where id = '27080000-0000-0000-0000-0000000001a3';
 insert into people (id, org_id, kind, name, profile_id) values
   ('27080000-0000-0000-0000-000000001f01', '27080000-0000-0000-0000-00000000010a', 'own',    'LV Own Worker', '27080000-0000-0000-0000-0000000001a3'),
@@ -57,8 +59,8 @@ grant execute on function pg_temp.d(text) to authenticated;
 
 set local role authenticated;
 
--- settings: off by default, Admin-only write path
-select is((select leave_enabled()), false, 'OFF by default: an organisation that never switched it on has it off');
+-- settings: off once switched off, Admin-only write path
+select is((select leave_enabled()), false, 'OFF: an organisation that switched it off has it off');
 select pg_temp.act_as('27080000-0000-0000-0000-0000000001a2');
 select throws_ok($$ select set_leave_settings(true, null) $$, '42501', null, 'settings: a non-Admin cannot switch leave on');
 select ok(not has_column_privilege('authenticated', 'public.organizations', 'leave_requests_enabled', 'UPDATE')

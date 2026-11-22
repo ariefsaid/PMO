@@ -1,12 +1,12 @@
-// @e2e-isolation: serial — flips the org-wide built-in roles setting on the shared seed org and restores it (try/finally); gives one seeded person a role and clears it.
+// @e2e-isolation: serial — gives one seeded person a role and clears it; built-in roles are on for every organisation (#2746), so no org-wide setting is flipped.
 import { test, expect, type Page } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { signIn, pinEnglishLocale } from '../helpers';
 
 /**
- * AC-BIR-001 (#2709) — an Admin turns built-in roles on, gives a person a role from the Edit role form, sees it in the
- * directory, and while the setting is off the Edit role form is the plain five-level form.
+ * AC-BIR-001 (#2709) — an Admin gives a person a built-in role from the Edit role form and sees it in the directory
+ * (built-in roles are on for every organisation, #2746).
  * Also writes the two evidence screenshots per new screen (phone 390 and desktop 1440) under docs/evidence/1215/2709/.
  */
 test.setTimeout(240_000);
@@ -36,22 +36,11 @@ async function engineerRow(page: Page) {
   return row;
 }
 
-test('AC-BIR-001: setting off keeps the plain form; on offers 28 roles; a role is given and shown', async ({ page }) => {
+test('AC-BIR-001: the Edit role form offers 28 roles; a role is given and shown', async ({ page }) => {
   await pinEnglishLocale(page);
   await signIn(page, 'admin@acme.test');
   try {
-    // Off by default: the plain access-level form, no picker (checked again at the end).
-
-    // Turn the setting on.
-    await page.goto('/administration/people');
-    const turnOn = page.getByRole('switch', { name: 'Offer built-in roles' });
-    await expect(turnOn).toBeVisible();
-    await page.getByRole('heading', { name: 'Built-in roles' }).scrollIntoViewIfNeeded();
-    await shoot(page, 'setting-off');
-    await turnOn.click();
-    await expect(turnOn).toHaveAttribute('aria-checked', 'true');
-    await page.getByRole('heading', { name: 'Built-in roles' }).scrollIntoViewIfNeeded();
-    await shoot(page, 'setting-on');
+    // Built-in roles are on for every organisation (#2746): there is no switch to turn on.
 
     // Give the seeded Engineer the Planner role.
     await page.goto('/administration/users');
@@ -83,18 +72,6 @@ test('AC-BIR-001: setting off keeps the plain form; on offers 28 roles; a role i
     await page.getByRole('button', { name: 'Change role' }).click();
     await expect((await engineerRow(page)).getByText('Engineer', { exact: true })).toBeVisible();
   } finally {
-    await page.goto('/administration/people');
-    const toggle = page.getByRole('switch', { name: 'Offer built-in roles' });
-    await expect(toggle).toBeVisible();
-    if ((await toggle.getAttribute('aria-checked')) === 'true') {
-      await toggle.click();
-      await expect(toggle).toHaveAttribute('aria-checked', 'false');
-    }
+    // Nothing to switch back: the setting is on for everyone.
   }
-
-  // Off again: the Edit role form is the plain one.
-  await page.goto('/administration/users');
-  await (await engineerRow(page)).getByRole('button', { name: 'Row actions' }).click();
-  await page.getByRole('menuitem', { name: 'Edit role' }).click();
-  await expect(page.getByLabel('Built-in role')).toHaveCount(0);
 });

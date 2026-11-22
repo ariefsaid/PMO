@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — switches the payment channel feature on for the seed org, creates one uniquely titled request, and on exit removes it and turns the feature off and clears the channel list.
+// @e2e-isolation: self-isolated — creates one uniquely titled request and removes it on exit; payment channels are on for every organisation (#2746).
 /**
  * AC-PCH-001 (#2698) — an Admin turns payment channels on; Finance picks a channel on a purchase request and reads it back.
  * Goal oracle: the channel Finance chose is still on the request after a reload; with the feature off the request shows no
@@ -21,31 +21,19 @@ const admin = () => createClient(SUPABASE_URL, serviceKey!, { auth: { persistSes
 test.afterAll(async () => {
   const db = admin();
   const errors: string[] = [];
-  for (const r of [
-    await db.from('procurements').delete().eq('id', id),
-    await db.from('org_payment_channel_settings').delete().eq('org_id', ORG_ID),
-    await db.from('org_payment_channels').delete().eq('org_id', ORG_ID),
-  ]) if (r.error) errors.push(r.error.message);
+  // Payment channels are on for every organisation with starter channels (#2746): only this journey's request is removed.
+  for (const r of [await db.from('procurements').delete().eq('id', id)]) if (r.error) errors.push(r.error.message);
   if (errors.length) throw new Error(`AC-PCH-001 cleanup failed: ${errors.join('; ')}`);
 });
 
-test('AC-PCH-001 #2698: an Admin switches payment channels on, Finance sets a channel on a request and it persists', async ({ page }) => {
+test('AC-PCH-001 #2698: payment channels are on for everyone, Finance sets a channel on a request and it persists', async ({ page }) => {
   const db = admin();
   const { error } = await db.from('procurements').insert({ id, org_id: ORG_ID, title, status: 'Requested', currency: 'IDR' });
   if (error) throw new Error(`request fixture failed: ${error.message}`);
 
-  // Off: Finance sees no payment channel on the request.
-  await login(page, 'finance@acme.test');
-  await page.goto(`/procurement/${id}`);
-  await expect(page.getByRole('heading', { name: title }).first()).toBeVisible();
-  await expect(page.getByTestId('payment-channel-section')).toHaveCount(0);
-
-  // The Admin switches it on in Administration.
+  // The Admin finds the starter channels in Administration; there is no switch to turn on.
   await login(page, 'admin@acme.test');
   await page.goto('/administration/accounting');
-  const toggle = page.getByRole('switch', { name: /Record a payment channel on purchase requests|Catat kanal pembayaran pada permintaan pembelian/ });
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByRole('list', { name: /Channels|Kanal/ }).getByRole('listitem').first()).toBeVisible();
 
   // Finance picks a channel; it survives a reload.

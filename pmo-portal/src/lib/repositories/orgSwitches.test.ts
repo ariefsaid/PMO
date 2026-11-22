@@ -36,6 +36,16 @@ describe('organisation switch registry (#2746)', () => {
       expect(select).toHaveBeenCalledWith('clearance_checklist_enabled');
     });
 
+    it('AC-OSM-007 a module is read and written as its own organizations column (#2746)', async () => {
+      select.mockReturnValueOnce({ limit: () => Promise.resolve({ data: [{ module_stock: false }], error: null }) });
+      await expect(orgSwitchRepository.read('moduleStock')).resolves.toBe(false);
+      expect(select).toHaveBeenCalledWith('module_stock');
+      select.mockReturnValueOnce(Promise.resolve({ data: [{ id: 'org-1' }], error: null }));
+      update.mockReturnValue({ eq: () => ({ select: () => Promise.resolve({ data: [{ id: 'org-1' }], error: null }) }) });
+      await orgSwitchRepository.write('moduleBillingExtras', false);
+      expect(update).toHaveBeenCalledWith({ module_billing_extras: false });
+    });
+
     it('AC-OSM-007 writes by that row id', async () => {
       select.mockReturnValue(Promise.resolve({ data: [{ id: 'org-1' }], error: null }));
       const eq = vi.fn(() => ({ select: () => Promise.resolve({ data: [{ id: 'org-1' }], error: null }) }));

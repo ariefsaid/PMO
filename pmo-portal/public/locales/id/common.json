@@ -1,5 +1,6 @@
 {
   "allSettings": {
+    "alwaysOn": "Aktif untuk semua",
     "title": "Semua pengaturan",
     "on": "Aktif",
     "off": "Nonaktif",
@@ -14,9 +15,29 @@
       "notifications": "Notifikasi"
     },
     "item": {
+      "modulePeopleCrews": {
+        "name": "Modul: orang dan kru",
+        "summary": "Menyalakan atau mematikan peran bawaan, daftar periksa izin, permintaan cuti, dan pinjaman kru untuk semua orang."
+      },
+      "moduleSiteDay": {
+        "name": "Modul: hari kerja di lokasi",
+        "summary": "Menyalakan atau mematikan catatan keselamatan harian dan panel kinerja perintah kerja untuk semua orang."
+      },
+      "moduleStock": {
+        "name": "Modul: stok",
+        "summary": "Menyalakan atau mematikan transfer antar perintah kerja, reservasi, transfer dua langkah, dan kotak persetujuan permintaan material untuk semua orang."
+      },
+      "modulePurchasingExtras": {
+        "name": "Modul: tambahan pembelian",
+        "summary": "Menyalakan atau mematikan perencanaan baris, jenis pembelian, saluran pembayaran, cetak pesanan pembelian, dan surat jalan untuk semua orang."
+      },
+      "moduleBillingExtras": {
+        "name": "Modul: tambahan penagihan",
+        "summary": "Menyalakan atau mematikan pendapatan per disiplin, rencana pendapatan, waktu menganggur sebagai biaya, dan pengingat belum ditagih untuk semua orang."
+      },
       "crewLoans": {
         "name": "Pinjaman kru",
-        "summary": "Memungkinkan kru meminjamkan pekerja ke kru lain untuk sementara. Jika mati, halaman Kru tidak menampilkan pinjaman."
+        "summary": "Memungkinkan kru meminjamkan pekerja ke kru lain untuk sementara, ditampilkan di halaman Kru."
       },
       "builtInRoles": {
         "name": "Peran bawaan",

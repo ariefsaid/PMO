@@ -23,16 +23,18 @@ const renderIt = () => render(
 describe('AC-PLP-011 OrgPurchaseLines', () => {
   beforeEach(() => { vi.clearAllMocks(); h.canManage = true; h.list.mockResolvedValue([]); });
 
-  it('an Admin turns line planning on', async () => {
-    h.get.mockResolvedValue(false);
-    h.set.mockResolvedValue(true);
+  it('offers no switch: line planning is on for everyone (#2746) and the category list shows', async () => {
+    h.get.mockResolvedValue(true);
     renderIt();
-    const toggle = await screen.findByRole('switch', { name: 'Show a category and a needed-by date on each request line' });
-    expect(toggle).toHaveAttribute('aria-checked', 'false');
-    expect(screen.queryByTestId('line-category-list')).toBeNull();
-    await userEvent.click(toggle);
-    expect(h.set).toHaveBeenCalledWith(true);
     expect(await screen.findByTestId('line-category-list')).toBeInTheDocument();
+    expect(screen.queryByRole('switch')).toBeNull();
+  });
+
+  it('while line planning reads off (the module is off) no category list shows', async () => {
+    h.get.mockResolvedValue(false);
+    renderIt();
+    await waitFor(() => expect(h.get).toHaveBeenCalled());
+    expect(screen.queryByTestId('line-category-list')).toBeNull();
   });
 
   it('an Admin adds, renames and retires a category', async () => {
@@ -67,17 +69,18 @@ describe('AC-PLP-011 OrgPurchaseLines', () => {
     h.list.mockResolvedValue([cat('c1', 'Alpha')]);
     renderIt();
     await screen.findByText('Alpha');
-    expect(screen.getByRole('switch')).toBeDisabled();
+    expect(screen.queryByRole('switch')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Add category' })).toBeNull();
     expect(screen.getByText('Only an Admin can change this.')).toBeInTheDocument();
   });
 
   it('a refused save shows the reason', async () => {
-    h.get.mockResolvedValue(false);
-    h.set.mockRejectedValue(new Error('Only an Admin can change purchase rules.'));
+    h.get.mockResolvedValue(true);
+    h.save.mockRejectedValue(new Error('Only an Admin can change purchase rules.'));
     renderIt();
-    await userEvent.click(await screen.findByRole('switch'));
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Category name' }), 'Beta');
+    await userEvent.click(screen.getByRole('button', { name: 'Add category' }));
     expect(await screen.findByText(/Only an Admin can change purchase rules/)).toBeInTheDocument();
   });
 });
