@@ -114,7 +114,7 @@ describe('localized template human sample rows (#fix1122 defect 6)', () => {
     }) as never;
   };
 
-  it('localizes People sample person in en and id, preserving codes and roundtrip', async () => {
+  it('AC-IMT-013: People template download localizes sample person in en and id, preserving codes and roundtrip', async () => {
     const tEn = makeT('en');
     const tId = makeT('id');
     const dEn = makePeopleImportDescriptor(async () => [], tEn);
@@ -123,6 +123,7 @@ describe('localized template human sample rows (#fix1122 defect 6)', () => {
     const sheetEn = await parseWorkbook(await buildTemplateWorkbook(dEn));
     expect(sheetEn.headers).toEqual(['Employee code', 'Display name']);
     expect(sheetEn.rows).toEqual([['E-0001', 'Sample Person']]);
+    expect(checkTemplateMarker(dEn, sheetEn.templateMarker)).toBe('ok');
     const mapEn = autoMap(sheetEn.headers, dEn.fields);
     expect(mapEn).toEqual({ code: 0, name: 1 });
     const valEn = validateRows(sheetEn.rows, dEn.fields, mapEn);
@@ -132,19 +133,15 @@ describe('localized template human sample rows (#fix1122 defect 6)', () => {
     const sheetId = await parseWorkbook(await buildTemplateWorkbook(dId));
     expect(sheetId.headers).toEqual(['Kode karyawan', 'Nama tampilan']);
     expect(sheetId.rows).toEqual([['E-0001', 'Contoh Karyawan']]);
+    expect(checkTemplateMarker(dId, sheetId.templateMarker)).toBe('ok');
     const mapId = autoMap(sheetId.headers, dId.fields);
     expect(mapId).toEqual({ code: 0, name: 1 });
     const valId = validateRows(sheetId.rows, dId.fields, mapId);
     expect(valId[0].valid).toBe(true);
     expect(dId.toInput({ code: sheetId.rows[0][0], name: sheetId.rows[0][1] })).toEqual({ code: 'E-0001', name: 'Contoh Karyawan' });
-
-    // Cross-language reimport parse contract: Indonesian workbook auto-maps to English descriptor
-    const crossMap = autoMap(sheetId.headers, dEn.fields);
-    expect(crossMap).toEqual({ code: 0, name: 1 });
-    expect(validateRows(sheetId.rows, dEn.fields, crossMap)[0].valid).toBe(true);
   });
 
-  it('localizes Stock items sample name in en and id, preserving machine codes and units', async () => {
+  it('AC-IMT-014: Stock items template download localizes sample name in en and id, preserving machine codes and units', async () => {
     const tEn = makeT('en');
     const tId = makeT('id');
     const units = [{ id: 'u1', code: 'EA' }];
@@ -154,12 +151,14 @@ describe('localized template human sample rows (#fix1122 defect 6)', () => {
     const sheetEn = await parseWorkbook(await buildTemplateWorkbook(dEn));
     expect(sheetEn.headers).toEqual(['Item code', 'Name', 'Description', 'Unit', 'Lead time (days)']);
     expect(sheetEn.rows).toEqual([['CEM-50', 'Cement 50 kg bag', '', 'EA', '7']]);
+    expect(checkTemplateMarker(dEn, sheetEn.templateMarker)).toBe('ok');
     const mapEn = autoMap(sheetEn.headers, dEn.fields);
     expect(validateRows(sheetEn.rows, dEn.fields, mapEn, dEn.validateRow)[0].valid).toBe(true);
 
     const sheetId = await parseWorkbook(await buildTemplateWorkbook(dId));
     expect(sheetId.headers).toEqual(['Kode item', 'Nama', 'Deskripsi', 'Satuan', 'Waktu tunggu (hari)']);
     expect(sheetId.rows).toEqual([['CEM-50', 'Semen sak 50 kg', '', 'EA', '7']]);
+    expect(checkTemplateMarker(dId, sheetId.templateMarker)).toBe('ok');
     const mapId = autoMap(sheetId.headers, dId.fields);
     expect(validateRows(sheetId.rows, dId.fields, mapId, dId.validateRow)[0].valid).toBe(true);
     expect(dId.toInput({ code: 'CEM-50', name: sheetId.rows[0][1], unit: 'EA', leadTimeDays: '7' })).toEqual({
@@ -167,7 +166,7 @@ describe('localized template human sample rows (#fix1122 defect 6)', () => {
     });
   });
 
-  it('localizes Stock locations sample name in en and id, preserving kind enum and project', async () => {
+  it('AC-IMT-015: Stock locations template download localizes sample name in en and id, preserving kind enum and project', async () => {
     const tEn = makeT('en');
     const tId = makeT('id');
     const projects = [{ id: 'p1', name: 'Alpha Site' }];
@@ -177,12 +176,14 @@ describe('localized template human sample rows (#fix1122 defect 6)', () => {
     const sheetEn = await parseWorkbook(await buildTemplateWorkbook(dEn));
     expect(sheetEn.headers).toEqual(['Location code', 'Name', 'Kind', 'Project']);
     expect(sheetEn.rows).toEqual([['YARD-1', 'North yard', 'yard', 'Alpha Site']]);
+    expect(checkTemplateMarker(dEn, sheetEn.templateMarker)).toBe('ok');
     const mapEn = autoMap(sheetEn.headers, dEn.fields);
     expect(validateRows(sheetEn.rows, dEn.fields, mapEn, dEn.validateRow)[0].valid).toBe(true);
 
     const sheetId = await parseWorkbook(await buildTemplateWorkbook(dId));
     expect(sheetId.headers).toEqual(['Kode lokasi', 'Nama', 'Jenis', 'Proyek']);
     expect(sheetId.rows).toEqual([['YARD-1', 'Yard utara', 'yard', 'Alpha Site']]);
+    expect(checkTemplateMarker(dId, sheetId.templateMarker)).toBe('ok');
     const mapId = autoMap(sheetId.headers, dId.fields);
     expect(validateRows(sheetId.rows, dId.fields, mapId, dId.validateRow)[0].valid).toBe(true);
     expect(dId.toInput({ code: 'YARD-1', name: sheetId.rows[0][1], kind: 'yard', project: 'Alpha Site' })).toEqual({
@@ -190,7 +191,7 @@ describe('localized template human sample rows (#fix1122 defect 6)', () => {
     });
   });
 
-  it('preserves fallback English when t is undefined', () => {
+  it('AC-IMT-016: Descriptors preserve English fallback examples when t is undefined', () => {
     const dPeople = makePeopleImportDescriptor(async () => []);
     expect(dPeople.template?.example).toEqual({ code: 'E-0001', name: 'Sample Person' });
 
@@ -203,5 +204,19 @@ describe('localized template human sample rows (#fix1122 defect 6)', () => {
     expect(dLocation.template?.example).toEqual({
       code: 'YARD-1', name: 'North yard', kind: 'yard', project: 'Alpha',
     });
+  });
+
+  it('AC-IMT-017: Cross-language template reimport contract: Indonesian workbook auto-maps and validates against English descriptor', async () => {
+    const tEn = makeT('en');
+    const tId = makeT('id');
+    const dEn = makePeopleImportDescriptor(async () => [], tEn);
+    const dId = makePeopleImportDescriptor(async () => [], tId);
+
+    const sheetId = await parseWorkbook(await buildTemplateWorkbook(dId));
+    const crossMap = autoMap(sheetId.headers, dEn.fields);
+    expect(crossMap).toEqual({ code: 0, name: 1 });
+    const crossVal = validateRows(sheetId.rows, dEn.fields, crossMap);
+    expect(crossVal[0].valid).toBe(true);
+    expect(dEn.toInput({ code: sheetId.rows[0][0], name: sheetId.rows[0][1] })).toEqual({ code: 'E-0001', name: 'Contoh Karyawan' });
   });
 });
