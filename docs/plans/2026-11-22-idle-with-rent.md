@@ -13,7 +13,7 @@ a second term (dedupe against attendance by worker where it names one). Confirm 
 - `save_idle_cost_scope(p_scope text)`: SECURITY DEFINER, `labour_cost_gate()` (Admin/Finance, else 42501), 22023 on bad value,
   upsert like `save_idle_cost_setting`. Revoke public/anon, grant authenticated. Add to
   `supabase/tests/inventory/anon-executable-definers/idle-with-rent.txt` and `scripts/isolation-probe-denominator.d/` if the guard asks.
-- `idle_headcount(p_org uuid, p_wo uuid, p_date date) returns int` (internal; revoked from all client roles): distinct present
+- `idle_headcount_days(p_org, p_project)` set-based (internal; revoked from all client roles; built): distinct present
   workers on `attendance_days`.
 - Rollback `supabase/migrations/rollback/1730_idle_cost_scope_down.sql`.
 - Test (RED first): `supabase/tests/1730_idle_cost_scope.test.sql` AC-IWR-001 (default), 010 (write refusal), helper count.
