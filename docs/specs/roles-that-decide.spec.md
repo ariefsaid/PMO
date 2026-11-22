@@ -85,8 +85,11 @@ against the same cases. `can()` reads it; the database is the authority.
   trigger on the column holds the rules on every write path (the RPC and the existing Admin table policy): catalogue keys only, no
   field role, and a non-empty list only while built-in roles are on.
 - One gate, `actor_may_order_purchases() returns boolean`: true when the real signed-in person (never the view-as role) holds
-  one of their organisation's `order_job_roles` by `holds_job_role`. Granted to `authenticated` (the read-scope policies call it,
-  wrapped `(select ...)`); a scalar helper for the field-account sweep (`2711`). Every channel calls it, ORed with the existing level rule, never replacing it:
+  one of their organisation's `order_job_roles` by `holds_job_role`. Granted to `anon` and `authenticated`: the read-scope
+  policies call it wrapped `(select ...)`, and the procurement-files storage policy is evaluated for every role, so a role that could
+  not execute it would fail every storage read. It writes nothing and answers false outside an organisation. A scalar helper for the
+  field-account sweep (`2711`). The setter `po_set_order_job_roles` is listed in the client-callable inventory
+  (`supabase/tests/inventory/anon-executable-definers/1842-order-job-roles.txt`); the settings guard trigger sorts after the org stamp. Every channel calls it, ORed with the existing level rule, never replacing it:
   `create_purchase_order` (on an Approved, Vendor Quoted, Quote Selected or Ordered purchase), `transition_procurement` from `Approved`
   or `Quote Selected` to `Ordered` (a job-role orderer never skips approval: from `Draft` it is refused), `purchase_orders_insert` /
   `_update` (on the same approved states), and the 0350 restrictive read

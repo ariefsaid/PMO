@@ -1,0 +1,2 @@
+# 1842 (roles that decide): an Admin names the built-in roles that may also order purchases; anon revoked, the body re-asserts Admin and the setting.
+po_set_order_job_roles
