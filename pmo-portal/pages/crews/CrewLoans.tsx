@@ -77,7 +77,7 @@ const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             className={`sm:col-span-2 text-sm ${hostNeverScheduled ? 'text-destructive-text' : 'text-warning-foreground'}`}>
             {hostNeverScheduled
               ? t('crews:loans.hostNotScheduled', '{{crew}} is not on any work order on these days, so this person would show on no roster and no hours would count. Schedule {{crew}} on a work order first, or choose another crew.', { crew: hostName })
-              : t('crews:loans.hostPartlyScheduled', '{{crew}} is not on any work order on {{days}}. This person will show on no roster on those days.', { crew: hostName, days: uncovered.map(formatDay).join(', ') })}
+              : t('crews:loans.hostPartlyScheduled', '{{crew}} is not on any work order on {{days}}. This person will show on no roster on those days.', { crew: hostName, days: uncovered.map((d) => formatDay(d)).join(', ') })}
           </p>
         )}
         <DateField label={t('crews:from', 'From')} required value={form.values.from} onChange={(v) => form.setValue('from', v)} />

@@ -52,7 +52,7 @@ describe('SiteReportStockView', () => {
   it('AC-SD-006 a line with no site location links the warning to the setting, in both languages', async () => {
     for (const lng of ['en', 'id'] as const) {
       const inst = await setup(lng);
-      const { unmount } = render(<MemoryRouter><I18nextProvider i18n={inst}><SiteReportStockView workOrderId="wo9" status={{ ...base, state: 'not_posted', location: null, lines: [line({ state: 'no_location' })] }} /></I18nextProvider></MemoryRouter>);
+      const { unmount } = render(<MemoryRouter><I18nextProvider i18n={inst}><SiteReportStockView workOrderId="wo9" status={{ ...base, state: 'flagged', location: null, lines: [line({ state: 'no_location' })] }} /></I18nextProvider></MemoryRouter>);
       expect(screen.getByTestId('dsr-stock-set-location')).toHaveAttribute('href', '/work-orders/wo9#site-location');
       expect(screen.getByTestId('dsr-stock-set-location').textContent).toBe(lng === 'en' ? 'Set the site location on the work order' : 'Atur lokasi lapangan di perintah kerja');
       unmount();

@@ -85,7 +85,7 @@ describe('attendance tick screen (#2528)', () => {
 
   it('AC-SD-007 a person who reported absent shows as such on the roster and starts the day as absent', async () => {
     const user = userEvent.setup();
-    (h.roster.data[0].members[1] as Record<string, unknown>).reported_absent = { reason: 'sick', note: 'fever' };
+    ((h.roster.data as Array<{ members: Array<Record<string, unknown>> }>)[0].members[1]).reported_absent = { reason: 'sick', note: 'fever' };
     renderAt();
     expect(screen.getByTestId('reported-absent-w2')).toHaveTextContent('Reported absent: sick — fever');
     await user.click(screen.getByRole('button', { name: 'Save attendance' }));

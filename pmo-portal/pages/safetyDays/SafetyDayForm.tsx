@@ -63,10 +63,6 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
     talks: detail.talks.map((x) => ({ photoCount: x.photos.length })),
     checklist: detail.checklist.map((c) => ({ answer: c.answer })),
   });
-  const run = async (work: () => Promise<unknown>, success: string) => {
-    try { await work(); toast(success, undefined, 'success'); return true; }
-    catch (err) { const { headline, detail: d } = classifyMutationError(err); toast(headline, d, 'warning'); setDialogError(d ? `${headline}. ${d}` : headline); return false; }
-  };
   // The database's refusals, in the reader's language (never the raw sentence).
   const lockRefusal = (err: unknown): string => {
     const msg = err instanceof Error ? err.message : '';
