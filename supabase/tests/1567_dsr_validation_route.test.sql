@@ -105,9 +105,15 @@ insert into projects (id, org_id, name, status, currency, project_manager_id) va
 -- NOT a shape a migration could have produced, and NOT evidence that any writer may create it — 0900's
 -- own pgTAP owns the refusal proof. origin behaviour is restored immediately below; the transaction
 -- rolls back in full.
+-- The window also silences the origin-only BEFORE INSERT fillers on this table. org_id is supplied
+-- explicitly, and pmo_project_number must be supplied explicitly too: 0231 gives it a NULL-yielding
+-- column default (`project_number_null_insert_default()`) plus NOT NULL, and only the origin-only
+-- `zz_projects_mint_pmo_number` fills it. The literal below is a synthetic, non-blank, org-A-unique
+-- identifier (the 14 minted sibling rows are `PRJ-…`), so NOT NULL, the non-blank CHECK and
+-- `projects_org_pmo_project_number_uidx` all hold for this row without any other change.
 set local session_replication_role = replica;
-insert into projects (id, org_id, name, status, currency, project_manager_id) values
-  ('15670000-0000-0000-0000-000000000107', '15670000-0000-0000-0000-00000000000a', 'Cross-org PM', 'Ongoing Project', 'IDR', '15670000-0000-0000-0000-0000000000b1');
+insert into projects (id, org_id, name, status, currency, project_manager_id, pmo_project_number) values
+  ('15670000-0000-0000-0000-000000000107', '15670000-0000-0000-0000-00000000000a', 'Cross-org PM', 'Ongoing Project', 'IDR', '15670000-0000-0000-0000-0000000000b1', '1567-CROSS-ORG-PM');
 set local session_replication_role = origin;
 -- Setup guard, no TAP assertion: every fixture built after this point and every assertion below must run
 -- with normal (origin) trigger behaviour restored, or the suite aborts instead of proving anything under
