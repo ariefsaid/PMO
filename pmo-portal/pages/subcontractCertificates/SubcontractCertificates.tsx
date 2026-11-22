@@ -188,16 +188,13 @@ const SubcontractCertificatesPage: React.FC = () => {
   const posQuery = useSubcontractPos();
   const projectsQuery = useProjectPickerOptions();
 
-  const allPos = posQuery.data ?? [];
-  const allProjects = projectsQuery.data ?? [];
-
   const projectManagerByProjectId = useMemo(() => {
     const map = new Map<string, string | null>();
-    for (const p of allProjects) {
+    for (const p of projectsQuery.data ?? []) {
       map.set(p.id, p.project_manager_id);
     }
     return map;
-  }, [allProjects]);
+  }, [projectsQuery.data]);
 
   const canPrepareRole = can('prepare', 'subcontractCertificate', {
     realRole,
@@ -226,8 +223,8 @@ const SubcontractCertificatesPage: React.FC = () => {
 
   const eligiblePos = useMemo(() => {
     if (isPendingOrError) return [];
-    return allPos.filter(canPreparePo);
-  }, [isPendingOrError, allPos, canPreparePo]);
+    return (posQuery.data ?? []).filter(canPreparePo);
+  }, [isPendingOrError, posQuery.data, canPreparePo]);
 
   // Certificate offer: Admin/Finance retain existing behavior (canPrepareRole, unless viewOnly).
   // A Project Manager is offered New certificate only when managing an eligible project with lawful PO selection,

@@ -127,7 +127,7 @@ describe('subcontract certificate list', () => {
     ];
     renderPage();
 
-    const newBtn = screen.getByRole('button', { name: 'New certificate' });
+    const newBtn = screen.getAllByRole('button', { name: 'New certificate' })[0];
     expect(newBtn).toBeInTheDocument();
     await userEvent.click(newBtn);
 
@@ -172,7 +172,7 @@ describe('subcontract certificate list', () => {
     h.pos = [{ po_id: 'po1', po_number: 'PO-1', title: 'Earthworks', project_id: 'p1', vendor_id: 'v1', work_order_id: 'w1', currency: 'IDR' }];
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: 'New certificate' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'New certificate' })[0]);
     const prepareBtn = screen.getByRole('button', { name: 'Prepare certificate' });
     expect(prepareBtn).toBeDisabled();
 
