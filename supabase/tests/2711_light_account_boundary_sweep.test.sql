@@ -43,7 +43,6 @@ insert into la_fn_allow values
   ('actor_built_in_role', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('actor_has_person_documents_access', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('actor_has_role_capability', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
-  ('actor_holds_built_in_role', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('actor_is_light', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('actor_may_see_medical_documents', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('expiry_document_object_is_medical', 'helper', 'a stored-file helper the expiry-documents storage policy reads through the write rule; it answers for the caller''s own organisation and a field account holds no document right'),
