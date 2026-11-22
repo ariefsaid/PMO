@@ -3,8 +3,8 @@
 --
 -- ONE READ for ONE visible Submitted timesheet. It projects the approver population that the CURRENT
 -- write authority, public.transition_timesheet (newest body 0855, plus the 1461 light-account guard),
--- already enforces for the approve/reject arm — it does not add, widen or change any write or approve
--- rule:
+-- already enforces for the approve/reject arm for every account state the app can produce — it does not
+-- add, widen or change any write or approve rule:
 --   * owner SoD is excluded for EVERY role (even Admin), exactly as transition_timesheet refuses it first;
 --   * the assigned line manager is eligible whenever the owner's RAW profiles.manager_id is non-null;
 --   * Admin break-glass is always eligible, whether or not a manager is assigned;
@@ -25,11 +25,7 @@
 -- smallest projection needed by the sentence (id, full name, coarse role) leaves the database. Sorting is
 -- deterministic (name, then id).
 --
--- DELIBERATE LIMIT: profiles.status is the app-visible disabled state this invoker read can see. An
--- out-of-band auth.users.banned_until set without a status change is not readable by `authenticated`
--- (is_active_member(uuid) is revoked, and the definer actor_authorization_state is self-only). Such a
--- person is still refused by the write's active assert; this read can name their existing profile row.
--- The route never becomes the authority: transition_timesheet keeps deciding.
+-- Requester display projects supported account states; existing transition remains authoritative.
 
 create function public.get_timesheet_approval_route(p_timesheet_id uuid)
   returns jsonb
@@ -122,9 +118,10 @@ grant execute on function public.get_timesheet_approval_route(uuid) to authentic
 
 comment on function public.get_timesheet_approval_route(uuid) is
   'fix-waiting item 3 (FR-WAIT-006): the approver population of ONE visible Submitted timesheet, '
-  'projected exactly from transition_timesheet''s current approve/reject authority (0855 + the 1461 '
-  'light-account guard): owner SoD excluded for every role; the raw assigned manager; Admin break-glass '
-  'always; Executive only when the RAW manager_id is null; a light account excluded. SECURITY INVOKER so '
-  'timesheets_select and profiles_select are the visibility boundary; no org_id argument. Returns '
+  'projected from transition_timesheet''s current approve/reject authority for the account states the '
+  'app supports (0855 + the 1461 light-account guard): owner SoD excluded for every role; the raw '
+  'assigned manager; Admin break-glass always; Executive only when the RAW manager_id is null; a light '
+  'account excluded. SECURITY INVOKER so timesheets_select and profiles_select are the visibility '
+  'boundary; no org_id argument. Returns '
   '{"approvers":[{"id","name","role"}],"route_kind":"line_manager"|"admin_executive"|"unavailable"}, '
   'deterministically ordered by name then id.';
