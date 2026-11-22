@@ -422,6 +422,9 @@
         "titleNew": "Tambah baris bill of quantities",
         "legend": "Baris",
         "item": "Item ERP",
+        "itemCode": "Kode item",
+        "existingLine": "Item ini sudah punya baris: {{code}}. Ubah baris itu, jangan tambah baris kedua.",
+        "editExisting": "Ubah baris itu",
         "description": "Deskripsi",
         "titleEdit": "Ubah baris bill of quantities"
       },

@@ -422,6 +422,9 @@
         "titleNew": "Add a bill of quantities line",
         "legend": "Line",
         "item": "ERP item",
+        "itemCode": "Item code",
+        "existingLine": "This item already has a line: {{code}}. Edit that line instead of adding a second one.",
+        "editExisting": "Edit that line",
         "description": "Description",
         "titleEdit": "Edit bill of quantities line"
       },
