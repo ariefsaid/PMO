@@ -1235,8 +1235,6 @@ decides a request they made, are the subject of, or entered, whatever their role
 
 **Medical release** — a decision, for one person and a return date, that the person may be rostered again after sickness or injury. The people team opens it; the person's direct manager approves it or defers it with a reason. While it is pending or deferred the database refuses to roster the person (crew placement, loan, attendance) on or after that date. It holds a decision and a short note, never medical content; the manager sees the state only.
 
-**Direct manager** — the person's `people.manager_id`, else the manager of their linked login. The one who decides a medical release.
-
 **On leave (roster marker)** — a chip beside a rostered person who has approved leave on the day shown. It is information only and does
 not stop attendance being ticked.
 
@@ -1372,7 +1370,7 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Management profit and loss** — the Reports screen (management pack) read as a profit and loss PMO produces from its own records: recognised, invoiced and earned revenue per project and, while Profit per discipline is on, cost and margin on both revenue bases. It is not a ledger statement; trial balance, profit and loss and balance sheet come from a connected accounting system. An organisation with none connected is led from Statements and the Finance hub Net profit tile to it (#2734).
 
-**Direct manager** — the app user recorded as a person's manager on the people register (`people.manager_id`). They are warned first when that person's documents are about to expire and may record the renewal (a later expiry date) for their own people only; Admin keeps the existing write. Separate from the line-management link on user accounts.
+**Direct manager** — the app user recorded as a person's manager on the people register (`people.manager_id`). They are warned first when that person's documents are about to expire and may record the renewal (a later expiry date) for their own people only; Admin keeps the existing write. Separate from the line-management link on user accounts. A medical release is decided by the direct manager, or, when none is set, by the manager of the person's linked login.
 
 **Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
 
