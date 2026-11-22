@@ -19,8 +19,7 @@ export type WaitingForRoleKey =
   | 'roleFinanceAdmin'
   | 'roleFinanceExecAdmin'
   | 'roleApprovalRank'
-  | 'roleManager'
-  | 'roleAdminExec';
+  | 'roleManager';
 
 /**
  * Resolves a known waitingFor role label from the catalogue.
@@ -44,8 +43,11 @@ export function waitingRoleLabel(key: WaitingForRoleKey, t: TFunction): string {
       return t('waitingList:waitingFor.roleApprovalRank', 'Project Manager, Finance, Executive, or Admin');
     case 'roleManager':
       return t('waitingList:waitingFor.roleManager', 'line manager');
-    case 'roleAdminExec':
-      return t('waitingList:waitingFor.roleAdminExec', 'Admin or Executive');
+    default: {
+      // Exhaustiveness guard: a new role key will fail to compile here.
+      const _exhaustive: never = key;
+      return _exhaustive;
+    }
   }
 }
 
