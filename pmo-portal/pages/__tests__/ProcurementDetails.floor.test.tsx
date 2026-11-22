@@ -3,6 +3,12 @@ import { clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
 const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));
 vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: new Proxy({}, { get: () => fileState.files }), isError: false }) }));
+// C11: the channel reads lost their no-provider fallback; the Details tab click below must not arm a real read.
+vi.mock('@/src/hooks/usePaymentChannels', () => ({
+  usePaymentChannelsOn: () => ({ on: false }),
+  usePaymentChannelNames: () => ({ data: undefined }),
+  useRequestPaymentChannel: () => ({ data: undefined }),
+}));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => itemEligibility }));
