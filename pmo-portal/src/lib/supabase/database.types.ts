@@ -30500,6 +30500,13 @@ export type Database = {
         Args: { p_project_id?: string }
         Returns: Json
       }
+      get_operational_waiting_route: {
+        Args: {
+          p_kind: string
+          p_record_id: string
+        }
+        Returns: Json
+      }
       get_org_discipline_profit_enabled: { Args: never; Returns: boolean }
       get_org_fiscal_year_setting: {
         Args: never
