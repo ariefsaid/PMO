@@ -884,8 +884,8 @@
     }
   },
   "transferSettings": {
-    "manage": "Transfers and proof",
-    "mode": "How transfers are made",
+    "manage": "Stock transfers and proof",
+    "mode": "How stock transfers are made",
     "oneStep": "One step: post at once",
     "twoStep": "Two steps: send, then receive with a count",
     "modeHelp": "Two steps keep the goods in transit until the receiver counts them. Senders name a receiver; the sender never counts their own shipment.",
