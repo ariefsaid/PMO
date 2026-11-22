@@ -36,7 +36,7 @@ import IncidentDetail from './IncidentDetail';
 
 const base = {
   id: 'i1', org_id: 'org-1', incident_date: '2026-03-15', type: 'Defect', severity: 'Low', location: null, description: 'Rail loose',
-  status: 'Open', reported_by: 'u1', assignee_id: 'u-a', project_id: 'p1', created_at: '2026-03-15T00:00:00Z', root_cause: null,
+  status: 'Open', reported_by: 'u1', assignee_id: 'u-a', project_id: 'p1', created_at: '2026-03-15T00:00:00Z', root_cause: null, type_id: null,
   incident_tasks: [
     { created_at: '2026-03-16T00:00:00Z', tasks: { id: 't1', name: 'Replace the rail', status: 'To Do', assignee_id: 'u-a', end_date: '2026-04-01', project_id: 'p1' } },
     { created_at: '2026-03-17T00:00:00Z', tasks: { id: 't2', name: 'Order the part', status: 'Done', assignee_id: null, end_date: null, project_id: 'p1' } },

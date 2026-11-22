@@ -738,6 +738,24 @@
           "start": "Hanya satu titik pemeriksaan yang boleh menandai mulai kerja"
         }
       },
+    "issueTypes": {
+      "title": "Jenis isu",
+      "helper": "Jenis yang dipilih orang saat mengajukan isu, dan pengelompokan yang dipakai laporan waktu penyelesaian. Mengganti nama jenis akan mengganti namanya di setiap isu yang memakainya. Mengarsipkan menyembunyikan jenis dari isu baru; isu yang sudah memakainya tetap menyimpannya.",
+      "empty": "Belum ada jenis isu, jadi belum ada yang bisa mengajukan isu. Tambahkan jenis milik organisasi Anda di bawah.",
+      "nearEmpty": "Hanya satu jenis yang terdaftar. Tambahkan jenis milik organisasi Anda di bawah agar isu bisa dikelompokkan dan diukur waktunya per jenis.",
+      "add": "Tambah",
+      "addLabel": "Jenis isu baru",
+      "rename": "Ganti nama",
+      "renameFor": "Nama untuk {{name}}",
+      "save": "Simpan",
+      "cancel": "Batal",
+      "archive": "Arsipkan",
+      "restore": "Pulihkan",
+      "archived": "Diarsipkan",
+      "loadError": "Tidak dapat memuat jenis isu",
+      "saved": "Jenis isu disimpan",
+      "duplicate": "Jenis itu sudah ada di daftar"
+    },
     "siteReportLists": {
       "title": "Daftar laporan lapangan",
       "helper": "Pilihan yang tersedia pada laporan lapangan. Mengarsipkan menyembunyikan pilihan dari laporan baru; laporan yang sudah memakainya tetap menyimpannya.",

@@ -241,6 +241,7 @@ insert into la_table_allow values
   ('imprest_plans', 'the existing policy joins a parent whose own rows a field account cannot read'),
   ('imprest_posting_erp_mirror', 'the existing policy joins a parent whose own rows a field account cannot read'),
   ('imprest_replenishments', 'the existing policy joins a parent whose own rows a field account cannot read'),
+  ('incident_types', 'organisation reference or configuration list the shell and roster flows render'),
   ('incident_files', 'own-row scope: only the files this person uploaded'),
   ('journal_entry_authors', 'the existing policy names management roles the light seats never hold'),
   ('leave_requests', 'the existing policy admits only the caller''s own rows or the light seat''s own audience'),

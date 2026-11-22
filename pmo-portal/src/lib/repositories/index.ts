@@ -64,6 +64,7 @@ import { commentRepository } from './comments';
 import { meetingRepository } from './meetings';
 import { incidentRepository } from './incidents';
 import { issueClosingReportRepository } from './issueClosingReport';
+import { incidentTypeRepository } from './incidentTypes';
 import { procurementRepository, procurementFilesRepository } from './procurement';
 import { subcontractRepository } from './subcontracts';
 import { subcontractCertificateRepository } from './subcontractCertificates';
@@ -137,6 +138,7 @@ export const repositories: Repositories = {
   thirdPartyInspection: thirdPartyInspectionRepository,
   incident: incidentRepository,
   issueClosingReport: issueClosingReportRepository,
+  incidentType: incidentTypeRepository,
   comment: commentRepository,
   milestone: milestoneRepository,
   workOrder: workOrderRepository,

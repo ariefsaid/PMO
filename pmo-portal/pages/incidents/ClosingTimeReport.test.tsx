@@ -44,6 +44,8 @@ vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => () => mockPermission,
 }));
 
+// The effective-hours panel has its own test (EffectiveHoursPanel.test.tsx); here it is stubbed out.
+vi.mock('./EffectiveHoursPanel', () => ({ default: () => null }));
 import ClosingTimeReport from './ClosingTimeReport';
 
 const renderComponent = () =>

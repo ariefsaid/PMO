@@ -38,6 +38,8 @@ insert into project_documents (id, org_id, project_id, code, category, title, st
 insert into incident_reports (id, org_id, incident_date, type, severity, status, reported_by) values
   ('00540000-0000-0000-0000-000000000040','00000000-0000-0000-0000-000000000001',
    '2026-06-01','Near Miss','Low','Open','00540000-0000-0000-0000-0000000000a2');
+-- issue-closing-measure: an issue's type is picked from the organisation's kept list (1820/1821); this test's own types are on it.
+insert into incident_types (org_id, label) values ('00000000-0000-0000-0000-000000000001', 'Spill') on conflict do nothing;
 insert into tasks (id, org_id, project_id, name, status, assignee_id) values
   ('00540000-0000-0000-0000-000000000050','00000000-0000-0000-0000-000000000001',
    '00540000-0000-0000-0000-000000000010','Pinned Task','To Do','00540000-0000-0000-0000-0000000000a2');

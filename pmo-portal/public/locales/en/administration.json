@@ -738,6 +738,24 @@
           "start": "Only one checkpoint can mark the start of work"
         }
       },
+    "issueTypes": {
+      "title": "Issue types",
+      "helper": "The types people choose when they raise an issue, and the groups the closing-time report uses. Renaming a type renames it on every issue that has it. Archiving hides a type from new issues; issues that already have it keep it.",
+      "empty": "No issue types yet, so nobody can raise an issue. Add your organisation's types below.",
+      "nearEmpty": "Only one type is listed. Add your organisation's own types below so issues can be grouped and timed by type.",
+      "add": "Add",
+      "addLabel": "New issue type",
+      "rename": "Rename",
+      "renameFor": "Name for {{name}}",
+      "save": "Save",
+      "cancel": "Cancel",
+      "archive": "Archive",
+      "restore": "Restore",
+      "archived": "Archived",
+      "loadError": "Couldn't load the issue types",
+      "saved": "Issue types saved",
+      "duplicate": "That type is already in the list"
+    },
     "siteReportLists": {
       "title": "Site report lists",
       "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",

@@ -28,6 +28,9 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useAssigneeOptions: () => ({ data: [] }),
   useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: vi.fn(), isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
 }));
+vi.mock('@/src/hooks/useIncidentTypes', () => ({
+  useIncidentTypes: () => ({ data: [{ id: 't1', label: 'Near Miss', archived_at: null }, { id: 't2', label: 'Spill', archived_at: null }] }),
+}));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({ useProjectOptions: () => ({ data: [] }) }));

@@ -52,6 +52,9 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidentEvidenceMutations: () => ({ upload: { mutateAsync: vi.fn(), isPending: false }, makeTask: { mutateAsync: vi.fn(), isPending: false } }),
   useIncidentFiles: () => ({ data: [] }),
 }));
+vi.mock('@/src/hooks/useIncidentTypes', () => ({
+  useIncidentTypes: () => ({ data: [{ id: 't1', label: 'Near Miss', archived_at: null }, { id: 't2', label: 'Spill', archived_at: null }] }),
+}));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [] }) }));
 
 
@@ -384,7 +387,7 @@ describe('Incidents — File incident form (AC-IN-003)', () => {
     const dateField = within(dialog).getByLabelText(/Date/i);
     await userEvent.clear(dateField);
     await userEvent.type(dateField, '2026-06-08');
-    await userEvent.type(within(dialog).getByLabelText(/Type/i), 'Near Miss');
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Type/i), 'Near Miss');
     await userEvent.selectOptions(within(dialog).getByLabelText(/Severity/i), 'Medium');
     await userEvent.type(within(dialog).getByLabelText(/Location/i), 'Site C');
     await userEvent.type(within(dialog).getByLabelText(/Description/i), 'Slippery floor');
@@ -414,7 +417,7 @@ describe('Incidents — File incident form (AC-IN-003)', () => {
     const dateField = within(dialog).getByLabelText(/Date/i);
     await userEvent.clear(dateField);
     await userEvent.type(dateField, '2026-06-08');
-    await userEvent.type(within(dialog).getByLabelText(/Type/i), 'Spill');
+    await userEvent.selectOptions(within(dialog).getByLabelText(/Type/i), 'Spill');
     await userEvent.selectOptions(within(dialog).getByLabelText(/Severity/i), 'High');
     await userEvent.click(within(dialog).getByRole('button', { name: /^File incident$/i }));
     const toast = await findToastAnnouncement('alert', /don't have permission/i);

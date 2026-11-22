@@ -17,6 +17,8 @@ select plan(55);
 insert into organizations (id, name, default_currency, built_in_roles_enabled) values
   ('27100000-0000-0000-0000-00000000000a', 'LA Org',       'IDR', true),
   ('27100000-0000-0000-0000-00000000000b', 'LA Other Org', 'IDR', true);
+-- issue-closing-measure: an issue's type is picked from the organisation's kept list (1820/1821); this test's own types are on it.
+insert into incident_types (org_id, label) values ('27100000-0000-0000-0000-00000000000a', 'Hazard') on conflict do nothing;
 insert into auth.users (id, email) values
   ('27100000-0000-0000-0000-0000000000a1', 'la-admin@example.com'),
   ('27100000-0000-0000-0000-0000000000a3', 'la-pm@example.com'),

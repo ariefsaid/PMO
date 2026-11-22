@@ -1359,6 +1359,10 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Management profit and loss** — the Reports screen (management pack) read as a profit and loss PMO produces from its own records: recognised, invoiced and earned revenue per project and, while Profit per discipline is on, cost and margin on both revenue bases. It is not a ledger statement; trial balance, profit and loss and balance sheet come from a connected accounting system. An organisation with none connected is led from Statements and the Finance hub Net profit tile to it (#2734).
 
+**Issue type** (*jenis isu*) — one entry of the organisation's own kept list that every issue picks from; an Admin adds, renames and archives entries, and the closing-time report groups by them. Archiving hides a type from new issues; issues that already have it keep it. A new organisation starts with one generic entry, "Other".
+
+**Effective working hours** (*jam kerja efektif*) — for one work order and one day: the site day on its validated daily report (start to end) minus the stopped time recorded on that report, never below zero. A day with no start and end time shows "times not entered", not zero. Shown beside the closing-time report; calendar closing time is not reduced by it.
+
 **Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
 
 **Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.

@@ -144,6 +144,7 @@ export type Entity =
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
   | 'siteReportLists'
+  | 'incidentTypes'
   | 'workOrderRevenuePlan'
   | 'revenuePlanSettings'
   | 'siteCheckpoint'
@@ -1064,6 +1065,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   workOrderCandidateTemplate: { manage: allow(ADMIN) },
   // #2621: the site report idle-reason and weather lists. Mirrors the Admin-only insert/update policies of 1040. UX ONLY.
   siteReportLists: { manage: allow(ADMIN) },
+  // Issue types: the kept list the issue form picks from. Mirrors the Admin-only insert/update policies of 1820. UX ONLY.
+  incidentTypes: { manage: allow(ADMIN) },
   // #2671 dated revenue plan per work order. UX ONLY — wo_revenue_plan_* (1276) and the reads (1277) are the authority
   // (ADR-0016): the project's own Project Manager only, Admin/Executive/Finance on any project.
   workOrderRevenuePlan: { view: allow(['Admin', 'Executive', 'Finance', 'Project Manager']), manage: allow(['Admin', 'Executive', 'Finance', 'Project Manager']) },
