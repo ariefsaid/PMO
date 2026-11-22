@@ -7,11 +7,12 @@ import { AppError } from '@/src/lib/appError';
  */
 const h = vi.hoisted(() => {
   const queue: Array<{ data: unknown; error: unknown }> = [];
-  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], update: [] as unknown[], eq: [] as unknown[], range: [] as unknown[], select: [] as unknown[] };
+  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], update: [] as unknown[], order: [] as unknown[], eq: [] as unknown[], range: [] as unknown[], select: [] as unknown[] };
   const next = () => queue.shift() ?? { data: [], error: null };
   const builder: Record<string, unknown> = {};
   const chain = (name?: keyof typeof calls) => (...a: unknown[]) => { if (name) (calls[name] as unknown[]).push(a.length === 1 ? a[0] : a); return builder; };
-  for (const k of ['order', 'limit', 'delete'] as const) builder[k] = chain();
+  for (const k of ['limit', 'delete'] as const) builder[k] = chain();
+  builder.order = chain('order');
   builder.select = chain('select');
   builder.eq = chain('eq'); builder.range = chain('range'); builder.insert = chain('insert'); builder.update = chain('update');
   builder.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => Promise.resolve(next()).then(resolve, reject);
@@ -56,6 +57,16 @@ describe('listProjectCostAmounts', () => {
     expect(h.calls.rpc).toEqual([['work_order_cost_amounts', { p_project_id: 'p1' }]]);
     expect(h.calls.range).toEqual([[0, 999]]);
     expect(lines[0]).toMatchObject({ amount: '600.00', workOrderId: 'A', reason: 'counted' });
+  });
+
+  it('AC-WPL-010 a bill split across work orders returns one row per work order, paged on (record, source, work order)', async () => {
+    h.queue.push({ data: [
+      row({ record_id: 'bill-1', work_order_id: 'A', amount: '600.00' }),
+      row({ record_id: 'bill-1', work_order_id: 'B', amount: '400.00' }),
+    ], error: null });
+    const lines = await dal.listProjectCostAmounts('p1');
+    expect(lines.map((l) => [l.recordId, l.workOrderId, l.amount])).toEqual([['bill-1', 'A', '600.00'], ['bill-1', 'B', '400.00']]);
+    expect(h.calls.order).toEqual([['record_id', { ascending: true }], ['source', { ascending: true }], ['work_order_id', { ascending: true }]]);
   });
 
   it('preserves unassigned and custom-split-only project actuals', async () => {

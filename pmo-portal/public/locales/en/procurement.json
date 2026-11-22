@@ -1063,5 +1063,22 @@
     "lineLabel": "Line {{name}}",
     "saveFailed": "The category and date could not be saved for some lines. Open the request to set them.",
     "columnEmpty": "—"
+  },
+  "lineWorkOrders": {
+    "section": "Work order per line",
+    "intro": "Say which work order each line is for. A line with none takes the request’s work order.",
+    "field": "Work order for {{line}}",
+    "sameAsRequest": "Same as the request",
+    "sameAsRequestNamed": "Same as the request ({{workOrder}})",
+    "unknownWorkOrder": "A work order you cannot open",
+    "cancelled": "cancelled",
+    "noProject": "Choose a project first: work orders belong to a project, and each line can then be given one.",
+    "noWorkOrders": "This project has no work orders yet, so lines cannot be given one. A project manager adds work orders on the project’s Work orders tab.",
+    "differs": "The request is on {{workOrder}}; this line’s cost goes to its own work order.",
+    "save": "Save",
+    "saved": "Saved",
+    "nothingToSave": "Change a line’s work order to save.",
+    "saveFailed": "The request is saved, but the work order of some lines was not set.",
+    "saveFailedNext": "Open the request and set them on the Items tab."
   }
 }

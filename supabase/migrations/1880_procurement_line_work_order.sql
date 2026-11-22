@@ -69,7 +69,7 @@ begin
   if new.project_id is distinct from old.project_id and exists (
        select 1 from public.procurement_items i join public.work_orders w on w.id = i.work_order_id
         where i.procurement_id = new.id and w.project_id is distinct from new.project_id) then
-    raise exception 'COST_WO_PROJECT_MOVE: lines of this purchase name a work order of its project. Clear their work orders before moving the purchase.'
+    raise exception 'COST_LINE_PROJECT_MOVE: lines of this purchase name a work order of its project. Clear their work orders before moving the purchase.'
       using errcode = '23514';
   end if;
   return new;

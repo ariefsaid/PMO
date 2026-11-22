@@ -37,11 +37,15 @@ interface CostAmountRow {
   quantity: number | string | null; quantity_unit: string | null; person_id: string | null; labour_class_id?: string | null;
 }
 
-/** Every cost record of one project with what it costs. A malformed row is an error, never a plausible figure. */
+/**
+ * Every cost record of one project with what it costs. A malformed row is an error, never a plausible figure. A purchase whose lines
+ * name different work orders returns one bill row per work order (migration 1882), so the page key is (record, source, work order):
+ * without the work order in the order, rows tied on the first two keys could repeat or vanish across a page boundary.
+ */
 export async function listProjectCostAmounts(projectId: string): Promise<CostAmountLine[]> {
   const rows = await fetchAllPages<CostAmountRow>((from, to) =>
     supabase.rpc('work_order_cost_amounts', { p_project_id: projectId })
-      .order('record_id', { ascending: true }).order('source', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: CostAmountRow[] | null; error: { message: string; code?: string } | null }>);
+      .order('record_id', { ascending: true }).order('source', { ascending: true }).order('work_order_id', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: CostAmountRow[] | null; error: { message: string; code?: string } | null }>);
   return rows.map((r) => {
     // Labour money for a Project Manager is aggregate (migration 1298): one row per work order, discipline and class,
     // with no record id and no date. Every other row resolves to its record.

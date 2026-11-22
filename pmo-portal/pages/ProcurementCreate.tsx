@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
@@ -18,6 +18,11 @@ import { BudgetCategoryHelp } from './procurement/BudgetCategoryHelp';
 import { LineItemsSection, type LineItemsSectionHandle } from './procurement/LineItemsSection';
 import { LinePlanningSection } from './procurement/LinePlanningSection';
 import type { LinePlanningValue } from './procurement/linePlanningValue';
+import { LineWorkOrdersSection } from './procurement/LineWorkOrdersSection';
+import { ownWorkOrdersByLine } from './procurement/lineWorkOrderValue';
+import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
+import { AttributionRefusedError, workOrderCostRepository } from '@/src/lib/repositories/workOrderCosts';
+import { useRefusalLine } from '@/src/lib/refusals';
 import { useLinePlanningEnabled, useLineCategories } from '@/src/hooks/usePurchaseLinePlanning';
 import { setProcurementLinePlanning } from '@/src/lib/db/procurementLinePlanning';
 import { readOrigin, readRestockLine, resolveFormOrigin } from '@/src/lib/stockRequestPurchase';
@@ -154,6 +159,11 @@ export default function ProcurementCreate() {
   const linePlanningOn = useLinePlanningEnabled();
   const lineCategories = useLineCategories(linePlanningOn);
   const [planning, setPlanning] = useState<Record<string, LinePlanningValue>>({});
+  // A work order per line (wo-per-purchase-line): '' = same as the request. A work order belongs to one project, so a project change clears the picks.
+  const [lineWorkOrders, setLineWorkOrders] = useState<Record<string, string>>({});
+  const projectWorkOrders = useProjectWorkOrders(selectedProject ?? '');
+  const refusalLine = useRefusalLine();
+  useEffect(() => { setLineWorkOrders({}); }, [selectedProject]);
   const [errors, setErrors] = useState<{ title?: string; save?: { headline: string; detail: string }; conflict?: boolean }>({});
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -318,6 +328,17 @@ export default function ProcurementCreate() {
           setProcurementLinePlanning(line.id, planning[line.id].categoryId || null, planning[line.id].neededBy || null)));
         if (results.some((r) => r.status === 'rejected')) {
           toast(t('procurement:linePlanning.saveFailed', 'The category and date could not be saved for some lines. Open the request to set them.'), '', 'warning');
+        }
+      }
+      if (attemptHave === 'need') {
+        // The draft exists; put each line that names its own work order on it. A refusal leaves the request saved and is reported once.
+        const own = ownWorkOrdersByLine(lineWorkOrders, input.lines.map((line) => line.id));
+        if (Object.keys(own).length > 0) {
+          try { await workOrderCostRepository.attributeLines(procurement.id, own); }
+          catch (err) {
+            toast(t('procurement:lineWorkOrders.saveFailed', 'The request is saved, but the work order of some lines was not set.'),
+              refusalLine(err instanceof AttributionRefusedError ? err.refusal : err) || t('procurement:lineWorkOrders.saveFailedNext', 'Open the request and set them on the Items tab.'), 'warning');
+          }
         }
       }
       if (attemptHave !== 'need') {
@@ -485,6 +506,15 @@ export default function ProcurementCreate() {
               currencyKnown={currencyKnown}
             />
           </fieldset>
+          {have === 'need' && lines.length > 0 && !(selectedProject && projectWorkOrders.isLoading) && (
+            <LineWorkOrdersSection
+              lines={lines}
+              values={lineWorkOrders}
+              onChange={(lineId, workOrderId) => setLineWorkOrders((current) => ({ ...current, [lineId]: workOrderId }))}
+              workOrders={selectedProject ? (projectWorkOrders.data ?? []).map((wo) => ({ id: wo.id, label: wo.wo_number ?? wo.title, cancelled: wo.status === 'Cancelled' })) : null}
+              busy={saving || Boolean(attempt)}
+            />
+          )}
           {linePlanningOn && (
             <LinePlanningSection
               lines={lines}

@@ -99,7 +99,7 @@ select throws_ok($$ insert into public.procurement_items (id, org_id, procuremen
   values ('18800000-0000-0000-0000-000000000615', '18800000-0000-0000-0000-00000000000a', '18800000-0000-0000-0000-000000000601', 'new line', 1, 1, '18800000-0000-0000-0000-000000000403') $$,
   '23514', 'COST_WO_CANCELLED: the work order is cancelled', 'AC-WPL-002 a direct insert on a cancelled work order is refused');
 select throws_ok($$ update public.procurements set project_id = '18800000-0000-0000-0000-0000000000d2' where id = '18800000-0000-0000-0000-000000000601' $$,
-  '23514', 'COST_WO_PROJECT_MOVE: lines of this purchase name a work order of its project. Clear their work orders before moving the purchase.',
+  '23514', 'COST_LINE_PROJECT_MOVE: lines of this purchase name a work order of its project. Clear their work orders before moving the purchase.',
   'a purchase cannot move away from its lines'' work orders');
 select is((select count(*)::int from public.audit_events where action = 'cost_attribution.set' and entity_id = '18800000-0000-0000-0000-000000000611'), 2,
   'every change is audited per line (set, then clear)');

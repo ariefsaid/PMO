@@ -1063,5 +1063,22 @@
     "lineLabel": "Baris {{name}}",
     "saveFailed": "Kategori dan tanggal tidak dapat disimpan untuk beberapa baris. Buka permintaan untuk mengaturnya.",
     "columnEmpty": "—"
+  },
+  "lineWorkOrders": {
+    "section": "Work order per baris",
+    "intro": "Sebutkan work order untuk tiap baris. Baris tanpa work order mengikuti work order permintaan.",
+    "field": "Work order untuk {{line}}",
+    "sameAsRequest": "Sama dengan permintaan",
+    "sameAsRequestNamed": "Sama dengan permintaan ({{workOrder}})",
+    "unknownWorkOrder": "Work order yang tidak dapat Anda buka",
+    "cancelled": "dibatalkan",
+    "noProject": "Pilih proyek dulu: work order milik sebuah proyek, setelah itu tiap baris bisa diberi work order.",
+    "noWorkOrders": "Proyek ini belum punya work order, jadi baris belum bisa diberi work order. Manajer proyek menambahkannya di tab Work order proyek.",
+    "differs": "Permintaan berada di {{workOrder}}; biaya baris ini masuk ke work order-nya sendiri.",
+    "save": "Simpan",
+    "saved": "Tersimpan",
+    "nothingToSave": "Ubah work order sebuah baris untuk menyimpan.",
+    "saveFailed": "Permintaan sudah tersimpan, tetapi work order beberapa baris belum terpasang.",
+    "saveFailedNext": "Buka permintaan lalu atur di tab Item."
   }
 }

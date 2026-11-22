@@ -15230,6 +15230,7 @@ export type Database = {
           procurement_id: string
           quantity: number
           rate: number
+          work_order_id: string | null
         }
         Insert: {
           amount?: number | null
@@ -15245,6 +15246,7 @@ export type Database = {
           procurement_id: string
           quantity?: number
           rate?: number
+          work_order_id?: string | null
         }
         Update: {
           amount?: number | null
@@ -15260,6 +15262,7 @@ export type Database = {
           procurement_id?: string
           quantity?: number
           rate?: number
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -15281,6 +15284,13 @@ export type Database = {
             columns: ["procurement_id"]
             isOneToOne: false
             referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_items_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
           {
@@ -26109,6 +26119,7 @@ export type Database = {
           procurement_id: string | null
           quantity: number | null
           rate: number | null
+          work_order_id: string | null
         }
         Insert: {
           amount?: never
@@ -26122,6 +26133,7 @@ export type Database = {
           procurement_id?: string | null
           quantity?: number | null
           rate?: never
+          work_order_id?: string | null
         }
         Update: {
           amount?: never
@@ -26135,6 +26147,7 @@ export type Database = {
           procurement_id?: string | null
           quantity?: number | null
           rate?: never
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -33004,6 +33017,21 @@ export type Database = {
       procurement_open_commitment_masked: {
         Args: { p: Database["public"]["Views"]["procurements_masked"]["Row"] }
         Returns: number
+      }
+      procurement_line_parts: {
+        Args: {
+          p_default_discipline: string
+          p_default_wo: string
+          p_org: string
+          p_procurement: string
+        }
+        Returns: {
+          discipline_id: string
+          lined: boolean
+          share_amount: number
+          total_amount: number
+          work_order_id: string
+        }[]
       }
       procurement_open_commitments: {
         Args: { p_ids: string[] }
