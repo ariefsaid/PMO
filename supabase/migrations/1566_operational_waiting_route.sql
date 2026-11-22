@@ -23,13 +23,13 @@
 --
 -- The work-order SoD limbs inline the two limbs of may_approve_work_of because 0218 revoked that helper from
 -- authenticated (no new helper is created or granted here). The inlined direction is the one transition_work_order
--- applies: the person who set the value must be able to approve the issuer's work (line manager, or a role that
--- outranks the issuer).
+-- applies — may_approve_work_of(the value's author, the issuer): the value counts as witnessed when the ISSUER's own
+-- line manager set it, or when the author's role outranks the issuer's. The manager fact is read from the issuer's
+-- profile (p.manager_id = w.order_value_set_by), never the reverse.
 --
--- Supported-state qualifier: a person is named while their profile is active — the account state this read can see.
--- The deciding functions additionally require full, current membership; an authentication-level restriction applied
--- out of band is enforced there and is outside what this read can observe, so this read is not claimed to be an exact
--- authority-equivalence oracle.
+-- Display states: a person is named while their profile is in a supported account state (active), so the screen can
+-- display the assignment. The deciding transition remains the authority for every act; this read only displays who the
+-- waiting assignment names.
 --
 -- SECURITY INVOKER: the single record is read through the existing RLS (org + active member), so an absent, foreign or
 -- unreadable id returns the same empty assignment as a record that is not waiting — no existence oracle. Names come
@@ -82,7 +82,7 @@ begin
          and (public.holds_won_value_authority(p.role)
               or (w.order_value_set_at is not null
                   and author.status = 'active'
-                  and (author.manager_id = p.id or public.role_outranks(author.role, p.role))));
+                  and (p.manager_id = w.order_value_set_by or public.role_outranks(author.role, p.role))));
     when 'delivery_record' then
       -- The receipt gate refuses every light account (1580 assert_not_light), so no light person is assigned.
       select coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'name', p.full_name, 'role', p.role::text)

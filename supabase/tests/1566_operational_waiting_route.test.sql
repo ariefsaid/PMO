@@ -10,7 +10,7 @@
 -- unaddressed transfer (1480) is not assigned, while a light addressed receiver is.
 begin;
 create extension if not exists pgtap;
-select plan(68);
+select plan(77);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('16660000-0000-0000-0000-00000000000a', 'Operational Wait Org', 'IDR', 'Asia/Jakarta'),
@@ -28,7 +28,12 @@ insert into auth.users (id, email) values
   ('16660000-0000-0000-0000-0000000000b1', 'ow-xorg@example.com'),
   ('16660000-0000-0000-0000-0000000000c1', 'ow-light-requester@example.com'),
   ('16660000-0000-0000-0000-0000000000c2', 'ow-light-keeper@example.com'),
-  ('16660000-0000-0000-0000-0000000000c3', 'ow-light-receiver@example.com');
+  ('16660000-0000-0000-0000-0000000000c3', 'ow-light-receiver@example.com'),
+  -- Same-rank Project Manager chain (manager_id is the only decisive fact; rank_outranks(PM, PM) is false).
+  ('16660000-0000-0000-0000-0000000000e1', 'ow-pm-child@example.com'),
+  ('16660000-0000-0000-0000-0000000000e2', 'ow-pm-parent@example.com'),
+  ('16660000-0000-0000-0000-0000000000e3', 'ow-pm-managed@example.com'),
+  ('16660000-0000-0000-0000-0000000000e4', 'ow-pm-manager@example.com');
 -- a10/a11/a12 are the light seat holders (built_in_role set below): a10 raised a purchase, a11 keeps a destination and
 -- is not addressed, a12 is addressed by a transfer.
 insert into profiles (id, org_id, full_name, email, role, status) values
@@ -44,7 +49,19 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('16660000-0000-0000-0000-0000000000b1', '16660000-0000-0000-0000-00000000000b', 'OW X Org',    'ow-xorg@example.com',     'Admin',           'active'),
   ('16660000-0000-0000-0000-0000000000c1', '16660000-0000-0000-0000-00000000000a', 'OW Light Req','ow-light-requester@example.com','Engineer',   'active'),
   ('16660000-0000-0000-0000-0000000000c2', '16660000-0000-0000-0000-00000000000a', 'OW Light Kep','ow-light-keeper@example.com',  'Engineer',   'active'),
-  ('16660000-0000-0000-0000-0000000000c3', '16660000-0000-0000-0000-00000000000a', 'OW Light Rec','ow-light-receiver@example.com','Engineer',   'active');
+  ('16660000-0000-0000-0000-0000000000c3', '16660000-0000-0000-0000-00000000000a', 'OW Light Rec','ow-light-receiver@example.com','Engineer',   'active'),
+  ('16660000-0000-0000-0000-0000000000e1', '16660000-0000-0000-0000-00000000000a', 'OW PM Child', 'ow-pm-child@example.com', 'Project Manager', 'active'),
+  ('16660000-0000-0000-0000-0000000000e2', '16660000-0000-0000-0000-00000000000a', 'OW PM Parent','ow-pm-parent@example.com','Project Manager', 'active'),
+  ('16660000-0000-0000-0000-0000000000e3', '16660000-0000-0000-0000-00000000000a', 'OW PM Managed','ow-pm-managed@example.com','Project Manager','active'),
+  ('16660000-0000-0000-0000-0000000000e4', '16660000-0000-0000-0000-00000000000a', 'OW PM Manager','ow-pm-manager@example.com','Project Manager','active');
+
+-- The same-rank line-management chain, set after the rows exist (the FK target must already be there):
+--   e1 (project PM) reports to e2 (the value's author)  — the correct direction admits/names e1.
+--   e4 (the value's author) reports to e3 (the project PM) — the reversed direction must name neither and admit neither.
+update profiles set manager_id = '16660000-0000-0000-0000-0000000000e2'
+ where id = '16660000-0000-0000-0000-0000000000e1';
+update profiles set manager_id = '16660000-0000-0000-0000-0000000000e3'
+ where id = '16660000-0000-0000-0000-0000000000e4';
 
 -- Give the three dedicated people a light seat (their coarse role stays the base level, Engineer, as the 1202 trigger
 -- forces). The switch is org-wide but inert for everyone else.
@@ -54,7 +71,9 @@ update profiles set built_in_role = 'foreman'    where id = '16660000-0000-0000-
 update profiles set built_in_role = 'foreman'    where id = '16660000-0000-0000-0000-0000000000c3';
 
 insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount, project_manager_id) values
-  ('16660000-0000-0000-0000-0000000000d1', '16660000-0000-0000-0000-00000000000a', 'OW Site', 'Ongoing Project', 'IDR', 5000000, 'exclusive', 0, '16660000-0000-0000-0000-0000000000a3');
+  ('16660000-0000-0000-0000-0000000000d1', '16660000-0000-0000-0000-00000000000a', 'OW Site', 'Ongoing Project', 'IDR', 5000000, 'exclusive', 0, '16660000-0000-0000-0000-0000000000a3'),
+  ('16660000-0000-0000-0000-0000000000d2', '16660000-0000-0000-0000-00000000000a', 'OW Chain Site', 'Ongoing Project', 'IDR', 5000000, 'exclusive', 0, '16660000-0000-0000-0000-0000000000e1'),
+  ('16660000-0000-0000-0000-0000000000d3', '16660000-0000-0000-0000-00000000000a', 'OW Reversed Chain Site', 'Ongoing Project', 'IDR', 5000000, 'exclusive', 0, '16660000-0000-0000-0000-0000000000e3');
 
 create or replace function pg_temp._as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims',
@@ -111,7 +130,9 @@ begin
     '16660000-0000-0000-0000-0000000000a1'::uuid, '16660000-0000-0000-0000-0000000000a2',
     '16660000-0000-0000-0000-0000000000a3', '16660000-0000-0000-0000-0000000000a4',
     '16660000-0000-0000-0000-0000000000a5', '16660000-0000-0000-0000-0000000000a6',
-    '16660000-0000-0000-0000-0000000000a7', '16660000-0000-0000-0000-0000000000a8']
+    '16660000-0000-0000-0000-0000000000a7', '16660000-0000-0000-0000-0000000000a8',
+    '16660000-0000-0000-0000-0000000000e1', '16660000-0000-0000-0000-0000000000e2',
+    '16660000-0000-0000-0000-0000000000e3', '16660000-0000-0000-0000-0000000000e4']
   loop
     if (exists (select 1 from jsonb_array_elements(v_pop) a where (a ->> 'id')::uuid = u))
        <> pg_temp._waiting_as(u, p_kind, p_record) then
@@ -138,6 +159,15 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
 select pg_temp._as('16660000-0000-0000-0000-0000000000a2');
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
   ('16660000-0000-0000-0000-000000000413', '16660000-0000-0000-0000-00000000000a', '16660000-0000-0000-0000-0000000000d1', 'OW zero value', 'Draft', 0, 'exclusive', 0);
+-- Same-rank manager chain, witnessed by the OTHER PM (rank_outranks(PM, PM) is false, so only manager_id decides).
+-- 421: the project PM (e1) reports to the author (e2) — the correct direction names and admits e1.
+select pg_temp._as('16660000-0000-0000-0000-0000000000e2');
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
+  ('16660000-0000-0000-0000-000000000421', '16660000-0000-0000-0000-00000000000a', '16660000-0000-0000-0000-0000000000d2', 'OW chain witnessed', 'Draft', 5000, 'exclusive', 0);
+-- 422: the author (e4) reports to the project PM (e3) — the reversed direction must name/admit neither.
+select pg_temp._as('16660000-0000-0000-0000-0000000000e4');
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
+  ('16660000-0000-0000-0000-000000000422', '16660000-0000-0000-0000-00000000000a', '16660000-0000-0000-0000-0000000000d3', 'OW chain reversed', 'Draft', 6000, 'exclusive', 0);
 -- A priced row with NO recorded author is reachable through a machine writer (auth.uid() null): simulate it exactly.
 select set_config('request.jwt.claims', '', true);
 update work_orders set order_value = 8000 where id in ('16660000-0000-0000-0000-000000000414', '16660000-0000-0000-0000-000000000415');
@@ -233,6 +263,16 @@ select is(pg_temp._n('work_order_issue', '16660000-0000-0000-0000-000000000414')
   'WO-11 a priced Draft with no recorded author is assigned to nobody');
 select is(pg_temp._n('work_order_issue', '16660000-0000-0000-0000-000000000415'), 0,
   'WO-12 the same unpriced-witness shape is also assigned to nobody (isolated for the refused write below)');
+select is(pg_temp._n('work_order_issue', '16660000-0000-0000-0000-000000000421'), 4,
+  'WO-13 a same-rank project PM whose own manager set the value IS assigned (manager_id, not rank)');
+select ok(pg_temp._named('work_order_issue', '16660000-0000-0000-0000-000000000421', '16660000-0000-0000-0000-0000000000e1')
+          and not pg_temp._named('work_order_issue', '16660000-0000-0000-0000-000000000421', '16660000-0000-0000-0000-0000000000e2'),
+  'WO-14 the witnessed project PM (e1) is named and the value author (e2) is not');
+select is(pg_temp._n('work_order_issue', '16660000-0000-0000-0000-000000000422'), 3,
+  'WO-15 the reversed chain names the authority roles only: the project PM the author reports to is NOT assigned');
+select ok(not pg_temp._named('work_order_issue', '16660000-0000-0000-0000-000000000422', '16660000-0000-0000-0000-0000000000e3')
+          and not pg_temp._named('work_order_issue', '16660000-0000-0000-0000-000000000422', '16660000-0000-0000-0000-0000000000e4'),
+  'WO-16 the project PM (e3) who merely manages the value author (e4) is absent, and so is the author');
 
 -- ══ B. delivery_record ═══════════════════════════════════════════════════════════════════════════════════════════
 select is(pg_temp._n('delivery_record', '16660000-0000-0000-0000-000000000601'), 3,
@@ -334,6 +374,10 @@ select ok(pg_temp._agrees_all('transfer_receipt', '16660000-0000-0000-0000-00000
   'CMP-07 the unaddressed transfer assignment equals 1560 for every full, active person');
 select ok(pg_temp._agrees_all('transfer_receipt', '16660000-0000-0000-0000-000000000805'),
   'CMP-08 the sender-keeper transfer assignment equals 1560 (empty on both sides)');
+select ok(pg_temp._agrees_all('work_order_issue', '16660000-0000-0000-0000-000000000421'),
+  'CMP-09 the witnessed same-rank chain equals 1560 for every reachable person (e1 listed by both)');
+select ok(pg_temp._agrees_all('work_order_issue', '16660000-0000-0000-0000-000000000422'),
+  'CMP-10 the reversed chain equals 1560 for every reachable person (e3 absent on both sides)');
 
 -- ══ F. The deciding writes, on isolated rows with a real JWT ═════════════════════════════════════════════════════
 -- Each call below is the real transition the screen's waiting state belongs to. These rows are not read above.
@@ -360,6 +404,19 @@ select throws_ok(
   $$ select public.transition_work_order('16660000-0000-0000-0000-000000000415', 'Issued') $$,
   '42501', null,
   'GATE-WO-06 a Project Manager is refused on the authorless-witness WO415 (the SoD fails closed)');
+-- The same-rank chain, both directions, against the real write.
+select pg_temp._as('16660000-0000-0000-0000-0000000000e1');
+select lives_ok(
+  $$ select public.transition_work_order('16660000-0000-0000-0000-000000000421', 'Issued') $$,
+  'GATE-WO-07 the project PM whose own manager set the value issues WO421 (the real JWT is admitted)');
+select is((select status::text from public.work_orders where id = '16660000-0000-0000-0000-000000000421'), 'Issued',
+  'GATE-WO-08 WO421 is Issued after that real write');
+select pg_temp._as('16660000-0000-0000-0000-0000000000e3');
+select throws_ok(
+  $$ select public.transition_work_order('16660000-0000-0000-0000-000000000422', 'Issued') $$,
+  '42501',
+  'this work order''s value was not set by anyone senior to you, so you cannot issue it: it must be confirmed by your supervisor or by someone who outranks you, through set_work_order_value (which records who set it) — or ask them to issue it',
+  'GATE-WO-09 the project PM whom the value author merely reports to is refused WO422 with the exact SoD message');
 select pg_temp._as('16660000-0000-0000-0000-0000000000a2');
 select lives_ok(
   $$ select public.transition_procurement('16660000-0000-0000-0000-000000000604', 'Received') $$,
