@@ -81,6 +81,11 @@ submission and approval are unchanged. No customer formula: the figures are the 
 Mutation check (header of `supabase/tests/1890_imprest_open_requests.test.sql`): drop the status filter, then AC-CAE-001 reddens;
 drop the project match, then AC-CAE-004 reddens; make the read `security definer`, then AC-CAE-005 reddens.
 
+Hidden prices: with the organisation's hide-prices setting on, a person with no price right is a built-in role whose base access
+level is below approval rank, so the float itself is not theirs to see and the read returns them nothing; no person exists who sees
+the float but not the price (proven in the pgTAP file; the masked views, proven by `1215_hide_prices.test.sql`, would null every
+amount if one ever did). The Vitest case covers the screen's behaviour when amounts are null.
+
 ## 6. Settings added
 
 None. It changes no money figure, approval route or who may see a record (it shows only what the viewer already sees), so it
