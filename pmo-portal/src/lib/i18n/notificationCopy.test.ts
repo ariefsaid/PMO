@@ -158,7 +158,7 @@ describe('notification wording', () => {
       expect(notificationBody(historicalRow, idT)).toBe('Timesheet minggu 10 Agu 2026');
     });
 
-    it('leaves user rejection reasons untouched in literal and historical rows, and localizes blank rejection fallback', async () => {
+    it('leaves user rejection reasons untouched in literal and historical rows, and never localizes a rejected body', async () => {
       setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
       const idInst = i18next.createInstance();
       await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', interpolation: { escapeValue: false }, resources: { en: { notifications: en }, id: { notifications: id } } });
@@ -175,7 +175,8 @@ describe('notification wording', () => {
       expect(notificationTitle(userReasonRow, idT)).toBe('Timesheet Anda dikembalikan');
       expect(notificationBody(userReasonRow, idT)).toBe('Hours exceed project allocation');
 
-      // Timesheet rejection with blank reason (fallback to v_label in 1562, stamped literal by 1611 guard)
+      // Timesheet rejection whose stored body is the week-label shape (1562's defensive fallback arm) — the origin
+      // is unknowable read-side, so the stored literal is kept (root ruling, R-4).
       const blankReasonFallbackRow = {
         title: 'Your timesheet was rejected',
         body: 'Timesheet week of 2026-08-10',
@@ -183,7 +184,7 @@ describe('notification wording', () => {
         message_params: { body: 'Timesheet week of 2026-08-10' },
         metadata: { entity: { type: 'timesheet', id: '02370000-0000-0000-0000-000000000022' } },
       };
-      expect(notificationBody(blankReasonFallbackRow, idT)).toBe('Timesheet minggu 10 Agu 2026');
+      expect(notificationBody(blankReasonFallbackRow, idT)).toBe('Timesheet week of 2026-08-10');
 
       // Procurement rejection with user note (stamped literal by guard)
       const procurementReasonRow = {
@@ -194,6 +195,47 @@ describe('notification wording', () => {
         metadata: { entity: { type: 'procurement_case', id: '02370000-0000-0000-0000-000000000011' } },
       };
       expect(notificationBody(procurementReasonRow, idT)).toBe('Missing quote');
+    });
+
+    it('R-4: a rejected timesheet body stays literal even when the reason is exactly the generated week label', async () => {
+      const enInst = i18next.createInstance();
+      await enInst.init({ lng: 'en', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', interpolation: { escapeValue: false }, resources: { en: { notifications: en }, id: { notifications: id } } });
+      const enT = enInst.t.bind(enInst);
+      setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+      const idInst = i18next.createInstance();
+      await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', interpolation: { escapeValue: false }, resources: { en: { notifications: en }, id: { notifications: id } } });
+      const idT = idInst.t.bind(idInst);
+
+      const rejectedRow = (reason: string) => ({
+        title: 'Your timesheet was rejected',
+        body: reason,
+        message_key: 'literal',
+        message_params: { body: reason },
+        metadata: { entity: { type: 'timesheet', id: '02370000-0000-0000-0000-000000000023' } },
+      });
+
+      // A person's reason that happens to be the generated label grammar: kept byte-for-byte in BOTH languages.
+      const exactLabelReason = 'Timesheet week of 2026-08-10';
+      expect(notificationTitle(rejectedRow(exactLabelReason), idT)).toBe('Timesheet Anda dikembalikan');
+      expect(notificationBody(rejectedRow(exactLabelReason), enT)).toBe(exactLabelReason);
+      expect(notificationBody(rejectedRow(exactLabelReason), idT)).toBe(exactLabelReason);
+
+      // A normal rejection reason: unchanged.
+      expect(notificationBody(rejectedRow('Hours exceed project allocation'), idT)).toBe('Hours exceed project allocation');
+
+      // Special bytes in a rejection reason: unchanged exactly, no escaping and no whitespace collapsing.
+      const specialReason = 'Exceeds   allocation\tby 3h\nplease & review <this> "note" \'x\'';
+      expect(notificationBody(rejectedRow(specialReason), idT)).toBe(specialReason);
+
+      // The exclusion is by producer identity, not by body: the SAME label on an approved row still localizes.
+      const approvedRow = {
+        title: 'Your timesheet was approved',
+        body: exactLabelReason,
+        message_key: 'literal',
+        message_params: { body: exactLabelReason },
+        metadata: { entity: { type: 'timesheet', id: '02370000-0000-0000-0000-000000000021' } },
+      };
+      expect(notificationBody(approvedRow, idT)).toBe('Timesheet minggu 10 Agu 2026');
     });
 
     it('localizes QCR generated approval bodies in English and Bahasa while preserving exact user reason suffix', async () => {

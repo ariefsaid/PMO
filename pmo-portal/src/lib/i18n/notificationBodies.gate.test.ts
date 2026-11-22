@@ -208,3 +208,28 @@ describe('every generated approval body a migration writes is localized from its
     }
   });
 });
+
+describe('a rejected timesheet body is never localized (root ruling R-4)', () => {
+  it('keeps the stored literal even when it is byte-identical to the generated week label', async () => {
+    // 1562 writes this label on the approval/awaiting arms and (defensively) as the blank-reason fallback; a person's
+    // rejection reason can be exactly this text, and its origin is unknowable read-side. So every rejected body stays
+    // as stored — proven here from the real producer prefix so a future arm cannot silently re-localize it.
+    const label = timesheetLabelPrefix(stripComments(highestFunctionSource('notify_timesheet_transition'))) + SAMPLE_DATE;
+    const row = {
+      title: 'Your timesheet was rejected',
+      body: label,
+      message_key: 'literal',
+      message_params: { body: label },
+      metadata: { entity: { type: 'timesheet', id: 'gate-row' } },
+    };
+    const enT = await instance('en');
+    const idT = await instance('id');
+    try {
+      setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+      expect(notificationBody(row, idT)).toBe(label);
+      expect(notificationBody(row, enT)).toBe(label);
+    } finally {
+      resetActiveLocale();
+    }
+  });
+});

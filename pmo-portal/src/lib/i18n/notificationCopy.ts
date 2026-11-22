@@ -23,19 +23,19 @@ function getMetadataEntityType(metadata: Json | null | undefined): string | null
 }
 
 function localizeApprovalNotificationBody(row: NotificationCopy, body: string, t: TFunction): string | null {
-  // Timesheet approval / awaiting / blank-rejection fallback week label
+  // Timesheet APPROVAL / AWAITING week label only. A REJECTED row is deliberately never localized here:
+  // 0856 requires a non-blank rejection_reason, so a rejected body is the person's own text — and that text can
+  // be byte-identical to the generated label (`Timesheet week of YYYY-MM-DD`), which read-side is indistinguishable
+  // from 1562's defensive blank-reason fallback. Root ruling (fix-waiting 4, R-4): keep the stored literal for EVERY
+  // rejected body instead of guessing; the rejected title still localizes through `notificationTitle`. Metadata
+  // `entity.type = 'timesheet'` alone is not an identity here, because it cannot tell an approval from a rejection.
   const timesheetMatch = /^Timesheet week of (\d{4}-\d{2}-\d{2})$/.exec(body);
-  if (timesheetMatch) {
-    const isTimesheetProducer =
-      row.title === 'Your timesheet was approved' ||
-      row.title === 'Timesheet awaiting your approval' ||
-      row.title === 'Your timesheet was rejected' ||
-      getMetadataEntityType(row.metadata) === 'timesheet';
-    if (isTimesheetProducer) {
-      const iso = timesheetMatch[1];
-      const formattedDate = formatIsoDay(iso) !== '—' ? formatIsoDay(iso) : iso;
-      return t('notifications:timesheetWeek', 'Timesheet week of {{date}}', { date: formattedDate });
-    }
+  const isTimesheetApprovalProducer =
+    row.title === 'Your timesheet was approved' || row.title === 'Timesheet awaiting your approval';
+  if (timesheetMatch && isTimesheetApprovalProducer) {
+    const iso = timesheetMatch[1];
+    const formattedDate = formatIsoDay(iso) !== '—' ? formatIsoDay(iso) : iso;
+    return t('notifications:timesheetWeek', 'Timesheet week of {{date}}', { date: formattedDate });
   }
 
   // Quantity change request (QCR, 1176/1177) awaiting, approved, returned prefix and the client decision.
