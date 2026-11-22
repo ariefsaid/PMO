@@ -24,7 +24,10 @@ begin
       select m.id from public.profiles m
        where p_step.assignee_id is null and p_step.owner_role_key is not null and m.org_id = p_step.org_id
          and m.status = 'active' and m.built_in_role = p_step.owner_role_key
-         and not (m.built_in_role = any (p_step.hidden_from_role_keys))
+         and not coalesce(m.built_in_role = any (p_step.hidden_from_role_keys), false)
+         -- a role whose base level is Project Manager is told only on the projects its holder manages (as acting, see wo_step_owner_matches)
+         and (public.built_in_role_base(p_step.owner_role_key) is distinct from 'Project Manager'
+              or m.id = (select pr.project_manager_id from public.projects pr where pr.id = p_step.project_id))
     ) r
   loop
     v_found := true;
@@ -50,7 +53,6 @@ create function public.lock_wo_billing_step(p_step uuid) returns public.work_ord
 declare
   v_org    uuid := public.auth_org_id();
   v_me     uuid := auth.uid();
-  v_key    text := public.actor_built_in_role();
   v_s      public.work_order_billing_steps;
   v_status public.work_order_status;
   v_pm     uuid;
@@ -60,7 +62,7 @@ begin
   perform public.assert_is_active_member();
   select * into v_s from public.work_order_billing_steps s where s.id = p_step and s.org_id = v_org;
   -- A step the caller may not read is "not found": the refusal never says a hidden step exists.
-  if not found or not public.wo_step_readable(v_s.assignee_id, v_s.owner_role_key, v_s.hidden_from_role_keys) then
+  if not found or not coalesce(public.wo_step_readable(v_s.assignee_id, v_s.owner_role_key, v_s.hidden_from_role_keys), false) then
     raise exception 'WBS_NOT_FOUND: billing step not found' using errcode = 'P0002';
   end if;
   -- Same row lock as transition_work_order and confirm_work_order_acceptance.
@@ -69,12 +71,12 @@ begin
     raise exception 'WBS_NOT_ISSUED: billing steps change only while the work order is issued' using errcode = '55000';
   end if;
   select * into v_s from public.work_order_billing_steps s where s.id = p_step for update;
-  -- coalesce: a step with no named person must read as "not the named person", never NULL (a NULL would skip both refusals below)
-  v_own := coalesce(v_s.assignee_id = v_me, false) or coalesce(v_s.owner_role_key = v_key, false);
-  if not (v_own or public.actor_may_run_billing_steps()) then
+  -- Every test below is folded to a strict boolean: a NULL (no named person, no role key) must never skip a refusal.
+  v_own := coalesce(v_s.assignee_id = v_me, false) or public.wo_step_owner_matches(v_s.owner_role_key, v_s.project_id);
+  if not (v_own or coalesce(public.actor_may_run_billing_steps(), false)) then
     raise exception 'WBS_NOT_YOURS: only the step''s person, a holder of its role or a person who runs billing steps can change it' using errcode = '42501';
   end if;
-  if not v_own and public.auth_role() = 'Project Manager' then
+  if not v_own and coalesce(public.auth_role() = 'Project Manager', false) then
     select pr.project_manager_id into v_pm from public.projects pr where pr.id = v_s.project_id;
     if v_pm is distinct from v_me then
       raise exception 'WBS_NOT_PM: only the project''s manager can change this step' using errcode = '42501';
@@ -102,6 +104,11 @@ begin
           and not public.is_light_role_key(p.built_in_role)) then
     raise exception 'WBS_ASSIGNEE: choose an active member of the organisation with a full account' using errcode = '23514';
   end if;
+  -- Naming a person this step is hidden from lets them read it: Finance or an Admin only.
+  if p_person is not null and coalesce((select p.built_in_role = any (v_s.hidden_from_role_keys) from public.profiles p where p.id = p_person), false)
+     and not coalesce(public.auth_role() in ('Admin','Finance'), false) then
+    raise exception 'WBS_HIDDEN_ASSIGNEE: only Finance or an Admin can name a person this step is hidden from' using errcode = '42501';
+  end if;
   update public.work_order_billing_steps s set assignee_id = p_person where s.id = v_s.id returning * into v_new;
   if p_person is not null and v_s.started_on is not null and p_person is distinct from v_s.assignee_id then
     perform public.notify_wo_step_opened(v_new);
@@ -117,7 +124,7 @@ create function public.attach_work_order_step_document(p_step uuid, p_slot uuid,
   language plpgsql security definer set search_path = public as $$
 declare
   v_s      public.work_order_billing_steps;
-  v_d_org  uuid; v_d_proj uuid; v_status public.doc_status; v_file text; v_title text;
+  v_d_org  uuid; v_d_proj uuid; v_status public.doc_status; v_file text; v_title text; v_cat uuid;
   v_slot   uuid;
 begin
   perform public.assert_not_light();
@@ -127,16 +134,14 @@ begin
   if v_s.done_on is not null or v_s.skipped_on is not null then
     raise exception 'WBS_CLOSED: this billing step is already finished' using errcode = '55000';
   end if;
-  select d.org_id, d.project_id, d.status, d.file_path, d.title into v_d_org, v_d_proj, v_status, v_file, v_title
+  select d.org_id, d.project_id, d.status, d.file_path, d.title, d.category_id into v_d_org, v_d_proj, v_status, v_file, v_title, v_cat
     from public.project_documents d where d.id = p_document;
-  if not found or v_d_org is distinct from v_s.org_id or v_d_proj is distinct from v_s.project_id then
-    raise exception 'WBS_DOC_INVALID: the document must be one of the work order''s project documents' using errcode = '23514';
-  end if;
-  if v_status not in ('Issued','Approved') then
-    raise exception 'WBS_DOC_INVALID: only an issued or approved document can be attached' using errcode = '23514';
-  end if;
-  if v_file is null or btrim(v_file) = '' then
-    raise exception 'WBS_DOC_INVALID: the document has no file attached' using errcode = '23514';
+  -- ONE refusal for "no such document", "another project's", "a category you may not see", "not issued or approved" and "no file":
+  -- the refusal never says which, so it cannot be used to probe documents.
+  if not found or v_d_org is distinct from v_s.org_id or v_d_proj is distinct from v_s.project_id
+     or not coalesce(public.document_category_visible(v_cat, v_d_org), false)
+     or not coalesce(v_status in ('Issued','Approved'), false) or coalesce(btrim(v_file), '') = '' then
+    raise exception 'WBS_DOC_INVALID: choose an issued or approved document with a file from this work order''s project that you may see' using errcode = '23514';
   end if;
   if p_slot is null then
     insert into public.work_order_billing_step_documents (org_id, step_id, work_order_id, position, name, required, document_id, attached_by, attached_at)

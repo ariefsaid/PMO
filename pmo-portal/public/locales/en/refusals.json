@@ -283,7 +283,7 @@
   "WBS_DATE_BEFORE_START": "A step cannot finish before it started.",
   "WBS_DATE_FUTURE": "The finish date cannot be in the future.",
   "WBS_DOCS_MISSING": "Attach every required document before finishing this step.",
-  "WBS_DOC_INVALID": "Choose an issued or approved document that has a file and belongs to this work order's project.",
+  "WBS_DOC_INVALID": "Choose an issued or approved document with a file from this work order's project that you may see.",
   "WBS_NOT_FOUND": "That billing step is not available to you. Refresh the work order and try again.",
   "WBS_NOT_ISSUED": "Billing steps change only while the work order is issued.",
   "WBS_NOT_OPTIONAL": "Only an optional billing step can be skipped.",
@@ -366,5 +366,7 @@
   "SVY_RECORDER_CONFIRMS": "The person who recorded a survey cannot confirm it.",
   "SVY_RECORDER_CONFIRMS_detail": "Ask Finance or an Admin other than the recorder to confirm it.",
   "SVY_QUALITY_NEEDS_DOCUMENT": "A survey with a quality-ready quantity needs its quality documents attached before it is confirmed.",
-  "SVY_QUALITY_NEEDS_DOCUMENT_detail": "Attach the documents, or set the quality-ready quantity to 0."
+  "SVY_QUALITY_NEEDS_DOCUMENT_detail": "Attach the documents, or set the quality-ready quantity to 0.",
+  "WBS_HIDDEN_ASSIGNEE": "Only Finance or an Admin can name a person this step is hidden from.",
+  "WBS_HIDDEN_ASSIGNEE_detail": "Ask Finance or an Admin to name that person, or choose someone else."
 }

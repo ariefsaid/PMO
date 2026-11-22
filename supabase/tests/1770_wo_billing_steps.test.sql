@@ -10,7 +10,7 @@
 --   drop `perform public.assert_not_light()` from complete_work_order_step ........ 'AC-WBS-005 a field account is refused ... complete'
 begin;
 create extension if not exists pgtap;
-select plan(69);
+select plan(89);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('17700000-0000-0000-0000-0000000000a1', 'WBS Org A', 'IDR', 'UTC', true),
@@ -47,7 +47,9 @@ insert into project_documents (id, org_id, project_id, category, title, status, 
   ('17700000-0000-0000-0000-000000000f01', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-0000000000c1', 'Acceptance', 'WBS survey sheet', 'Approved',
    '17700000-0000-0000-0000-0000000000b2', '17700000-0000-0000-0000-0000000000a1/17700000-0000-0000-0000-0000000000c1/17700000-0000-0000-0000-000000000f01/doc.pdf'),
   ('17700000-0000-0000-0000-000000000f02', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-0000000000c1', 'Acceptance', 'WBS draft sheet', 'Draft',
-   '17700000-0000-0000-0000-0000000000b2', '17700000-0000-0000-0000-0000000000a1/17700000-0000-0000-0000-0000000000c1/17700000-0000-0000-0000-000000000f02/doc.pdf');
+   '17700000-0000-0000-0000-0000000000b2', '17700000-0000-0000-0000-0000000000a1/17700000-0000-0000-0000-0000000000c1/17700000-0000-0000-0000-000000000f02/doc.pdf'),
+  ('17700000-0000-0000-0000-000000000f03', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-0000000000c1', 'Report', 'WBS restricted report', 'Approved',
+   '17700000-0000-0000-0000-0000000000b2', '17700000-0000-0000-0000-0000000000a1/17700000-0000-0000-0000-0000000000c1/17700000-0000-0000-0000-000000000f03/doc.pdf');
 
 create function pg_temp.as_user(p_user text) returns void language plpgsql as $$
 begin
@@ -187,8 +189,8 @@ select is(pg_temp.err(format('select complete_work_order_step(%L, %L)', pg_temp.
 select is(pg_temp.err(format('select complete_work_order_step(%L, %L)', pg_temp.step('17700000-0000-0000-0000-000000000032', 1), pg_temp.today())), '55000 WBS_CLOSED', 'AC-WBS-007 a finished step cannot be finished again');
 reset role;
 select is((select started_on from work_order_billing_steps where id = pg_temp.step('17700000-0000-0000-0000-000000000032', 2)), pg_temp.today(), 'AC-WBS-007 finishing a step opens the next one');
-select is((select count(*)::int from notifications where owner_id = '17700000-0000-0000-0000-0000000000bc' and title = 'A billing step is waiting for you'), 1, 'AC-WBS-008 the next step''s role holder is told');
-select is((select count(*)::int from notifications where owner_id = '17700000-0000-0000-0000-0000000000bc' and body like '%Certified%'), 0, 'AC-WBS-008 a hidden step''s notice does not name the step');
+select is((select count(*)::int from notifications where owner_id = '17700000-0000-0000-0000-0000000000bc' and title = 'A billing step is waiting for you'), 0, 'AC-WBS-005 a holder of a Project Manager level owner role who does not manage the project is not told');
+select is((select count(*)::int from notifications where owner_id = '17700000-0000-0000-0000-0000000000b1' and title = 'A billing step is waiting for you' and body not like '%Certified%'), 1, 'AC-WBS-008 with no one to tell the Admins are, and a hidden step''s notice does not name the step');
 select is((select count(*)::int from notifications where owner_id = '17700000-0000-0000-0000-0000000000b4' and title = 'A billing step is waiting for you'), 1, 'AC-WBS-008 the person who acted is not told');
 
 -- a Project Manager level person acts through the run right only on a project they manage
@@ -235,6 +237,70 @@ insert into work_order_billing_steps (id, org_id, work_order_id, project_id, pos
   ('17700000-0000-0000-0000-0000000000e5', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-000000000035', '17700000-0000-0000-0000-0000000000c1', 1, 'Forced step', 'quantity_surveyor', current_date);
 select pg_temp.as_user('b4');
 select is(pg_temp.err($$select complete_work_order_step('17700000-0000-0000-0000-0000000000e5', current_date)$$), '55000 WBS_NOT_ISSUED', 'AC-WBS-007 a step of a work order that is not issued cannot be changed');
+reset role;
+
+-- ── security: a step hidden from a run holder, or from a role without the see right, is "not found" for every writer (no NULL fail-open) ──
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
+  ('17700000-0000-0000-0000-000000000036', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-0000000000c1', 'WBS hidden', 'Issued', 10000, 'exclusive', 0);
+insert into work_order_billing_steps (id, org_id, work_order_id, project_id, position, name, optional, hidden_from_role_keys, started_on) values
+  ('17700000-0000-0000-0000-0000000000e6', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-000000000036', '17700000-0000-0000-0000-0000000000c1', 1, 'Hidden from finance', true, '{finance_officer}', current_date);
+select pg_temp.as_user('b2');
+select is(pg_temp.err($$select complete_work_order_step('17700000-0000-0000-0000-0000000000e6', current_date)$$), 'P0002 WBS_NOT_FOUND', 'AC-WBS-004 a run holder the step is hidden from cannot complete it, and is told it is not found');
+select is(pg_temp.err($$select skip_work_order_step('17700000-0000-0000-0000-0000000000e6')$$), 'P0002 WBS_NOT_FOUND', 'AC-WBS-004 nor skip it');
+select is(pg_temp.err($$select attach_work_order_step_document('17700000-0000-0000-0000-0000000000e6', null, '17700000-0000-0000-0000-000000000f01')$$), 'P0002 WBS_NOT_FOUND', 'AC-WBS-004 nor attach to it');
+select is(pg_temp.err($$select assign_work_order_step('17700000-0000-0000-0000-0000000000e6', null)$$), 'P0002 WBS_NOT_FOUND', 'AC-WBS-004 nor name a person on it');
+select pg_temp.as_user('b6');
+select is(pg_temp.err($$select complete_work_order_step('17700000-0000-0000-0000-0000000000e6', current_date)$$), 'P0002 WBS_NOT_FOUND', 'AC-WBS-004 a role without the see right gets not found, never not-yours');
+select pg_temp.as_user('b1');
+select is(pg_temp.err($$select assign_work_order_step('17700000-0000-0000-0000-0000000000e6', null)$$), 'ok', 'AC-WBS-004 control: an Admin the step is not hidden from can act on it');
+reset role;
+
+-- ── security: a Project Manager level owner role owns a step only on the projects its holder manages ─────────────────────────────────────
+select pg_temp.as_user('b1');
+select is((select set_billing_step_template_roles(current_setting('wbs.tpl')::uuid, '[{"position":1,"owner_role_key":"project_manager"}]'::jsonb)), 1, 'AC-WBS-005 Admin makes the project manager role the owner of the one-step template');
+reset role;
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
+  ('17700000-0000-0000-0000-000000000037', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-0000000000c1', 'WBS pm scope', 'Draft', 10000, 'exclusive', 0);
+update work_orders set status = 'Issued', issued_at = now() where id = '17700000-0000-0000-0000-000000000037';
+select is((select count(*)::int from notifications where owner_id = '17700000-0000-0000-0000-0000000000b3' and body like '%WBS pm scope%'), 1, 'AC-WBS-005 the project''s own manager is told');
+select is((select count(*)::int from notifications where owner_id = '17700000-0000-0000-0000-0000000000bb' and body like '%WBS pm scope%'), 0, 'AC-WBS-005 another project''s manager holding the same role is not told');
+select pg_temp.as_user('bb');
+select is((select count(*)::int from my_waiting_work_order_steps()), 0, 'AC-WBS-005 nor is the step on their waiting list');
+select is(pg_temp.err(format('select complete_work_order_step(%L, current_date)', pg_temp.step('17700000-0000-0000-0000-000000000037', 1))), '42501 WBS_NOT_PM', 'AC-WBS-005 nor can they act on it');
+select pg_temp.as_user('b3');
+select is((select count(*)::int from my_waiting_work_order_steps()), 1, 'AC-WBS-005 the project''s manager has it on their waiting list');
+reset role;
+
+-- ── security: attaching needs a document the caller may see, and every failure reads the same ────────────────────────────────────────────
+delete from document_category_roles where role = 'Engineer' and category_id = (select category_id from project_documents where id = '17700000-0000-0000-0000-000000000f03');
+select pg_temp.as_user('b4');
+select is(pg_temp.err(format('select attach_work_order_step_document(%L, null, %L)', pg_temp.step('17700000-0000-0000-0000-000000000034', 1), '17700000-0000-0000-0000-000000000f03')), '23514 WBS_DOC_INVALID', 'AC-WBS-005 a document in a category the caller may not see cannot be attached');
+select is(pg_temp.err(format('select attach_work_order_step_document(%L, null, %L)', pg_temp.step('17700000-0000-0000-0000-000000000034', 1), '17700000-0000-0000-0000-000000000fff')), '23514 WBS_DOC_INVALID', 'AC-WBS-005 a document that does not exist is refused the same way');
+select is(pg_temp.err(format('select attach_work_order_step_document(%L, null, %L)', pg_temp.step('17700000-0000-0000-0000-000000000034', 1), '17700000-0000-0000-0000-000000000f02')), '23514 WBS_DOC_INVALID', 'AC-WBS-005 a draft document is refused the same way');
+select pg_temp.as_user('b1');
+select is(pg_temp.err(format('select attach_work_order_step_document(%L, null, %L)', pg_temp.step('17700000-0000-0000-0000-000000000034', 1), '17700000-0000-0000-0000-000000000f03')), 'ok', 'AC-WBS-005 an Admin sees every category and attaches it');
+reset role;
+
+-- ── security: the email copy to an extra role never reaches a role the step is hidden from or one without the see right ──────────────────
+select pg_temp.as_user('b1');
+select is((select set_billing_step_template_roles(current_setting('wbs.tpl')::uuid, '[{"position":1,"owner_role_key":"quantity_surveyor","hidden_from_role_keys":["quality_manager"]}]'::jsonb)), 1, 'AC-WBS-008 Admin hides the step from the quality manager role');
+reset role;
+update email_event_settings set extra_roles = '{Engineer,"Project Manager"}' where org_id = '17700000-0000-0000-0000-0000000000a1' and event_key = 'billing_step';
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
+  ('17700000-0000-0000-0000-000000000038', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-0000000000c1', 'WBS email', 'Draft', 10000, 'exclusive', 0);
+update work_orders set status = 'Issued', issued_at = now() where id = '17700000-0000-0000-0000-000000000038';
+select is((select string_agg(o.recipient_id::text, ',' order by o.recipient_id::text) from email_outbox o join notifications n on n.id = o.notification_id
+            where n.metadata->'entity'->>'id' = '17700000-0000-0000-0000-000000000038' and o.event_key = 'billing_step'),
+  '17700000-0000-0000-0000-0000000000b3,17700000-0000-0000-0000-0000000000b4,17700000-0000-0000-0000-0000000000bb,17700000-0000-0000-0000-0000000000bc',
+  'AC-WBS-008 the owner and the managers who may see the step are emailed; the hidden role, engineers without the right and the field account are not');
+
+-- ── security: naming a person the step is hidden from is Finance or Admin only ────────────────────────────────────────────────────────────
+select pg_temp.as_user('b3');
+select is(pg_temp.err(format('select assign_work_order_step(%L, %L)', pg_temp.step('17700000-0000-0000-0000-000000000038', 1), '17700000-0000-0000-0000-0000000000b5')), '42501 WBS_HIDDEN_ASSIGNEE',
+  'AC-WBS-004 a project manager cannot name a person the step is hidden from');
+select pg_temp.as_user('b2');
+select is(pg_temp.err(format('select assign_work_order_step(%L, %L)', pg_temp.step('17700000-0000-0000-0000-000000000038', 1), '17700000-0000-0000-0000-0000000000b5')), 'ok',
+  'AC-WBS-004 Finance can');
 reset role;
 
 select * from finish();

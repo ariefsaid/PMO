@@ -90,6 +90,7 @@ insert into la_fn_allow values
   ('actor_may_see_billing_steps', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('actor_may_run_billing_steps', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('wo_step_readable', 'helper', 'a capability or audience helper the shell and the policies read'),
+  ('wo_step_owner_matches', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('record_history_table', 'helper', 'history visibility only: names the table a registered history entity lives in and reads no tenant row, so a field account can learn nothing from it'),
   ('spc_may_prepare', 'helper', 'a capability or audience helper the shell and the policies read'),
   ('spc_may_read', 'helper', 'a capability or audience helper the shell and the policies read'),
