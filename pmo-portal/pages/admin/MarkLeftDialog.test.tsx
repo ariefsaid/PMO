@@ -108,7 +108,9 @@ describe('MarkLeftDialog', () => {
     await user.clear(input);
     expect(input).toHaveValue('');
     expect(confirmButton).toBeDisabled();
-    // Even a click that bypasses the disabled affordance must not write a blank required day.
+    // The confirm is natively disabled, and React drops an onClick dispatched at a disabled button
+    // (react-dom getListener), so nothing is written. The dialog's own `!leftOn` guard is
+    // defence-in-depth for that state and is NOT exercised by this click.
     fireEvent.click(confirmButton);
     expect(h.markLeft).not.toHaveBeenCalled();
     expect(dialog).toBeInTheDocument();
@@ -127,9 +129,12 @@ describe('MarkLeftDialog', () => {
     const input = within(dialog).getByRole('textbox', { name: /^First day off crew roster/i });
 
     await user.clear(input);
-    await user.type(input, '2026-12-15');
+    // A day that is provably NOT the organisation's today, so "not carried" cannot pass by coincidence
+    // and the two assertions cannot contradict on the one calendar day they would otherwise collide.
+    const abandonedDay = orgToday() === '2026-12-15' ? '2026-12-16' : '2026-12-15';
+    await user.type(input, abandonedDay);
     await user.tab();
-    expect(input).toHaveValue('15 Dec 2026');
+    expect(input).toHaveValue(formatIsoDay(abandonedDay));
 
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -139,7 +144,7 @@ describe('MarkLeftDialog', () => {
     const reopened = screen.getByRole('alertdialog');
     const reopenedInput = within(reopened).getByRole('textbox', { name: /^First day off crew roster/i });
     expect(reopenedInput).toHaveValue(formatIsoDay(orgToday()));
-    expect(reopenedInput).not.toHaveValue('15 Dec 2026');
+    expect(reopenedInput).not.toHaveValue(formatIsoDay(abandonedDay));
   });
 
   it('preserves supplied calendar date default when date is not manually changed', async () => {
