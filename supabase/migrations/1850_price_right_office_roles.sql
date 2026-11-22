@@ -14,5 +14,4 @@ insert into public.built_in_role_capabilities (role_key, capability) values
 ('quality_inspector','sees_prices'),
 ('safety_officer','sees_prices'),
 ('equipment_officer','sees_prices'),
-('hr_officer','sees_prices')
-on conflict do nothing;
+('hr_officer','sees_prices');
