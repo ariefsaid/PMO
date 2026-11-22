@@ -53,8 +53,9 @@ test.beforeEach(async () => {
   need('roster', await admin.from('work_order_crews').insert({
     org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from.toISOString().slice(0, 10),
   }).select('id').single());
-  // The Foreman clocks in himself: his first clock-in enters him in the workforce register when he is not there, and the journey removes that entry again.
+  // A Foreman clocks in as a person of the workforce list (a login with none cannot); the journey adds one when the seed has none and removes it again.
   hadPerson = Boolean((await admin.from('people').select('id').eq('org_id', ORG_ID).eq('profile_id', ENGINEER_ID).is('archived_at', null).maybeSingle()).data);
+  if (!hadPerson) need('person', await admin.from('people').insert({ org_id: ORG_ID, kind: 'own', code: `FM-${Date.now()}`.slice(0, 40), name: `${run} foreman`, profile_id: ENGINEER_ID }).select('id').single());
   need('role', await admin.from('profiles').update({ built_in_role: 'foreman' }).eq('id', ENGINEER_ID).select('id').single());
 });
 

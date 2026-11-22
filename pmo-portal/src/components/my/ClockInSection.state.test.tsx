@@ -52,15 +52,13 @@ describe('clock-in result state', () => {
 });
 
 describe('Foreman clock-in', () => {
-  it('AC-WCI-034 a Foreman with no person of his own yet still gets a working button, and the tap goes to the RPC', async () => {
+  it('AC-WCI-034 a login with no person in the workforce list gets no dead button: the card says why and what to do', () => {
     mount([wo({ my_worker_id: null, is_controller: true })]);
-    const button = screen.getByRole('button', { name: 'Clock in' });
-    expect(button).toBeEnabled();
-    await userEvent.click(button);
-    await waitFor(() => expect(h.checkIn).toHaveBeenCalledWith(expect.objectContaining({ workOrderId: 'w1', crewId: 'c1' })));
+    expect(screen.queryByRole('button', { name: /Clock in/ })).not.toBeInTheDocument();
+    expect(screen.getByText('You are not in the workforce list yet, so you cannot clock in. Ask your supervisor to add you.')).toBeInTheDocument();
   });
-  it('AC-WCI-034 a Foreman of two crews on one work order sees each crew and chooses by tapping that crew', async () => {
-    mount([wo({ my_worker_id: null, is_controller: true, crew_id: 'c1', crew_name: 'Crew 1' }), wo({ my_worker_id: null, is_controller: true, crew_id: 'c2', crew_name: 'Crew 2' })]);
+  it('AC-WCI-034 a Foreman who leads two crews on one work order sees each crew and chooses by tapping that crew', async () => {
+    mount([wo({ is_controller: true, crew_id: 'c1', crew_name: 'Crew 1' }), wo({ is_controller: true, crew_id: 'c2', crew_name: 'Crew 2' })]);
     expect(screen.getByText('Crew: Crew 1')).toBeInTheDocument();
     expect(screen.getByText('Crew: Crew 2')).toBeInTheDocument();
     await userEvent.click(screen.getAllByRole('button', { name: 'Clock in' })[1]);

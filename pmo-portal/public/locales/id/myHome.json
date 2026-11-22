@@ -34,7 +34,8 @@
     "noPerson": "Anda belum ada di daftar pekerja. Tanyakan ke pengawas Anda.",
     "notInCrew": "Anda tidak ada di regu itu hari ini. Pilih regu lain atau tanyakan ke pengawas Anda.",
     "notRostered": "Anda belum masuk jadwal perintah kerja hari ini. Tanyakan ke pengawas Anda.",
-    "pendingOutsideShort": "Anda berada di luar area kerja."
+    "pendingOutsideShort": "Anda berada di luar area kerja.",
+    "noPersonHere": "Anda belum ada di daftar pekerja, jadi belum bisa absen masuk. Minta pengawas Anda menambahkan Anda."
   },
   "roster": {
     "title": "Regu saya hari ini",

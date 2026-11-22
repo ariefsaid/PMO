@@ -142,7 +142,10 @@ export const ClockInSection: React.FC<{
                   <p className="text-control text-muted-foreground">{wo.project_name}</p>
                   <p className="text-control">{t('myHome:clockIn.crew', 'Crew: {{crew}}', { crew: wo.crew_name })}</p>
                   {c && <p role="status" data-testid="clock-in-state" className="mt-2 text-control font-semibold">{stateText(c)}</p>}
-                  {(!c || c.state === 'rejected') && (
+                  {!wo.my_worker_id && (
+                    <p className="mt-2 text-control">{t('myHome:clockIn.noPersonHere', 'You are not in the workforce list yet, so you cannot clock in. Ask your supervisor to add you.')}</p>
+                  )}
+                  {wo.my_worker_id && (!c || c.state === 'rejected') && (
                     <Button variant="primary" className="mt-2 min-h-11" disabled={busy} onClick={() => void go(wo)}>
                       {c ? t('myHome:clockIn.again', 'Clock in again') : t('myHome:clockIn.action', 'Clock in')}
                     </Button>
