@@ -970,7 +970,7 @@
     "appliesTo": "Applies to",
     "person": "Person",
     "equipment": "Equipment",
-    "medical": "Medical document (status and date only, visible to Admin only)",
+    "medical": "Medical document (status and date only, visible to Admin and HR)",
     "medicalCol": "Medical",
     "yes": "Yes",
     "roles": "Roles notified",
