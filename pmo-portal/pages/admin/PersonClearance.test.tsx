@@ -6,16 +6,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
-  enabled: vi.fn(), checklist: vi.fn(), summary: vi.fn(), saveState: vi.fn(), items: vi.fn(), canEdit: true,
+  enabled: vi.fn(), checklist: vi.fn(), summary: vi.fn(), due: vi.fn(), saveState: vi.fn(), items: vi.fn(), people: vi.fn(), canEdit: true,
 }));
 vi.mock('@/src/lib/repositories/clearance', () => ({
-  clearanceRepository: { enabled: h.enabled, checklist: h.checklist, summary: h.summary, saveState: h.saveState, clearState: vi.fn(), items: h.items, setEnabled: vi.fn(), createItem: vi.fn(), updateItem: vi.fn() },
+  clearanceRepository: { enabled: h.enabled, checklist: h.checklist, summary: h.summary, due: h.due, saveState: h.saveState, clearState: vi.fn(), items: h.items, setEnabled: vi.fn(), createItem: vi.fn(), updateItem: vi.fn() },
 }));
 vi.mock('@/src/lib/repositories/orgSwitches', async (orig) => ({ ...(await orig<typeof import('@/src/lib/repositories/orgSwitches')>()), orgSwitchRepository: { read: () => h.enabled(), write: vi.fn() } }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     documentExpiry: { getPerson: vi.fn().mockResolvedValue({ id: 'p1', name: 'Test Person', code: 'P-0001' }) },
-    people: { list: vi.fn().mockResolvedValue([]) },
+    people: { list: h.people },
   },
 }));
 vi.mock('@/src/auth/usePermission', () => ({
@@ -39,6 +39,8 @@ beforeEach(() => {
   h.enabled.mockResolvedValue(true);
   h.summary.mockResolvedValue([{ person_id: 'p1', required_count: 1, satisfied_count: 0, cleared: false }]);
   h.items.mockResolvedValue([]);
+  h.due.mockResolvedValue([]);
+  h.people.mockResolvedValue([]);
 });
 
 describe('AC-CLR-009 the person checklist', () => {
@@ -111,6 +113,35 @@ describe('AC-CLR-009 the person checklist', () => {
     expect(await screen.findByText('The clearance checklist is not turned on')).toBeInTheDocument();
     expect(h.checklist).not.toHaveBeenCalled();
   });
+
+  it('AC-CTD-010 marks an overdue item with the word and its due day, and shows the due day of an item still in time', async () => {
+    h.checklist.mockResolvedValue([row({ item_id: 'i1', name: 'Item A' }), row({ item_id: 'i2', name: 'Item B' })]);
+    h.due.mockResolvedValue([
+      { personId: 'p1', itemId: 'i1', dueOn: '2026-11-01', overdue: true },
+      { personId: 'p1', itemId: 'i2', dueOn: '2026-11-30', overdue: false },
+      { personId: 'p9', itemId: 'i1', dueOn: '2026-01-01', overdue: true },
+    ]);
+    renderAt(<PersonClearance />);
+    expect(await screen.findByTestId('clearance-overdue-i1')).toHaveTextContent('Overdue · due 1 Nov 2026');
+    expect(screen.getByTestId('clearance-due-i2')).toHaveTextContent('Due 30 Nov 2026');
+    // Another person's overdue row never marks this checklist.
+    expect(screen.queryByTestId('clearance-overdue-i2')).toBeNull();
+  });
+
+  it('AC-CTD-010 a checklist with no targets reads exactly as before', async () => {
+    h.checklist.mockResolvedValue([row({})]);
+    renderAt(<PersonClearance />);
+    expect(await screen.findByText('Item A')).toBeInTheDocument();
+    expect(screen.queryByTestId('clearance-due-i1')).toBeNull();
+    expect(screen.queryByTestId('clearance-overdue-i1')).toBeNull();
+  });
+
+  it('AC-CTD-010 a failed due read is an error state, never a silent zero', async () => {
+    h.checklist.mockResolvedValue([row({})]);
+    h.due.mockRejectedValue(new Error('permission denied'));
+    renderAt(<PersonClearance />);
+    expect(await screen.findByText(/load this checklist/)).toBeInTheDocument();
+  });
 });
 
 describe('AC-CLR-009 the Clearance section', () => {
@@ -122,5 +153,29 @@ describe('AC-CLR-009 the Clearance section', () => {
   it('shows the generic empty guidance, with no item names, when enabled and no items exist', async () => {
     renderAt(<Clearance />, '/administration/clearance');
     expect(await screen.findByText('No checklist items yet')).toBeInTheDocument();
+  });
+
+  it('AC-CTD-010 shows how many items are overdue for each person on the people list', async () => {
+    h.people.mockResolvedValue([{ id: 'p1', name: 'Test Person', code: 'P-0001' }, { id: 'p2', name: 'Other Person', code: 'P-0002' }]);
+    h.summary.mockResolvedValue([
+      { person_id: 'p1', required_count: 2, satisfied_count: 0, cleared: false },
+      { person_id: 'p2', required_count: 2, satisfied_count: 0, cleared: false },
+    ]);
+    h.due.mockResolvedValue([
+      { personId: 'p1', itemId: 'i1', dueOn: '2026-11-01', overdue: true },
+      { personId: 'p1', itemId: 'i2', dueOn: '2026-11-02', overdue: true },
+      { personId: 'p2', itemId: 'i1', dueOn: '2026-12-02', overdue: false },
+    ]);
+    renderAt(<Clearance />, '/administration/clearance');
+    expect(await screen.findByTestId('clearance-person-overdue-p1')).toHaveTextContent('Overdue: 2');
+    // A person with nothing past its day shows no marker, not a zero.
+    expect(screen.queryByTestId('clearance-person-overdue-p2')).toBeNull();
+  });
+
+  it('AC-CTD-010 a failed overdue read shows the error state rather than an all-clear', async () => {
+    h.people.mockResolvedValue([{ id: 'p1', name: 'Test Person', code: 'P-0001' }]);
+    h.due.mockRejectedValue(new Error('permission denied'));
+    renderAt(<Clearance />, '/administration/clearance');
+    expect(await screen.findByText(/load the people/)).toBeInTheDocument();
   });
 });

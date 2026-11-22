@@ -2766,6 +2766,8 @@ export type Database = {
           name: string
           org_id: string
           sort_order: number
+          target_days: number | null
+          target_set_at: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -2777,6 +2779,8 @@ export type Database = {
           name: string
           org_id?: string
           sort_order?: number
+          target_days?: number | null
+          target_set_at?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -2788,6 +2792,8 @@ export type Database = {
           name?: string
           org_id?: string
           sort_order?: number
+          target_days?: number | null
+          target_set_at?: string | null
         }
         Relationships: [
           {
@@ -3188,6 +3194,7 @@ export type Database = {
           org_id: string
           position: number
           required: boolean
+          target_days: number | null
         }
         Insert: {
           created_at?: string
@@ -3196,6 +3203,7 @@ export type Database = {
           org_id: string
           position: number
           required?: boolean
+          target_days?: number | null
         }
         Update: {
           created_at?: string
@@ -3204,6 +3212,7 @@ export type Database = {
           org_id?: string
           position?: number
           required?: boolean
+          target_days?: number | null
         }
         Relationships: [
           {
@@ -25620,13 +25629,16 @@ export type Database = {
           done_at: string | null
           done_by: string | null
           done_on: string | null
+          due_on: string | null
           id: string
           name: string
           org_id: string
+          overdue_notified_at: string | null
           position: number
           project_id: string
           required: boolean
           started_on: string | null
+          target_days: number | null
           work_order_id: string
         }
         Insert: {
@@ -25636,13 +25648,16 @@ export type Database = {
           done_at?: string | null
           done_by?: string | null
           done_on?: string | null
+          due_on?: string | null
           id?: string
           name: string
           org_id: string
+          overdue_notified_at?: string | null
           position: number
           project_id: string
           required: boolean
           started_on?: string | null
+          target_days?: number | null
           work_order_id: string
         }
         Update: {
@@ -25652,13 +25667,16 @@ export type Database = {
           done_at?: string | null
           done_by?: string | null
           done_on?: string | null
+          due_on?: string | null
           id?: string
           name?: string
           org_id?: string
+          overdue_notified_at?: string | null
           position?: number
           project_id?: string
           required?: boolean
           started_on?: string | null
+          target_days?: number | null
           work_order_id?: string
         }
         Relationships: [
@@ -34272,6 +34290,15 @@ export type Database = {
         }[]
       }
       payment_channel_on: { Args: { p_org: string }; Returns: boolean }
+      person_clearance_due: {
+        Args: never
+        Returns: {
+          due_on: string
+          item_id: string
+          overdue: boolean
+          person_id: string
+        }[]
+      }
       person_clearance_items: {
         Args: { p_person: string }
         Returns: {

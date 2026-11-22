@@ -34,7 +34,7 @@ import { CloseoutSection } from './CloseoutSection';
 
 const doc = (id: string, title: string, status = 'Approved', file: string | null = `o/p/${id}/f.pdf`) => ({ id, title, status, file_path: file });
 const item = (p: Partial<WorkOrderCloseoutItem> & Pick<WorkOrderCloseoutItem, 'id' | 'position' | 'name'>): WorkOrderCloseoutItem => ({
-  required: true, startedOn: null, doneOn: null, documentId: null, doneBy: null, doneByName: null, ...p,
+  required: true, startedOn: null, doneOn: null, documentId: null, doneBy: null, doneByName: null, targetDays: null, dueOn: null, ...p,
 });
 
 function items(): WorkOrderCloseoutItem[] {
@@ -142,5 +142,35 @@ describe('CloseoutSection', () => {
     const user = renderIt();
     await user.click(screen.getByRole('button', { name: /retry/i }));
     expect(h.state.refetch).toHaveBeenCalled();
+  });
+
+  it('AC-CTD-010 an open item past its due day reads Overdue with the due day', () => {
+    h.items = [item({ id: 'i1', position: 1, name: 'Item one', startedOn: '2026-03-01', targetDays: 5, dueOn: '2026-03-10' })];
+    renderIt(); // the organisation's day is 2026-03-11
+    const row = within(screen.getByRole('list', { name: 'Close-out checklist' })).getAllByRole('listitem')[0];
+    expect(within(row).getByTestId('closeout-overdue-i1')).toHaveTextContent('Overdue · due 10 Mar 2026');
+  });
+
+  it('AC-CTD-010 an item due today, a done item and an untargeted item are not marked overdue', () => {
+    h.items = [
+      item({ id: 'i1', position: 1, name: 'Item one', startedOn: '2026-03-01', targetDays: 10, dueOn: '2026-03-11' }),
+      item({ id: 'i2', position: 2, name: 'Item two', startedOn: '2026-03-01', targetDays: 1, dueOn: '2026-03-02', doneOn: '2026-03-02', documentId: 'd1' }),
+      item({ id: 'i3', position: 3, name: 'Item three', startedOn: '2026-03-01' }),
+    ];
+    renderIt();
+    expect(screen.queryByTestId('closeout-overdue-i1')).toBeNull();
+    expect(screen.queryByTestId('closeout-overdue-i2')).toBeNull();
+    // The open, targeted item still carries its target; the done and the untargeted item say nothing about a day.
+    expect(screen.getByTestId('closeout-due-i1')).toHaveTextContent('Due 11 Mar 2026');
+    expect(screen.queryByTestId('closeout-due-i2')).toBeNull();
+    expect(screen.queryByTestId('closeout-due-i3')).toBeNull();
+  });
+
+  it('AC-CTD-010 a checklist with no targets reads exactly as before', () => {
+    h.items = items();
+    renderIt();
+    expect(screen.queryByTestId('closeout-due-i1')).toBeNull();
+    expect(screen.queryByTestId('closeout-due-i2')).toBeNull();
+    expect(screen.getByTestId('closeout-summary')).toHaveTextContent('Required items not done: 1');
   });
 });

@@ -9,6 +9,7 @@ import { BahasaProvider } from '@/test/bahasa';
 vi.mock('@/src/lib/repositories/clearance', () => ({
   clearanceRepository: {
     enabled: vi.fn().mockResolvedValue(true), items: vi.fn().mockResolvedValue([]), summary: vi.fn().mockResolvedValue([]),
+    due: vi.fn().mockResolvedValue([]),
     checklist: vi.fn().mockResolvedValue([{ item_id: 'i1', name: 'X', is_required: true, sort_order: 1, done_on: null, expires_on: null, note: null, state: 'missing' }]),
   },
 }));

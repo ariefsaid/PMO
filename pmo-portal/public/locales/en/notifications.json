@@ -71,6 +71,8 @@
     "supplierAtRisk": "Supplier marked at risk",
     "supplierInactive": "Supplier marked inactive",
     "billingStepOverdue": "Billing step is overdue",
+    "closeoutItemOverdue": "Close-out item is overdue",
+    "clearanceItemOverdue": "Clearance item is overdue",
     "doneNotClaimed": "Work is done but not yet claimed",
     "actionRequired": "Action required",
     "crewAbsence": "A crew member reports absent today",

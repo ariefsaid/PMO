@@ -4,22 +4,27 @@ import { Button, ListState, useToast } from '@/src/components/ui';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { TextField } from '@/src/components/ui/FormFields';
 import { usePermission } from '@/src/auth/usePermission';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useRefusalText } from '@/src/lib/refusals';
+import { parseTargetDays } from '@/src/lib/checklistDue';
 import { useCloseoutTemplate, useSaveCloseoutTemplate } from '@/src/hooks/useCloseoutChecklist';
 
 /** At most this many items (the table's check). */
 const MAX_ITEMS = 20;
 
-interface Row { key: number; name: string; required: boolean }
+interface Row { key: number; name: string; required: boolean; targetDays: string }
 
 /**
  * The organisation's work-order close-out checklist (#2593, FR-WCO-001): an ordered list of items, each flagged required or
  * not, replaced whole. The items are the organisation's own words (acceptance letters, completion certificates, a material
  * count): PMO ships none. Admin only; the database refuses anyone else. Work orders already issued keep the list they were
  * issued with.
+ * Each item can carry an optional target in days (#2800, FR-CTD-001): its due day on a work order is that work order's issue
+ * day + the target, worked out by the database. Blank means no target, and a list saved before targets existed reads and
+ * saves exactly as it did.
  */
 export default function WorkOrderCloseoutTemplate() {
   const { t } = useTranslation('closeout');
+  const refusal = useRefusalText();
   const may = usePermission();
   const { toast } = useToast();
   const query = useCloseoutTemplate();
@@ -28,11 +33,14 @@ export default function WorkOrderCloseoutTemplate() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [dirty, setDirty] = useState(false);
   const [missing, setMissing] = useState(false);
+  const [badTarget, setBadTarget] = useState<number | null>(null);
   const canEdit = may('edit', 'closeoutChecklist');
 
   useEffect(() => {
     if (rows !== null || !query.data) return;
-    setRows(query.data.map((i) => ({ key: nextKey.current++, name: i.name, required: i.required })));
+    setRows(query.data.map((i) => ({
+      key: nextKey.current++, name: i.name, required: i.required, targetDays: i.targetDays === null ? '' : String(i.targetDays),
+    })));
   }, [query.data, rows]);
 
   const title = t('admin.title', 'Close-out checklist');
@@ -43,22 +51,24 @@ export default function WorkOrderCloseoutTemplate() {
   }
   if (rows === null) return <ListState variant="loading" rows={2} />;
 
-  const edit = (next: Row[]) => { setRows(next); setDirty(true); };
+  const edit = (next: Row[]) => { setRows(next); setDirty(true); setBadTarget(null); };
   const update = (key: number, patch: Partial<Row>) => edit(rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   const move = (index: number) => { const a = [...rows]; [a[index - 1], a[index]] = [a[index], a[index - 1]]; edit(a); };
   const remove = (key: number) => edit(rows.filter((r) => r.key !== key));
-  const add = () => edit([...rows, { key: nextKey.current++, name: '', required: true }]);
+  const add = () => edit([...rows, { key: nextKey.current++, name: '', required: true, targetDays: '' }]);
 
   const submit = async () => {
     const blank = rows.some((r) => r.name.trim() === '');
     setMissing(blank);
-    if (blank) return;
+    const invalid = rows.find((r) => parseTargetDays(r.targetDays) === undefined);
+    setBadTarget(invalid?.key ?? null);
+    if (blank || invalid) return;
     try {
-      await save.mutateAsync(rows.map((r) => ({ name: r.name.trim(), required: r.required })));
+      await save.mutateAsync(rows.map((r) => ({ name: r.name.trim(), required: r.required, targetDays: parseTargetDays(r.targetDays) ?? null })));
       setDirty(false);
       toast(t('admin.saved', 'Close-out checklist saved'), t('admin.savedSub', 'Work orders issued from now on use this list.'), 'success');
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = refusal(err);
       toast(headline, detail, 'warning');
     }
   };
@@ -73,6 +83,10 @@ export default function WorkOrderCloseoutTemplate() {
           <div className="flex flex-wrap items-end gap-3">
             <TextField label={t('admin.name', 'Item name')} value={row.name} disabled={!canEdit} onChange={(v) => update(row.key, { name: v })}
               error={missing && row.name.trim() === '' ? t('admin.nameMissing', 'Name the item.') : undefined} />
+            <TextField label={t('admin.targetDays', 'Target (days)')} value={row.targetDays} disabled={!canEdit} inputMode="numeric"
+              helper={t('admin.targetDaysHelp', 'Optional. Counted from the day the work order is issued. Leave blank for no target.')}
+              onChange={(v) => update(row.key, { targetDays: v })}
+              error={badTarget === row.key ? t('admin.targetDaysInvalid', 'Use a whole number of days from 1 to 365, or leave it blank.') : undefined} />
             <Checkbox checked={row.required} disabled={!canEdit} onChange={(v) => update(row.key, { required: v })}
               label={t('admin.required', 'Required before closing')}>
               {t('admin.required', 'Required before closing')}

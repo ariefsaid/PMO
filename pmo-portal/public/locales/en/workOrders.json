@@ -340,6 +340,7 @@
     "empty": "You have no work orders yet",
     "error": "Couldn't load your work orders",
     "noMatch": "No work order matches your search",
+    "overdueCount": "Overdue: {{count}}",
     "search": "Search by number, title or project",
     "seeAll": "See all",
     "tileEmpty": "No open work orders",

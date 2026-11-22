@@ -1231,6 +1231,10 @@
       "addTitle": "Tambah butir",
       "save": "Simpan butir",
       "name": "Nama butir",
+      "target": "Target (hari)",
+      "targetHelp": "Opsional. Dihitung dari hari orangnya ditambahkan. Kosongkan bila tanpa target.",
+      "targetValue": "{{count}} hari",
+      "errTarget": "Gunakan bilangan bulat 1 sampai 365 hari, atau kosongkan.",
       "required": "Wajib agar dinyatakan lolos",
       "heading": "Butir daftar periksa",
       "add": "Tambah butir",
@@ -1255,7 +1259,8 @@
       "loadError": "Daftar orang tidak dapat dimuat",
       "emptyTitle": "Belum ada orang di daftar",
       "emptySub": "Tambahkan orang di bagian Orang terlebih dahulu; daftar periksanya lalu muncul di sini.",
-      "progress": "{{done}} dari {{total}} wajib"
+      "progress": "{{done}} dari {{total}} wajib",
+      "overdue": "Terlambat: {{count}}"
     },
     "person": {
       "errDone": "Isi tanggal selesai",
@@ -1275,6 +1280,8 @@
       "emptySub": "Admin mendaftar kebutuhan seseorang di bagian Izin ke lokasi; butirnya lalu muncul di sini.",
       "doneLine": "Selesai {{date}}",
       "expiresLine": "Kedaluwarsa {{date}}",
+      "due": "Jatuh tempo {{date}}",
+      "overdue": "Terlambat · jatuh tempo {{date}}",
       "edit": "Ubah",
       "record": "Catat",
       "remove": "Hapus",
