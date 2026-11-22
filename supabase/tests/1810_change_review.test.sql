@@ -2,7 +2,7 @@
 -- AC-CHR-001..007. Spec docs/specs/change-review.spec.md. Builds on the 1177 shape (one org, one work order, one over-contract item).
 begin;
 create extension if not exists pgtap;
-select plan(28);
+select plan(33);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('18100000-0000-0000-0000-0000000000a1', 'CHR Org A', 'USD', 'UTC', true),
@@ -102,6 +102,22 @@ select throws_ok($$select qcr_approve((select v from ids where k = 'r1'))$$, '42
   'AC-CHR-004 an Engineer with no listed role is refused');
 set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b5","role":"authenticated"}';
 select throws_ok($$select qcr_approve((select v from ids where k = 'r1'))$$, 'P0002', 'request not found', 'AC-CHR-004 a listed-role user of another organisation cannot approve');
+-- ── the shared waiting list and decision standing follow the setting (AC-CHR-012) ───────────────────
+set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b7","role":"authenticated"}';
+select is((select count(*)::int from my_waiting_decisions() w where w.kind = 'quantity_change' and w.record_id = (select v from ids where k = 'r1')), 1,
+  'AC-CHR-012 a listed-role holder sees the pending request in the waiting list');
+select is(my_decision_standing(), true, 'AC-CHR-012 and has decision standing');
+set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b2","role":"authenticated"}';
+select is((select count(*)::int from my_waiting_decisions() w where w.kind = 'quantity_change'), 0, 'AC-CHR-012 the editor and submitter does not see it');
+set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select is((select count(*)::int from my_waiting_decisions() w where w.kind = 'quantity_change'), 0, 'AC-CHR-012 the author does not see it');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b3","role":"authenticated"}';
+update organizations set quantity_change_approver_roles = '{}' where id = '18100000-0000-0000-0000-0000000000a1';
+set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b7","role":"authenticated"}';
+select is((select count(*)::int from my_waiting_decisions() w where w.kind = 'quantity_change'), 0, 'AC-CHR-012 with the list empty the role does not see it');
+set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b3","role":"authenticated"}';
+update organizations set quantity_change_approver_roles = array['project_control_manager'] where id = '18100000-0000-0000-0000-0000000000a1';
 set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b7","role":"authenticated"}';
 select lives_ok($$select qcr_approve((select v from ids where k = 'r1'))$$, 'AC-CHR-002 a second listed-role user approves');
 select is((select status || ':' || approved_by::text from quantity_change_requests where id = (select v from ids where k = 'r1')),
