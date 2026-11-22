@@ -57,7 +57,7 @@ export default function LabourCostSettings() {
       : enabledQ.data === undefined ? <ListState variant="loading" rows={2} />
       : <Checkbox checked={enabled} disabled={!canManage || m.setEnabled.isPending}
           label={t('labourCost.switch', 'Cost approved hours in money')}
-          onChange={(v) => m.setEnabled.mutate(v, { onError: fail })} />}
+          onChange={(v) => m.setEnabled.mutate(v, { onError: fail })}>{t('labourCost.switch', 'Cost approved hours in money')}</Checkbox>}
     {!canManage && <p className="text-sm text-muted-foreground">{t('labourCost.adminOnly', 'Only an Admin or Finance can change labour cost settings.')}</p>}
 
     {enabled && <>

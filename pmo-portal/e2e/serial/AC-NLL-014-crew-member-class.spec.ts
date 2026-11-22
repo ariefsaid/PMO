@@ -37,7 +37,9 @@ test('AC-NLL-014 Finance adds a class rate and gives a crew member with no login
   await signIn(page, 'finance@acme.test');
   await page.goto('/administration/cost-attribution');
   const section = page.getByTestId('labour-cost-settings');
-  await expect(section.getByRole('checkbox', { name: 'Cost approved hours in money' })).toBeChecked();
+  // The section renders after its first read; on a cold dev server that read started ~5 s after navigation (wave-run trace),
+  // so the page-ready wait is explicit. The goal assertion is unchanged.
+  await expect(section.getByRole('checkbox', { name: 'Cost approved hours in money' })).toBeChecked({ timeout: 20_000 });
 
   await section.getByRole('button', { name: 'Add rate' }).click();
   const rate = page.getByRole('dialog', { name: 'Add rate' });
