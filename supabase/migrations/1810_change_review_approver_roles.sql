@@ -3,7 +3,7 @@
 -- Spec: docs/specs/change-review.spec.md (FR-CHR-001..006; AC-CHR-001..008). Reversal: rollback/1810_change_review_approver_roles_down.sql.
 --   §1 organizations.quantity_change_approver_roles (built-in role keys, default empty = today's route; Admin-only, audited, catalogue keys only).
 --   §2 qcr_profile_may_approve / qcr_may_approve_role: the ONE copy of the role rule (base approver levels, or a listed built-in role).
---   §3 restated at head: qcr_assert_approver (1177), qcr_approval_state (1178 as rewritten by 1219: assert_not_light first), qcr_submit (1176, who is told).
+--   §3 restated at head: qcr_assert_approver (1177), qcr_approval_state (1178 as rewritten by 1219: assert_not_light first), qcr_submit (1176 plus the assert_not_light guard of 1530, who is told).
 -- Restated bodies are the newest earlier definitions (highest migration number defining each), changed only where noted.
 -- drops: the base-level approver list in qcr_assert_approver, qcr_approval_state and qcr_submit moves into qcr_profile_may_approve; the two approval refusals gain a QCR_ code.
 
@@ -110,6 +110,7 @@ create or replace function public.qcr_submit(p_request_id uuid) returns void
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_uid uuid := auth.uid(); v_org uuid := public.auth_org_id(); v_req record; v_wo_status text; r record;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   if public.auth_role() not in ('Admin','Executive','Project Manager','Finance') then
     raise exception 'not authorized to submit a quantity change request' using errcode = '42501';

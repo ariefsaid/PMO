@@ -1,4 +1,4 @@
--- Reverses 1810_change_review_approver_roles.sql: qcr_assert_approver (1177), qcr_approval_state (1178 plus the assert_not_light first statement 1219 put in the database) and qcr_submit (1176) go back to their live pre-1810 forms, then the setting goes.
+-- Reverses 1810_change_review_approver_roles.sql: qcr_assert_approver (1177), qcr_approval_state (1178 plus the assert_not_light first statement 1219 put in the database) and qcr_submit (1176 plus the assert_not_light first statement 1530 put in the database) go back to their live pre-1810 forms, then the setting goes.
 create or replace function public.qcr_assert_approver(p_request public.quantity_change_requests) returns void
   language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare v_uid uuid := auth.uid();
@@ -40,6 +40,7 @@ create or replace function public.qcr_submit(p_request_id uuid) returns void
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_uid uuid := auth.uid(); v_org uuid := public.auth_org_id(); v_req record; v_wo_status text; r record;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   if public.auth_role() not in ('Admin','Executive','Project Manager','Finance') then
     raise exception 'not authorized to submit a quantity change request' using errcode = '42501';
