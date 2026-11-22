@@ -9,7 +9,10 @@ insert into organizations (id, name, default_currency) values ('18220000-0000-00
 insert into auth.users (id, email) values ('18220000-0000-0000-0000-0000000000a1', 'icm-rep-admin@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('18220000-0000-0000-0000-0000000000a1', '18220000-0000-0000-0000-00000000000a', 'Rep Admin', 'icm-rep-admin@example.com', 'Admin', 'active');
-insert into issue_closing_report_settings (org_id, enabled, grouping_mode) values ('18220000-0000-0000-0000-00000000000a', true, 'type');
+-- 1670's organizations_switch_defaults trigger already seeds this row on org insert (enabled true). State the value the
+-- fixture needs on the seeded row rather than inserting a second one, so a changed seed default cannot mask these goals.
+insert into issue_closing_report_settings (org_id, enabled, grouping_mode) values ('18220000-0000-0000-0000-00000000000a', true, 'type')
+  on conflict (org_id) do update set enabled = excluded.enabled, grouping_mode = excluded.grouping_mode;
 insert into incident_types (id, org_id, label) values ('18220000-0000-0000-0000-0000000000f1', '18220000-0000-0000-0000-00000000000a', 'Civil');
 
 -- two closed Civil issues (24 h and 60 h) written through the list; one old row that matched no entry (trigger off, no link)

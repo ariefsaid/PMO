@@ -39,9 +39,12 @@ insert into email_event_settings (org_id, event_key, enabled, extra_roles) value
 
 insert into people (id, org_id, code, name) values
   ('27170000-0000-0000-0000-0000000000e1', '27170000-0000-0000-0000-00000000000a', 'P-1', 'MDC Person');
+-- This fixture is about the medical capability filter on the notice's copies, so each type names its role recipient (Admin)
+-- explicitly. 1760's explicit empty list still means "no role recipient" (proved by document_expiry_manager AC-EXM-003),
+-- and these people have no manager, so an empty list here would produce no primary notice at all.
 insert into document_types (id, org_id, name, applies_to, is_medical, notify_roles) values
-  ('27170000-0000-0000-0000-0000000000f1', '27170000-0000-0000-0000-00000000000a', 'Work permit',   'person', false, '{}'),
-  ('27170000-0000-0000-0000-0000000000f2', '27170000-0000-0000-0000-00000000000a', 'Medical check', 'person', true,  '{}');
+  ('27170000-0000-0000-0000-0000000000f1', '27170000-0000-0000-0000-00000000000a', 'Work permit',   'person', false, '{Admin}'),
+  ('27170000-0000-0000-0000-0000000000f2', '27170000-0000-0000-0000-00000000000a', 'Medical check', 'person', true,  '{Admin}');
 insert into expiry_documents (id, org_id, subject_kind, person_id, type_id, number, expires_on) values
   ('27170000-0000-0000-0000-000000000101', '27170000-0000-0000-0000-00000000000a', 'person', '27170000-0000-0000-0000-0000000000e1', '27170000-0000-0000-0000-0000000000f1', 'WP-1', '2026-12-20');
 insert into expiry_documents (id, org_id, subject_kind, person_id, type_id, medical_status, expires_on) values
