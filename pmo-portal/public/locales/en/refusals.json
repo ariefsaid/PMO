@@ -172,6 +172,7 @@
   "PTYPE_PERIOD_NOT_ALLOWED": "Only a rental purchase has a rental period.",
   "PTYPE_PERIOD_REQUIRED": "A rental purchase needs a rental period.",
   "PTYPE_UNAVAILABLE": "That type is not available.",
+  "QCR_APPROVER_ROLE_CANNOT_READ": "Choose a role that can see change requests.",
   "QCR_APPROVER_ROLE_LIGHT": "A field role cannot review requests. Choose a manager or officer role.",
   "QCR_APPROVER_ROLE_UNKNOWN": "Choose reviewer roles from the role list.",
   "QCR_NOT_APPROVER": "Your role cannot approve or return quantity change requests. Ask a reviewer, or ask an Admin to add your role to the reviewer list.",

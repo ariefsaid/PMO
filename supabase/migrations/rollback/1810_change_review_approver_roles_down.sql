@@ -1,4 +1,4 @@
--- Reverses 1810_change_review_approver_roles.sql: the five functions go back to their 1176/1177/1178 definitions, then the setting goes.
+-- Reverses 1810_change_review_approver_roles.sql: qcr_assert_approver (1177), qcr_approval_state (1178 plus the assert_not_light first statement 1219 put in the database) and qcr_submit (1176) go back to their live pre-1810 forms, then the setting goes.
 create or replace function public.qcr_assert_approver(p_request public.quantity_change_requests) returns void
   language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare v_uid uuid := auth.uid();
@@ -16,6 +16,7 @@ returns table (can_approve boolean, reason text, eligible_approver_exists boolea
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare v_uid uuid := auth.uid(); v_req public.quantity_change_requests; v_reason text;
 begin
+  perform public.assert_not_light();
   perform public.assert_is_active_member();
   select q.* into v_req from public.quantity_change_requests q where q.id = p_request_id;
   if not found or v_req.org_id is distinct from public.auth_org_id() then
