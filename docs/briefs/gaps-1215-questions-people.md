@@ -31,3 +31,12 @@ Each line: question · recommended answer · what was built meanwhile.
 ## medical-release (minimal form)
 - Should a deferral expire? · No; the manager decides again. · Built: a deferred release can be decided again; an approved one is final.
 - May an Admin decide for a person with no direct manager? · No; set a manager first. · Built: only the direct manager decides.
+
+## crew-multi-wo (on hold; decision note only, docs/specs/crew-multi-wo.spec.md)
+- Reverse the "a crew serves one work order per day" ruling for mobile crews, or keep it? · Reverse it for crews whose members have no login. · Built: nothing; note only.
+- Option A (no-login crews split their day across work orders) or B (everyone, which changes the timesheet key and the payroll push)? · A. · Built: nothing.
+- Is "cannot exceed what was worked" today's 24-hour daily ceiling, or the hours recorded present that day? · Keep 24 hours, with a warning when the split total exceeds the day's recorded present hours. · Built: nothing.
+- Was the one-work-order-per-day ruling signed? Its spec header still says "proposed". · Confirm its status. · Built: nothing.
+
+## expiry-to-manager (after steering)
+- Should a manager be able to record the renewal of a medical document? · No; medical documents stay with the people team. · Built: refused for managers.
