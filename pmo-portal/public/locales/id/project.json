@@ -104,7 +104,7 @@
     "cascade": {
       "error": "Kontrak tidak dapat dimuat.",
       "title": "Kontrak",
-      "contract": "Nilai kontrak",
+      "contract": "Nilai kontrak · jumlah baris kontrak",
       "source": {
         "contract": "Sumber: baris kontrak berharga (kuantitas × tarif), tidak termasuk pajak.",
         "contractFallback": "Sumber: ringkasan penagihan proyek, tidak termasuk pajak.",
@@ -131,7 +131,7 @@
         "invoiceAmount": "Sumber: jumlah invoice yang disinkronkan dari akuntansi.",
         "invoicePaid": "Dihitung dari jumlah invoice dikurangi saldo terutang menurut akuntansi."
       },
-      "ordered": "Dipesan",
+      "ordered": "Dipesan · pada pesanan pelanggan",
       "delivered": "Terkirim",
       "invoiced": "Ditagih",
       "signedContractInclusive": "Kontrak ditandatangani · termasuk pajak",

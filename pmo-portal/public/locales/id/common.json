@@ -2326,7 +2326,7 @@
         "net": "di luar PPN",
         "other": "dasar: {{basis}}"
       },
-      "ceiling": "Pagu kontrak",
+      "ceiling": "Pagu kontrak · nilai kontrak yang ditandatangani",
       "committed": "Sudah diterbitkan",
       "draft": "Draf",
       "error": {

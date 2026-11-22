@@ -104,7 +104,7 @@
     "cascade": {
       "error": "Couldn't load the contract",
       "title": "Contract",
-      "contract": "Contract value",
+      "contract": "Contract value · sum of contract lines",
       "source": {
         "contract": "Source: priced contract lines (quantity × rate), excluding tax.",
         "contractFallback": "Source: the project billing summary, excluding tax.",
@@ -131,7 +131,7 @@
         "invoicePaid": "Computed as invoice amount including tax, less accounting balance outstanding.",
         "overdueUnknown": "Unknown: overdue invoices are in more than one currency, so their balances are not added up."
       },
-      "ordered": "Ordered",
+      "ordered": "Ordered · on customer orders",
       "delivered": "Delivered",
       "invoiced": "Invoiced",
       "signedContractInclusive": "Signed contract · including tax",

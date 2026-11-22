@@ -2326,7 +2326,7 @@
         "net": "net of tax",
         "other": "basis: {{basis}}"
       },
-      "ceiling": "Contract ceiling",
+      "ceiling": "Contract ceiling · signed contract value",
       "committed": "Issued drawdown",
       "draft": "Draft pipeline",
       "error": {
