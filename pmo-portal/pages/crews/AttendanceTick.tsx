@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, DateField, FieldError, ListState, ReasonDialog, SelectField, TextField, useToast, useUrlFilters,
+  Button, Card, CardHead, CardPad, DateField, FieldError, ListState, ReasonDialog, SelectField, StatusPill, TextField, useToast, useUrlFilters,
 } from '@/src/components/ui';
 import { FileInput } from '@/src/components/ui/FormFields';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useReleaseHolds } from '@/src/hooks/useMedicalRelease';
+import type { ReleaseState } from '@/src/lib/repositories/medicalRelease';
 import { useAuth } from '@/src/auth/useAuth';
 import {
   useAttendanceDay, useAttendanceMutations, useAwaitingAttendance, useCrewWorkers, useWorkOrderRoster,
@@ -19,10 +21,11 @@ import { useCrewErrorText } from './crewErrors';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const STATUSES: AttendanceStatus[] = ['present', 'absent', 'leave', 'off_rotation'];
+const NO_HOLDS: ReadonlyMap<string, ReleaseState> = new Map();
 
 /** The tick form for one crew on one day (FR-CRW-009/010). Keyed by crew, date and held records, so it starts fresh. */
-export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; held: AttendanceDayRow[]; canRecord: boolean }> = ({
-  crew, workOrderId, date, held, canRecord,
+export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; held: AttendanceDayRow[]; canRecord: boolean; releaseHolds?: ReadonlyMap<string, ReleaseState> }> = ({
+  crew, workOrderId, date, held, canRecord, releaseHolds = NO_HOLDS,
 }) => {
   const { t } = useTranslation('crews');
   const writeError = useCrewErrorText();
@@ -54,7 +57,8 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
 
   const save = async () => {
     setProblem(null);
-    const built = buildTickRows(state);
+    // A person whose medical release is not approved cannot be recorded (the database refuses it): leave them out of the save.
+    const built = buildTickRows({ ...state, order: state.order.filter((id) => !releaseHolds.has(id)) });
     setErrors(built.errors);
     if (Object.keys(built.errors).length > 0) return;
     setBusy(true);
@@ -117,32 +121,40 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
               const p = state.people[m.worker_id];
               if (!p) return null;
               const err = errors[m.worker_id];
+              const hold = releaseHolds.get(m.worker_id);
+              const locked = !canRecord || busy || hold !== undefined;
               return (
                 <tr key={m.worker_id} aria-label={m.display_name} className="border-t border-border align-top">
                   <th scope="row" className="py-2 pr-2 text-left font-normal text-foreground">
                     {m.display_name}
+                    {hold && (
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <StatusPill variant="warn">{hold === 'deferred' ? t('crews:release.status.deferred', 'Release deferred') : t('crews:release.status.pending', 'Release pending')}</StatusPill>
+                        <span className="text-xs text-muted-foreground">{t('crews:release.heldReason', 'Cannot be recorded until their direct manager approves the medical release.')}</span>
+                      </div>
+                    )}
                     {err && <FieldError id={`tick-err-${m.worker_id}`}>{errorText(err)}</FieldError>}
                   </th>
                   <td className="py-2 pr-2">
                     <SelectField label={t('crews:statusFor', 'Status for {{name}}', { name: m.display_name })} hideLabel compact
-                      value={p.status} onChange={(v) => setPerson(m.worker_id, { status: v as AttendanceStatus })} disabled={!canRecord || busy}
+                      value={p.status} onChange={(v) => setPerson(m.worker_id, { status: v as AttendanceStatus })} disabled={locked}
                       options={STATUSES.map((s) => ({ value: s, label: statusLabel(s) }))} />
                   </td>
                   <td className="py-2 pr-2">
                     <TextField label={t('crews:hoursFor', 'Hours for {{name}}', { name: m.display_name })} hideLabel inputMode="decimal"
                       value={p.hours} placeholder={state.defaultHours} onChange={(v) => setPerson(m.worker_id, { hours: v })}
-                      disabled={!canRecord || busy || p.status !== 'present'} />
+                      disabled={locked || p.status !== 'present'} />
                   </td>
                   <td className="py-2 pr-2">
                     {p.status === 'present' && (
                       <TextField label={t('crews:overtimeFor', 'Overtime for {{name}}', { name: m.display_name })} hideLabel inputMode="decimal"
                         value={p.overtime} placeholder="0" onChange={(v) => setPerson(m.worker_id, { overtime: v })}
-                        disabled={!canRecord || busy} />
+                        disabled={locked} />
                     )}
                   </td>
                   <td className="py-2">
                     <TextField label={t('crews:reasonFor', 'Reason for {{name}}', { name: m.display_name })} hideLabel
-                      value={p.reason} onChange={(v) => setPerson(m.worker_id, { reason: v })} disabled={!canRecord || busy} />
+                      value={p.reason} onChange={(v) => setPerson(m.worker_id, { reason: v })} disabled={locked} />
                   </td>
                 </tr>
               );
@@ -245,6 +257,7 @@ export const AttendanceTick: React.FC = () => {
   const crew = crews.find((c) => c.crew_id === values.crew) ?? crews[0] ?? null;
   const canRecord = crew ? may('create', 'attendance', { currentUserId: userId, record: { field_controller_id: crew.field_controller_id, viewOnly } }) : false;
   const canApprove = may('approve', 'attendance', { currentUserId: userId, record: { viewOnly } });
+  const holds = useReleaseHolds(workOrderId ? date : null);
   const heldKey = (day.data ?? []).map((d) => `${d.id}:${d.status}:${d.hours}`).join('|');
   return (
     <div className="space-y-6">
@@ -267,7 +280,8 @@ export const AttendanceTick: React.FC = () => {
         <p className="text-sm text-foreground">{t('crews:noCrewThatDay', 'No crew serves this work order that day')}</p>
       )}
       {workOrderId && crew && !day.isPending && !day.isError && (
-        <TickForm key={`${crew.crew_id}:${date}:${heldKey}`} crew={crew} workOrderId={workOrderId} date={date} held={day.data ?? []} canRecord={canRecord} />
+        <TickForm key={`${crew.crew_id}:${date}:${heldKey}`} crew={crew} workOrderId={workOrderId} date={date} held={day.data ?? []} canRecord={canRecord}
+          releaseHolds={holds.data} />
       )}
     </div>
   );
