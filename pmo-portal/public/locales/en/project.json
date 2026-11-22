@@ -375,10 +375,10 @@
         "subtitle": "Quantities done to date for the month. This is the operational assessment. It never creates an invoice.",
         "errors": {
           "quantity": "Each quantity done to date must be 0 or more with at most 3 decimal places",
-          "month": "Enter the month as YYYY-MM"
+          "month": "Choose a month"
         },
         "title": "Record progress",
-        "month": "Month (YYYY-MM)",
+        "month": "Month",
         "record": "Record progress",
         "toast": {
           "saved": "Progress recorded: {{pct}}% complete"

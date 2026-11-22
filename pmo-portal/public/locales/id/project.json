@@ -375,10 +375,10 @@
         "subtitle": "Kuantitas yang selesai s.d. bulan ini. Ini penilaian operasional, tidak pernah membuat invoice.",
         "errors": {
           "quantity": "Setiap kuantitas selesai harus 0 atau lebih dengan paling banyak 3 angka desimal",
-          "month": "Isi bulan dengan format YYYY-MM"
+          "month": "Pilih bulan"
         },
         "title": "Catat progres",
-        "month": "Bulan (YYYY-MM)",
+        "month": "Bulan",
         "record": "Catat progres",
         "toast": {
           "saved": "Progres tercatat: {{pct}}% selesai"
