@@ -9962,55 +9962,6 @@ export type Database = {
           },
         ]
       }
-      imprest_plan_line_splits: {
-        Row: {
-          amount: number
-          created_at: string
-          id: string
-          line_id: string
-          org_id: string
-          work_order_id: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          id?: string
-          line_id: string
-          org_id: string
-          work_order_id: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          id?: string
-          line_id?: string
-          org_id?: string
-          work_order_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "imprest_plan_line_splits_line_id_fkey"
-            columns: ["line_id"]
-            isOneToOne: false
-            referencedRelation: "imprest_plan_lines"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "imprest_plan_line_splits_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "imprest_plan_line_splits_work_order_id_fkey"
-            columns: ["work_order_id"]
-            isOneToOne: false
-            referencedRelation: "work_orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       imprest_plan_lines: {
         Row: {
           budget_category: Database["public"]["Enums"]["budget_category"]
@@ -29545,7 +29496,6 @@ export type Database = {
         Args: { p_due_in_seconds: number; p_holder: string; p_org_id: string }
         Returns: boolean
       }
-      delete_imprest_plan_line_split: { Args: { p_split: string }; Returns: undefined }
       delete_vault_secret: {
         Args: { p_secret_name: string }
         Returns: undefined
@@ -30323,29 +30273,6 @@ export type Database = {
         Returns: Json
       }
       get_hide_prices_enabled: { Args: never; Returns: boolean }
-      get_imprest_estimate: {
-        Args: { p_float: string; p_from: string; p_to: string }
-        Returns: {
-          budget_category: Database["public"]["Enums"]["budget_category"]
-          drawn: number
-          month: string
-          plan_status: string
-          planned: number
-          still_to_spend: number
-          work_order_id: string
-        }[]
-      }
-      get_imprest_estimate_total: {
-        Args: { p_float: string; p_from: string; p_to: string }
-        Returns: {
-          advance_needed: number
-          cash_book: number
-          drawn: number
-          in_flight: number
-          planned: number
-          still_to_spend: number
-        }[]
-      }
       get_imprest_plan_usage: {
         Args: { p_float: string; p_month: string }
         Returns: {
@@ -34473,10 +34400,6 @@ export type Database = {
       save_idle_cost_setting: {
         Args: { p_enabled: boolean }
         Returns: undefined
-      }
-      save_imprest_plan_line_split: {
-        Args: { p_amount: number; p_line: string; p_work_order: string }
-        Returns: string
       }
       save_journal_draft: {
         Args: {

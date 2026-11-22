@@ -18,9 +18,6 @@ export type ImprestCountRow = Tables<'imprest_cash_counts'>;
 export type BudgetCategory = Database['public']['Enums']['budget_category'];
 export type ImprestPosition = Database['public']['Functions']['get_imprest_position']['Returns'][number];
 export type ImprestPlanUsageRow = Database['public']['Functions']['get_imprest_plan_usage']['Returns'][number];
-export type ImprestPlanSplitRow = Tables<'imprest_plan_line_splits'>;
-export type ImprestEstimateRow = Database['public']['Functions']['get_imprest_estimate']['Returns'][number];
-export type ImprestEstimateTotal = Database['public']['Functions']['get_imprest_estimate_total']['Returns'][number];
 export type ImprestFloatChoice = Database['public']['Functions']['imprest_float_choices']['Returns'][number];
 
 export const LIST_LIMIT = 200;
@@ -85,33 +82,6 @@ export async function listPlanLines(planId: string): Promise<ImprestPlanLineRow[
   const { data, error } = await supabase.from('imprest_plan_lines').select('*').eq('plan_id', planId).order('budget_category');
   fail(error);
   return data ?? [];
-}
-/** The work-order splits of every line of one plan (cash-advance-estimate; bounded: one per line and work order of the float's project). */
-export async function listPlanSplits(planId: string): Promise<ImprestPlanSplitRow[]> {
-  const { data, error } = await supabase.from('imprest_plan_line_splits').select('*, line:imprest_plan_lines!inner(plan_id)')
-    .eq('line.plan_id', planId).order('created_at');
-  fail(error);
-  return (data ?? []).map(({ line: _line, ...split }) => split);
-}
-/** The estimate rows for 1-12 whole months (`from`/`to` are dates; any day means its month). A float the caller cannot see yields []. */
-export async function getEstimate(floatId: string, from: string, to: string): Promise<ImprestEstimateRow[]> {
-  const { data, error } = await supabase.rpc('get_imprest_estimate', { p_float: floatId, p_from: from, p_to: to });
-  fail(error);
-  return data ?? [];
-}
-export async function getEstimateTotal(floatId: string, from: string, to: string): Promise<ImprestEstimateTotal | null> {
-  const { data, error } = await supabase.rpc('get_imprest_estimate_total', { p_float: floatId, p_from: from, p_to: to });
-  fail(error);
-  return data?.[0] ?? null;
-}
-export async function saveLineSplit(lineId: string, workOrderId: string, amount: number): Promise<string> {
-  const { data, error } = await supabase.rpc('save_imprest_plan_line_split', { p_line: lineId, p_work_order: workOrderId, p_amount: amount });
-  fail(error);
-  return data;
-}
-export async function deleteLineSplit(splitId: string): Promise<void> {
-  const { error } = await supabase.rpc('delete_imprest_plan_line_split', { p_split: splitId });
-  fail(error);
 }
 export type ImprestReplenishmentWithRejecter = ImprestReplenishmentRow & { rejecter: { full_name: string } | null };
 export async function listReplenishments(floatId: string): Promise<Bounded<ImprestReplenishmentWithRejecter>> {

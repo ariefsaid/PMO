@@ -6,7 +6,7 @@ import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 
 /** Site imprest (#1515) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
-export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-float', 'imprest-position', 'imprest-plan-usage', 'imprest-estimate', 'imprest-plans',
+export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-float', 'imprest-position', 'imprest-plan-usage', 'imprest-plans',
   'imprest-replenishments', 'imprest-counts', 'imprest-float-choices', 'imprest-float-claims', 'imprest-limit', 'imprest-awaiting', 'imprest-float-changes', 'imprest-posting-states'] as const;
 
 
@@ -77,29 +77,6 @@ export function useImprestPlanLines(planId: string | undefined) {
     enabled: Boolean(orgId) && Boolean(planId),
   });
 }
-export function useImprestPlanSplits(planId: string | undefined, enabled = true) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['imprest-plans', orgId, 'splits', planId],
-    queryFn: () => repositories.imprest.listPlanSplits(planId as string),
-    enabled: enabled && Boolean(orgId) && Boolean(planId),
-  });
-}
-/** The estimate for `from`..`to` (whole months, any day of the month): rows by month, purpose and work order, and the advance needed. */
-export function useImprestEstimate(floatId: string | undefined, from: string, to: string) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['imprest-estimate', orgId, floatId, from, to],
-    queryFn: async () => {
-      const [rows, total] = await Promise.all([
-        repositories.imprest.getEstimate(floatId as string, from, to),
-        repositories.imprest.getEstimateTotal(floatId as string, from, to),
-      ]);
-      return { rows, total };
-    },
-    enabled: Boolean(orgId) && Boolean(floatId),
-  });
-}
 export function useImprestReplenishments(floatId: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
@@ -168,9 +145,6 @@ type Transition = Parameters<Repo['transitionReplenishment']>;
 export const useCreatePlan = () => useImprestMutation((a: { floatId: string; month: string }) => repositories.imprest.createPlan(a.floatId, a.month));
 export const useSavePlanLine = () => useImprestMutation((a: { planId: string; category: BudgetCategory; amount: number }) =>
   repositories.imprest.savePlanLine(a.planId, a.category, a.amount));
-export const useSaveLineSplit = () => useImprestMutation((a: { lineId: string; workOrderId: string; amount: number }) =>
-  repositories.imprest.saveLineSplit(a.lineId, a.workOrderId, a.amount));
-export const useDeleteLineSplit = () => useImprestMutation((splitId: string) => repositories.imprest.deleteLineSplit(splitId));
 export const useDeletePlanLine = () => useImprestMutation((lineId: string) => repositories.imprest.deletePlanLine(lineId));
 export const useSetProcurementLimit = () => useImprestMutation((amount: number) => repositories.imprest.setProcurementLimit(amount));
 export const useEstablishFloat = () => useImprestMutation((a: { projectId: string; custodianId: string; amount: number }) =>

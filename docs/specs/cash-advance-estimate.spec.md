@@ -1,6 +1,6 @@
 # Feature: Site cash estimate by purpose and work order, for a period
 
-> **Status:** Approved by the coordinator with the recommended answers to OQ-CAE-1..4 (phase 1); built in phase 2. Extends `docs/specs/site-imprest.spec.md` (#1515) and
+> **Status:** Draft for the Director (phase 1). Extends `docs/specs/site-imprest.spec.md` (#1515) and
 > `docs/specs/site-cash-work-order.spec.md` (#2732). Plan: `docs/plans/2026-11-22-cash-advance-estimate.md`.
 > **IDs:** `FR-CAE-###`, `AC-CAE-###`, `OQ-CAE-#`.
 
@@ -47,9 +47,8 @@ It is an **entered plan**, not a formula. The existing approved monthly plan sta
    unchanged.
 2. A read, `get_imprest_estimate(float, from_month, to_month)`, lists by month, purpose and work order what is planned
    and what is already drawn, and states the **advance needed**:
-   `max(0, still to spend over the period - cash in hand - top-up in flight)`, where still to spend is the sum of the
-   rows' `max(0, planned - drawn)` for months that have not ended (a line with no split is one row, so this is the
-   purpose's remaining; split lines add a row per work order and one for the unassigned part). No customer rule, no coefficient. A month with no plan is
+   `max(0, still to spend over the period - cash in hand - top-up in flight)`, where still to spend is, per plan line of
+   a month that has not ended, `max(0, planned - drawn)`. No customer rule, no coefficient. A month with no plan is
    shown as "no plan" and contributes nothing; the screen names who adds one.
 
 Plans counted: the live plan of each month (Approved, else Submitted), else the author's Draft marked "not yet
@@ -74,17 +73,16 @@ approved". Approval status is shown per month; the figure is advisory and caps n
   `get_imprest_position`), and shall refuse a period over 12 months or ending before it starts
   (`ICE_PERIOD`).
 - **FR-CAE-007** The float page shall show the estimate: period (this month through the last planned month, default),
-  a table by purpose with work-order rows beneath, the advance needed, and a "Request this advance" action (shown only to a viewer who may request a top-up) that opens
-  the existing top-up request (nothing is prefilled or sent by the estimate; a viewer who may not is told who does).
+  a table by purpose with work-order rows beneath, the advance needed, and a "Request top-up" action that opens
+  the existing top-up request (nothing is prefilled or sent by the estimate).
 - **FR-CAE-008** Where a month in the period has no plan, the screen shall say "No plan for {month}" and name who adds one
   (people with approval rank, the same set that may create plans).
 - **FR-CAE-009** The plan editor shall let the author split a line over work orders and show the unassigned remainder; a
   disabled split control says why (plan is not editable, or the project has no open work order).
 - **FR-CAE-010** Refusals above shall have an English and a Bahasa Indonesia sentence in the refusals catalogue saying
   what to do next.
-- **FR-CAE-011** Splits shall have row-level security: visible to whoever sees the plan; written only through the security-definer functions `save_imprest_plan_line_split` and `delete_imprest_plan_line_split`
-  (no client write grant), only by the plan's author while the plan is Draft or Rejected, refused to a light account;
-  `org_id` stamped from the line by trigger, never from the client.
+- **FR-CAE-011** Splits shall have row-level security: visible to whoever sees the plan; written only by the plan's author
+  while the plan is Draft or Rejected; `org_id` stamped from the line, never from the client.
 
 ## 5. Acceptance criteria
 

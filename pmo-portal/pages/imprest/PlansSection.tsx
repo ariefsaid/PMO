@@ -10,7 +10,6 @@ import {
 } from '@/src/hooks/useImprest';
 import { availablePlanActions, type ImprestAction } from '@/src/lib/imprest/imprestRules';
 import type { BudgetCategory, ImprestPlanRow } from '@/src/lib/db/imprest';
-import { LineSplits } from './LineSplits';
 import { cn } from '@/src/components/ui/cn';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -28,7 +27,7 @@ const nextMonth = (m: string): string => {
 const monthLabel = (m: string): string => formatMonthYearShort(m);
 
 /** Lines of one plan; editable only while the viewer authored it and it is Draft/Rejected (RLS decides; this hides). */
-const PlanLines: React.FC<{ plan: ImprestPlanRow; projectId: string; currency: string; editable: boolean }> = ({ plan, projectId, currency, editable }) => {
+const PlanLines: React.FC<{ plan: ImprestPlanRow; currency: string; editable: boolean }> = ({ plan, currency, editable }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const lines = useImprestPlanLines(plan.id);
@@ -46,12 +45,11 @@ const PlanLines: React.FC<{ plan: ImprestPlanRow; projectId: string; currency: s
     <div className="space-y-2">
       <ul className="divide-y divide-border text-sm">
         {(lines.data ?? []).map((l) => (
-          <li key={l.id} className="flex flex-wrap items-center gap-3 py-1.5">
+          <li key={l.id} className="flex items-center gap-3 py-1.5">
             <span className="flex-1">{budgetCategoryLabel(l.budget_category, t)}</span>
             <span className="tabular-nums">{formatCurrency(Number(l.planned_amount), currency)}</span>
             {editable && <Button variant="ghost" size="sm" aria-label={t('imprest:plan.removeLine', 'Remove {{category}}', { category: budgetCategoryLabel(l.budget_category, t) })}
               disabled={remove.isPending} onClick={() => void run(() => remove.mutateAsync(l.id))}>{t('imprest:plan.remove', 'Remove')}</Button>}
-            <LineSplits planId={plan.id} line={l} projectId={projectId} currency={currency} editable={editable} />
           </li>
         ))}
         {(lines.data ?? []).length === 0 && <li className="py-1.5 text-muted-foreground">{t('imprest:plan.noLines', 'No lines yet.')}</li>}
@@ -73,11 +71,11 @@ const PlanLines: React.FC<{ plan: ImprestPlanRow; projectId: string; currency: s
 };
 
 /** Monthly plans of one float (FR-IMP-071): create a Draft, edit lines, submit, and the approver's decision. */
-export const PlansSection: React.FC<{ floatId: string; projectId: string; custodianId: string; currency: string; currentMonth: string;
+export const PlansSection: React.FC<{ floatId: string; custodianId: string; currency: string; currentMonth: string;
   /** This month's approved-plan usage (the table, or the one-line empty state), shown at the top of the panel. */
   usage?: React.ReactNode;
   /** The usage block already says there is no plan: do not say it twice below it. */
-  usageEmpty?: boolean }> = ({ floatId, projectId, custodianId, currency, currentMonth, usage, usageEmpty = false }) => {
+  usageEmpty?: boolean }> = ({ floatId, custodianId, currency, currentMonth, usage, usageEmpty = false }) => {
   const { t } = useTranslation();
   // Phone: three buttons fill the row's line in Bahasa (the group then starts near the text edge), so Cancel moves into the row's ⋯ menu.
   const isNarrow = useIsNarrow();
@@ -159,7 +157,7 @@ export const PlansSection: React.FC<{ floatId: string; projectId: string; custod
                     </div>
                   </div>
                   {plan.decision_notes && plan.status === 'Rejected' && <p role="note" className="mt-1 text-muted-foreground">{t('imprest:plan.rejectionNote', 'Rejected: {{note}}', { note: plan.decision_notes })}</p>}
-                  {open === plan.id && <div className="mt-2 border-t border-border pt-2"><PlanLines plan={plan} projectId={projectId} currency={currency} editable={editable} /></div>}
+                  {open === plan.id && <div className="mt-2 border-t border-border pt-2"><PlanLines plan={plan} currency={currency} editable={editable} /></div>}
                 </li>
               );
             })}

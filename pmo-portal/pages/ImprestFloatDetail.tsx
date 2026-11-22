@@ -19,7 +19,6 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatMonthYearShort, parseMoneyInputAtScale } from '@/src/lib/format';
 import { PlansSection } from './imprest/PlansSection';
-import { EstimateSection } from './imprest/EstimateSection';
 import { FloatAmountSection } from './imprest/FloatAmountSection';
 import { CashAccountSection } from './imprest/CashAccountSection';
 
@@ -232,7 +231,7 @@ const ImprestFloatDetail: React.FC = () => {
         </RecordSection>
       )}
 
-      <PlansSection floatId={flt.id} projectId={flt.project_id} custodianId={flt.custodian_id} currency={cur} currentMonth={pos?.month ?? new Date().toISOString().slice(0, 7) + '-01'}
+      <PlansSection floatId={flt.id} custodianId={flt.custodian_id} currency={cur} currentMonth={pos?.month ?? new Date().toISOString().slice(0, 7) + '-01'}
         usageEmpty={planLines.length === 0}
         usage={pos ? (
           <div data-testid="month-plan-usage">
@@ -243,9 +242,6 @@ const ImprestFloatDetail: React.FC = () => {
                 tableId="imprest-plan-usage" />}
           </div>
         ) : undefined} />
-
-      <EstimateSection floatId={flt.id} projectId={flt.project_id} currency={cur} currentMonth={pos?.month ?? new Date().toISOString().slice(0, 7) + '-01'}
-        canRequestTopUp={floatActions.includes('requestReplenishment')} onRequestTopUp={() => setDialog({ kind: 'request', as: 'replenishment' })} />
 
       <FloatAmountSection floatId={flt.id} custodianId={flt.custodian_id} currency={cur} />
 
