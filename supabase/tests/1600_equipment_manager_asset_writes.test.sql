@@ -4,7 +4,7 @@
 -- back to allow a reason, or drop 'Project Manager' from equipment_can_edit_terms, and the matching assertion turns red; restore.
 begin;
 create extension if not exists pgtap;
-select plan(22);
+select plan(19);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('16000000-0000-0000-0000-00000000000a', 'EMW Org A', 'IDR', 'UTC'),

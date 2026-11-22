@@ -2,58 +2,17 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListPage, ListState, SelectField, TextField,
-  useEntityForm, useToast, type Column, type SubmitError,
+  Button, ConfirmDialog, DataTable, Icon, ListPage, ListState, useToast, type Column,
 } from '@/src/components/ui';
+import { AssetFormModal } from './AssetFormModal';
 import { EquipmentAssetImport } from './EquipmentAssetImport';
 import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useCreateAsset, useDeleteAsset, useEquipmentAssetPages, useUpdateAsset } from '@/src/hooks/useEquipment';
+import { useDeleteAsset, useEquipmentAssetPages, useUpdateAsset } from '@/src/hooks/useEquipment';
 import { LIST_LIMIT, type EquipmentAssetRow } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { unitLabel } from './equipmentLabels';
 import { VendorResponseSummaryCard } from './VendorResponseSummary';
-
-const NewAssetModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { t } = useTranslation();
-  const { toast } = useToast();
-  const create = useCreateAsset();
-  const [submitError, setSubmitError] = useState<SubmitError | null>(null);
-  const form = useEntityForm({
-    initialValues: { code: '', name: '', unit: 'hours' },
-    idPrefix: 'equipment-asset',
-    requiredFields: ['code', 'name'],
-    validate: () => ({}),
-  });
-  const code = form.fieldProps('code');
-  const name = form.fieldProps('name');
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitError(null);
-    void form.handleSubmit(async (v) => {
-      try {
-        await create.mutateAsync({ code: v.code.trim(), name: v.name.trim(), default_unit: v.unit as 'hours' | 'days' });
-        toast(t('equipment:assets.created', 'Asset created'), undefined, 'success');
-        onClose();
-      } catch (err) {
-        const c = classifyMutationError(err);
-        setSubmitError({ headline: c.headline, detail: c.detail });
-      }
-    });
-  };
-  return (
-    <EntityFormModal open title={t('equipment:assets.newTitle', 'New equipment asset')}
-      submitLabel={t('equipment:assets.create', 'Create asset')} onSubmit={submit} onClose={onClose}
-      loading={form.isSubmitting} dirty={form.isDirty} submitDisabled={!form.isComplete} submitError={submitError}>
-      <FormGrid>
-        <TextField label={t('equipment:assets.code', 'Code')} required code {...code} />
-        <TextField label={t('equipment:assets.name', 'Name')} required {...name} />
-        <SelectField label={t('equipment:assets.unit', 'Default unit')} value={form.values.unit} onChange={(v) => form.setValue('unit', v)}
-          options={[{ value: 'hours', label: t('equipment:unit.hours', 'hours') }, { value: 'days', label: t('equipment:unit.days', 'days') }]} />
-      </FormGrid>
-    </EntityFormModal>
-  );
-};
 
 type Pending = { kind: 'archive' | 'delete'; asset: EquipmentAssetRow } | null;
 
@@ -69,6 +28,7 @@ const EquipmentAssetsPage: React.FC = () => {
   const update = useUpdateAsset();
   const del = useDeleteAsset();
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<EquipmentAssetRow | null>(null);
   const [pending, setPending] = useState<Pending>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const pages = data?.pages ?? [];
@@ -126,6 +86,7 @@ const EquipmentAssetsPage: React.FC = () => {
             rowHref={(a) => `/equipment/assets/${a.id}`}
             rowLabel={(a) => t('equipment:assets.rowLabel', 'Open {{name}}', { name: a.name })}
             rowMenu={(a) => [
+              ...(may('edit', 'equipmentAsset', writeCtx) ? [{ label: t('equipment:assets.edit', 'Edit'), onClick: () => setEditing(a) }] : []),
               ...(may('edit', 'equipmentAsset', writeCtx) ? [{ label: t('equipment:assets.archive', 'Archive'), onClick: () => setPending({ kind: 'archive', asset: a }) }] : []),
               ...(may('delete', 'equipmentAsset', writeCtx) ? [{ label: t('equipment:assets.delete', 'Delete'), danger: true, onClick: () => setPending({ kind: 'delete', asset: a }) }] : []),
             ]}
@@ -144,7 +105,8 @@ const EquipmentAssetsPage: React.FC = () => {
           <VendorResponseSummaryCard assets={rows} />
         </>
       )}
-      {creating && <NewAssetModal onClose={() => setCreating(false)} />}
+      {creating && <AssetFormModal onClose={() => setCreating(false)} />}
+      {editing && <AssetFormModal asset={editing} onClose={() => setEditing(null)} />}
       <ConfirmDialog open={pending !== null} tone={pending?.kind === 'delete' ? 'destructive' : 'default'}
         title={pending?.kind === 'delete' ? t('equipment:assets.deleteTitle', 'Delete this asset?') : t('equipment:assets.archiveTitle', 'Archive this asset?')}
         description={pending?.kind === 'delete'
