@@ -9,6 +9,7 @@ import {
   ImportParseError,
   IMPORT_SKIPPED,
   type ImportDescriptor,
+  type ImportField,
   type ImportResult,
   type Mapping,
   type ParsedSheet,
@@ -60,6 +61,17 @@ export interface UseImportWizard {
  * best-effort) flow. The commit iterates the VALID rows sequentially (not Promise.all — a
  * gentle, honest progress), try/catching each so a per-row failure never aborts the run.
  */
+/** True when the sheet is exactly the template: every field's header is the template's own column name (its label, not an old name
+ *  or an alias) and no column is left over. Such a file has nothing to match, so the wizard goes straight to the preview (the
+ *  person can still go Back to the matching). */
+export function isTemplateMatch<Input>(headers: string[], fields: ImportField<Input>[], mapping: Mapping): boolean {
+  const norm = (v: string) => v.toLowerCase().replace(/\s+/g, ' ').trim();
+  const used = fields.map((f) => mapping[f.key]);
+  if (used.some((i) => i === null || i === undefined)) return false;
+  if (new Set(used).size !== headers.length || headers.length !== fields.length) return false;
+  return fields.every((f) => norm(headers[mapping[f.key] as number]) === norm(f.label));
+}
+
 export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): UseImportWizard {
   const [step, setStep] = useState<WizardStep>('upload');
   const [fileName, setFileName] = useState<string | null>(null);
@@ -115,6 +127,18 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     setExisting(null);
   }, []);
 
+  const openPreview = useCallback(() => {
+    setStep('preview');
+    if (!existingKeys) return;
+    // Read once per opening of the preview; a failed read leaves the insert-time skip to decide, never blocks.
+    const generation = ++existingGeneration.current;
+    setExisting(null);
+    void existingKeys.load().then(
+      (keys) => { if (generation === existingGeneration.current) setExisting({ status: 'ready', keys: new Set(keys) }); },
+      () => { if (generation === existingGeneration.current) setExisting({ status: 'failed', keys: new Set() }); },
+    );
+  }, [existingKeys]);
+
   const selectFile = useCallback(
     async (file: File) => {
       const generation = ++parseGeneration.current;
@@ -130,8 +154,10 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
         }
         setParsed(sheet);
         setFileName(file.name);
-        setMapping(autoMap(sheet.headers, descriptor.fields));
-        setStep('mapping');
+        const mapped = autoMap(sheet.headers, descriptor.fields);
+        setMapping(mapped);
+        if (isTemplateMatch(sheet.headers, descriptor.fields, mapped)) openPreview();
+        else setStep('mapping');
       } catch (err) {
         if (generation !== parseGeneration.current) return;
         // Typed parse rejections (bad/empty/oversized) surface their message; anything
@@ -145,7 +171,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
         if (generation === parseGeneration.current) setParsing(false);
       }
     },
-    [descriptor],
+    [descriptor, openPreview],
   );
 
   const selectPaste = useCallback(
@@ -156,14 +182,16 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
         const sheet = parsePastedRows(text, descriptor.maxRows);
         setParsed(sheet);
         setFileName(null);
-        setMapping(autoMap(sheet.headers, descriptor.fields));
-        setStep('mapping');
+        const mapped = autoMap(sheet.headers, descriptor.fields);
+        setMapping(mapped);
+        if (isTemplateMatch(sheet.headers, descriptor.fields, mapped)) openPreview();
+        else setStep('mapping');
       } catch (err) {
         setParsed(null);
         setParseError(err instanceof ImportParseError ? err.message : 'Could not read the pasted rows.');
       }
     },
-    [descriptor.fields, descriptor.maxRows],
+    [descriptor.fields, descriptor.maxRows, openPreview],
   );
 
   const setFieldMapping = useCallback((fieldKey: string, headerIndex: number | null) => {
@@ -172,16 +200,8 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
 
   const goPreview = useCallback(() => {
     if (!allRequiredMapped) return;
-    setStep('preview');
-    if (!existingKeys) return;
-    // Read once per opening of the preview; a failed read leaves the insert-time skip to decide, never blocks.
-    const generation = ++existingGeneration.current;
-    setExisting(null);
-    void existingKeys.load().then(
-      (keys) => { if (generation === existingGeneration.current) setExisting({ status: 'ready', keys: new Set(keys) }); },
-      () => { if (generation === existingGeneration.current) setExisting({ status: 'failed', keys: new Set() }); },
-    );
-  }, [allRequiredMapped, existingKeys]);
+    openPreview();
+  }, [allRequiredMapped, openPreview]);
 
   const back = useCallback(() => {
     parseGeneration.current++;
