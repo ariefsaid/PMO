@@ -20,7 +20,7 @@ export function makePeopleImportDescriptor(existingCodes: () => Promise<Iterable
     entityDisplay: L('import:entity.people', 'people'),
     entityDisplayOne: L('import:entity.person', 'person'),
     rowTitle: (c) => [c.code, c.name].map((v) => (v ?? '').trim()).filter(Boolean).join(' · '),
-    template: { version: 1, example: { code: 'E-0001', name: 'Sample Person' } },
+    template: { version: 1, example: { code: 'E-0001', name: L('import:people.exampleName', 'Sample Person') } },
     fields: [
       F('code', 'Employee code', 'Kode karyawan', requiredText(L('import:people.error.code', 'Employee code is required.'), 40, L('import:people.error.codeLong', 'Employee code is too long.')), L('import:people.codeHint', 'Your own code for the person. Each code is used once.')),
       F('name', 'Display name', 'Nama tampilan', requiredText(L('import:people.error.name', 'Display name is required.'), 120, L('import:people.error.nameLong', 'Display name is too long.'))),

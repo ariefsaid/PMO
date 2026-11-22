@@ -23,7 +23,7 @@ export function makeStockItemImportDescriptor(
     entityDisplay: L('import:entity.stockItems', 'stock items'),
     entityDisplayOne: L('import:entity.stockItem', 'stock item'),
     rowTitle: (c) => [c.code, c.name].map((v) => (v ?? '').trim()).filter(Boolean).join(' · '),
-    template: { version: 1, example: { code: 'CEM-50', name: 'Cement 50 kg bag', description: '', unit: units[0]?.code ?? 'EA', leadTimeDays: '7' }, lists: { unit: units.map((u) => u.code) } },
+    template: { version: 1, example: { code: 'CEM-50', name: L('import:stockItem.exampleName', 'Cement 50 kg bag'), description: L('import:stockItem.exampleDescription', ''), unit: units[0]?.code ?? 'EA', leadTimeDays: '7' }, lists: { unit: units.map((u) => u.code) } },
     fields: [
       F('code', 'Item code', 'Kode item', true, requiredText(L('import:stockItem.error.code', 'Item code is required.'), 40, L('import:stockItem.error.codeLong', 'Item code is too long.')), { inRowTitle: true, hint: L('import:stockItem.codeHint', 'Your own code for the item. Each code is used once.') }),
       F('name', 'Name', 'Nama', true, requiredText(L('import:stockItem.error.name', 'Name is required.'), 200, L('import:stockItem.error.nameLong', 'Name is too long.')), { inRowTitle: true }),
@@ -59,7 +59,7 @@ export function makeStockLocationImportDescriptor(
     entityDisplay: L('import:entity.stockLocations', 'stock locations'),
     entityDisplayOne: L('import:entity.stockLocation', 'stock location'),
     rowTitle: (c) => [c.code, c.name].map((v) => (v ?? '').trim()).filter(Boolean).join(' · '),
-    template: { version: 1, example: { code: 'YARD-1', name: 'North yard', kind: 'yard', project: projects[0]?.name ?? '' }, lists: { kind: [...KINDS], ...(projects.length <= 200 ? { project: projects.map((p) => p.name) } : {}) } },
+    template: { version: 1, example: { code: 'YARD-1', name: L('import:stockLocation.exampleName', 'North yard'), kind: 'yard', project: projects[0]?.name ?? '' }, lists: { kind: [...KINDS], ...(projects.length <= 200 ? { project: projects.map((p) => p.name) } : {}) } },
     fields: [
       F('code', 'Location code', 'Kode lokasi', true, requiredText(L('import:stockLocation.error.code', 'Location code is required.'), 40, L('import:stockLocation.error.codeLong', 'Location code is too long.')), { inRowTitle: true }),
       F('name', 'Name', 'Nama', true, requiredText(L('import:stockLocation.error.name', 'Name is required.'), 200, L('import:stockLocation.error.nameLong', 'Name is too long.')), { inRowTitle: true }),

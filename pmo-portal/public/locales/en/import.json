@@ -224,6 +224,8 @@
     "description": "Description",
     "unit": "Unit",
     "leadTimeDays": "Lead time (days)",
+    "exampleName": "Cement 50 kg bag",
+    "exampleDescription": "",
     "codeHint": "Your own code for the item. Each code is used once.",
     "unitHint": "The code of an existing unit of measure.",
     "alreadyThere": "This item code already exists.",
@@ -240,6 +242,7 @@
     "name": "Name",
     "kind": "Kind",
     "project": "Project",
+    "exampleName": "North yard",
     "projectHint": "Required for site, yard and staging; leave blank for central.",
     "alreadyThere": "This location code already exists.",
     "error": {
@@ -288,6 +291,7 @@
   "people": {
     "code": "Employee code",
     "name": "Display name",
+    "exampleName": "Sample Person",
     "codeHint": "Your own code for the person. Each code is used once.",
     "alreadyThere": "This employee code already exists.",
     "error": {
