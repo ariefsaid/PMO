@@ -11449,6 +11449,136 @@ export type Database = {
           },
         ]
       }
+      manpower_need_people: {
+        Row: {
+          id: string
+          linked_at: string
+          linked_by: string | null
+          need_id: string
+          org_id: string
+          person_id: string
+        }
+        Insert: {
+          id?: string
+          linked_at?: string
+          linked_by?: string | null
+          need_id: string
+          org_id?: string
+          person_id: string
+        }
+        Update: {
+          id?: string
+          linked_at?: string
+          linked_by?: string | null
+          need_id?: string
+          org_id?: string
+          person_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manpower_need_people_need_id_fkey"
+            columns: ["need_id"]
+            isOneToOne: false
+            referencedRelation: "manpower_needs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manpower_need_people_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manpower_need_people_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      manpower_needs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          crew_id: string | null
+          discipline_id: string
+          headcount: number
+          id: string
+          needed_by: string
+          note: string | null
+          org_id: string
+          project_id: string
+          status: string
+          work_order_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          crew_id?: string | null
+          discipline_id: string
+          headcount: number
+          id?: string
+          needed_by: string
+          note?: string | null
+          org_id?: string
+          project_id: string
+          status?: string
+          work_order_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          crew_id?: string | null
+          discipline_id?: string
+          headcount?: number
+          id?: string
+          needed_by?: string
+          note?: string | null
+          org_id?: string
+          project_id?: string
+          status?: string
+          work_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manpower_needs_crew_id_fkey"
+            columns: ["crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manpower_needs_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manpower_needs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manpower_needs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manpower_needs_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       material_request_events: {
         Row: {
           acted_for: string | null
@@ -31893,6 +32023,18 @@ export type Database = {
           work_orders_without_progress: number
         }[]
       }
+      manpower_can_manage: { Args: never; Returns: boolean }
+      manpower_need_progress: {
+        Args: never
+        Returns: {
+          asked: number
+          filled: number
+          in_progress: number
+          linked: number
+          need_id: string
+          open_count: number
+        }[]
+      }
       mark_erp_full_sweep_done: {
         Args: { p_holder: string; p_org_id: string }
         Returns: boolean
@@ -32216,6 +32358,15 @@ export type Database = {
         }[]
       }
       my_home: { Args: never; Returns: Json }
+      my_manpower_to_fill: {
+        Args: never
+        Returns: {
+          need_id: string
+          needed_by: string
+          open_count: number
+          project_id: string
+        }[]
+      }
       my_waiting_billing_steps: {
         Args: never
         Returns: {

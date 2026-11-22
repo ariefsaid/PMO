@@ -1,0 +1,6 @@
+# 1740: the database answer to "may this person write manpower needs", read by the screen.
+manpower_can_manage
+# 1741: counts per need for callers who can read the need.
+manpower_need_progress
+# 1742: the needs-you pointer for the people who fill needs.
+my_manpower_to_fill

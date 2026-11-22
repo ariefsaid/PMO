@@ -132,9 +132,10 @@
   "tabs": {
     "attendance": "Attendance",
     "crews": "Crews",
+    "manpower": "Manpower",
+    "rate": "Rate",
     "roster": "Roster",
-    "tools": "Tools",
-    "rate": "Rate"
+    "tools": "Tools"
   },
   "tabsLabel": "Crew views",
   "tickErrors": {
@@ -283,5 +284,54 @@
   "addFollowerNone": "Nobody else is placed in a crew today.",
   "addFollowerHint": "For someone who joined this crew today without a loan. Their hours are recorded here.",
   "followedFrom": "Followed from {{crew}}",
-  "followedToday": "Followed this crew today"
+  "followedToday": "Followed this crew today",
+  "manpower": {
+    "title": "Manpower needs",
+    "new": "Record a need",
+    "newTitle": "Record a manpower need",
+    "save": "Record need",
+    "saved": "Need recorded",
+    "project": "Project",
+    "chooseProject": "Choose a project",
+    "position": "Position",
+    "choosePosition": "Choose a position",
+    "noPositions": "No positions yet. An Admin adds them on the Cost disciplines screen.",
+    "headcountRange": "Enter a whole number from 1 to 500",
+    "neededBy": "Needed by",
+    "neededByOn": "Needed by {{date}}",
+    "workOrderNeedsProject": "Choose a project first.",
+    "noWorkOrder": "Whole project",
+    "crew": "Crew",
+    "noCrew": "Any crew",
+    "note": "Note",
+    "asked": "Asked",
+    "filled": "Filled",
+    "inProgress": "In progress",
+    "open": "Open",
+    "progressLabel": "{{filled}} of {{asked}} filled",
+    "people": "People linked",
+    "unlinkNamed": "Unlink {{name}}",
+    "unlinked": "Person unlinked",
+    "linkPerson": "Link a person",
+    "linked": "Person linked",
+    "allLinked": "All places have a person. Raise the head count to link more.",
+    "markMet": "Mark as met",
+    "markMetWhy": "Available once every place has a cleared person.",
+    "markedMet": "Marked as met",
+    "cancel": "Cancel need",
+    "cancelTitle": "Cancel this need?",
+    "cancelBody": "The people linked stay on record. You can reopen the need later.",
+    "cancelled": "Need cancelled",
+    "reopen": "Reopen",
+    "reopened": "Need reopened",
+    "error": "Couldn't load manpower needs",
+    "empty": "No manpower needs yet",
+    "emptyWriter": "Record the positions a site needs and by when.",
+    "emptyReader": "A project manager or the people team records the positions a site needs.",
+    "status": {
+      "open": "Open",
+      "met": "Met",
+      "cancelled": "Cancelled"
+    }
+  }
 }

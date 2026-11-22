@@ -282,6 +282,8 @@ in at most one crew on any day. A correction is versioned and audited and never 
 
 **Roster (crew)** — which crews serve a work order on which dates; a crew serves one work order on any day.
 
+**Manpower need** (*kebutuhan tenaga kerja*) — a position and head count a project needs by a date, optionally for one work order and crew, with the people proposed linked to it. Its position comes from the organisation's Cost disciplines list. Progress is read, never typed: **asked** is the head count, **filled** counts linked people the cleared-for-site checklist says are cleared, **in progress** counts linked people not yet cleared, **open** is the places with no person linked. A need is open, met or cancelled; a person with the crew authority or the HR capability records and changes needs, everyone else reads.
+
 **Crew loan** — a worker lent from their home crew to a host crew for an inclusive date range (#2704). On those days the
 worker is on the host crew's roster and not the home crew's, and attendance lands on the host crew's work order; hours
 already submitted or approved never move. A worker has at most one loan on any day.
