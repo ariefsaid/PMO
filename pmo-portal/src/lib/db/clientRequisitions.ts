@@ -104,7 +104,6 @@ export function clientRequisitionRefusal(err: unknown): ParsedRefusal {
 
 // ── reads ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
-type DbResult<T> = PromiseLike<{ data: T | null; error: { message: string; code?: string } | null }>;
 const fail = (error: { message: string; code?: string }): never => { throw new AppError(error.message, error.code); };
 
 /** Bounded reads: one work order carries few requisitions; these caps are far above any real figure. */
@@ -123,7 +122,7 @@ export async function getWorkOrderClientMaterial(workOrderId: string): Promise<W
   const reqRes = await (supabase.from('client_requisitions')
     .select('id, number, work_order_id, project_id, client_reference, status, created_by, created_at, sent_at')
     .eq('work_order_id', workOrderId).order('created_at', { ascending: false }).order('id', { ascending: false })
-    .limit(REQUISITION_LIMIT) as unknown as DbResult<Array<Record<string, unknown>>>);
+    .limit(REQUISITION_LIMIT));
   if (reqRes.error) fail(reqRes.error);
   const requisitions = (reqRes.data ?? []).map((r): ClientRequisitionRow => ({
     id: String(r.id), number: String(r.number), workOrderId: String(r.work_order_id), projectId: String(r.project_id),
@@ -136,11 +135,11 @@ export async function getWorkOrderClientMaterial(workOrderId: string): Promise<W
     supabase.rpc('csr_work_order_rollup', { p_work_order_id: workOrderId }),
     supabase.from('client_requisition_events')
       .select('id, requisition_id, line_id, kind, quantity, client_reference, event_on, reason, recorded_by, created_at')
-      .in('requisition_id', ids).order('seq', { ascending: true }).limit(EVENT_LIMIT) as unknown as DbResult<Array<Record<string, unknown>>>,
+      .in('requisition_id', ids).order('seq', { ascending: true }).limit(EVENT_LIMIT),
     supabase.from('client_requisition_pickups')
       .select('id, requisition_id, line_id, quantity, picked_up_on, collector, paper_reference, warehouse_id, stock_document_id')
       .in('requisition_id', ids).order('picked_up_on', { ascending: true }).order('created_at', { ascending: true })
-      .limit(EVENT_LIMIT) as unknown as DbResult<Array<Record<string, unknown>>>,
+      .limit(EVENT_LIMIT),
   ]);
   for (const r of [rollup, events, pickups]) if (r.error) fail(r.error);
   return {

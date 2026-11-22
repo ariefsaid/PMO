@@ -4,6 +4,7 @@ import { toStorageAppError } from '@/src/lib/storageError';
 import { sanitizeFilename } from '@/src/lib/storageKey';
 import { SIGNED_URL_EXPIRY_SECONDS } from '@/src/lib/fileConstants';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { nullableArg } from './nullableArg';
 
 /**
  * Third-party inspections (#2580, migrations 1130-1134). One row per external test of a work order. Every write is an RPC
@@ -11,6 +12,9 @@ import type { Tables } from '@/src/lib/supabase/database.types';
  * returns null amounts to a caller outside Admin/Executive/Finance/Project Manager (server-side), so the screen is not the fence.
  */
 export type InspectionRow = Tables<'third_party_inspections'>;
+/** What the list read returns: the planning estimate and its currency are not client-readable (money roles read them
+ * through `tpi_costs`), so the projection is the row without them rather than a full `InspectionRow`. */
+export type InspectionListRow = Omit<InspectionRow, 'estimate' | 'estimate_currency'>;
 export type InspectionFileRow = Tables<'third_party_inspection_files'>;
 export type InspectionStatus = 'requested' | 'purchase_raised' | 'invited' | 'executed' | 'reported' | 'cancelled';
 export type InspectionResult = 'pending' | 'pass' | 'fail' | 'conditional';
@@ -92,7 +96,7 @@ const COLUMNS = 'id, org_id, work_order_id, project_id, title, test_kind, planne
 const LIST_LIMIT = 200;
 
 /** The inspections of one work order, oldest first. RLS scopes rows to the caller's organisation. */
-export async function listWorkOrderInspections(workOrderId: string): Promise<InspectionRow[]> {
+export async function listWorkOrderInspections(workOrderId: string): Promise<InspectionListRow[]> {
   const { data, error } = await supabase
     .from('third_party_inspections')
     .select(COLUMNS)
@@ -100,7 +104,7 @@ export async function listWorkOrderInspections(workOrderId: string): Promise<Ins
     .order('created_at', { ascending: true })
     .limit(LIST_LIMIT);
   if (error) throw new AppError(error.message, error.code);
-  return (data ?? []) as unknown as InspectionRow[];
+  return data ?? [];
 }
 
 export async function getInspectionCosts(workOrderId: string): Promise<InspectionCostRow[]> {
@@ -111,9 +115,11 @@ export async function getInspectionCosts(workOrderId: string): Promise<Inspectio
 
 export async function getInspectionPrerequisites(workOrderId: string, gate: InspectionGate): Promise<InspectionPrerequisites> {
   const { data, error } = await supabase.rpc('work_order_inspection_prerequisites', {
-    p_work_order_id: workOrderId, p_section_id: null, p_gate: gate,
+    p_work_order_id: workOrderId, p_section_id: nullableArg(null as string | null), p_gate: gate,
   });
   if (error) throw new AppError(error.message, error.code);
+  // `work_order_inspection_prerequisites` is declared `returns jsonb`, so the generated type is `Json` and the
+  // shape below is stated here, not by the compiler (see scripts/check-typed-dals.mjs).
   return data as unknown as InspectionPrerequisites;
 }
 
@@ -125,17 +131,18 @@ async function call<T>(p: PromiseLike<{ data: T | null; error: { message: string
 
 export async function createInspection(input: InspectionInput): Promise<string> {
   const id = await call(supabase.rpc('tpi_create', {
-    p_work_order_id: input.workOrderId, p_title: input.title, p_test_kind: input.testKind, p_planned_date: input.plannedDate,
-    p_vendor_id: input.vendorId, p_estimate: input.estimate, p_estimate_currency: input.estimateCurrency,
-    p_note: input.note, p_required_for: input.requiredFor,
+    p_work_order_id: input.workOrderId, p_title: input.title, p_test_kind: nullableArg(input.testKind),
+    p_planned_date: input.plannedDate, p_vendor_id: nullableArg(input.vendorId),
+    p_estimate: nullableArg(input.estimate), p_estimate_currency: nullableArg(input.estimateCurrency),
+    p_note: nullableArg(input.note), p_required_for: input.requiredFor,
   }));
   return id as string;
 }
 
 export const raiseInspectionPurchase = (id: string, procurementId?: string | null) =>
-  call(supabase.rpc('tpi_raise_purchase', { p_id: id, p_procurement_id: procurementId ?? null })).then((v) => v as string);
+  call(supabase.rpc('tpi_raise_purchase', { p_id: id, p_procurement_id: nullableArg(procurementId ?? null) })).then((v) => v as string);
 export const recordInspectionInvitation = (id: string, on: string, who: string | null, how: string | null) =>
-  call(supabase.rpc('tpi_record_invitation', { p_id: id, p_invited_on: on, p_invited_who: who, p_invited_how: how })).then(() => undefined);
+  call(supabase.rpc('tpi_record_invitation', { p_id: id, p_invited_on: on, p_invited_who: nullableArg(who), p_invited_how: nullableArg(how) })).then(() => undefined);
 export const recordInspectionExecution = (id: string, on: string) =>
   call(supabase.rpc('tpi_record_execution', { p_id: id, p_executed_on: on })).then(() => undefined);
 export const recordInspectionReport = (id: string, result: InspectionResult) =>

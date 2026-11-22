@@ -11,6 +11,7 @@ const item: BoqItemRow = {
   id: 'boq-1', org_id: 'org-1', project_id: 'project-1', earning_basis: 'unit_rate',
   line_no: null, import_key: null, item_code: 'SURVEY', description: 'Survey route',
   unit: 'km', quantity: 100, rate: 500, created_at: '',
+  catalogue_item_id: null, catalogue_variant_id: null, catalogue_priced_as_of: null, discipline_id: null,
 };
 const allocation: WorkOrderLineRow = {
   id: 'line-1', org_id: 'org-1', work_order_id: 'wo-1', boq_item_id: 'boq-1', quantity: 10, created_at: '',

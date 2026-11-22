@@ -14,15 +14,16 @@ import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { EXPIRY_ATTACHMENT_ACCEPT, type ExpiryDocumentRow, type SubjectKind } from '@/src/lib/db/documentExpiry';
+import type { Tables } from '@/src/lib/supabase/database.types';
 
-interface FormValues {
-  type_id: string;
-  number: string;
-  issued_on: string;
-  expires_on: string;
-  location_note: string;
-  medical_status: string;
-}
+type ExpiryDocumentTableRow = Tables<'expiry_documents'>;
+/**
+ * Form state, not a row: a controlled input holds '' for "empty", never null, and it is converted at submit. Derived from
+ * the table so a renamed column still fails typecheck.
+ */
+type FormValues = {
+  [K in 'type_id' | 'number' | 'issued_on' | 'expires_on' | 'location_note' | 'medical_status']: NonNullable<ExpiryDocumentTableRow[K]>;
+};
 
 const empty = (d?: ExpiryDocumentRow): FormValues => ({
   type_id: d?.type_id ?? '', number: d?.number ?? '', issued_on: d?.issued_on ?? '', expires_on: d?.expires_on ?? '',

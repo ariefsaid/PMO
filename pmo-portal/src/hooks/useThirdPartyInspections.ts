@@ -3,12 +3,12 @@ import { useOrgId } from '@/src/hooks/useOrgId';
 import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import { repositories } from '@/src/lib/repositories';
 import type {
-  InspectionRow, InspectionFileRow, InspectionInput, InspectionResult, InspectionCostRow,
+  InspectionRow, InspectionListRow, InspectionFileRow, InspectionInput, InspectionResult, InspectionCostRow,
 } from '@/src/lib/db/thirdPartyInspections';
 
 /** #2580: the inspections of one work order, their cost read (server-fenced) and the step writes over the repository seam. */
 export function useWorkOrderInspections(workOrderId: string | null | undefined) {
-  return useOrgQuery<InspectionRow[]>(['third-party-inspections', workOrderId], () => repositories.thirdPartyInspection.listForWorkOrder(workOrderId as string), { enabled: Boolean(workOrderId) });
+  return useOrgQuery<InspectionListRow[]>(['third-party-inspections', workOrderId], () => repositories.thirdPartyInspection.listForWorkOrder(workOrderId as string), { enabled: Boolean(workOrderId) });
 }
 
 export function useInspectionCosts(workOrderId: string | null | undefined) {

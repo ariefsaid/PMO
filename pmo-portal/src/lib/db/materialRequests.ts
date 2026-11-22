@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import type { Json } from '@/src/lib/supabase/database.types';
 import type { Role } from '@/src/auth/AuthContext';
@@ -394,10 +395,10 @@ const toLinesJson = (lines: MaterialRequestLineInput[]): Json =>
 /** FR-MRQ-001/004: create (id null) or edit a draft; a replayed create with the same client id returns the first. */
 export async function saveMaterialRequestDraft(id: string | null, header: MaterialRequestHeader, lines: MaterialRequestLineInput[], clientRequestId?: string): Promise<string> {
   const { data, error } = await supabase.rpc('mrq_save_draft', {
-    p_request_id: id,
-    p_header: { work_order_id: header.workOrderId, needed_by: header.neededBy, to_warehouse_id: header.toWarehouseId, note: header.note, ...(header.sectionId ? { section_id: header.sectionId } : {}) },
+    p_request_id: nullableArg(id),
+    p_header: { work_order_id: header.workOrderId, needed_by: nullableArg(header.neededBy), to_warehouse_id: nullableArg(header.toWarehouseId), note: nullableArg(header.note), ...(header.sectionId ? { section_id: header.sectionId } : {}) },
     p_lines: toLinesJson(lines),
-    p_client_request_id: clientRequestId,
+    p_client_request_id: nullableArg(clientRequestId ?? null),
   });
   if (error) fail(error);
   return String(data);
@@ -413,7 +414,7 @@ export async function decideMaterialRequestStep(
 ): Promise<void> {
   const { error } = await supabase.rpc('mrq_decide_step', {
     p_request_id: id, p_step_position: stepPosition, p_decision: decision,
-    p_reason: opts.reason ?? null, p_source_warehouse_id: opts.sourceWarehouseId ?? null,
+    p_reason: nullableArg(opts.reason ?? null), p_source_warehouse_id: nullableArg(opts.sourceWarehouseId ?? null),
   });
   if (error) fail(error);
 }
@@ -449,7 +450,7 @@ export async function setApproverInboxSetting(on: boolean): Promise<void> {
 }
 
 export async function setMaterialRequestCutoff(cutoff: string | null): Promise<void> {
-  const { error } = await supabase.rpc('mrq_set_cutoff', { p_cutoff: cutoff });
+  const { error } = await supabase.rpc('mrq_set_cutoff', { p_cutoff: nullableArg(cutoff) });
   if (error) fail(error);
 }
 
@@ -462,7 +463,7 @@ export async function setDeliveryNoteSettings(enabled: boolean, signatureBlocks:
 }
 
 export async function setUsageThresholds(th: UsageThresholds): Promise<void> {
-  const { error } = await supabase.rpc('mrq_set_usage_thresholds', { p_pct_1: th.pct1, p_pct_2: th.pct2 });
+  const { error } = await supabase.rpc('mrq_set_usage_thresholds', { p_pct_1: nullableArg(th.pct1), p_pct_2: nullableArg(th.pct2) });
   if (error) fail(error);
 }
 

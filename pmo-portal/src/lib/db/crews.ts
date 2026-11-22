@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
+import type { TablesInsert } from '@/src/lib/supabase/database.types';
 
 /**
  * Crews, the people in them and which crews serve a work order (#2528, migration 0988).
@@ -224,7 +225,10 @@ export async function listAllCrewMembers(): Promise<Pick<CrewMemberRow, 'id' | '
 
 export async function createCrewWorker(input: CrewWorkerInput): Promise<CrewWorkerRow> {
   const { display_name, ...person } = input;
-  const { data, error } = await supabase.from('people').insert({ ...person, name: display_name }).select('id, display_name:name, archived_at').single();
+  // `people.code` (P-0001, …) is assigned by the database's people_assign_code trigger (migration 1042), which
+  // introspection cannot see, so the generated Insert type requires a column the client must never send.
+  const row = { ...person, name: display_name } satisfies Omit<TablesInsert<'people'>, 'code'>;
+  const { data, error } = await supabase.from('people').insert(row as TablesInsert<'people'>).select('id, display_name:name, archived_at').single();
   fail(error);
   return data as CrewWorkerRow;
 }

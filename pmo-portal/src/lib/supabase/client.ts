@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 import { createReadTimeoutFetch } from './readTimeoutFetch';
 
@@ -9,7 +9,9 @@ if (!url) throw new Error('Missing VITE_SUPABASE_URL — copy .env.example to .e
 if (!anonKey) throw new Error('Missing VITE_SUPABASE_ANON_KEY — copy .env.example to .env.local and set it.');
 
 // Singleton browser client (ADR-0002). Anon key is public by design; auth is enforced by RLS.
-export const supabase = createClient<Database>(url, anonKey, {
+// ⚑ The annotation is load-bearing: with the full schema in `Database`, TS7056 fires on the un-annotated declaration
+// ("inferred type exceeds the maximum length the compiler will serialize") and the whole module stops typechecking.
+export const supabase: SupabaseClient<Database> = createClient<Database>(url, anonKey, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   global: { fetch: createReadTimeoutFetch() },
 });

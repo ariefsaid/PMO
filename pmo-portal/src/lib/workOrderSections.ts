@@ -9,6 +9,7 @@
  */
 
 import { formatDecimal, parseDecimal } from './exactDecimal';
+import type { Tables } from '@/src/lib/supabase/database.types';
 
 export interface SectionFigure {
   /** null = the unsectioned remainder ("Not in a section"). */
@@ -72,14 +73,15 @@ export function quantitiesByUnit(rows: readonly { sectionId: string | null; unit
   return out;
 }
 
-/** The readiness counts as the server's `work_order_section_readiness` view returns them (live sections only). */
-export interface ReadinessCounts {
-  live_sections: number;
-  not_ready: number;
-  ready: number;
-  blocked: number;
-  all_ready: boolean;
-}
+type ReadinessViewRow = Tables<'work_order_section_readiness'>;
+/**
+ * The readiness counts as the server's `work_order_section_readiness` view returns them (live sections only). The view's
+ * figures are `count(*)`/`bool_and` aggregates, which never answer NULL, but Postgres records no NOT NULL for a view
+ * column, so the generated nullability is removed here — derived, not restated, so a renamed column still fails typecheck.
+ */
+export type ReadinessCounts = {
+  [K in 'live_sections' | 'not_ready' | 'ready' | 'blocked' | 'all_ready']: NonNullable<ReadinessViewRow[K]>;
+};
 
 export type ReadinessState = 'none' | 'all_ready' | 'blocked' | 'in_progress';
 

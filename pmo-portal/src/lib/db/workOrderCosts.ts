@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 
@@ -129,8 +130,8 @@ export async function setCostAttribution(source: CostSource, ids: string[], attr
   const { data, error } = await supabase.rpc('set_cost_attribution', {
     p_source: source,
     p_ids: ids,
-    p_work_order_id: attribution.workOrderId,
-    p_discipline_id: attribution.disciplineId,
+    p_work_order_id: nullableArg(attribution.workOrderId),
+    p_discipline_id: nullableArg(attribution.disciplineId),
   });
   if (error) throw new AppError(error.message, error.code);
   return Number(data ?? 0);

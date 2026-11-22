@@ -9,7 +9,7 @@ import {
 import {
   INSPECTION_FILE_ALLOWED_MIME, INSPECTION_FILE_MAX_COUNT, inspectionFileRefusal, isInspectionBlocking,
   isInspectionComplete, isInspectionOverdue,
-  type InspectionCostRow, type InspectionGate, type InspectionResult, type InspectionRow,
+  type InspectionCostRow, type InspectionGate, type InspectionResult, type InspectionListRow,
 } from '@/src/lib/db/thirdPartyInspections';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -23,7 +23,7 @@ function localToday(): string {
 
 const RESULTS: InspectionResult[] = ['pass', 'fail', 'conditional'];
 
-interface CardProps { inspection: InspectionRow; costs: InspectionCostRow[]; workOrderId: string; today: string }
+interface CardProps { inspection: InspectionListRow; costs: InspectionCostRow[]; workOrderId: string; today: string }
 
 /** One inspection: its state, its real cost beside the estimate, and the one next step the viewer may take. */
 const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId, today }) => {
