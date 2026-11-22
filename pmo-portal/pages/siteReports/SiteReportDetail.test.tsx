@@ -310,7 +310,7 @@ describe('site report record', () => {
       expect(screen.queryByTestId('dsr-waiting-for')).toBeNull();
     });
 
-    it('a failed route read says it could not verify and offers a retry', async () => {
+    it('a failed route read says it could not verify and offers a retry', () => {
       h.detail = make('submitted');
       h.route = null;
       h.routeError = true;
