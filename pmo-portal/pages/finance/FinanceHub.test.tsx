@@ -141,6 +141,12 @@ afterEach(() => {
 });
 
 describe('Finance hub', () => {
+  it('fix-billing item 6: Finance reaches the claims board by step and age in one tap from the Finance page', () => {
+    state.position = positionFixture();
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+    expect(screen.getByTestId('finance-hub-claims-board-link')).toHaveAttribute('href', '/finance/billing-board');
+  });
+
   it('shows known zero for no receivables and no supplier invoices', () => {
     state.position = { ...positionFixture(), receivablesCount: 0, receivablesAgeing: {}, payables: [], payablesTotals: {} };
     render(<MemoryRouter><FinanceHub /></MemoryRouter>);

@@ -226,6 +226,15 @@ describe('StockReorder', () => {
     expect(within(table).getByRole('button', { name: 'Request purchase for CAB' })).toBeInTheDocument();
   });
 
+  it('JOB-1122-8 a keeper who cannot set levels is told so in the panel and pointed to the request on the row; an editor is not', async () => {
+    const view = renderPage('Engineer');
+    expect(await screen.findByTestId('reorder-who-sets')).toHaveTextContent(/Levels are set by someone else/);
+    view.unmount();
+    renderPage('Project Manager');
+    await screen.findByRole('table', { name: 'Below reorder level' });
+    expect(screen.queryByTestId('reorder-who-sets')).not.toBeInTheDocument();
+  });
+
   it('AC-STK-RESTOCK-4 it opens the purchase form for that item at the shortfall, the store\'s project, and returns here', async () => {
     master.listWarehouses.mockResolvedValue([{ ...wh, kind: 'site', project_id: 'p1' }]);
     renderPage('Engineer');

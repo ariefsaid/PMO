@@ -15,6 +15,7 @@ export function documentCategoryLabel(t: Translate, value: string): string {
     case 'Submittal': return t('project:documentCategory.submittal', 'Submittal');
     case 'Certificate': return t('project:documentCategory.certificate', 'Certificate');
     case 'Other': return t('project:documentCategory.other', 'Other');
+    case 'Delivery record': return t('project:documentCategory.deliveryRecord', 'Delivery record (BAST)');
     case 'Reference': return t('project:documentCategory.reference', 'Reference');
     default: return value;
   }

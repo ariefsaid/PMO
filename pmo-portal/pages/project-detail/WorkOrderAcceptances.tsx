@@ -31,11 +31,13 @@ interface WorkOrderAcceptancesProps {
   onEdit: (acceptance: WorkOrderAcceptanceWithLines) => void;
   onWithdraw: (acceptance: WorkOrderAcceptanceWithLines) => void;
   onConfirm: (acceptance: WorkOrderAcceptanceWithLines) => void;
+  /** Starts a billing claim from a confirmed BAST (one visible action); absent when the viewer may not bill. */
+  onStartClaim?: () => void;
 }
 
 const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
   workOrder, boqItems, documents, acceptances, state, onRetry, currentUserId, projectManagerId, hasAllocations,
-  onPrepare, onEdit, onWithdraw, onConfirm,
+  onPrepare, onEdit, onWithdraw, onConfirm, onStartClaim,
 }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
@@ -96,6 +98,18 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
                   </p>
                 )}
                 {a.note && <p className="text-sm">{a.note}</p>}
+                {draft && (
+                  <p className="text-sm font-medium" data-testid={`bast-waiting-${a.id}`}>
+                    {t('projectTabs:contractQuantities.workOrders.acceptances.waitingOn', 'Waiting for Finance or an Admin to confirm')}
+                  </p>
+                )}
+                {a.status === 'Confirmed' && onStartClaim && (
+                  <div>
+                    <Button variant="primary" size="sm" onClick={onStartClaim}>
+                      {t('projectTabs:contractQuantities.workOrders.acceptances.startClaim', 'Start a claim from this BAST')}
+                    </Button>
+                  </div>
+                )}
                 {draft && canConfirm && preparedByMe && (
                   <p className="text-sm text-muted-foreground">
                     {t('projectTabs:contractQuantities.workOrders.acceptances.selfConfirmHint', 'You prepared this. Another Admin or Finance user must confirm it, unless you are the only active member.')}

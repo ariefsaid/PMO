@@ -5,7 +5,7 @@ import { Button, Checkbox, SelectField } from '@/src/components/ui';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { useStockItems } from '@/src/hooks/useStock';
 import { useStockTags } from '@/src/hooks/useStockSiteWork';
-import { useTransferRefresh, useTransferSettings } from '@/src/hooks/useStockTransfers';
+import { useStockTransfers, useTransferRefresh, useTransferSettings } from '@/src/hooks/useStockTransfers';
 import { stockTransfersRepository as repo, type ProofRule, type ProofTiming, type TransferMode } from '@/src/lib/repositories/stockTransfers';
 import { useQueryClient } from '@tanstack/react-query';
 import { WoTransferToggle } from '@/src/components/stock/WoTransferToggle';
@@ -22,6 +22,7 @@ export const StockTransferSettings: React.FC = () => {
   const twoStep = settings.data?.mode === 'two_step';
   const tags = useStockTags(false, twoStep);
   const items = useStockItems(false);
+  const sent = useStockTransfers('Sent', twoStep);   // a refused switch says how many transfers are in transit
   const errorText = useStockErrorText();
   const refresh = useTransferRefresh();
   const qc = useQueryClient();
@@ -39,7 +40,11 @@ export const StockTransferSettings: React.FC = () => {
       <Button variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>{t('transferSettings.manage')}</Button>
       {open && (
         <section className="mt-2 space-y-4 rounded-lg border border-border p-4" aria-label={t('transferSettings.manage')}>
-          <SelectField label={t('transferSettings.mode')} value={settings.data.mode} onChange={(v) => change.mutate(() => repo.settings.setMode(v as TransferMode))}
+          <SelectField label={t('transferSettings.mode')} value={settings.data.mode} onChange={(v) => {
+              const inTransit = (sent.data ?? []).length;
+              if (v === 'one_step' && inTransit > 0) { setError(t('transferSettings.inTransit', { count: inTransit })); return; }
+              change.mutate(() => repo.settings.setMode(v as TransferMode));
+            }}
             options={[{ value: 'one_step', label: t('transferSettings.oneStep') }, { value: 'two_step', label: t('transferSettings.twoStep') }]} helper={t('transferSettings.modeHelp')} />
           <SelectField label={t('transferSettings.timing')} value={settings.data.proofTiming} onChange={(v) => change.mutate(() => repo.settings.setTiming(v as ProofTiming))}
             options={[{ value: 'before_posting', label: t('transferSettings.beforePosting') }, { value: 'may_follow', label: t('transferSettings.mayFollow') }]} helper={t('transferSettings.timingHelp')} />

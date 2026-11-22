@@ -33,6 +33,12 @@ delete from procurement_doc_counters
     and doc_date = current_date;
 
 -- ── Drive proc 1: Draft → Requested (mints PR) then → Approved → Ordered (mints PO) ─
+-- 1580: an order needs a supplier, so every fixture purchase that is not yet ordered is given one.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid
+ where p.vendor_id is null and p.status in ('Draft','Requested','Approved','Vendor Quoted','Quote Selected');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00170000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 

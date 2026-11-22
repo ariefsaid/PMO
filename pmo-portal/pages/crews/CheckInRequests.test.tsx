@@ -14,7 +14,8 @@ vi.mock('@/src/lib/repositories/phoneCheckIn', () => ({ phoneCheckInRepository: 
 import { CheckInRequests } from './CheckInRequests';
 
 const row = { id: 'r1', work_order_id: 'w1', work_order_title: 'Slab works', worker_name: 'Sari', crew_id: 'c1', crew_name: 'Crew 1',
-  work_date: '2026-11-21', hours: 8, outcome: 'outside', distance_m: 222.4, accuracy_m: 10, checked_in_at: '2026-11-21T01:00:00Z' };
+  work_date: '2026-11-21', hours: 8, outcome: 'outside', distance_m: 222.4, accuracy_m: 10, checked_in_at: '2026-11-21T01:00:00Z',
+  area_lat: -6.2, area_lng: 106.8, area_radius_m: 100 };
 
 function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -43,6 +44,11 @@ describe('AC-PCI-015 check-in decision list', () => {
     expect(screen.getByText(/Outside the work area/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(h.decide).toHaveBeenCalledWith('r1', true, null));
+  });
+  it('AC-WCI-044 each request shows the work area it is judged against, so the supervisor needs nowhere else to look', async () => {
+    h.requests.mockResolvedValue([row]);
+    mount();
+    expect(await screen.findByText('Work area: centre -6.2, 106.8, radius 100 m')).toBeInTheDocument();
   });
   it('rejecting asks for a reason and sends it', async () => {
     h.requests.mockResolvedValue([row]);

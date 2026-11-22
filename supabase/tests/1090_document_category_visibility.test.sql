@@ -27,14 +27,14 @@ insert into projects (id, org_id, code, name, status, project_manager_id) values
   ('02579000-0000-0000-0000-000000000020', '02579000-0000-0000-0000-00000000000a', 'DCV-PRJ', 'DCV Project', 'Ongoing Project', '02579000-0000-0000-0000-0000000000a3');
 
 -- ── seed (FR-DCV-001/002, AC-DCV-001) ───────────────────────────────────────────────────────────────
-select is((select count(*)::int from document_categories where org_id = '02579000-0000-0000-0000-00000000000a' and is_system), 8,
-  'AC-DCV-001 a new organisation is seeded with the eight system categories');
+select is((select count(*)::int from document_categories where org_id = '02579000-0000-0000-0000-00000000000a' and is_system), 9,
+  'AC-DCV-001 a new organisation is seeded with the nine system categories');
 select is((select count(*)::int from document_category_roles r join document_categories c on c.id = r.category_id
-            where c.org_id = '02579000-0000-0000-0000-00000000000a' and c.is_system), 40,
+            where c.org_id = '02579000-0000-0000-0000-00000000000a' and c.is_system), 45,
   'AC-DCV-001 every system category lists all five roles (no one''s access changes at ship)');
 select is((select string_agg(name, ',' order by sort_order) from document_categories where org_id = '02579000-0000-0000-0000-00000000000a'),
-  'Drawing,Specification,Report,Transmittal,Submittal,Certificate,Other,Reference',
-  'AC-DCV-001 the seeded set is the seven register names plus Reference');
+  'Drawing,Specification,Report,Transmittal,Submittal,Certificate,Other,Reference,Delivery record',
+  'AC-DCV-001 the seeded set is the seven register names plus Reference and Delivery record (the BAST category)');
 select is((select count(*)::int from public.project_documents where category_id is null), 0,
   'AC-DCV-001 no document is without a category after the migration');
 
