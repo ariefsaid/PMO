@@ -14,10 +14,11 @@ export function usePerformanceSettings() {
   // cache entry (skipToken: it never fetches) and reads the setting once the shell's own read has landed, so a page
   // that mounts without the shell makes no organisation request, and navigating makes none (the answer is cached).
   const shellOrgRead = useQuery({ queryKey: ['org-locale-defaults', orgId], queryFn: skipToken });
-  return useEnabledOffWhenModuleOff('moduleSiteDay', useOrgQuery([PERFORMANCE_SETTINGS_KEY], () => workOrderPerformanceRepository.getSettings(), {
+  const settings = useOrgQuery([PERFORMANCE_SETTINGS_KEY], () => workOrderPerformanceRepository.getSettings(), {
     enabled: Boolean(currentUser) && shellOrgRead.data !== undefined,
     staleness: 'session',
-  }));
+  });
+  return useEnabledOffWhenModuleOff('moduleSiteDay', settings, Boolean(currentUser) && shellOrgRead.data !== undefined);
 }
 
 export function useSavePerformanceSettings() {
