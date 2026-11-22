@@ -209,6 +209,7 @@ export type Entity =
   | 'attendanceTarget'
   | 'leaveRequest'
   | 'checkInSettings'
+  | 'imprestLimit'
   | 'equipmentTarget'
   | 'workOrderIssueThreshold'
   | 'stockReservation';
@@ -996,6 +997,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // #1671: voiding a mistyped PMO-native subcontract bill is a post-capture bill write, Admin/Finance like the
     // line attribution and e-Faktur. UX only — void_subcontract_bill (0885) enforces role, author SoD and the ERP boundary.
     void: allow(REVENUE_WRITE),
+    // Recording a supplier bill from the payables list: Admin or Finance, never while viewing as another role. UX only — the bill RPCs decide.
+    create: allowUnlessViewOnly(REVENUE_WRITE),
   },
   erpPurchaseLink: {
     // ADR-0093: linking an ERPNext purchase document into a purchase (FR-PFE-020) — the ERP-purchase audience; an
@@ -1391,6 +1394,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   // #2705: phone check-in settings — who decides outside-area check-ins (1210: active Admin). UX ONLY.
   checkInSettings: { manage: allowUnlessViewOnly(ADMIN) },
+  // The organisation's site-cash limit (`set_imprest_procurement_limit` is Admin-only). UX ONLY.
+  imprestLimit: { manage: allow(ADMIN) },
   // #2701: equipment targets and working hours (1470: active Admin). UX ONLY.
   equipmentTarget: { manage: allowUnlessViewOnly(ADMIN) },
   // #2584: work order issue threshold (1340: active Admin). UX ONLY.

@@ -37,6 +37,12 @@ vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({
   CostAttributionFields: ({ idPrefix }: { idPrefix?: string }) => createElement('div', { 'data-testid': 'cost-attribution-stub', 'data-prefix': idPrefix }),
 }));
 
+// The supplier-bill form's hold note reads the purchase rules and the three-way-match setting (auth + queries), which the
+// record-capture suites do not provide. BillHoldNotice.test.tsx unmocks and proves it.
+vi.mock('@/pages/procurement/BillHoldNotice', () => ({
+  BillHoldNotice: () => createElement('div', { 'data-testid': 'bill-hold-stub' }),
+}));
+
 // #2732: the claim's work-order card reads its own queries (work orders, disciplines) and needs a query client, which the
 // ExpenseClaimDetail suites do not provide. ExpenseAttributionCard.test.tsx unmocks and proves it.
 vi.mock('@/pages/expenses/ExpenseAttributionCard', () => ({

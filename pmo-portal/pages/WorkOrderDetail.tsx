@@ -1,13 +1,16 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, RecordHeader, RecordStack, StatusPill } from '@/src/components/ui';
+import { ConfirmDialog, ListState, RecordHeader, RecordStack, StatusPill, useToast } from '@/src/components/ui';
+import { useAuth } from '@/src/auth/useAuth';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
 import { useFeature } from '@/src/auth/useFeature';
 import { useProject } from '@/src/hooks/useProjects';
 import { useBoqItems } from '@/src/hooks/useProgressBilling';
-import { useWorkOrderAcceptances } from '@/src/hooks/useWorkOrderAcceptances';
+import { useWorkOrderAcceptanceMutations, useWorkOrderAcceptances } from '@/src/hooks/useWorkOrderAcceptances';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useCostDisciplines, useWorkOrderCostLines, useWorkOrderCostMoney, useWorkOrderCostLinks, useWorkOrderTimesheetLabels } from '@/src/hooks/useWorkOrderCosts';
@@ -58,6 +61,10 @@ const WorkOrderDetail: React.FC = () => {
   const claimDocs = useWorkOrderClaimDocuments(wo.data ? id : undefined);
   const boq = useBoqItems(projectId);
   const bastList = useWorkOrderAcceptances(projectId);
+  const bastMutations = useWorkOrderAcceptanceMutations(projectId);
+  const { currentUser } = useAuth();
+  const { toast } = useToast();
+  const [confirmFor, setConfirmFor] = useState<{ acceptance: WorkOrderAcceptanceWithLines; error: string | null } | null>(null);
   const canBilling = may('view', 'salesInvoice');
   const billing = useWorkOrderBilling(projectId, canBilling && Boolean(wo.data));
   const docs = useDocuments(projectId);
@@ -135,7 +142,35 @@ const WorkOrderDetail: React.FC = () => {
         {/* #2672: the daily target view; same switch and role gate as the plan above. */}
         <DailyTargetGate workOrderId={row.id} />
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
-          acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
+          acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()}
+          confirm={{
+            canConfirm: (a) => row.status === 'Issued' && may('confirm', 'workOrderAcceptance', { currentUserId: currentUser?.id ?? null, record: { status: a.status, prepared_by: a.prepared_by } }),
+            onConfirm: (a) => setConfirmFor({ acceptance: a, error: null }),
+          }} />
+        {confirmFor && (
+          <ConfirmDialog
+            open
+            title={confirmFor.acceptance.is_final ? t('billing.confirmFinalTitle', 'Confirm the final BAST?') : t('billing.confirmTitle', 'Confirm this BAST?')}
+            description={<div className="flex flex-col gap-2">
+              <p>{confirmFor.acceptance.is_final
+                ? t('billing.confirmFinalBody', 'Confirming a final BAST closes the work order at the accepted quantities. This cannot be undone.')
+                : t('billing.confirmBody', 'The accepted quantities are recorded as of this BAST. The work order stays open and nothing is invoiced.')}</p>
+              {confirmFor.error && <p role="alert" className="font-medium text-destructive-text">{confirmFor.error}</p>}
+            </div>}
+            confirmLabel={t('billing.confirmAction', 'Confirm BAST')}
+            loading={bastMutations.confirm.isPending}
+            onConfirm={() => {
+              void bastMutations.confirm.mutateAsync(confirmFor.acceptance.id).then(
+                () => { toast(t('billing.confirmedToast', 'BAST confirmed'), undefined, 'success'); setConfirmFor(null); },
+                (err: unknown) => {
+                  const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+                  setConfirmFor({ acceptance: confirmFor.acceptance, error: detail ? `${headline} ${detail}` : headline });
+                },
+              );
+            }}
+            onCancel={() => setConfirmFor(null)}
+          />
+        )}
         <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         {may('view', 'quantityChange') && <QuantityChangesSection workOrderId={row.id} projectId={row.project_id} status={row.status} />}
         <InspectionsSection workOrderId={row.id} />

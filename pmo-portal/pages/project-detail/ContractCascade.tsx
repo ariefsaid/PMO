@@ -87,10 +87,12 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
     invoices.isPending || invoices.isError || (settlement !== null
       && !settlement.balancesKnown && invoiceRows.some((invoice) => invoice.status === 'Paid'))
   );
-  const orderBillingRows = orderBilling.data ?? [];
+  // A draft customer order is not yet an order: nothing on it is billable, whatever its lines or value say.
+  const draftOrderIds = new Set((orders.data ?? []).filter((order) => order.status === 'Draft').map((order) => order.id));
+  const orderBillingRows = (orderBilling.data ?? []).filter((order) => order.status !== 'Draft' && !draftOrderIds.has(order.workOrderId));
   const lineCanInvoice = allocations.reduce((sum, allocation) => {
     const item = items.find((candidate) => candidate.id === allocation.boqItemId);
-    if (!item || allocation.acceptedQuantity === null) return sum;
+    if (!item || allocation.acceptedQuantity === null || draftOrderIds.has(allocation.workOrderId)) return sum;
     return sum + Math.max(0, allocation.acceptedQuantity - allocation.claimedQuantity) * Number(item.rate);
   }, 0);
   const moneyOrderCanInvoice = orderBillingRows

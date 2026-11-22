@@ -10,6 +10,7 @@ import { cn } from '@/src/components/ui/cn';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
 import { PROCUREMENT_GATES_KEY } from '@/src/hooks/useProcurementGates';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
+import OrgImprestLimit from './OrgImprestLimit';
 
 const RULES: { key: keyof ProcurementGates; label: string }[] = [
   { key: 'request_before_order', label: 'Request required before order' },
@@ -76,6 +77,7 @@ export default function OrgProcurementGates() {
           {mutation.isPending ? t('procurement:gates.saving', 'Saving…') : mutation.isSuccess ? t('procurement:gates.saved', 'Saved') : ''}
         </p>
         {saveError && <FieldError>{saveError.detail || saveError.headline}</FieldError>}
+        <OrgImprestLimit />
       </div>
     </section>
   );

@@ -1168,7 +1168,7 @@
     "truncated": "Showing the {{count}} oldest. Filter by project to see the rest.",
     "error": "The billing board could not be loaded",
     "empty": "No claims to show",
-    "emptySub": "Claims appear here once they have billing steps.",
+    "emptySub": "Claims appear here once they have billing steps. Open a claim on the project's Billing tab and add its steps.",
     "entryLink": "Billing board"
   },
   "billingPlan": {
