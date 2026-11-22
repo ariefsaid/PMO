@@ -109,6 +109,10 @@ select is((select set_closeout_checklist('[
 select is((select string_agg(coalesce(target_days::text, '-'), ',' order by position)
              from closeout_checklist_templates where org_id = '28300000-0000-0000-0000-0000000000a1'),
   '5,-,1,365,-', 'FR-CTD-001 each target is stored, a missing or blank one as no target');
+-- The next three probes are COLUMN CONSTRAINTS, not client paths: a client holds SELECT only on these tables (asserted
+-- below), so they run in the privileged fixture context (the table owner) — the same context every pgTAP fixture writes
+-- through. The client ACL refusals stay as their own assertions.
+reset role;
 select is(pg_temp.detail($q$insert into closeout_checklist_templates (org_id, position, name, target_days)
   values ('28300000-0000-0000-0000-0000000000a1', 19, 'bad low', 0)$q$),
   '23514 ', 'FR-CTD-001 the column itself refuses a target of 0 days');
@@ -132,7 +136,11 @@ select ok(not has_table_privilege('authenticated', 'public.closeout_checklist_te
 
 -- ── AC-CTD-001: issuing copies the list and sets the due day from the organisation's issue day ────────────────────────────
 select is((select count(*)::int from work_order_closeout_items), 0, 'AC-CTD-001 a Draft work order has no checklist yet');
-update work_orders set status = 'Issued', issued_at = now() where id = '28300000-0000-0000-0000-0000000000e1';
+-- Issue through the shipped RPC (the real Draft -> Issued path), not a client UPDATE: the copy rides the AFTER UPDATE
+-- trigger on that path, and authenticated holds no UPDATE grant on work_orders.
+select pg_temp.as_user('b01');
+select transition_work_order('28300000-0000-0000-0000-0000000000e1', 'Issued');
+reset role;
 select is((select count(*)::int from work_order_closeout_items where work_order_id = '28300000-0000-0000-0000-0000000000e1'), 5,
   'AC-CTD-001 issuing copies all five items');
 select is((select due_on from work_order_closeout_items
@@ -173,8 +181,11 @@ select is((select count(*)::int from work_order_closeout_items where work_order_
 insert into closeout_checklist_templates (org_id, position, name, target_days) values
   ('28300000-0000-0000-0000-0000000000c1', 1, 'East handover', 5),
   ('28300000-0000-0000-0000-0000000000d1', 1, 'West handover', 5);
-update work_orders set status = 'Issued', issued_at = now()
- where id in ('28300000-0000-0000-0000-0000000000e2', '28300000-0000-0000-0000-0000000000e3');
+select pg_temp.as_user('b31');
+select transition_work_order('28300000-0000-0000-0000-0000000000e2', 'Issued');
+select pg_temp.as_user('b41');
+select transition_work_order('28300000-0000-0000-0000-0000000000e3', 'Issued');
+reset role;
 select is((select due_on from work_order_closeout_items where work_order_id = '28300000-0000-0000-0000-0000000000e2'),
   public.native_org_today('28300000-0000-0000-0000-0000000000c1'::uuid) + 5,
   'AC-CTD-001 the +14 organisation''s due day is its own today + 5');
@@ -192,7 +203,9 @@ select ok((select e.due_on from work_order_closeout_items e where e.work_order_i
   'AC-CTD-001 the same target at the same instant is a later day east of the line than west of it');
 
 -- ── no list at all: issuing copies nothing and every read is "no target, no due day" ─────────────────────────────────────
-update work_orders set status = 'Issued', issued_at = now() where id = '28300000-0000-0000-0000-0000000000e4';
+select pg_temp.as_user('b51');
+select transition_work_order('28300000-0000-0000-0000-0000000000e4', 'Issued');
+reset role;
 select is((select count(*)::int from work_order_closeout_items where work_order_id = '28300000-0000-0000-0000-0000000000e4'), 0,
   'AC-CTD-001 an organisation with no targets issues a work order with no checklist items');
 
