@@ -1,5 +1,7 @@
 import React, { useSyncExternalStore } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { useWoTransfersEnabled } from '@/src/hooks/useStockWorkOrderTransfer';
 import { useWorkOrderStockBalance } from '@/src/hooks/useStockSiteWork';
 import { DataTable, type Column } from '@/src/components/ui';
 import { PrimaryCell } from '@/src/components/ui/DataTableShared';
@@ -20,6 +22,7 @@ export const WorkOrderStockBalance: React.FC<{ workOrderId: string; currency: st
   const { t } = useTranslation('stock');
   const q = useWorkOrderStockBalance({ workOrderId });
   const ownership = useSyncExternalStore(subscribeOwnershipCache, () => isOwnershipCacheSynced() ? routeDomainWrite('inventory') : 'unknown');
+  const woTransfers = useWoTransfersEnabled();
   const rows = q.data ?? [];
   const showValue = rows.some((r) => r.onSiteValue !== undefined);
   const loc = getNumberLocale();
@@ -73,6 +76,7 @@ export const WorkOrderStockBalance: React.FC<{ workOrderId: string; currency: st
           accessibleName={t('siteWork.balance.title')} embedded cardValuesEnd
           mobileCardTitle={(r) => <PrimaryCell title={r.itemName} secondary={r.tagName ?? undefined} />} mobileCardDetails={cardDetails} />
       )}
+      {woTransfers && rows.length > 0 && <p className="text-sm"><Link to="/stock/work-order-transfer" className="font-medium underline">{t('workOrderTransfer.entry')}</Link></p>}
       <ReservationsSlot><WorkOrderReservations workOrderId={workOrderId} /></ReservationsSlot>
     </section>
   );

@@ -329,3 +329,12 @@ describe('a database refusal reads as its own sentence, never its code (#2745)',
     expect(classifyMutationError(e, undefined, { suppressCapture: true }).detail).toBe('something plain');
   });
 });
+
+describe('joinSentences (JOB-I18N-STOP: no doubled full stop)', () => {
+  it('adds the stop only when the headline has none', async () => {
+    const { joinSentences } = await import('./classifyMutationError');
+    expect(joinSentences('Update failed', 'Try again.')).toBe('Update failed. Try again.');
+    expect(joinSentences('That already exists.', 'Another record uses it.')).toBe('That already exists. Another record uses it.');
+    expect(joinSentences("Request timed out — we couldn't confirm whether it saved.", 'Reload.')).not.toContain('..');
+  });
+});

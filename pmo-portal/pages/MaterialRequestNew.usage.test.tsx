@@ -18,6 +18,7 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
     isPending: false, isError: false,
   }),
   useMaterialRequestMutations: () => ({ saveDraft: h.saveDraft, submit: h.submit }),
+  usePriorRequests: () => ({ data: undefined, isPending: false, isError: false }),
   useLinePlans: () => ({ data: [{ itemId: 'i1', planQty: 10, priorQty: 4 }], isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useWorkOrderSectionMaterials', () => ({

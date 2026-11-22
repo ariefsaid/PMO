@@ -15,7 +15,7 @@ import {
   useQuantityChangeApproval, useQuantityChangeMutations, useQuantityChangeRequest, useQuantityVersions,
 } from '@/src/hooks/useQuantityChanges';
 import { repositories } from '@/src/lib/repositories';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
 import { lineValueCents, validateRequestedQuantity, versionValueChanges } from '@/src/lib/quantityChangeRules';
@@ -81,7 +81,7 @@ const RequestRecord: React.FC<{ detail: QcrDetail }> = ({ detail }) => {
     try { await work(); toast(success, workOrder?.label ?? '', 'success'); return true; } catch (err) {
       const { headline, detail: d } = classifyMutationError(err);
       toast(headline, d, 'warning');
-      setDialogError(d ? `${headline}. ${d}` : headline);
+      setDialogError(d ? joinSentences(headline, d) : headline);
       return false;
     }
   };

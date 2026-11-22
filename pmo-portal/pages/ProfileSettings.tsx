@@ -4,7 +4,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useTextSize, type TextSize } from '@/src/hooks/useTextSize';
 import { useHomeLayout, type HomeLayout } from '@/src/hooks/useHomeLayout';
 import { profilePreferencesRepository } from '@/src/lib/repositories/profilePreferences';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { useOrgLocaleDefaults, useResolvedLocale } from '@/src/hooks/useResolvedLocale';
 import { resolveLocale } from '@/src/lib/locale/resolveLocale';
 import { isValidTimeZone, listTimeZoneIds } from '@/src/lib/locale/timezones';
@@ -209,7 +209,7 @@ const ProfileSettings: React.FC = () => {
       if (classified.classification === 'unclassified' && message === 'Update failed') {
         message = t('profileSettings.error', 'Could not save your preferences. Please try again.');
       } else if (classified.classification !== 'unclassified' && classified.detail) {
-        message = `${classified.headline}. ${classified.detail}`;
+        message = joinSentences(classified.headline, classified.detail);
       }
       setErrorMsg(message);
       setStatus('error');

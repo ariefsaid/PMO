@@ -34,6 +34,12 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useHasTimesheetApprovalWork: () => ({ data: state.eligibleDecisions, isPending: false, isError: false }),
 }));
+// fix-waiting: the entry for a role off the Approvals list is offered by `useApprovalsEntryOffered`; these cases drive it with the timesheet-work signal they were written for.
+vi.mock('@/src/hooks/useWaitingForYou', async () => {
+  const { useHasTimesheetApprovalWork } = await import('@/src/hooks/useTimesheetApproval');
+  return { useApprovalsEntryOffered: () => { const work = useHasTimesheetApprovalWork(); return Boolean(work.data || work.isPending || work.isError); } };
+});
+
 
 const renderBar = (entry = '/', moreOpen = false) => {
   const onOpenMore = vi.fn();

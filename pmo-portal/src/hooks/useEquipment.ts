@@ -103,6 +103,9 @@ export function useInvalidateUsage() {
 
 export const useCreateAsset = () =>
   useEquipmentMutation((input: { code: string; name: string; default_unit: 'hours' | 'days' }) => repositories.equipment.createAsset(input));
+/** A rented machine and its first rental period in one transaction (`create_rented_equipment_asset`, 1050). */
+export const useCreateRentedAsset = () =>
+  useEquipmentMutation((input: Parameters<typeof repositories.equipmentAvailability.createRentedAsset>[0]) => repositories.equipmentAvailability.createRentedAsset(input));
 export const useUpdateAsset = () =>
   useEquipmentMutation((a: { id: string; patch: Parameters<typeof repositories.equipment.updateAsset>[1] }) => repositories.equipment.updateAsset(a.id, a.patch));
 export const useDeleteAsset = () => useEquipmentMutation((id: string) => repositories.equipment.deleteAsset(id));

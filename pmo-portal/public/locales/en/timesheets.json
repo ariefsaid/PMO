@@ -60,5 +60,13 @@
     "saving": "Saving…",
     "invalid": "Fix the hours marked in red to save",
     "failed": "Save failed. Your hours are kept: try again."
+  },
+  "submitConfirm": {
+    "descriptionTo": "This sends {{hours}} hours for {{week}} to {{name}} for approval. You can't edit the week again until it's returned."
+  },
+  "toast": {
+    "submitted": {
+      "detailTo": "{{hours}} hours for {{week}} sent to {{name}} for approval"
+    }
   }
 }

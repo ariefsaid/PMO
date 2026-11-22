@@ -4,7 +4,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { ProjectNameLink, useToast } from '@/src/components/ui';
 import type { useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { formatCurrency } from '@/src/lib/format';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { odooActionError } from '@/src/lib/procurement/odooActionError';
 import { odooOwnsProcurement } from '@/src/lib/adapterSeam/odoo/ownership';
 import type { CommandIntent } from '@/src/lib/repositories/types';
@@ -12,6 +12,7 @@ import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
 import type { ProcurementStatus, ProcurementDetail, TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { toastStateLabel } from '../../components/procurement';
+import { parseRefusal } from '@/src/lib/refusals';
 import { classifySubcontractBillError } from './subcontractBillError';
 import type { ActionVariant } from '@/src/lib/procurement/mainAction';
 import type { VendorInvoiceCapture } from './ProcurementDecisionZone';
@@ -159,6 +160,8 @@ export interface ProcurementDecisionUi {
   setShowCreateVI: (open: boolean) => void;
   setShowVICapture: (open: boolean) => void;
   setCaptureKind: (kind: null) => void;
+  /** Opens the page's supplier picker (the order needs one). */
+  openSupplierPicker?: () => void;
 }
 
 /**
@@ -189,6 +192,27 @@ export function useProcurementDecision(
     // capture with the action, mirroring the DealBand Mark-won pattern).
     if (action.to === 'Vendor Invoiced') {
       setShowVICapture(true);
+      return;
+    }
+    // An order is never recorded by accident: it needs its supplier, and a confirm that names supplier and amount.
+    // A purchase from before the cut-over records its history as it always did (the database exempts it from the supplier rule).
+    if (action.to === 'Ordered' && procurement && !procurement.pre_cutover) {
+      if (!procurement.vendor_id) {
+        ui.openSupplierPicker?.();
+        toast(t('procurementRecord:order.needsSupplierTitle', 'Choose the supplier first'), t('procurementRecord:order.needsSupplier', 'An order needs its supplier. Choose it, then record the order.'), 'warning');
+        return;
+      }
+      setPendingConfirm({
+        kind: 'transition',
+        to: 'Ordered',
+        title: t('procurementRecord:order.confirmTitle', 'Record this order?'),
+        description: t('procurementRecord:order.confirmBody', 'Order {{amount}} from {{supplier}}. This records the order; it does not send it to the supplier.', {
+          amount: formatCurrency(Number(procurement.total_value), procurement.currency),
+          supplier: procurement.vendor?.name ?? '',
+        }),
+        confirmLabel: action.label,
+        tone: 'default',
+      });
       return;
     }
     if (!CONSEQUENTIAL_TARGETS.has(action.to)) {
@@ -265,9 +289,15 @@ export function useProcurementDecision(
         'success',
       );
     } catch (err) {
+      if (to === 'Ordered' && parseRefusal(err)?.code === 'ORDER_NEEDS_SUPPLIER') {
+        setPendingConfirm(null);
+        ui.openSupplierPicker?.();
+        toast(t('procurementRecord:order.needsSupplierTitle', 'Choose the supplier first'), t('procurementRecord:order.needsSupplier', 'An order needs its supplier. Choose it, then record the order.'), 'warning');
+        return;
+      }
       const { headline, detail } = threeWayMatchHeldMessage(err, t) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
-      setMutationError(detail ? `${headline}. ${detail}` : headline);
+      setMutationError(detail ? joinSentences(headline, detail) : headline);
     }
   };
 
@@ -341,7 +371,7 @@ export function useProcurementDecision(
         ? classifySubcontractBillError(err, t)
         : null) ?? odooActionError(err, odooOwnsProcurement(), t) ?? classifyMutationError(err);
       toast(headline, detail, 'warning');
-      setMutationError(detail ? `${headline}. ${detail}` : headline);
+      setMutationError(detail ? joinSentences(headline, detail) : headline);
     }
   };
 

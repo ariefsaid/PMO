@@ -18,7 +18,7 @@ describe('Finance route matching', () => {
   });
 
   it('exposes the five Finance destinations to Exec, Finance and Admin only', () => {
-    const expected = ['/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements'];
+    const expected = ['/finance', '/finance/billing-board', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements'];
     for (const role of [UserRole.Executive, UserRole.Finance, UserRole.Admin]) {
       expect(modulesForRole(role).filter((item) => item.module.startsWith('finance')).map((item) => item.path)).toEqual(expected);
     }

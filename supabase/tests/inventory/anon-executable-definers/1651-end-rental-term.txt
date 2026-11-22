@@ -1,0 +1,2 @@
+# Client-callable SECURITY DEFINER RPC names (one proname per line).
+end_equipment_rental_term  # 1651: Admin, Finance or the equipment manager, scoped to the caller org, active member, field accounts refused; revoked from public and anon, granted to authenticated

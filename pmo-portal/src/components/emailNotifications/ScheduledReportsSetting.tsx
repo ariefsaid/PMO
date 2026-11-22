@@ -1,16 +1,15 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Checkbox, ConfirmDialog, SelectField, StatusPill, Switch, TextField, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, StatusPill, Switch, useToast } from '@/src/components/ui';
 import { scheduledReportsRepository } from '@/src/lib/repositories/scheduledReports';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { usePermission } from '@/src/auth/usePermission';
-import { REPORT_KINDS, type ReportKind, type ReportFrequency, type ScheduledReport, type ScheduledReportInput } from '@/src/lib/db/scheduledReports';
-import { NOTIFY_ROLES } from '@/src/lib/db/documentExpiry';
+import { type ReportKind, type ScheduledReport, type ScheduledReportInput } from '@/src/lib/db/scheduledReports';
+import { ScheduledReportFields } from './ScheduledReportFields';
 
 const KEY = ['scheduledReports'] as const;
 const OPTIONS_KEY = ['scheduledReportRecipients'] as const;
-const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 const BLANK: ScheduledReportInput = {
   id: null, name: '', kind: 'daily_progress', frequency: 'daily', weekday: null, sendTime: '08:00',
   recipientUserIds: [], recipientRoles: [], enabled: true,
@@ -18,10 +17,10 @@ const BLANK: ScheduledReportInput = {
 
 /**
  * Scheduled reports (#2714), a subsection of the Administration email card. Admin only (`can('manage','orgEmailNotifications')`);
- * UX only: save_scheduled_report and its siblings (1228) re-check the Admin role. It renders nothing until an email event is
- * switched on or a report exists, so an organisation that never uses it sees the card exactly as before.
+ * UX only: save_scheduled_report and its siblings (1228) re-check the Admin role. It is always shown to the Admin: a scheduled report
+ * does not depend on any email event being on (the tick reads only the report), and hiding it until one was is why nobody found it.
  */
-export const ScheduledReportsSetting: React.FC<{ eventsOn: boolean }> = ({ eventsOn }) => {
+export const ScheduledReportsSetting: React.FC = () => {
   const { t } = useTranslation('emailNotifications');
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -62,11 +61,9 @@ export const ScheduledReportsSetting: React.FC<{ eventsOn: boolean }> = ({ event
 
   if (!canManage) return null;
   const reports = query.data ?? [];
-  if (!eventsOn && reports.length === 0 && draft === null) return null;
 
   const valid = draft !== null && draft.name.trim() !== '' && draft.recipientUserIds.length + draft.recipientRoles.length > 0
     && (draft.frequency === 'daily' || draft.weekday !== null) && /^\d{2}:\d{2}$/.test(draft.sendTime);
-  const toggleIn = (list: string[], v: string, on: boolean) => (on ? [...list, v] : list.filter((x) => x !== v));
 
   return (
     <section className="mt-6 border-t border-border pt-4" aria-labelledby="scheduled-reports-title">
@@ -117,62 +114,7 @@ export const ScheduledReportsSetting: React.FC<{ eventsOn: boolean }> = ({ event
           onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate(draft); }}
           aria-label={t('scheduled.formLabel', 'Scheduled report')}
         >
-          <TextField label={t('scheduled.name', 'Name')} value={draft.name} maxLength={120} required onChange={(name) => setDraft({ ...draft, name })} />
-          <SelectField
-            label={t('scheduled.kind', 'Report')} value={draft.kind}
-            onChange={(kind) => setDraft({ ...draft, kind: kind as ReportKind })}
-            options={REPORT_KINDS.map((k) => ({ value: k, label: kindLabel[k] }))}
-          />
-          <SelectField
-            label={t('scheduled.frequency', 'Repeats')} value={draft.frequency}
-            onChange={(f) => setDraft({ ...draft, frequency: f as ReportFrequency, weekday: f === 'weekly' ? (draft.weekday ?? 1) : null })}
-            options={[{ value: 'daily', label: t('scheduled.daily', 'Daily') }, { value: 'weekly', label: t('scheduled.weekly', 'Weekly') }]}
-          />
-          {draft.frequency === 'weekly' ? (
-            <SelectField
-              label={t('scheduled.weekday', 'On')} value={String(draft.weekday ?? 1)}
-              onChange={(d) => setDraft({ ...draft, weekday: Number(d) })}
-              options={WEEKDAYS.map((d) => ({ value: String(d), label: dayLabel[d] }))}
-            />
-          ) : null}
-          <TextField label={t('scheduled.time', 'Send time')} type="time" value={draft.sendTime} required onChange={(sendTime) => setDraft({ ...draft, sendTime })} />
-          <fieldset>
-            <legend className="text-control text-muted-foreground">{t('scheduled.roles', 'Send to these roles')}</legend>
-            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
-              {NOTIFY_ROLES.map((role) => {
-                const id = `scheduled-role-${role}`;
-                return (
-                  <label key={role} className="flex min-h-8 items-center gap-2 text-control">
-                    <Checkbox
-                      checked={draft.recipientRoles.includes(role)} labelledBy={id} label={role}
-                      onChange={(on) => setDraft({ ...draft, recipientRoles: toggleIn(draft.recipientRoles, role, on) })}
-                    />
-                    <span id={id}>{role}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend className="text-control text-muted-foreground">{t('scheduled.people', 'And these people')}</legend>
-            <div className="mt-1 flex max-h-40 flex-col gap-1 overflow-y-auto">
-              {(people.data ?? []).map((p) => {
-                const id = `scheduled-person-${p.id}`;
-                return (
-                  <label key={p.id} className="flex min-h-8 items-center gap-2 text-control">
-                    <Checkbox
-                      checked={draft.recipientUserIds.includes(p.id)} labelledBy={id} label={p.name}
-                      onChange={(on) => setDraft({ ...draft, recipientUserIds: toggleIn(draft.recipientUserIds, p.id, on) })}
-                    />
-                    <span id={id}>{p.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </fieldset>
-          {draft.recipientUserIds.length + draft.recipientRoles.length === 0 ? (
-            <p className="text-control text-muted-foreground">{t('scheduled.recipientsHint', 'Pick at least one role or person.')}</p>
-          ) : null}
+          <ScheduledReportFields draft={draft} setDraft={setDraft} people={people.data ?? []} />
           {error ? <p role="alert" className="text-control text-destructive-text">{error}</p> : null}
           <div className="flex gap-2">
             <Button type="submit" variant="primary" disabled={!valid} loading={save.isPending}>{t('scheduled.save', 'Save report')}</Button>

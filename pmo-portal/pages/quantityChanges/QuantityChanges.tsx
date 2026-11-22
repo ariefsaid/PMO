@@ -9,7 +9,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 import { useOverContract, useQuantityChangeApproverRoles, useQuantityChangeLimit, useQuantityChangeMutations, useQuantityChangeRequests } from '@/src/hooks/useQuantityChanges';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { OverContractRow } from '@/src/lib/db/quantityChanges';
@@ -227,7 +227,7 @@ const ForecastDialog: React.FC<{ row: OverContractRow; onClose: () => void }> = 
       onClose();
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
-      setError(detail ? `${headline}. ${detail}` : headline);
+      setError(detail ? joinSentences(headline, detail) : headline);
     }
   };
   return (

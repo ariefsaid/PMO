@@ -71,8 +71,6 @@
     "addLineItem": "Tambahkan setidaknya satu item baris sebelum mengajukan."
   },
   "waiting": {
-    "approval": "Menunggu persetujuan",
-    "engineerApproval": "Menunggu persetujuan dari manajer proyek atau Finance",
     "payment": "Pembayaran: menunggu Finance"
   },
   "record": {
@@ -191,7 +189,7 @@
       "Payment": "Pembayaran"
     },
     "groupRef": "Ref. grup",
-    "workOrder": "Work Order / SPK"
+    "workOrder": "$t(common:terms.clientWorkOrder)"
   },
   "files": {
     "heading": "Lampiran",
@@ -228,5 +226,11 @@
     "pending": "Menunggu",
     "open": "Terbuka",
     "sent": "Terkirim"
+  },
+  "order": {
+    "needsSupplierTitle": "Pilih supplier dulu",
+    "needsSupplier": "Pesanan harus punya supplier. Pilih supplier-nya, lalu catat pesanan.",
+    "confirmTitle": "Catat pesanan ini?",
+    "confirmBody": "Pesan {{amount}} dari {{supplier}}. Ini hanya mencatat pesanan; pesanan tidak dikirim ke supplier."
   }
 }

@@ -48,6 +48,7 @@ vi.mock('@/src/hooks/useEquipment', async () => {
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectPickerOptions: () => ({ data: [{ id: 'pj1', name: 'EQU P1', short_name: null, project_manager_id: 'u-pm' }] }),
 }));
+vi.mock('@/src/hooks/useEquipmentAvailability', () => ({ useLatestStatusDays: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [{ id: 'u-eng', full_name: 'Engineer' }] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-eng', org_id: 'org1' } }) }));
 

@@ -152,7 +152,9 @@
     "balancesNotSynced_one": "{{count}} saldo tidak tersinkron",
     "balancesNotSynced_other": "{{count}} saldo tidak tersinkron",
     "amountsMissing_one": "{{count}} jumlah belum ada",
-    "amountsMissing_other": "{{count}} jumlah belum ada"
+    "amountsMissing_other": "{{count}} jumlah belum ada",
+    "checkIns_one": "absen menunggu keputusan Anda",
+    "checkIns_other": "absen menunggu keputusan Anda"
   },
   "figures": {
     "contractOnHand": "Kontrak berjalan · di luar pajak",
@@ -376,6 +378,7 @@
       "openProjects": "Buka proyek",
       "openSales": "Buka penjualan",
       "openInvoices": "Buka invoice",
+      "claimsBoard": "Papan klaim",
       "openProcurements": "Buka pengadaan",
       "openFigure": "Buka catatan terkait untuk {{metric}}.",
       "export": "Ekspor",
@@ -762,7 +765,8 @@
       "dueTodayFinding_other": "{{count}} jatuh tempo hari ini",
       "tasksOverdueFinding_one": "{{count}} terlambat",
       "tasksOverdueFinding_other": "{{count}} terlambat",
-      "nextUp": "Berikutnya"
+      "nextUp": "Berikutnya",
+      "waitingForYou": "Menunggu keputusan Anda"
     },
     "help": {
       "basis": "Posisi hari ini dalam mata uang tiap catatan. Ditagih, diterima, dan menang mengikuti periode yang dipilih.",
@@ -917,7 +921,10 @@
     "nothingOwedByClients": "Tidak ada tagihan klien yang terutang",
     "hoursInTotal": "total {{hours}} jam",
     "pipelineMixedCurrency": "Jumlah pipeline berbobot disembunyikan untuk mata uang campuran.",
-    "marginCurrencyMismatch": "Margin perkiraan disembunyikan saat mata uang kontrak berbeda dari mata uang anggaran."
+    "marginCurrencyMismatch": "Margin perkiraan disembunyikan saat mata uang kontrak berbeda dari mata uang anggaran.",
+    "approvalMaterial": "Permintaan material, langkah {{n}}: {{label}}",
+    "approvalLeave": "{{name}}: cuti {{from}} sampai {{to}}",
+    "approvalImprest": "Rencana kas lapangan {{month}}"
   },
   "doneNotYetBilled": {
     "title": "Selesai, belum ditagih",

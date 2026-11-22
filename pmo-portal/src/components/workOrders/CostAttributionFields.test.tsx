@@ -67,3 +67,28 @@ describe('AC-WCA-014 CostAttributionFields', () => {
     expect(onChange).toHaveBeenCalledWith({ workOrderId: null, disciplineId: 'd1' });
   });
 });
+
+describe('JOB-TS-WO: the work order is chosen for the person when there is only one', () => {
+  const one = [{ id: 'wo1', wo_number: 'WO-001', title: 'Pipe rack', status: 'Issued', client_po_number: null }];
+
+  it('preselects the only open work order, once', () => {
+    h.workOrders.data = one;
+    const onChange = vi.fn();
+    const { rerender } = render(<CostAttributionFields projectId="p1" value={{ workOrderId: null, disciplineId: null }} onChange={onChange} preselectSingle />);
+    expect(onChange).toHaveBeenCalledWith({ workOrderId: 'wo1', disciplineId: null });
+    onChange.mockClear();
+    // The person clears it: their choice stands, it is not chosen again.
+    rerender(<CostAttributionFields projectId="p1" value={{ workOrderId: null, disciplineId: null }} onChange={onChange} preselectSingle />);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('does nothing with two open work orders, or when not asked to', () => {
+    const onChange = vi.fn();
+    render(<CostAttributionFields projectId="p1" value={{ workOrderId: null, disciplineId: null }} onChange={onChange} preselectSingle />);
+    expect(onChange).not.toHaveBeenCalled();
+    h.workOrders.data = one;
+    render(<CostAttributionFields projectId="p1" value={{ workOrderId: null, disciplineId: null }} onChange={onChange} />);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+

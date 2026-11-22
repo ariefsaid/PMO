@@ -18,6 +18,11 @@ insert into procurements (id, org_id, title, requested_by_id, project_id, curren
   -- e4: the same-currency control.
   ('03731000-0000-0000-0000-0000000000e4','03731000-0000-0000-0000-0000000000f0','IDR order','03731000-0000-0000-0000-0000000000f1',null,'IDR',0,'Draft');
 
+-- 1580: an order needs a supplier, so the fixture purchases are given one before the first signed-in write.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid where p.vendor_id is null;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"03731000-0000-0000-0000-0000000000f1","role":"authenticated"}';
 select lives_ok($$ select create_purchase_order('03731000-0000-0000-0000-0000000000e1', null, null, current_date, 250) $$,

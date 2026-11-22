@@ -994,9 +994,10 @@ describe('can() — equipment usage and costing (#1519; transition_equipment_usa
     expect(allowedRoles('delete', 'equipmentAsset')).toEqual(['Admin']);
   });
 
-  it('AC-EAV-018 status and proof: the field role and managers; rental terms: Admin and Finance only', () => {
+  it('AC-EAV-018 status and proof: the field role and managers; rental terms and the invoice check read: Admin, Finance and the equipment manager; a stated reason: Admin and Finance', () => {
     expect(allowedRoles('create', 'equipmentAvailability')).toEqual(['Admin', 'Project Manager', 'Engineer']);
-    expect(allowedRoles('manage', 'equipmentAvailability')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('manage', 'equipmentAvailability')).toEqual(['Admin', 'Project Manager', 'Finance']);
+    expect(allowedRoles('configure', 'equipmentAvailability')).toEqual(['Admin', 'Project Manager']);
     expect(allowedRoles('approve', 'equipmentAvailability')).toEqual(['Admin', 'Finance']);
     expect(can('approve', 'equipmentAvailability', { realRole: 'Executive' })).toBe(false);
     expect(can('manage', 'equipmentAvailability', { realRole: 'Engineer' })).toBe(false);
@@ -1304,9 +1305,13 @@ describe('#2751 candidate C10: page-level role comparisons into policy.ts', () =
     expect(can('manage', 'checkInSettings', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
   });
 
-  it('equipmentTarget.manage allows Admin only, never in view-as', () => {
-    expect(allowedRoles('manage', 'equipmentTarget')).toEqual(['Admin']);
-    expect(can('manage', 'equipmentTarget', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  it('imprestLimit.manage allows Admin only (the site-cash limit)', () => {
+    expect(allowedRoles('manage', 'imprestLimit')).toEqual(['Admin']);
+  });
+
+  it('procurementInvoice.create allows Admin and Finance, never in view-as (supplier bill from the payables list)', () => {
+    expect(allowedRoles('create', 'procurementInvoice')).toEqual(['Admin', 'Finance']);
+    expect(can('create', 'procurementInvoice', { realRole: 'Finance', record: { viewOnly: true } })).toBe(false);
   });
 
   it('workOrderIssueThreshold.manage allows Admin only, never in view-as', () => {

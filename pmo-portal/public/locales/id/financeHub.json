@@ -176,7 +176,22 @@
     "netProfit": "Laba bersih",
     "helpAges": "Umur piutang klien dihitung dari hari lewat jatuh tempo, termasuk pajak. Umur invoice supplier dihitung dari hari kalender sejak tanggal invoice; invoice tanpa tanggal tidak memiliki umur.",
     "payablesHelp": "Umur invoice dihitung dari tanggal invoice supplier.",
-    "workInHand": "Pekerjaan dalam tangan"
+    "workInHand": "Pekerjaan dalam tangan",
+    "waitingForYou": "Menunggu keputusan Anda",
+    "waitingError": "Tidak dapat memuat yang menunggu Anda",
+    "waitingNone": "Tidak ada yang menunggu keputusan Anda.",
+    "waitingAll_one": "Semua {{count}} persetujuan",
+    "waitingAll_other": "Semua {{count}} persetujuan",
+    "claimsBoard": "Papan klaim: per langkah dan umur",
+    "newVendorBill": {
+      "title": "Invoice supplier baru",
+      "continue": "Lanjut ke tagihan",
+      "purchase": "Pembelian",
+      "purchaseNoun": "pembelian",
+      "none": "Belum ada pembelian yang siap ditagih. Pembelian bisa ditagih setelah disetujui atau dipesan.",
+      "help": "Pilih pembelian untuk invoice supplier ini. Layar berikutnya menunjukkan apakah pesanan dan penerimaan barang menahan tagihan.",
+      "button": "Invoice supplier baru"
+    }
   },
   "nav": {
     "finance": "Keuangan",
