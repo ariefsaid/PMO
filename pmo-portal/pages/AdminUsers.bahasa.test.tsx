@@ -159,7 +159,7 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
     );
     expect(await screen.findByRole('menuitem', { name: 'Ubah manajer' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Nonaktifkan' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit role' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Ubah role' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('heading', { name: 'Ubah peran: Desmond Achebe' })).toBeInTheDocument();
     await userEvent.selectOptions(within(dialog).getByLabelText(/^Role/), 'Executive');
