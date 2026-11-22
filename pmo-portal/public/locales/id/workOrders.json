@@ -82,13 +82,13 @@
     "title": "Lokasi lapangan",
     "label": "Material laporan harian diambil dari",
     "none": "Belum diatur",
-    "help": "Laporan harian yang divalidasi mengeluarkan materialnya dari sini ke perintah kerja ini.",
+    "help": "Laporan harian yang divalidasi mengeluarkan materialnya dari sini ke work order ini.",
     "error": "Lokasi lapangan tidak dapat disimpan"
   },
   "inspections": {
     "title": "Inspeksi pihak ketiga",
     "error": "Inspeksi tidak dapat dimuat",
-    "empty": "Belum ada inspeksi pihak ketiga pada Work Order ini.",
+    "empty": "Belum ada inspeksi pihak ketiga pada work order ini.",
     "request": "Ajukan inspeksi",
     "create": "Ajukan",
     "dismiss": "Tutup",
@@ -191,7 +191,7 @@
     "clientReference": "Referensi klien {{ref}}",
     "collected": "Sudah diambil",
     "edit": "Ubah",
-    "empty": "Belum ada material klien yang diminta untuk perintah kerja ini.",
+    "empty": "Belum ada material klien yang diminta untuk work order ini.",
     "error": "Material klien tidak dapat dimuat",
     "form": {
       "addLine": "Tambah item",
@@ -237,7 +237,7 @@
     "recordRelease": "Catat pelepasan",
     "recordReservation": "Catat reservasi",
     "refusal": {
-      "allocation": "Baris kontrak itu milik perintah kerja lain.",
+      "allocation": "Baris kontrak itu milik work order lain.",
       "cancelled": "Permintaan ini sudah dibatalkan.",
       "forbidden": "Peran Anda tidak dapat melakukan ini.",
       "hasPickup": "Pengambilan sudah dicatat, sehingga permintaan ini tidak dapat dibatalkan.",
@@ -252,7 +252,7 @@
       "overRequested": "Reservasi akan melebihi jumlah diminta sebesar {{n}}.",
       "ownedByErp": "Stok dikelola di ERP yang terhubung, sehingga pengambilan tidak dapat dicatat di sini.",
       "releaseBelowCollected": "Pelepasan tidak boleh membuat reservasi di bawah {{n}} yang sudah diambil.",
-      "workOrder": "Perintah kerja ini sudah ditutup atau dibatalkan."
+      "workOrder": "Work order ini sudah ditutup atau dibatalkan."
     },
     "release": {
       "quantity": "Kuantitas dilepas",

@@ -27,8 +27,8 @@
     "waiting": "Menunggu persetujuan"
   },
   "billing": {
-    "draftNote": "Perintah kerja ini masih draf: menerima permintaan ini menaikkan nilainya sebesar perubahan nilai.",
-    "issuedNote": "Perintah kerja ini sudah diterbitkan: nilainya tetap, sehingga kuantitas tambahan baru dapat ditagih setelah perintah kerja dibatalkan dan diterbitkan ulang dengan nilai baru.",
+    "draftNote": "Work order ini masih draf: menerima permintaan ini menaikkan nilainya sebesar perubahan nilai.",
+    "issuedNote": "Work order ini sudah diterbitkan: nilainya tetap, sehingga kuantitas tambahan baru dapat ditagih setelah work order dibatalkan dan diterbitkan ulang dengan nilai baru.",
     "title": "Penagihan"
   },
   "client": {
@@ -55,7 +55,7 @@
     "title": "Permintaan perubahan kuantitas",
     "withdrawn": "Ditarik",
     "withdrawnFrom": "Ditarik dari status {{status}}",
-    "workOrder": "Perintah kerja"
+    "workOrder": "Work order"
   },
   "dialog": {
     "decisionTitle": "Catat keputusan klien",
@@ -92,9 +92,9 @@
     "withdrawn": "Ditarik"
   },
   "limit": {
-    "help": "Jumlah maksimum permintaan perubahan kuantitas per perintah kerja. Kosongkan jika tanpa batas.",
+    "help": "Jumlah maksimum permintaan perubahan kuantitas per work order. Kosongkan jika tanpa batas.",
     "invalid": "Bilangan bulat 1 atau lebih",
-    "label": "Batas per perintah kerja",
+    "label": "Batas per work order",
     "save": "Simpan batas",
     "saved": "Batas tersimpan",
     "title": "Batas permintaan"
@@ -173,20 +173,20 @@
       "not_above_contract": "Harus di atas kuantitas kontrak {{contract}}",
       "required": "Wajib diisi"
     },
-    "limit": "{{count}} dari {{limit}} permintaan terpakai pada perintah kerja ini",
-    "limitNone": "{{count}} permintaan pada perintah kerja ini",
-    "limitReached": "Perintah kerja ini telah mencapai batas permintaan",
+    "limit": "{{count}} dari {{limit}} permintaan terpakai pada work order ini",
+    "limitNone": "{{count}} permintaan pada work order ini",
+    "limitReached": "Work order ini telah mencapai batas permintaan",
     "lineHelp": "{{kind}} {{figure}} terhadap kuantitas kontrak {{contract}} {{unit}}",
-    "noLines": "Tidak ada baris kontrak pada perintah kerja ini yang melebihi kuantitas kontraknya",
+    "noLines": "Tidak ada baris kontrak pada work order ini yang melebihi kuantitas kontraknya",
     "note": "Catatan untuk penyetuju",
     "pickProject": "Pilih proyek",
-    "pickWorkOrder": "Pilih perintah kerja",
+    "pickWorkOrder": "Pilih work order",
     "project": "Proyek",
     "reason": "Alasan",
     "requested": "Total kuantitas yang diminta ({{unit}})",
     "submit": "Buat draf",
     "title": "Permintaan perubahan kuantitas baru",
-    "workOrder": "Perintah kerja"
+    "workOrder": "Work order"
   },
   "title": "Permintaan perubahan kuantitas",
   "toast": {
@@ -202,7 +202,7 @@
   "workOrder": {
     "all": "Semua permintaan perubahan kuantitas dan baris kontrak yang melebihi kuantitas",
     "count": "Permintaan",
-    "empty": "Belum ada permintaan perubahan kuantitas pada perintah kerja ini",
+    "empty": "Belum ada permintaan perubahan kuantitas pada work order ini",
     "overLines": "{{count}} baris kontrak melebihi kuantitasnya",
     "raise": "Minta perubahan kuantitas",
     "title": "Perubahan kuantitas"

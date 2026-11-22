@@ -37,15 +37,15 @@
   },
   "rollup": {
     "title": "Rencana pendapatan",
-    "empty": "Belum ada surat perintah kerja untuk direncanakan.",
-    "caption": "Rencana pendapatan sampai {{date}} per surat perintah kerja",
-    "workOrder": "Surat perintah kerja",
+    "empty": "Belum ada work order untuk direncanakan.",
+    "caption": "Rencana pendapatan sampai {{date}} per work order",
+    "workOrder": "Work order",
     "pending": "{{count}} belum divalidasi",
-    "total": "Total ({{currency}}, surat perintah kerja berencana)"
+    "total": "Total ({{currency}}, work order berencana)"
   },
   "settings": {
     "title": "Rencana pendapatan",
-    "helper": "Rencanakan pendapatan tiap surat perintah kerja per tanggal dan bandingkan dengan pendapatan harian yang sudah divalidasi. Mati sampai Anda menyalakannya; menyalakannya tidak mengubah data yang sudah ada.",
+    "helper": "Rencanakan pendapatan tiap work order per tanggal dan bandingkan dengan pendapatan harian yang sudah divalidasi. Mati sampai Anda menyalakannya; menyalakannya tidak mengubah data yang sudah ada.",
     "enabled": "Gunakan rencana pendapatan",
     "weekdays": "Hari kerja",
     "weekdaysHelp": "Jumlah satu bulan dibagi rata pada hari-hari ini.",
@@ -85,9 +85,9 @@
   },
   "dailyRollup": {
     "title": "Target harian, bulan berjalan",
-    "caption": "Target harian bulan berjalan sampai {{date}} per perintah kerja",
+    "caption": "Target harian bulan berjalan sampai {{date}} per work order",
     "projectionNone": "Belum cukup hari",
-    "total": "Total ({{currency}}, perintah kerja yang punya target)"
+    "total": "Total ({{currency}}, work order yang punya target)"
   },
   "nonWorking": {
     "title": "Hari tidak kerja",

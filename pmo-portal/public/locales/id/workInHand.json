@@ -8,7 +8,7 @@
   "col": {
     "backlog": "Bulan backlog",
     "billed": "Sudah ditagih",
-    "item": "Kontrak atau perintah kerja",
+    "item": "Kontrak atau work order",
     "left": "Sisa tagihan",
     "months": "Bulan",
     "rate": "Laju penagihan per bulan",
@@ -23,8 +23,8 @@
     "title": "Gagal memuat pekerjaan dalam tangan"
   },
   "help": {
-    "backlog": "Bulan backlog adalah Sisa tagihan dibagi laju penagihan. Kontrak dan perintah kerjanya ditampilkan bersama dan tidak dijumlahkan.",
-    "leftToBill": "Sisa tagihan adalah nilai yang belum ditagih: nilai kontrak atau perintah kerja dikurangi pekerjaan yang sudah ditagih, sebelum pajak. Invoice draf dan invoice batal tidak dihitung.",
+    "backlog": "Bulan backlog adalah Sisa tagihan dibagi laju penagihan. Kontrak dan work ordernya ditampilkan bersama dan tidak dijumlahkan.",
+    "leftToBill": "Sisa tagihan adalah nilai yang belum ditagih: nilai kontrak atau work order dikurangi pekerjaan yang sudah ditagih, sebelum pajak. Invoice draf dan invoice batal tidak dihitung.",
     "rate": "Laju penagihan per bulan adalah pekerjaan yang ditagih dalam 6 bulan penuh terakhir, dibagi jumlah bulan sejak penagihan dimulai (paling banyak 6)."
   },
   "hidden": {
@@ -36,7 +36,7 @@
     "noValueReason_one": "{{count}} kontrak belum memiliki nilai",
     "noValueReason_other": "{{count}} kontrak belum memiliki nilai",
     "truncated": "Baris di luar batas",
-    "truncatedReason": "daftar dipotong pada 500 kontrak dan 3.000 perintah kerja",
+    "truncatedReason": "daftar dipotong pada 500 kontrak dan 3.000 work order",
     "undated": "Invoice tanpa tanggal",
     "undatedFix": "Buka invoice",
     "undatedReason_one": "{{count}} invoice tidak bertanggal dan tidak dihitung",
@@ -61,7 +61,7 @@
     "open": "Buka {{name}}",
     "over": "Penagihan melebihi nilai",
     "showMonths": "Tampilkan bulan untuk {{name}}",
-    "workOrder": "Perintah kerja"
+    "workOrder": "Work order"
   },
   "sort": {
     "backlog": "Bulan backlog",

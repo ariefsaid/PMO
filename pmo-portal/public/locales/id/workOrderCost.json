@@ -46,10 +46,10 @@
     "tooLong": "Gunakan {{max}} karakter atau kurang."
   },
   "expenseClaim": {
-    "title": "Perintah kerja dan disiplin",
+    "title": "Work order dan disiplin",
     "edit": "Ubah",
     "save": "Simpan",
     "cancel": "Batal",
-    "saved": "Perintah kerja dan disiplin tersimpan"
+    "saved": "Work order dan disiplin tersimpan"
   }
 }

@@ -138,7 +138,7 @@
       "status": "Status",
       "step": "Langkah Anda",
       "submitted": "Dikirim",
-      "workOrder": "Perintah kerja"
+      "workOrder": "Work order"
     },
     "empty": "Belum ada permintaan material",
     "error": "Permintaan material tidak dapat dimuat",
@@ -163,9 +163,9 @@
     "adminOnly": "Hanya administrator yang dapat melakukan ini.",
     "cutoff": "Batas waktu harian untuk besok sudah lewat. Pilih tanggal dibutuhkan yang lebih lambat.",
     "cutoffDated": "Permintaan untuk besok ditutup pukul {{time}}. Tanggal paling awal yang bisa diminta adalah {{date}}.",
-    "destination": "Pilih lokasi pengiriman yang termasuk dalam proyek perintah kerja ini.",
+    "destination": "Pilih lokasi pengiriman yang termasuk dalam proyek work order ini.",
     "invalid": "Permintaan tidak dapat disimpan. Pastikan setiap barang hanya muncul sekali, barang berstatus satuan utuh tanpa pecahan, dan jumlah memiliki paling banyak tiga angka desimal.",
-    "manyDestinations": "Proyek perintah kerja ini punya beberapa lokasi pengiriman. Minta pemohon menyebutkan tujuannya.",
+    "manyDestinations": "Proyek work order ini punya beberapa lokasi pengiriman. Minta pemohon menyebutkan tujuannya.",
     "neededBy": "Pilih tanggal dibutuhkan yang belum lewat.",
     "noChain": "Rantai persetujuan belum diatur. Hubungi administrator.",
     "noDestination": "Proyek $t(common:terms.clientWorkOrder) ini tidak punya lokasi proyek, halaman penimbunan, atau area persiapan sebagai tujuan.",
@@ -188,7 +188,7 @@
     "sourceRequired": "Pilih gudang asal material.",
     "standIn": "Pengganti ini tidak diizinkan: pilih rekan aktif dan rentang tanggal yang valid.",
     "unknown": "Gagal. Coba lagi.",
-    "workOrder": "Pilih perintah kerja yang dapat Anda lihat."
+    "workOrder": "Pilih work order yang dapat Anda lihat."
   },
   "role": {
     "Admin": "Admin",
@@ -266,7 +266,7 @@
   },
   "usage": {
     "title": "Peringatan pemakaian",
-    "sub": "Beri peringatan saat pemakaian material perintah kerja mencapai persentase rencana ini. Kosongkan kolom untuk mematikan peringatan itu. Peringatan tidak pernah menghalangi permintaan.",
+    "sub": "Beri peringatan saat pemakaian material work order mencapai persentase rencana ini. Kosongkan kolom untuk mematikan peringatan itu. Peringatan tidak pernah menghalangi permintaan.",
     "first": "Peringatan pertama (% dari rencana)",
     "second": "Peringatan kedua (% dari rencana)",
     "save": "Simpan peringatan",

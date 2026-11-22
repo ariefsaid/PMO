@@ -208,12 +208,12 @@
     "STK_PROOF_MODE": "Konfirmasi serah terima hanya bisa diwajibkan bila transfer dua langkah.",
     "STK_MODE_BLOCKED": "Ini tidak bisa diubah selama ada transfer dalam perjalanan, kurang, berstatus draf, atau terikat aturan konfirmasi.",
     "STK_FORBIDDEN": "Hanya Admin yang dapat melakukan ini.",
-    "STK_WOT_OFF": "Transfer antar perintah kerja belum diaktifkan untuk organisasi Anda.",
-    "STK_WOT_EXCEEDS": "Perintah kerja itu tidak memiliki material sebanyak itu.",
-    "STK_WOT_PROJECT": "Kedua perintah kerja harus berada di proyek yang sama.",
-    "STK_WOT_LOCATION": "Stok harus berada di lokasi lapangan, yard, atau staging milik proyek perintah kerja tersebut.",
-    "STK_WOT_INCOMPLETE": "Transfer antar perintah kerja ini tidak lengkap dan tidak disimpan.",
-    "STK_WOT_SYSTEM": "Dokumen ini hanya ditulis oleh transfer antar perintah kerja."
+    "STK_WOT_OFF": "Transfer antar work order belum diaktifkan untuk organisasi Anda.",
+    "STK_WOT_EXCEEDS": "Work order itu tidak memiliki material sebanyak itu.",
+    "STK_WOT_PROJECT": "Kedua work order harus berada di proyek yang sama.",
+    "STK_WOT_LOCATION": "Stok harus berada di lokasi lapangan, yard, atau staging milik proyek work order tersebut.",
+    "STK_WOT_INCOMPLETE": "Transfer antar work order ini tidak lengkap dan tidak disimpan.",
+    "STK_WOT_SYSTEM": "Dokumen ini hanya ditulis oleh transfer antar work order."
   },
   "actions": {
     "cancel": "Batal",
@@ -373,7 +373,7 @@
         "sentBody": "Menunggu jawaban Odoo. Buka dokumen untuk melihat posisinya."
       }
     },
-    "workOrder": "Work Order / SPK"
+    "workOrder": "Work order"
   },
   "ledger": {
     "title": "Buku stok",
@@ -679,13 +679,13 @@
     "materialProgress": {
       "banner": {
         "title": "Barang dikeluarkan melebihi progres: {{count}}",
-        "body": "Porsi yang dikeluarkan dari jumlah rencana lebih dari {{threshold}} poin di atas progres perintah kerja ({{progress}}%). Ini hanya peringatan.",
+        "body": "Porsi yang dikeluarkan dari jumlah rencana lebih dari {{threshold}} poin di atas progres work order ({{progress}}%). Ini hanya peringatan.",
         "row": "{{name}}: dikeluarkan {{issued}}% dari rencana, progres {{progress}}%, lebih {{gap}} poin"
       },
       "setting": {
         "manage": "Peringatan pengeluaran terhadap progres",
         "label": "Beri peringatan bila pengeluaran melebihi progres sebesar (poin persentase)",
-        "help": "Per barang: jumlah dikeluarkan sebagai porsi dari jumlah rencana, dibandingkan dengan progres perintah kerja. Kosongkan untuk mematikan peringatan. Tidak pernah memblokir pengeluaran.",
+        "help": "Per barang: jumlah dikeluarkan sebagai porsi dari jumlah rencana, dibandingkan dengan progres work order. Kosongkan untuk mematikan peringatan. Tidak pernah memblokir pengeluaran.",
         "save": "Simpan",
         "saved": "Tersimpan.",
         "range": "Isi angka 0 sampai 100, atau kosongkan.",
@@ -897,84 +897,84 @@
     "qualityItems": "Barang yang perlu pemeriksaan mutu saat diterima"
   },
   "workOrderTransfer": {
-    "title": "Pindahkan sisa material antar perintah kerja",
-    "detailTitle": "Transfer antar perintah kerja",
-    "intro": "Sisa material berpindah dari satu perintah kerja ke perintah kerja lain dalam satu dokumen. Perintah kerja pertama dikreditkan dan yang kedua dibebani; stok tetap di tempatnya.",
+    "title": "Pindahkan sisa material antar work order",
+    "detailTitle": "Transfer antar work order",
+    "intro": "Sisa material berpindah dari satu work order ke work order lain dalam satu dokumen. Work order pertama dikreditkan dan yang kedua dibebani; stok tetap di tempatnya.",
     "off": {
-      "title": "Transfer antar perintah kerja nonaktif",
+      "title": "Transfer antar work order nonaktif",
       "sub": "Administrator dapat mengaktifkannya di Pengaturan stok."
     },
     "project": "Proyek",
     "projectPlaceholder": "Pilih proyek",
-    "from": "Dari perintah kerja",
-    "to": "Ke perintah kerja",
-    "woPlaceholder": "Pilih perintah kerja",
+    "from": "Dari work order",
+    "to": "Ke work order",
+    "woPlaceholder": "Pilih work order",
     "location": "Lokasi material",
     "locationHelp": "Lokasi lapangan, yard, atau staging proyek ini yang Anda kelola.",
     "itemPlaceholder": "Pilih barang",
-    "available": "Dipegang perintah kerja: {{qty}} {{unit}}",
-    "nothingHeld": "Perintah kerja ini tidak memegang material yang dapat dipindahkan.",
-    "move": "Pindahkan ke perintah kerja lain",
-    "entry": "Pindahkan sisa ke perintah kerja lain",
-    "postedToast": "Material dipindahkan antar perintah kerja",
-    "notFound": "Transfer antar perintah kerja ini tidak ditemukan.",
+    "available": "Dipegang work order: {{qty}} {{unit}}",
+    "nothingHeld": "Work order ini tidak memegang material yang dapat dipindahkan.",
+    "move": "Pindahkan ke work order lain",
+    "entry": "Pindahkan sisa ke work order lain",
+    "postedToast": "Material dipindahkan antar work order",
+    "notFound": "Transfer antar work order ini tidak ditemukan.",
     "halves": "Dokumen dalam transfer ini",
-    "returnHalf": "Pengembalian dari perintah kerja pertama",
-    "issueHalf": "Pengeluaran ke perintah kerja kedua",
-    "partOf": "Bagian dari transfer antar perintah kerja",
+    "returnHalf": "Pengembalian dari work order pertama",
+    "issueHalf": "Pengeluaran ke work order kedua",
+    "partOf": "Bagian dari transfer antar work order",
     "confirm": {
       "title": "Pindahkan ke {{to}}",
-      "description": "Material dikembalikan dari perintah kerja pertama dan dikeluarkan ke yang kedua dalam satu langkah. Ini tidak dapat diubah; untuk mengoreksi, pindahkan material kembali."
+      "description": "Material dikembalikan dari work order pertama dan dikeluarkan ke yang kedua dalam satu langkah. Ini tidak dapat diubah; untuk mengoreksi, pindahkan material kembali."
     },
     "errors": {
       "project": "Pilih proyek.",
-      "from": "Pilih perintah kerja tempat material berada.",
-      "to": "Pilih perintah kerja penerima.",
-      "same": "Pilih perintah kerja yang berbeda.",
+      "from": "Pilih work order tempat material berada.",
+      "to": "Pilih work order penerima.",
+      "same": "Pilih work order yang berbeda.",
       "location": "Pilih lokasi material.",
       "duplicate": "Setiap barang hanya boleh di satu baris.",
-      "exceeds": "Perintah kerja hanya memegang {{qty}} barang ini."
+      "exceeds": "Work order hanya memegang {{qty}} barang ini."
     },
-    "setting": "Transfer antar perintah kerja",
-    "settingHelp": "Memungkinkan penjaga gudang memindahkan sisa material antar perintah kerja dalam satu proyek dengan satu dokumen."
+    "setting": "Transfer antar work order",
+    "settingHelp": "Memungkinkan penjaga gudang memindahkan sisa material antar work order dalam satu proyek dengan satu dokumen."
   },
   "reservations": {
     "column": "Bebas dan dicadangkan",
     "freePlusReserved": "{{free}} bebas + {{reserved}} dicadangkan",
     "shortBy": "Dicadangkan, kurang {{n}}",
     "reserve": "Cadangkan",
-    "showHolders_one": "Tampilkan perintah kerja",
-    "showHolders_other": "Tampilkan {{count}} perintah kerja",
-    "hideHolders": "Sembunyikan perintah kerja",
-    "holders": "Perintah kerja yang memegang cadangan",
+    "showHolders_one": "Tampilkan work order",
+    "showHolders_other": "Tampilkan {{count}} work order",
+    "hideHolders": "Sembunyikan work order",
+    "holders": "Work order yang memegang cadangan",
     "until": "sampai {{date}}",
-    "heldByWorkOrder": "Dicadangkan untuk perintah kerja ini",
+    "heldByWorkOrder": "Dicadangkan untuk work order ini",
     "form": {
       "title": "Cadangkan stok",
       "submit": "Cadangkan",
       "project": "Proyek",
       "projectPlaceholder": "Pilih proyek",
-      "workOrder": "Perintah kerja",
-      "workOrderPlaceholder": "Pilih perintah kerja",
+      "workOrder": "Work order",
+      "workOrderPlaceholder": "Pilih work order",
       "quantity": "Jumlah",
       "expires": "Tahan sampai (opsional)",
       "expiresHelp": "Setelah tanggal ini stok bebas kembali.",
       "note": "Catatan (opsional)",
-      "errWorkOrder": "Pilih perintah kerja yang memerlukan stok ini",
+      "errWorkOrder": "Pilih work order yang memerlukan stok ini",
       "errQuantity": "Isi jumlah di atas nol, maksimal tiga desimal",
       "saved": "Stok dicadangkan"
     },
     "borrowing": {
       "title": "Meminjam.",
-      "body": "{{n}} dari permintaan ini diambil dari stok yang dicadangkan untuk perintah kerja lain, jadi perlu persetujuan peminjaman."
+      "body": "{{n}} dari permintaan ini diambil dari stok yang dicadangkan untuk work order lain, jadi perlu persetujuan peminjaman."
     },
     "settings": {
-      "enable": "Cadangkan stok untuk perintah kerja",
-      "enableHelp": "Perintah kerja dapat menahan sejumlah barang di suatu lokasi. Tidak ada yang dikunci: stok tampil sebagai bebas dan dicadangkan. Nonaktif secara bawaan.",
+      "enable": "Cadangkan stok untuk work order",
+      "enableHelp": "Work order dapat menahan sejumlah barang di suatu lokasi. Tidak ada yang dikunci: stok tampil sebagai bebas dan dicadangkan. Nonaktif secara bawaan.",
       "mode": "Bila permintaan meminjam stok cadangan",
       "modeApprove": "Perlu langkah persetujuan tambahan",
       "modeWarn": "Hanya tampilkan peringatan",
-      "modeHelp": "Meminjam berarti permintaan mengambil stok yang dicadangkan untuk perintah kerja lain.",
+      "modeHelp": "Meminjam berarti permintaan mengambil stok yang dicadangkan untuk work order lain.",
       "role": "Siapa yang menyetujui peminjaman",
       "roleNone": "Belum dipilih",
       "roleHelp": "Peran ini memutuskan langkah terakhir permintaan yang meminjam.",
@@ -985,13 +985,13 @@
       "RSV_OFF": "Pencadangan belum diaktifkan.",
       "RSV_FORBIDDEN": "Hanya penjaga lokasi, perencana stok, atau Admin yang dapat melakukan ini.",
       "RSV_INVALID": "Periksa isian: jumlah maksimal tiga desimal, bilangan bulat untuk barang satuan utuh, dan alasan bila diminta.",
-      "RSV_NOT_FOUND": "Perintah kerja, barang, lokasi, atau cadangan itu tidak ditemukan.",
-      "RSV_WORK_ORDER": "Perintah kerja sudah ditutup atau dibatalkan.",
+      "RSV_NOT_FOUND": "Work order, barang, lokasi, atau cadangan itu tidak ditemukan.",
+      "RSV_WORK_ORDER": "Work order sudah ditutup atau dibatalkan.",
       "RSV_LOCATION": "Stok dapat dicadangkan di lokasi pusat, lokasi kerja, yard, dan staging yang tidak diarsipkan.",
       "RSV_EXCEEDS_FREE": "Hanya {{n}} yang bebas di lokasi ini.",
       "RSV_EXCEEDS_REMAINING": "Hanya {{n}} yang tersisa pada cadangan ini.",
       "RSV_NOT_ACTIVE": "Cadangan ini sudah tidak aktif.",
-      "RSV_NO_BORROW_APPROVER": "Permintaan ini mengambil stok cadangan perintah kerja lain dan belum ada yang ditetapkan menyetujuinya. Hubungi Admin.",
+      "RSV_NO_BORROW_APPROVER": "Permintaan ini mengambil stok cadangan work order lain dan belum ada yang ditetapkan menyetujuinya. Hubungi Admin.",
       "RSV_BORROW_CHANGED": "Stok cadangan yang dipinjam kini lebih banyak dari yang disetujui. Kembalikan permintaan dan ajukan lagi.",
       "RSV_OVERDRAW": "Cadangan lebih sedikit dari yang dipakai permintaan.",
       "RSV_IMMUTABLE": "Cadangan tidak dapat dihapus; lepaskan saja."
@@ -999,7 +999,7 @@
   },
   "dsrIssue": {
     "setting": "Laporan harian yang divalidasi mengeluarkan materialnya dari stok",
-    "settingHelp": "Mati secara bawaan. Bila hidup, validasi laporan harian mengeluarkan baris material dari lokasi lapangan perintah kerja; stok kurang diberi tanda dan tidak menghalangi laporan.",
+    "settingHelp": "Mati secara bawaan. Bila hidup, validasi laporan harian mengeluarkan baris material dari lokasi lapangan work order; stok kurang diberi tanda dan tidak menghalangi laporan.",
     "items": "Barang yang dikeluarkan",
     "itemsAll": "Semua barang pada baris material",
     "itemsConsumables": "Hanya barang bertanda habis pakai",

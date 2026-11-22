@@ -13,8 +13,8 @@
     "checklist": "Daftar periksa sebelum kerja",
     "duplicate": "Entri itu sudah ada dalam daftar",
     "empty": "Belum ada isi",
-    "enable": "Catat keselamatan harian pada surat perintah kerja",
-    "helper": "Catatan keselamatan harian per surat perintah kerja. Jenis pemeriksaan, jenis izin kerja, dan butir daftar periksa adalah milik Anda: tambahkan yang dipakai di lokasi Anda. Mengarsipkan menyembunyikan entri dari hari baru; hari yang sudah memakainya tetap menyimpannya.",
+    "enable": "Catat keselamatan harian pada work order",
+    "helper": "Catatan keselamatan harian per work order. Jenis pemeriksaan, jenis izin kerja, dan butir daftar periksa adalah milik Anda: tambahkan yang dipakai di lokasi Anda. Mengarsipkan menyembunyikan entri dari hari baru; hari yang sudah memakainya tetap menyimpannya.",
     "loadError": "Daftar tidak dapat dimuat",
     "permitTypes": "Jenis izin kerja",
     "rename": "Ubah nama",
@@ -81,7 +81,7 @@
     "stillNeeded": "Masih dibutuhkan: {{parts}}",
     "title": "Hari keselamatan",
     "version": "Versi {{n}}",
-    "workOrder": "Surat perintah kerja"
+    "workOrder": "Work order"
   },
   "officer": {
     "add": "Tambah entri",
@@ -148,7 +148,7 @@
     "showRows": "Tampilkan barisnya",
     "subtitle": "Jam kerja, insiden, dan catatan keselamatan untuk satu bulan.",
     "title": "Ringkasan keselamatan",
-    "workOrder": "Surat perintah kerja"
+    "workOrder": "Work order"
   },
   "toast": {
     "corrected": "Koreksi dimulai",
@@ -158,7 +158,7 @@
     "addPhoto": "Tambah foto kehadiran",
     "attendeeCount": "{{count}} peserta",
     "attendees": "Peserta dari daftar tugas",
-    "noRoster": "Tidak ada yang ditugaskan pada surat perintah kerja ini untuk tanggal ini",
+    "noRoster": "Tidak ada yang ditugaskan pada work order ini untuk tanggal ini",
     "none": "Belum ada pembicaraan kotak peralatan",
     "photoCount": "{{count}} foto",
     "photoInput": "Foto kehadiran",

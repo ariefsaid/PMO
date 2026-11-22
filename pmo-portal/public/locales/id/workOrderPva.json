@@ -157,8 +157,8 @@
   },
   "performance": {
     "title": "Kinerja biaya dan jadwal",
-    "basis": "Nilai yang diperoleh adalah progres laporan harian yang telah divalidasi pada tarif kontrak. Nilai rencana berjalan lurus antara tanggal mulai dan selesai perintah kerja. Biaya aktual adalah biaya langsung yang tercatat pada perintah kerja.",
-    "projectBasis": "Perintah kerja yang diterbitkan atau ditutup, dijumlahkan. Nilai yang diperoleh adalah progres tervalidasi pada tarif kontrak; rencana linear menurut kalender.",
+    "basis": "Nilai yang diperoleh adalah progres laporan harian yang telah divalidasi pada tarif kontrak. Nilai rencana berjalan lurus antara tanggal mulai dan selesai work order. Biaya aktual adalah biaya langsung yang tercatat pada work order.",
+    "projectBasis": "Work order yang diterbitkan atau ditutup, dijumlahkan. Nilai yang diperoleh adalah progres tervalidasi pada tarif kontrak; rencana linear menurut kalender.",
     "asOf": "Per {{date}}",
     "cpi": "Indeks kinerja biaya",
     "spi": "Indeks kinerja jadwal",
@@ -198,17 +198,17 @@
       "acIncompleteUndated_one": "Biaya belum dapat dijumlahkan: 1 baris biaya tanpa tanggal",
       "acIncompleteUndated_other": "Biaya belum dapat dijumlahkan: {{count}} baris biaya tanpa tanggal",
       "notComparable": "Tidak dapat dibandingkan: sebagian biaya dalam mata uang lain",
-      "excluded": "Tidak ada angka untuk perintah kerja draf atau dibatalkan"
+      "excluded": "Tidak ada angka untuk work order draf atau dibatalkan"
     },
     "unknown": "Tidak diketahui",
-    "counted": "{{included}} perintah kerja dihitung, {{excluded}} tidak disertakan karena angkanya belum lengkap atau belum diterbitkan atau ditutup",
-    "truncated": "500 perintah kerja pertama ditampilkan; {{count}} lainnya tidak disertakan.",
-    "nothing": "Belum ada yang tercatat untuk perintah kerja ini.",
+    "counted": "{{included}} work order dihitung, {{excluded}} tidak disertakan karena angkanya belum lengkap atau belum diterbitkan atau ditutup",
+    "truncated": "500 work order pertama ditampilkan; {{count}} lainnya tidak disertakan.",
+    "nothing": "Belum ada yang tercatat untuk work order ini.",
     "loadError": "Tidak dapat memuat kinerja biaya dan jadwal",
     "retry": "Coba lagi",
-    "workOrders": "Per perintah kerja",
+    "workOrders": "Per work order",
     "col": {
-      "workOrder": "Perintah kerja"
+      "workOrder": "Work order"
     }
   },
   "earnedBilled": {
@@ -217,7 +217,7 @@
     "note": "Dihasilkan adalah progres harian tervalidasi pada tarif kontrak. Ditagih adalah klaim dan invoice, tanpa pajak.",
     "packNote": "Dihasilkan adalah progres harian tervalidasi sampai saat ini; biaya dan nilai tagihan sama dengan tab proyek, sehingga keduanya cocok.",
     "col": {
-      "workOrder": "Perintah kerja",
+      "workOrder": "Work order",
       "project": "Proyek",
       "earned": "Dihasilkan",
       "billed": "Ditagih",
@@ -225,13 +225,13 @@
       "marginEarned": "Margin atas yang dihasilkan",
       "marginBilled": "Margin atas yang ditagih"
     },
-    "byWorkOrder": "Per perintah kerja",
+    "byWorkOrder": "Per work order",
     "byDiscipline": "Per disiplin",
     "notItemised": "Tidak dirinci",
     "notAvailable": "Tidak tersedia",
-    "incompleteWorkOrders": "Belum lengkap: sebagian perintah kerja belum punya progres tervalidasi atau tarif",
-    "withoutProgress": "{{count}} dari {{total}} perintah kerja belum punya progres tervalidasi.",
-    "empty": "Belum ada perintah kerja berstatus Diterbitkan atau Ditutup.",
+    "incompleteWorkOrders": "Belum lengkap: sebagian work order belum punya progres tervalidasi atau tarif",
+    "withoutProgress": "{{count}} dari {{total}} work order belum punya progres tervalidasi.",
+    "empty": "Belum ada work order berstatus Diterbitkan atau Ditutup.",
     "loadError": "Pendapatan yang dihasilkan dan ditagih tidak dapat dimuat"
   },
   "idle": {

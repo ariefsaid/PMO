@@ -1,6 +1,6 @@
 /** AC-TX-008 (#2712): Administration › Terminology › Role names. */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -41,17 +41,17 @@ describe('AC-TX-008 role names screen', () => {
     await waitFor(() => expect(input.value).toBe('Yard Lead'));
     await userEvent.clear(input);
     await userEvent.type(input, 'Yard Chief');
-    await userEvent.click(row.querySelectorAll('button')[0]);
+    await userEvent.click(within(screen.getByTestId('role-name-card-storekeeper')).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(save).toHaveBeenCalledWith({ roleKey: 'storekeeper', locale: 'en', name: 'Yard Chief' }));
+    expect(save).toHaveBeenCalledTimes(1);
   });
-  it('resets one row; a row without an override cannot be reset', async () => {
+  it('resets a role; a role without an override cannot be reset', async () => {
     wrap();
     const row = await screen.findByTestId('role-name-row-storekeeper-en');
     await waitFor(() => expect((row.querySelector('input') as HTMLInputElement).value).toBe('Yard Lead'));
-    await userEvent.click(row.querySelectorAll('button')[1]);
+    await userEvent.click(within(screen.getByTestId('role-name-card-storekeeper')).getByRole('button', { name: 'Reset' }));
     await waitFor(() => expect(reset).toHaveBeenCalledWith('storekeeper', 'en'));
-    const plain = screen.getByTestId('role-name-row-buyer-en');
-    expect((plain.querySelectorAll('button')[1] as HTMLButtonElement).disabled).toBe(true);
+    expect(within(screen.getByTestId('role-name-card-buyer')).getByRole('button', { name: 'Reset' })).toBeDisabled();
   });
   it('blocks a name over 60 characters (input is length-bounded)', async () => {
     wrap();
@@ -62,7 +62,7 @@ describe('AC-TX-008 role names screen', () => {
     permissions.write = false;
     wrap();
     const row = await screen.findByTestId('role-name-row-buyer-en');
-    expect(row.querySelectorAll('button')).toHaveLength(0);
+    expect(screen.getByTestId('role-name-card-buyer').querySelectorAll('button')).toHaveLength(0);
     expect((row.querySelector('input') as HTMLInputElement).disabled).toBe(true);
   });
 });

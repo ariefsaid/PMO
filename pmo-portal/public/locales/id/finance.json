@@ -1157,7 +1157,7 @@
     "projectNoun": "proyek",
     "allDone": "Semua langkah selesai",
     "allDoneHint": "Siap ditagihkan. Umur dihitung sejak langkah terakhir.",
-    "workOrder": "Work Order {{number}}",
+    "workOrder": "Work order {{number}}",
     "progress": "{{done}} dari {{total}} langkah",
     "holder": "Menunggu {{role}}",
     "notStarted": "Belum dimulai",
@@ -1193,8 +1193,8 @@
     "pick": "Pilih {{item}}",
     "pickProject": "Pilih semua",
     "unpickProject": "Hapus proyek",
-    "workOrder": "Work Order {{number}}",
-    "noWorkOrderNumber": "Work Order",
+    "workOrder": "Work order {{number}}",
+    "noWorkOrderNumber": "Work order",
     "moneyOnly": "Tanpa baris kontrak",
     "unclaimedQty": "{{qty}} {{unit}} diterima, belum diklaim",
     "overClaimed": "Klaim berlebih: ini akan melewati kuantitas kontrak",
@@ -1228,5 +1228,5 @@
     "overCount_one": "{{count}} baris melewati batas hari",
     "overCount_other": "{{count}} baris melewati batas hari"
   },
-  "workOrderReference": "Work Order / SPK"
+  "workOrderReference": "Work order"
 }
