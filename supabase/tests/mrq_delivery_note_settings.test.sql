@@ -97,9 +97,9 @@ select lives_ok(
 select throws_ok(
   $$ insert into public.org_terminology (org_id, term_key, locale, singular, plural)
      values ('26870000-0000-0000-0000-00000000000a', 'invalidTermKey', 'en', 'Invalid', 'Invalids') $$,
-  '23514',
+  '23503',
   null,
-  'AC-DNP-004 org_terminology still enforces allowed term_keys check'
+  'AC-DNP-004 org_terminology still enforces the allowed term keys (1491 foreign key to org_term_keys)'
 );
 
 select * from finish();
