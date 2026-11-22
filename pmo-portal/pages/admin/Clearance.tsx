@@ -155,7 +155,7 @@ export default function Clearance() {
   if (!enabled.data) {
     return (
       <ListState variant="empty" title={t('clearance.off.title', 'The clearance checklist is not turned on')}
-        sub={t('clearance.off.sub', 'An Admin can turn it on under People.')} />
+        sub={t('clearance.off.sub', 'An Admin can turn it on under Modules, in People and crews.')} />
     );
   }
   return (

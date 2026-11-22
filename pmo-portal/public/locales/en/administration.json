@@ -1173,7 +1173,7 @@
     },
     "off": {
       "title": "The clearance checklist is not turned on",
-      "sub": "An Admin can turn it on under People."
+      "sub": "An Admin can turn it on under Modules, in People and crews."
     },
     "person": {
       "errDone": "Enter the date it was done",

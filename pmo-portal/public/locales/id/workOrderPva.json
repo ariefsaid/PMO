@@ -80,6 +80,7 @@
     "archivedDiscipline": "Disiplin diarsipkan",
     "revenueNote": "Pendapatan adalah progres tervalidasi pada tarif kontrak.",
     "picker": {
+      "noneYet": "Belum ada disiplin. Admin menambahkannya di Disiplin biaya, dalam Pengaturan proyek.",
       "label": "Disiplin (untuk laba per disiplin)",
       "none": "Tanpa disiplin",
       "saved": "Disiplin disimpan",

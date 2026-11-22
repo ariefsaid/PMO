@@ -60,8 +60,10 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
           <SelectField label={t('crews:leave.person', 'Person')} required value={effectivePerson} onChange={setPersonId}
             options={(people.data ?? []).map((p) => ({ value: p.id, label: p.name }))} />
         )}
-        <SelectField label={t('crews:leave.type', 'Type')} required value={typeId} onChange={setTypeId}
-          placeholder={t('crews:leave.pickType', 'Choose a type')} options={liveTypes.map((x) => ({ value: x.id, label: x.name }))} />
+        {!types.isPending && liveTypes.length === 0
+          ? <p className="text-control text-muted-foreground" data-testid="leave-no-types">{t('crews:leave.noTypesToChoose', 'No leave types yet. An Admin adds them under Leave settings.')}</p>
+          : <SelectField label={t('crews:leave.type', 'Type')} required value={typeId} onChange={setTypeId}
+            placeholder={t('crews:leave.pickType', 'Choose a type')} options={liveTypes.map((x) => ({ value: x.id, label: x.name }))} />}
         <DateField label={t('crews:from', 'From')} required value={start} onChange={setStart} />
         <DateField label={t('crews:leave.lastDay', 'Last day')} value={end} onChange={setEnd} min={start} />
         <TextArea label={t('crews:leave.reason', 'Reason (optional)')} value={reason} onChange={setReason} fullWidth />

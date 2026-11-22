@@ -20,6 +20,7 @@ const h = vi.hoisted(() => ({
   decide: vi.fn(),
   role: 'Engineer',
   viewAs: null as string | null,
+  types: [{ id: 't1', name: 'Type A', archived_at: null }] as Array<Record<string, unknown>>,
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.viewAs ?? h.role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o1', id: 'u1', role: h.role } }) }));
@@ -27,7 +28,7 @@ vi.mock('@/src/hooks/useLeave', () => ({
   useLeaveSettings: () => ({ data: { enabled: h.enabled, approver_role: null }, isPending: false }),
   useLeaveEnabled: () => h.enabled,
   useLeaveRequests: () => ({ data: h.rows, isPending: false, isError: false, refetch: vi.fn() }),
-  useLeaveTypes: () => ({ data: [{ id: 't1', name: 'Type A', archived_at: null }] }),
+  useLeaveTypes: () => ({ data: h.types, isPending: false }),
   useLeaveMutations: () => ({
     submit: { mutateAsync: h.submit, isPending: false },
     decide: { mutateAsync: h.decide, isPending: false },
@@ -55,12 +56,13 @@ const page = (bahasa = false) => {
 };
 
 describe('leave requests page (#2708)', () => {
-  beforeEach(() => { h.enabled = true; h.rows = []; h.submit.mockReset(); h.decide.mockReset(); h.role = 'Engineer'; h.viewAs = null; });
+  beforeEach(() => { h.enabled = true; h.rows = []; h.submit.mockReset(); h.decide.mockReset(); h.role = 'Engineer'; h.viewAs = null; h.types = [{ id: 't1', name: 'Type A', archived_at: null }]; });
 
-  it('OFF: says it is not switched on and offers no request button', () => {
+  it('OFF: says it is turned off, and who turns it on, and offers no request button', () => {
     h.enabled = false;
     page();
-    expect(screen.getByText(/not switched on/)).toBeInTheDocument();
+    expect(screen.getByText(/turned off for your organisation/)).toBeInTheDocument();
+    expect(screen.getByText(/An Admin can turn them on under Modules/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Request leave' })).toBeNull();
   });
 
@@ -72,6 +74,15 @@ describe('leave requests page (#2708)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send request' }));
     expect(h.submit).toHaveBeenCalledTimes(1);
     expect(h.submit.mock.calls[0][0]).toMatchObject({ person_id: 'p1', leave_type_id: 't1' });
+  });
+
+  it('AC-LV-012 with no leave types yet the form says so and who adds them, never an empty required picker', async () => {
+    h.types = [];
+    page();
+    await userEvent.click(screen.getByRole('button', { name: 'Request leave' }));
+    expect(screen.getByTestId('leave-no-types').textContent).toBe('No leave types yet. An Admin adds them under Leave settings.');
+    expect(screen.queryByRole('combobox', { name: /Type/ })).toBeNull();
+    expect((screen.getByRole('button', { name: 'Send request' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('AC-LV-012 an overlap refusal is shown in words', async () => {

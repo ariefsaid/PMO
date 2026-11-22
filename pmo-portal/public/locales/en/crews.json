@@ -188,6 +188,7 @@
     "toBeforeFrom": "The end cannot be before the start"
   },
   "leave": {
+    "noTypesToChoose": "No leave types yet. An Admin adds them under Leave settings.",
     "addType": "Add type",
     "adminOnly": "Only an Admin can change leave settings",
     "approve": "Approve",
@@ -217,7 +218,7 @@
     "noTypes": "No leave types yet. Add the types your organisation uses.",
     "none": "No leave requests yet.",
     "note": "Note: {{note}}",
-    "off": "Leave requests are not switched on for your organisation.",
+    "off": "Leave requests are turned off for your organisation. An Admin can turn them on under Modules.",
     "onLeave": "On leave",
     "openSettings": "Open leave settings",
     "person": "Person",

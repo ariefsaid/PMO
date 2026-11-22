@@ -1010,6 +1010,7 @@
     "refusedRole": "Only an Admin can change the three-way match."
   },
   "paymentChannel": {
+    "noneYet": "No payment channels yet. An Admin adds them under Payment channels in Accounting setup.",
     "heading": "Payment channels",
     "intro": "Record how each purchase request will be paid. Edit the list of channels here.",
     "switchLabel": "Record a payment channel on purchase requests",
@@ -1038,6 +1039,7 @@
     "columnHeader": "Payment channel"
   },
   "linePlanning": {
+    "noCategoriesHere": "No categories yet. An Admin adds them under Line planning in Accounting setup.",
     "heading": "Line planning",
     "intro": "Each request line can carry a category and the date it is needed.",
     "enable": "Show a category and a needed-by date on each request line",

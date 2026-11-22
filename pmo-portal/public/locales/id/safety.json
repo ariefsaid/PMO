@@ -31,7 +31,7 @@
       "yes": "Ya"
     },
     "answerLabel": "Jawaban untuk {{item}}",
-    "none": "Belum ada daftar periksa untuk organisasi ini",
+    "none": "Belum ada daftar periksa. Admin menambahkan butirnya di Catatan keselamatan, dalam Pengaturan proyek.",
     "note": "Catatan (wajib jika tidak)",
     "noteLabel": "Catatan untuk {{item}}",
     "title": "Daftar periksa sebelum kerja",
@@ -142,7 +142,7 @@
     },
     "hiddenDefault": "tidak dapat dihitung untuk periode ini",
     "month": "Bulan",
-    "off": "Catatan keselamatan belum diaktifkan untuk organisasi ini",
+    "off": "Catatan keselamatan dimatikan untuk organisasi ini. Admin dapat mengaktifkannya di Modul.",
     "print": "Cetak",
     "project": "Proyek",
     "showRows": "Tampilkan barisnya",

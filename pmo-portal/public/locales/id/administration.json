@@ -1143,7 +1143,7 @@
     },
     "off": {
       "title": "Daftar periksa izin ke lokasi belum diaktifkan",
-      "sub": "Admin dapat mengaktifkannya di bagian Orang."
+      "sub": "Admin dapat mengaktifkannya di Modul, pada Orang dan kru."
     },
     "items": {
       "errName": "Isi nama butir",

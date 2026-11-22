@@ -80,6 +80,7 @@
     "archivedDiscipline": "Archived discipline",
     "revenueNote": "Revenue is validated progress at the contract rate.",
     "picker": {
+      "noneYet": "No disciplines yet. An Admin adds them under Cost disciplines in Project setup.",
       "label": "Discipline (for profit per discipline)",
       "none": "No discipline",
       "saved": "Discipline saved",

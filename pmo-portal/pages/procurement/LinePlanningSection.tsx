@@ -26,6 +26,7 @@ export const LinePlanningSection: React.FC<LinePlanningSectionProps> = ({ lines,
     <Card data-testid="line-planning-section">
       <CardHead>{t('linePlanning.section', 'Category and needed by')}</CardHead>
       <CardPad>
+        {options.length === 1 && !readOnly && <p className="mb-3 text-control text-muted-foreground" data-testid="line-planning-no-categories">{t('linePlanning.noCategoriesHere', 'No categories yet. An Admin adds them under Line planning in Accounting setup.')}</p>}
         <ul className="space-y-4">
           {lines.map((line) => {
             const value = values[line.id] ?? EMPTY_PLANNING;

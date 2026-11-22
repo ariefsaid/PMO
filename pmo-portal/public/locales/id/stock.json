@@ -902,7 +902,7 @@
     "intro": "Sisa material berpindah dari satu perintah kerja ke perintah kerja lain dalam satu dokumen. Perintah kerja pertama dikreditkan dan yang kedua dibebani; stok tetap di tempatnya.",
     "off": {
       "title": "Transfer antar perintah kerja nonaktif",
-      "sub": "Administrator dapat mengaktifkannya di Pengaturan stok."
+      "sub": "Admin dapat mengaktifkannya di Modul, pada Stok. Fitur ini tetap mati selama ERP memegang stok."
     },
     "project": "Proyek",
     "projectPlaceholder": "Pilih proyek",

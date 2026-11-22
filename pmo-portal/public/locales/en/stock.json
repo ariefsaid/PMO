@@ -902,7 +902,7 @@
     "intro": "Leftover material moves from one work order to another as one document. The first work order is credited and the second is charged; the stock stays where it is.",
     "off": {
       "title": "Work-order transfers are off",
-      "sub": "An administrator can turn them on in Stock setup."
+      "sub": "An Admin can turn them on under Modules, in Stock. They stay off while an ERP owns the stock."
     },
     "project": "Project",
     "projectPlaceholder": "Choose a project",

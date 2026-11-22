@@ -1010,6 +1010,7 @@
     "refusedRole": "Hanya Admin yang dapat mengubah pencocokan tiga arah."
   },
   "paymentChannel": {
+    "noneYet": "Belum ada saluran pembayaran. Admin menambahkannya di Saluran pembayaran, dalam Pengaturan akuntansi.",
     "heading": "Kanal pembayaran",
     "intro": "Catat bagaimana setiap permintaan pembelian akan dibayar. Ubah daftar saluran di sini.",
     "switchLabel": "Catat kanal pembayaran pada permintaan pembelian",
@@ -1038,6 +1039,7 @@
     "columnHeader": "Kanal pembayaran"
   },
   "linePlanning": {
+    "noCategoriesHere": "Belum ada kategori. Admin menambahkannya di Perencanaan baris, dalam Pengaturan akuntansi.",
     "heading": "Perencanaan baris",
     "intro": "Setiap baris permintaan dapat memuat kategori dan tanggal dibutuhkan.",
     "enable": "Tampilkan kategori dan tanggal dibutuhkan pada setiap baris permintaan",

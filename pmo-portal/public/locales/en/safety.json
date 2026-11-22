@@ -31,7 +31,7 @@
       "yes": "Yes"
     },
     "answerLabel": "Answer for {{item}}",
-    "none": "No checklist is set up for this organisation",
+    "none": "No checklist is set up yet. An Admin adds the items under Safety records in Project setup.",
     "note": "Note (required when no)",
     "noteLabel": "Note for {{item}}",
     "title": "Pre-work checklist",
@@ -142,7 +142,7 @@
     },
     "hiddenDefault": "cannot be computed for this period",
     "month": "Month",
-    "off": "Safety records are not switched on for this organisation",
+    "off": "Safety records are turned off for this organisation. An Admin can turn them on under Modules.",
     "print": "Print",
     "project": "Project",
     "showRows": "Show the rows",
