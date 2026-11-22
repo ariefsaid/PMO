@@ -641,6 +641,12 @@
       "fallbackHint": "Receipts without their own account post to the default."
     },
     "users": {
+      "setup": {
+        "unlinked": "Login not linked to a person, so they cannot be placed in a crew.",
+        "linkAction": "Link them to a person",
+        "noCrew": "Not in any crew, so they have no work to check in to.",
+        "crewAction": "Add them to a crew"
+      },
       "builtIn": {
         "tier": {
           "manager": "Managers",

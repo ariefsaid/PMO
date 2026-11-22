@@ -641,6 +641,12 @@
       "fallbackHint": "Penerimaan tanpa akun sendiri diposting ke akun bawaan."
     },
     "users": {
+      "setup": {
+        "unlinked": "Login belum ditautkan ke seorang personel, jadi belum bisa dimasukkan ke kru.",
+        "linkAction": "Tautkan ke personel",
+        "noCrew": "Belum masuk kru mana pun, jadi belum ada pekerjaan untuk absen.",
+        "crewAction": "Masukkan ke kru"
+      },
       "builtIn": {
         "tier": {
           "manager": "Manajer",

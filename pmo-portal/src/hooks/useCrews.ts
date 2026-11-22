@@ -26,6 +26,12 @@ export function useCrews() {
   return useQuery({ queryKey: ['crews', orgId], queryFn: () => crewRepository.list(), enabled: Boolean(orgId) });
 }
 
+/** Every placement with its dates, for "who is in a crew now". Read only when asked for (`enabled`). */
+export function useAllCrewMembers(enabled: boolean) {
+  const orgId = useOrgId();
+  return useQuery({ queryKey: ['crew-members', orgId, 'all'], queryFn: () => crewRepository.allMembers(), enabled: Boolean(orgId) && enabled });
+}
+
 export function useCrewRoles(crewId: string | null) {
   const orgId = useOrgId();
   return useQuery({
