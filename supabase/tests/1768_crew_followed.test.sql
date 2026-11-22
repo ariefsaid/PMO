@@ -3,7 +3,7 @@
 -- AC-FOL-005 loan wins · AC-FOL-006 phone, submitted week · AC-FOL-007 no follow, no change (existing files untouched).
 begin;
 create extension if not exists pgtap;
-select plan(52);
+select plan(53);
 
 insert into organizations (id, name, default_currency) values
   ('28680000-0000-0000-0000-00000000000a', 'FOL Org',       'IDR'),
@@ -151,7 +151,7 @@ insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values
   ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000404', '28680000-0000-0000-0000-000000000c06', pg_temp.today() - 40),
   ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000405', '28680000-0000-0000-0000-000000000c07', pg_temp.today() - 40);
 insert into people (id, org_id, kind, name, profile_id) values
-  ('28680000-0000-0000-0000-000000000f09', '28680000-0000-0000-0000-00000000000a', 'employee', 'Phone Follower', '28680000-0000-0000-0000-0000000000a6');
+  ('28680000-0000-0000-0000-000000000f09', '28680000-0000-0000-0000-00000000000a', 'own', 'Phone Follower', '28680000-0000-0000-0000-0000000000a6');
 insert into crew_members (org_id, crew_id, worker_id, valid_from) values
   ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000c01', '28680000-0000-0000-0000-000000000f09', pg_temp.today() - 40);
 set local role authenticated;
@@ -166,12 +166,19 @@ select is((select count(*)::int from attendance_days where worker_id = '28680000
 select is((select crew_id from phone_check_ins where worker_id = '28680000-0000-0000-0000-000000000f09'), '28680000-0000-0000-0000-000000000c06'::uuid, 'AC-FOL-011 the request keeps the picked crew');
 select throws_ok($$ select attendance_record('28680000-0000-0000-0000-000000000404', pg_temp.today(), 'phone_check_in',
   '[{"worker_id": "28680000-0000-0000-0000-000000000f09", "status": "present", "hours": 8, "followed_crew_id": "28680000-0000-0000-0000-000000000c06"}]'::jsonb) $$,
-  '23514', 'ATT_FOLLOW_SOURCE: a phone check-in names a followed crew only when a supervisor approves it', 'AC-FOL-011 a person cannot record their own follow directly');
+  '42501', 'PCI_PATH: clock-in on a work order with an area goes through the phone check-in', 'AC-FOL-011 on a work order with an area a person cannot record their own follow directly');
+select throws_ok($$ select attendance_record('28680000-0000-0000-0000-000000000405', pg_temp.today(), 'phone_check_in',
+  '[{"worker_id": "28680000-0000-0000-0000-000000000f09", "status": "present", "hours": 8, "followed_crew_id": "28680000-0000-0000-0000-000000000c07"}]'::jsonb) $$,
+  '23514', 'ATT_FOLLOW_SOURCE: a phone check-in names a followed crew only when a supervisor approves it', 'AC-FOL-011 on a work order without an area it is refused too');
+reset role;
+create temp table fol_req as select id from phone_check_ins where worker_id = '28680000-0000-0000-0000-000000000f09';
+grant select on fol_req to authenticated;
+set local role authenticated;
 select pg_temp.act_as('28680000-0000-0000-0000-0000000000a4');
-select throws_ok($$ select phone_check_in_decide((select id from phone_check_ins where worker_id = '28680000-0000-0000-0000-000000000f09'), true) $$, '42501', 'not authorized',
+select throws_ok($$ select phone_check_in_decide((select id from fol_req), true) $$, '42501', 'not authorized',
   'AC-FOL-012 the home crew''s foreman cannot approve a follow into another crew');
 select pg_temp.act_as('28680000-0000-0000-0000-0000000000a5');
-select is(phone_check_in_decide((select id from phone_check_ins where worker_id = '28680000-0000-0000-0000-000000000f09'), true)->>'status', 'approved',
+select is(phone_check_in_decide((select id from fol_req), true)->>'status', 'approved',
   'AC-FOL-012 the picked crew''s foreman approves the request');
 select is((select crew_id || ':' || followed_crew_id from attendance_days where worker_id = '28680000-0000-0000-0000-000000000f09' and work_date = pg_temp.today())::text,
   '28680000-0000-0000-0000-000000000c06:28680000-0000-0000-0000-000000000c06', 'AC-FOL-012 on approval the day record carries the picked crew as followed');
