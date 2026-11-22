@@ -246,6 +246,25 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     expect(screen.queryByText('CEM')).not.toBeInTheDocument();
   });
 
+  it('JOB-1122-2 a never-stocked below-reorder row keeps its configured tag; an ordinary row stays unmarked with no invented money', async () => {
+    const tagged = { itemId: 'i9', itemCode: 'NEW', itemName: 'Never stocked', unitCode: 'm', warehouseId: 'w1', warehouseCode: 'SITE-A', qtyOnHand: '0', reorderLevel: '10', reorderQuantity: null, tagName: 'Client supplied' };
+    const plain = { itemId: 'i10', itemCode: 'PLN', itemName: 'Plain stock', unitCode: 'm', warehouseId: 'w1', warehouseCode: 'SITE-A', qtyOnHand: '0', reorderLevel: '5', reorderQuantity: null };
+    reports.onHand.mockResolvedValue([]);            // no balance rows: both lines are the synthetic worklist copy
+    reorder.worklist.mockResolvedValue([tagged, plain]);
+    renderPage();
+    await userEvent.click(screen.getByLabelText('Below reorder level'));
+    expect(await screen.findByText('NEW')).toBeInTheDocument();
+    expect(screen.getByText('PLN')).toBeInTheDocument();
+    // Both lines are the synthetic worklist copy; only the configured one carries the tag, as data.
+    const taggedRow = screen.getByText('NEW').closest('tr')!;
+    const plainRow = screen.getByText('PLN').closest('tr')!;
+    expect(within(taggedRow).getByTestId('stock-item-tag')).toHaveTextContent('Client supplied');
+    expect(within(plainRow).queryByTestId('stock-item-tag')).not.toBeInTheDocument();
+    // The tag is material identity, not money: the zero-quantity worklist rows invent no cost columns or values.
+    expect(screen.queryByText('Average cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('Value')).not.toBeInTheDocument();
+  });
+
   it('AC-STK-RESTOCK-3 the below-level view offers "Request purchase" per row, and the plain list does not', async () => {
     reorder.worklist.mockResolvedValue([{ itemId: 'i1', itemCode: 'CEM', itemName: 'Cement 50kg', unitCode: 'bag', warehouseId: 'w1', warehouseCode: 'SITE-A', qtyOnHand: '70', reorderLevel: '100', reorderQuantity: null }]);
     master.listWarehouses.mockResolvedValue([{ id: 'w1', code: 'SITE-A', name: 'Site A', kind: 'site', project_id: 'p1', archived_at: null }]);
