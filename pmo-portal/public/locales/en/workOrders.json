@@ -37,7 +37,12 @@
     "unavailable": "Amount unavailable",
     "notCosted": "Not yet costed",
     "timesheetLabel": "{{person}}, week of {{week}}",
-    "timesheetFallback": "Timesheet"
+    "timesheetFallback": "Timesheet",
+    "commitment": {
+      "purchase_request": "Not counted as direct cost yet: a request counts once its supplier bill is recorded.",
+      "purchase_order": "Not counted as direct cost yet: an order counts once its supplier bill is recorded.",
+      "goods_receipt": "Received, but not counted as direct cost yet: a receipt counts once its supplier bill is recorded."
+    }
   },
   "billing": {
     "title": "Billing and acceptances",

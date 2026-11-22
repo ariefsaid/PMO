@@ -37,7 +37,12 @@
     "unavailable": "Jumlah tidak tersedia",
     "notCosted": "Biaya belum dihitung",
     "timesheetLabel": "{{person}}, minggu {{week}}",
-    "timesheetFallback": "Lembar waktu"
+    "timesheetFallback": "Lembar waktu",
+    "commitment": {
+      "purchase_request": "Belum dihitung sebagai biaya langsung: permintaan dihitung setelah tagihan supplier dicatat.",
+      "purchase_order": "Belum dihitung sebagai biaya langsung: pesanan dihitung setelah tagihan supplier dicatat.",
+      "goods_receipt": "Barang sudah diterima, tetapi belum dihitung sebagai biaya langsung: penerimaan dihitung setelah tagihan supplier dicatat."
+    }
   },
   "billing": {
     "title": "Penagihan dan penerimaan",

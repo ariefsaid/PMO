@@ -1902,7 +1902,9 @@
     "capture": {
       "action": "Capture {{record}}",
       "next": "+ Capture {{record}}: the next record for this phase."
-    }
+    },
+    "valueFromLines": "From the order lines",
+    "valueNotRecorded": "Value not recorded for this receipt"
   },
   "procurementDetail": {
     "accessDenied": {

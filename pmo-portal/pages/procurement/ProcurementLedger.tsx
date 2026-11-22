@@ -480,6 +480,10 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const amountColumn = useMemo<Column<LedgerRow>>(() => ({
     key: 'amount', size: 168, header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
     cell: (row) => {
+      if (row.amount == null && row.valueFromLines !== undefined) {
+        return <span className="inline-flex flex-col items-end"><span className="whitespace-nowrap tabular-nums" data-testid="receipt-value">{formatCurrency(row.valueFromLines, row.currency)}</span><span className="text-xs text-muted-foreground">{t('procurementLedger.valueFromLines', 'From the order lines')}</span></span>;
+      }
+      if (row.amount == null && row.valueUnknown) return <span className="text-sm text-muted-foreground" data-testid="receipt-value-unknown">{t('procurementLedger.valueNotRecorded', 'Value not recorded for this receipt')}</span>;
       if (row.amount == null) return <span className="text-sm text-muted-foreground">—</span>;
       const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="whitespace-nowrap tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
       const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
@@ -487,7 +491,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       const slipCell = row.type === 'Invoice' ? <VendorWithholdingSlipCell row={withholdingCoverage[row.recordId]} isLoading={coverageQuery.isLoading} isError={coverageQuery.isError} canWrite={canWriteWithholdingSlip} onRetry={() => void coverageQuery.refetch()} onRecord={() => invoice && onRecordWithholdingSlip?.(invoice)} vendorMissing={vendorMissing} onSetVendor={onSetVendor} onView={onViewWithholdingSlip} onHistory={() => onWithholdingHistory?.(row.recordId)} /> : null;
       return figures ? <div className="inline-flex flex-col items-end gap-0.5">{total}<WithholdingBreakdown figures={figures} currency={row.currency} />{slipCell}</div> : slipCell ? <div className="inline-flex flex-col items-end gap-0.5">{total}{slipCell}</div> : total;
     },
-  }), [canWriteWithholdingSlip, coverageQuery, invoices, onRecordWithholdingSlip, onSetVendor, onViewWithholdingSlip, onWithholdingHistory, withholdingCoverage, vendorMissing]);
+  }), [t, canWriteWithholdingSlip, coverageQuery, invoices, onRecordWithholdingSlip, onSetVendor, onViewWithholdingSlip, onWithholdingHistory, withholdingCoverage, vendorMissing]);
 
   const columns = useMemo<Column<LedgerRow>[]>(
     () => [...STATIC_COLUMNS.slice(0, 6), amountColumn, ...STATIC_COLUMNS.slice(6), fileColumn],

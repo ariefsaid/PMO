@@ -259,6 +259,24 @@ describe('PR-1 Bahasa rendered-copy contract', () => {
   });
 });
 
+describe('JOB-PU4 the receipt row shows its value', () => {
+  const grRow = (over: Partial<LedgerRow>): LedgerRow => ({
+    id: 'GR-gr-1', date: '2026-05-14', type: 'GR', systemNumber: 'GR-0001', externalRef: null, amount: null, status: 'Complete', statusVariant: 'won',
+    fileHref: null, fileTitle: null, fileCount: 0, financial: false, recordId: 'gr-1', currency: 'IDR', ...over,
+  } as LedgerRow);
+  const renderRow = (row: LedgerRow) => render(<MemoryRouter><QueryClientProvider client={new QueryClient()}><ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status: 'Received' })} rows={[row]} /></QueryClientProvider></MemoryRouter>);
+
+  it('a receipt with a value read from the order lines shows it and says where it came from', () => {
+    renderRow(grRow({ valueFromLines: 45000000 }));
+    expect(screen.getAllByTestId('receipt-value')[0]).toHaveTextContent(/45[.,]000[.,]000/);
+    expect(screen.getAllByText('From the order lines').length).toBeGreaterThan(0);
+  });
+  it('a receipt whose value cannot be read says so, instead of a dash', () => {
+    renderRow(grRow({ valueUnknown: true }));
+    expect(screen.getAllByTestId('receipt-value-unknown')[0]).toHaveTextContent('Value not recorded for this receipt');
+  });
+});
+
 describe('AC-PR-LEDGER-010: ProcurementLedger renders DataTable', () => {
   it('#961 open-case-scroll focuses the targeted vendor-bill row after route landing', async () => {
     const scrollIntoView = vi.fn();
