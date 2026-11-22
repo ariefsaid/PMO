@@ -6,7 +6,9 @@ import { Button, Icon, LifecycleStepper, ListState, ProjectNameLink, RecordHeade
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { invoiceTimelineSteps } from './invoiceTimeline';
 import { usePermission } from '@/src/auth/usePermission';
-import { waitingForText, waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
+import { invoiceWaitingForText, useInvoiceApprovalRoute } from '@/src/hooks/useInvoiceApprovalRoute';
+import { useRoleLabels } from '@/pages/admin-users/roleLabels';
+import type { UserRole } from '@/src/lib/db/adminUsers';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
 import { formatCurrency, formatDayYear } from '@/src/lib/format';
 import { statusLabel } from '@/src/lib/status/statusMap';
@@ -32,6 +34,33 @@ function WorkOrderReference({ id }: { id: string }) {
 function RaisedBy({ userId }: { userId: string | null | undefined }) {
   const { data: profiles } = useAssignableProfiles();
   return <span className="text-control font-normal">{profiles?.find((profile) => profile.id === userId)?.full_name ?? '—'}</span>;
+}
+
+/** Who a PMO-native Draft invoice waits for, read only while this invoice is on its approval step. */
+function InvoiceWaitingNote({ invoiceId }: { invoiceId: string }) {
+  const { t } = useTranslation();
+  const roleLabels = useRoleLabels();
+  const approvalRoute = useInvoiceApprovalRoute(invoiceId);
+  const line = approvalRoute.isPending
+    ? t('waitingList:waitingFor.plain', 'Waiting for approval')
+    : approvalRoute.isError
+      ? t('common:uxs32.routeUnavailable', "Couldn't verify who can approve right now.")
+      : invoiceWaitingForText(approvalRoute.data, t, { role: (role) => roleLabels.label(role as UserRole) });
+  if (!line) return null;
+  return (
+    <span data-testid="invoice-waiting-for" className="text-control font-normal text-muted-foreground">
+      {line}
+      {approvalRoute.isError && (
+        <button
+          type="button"
+          onClick={() => void approvalRoute.refetch()}
+          className="ml-2 underline underline-offset-2 hover:text-foreground"
+        >
+          {t('finance:invoice.waiting.retry', 'Try again')}
+        </button>
+      )}
+    </span>
+  );
 }
 
 interface Props {
@@ -66,8 +95,8 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
   const deliveryStep = viewTarget != null && viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid');
   const canDownloadPdf = deliveryStep && !viewTarget.received_date
     && may('download_pdf', 'salesInvoice', { record: { status: viewTarget.status, erp_docstatus: viewTarget.erp_docstatus } });
+  // FR-WAIT-006: a native Draft waits on its one approval step (Draft → Unpaid); the note subscribes only then.
   const isWaitingApproval = Boolean(viewTarget?.pmo_native && viewTarget?.status === 'Draft');
-  const waitingLine = isWaitingApproval ? waitingForText({ names: [], role: waitingRoleLabel('roleFinanceAdmin', t) }, t) : null;
   const invoiceTitleLabel = viewTargetNumber
     ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: '' }).trim()
     : null;
@@ -107,11 +136,7 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, organ
                   : isPartlyPaid(viewTarget)
                   ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{statusLabel('salesInvoice', 'PartlyPaid', t)}</StatusPill>
                   : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{statusLabel('salesInvoice', viewTarget.status, t)}</StatusPill>}
-                {waitingLine && (
-                  <span data-testid="invoice-waiting-for" className="text-control font-normal text-muted-foreground">
-                    {waitingLine}
-                  </span>
-                )}
+                {isWaitingApproval && viewTarget && <InvoiceWaitingNote invoiceId={viewTarget.id} />}
               </span>}
               meta={<>
                 {viewTarget.customer_name ?? '—'}
