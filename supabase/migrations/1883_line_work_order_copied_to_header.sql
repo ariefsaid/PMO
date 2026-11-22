@@ -4,6 +4,8 @@
 -- differ, or any line without a work order, leave the header exactly as it is (the person may still set it by hand). Nothing else moves:
 -- no cost read is restated and the line value is never summed. A cancelled work order is never copied (the header rule refuses a newly
 -- named cancelled one, and a harmless edit must not be blocked by it). The header write goes through check_cost_attribution like any other.
+-- The copy happens only before submit (the purchase is Draft or Rejected): after submit the header stays as it is, because the request and
+-- order records carry the attribution then and are re-attributed through their own path.
 -- Proven by supabase/tests/1883_line_work_order_copied_to_header.test.sql (mutation check in its header).
 -- Reverse: rollback/1883_line_work_order_copied_to_header_down.sql (a header already copied keeps its value).
 create function public.copy_line_work_order_to_header() returns trigger
@@ -16,7 +18,8 @@ begin
     into v_lines, v_named, v_distinct, v_wo
     from public.procurement_items i where i.procurement_id = v_case;
   if v_lines > 0 and v_named = v_lines and v_distinct = 1                                   -- mut:copy_all_same
-     and exists (select 1 from public.work_orders w where w.id = v_wo and w.status <> 'Cancelled') then
+     and exists (select 1 from public.work_orders w where w.id = v_wo and w.status <> 'Cancelled')
+     and exists (select 1 from public.procurements p where p.id = v_case and p.status in ('Draft', 'Rejected')) then   -- mut:copy_before_submit
     update public.procurements set work_order_id = v_wo where id = v_case and work_order_id is distinct from v_wo;
   end if;
   return null;
