@@ -33,6 +33,7 @@
 | JOB-WAIT-1 | the step approver finds the request on home, menu with count, inbox | E2E `serial/JOB-WAIT-1-…` |
 | JOB-WAIT-2 | Finance: home, Finance page and inbox show the same list and number | E2E `serial/JOB-WAIT-2-…` |
 | JOB-WAIT-3/4/5 | the requester sees who it waits for; a return notifies with the reason; editing keeps what was typed | E2E `serial/JOB-WAIT-3-4-5-…` |
+| JOB-WAIT-3 (equipment plan) | the plan's waiting sentence names the one eligible project approver and their current role, from the route the database computes; the author is not named while self-approval is off | pgTAP `1565_equipment_plan_approval_route.test.sql`; E2E `serial/AC-EQP-017-…` |
 
 ## Decisions and open questions
 - Client acceptance (BAST) confirmation is its own waiting kind with its own caller-filtered database read (`acceptances_awaiting_my_confirmation`, migration 1570), never the `delivery_record` kind (that is the purchase receipt) and never `my_waiting_decisions`. The read lists who MAY confirm (Draft on an Issued order, Admin/Finance, the author excluded unless the only active member); eligibility is not a promise the write succeeds — the document/line prerequisites and the separation-of-duties refusal stay in `confirm_work_order_acceptance`. The read carries no row cap and the client pages it, so a waiting count is never a truncated one.
