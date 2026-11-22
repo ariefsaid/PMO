@@ -970,7 +970,7 @@
     "appliesTo": "Berlaku untuk",
     "person": "Personel",
     "equipment": "Peralatan",
-    "medical": "Dokumen medis (hanya status dan tanggal, hanya terlihat oleh Admin)",
+    "medical": "Dokumen medis (hanya status dan tanggal, hanya terlihat oleh Admin dan SDM)",
     "medicalCol": "Medis",
     "yes": "Ya",
     "roles": "Peran yang diberi tahu",

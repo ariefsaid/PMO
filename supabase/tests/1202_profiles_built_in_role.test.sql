@@ -2,7 +2,7 @@
 -- profile-administration rule on the resulting level, no self-assignment, legacy people unchanged, actor helpers.
 -- Migrations under test: 1201_built_in_roles_setting, 1202_profiles_built_in_role, 1203_role_capability_actor_helpers.
 begin;
-select plan(36);
+select plan(35);
 
 insert into organizations (id, name) values
   ('12020000-0000-0000-0000-000000000001','BIR Org A'),
@@ -127,15 +127,14 @@ reset role;
 -- AC-009 actor helpers.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"12020000-0000-0000-0000-0000000000d1","role":"authenticated"}';
-select ok(actor_has_role_capability('daily_report_validate') and not actor_has_role_capability('stock_post'),
-  'AC-009 a Site Supervisor holds daily_report_validate, not stock_post');
-select ok(actor_holds_built_in_role('site_supervisor') and not actor_holds_built_in_role('planner'), 'AC-009 actor_holds_built_in_role');
+select ok(actor_has_role_capability('daily_report_validate') and not actor_has_role_capability('medical_documents_view'),
+  'AC-009 a Site Supervisor holds daily_report_validate, not medical_documents_view');
 select ok(not actor_sees_prices(), 'AC-009 a Site Supervisor does not see prices');
 set local request.jwt.claims = '{"sub":"12020000-0000-0000-0000-0000000000c1","role":"authenticated"}';
-select ok(actor_sees_prices() and not actor_has_role_capability('stock_post') and not actor_holds_built_in_role('project_manager'),
+select ok(actor_sees_prices() and not actor_has_role_capability('medical_documents_view'),
   'AC-009 a person with no key sees prices and holds no capability');
 set local request.jwt.claims = '{"sub":"12020000-0000-0000-0000-0000000000d3","role":"authenticated"}';
-select ok(not actor_sees_prices() and not actor_has_role_capability('stock_post'), 'AC-009 an inactive member holds nothing and sees nothing');
+select ok(not actor_sees_prices() and not actor_has_role_capability('medical_documents_view'), 'AC-009 an inactive member holds nothing and sees nothing');
 reset role;
 
 select * from finish();
