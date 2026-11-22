@@ -6,11 +6,12 @@
 --   remove the scope predicate from medical_release_holds (keep only the date test) ... 'AC-MR-007 an Engineer outside the crew gets no rows' and 'a Foreman ... of another crew gets no rows'
 --   add `perform assert_not_light()` to medical_release_holds ... 'AC-MR-007 a Foreman (field account) gets the state word'
 --   drop trigger zz_mr_crew_members / zz_mr_crew_loans ............ 'AC-MR-006 a placement ... refused' / 'a loan ... refused'
---   medical_release_authority returns true ......................... 'AC-MR-002 a peer cannot decide' and 'an Admin who is not the manager cannot decide'
+--   compare against the live people.manager_id instead of decider_id ... 'AC-MR-002 a Project Manager who made themselves the person''s manager ... cannot decide it' / 'cannot read its row'
+--   make decide check nothing but SoD ............................ 'AC-MR-002 a peer cannot decide'
 --   remove the SoD check from medical_release_decide ............... 'AC-MR-003 the opener cannot decide'
 begin;
 create extension if not exists pgtap;
-select plan(36);
+select plan(40);
 create or replace function pg_temp.today() returns date language sql stable as $$
   select public.equipment_org_today('17510000-0000-0000-0000-00000000010a') $$;
 
@@ -24,6 +25,7 @@ insert into auth.users (id, email) values
   ('17510000-0000-0000-0000-0000000001a4', 'mr-peer@example.com'),
   ('17510000-0000-0000-0000-0000000001a5', 'mr-foreman@example.com'),
   ('17510000-0000-0000-0000-0000000001a6', 'mr-otherfm@example.com'),
+  ('17510000-0000-0000-0000-0000000001a7', 'mr-pm2@example.com'),
   ('17510000-0000-0000-0000-0000000001b1', 'mr-xorg@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('17510000-0000-0000-0000-0000000001a1', '17510000-0000-0000-0000-00000000010a', 'MR Admin',  'mr-admin@example.com',  'Admin', 'active'),
@@ -32,6 +34,7 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('17510000-0000-0000-0000-0000000001a4', '17510000-0000-0000-0000-00000000010a', 'MR Peer',   'mr-peer@example.com',   'Engineer', 'active'),
   ('17510000-0000-0000-0000-0000000001a5', '17510000-0000-0000-0000-00000000010a', 'MR Foreman', 'mr-foreman@example.com', 'Engineer', 'active'),
   ('17510000-0000-0000-0000-0000000001a6', '17510000-0000-0000-0000-00000000010a', 'MR Other Foreman', 'mr-otherfm@example.com', 'Engineer', 'active'),
+  ('17510000-0000-0000-0000-0000000001a7', '17510000-0000-0000-0000-00000000010a', 'MR PM Two', 'mr-pm2@example.com', 'Project Manager', 'active'),
   ('17510000-0000-0000-0000-0000000001b1', '17510000-0000-0000-0000-00000000010b', 'MR XOrg',   'mr-xorg@example.com',   'Admin', 'active');
 update profiles set manager_id = '17510000-0000-0000-0000-0000000001a2' where id = '17510000-0000-0000-0000-0000000001a3';
 -- f01: has a login, manager through the profile. f02: no login, manager on the person record.
@@ -82,6 +85,8 @@ insert into mr_ids select 'r2', medical_release_create('17510000-0000-0000-0000-
 select is((select status from medical_releases where id = (select id from mr_ids where k = 'r1')), 'Pending', 'AC-MR-001 the people team opens a release; it starts Pending');
 select throws_ok($$ select medical_release_create('17510000-0000-0000-0000-000000001f01', pg_temp.d('m2'), null) $$,
   '23514', 'MR_EXISTS: this person already has a release for that date', 'AC-MR-001 a second release for the same person and date is refused');
+select throws_ok($$ select medical_release_create('17510000-0000-0000-0000-000000001f03', pg_temp.d('t'), null) $$,
+  '23514', 'MR_NO_MANAGER: set this person''s direct manager first', 'AC-MR-001 a person with no direct manager cannot have a release opened');
 select ok(not has_table_privilege('authenticated', 'public.medical_releases', 'INSERT'), 'AC-MR-001 no direct client write path to the table');
 
 -- AC-MR-006 the block, while the release is Pending (f01 from m2; f02 from p5)
@@ -139,6 +144,19 @@ select is((select state from medical_release_holds(pg_temp.d('t')) where person_
 select pg_temp.act_as('17510000-0000-0000-0000-0000000001b1');
 select is((select count(*)::int from medical_release_holds(pg_temp.d('t'))), 0, 'AC-MR-007 another organisation reads nothing');
 select is((select count(*)::int from medical_releases_visible()), 0, 'AC-MR-007 another organisation sees no release');
+
+-- AC-MR-002 the deciding manager is fixed when the release is opened: a later change of people.manager_id grants nothing
+reset role;
+update people set manager_id = '17510000-0000-0000-0000-0000000001a7' where id = '17510000-0000-0000-0000-000000001f02';
+set local role authenticated;
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a7');
+select throws_ok($$ select medical_release_decide((select id from mr_ids where k = 'r2'), 'Approved', null) $$,
+  '42501', null, 'AC-MR-002 a Project Manager who made themselves the person''s manager after the release was opened cannot decide it');
+select is((select count(*)::int from medical_releases where id = (select id from mr_ids where k = 'r2')), 0,
+  'AC-MR-002 and cannot read its row');
+select pg_temp.act_as('17510000-0000-0000-0000-0000000001a2');
+select is((select count(*)::int from medical_releases where id = (select id from mr_ids where k = 'r2')), 1,
+  'AC-MR-002 the stored decider still reads it');
 
 -- AC-MR-002 / 003 who decides
 select pg_temp.act_as('17510000-0000-0000-0000-0000000001a4');

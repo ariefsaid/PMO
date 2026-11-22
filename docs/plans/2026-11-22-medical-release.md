@@ -6,7 +6,7 @@ Spec: `docs/specs/medical-release.spec.md`. Range 1750-1759. No database is run 
 | File | Content | Rollback |
 |---|---|---|
 | `1750_notify_person.sql` (shipped, `1bbbaa87`) | shared `notify_person` helper | `rollback/1750_notify_person_down.sql` |
-| `1751_medical_release.sql` | table `medical_releases`, RLS, `medical_release_can_enter`, `medical_release_authority`, `medical_release_create`, `medical_release_decide`, `medical_release_blocks`, `medical_release_holds`, `medical_releases_visible` | `rollback/1751_medical_release_down.sql` |
+| `1751_medical_release.sql` | table `medical_releases`, RLS, `medical_release_can_enter`, `medical_release_create`, `medical_release_decide`, `medical_release_blocks`, `medical_release_holds`, `medical_releases_visible` | `rollback/1751_medical_release_down.sql` |
 | `1752_medical_release_guards.sql` | BEFORE triggers on `crew_members`, `crew_loans`, `attendance_days` | `rollback/1752_medical_release_guards_down.sql` |
 
 No function is restated (leave decide, crew guards and `attendance_record` are untouched), so `check:restated-functions` has nothing to compare.

@@ -13,6 +13,8 @@ create table public.medical_releases (
   status        text not null default 'Pending' check (status in ('Pending', 'Approved', 'Deferred')),
   note          text check (note is null or char_length(note) <= 500),
   entered_by    uuid not null references public.profiles(id),
+  -- the deciding direct manager, fixed when the release is opened: a later change of the person's manager grants nothing
+  decider_id    uuid not null references public.profiles(id),
   decided_by    uuid references public.profiles(id),
   decided_at    timestamptz,
   decision_note text check (decision_note is null or char_length(decision_note) <= 500),
@@ -34,17 +36,6 @@ $$;
 revoke all on function public.medical_release_can_enter() from public, anon;
 grant execute on function public.medical_release_can_enter() to authenticated;
 
--- The person's direct manager: people.manager_id, else the manager of the linked profile.
-create function public.medical_release_authority(p_person uuid) returns boolean
-  language sql stable security definer set search_path = public, pg_temp as $$
-  select coalesce((select true from public.people w left join public.profiles lp on lp.id = w.profile_id
-                    where public.assert_not_light() and public.is_active_member()
-                      and w.id = p_person and w.org_id = public.auth_org_id()
-                      and coalesce(w.manager_id, lp.manager_id) = auth.uid()), false)
-$$;
-revoke all on function public.medical_release_authority(uuid) from public, anon;
-grant execute on function public.medical_release_authority(uuid) to authenticated;
-
 alter table public.medical_releases enable row level security;
 alter table public.medical_releases force row level security;
 -- Read by the person, whoever entered it, the people team and the direct manager. Rostering users read a state word via
@@ -54,7 +45,7 @@ create policy medical_releases_select on public.medical_releases for select
          and (entered_by = (select auth.uid())
               or exists (select 1 from public.people w where w.id = person_id and w.profile_id = (select auth.uid()))
               or (select public.medical_release_can_enter())
-              or (select public.medical_release_authority(person_id))));
+              or decider_id = (select auth.uid())));
 revoke all on public.medical_releases from public, anon, authenticated;
 grant select on public.medical_releases to authenticated;
 -- A field (light) account reads no release state.
@@ -64,7 +55,7 @@ grant all on public.medical_releases to service_role;
 
 create function public.medical_release_create(p_person_id uuid, p_date date, p_note text) returns uuid
   language plpgsql security definer set search_path = public, pg_temp as $$
-declare v_org uuid := public.auth_org_id(); v_id uuid;
+declare v_org uuid := public.auth_org_id(); v_id uuid; v_decider uuid;
 begin
   perform public.assert_not_light();
   if v_org is null or not public.is_active_member() or not public.medical_release_can_enter() then
@@ -73,9 +64,15 @@ begin
   if not exists (select 1 from public.people w where w.id = p_person_id and w.org_id = v_org) then
     raise exception 'MR_REF: the person is not in this organisation' using errcode = '23514';
   end if;
+  -- The deciding manager is fixed now: people.manager_id, else the manager of the linked login.
+  select coalesce(w.manager_id, lp.manager_id) into v_decider
+    from public.people w left join public.profiles lp on lp.id = w.profile_id where w.id = p_person_id;
+  if v_decider is null then
+    raise exception 'MR_NO_MANAGER: set this person''s direct manager first' using errcode = '23514';
+  end if;
   begin
-    insert into public.medical_releases (person_id, release_date, note, entered_by)
-    values (p_person_id, p_date, nullif(btrim(p_note), ''), auth.uid()) returning id into v_id;
+    insert into public.medical_releases (person_id, release_date, note, entered_by, decider_id)
+    values (p_person_id, p_date, nullif(btrim(p_note), ''), auth.uid(), v_decider) returning id into v_id;
   exception when unique_violation then
     raise exception 'MR_EXISTS: this person already has a release for that date' using errcode = '23514';
   end;
@@ -85,7 +82,8 @@ end $$;
 revoke all on function public.medical_release_create(uuid, date, text) from public, anon;
 grant execute on function public.medical_release_create(uuid, date, text) to authenticated;
 
--- The person and whoever entered the release never decide it (SoD, any role including Admin); only the direct manager does.
+-- The person and whoever entered the release never decide it (SoD, any role including Admin); only the manager fixed at
+-- creation (decider_id) does, whatever the person's manager is later changed to.
 -- A Deferred release can be decided again; an Approved one cannot.
 create function public.medical_release_decide(p_id uuid, p_decision text, p_note text) returns text
   language plpgsql security definer set search_path = public, pg_temp as $$
@@ -106,7 +104,7 @@ begin
   if v_rel.entered_by = v_uid or coalesce(v_profile = v_uid, false) then
     raise exception 'MR_SOD: you cannot decide your own release, or one you entered' using errcode = '42501';
   end if;
-  if not public.medical_release_authority(v_rel.person_id) then
+  if v_rel.decider_id is distinct from v_uid then
     raise exception 'MR_FORBIDDEN: only the person''s direct manager can decide this release' using errcode = '42501';
   end if;
   if v_rel.status = 'Approved' then
@@ -153,8 +151,7 @@ create function public.medical_release_holds(p_date date) returns table (person_
      and (exists (select 1 from public.profiles me
                    where me.id = auth.uid() and (me.role = 'Admin' or public.role_has_capability(me.built_in_role, 'people_documents_view')))
           or public.crew_can_manage()
-          or exists (select 1 from public.people w left join public.profiles lp on lp.id = w.profile_id
-                      where w.id = r.person_id and coalesce(w.manager_id, lp.manager_id) = auth.uid())
+          or r.decider_id = auth.uid()
           or exists (select 1 from (
                        select m.crew_id from public.crew_members m
                         where m.worker_id = r.person_id and p_date between m.valid_from and coalesce(m.valid_to, 'infinity'::date)
@@ -175,7 +172,7 @@ create function public.medical_releases_visible()
                  decided_at timestamptz, decision_note text, can_decide boolean)
   language sql stable security invoker set search_path = public, pg_temp as $$
   select r.id, r.person_id, w.name, r.release_date, r.status, r.note, r.decided_at, r.decision_note,
-         (r.status <> 'Approved' and public.medical_release_authority(r.person_id)
+         (r.status <> 'Approved' and r.decider_id = (select auth.uid())
             and r.entered_by <> (select auth.uid())
             and not exists (select 1 from public.people me where me.id = r.person_id and me.profile_id = (select auth.uid())))
     from public.medical_releases r join public.people_directory w on w.id = r.person_id
