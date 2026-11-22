@@ -8,13 +8,15 @@ import type { Role } from './AuthContext';
  */
 export type BuiltInRoleTier = 'manager' | 'officer' | 'field';
 
-/** Each capability is read by one database gate; `daily_report_*` are held for a ruling (supabase/tests/2716). */
+/** Each capability is read by one database gate; `daily_report_*` are held for a ruling (supabase/tests/2716). `billing_steps_*`: migration 1771. */
 export type RoleCapability =
   | 'sees_prices'
   | 'daily_report_enter'
   | 'daily_report_validate'
   | 'people_documents_view'
-  | 'medical_documents_view';
+  | 'medical_documents_view'
+  | 'billing_steps_view'
+  | 'billing_steps_run';
 
 export interface BuiltInRole {
   key: string;
@@ -83,6 +85,32 @@ export const ROLE_CAPABILITIES: readonly (readonly [string, RoleCapability])[] =
   ['administrator', 'medical_documents_view'],
   ['hr_manager', 'medical_documents_view'],
   ['hr_officer', 'medical_documents_view'],
+  ['executive', 'billing_steps_view'],
+  ['administrator', 'billing_steps_view'],
+  ['project_manager', 'billing_steps_view'],
+  ['deputy_project_manager', 'billing_steps_view'],
+  ['project_control_manager', 'billing_steps_view'],
+  ['construction_manager', 'billing_steps_view'],
+  ['procurement_manager', 'billing_steps_view'],
+  ['finance_manager', 'billing_steps_view'],
+  ['quality_manager', 'billing_steps_view'],
+  ['safety_manager', 'billing_steps_view'],
+  ['equipment_manager', 'billing_steps_view'],
+  ['hr_manager', 'billing_steps_view'],
+  ['finance_officer', 'billing_steps_view'],
+  ['billing_officer', 'billing_steps_view'],
+  ['quantity_surveyor', 'billing_steps_view'],
+  ['project_administrator', 'billing_steps_view'],
+  ['site_supervisor', 'billing_steps_view'],
+  ['administrator', 'billing_steps_run'],
+  ['project_manager', 'billing_steps_run'],
+  ['deputy_project_manager', 'billing_steps_run'],
+  ['project_control_manager', 'billing_steps_run'],
+  ['finance_manager', 'billing_steps_run'],
+  ['finance_officer', 'billing_steps_run'],
+  ['billing_officer', 'billing_steps_run'],
+  ['quantity_surveyor', 'billing_steps_run'],
+  ['project_administrator', 'billing_steps_run'],
 ];
 
 export const BUILT_IN_ROLE_TIERS: readonly BuiltInRoleTier[] = ['manager', 'officer', 'field'];

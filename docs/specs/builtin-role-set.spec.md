@@ -73,6 +73,8 @@ approval rights) is Engineer base. Deputy Project Manager is a manager (stands i
   every person's non-medical documents and reads the person list); `medical_documents_view` HR Manager, HR Officer, Administrator
   (reads medical-document status and dates, in the app and in the expiry email; writes stay Admin only). `daily_report_enter`
   Quantity Surveyor and `daily_report_validate` Site Supervisor and Project Control Manager are held in the catalogue for a ruling.
+  `billing_steps_view` and `billing_steps_run` (migration 1771, `billing-steps.spec.md` §3) decide who reads and who acts on a work order's
+  billing steps; neither is held by a field role.
   Held by no other role. Each read capability is read by one database gate function that every channel calls (`supabase/tests/2716`).
 - **FR-008** The system shall expose `built_in_role_sees_prices(key)` and `actor_sees_prices()`: true for every manager, Buyer,
   Finance Officer and Billing Officer; false for every other officer and field role; true for a NULL key (legacy people).

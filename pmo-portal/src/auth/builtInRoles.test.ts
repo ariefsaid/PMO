@@ -11,7 +11,11 @@ const sqlRoles = [...sql.matchAll(/^\('([a-z_]+)','([^']+)','(\w+)','(\w+)',(\d+
 // The capability rows are the 1200 seed less the rows migration 1539 deletes.
 const prune = readFileSync(resolve(__dirname, '../../../supabase/migrations/1539_role_capabilities_prune.sql'), 'utf8');
 const pruned = [...(/delete from public\.built_in_role_capabilities\s+where capability in \(([^)]*)\)/.exec(prune)?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
-const sqlCaps = [...sql.matchAll(/^\('([a-z_]+)','([a-z_]+)'\)[,;]$/gm)].map((m) => [m[1], m[2]]).filter(([, cap]) => !pruned.includes(cap));
+const seedCaps = [...sql.matchAll(/^\('([a-z_]+)','([a-z_]+)'\)[,;]$/gm)].map((m) => [m[1], m[2]]).filter(([, cap]) => !pruned.includes(cap));
+// Migration 1771 adds the two billing-step rights after the seed.
+const billing = readFileSync(resolve(__dirname, '../../../supabase/migrations/1771_billing_steps_capabilities.sql'), 'utf8');
+const billingCaps = [...billing.matchAll(/^\('([a-z_]+)','(billing_steps_[a-z]+)'\)[,;]$/gm)].map((m) => [m[1], m[2]]);
+const sqlCaps = [...seedCaps, ...billingCaps];
 
 describe('AC-003 built-in roles: frontend table equals the database seed (migration 1200)', () => {
   it('has the same 28 roles, base levels, tiers, functions and names', () => {
@@ -54,6 +58,16 @@ describe('AC-007/008 capabilities and prices', () => {
   it('people documents: HR roles and Administrator only', () => {
     for (const key of ['hr_manager', 'hr_officer', 'administrator']) expect(roleHasCapability(key, 'people_documents_view')).toBe(true);
     for (const key of ['project_manager', 'planner', 'executive']) expect(roleHasCapability(key, 'people_documents_view')).toBe(false);
+  });
+  it('billing steps: the survey role sees and runs them, field roles hold neither (migration 1771)', () => {
+    expect(roleHasCapability('quantity_surveyor', 'billing_steps_view')).toBe(true);
+    expect(roleHasCapability('quantity_surveyor', 'billing_steps_run')).toBe(true);
+    expect(roleHasCapability('quality_inspector', 'billing_steps_view')).toBe(false);
+    for (const key of ['foreman', 'field_user']) {
+      expect(roleHasCapability(key, 'billing_steps_view')).toBe(false);
+      expect(roleHasCapability(key, 'billing_steps_run')).toBe(false);
+    }
+    expect(roleHasCapability(null, 'billing_steps_view')).toBe(false);
   });
   it('prices: legacy (no key) sees them, field and non-purchasing officers do not', () => {
     expect(roleSeesPrices(null)).toBe(true);

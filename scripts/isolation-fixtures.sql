@@ -534,6 +534,13 @@ insert into public.work_order_checklist_items (id, org_id, label)
 insert into public.work_order_closeout_items (id, org_id, work_order_id, project_id, position, name, required)
   select 'a6120000-0000-4000-8000-000000000330', 'a6120000-0000-4000-8000-00000000000a',
          wo, project, 1, 'Isolation closeout', true from _iso_a;
+insert into public.org_billing_step_settings (org_id, default_template_id, updated_by)
+  select 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000301', profile from _iso_a;
+insert into public.work_order_billing_steps (id, org_id, work_order_id, project_id, position, name, started_on)
+  select 'a6120000-0000-4000-8000-000000000340', 'a6120000-0000-4000-8000-00000000000a', wo, project, 1, 'Isolation billing step', current_date from _iso_a;
+insert into public.work_order_billing_step_documents (id, org_id, step_id, work_order_id, position, name)
+  select 'a6120000-0000-4000-8000-000000000341', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-000000000340', wo, 1, 'Isolation step document' from _iso_a;
 insert into public.work_order_groups (id, org_id, code, name)
   select 'a6120000-0000-4000-8000-000000000331', 'a6120000-0000-4000-8000-00000000000a', 'ISO-GROUP', 'Isolation group' from _iso_a;
 insert into public.work_order_revenue_plan (id, org_id, project_id, work_order_id, plan_date, amount, created_by)

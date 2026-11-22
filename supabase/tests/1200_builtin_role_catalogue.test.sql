@@ -2,7 +2,7 @@
 -- Migration under test: supabase/migrations/1200_builtin_role_catalogue.sql
 -- Expectations are INDEPENDENT literals written here, never derived from the tables under test.
 begin;
-select plan(54);
+select plan(56);
 
 select is((select count(*)::int from built_in_roles), 28, 'AC-001 28 built-in roles');
 select is((select count(*)::int from built_in_roles where tier = 'manager'), 12, 'AC-001 12 managers');
@@ -36,6 +36,12 @@ select is((select string_agg(role_key, ',' order by role_key) from built_in_role
   'administrator,hr_manager,hr_officer', 'AC-007 people_documents_view = HR roles and Administrator');
 select is((select string_agg(role_key, ',' order by role_key) from built_in_role_capabilities where capability = 'medical_documents_view'),
   'administrator,hr_manager,hr_officer', 'AC-007 medical_documents_view = HR roles and Administrator (Executive excluded)');
+select is((select string_agg(role_key, ',' order by role_key) from built_in_role_capabilities where capability = 'billing_steps_view'),
+  'administrator,billing_officer,construction_manager,deputy_project_manager,equipment_manager,executive,finance_manager,finance_officer,hr_manager,procurement_manager,project_administrator,project_control_manager,project_manager,quality_manager,quantity_surveyor,safety_manager,site_supervisor',
+  'AC-WBS-011 billing_steps_view = the claim-step readers plus survey, project administration and site supervision; no field role');
+select is((select string_agg(role_key, ',' order by role_key) from built_in_role_capabilities where capability = 'billing_steps_run'),
+  'administrator,billing_officer,deputy_project_manager,finance_manager,finance_officer,project_administrator,project_control_manager,project_manager,quantity_surveyor',
+  'AC-WBS-011 billing_steps_run = billing, finance and project control roles plus survey and project administration; no field role');
 select ok(role_has_capability('hr_officer', 'medical_documents_view') and not role_has_capability('planner', 'medical_documents_view'),
   'AC-007 helper: an HR Officer holds the capability, a Planner does not');
 select ok(not role_has_capability(null, 'medical_documents_view') and not role_has_capability('nonsense', 'medical_documents_view'),
