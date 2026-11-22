@@ -12,7 +12,7 @@ begin
      or (old.approved_at is null and new.approved_at is not null)
      or (old.locked_at is null and new.locked_at is not null) then
     if public.attendance_day_undecided(new.worker_id, new.work_order_id, new.work_date) then
-      raise exception 'ATT_UNDECIDED: the site report and the second record disagree for % ; decide which hours stand first',
+      raise exception 'ATT_UNDECIDED: the site report and the second record disagree on %; decide which hours stand first',
         to_char(new.work_date, 'YYYY-MM-DD') using errcode = '23514';
     end if;
   end if;
