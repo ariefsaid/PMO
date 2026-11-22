@@ -145,6 +145,10 @@ select set_eq(
             -- 0989 (#2528): attendance_days carries recorded_by and approved_by -> profiles. No DAL code embeds profiles
             -- from it; whatever ships first MUST qualify it with !constraint_name.
             ('attendance_days -> profiles'),
+            -- 1768 (crew-followed): attendance_days carries crew_id AND followed_crew_id, both -> crews. Checked before adding: no DAL,
+            -- repository, edge fn or e2e code embeds crews from attendance_days (or attendance_days from crews); the DAL selects
+            -- explicit columns. Any future embed must name its constraint (crews!attendance_days_followed_crew_id_fkey).
+            ('attendance_days -> crews'),
             -- 0447 (#1519): equipment_usage_entries carries author_id and approver_id -> profiles. No DAL code embeds
             -- profiles from it yet; whatever ships first MUST qualify it with !constraint_name.
             ('equipment_usage_entries -> profiles'),

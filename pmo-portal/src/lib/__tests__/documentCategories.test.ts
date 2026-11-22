@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { categoryDisplay, documentCategoryLabel, viewableCategories } from '@/src/lib/documentCategories';
+import { categoryDisplay, categoryOptions, documentCategoryLabel, viewableCategories } from '@/src/lib/documentCategories';
 import type { DocumentCategory } from '@/src/lib/db/documentCategories';
 
 const ID: Record<string, string> = {
   'project:documentCategory.drawing': 'Gambar',
   'project:documentCategory.reference': 'Referensi',
+  'project:documentCategory.deliveryRecord': 'Berita acara serah terima (BAST)',
 };
 const tId = (key: string, fallback: string) => ID[key] ?? fallback;
 const tEn = (_key: string, fallback: string) => fallback;
@@ -22,6 +23,11 @@ describe('AC-DCV-018 category names in the reader language (FR-DCV-021)', () => 
   });
   it('does not translate a custom category that happens to share a system name', () => {
     expect(categoryDisplay(tId, cat({ name: 'Drawing', is_system: false }))).toBe('Drawing');
+  });
+  it('fix-billing item 1: the delivery record (BAST) is a default category, named in both languages', () => {
+    expect(documentCategoryLabel(tId, 'Delivery record')).toBe('Berita acara serah terima (BAST)');
+    expect(documentCategoryLabel(tEn, 'Delivery record')).toBe('Delivery record (BAST)');
+    expect(categoryOptions(tEn).map((o) => o.value)).toContain('Delivery record');
   });
   it('keeps the stored-text label for register rows (Reference is a system label)', () => {
     expect(documentCategoryLabel(tId, 'Reference')).toBe('Referensi');

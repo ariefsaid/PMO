@@ -100,8 +100,8 @@ select pg_temp.act_as('27050000-0000-0000-0000-0000000000a6');
 select is(public.phone_check_in('27050000-0000-0000-0000-000000000401', null, null, null, null)->>'status', 'needs_position',
   'AC-PCI-003 an area but no position yet: the RPC asks for one and writes nothing');
 -- AC-PCI-007 bad input
-select throws_ok($$ select public.phone_check_in('27050000-0000-0000-0000-000000000401', '27050000-0000-0000-0000-000000000c02', 0, 0, 10) $$, '23514', null,
-  'AC-PCI-007 a crew the person is not in is refused');
+select throws_ok($$ select public.phone_check_in('27050000-0000-0000-0000-000000000401', '27050000-0000-0000-0000-000000000c03', 0, 0, 10) $$, '23514', null,
+  'AC-PCI-007 a crew that is not rostered on this work order is refused (crew-followed: a crew rostered here may be picked, as a request to follow)');
 select throws_ok($$ select public.phone_check_in('27050000-0000-0000-0000-000000000401', null, 91, 0, 10) $$, '22023', null, 'AC-PCI-007 a latitude out of range is refused');
 select throws_ok($$ select public.phone_check_in('27050000-0000-0000-0000-000000000401', null, 0, 0, 0) $$, '22023', null, 'AC-PCI-007 an accuracy of zero is refused');
 select throws_ok($$ select public.phone_check_in('27050000-0000-0000-0000-000000000401', null, 0, null, 10) $$, '22023', null, 'AC-PCI-007 half a position is refused');

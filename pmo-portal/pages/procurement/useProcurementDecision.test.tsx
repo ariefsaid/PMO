@@ -17,7 +17,7 @@ const PROC = {
   project_id: null, project: null, requested_by: null, invoices: [], payments: [],
 } as never;
 
-const setup = () => {
+const setup = (proc: never = PROC) => {
   const idle = { mutateAsync: vi.fn(), isPending: false };
   const mutations = {
     transition: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
@@ -25,9 +25,9 @@ const setup = () => {
   } as never;
   const ui = {
     setTab: vi.fn(), notesInput: 'looks fine', setNotesInput: vi.fn(), setMutationError: vi.fn(),
-    setShowCreateGR: vi.fn(), setShowCreateVI: vi.fn(), setShowVICapture: vi.fn(), setCaptureKind: vi.fn(),
+    setShowCreateGR: vi.fn(), setShowCreateVI: vi.fn(), setShowVICapture: vi.fn(), setCaptureKind: vi.fn(), openSupplierPicker: vi.fn(),
   };
-  const hook = renderHook(() => useProcurementDecision(PROC, mutations, ui));
+  const hook = renderHook(() => useProcurementDecision(proc, mutations, ui));
   return { hook, ui, transition: (mutations as { transition: { mutateAsync: ReturnType<typeof vi.fn> } }).transition.mutateAsync };
 };
 
@@ -46,8 +46,8 @@ describe('useProcurementDecision', () => {
 
   it('commits a routine forward step directly with no staged confirm', async () => {
     const { hook, transition } = setup();
-    await act(async () => hook.result.current.onActionClick({ to: 'Ordered', label: 'Request quotes', variant: 'primary' } as never));
-    expect(transition).toHaveBeenCalledWith({ to: 'Ordered', notes: 'looks fine' });
+    await act(async () => hook.result.current.onActionClick({ to: 'Received', label: 'Confirm receipt', variant: 'primary' } as never));
+    expect(transition).toHaveBeenCalledWith({ to: 'Received', notes: 'looks fine' });
     expect(hook.result.current.pendingConfirm).toBeNull();
   });
 
@@ -69,5 +69,42 @@ describe('useProcurementDecision', () => {
     expect(hook.result.current.pendingConfirm).toMatchObject({ kind: 'transition', to: 'Approved', confirmLabel: 'Approve' });
     expect(ui.setMutationError).toHaveBeenLastCalledWith(expect.any(String));
     expect(toast).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'warning');
+  });
+
+  describe('JOB-PU1 recording an order', () => {
+    const WITH_SUPPLIER = { ...(PROC as object), status: 'Approved', total_value: 45000000, currency: 'IDR', vendor_id: 'v-1', vendor: { name: 'Toko Baja' } } as never;
+    const NO_SUPPLIER = { ...(PROC as object), status: 'Approved', total_value: 45000000, currency: 'IDR', vendor_id: null, vendor: null } as never;
+    const order = { to: 'Ordered', label: 'Record order', variant: 'primary' } as never;
+
+    it('does not record the order on one tap: it stages a confirm naming the supplier and the amount', async () => {
+      const { hook, transition } = setup(WITH_SUPPLIER);
+      act(() => hook.result.current.onActionClick(order));
+      expect(transition).not.toHaveBeenCalled();
+      const staged = hook.result.current.pendingConfirm as { kind: string; to: string; description: string };
+      expect(staged).toMatchObject({ kind: 'transition', to: 'Ordered' });
+      expect(staged.description).toContain('Toko Baja');
+      expect(staged.description).toMatch(/45[.,]000[.,]000/);
+      await act(() => hook.result.current.commitConfirm());
+      expect(transition).toHaveBeenCalledWith({ to: 'Ordered', notes: 'looks fine' });
+    });
+
+    it('without a supplier it opens the supplier picker and records nothing', () => {
+      const { hook, ui, transition } = setup(NO_SUPPLIER);
+      act(() => hook.result.current.onActionClick(order));
+      expect(transition).not.toHaveBeenCalled();
+      expect(hook.result.current.pendingConfirm).toBeNull();
+      expect(ui.openSupplierPicker).toHaveBeenCalledTimes(1);
+      expect(toast).toHaveBeenCalledWith('Choose the supplier first', expect.stringContaining('needs its supplier'), 'warning');
+    });
+
+    it('when the database refuses an order for a missing supplier, the person is sent to the supplier picker, not shown the code', async () => {
+      const { hook, ui, transition } = setup(WITH_SUPPLIER);
+      transition.mockRejectedValueOnce(Object.assign(new Error('ORDER_NEEDS_SUPPLIER: choose the supplier before the order is recorded'), { code: '23514' }));
+      act(() => hook.result.current.onActionClick(order));
+      await act(() => hook.result.current.commitConfirm());
+      expect(ui.openSupplierPicker).toHaveBeenCalledTimes(1);
+      expect(toast).toHaveBeenCalledWith('Choose the supplier first', expect.any(String), 'warning');
+      expect(JSON.stringify(toast.mock.calls)).not.toContain('ORDER_NEEDS_SUPPLIER');
+    });
   });
 });
