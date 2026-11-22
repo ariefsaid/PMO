@@ -49,6 +49,7 @@ const EquipmentAvailabilityScreen: React.FC = () => {
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
   const writeCtx = { record: { viewOnly: realRole !== effectiveRole } };
+  const canManageTargets = may('manage', 'equipmentTarget', writeCtx);
   const timezone = useOrgBusinessTimezone();
   const today = useOrgToday(timezone);
   const monthFrom = monthStart(today);
@@ -204,11 +205,11 @@ const EquipmentAvailabilityScreen: React.FC = () => {
             <TextField label={t('equipment:availability.metricFrom', 'Metric period from')} type="date" value={metricFrom} onChange={setMetricFrom} />
             <TextField label={t('equipment:availability.metricTo', 'Metric period to')} type="date" value={metricTo} onChange={setMetricTo} />
           </div>
-          {realRole === 'Admin' && realRole === effectiveRole && <div className="mb-3 flex flex-wrap items-end gap-2">
+          {canManageTargets && <div className="mb-3 flex flex-wrap items-end gap-2">
             <TextField label={t('equipment:availability.workingHours', 'Working hours per day')} inputMode="decimal" value={hours} onChange={setHours} />
             <Button variant="outline" disabled={!hours || workingHours.isPending} onClick={() => { void workingHours.mutateAsync(hours).then(() => { setHours(''); toast(t('equipment:availability.hoursSaved', 'Working hours saved'), undefined, 'success'); }).catch((err: unknown) => setProblem(classifyMutationError(err).headline)); }}>{t('equipment:availability.saveHours', 'Save working hours')}</Button>
           </div>}
-          {realRole === 'Admin' && realRole === effectiveRole && <EquipmentTargetSettings onProblem={setProblem} />}
+          {canManageTargets && <EquipmentTargetSettings onProblem={setProblem} />}
           {metrics.isError && <p role="alert">{t('equipment:availability.metricsError', 'Could not load metrics for this period.')}</p>}
           <table className="w-full text-sm">
             <thead><tr className="text-left">

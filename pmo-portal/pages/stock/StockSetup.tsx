@@ -89,6 +89,7 @@ const StockSetup: React.FC = () => {
   const canEdit = may('edit', ENTITY[tab], ctx);
   const canArchive = may('archive', ENTITY[tab], ctx);
   const canKeepers = may('manage', 'warehouse', ctx);
+  const canThreshold = may('manage', 'workOrderIssueThreshold', ctx);
 
   const unitName = useMemo(() => new Map((allUnits.data ?? []).map((u) => [u.id, u.name])), [allUnits.data]);
   const tagName = useMemo(() => new Map((itemTags.data ?? []).map((tag) => [tag.id, tag.name])), [itemTags.data]);
@@ -232,7 +233,7 @@ const StockSetup: React.FC = () => {
       {canKeepers && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={tagsOpen} onClick={() => setTagsOpen(!tagsOpen)}>{t('siteWork.tags.manage')}</Button>
         {tagsOpen && <StockTagsPanel />}
       </div>}
-      {realRole === 'Admin' && !ctx.record.viewOnly && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={thresholdOpen} onClick={() => setThresholdOpen(!thresholdOpen)}>{t('siteWork.materialProgress.setting.manage')}</Button>
+      {canThreshold && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={thresholdOpen} onClick={() => setThresholdOpen(!thresholdOpen)}>{t('siteWork.materialProgress.setting.manage')}</Button>
         {thresholdOpen && <WorkOrderIssueThresholdPanel />}
       </div>}
       {canKeepers && tagsEnabled && <StockTransferSettings />}

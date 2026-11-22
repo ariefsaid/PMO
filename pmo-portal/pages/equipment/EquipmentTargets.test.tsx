@@ -40,7 +40,6 @@ vi.mock('@/src/lib/repositories', () => ({
   repositories: { equipmentAvailability: { getTargets: () => Promise.resolve(h.targets), setTargets: (v: unknown) => h.save(v) } },
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
-vi.mock('@/src/auth/policy', async (orig) => ({ ...(await orig<typeof import('@/src/auth/policy')>()), can: () => true }));
 
 import EquipmentAvailabilityPage from './EquipmentAvailability';
 

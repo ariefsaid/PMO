@@ -1283,3 +1283,60 @@ describe('#2581 crew tools register (UX gate; RLS and the crew-tool RPCs are the
     expect(can('close', 'crewTool', { realRole: 'Engineer', currentUserId: 'u1', record: { assignee_id: 'u1', viewOnly: true } })).toBe(false);
   });
 });
+
+describe('#2751 candidate C10: page-level role comparisons into policy.ts', () => {
+  it('subcontractCertificate.return allows Admin, Finance, Executive; forbids view-as or other roles', () => {
+    expect(allowedRoles('return', 'subcontractCertificate')).toEqual(['Admin', 'Executive', 'Finance']);
+    expect(can('return', 'subcontractCertificate', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('expenseClaim.attribute allows finance-capable roles, or claimant while Draft/Rejected', () => {
+    expect(allowedRoles('attribute', 'expenseClaim')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+    expect(can('attribute', 'expenseClaim', { realRole: 'Engineer', currentUserId: 'u1', record: { claimant_id: 'u1', status: 'Draft' } })).toBe(true);
+    expect(can('attribute', 'expenseClaim', { realRole: 'Engineer', currentUserId: 'u1', record: { claimant_id: 'u1', status: 'Rejected' } })).toBe(true);
+    expect(can('attribute', 'expenseClaim', { realRole: 'Engineer', currentUserId: 'u1', record: { claimant_id: 'u1', status: 'Approved' } })).toBe(false);
+    expect(can('attribute', 'expenseClaim', { realRole: 'Engineer', currentUserId: 'u2', record: { claimant_id: 'u1', status: 'Draft' } })).toBe(false);
+    expect(can('attribute', 'expenseClaim', { realRole: 'Finance', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('checkInSettings.manage allows Admin only, never in view-as', () => {
+    expect(allowedRoles('manage', 'checkInSettings')).toEqual(['Admin']);
+    expect(can('manage', 'checkInSettings', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('equipmentTarget.manage allows Admin only, never in view-as', () => {
+    expect(allowedRoles('manage', 'equipmentTarget')).toEqual(['Admin']);
+    expect(can('manage', 'equipmentTarget', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('workOrderIssueThreshold.manage allows Admin only, never in view-as', () => {
+    expect(allowedRoles('manage', 'workOrderIssueThreshold')).toEqual(['Admin']);
+    expect(can('manage', 'workOrderIssueThreshold', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('stockReservation.manage allows keeper or master-data roles, never in view-as', () => {
+    expect(allowedRoles('manage', 'stockReservation')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+    expect(can('manage', 'stockReservation', { realRole: 'Engineer', record: { isKeeper: true } })).toBe(true);
+    expect(can('manage', 'stockReservation', { realRole: 'Engineer', record: { isKeeper: false } })).toBe(false);
+    expect(can('manage', 'stockReservation', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+  });
+
+  it('documentCategory view and toggleRole', () => {
+    expect(can('view', 'documentCategory', { realRole: 'Admin', record: { roles: ['Finance'] } })).toBe(true);
+    expect(can('view', 'documentCategory', { realRole: 'Finance', record: { roles: ['Finance'] } })).toBe(true);
+    expect(can('view', 'documentCategory', { realRole: 'Engineer', record: { roles: ['Finance'] } })).toBe(false);
+    expect(can('toggleRole', 'documentCategory', { realRole: 'Admin', record: { role: 'Finance' } })).toBe(true);
+    expect(can('toggleRole', 'documentCategory', { realRole: 'Admin', record: { role: 'Admin' } })).toBe(false);
+  });
+
+  it('procurement.setPaymentChannel mirrors set_procurement_payment_channel (1356)', () => {
+    expect(can('setPaymentChannel', 'procurement', { realRole: 'Admin', record: { status: 'Draft' } })).toBe(true);
+    expect(can('setPaymentChannel', 'procurement', { realRole: 'Engineer', currentUserId: 'u1', record: { status: 'Draft', requested_by_id: 'u1' } })).toBe(true);
+    expect(can('setPaymentChannel', 'procurement', { realRole: 'Engineer', currentUserId: 'u2', record: { status: 'Draft', requested_by_id: 'u1' } })).toBe(false);
+    expect(can('setPaymentChannel', 'procurement', { realRole: 'Admin', record: { status: 'Paid' } })).toBe(false);
+    expect(can('setPaymentChannel', 'procurement', { realRole: 'Finance', record: { status: 'Cancelled' } })).toBe(false);
+    expect(can('setPaymentChannel', 'procurement', { realRole: 'Finance', record: { status: 'Requested' } })).toBe(true);
+    expect(can('setPaymentChannel', 'procurement', { realRole: 'Project Manager', record: { status: 'Requested' } })).toBe(false);
+    expect(can('setPaymentChannel', 'procurement', { realRole: 'Admin', record: { status: 'Requested', viewOnly: true } })).toBe(false);
+  });
+});
