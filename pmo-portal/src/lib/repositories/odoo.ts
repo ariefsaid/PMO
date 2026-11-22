@@ -12,34 +12,8 @@ const likeAny = (s: string) => `"%${s.replace(/[\\%_]/g, '\\$&').replace(/[\\"]/
 const COMMAND_KINDS: ReadonlySet<string> = new Set<PurchaseCommandKind>(['purchase-order', 'goods-receipt', 'purchase-invoice', 'payment']);
 const DAY_MS = 86_400_000;
 
-type RevenueMirrorCreditNoteRow = {
-  id: string;
-  erp_name: string;
-  doc_date: string | null;
-  currency: string | null;
-  grand_total: number | string | null;
-  erp_status: string | null;
-  erp_read_at: string;
-};
-
-type RevenueMirrorCreditNoteQuery = PromiseLike<{
-  data: RevenueMirrorCreditNoteRow[] | null;
-  error: { message: string; code?: string } | null;
-}> & {
-  eq: (column: 'erp_doctype' | 'sales_invoice_id', value: string) => RevenueMirrorCreditNoteQuery;
-  neq: (column: 'erp_docstatus', value: number) => RevenueMirrorCreditNoteQuery;
-  order: (column: 'doc_date', options: { ascending: boolean }) => RevenueMirrorCreditNoteQuery;
-};
-
-function revenueMirrorCreditNoteQuery() {
-  // database.types.ts predates the C6 side mirror, so narrow the missing table at this read seam.
-  // Keep the receiver: a detached `supabase.from` loses `this` and throws before any request.
-  const client = supabase as unknown as {
-    from: (table: 'revenue_erp_mirror') => { select: (columns: string) => RevenueMirrorCreditNoteQuery };
-  };
-  return client.from('revenue_erp_mirror')
-    .select('id,erp_name,doc_date,currency,grand_total,erp_status,erp_read_at');
-}
+const revenueMirrorCreditNoteQuery = () =>
+  supabase.from('revenue_erp_mirror').select('id,erp_name,doc_date,currency,grand_total,erp_status,erp_read_at');
 
 function revenueCommands(rows: Array<Record<string, unknown>>, now: Date): RevenueCommand[] {
   const seen = new Set<string>();
