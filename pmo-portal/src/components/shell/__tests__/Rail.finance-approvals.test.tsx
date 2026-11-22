@@ -67,8 +67,8 @@ describe('Rail — Finance sees Approvals (fix #7)', () => {
     expect(screen.getByRole('link', { name: /approvals/i })).toBeInTheDocument();
   });
 
-  it('AC-FIX7-RAIL-02: Engineer does NOT see Approvals (OD-W2-2 unchanged)', () => {
+  it('AC-FIX7-RAIL-02: Engineer sees Approvals too (every full account has the inbox, #fix-nav)', () => {
     renderRailAs('Engineer');
-    expect(screen.queryByRole('link', { name: /approvals/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /approvals/i })).toHaveAttribute('href', '/approvals');
   });
 });

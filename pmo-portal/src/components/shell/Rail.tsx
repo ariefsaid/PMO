@@ -65,16 +65,24 @@ export interface NavItem {
 // is load-bearing: scripts/check-module-completeness.mjs parses this block by it.
 // eslint-disable-next-line react-refresh/only-export-components -- registry constant co-located with its rail; HMR-only lint concern
 export const ALL_ITEMS: NavItem[] = [
-  { to: '/approvals', text: 'Approvals', icon: 'approvals', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // Every full account sees the inbox (light accounts have their own shell). Until the decide-anything read
+  // from lane fix/walk-waiting lands, nobody is filtered out; the page itself says when nothing is waiting.
+  { to: '/approvals', text: 'Approvals', icon: 'approvals', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/', text: 'Dashboard', icon: 'dashboard', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/sales', text: 'Sales Pipeline', icon: 'funnel', group: 'Sales', feature: 'sales_pipeline', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/companies', text: 'Companies', icon: 'companies', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // The work orders the reader may see, across projects (a front door; the project's contract card stays the other path).
+  { to: '/work-orders', text: 'Work orders', icon: 'doc', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/stock', text: 'Stock', icon: 'inbox', group: 'Delivery', feature: 'stock', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1519: every member logs equipment usage; the Assets and approvals views gate by role inside the page.
   { to: '/equipment', text: 'Equipment', icon: 'equipment', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // The asset register (machines, vehicles, tools). Reads are RLS-scoped, so every role gets the doorway.
+  { to: '/equipment/assets', text: 'Equipment assets', icon: 'folder', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // Safety: the monthly summary, only where the organisation switched the safety module on (`safetyEnabled`).
+  { to: '/safety', text: 'Safety summary', icon: 'circle-check', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #1522: every member reads site reports; entry and validation gate by role inside the pages.
   { to: '/site-reports', text: 'Site reports', icon: 'reports', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #2528: crews, roster and attendance — every member reads; writes gate by role (and field controller) inside the page.
@@ -96,6 +104,8 @@ export const ALL_ITEMS: NavItem[] = [
   // the default), OFF once an ERP owns it; an explicit row still wins, so an Operator can turn it
   // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, Executive and Admin.
   { to: '/finance', text: 'Finance', icon: 'dollar', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  // The claims board: every open claim by step and age (needs the revenue module).
+  { to: '/finance/billing-board', text: 'Billing board', icon: 'cols', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/receivables', text: 'Receivables', icon: 'invoices', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/payables', text: 'Payables', icon: 'payments', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/reports', text: 'Reports', icon: 'chart-column', group: 'Finance', feature: 'management_pack', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
@@ -191,6 +201,8 @@ export interface NavVisibility {
   hasEligibleTimesheets: boolean;
   /** #2708: the organisation switched leave requests on. Absent means off, so the entry stays out. */
   leaveEnabled?: boolean;
+  /** The organisation switched the safety module on. Absent means off, so the entry stays out. */
+  safetyEnabled?: boolean;
 }
 
 /**
@@ -198,12 +210,12 @@ export interface NavVisibility {
  * so the two never disagree about what a role may reach.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- pure gate shared with the phone bar
-export function visibleNavItems({ role, realRole, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled }: NavVisibility): NavItem[] {
+export function visibleNavItems({ role, realRole, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled, safetyEnabled }: NavVisibility): NavItem[] {
   return ALL_ITEMS.filter(
     (i) => (i.realRoleOnly
       ? realRole !== null && i.roles.includes(role) && i.roles.includes(realRole)
       : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
-  ).filter((i) => i.to !== '/views' || userViewsEnabled).filter((i) => i.to !== '/leave' || leaveEnabled === true);
+  ).filter((i) => i.to !== '/views' || userViewsEnabled).filter((i) => i.to !== '/leave' || leaveEnabled === true).filter((i) => i.to !== '/safety' || safetyEnabled === true);
 }
 
 export interface RailProps {

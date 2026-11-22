@@ -89,6 +89,8 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: bo
     : [];
   const byPath = new Map<string, NavItem>(reachable.map((item) => [item.to, item]));
   const picked = (ROLE_PHONE_DESTINATIONS[effectiveRole ?? ''] ?? [])
+    // The inbox is in every full account's menu, but an Engineer's thumb-reach slot is spent on it only while a decision waits.
+    .filter((path) => path !== '/approvals' || effectiveRole !== 'Engineer' || hasEligibleDecisions)
     .map((path) => byPath.get(path))
     .filter((item): item is NavItem => Boolean(item))
     .slice(0, PHONE_DESTINATION_SLOTS);

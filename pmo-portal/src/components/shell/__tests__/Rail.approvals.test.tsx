@@ -113,12 +113,11 @@ describe('Rail — persistent approvals access (UX-001)', () => {
     expect(approvalLink).toHaveAttribute('href', '/approvals');
   });
 
-  it('does not render an empty pinned strip for Engineer', () => {
+  it('keeps the Approvals entry for an Engineer with nothing waiting (every full account has the inbox)', () => {
     renderRail(vi.fn(), 'Engineer', { pending: [], corrections: [] });
 
     const rail = screen.getByRole('complementary');
-    expect(rail.querySelector('[data-rail-pinned-approvals]')).not.toBeInTheDocument();
-    expect(within(rail).queryByRole('link', { name: /Approvals/i })).not.toBeInTheDocument();
+    expect(within(rail).getByRole('link', { name: /Approvals/i })).toHaveAttribute('href', '/approvals');
   });
 
   it('shows the pinned Approvals strip and pending count for an Engineer with an assigned queue', () => {
