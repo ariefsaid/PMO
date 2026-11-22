@@ -25,9 +25,9 @@ create extension if not exists pgtap;
 select plan(51);
 
 insert into organizations (id, name, default_currency, default_timezone, clearance_checklist_enabled) values
-  ('28320000-0000-0000-0000-0000000000a1', 'CTD Run Org A', 'IDR', 'UTC', true),
-  ('28320000-0000-0000-0000-0000000000a2', 'CTD Run Org B', 'IDR', 'UTC', true),
-  ('28320000-0000-0000-0000-0000000000a3', 'CTD Run Org C', 'IDR', 'UTC', false);
+  ('28320000-0000-0000-0000-000000000a01', 'CTD Run Org A', 'IDR', 'UTC', true),
+  ('28320000-0000-0000-0000-000000000a02', 'CTD Run Org B', 'IDR', 'UTC', true),
+  ('28320000-0000-0000-0000-000000000a03', 'CTD Run Org C', 'IDR', 'UTC', false);
 insert into auth.users (id, email) values
   ('28320000-0000-0000-0000-000000000b01', 'ctdr-admin@example.com'),
   ('28320000-0000-0000-0000-000000000b02', 'ctdr-pm@example.com'),
@@ -38,69 +38,69 @@ insert into auth.users (id, email) values
   ('28320000-0000-0000-0000-000000000b09', 'ctdr-foreign-pm@example.com'),
   ('28320000-0000-0000-0000-000000000b31', 'ctdr-off-admin@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('28320000-0000-0000-0000-000000000b01', '28320000-0000-0000-0000-0000000000a1', 'CTDR Admin',    'ctdr-admin@example.com',    'Admin', 'active'),
-  ('28320000-0000-0000-0000-000000000b02', '28320000-0000-0000-0000-0000000000a1', 'CTDR PM',       'ctdr-pm@example.com',       'Project Manager', 'active'),
-  ('28320000-0000-0000-0000-000000000b03', '28320000-0000-0000-0000-0000000000a1', 'CTDR Finance',  'ctdr-fin@example.com',      'Finance', 'active'),
-  ('28320000-0000-0000-0000-000000000b04', '28320000-0000-0000-0000-0000000000a1', 'CTDR Disabled', 'ctdr-disabled@example.com', 'Admin', 'disabled'),
-  ('28320000-0000-0000-0000-000000000b05', '28320000-0000-0000-0000-0000000000a1', 'CTDR Eng',      'ctdr-eng@example.com',      'Engineer', 'active'),
-  ('28320000-0000-0000-0000-000000000b08', '28320000-0000-0000-0000-0000000000a2', 'CTDR B Admin',  'ctdr-foreign-admin@example.com', 'Admin', 'active'),
-  ('28320000-0000-0000-0000-000000000b09', '28320000-0000-0000-0000-0000000000a2', 'CTDR B PM',     'ctdr-foreign-pm@example.com', 'Project Manager', 'active'),
-  ('28320000-0000-0000-0000-000000000b31', '28320000-0000-0000-0000-0000000000a3', 'CTDR C Admin',  'ctdr-off-admin@example.com', 'Admin', 'active');
+  ('28320000-0000-0000-0000-000000000b01', '28320000-0000-0000-0000-000000000a01', 'CTDR Admin',    'ctdr-admin@example.com',    'Admin', 'active'),
+  ('28320000-0000-0000-0000-000000000b02', '28320000-0000-0000-0000-000000000a01', 'CTDR PM',       'ctdr-pm@example.com',       'Project Manager', 'active'),
+  ('28320000-0000-0000-0000-000000000b03', '28320000-0000-0000-0000-000000000a01', 'CTDR Finance',  'ctdr-fin@example.com',      'Finance', 'active'),
+  ('28320000-0000-0000-0000-000000000b04', '28320000-0000-0000-0000-000000000a01', 'CTDR Disabled', 'ctdr-disabled@example.com', 'Admin', 'disabled'),
+  ('28320000-0000-0000-0000-000000000b05', '28320000-0000-0000-0000-000000000a01', 'CTDR Eng',      'ctdr-eng@example.com',      'Engineer', 'active'),
+  ('28320000-0000-0000-0000-000000000b08', '28320000-0000-0000-0000-000000000a02', 'CTDR B Admin',  'ctdr-foreign-admin@example.com', 'Admin', 'active'),
+  ('28320000-0000-0000-0000-000000000b09', '28320000-0000-0000-0000-000000000a02', 'CTDR B PM',     'ctdr-foreign-pm@example.com', 'Project Manager', 'active'),
+  ('28320000-0000-0000-0000-000000000b31', '28320000-0000-0000-0000-000000000a03', 'CTDR C Admin',  'ctdr-off-admin@example.com', 'Admin', 'active');
 insert into companies (id, org_id, name, type) values
-  ('28320000-0000-0000-0000-0000000000cc', '28320000-0000-0000-0000-0000000000a1', 'CTDR Client A', 'Client'),
-  ('28320000-0000-0000-0000-0000000000cd', '28320000-0000-0000-0000-0000000000a2', 'CTDR Client B', 'Client'),
-  ('28320000-0000-0000-0000-0000000000ce', '28320000-0000-0000-0000-0000000000a3', 'CTDR Client C', 'Client');
+  ('28320000-0000-0000-0000-000000000ca1', '28320000-0000-0000-0000-000000000a01', 'CTDR Client A', 'Client'),
+  ('28320000-0000-0000-0000-000000000ca2', '28320000-0000-0000-0000-000000000a02', 'CTDR Client B', 'Client'),
+  ('28320000-0000-0000-0000-000000000ca3', '28320000-0000-0000-0000-000000000a03', 'CTDR Client C', 'Client');
 insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount, tax_rate,
                       tax_base_numerator, tax_base_denominator, subject_to_vat, client_id, project_manager_id) values
-  ('28320000-0000-0000-0000-0000000000c01', '28320000-0000-0000-0000-0000000000a1', 'CTD run project', 'Ongoing Project', 'IDR',
-   90000000, 'exclusive', 0, null, 1, 1, false, '28320000-0000-0000-0000-0000000000cc', '28320000-0000-0000-0000-000000000b02'),
-  ('28320000-0000-0000-0000-0000000000c02', '28320000-0000-0000-0000-0000000000a2', 'CTD run foreign project', 'Ongoing Project', 'IDR',
-   90000000, 'exclusive', 0, null, 1, 1, false, '28320000-0000-0000-0000-0000000000cd', '28320000-0000-0000-0000-000000000b09'),
-  ('28320000-0000-0000-0000-0000000000c03', '28320000-0000-0000-0000-0000000000a3', 'CTD run off project', 'Ongoing Project', 'IDR',
-   90000000, 'exclusive', 0, null, 1, 1, false, '28320000-0000-0000-0000-0000000000ce', '28320000-0000-0000-0000-000000000b31');
+  ('28320000-0000-0000-0000-000000000c01', '28320000-0000-0000-0000-000000000a01', 'CTD run project', 'Ongoing Project', 'IDR',
+   90000000, 'exclusive', 0, null, 1, 1, false, '28320000-0000-0000-0000-000000000ca1', '28320000-0000-0000-0000-000000000b02'),
+  ('28320000-0000-0000-0000-000000000c02', '28320000-0000-0000-0000-000000000a02', 'CTD run foreign project', 'Ongoing Project', 'IDR',
+   90000000, 'exclusive', 0, null, 1, 1, false, '28320000-0000-0000-0000-000000000ca2', '28320000-0000-0000-0000-000000000b09'),
+  ('28320000-0000-0000-0000-000000000c03', '28320000-0000-0000-0000-000000000a03', 'CTD run off project', 'Ongoing Project', 'IDR',
+   90000000, 'exclusive', 0, null, 1, 1, false, '28320000-0000-0000-0000-000000000ca3', '28320000-0000-0000-0000-000000000b31');
 -- Issued work orders as the owner (the origination guard scopes itself to the RLS trust boundary): one per recipient rule.
 insert into work_orders (id, org_id, project_id, wo_number, title, status, issued_by, issued_at, order_value, currency, tax_treatment, tax_amount) values
-  ('28320000-0000-0000-0000-0000000000e01', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000c01', 'WO-1', 'CTD run one', 'Issued', '28320000-0000-0000-0000-000000000b02', now(), 10000, 'IDR', 'exclusive', 0),
-  ('28320000-0000-0000-0000-0000000000e02', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000c01', 'WO-2', 'CTD run two', 'Issued', '28320000-0000-0000-0000-000000000b04', now(), 10000, 'IDR', 'exclusive', 0),
-  ('28320000-0000-0000-0000-0000000000e03', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000c01', 'WO-3', 'CTD run three', 'Issued', null, now(), 10000, 'IDR', 'exclusive', 0),
-  ('28320000-0000-0000-0000-0000000000e04', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000c01', 'WO-4', 'CTD run four', 'Issued', '28320000-0000-0000-0000-000000000b09', now(), 10000, 'IDR', 'exclusive', 0),
-  ('28320000-0000-0000-0000-0000000000e05', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000c01', 'WO-5', 'CTD run five', 'Issued', '28320000-0000-0000-0000-000000000b02', now(), 10000, 'IDR', 'exclusive', 0),
-  ('28320000-0000-0000-0000-0000000000e06', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000c01', 'WO-6', 'CTD run six', 'Issued', '28320000-0000-0000-0000-000000000b02', now(), 10000, 'IDR', 'exclusive', 0),
-  ('28320000-0000-0000-0000-0000000000e07', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000c01', 'WO-7', 'CTD run seven', 'Issued', '28320000-0000-0000-0000-000000000b02', now(), 10000, 'IDR', 'exclusive', 0),
-  ('28320000-0000-0000-0000-0000000000e08', '28320000-0000-0000-0000-0000000000a2', '28320000-0000-0000-0000-0000000000c02', 'WO-B', 'CTD run foreign', 'Issued', '28320000-0000-0000-0000-000000000b09', now(), 10000, 'IDR', 'exclusive', 0);
+  ('28320000-0000-0000-0000-000000000e01', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000c01', 'WO-1', 'CTD run one', 'Issued', '28320000-0000-0000-0000-000000000b02', now(), 10000, 'IDR', 'exclusive', 0),
+  ('28320000-0000-0000-0000-000000000e02', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000c01', 'WO-2', 'CTD run two', 'Issued', '28320000-0000-0000-0000-000000000b04', now(), 10000, 'IDR', 'exclusive', 0),
+  ('28320000-0000-0000-0000-000000000e03', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000c01', 'WO-3', 'CTD run three', 'Issued', null, now(), 10000, 'IDR', 'exclusive', 0),
+  ('28320000-0000-0000-0000-000000000e04', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000c01', 'WO-4', 'CTD run four', 'Issued', '28320000-0000-0000-0000-000000000b09', now(), 10000, 'IDR', 'exclusive', 0),
+  ('28320000-0000-0000-0000-000000000e05', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000c01', 'WO-5', 'CTD run five', 'Issued', '28320000-0000-0000-0000-000000000b02', now(), 10000, 'IDR', 'exclusive', 0),
+  ('28320000-0000-0000-0000-000000000e06', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000c01', 'WO-6', 'CTD run six', 'Issued', '28320000-0000-0000-0000-000000000b02', now(), 10000, 'IDR', 'exclusive', 0),
+  ('28320000-0000-0000-0000-000000000e07', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000c01', 'WO-7', 'CTD run seven', 'Issued', '28320000-0000-0000-0000-000000000b02', now(), 10000, 'IDR', 'exclusive', 0),
+  ('28320000-0000-0000-0000-000000000e08', '28320000-0000-0000-0000-000000000a02', '28320000-0000-0000-0000-000000000c02', 'WO-B', 'CTD run foreign', 'Issued', '28320000-0000-0000-0000-000000000b09', now(), 10000, 'IDR', 'exclusive', 0);
 insert into project_documents (id, org_id, project_id, category, title, status, author_id, file_path) values
-  ('28320000-0000-0000-0000-000000000d01', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000c01',
+  ('28320000-0000-0000-0000-000000000d01', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000c01',
    'Acceptance', 'CTD run acceptance', 'Approved', '28320000-0000-0000-0000-000000000b02',
-   '28320000-0000-0000-0000-0000000000a1/28320000-0000-0000-0000-0000000000c01/doc.pdf');
+   '28320000-0000-0000-0000-000000000a01/28320000-0000-0000-0000-000000000c01/doc.pdf');
 -- Close-out items: overdue by rule, exactly due, done, without a due day, and one per issuer fallback.
 insert into work_order_closeout_items
   (id, org_id, work_order_id, project_id, position, name, required, started_on, target_days, due_on, done_on, document_id, attached_by, done_by) values
-  ('28320000-0000-0000-0000-000000000f01', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000e01', '28320000-0000-0000-0000-0000000000c01', 1, 'Open punch list', true,
-   public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 6, null, null, null, null),
-  ('28320000-0000-0000-0000-000000000f02', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000e01', '28320000-0000-0000-0000-0000000000c01', 2, 'Exactly due today', true,
-   public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid), null, null, null, null),
-  ('28320000-0000-0000-0000-000000000f03', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000e02', '28320000-0000-0000-0000-0000000000c01', 1, 'Disabled issuer item', true,
-   public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 2, null, null, null, null),
-  ('28320000-0000-0000-0000-000000000f04', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000e03', '28320000-0000-0000-0000-0000000000c01', 1, 'No issuer item', true,
-   public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 1, null, null, null, null),
-  ('28320000-0000-0000-0000-000000000f05', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000e04', '28320000-0000-0000-0000-0000000000c01', 1, 'Foreign issuer item', true,
-   public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 3, null, null, null, null),
-  ('28320000-0000-0000-0000-000000000f06', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000e05', '28320000-0000-0000-0000-0000000000c01', 1, 'Already done item', true,
-   public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 6,
-   public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 5, '28320000-0000-0000-0000-000000000d01',
+  ('28320000-0000-0000-0000-000000000f01', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000e01', '28320000-0000-0000-0000-000000000c01', 1, 'Open punch list', true,
+   public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 6, null, null, null, null),
+  ('28320000-0000-0000-0000-000000000f02', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000e01', '28320000-0000-0000-0000-000000000c01', 2, 'Exactly due today', true,
+   public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid), null, null, null, null),
+  ('28320000-0000-0000-0000-000000000f03', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000e02', '28320000-0000-0000-0000-000000000c01', 1, 'Disabled issuer item', true,
+   public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 2, null, null, null, null),
+  ('28320000-0000-0000-0000-000000000f04', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000e03', '28320000-0000-0000-0000-000000000c01', 1, 'No issuer item', true,
+   public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 1, null, null, null, null),
+  ('28320000-0000-0000-0000-000000000f05', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000e04', '28320000-0000-0000-0000-000000000c01', 1, 'Foreign issuer item', true,
+   public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 3, null, null, null, null),
+  ('28320000-0000-0000-0000-000000000f06', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000e05', '28320000-0000-0000-0000-000000000c01', 1, 'Already done item', true,
+   public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 6,
+   public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 5, '28320000-0000-0000-0000-000000000d01',
    '28320000-0000-0000-0000-000000000b02', '28320000-0000-0000-0000-000000000b02'),
-  ('28320000-0000-0000-0000-000000000f07', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000e06', '28320000-0000-0000-0000-0000000000c01', 1, 'No due item', true,
-   public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 10, 5, null, null, null, null, null),
-  ('28320000-0000-0000-0000-000000000f08', '28320000-0000-0000-0000-0000000000a2', '28320000-0000-0000-0000-0000000000e08', '28320000-0000-0000-0000-0000000000c02', 1, 'B overdue item', true,
-   public.native_org_today('28320000-0000-0000-0000-0000000000a2'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-0000000000a2'::uuid) - 2, null, null, null, null);
+  ('28320000-0000-0000-0000-000000000f07', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000e06', '28320000-0000-0000-0000-000000000c01', 1, 'No due item', true,
+   public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 10, 5, null, null, null, null, null),
+  ('28320000-0000-0000-0000-000000000f08', '28320000-0000-0000-0000-000000000a02', '28320000-0000-0000-0000-000000000e08', '28320000-0000-0000-0000-000000000c02', 1, 'B overdue item', true,
+   public.native_org_today('28320000-0000-0000-0000-000000000a02'::uuid) - 10, 5, public.native_org_today('28320000-0000-0000-0000-000000000a02'::uuid) - 2, null, null, null, null);
 -- Clearance: two A items (one document-driven), the module off in C, and the same targets everywhere.
 insert into document_types (id, org_id, name, applies_to) values
-  ('28320000-0000-0000-0000-000000000d11', '28320000-0000-0000-0000-0000000000a1', 'Person medical', 'person');
+  ('28320000-0000-0000-0000-000000000d11', '28320000-0000-0000-0000-000000000a01', 'Person medical', 'person');
 insert into clearance_items (id, org_id, name, is_required, sort_order, created_by, target_days, document_type_id) values
-  ('28320000-0000-0000-0000-000000000c11', '28320000-0000-0000-0000-0000000000a1', 'Site induction', true, 1, '28320000-0000-0000-0000-000000000b01', 5, null),
-  ('28320000-0000-0000-0000-000000000c12', '28320000-0000-0000-0000-0000000000a1', 'Medical check', true, 2, '28320000-0000-0000-0000-000000000b01', 5, '28320000-0000-0000-0000-000000000d11'),
-  ('28320000-0000-0000-0000-000000000c21', '28320000-0000-0000-0000-0000000000a2', 'Foreign induction', true, 1, '28320000-0000-0000-0000-000000000b08', 5, null),
-  ('28320000-0000-0000-0000-000000000c31', '28320000-0000-0000-0000-0000000000a3', 'Off induction', true, 1, '28320000-0000-0000-0000-000000000b31', 5, null);
+  ('28320000-0000-0000-0000-000000000c11', '28320000-0000-0000-0000-000000000a01', 'Site induction', true, 1, '28320000-0000-0000-0000-000000000b01', 5, null),
+  ('28320000-0000-0000-0000-000000000c12', '28320000-0000-0000-0000-000000000a01', 'Medical check', true, 2, '28320000-0000-0000-0000-000000000b01', 5, '28320000-0000-0000-0000-000000000d11'),
+  ('28320000-0000-0000-0000-000000000c21', '28320000-0000-0000-0000-000000000a02', 'Foreign induction', true, 1, '28320000-0000-0000-0000-000000000b08', 5, null),
+  ('28320000-0000-0000-0000-000000000c31', '28320000-0000-0000-0000-000000000a03', 'Off induction', true, 1, '28320000-0000-0000-0000-000000000b31', 5, null);
 -- The targets were set twenty days ago: a person created ten days ago is then five days past a 5-day target. A target set
 -- today can never be overdue for a person created today or later, which is the rule under test, not a test artefact.
 set local session_replication_role = replica;
@@ -109,36 +109,36 @@ update clearance_items set target_set_at = now() - interval '20 days'
               '28320000-0000-0000-0000-000000000c21', '28320000-0000-0000-0000-000000000c31');
 set local session_replication_role = origin;
 insert into people (id, org_id, code, name, created_by, created_at) values
-  ('28320000-0000-0000-0000-000000000e11', '28320000-0000-0000-0000-0000000000a1', 'CTDR-1', 'Clearance One',
+  ('28320000-0000-0000-0000-000000000e11', '28320000-0000-0000-0000-000000000a01', 'CTDR-1', 'Clearance One',
    '28320000-0000-0000-0000-000000000b03', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c11') + interval '10 days'),
-  ('28320000-0000-0000-0000-000000000e12', '28320000-0000-0000-0000-0000000000a1', 'CTDR-2', 'Clearance Two',
+  ('28320000-0000-0000-0000-000000000e12', '28320000-0000-0000-0000-000000000a01', 'CTDR-2', 'Clearance Two',
    '28320000-0000-0000-0000-000000000b04', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c11') + interval '10 days'),
-  ('28320000-0000-0000-0000-000000000e13', '28320000-0000-0000-0000-0000000000a1', 'CTDR-3', 'Clearance Three',
+  ('28320000-0000-0000-0000-000000000e13', '28320000-0000-0000-0000-000000000a01', 'CTDR-3', 'Clearance Three',
    null, (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c11') + interval '10 days'),
-  ('28320000-0000-0000-0000-000000000e14', '28320000-0000-0000-0000-0000000000a1', 'CTDR-4', 'Clearance Four',
+  ('28320000-0000-0000-0000-000000000e14', '28320000-0000-0000-0000-000000000a01', 'CTDR-4', 'Clearance Four',
    '28320000-0000-0000-0000-000000000b09', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c11') + interval '10 days'),
-  ('28320000-0000-0000-0000-000000000e15', '28320000-0000-0000-0000-0000000000a1', 'CTDR-5', 'Clearance Five',
+  ('28320000-0000-0000-0000-000000000e15', '28320000-0000-0000-0000-000000000a01', 'CTDR-5', 'Clearance Five',
    '28320000-0000-0000-0000-000000000b03', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c11') + interval '10 days'),
-  ('28320000-0000-0000-0000-000000000e16', '28320000-0000-0000-0000-0000000000a1', 'CTDR-6', 'Clearance Today',
+  ('28320000-0000-0000-0000-000000000e16', '28320000-0000-0000-0000-000000000a01', 'CTDR-6', 'Clearance Today',
    '28320000-0000-0000-0000-000000000b03', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c11') + interval '20 days'),
-  ('28320000-0000-0000-0000-000000000e17', '28320000-0000-0000-0000-0000000000a1', 'CTDR-7', 'Clearance Preexisting',
+  ('28320000-0000-0000-0000-000000000e17', '28320000-0000-0000-0000-000000000a01', 'CTDR-7', 'Clearance Preexisting',
    '28320000-0000-0000-0000-000000000b03', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c11') - interval '1 second'),
-  ('28320000-0000-0000-0000-000000000e61', '28320000-0000-0000-0000-0000000000a2', 'CTDR-B', 'Foreign Clearance',
+  ('28320000-0000-0000-0000-000000000e61', '28320000-0000-0000-0000-000000000a02', 'CTDR-B', 'Foreign Clearance',
    '28320000-0000-0000-0000-000000000b08', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c21') + interval '10 days'),
-  ('28320000-0000-0000-0000-000000000e62', '28320000-0000-0000-0000-0000000000a3', 'CTDR-C', 'Off Clearance',
+  ('28320000-0000-0000-0000-000000000e62', '28320000-0000-0000-0000-000000000a03', 'CTDR-C', 'Off Clearance',
    '28320000-0000-0000-0000-000000000b31', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c31') + interval '10 days');
 insert into person_clearances (id, person_id, item_id, done_on) values
   ('28320000-0000-0000-0000-000000000ae1', '28320000-0000-0000-0000-000000000e15', '28320000-0000-0000-0000-000000000c11', current_date);
 insert into expiry_documents (id, org_id, subject_kind, person_id, type_id, issued_on, expires_on) values
-  ('28320000-0000-0000-0000-000000000af1', '28320000-0000-0000-0000-0000000000a1', 'person',
+  ('28320000-0000-0000-0000-000000000af1', '28320000-0000-0000-0000-000000000a01', 'person',
    '28320000-0000-0000-0000-000000000e15', '28320000-0000-0000-0000-000000000d11', current_date - 30, current_date + 30);
 -- One billing step with a target, overdue by one day: the unchanged part of the runner.
 insert into progress_claims (id, org_id, project_id, kind, currency, gross_amount, created_by) values
-  ('28320000-0000-0000-0000-000000000ab1', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000c01', 'progress', 'IDR', 0,
+  ('28320000-0000-0000-0000-000000000ab1', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000c01', 'progress', 'IDR', 0,
    '28320000-0000-0000-0000-000000000b01');
 insert into claim_billing_stages (id, org_id, claim_id, project_id, position, name, client_side, started_on, target_days) values
-  ('28320000-0000-0000-0000-000000000ac1', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-000000000ab1',
-   '28320000-0000-0000-0000-0000000000c01', 1, 'Measure', false, public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 11, 10);
+  ('28320000-0000-0000-0000-000000000ac1', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000ab1',
+   '28320000-0000-0000-0000-000000000c01', 1, 'Measure', false, public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 11, 10);
 
 create function pg_temp.as_job() returns void language plpgsql as $$
 begin
@@ -164,17 +164,17 @@ select is((select count(*)::int from notifications where title in
 select pg_temp.as_job();
 select is(notify_overdue_billing_stages(), 15,
   'AC-CTD-008 the one daily run returns billing 1 + close-out 5 + clearance 9');
-select is(pg_temp.org_notes('a1', 'Close-out item is overdue'), 4,
+select is(pg_temp.org_notes('a01', 'Close-out item is overdue'), 4,
   'AC-CTD-002 the four overdue close-out items of this organisation are notified');
-select is(pg_temp.org_notes('a1', 'Clearance item is overdue'), 8,
+select is(pg_temp.org_notes('a01', 'Clearance item is overdue'), 8,
   'AC-CTD-006 the eight overdue clearance items of this organisation are notified');
-select is(pg_temp.org_notes('a1', 'Billing step is overdue'), 1,
+select is(pg_temp.org_notes('a01', 'Billing step is overdue'), 1,
   'AC-CTD-008 the billing step is still notified exactly as before');
-select is(pg_temp.org_notes('a2', 'Close-out item is overdue'), 1,
+select is(pg_temp.org_notes('a02', 'Close-out item is overdue'), 1,
   'AC-CTD-003 the other organisation''s own overdue item is notified inside it');
-select is(pg_temp.org_notes('a2', 'Clearance item is overdue'), 1,
+select is(pg_temp.org_notes('a02', 'Clearance item is overdue'), 1,
   'AC-CTD-006 the other organisation''s own overdue clearance is notified inside it');
-select is(pg_temp.org_notes('a3', 'Clearance item is overdue'), 0,
+select is(pg_temp.org_notes('a03', 'Clearance item is overdue'), 0,
   'AC-CTD-006 an organisation with the clearance checklist off is not scanned');
 select is(pg_temp.notes('b02', 'Close-out item is overdue'), 1,
   'AC-CTD-002 the active issuer is the one told (not the Admin)');
@@ -191,7 +191,7 @@ select is(pg_temp.notes('b05'), 0, 'AC-CTD-006 an uninvolved member is never tol
 select is(pg_temp.notes('b09', 'Clearance item is overdue'), 0,
   'AC-CTD-003 a foreign creator is told nothing about this organisation''s clearance');
 select is((select count(*)::int from notifications n
-            where n.org_id = '28320000-0000-0000-0000-0000000000a1' and n.owner_id = '28320000-0000-0000-0000-000000000b09'),
+            where n.org_id = '28320000-0000-0000-0000-000000000a01' and n.owner_id = '28320000-0000-0000-0000-000000000b09'),
   0, 'AC-CTD-003 the foreign issuer is told nothing about this organisation''s work orders');
 select is((select count(*)::int from notifications n join profiles p on p.id = n.owner_id where n.org_id <> p.org_id), 0,
   'FR-CTD-006 every notice stays inside its recipients'' own organisation');
@@ -200,7 +200,7 @@ select is((select body from notifications where owner_id = '28320000-0000-0000-0
   'AC-CTD-002 the close-out notice names the item, the work order and the days over');
 select is((select metadata -> 'entity' ->> 'type' || ':' || (metadata -> 'entity' ->> 'id') from notifications
             where owner_id = '28320000-0000-0000-0000-000000000b02' and title = 'Close-out item is overdue'),
-  'work_order:28320000-0000-0000-0000-0000000000e01', 'AC-CTD-002 the close-out notice opens its work order');
+  'work_order:28320000-0000-0000-0000-000000000e01', 'AC-CTD-002 the close-out notice opens its work order');
 select is((select body from notifications where owner_id = '28320000-0000-0000-0000-000000000b01'
             and title = 'Clearance item is overdue' and body like '%Clearance Two%'),
   'Clearance item "Site induction" for Clearance Two is 5 days past its 5-day target.',
@@ -242,7 +242,7 @@ select is((select count(*)::int from notifications
                                                      '28320000-0000-0000-0000-000000000e17')), 0,
   'AC-CTD-006 a person created today and an existing person are not notified');
 select is((select count(*)::int from notifications
-            where org_id = '28320000-0000-0000-0000-0000000000a1' and body like '%B overdue item%'), 0,
+            where org_id = '28320000-0000-0000-0000-000000000a01' and body like '%B overdue item%'), 0,
   'AC-CTD-003 no foreign item crosses into this organisation''s notices');
 
 -- ── once-only: a second run, and a run where another run already won the race ────────────────────────────────────────────
@@ -252,12 +252,12 @@ select is((select count(*)::int from notifications where title in
   'AC-CTD-002/006 a second run adds no notice (4 + 8 + 1 here, 1 + 1 in the other organisation)');
 insert into work_order_closeout_items
   (id, org_id, work_order_id, project_id, position, name, required, started_on, target_days, due_on, overdue_notified_at) values
-  ('28320000-0000-0000-0000-000000000f09', '28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-0000000000e07',
-   '28320000-0000-0000-0000-0000000000c01', 1, 'Already told item', true,
-   public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 10, 5,
-   public.native_org_today('28320000-0000-0000-0000-0000000000a1'::uuid) - 4, now());
+  ('28320000-0000-0000-0000-000000000f09', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000e07',
+   '28320000-0000-0000-0000-000000000c01', 1, 'Already told item', true,
+   public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 10, 5,
+   public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 4, now());
 insert into clearance_items (id, org_id, name, is_required, sort_order, created_by, target_days) values
-  ('28320000-0000-0000-0000-000000000c13', '28320000-0000-0000-0000-0000000000a1', 'Already told clearance', true, 3, '28320000-0000-0000-0000-000000000b01', 5);
+  ('28320000-0000-0000-0000-000000000c13', '28320000-0000-0000-0000-000000000a01', 'Already told clearance', true, 3, '28320000-0000-0000-0000-000000000b01', 5);
 -- A target set forty days ago, with the person created thirty days ago, is overdue by twenty-five days and was created before
 -- the other items' targets were set (so it is nobody else's item); the row then simulates a concurrent run that already wrote
 -- the notice.
@@ -265,10 +265,10 @@ set local session_replication_role = replica;
 update clearance_items set target_set_at = now() - interval '40 days' where id = '28320000-0000-0000-0000-000000000c13';
 set local session_replication_role = origin;
 insert into people (id, org_id, code, name, created_by, created_at) values
-  ('28320000-0000-0000-0000-000000000e18', '28320000-0000-0000-0000-0000000000a1', 'CTDR-8', 'Clearance Eight',
+  ('28320000-0000-0000-0000-000000000e18', '28320000-0000-0000-0000-000000000a01', 'CTDR-8', 'Clearance Eight',
    '28320000-0000-0000-0000-000000000b03', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c13') + interval '10 days');
 insert into person_clearance_overdue_notices (id, org_id, person_id, item_id) values
-  ('28320000-0000-0000-0000-000000000aa1', '28320000-0000-0000-0000-0000000000a1',
+  ('28320000-0000-0000-0000-000000000aa1', '28320000-0000-0000-0000-000000000a01',
    '28320000-0000-0000-0000-000000000e18', '28320000-0000-0000-0000-000000000c13');
 select pg_temp.as_job();
 select is(notify_overdue_billing_stages(), 0,
@@ -280,11 +280,11 @@ select is(pg_temp.notes('b03', 'Clearance item is overdue'), 2,
 select is((select count(*)::int from person_clearance_overdue_notices), 10,
   'AC-CTD-006 no notice row grew on the racing pair (the simulated winner''s row is the only one)');
 select throws_ok($q$insert into person_clearance_overdue_notices (org_id, person_id, item_id)
-  values ('28320000-0000-0000-0000-0000000000a1', '28320000-0000-0000-0000-000000000e18', '28320000-0000-0000-0000-000000000c13')$q$,
+  values ('28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000e18', '28320000-0000-0000-0000-000000000c13')$q$,
   '23505', null, 'AC-CTD-006 the (person, item) unique key refuses a second notice row');
 
 -- ── the module switch is the existing organisation flag, nothing new ─────────────────────────────────────────────────────
-update organizations set clearance_checklist_enabled = true where id = '28320000-0000-0000-0000-0000000000a3';
+update organizations set clearance_checklist_enabled = true where id = '28320000-0000-0000-0000-000000000a03';
 select pg_temp.as_job();
 select is(notify_overdue_billing_stages(), 1,
   'AC-CTD-006 turning the existing clearance flag on makes the next run scan that organisation');
