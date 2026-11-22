@@ -1,6 +1,6 @@
 import { threeWayMatchHeldMessage } from './threeWayMatchError';
 import { BillHoldNotice } from './BillHoldNotice';
-import { orderNeedsSupplierMessage } from './orderSupplierError';
+import { parseRefusal, useRefusalText } from '@/src/lib/refusals';
 import { useVendorInvoiceCapture } from './useVendorInvoiceCapture';
 import { PaymentCaptureFields } from './PaymentCaptureFields';
 import { VendorInvoiceCaptureFields } from './VendorInvoiceCaptureFields';
@@ -223,6 +223,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
+  const refusal = useRefusalText();
   const attributionError = useAttributionErrorText();
   const cfg = kindConfig(kind, t);
   // #910 (DD-VPAY-8): the payment capture NEVER asks for a status — the form's `{Pending, Processed,
@@ -439,7 +440,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             ),
           }
         : null;
-      const { headline, detail } = odooActionError(err, odooProcurement, t) ?? orderNeedsSupplierMessage(err, t) ?? paymentConflict ?? threeWayMatchHeldMessage(err, t) ?? classifyMutationError(err);
+      const { headline, detail } = odooActionError(err, odooProcurement, t) ?? (parseRefusal(err)?.code === 'ORDER_NEEDS_SUPPLIER' ? refusal(err) : null) ?? paymentConflict ?? threeWayMatchHeldMessage(err, t) ?? classifyMutationError(err);
       setCaptureError({ headline, detail });
       toast(headline, detail, 'warning');
     } finally {

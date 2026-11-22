@@ -35,7 +35,11 @@ select is((select consumable from stock_items where id = '15900000-0000-0000-000
 
 select con_as('15900000-0000-0000-0000-0000000000a2');
 select throws_ok($$ insert into stock_items (id, code, name, unit_id, consumable) values ('15900000-0000-0000-0000-000000001003', 'BOLT', 'Bolts', '15900000-0000-0000-0000-0000000000d1', true) $$, '42501', null, 'AC-SKD-011 an Engineer cannot create an item');
-select is((select count(*)::int from (update stock_items set consumable = false where id = '15900000-0000-0000-0000-000000001001' returning id) u), 0, 'AC-SKD-011 an Engineer cannot change the flag');
+do $$ declare n int; begin
+  with u as (update stock_items set consumable = false where id = '15900000-0000-0000-0000-000000001001' returning id) select count(*) into n from u;
+  perform set_config('con.rows_changed', n::text, true);
+end $$;
+select is(current_setting('con.rows_changed')::int, 0, 'AC-SKD-011 an Engineer cannot change the flag');
 reset role;
 select is((select consumable from stock_items where id = '15900000-0000-0000-0000-000000001001'), true, 'AC-SKD-011 the flag is unchanged after the refused edit');
 

@@ -100,3 +100,15 @@ describe('parseRefusal: stock and reservation rules (FR-STK-080, AC-RSV-002)', (
       .toMatchObject({ family: 'STK', code: 'STK_NOT_FOUND', text: 'the unit is not in your organisation' });
   });
 });
+
+describe('JOB-PU1 an order refused for its supplier is said in plain words (the shipped catalogue)', () => {
+  const err = Object.assign(new Error('ORDER_NEEDS_SUPPLIER: choose the supplier before the order is recorded'), { code: '23514' });
+  it('names what to do and shows no code', () => {
+    const r = refusalText(err, tReal);
+    expect(r).toEqual({ headline: 'Choose the supplier first', detail: 'An order needs its supplier. Choose it, then record the order.', known: true });
+    expect(JSON.stringify(r)).not.toContain('ORDER_NEEDS_SUPPLIER');
+  });
+  it('leaves any other error alone', () => {
+    expect(parseRefusal(new Error('boom'))).toBeNull();
+  });
+});

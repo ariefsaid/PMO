@@ -1,4 +1,5 @@
 -- 1551_foreman_clock_in.sql -- a crew's Foreman clocks in himself on a work order his crew is rostered on, and chooses the crew when he leads more than one.
+-- drops: phone_check_in reshapes two lines of 1465 (the roster test) to count a crew's Foreman as rostered; nothing else is removed.
 -- Until now the phone check-in knew a person only as a MEMBER of a crew, so a Foreman (who leads a crew but is not one of its
 -- members) was stopped at 'not in the workforce register' or 'not rostered'. Now: leading a crew rostered on the work order today
 -- counts as being rostered on it; a login with no person in the workforce register still cannot clock in (PCI_NO_PERSON); attendance_record records him against the crew he leads (the one named, else the first). Everything else is as 1465.

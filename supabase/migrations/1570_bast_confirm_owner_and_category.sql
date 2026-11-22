@@ -1,4 +1,5 @@
 -- 1570_bast_confirm_owner_and_category.sql — fix-billing item 1.
+-- drops: seed_document_categories moves its role insert inside the branch that creates the category, so an existing category keeps its roles, and adds the Delivery record name; the on-conflict line goes with the moved insert.
 -- (a) A default document category for the signed client-acceptance record (BAST), for every organisation.
 --     Definition copied from 1164 (the newest): the name list gains 'Delivery record', and role rows are written only for a category this call creates, so an existing live category (system or custom) keeps its name, sort order and roles.
 -- (b) The data the waiting-list lane needs: the acceptances waiting for the caller to confirm.
@@ -41,7 +42,7 @@ language sql stable security invoker set search_path = public as $$
      and (a.prepared_by is distinct from auth.uid()
           or (select count(*) = 1 and bool_or(p.id = auth.uid())
                 from public.profiles p
-               where p.org_id = (select public.auth_org_id()) and public.is_active_member(p.id)))
+               where p.org_id = (select public.auth_org_id()) and p.status = 'active'))   -- the uuid form of is_active_member is not executable by a signed-in role; a banned-but-active member counts here, which only hides the item (fail closed)
    order by a.prepared_at, a.id
    limit 200
 $$;

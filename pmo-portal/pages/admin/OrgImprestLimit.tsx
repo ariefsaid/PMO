@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { useFeature } from '@/src/auth/useFeature';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { can } from '@/src/auth/policy';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { Button, FieldError, TextField } from '@/src/components/ui';
@@ -19,7 +20,7 @@ export default function OrgImprestLimit() {
   const on = useFeature('imprest');
   const orgId = useAuth().currentUser?.org_id;
   // Admin only, as `set_imprest_procurement_limit` is: the real role, not the role being viewed as.
-  const canManage = useOptionalRealRole() === 'Admin';
+  const canManage = can('manage', 'imprestLimit', { realRole: useOptionalRealRole() });
   const orgCurrency = useOrgCurrencyState();
   const qc = useQueryClient();
   const queryKey = ['imprest-limit', orgId];

@@ -1,4 +1,5 @@
 -- 1580_purchase_carries_cost_attribution_and_supplier.sql
+-- drops: check_cost_attribution, create_procurement_with_items and transition_procurement rewrite single lines to carry the purchase's work order and discipline; no rule is removed.
 -- Fix lane walk-purchasing (cost attribution, order supplier).
 --   * procurements gain work_order_id / discipline_id: a purchase says where its cost goes when it is raised; its
 --     request and order records are stamped with it (the receipt and bill forms start from it on the screen).

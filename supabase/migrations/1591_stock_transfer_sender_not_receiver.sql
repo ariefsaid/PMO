@@ -1,4 +1,5 @@
 -- 1591_stock_transfer_sender_not_receiver.sql
+-- drops: receive_stock_transfer no longer lets a guest signature skip the sender-is-not-receiver check, so the guest flag and its guarded call are removed.
 -- A transfer's count is recorded by someone other than its sender, whoever signs: receive_stock_transfer runs the not-self-receive
 -- check for an account signer and for a guest signer alike (the logged-in host is the one counting), and send_stock_transfer
 -- refuses to name its own sender as the receiver. Both restated from their newest definitions (1308 plus the field-account guard of 1480).

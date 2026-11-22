@@ -4,7 +4,7 @@ import { Button, Card, CardHead, CardPad, FieldError, SelectField, TextField, us
 import { usePermission } from '@/src/auth/usePermission';
 import { BUILT_IN_ROLES, builtInRoleName } from '@/src/auth/builtInRoles';
 import { useSetSupervisorRole, useSetWorkOrderArea, useSupervisorRole, useWorkOrderArea } from '@/src/hooks/usePhoneCheckIn';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useRefusalText } from '@/src/lib/refusals';
 import { clearResumeGuard, documentAllowsGeolocation, hardNavigateForGeolocation, PositionError, readPositionOnce, type Fix } from '@/src/lib/position';
 import { WorkOrderPicker } from './CrewPickers';
 
@@ -18,6 +18,7 @@ const inRange = (n: number, lo: number, hi: number) => Number.isFinite(n) && n >
  */
 export const CheckInSettings: React.FC = () => {
   const { t, i18n } = useTranslation('crews');
+  const refusal = useRefusalText();
   const { toast } = useToast();
   const may = usePermission();
   const canArea = may('create', 'workOrder');
@@ -70,7 +71,7 @@ export const CheckInSettings: React.FC = () => {
   const areaLine = area.data
     ? t('crews:checkIn.areaCurrent', 'Centre {{latitude}}, {{longitude}}, radius {{radius}} m', { latitude: area.data.lat, longitude: area.data.lng, radius: area.data.radius_m })
     : t('crews:checkIn.areaNone', 'No check-in area is set on this work order. Ask a project manager to set it.');
-  const fail = (err: unknown) => { const { headline, detail } = classifyMutationError(err); setError(detail || headline); };
+  const fail = (err: unknown) => { const { headline, detail } = refusal(err); setError(detail || headline); };
   const save = async () => {
     setError(null);
     const a = { lat: Number(lat), lng: Number(lng), radius_m: Number(radius) };

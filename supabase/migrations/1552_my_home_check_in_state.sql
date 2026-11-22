@@ -1,4 +1,5 @@
 -- 1552_my_home_check_in_state.sql -- the phone home says what became of today's clock-in: clocked in (with the time), waiting
+-- drops: my_home moves the person lookup into a variable and extends the work-order object and its select with the clock-in state; no read is removed.
 -- for the supervisor, or refused (with the reason). Per rostered work order a `check_in` object (state, at, outcome | reason) and,
 -- once, `decider_role` (the built-in role key that decides, null = the crew's Foreman or a crew manager). Nothing else changes.
 -- Source: my_home as defined in 1214; the worker lookup is read once into v_worker (same query), plus the keys named above.

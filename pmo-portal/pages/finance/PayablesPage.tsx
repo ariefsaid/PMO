@@ -18,8 +18,7 @@ import { usePaymentChannelNames, usePaymentChannelsOn } from '@/src/hooks/usePay
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { usePayablesPagePosition } from '@/src/hooks/usePayablesPagePosition';
 import { NewVendorBillDialog } from './NewVendorBillDialog';
-import { INVOICE_PAY_ROLES } from '@/src/lib/procurement/mainAction';
-import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { usePermission } from '@/src/auth/usePermission';
 
 /** The age bars sit in a panel on the same inset as the figure strip and the table beside it: one left edge below the page gutter. */
 const AGEING_PANEL = 'panel-card mb-5 min-w-0 p-[var(--space-content-inset)]';
@@ -72,8 +71,7 @@ const PayablesPage: React.FC = () => {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [newBillOpen, setNewBillOpen] = useState(false);
   // UX only: the database decides who may record a supplier bill.
-  const realRole = useOptionalRealRole();
-  const canRecordBill = realRole != null && INVOICE_PAY_ROLES.has(realRole);
+  const canRecordBill = usePermission()('create', 'procurementInvoice');
 
   const projectManagers = useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, project.pm?.full_name ?? ''])), [projects.data]);
   const query = search.trim().toLocaleLowerCase();

@@ -1,4 +1,5 @@
 -- 1553_check_in_requests_area.sql -- the supervisor who decides an outside-area check-in sees the area it is judged against:
+-- drops: phone_check_in_requests' select line gains the area columns; no read is removed.
 -- phone_check_in_requests() also returns the work order's area (centre and radius). Source: 1213; only the three area columns
 -- are added, so the function is dropped and created again (its row type changes). Still refused for a light account.
 -- Rollback: supabase/migrations/rollback/1553_check_in_requests_area_down.sql
