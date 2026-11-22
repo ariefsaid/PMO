@@ -25,7 +25,7 @@ The balance-only `load_stock_opening` and the history load must be one posting p
 
 ## 3. Tests (written first)
 
-- `supabase/tests/1900_opening_stock_history.test.sql`: AC-OSH-001..011 and 016 header with the mutation instruction: "Mutation check: (a) set the zero-cost branch in the routine to keep the given cost, AC-OSH-004 must go red; (b) remove the running-balance check in the plan, AC-OSH-006 must go red; (c) make confirm skip the Admin check, AC-OSH-001 must go red; restore each." Also extends the AC-STK-004 query to `opening` rows (AC-OSH-009).
+- `supabase/tests/1900_opening_stock_history.test.sql`: AC-OSH-001..011, with the mutation instruction: "Mutation check: (a) set the zero-cost branch in the routine to keep the given cost, AC-OSH-004 must go red; (b) remove the running-balance check in the plan, AC-OSH-006 must go red; (c) make confirm skip the Admin check, AC-OSH-001 must go red; restore each." Also extends the AC-STK-004 query to `opening` rows (AC-OSH-009).
 - `supabase/tests/0646_rls_initplan.test.sql` and the anon-definer inventory must stay green (policies untouched; helpers in new functions are definer-internal).
 - Vitest: `pmo-portal/src/lib/import/stockMovementHistoryDescriptor.test.ts` (AC-OSH-013), `pmo-portal/src/lib/db/stockOpening.test.ts` (typed DAL, generated types, no casts), `pmo-portal/pages/stock/StockOpeningHistory.test.tsx` (AC-OSH-014), refusal-sentence test (AC-OSH-015).
 - E2E (one journey): `pmo-portal/e2e/AC-OSH-014-opening-stock-history.spec.ts`, serial lane (posts to the ledger); read `docs/e2e-parallel-conventions.md`.
