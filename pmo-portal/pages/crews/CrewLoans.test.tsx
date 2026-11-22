@@ -31,18 +31,22 @@ import { CrewLoans } from './CrewLoans';
 
 const view = () => render(<ToastProvider><CrewLoans /></ToastProvider>);
 
-/** Open the lend modal and fill home crew, person, host crew and a three-day span (2–4 Mar 2026). */
+/** Open the lend modal and fill home crew, person, host crew and a three-day span (2–4 Mar 2026). Every control is
+ *  looked up inside the real lend dialog: the loans table behind it legitimately carries `From`/`To` column headers. */
 const fillLoanSpan = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getAllByRole('button', { name: /Lend worker|Pinjamkan pekerja/ })[0]);
-  await user.selectOptions(screen.getByRole('combobox', { name: /Home crew|Kru asal/ }), 'a');
-  await user.selectOptions(screen.getByRole('combobox', { name: /Person|Pilih orang/ }), 'w1');
-  await user.selectOptions(screen.getByRole('combobox', { name: /Host crew|Kru tujuan/ }), 'b');
+  const dialog = screen.getByRole('dialog');
+  await user.selectOptions(within(dialog).getByRole('combobox', { name: /Home crew|Kru asal/ }), 'a');
+  await user.selectOptions(within(dialog).getByRole('combobox', { name: /Person|Pilih orang/ }), 'w1');
+  await user.selectOptions(within(dialog).getByRole('combobox', { name: /Host crew|Kru tujuan/ }), 'b');
   // The end first, so the range is never inverted while both are typed; the field reads an ISO day on blur.
-  await user.clear(screen.getByLabelText(/^To/));
-  await user.type(screen.getByLabelText(/^To/), '2026-03-04');
+  const to = within(dialog).getByLabelText(/^To/);
+  const from = within(dialog).getByLabelText(/^From/);
+  await user.clear(to);
+  await user.type(to, '2026-03-04');
   await user.tab();
-  await user.clear(screen.getByLabelText(/^From/));
-  await user.type(screen.getByLabelText(/^From/), '2026-03-02');
+  await user.clear(from);
+  await user.type(from, '2026-03-02');
   await user.tab();
 };
 

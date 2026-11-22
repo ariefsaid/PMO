@@ -47,11 +47,11 @@ describe('StockTransferSend (AC-TST-023)', () => {
     expect(within(to).queryByRole('option', { name: /TRN-1/ })).not.toBeInTheDocument();
   });
 
-  /** Fill a valid transfer: central to the site, named receiver, one line of 4 pipe. */
+  /** Fill a valid transfer using the options' real values: central (w1) to the site (w2), receiver p2, one line of 4 pipe. */
   const fillValidTransfer = async () => {
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /From warehouse/ }), 'CEN - Central');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /To warehouse/ }), 'SITE1 - Site one');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /Receiver/ }), 'Site Foreman');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /From warehouse/ }), 'w1');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /To warehouse/ }), 'w2');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /Receiver/ }), 'p2');
     await userEvent.click(screen.getByRole('combobox', { name: /Item1/ }));
     await userEvent.click(await screen.findByRole('option', { name: 'PIPE - Pipe' }));
     await userEvent.type(screen.getByRole('textbox', { name: /Quantity1/ }), '4');
@@ -84,8 +84,11 @@ describe('StockTransferSend (AC-TST-023)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(h.send).not.toHaveBeenCalled();
     expect(h.navigate).not.toHaveBeenCalled();
-    expect(screen.getByRole('combobox', { name: /From warehouse/ })).toHaveValue('CEN - Central');
-    expect(screen.getByRole('combobox', { name: /To warehouse/ })).toHaveValue('SITE1 - Site one');
+    // The form kept the chosen source: the select's value is the option value, the label is what the person sees.
+    expect(screen.getByRole('combobox', { name: /From warehouse/ })).toHaveValue('w1');
+    expect(screen.getByRole('combobox', { name: /From warehouse/ })).toHaveDisplayValue('CEN - Central');
+    expect(screen.getByRole('combobox', { name: /To warehouse/ })).toHaveValue('w2');
+    expect(screen.getByRole('combobox', { name: /To warehouse/ })).toHaveDisplayValue('SITE1 - Site one');
     expect(screen.getByRole('textbox', { name: /Quantity1/ })).toHaveValue('4');
   });
 
