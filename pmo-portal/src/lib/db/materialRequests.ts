@@ -504,7 +504,7 @@ export async function setUsageInstalledSource(source: UsageInstalledSource): Pro
 export interface InstalledUsageWarning { itemId: string; itemName: string; unit: string; installedQty: number; planQty: number; threshold: number }
 export async function listInstalledUsageWarnings(workOrderId: string): Promise<InstalledUsageWarning[]> {
   const { data, error } = await supabase.from('material_installed_usage_alerts')
-    .select('item_id, installed_qty, plan_qty, pct, stock_items(name, stock_units(code))').eq('work_order_id', workOrderId).order('created_at', { ascending: true }).limit(200);
+    .select('item_id, installed_qty, plan_qty, pct, stock_items(name, stock_units(code))').eq('work_order_id', workOrderId).eq('kind', 'installed_usage').order('created_at', { ascending: true }).limit(200);
   if (error) fail(error);
   return (data ?? []).map((r) => ({
     itemId: r.item_id, itemName: r.stock_items?.name ?? '', unit: r.stock_items?.stock_units?.code ?? '',

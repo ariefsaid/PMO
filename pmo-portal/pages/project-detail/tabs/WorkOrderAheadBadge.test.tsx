@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import i18n from 'i18next';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
@@ -54,6 +55,16 @@ describe('WorkOrderAheadBadge', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(view.container.textContent).toBe('');
     expect(h.openCount).not.toHaveBeenCalled();
+  });
+
+  it('AC-MVP-011 on the work-order page it links to the project\'s work-order tab', async () => {
+    h.openCount.mockResolvedValue({ workOrderId: 'wo1', itemCount: 1 });
+    const inst = i18n.createInstance();
+    await inst.use(initReactI18next).init({ lng: 'en', fallbackLng: 'en', ns: ['stock'], defaultNS: 'stock', resources: { en: { stock: en } }, interpolation: { escapeValue: false } });
+    render(<MemoryRouter><AuthContext.Provider value={auth}><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><I18nextProvider i18n={inst}>
+      <WorkOrderAheadBadge workOrderId="wo1" href="/projects/p1/work-orders" /></I18nextProvider></QueryClientProvider></AuthContext.Provider></MemoryRouter>);
+    const link = await screen.findByTestId('wo-ahead-badge-wo1');
+    expect(link.getAttribute('href')).toBe('/projects/p1/work-orders');
   });
 
   it('AC-MVP-011 outside the app providers it renders nothing and reads nothing', () => {

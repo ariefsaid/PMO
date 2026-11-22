@@ -190,8 +190,6 @@
   "RSV_OVERDRAW": "The reservation holds less than the request uses.",
   "RSV_WORK_ORDER": "The work order is closed or cancelled.",
   "STK_ACTOR": "Only an active member of this organisation can post stock.",
-  "STK_ALERT_ROLES_ADMIN_ONLY": "Only an Admin can change who is told when material runs ahead of progress. Ask an Admin.",
-  "STK_ALERT_ROLE_UNKNOWN": "One of the roles is not a role in this system. Reload the page and pick the roles again.",
   "STK_ARCHIVED": "This record is archived.",
   "STK_BACKDATE": "Only an Admin can date a movement more than 31 days back, and no one can date one in the future.",
   "STK_BOQ_MISMATCH": "That work item does not belong to the project.",

@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated - unique item, location, BoQ line, work order and acceptance per run; the org-wide threshold is set for the
 // journey and cleared in `finally`; only a work order carrying a material allowance can warn, and only this run's does. The project manager
-// reads their own notification, which names this run's work order number.
+// is the recipient (the work order has no responsible person, so the project manager is told) and reads the notification naming this run's work order number.
 import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { test, expect } from '@playwright/test';
@@ -10,7 +10,7 @@ import { makeItem, makeWarehouse, makeWorkItem, postReceive, runSuffix, SEED_PRO
 
 test.setTimeout(180_000);
 
-test('AC-MVP-014 material issued ahead of progress tells the project manager, who follows it to the work order, and nothing is blocked', async ({ page }) => {
+test('AC-MVP-014 material issued ahead of progress tells the project manager, who follows it to the work order and its card, and nothing is blocked', async ({ page }) => {
   const sfx = runSuffix();
   const number = `WO-MVP-${sfx}`;
   const workOrderId = randomUUID();
@@ -58,6 +58,10 @@ test('AC-MVP-014 material issued ahead of progress tells the project manager, wh
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByRole('button', { name: /notifications/i }).click();
     await page.getByRole('button', { name: /Material issued ahead of progress/ }).filter({ hasText: number }).click();
+    await expect(page).toHaveURL(new RegExp(`/work-orders/${workOrderId}`));
+
+    // The work-order page shows the count in its header, and it leads to the project's work-order card.
+    await page.getByTestId(`wo-ahead-badge-${workOrderId}`).click();
     await expect(page).toHaveURL(new RegExp(`/projects/${SEED_PROJECT_ID}/work-orders`));
 
     // The card shows the count without opening the stock section; opening it shows the figures.

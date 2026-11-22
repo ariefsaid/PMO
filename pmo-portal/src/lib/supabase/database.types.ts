@@ -11685,10 +11685,12 @@ export type Database = {
           id: string
           installed_qty: number
           item_id: string
+          kind: string
           notified_user_id: string | null
           org_id: string
           pct: number
           plan_qty: number
+          resolved_at: string | null
           source: string
           work_order_id: string
         }
@@ -11697,10 +11699,12 @@ export type Database = {
           id?: string
           installed_qty: number
           item_id: string
+          kind?: string
           notified_user_id?: string | null
           org_id?: string
           pct: number
           plan_qty: number
+          resolved_at?: string | null
           source: string
           work_order_id: string
         }
@@ -11709,10 +11713,12 @@ export type Database = {
           id?: string
           installed_qty?: number
           item_id?: string
+          kind?: string
           notified_user_id?: string | null
           org_id?: string
           pct?: number
           plan_qty?: number
+          resolved_at?: string | null
           source?: string
           work_order_id?: string
         }
@@ -25337,90 +25343,20 @@ export type Database = {
           },
         ]
       }
-      work_order_material_alerts: {
-        Row: {
-          gap_pp: number
-          id: string
-          issued_pct: number
-          item_id: string
-          last_seen_at: string
-          notified_user_ids: string[]
-          opened_at: string
-          org_id: string
-          progress_pct: number
-          resolved_at: string | null
-          threshold_pct: number
-          work_order_id: string
-        }
-        Insert: {
-          gap_pp: number
-          id?: string
-          issued_pct: number
-          item_id: string
-          last_seen_at?: string
-          notified_user_ids?: string[]
-          opened_at?: string
-          org_id?: string
-          progress_pct: number
-          resolved_at?: string | null
-          threshold_pct: number
-          work_order_id: string
-        }
-        Update: {
-          gap_pp?: number
-          id?: string
-          issued_pct?: number
-          item_id?: string
-          last_seen_at?: string
-          notified_user_ids?: string[]
-          opened_at?: string
-          org_id?: string
-          progress_pct?: number
-          resolved_at?: string | null
-          threshold_pct?: number
-          work_order_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "work_order_material_alerts_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "stock_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "work_order_material_alerts_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "work_order_material_alerts_work_order_id_fkey"
-            columns: ["work_order_id"]
-            isOneToOne: false
-            referencedRelation: "work_orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       work_order_stock_settings: {
         Row: {
-          ahead_alert_roles: string[]
           issue_progress_threshold_pct: number | null
           org_id: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
-          ahead_alert_roles?: string[]
           issue_progress_threshold_pct?: number | null
           org_id?: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
-          ahead_alert_roles?: string[]
           issue_progress_threshold_pct?: number | null
           org_id?: string
           updated_at?: string
@@ -32302,7 +32238,7 @@ export type Database = {
           step_name: string
         }[]
       }
-      my_open_material_alerts: {
+      my_open_ahead_alerts: {
         Args: never
         Returns: {
           item_count: number
