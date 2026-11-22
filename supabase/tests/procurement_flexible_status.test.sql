@@ -25,6 +25,12 @@ insert into procurements (id, org_id, title, requested_by_id, currency, total_va
   ('03620000-0000-0000-0000-000000000a10','03620000-0000-0000-0000-0000000000f0','S10','03620000-0000-0000-0000-0000000000f1','IDR',100,'Draft',null,null),
   ('03620000-0000-0000-0000-000000000a11','03620000-0000-0000-0000-0000000000f0','R11','03620000-0000-0000-0000-0000000000f1','IDR',100,'Received',null,null);
 
+-- 1580: an order needs a supplier, so every fixture purchase that is not yet ordered is given one.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid
+ where p.vendor_id is null and p.status in ('Draft','Requested','Approved','Vendor Quoted','Quote Selected');
 -- User writes (claims set, role stays postgres so fixtures bypass grants): evidence derives status.
 set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000f2","role":"authenticated"}';
 insert into procurement_invoices (procurement_id, org_id, status, amount, currency, tax_treatment, tax_amount) values ('03620000-0000-0000-0000-000000000a01','03620000-0000-0000-0000-0000000000f0','Received',100,'IDR','exclusive',0);
@@ -53,12 +59,6 @@ insert into procurement_invoices (procurement_id, org_id, status, amount, curren
 select is((select status::text from procurements where id = '03620000-0000-0000-0000-000000000a10'), 'Draft', 'NFR-PFE-010 a direct SQL write derives nothing');
 
 -- Transition RPC: forward skip + idempotence (FR-PFE-005/006).
--- 1580: an order needs a supplier, so every fixture purchase that is not yet ordered is given one.
-insert into companies (id, org_id, name, type)
-  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
-  on conflict (id) do nothing;
-update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid
- where p.vendor_id is null and p.status in ('Draft','Requested','Approved','Vendor Quoted','Quote Selected');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"03620000-0000-0000-0000-0000000000f2","role":"authenticated"}';
 select lives_ok($$ select transition_procurement('03620000-0000-0000-0000-000000000a02','Paid') $$, 'FR-PFE-005 Finance pays a Draft purchase with gates off');
