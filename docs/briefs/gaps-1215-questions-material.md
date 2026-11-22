@@ -29,3 +29,7 @@ Each line: question · recommended answer · what was built meanwhile.
 - Do history "out" rows need a project or work-order destination? · No · No destination column.
 - How far back does the history go? · From the first receipt still on hand · Up to 5000 rows per file, any date up to go-live.
 - Can a location with a balance-only opening be replaced by a history? · Reverse, then reload · Refused with that next step.
+
+## terminology-reach
+- Should emails translate the stored English title and body into Bahasa, or only rename terms? · Rename only for 15 December · Emails rename terms and role names at send time; text stays as stored.
+- Should signature-block captions such as "Prepared by" become renameable terms? · Not now · Only captions equal to a role name follow a rename.
