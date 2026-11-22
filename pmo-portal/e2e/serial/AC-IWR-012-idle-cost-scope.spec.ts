@@ -7,8 +7,9 @@ import { signIn, requireServiceRoleKey } from '../helpers';
  * AC-IWR-012 (idle cost of people and rented equipment): an Admin widens what idle cost covers.
  *
  * Journey: idle time as cost is on (labour cost in money is on), and idle cost covers the idle hours at the average
- * hourly cost. The Admin opens Administration > Cost attribution, finds "Idle cost covers" and chooses people present and
- * rented equipment on standby. After a reload the choice is still there, which is the goal: the setting is saved.
+ * hourly cost. The Admin opens Administration › Modules › Billing extras (the catalogue routes idle-cost settings there),
+ * finds "Idle cost covers" and chooses people present and rented equipment on standby. After a reload the choice is still
+ * there, which is the goal: the setting is saved.
  * The seed organisation's two settings are put back in afterEach, which is why this spec is serial.
  */
 test.setTimeout(120_000);
@@ -44,7 +45,7 @@ test.afterEach(async () => {
 
 test('AC-IWR-012 an Admin makes idle cost cover people and rented equipment and it stays saved', async ({ page }) => {
   await signIn(page, 'admin@acme.test');
-  await page.goto('/administration/cost-attribution');
+  await page.goto('/administration/modules');
   const scope = page.getByRole('combobox', { name: 'Idle cost covers' });
   await expect(scope).toHaveValue('labour_average');
   await scope.selectOption('people_and_equipment');
