@@ -41,6 +41,7 @@
   "leaveNote": "{{base}} Catatan: {{note}}",
   "leaveApprovedTitle": "Cuti disetujui",
   "leaveRejectedTitle": "Cuti ditolak",
+  "timesheetWeek": "Timesheet minggu {{date}}",
   "titles": {
     "taskAssigned": "Sebuah tugas diberikan kepada Anda",
     "taskOverdueReminder": "Pengingat: sebuah tugas terlambat",

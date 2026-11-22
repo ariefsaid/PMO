@@ -3,7 +3,24 @@ import { matchNotificationTitle } from './notificationTitles';
 import type { Json } from '@/src/lib/supabase/database.types';
 import { formatIsoDay } from '@/src/lib/format';
 
-type NotificationCopy = { body: string | null; message_key: string | null; message_params: Json | null };
+type NotificationCopy = {
+  body: string | null;
+  message_key: string | null;
+  message_params: Json | null;
+  title?: string | null;
+  metadata?: Json | null;
+};
+
+function getMetadataEntityType(metadata: Json | null | undefined): string | null {
+  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+    const entity = (metadata as Record<string, unknown>).entity;
+    if (entity && typeof entity === 'object' && !Array.isArray(entity)) {
+      const type = (entity as Record<string, unknown>).type;
+      if (typeof type === 'string') return type;
+    }
+  }
+  return null;
+}
 
 /** Old and unrecognised records keep their original body. Parameters are always user text. */
 export function notificationBody(row: NotificationCopy, t: TFunction): string | null {
@@ -29,9 +46,35 @@ export function notificationBody(row: NotificationCopy, t: TFunction): string | 
         : t('notifications:leaveRejected', 'Your leave request was rejected: {{type}}, {{from}} to {{to}}.', what);
       return what.note ? t('notifications:leaveNote', '{{base}} Note: {{note}}', { base, note: what.note }) : base;
     }
+    case 'timesheetApproved':
+    case 'timesheetWeek': {
+      const day = (key: string) => { const v = text(key, ''); return v ? formatIsoDay(v) : ''; };
+      const rawDate = text('date', '') || text('week', '') || (typeof row.body === 'string' ? row.body : '');
+      const parsedIso = /^(\d{4}-\d{2}-\d{2})$/.exec(rawDate) || /^Timesheet week of (\d{4}-\d{2}-\d{2})$/.exec(rawDate);
+      const iso = parsedIso ? parsedIso[1] : (day('date') || day('week'));
+      const formattedDate = iso ? (formatIsoDay(iso) !== '—' ? formatIsoDay(iso) : iso) : rawDate;
+      return t('notifications:timesheetWeek', 'Timesheet week of {{date}}', { date: formattedDate });
+    }
     case 'literal':
       return row.body === null ? null : t('notifications:literal', '{{body}}', { body: text('body', row.body) });
-    default: return row.body;
+    default: {
+      if (row.body) {
+        const timesheetMatch = /^Timesheet week of (\d{4}-\d{2}-\d{2})$/.exec(row.body);
+        if (timesheetMatch) {
+          const isTimesheetProducer =
+            row.title === 'Your timesheet was approved' ||
+            row.title === 'Timesheet awaiting your approval' ||
+            row.title === 'Your timesheet was rejected' ||
+            getMetadataEntityType(row.metadata) === 'timesheet';
+          if (isTimesheetProducer) {
+            const iso = timesheetMatch[1];
+            const formattedDate = formatIsoDay(iso) !== '—' ? formatIsoDay(iso) : iso;
+            return t('notifications:timesheetWeek', 'Timesheet week of {{date}}', { date: formattedDate });
+          }
+        }
+      }
+      return row.body;
+    }
   }
 }
 

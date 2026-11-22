@@ -95,4 +95,133 @@ describe('notification wording', () => {
       }
     });
   });
+
+  describe('fix-waiting item 4: approval notification body reader-language localization', () => {
+    it('formats approved timesheet notification week label in the reader language for English and Bahasa', async () => {
+      const timesheetRow = {
+        title: 'Your timesheet was approved',
+        body: 'Timesheet week of 2026-01-05',
+        message_key: null,
+        message_params: null,
+        metadata: { entity: { type: 'timesheet', id: '02370000-0000-0000-0000-000000000021', label: 'Timesheet week of 2026-01-05' } },
+      };
+
+      // English
+      const enInst = i18next.createInstance();
+      await enInst.init({ lng: 'en', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+      const enT = enInst.t.bind(enInst);
+      expect(notificationTitle(timesheetRow, enT)).toBe('Your timesheet was approved');
+      expect(notificationBody(timesheetRow, enT)).toBe('Timesheet week of 5 Jan 2026');
+
+      // Bahasa Indonesia
+      const idInst = i18next.createInstance();
+      await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+      const idT = idInst.t.bind(idInst);
+      expect(notificationTitle(timesheetRow, idT)).toBe('Timesheet Anda disetujui');
+      expect(notificationBody(timesheetRow, idT)).toBe('Timesheet minggu 5 Jan 2026');
+    });
+
+    it('formats timesheet awaiting approval week label in reader language and handles timesheetApproved message_key', async () => {
+      const idInst = i18next.createInstance();
+      await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+      const idT = idInst.t.bind(idInst);
+
+      const awaitingRow = {
+        title: 'Timesheet awaiting your approval',
+        body: 'Timesheet week of 2026-01-05',
+        message_key: null,
+        message_params: null,
+        metadata: { entity: { type: 'timesheet', id: '02370000-0000-0000-0000-000000000021' } },
+      };
+      expect(notificationBody(awaitingRow, idT)).toBe('Timesheet minggu 5 Jan 2026');
+
+      const messageKeyRow = {
+        title: 'Your timesheet was approved',
+        body: null,
+        message_key: 'timesheetApproved',
+        message_params: { date: '2026-01-05' },
+      };
+      expect(notificationBody(messageKeyRow, idT)).toBe('Timesheet minggu 5 Jan 2026');
+    });
+
+    it('leaves user rejection reason unchanged and does not translate arbitrary user text or reasons', async () => {
+      const idInst = i18next.createInstance();
+      await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+      const idT = idInst.t.bind(idInst);
+
+      // Timesheet rejection with user reason (from 1562)
+      const userReasonRow = {
+        title: 'Your timesheet was rejected',
+        body: 'Hours exceed project allocation',
+        message_key: null,
+        message_params: null,
+        metadata: { entity: { type: 'timesheet', id: '02370000-0000-0000-0000-000000000022' } },
+      };
+      expect(notificationBody(userReasonRow, idT)).toBe('Hours exceed project allocation');
+
+      // Procurement rejection with user reason (from 0237/0349)
+      const procurementReasonRow = {
+        title: 'Your procurement was rejected',
+        body: 'Missing quote',
+        message_key: null,
+        message_params: null,
+        metadata: { entity: { type: 'procurement_case', id: '02370000-0000-0000-0000-000000000011' } },
+      };
+      expect(notificationBody(procurementReasonRow, idT)).toBe('Missing quote');
+    });
+
+    it('leaves unknown body, no raw key, and non-timesheet rows unchanged', async () => {
+      const idInst = i18next.createInstance();
+      await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+      const idT = idInst.t.bind(idInst);
+
+      // Unknown row with matching string but no timesheet producer identity
+      const unknownRowWithoutProducer = {
+        title: 'General announcement',
+        body: 'Timesheet week of 2026-01-05',
+        message_key: null,
+        message_params: null,
+        metadata: null,
+      };
+      expect(notificationBody(unknownRowWithoutProducer, idT)).toBe('Timesheet week of 2026-01-05');
+
+      // Unknown row with no title and no metadata
+      expect(notificationBody({ body: 'Timesheet week of 2026-01-05', message_key: null, message_params: null }, idT)).toBe('Timesheet week of 2026-01-05');
+
+      // Unrecognized message key
+      expect(notificationBody({ body: 'System maintenance scheduled', message_key: 'unrecognized_key', message_params: {} }, idT)).toBe('System maintenance scheduled');
+    });
+
+    it('preserves record identity labels and null bodies without translation', async () => {
+      const idInst = i18next.createInstance();
+      await idInst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+      const idT = idInst.t.bind(idInst);
+
+      // MRQ approved has null body (entity label holds record number MR-001)
+      const mrqApprovedRow = {
+        title: 'Your material request was approved',
+        body: null,
+        message_key: null,
+        message_params: null,
+        metadata: { entity: { type: 'material_request', id: 'mrq-uuid', label: 'MR-001' } },
+      };
+      expect(notificationBody(mrqApprovedRow, idT)).toBeNull();
+
+      // Equipment plan approved has null body
+      const eqpApprovedRow = {
+        title: 'Your equipment plan was approved',
+        body: null,
+        message_key: null,
+        message_params: null,
+        metadata: { entity: { type: 'equipment_plan', id: 'eqp-uuid', label: 'Project Alpha · 2026-11' } },
+      };
+      expect(notificationBody(eqpApprovedRow, idT)).toBeNull();
+    });
+
+    it('timesheet week label catalogue key exists and differs between English and Bahasa', () => {
+      expect((en as Record<string, unknown>).timesheetWeek).toBe('Timesheet week of {{date}}');
+      expect((id as Record<string, unknown>).timesheetWeek).toBe('Timesheet minggu {{date}}');
+      expect((id as Record<string, unknown>).timesheetWeek).not.toBe((en as Record<string, unknown>).timesheetWeek);
+    });
+  });
 });

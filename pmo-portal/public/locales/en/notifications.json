@@ -41,6 +41,7 @@
   "leaveNote": "{{base}} Note: {{note}}",
   "leaveApprovedTitle": "Leave approved",
   "leaveRejectedTitle": "Leave rejected",
+  "timesheetWeek": "Timesheet week of {{date}}",
   "titles": {
     "taskAssigned": "A task was assigned to you",
     "taskOverdueReminder": "Reminder: a task is overdue",
