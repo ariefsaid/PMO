@@ -12189,6 +12189,7 @@ export type Database = {
           created_at: string
           decided_at: string | null
           decided_by: string | null
+          decider_id: string
           decision_note: string | null
           entered_by: string
           id: string
@@ -12202,6 +12203,7 @@ export type Database = {
           created_at?: string
           decided_at?: string | null
           decided_by?: string | null
+          decider_id: string
           decision_note?: string | null
           entered_by: string
           id?: string
@@ -12215,6 +12217,7 @@ export type Database = {
           created_at?: string
           decided_at?: string | null
           decided_by?: string | null
+          decider_id?: string
           decision_note?: string | null
           entered_by?: string
           id?: string
@@ -12249,6 +12252,13 @@ export type Database = {
           {
             foreignKeyName: "medical_releases_entered_by_fkey"
             columns: ["entered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medical_releases_decider_id_fkey"
+            columns: ["decider_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

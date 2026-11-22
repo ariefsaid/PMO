@@ -1,6 +1,5 @@
 # medical release (1751): every function checks is_active_member and the caller's org; 1751_medical_release pgTAP.
 medical_release_create  # people team only (Admin level or the people-documents capability); own organisation
-medical_release_decide  # the person's direct manager only; never the person or the opener (MR_SOD)
+medical_release_decide  # the manager fixed at creation only; never the person or the opener (MR_SOD)
 medical_release_holds  # active member; own organisation; a state word only, no row and no note
 medical_release_can_enter  # active member; boolean about the caller's own standing
-medical_release_authority  # active member; boolean about the caller's own authority over one person

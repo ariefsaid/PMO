@@ -351,5 +351,6 @@
   "ORDER_NEEDS_SUPPLIER": "Pilih supplier dulu",
   "ORDER_NEEDS_SUPPLIER_detail": "Pesanan perlu supplier. Pilih supplier, lalu catat pesanannya.",
   "WO_AREA": "Area absen itu tidak valid",
-  "WO_AREA_detail": "Isi lintang -90 sampai 90, bujur -180 sampai 180 dan radius di atas 0 sampai 50.000 meter, atau kosongkan ketiganya."
+  "WO_AREA_detail": "Isi lintang -90 sampai 90, bujur -180 sampai 180 dan radius di atas 0 sampai 50.000 meter, atau kosongkan ketiganya.",
+  "MR_NO_MANAGER": "Orang ini belum punya atasan langsung, jadi tidak ada yang dapat memutuskan pelepasan. Tetapkan atasan langsungnya dahulu, lalu buka pelepasan."
 }

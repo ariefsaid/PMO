@@ -22,13 +22,13 @@ When a worker returns after sickness or injury, I want their direct manager to a
 
 ## Requirements (EARS)
 - FR-MR-001 The people team (the Admin level, or the people-documents capability: HR Manager, HR Officer, Administrator) shall be able to open a release for a person and a date, with an optional note; one per person and date.
-- FR-MR-002 The direct manager (`people.manager_id`, else the linked profile's `manager_id`) shall be the only one who can decide: Approved, or Deferred with a reason. A Deferred release can be decided again; an Approved one cannot.
+- FR-MR-002 The direct manager (`people.manager_id`, else the linked profile's `manager_id`) is fixed as the release's decider when it is opened (stored as `decider_id`; opening is refused with `MR_NO_MANAGER` when the person has none) and shall be the only one who can decide, whatever the person's manager is later changed to: Approved, or Deferred with a reason. A Deferred release can be decided again; an Approved one cannot.
 - FR-MR-003 The database shall refuse a decision by the person or by whoever opened the release, whatever their role including Admin (SoD).
 - FR-MR-004 Each create and each decision shall write an audit line.
 - FR-MR-005 After a decision the system shall tell the worker (where they have a login) through `notify_person`; the notice carries the outcome and next step, never the manager's reason.
 - FR-MR-006 While a release is Pending or Deferred, the database shall refuse (`MR_BLOCKED`) a new or extended `crew_members` placement, a new or extended `crew_loans` placement, and an `attendance_days` insert or change that puts the person to work (status present, the only status that carries hours; absent, leave and off-rotation rows are allowed) for any day on or after the release date. Shrinking a placement and stamping an existing row (approval, lock) are not refused. Enforced by BEFORE triggers; `attendance_record` is not restated.
 - FR-MR-007 Roster and attendance screens shall show a held person as "release pending" (or "deferred") with the controls disabled and the reason; the state word is the only thing roster users can read (`medical_release_holds`), whose read is scoped to rostering roles: the people team, the person's direct manager, a crew manager, and whoever can record attendance for a crew the person is placed in or loaned to that day; everyone else gets no rows. A field (light) account, such as a foreman ticking their own crew, may call it and qualifies only through attendance_can_record for that crew; the read is listed as a field path in the field-account sweep. If the read fails, the tick screen shows no hold and the database still refuses the row.
-- FR-MR-008 Releases are readable by the person, whoever opened them, the people team and the direct manager only. Writes only through the RPCs; `org_id` stamped by trigger.
+- FR-MR-008 Releases are readable by the person, whoever opened them, the people team and the stored decider only. Writes only through the RPCs; `org_id` stamped by trigger.
 - FR-MR-009 The direct manager shall find releases awaiting them in a section of the Approvals page; the people team shall open a release from the same page. Refusals have English and Bahasa Indonesia sentences saying what to do next.
 - FR-MR-010 `notify_person(p_person, p_kind, p_title, p_body, p_link)` shall notify only an active member of the person's organisation, never the acting user, and do nothing for a person with no login; clients cannot execute it.
 
@@ -39,7 +39,7 @@ None. Nothing changes for an organisation until the people team opens a release,
 | ID | Given / When / Then | Layer |
 |---|---|---|
 | AC-MR-001 | the people team opens a release; a non-people-team user is refused; a second for the same person and date is refused | pgTAP |
-| AC-MR-002 | the direct manager (either manager column) approves; a peer or an Admin who is not the manager is refused | pgTAP + mutation check |
+| AC-MR-002 | the direct manager (either manager column) approves; a peer or an Admin who is not the manager is refused; a Project Manager who sets themselves as the person's manager after the release was opened can neither decide nor read it; opening for a person with no manager is refused (`MR_NO_MANAGER`) | pgTAP + mutation check |
 | AC-MR-003 | the person and the opener cannot decide, even an Admin | pgTAP + mutation check |
 | AC-MR-004 | deferring needs a reason; a deferred release can be approved later; an approved one cannot be decided again; each step audited | pgTAP |
 | AC-MR-005 | after a decision the worker has a notice with no reason text; none for a worker without a login | pgTAP |
@@ -50,7 +50,7 @@ None. Nothing changes for an organisation until the people team opens a release,
 | AC-MR-010 | `notify_person` notifies an active member, nobody else; not executable by signed-in callers | pgTAP (1750 test, shipped) |
 | AC-MR-011 | every `MR_*` code has an English and a Bahasa Indonesia sentence | Unit (refusals gate) |
 
-Mutation plan: (1) remove `zz_mr_attendance_days` -> AC-MR-006 red; (2) make `medical_release_authority` return true -> AC-MR-002 red; (3) drop the SoD test in decide -> AC-MR-003 red.
+Mutation plan: (1) remove `zz_mr_attendance_days` -> AC-MR-006 red; (2) compare against the live `people.manager_id` instead of `decider_id` -> AC-MR-002 red; (3) drop the SoD test in decide -> AC-MR-003 red.
 
 ## Questions (coordinator collects)
 Whether a deferral should expire; whether a person with no direct manager is decided by an Admin (today: no one but the Admin-level people team cannot, so such a person is released by setting a manager). Recommended: set a manager first; no fallback.
