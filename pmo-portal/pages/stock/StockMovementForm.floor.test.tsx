@@ -108,7 +108,7 @@ describe('StockMovementForm floor', () => {
     expect(screen.getByLabelText(/^Warehouse/)).toHaveValue('w2');
     await userEvent.type(screen.getByLabelText(/^Quantity/), '2');
     await userEvent.click(screen.getByRole('button', { name: 'Post return' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Post', exact: true }));   // the posting confirmation names item, quantity and place
+    await userEvent.click(await screen.findByRole('button', { name: 'Post' }));   // the posting confirmation names item, quantity and place
 
     await waitFor(() => expect(documents.create).toHaveBeenCalled());
     expect(documents.create.mock.calls[0][0].lines).toEqual([
@@ -145,7 +145,7 @@ describe('StockMovementForm floor', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Post', exact: true }));   // the posting confirmation names item, quantity and place
+    await userEvent.click(await screen.findByRole('button', { name: 'Post' }));   // the posting confirmation names item, quantity and place
 
     await waitFor(() => expect(documents.create).toHaveBeenCalled());
     expect(documents.create.mock.calls[0][0]).toMatchObject({ note: 'Urgent pour' });
