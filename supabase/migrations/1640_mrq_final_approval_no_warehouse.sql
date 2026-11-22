@@ -3,9 +3,9 @@
 -- Final approval now records the decision alone; choosing the warehouse and sending stock is the keeper's separate step
 -- (mrq_retry_transfer → create_stock_document → stock_assert_keeper, unchanged: only a keeper of that location, or an
 -- Admin, makes the transfer). An approver who does name a warehouse still gets the draft made at once, keeper rule intact.
--- ONE restated function: mrq_decide_step, from its latest body (1045; no later migration, none on the sibling walk
--- branches, restates it). The only changed line is marked `-- 1640`. Proven by supabase/tests/1640_mrq_final_approval_no_warehouse.test.sql.
--- ── REVERSE: rollback/1640_mrq_final_approval_no_warehouse_down.sql restores the 1045 body.
+-- ONE restated function: mrq_decide_step, from its latest body at head (1045 plus the light-account guard 1461 added; none on
+-- the sibling walk branches restates it). The only changed line is marked `-- 1640`. Proven by supabase/tests/1640_mrq_final_approval_no_warehouse.test.sql.
+-- ── REVERSE: rollback/1640_mrq_final_approval_no_warehouse_down.sql restores the body at head before 1640 (1045 plus the 1461 guard).
 
 create or replace function public.mrq_decide_step(p_request_id uuid, p_step_position integer, p_decision text,
                                                   p_reason text default null, p_source_warehouse_id uuid default null)
@@ -14,6 +14,7 @@ declare
   v_org uuid; v_uid uuid := auth.uid(); r public.material_requests; s public.material_request_steps;
   v_ok boolean; v_for uuid; v_reason text := nullif(btrim(p_reason), ''); v_next integer;
 begin
+  perform public.assert_not_light();                                                                  -- 1461, carried from the body at head
   perform public.assert_is_active_member();
   v_org := public.auth_org_id();
   select * into r from public.material_requests x where x.id = p_request_id and x.org_id = v_org for update;

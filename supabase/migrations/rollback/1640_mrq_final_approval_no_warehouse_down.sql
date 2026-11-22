@@ -1,4 +1,4 @@
--- Reverse of 1640: the 1045 mrq_decide_step (the final step names a source warehouse and makes the transfer).
+-- Reverse of 1640: the 1045 mrq_decide_step with the 1461 guard (the final step names a source warehouse and makes the transfer).
 create or replace function public.mrq_decide_step(p_request_id uuid, p_step_position integer, p_decision text,
                                                   p_reason text default null, p_source_warehouse_id uuid default null)
   returns void language plpgsql volatile security definer set search_path = public, pg_temp as $$
@@ -6,6 +6,7 @@ declare
   v_org uuid; v_uid uuid := auth.uid(); r public.material_requests; s public.material_request_steps;
   v_ok boolean; v_for uuid; v_reason text := nullif(btrim(p_reason), ''); v_next integer;
 begin
+  perform public.assert_not_light();                                                                  -- 1461, carried from the body at head
   perform public.assert_is_active_member();
   v_org := public.auth_org_id();
   select * into r from public.material_requests x where x.id = p_request_id and x.org_id = v_org for update;
