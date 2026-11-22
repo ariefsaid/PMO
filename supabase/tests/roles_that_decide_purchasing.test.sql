@@ -37,11 +37,14 @@ insert into profiles (id, org_id, full_name, email, role, status, built_in_role)
   ('18420000-0000-0000-0000-0000000000a4', '18420000-0000-0000-0000-00000000000a', 'RTDB Eng',   'rtdb-eng@example.com',   'Engineer', 'active', null),
   ('18420000-0000-0000-0000-0000000000a5', '18420000-0000-0000-0000-00000000000a', 'RTDB PM',    'rtdb-pm@example.com',    'Project Manager', 'active', null),
   ('18420000-0000-0000-0000-0000000000b1', '18420000-0000-0000-0000-00000000000b', 'RTDB Off',   'rtdb-off-admin@example.com', 'Admin', 'active', null);
-insert into procurements (id, org_id, title, status, currency, requested_by_id) values
-  ('18420000-0000-0000-0000-0000000000c1', '18420000-0000-0000-0000-00000000000a', 'Approved purchase',  'Approved',  'IDR', '18420000-0000-0000-0000-0000000000a5'),
-  ('18420000-0000-0000-0000-0000000000c2', '18420000-0000-0000-0000-00000000000a', 'Draft purchase',     'Draft',     'IDR', '18420000-0000-0000-0000-0000000000a5'),
-  ('18420000-0000-0000-0000-0000000000c3', '18420000-0000-0000-0000-00000000000a', 'Requested purchase', 'Requested', 'IDR', '18420000-0000-0000-0000-0000000000a5'),
-  ('18420000-0000-0000-0000-0000000000c4', '18420000-0000-0000-0000-00000000000a', 'Second approved',    'Approved',  'IDR', '18420000-0000-0000-0000-0000000000a5');
+insert into companies (id, org_id, name, type) values
+  ('18420000-0000-0000-0000-0000000000d1', '18420000-0000-0000-0000-00000000000a', 'RTD Supplier', 'Vendor');
+-- an order names its supplier (1580's gate), so every purchase here has one
+insert into procurements (id, org_id, title, status, currency, requested_by_id, vendor_id) values
+  ('18420000-0000-0000-0000-0000000000c1', '18420000-0000-0000-0000-00000000000a', 'Approved purchase',  'Approved',  'IDR', '18420000-0000-0000-0000-0000000000a5', '18420000-0000-0000-0000-0000000000d1'),
+  ('18420000-0000-0000-0000-0000000000c2', '18420000-0000-0000-0000-00000000000a', 'Draft purchase',     'Draft',     'IDR', '18420000-0000-0000-0000-0000000000a5', '18420000-0000-0000-0000-0000000000d1'),
+  ('18420000-0000-0000-0000-0000000000c3', '18420000-0000-0000-0000-00000000000a', 'Requested purchase', 'Requested', 'IDR', '18420000-0000-0000-0000-0000000000a5', '18420000-0000-0000-0000-0000000000d1'),
+  ('18420000-0000-0000-0000-0000000000c4', '18420000-0000-0000-0000-00000000000a', 'Second approved',    'Approved',  'IDR', '18420000-0000-0000-0000-0000000000a5', '18420000-0000-0000-0000-0000000000d1');
 insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, amount, tax_treatment, tax_amount, currency) values
   ('18420000-0000-0000-0000-0000000000e1', '18420000-0000-0000-0000-00000000000a', '18420000-0000-0000-0000-0000000000c1', 'VI-RTD-1', '2026-11-20', 'Received', 1000, 'exclusive', 0, 'IDR');
 insert into payments (id, org_id, procurement_id, pay_number, status, date, amount, currency) values

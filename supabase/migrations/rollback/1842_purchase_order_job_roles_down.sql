@@ -1,5 +1,5 @@
 -- Reverses 1842_purchase_order_job_roles.sql. Run after rollback/1843 (its policies call actor_may_order_purchases) and before
--- rollback/1840. Restores create_purchase_order (0712 + the 1530 guard line), transition_procurement (1017 + the 1461 guard line)
+-- rollback/1840. Restores create_purchase_order (0712 + the 1530 guard line), transition_procurement (1580, which carries the 1461 guard line)
 -- and the purchase_orders_insert / purchase_orders_update text of 0646.
 create or replace function public.create_purchase_order(
   p_procurement_id uuid, p_reference_number text, p_status text, p_date date, p_amount numeric,
@@ -52,6 +52,7 @@ declare
   v_pr_id uuid; v_pr_no text;                                                                          -- 0766
   v_role user_role := auth_role(); v_uid uuid := auth.uid(); v_is_admin boolean;
   v_gate text;                                                                                         -- 0362
+  v_wo uuid; v_disc uuid;                                                               -- 1580
   v_legal jsonb := jsonb_build_object(
     'Draft',           jsonb_build_array('Requested','Cancelled','Ordered','Received','Vendor Invoiced','Paid'),   -- 0362 skips
     'Requested',       jsonb_build_array('Approved','Rejected','Cancelled'),
@@ -69,8 +70,8 @@ begin
   perform public.assert_not_light();
   perform public.assert_is_active_member();
   v_is_admin := (v_role = 'Admin');
-  select status, org_id, requested_by_id, approved_by_id, project_id, budget_category, currency
-    into v_from, v_org, v_requester, v_approver, v_project, v_category, v_currency
+  select status, org_id, requested_by_id, approved_by_id, project_id, budget_category, currency, work_order_id, discipline_id   -- 1580
+    into v_from, v_org, v_requester, v_approver, v_project, v_category, v_currency, v_wo, v_disc
     from public.procurements where id = p_id for update;
   if v_from is null then raise exception 'procurement not found' using errcode = 'P0002'; end if;
   if v_org is distinct from auth_org_id() then raise exception 'not authorized' using errcode = '42501'; end if;
@@ -213,12 +214,16 @@ begin
   if p_to = 'Requested' and v_pr_id is not null then
     update public.purchase_requests set status = 'Submitted' where id = v_pr_id;
   elsif p_to = 'Requested' then
-    insert into public.purchase_requests (procurement_id, pr_number, status, date)
-    select p_id, p.pr_number, 'Submitted', current_date from public.procurements p
+    insert into public.purchase_requests (procurement_id, pr_number, status, date, work_order_id, discipline_id)   -- 1580: the request carries its cost attribution
+    select p_id, p.pr_number, 'Submitted', current_date,
+           case when exists (select 1 from public.work_orders w where w.id = v_wo and w.status <> 'Cancelled') then v_wo end, v_disc
+      from public.procurements p
      where p.id = p_id and not exists (select 1 from public.purchase_requests pr where pr.procurement_id = p_id and pr.pr_number = p.pr_number);
   elsif p_to = 'Ordered' then
-    insert into public.purchase_orders (procurement_id, po_number, status, date)
-    select p_id, p.po_number, 'Issued', current_date from public.procurements p
+    insert into public.purchase_orders (procurement_id, po_number, status, date, work_order_id, discipline_id)   -- 1580: the order carries it too
+    select p_id, p.po_number, 'Issued', current_date,
+           case when exists (select 1 from public.work_orders w where w.id = v_wo and w.status <> 'Cancelled') then v_wo end, v_disc
+      from public.procurements p
      where p.id = p_id and not exists (select 1 from public.purchase_orders po where po.procurement_id = p_id and po.po_number = p.po_number);
   elsif p_to = 'Paid' then
     update public.payments set status = 'Paid', date = coalesce(date, current_date)
