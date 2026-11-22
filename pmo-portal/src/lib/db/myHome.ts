@@ -45,3 +45,20 @@ export async function getSeatReport(): Promise<SeatReport> {
   const r = data as unknown as Partial<SeatReport> | null;
   return { full: Number(r?.full ?? 0), light: Number(r?.light ?? 0), total: Number(r?.total ?? 0) };
 }
+
+export type AbsenceReason = 'sick' | 'other';
+export interface MyAbsence { reason: AbsenceReason; note: string | null }
+
+/** "I am not coming in today": the caller's own report for today (the database names the person, never the client). */
+export async function reportAbsence(reason: AbsenceReason, note: string): Promise<void> {
+  const { error } = await supabase.rpc('report_absence' as never, { p_reason: reason, p_note: note.trim() || null } as never);
+  if (error) throw new AppError(error.message, error.code);
+}
+
+/** The caller's report for a date, if any (RLS shows a worker only their own). */
+export async function getMyAbsence(workDate: string): Promise<MyAbsence | null> {
+  const { data, error } = await supabase.from('absence_reports' as never).select('reason, note').eq('work_date', workDate).limit(1);
+  if (error) throw new AppError(error.message, error.code);
+  const row = (data as unknown as MyAbsence[] | null)?.[0];
+  return row ?? null;
+}

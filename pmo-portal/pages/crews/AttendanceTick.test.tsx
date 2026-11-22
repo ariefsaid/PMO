@@ -83,6 +83,25 @@ describe('attendance tick screen (#2528)', () => {
     expect(h.record.mock.calls[0][0].rows.map((r: { hours: number | null }) => r.hours)).toEqual([10, 10, 10, 10, null, 10]);
   });
 
+  it('AC-SD-007 a person who reported absent shows as such on the roster and starts the day as absent', async () => {
+    const user = userEvent.setup();
+    (h.roster.data[0].members[1] as Record<string, unknown>).reported_absent = { reason: 'sick', note: 'fever' };
+    renderAt();
+    expect(screen.getByTestId('reported-absent-w2')).toHaveTextContent('Reported absent: sick — fever');
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
+    await waitFor(() => expect(h.record).toHaveBeenCalled());
+    const rows = h.record.mock.calls[0][0].rows as Array<{ worker_id: string; status: string }>;
+    expect(rows.find((r) => r.worker_id === 'w2')?.status).toBe('absent');
+    expect(rows.find((r) => r.worker_id === 'w1')?.status).toBe('present');
+  });
+
+  it('AC-SD-008 a reader who cannot tick is told who does', () => {
+    h.role = 'Engineer';
+    h.uid = 'someone-else';
+    renderAt();
+    expect(screen.getByText("Only this crew's Foreman or a crew manager ticks this roster.")).toBeInTheDocument();
+  });
+
   it('AC-SD-002 one refused person is named and everyone else is saved', async () => {
     const user = userEvent.setup();
     h.record = vi.fn().mockImplementation(async (v: { rows: Array<{ worker_id: string }> }) => {

@@ -46,5 +46,16 @@
     "light": "Akun ringan (Mandor, Pengguna lapangan)",
     "total": "Kursi aktif",
     "helper": "Akun ringan memiliki satu layar utama di ponsel. Harga dan jumlah kursi disepakati dengan pemilik."
+  },
+  "absent": {
+    "title": "Tidak masuk hari ini?",
+    "open": "Saya tidak masuk hari ini",
+    "change": "Ubah laporan saya",
+    "sick": "Saya sakit",
+    "other": "Alasan lain",
+    "note": "Catatan untuk mandor (boleh dikosongkan)",
+    "cancel": "Batal",
+    "reported": "Anda sudah memberi tahu mandor bahwa Anda tidak masuk hari ini: {{reason}}.",
+    "error": "Tidak terkirim. Periksa koneksi Anda lalu coba lagi."
   }
 }

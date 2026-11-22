@@ -8,11 +8,11 @@ import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
   role: 'foreman' as string,
-  get: vi.fn(), deliveries: vi.fn(), setStatus: vi.fn(), record: vi.fn(),
+  get: vi.fn(), deliveries: vi.fn(), setStatus: vi.fn(), record: vi.fn(), myAbsence: vi.fn(), reportAbsence: vi.fn(),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'o1', built_in_role: h.role } }) }));
 vi.mock('@/src/lib/repositories/myHome', () => ({
-  myHomeRepository: { get: h.get, deliveries: h.deliveries, setTaskStatus: h.setStatus, seatReport: vi.fn() },
+  myHomeRepository: { get: h.get, deliveries: h.deliveries, setTaskStatus: h.setStatus, seatReport: vi.fn(), myAbsence: h.myAbsence, reportAbsence: h.reportAbsence },
 }));
 vi.mock('@/src/lib/repositories/crews', () => ({ attendanceRepository: { record: h.record } }));
 vi.mock('./myHome/CrewRoster', () => ({ CrewRoster: () => <div data-testid="crew-roster" /> }));
@@ -37,6 +37,8 @@ beforeEach(() => {
   h.deliveries.mockResolvedValue([]);
   h.setStatus.mockResolvedValue(undefined);
   h.record.mockResolvedValue(1);
+  h.myAbsence.mockResolvedValue(null);
+  h.reportAbsence.mockResolvedValue(undefined);
 });
 
 describe('AC-LA-011 phone home screen', () => {
@@ -78,5 +80,32 @@ describe('AC-LA-011 phone home screen', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Mark done' }));
     expect(h.setStatus).toHaveBeenCalledWith('t1', 'Done');
+  });
+});
+
+describe('AC-SD-007 a field worker says they are not coming in today', () => {
+  it('takes two taps: open, then pick the reason; the note travels with it', async () => {
+    h.role = 'field';
+    const user = userEvent.setup();
+    mount();
+    await user.click(await screen.findByTestId('absent-open'));
+    await user.type(screen.getByLabelText(/Note for your crew leader/), 'fever');
+    await user.click(screen.getByTestId('absent-sick'));
+    expect(h.reportAbsence).toHaveBeenCalledWith('sick', 'fever');
+  });
+
+  it('shows what was already told today and offers to change it', async () => {
+    h.role = 'field';
+    h.myAbsence.mockResolvedValue({ reason: 'other', note: null });
+    mount();
+    expect(await screen.findByTestId('absent-reported')).toHaveTextContent('Another reason');
+    expect(screen.getByTestId('absent-open')).toHaveTextContent('Change what I told them');
+  });
+
+  it('is not offered to a person with no record on a crew', async () => {
+    h.get.mockResolvedValue({ ...home, work_orders: [{ ...home.work_orders[0], my_worker_id: null }] });
+    mount();
+    await screen.findByText('Pour slab');
+    expect(screen.queryByTestId('absent-open')).toBeNull();
   });
 });

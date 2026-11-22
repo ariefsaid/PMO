@@ -277,5 +277,9 @@
     "supervisorRoleDefault": "Pengendali lapangan kru atau pengelola kru",
     "supervisorRoleHelper": "Pemegang peran ini yang memutuskan. Orang yang absen tidak pernah memutuskan absennya sendiri."
   },
-  "savedExcept": "Tersimpan untuk semua orang kecuali: {{people}}"
+  "savedExcept": "Tersimpan untuk semua orang kecuali: {{people}}",
+  "tickReadOnly": "Hanya mandor regu ini atau pengelola regu yang bisa mengisi absensi ini.",
+  "reportedAbsent": "Melaporkan tidak masuk: {{reason}}",
+  "absentSick": "sakit",
+  "absentOther": "alasan lain"
 }

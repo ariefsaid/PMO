@@ -28,7 +28,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
   const { toast } = useToast();
   const { record, uploadPhoto, generateWeek } = useAttendanceMutations();
   const [state, setState] = useState<TickState>(() => initialTickState(
-    crew.members.map((m) => ({ worker_id: m.worker_id, off_rotation: Boolean(m.off_rotation) })),
+    crew.members.map((m) => ({ worker_id: m.worker_id, off_rotation: Boolean(m.off_rotation), reported_absent: Boolean(m.reported_absent) })),
     held.filter((h) => crew.members.some((m) => m.worker_id === h.worker_id)),
   ));
   const [errors, setErrors] = useState<Record<string, TickError>>({});
@@ -111,6 +111,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
       <CardHead>{crew.crew_code} · {crew.crew_name}</CardHead>
       <CardPad>
         {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
+        {!canRecord && <p className="mb-3 text-control text-foreground">{t('crews:tickReadOnly', "Only this crew's Foreman or a crew manager ticks this roster.")}</p>}
         <div className="mb-4 grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)]">
           <TextField label={t('crews:crewHours', 'Hours for the crew')} value={state.defaultHours} inputMode="decimal"
             onChange={(v) => { setDirty(true); setState((s) => ({ ...s, defaultHours: v })); }} disabled={!canRecord || busy} />
@@ -138,6 +139,12 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
                 <tr key={m.worker_id} aria-label={m.display_name} className="border-t border-border align-top">
                   <th scope="row" className="py-2 pr-2 text-left font-normal text-foreground">
                     {m.display_name}
+                    {m.reported_absent && (
+                      <span className="block text-sm text-muted-foreground" data-testid={`reported-absent-${m.worker_id}`}>
+                        {t('crews:reportedAbsent', 'Reported absent: {{reason}}', { reason: m.reported_absent.reason === 'sick' ? t('crews:absentSick', 'sick') : t('crews:absentOther', 'other reason') })}
+                        {m.reported_absent.note ? ` — ${m.reported_absent.note}` : ''}
+                      </span>
+                    )}
                     {err && <FieldError id={`tick-err-${m.worker_id}`}>{errorText(err)}</FieldError>}
                   </th>
                   <td className="py-2 pr-2">

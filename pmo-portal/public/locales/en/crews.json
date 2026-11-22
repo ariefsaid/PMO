@@ -277,5 +277,9 @@
     "supervisorRoleDefault": "The crew's field controller or a crew manager",
     "supervisorRoleHelper": "Anyone holding this role decides. The person who checked in never decides their own."
   },
-  "savedExcept": "Saved for everyone except: {{people}}"
+  "savedExcept": "Saved for everyone except: {{people}}",
+  "tickReadOnly": "Only this crew's Foreman or a crew manager ticks this roster.",
+  "reportedAbsent": "Reported absent: {{reason}}",
+  "absentSick": "sick",
+  "absentOther": "other reason"
 }

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ListState } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useMyDeliveries, useMyHome, useMyTaskStatus } from '@/src/hooks/useMyHome';
-import { ClockInSection, DeliveriesSection, MyIssues, MyTasks } from '@/src/components/my';
+import { AbsentTodaySection, ClockInSection, DeliveriesSection, MyIssues, MyTasks } from '@/src/components/my';
 import { CrewRoster } from './myHome/CrewRoster';
 
 /**
@@ -29,6 +29,7 @@ const MyHome: React.FC = () => {
             <MyTasks tasks={home.data.tasks} busyId={status.isPending ? (status.variables?.id ?? null) : null}
               onSetStatus={(id, s) => status.mutate({ id, status: s })} />
             <ClockInSection today={home.data.today} workOrders={home.data.work_orders} />
+            <AbsentTodaySection today={home.data.today} workOrders={home.data.work_orders} />
             {isForeman && <CrewRoster today={home.data.today} workOrders={home.data.work_orders} />}
             <DeliveriesSection deliveries={deliveries.data ?? []} />
             <MyIssues issues={home.data.issues} />
