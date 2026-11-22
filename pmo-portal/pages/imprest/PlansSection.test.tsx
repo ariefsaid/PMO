@@ -25,13 +25,14 @@ vi.mock('@/src/hooks/useImprest', () => ({
   useDeletePlanLine: () => h.m.deletePlanLine, useTransitionPlan: () => h.m.transitionPlan,
 }));
 vi.mock('@/src/components/ui/useIsNarrow', () => ({ useIsNarrow: () => h.narrow }));
+vi.mock('./LineSplits', () => ({ LineSplits: () => null })); // proven by its own test
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.realRole }) }));
 
 import { PlansSection } from './PlansSection';
 
 const plan = (over: Record<string, unknown> = {}) => ({ id: 'pl1', float_id: 'f1', month: '2026-11-01', number: null, status: 'Draft', author_id: 'u-auth', total: 800000, is_late: false, ...over });
-const renderIt = () => render(<ToastProvider><PlansSection floatId="f1" custodianId="u-cust" currency="IDR" currentMonth="2026-11-01" /></ToastProvider>);
+const renderIt = () => render(<ToastProvider><PlansSection floatId="f1" projectId="p1" custodianId="u-cust" currency="IDR" currentMonth="2026-11-01" /></ToastProvider>);
 
 describe('FR-IMP-071 plans section', () => {
   beforeEach(() => {

@@ -16,9 +16,8 @@ Add `imprest_plan_line_splits` (line, work order, amount) beneath the existing p
    idiom, new trigger fn); RLS enabled + forced; select policy mirrors `imprest_plan_lines_select`, write policy mirrors
    `imprest_plan_lines_write`, both with `(select ...)` wrapped helpers and the `org_feature_enabled(..., 'imprest')`
    conjunct as in the live line policies (`0696`); grants: select, delete; insert (id, line_id, work_order_id, amount);
-   update (work_order_id, amount). Triggers: editable guard (clone of `assert_imprest_plan_line_editable`, reading the
-   line's plan); split check (work order on the float's project, not cancelled for new rows, sum <= line amount, raising
-   `ICE_*`); a trigger on `imprest_plan_lines` before update of `planned_amount` refusing below the split sum.
+   update (work_order_id, amount). Checks live in the save function (work order on the float's project, not cancelled for a new split, sum <= line
+   amount, raising `ICE_*`); a trigger on `imprest_plan_lines` before update of `planned_amount` refusing below the split sum.
    Tests: `supabase/tests/1890_imprest_plan_line_splits.test.sql` owns AC-CAE-001..006 (plus mutation check).
 2. **1891_get_imprest_estimate.sql** (+ rollback). `get_imprest_estimate(p_float uuid, p_from date, p_to date)`
    returns rows (month, status, budget_category, work_order_id, planned, drawn, still_to_spend) and a second function

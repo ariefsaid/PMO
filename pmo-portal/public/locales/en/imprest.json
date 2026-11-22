@@ -187,7 +187,13 @@
     },
     "allPlans": "All plans",
     "totalLabel": "Total",
-    "menuAria": "More actions for the {{month}} plan"
+    "menuAria": "More actions for the {{month}} plan",
+    "splitLine": "Split by work order",
+    "splitChoose": "Choose a work order",
+    "splitAmount": "Amount for this work order",
+    "splitSave": "Save split",
+    "splitRemove": "Remove split for {{workOrder}}",
+    "splitNoWorkOrders": "This project has no open work order to split to. A project manager adds one on the project first."
   },
   "position": {
     "advancesOut": "Advances given",
@@ -252,5 +258,23 @@
     "noReceipts": "No receipts yet",
     "noReplenishments": "No top-ups yet",
     "noCounts": "No cash counts yet"
+  },
+  "estimate": {
+    "title": "Cash estimate",
+    "from": "From",
+    "to": "To",
+    "fromMonth": "From {{month}}",
+    "toMonth": "To {{month}}",
+    "purpose": "Purpose",
+    "workOrder": "Work order",
+    "unassigned": "Not assigned to a work order",
+    "still": "Still to spend",
+    "advanceNeeded": "Advance needed",
+    "advanceNote": "Still to spend {{still}}, less cash in hand {{cash}}, less top-up on its way {{flight}}.",
+    "notApproved": "Not yet approved",
+    "noPlan": "No plan for {{month}}. A project manager, Finance or an Admin adds one under Plans.",
+    "topUpNote": "A top-up is requested by the custodian of this site cash, from the receipts waiting.",
+    "error": "Couldn't load the estimate",
+    "requestAdvance": "Request this advance"
   }
 }

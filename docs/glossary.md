@@ -512,6 +512,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 the UI; never "float". Its figures: **Limit** (*batas kas*, the approved amount it is topped up to), **Cash in hand**,
 **Advances given**, **Receipts waiting** (paid claims not yet refilled), **Top-up on its way**, **Still needed**.
 
+**Cash estimate** (*perkiraan kas*) — for a period of 1 to 12 months, what site cash plans to spend and has drawn, by month, purpose and work order, and the **advance needed**: what is still to spend, less cash in hand, less a top-up already on its way (never below zero). It is read from the monthly plans, caps nothing and changes no approval. A plan line may be **split** over work orders of the site's project (*dibagi per work order*); the split is a breakdown of the line, and the part left over reads "not assigned to a work order". Receipts waiting do not lower the advance needed.
+
 **Top-up** (*tambahan dana*) — a request to refill site cash with the receipts waiting (code: replenishment). **Funding**
 (*pendanaan*) is the first cash put in, up to the limit.
 

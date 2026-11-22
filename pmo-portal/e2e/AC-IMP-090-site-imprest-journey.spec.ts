@@ -167,6 +167,11 @@ test('AC-IMP-090 site imprest: replenish settled receipts and route an out-of-pl
   await expect(page.getByText('Books do not balance')).toHaveCount(0);
   await expect(page.locator('li', { hasText: `${tag} diesel` })).toContainText('Paid, topped up');
 
+  // 4b. AC-CAE-012: the cash estimate for the period reads on the same page: the advance needed and the month's rows by purpose.
+  await expect(page.getByTestId('cash-estimate')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('estimate-advance')).toContainText('Advance needed');
+  await expect(page.locator('[data-testid^="estimate-month-"]').first()).toBeVisible();
+
   // 5. Out of plan: the Engineer files a float claim above the month's remaining (2,000,000 planned, 500,000 drawn).
   await signIn(page, 'engineer@acme.test');
   await page.goto('/expenses/new');

@@ -187,7 +187,13 @@
     },
     "allPlans": "Semua rencana",
     "totalLabel": "Total",
-    "menuAria": "Aksi lain untuk rencana {{month}}"
+    "menuAria": "Aksi lain untuk rencana {{month}}",
+    "splitLine": "Bagi per work order",
+    "splitChoose": "Pilih work order",
+    "splitAmount": "Jumlah untuk work order ini",
+    "splitSave": "Simpan pembagian",
+    "splitRemove": "Hapus pembagian untuk {{workOrder}}",
+    "splitNoWorkOrders": "Proyek ini belum punya work order terbuka untuk dibagi. Manajer proyek menambahkannya di proyek terlebih dahulu."
   },
   "position": {
     "advancesOut": "Uang muka diberikan",
@@ -252,5 +258,23 @@
     "noReceipts": "Belum ada bukti",
     "noReplenishments": "Belum ada tambahan dana",
     "noCounts": "Belum ada hitung kas"
+  },
+  "estimate": {
+    "title": "Perkiraan kas",
+    "from": "Dari",
+    "to": "Sampai",
+    "fromMonth": "Dari {{month}}",
+    "toMonth": "Sampai {{month}}",
+    "purpose": "Keperluan",
+    "workOrder": "Work order",
+    "unassigned": "Belum dibagi ke work order",
+    "still": "Masih akan dipakai",
+    "advanceNeeded": "Uang muka dibutuhkan",
+    "advanceNote": "Masih akan dipakai {{still}}, dikurangi kas di tangan {{cash}}, dikurangi tambahan dana yang diproses {{flight}}.",
+    "notApproved": "Belum disetujui",
+    "noPlan": "Belum ada rencana untuk {{month}}. Manajer proyek, Finance, atau Admin menambahkannya di bagian Rencana.",
+    "topUpNote": "Tambahan dana diminta oleh pemegang kas lapangan ini, dari bukti yang menunggu.",
+    "error": "Perkiraan tidak bisa dimuat",
+    "requestAdvance": "Minta uang muka ini"
   }
 }
