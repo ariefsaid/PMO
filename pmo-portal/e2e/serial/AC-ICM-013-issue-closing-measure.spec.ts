@@ -24,13 +24,13 @@ test.beforeEach(async () => {
   wo = await seedWorkOrder(db, 'AC-ICM-013', run, 'plant');
   const prior = await db.from('issue_closing_report_settings').select('enabled, grouping_mode').eq('org_id', ORG_ID).maybeSingle();
   priorSetting = prior.data ?? null;
-  must('enable report', await db.from('issue_closing_report_settings').upsert({ org_id: ORG_ID, enabled: true, grouping_mode: 'type' }, { onConflict: 'org_id' }));
+  must('enable report', await db.from('issue_closing_report_settings').upsert({ org_id: ORG_ID, enabled: true, grouping_mode: 'type' }, { onConflict: 'org_id' }).select().single());
   const reason = must('idle reason', await db.from('dsr_idle_reasons').select('id').eq('org_id', ORG_ID).limit(1).single());
   const report = must('report', await db.from('daily_site_reports').insert({
     org_id: ORG_ID, project_id: wo.projectId, work_order_id: wo.workOrderId, work_date: workDate, status: 'validated',
     author_id: ENGINEER_ID, validated_by: PM_ID, validated_at: new Date().toISOString(), start_time: '08:00', end_time: '16:30',
   }).select('id').single());
-  must('idle', await db.from('dsr_idle_periods').insert({ org_id: ORG_ID, report_id: report.id, position: 1, minutes: 120, reason_id: reason.id }));
+  must('idle', await db.from('dsr_idle_periods').insert({ org_id: ORG_ID, report_id: report.id, position: 1, minutes: 120, reason_id: reason.id }).select().single());
 });
 test.afterEach(async () => {
   await cleanSiteIssue(type);
