@@ -179,13 +179,16 @@
     "endTitle": "Akhiri pinjaman ini?",
     "ended": "Pinjaman diakhiri",
     "error": "Tidak dapat memuat pinjaman kru",
-    "hostCrew": "Kru tujuan",
     "homeCrew": "Kru asal",
+    "hostCrew": "Kru tujuan",
+    "hostNotScheduled": "{{crew}} tidak terjadwal di work order mana pun pada hari-hari ini, jadi orang ini tidak akan muncul di daftar hadir mana pun dan jam kerjanya tidak terhitung. Jadwalkan {{crew}} pada sebuah work order dulu, atau pilih regu lain.",
+    "hostPartlyScheduled": "{{crew}} tidak terjadwal di work order mana pun pada {{days}}. Orang ini tidak akan muncul di daftar hadir pada hari tersebut.",
     "lend": "Pinjamkan pekerja",
     "lendTitle": "Pinjamkan pekerja ke kru lain",
     "lent": "Pekerja dipinjamkan",
     "title": "Pinjaman kru",
-    "toBeforeFrom": "Tanggal akhir tidak boleh sebelum tanggal mulai"
+    "toBeforeFrom": "Tanggal akhir tidak boleh sebelum tanggal mulai",
+    "whoLends": "Hanya pengelola regu (administrator, eksekutif, manajer proyek) yang bisa meminjamkan pekerja. Hubungi salah satunya."
   },
   "leave": {
     "addType": "Tambah jenis",
@@ -273,5 +276,6 @@
     "supervisorRole": "Siapa yang memutuskan absen di luar area",
     "supervisorRoleDefault": "Pengendali lapangan kru atau pengelola kru",
     "supervisorRoleHelper": "Pemegang peran ini yang memutuskan. Orang yang absen tidak pernah memutuskan absennya sendiri."
-  }
+  },
+  "savedExcept": "Tersimpan untuk semua orang kecuali: {{people}}"
 }

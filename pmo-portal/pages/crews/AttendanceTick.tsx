@@ -58,13 +58,31 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
     if (Object.keys(built.errors).length > 0) return;
     setBusy(true);
     try {
-      await record.mutateAsync({ workOrderId, date, rows: built.rows });
+      let failed: string[] = [];
+      try {
+        await record.mutateAsync({ workOrderId, date, rows: built.rows });
+      } catch (batchErr) {
+        // One person's refusal (for example a lent worker) must not stop everyone else: retry one by one, name who failed.
+        if (built.rows.length < 2) throw batchErr;
+        for (const row of built.rows) {
+          try {
+            await record.mutateAsync({ workOrderId, date, rows: [row] });
+          } catch (err) {
+            const name = crew.members.find((m) => m.worker_id === row.worker_id)?.display_name ?? '';
+            failed = [...failed, `${name}: ${crewErrorMessage(t, err)}`];
+          }
+        }
+        if (failed.length === built.rows.length) throw batchErr;
+      }
+      if (failed.length > 0) {
+        setProblem(t('crews:savedExcept', 'Saved for everyone except: {{people}}', { people: failed.join(' · ') }));
+      }
       if (photo) {
         await uploadPhoto.mutateAsync({ photoId: crypto.randomUUID(), workOrderId, crewId: crew.crew_id, workDate: date, file: photo });
         setPhoto(null);
       }
-      setDirty(false);
-      toast(t('crews:saved', 'Attendance saved'), undefined, 'success');
+      setDirty(failed.length > 0);
+      if (failed.length === 0) toast(t('crews:saved', 'Attendance saved'), undefined, 'success');
     } catch (err) {
       setProblem(crewErrorMessage(t, err));
     } finally { setBusy(false); }

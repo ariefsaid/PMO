@@ -54,6 +54,16 @@ export function useWorkOrderCrews(workOrderId: string | null) {
   });
 }
 
+/** Which days a crew is on a work order (all work orders); for the lend form's host-crew check. */
+export function useCrewSchedule(crewId: string | null) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['work-order-crews', orgId, 'crew', crewId],
+    queryFn: () => crewRepository.schedule(crewId as string),
+    enabled: Boolean(orgId && crewId),
+  });
+}
+
 export function useWorkOrderRoster(workOrderId: string | null, date: string | null) {
   const orgId = useOrgId();
   return useQuery({

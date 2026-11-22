@@ -83,6 +83,18 @@ describe('attendance tick screen (#2528)', () => {
     expect(h.record.mock.calls[0][0].rows.map((r: { hours: number | null }) => r.hours)).toEqual([10, 10, 10, 10, null, 10]);
   });
 
+  it('AC-SD-002 one refused person is named and everyone else is saved', async () => {
+    const user = userEvent.setup();
+    h.record = vi.fn().mockImplementation(async (v: { rows: Array<{ worker_id: string }> }) => {
+      if (v.rows.length > 1 || v.rows[0].worker_id === 'w2') throw Object.assign(new Error('ATT_NOT_ROSTERED: x'), { code: '23514' });
+      return 1;
+    });
+    renderAt();
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
+    expect(await screen.findByText(/Saved for everyone except: Budi/)).toBeInTheDocument();
+    expect(h.record).toHaveBeenCalledTimes(7); // the whole batch, then one per person
+  });
+
   it('#2620 FR-CRW-008 overtime typed for a present person travels with the record; blank means none', async () => {
     const user = userEvent.setup();
     renderAt();

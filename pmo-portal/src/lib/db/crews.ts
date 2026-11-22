@@ -269,6 +269,20 @@ export async function correctCrewMember(
   if (!data || data.length === 0) throw new AppError('This placement changed since you opened it.', STALE_VERSION_CODE);
 }
 
+/** Every work-order placement of one crew, newest first (the lend form checks the host crew is scheduled). */
+export async function listCrewSchedule(crewId: string): Promise<WorkOrderCrewRow[]> {
+  const rows = await fetchAllRowsByKeyset<WorkOrderCrewRow>(async (afterId, limit) => {
+    let q = supabase
+      .from('work_order_crews')
+      .select('id, work_order_id, crew_id, valid_from, valid_to, version')
+      .eq('crew_id', crewId)
+      .order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit);
+  });
+  return rows.sort((a, b) => b.valid_from.localeCompare(a.valid_from) || a.id.localeCompare(b.id));
+}
+
 /** A work order's roster placements, newest first. */
 export async function listWorkOrderCrews(workOrderId: string): Promise<WorkOrderCrewRow[]> {
   const rows = await fetchAllRowsByKeyset<WorkOrderCrewRow>(async (afterId, limit) => {
