@@ -4,7 +4,7 @@
 -- removing people.org_id = auth_org_id() lets the cross-org-linked actor upsert the foreign person's row.
 begin;
 create extension if not exists pgtap;
-select plan(34);
+select plan(35);
 
 insert into organizations (id, name, default_currency, built_in_roles_enabled) values
   ('16310000-0000-0000-0000-00000000000a', 'ABS Org', 'IDR', true),
@@ -46,7 +46,8 @@ insert into people (id, org_id, kind, name, profile_id, archived_at) values
   ('16310000-0000-0000-0000-000000000f04', '16310000-0000-0000-0000-00000000000a', 'own', 'Other Field Worker', '16310000-0000-0000-0000-0000000000a3', null),
   ('16310000-0000-0000-0000-000000000f05', '16310000-0000-0000-0000-00000000000a', 'own', 'Full Engineer', '16310000-0000-0000-0000-0000000000a4', null),
   ('16310000-0000-0000-0000-000000000f06', '16310000-0000-0000-0000-00000000000a', 'own', 'Inactive Field', '16310000-0000-0000-0000-0000000000a5', null),
-  ('16310000-0000-0000-0000-000000000f07', '16310000-0000-0000-0000-00000000000a', 'own', 'Archived Field', '16310000-0000-0000-0000-0000000000a6', now());
+  ('16310000-0000-0000-0000-000000000f07', '16310000-0000-0000-0000-00000000000a', 'own', 'Archived Field', '16310000-0000-0000-0000-0000000000a6', now()),
+  ('16310000-0000-0000-0000-000000000f10', '16310000-0000-0000-0000-00000000000b', 'own', 'Other Org Admin', '16310000-0000-0000-0000-0000000000b1', null);
 -- The composite profile/org FK correctly prevents this adversarial link in normal writes. Bypass
 -- triggers only for this transaction-local fixture so the test proves report_absence checks org_id
 -- even if a corrupt/legacy link reaches the table; restore trigger behavior before any assertions.
@@ -62,12 +63,13 @@ insert into crew_members (org_id, crew_id, worker_id, valid_from)
 insert into work_order_crews (org_id, work_order_id, crew_id, valid_from)
   select '16310000-0000-0000-0000-00000000000a', '16310000-0000-0000-0000-000000000401', '16310000-0000-0000-0000-000000000c01', d - 30 from abs_today;
 
--- This pre-existing unrelated row must remain unchanged after the caller's own upsert.
+-- Both pre-existing unrelated reports, in separate organisations, must remain unchanged after the caller's own upsert.
 insert into absence_reports (id, org_id, person_id, work_date, reason, note, reported_by) values
-  ('16310000-0000-0000-0000-000000000b01', '16310000-0000-0000-0000-00000000000a', '16310000-0000-0000-0000-000000000f04', (select d from abs_today), 'sick', 'same-org sentinel', '16310000-0000-0000-0000-0000000000a4');
+  ('16310000-0000-0000-0000-000000000b01', '16310000-0000-0000-0000-00000000000a', '16310000-0000-0000-0000-000000000f04', (select d from abs_today), 'sick', 'same-org sentinel', '16310000-0000-0000-0000-0000000000a4'),
+  ('16310000-0000-0000-0000-000000000b02', '16310000-0000-0000-0000-00000000000b', '16310000-0000-0000-0000-000000000f10', public.equipment_org_today('16310000-0000-0000-0000-00000000000b'), 'other', 'other-org sentinel', '16310000-0000-0000-0000-0000000000b1');
 create temp table abs_unrelated_before as
   select id, org_id, person_id, work_date, reason, note, reported_by, created_at
-    from absence_reports where id = '16310000-0000-0000-0000-000000000b01';
+    from absence_reports where id in ('16310000-0000-0000-0000-000000000b01', '16310000-0000-0000-0000-000000000b02');
 
 select ok((select count(*) = 1 and bool_and(p.proargnames = array['p_reason', 'p_note'])
             from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'report_absence'),
@@ -102,8 +104,18 @@ select throws_ok($$ insert into public.absence_reports (org_id, person_id, work_
 select throws_ok($$ update public.absence_reports set reason = 'sick' $$, '42501', null, 'a light user cannot update absence rows directly');
 select throws_ok($$ delete from public.absence_reports $$, '42501', null, 'a light user cannot delete absence rows directly');
 
+-- Observe both sentinels as the privileged test owner after the successful own create/upsert.
+reset role;
+select is((select coalesce(jsonb_agg(to_jsonb(a) order by a.id), '[]'::jsonb)
+             from (select id, org_id, person_id, work_date, reason, note, reported_by, created_at
+                     from public.absence_reports
+                    where id in ('16310000-0000-0000-0000-000000000b01', '16310000-0000-0000-0000-000000000b02')) a),
+          (select coalesce(jsonb_agg(to_jsonb(b) order by b.id), '[]'::jsonb) from abs_unrelated_before b),
+  'the self create/upsert leaves existing same-org and other-org reports unchanged');
+
 -- The roster shows the report as reported-absent for its controller; the person without a report has none.
 select set_config('request.jwt.claims', json_build_object('sub', '16310000-0000-0000-0000-0000000000a1', 'role', 'authenticated')::text, true);
+set local role authenticated;
 select is(public.actor_is_light(), true, 'the Foreman fixture is an active light account');
 select is((select count(*)::int from public.absence_reports where person_id = '16310000-0000-0000-0000-000000000f01'), 1,
   'the legitimate crew controller reads the Field user report');
@@ -125,19 +137,14 @@ select is((select count(*)::int from public.absence_reports where person_id = '1
   'an unrelated light user cannot read the Field user report');
 
 select set_config('request.jwt.claims', json_build_object('sub', '16310000-0000-0000-0000-0000000000b1', 'role', 'authenticated')::text, true);
-select is((select count(*)::int from public.absence_reports), 0, 'another organisation sees no report');
+select is((select count(*)::int from public.absence_reports where org_id = '16310000-0000-0000-0000-00000000000a'), 0,
+  'another organisation sees no report from the first organisation');
+select is((select count(*)::int from public.absence_reports where id = '16310000-0000-0000-0000-000000000b02'), 1,
+  'another organisation retains read access to its own existing report');
 
 select set_config('request.jwt.claims', json_build_object('sub', '16310000-0000-0000-0000-0000000000a4', 'role', 'authenticated')::text, true);
 select is(public.actor_is_light(), false, 'a full Engineer remains a full account');
 select lives_ok($$ select public.report_absence('sick', 'full account regression') $$, 'a full Engineer may report their own absence');
-
-reset role;
-select is((select coalesce(jsonb_agg(to_jsonb(a) order by a.id), '[]'::jsonb)
-             from (select id, org_id, person_id, work_date, reason, note, reported_by, created_at
-                     from public.absence_reports
-                    where id = '16310000-0000-0000-0000-000000000b01') a),
-          (select coalesce(jsonb_agg(to_jsonb(b) order by b.id), '[]'::jsonb) from abs_unrelated_before b),
-  'the self upsert leaves an unrelated same-org row unchanged');
 
 select set_config('request.jwt.claims', json_build_object('sub', '16310000-0000-0000-0000-0000000000a5', 'role', 'authenticated')::text, true);
 set local role authenticated;
