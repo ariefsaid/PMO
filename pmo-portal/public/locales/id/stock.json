@@ -922,17 +922,19 @@
     }
   },
   "transferSettings": {
-    "manage": "Transfer dan bukti",
+    "manage": "Transfer, reservasi, dan pemindahan antar work order",
     "mode": "Cara transfer dilakukan",
     "oneStep": "Satu langkah: langsung diposting",
     "twoStep": "Dua langkah: kirim, lalu terima dengan penghitungan",
-    "modeHelp": "Dua langkah menjaga barang dalam perjalanan sampai penerima menghitungnya.",
+    "modeHelp": "Dua langkah menjaga barang tetap dalam perjalanan sampai penerima menghitungnya. Pengirim menunjuk penerima; pengirim tidak menghitung kirimannya sendiri.",
     "timing": "Kapan bukti diwajibkan",
     "beforePosting": "Sebelum pergerakan diposting atau diterima",
     "mayFollow": "Boleh menyusul (pergerakan tetap berstatus bukti belum lengkap)",
     "timingHelp": "Berlaku untuk tag yang mewajibkan bukti.",
     "proofPerTag": "Bukti yang berlaku, per tag",
-    "qualityItems": "Barang yang perlu pemeriksaan mutu saat diterima"
+    "qualityItems": "Barang yang perlu pemeriksaan mutu saat diterima",
+    "inTransit_one": "{{count}} transfer sedang dalam perjalanan. Kembali ke satu langkah setelah diterima atau ditarik.",
+    "inTransit_other": "{{count}} transfer sedang dalam perjalanan. Kembali ke satu langkah setelah diterima atau ditarik."
   },
   "workOrderTransfer": {
     "title": "Pindahkan sisa material antar perintah kerja",

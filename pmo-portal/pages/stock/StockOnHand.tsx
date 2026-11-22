@@ -14,6 +14,7 @@ import { formatQuantity, formatStockValue, sumDecimal } from '@/src/lib/stockFor
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { parseStockError } from '@/src/lib/stockErrors';
 import type { StockOnHandRow } from '@/src/lib/db/stockReports';
+import { useWoTransfersEnabled } from '@/src/hooks/useStockWorkOrderTransfer';
 import { ReservedCell } from '@/src/components/stock/ReservedCell';
 import { ReservationForm } from '@/src/components/stock/ReservationForm';
 import { mayReserve, useFreeReserved, useReservationsEnabled } from '@/src/hooks/useStockReservations';
@@ -37,6 +38,7 @@ const compareBalanceRows = (a: StockOnHandRow, b: StockOnHandRow): number =>
 const StockOnHand: React.FC = () => {
   const { t } = useTranslation('stock');
   const may = usePermission();
+  const woTransfers = useWoTransfersEnabled();   // the move between work orders starts here too, not only under Documents
   const { realRole, effectiveRole } = useEffectiveRole();
   const me = useAuth().currentUser?.id;
   const currency = useOrgCurrency();
@@ -194,7 +196,8 @@ const StockOnHand: React.FC = () => {
           <RecordMenu
             label={t('onHand.moreMovements')}
             ariaLabel={t('onHand.moreMovements')}
-            items={NEW_KINDS.filter((k) => k !== 'receive').map((k) => ({ key: k, label: t(`kinds.${k}`), onSelect: () => navigate(`/stock/new/${k}`) }))}
+            items={[...NEW_KINDS.filter((k) => k !== 'receive').map((k) => ({ key: k, label: t(`kinds.${k}`), onSelect: () => navigate(`/stock/new/${k}`) })),
+              ...(woTransfers ? [{ key: 'wo-transfer', label: t('workOrderTransfer.entry'), onSelect: () => navigate('/stock/work-order-transfer') }] : [])]}
           />
         </div>
       )}

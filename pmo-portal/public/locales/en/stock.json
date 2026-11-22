@@ -922,17 +922,19 @@
     }
   },
   "transferSettings": {
-    "manage": "Transfers and proof",
+    "manage": "Transfers, reservations and moves between work orders",
     "mode": "How transfers are made",
     "oneStep": "One step: post at once",
     "twoStep": "Two steps: send, then receive with a count",
-    "modeHelp": "Two steps keep the goods in transit until the receiver counts them.",
+    "modeHelp": "Two steps keep the goods in transit until the receiver counts them. Senders name a receiver; the sender never counts their own shipment.",
     "timing": "When proof is demanded",
     "beforePosting": "Before the movement is posted or received",
     "mayFollow": "It may follow later (the movement stays proof outstanding)",
     "timingHelp": "Applies to tags that require proof.",
     "proofPerTag": "Proof that counts, per tag",
-    "qualityItems": "Items that need a quality check on receipt"
+    "qualityItems": "Items that need a quality check on receipt",
+    "inTransit_one": "{{count}} transfer is in transit. Switch back to one step after it is received or recalled.",
+    "inTransit_other": "{{count}} transfers are in transit. Switch back to one step after they are received or recalled."
   },
   "workOrderTransfer": {
     "title": "Move leftover between work orders",
