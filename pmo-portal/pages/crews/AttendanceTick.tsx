@@ -36,7 +36,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
   const workers = useCrewWorkers();
   const placements = useAllCrewMembers();
   const [state, setState] = useState<TickState>(() => initialTickState(
-    crew.members.map((m) => ({ worker_id: m.worker_id, off_rotation: Boolean(m.off_rotation) })),
+    crew.members.map((m) => ({ worker_id: m.worker_id, off_rotation: Boolean(m.off_rotation), reported_absent: Boolean(m.reported_absent) })),
     held.filter((h) => crew.members.some((m) => m.worker_id === h.worker_id)),
   ));
   const [errors, setErrors] = useState<Record<string, TickError>>({});
@@ -87,13 +87,31 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
     if (Object.keys(built.errors).length > 0) return;
     setBusy(true);
     try {
-      await record.mutateAsync({ workOrderId, date, rows: built.rows });
+      let failed: string[] = [];
+      try {
+        await record.mutateAsync({ workOrderId, date, rows: built.rows });
+      } catch (batchErr) {
+        // One person's refusal (for example a lent worker) must not stop everyone else: retry one by one, name who failed.
+        if (built.rows.length < 2) throw batchErr;
+        for (const row of built.rows) {
+          try {
+            await record.mutateAsync({ workOrderId, date, rows: [row] });
+          } catch (err) {
+            const name = crew.members.find((m) => m.worker_id === row.worker_id)?.display_name ?? '';
+            failed = [...failed, `${name}: ${writeError(err)}`];
+          }
+        }
+        if (failed.length === built.rows.length) throw batchErr;
+      }
+      if (failed.length > 0) {
+        setProblem(t('crews:savedExcept', 'Saved for everyone except: {{people}}', { people: failed.join(' · ') }));
+      }
       if (photo) {
         await uploadPhoto.mutateAsync({ photoId: crypto.randomUUID(), workOrderId, crewId: crew.crew_id, workDate: date, file: photo });
         setPhoto(null);
       }
-      setDirty(false);
-      toast(t('crews:saved', 'Attendance saved'), undefined, 'success');
+      setDirty(failed.length > 0);
+      if (failed.length === 0) toast(t('crews:saved', 'Attendance saved'), undefined, 'success');
     } catch (err) {
       setProblem(writeError(err));
     } finally { setBusy(false); }
@@ -178,6 +196,12 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
                         aria-label={t('crews:undoFollowFor', 'Undo follow for {{name}}', { name: m.display_name })}>{t('crews:undoFollow', 'Undo follow')}</Button>
                     )}
                     {state.followers.includes(m.worker_id) && <span className="block text-xs text-muted-foreground">{t('crews:followedToday', 'Followed this crew today')}</span>}
+                    {m.reported_absent && (
+                      <span className="block text-sm text-muted-foreground" data-testid={`reported-absent-${m.worker_id}`}>
+                        {t('crews:reportedAbsent', 'Reported absent: {{reason}}', { reason: m.reported_absent.reason === 'sick' ? t('crews:absentSick', 'sick') : t('crews:absentOther', 'other reason') })}
+                        {m.reported_absent.note ? ` — ${m.reported_absent.note}` : ''}
+                      </span>
+                    )}
                     {err && <FieldError id={`tick-err-${m.worker_id}`}>{errorText(err)}</FieldError>}
                   </th>
                   <td role="cell" className="py-2 pr-2 max-sm:col-span-2 max-sm:p-0">

@@ -19,7 +19,7 @@ const shots = async (page: import('@playwright/test').Page, locator: import('@pl
   }
 };
 
-test('AC-DPR-013 the project tab shows revenue next to cost and margin per discipline', async ({ page, browser }) => {
+test('AC-DPR-013 the project tab shows revenue next to cost and margin per discipline', async ({ page }) => {
   const serviceKey = requireServiceRoleKey();
   if (!serviceKey) throw new Error('AC-DPR-013 requires the local fixture service client');
   const admin: SupabaseClient = createClient(requireMatchingLocalSupabaseUrls(undefined, undefined), serviceKey, { auth: { persistSession: false } });
@@ -104,7 +104,7 @@ test('AC-DPR-013 the project tab shows revenue next to cost and margin per disci
     await expect(panel.getByTestId('discipline-profit-row-total')).toContainText(revenue);
     await shots(page, panel, 'discipline-profit-table');
 
-    // Evidence: the contract-line discipline picker (Edit lines > Edit a line) and the Admin setting card.
+    // Evidence: the contract-line discipline picker (Edit lines > Edit a line). The Admin setting card is gone: revenue per discipline is on for everyone (#2746).
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByRole('button', { name: 'Edit lines' }).click();
     await page.getByRole('dialog').getByRole('row', { name: /Tagged line/ }).getByRole('button', { name: 'Edit', exact: true }).click();
@@ -112,20 +112,6 @@ test('AC-DPR-013 the project tab shows revenue next to cost and margin per disci
     await expect(picker).toBeVisible();
     await shots(page, picker, 'contract-line-discipline-picker');
     await page.keyboard.press('Escape');
-
-    // Administration is an Admin area: the setting card is captured as the seed Admin, in its own context.
-    const adminContext = await browser.newContext({ deviceScaleFactor: 2 });
-    try {
-      const adminPage = await adminContext.newPage();
-      await pinEnglishLocale(adminPage);
-      await signIn(adminPage, 'admin@acme.test');
-      await adminPage.goto('/administration/accounting');
-      const card = adminPage.locator('#org-discipline-profit');
-      await expect(card).toBeVisible({ timeout: 15_000 });
-      await shots(adminPage, card, 'admin-setting-card');
-    } finally {
-      await adminContext.close();
-    }
   } catch (e) {
     failure = e;
   } finally {

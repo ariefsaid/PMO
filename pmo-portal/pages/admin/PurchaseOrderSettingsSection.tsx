@@ -1,8 +1,7 @@
-import React, { useId, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
-import { Button, FieldError, ListState, Switch, TextField, useToast } from '@/src/components/ui';
-import { cn } from '@/src/components/ui/cn';
+import { Button, FieldError, ListState, TextField, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   usePurchaseOrderSettings,
@@ -24,7 +23,6 @@ export default function PurchaseOrderSettingsSection() {
   const query = usePurchaseOrderSettings();
   const mutations = usePurchaseOrderSettingsMutations();
 
-  const [enabled, setEnabled] = useState(false);
   const [signatureBlocks, setSignatureBlocks] = useState<string[]>([]);
   const [authorisedCollectors, setAuthorisedCollectors] = useState<string[]>([]);
   const [newCollector, setNewCollector] = useState('');
@@ -32,21 +30,13 @@ export default function PurchaseOrderSettingsSection() {
   const [isDirty, setIsDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const toggleId = useId();
-
   // Sync state when query data arrives
   useEffect(() => {
     if (query.data && !isDirty) {
-      setEnabled(query.data.enabled);
       setSignatureBlocks(query.data.signatureBlocks);
       setAuthorisedCollectors(query.data.authorisedCollectors);
     }
   }, [query.data, isDirty]);
-
-  const handleToggle = (next: boolean) => {
-    setEnabled(next);
-    setIsDirty(true);
-  };
 
   const handleAddCollector = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +76,7 @@ export default function PurchaseOrderSettingsSection() {
     setError(null);
     try {
       await mutations.setSettings.mutateAsync({
-        enabled,
+        enabled: true,
         signatureBlocks,
         authorisedCollectors,
       });
@@ -125,35 +115,6 @@ export default function PurchaseOrderSettingsSection() {
           <ListState variant="loading" rows={3} />
         ) : (
           <>
-            {/* Enable switch */}
-            <div>
-              <label
-                className={cn(
-                  'flex min-h-11 items-start gap-3 py-1.5 text-control',
-                  !canManage ? 'cursor-default' : 'cursor-pointer',
-                )}
-              >
-                <Switch
-                  checked={enabled}
-                  onChange={handleToggle}
-                  labelledBy={toggleId}
-                  disabled={!canManage || mutations.setSettings.isPending}
-                  className="mt-0.5"
-                />
-                <span className="min-w-0">
-                  <span id={toggleId} className="block font-medium">
-                    {t('procurement:poSettings.enablePrint', 'Enable printable purchase order')}
-                  </span>
-                  <span className="block text-xs text-muted-foreground">
-                    {t(
-                      'procurement:poSettings.enablePrintHelp',
-                      'Allows team members to view and print purchase orders with signature blocks.',
-                    )}
-                  </span>
-                </span>
-              </label>
-            </div>
-
             {/* Authorised Collectors List */}
             <div className="space-y-3 rounded-md border border-border p-4">
               <div>

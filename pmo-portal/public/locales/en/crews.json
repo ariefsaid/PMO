@@ -164,15 +164,19 @@
     "endTitle": "End this loan?",
     "ended": "Loan ended",
     "error": "Couldn't load crew loans",
-    "hostCrew": "Host crew",
     "homeCrew": "Home crew",
+    "hostCrew": "Host crew",
+    "hostNotScheduled": "{{crew}} is not on any work order on these days, so this person would show on no roster and no hours would count. Schedule {{crew}} on a work order first, or choose another crew.",
+    "hostPartlyScheduled": "{{crew}} is not on any work order on {{days}}. This person will show on no roster on those days.",
     "lend": "Lend worker",
     "lendTitle": "Lend a worker to another crew",
     "lent": "Worker lent",
     "title": "Crew loans",
-    "toBeforeFrom": "The end cannot be before the start"
+    "toBeforeFrom": "The end cannot be before the start",
+    "whoLends": "Only people who manage crews (administrator, executive, project manager) can lend a worker. Ask one of them."
   },
   "leave": {
+    "noTypesToChoose": "No leave types yet. An Admin adds them under Leave settings.",
     "addType": "Add type",
     "adminOnly": "Only an Admin can change leave settings",
     "approve": "Approve",
@@ -195,7 +199,7 @@
     "noTypes": "No leave types yet. Add the types your organisation uses.",
     "none": "No leave requests yet.",
     "note": "Note: {{note}}",
-    "off": "Leave requests are not switched on for your organisation.",
+    "off": "Leave requests are turned off for your organisation. An Admin can turn them on under Modules.",
     "onLeave": "On leave",
     "openSettings": "Open leave settings",
     "person": "Person",
@@ -218,7 +222,6 @@
     },
     "subject": "leave request",
     "switchHeading": "Leave requests",
-    "switchLabel": "People can request leave and report sickness",
     "title": "Leave",
     "type": "Type",
     "typeName": "New type",
@@ -351,7 +354,6 @@
     },
     "countsHidden": "Filled and in progress are shown to the people team and to the roles that read the clearance checklist."
   },
-  "tickReadOnly": "Only this crew's Foreman or a crew manager ticks this roster.",
   "undoFollow": "Undo follow",
   "undoFollowFor": "Undo follow for {{name}}",
   "undoFollowTitle": "Undo this follow?",
@@ -385,6 +387,7 @@
     "clearBody": "The number for this class and day is removed. You can enter it again.",
     "clearConfirm": "Clear head count"
   },
+  "savedExcept": "Saved for everyone except: {{people}}",
   "roleNotSet": "Crew role not set",
   "changeRole": "Change crew role",
   "setRole": "Set crew role",
@@ -398,5 +401,9 @@
   "newPersonChip": "{{name}} (new person)",
   "personPickOrType": "Choose a person, or type a new name",
   "personPick": "Choose a person",
-  "personSearch": "Search or type a name"
+  "personSearch": "Search or type a name",
+  "tickReadOnly": "Only this crew's Foreman or a crew manager ticks this roster.",
+  "reportedAbsent": "Reported absent: {{reason}}",
+  "absentSick": "sick",
+  "absentOther": "other reason"
 }

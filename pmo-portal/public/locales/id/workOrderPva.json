@@ -80,21 +80,11 @@
     "archivedDiscipline": "Disiplin diarsipkan",
     "revenueNote": "Pendapatan adalah progres tervalidasi pada tarif kontrak.",
     "picker": {
+      "noneYet": "Belum ada disiplin. Admin menambahkannya di Disiplin biaya, dalam Pengaturan proyek.",
       "label": "Disiplin (untuk laba per disiplin)",
       "none": "Tanpa disiplin",
       "saved": "Disiplin disimpan",
       "error": "Disiplin tidak dapat disimpan"
-    },
-    "setting": {
-      "title": "Laba per disiplin",
-      "label": "Tampilkan pendapatan di samping biaya per disiplin",
-      "helper": "Menambah tabel pada bagian rencana vs aktual proyek dan kolom disiplin pada baris kontrak. Nonaktif secara default.",
-      "save": "Simpan",
-      "saved": "Pengaturan disimpan",
-      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
-      "loadError": "Pengaturan tidak dapat dimuat",
-      "on": "Aktif",
-      "off": "Nonaktif"
     }
   },
   "projectHours": "Jam proyek dan kontrak",

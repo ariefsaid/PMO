@@ -461,5 +461,8 @@
   "OPN_ALREADY_LOADED": "This location already has an opening. Reverse that opening first, then load the corrected file.",
   "OPN_ALREADY_LOADED_figures": "Row {{row}}: this location already has an opening. Reverse that opening first, then load the corrected file.",
   "OPN_TOO_MANY_ROWS": "A file holds 1 to 5,000 rows. Split it by location and load each part.",
-  "STK_ZERO_COST_figures": "Row {{row}}: this item is client-supplied, so it is received at zero cost. Leave the unit cost blank or write 0, then choose the file again."
+  "STK_ZERO_COST_figures": "Row {{row}}: this item is client-supplied, so it is received at zero cost. Leave the unit cost blank or write 0, then choose the file again.",
+  "ABS_NOTE": "The note is too long. Shorten it and send again.",
+  "ABS_PERSON": "This account is not linked to a person on a crew, so absence cannot be reported. Ask your supervisor.",
+  "ABS_REASON": "Choose sick or other."
 }

@@ -51,6 +51,35 @@ describe('notification wording', () => {
   });
 
   describe('fix-waiting item 4: titles the database writes reach the reader in their language', () => {
+    it('fix1122 renders the four migrated titles in both languages and keeps legacy and dynamic matches', async () => {
+      const expectedTitles: Record<string, Record<string, string>> = {
+        en: {
+          'A crew member reports absent today': 'A crew member reports absent today',
+          'Your daily report was sent back': 'Your daily report was sent back',
+          'Your material request was approved': 'Your material request was approved',
+          'Your subcontract certificate was sent back': 'Your subcontract certificate was sent back',
+        },
+        id: {
+          'A crew member reports absent today': 'Ada anggota kru yang melaporkan tidak hadir hari ini',
+          'Your daily report was sent back': 'Laporan harian Anda dikembalikan',
+          'Your material request was approved': 'Permintaan material Anda disetujui',
+          'Your subcontract certificate was sent back': 'Sertifikat subkontraktor Anda dikembalikan',
+        },
+      };
+
+      for (const [lng, titles] of Object.entries(expectedTitles)) {
+        const inst = i18next.createInstance();
+        await inst.init({ lng, fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+        const t = inst.t.bind(inst);
+        for (const [title, expected] of Object.entries(titles)) {
+          expect(notificationTitle({ title, message_key: 'literal' }, t)).toBe(expected);
+        }
+        expect(notificationTitle({ title: 'Equipment down more than 2 days', message_key: 'literal' }, t)).toBe(
+          lng === 'id' ? 'Peralatan rusak lebih dari 2 hari' : 'Equipment down more than 2 days',
+        );
+      }
+    });
+
     it('JOB-WAIT-4 shows every known database title in Bahasa Indonesia on a Bahasa organisation, and keeps an unknown one as stored', async () => {
       const inst = i18next.createInstance();
       await inst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });

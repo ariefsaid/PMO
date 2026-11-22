@@ -56,6 +56,17 @@
     "total": "Active seats",
     "helper": "A light account has one phone home screen. Price and seat counts are agreed with the owner."
   },
+  "absent": {
+    "title": "Not coming in today?",
+    "open": "I am not coming in today",
+    "change": "Change what I told them",
+    "sick": "I am sick",
+    "other": "Another reason",
+    "note": "Note for your crew leader (optional)",
+    "cancel": "Cancel",
+    "reported": "You told your crew leader you are not coming in today: {{reason}}.",
+    "error": "Could not send. Check your connection and try again."
+  },
   "workOrders": {
     "empty": "You are not on a work order today"
   }

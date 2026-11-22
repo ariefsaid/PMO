@@ -164,15 +164,19 @@
     "endTitle": "Akhiri pinjaman ini?",
     "ended": "Pinjaman diakhiri",
     "error": "Tidak dapat memuat pinjaman kru",
-    "hostCrew": "Kru tujuan",
     "homeCrew": "Kru asal",
+    "hostCrew": "Kru tujuan",
+    "hostNotScheduled": "{{crew}} tidak terjadwal di work order mana pun pada hari-hari ini, jadi orang ini tidak akan muncul di daftar hadir mana pun dan jam kerjanya tidak terhitung. Jadwalkan {{crew}} pada sebuah work order dulu, atau pilih regu lain.",
+    "hostPartlyScheduled": "{{crew}} tidak terjadwal di work order mana pun pada {{days}}. Orang ini tidak akan muncul di daftar hadir pada hari tersebut.",
     "lend": "Pinjamkan pekerja",
     "lendTitle": "Pinjamkan pekerja ke kru lain",
     "lent": "Pekerja dipinjamkan",
     "title": "Pinjaman kru",
-    "toBeforeFrom": "Tanggal akhir tidak boleh sebelum tanggal mulai"
+    "toBeforeFrom": "Tanggal akhir tidak boleh sebelum tanggal mulai",
+    "whoLends": "Hanya pengelola regu (administrator, eksekutif, manajer proyek) yang bisa meminjamkan pekerja. Hubungi salah satunya."
   },
   "leave": {
+    "noTypesToChoose": "Belum ada jenis cuti. Admin menambahkannya di Pengaturan cuti.",
     "addType": "Tambah jenis",
     "adminOnly": "Hanya Admin yang dapat mengubah pengaturan cuti",
     "approve": "Setujui",
@@ -195,7 +199,7 @@
     "noTypes": "Belum ada jenis cuti. Tambahkan jenis yang dipakai organisasi Anda.",
     "none": "Belum ada permintaan cuti.",
     "note": "Catatan: {{note}}",
-    "off": "Permintaan cuti belum diaktifkan untuk organisasi Anda.",
+    "off": "Permintaan cuti dimatikan untuk organisasi Anda. Admin dapat mengaktifkannya di Modul.",
     "onLeave": "Cuti",
     "openSettings": "Buka pengaturan cuti",
     "person": "Orang",
@@ -218,7 +222,6 @@
     },
     "subject": "permintaan cuti",
     "switchHeading": "Permintaan cuti",
-    "switchLabel": "Orang dapat mengajukan cuti dan melaporkan sakit",
     "title": "Cuti",
     "type": "Jenis",
     "typeName": "Jenis baru",
@@ -351,7 +354,6 @@
     },
     "countsHidden": "Terisi dan dalam proses ditampilkan kepada tim SDM dan peran yang dapat membaca daftar periksa kelayakan."
   },
-  "tickReadOnly": "Hanya mandor regu ini atau pengelola regu yang bisa mengisi absensi ini.",
   "undoFollow": "Batalkan ikut kru",
   "undoFollowFor": "Batalkan ikut kru untuk {{name}}",
   "undoFollowTitle": "Batalkan ikut kru ini?",
@@ -385,6 +387,7 @@
     "clearBody": "Jumlah untuk kelas dan hari ini dihapus. Anda bisa mengisinya lagi.",
     "clearConfirm": "Hapus jumlah orang"
   },
+  "savedExcept": "Tersimpan untuk semua orang kecuali: {{people}}",
   "roleNotSet": "Posisi kru belum diisi",
   "changeRole": "Ubah posisi kru",
   "setRole": "Isi posisi kru",
@@ -398,5 +401,9 @@
   "newPersonChip": "{{name}} (orang baru)",
   "personPickOrType": "Pilih orang, atau ketik nama baru",
   "personPick": "Pilih orang",
-  "personSearch": "Cari atau ketik nama"
+  "personSearch": "Cari atau ketik nama",
+  "tickReadOnly": "Hanya mandor regu ini atau pengelola regu yang bisa mengisi absensi ini.",
+  "reportedAbsent": "Melaporkan tidak masuk: {{reason}}",
+  "absentSick": "sakit",
+  "absentOther": "alasan lain"
 }

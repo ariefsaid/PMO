@@ -11,6 +11,10 @@ vi.mock('@/src/components/ui', async (importOriginal) => ({
 }));
 
 import { useProcurementDecision } from './useProcurementDecision';
+import { allowedActions, stateMainAction } from '@/src/lib/procurement/mainAction';
+import { createInstance } from 'i18next';
+import en from '../../public/locales/en/procurementRecord.json';
+import id from '../../public/locales/id/procurementRecord.json';
 
 const PROC = {
   id: 'pr-1', title: 'Inverters', status: 'Requested', total_value: 500, currency: 'USD',
@@ -86,6 +90,22 @@ describe('useProcurementDecision', () => {
       expect(staged.description).toMatch(/45[.,]000[.,]000/);
       await act(() => hook.result.current.commitConfirm());
       expect(transition).toHaveBeenCalledWith({ to: 'Ordered', notes: 'looks fine' });
+    });
+
+    it.each([{ language: 'en', resource: en, label: 'Record order' }, { language: 'id', resource: id, label: 'Catat pesanan' }])('uses the header wording in the confirmation in $language', async ({ language, resource, label }) => {
+      const i18n = createInstance();
+      await i18n.init({ lng: language, resources: { [language]: { procurementRecord: resource } }, initImmediate: false });
+      for (const status of ['Approved', 'Quote Selected'] as const) {
+        const actions = allowedActions(status, 'Admin', false, false, i18n.t.bind(i18n), true, false, true);
+        const main = stateMainAction(status, actions, i18n.t.bind(i18n));
+        expect(main?.label).toBe(label);
+        const { hook, transition } = setup(WITH_SUPPLIER);
+        act(() => hook.result.current.onActionClick(main!.transition));
+        expect(transition).not.toHaveBeenCalled();
+        expect(hook.result.current.pendingConfirm).toMatchObject({ to: 'Ordered', confirmLabel: label });
+        await act(() => hook.result.current.commitConfirm());
+        expect(transition).toHaveBeenCalledWith({ to: 'Ordered', notes: 'looks fine' });
+      }
     });
 
     it('without a supplier it opens the supplier picker and records nothing', () => {

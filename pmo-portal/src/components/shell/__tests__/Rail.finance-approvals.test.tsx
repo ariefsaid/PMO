@@ -13,6 +13,10 @@ import React from 'react';
  * Engineer must NOT see Approvals (OD-W2-2 unchanged).
  */
 
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
+const auth = { currentUser: { id: 'u1', org_id: 'org-1' } } as unknown as AuthContextValue;
+const standing = vi.hoisted(() => ({ offered: true }));
+vi.mock('@/src/hooks/useWaitingForYou', () => ({ useApprovalsEntryOffered: () => standing.offered }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({
     effectiveRole: testRole,
@@ -55,9 +59,9 @@ import { Rail } from '../Rail';
 const renderRailAs = (role: string) => {
   testRole = role;
   return render(
-    <MemoryRouter>
+    <AuthContext.Provider value={role === 'Engineer' ? auth : undefined}><MemoryRouter>
       <Rail />
-    </MemoryRouter>,
+    </MemoryRouter></AuthContext.Provider>,
   );
 };
 
@@ -67,8 +71,15 @@ describe('Rail — Finance sees Approvals (fix #7)', () => {
     expect(screen.getByRole('link', { name: /approvals/i })).toBeInTheDocument();
   });
 
-  it('AC-FIX7-RAIL-02: Engineer sees Approvals too (every full account has the inbox, #fix-nav)', () => {
+  it('AC-FIX7-RAIL-02: an Engineer who can decide something sees Approvals (standing, #fix-nav)', () => {
     renderRailAs('Engineer');
     expect(screen.getByRole('link', { name: /approvals/i })).toHaveAttribute('href', '/approvals');
+  });
+
+  it('AC-FIX7-RAIL-03: an Engineer with no standing has no Approvals entry', () => {
+    standing.offered = false;
+    renderRailAs('Engineer');
+    expect(screen.queryByRole('link', { name: /approvals/i })).not.toBeInTheDocument();
+    standing.offered = true;
   });
 });

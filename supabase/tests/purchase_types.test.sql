@@ -8,6 +8,9 @@ select plan(18);
 insert into organizations (id, name, default_currency, default_timezone) values
   ('26970000-0000-0000-0000-00000000000a', 'PT Org',       'IDR', 'Asia/Jakarta'),
   ('26970000-0000-0000-0000-00000000000b', 'PT Other Org', 'IDR', 'Asia/Jakarta');
+-- these features are on by default now (with starter rows); this file proves the off state, so setup clears them as an explicit step
+delete from purchase_types where org_id in ('26970000-0000-0000-0000-00000000000a', '26970000-0000-0000-0000-00000000000b');
+delete from org_purchase_type_settings where org_id in ('26970000-0000-0000-0000-00000000000a', '26970000-0000-0000-0000-00000000000b');
 insert into auth.users (id, email) values
   ('26970000-0000-0000-0000-0000000000a1', 'pt-admin@example.com'),
   ('26970000-0000-0000-0000-0000000000a2', 'pt-pm@example.com'),

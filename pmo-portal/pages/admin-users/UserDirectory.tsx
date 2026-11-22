@@ -20,7 +20,7 @@ import { Avatar } from '@/src/components/ui/Avatar';
 import { initialsOf } from './avatar';
 import { useRoleLabels } from './roleLabels';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
-import { useBuiltInRolesEnabled } from '@/src/hooks/useBuiltInRoles';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useAllCrewMembers } from '@/src/hooks/useCrews';
 import { usePeople } from '@/src/hooks/usePeople';
 import { formatCalendarDayInTimeZone } from '@/src/lib/format';
@@ -99,7 +99,7 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
   const { t } = useTranslation();
   const roleNames = useRoleLabels();
   const roleDisplayName = useBuiltInRoleName();
-  const builtInRolesOn = useBuiltInRolesEnabled().data === true;
+  const builtInRolesOn = useOrgSwitch('builtInRoles').data === true;
   // A Foreman or Field user works through a person record in a crew. When their login is not linked to a person, or the person is
   // in no crew, they cannot do their day: say so here, with the one action that fixes it. Read only when such a user is listed.
   const fieldRoleKeys = ['foreman', 'field_user'];

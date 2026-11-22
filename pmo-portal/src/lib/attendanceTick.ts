@@ -28,6 +28,8 @@ export type TickError = 'hoursRequired' | 'hoursRange' | 'overtimeRange' | 'reas
 export interface TickMember {
   worker_id: string;
   off_rotation: boolean;
+  /** Told the crew leader they are not coming in: the day starts as absent, not present. */
+  reported_absent?: boolean;
 }
 
 export interface TickExisting {
@@ -50,7 +52,7 @@ export function initialTickState(members: TickMember[], existing: TickExisting[]
     const e = held.get(m.worker_id);
     people[m.worker_id] = e
       ? { status: e.status, hours: asText(e.hours), overtime: asText(e.overtime_hours), reason: e.reason ?? '' }
-      : { status: m.off_rotation ? 'off_rotation' : 'present', hours: '', overtime: '', reason: '' };
+      : { status: m.off_rotation ? 'off_rotation' : m.reported_absent ? 'absent' : 'present', hours: '', overtime: '', reason: '' };
   }
   return { defaultHours: '8', order: members.map((m) => m.worker_id), offRotation, people, followers: [] };
 }

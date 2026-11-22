@@ -108,3 +108,16 @@ describe('AC-DSF-014 toClientExport', () => {
     expect(out.workedMinutes).toBeNull();
   });
 });
+
+describe('AC-SD-004 lockReadiness', () => {
+  it('names the no-answers without a note and the rostered workers not yet checked', async () => {
+    const { lockReadiness } = await import('./safetyDay');
+    const r = lockReadiness(
+      [{ label: 'Harness', answer: 'no', note: ' ' }, { label: 'Helmet', answer: 'no', note: 'ok' }, { label: 'Signs', answer: 'yes', note: null }],
+      [{ worker_id: 'a', result: 'fit' }, { worker_id: 'b', result: 'not_checked' }],
+      [{ worker_id: 'a', display_name: 'Ana' }, { worker_id: 'b', display_name: 'Budi' }, { worker_id: 'c', display_name: 'Citra' }],
+    );
+    expect(r.noWithoutNote).toEqual(['Harness']);
+    expect(r.uncheckedWorkers).toEqual(['Budi', 'Citra']);
+  });
+});

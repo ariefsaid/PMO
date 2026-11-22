@@ -4,12 +4,6 @@ import { ATTENDANCE_QUERY_ROOTS, CREW_QUERY_ROOTS } from '@/src/hooks/useCrews';
 import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** Crew loans (#2704) over the repository seam. Keys carry org_id (tenant scope). */
-export const CREW_LOANS_ENABLED_KEY = 'crew-loans-enabled';
-
-/** Whether the organisation shows crew loans (the setting, default off). */
-export function useCrewLoansEnabled() {
-  return useOrgQuery([CREW_LOANS_ENABLED_KEY], () => crewLoanRepository.enabled(), { staleness: 'session' });
-}
 
 export function useCrewLoans(enabled: boolean) {
   return useOrgQuery(['crew-loans'], () => crewLoanRepository.list(), { enabled });

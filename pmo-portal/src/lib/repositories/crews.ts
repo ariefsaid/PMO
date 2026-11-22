@@ -36,6 +36,7 @@ export const crewRepository = {
   correctPlacement: (id: string, version: number, patch: Pick<crews.PlacementInput, 'valid_from' | 'valid_to' | 'standard_role_id'>) =>
     wrap(() => crews.correctCrewMember(id, version, patch)),
   workOrderCrews: (workOrderId: string) => wrap(() => crews.listWorkOrderCrews(workOrderId)),
+  schedule: (crewId: string) => wrap(() => crews.listCrewSchedule(crewId)),
   roster: (input: crews.RosterInput) => wrap(() => crews.rosterCrew(input)),
   correctRoster: (id: string, version: number, patch: Pick<crews.RosterInput, 'valid_from' | 'valid_to'>) =>
     wrap(() => crews.correctRoster(id, version, patch)),

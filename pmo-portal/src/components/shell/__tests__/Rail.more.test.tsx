@@ -11,7 +11,18 @@ import { Rail } from '../Rail';
 import { RailDrawerContext } from '../railDrawerContext';
 
 const roleState = vi.hoisted(() => ({ role: 'Executive' }));
+const builtInRoleKeys = vi.hoisted(() => ({
+  Executive: 'executive',
+  'Project Manager': 'project_manager',
+  Finance: 'finance_manager',
+  Engineer: 'engineer',
+  Admin: 'administrator',
+}));
 
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
+const auth = { currentUser: { id: 'u1', org_id: 'org-1' } } as unknown as AuthContextValue;
+const standing = vi.hoisted(() => ({ offered: true }));
+vi.mock('@/src/hooks/useWaitingForYou', () => ({ useApprovalsEntryOffered: () => standing.offered }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: roleState.role, realRole: roleState.role }),
 }));
@@ -27,16 +38,19 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 vi.mock('../ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
 vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: () => ({ isPending: true }) }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/auth/usePermission', () => ({
+  usePermission: () => () => true,
+  useBuiltInRoleKey: () => builtInRoleKeys[roleState.role as keyof typeof builtInRoleKeys] ?? null,
+}));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => false }));
 
 const renderRail = (entry = '/', drawer = false) =>
   render(
-    <MemoryRouter initialEntries={[entry]}>
+    <AuthContext.Provider value={roleState.role === 'Engineer' ? auth : undefined}><MemoryRouter initialEntries={[entry]}>
       <RailDrawerContext.Provider value={drawer}>
         <Rail />
       </RailDrawerContext.Provider>
-    </MemoryRouter>,
+    </MemoryRouter></AuthContext.Provider>,
   );
 
 beforeEach(() => { roleState.role = 'Executive'; });

@@ -23,3 +23,12 @@ export function useSaveBillingPlanSettings() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['billing-plan-settings'] }),
   });
 }
+
+/** #2675: the done-not-claimed reminder switch and its day limit, saved on their own (#2746: the Billing extras module card shows them too; Finance keeps the plan modal). */
+export function useSaveDoneNotClaimedReminder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { reminderOn: boolean; afterDays: number | null }) => repositories.billingStages.savePlanReminder(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['billing-plan-settings'] }),
+  });
+}

@@ -8,6 +8,8 @@ begin;
 create extension if not exists pgtap;
 select * from no_plan();
 insert into organizations (id, name, default_currency, default_timezone) values ('26931000-0000-0000-0000-00000000000a', 'RSV Borrow Org', 'IDR', 'UTC');
+-- reservations are on by default now; this file proves the off state, so setup switches them off as an explicit step
+update organizations set stock_reservations = false where id in ('26931000-0000-0000-0000-00000000000a');
 insert into auth.users (id, email) values ('26931000-0000-0000-0000-0000000000a1', 'rsb-admin@example.com'), ('26931000-0000-0000-0000-0000000000a2', 'rsb-author@example.com'), ('26931000-0000-0000-0000-0000000000a3', 'rsb-pm@example.com'), ('26931000-0000-0000-0000-0000000000a7', 'rsb-exec@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('26931000-0000-0000-0000-0000000000a1', '26931000-0000-0000-0000-00000000000a', 'RSB Admin', 'rsb-admin@example.com', 'Admin', 'active'), ('26931000-0000-0000-0000-0000000000a2', '26931000-0000-0000-0000-00000000000a', 'RSB Author', 'rsb-author@example.com', 'Engineer', 'active'),

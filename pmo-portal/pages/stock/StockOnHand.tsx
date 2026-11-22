@@ -14,7 +14,7 @@ import { formatQuantity, formatStockValue, sumDecimal } from '@/src/lib/stockFor
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { parseRefusal } from '@/src/lib/refusals';
 import type { StockOnHandRow } from '@/src/lib/db/stockReports';
-import { useWoTransfersEnabled } from '@/src/hooks/useStockWorkOrderTransfer';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { ReservedCell } from '@/src/components/stock/ReservedCell';
 import { ReservationForm } from '@/src/components/stock/ReservationForm';
 import { mayReserve, useFreeReserved, useReservationsEnabled } from '@/src/hooks/useStockReservations';
@@ -38,7 +38,7 @@ const compareBalanceRows = (a: StockOnHandRow, b: StockOnHandRow): number =>
 const StockOnHand: React.FC = () => {
   const { t } = useTranslation('stock');
   const may = usePermission();
-  const woTransfers = useWoTransfersEnabled();   // the move between work orders starts here too, not only under Documents
+  const woTransfers = useOrgSwitch('stockWoTransfers').data === true;   // the move between work orders starts here too, not only under Documents
   const { realRole, effectiveRole } = useEffectiveRole();
   const me = useAuth().currentUser?.id;
   const currency = useOrgCurrency();

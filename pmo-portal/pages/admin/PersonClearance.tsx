@@ -7,7 +7,8 @@ import {
 } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
 import { usePerson } from '@/src/hooks/useDocumentExpiry';
-import { useClearanceEnabled, useClearanceStateMutations, useClearanceSummary, usePersonChecklist } from '@/src/hooks/useClearance';
+import { useClearanceStateMutations, useClearanceSummary, usePersonChecklist } from '@/src/hooks/useClearance';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCalendarDayInTimeZone, formatIsoDay } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -62,7 +63,7 @@ export default function PersonClearance() {
   const { t } = useTranslation('administration');
   const { personId = '' } = useParams();
   const { toast } = useToast();
-  const enabled = useClearanceEnabled();
+  const enabled = useOrgSwitch('clearance');
   const person = usePerson(personId);
   const checklist = usePersonChecklist(personId, enabled.data === true);
   const summary = useClearanceSummary();
@@ -79,7 +80,7 @@ export default function PersonClearance() {
 
   if (enabled.isPending || person.isPending) return <ListState variant="loading" rows={3} />;
   if (enabled.isError || person.isError) return <ListState variant="error" title={t('clearance.person.loadError', 'Couldn’t load this checklist')} onRetry={() => { void enabled.refetch(); void person.refetch(); }} />;
-  if (!enabled.data) return <ListState variant="empty" title={t('clearance.off.title', 'The clearance checklist is not turned on')} sub={t('clearance.off.sub', 'An Admin can turn it on under People.')} />;
+  if (!enabled.data) return <ListState variant="empty" title={t('clearance.off.title', 'The clearance checklist is not turned on')} sub={t('clearance.off.sub', 'An Admin can turn it on under Modules, in People and crews.')} />;
   if (!person.data) return <ListState variant="empty" title={t('clearance.person.notFound', 'This person was not found')} sub={t('clearance.person.notFoundSub', 'They may have been archived, or you may not have access.')} />;
 
   const cleared = summary.data?.find((s) => s.person_id === personId)?.cleared === true;

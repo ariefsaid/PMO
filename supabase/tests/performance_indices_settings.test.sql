@@ -4,6 +4,8 @@ begin;
 create extension if not exists pgtap;
 select plan(14);
 insert into organizations (id, name) values ('25970000-0000-0000-0000-00000000000a', 'CSP Settings A'), ('25970000-0000-0000-0000-00000000000b', 'CSP Settings B');
+-- this switch is on by default now; this file proves the off state, so setup switches it off as an explicit step
+update organizations set performance_indices_enabled = false where id in ('25970000-0000-0000-0000-00000000000a', '25970000-0000-0000-0000-00000000000b');
 insert into auth.users (id, email) values ('25970000-0000-0000-0000-0000000000a1', 'cps-admin@example.com'), ('25970000-0000-0000-0000-0000000000a2', 'cps-pm@example.com'),
   ('25970000-0000-0000-0000-0000000000a3', 'cps-fin@example.com'), ('25970000-0000-0000-0000-0000000000b1', 'cps-xadmin@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
@@ -12,7 +14,7 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('25970000-0000-0000-0000-0000000000a3', '25970000-0000-0000-0000-00000000000a', 'Fin', 'cps-fin@example.com', 'Finance', 'active'),
   ('25970000-0000-0000-0000-0000000000b1', '25970000-0000-0000-0000-00000000000b', 'XAdmin', 'cps-xadmin@example.com', 'Admin', 'active');
 
-select is((select performance_indices_enabled from organizations where id = '25970000-0000-0000-0000-00000000000a'), false, 'AC-CSP-019 a new organisation has the panels off');
+select is((select performance_indices_enabled from organizations where id = '25970000-0000-0000-0000-00000000000a'), false, 'AC-CSP-019 an organisation that switched the panels off has them off');
 select is((select (performance_band_low, performance_band_high)::text from organizations where id = '25970000-0000-0000-0000-00000000000a'), '(0.90,1.10)', 'AC-CSP-019 and the bands 0.90 and 1.10');
 
 set local role authenticated;

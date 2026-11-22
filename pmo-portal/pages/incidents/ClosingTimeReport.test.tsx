@@ -95,6 +95,15 @@ describe('ClosingTimeReport (AC-CTR-001 - AC-CTR-009)', () => {
     expect(screen.getByTestId('closing-report-loading')).toBeInTheDocument();
   });
 
+  it('AC-SD-001: a report read that is not running never leaves a skeleton: says why, plainly', () => {
+    (reportState as Record<string, unknown>).isPending = true;
+    (reportState as Record<string, unknown>).fetchStatus = 'idle';
+    reportState.data = undefined as unknown as IssueClosingTimeReportRow[];
+    renderComponent();
+    expect(screen.getByTestId('closing-report-not-loaded')).toBeInTheDocument();
+    delete (reportState as Record<string, unknown>).fetchStatus;
+  });
+
   it('renders disabled notice when feature is turned off (AC-CTR-001)', () => {
     settingsState.data = { org_id: 'org1', enabled: false, grouping_mode: 'type', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', updated_by: null };
     renderComponent();

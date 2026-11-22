@@ -35,9 +35,11 @@ $$;
 grant insert (id) on public.clearance_items to authenticated;   -- fixture ids; rolled back with the test
 grant insert (id) on public.person_clearances to authenticated;
 
--- setting default: off for an existing organisation
+-- the checklist is on by default now; these cases start from an organisation that switched it off
+update organizations set clearance_checklist_enabled = false where id in ('27070000-0000-0000-0000-00000000000a','27070000-0000-0000-0000-00000000000b');
+-- setting reads off for an organisation that switched it off
 select is((select clearance_checklist_enabled from organizations where id = '27070000-0000-0000-0000-00000000000a'), false,
-  'AC-CLR-013 the checklist setting defaults to off');
+  'AC-CLR-013 the checklist setting reads off for an organisation that switched it off');
 
 set local role authenticated;
 select pg_temp.act_as('27070000-0000-0000-0000-0000000000a1');

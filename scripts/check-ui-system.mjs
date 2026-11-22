@@ -47,6 +47,7 @@ const STRUCTURAL_ALLOW = [
   { path: 'pmo-portal/src/components/integrations/odoo/OdooConnectionCard.tsx', rule: 'button-default', count: 1, reason: 'Activate is the filled transition after selecting the Odoo company.' },
   { path: 'pmo-portal/src/components/integrations/odoo/OdooMapOnce.tsx', rule: 'button-default', count: 1, reason: 'Accept all is the mapping form submit action.' },
   { path: 'pmo-portal/src/components/procurement/ProcurementBlock.tsx', rule: 'button-default', count: 3, reason: 'Approve, New procurement and the drawer main transition are existing screen actions; the procurement render pass still owns their state-by-state primary review.' },
+  { path: 'pmo-portal/pages/Administration.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned native control is retained; A1 adds the guard without changing Administration behavior.' },
   { path: 'pmo-portal/pages/MasterData.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned native control is retained; A1 adds the guard without changing Master Data behavior.' },
   { path: 'pmo-portal/pages/MyTasks.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned native control is retained; A1 adds the guard without changing My Tasks behavior.' },
   { path: 'pmo-portal/pages/ProcurementDetails.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned native control is retained; A1 adds the guard without changing procurement detail behavior.' },

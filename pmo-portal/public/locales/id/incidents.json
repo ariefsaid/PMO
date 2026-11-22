@@ -204,7 +204,11 @@
     "durationDays": "{{days}} hari",
     "durationHours": "{{count}} jam",
     "durationMinutes": "{{count}} menit",
-    "disabledMessage": "Laporan waktu penyelesaian tidak diaktifkan untuk organisasi ini. Administrator dapat mengaktifkannya di menu Administrasi."
+    "disabledMessage": "Laporan waktu penyelesaian tidak diaktifkan untuk organisasi ini. Administrator dapat mengaktifkannya di menu Administrasi.",
+    "notLoaded": {
+      "title": "Laporan tidak dapat ditampilkan",
+      "sub": "Peran Anda tidak dapat melihat laporan ini. Minta akses ke administrator."
+    }
   },
   "notification": {
     "overdue": "Insiden melewati tenggat"

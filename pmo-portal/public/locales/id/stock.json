@@ -884,7 +884,7 @@
     }
   },
   "transferSettings": {
-    "manage": "Transfer, reservasi, dan pemindahan antar work order",
+    "manage": "Transfer dan bukti",
     "mode": "Cara transfer dilakukan",
     "oneStep": "Satu langkah: langsung diposting",
     "twoStep": "Dua langkah: kirim, lalu terima dengan penghitungan",
@@ -904,7 +904,7 @@
     "intro": "Sisa material berpindah dari satu $t(common:terms.clientWorkOrder) ke $t(common:terms.clientWorkOrder) lain dalam satu dokumen. $t(common:terms.clientWorkOrder) pertama dikreditkan dan yang kedua dibebani; stok tetap di tempatnya.",
     "off": {
       "title": "Transfer antar $t(common:terms.clientWorkOrder) nonaktif",
-      "sub": "Administrator dapat mengaktifkannya di Pengaturan stok."
+      "sub": "Admin dapat mengaktifkannya di Modul, pada Stok. Fitur ini tetap mati selama ERP memegang stok."
     },
     "project": "Proyek",
     "projectPlaceholder": "Pilih proyek",
@@ -936,9 +936,7 @@
       "location": "Pilih lokasi material.",
       "duplicate": "Setiap barang hanya boleh di satu baris.",
       "exceeds": "$t(common:terms.clientWorkOrder) hanya memegang {{qty}} barang ini."
-    },
-    "setting": "Transfer antar $t(common:terms.clientWorkOrder)",
-    "settingHelp": "Memungkinkan penjaga gudang memindahkan sisa material antar $t(common:terms.clientWorkOrder) dalam satu proyek dengan satu dokumen."
+    }
   },
   "reservations": {
     "column": "Bebas dan dicadangkan",
@@ -971,8 +969,6 @@
       "body": "{{n}} dari permintaan ini diambil dari stok yang dicadangkan untuk $t(common:terms.clientWorkOrder) lain, jadi perlu persetujuan peminjaman."
     },
     "settings": {
-      "enable": "Cadangkan stok untuk $t(common:terms.clientWorkOrder)",
-      "enableHelp": "$t(common:terms.clientWorkOrder) dapat menahan sejumlah barang di suatu lokasi. Tidak ada yang dikunci: stok tampil sebagai bebas dan dicadangkan. Nonaktif secara bawaan.",
       "mode": "Bila permintaan meminjam stok cadangan",
       "modeApprove": "Perlu langkah persetujuan tambahan",
       "modeWarn": "Hanya tampilkan peringatan",

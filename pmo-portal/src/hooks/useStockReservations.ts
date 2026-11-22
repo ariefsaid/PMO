@@ -1,6 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { stockReservationsRepository as repo } from '@/src/lib/repositories/stockReservations';
 import { useOptionalOrgId as useOrgId } from '@/src/hooks/useOrgId';
+import { useModuleOn } from '@/src/hooks/useOrgSwitch';
+import { useStockOwnedByErp } from '@/src/hooks/useStockOwnedByErp';
+
 
 /** The organisation's reservation settings (#2693), off by default. While unread or failed they read as off: nothing new shows. */
 export function useReservationSettings() {
@@ -8,7 +11,9 @@ export function useReservationSettings() {
   return useQuery({ queryKey: ['stock-reservation-settings', orgId], queryFn: () => repo.settings(), enabled: Boolean(orgId), staleTime: 60_000, retry: false });
 }
 export function useReservationsEnabled(): boolean {
-  return useReservationSettings().data?.enabled === true;
+  const moduleOn = useModuleOn('moduleStock');
+  const erpOwnsStock = useStockOwnedByErp();
+  return useReservationSettings().data?.enabled === true && moduleOn && !erpOwnsStock;
 }
 /** Free and reserved per item and location; fetched only while reservations are on. */
 export function useFreeReserved(enabled: boolean, warehouseId?: string) {

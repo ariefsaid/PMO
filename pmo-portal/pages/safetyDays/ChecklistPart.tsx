@@ -19,7 +19,7 @@ export const ChecklistPart: React.FC<{ detail: SafetyDayDetail; editable: boolea
   const save = (c: SafetyChecklistAnswer, answer: SafetyChecklistAnswer['answer'], note: string | null) =>
     m.answerChecklist.mutateAsync({ id: c.id, answer, note }).catch((err) => { const { headline, detail: d } = classifyMutationError(err); toast(headline, d, 'warning'); });
   if (detail.checklist.length === 0) {
-    return <RecordSection title={t('checklist.title', 'Pre-work checklist')} data-testid="safety-checklist"><p className="text-muted-foreground">{t('checklist.none', 'No checklist is set up for this organisation')}</p></RecordSection>;
+    return <RecordSection title={t('checklist.title', 'Pre-work checklist')} data-testid="safety-checklist"><p className="text-muted-foreground">{t('checklist.none', 'No checklist is set up yet. An Admin adds the items under Safety records in Project setup.')}</p></RecordSection>;
   }
   return (
     <RecordSection title={t('checklist.title', 'Pre-work checklist')} data-testid="safety-checklist">

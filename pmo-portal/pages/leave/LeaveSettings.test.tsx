@@ -46,19 +46,18 @@ describe('LeaveSettings', () => {
     expect(screen.queryByText('Leave types')).not.toBeInTheDocument();
   });
 
-  it('an admin sees the saved switch state and the approver role', () => {
+  it('an admin sees the approver role and no on/off switch (leave is on for everyone, #2746)', () => {
     view();
-    expect(screen.getByRole('switch', { name: 'People can request leave and report sickness' })).toBeChecked();
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Who approves')).toHaveValue('Finance');
   });
 
-  it('turning the feature off and saving sends the whole settings record', async () => {
+  it('saving sends the whole settings record, with leave on', async () => {
     const user = userEvent.setup();
     view();
-    await user.click(screen.getByRole('switch', { name: 'People can request leave and report sickness' }));
     await user.selectOptions(screen.getByLabelText('Who approves'), '');
     await user.click(screen.getByRole('button', { name: 'Save settings' }));
-    await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalledWith({ enabled: false, approver_role: null }));
+    await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalledWith({ enabled: true, approver_role: null }));
     expect((await screen.findAllByText('Settings saved')).length).toBeGreaterThan(0);
   });
 

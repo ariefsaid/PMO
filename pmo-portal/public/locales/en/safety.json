@@ -13,7 +13,6 @@
     "checklist": "Pre-work checklist",
     "duplicate": "That entry is already in the list",
     "empty": "Nothing listed yet",
-    "enable": "Record daily safety on work orders",
     "helper": "Daily safety records per work order. The check types, permit types and checklist items are yours: add what your sites use. Archiving hides an entry from new days; days that already use it keep it.",
     "loadError": "Couldn't load the list",
     "permitTypes": "Permit types",
@@ -31,7 +30,7 @@
       "yes": "Yes"
     },
     "answerLabel": "Answer for {{item}}",
-    "none": "No checklist is set up for this organisation",
+    "none": "No checklist is set up yet. An Admin adds the items under Safety records in Project setup.",
     "note": "Note (required when no)",
     "noteLabel": "Note for {{item}}",
     "title": "Pre-work checklist",
@@ -142,7 +141,7 @@
     },
     "hiddenDefault": "cannot be computed for this period",
     "month": "Month",
-    "off": "Safety records are not switched on for this organisation",
+    "off": "Safety records are turned off for this organisation. An Admin can turn them on under Modules.",
     "print": "Print",
     "project": "Project",
     "showRows": "Show the rows",
@@ -170,5 +169,18 @@
     "topic": "Topic",
     "viewPhoto": "Attendance photo {{n}}",
     "visitor": "Named visitor (optional)"
+  },
+  "today": {
+    "title": "Today's safety record",
+    "none": "Not started"
+  },
+  "lock": {
+    "title": "Lock this safety day?",
+    "body": "After locking, this record cannot be edited. Only a correction with a reason changes it.",
+    "unchecked": "Not yet checked: {{names}}",
+    "needNote": "Write a note for the No answers first: {{items}}",
+    "errNote": "A checklist item answered No needs a note. Write the note, then lock again.",
+    "errLocked": "This day is already locked. Reload the page.",
+    "errAuthor": "Only the person who started this safety day can lock it."
   }
 }

@@ -8,6 +8,8 @@ select plan(87);
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25960000-0000-0000-0000-0000000000a1', 'SAF Org A', 'USD', 'Asia/Jakarta'),
   ('25960000-0000-0000-0000-0000000000a2', 'SAF Org B', 'USD', 'UTC');
+-- safety records are on by default now; these cases start from organisations that switched them off
+update organizations set safety_records_enabled = false where id in ('25960000-0000-0000-0000-0000000000a1','25960000-0000-0000-0000-0000000000a2');
 insert into auth.users (id, email) values
   ('25960000-0000-0000-0000-0000000000b1', 'saf-admin@example.com'),
   ('25960000-0000-0000-0000-0000000000b2', 'saf-eng@example.com'),
@@ -59,7 +61,7 @@ create temp table ids (k text primary key, v uuid) on commit drop;
 grant all on ids to authenticated;
 
 -- ── off until switched on; Admin-only switch ──────────────────────────────────────────────────────
-select is((select safety_records_enabled from organizations where id = '25960000-0000-0000-0000-0000000000a1'), false, 'the switch is off by default');
+select is((select safety_records_enabled from organizations where id = '25960000-0000-0000-0000-0000000000a1'), false, 'the switch reads off for an organisation that switched it off');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"25960000-0000-0000-0000-0000000000b2","role":"authenticated"}';
 select is(public.safety_records_enabled(), false, 'an organisation that has not switched safety records on sees them off');

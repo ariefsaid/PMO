@@ -106,7 +106,9 @@
     "label": "Material for daily reports comes from",
     "none": "Not set",
     "help": "A validated daily report issues its material from here to this work order.",
-    "error": "Couldn't save the site location"
+    "error": "Couldn't save the site location",
+    "saved": "Site location saved. The next validated report issues its material from here.",
+    "cleared": "Site location cleared"
   },
   "responsible": {
     "title": "Responsible person",

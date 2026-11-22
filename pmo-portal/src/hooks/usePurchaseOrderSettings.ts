@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useOrgId } from '@/src/hooks/useOrgId';
 import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import { repositories } from '@/src/lib/repositories';
+import { useEnabledOffWhenModuleOff } from '@/src/hooks/moduleGate';
 
 export const PO_SETTINGS_QUERY_KEY = 'purchase-order-settings';
 
@@ -9,7 +10,7 @@ export const PO_SETTINGS_QUERY_KEY = 'purchase-order-settings';
  * Hook to read organisation-wide purchase order print settings (#2688).
  */
 export function usePurchaseOrderSettings() {
-  return useOrgQuery([PO_SETTINGS_QUERY_KEY], () => repositories.procurement.purchaseOrderSettings());
+  return useEnabledOffWhenModuleOff('modulePurchasingExtras', useOrgQuery([PO_SETTINGS_QUERY_KEY], () => repositories.procurement.purchaseOrderSettings()));
 }
 
 /**

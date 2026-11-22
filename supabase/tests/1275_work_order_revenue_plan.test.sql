@@ -11,6 +11,8 @@ select plan(54);
 insert into organizations (id, name) values
   ('26710000-0000-0000-0000-00000000000a', 'WRP Org'),
   ('26710000-0000-0000-0000-00000000000b', 'WRP Other Org');
+-- these features are on by default now (with starter rows); this file proves the off state, so setup clears them as an explicit step
+delete from org_revenue_plan_settings where org_id in ('26710000-0000-0000-0000-00000000000a', '26710000-0000-0000-0000-00000000000b');
 insert into auth.users (id, email) values
   ('26710000-0000-0000-0000-0000000000a1', 'wrp-admin@example.com'),
   ('26710000-0000-0000-0000-0000000000a2', 'wrp-fin@example.com'),
@@ -46,7 +48,7 @@ create or replace function pg_temp.act_as(p_uid uuid) returns void language sql 
 $$;
 
 -- ── AC-WRP-001: off by default ────────────────────────────────────────────────────────────────────────
-select is((select count(*) from public.org_revenue_plan_settings), 0::bigint, 'AC-WRP-001 a new organisation has no settings row (off)');
+select is((select count(*) from public.org_revenue_plan_settings where org_id in ('26710000-0000-0000-0000-00000000000a', '26710000-0000-0000-0000-00000000000b')), 0::bigint, 'AC-WRP-001 an organisation with no settings row is off');
 select is(public.revenue_plan_enabled('26710000-0000-0000-0000-00000000000a'), false, 'AC-WRP-001 the plan is off with no settings row');
 select is(public.org_is_working_day('26710000-0000-0000-0000-00000000000a', date '2026-12-05'), false, 'default working days: Saturday is not one');
 select is(public.org_is_working_day('26710000-0000-0000-0000-00000000000a', date '2026-12-04'), true, 'default working days: Friday is one');

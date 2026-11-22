@@ -291,6 +291,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     if (name === 'Navigate') return t('shell.palette.navigateGroup', 'Navigate');
     if (name === 'Actions') return t('shell.palette.actionsGroup', 'Actions');
     if (name === 'Records') return t('shell.palette.recordsGroup', 'Records');
+    if (name === 'Settings') return t('allSettings.paletteGroup', 'Settings');
     return name;
   };
 

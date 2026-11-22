@@ -106,7 +106,9 @@
     "label": "Material laporan harian diambil dari",
     "none": "Belum diatur",
     "help": "Laporan harian yang divalidasi mengeluarkan materialnya dari sini ke $t(common:terms.clientWorkOrder) ini.",
-    "error": "Lokasi lapangan tidak dapat disimpan"
+    "error": "Lokasi lapangan tidak dapat disimpan",
+    "saved": "Lokasi lapangan tersimpan. Laporan harian berikutnya yang divalidasi akan mengeluarkan materialnya dari sini.",
+    "cleared": "Lokasi lapangan dikosongkan"
   },
   "responsible": {
     "title": "Penanggung jawab",

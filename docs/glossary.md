@@ -189,6 +189,15 @@ named product feature. Entitlements are toggled per org by the Operator; a featu
 entitlement row resolves to its environment's default for that feature. A member's access
 follows the org's entitlement on top of their role.
 
+**Organisation setting** — a choice one organisation makes for itself (a value with a default and the roles that
+may change it), owned by its Admin (a few also by Finance or a Project Manager), stored as an `organizations` column
+or a `*_settings` row. Not an entitlement: an entitlement says whether the org may use a feature at all and is the
+Operator's; a setting says how the org uses it. (#2746, ADR-0121.)
+
+**Organisation switch** — an organisation setting that is one on/off value, off by default. The front end reads
+and writes every switch through one module (`useOrgSwitch`, `<OrgSwitchSetting>`); the database keeps each switch's
+own gate and validation. (#2746, ADR-0121.)
+
 **Organization (org)** — the tenant boundary: one paying client **group**, holding all its
 users and data behind one RLS wall. An org is a commercial/contract boundary, not a legal
 entity — a client group with subsidiaries is still **one** org (decided 2026-07-04). Two
@@ -1434,3 +1443,4 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Waiting list** (*daftar yang menunggu*) — everything one login can be asked to decide right now, in one list: purchase approvals, timesheets, expense claims, customer invoices, material-request steps, leave, site cash, daily reports to validate, work orders to issue, deliveries to confirm, transfers to receive, quantity changes, subcontract certificates and equipment plans. The home "waits for you" list, the Approvals badge, the Finance page and the Approvals inbox are all this one list, so they agree; its headline count is its length. Each kind is a registered entry (`src/lib/approvals/waitingKinds.ts`), so a new kind of decision cannot be added without an inbox entry. The database decides what a login may decide; the list only shows it.
 
 **Decision standing** — whether a login can decide anything at all: a decision role, a role named in the approval chain, a pinned step, an in-window stand-in, or a line manager. A login with standing has the Approvals entry in its menu even when nothing waits.
+**Reported absent** (*melaporkan tidak masuk*) — a field worker's own statement, from the phone home, that they are not coming in today (sick or other). The roster shows it; it is not attendance and not leave. Written only by `report_absence` (migration 1631).

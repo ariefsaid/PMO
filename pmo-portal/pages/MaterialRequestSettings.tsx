@@ -17,7 +17,7 @@ import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
 import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
 import { UsageThresholdsEditor } from './materialRequests/UsageThresholdsEditor';
 import { UsageInstalledSourceEditor } from './materialRequests/UsageInstalledSourceEditor';
-import { ApproverInboxSetting } from './materialRequests/ApproverInboxSetting';
+import { ModuleGate } from '@/src/components/admin/ModuleGate';
 
 const ROLES: Role[] = ['Engineer', 'Project Manager', 'Finance', 'Executive', 'Admin'];
 /** An approver is never a field (light) account, so the step picker offers managers and officers only. */
@@ -121,11 +121,9 @@ const DeliveryNoteEditor: React.FC = () => {
   const refusal = useRefusalText();
   const dnQuery = useDeliveryNoteSettings();
   const m = useMaterialRequestMutations();
-  const [enabledDraft, setEnabledDraft] = useState<boolean | null>(null);
   const [blocksDraft, setBlocksDraft] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const enabled = enabledDraft ?? (dnQuery.data?.enabled ?? false);
   const blocks = blocksDraft ?? (dnQuery.data?.signatureBlocks?.length ? dnQuery.data.signatureBlocks : ['Dispatched by', 'Delivered by', 'Received by']);
 
   const editBlock = (index: number, val: string) => {
@@ -143,17 +141,16 @@ const DeliveryNoteEditor: React.FC = () => {
     setBlocksDraft([...blocks, '']);
   };
 
-  const dirty = enabledDraft !== null || blocksDraft !== null;
-  const valid = !enabled || (blocks.length > 0 && blocks.every((b) => b.trim().length > 0));
+  const dirty = blocksDraft !== null;
+  const valid = blocks.length > 0 && blocks.every((b) => b.trim().length > 0);
 
   const save = async () => {
     setError(null);
     try {
       await m.setDeliveryNoteSettings.mutateAsync({
-        enabled,
+        enabled: true,
         signatureBlocks: blocks.map((b) => b.trim()).filter(Boolean),
       });
-      setEnabledDraft(null);
       setBlocksDraft(null);
       toast(t('settings.deliveryNoteSaved', 'Delivery note settings saved'), undefined, 'success');
     } catch (err) {
@@ -177,19 +174,7 @@ const DeliveryNoteEditor: React.FC = () => {
       {dnQuery.data && (
         <div className="space-y-4" data-testid="delivery-note-settings-editor">
           {error && <FormErrorStrip>{error}</FormErrorStrip>}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              checked={enabled}
-              onChange={(checked) => setEnabledDraft(checked)}
-              label={t('settings.deliveryNoteEnabled', 'Enable printable delivery note')}
-            />
-            <span className="text-sm font-medium text-foreground cursor-pointer" onClick={() => setEnabledDraft(!enabled)}>
-              {t('settings.deliveryNoteEnabled', 'Enable printable delivery note')}
-            </span>
-          </div>
-
-          {enabled && (
-            <div className="space-y-3 pt-2 border-t border-border">
+          <div className="space-y-3">
               <p className="text-sm font-medium text-foreground">
                 {t('settings.signatureBlocks', 'Signature blocks')}
               </p>
@@ -219,8 +204,7 @@ const DeliveryNoteEditor: React.FC = () => {
               <Button variant="outline" size="sm" onClick={addBlock}>
                 {t('settings.addSignatureBlock', 'Add signature block')}
               </Button>
-            </div>
-          )}
+          </div>
 
           <div className="pt-2">
             <Button
@@ -303,8 +287,8 @@ const MaterialRequestSettingsPage: React.FC = () => {
       <h1 className="mb-4 text-xl font-semibold">{t('settings.title', 'Approval settings')}</h1>
       <RecordStack>
         <ChainEditor />
-        <CanWrite entity="approvalChain" action="manage"><CutoffEditor /><ApproverInboxSetting /></CanWrite>
-        <CanWrite entity="approvalChain" action="manage"><DeliveryNoteEditor /></CanWrite>
+        <CanWrite entity="approvalChain" action="manage"><CutoffEditor /></CanWrite>
+        <CanWrite entity="approvalChain" action="manage"><ModuleGate module="modulePurchasingExtras"><DeliveryNoteEditor /></ModuleGate></CanWrite>
         <CanWrite entity="approvalChain" action="manage"><UsageThresholdsEditor /><UsageInstalledSourceEditor /></CanWrite>
         <StandInEditor />
       </RecordStack>

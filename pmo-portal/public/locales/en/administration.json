@@ -1,4 +1,8 @@
 {
+  "orgSwitch": {
+    "loadError": "Couldn't load this setting",
+    "adminOnly": "Only an Admin can change this."
+  },
   "onlyActiveAdmin": "The only active Admin cannot be disabled",
   "odoo": {
     "banner": {
@@ -611,6 +615,32 @@
     "retry": "Retry"
   },
   "admin": {
+    "modules": {
+      "intro": "Each module switches a group of features on or off for everyone in your organisation. Turning a module off hides its screens and settings. Nothing is deleted, and turning it back on brings everything back.",
+      "peopleCrews": {
+        "label": "People and crews",
+        "helper": "Built-in roles, the clearance checklist for site access, leave requests and crew loans."
+      },
+      "siteDay": {
+        "label": "Site day",
+        "helper": "Daily safety records, and the cost and schedule performance panels on work orders."
+      },
+      "stock": {
+        "stepsHeading": "Steps and notices (off until you choose)",
+        "label": "Stock",
+        "helper": "Work-order transfers, stock reservations and borrowing, two-step transfers and the approvals inbox for material requests."
+      },
+      "purchasingExtras": {
+        "label": "Purchasing extras",
+        "helper": "Purchase line planning, purchase types, payment channels, printable purchase orders and delivery notes."
+      },
+      "billingExtras": {
+        "noticesHeading": "Notices (off until you choose)",
+        "label": "Billing extras",
+        "helper": "Revenue per discipline, the revenue plan, idle time as cost, and the reminder for work that is done but not claimed."
+      }
+    },
+    "modulesNav": "Modules",
     "candidateTemplate": {
       "saved": "Checklist saved",
       "title": "Candidate work order checklist",
@@ -793,17 +823,6 @@
       "saved": "List saved",
       "duplicate": "That name is already in the list"
     },
-    "builtInRoles": {
-      "title": "Built-in roles",
-      "loadError": "Couldn't load the built-in roles setting",
-      "saved": "Built-in roles setting saved",
-      "helper": "Offer 28 roles across the functions of a contractor, in three levels. Each starts from one of the five access levels, so turning this on changes nothing until someone is given a role. People already given a role keep it if you turn this off.",
-      "on": "On",
-      "off": "Off",
-      "adminOnly": "Only an Admin can change this.",
-      "turnOn": "Turn on built-in roles",
-      "turnOff": "Turn off built-in roles"
-    },
     "hidePrices": {
       "title": "Hide prices from requesters",
       "loadError": "Couldn't load the hide prices setting",
@@ -849,13 +868,6 @@
       "saved": "Attendance target saved",
       "title": "Attendance target",
       "turnOff": "Turn off"
-    },
-    "crewLoans": {
-      "title": "Crew loans",
-      "label": "Allow lending workers between crews",
-      "helper": "A lent worker follows the host crew on its roster and attendance for the loan period. Off, the Crews page shows no loans.",
-      "loadError": "Couldn't load the crew loans setting",
-      "adminOnly": "Only an Admin can change this."
     },
     "attendanceRoles": {
       "title": "Time records",
@@ -1157,8 +1169,7 @@
   },
   "performanceIndices": {
     "title": "Cost and schedule performance",
-    "description": "Shows the cost and schedule performance indices on projects and work orders. Off until you turn it on.",
-    "enabled": "Show performance indices",
+    "description": "Sets the limits the cost and schedule performance indices are read against on work orders.",
     "low": "Lower limit (below this reads as a problem)",
     "high": "Upper limit (above this reads as ahead)",
     "helper": "The lower limit must be above 0 and below 1; the upper limit above 1. Defaults are 0.90 and 1.10.",
@@ -1173,12 +1184,7 @@
     "off": "Off"
   },
   "idleCost": {
-    "title": "Idle time as cost",
-    "intro": "Cost the idle hours recorded on daily site reports at the work order's average hourly cost, per idle reason. Shown apart from direct cost, which already includes those hours. Needs labour cost in money.",
-    "loadError": "Couldn't load this setting",
-    "switch": "Cost idle hours in money",
     "adminOnly": "Only an Admin or Finance can change this setting.",
-    "needsLabour": "Nothing shows until labour cost in money is switched on.",
     "scope": "Idle cost covers",
     "scopeHelper": "People: idle hours times the crew present each day. Equipment: standby cost of rented equipment on days with idle time. Neither is added to direct cost.",
     "scopeLabour": "Idle hours at the average hourly cost",
@@ -1186,9 +1192,7 @@
   },
   "issueClosingReport": {
     "title": "Issue closing-time report",
-    "helper": "Enable the closing-time report and configure department groupings.",
-    "enableLabel": "Enable closing-time report",
-    "enableHelper": "Makes the closing-time report available on the Incidents register.",
+    "helper": "Choose how the closing-time report groups issues, and set up department groups.",
     "groupingMode": "Default grouping",
     "modeType": "By issue type",
     "modeDepartmentGroups": "By custom department groups",
@@ -1246,15 +1250,11 @@
     "cleared": "Cleared",
     "notCleared": "Not cleared",
     "setting": {
-      "loadError": "Couldn’t load this setting",
-      "heading": "Cleared-for-site checklist",
-      "label": "Track who is cleared to go to site",
-      "help": "Adds a Clearance section where you list what each person needs and record when it is done. Nothing else changes.",
-      "onlyAdmin": "Only an Admin can change this."
+      "loadError": "Couldn’t load this setting"
     },
     "off": {
       "title": "The clearance checklist is not turned on",
-      "sub": "An Admin can turn it on under People."
+      "sub": "An Admin can turn it on under Modules, in People and crews."
     },
     "person": {
       "errDone": "Enter the date it was done",

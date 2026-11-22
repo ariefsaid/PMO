@@ -20,22 +20,6 @@ export interface ClearanceStateInput { done_on: string; expires_on: string | nul
 
 function fail(error: { message: string; code?: string }): never { throw new AppError(error.message, error.code); }
 
-/** The organisation switch (default off). Read by every active member; written by an Admin only (RLS + column grant). */
-export async function getClearanceEnabled(): Promise<boolean> {
-  const { data, error } = await supabase.from('organizations').select('clearance_checklist_enabled').limit(1);
-  if (error) fail(error);
-  return data?.[0]?.clearance_checklist_enabled === true;
-}
-export async function setClearanceEnabled(enabled: boolean): Promise<void> {
-  // Two rows are all this needs: anything above one is refused below, and a bound keeps the read off the 1000-row cap.
-  const { data: orgs, error: readError } = await supabase.from('organizations').select('id').limit(2);
-  if (readError) fail(readError);
-  const id = orgs?.[0]?.id;
-  if (!id || (orgs?.length ?? 0) > 1) throw new AppError('No single organisation is readable for the current user', 'no-org');
-  const { data, error } = await supabase.from('organizations').update({ clearance_checklist_enabled: enabled }).eq('id', id).select('id');
-  if (error) fail(error);
-  assertWriteLanded(data, 'You do not have permission to change this setting.');
-}
 
 export async function listClearanceItems(): Promise<ClearanceItemRow[]> {
   const { data, error } = await supabase.from('clearance_items').select('id, name, is_required, sort_order, document_type_id')

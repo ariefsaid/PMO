@@ -8,7 +8,7 @@ import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { useLeaveEnabled } from '@/src/hooks/useLeave';
-import { useSafetyNavEnabled } from '@/src/hooks/useSafetyDays';
+import { useSafetyMenuOn } from '@/src/hooks/useSafetyDays';
 import { useTerms } from '@/src/lib/i18n/terms';
 import { Badge } from '@/src/components/ui/StatusPill';
 import { useBuiltInRoleKey, usePermission } from '@/src/auth/usePermission';
@@ -300,7 +300,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const { data: userViews } = useUserViews(userViewsEnabled);
   const agentAssistantEnabled = useFeature('agent_assistant');
   const leaveEnabled = useLeaveEnabled();
-  const safetyEnabled = useSafetyNavEnabled();
+  const safetyEnabled = useSafetyMenuOn();
   const terms = useTerms();
   // The person's function (HR, safety, stock…) orders the menu by what they do daily; absent for a legacy account.
   const authCtx = useContext(AuthContext);

@@ -2764,3 +2764,8 @@ on conflict (id) do nothing;
 -- W.7 — (withdrawn) The Microsoft 365 entitlement stays OFF in the seed: e2e journeys assume the unentitled
 -- default and entitle one page at a time (e2e/helpers.ts grantM365EntitlementFixture). Measure the M365 card the
 -- same way, by rewriting the org_features read for that page only.
+
+-- Module switches (1670): a fresh database runs the migration with no data, which turns every module off for the demo
+-- organisation. The demo shows everything, so turn them on here. Local seed only.
+update public.organizations set module_people_crews = true, module_site_day = true, module_stock = true,
+  module_purchasing_extras = true, module_billing_extras = true;

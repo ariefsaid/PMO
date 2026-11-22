@@ -985,7 +985,6 @@
     "heading": "Purchase order printing",
     "subline": "Enable printable purchase orders, then set the signature blocks and the people authorised to collect goods.",
     "loadError": "Couldn't load purchase order settings",
-    "enablePrint": "Enable printable purchase order",
     "enablePrintHelp": "Shows the print action on purchase orders and lets a printed copy name who may collect the goods.",
     "collectorsHeading": "Authorised collectors",
     "collectorsHelp": "Named people who may collect purchased goods from a supplier. If the list is empty, the document prints an open line to be filled in by hand.",
@@ -1023,9 +1022,9 @@
     "refusedRole": "Only an Admin can change the three-way match."
   },
   "paymentChannel": {
+    "noneYet": "No payment channels yet. An Admin adds them under Payment channels in Accounting setup.",
     "heading": "Payment channels",
-    "intro": "Record how each purchase request will be paid. Off until you turn it on.",
-    "switchLabel": "Record a payment channel on purchase requests",
+    "intro": "Record how each purchase request will be paid. Edit the list of channels here.",
     "onlyAdmin": "Only an Admin can change this.",
     "loadError": "Couldn’t load payment channels",
     "saving": "Saving…",
@@ -1051,9 +1050,9 @@
     "columnHeader": "Payment channel"
   },
   "linePlanning": {
+    "noCategoriesHere": "No categories yet. An Admin adds them under Line planning in Accounting setup.",
     "heading": "Line planning",
     "intro": "Each request line can carry a category and the date it is needed.",
-    "enable": "Show a category and a needed-by date on each request line",
     "categories": "Categories",
     "categoryName": "Category name",
     "addCategory": "Add category",

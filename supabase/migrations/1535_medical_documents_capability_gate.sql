@@ -1,4 +1,5 @@
 -- 1535: who may see medical-document status and dates is decided by one rule, read by the in-app policy and the expiry email.
+-- drops: enqueue_notification_email replaces its inline medical-document role checks with the shared may_see_medical_documents predicate.
 -- Rollback: supabase/migrations/rollback/1535_medical_documents_capability_gate_down.sql
 -- drops: enqueue_notification_email no longer spells the Admin-or-capability test inline (the three lines naming p.role = 'Admin' and the capability table); it calls may_see_medical_documents(p.id), the same rule in its one gate.
 -- may_see_medical_documents(profile) = an active person holding the Admin access level or the medical_documents_view capability
