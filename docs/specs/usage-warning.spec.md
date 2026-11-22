@@ -31,6 +31,7 @@ Added beside the request-time warning, which stays exactly as shipped (nothing i
 ## Requirements (EARS)
 
 - FR-UW-010 The system shall hold one nullable responsible person per work order, an active member of the work order's organisation (the database refuses another organisation or a disabled member).
+- FR-UW-013 A foreman or field user cannot be the responsible person (the database refuses, `RSP_FIELD_ACCOUNT`; the picker does not offer them), and a responsible person who has since become a field account is skipped for the project manager by the recipient rule.
 - FR-UW-011 Whoever may edit the work order may name or clear the responsible person; the work-order screen shows it and offers the choice only to them, in English and Bahasa Indonesia; others read the name, or "Not set" with who sets it.
 - FR-UW-012 The responsible person is the site engineer the usage warning goes to.
 - FR-UW-002 **Installed** quantity of an item on a work order is, by the organisation's source (FR-UW-020): `site_reports`: the sum of material lines on the work order's reports that are validated, not superseded and not archived; `stock_issues`: posted issues less posted returns to the work order. Requests, transfers and the other source never count.
@@ -62,6 +63,7 @@ Added beside the request-time warning, which stays exactly as shipped (nothing i
 | AC-UW-011 | Given the work-order screen, then someone who may edit names or clears the responsible person; a reader sees the name or "Not set" and who sets it. | Unit |
 | AC-UW-012 | Given a validated report of 85 against plan 100 at 80 percent, then the responsible person is told and the work-order card shows the item. | e2e |
 | AC-UW-013..016 | The responsible person: default null, set and cleared; refused for a role that may not edit work orders, another organisation's person, a disabled member, another organisation's work order. | pgTAP (`work_order_responsible.test.sql`) |
+| AC-UW-019, 020 | A field account cannot be named (refused, not stored, not offered in the picker); a named person who later becomes a field account is skipped and the project manager is told. | pgTAP + Unit |
 | AC-UW-017 | Given the check raises an error, then a report still validates and a stock issue still posts. | pgTAP |
 | AC-UW-018 | Given a report is archived, then the work order is checked. | pgTAP |
 
@@ -72,6 +74,7 @@ Added beside the request-time warning, which stays exactly as shipped (nothing i
 | Non-Admin sets the source | `MRQ_USAGE_ADMIN_ONLY` | Only an Admin can change the usage warning. Ask an Admin to change it. |
 | Unknown source | `MRQ_USAGE_INVALID` | Choose site reports or stock issues as what counts as installed. |
 | Role may not edit the work order | `RSP_FORBIDDEN` | Your role cannot set the responsible person. Ask a project manager or an Admin. |
+| A foreman or field user | `RSP_FIELD_ACCOUNT` | A foreman or field user cannot be the responsible person. Choose an office member. |
 | Person not an active member of this organisation | `RSP_PERSON` | Choose an active member of this organisation as the responsible person. |
 
 ## Existing tests whose steps change, and why
