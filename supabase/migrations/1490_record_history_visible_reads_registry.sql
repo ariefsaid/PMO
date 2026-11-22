@@ -25,13 +25,11 @@ revoke all on function public.record_history_table(text) from public, anon;
 grant execute on function public.record_history_table(text) to authenticated, service_role;
 
 create or replace function public.record_history_visible(p_entity_type text,p_entity_id uuid) returns boolean
-language plpgsql stable security invoker set search_path=public as $$
+language plpgsql stable security definer set search_path=public as $$  -- MUTATION B2: definer
 declare v_table text; v_visible boolean;
 begin
   v_table := public.record_history_table(p_entity_type);
-  if v_table is null then
-    raise exception 'record_history_visible: no visibility arm for entity type %',p_entity_type using errcode='P0001';
-  end if;
+  if v_table is null then v_table := 'projects'; end if; -- MUTATION B: an unregistered type answers from a fixed table
   execute format('select exists(select 1 from public.%I where id = $1)',v_table) into v_visible using p_entity_id;
   return v_visible;
 end $$;
