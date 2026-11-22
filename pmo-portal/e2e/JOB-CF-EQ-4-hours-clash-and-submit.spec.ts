@@ -7,7 +7,7 @@
  * never shown the raw "already exists" message; a broken machine asks before a row is added; submit-week is below the grid.
  */
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 import { ENGINEER_ID, need, ORG_ID, orgToday, PM_ID, serviceClient } from './support/jobJourney';
 import { formatDay } from '../src/lib/format';
 
@@ -87,6 +87,7 @@ test('JOB-CF-EQ-4 submit-week sits below the hours and says what happens next an
   await expect(section).toBeVisible({ timeout: 20_000 });
   await expect(section).toContainText('Submitting sends');
   await expect(section).toContainText('Approver:');
+  await waitForFonts(page);
   const gridBox = await page.getByRole('table', { name: 'Equipment usage this week' }).boundingBox();
   const sectionBox = await section.boundingBox();
   expect(sectionBox!.y).toBeGreaterThan(gridBox!.y + gridBox!.height - 1);

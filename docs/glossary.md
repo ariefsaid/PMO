@@ -846,7 +846,7 @@ parts. One per machine per day; separate from what the machine did (usage).
 
 **Physical availability** (*ketersediaan*) — the share of a machine's recorded in-service days on which it was ready or
 standby, shown to one decimal. A day with no status is unrecorded and counts in neither the top nor the bottom of the
-fraction; the screen names how many.
+fraction; the screen names how many. Days before the organisation's first day (its creation, or its earliest recorded status or usage) are not counted as unrecorded.
 
 **Utilisation** (*pemanfaatan*) — approved work hours divided by available days times the organisation's working hours per
 day. Standby is available but not utilised; unapproved usage is left out and named.
@@ -1356,3 +1356,7 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Idle cost** — the recorded idle hours of validated daily site reports, per idle reason, multiplied by the work order's hourly cost (priced labour amount divided by priced labour hours, a weighted average over its history). A lost-time view of cost already inside direct cost: shown apart, never added to it. OFF until an organisation switch and labour cost in money are both on (#2673).
 
 **Management profit and loss** — the Reports screen (management pack) read as a profit and loss PMO produces from its own records: recognised, invoiced and earned revenue per project and, while Profit per discipline is on, cost and margin on both revenue bases. It is not a ledger statement; trial balance, profit and loss and balance sheet come from a connected accounting system. An organisation with none connected is led from Statements and the Finance hub Net profit tile to it (#2734).
+
+**Equipment manager** — the person who runs the machines: today a Project Manager (or Admin). They add and edit machines and their rental terms, set the working hours per day, the availability and use targets and the escalation limit, and read the rental invoice check; Finance keeps the costing and the unproven-days decision (equipment manager's day lane, migration 1600).
+
+**Hours log** — the weekly grid where hours on a machine are logged per project and day (`/equipment?view=hours`); Equipment itself opens on the machines and today's status.

@@ -13,7 +13,8 @@ import { monthStart } from './equipmentWeek';
 import RentalInvoiceCheck from './RentalInvoiceCheck';
 import { EquipmentTargetSettings, EquipmentTargetsProvider } from './EquipmentTargets';
 import { useEquipmentTargetValues } from '@/src/hooks/useEquipmentTargets';
-import { MachineStatusSection, STATUSES, statusEffect, statusLabel } from './MachineStatusSection';
+import { MachineStatusSection } from './MachineStatusSection';
+import { STATUSES, statusEffect, statusLabel } from './equipmentStatusLabels';
 import { formatIsoDay } from '@/src/lib/format';
 
 const EquipmentAvailabilityScreen: React.FC = () => {

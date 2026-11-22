@@ -18,7 +18,7 @@ import { useLatestStatusDays } from '@/src/hooks/useEquipmentAvailability';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
 import { isDownStatus, type EquipmentStatus } from '@/src/lib/equipmentMetrics';
-import { statusLabel } from './MachineStatusSection';
+import { statusLabel } from './equipmentStatusLabels';
 import { useUsers } from '@/src/hooks/useUsers';
 import { type EquipmentAssetRow, type EquipmentUsageWithRejecter as EquipmentUsageRow, type UsageInput } from '@/src/lib/db/equipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';

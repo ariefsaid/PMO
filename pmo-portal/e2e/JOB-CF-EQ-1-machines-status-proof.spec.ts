@@ -7,7 +7,7 @@
  * from that one form; the page says nobody is messaged right away and who is told after the limit; the hours log opens.
  */
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 import { need, ORG_ID, orgToday, serviceClient } from './support/jobJourney';
 
 test.setTimeout(180_000);
@@ -66,6 +66,7 @@ test('JOB-CF-EQ-1 on a 390 px phone the machine list and the availability figure
   await expect(page.getByRole('link', { name: code, exact: true })).toBeVisible({ timeout: 20_000 });
   await page.goto('/equipment/availability');
   await expect(page.getByRole('heading', { name: 'This month' })).toBeVisible({ timeout: 20_000 });
+  await waitForFonts(page);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });
