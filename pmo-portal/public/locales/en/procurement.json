@@ -117,7 +117,15 @@
     "receipt_before_invoice": "Receipt required before invoice",
     "approval_before_payment": "Approval required before payment",
     "saving": "Saving…",
-    "saved": "Saved"
+    "saved": "Saved",
+    "imprestLimit": {
+      "heading": "Site cash limit",
+      "help": "The largest single spend site cash covers. Set it before setting up site cash. Only an Admin can set it.",
+      "notSet": "Not set yet. Site cash cannot be set up until it is.",
+      "current": "Current limit: {{amount}}",
+      "label": "Limit per spend",
+      "save": "Save limit"
+    }
   },
   "documents": {
     "attachTo": "Attach to",
