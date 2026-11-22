@@ -204,3 +204,33 @@ describe('AC-CQ-014 ProgressClaimModal lump-sum percent (DD-CQ-1)', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 });
+
+describe('ProgressClaimModal over-claim warning (survey-cap-warn)', () => {
+  const facts = (accepted: number | null) => [lineFacts('b1', []), lineFacts('b2', [allocFacts('wo-1', 'b2', 5, 1, accepted)])];
+  const pickScope = async (user: ReturnType<typeof userEvent.setup>) => user.selectOptions(screen.getByLabelText(/Bills/), 'wo-1');
+
+  it('AC-SCW-005 warns past accepted minus claimed, shows the headroom, and still lets the claim be raised', async () => {
+    const { onSave, user } = renderModal({ contractLines: facts(3) });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '3');
+    const warning = screen.getByTestId('claim-overclaim-b2');
+    expect(warning).toHaveTextContent('more than the 2 unit still claimable (accepted 3, already claimed 1)');
+    expect(warning).toHaveTextContent('You can still raise the claim');
+    await user.click(screen.getByRole('button', { name: 'Create claim' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ workOrderId: 'wo-1', lines: [{ boqItemId: 'b2', quantity: 3 }] }));
+  });
+
+  it('AC-SCW-005 no warning exactly at the headroom', async () => {
+    const { user } = renderModal({ contractLines: facts(3) });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '2');
+    expect(screen.queryByTestId('claim-overclaim-b2')).toBeNull();
+  });
+
+  it('AC-SCW-006 with nothing accepted the warning is measured against ordered minus claimed', async () => {
+    const { user } = renderModal({ contractLines: facts(null) });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '5');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('more than the 4 unit still claimable (ordered 5, already claimed 1, nothing accepted yet)');
+  });
+});

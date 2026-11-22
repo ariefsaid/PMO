@@ -88,6 +88,38 @@ export function claimNet(gross: number, recovery: number): number {
   return fromCents(toCents(gross) - toCents(recovery));
 }
 
+/** What a claim on one work-order line can still take, and what that ceiling is measured against. */
+export interface ClaimableHeadroom {
+  /** The ceiling quantity: surveyed when known, else accepted (BAST), else ordered. */
+  ceiling: number;
+  basis: 'surveyed' | 'accepted' | 'ordered';
+  /** Ceiling minus already claimed, never below 0. */
+  headroom: number;
+  /** Ceiling minus already claimed, signed: negative means the line is already over the ceiling. */
+  signedHeadroom: number;
+}
+
+/**
+ * Single source for "how much can still be claimed on this work-order line" (survey-cap-warn).
+ * Ceiling precedence: a jointly surveyed quantity (fed in by the survey record, when one exists), else the accepted (BAST)
+ * quantity, else the ordered quantity. A BAST of zero is a BAST (`accepted !== null`). Integer milli-units, no float maths.
+ * The claim form warns on it; the database stop (setting-gated) and the survey record reuse this same rule.
+ */
+export function claimableHeadroom(input: {
+  ordered: number;
+  claimed: number;
+  accepted: number | null;
+  surveyed?: number | null;
+}): ClaimableHeadroom {
+  const { basis, ceiling } = input.surveyed != null
+    ? { basis: 'surveyed' as const, ceiling: milli(input.surveyed) }
+    : input.accepted !== null
+      ? { basis: 'accepted' as const, ceiling: milli(input.accepted) }
+      : { basis: 'ordered' as const, ceiling: milli(input.ordered) };
+  const signed = ceiling - milli(input.claimed);
+  return { ceiling: ceiling / 1000, basis, headroom: Math.max(signed, 0) / 1000, signedHeadroom: signed / 1000 };
+}
+
 export function remainingQuantity(boqQuantity: number, claimed: number): number {
   return (milli(boqQuantity) - milli(claimed)) / 1000;
 }
