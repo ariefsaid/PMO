@@ -128,8 +128,12 @@ insert into people (id, org_id, code, name, created_by, created_at) values
    '28320000-0000-0000-0000-000000000b08', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c21') + interval '10 days'),
   ('28320000-0000-0000-0000-000000000e62', '28320000-0000-0000-0000-000000000a03', 'CTDR-C', 'Off Clearance',
    '28320000-0000-0000-0000-000000000b31', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c31') + interval '10 days');
-insert into person_clearances (id, person_id, item_id, done_on) values
-  ('28320000-0000-0000-0000-000000000ae1', '28320000-0000-0000-0000-000000000e15', '28320000-0000-0000-0000-000000000c11', current_date);
+-- No JWT claims exist yet in this file, so the column default would fall back to the seed-org sentinel and the shipped
+-- same-org guard (1236) would refuse it. This is a privileged fixture insert: pass the fixture organisation explicitly.
+-- Client writes are untouched (the guard, defaults and policies are unchanged).
+insert into person_clearances (id, org_id, person_id, item_id, done_on) values
+  ('28320000-0000-0000-0000-000000000ae1', '28320000-0000-0000-0000-000000000a01',
+   '28320000-0000-0000-0000-000000000e15', '28320000-0000-0000-0000-000000000c11', current_date);
 insert into expiry_documents (id, org_id, subject_kind, person_id, type_id, issued_on, expires_on) values
   ('28320000-0000-0000-0000-000000000af1', '28320000-0000-0000-0000-000000000a01', 'person',
    '28320000-0000-0000-0000-000000000e15', '28320000-0000-0000-0000-000000000d11', current_date - 30, current_date + 30);
