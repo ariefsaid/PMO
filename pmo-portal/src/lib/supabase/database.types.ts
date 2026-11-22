@@ -10372,6 +10372,7 @@ export type Database = {
           status: Database["public"]["Enums"]["incident_status"]
           task_id: string | null
           type: string
+          type_id: string | null
           work_order_id: string | null
         }
         Insert: {
@@ -10396,6 +10397,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["incident_status"]
           task_id?: string | null
           type: string
+          type_id?: string | null
           work_order_id?: string | null
         }
         Update: {
@@ -10420,6 +10422,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["incident_status"]
           task_id?: string | null
           type?: string
+          type_id?: string | null
           work_order_id?: string | null
         }
         Relationships: [
@@ -10463,6 +10466,13 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: true
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_reports_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "incident_types"
             referencedColumns: ["id"]
           },
           {
@@ -10540,6 +10550,38 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: true
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incident_types: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          id: string
+          label: string
+          org_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          label: string
+          org_id?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_types_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -30872,6 +30914,16 @@ export type Database = {
       get_work_order_billed_months: {
         Args: { p_as_of?: string; p_work_order: string }
         Returns: Json
+      }
+      get_work_order_effective_hours: {
+        Args: { p_from: string; p_to: string; p_work_order: string }
+        Returns: {
+          effective_minutes: number
+          has_times: boolean
+          stopped_minutes: number
+          work_date: string
+          worked_minutes: number
+        }[]
       }
       get_work_order_material_vs_progress: {
         Args: { p_work_order_id: string }
