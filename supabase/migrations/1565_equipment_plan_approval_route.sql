@@ -8,7 +8,8 @@
 --
 -- It answers with equipment_plan_approver_ok's own route (1358, the only definition; no later migration restates it): the
 -- same branches, the same level election and the same raw-list behaviour. It must never answer with a different route, and
--- never stricter than the WRITE gate that finally decides — a candidate is someone the whole gate would let decide:
+-- never stricter than the WRITE gate that finally decides — a candidate is someone the whole gate would let decide for
+-- every account state the app can produce:
 --   * the organisation switch must be on, and the author is out while allow_self_approval is off — every role, Admin included;
 --   * approval_step 'senior_role' → anyone whose role holds spend-approval authority;
 --   * otherwise the project's spend_approvers list when that level has an eligible (active, rank-holding) member,
@@ -40,8 +41,9 @@
 -- `status is distinct from 'Submitted'` return and the 'not_waiting' tests go red; delete
 -- `and (v_set.allow_self_approval or pf.id is distinct from v_plan.created_by)` from a candidate branch and its
 -- self-approval test goes red; change the plan lookup to `security definer` and the foreign organisation / unknown-id tests
--- go red (a plan the caller may not see becomes visible); delete `and not public.is_light_role_key(pf.built_in_role)` and the
--- retained-light-candidate tests go red (the route would name a person the write refuses). Proven by
+-- go red (a plan the caller may not see becomes visible); delete `and not public.is_light_role_key(pf.built_in_role)` from
+-- the project or organisation raw-list arm and the retained-light-candidate tests go red (those arms would name a person the
+-- write refuses). Proven by
 -- supabase/tests/1565_equipment_plan_approval_route.test.sql.
 --
 -- REVERSE: supabase/migrations/rollback/1565_equipment_plan_approval_route_down.sql
@@ -149,9 +151,9 @@ comment on function public.get_equipment_plan_approval_route(uuid) is
   'DISPLAY ONLY — the people a Submitted equipment plan waits for, from equipment_plan_approver_ok''s own route '
   '(1358: the organisation switch, the author out while self-approval is off, the senior-role step, else the project senior '
   'set, else the organisation''s, else an Admin), limited to the people the approve and reject functions would not refuse '
-  'themselves (a light, field account is never named). SECURITY INVOKER: the plan''s own row-level policy decides whether '
-  'there is a plan to answer about. It decides nothing and writes nothing; the approve and reject functions remain the '
-  'authority.';
+  'for the account states the app supports (a light, field account is never named). SECURITY INVOKER: the plan''s own '
+  'row-level policy decides whether there is a plan to answer about. It decides nothing and writes nothing; the approve '
+  'and reject functions remain the authority.';
 
 revoke all on function public.get_equipment_plan_approval_route(uuid) from public, anon, authenticated;
 grant execute on function public.get_equipment_plan_approval_route(uuid) to authenticated;
