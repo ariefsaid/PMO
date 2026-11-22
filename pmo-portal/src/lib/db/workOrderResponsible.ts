@@ -14,9 +14,9 @@ export async function setWorkOrderResponsiblePerson(workOrderId: string, personI
   if (error) throw toAppError(error);
 }
 
-/** Active members who can be named, by name. */
+/** Active office members who can be named, by name. A foreman or field user is not offered: they cannot open the work order. */
 export async function listResponsibleCandidates(): Promise<Array<{ id: string; name: string }>> {
-  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('status', 'active').order('full_name').order('id').limit(500);
+  const { data, error } = await supabase.from('profiles').select('id, full_name, built_in_role').eq('status', 'active').order('full_name').order('id').limit(500);
   if (error) throw toAppError(error);
-  return (data ?? []).map((p) => ({ id: p.id, name: p.full_name }));
+  return (data ?? []).filter((p) => p.built_in_role !== 'foreman' && p.built_in_role !== 'field_user').map((p) => ({ id: p.id, name: p.full_name }));
 }

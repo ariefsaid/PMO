@@ -59,12 +59,13 @@ end $$;
 revoke all on function public.usage_installed_qty(uuid, uuid) from public, anon, authenticated, service_role;
 
 -- Who is told: the work order's responsible person (1860); when there is none, or that person is no longer an active member,
--- the project's manager. Null when neither can be told. One body: change the rule here and nowhere else.
+-- the project's manager (a field account, which cannot open the work order, is skipped). Null when neither can be told. One body: change the rule here and nowhere else.
 create function public.usage_warning_recipient(p_work_order uuid) returns uuid
   language sql stable security definer set search_path = public, pg_temp as $$
   select coalesce(
     (select w.responsible_person_id from public.work_orders w join public.profiles p on p.id = w.responsible_person_id and p.org_id = w.org_id
-      where w.id = p_work_order and public.is_active_member(w.responsible_person_id)),
+      where w.id = p_work_order and public.is_active_member(w.responsible_person_id)
+        and not public.is_light_role_key(p.built_in_role)),                                                  -- mut:usage_recipient_light
     (select pr.project_manager_id from public.work_orders w
        join public.projects pr on pr.id = w.project_id and pr.org_id = w.org_id
        join public.profiles p on p.id = pr.project_manager_id and p.org_id = w.org_id

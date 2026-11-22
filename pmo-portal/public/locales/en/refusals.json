@@ -172,6 +172,7 @@
   "PTYPE_PERIOD_NOT_ALLOWED": "Only a rental purchase has a rental period.",
   "PTYPE_PERIOD_REQUIRED": "A rental purchase needs a rental period.",
   "PTYPE_UNAVAILABLE": "That type is not available.",
+  "RSP_FIELD_ACCOUNT": "A foreman or field user cannot be the responsible person. Choose an office member.",
   "RSP_FORBIDDEN": "Your role cannot set the responsible person. Ask a project manager or an Admin.",
   "RSP_PERSON": "Choose an active member of this organisation as the responsible person.",
   "RSV_BORROW_CHANGED": "More reserved stock would be borrowed than was approved. Send the request back and submit it again.",

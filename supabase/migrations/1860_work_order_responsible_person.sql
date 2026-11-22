@@ -1,6 +1,7 @@
 -- 1860_work_order_responsible_person.sql — a work order's responsible person (the site engineer): one nullable person on the work order.
 -- Spec docs/specs/usage-warning.spec.md (FR-UW-010..012). Later items in the gap-material lane read this column. Proven by supabase/tests/work_order_responsible.test.sql.
 -- REVERSE: rollback/1860_work_order_responsible_person_down.sql.
+-- A field (light) account cannot be named: it cannot open the work order the warning is about.
 -- Same shape as 1320's site location: a nullable column, a same-organisation guard trigger, a definer setter (the client UPDATE column list on
 -- work_orders is a pinned surface), and the change-history registry entry. Nothing reads it yet; null for every existing work order.
 
@@ -17,6 +18,9 @@ begin
     if not exists (select 1 from public.profiles p                                                     -- mut:rsp_same_org
                     where p.id = new.responsible_person_id and p.org_id = new.org_id and p.status = 'active') then
       raise exception 'RSP_PERSON: the responsible person must be an active member of this organisation' using errcode = '23514';
+    end if;
+    if public.is_light_role_key((select p.built_in_role from public.profiles p where p.id = new.responsible_person_id)) then   -- mut:rsp_light
+      raise exception 'RSP_FIELD_ACCOUNT: a foreman or field user cannot be the responsible person' using errcode = '23514';
     end if;
   end if;
   return new;
