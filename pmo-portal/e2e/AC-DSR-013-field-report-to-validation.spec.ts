@@ -1,9 +1,12 @@
-// @e2e-isolation: self-isolated — creates its own uniquely-named project, work order and contract line each run and deletes them (and the report) afterwards; touches no shared seed row.
+// @e2e-isolation: self-isolated — creates its own uniquely-named project, work order and contract line each run and deletes them (and the report) afterwards; reads the seeded Project Manager and assigns them to its OWN project, touching no shared seed row.
 /**
- * AC-DSR-013 — daily site report (#1522): the one cross-stack journey. On a 390px phone the field Engineer starts a
- * report for today on a work order, enters progress, and submits it; Validate is never offered to them. Finance (the
- * QS stand-in) then finds it in the validation queue with the paper form's photo attached.
- * Goal oracle: the report reaches the QS queue, submitted, with its photo, and the author cannot validate it.
+ * AC-DSR-013 / FR-WAIT-006 — daily site report (#1522): the one cross-stack journey. On a 390px phone the field
+ * Engineer starts a report for today on a work order, enters progress, and submits it; Validate is never offered to
+ * them, and the requester is told who the submitted report waits for. Finance (the QS stand-in) then finds it in the
+ * validation queue with the paper form's photo attached.
+ * Goal oracle: the report reaches the QS queue, submitted, with its photo, the author cannot validate it, and the
+ * requester's who-next line names the assigned Project Manager with their real role while Finance/Admin stay the
+ * true alternatives.
  * The photo ROW is written by the service role: CI runs with Storage disabled (ci.yml), so the upload itself is
  * proven at the unit layer (dailySiteReports.test.ts) and storage access at pgTAP (dsr_report.test.sql).
  */
@@ -14,6 +17,12 @@ import { signIn, requireServiceRoleKey } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
+// Seed contract (supabase/seed.sql §D): the seeded full Project Manager is Diego Salvatierra in the default seed
+// org, status 'active' and built_in_role NULL (not a light account), so he is eligible under dsr_may_validate.
+// The journey assigns him to its OWN project; the beforeEach invariant refuses to run if a retargeted environment
+// no longer holds that seat, rather than selecting some other profile.
+const SEEDED_PM_ID = '00000000-0000-0000-0000-0000000000a2';
+const SEEDED_PM_NAME = 'Diego Salvatierra';
 const VITE_ENV = loadEnv('development', process.cwd(), 'VITE_');
 const SUPABASE_URL = requireMatchingLocalSupabaseUrls(
   process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
@@ -33,7 +42,14 @@ test.beforeEach(async () => {
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
   tag = `DSR-013 ${Date.now()}`;
   const fail = (step: string, e: { message: string } | null) => { if (e) throw new Error(`AC-DSR-013 fixture ${step}: ${e.message}`); };
-  const project = await admin.from('projects').insert({ org_id: ORG_ID, name: tag, status: 'Ongoing Project' }).select('id').single();
+  // The named route needs the seeded ACTIVE FULL Project Manager of THIS organisation. A retargeted E2E org (or a
+  // seed change) must fail here loudly instead of asserting a sentence the page cannot show.
+  const pm = await admin.from('profiles').select('id, org_id, role, status, built_in_role').eq('id', SEEDED_PM_ID).single();
+  fail('project manager read', pm.error);
+  if (pm.data?.org_id !== ORG_ID || pm.data.role !== 'Project Manager' || pm.data.status !== 'active' || pm.data.built_in_role !== null) {
+    throw new Error(`AC-DSR-013 fixture: ${SEEDED_PM_ID} is not an active full Project Manager of organisation ${ORG_ID}`);
+  }
+  const project = await admin.from('projects').insert({ org_id: ORG_ID, name: tag, status: 'Ongoing Project', project_manager_id: SEEDED_PM_ID }).select('id').single();
   fail('project', project.error);
   projectId = project.data!.id;
   const wo = await admin.from('work_orders').insert({
@@ -61,7 +77,7 @@ test.afterEach(async () => {
   projectId = '';
 });
 
-test('AC-DSR-013 a field report entered on a phone reaches the QS queue with its photo, and its author cannot validate it', async ({ page }) => {
+test('AC-DSR-013 / FR-WAIT-006 a phone-entered field report reaches the QS queue with its photo, its author cannot validate it, and its requester is told the assigned PM waits', async ({ page }) => {
   await signIn(page, 'engineer@acme.test');
   await page.goto('/site-reports');
   await page.getByRole('button', { name: 'New report' }).first().click();
@@ -80,6 +96,12 @@ test('AC-DSR-013 a field report entered on a phone reaches the QS queue with its
   await page.getByRole('button', { name: 'Submit' }).click();
   await expect(page.getByTestId('dsr-status')).toHaveAttribute('data-status', 'submitted', { timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Validate' })).toHaveCount(0);
+  // FR-WAIT-006: the requester is told who the submitted report waits for, from the server-computed route: the
+  // assigned PM is named with the database's own role, and Finance/Admin remain the true role-level alternatives.
+  await expect(page.getByTestId('dsr-waiting-for')).toHaveText(
+    `Waiting for ${SEEDED_PM_NAME}, Project Manager or Finance or Admin`,
+    { timeout: 15_000 },
+  );
 
   await signIn(page, 'finance@acme.test');
   await page.goto('/site-reports');
