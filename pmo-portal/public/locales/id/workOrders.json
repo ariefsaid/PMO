@@ -39,9 +39,9 @@
     "timesheetLabel": "{{person}}, minggu {{week}}",
     "timesheetFallback": "Lembar waktu",
     "commitment": {
-      "purchase_request": "Belum dihitung sebagai biaya langsung: permintaan dihitung setelah tagihan supplier dicatat.",
-      "purchase_order": "Belum dihitung sebagai biaya langsung: pesanan dihitung setelah tagihan supplier dicatat.",
-      "goods_receipt": "Barang sudah diterima, tetapi belum dihitung sebagai biaya langsung: penerimaan dihitung setelah tagihan supplier dicatat."
+      "purchase_request": "Belum dihitung sebagai biaya langsung: permintaan dihitung setelah invoice supplier dicatat.",
+      "purchase_order": "Belum dihitung sebagai biaya langsung: pesanan dihitung setelah invoice supplier dicatat.",
+      "goods_receipt": "Barang sudah diterima, tetapi belum dihitung sebagai biaya langsung: penerimaan dihitung setelah invoice supplier dicatat."
     }
   },
   "billing": {

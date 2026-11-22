@@ -179,13 +179,13 @@
     "workInHand": "Pekerjaan dalam tangan",
     "claimsBoard": "Papan klaim: per langkah dan umur",
     "newVendorBill": {
-      "title": "Tagihan supplier baru",
+      "title": "Invoice supplier baru",
       "continue": "Lanjut ke tagihan",
       "purchase": "Pembelian",
       "purchaseNoun": "pembelian",
       "none": "Belum ada pembelian yang siap ditagih. Pembelian bisa ditagih setelah disetujui atau dipesan.",
-      "help": "Pilih pembelian untuk tagihan supplier ini. Layar berikutnya menunjukkan apakah pesanan dan penerimaan barang menahan tagihan.",
-      "button": "Tagihan supplier baru"
+      "help": "Pilih pembelian untuk invoice supplier ini. Layar berikutnya menunjukkan apakah pesanan dan penerimaan barang menahan tagihan.",
+      "button": "Invoice supplier baru"
     }
   },
   "nav": {

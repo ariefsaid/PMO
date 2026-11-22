@@ -195,7 +195,8 @@ export function useProcurementDecision(
       return;
     }
     // An order is never recorded by accident: it needs its supplier, and a confirm that names supplier and amount.
-    if (action.to === 'Ordered' && procurement) {
+    // A purchase from before the cut-over records its history as it always did (the database exempts it from the supplier rule).
+    if (action.to === 'Ordered' && procurement && !procurement.pre_cutover) {
       if (!procurement.vendor_id) {
         ui.openSupplierPicker?.();
         toast(t('procurementRecord:order.needsSupplierTitle', 'Choose the supplier first'), t('procurementRecord:order.needsSupplier', 'An order needs its supplier. Choose it, then record the order.'), 'warning');

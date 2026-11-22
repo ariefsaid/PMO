@@ -112,7 +112,6 @@
         "selfConfirmHint": "Anda yang menyiapkan ini. Pengguna Admin atau Finance lain harus mengonfirmasinya, kecuali Anda satu-satunya anggota aktif.",
         "waitingOn": "Menunggu konfirmasi Keuangan atau Admin",
         "startClaim": "Mulai klaim dari BAST ini",
-        "startClaimHint": "Sudah dikonfirmasi. Buka penagihan untuk memulai klaim.",
         "soleOperator": "Dikonfirmasi oleh satu-satunya anggota aktif",
         "stage": "Tahap",
         "toast": {
