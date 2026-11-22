@@ -47,6 +47,15 @@ beforeEach(() => {
 });
 
 describe('AC-LCM-018 labour cost settings', () => {
+  it('the switch is named and labelled on screen: its accessible name is the visible text beside the box', () => {
+    h.enabled = true;
+    setup();
+    const box = screen.getByRole('checkbox', { name: 'Cost approved hours in money' });
+    expect(box).toBeChecked();
+    expect(box).toHaveTextContent('Cost approved hours in money');
+    expect(screen.getByText('Cost approved hours in money')).toBeVisible();
+  });
+
   it('is OFF by default: the switch is unchecked and no classes or rates show', () => {
     setup();
     expect(screen.getByRole('checkbox', { name: 'Cost approved hours in money' })).not.toBeChecked();
