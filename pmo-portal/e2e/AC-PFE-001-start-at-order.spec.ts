@@ -21,6 +21,8 @@ test('AC-PFE-001: record an order as the first document of a draft purchase', as
     await page.getByLabel('Title').fill(title);
     // A named seed project, never the first option: the list is shared, and a parallel journey's own project can sort first and be removed before Save.
     await pickComboboxOption(page, page, /^project/i, /Innovate Corp HQ Fit-Out/);
+    // Migration 1580 requires an identified supplier before an order is recorded. Choose a seeded vendor through the accessible UI.
+    await pickComboboxOption(page, page, /^supplier/i, /SunVolt Modules Co\./);
     await page.getByRole('button', { name: 'Save' }).click();
 
     // A saved draft: nothing recorded yet, no approval requested.
