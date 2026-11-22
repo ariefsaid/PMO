@@ -73,6 +73,7 @@ select is(pg_temp.refusal('archive_stock_document_file') like '42501 LIGHT_ACCOU
   'AC-LA-015 office function archive_stock_document_file refuses a field account with the guard code');
 select is(pg_temp.refusal('create_payment') like '42501 LIGHT_ACCOUNT%', true,
   'AC-LA-015 office function create_payment refuses a field account with the guard code');
+select diag(pg_temp.refusal('approve_journal'));
 select is(pg_temp.refusal('approve_journal') like '42501 LIGHT_ACCOUNT%', true,
   'AC-LA-015 office function approve_journal refuses a field account with the guard code');
 select is(pg_temp.refusal('create_purchase_order') like '42501 LIGHT_ACCOUNT%', true,
