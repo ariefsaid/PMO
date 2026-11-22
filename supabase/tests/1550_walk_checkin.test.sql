@@ -14,7 +14,7 @@ insert into auth.users (id, email) values
   ('15500000-0000-0000-0000-000000000021', 'wci-admin@example.com'), ('15500000-0000-0000-0000-000000000022', 'wci-pm@example.com'), ('15500000-0000-0000-0000-000000000023', 'wci-fin@example.com'),
   ('15500000-0000-0000-0000-000000000024', 'wci-exec@example.com'), ('15500000-0000-0000-0000-000000000025', 'wci-eng@example.com'), ('15500000-0000-0000-0000-000000000026', 'wci-sup@example.com'),
   ('15500000-0000-0000-0000-000000000027', 'wci-fm1@example.com'), ('15500000-0000-0000-0000-000000000028', 'wci-fm2@example.com'), ('15500000-0000-0000-0000-000000000029', 'wci-field@example.com'),
-  ('15500000-0000-0000-0000-000000000030', 'wci-fm3@example.com'), ('15500000-0000-0000-0000-000000000031', 'wci-xadmin@example.com');
+  ('15500000-0000-0000-0000-000000000030', 'wci-fm3@example.com'), ('15500000-0000-0000-0000-000000000031', 'wci-xadmin@example.com'), ('15500000-0000-0000-0000-000000000032', 'wci-fm4@example.com');
 insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
   ('15500000-0000-0000-0000-000000000021', '15500000-0000-0000-0000-000000000010', 'WCI Admin', 'wci-admin@example.com', 'Admin', 'active', null),
   ('15500000-0000-0000-0000-000000000022', '15500000-0000-0000-0000-000000000010', 'WCI PM', 'wci-pm@example.com', 'Project Manager', 'active', null),
