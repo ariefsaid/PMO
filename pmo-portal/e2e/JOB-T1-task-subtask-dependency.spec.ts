@@ -14,7 +14,7 @@ test.afterEach(async () => { await dropProject(admin, projectId, ['task_dependen
 
 async function newTask(page: Page, name: string, opts: { parent?: RegExp; assignee?: RegExp } = {}) {
   await page.getByRole('button', { name: /new task/i }).first().click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.getByRole('dialog', { name: /new task/i });
   await dialog.getByLabel(/task name/i).fill(name);
   if (opts.assignee) await pickComboboxOption(dialog, page, /assignee/i, opts.assignee);
   if (opts.parent) await pickComboboxOption(dialog, page, /parent task/i, opts.parent);
@@ -45,7 +45,7 @@ test('JOB-T1 a project manager adds a task, a subtask with another assignee, and
   await afterRow.hover();
   await afterRow.getByRole('button', { name: 'Row actions' }).click();
   await page.getByRole('menuitem', { name: /^edit$/i }).click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.getByRole('dialog', { name: /edit task/i });
   await dialog.getByRole('combobox', { name: /add a dependency/i }).click();
   await page.getByRole('option', { name: new RegExp(parent) }).click();
   await expect(dialog.getByRole('listitem').filter({ hasText: parent })).toBeVisible();
