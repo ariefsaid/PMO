@@ -193,7 +193,10 @@ begin
      set status = case when p_stand = 'second' then v_sec.status else a.status end,
          hours = case when p_stand = 'second' then v_sec.hours else a.hours end,
          overtime_hours = case when p_stand = 'second' then v_sec.overtime_hours else a.overtime_hours end,
-         recorded_by_ids = case when v_uid = any (a.recorded_by_ids) then a.recorded_by_ids else a.recorded_by_ids || v_uid end
+         -- The decider wrote the standing figure, and when the second record stands its author(s) wrote it too: all of them join the
+         -- day's recorders, so the approval separation (attendance_decide_week, the timesheet trigger) refuses each of them.
+         recorded_by_ids = (select array_agg(distinct x) from unnest(a.recorded_by_ids || v_uid
+                              || case when p_stand = 'second' then v_sec.recorded_by_ids else '{}'::uuid[] end) x)
    where a.id = v_day.id;
   perform set_config('pmo.pay_time_decide', 'off', true);
   update public.attendance_second_records

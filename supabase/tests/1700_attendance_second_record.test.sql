@@ -9,11 +9,12 @@
 --   drop the may_decide test in the decide RPC .......................... 'AC-PAY-007 ... not the named role'
 --   drop the may_enter test in attendance_second_record ................. 'AC-PAY-002 a role that is not named'
 --   drop trigger attendance_days_undecided_guard ........................ 'AC-PAY-003 ...'
+--   drop the merge of the second record's authors into recorded_by_ids (1701) ... 'AC-PAY-006 the manager who entered the standing second record cannot approve ...'
 --   decide 'second' by inserting a second attendance row / keep both ..... 'AC-PAY-005 ...'
 --   change the tolerance comparison to >= 0 ............................. 'AC-PAY-008 ...'
 begin;
 create extension if not exists pgtap;
-select plan(49);
+select plan(53);
 
 insert into organizations (id, name, default_currency, attendance_backdate_days, built_in_roles_enabled) values
   ('17000000-0000-0000-0000-00000000020a', 'PT Org', 'IDR', 60, true);
@@ -25,7 +26,8 @@ insert into auth.users (id, email) values
   ('17000000-0000-0000-0000-0000000000a5', 'pt-pm2@example.com'),
   ('17000000-0000-0000-0000-0000000000a6', 'pt-eng@example.com'),
   ('17000000-0000-0000-0000-0000000000a7', 'pt-worker@example.com'),
-  ('17000000-0000-0000-0000-0000000000a8', 'pt-pcm@example.com');
+  ('17000000-0000-0000-0000-0000000000a8', 'pt-pcm@example.com'),
+  ('17000000-0000-0000-0000-0000000000a9', 'pt-worker2@example.com');
 insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
   ('17000000-0000-0000-0000-0000000000a1', '17000000-0000-0000-0000-00000000020a', 'PT Admin',  'pt-admin@example.com',  'Admin', 'active', null),
   ('17000000-0000-0000-0000-0000000000a2', '17000000-0000-0000-0000-00000000020a', 'PT FC',     'pt-fc@example.com',     'Project Manager', 'active', null),
@@ -34,7 +36,8 @@ insert into profiles (id, org_id, full_name, email, role, status, built_in_role)
   ('17000000-0000-0000-0000-0000000000a5', '17000000-0000-0000-0000-00000000020a', 'PT PM2',    'pt-pm2@example.com',    'Project Manager', 'active', null),
   ('17000000-0000-0000-0000-0000000000a6', '17000000-0000-0000-0000-00000000020a', 'PT Eng',    'pt-eng@example.com',    'Engineer', 'active', null),
   ('17000000-0000-0000-0000-0000000000a7', '17000000-0000-0000-0000-00000000020a', 'PT Worker', 'pt-worker@example.com', 'Engineer', 'active', null),
-  ('17000000-0000-0000-0000-0000000000a8', '17000000-0000-0000-0000-00000000020a', 'PT PCM',    'pt-pcm@example.com',    'Project Manager', 'active', 'project_control_manager');
+  ('17000000-0000-0000-0000-0000000000a8', '17000000-0000-0000-0000-00000000020a', 'PT PCM',    'pt-pcm@example.com',    'Project Manager', 'active', 'project_control_manager'),
+  ('17000000-0000-0000-0000-0000000000a9', '17000000-0000-0000-0000-00000000020a', 'PT Worker2', 'pt-worker2@example.com', 'Engineer', 'active', null);
 insert into projects (id, org_id, name, status, project_manager_id) values
   ('17000000-0000-0000-0000-0000000000d1', '17000000-0000-0000-0000-00000000020a', 'PT Site', 'Ongoing Project', '17000000-0000-0000-0000-0000000000a4');
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
@@ -47,7 +50,9 @@ insert into crews (id, org_id, code, name, field_controller_id, discipline_id) v
 insert into people (id, org_id, kind, name, profile_id) values
   ('17000000-0000-0000-0000-000000000f01', '17000000-0000-0000-0000-00000000020a', 'vendor', 'No Login One', null),
   ('17000000-0000-0000-0000-000000000f02', '17000000-0000-0000-0000-00000000020a', 'own',    'Login Two',   '17000000-0000-0000-0000-0000000000a7'),
-  ('17000000-0000-0000-0000-000000000f03', '17000000-0000-0000-0000-00000000020a', 'vendor', 'No Login Three', null);
+  ('17000000-0000-0000-0000-000000000f03', '17000000-0000-0000-0000-00000000020a', 'vendor', 'No Login Three', null),
+  ('17000000-0000-0000-0000-000000000f04', '17000000-0000-0000-0000-00000000020a', 'vendor', 'No Login Four', null),
+  ('17000000-0000-0000-0000-000000000f05', '17000000-0000-0000-0000-00000000020a', 'own',    'Login Five',  '17000000-0000-0000-0000-0000000000a9');
 insert into crew_members (org_id, crew_id, worker_id, valid_from)
   select '17000000-0000-0000-0000-00000000020a', '17000000-0000-0000-0000-000000000c01', id, current_date - 50
     from people where id::text like '17000000-%';
@@ -93,10 +98,13 @@ select is(attendance_second_record('17000000-0000-0000-0000-000000000401', pg_te
     {"worker_id":"17000000-0000-0000-0000-000000000f02","status":"present","hours":7.5}]'), 2,
   'AC-PAY-001 the surveyor records second records');
 select is((select count(*)::int from attendance_second_records where work_date = pg_temp.week() + 1), 2, 'AC-PAY-001 stored apart, one per worker and day');
+-- A surveyor cannot read attendance days (row security), so the day is read as a manager.
+select pg_temp.act_as('17000000-0000-0000-0000-0000000000a4');
 select is((select hours from attendance_days where worker_id = '17000000-0000-0000-0000-000000000f01' and work_date = pg_temp.week() + 1),
   8.00::numeric, 'AC-PAY-001 the day still carries the site report figure (8)');
 select is((select count(*)::int from attendance_days where worker_id = '17000000-0000-0000-0000-000000000f01'), 1,
   'AC-PAY-001 still one attendance row for the worker');
+select pg_temp.act_as('17000000-0000-0000-0000-0000000000a3');
 select throws_ok($$ select attendance_second_record('17000000-0000-0000-0000-000000000401', pg_temp.week() + 1,
   '[{"worker_id":"17000000-0000-0000-0000-000000000f01","status":"present","hours":30}]') $$,
   '22023', 'ATT_HOURS: a present person needs hours', 'AC-PAY-001 hours run from 0 to 24');
@@ -250,6 +258,33 @@ select lives_ok($$ select set_attendance_time_roles(array['quantity_surveyor'], 
 select pg_temp.act_as('17000000-0000-0000-0000-0000000000a4');
 select lives_ok($$ select attendance_second_record_decide('17000000-0000-0000-0000-000000000f03', '17000000-0000-0000-0000-000000000401',
   pg_temp.week() - 6, 'day', 'site report again') $$, 'AC-PAY-007 with no role named a Project Manager decides again');
+
+-- AC-PAY-006 the author of a second record that stands cannot approve the week. Week of two Mondays ago, one more worker each path.
+select pg_temp.act_as('17000000-0000-0000-0000-0000000000a2');
+select attendance_record('17000000-0000-0000-0000-000000000401', pg_temp.week() - 13, 'roster_tick',
+  '[{"worker_id":"17000000-0000-0000-0000-000000000f04","status":"present","hours":8},
+    {"worker_id":"17000000-0000-0000-0000-000000000f05","status":"present","hours":8}]');
+select pg_temp.act_as('17000000-0000-0000-0000-0000000000a4');
+select attendance_second_record('17000000-0000-0000-0000-000000000401', pg_temp.week() - 13,
+  '[{"worker_id":"17000000-0000-0000-0000-000000000f04","status":"present","hours":10},
+    {"worker_id":"17000000-0000-0000-0000-000000000f05","status":"present","hours":10}]');
+select pg_temp.act_as('17000000-0000-0000-0000-0000000000a1');
+select attendance_second_record_decide('17000000-0000-0000-0000-000000000f04', '17000000-0000-0000-0000-000000000401', pg_temp.week() - 13, 'second', 'survey sheet is signed');
+select attendance_second_record_decide('17000000-0000-0000-0000-000000000f05', '17000000-0000-0000-0000-000000000401', pg_temp.week() - 13, 'second', 'survey sheet is signed');
+select is((select hours from attendance_days where worker_id = '17000000-0000-0000-0000-000000000f04'), 10.00::numeric, 'AC-PAY-006 the second record stands: the day carries 10');
+select is((select '17000000-0000-0000-0000-0000000000a4'::uuid = any (recorded_by_ids) from attendance_days where worker_id = '17000000-0000-0000-0000-000000000f04'), true,
+  'AC-PAY-006 the second record''s author joins the day''s recorders');
+select pg_temp.act_as('17000000-0000-0000-0000-0000000000a2');
+select attendance_generate_timesheet('17000000-0000-0000-0000-000000000f04', pg_temp.week() - 14);
+select attendance_generate_timesheet('17000000-0000-0000-0000-000000000f05', pg_temp.week() - 14);
+select pg_temp.act_as('17000000-0000-0000-0000-0000000000a4');
+select throws_ok($$ select attendance_decide_week('17000000-0000-0000-0000-000000000f04', pg_temp.week() - 14, 'approve') $$,
+  '42501', 'separation of duties: the attendance recorder cannot approve these hours',
+  'AC-PAY-006 the manager who entered the standing second record cannot approve the no-login week');
+select throws_ok($$ select transition_timesheet((select t.id from timesheets t where t.user_id = '17000000-0000-0000-0000-0000000000a9'
+                                                  and t.week_start_date = pg_temp.week() - 14), 'Approved') $$,
+  '42501', 'separation of duties: the attendance recorder cannot approve these hours',
+  'AC-PAY-006 nor the login worker''s timesheet');
 
 select * from finish();
 rollback;
