@@ -247,7 +247,16 @@
     "medical": {
       "fit": "Fit",
       "unfit": "Unfit"
-    }
+    },
+    "renew": "Record renewal",
+    "renewFor": "Record renewal for {{name}}",
+    "renewTitle": "Record renewal",
+    "renewDate": "New expiry date",
+    "renewSave": "Record renewal",
+    "renewSaved": "Renewal recorded. {{name}} has been told.",
+    "renewHelp": "Enter the new expiry date. The person is told once it is saved.",
+    "renewDateErr": "Enter the new expiry date",
+    "actions": "Actions"
   },
   "nav": {
     "assets": "Assets",

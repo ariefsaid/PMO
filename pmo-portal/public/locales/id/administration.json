@@ -709,31 +709,31 @@
       "whoNow": "Yang dapat menyetujui sekarang",
       "helpRule": "Jika tidak ada yang terdaftar, {{roles}} dapat menyetujui kasus orang lain."
     },
-      "siteCheckpoints": {
-        "title": "Titik pemeriksaan harian",
-        "helper": "Titik pemeriksaan dalam satu hari kerja, beserta waktu jatuh temponya. Pengawas lapangan mencatat tiap titik dengan foto; yang terlambat mengingatkan pelapor dan menandai perintah kerja. Tanpa titik pemeriksaan, tidak ada yang dibuat atau diingatkan.",
-        "loadError": "Titik pemeriksaan tidak dapat dimuat",
-        "empty": "Belum ada titik pemeriksaan. Tidak ada yang dibuat atau diingatkan sampai Anda menambahkannya.",
-        "name": "Nama",
-        "time": "Waktu jatuh tempo",
-        "grace": "Toleransi (menit)",
-        "photo": "Foto wajib",
-        "photoLabel": "Foto wajib untuk {{name}}",
-        "start": "Menandai mulai kerja",
-        "startLabel": "Menandai mulai kerja untuk {{name}}",
-        "up": "Naikkan",
-        "down": "Turunkan",
-        "remove": "Hapus",
-        "add": "Tambah titik pemeriksaan",
-        "save": "Simpan titik pemeriksaan",
-        "saved": "Titik pemeriksaan disimpan",
-        "invalid": {
-          "name": "Setiap titik pemeriksaan perlu nama hingga 120 karakter",
-          "time": "Setiap titik pemeriksaan perlu waktu jatuh tempo",
-          "grace": "Toleransi adalah bilangan bulat 0 sampai 120 menit",
-          "start": "Hanya satu titik pemeriksaan yang boleh menandai mulai kerja"
-        }
-      },
+    "siteCheckpoints": {
+      "title": "Titik pemeriksaan harian",
+      "helper": "Titik pemeriksaan dalam satu hari kerja, beserta waktu jatuh temponya. Pengawas lapangan mencatat tiap titik dengan foto; yang terlambat mengingatkan pelapor dan menandai perintah kerja. Tanpa titik pemeriksaan, tidak ada yang dibuat atau diingatkan.",
+      "loadError": "Titik pemeriksaan tidak dapat dimuat",
+      "empty": "Belum ada titik pemeriksaan. Tidak ada yang dibuat atau diingatkan sampai Anda menambahkannya.",
+      "name": "Nama",
+      "time": "Waktu jatuh tempo",
+      "grace": "Toleransi (menit)",
+      "photo": "Foto wajib",
+      "photoLabel": "Foto wajib untuk {{name}}",
+      "start": "Menandai mulai kerja",
+      "startLabel": "Menandai mulai kerja untuk {{name}}",
+      "up": "Naikkan",
+      "down": "Turunkan",
+      "remove": "Hapus",
+      "add": "Tambah titik pemeriksaan",
+      "save": "Simpan titik pemeriksaan",
+      "saved": "Titik pemeriksaan disimpan",
+      "invalid": {
+        "name": "Setiap titik pemeriksaan perlu nama hingga 120 karakter",
+        "time": "Setiap titik pemeriksaan perlu waktu jatuh tempo",
+        "grace": "Toleransi adalah bilangan bulat 0 sampai 120 menit",
+        "start": "Hanya satu titik pemeriksaan yang boleh menandai mulai kerja"
+      }
+    },
     "siteReportLists": {
       "title": "Daftar laporan lapangan",
       "helper": "Pilihan yang tersedia pada laporan lapangan. Mengarsipkan menyembunyikan pilihan dari laporan baru; laporan yang sudah memakainya tetap menyimpannya.",
@@ -798,7 +798,7 @@
       "saved": "Target kehadiran disimpan",
       "title": "Target kehadiran",
       "turnOff": "Matikan"
-      },
+    },
     "crewLoans": {
       "title": "Pinjaman kru",
       "label": "Izinkan meminjamkan pekerja antar kru",
@@ -907,7 +907,11 @@
     "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
     "retry": "Coba lagi",
     "empty": "Belum ada personel. Tambahkan personel pertama untuk mencatat dokumennya.",
-    "navLabel": "Personel"
+    "navLabel": "Personel",
+    "manager": "Atasan langsung (opsional)",
+    "managerPlaceholder": "Atasan belum ditetapkan",
+    "managerSearch": "Cari pengguna",
+    "managerHelp": "Atasan diperingatkan lebih dulu saat dokumen personel ini hampir kedaluwarsa, dan mencatat perpanjangannya."
   },
   "roleNames": {
     "title": "Nama peran",
@@ -974,7 +978,11 @@
     "medicalCol": "Medis",
     "yes": "Ya",
     "roles": "Peran yang diberi tahu",
-    "rolesHelp": "Atasan personel selalu diberi tahu. Kosongkan untuk memakai bawaan jenis ini.",
+    "rolesHelp": "Centang peran yang diperingatkan sebelum dokumen jenis ini kedaluwarsa. Atasan langsung personel selalu ikut diperingatkan.",
+    "notifyPerson": "Beri tahu juga personelnya",
+    "thePerson": "Personel yang bersangkutan",
+    "manager": "Atasan langsung",
+    "noOne": "Tidak ada yang diperingatkan",
     "actions": "Tindakan",
     "edit": "Ubah",
     "archive": "Arsipkan",
@@ -1107,7 +1115,7 @@
     "saved": "Pengaturan disimpan",
     "groupSaved": "Grup departemen disimpan",
     "groupDeleted": "Grup departemen dihapus"
-    },
+  },
   "clearance": {
     "navLabel": "Izin ke lokasi",
     "cleared": "Lolos",

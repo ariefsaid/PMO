@@ -110,3 +110,12 @@ export function useSetDocumentWarningDays() {
     ]),
   });
 }
+
+/** The direct manager (or an Admin) records a renewal; refreshes the expiry list and the subject cards. */
+export function useRecordRenewal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: string; expiresOn: string }) => repositories.documentExpiry.recordRenewal(v.id, v.expiresOn),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['document-expiry'] }),
+  });
+}

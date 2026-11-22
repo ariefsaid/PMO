@@ -18,9 +18,9 @@ import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { PersonListRow, PeopleListStatus } from '@/src/lib/db/people';
 
-interface FormValues { name: string; code: string; job_title: string; profile_id: string }
+interface FormValues { name: string; code: string; job_title: string; profile_id: string; manager_id: string }
 
-const initial = (p?: PersonListRow): FormValues => ({ name: p?.name ?? '', code: p?.code ?? '', job_title: p?.job_title ?? '', profile_id: p?.profile_id ?? '' });
+const initial = (p?: PersonListRow): FormValues => ({ name: p?.name ?? '', code: p?.code ?? '', job_title: p?.job_title ?? '', profile_id: p?.profile_id ?? '', manager_id: p?.manager_id ?? '' });
 
 /** Add or edit one person. A blank code on add is assigned by the database (P-0001, …); on edit the code is required. */
 const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, string>; onClose: () => void }> = ({ person, profileNames, onClose }) => {
@@ -39,12 +39,14 @@ const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, s
     },
   });
   const loadOptions = useMemo(() => async () => (await loadProfiles()).map((p) => ({ value: p.id, label: p.full_name })), [loadProfiles]);
+  // The manager is chosen from active members only: a manager who has left would be warned into nothing.
+  const loadManagers = useMemo(() => async () => (await loadProfiles()).filter((p) => p.status === 'active').map((p) => ({ value: p.id, label: p.full_name })), [loadProfiles]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
     void form.handleSubmit(async (v) => {
-      const base = { name: v.name.trim(), job_title: v.job_title.trim() || null, profile_id: v.profile_id || null };
+      const base = { name: v.name.trim(), job_title: v.job_title.trim() || null, profile_id: v.profile_id || null, manager_id: v.manager_id || null };
       try {
         if (person) await update.mutateAsync({ id: person.id, input: { ...base, code: v.code.trim() } });
         else await create.mutateAsync({ ...base, code: v.code.trim() || null });
@@ -75,6 +77,12 @@ const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, s
           loadOptions={loadOptions} placeholder={t('administration:people.userPlaceholder', 'Not an app user')}
           searchPlaceholder={t('administration:people.userSearch', 'Search users')}
           onChange={(value) => form.setValue('profile_id', value)} />
+        <Combobox label={t('administration:people.manager', 'Direct manager (optional)')} value={form.values.manager_id || null} clearable
+          selectedOption={form.values.manager_id ? { value: form.values.manager_id, label: profileNames.get(form.values.manager_id) ?? form.values.manager_id } : null}
+          loadOptions={loadManagers} placeholder={t('administration:people.managerPlaceholder', 'No manager set')}
+          searchPlaceholder={t('administration:people.managerSearch', 'Search users')}
+          onChange={(value) => form.setValue('manager_id', value)} />
+        <p className="col-span-full text-control text-muted-foreground">{t('administration:people.managerHelp', "The manager is warned first when this person's documents are about to expire, and records the renewal.")}</p>
       </FormGrid>
     </EntityFormModal>
   );

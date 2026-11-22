@@ -18,4 +18,5 @@ export interface DocumentExpiryRepository {
   archiveType: typeof dal.archiveDocumentType;
   getWarningDays: typeof dal.getDocumentWarningDays;
   setWarningDays: typeof dal.setDocumentWarningDays;
+  recordRenewal: typeof dal.recordDocumentRenewal;
 }

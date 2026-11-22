@@ -4613,6 +4613,7 @@ export type Database = {
           id: string
           is_medical: boolean
           name: string
+          notify_person: boolean
           notify_roles: string[]
           org_id: string
         }
@@ -4623,6 +4624,7 @@ export type Database = {
           id?: string
           is_medical?: boolean
           name: string
+          notify_person?: boolean
           notify_roles?: string[]
           org_id?: string
         }
@@ -4633,6 +4635,7 @@ export type Database = {
           id?: string
           is_medical?: boolean
           name?: string
+          notify_person?: boolean
           notify_roles?: string[]
           org_id?: string
         }
@@ -33950,6 +33953,10 @@ export type Database = {
             }
             Returns: boolean
           }
+      record_document_renewal: {
+        Args: { p_document: string; p_expires_on: string }
+        Returns: undefined
+      }
       record_equipment_vendor_response: {
         Args: {
           p_asset: string
