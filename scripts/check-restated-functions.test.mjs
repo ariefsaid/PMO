@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  FLOOR, analyze, listMigrations, readMigrations, selfTestProblems,
+  FLOOR, analyze, listMigrations, parseDefinitions, readMigrations, selfTestProblems,
 } from './check-restated-functions.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -98,6 +98,42 @@ test('whitespace, blank lines and comment-only lines are not differences', () =>
   assert.deepEqual([...problems], []);
 });
 
+test('a comment in the parameter list — an apostrophe included — does not hide the definition', () => {
+  // The real shape (0055/0168/0172 save_timesheet_week): an apostrophe inside a `--` comment in the
+  // argument list made the quote tracking swallow the rest of the signature, so the definition (and its
+  // restatements) went unparsed — a guard blind to its own hub function.
+  const withArgs = (body) => `create or replace function public.demo_fn(
+  p_id uuid,                 -- the caller's id
+  p_note text default '')    -- a note, default empty
+returns boolean language plpgsql stable security invoker set search_path=public as $$
+${body}
+$$;`;
+  const { problems } = analyze(files([
+    [1490, withArgs('begin\n  perform 1;\n  return true;\nend;')],
+    [1491, withArgs('begin\n  return true;\nend;')],
+  ]));
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /demo_fn\(uuid,text\)/, 'the identity is read from the commented signature');
+});
+
+test('a `create or replace function` named in prose is not a definition', () => {
+  const prose = "-- A later lane may `create or replace function demo_fn(p_id uuid)` again; keep the arms.\n";
+  const sql = prose + migration('begin\n  return true;\nend;');
+  const { definitions, skipped } = parseDefinitions(sql);
+  assert.equal(definitions.length, 1, 'the comment mention must not become a phantom baseline');
+  assert.match(definitions[0].body, /return true;/);
+  assert.deepEqual([...skipped], []);
+});
+
+test('a definition the guard cannot delimit is reported, not skipped', () => {
+  const sql = "create or replace function public.demo_fn(p_id uuid) returns boolean language sql as 'select true';";
+  const { unread, problems } = analyze(files([[1490, sql]]));
+  assert.equal(unread.length, 1);
+  assert.match(unread[0], /demo_fn/);
+  assert.match(unread[0], /dollar-quoted/);
+  assert.deepEqual([...problems], []);
+});
+
 test('a duplicated line is only kept if the restated body still has the same number of copies', () => {
   const before = 'begin\n  return true;\n  return true;\nend;';
   const after = 'begin\n  return true;\nend;';
@@ -137,8 +173,9 @@ test('readMigrations orders by number and ignores the rollback directory', () =>
 });
 
 test('the guard passes on the repository as it stands', () => {
-  const { problems, exemptions } = analyze(readMigrations(path.join(REPO, 'supabase', 'migrations')));
+  const { problems, exemptions, unread } = analyze(readMigrations(path.join(REPO, 'supabase', 'migrations')));
   assert.deepEqual([...problems], []);
+  assert.deepEqual([...unread], [], 'no definition is skipped: a skipped one is a hole, not a pass');
   for (const line of exemptions) assert.match(line, /-- drops:/, `exemption must name its marker: ${line}`);
 });
 

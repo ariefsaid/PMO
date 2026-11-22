@@ -20,10 +20,12 @@
  *
  * Scope and limits, stated so nobody trusts it further than it goes: it is textual (grep-level, like
  * check-date-formatting), it reads `create [or replace] function` bodies only (a function rewritten by
- * dynamic SQL is invisible), it compares trimmed lines with blank and comment-only lines ignored, and it
- * treats a line recurring twice as a line the restatement must carry twice.
+ * dynamic SQL is invisible — the repository has none), it compares trimmed lines with comments and blank
+ * lines ignored, and it treats a line recurring twice as a line the restatement must carry twice. A
+ * definition whose body is not dollar-quoted (`as '…'`) FAILS rather than being skipped: a guard that
+ * silently skips is a false green, and every migration here dollar-quotes.
  *
- * Run: node scripts/check-restated-functions.mjs [--floor N] [--verbose] [--self-test]
+ * Run: node scripts/check-restated-functions.mjs [--floor N] [--self-test]
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -47,6 +49,34 @@ export function listMigrations(dir = MIGRATIONS) {
 
 export function readMigrations(dir = MIGRATIONS) {
   return listMigrations(dir).map((file) => ({ ...file, sql: fs.readFileSync(path.join(dir, file.name), 'utf8') }));
+}
+
+/**
+ * A copy of `sql` with every `--` comment blanked to spaces, same length, so an index into either
+ * addresses the same character. A quote inside a comment (`-- the caller's Draft`) must not be read as a
+ * string, and a `-- create or replace function` in prose must not be read as a definition; both are why
+ * this runs first. Single-quoted strings are skipped so a `'--'` literal survives. A `--` inside a
+ * dollar-quoted body is a real SQL comment and is blanked too: no comment is part of what is compared.
+ */
+export function blankComments(sql) {
+  const out = sql.split('');
+  let quoted = false;
+  for (let i = 0; i < sql.length; i++) {
+    const c = sql[i];
+    if (quoted) {
+      if (c === "'") {
+        if (sql[i + 1] === "'") i++;
+        else quoted = false;
+      }
+      continue;
+    }
+    if (c === "'") quoted = true;
+    else if (c === '-' && sql[i + 1] === '-') {
+      while (i < sql.length && sql[i] !== '\n') out[i++] = ' ';
+      i--; // the loop's own step moves past the newline, which stays
+    }
+  }
+  return out.join('');
 }
 
 /** Index of the `)` closing the `(` at `open`, or -1. Aware of nesting and of single-quoted strings. */
@@ -107,32 +137,38 @@ export function bodyLines(body) {
 }
 
 /**
- * Every `create [or replace] function` in one migration text: {name, args, orReplace, body}. The body is
- * the dollar-quoted block after `as`; a function whose body cannot be delimited is skipped (reported by
- * the caller's count, never guessed at).
+ * Every public `create [or replace] function` in one migration text: `{definitions, skipped}` where a
+ * definition is {name, args, orReplace, body}. `skipped` names the definitions whose body could not be
+ * delimited — the caller fails on a non-empty list rather than pretending it checked them. A function
+ * created in another schema (`pg_temp.rls820_wrap`) is not a restated role and is not counted at all.
+ * Everything is read from the comment-blanked text, so a body line keeps no comment text to compare.
  */
 export function parseDefinitions(sql) {
+  const text = blankComments(sql);
   const definitions = [];
-  const head = /create\s+(or\s+replace\s+)?function\s+(?:public\.)?"?([a-z_][a-z0-9_]*)"?\s*\(/gi;
-  for (const match of sql.matchAll(head)) {
+  const skipped = [];
+  const head = /create\s+(or\s+replace\s+)?function\s+(?:([a-z_][a-z0-9_]*)\.)?"?([a-z_][a-z0-9_]*)"?\s*\(/gi;
+  for (const match of text.matchAll(head)) {
+    if ((match[2] ?? 'public').toLowerCase() !== 'public') continue;
+    const name = match[3].toLowerCase();
     const open = match.index + match[0].length - 1;
-    const close = closingParen(sql, open);
-    if (close < 0) continue;
-    const args = normaliseArgs(sql.slice(open + 1, close));
-    const rest = sql.slice(close + 1);
+    const close = closingParen(text, open);
+    if (close < 0) {
+      skipped.push(name);
+      continue;
+    }
+    const args = normaliseArgs(text.slice(open + 1, close));
+    const rest = text.slice(close + 1);
     const tag = rest.match(/\$([a-z_]*)\$/i);
-    if (!tag) continue;
-    const bodyStart = close + 1 + tag.index + tag[0].length;
-    const bodyEnd = sql.indexOf(tag[0], bodyStart);
-    if (bodyEnd < 0) continue;
-    definitions.push({
-      name: match[2].toLowerCase(),
-      args,
-      orReplace: Boolean(match[1]),
-      body: sql.slice(bodyStart, bodyEnd),
-    });
+    const bodyStart = tag ? close + 1 + tag.index + tag[0].length : -1;
+    const bodyEnd = tag ? text.indexOf(tag[0], bodyStart) : -1;
+    if (bodyEnd < 0) {
+      skipped.push(name);
+      continue;
+    }
+    definitions.push({ name, args, orReplace: Boolean(match[1]), body: text.slice(bodyStart, bodyEnd) });
   }
-  return definitions;
+  return { definitions, skipped };
 }
 
 /** Line counts a multiset is short by, in order of first appearance. */
@@ -156,13 +192,15 @@ export function dropMarkers(sql) {
 }
 
 /**
- * files: [{name, number, sql}] in apply order. Returns {problems, exemptions, checked, scanned}.
+ * files: [{name, number, sql}] in apply order. Returns {problems, exemptions, checked, scanned, unread}.
  * A problem is a line the restated body dropped without the file carrying a marker; an exemption is the
- * same, with the marker present (reported so the CI log shows it).
+ * same, with the marker present (reported so the CI log shows it); `unread` names a definition the guard
+ * could not delimit — a hole, reported as a problem by `run` rather than skipped.
  */
 export function analyze(files, { floor = FLOOR } = {}) {
   const problems = [];
   const exemptions = [];
+  const unread = [];
   const seen = new Map();
   let checked = 0;
   for (const file of files) {
@@ -171,7 +209,9 @@ export function analyze(files, { floor = FLOOR } = {}) {
       [...file.sql.matchAll(/drop\s+function\s+(?:if\s+exists\s+)?(?:public\.)?"?([a-z_][a-z0-9_]*)"?/gi)]
         .map((match) => match[1].toLowerCase()),
     );
-    for (const definition of parseDefinitions(file.sql)) {
+    const { definitions, skipped } = parseDefinitions(file.sql);
+    for (const name of skipped) unread.push(`supabase/migrations/${file.name} ${name}(…): its body is not dollar-quoted, so a restatement of it could not be compared`);
+    for (const definition of definitions) {
       const key = `${definition.name}(${definition.args})`;
       const previous = seen.get(key);
       const restates = definition.orReplace || droppedNames.has(definition.name);
@@ -194,7 +234,8 @@ export function analyze(files, { floor = FLOOR } = {}) {
   }
   problems.sort();
   exemptions.sort();
-  return { problems, exemptions, checked, scanned: files.length };
+  unread.sort();
+  return { problems, exemptions, unread, checked, scanned: files.length };
 }
 
 /** The --self-test: fixtures through the same functions the real run uses, both directions. */
@@ -220,19 +261,23 @@ $$;`;
   check('marker exempts it', excused.problems.length === 0 && excused.exemptions.length === 1, excused.problems.join('; '));
   const history = analyze([at(1413, fn('begin\n  return true;\n  return false;\nend;')), at(1417, fn('begin\n  return true;\nend;'))]);
   check('below-floor restatement is history', history.problems.length === 0, history.problems.join('; '));
+  const unreadable = analyze([at(1490, "create or replace function public.t_fn(p_id uuid) returns boolean language sql as 'select true';")]);
+  check('an unreadable definition is reported, not skipped', unreadable.unread.length === 1, `unread=${unreadable.unread.length}`);
   return failures;
 }
 
-export function run({ floor = FLOOR, verbose = false } = {}) {
+export function run({ floor = FLOOR } = {}) {
   const result = analyze(readMigrations(), { floor });
   for (const line of result.exemptions) console.log(`• exempt ${line}`);
+  for (const line of result.unread) console.error(`✗ ${line}`);
   for (const problem of result.problems) console.error(`✗ ${problem}`);
+  if (result.unread.length > 0) {
+    console.error(`✗ restated-function guard: ${result.unread.length} definition(s) could not be read — dollar-quote the body (\`as $$ … $$\`) so a restatement can be compared`);
+    return 1;
+  }
   if (result.problems.length > 0) {
     console.error(`✗ restated-function guard: ${result.problems.length} restatement(s) dropped lines without a \`-- drops:\` marker`);
     return 1;
-  }
-  if (verbose) {
-    for (const line of result.exemptions) console.log(`  ${line}`);
   }
   console.log(
     `✓ restated-function guard: ${result.checked} restatement(s) checked across ${result.scanned} migrations, ` +
@@ -256,6 +301,6 @@ if (isMain) {
     if (!Number.isFinite(floor)) {
       console.error('✗ restated-function guard: --floor needs a migration number');
       process.exitCode = 1;
-    } else process.exitCode = run({ floor, verbose: argv.includes('--verbose') });
+    } else process.exitCode = run({ floor });
   }
 }
