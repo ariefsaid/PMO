@@ -734,7 +734,11 @@
         "notSentDetail": "The email could not be sent, so nothing was saved. What you typed is still here: check the address and try again. If it keeps failing, tell your Operator that invitation emails are not going out.",
         "rateLimited": "Too many invitations in a short time. Nothing was saved. Wait a minute, then invite again.",
         "roleNotSet": "Invitation sent, job role not saved",
-        "roleNotSetDetail": "{{email}} was invited. Open their row and choose Change job role to set it."
+        "roleNotSetDetail": "{{email}} was invited. Open their row and choose Change job role to set it.",
+        "profileCreateFailed": "Invitation email sent, account setup incomplete",
+        "profileCreateFailedDetail": "{{email}} received the invitation email, but their member record was not created, so they are not in the member list yet. Invite the same address again: the pending invitation link is re-sent and the member record is attempted once more. If it fails the same way, tell your Operator.",
+        "unconfirmed": "Could not confirm the invitation",
+        "unconfirmedDetail": "We could not confirm whether the invitation email went out — no answer came back from the server. What you typed is still here: check the address, then invite the same person again. If the first invite landed, you will be told it is already invited instead of getting a second email. If it keeps failing, tell your Operator."
       },
       "statusError": {
         "seatLimit": "Your plan has no seats left",
