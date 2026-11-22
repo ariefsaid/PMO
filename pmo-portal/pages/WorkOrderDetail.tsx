@@ -33,7 +33,7 @@ import { InspectionsSection } from './work-order-detail/InspectionsSection';
 import { ClientMaterialSection } from './work-order-detail/ClientMaterialSection';
 import { IssuesSection } from './work-order-detail/IssuesSection';
 import { SiteCheckpointFlag } from './work-order-detail/SiteCheckpointFlag';
-import { SafetySection } from './work-order-detail/SafetySection';
+import { SafetySection, SafetyTodayLink } from './work-order-detail/SafetySection';
 import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 import { SiteLocationSection } from './work-order-detail/SiteLocationSection';
 
@@ -118,6 +118,7 @@ const WorkOrderDetail: React.FC = () => {
           { label: t('client', 'Client'), value: project.data?.client?.name ?? '—' },
           { label: t('orderValue', 'Order value'), value: <span className="tabular-nums" data-testid="wo-order-value">{formatCurrency(Number(row.order_value), row.currency)}</span> },
         ]} />
+      <SafetyTodayLink workOrderId={row.id} projectId={row.project_id} status={row.status} />
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       <RecordStack>
         <SiteCheckpointFlag workOrderId={row.id} />

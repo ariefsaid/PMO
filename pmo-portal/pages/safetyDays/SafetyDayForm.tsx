@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, ReasonDialog, RecordHeader, RecordStack, StatusPill, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, ListState, ReasonDialog, RecordHeader, RecordStack, StatusPill, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -11,7 +11,7 @@ import { useSafetyDay, useSafetyMutations, useSafetyRoster } from '@/src/hooks/u
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { SAFETY_PART_LABEL } from '@/src/lib/safetyDay';
-import { deriveSafetyDayStatus } from '@/src/lib/safetyDay';
+import { deriveSafetyDayStatus, lockReadiness } from '@/src/lib/safetyDay';
 import type { SafetyDayDetail } from '@/src/lib/db/safetyDays';
 import { FitnessPart } from './FitnessPart';
 import { ToolboxPart } from './ToolboxPart';
@@ -52,6 +52,9 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
   const m = useSafetyMutations();
   const [correcting, setCorrecting] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [locking, setLocking] = useState(false);
+  const [lockError, setLockError] = useState<string | null>(null);
+  const readiness = lockReadiness(detail.checklist, detail.fitness, roster.data ?? []);
 
   const status = deriveSafetyDayStatus({
     status: day.status,
@@ -64,7 +67,23 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
     try { await work(); toast(success, undefined, 'success'); return true; }
     catch (err) { const { headline, detail: d } = classifyMutationError(err); toast(headline, d, 'warning'); setDialogError(d ? `${headline}. ${d}` : headline); return false; }
   };
-  const submit = () => run(() => m.submitDay.mutateAsync(day.id), t('toast.submitted', 'Safety day submitted and locked'));
+  // The database's refusals, in the reader's language (never the raw sentence).
+  const lockRefusal = (err: unknown): string => {
+    const msg = err instanceof Error ? err.message : '';
+    if (/needs a note/.test(msg)) return t('lock.errNote', 'A checklist item answered No needs a note. Write the note, then lock again.');
+    if (/already locked/.test(msg)) return t('lock.errLocked', 'This day is already locked. Reload the page.');
+    if (/only the author/.test(msg)) return t('lock.errAuthor', 'Only the person who started this safety day can lock it.');
+    const { headline } = classifyMutationError(err);
+    return headline;
+  };
+  const submit = async () => {
+    setLockError(null);
+    try {
+      await m.submitDay.mutateAsync(day.id);
+      setLocking(false);
+      toast(t('toast.submitted', 'Safety day submitted and locked'), undefined, 'success');
+    } catch (err) { setLockError(lockRefusal(err)); }
+  };
   const correct = async (reason: string) => {
     setDialogError(null);
     try {
@@ -94,7 +113,7 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
         }
         actions={(
           <div className="flex flex-wrap gap-2">
-            {editable && <Button variant="primary" onClick={() => void submit()} loading={m.submitDay.isPending} data-testid="safety-submit">{t('actions.submit', 'Submit and lock')}</Button>}
+            {editable && <Button variant="primary" onClick={() => { setLockError(null); setLocking(true); }} data-testid="safety-submit">{t('actions.submit', 'Submit and lock')}</Button>}
             {day.status === 'locked' && mayEnter && <Button variant="outline" onClick={() => { setDialogError(null); setCorrecting(true); }} data-testid="safety-correct">{t('actions.correct', 'Correct')}</Button>}
           </div>
         )}
@@ -111,6 +130,20 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
         <PermitsPart detail={detail} editable={editable} />
         <OfficerPart detail={detail} mayEnter={mayEnter} />
       </RecordStack>
+      <ConfirmDialog open={locking} tone="default" title={t('lock.title', 'Lock this safety day?')}
+        description={(
+          <div className="space-y-2" data-testid="safety-lock-body">
+            <p>{t('lock.body', 'After locking, this record cannot be edited. Only a correction with a reason changes it.')}</p>
+            {readiness.uncheckedWorkers.length > 0 && (
+              <p data-testid="safety-lock-unchecked">{t('lock.unchecked', { defaultValue: 'Not yet checked: {{names}}', names: readiness.uncheckedWorkers.join(', ') })}</p>
+            )}
+            {readiness.noWithoutNote.length > 0 && (
+              <p className="text-destructive-text" data-testid="safety-lock-note">{t('lock.needNote', { defaultValue: 'Write a note for the No answers first: {{items}}', items: readiness.noWithoutNote.join(', ') })}</p>
+            )}
+          </div>
+        )}
+        confirmLabel={t('actions.submit', 'Submit and lock')} confirmDisabled={readiness.noWithoutNote.length > 0} loading={m.submitDay.isPending}
+        error={lockError} onCancel={() => setLocking(false)} onConfirm={() => void submit()} />
       <ReasonDialog open={correcting} kind="return" title={t('correct.title', 'Correct this safety day')} label={t('correct.label', 'Reason for the correction')}
         confirmLabel={t('correct.confirm', 'Start correction')} loading={m.correctDay.isPending} error={dialogError}
         onConfirm={(r) => void correct(r)} onCancel={() => setCorrecting(false)} />

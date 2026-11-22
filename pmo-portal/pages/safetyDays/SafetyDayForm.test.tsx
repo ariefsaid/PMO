@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -137,20 +137,39 @@ describe('SafetyDayForm', () => {
     expect(screen.getByText(/Correction: Wrong headcount/)).toBeInTheDocument();
   });
 
-  it('submits the day and confirms with the locked toast', async () => {
+  const confirmLock = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByTestId('safety-submit'));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Submit and lock' }));
+  };
+
+  it('AC-SD-004 asks before locking, names the rostered workers not yet checked, then submits and confirms', async () => {
     const user = userEvent.setup();
     view();
     await user.click(screen.getByTestId('safety-submit'));
+    expect(h.m.submitDay.mutateAsync).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('safety-lock-unchecked')).toHaveTextContent('Not yet checked: Budi, Sari');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Submit and lock' }));
     await waitFor(() => expect(h.m.submitDay.mutateAsync).toHaveBeenCalledWith('sd1'));
     expect((await screen.findAllByText('Safety day submitted and locked')).length).toBeGreaterThan(0);
   });
 
-  it('a refused submit warns through the shared classifier instead of pretending success', async () => {
-    h.m.submitDay.mutateAsync.mockRejectedValue(new Error('boom'));
+  it('AC-SD-004 a No answer with no note is named before locking, and the lock waits for the note', async () => {
+    h.query = { ...h.query, data: detail({}, { checklist: [{ id: 'c1', label: 'Harnesses inspected', position: 1, answer: 'no', note: null }] }) };
     const user = userEvent.setup();
     view();
     await user.click(screen.getByTestId('safety-submit'));
-    expect(await screen.findByText('Update failed')).toBeInTheDocument();
+    expect(await screen.findByTestId('safety-lock-note')).toHaveTextContent('Harnesses inspected');
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Submit and lock' })).toBeDisabled();
+  });
+
+  it('AC-SD-004 a refused lock says what to fix in the reader\'s language, not the database sentence', async () => {
+    h.m.submitDay.mutateAsync.mockRejectedValue(Object.assign(new Error('a checklist item answered no needs a note'), { code: '23514' }));
+    const user = userEvent.setup();
+    view();
+    await confirmLock(user);
+    expect(await screen.findByText('A checklist item answered No needs a note. Write the note, then lock again.')).toBeInTheDocument();
+    expect(screen.queryByText(/answered no needs a note$/)).not.toBeInTheDocument();
   });
 
   it('correct starts a new version with the given reason and navigates to it', async () => {

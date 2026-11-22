@@ -96,3 +96,50 @@ const SafetySectionBody: React.FC<{ workOrderId: string; projectId: string; stat
     </RecordSection>
   );
 };
+
+/**
+ * Today's safety record, one line under the work-order header (walk finding: the record was eight screens down).
+ * Same switch and the same open/create path as the section below; renders nothing while safety records are off.
+ */
+export const SafetyTodayLink: React.FC<{ workOrderId: string; projectId: string; status: string }> = (props) => {
+  const auth = useContext(AuthContext);
+  const queries = useContext(QueryClientContext);
+  return auth && queries ? <SafetyTodayGate {...props} /> : null;
+};
+
+const SafetyTodayGate: React.FC<{ workOrderId: string; projectId: string; status: string }> = (props) => {
+  const enabled = useSafetyEnabled();
+  if (!enabled.data) return null;
+  return <SafetyTodayBody {...props} />;
+};
+
+const SafetyTodayBody: React.FC<{ workOrderId: string; projectId: string; status: string }> = ({ workOrderId, projectId, status }) => {
+  const { t } = useTranslation('safety');
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { realRole } = useEffectiveRole();
+  const userId = useAuth().currentUser?.id ?? null;
+  const project = useProject(projectId).data ?? null;
+  const mayEnter = can('create', 'safetyDay', { realRole, currentUserId: userId, record: { project_manager_id: project?.project_manager_id ?? null } });
+  const todayIso = isoDay(new Date());
+  const days = useSafetyWorkOrderDays(workOrderId, todayIso, todayIso, true);
+  const m = useSafetyMutations();
+  const row = days.data?.find((d) => d.work_date === todayIso) ?? null;
+  if (!row?.day_id && !(mayEnter && status === 'Issued')) return null;
+  const go = async () => {
+    if (row?.day_id) { navigate(`/safety-days/${row.day_id}`); return; }
+    try { navigate(`/safety-days/${await m.createDay.mutateAsync({ workOrderId, workDate: todayIso })}`); }
+    catch (err) { const { headline, detail } = classifyMutationError(err); toast(headline, detail, 'warning'); }
+  };
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-3 rounded-control border border-border px-3 py-2" data-testid="safety-today">
+      <span className="text-control font-medium">{t('today.title', "Today's safety record")}</span>
+      <span className="text-control text-muted-foreground">
+        {!row?.day_id ? t('today.none', 'Not started') : row.status === 'locked' ? t('day.locked', 'Locked') : t('day.draft', 'Draft')}
+      </span>
+      <Button variant="outline" size="sm" onClick={() => void go()} data-testid="safety-today-open">
+        {row?.day_id ? t('day.open', 'Open') : t('day.recordShort', 'Record')}
+      </Button>
+    </div>
+  );
+};
