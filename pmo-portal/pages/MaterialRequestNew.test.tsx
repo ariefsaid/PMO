@@ -6,6 +6,7 @@ import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
   tz: 'Asia/Jakarta',
+  existing: null as null | Record<string, unknown>,
   sections: [] as Array<{ id: string; code: string; name: string }>,
   sectionPlans: [] as Array<{ itemId: string; sectionPlanQty: number | null; sectionPriorQty: number | null }>,
   planSource: null as string | null,
@@ -16,7 +17,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useMaterialRequest: (id?: string) => ({
-    data: id ? { projectId: 'p1', workOrderId: 'w1', neededBy: '2026-11-25', note: null, lines: [{ id: 'l1', itemId: 'i1', quantity: 2, overPlanReason: null }] } : undefined,
+    data: id ? (h.existing ?? { projectId: 'p1', workOrderId: 'w1', neededBy: '2026-11-25', note: null, lines: [{ id: 'l1', itemId: 'i1', quantity: 2, overPlanReason: null }], events: [] }) : undefined,
     isPending: false, isError: false,
   }),
   useMaterialRequestMutations: () => ({ saveDraft: h.saveDraft, submit: h.submit }),
@@ -282,5 +283,32 @@ describe('raise a material request', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
       expect(h.saveDraft.mutateAsync.mock.calls[0][0].header.neededBy).toBe('2026-11-22');
     });
+  });
+});
+
+describe('a returned request opens with what was typed and why it came back (fix-waiting item 5)', () => {
+  afterEach(() => { h.existing = null; vi.clearAllMocks(); });
+  const returned = () => ({
+    projectId: 'p1', workOrderId: 'w1', neededBy: '2026-11-25', note: null,
+    lines: [{ id: 'l1', itemId: 'i1', quantity: 8, overPlanReason: 'Extra slab pour' }],
+    events: [
+      { id: 'e1', action: 'submitted', reason: null, createdAt: '2026-11-20T01:00:00Z' },
+      { id: 'e2', action: 'returned', reason: 'Split the pour over two days', createdAt: '2026-11-20T03:00:00Z' },
+    ],
+  });
+  it('JOB-WAIT-5 shows the over-plan reason that was typed and the reason it was returned', async () => {
+    h.existing = returned();
+    render(<MemoryRouter initialEntries={['/material-requests/r1/edit']}><ToastProvider><Routes>
+      <Route path="/material-requests/:requestId/edit" element={<MaterialRequestNewPage />} />
+    </Routes></ToastProvider></MemoryRouter>);
+    expect(await screen.findByDisplayValue('Extra slab pour')).toBeInTheDocument();
+    expect(screen.getByTestId('mrq-returned-reason')).toHaveTextContent('Split the pour over two days');
+  });
+  it('JOB-WAIT-5 keeps the typed reason visible while the plan figures are still unknown', async () => {
+    h.existing = { ...returned(), lines: [{ id: 'l1', itemId: 'i9', quantity: 8, overPlanReason: 'Kept for later' }] };
+    render(<MemoryRouter initialEntries={['/material-requests/r1/edit']}><ToastProvider><Routes>
+      <Route path="/material-requests/:requestId/edit" element={<MaterialRequestNewPage />} />
+    </Routes></ToastProvider></MemoryRouter>);
+    expect(await screen.findByDisplayValue('Kept for later')).toBeInTheDocument();
   });
 });

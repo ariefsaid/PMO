@@ -69,6 +69,16 @@ const MaterialRequestNewPage: React.FC = () => {
     setLines(req.lines.map((l) => ({ key: l.id, itemId: l.itemId, quantity: String(l.quantity), reason: l.overPlanReason ?? '' })));
   }
 
+  // The last return of this request (its reason), shown above the form until the request is sent again.
+  const returnedReason = useMemo(() => {
+    const events = req?.events ?? [];
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      if (events[i].action === 'submitted') return null;
+      if (events[i].action === 'returned') return events[i].reason?.trim() || null;
+    }
+    return null;
+  }, [req?.events]);
+
   const workOrders = useProjectWorkOrders(projectId);
   // Where the delivery goes: one location is picked by the server; with several the requester must choose (#2608).
   const locations = useMemo(() => (warehousesReady ? warehouses : []).filter((w) => ['site', 'yard', 'staging'].includes(w.kind) && !w.archived_at && w.project_id === projectId)
@@ -139,6 +149,12 @@ const MaterialRequestNewPage: React.FC = () => {
       <BackBar label={t('form.back', 'Material requests')} onBack={() => navigate('/material-requests')} />
       <h1 className="mb-4 text-xl font-semibold">{requestId ? t('form.editTitle', 'Edit request') : t('form.title', 'New material request')}</h1>
       {error && <FormErrorStrip>{error}</FormErrorStrip>}
+      {returnedReason && (
+        <div role="status" data-testid="mrq-returned-reason" className="mb-4 rounded-md border border-border bg-waiting-surface px-3 py-2 text-control">
+          <strong className="block font-semibold">{t('form.returnedTitle', 'Sent back to you')}</strong>
+          <span className="break-words">{returnedReason}</span>
+        </div>
+      )}
       <div className="space-y-4">
         <Combobox label={t('form.project', 'Project')} required noun={t('form.projectNoun', 'project')} value={projectId || null}
           selectedOption={projectOptions.find((o) => o.value === projectId) ?? null} loadOptions={() => Promise.resolve(projectOptions)}
@@ -200,7 +216,8 @@ const MaterialRequestNewPage: React.FC = () => {
                     {t('form.sectionPlanLine', '{{section}} plan {{plan}} · already requested {{prior}}', { section: terms.section, plan: sp.sectionPlanQty, prior: sp.sectionPriorQty ?? 0 })}
                   </p>
                 )}
-                {st?.overPlan && (
+                {/* A reason already typed stays visible (and editable) even before the plan figures load, so a returned request never looks like it lost it. */}
+                {(st?.overPlan || l.reason.trim() !== '') && (
                   <TextArea label={t('form.reason', 'Why do you need more than the plan?')} required maxLength={500} rows={2}
                     value={l.reason} onChange={(v) => patch(l.key, { reason: v })}
                     error={err === 'reasonRequired' ? t('form.reasonRequired', 'Give a reason (up to 500 characters).') : err === 'reasonTooLong' ? t('form.reasonTooLong', 'Keep the reason under 500 characters.') : undefined} />
