@@ -361,5 +361,31 @@
       "issuedAfter": "Tanggal terbit setelah tanggal kedaluwarsa.",
       "repeat": "Orang ini sudah memiliki jenis dokumen ini di baris {n}."
     }
+  },
+  "stockMovement": {
+    "date": "Tanggal",
+    "location": "Lokasi",
+    "item": "Barang",
+    "direction": "Arah",
+    "quantity": "Jumlah",
+    "unitCost": "Biaya satuan",
+    "reference": "Referensi",
+    "dateHint": "Hari stok bergerak. Tidak setelah tanggal mulai pakai.",
+    "locationHint": "Kode lokasi stok yang sudah ada.",
+    "itemHint": "Kode barang stok yang sudah ada.",
+    "directionHint": "in: diterima, dikembalikan atau ditemukan. out: dikeluarkan, dipakai atau dikembalikan ke pemasok.",
+    "quantityHint": "Bilangan bulat saja untuk barang dengan satuan utuh.",
+    "unitCostHint": "Pada baris in. Kosongkan untuk barang dipasok klien (selalu tanpa biaya). Tidak dipakai pada baris out.",
+    "referenceHint": "Nomor surat jalan, laporan lapangan atau dokumen lain.",
+    "error": {
+      "date": "Tulis hari sebagai TTTT-BB-HH, misalnya 2026-01-15.",
+      "location": "Tulis kode lokasi stok.",
+      "item": "Tulis kode barang stok.",
+      "codeLong": "Kode ini terlalu panjang.",
+      "direction": "Tulis in (stok masuk) atau out (stok keluar).",
+      "quantity": "Jumlah harus di atas 0, paling banyak 3 desimal.",
+      "unitCost": "Biaya satuan harus 0 atau lebih, paling banyak 4 desimal.",
+      "reference": "Referensi terlalu panjang (paling banyak 100 karakter)."
+    }
   }
 }

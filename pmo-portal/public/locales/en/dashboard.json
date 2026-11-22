@@ -144,6 +144,8 @@
     "workOrderSteps_other": "work-order billing steps waiting for you",
     "workOrderStepsOverdue_one": "{{count}} past target",
     "workOrderStepsOverdue_other": "{{count}} past target",
+    "materialAhead_one": "$t(common:terms.clientWorkOrder) with material ahead of progress",
+    "materialAhead_other": "$t(common:terms.clientWorkOrder)s with material ahead of progress",
     "pmTasks_one": "overdue task on your projects",
     "pmTasks_other": "overdue tasks on your projects",
     "pmTimesheets_one": "team timesheet to approve",

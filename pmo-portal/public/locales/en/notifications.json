@@ -51,6 +51,8 @@
     "customerInvoiceApproval": "Customer invoice awaiting your approval",
     "inspectionOverdue": "Inspection overdue",
     "materialUsageThreshold": "Material usage threshold reached",
+    "installedUsageReached": "Installed material usage reached",
+    "materialAheadOfProgress": "Material issued ahead of progress",
     "materialRequestApproval": "Material request awaiting your approval",
     "outOfPlanSiteCash": "Out-of-plan site cash item awaiting your approval",
     "procurementApproval": "Procurement awaiting your approval",

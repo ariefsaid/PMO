@@ -19,6 +19,8 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay, formatMonthYearShort, parseMoneyInputAtScale } from '@/src/lib/format';
 import { PlansSection } from './imprest/PlansSection';
+import { OpenRequestsSection } from './imprest/OpenRequestsSection';
+import type { PlanSeedLine } from '@/src/lib/imprest/planSeed';
 import { FloatAmountSection } from './imprest/FloatAmountSection';
 import { CashAccountSection } from './imprest/CashAccountSection';
 
@@ -62,6 +64,7 @@ const ImprestFloatDetail: React.FC = () => {
   const transitionRep = useTransitionReplenishment();
   const recordCount = useRecordCount();
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [planSeed, setPlanSeed] = useState<PlanSeedLine[] | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [reference, setReference] = useState('');
@@ -231,7 +234,9 @@ const ImprestFloatDetail: React.FC = () => {
         </RecordSection>
       )}
 
-      <PlansSection floatId={flt.id} custodianId={flt.custodian_id} currency={cur} currentMonth={pos?.month ?? new Date().toISOString().slice(0, 7) + '-01'}
+      <OpenRequestsSection floatId={flt.id} currency={cur} onStartPlan={setPlanSeed} />
+
+      <PlansSection floatId={flt.id} seed={planSeed} onSeedDone={() => setPlanSeed(null)} custodianId={flt.custodian_id} currency={cur} currentMonth={pos?.month ?? new Date().toISOString().slice(0, 7) + '-01'}
         usageEmpty={planLines.length === 0}
         usage={pos ? (
           <div data-testid="month-plan-usage">

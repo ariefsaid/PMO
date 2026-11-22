@@ -51,6 +51,8 @@
     "customerInvoiceApproval": "Invoice pelanggan menunggu persetujuan Anda",
     "inspectionOverdue": "Inspeksi terlambat",
     "materialUsageThreshold": "Batas pemakaian material tercapai",
+    "installedUsageReached": "Pemakaian material terpasang tercapai",
+    "materialAheadOfProgress": "Material dikeluarkan mendahului kemajuan",
     "materialRequestApproval": "Permintaan material menunggu persetujuan Anda",
     "outOfPlanSiteCash": "Pengeluaran kas lapangan di luar rencana menunggu persetujuan Anda",
     "procurementApproval": "Pengadaan menunggu persetujuan Anda",

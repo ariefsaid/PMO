@@ -1,4 +1,5 @@
 import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
+import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
@@ -45,6 +46,7 @@ import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { ProcurementDetailsTab, ProcurementItemsTab, ProcurementQuotesTab } from './procurement/ProcurementDetailTabs';
 import { LinePlanningPanel } from './procurement/LinePlanningPanel';
+import { LineWorkOrdersPanel } from './procurement/LineWorkOrdersPanel';
 import { procurementAttachTargets, procurementDetailRows, procurementTabs, tabFromParam, type ProcTab } from './procurement/procurementDetailView';
 import { useProcurementDecision } from './procurement/useProcurementDecision';
 import { PaymentCeilingNotice } from './procurement/PaymentCeilingNotice';
@@ -139,6 +141,8 @@ const ProcurementDetails: React.FC = () => {
   // effectiveRole) so the buttons shown match what the RPC will actually honor.
   const { realRole, effectiveRole } = useEffectiveRole();
   const may = usePermission();
+  // roles-that-decide FR-RTD-009: the database gate says whether this person orders by built-in role (view-as never widens it).
+  const mayOrderByRole = useMayOrderPurchases() && realRole === effectiveRole;
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -389,7 +393,7 @@ const ProcurementDetails: React.FC = () => {
       ? approvalRouteNote(p.approvalRoute, p.budget_category, t)
       : null;
   const hasValue = purchaseHasValue(p);
-  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue));
+  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue, mayOrderByRole));
   const actionFor = (to: ProcurementStatus) => actions.find((action) => action.to === to);
   const stateMain = stateMainAction(p.status, actions, t);
   const transitionMainAction = stateMain?.transition;
@@ -855,7 +859,7 @@ const ProcurementDetails: React.FC = () => {
           {historyOpen && <RecordSection data-testid="procurement-full-history" title={t('procurementRecord:timeline.fullHistory', 'Full history')} actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></RecordSection>}
         </RecordStack>}
 
-        {tab === 'items' && <><ProcurementItemsTab p={p} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><LinePlanningPanel items={p.items} editable={canEditItems && canEditItemValues} /></>}
+        {tab === 'items' && <><ProcurementItemsTab p={p} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><LinePlanningPanel items={p.items} editable={canEditItems && canEditItemValues} /><LineWorkOrdersPanel items={p.items} projectId={p.project_id} requestWorkOrderId={p.work_order_id} editable={isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager'} /></>}
 
         {/* ░░ Documents tab — Slice 2: ProcurementLedger (the single case ledger).
             All 7 record types, chronological, one row each. Filter chips: All /

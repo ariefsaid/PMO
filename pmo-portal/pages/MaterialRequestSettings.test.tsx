@@ -16,6 +16,7 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useMaterialRequestCutoff: () => ({ ...ok, data: null }),
   useDeliveryNoteSettings: () => h.dnSettings,
   useStandIns: () => ({ ...ok, data: [{ id: 's1', delegatorId: 'u1', standInId: 'u2', startsOn: '2026-11-20', endsOn: '2026-11-22', revokedAt: null }] }),
+  useUsageInstalledSource: () => ({ data: 'site_reports', refetch: vi.fn() }),
   useMaterialRequestMutations: () => ({
     setChain: { mutateAsync: vi.fn(), isPending: false }, setCutoff: { mutateAsync: vi.fn(), isPending: false },
     setDeliveryNoteSettings: { mutateAsync: h.setDeliveryNoteSettings, isPending: false },
@@ -28,6 +29,7 @@ vi.mock('@/src/hooks/useUsers', () => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'o1', role: 'Engineer' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('@/src/components/shell', () => ({ BackBar: () => null }));
+vi.mock('@/src/hooks/useBuiltInRoles', () => ({ useBuiltInRolesEnabled: () => ({ data: false }) }));
 
 import MaterialRequestSettingsPage from './MaterialRequestSettings';
 

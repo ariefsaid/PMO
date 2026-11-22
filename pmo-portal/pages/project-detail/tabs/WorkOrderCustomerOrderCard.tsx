@@ -32,6 +32,8 @@ import WorkOrderAcceptances from '../WorkOrderAcceptances';
 import { WorkOrderOpenTasks } from '@/src/components/tasks/WorkOrderOpenTasks';
 import { WorkOrderCostVariations } from '../WorkOrderCostVariations';
 import { WorkOrderStockBalance } from '../../stock/WorkOrderStockBalance';
+import { WorkOrderAheadBadge } from './WorkOrderAheadBadge';
+import { WorkOrderUsageWarningBanner } from '../../materialRequests/WorkOrderUsageWarningBanner';
 import { MoneyFigure, type InvoiceWithWorkOrder, type OrderLineView } from './workOrdersTabFigures';
 
 /** The billing/invoice figure reads the card's incompleteness states surface. */
@@ -256,6 +258,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
           <span className="min-w-0 break-words text-sm text-foreground">{row.title}</span>
           <Link to={`/work-orders/${row.id}`} data-testid={`wo-page-link-${row.id}`} className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground">{t('workOrders:openPage', 'Open page')}</Link>
           <StatusPill variant={workOrderStatusTone}>{statusLabel('workOrder', row.status, t)}</StatusPill>
+          <WorkOrderAheadBadge workOrderId={row.id} onOpen={() => setStockOpen(true)} />
           <WorkOrderAreaGroup row={row} />
           {canViewBilling && billingState && billingState !== 'not-billable' && <StatusPill variant={billingStateTones[billingState]}>
             {billingStateLabels[billingState]}
@@ -409,6 +412,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
       </div>
 
       <div className="mt-3 border-t border-border pt-3">
+        <WorkOrderUsageWarningBanner workOrderId={row.id} />
         <Button variant="ghost" size="sm" aria-expanded={stockOpen} onClick={() => setStockOpen(!stockOpen)}>
           {t('stock:siteWork.balance.open', 'Stock for this work order')}
         </Button>

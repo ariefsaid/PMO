@@ -520,6 +520,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 the UI; never "float". Its figures: **Limit** (*batas kas*, the approved amount it is topped up to), **Cash in hand**,
 **Advances given**, **Receipts waiting** (paid claims not yet refilled), **Top-up on its way**, **Still needed**.
 
+**Open requests (site cash)** (*permintaan terbuka*) — a read-only list beside the monthly plan: the purchase requests of the site's project that are submitted and not yet ordered or paid, by purpose and work order. It only suggests: "Start the plan from these" fills the plan editor (one line per purpose), and the person edits and saves through the usual plan path. It shows only what the viewer already sees on the purchase list.
+
 **Top-up** (*tambahan dana*) — a request to refill site cash with the receipts waiting (code: replenishment). **Funding**
 (*pendanaan*) is the first cash put in, up to the limit.
 
@@ -616,9 +618,10 @@ contract lines the work order carries, in proportion to the share of each line t
 Each request line keeps the figure it was submitted against and where it came from (standard, adjusted, allowance,
 none). A line whose already-requested quantity plus the new quantity exceeds it is **over plan** and carries a reason.
 
-**Approval chain** — the organisation's ordered list of approval steps for material requests, each naming a role and
-a purpose; a step may apply only to over-plan requests. A submitted request keeps a copy of the chain as it was, and
-steps are decided in order. The requester never decides a step, and one person decides at most one step of a request.
+**Approval chain** — the organisation's ordered list of approval steps for material requests, each naming an access level
+or a built-in role (who **fills the role**, below) and a purpose; a step may apply only to over-plan requests. A step with no
+built-in role decides by its access level, as before. A submitted request keeps a copy of the chain as it was, and steps are
+decided in order. The requester never decides a step, and one person decides at most one step of a request.
 
 **Stand-in** — a person named, for a date range, to decide approval steps on behalf of someone away. Only that
 person's own role counts (one hop), never on a request the stand-in or the person away raised; both names are kept on
@@ -806,10 +809,6 @@ it moves stock the organisation already holds.
 **Planned quantity (material request)** — the material allowances of the contract lines a work order carries, in
 proportion to the share of each line the work order holds. A line whose already-requested quantity plus the new quantity
 exceeds it is **over plan** and carries a reason.
-
-**Approval chain** — the organisation's ordered list of approval steps for material requests, each naming a role and a
-purpose; a step may apply only to over-plan requests. A submitted request keeps a copy of the chain as it was, and steps
-are decided in order. The requester never decides a step, and one person decides at most one step of a request.
 
 **Stand-in** (*pengganti*) — a person named, for a date range, to decide approval steps on behalf of someone away. Never
 on a request the stand-in or the person away raised; chains of stand-ins are not followed (one hop); both names are kept
@@ -1226,7 +1225,17 @@ the material close-out: joint count, loss report, material completion report). T
 
 **Base access level** — one of today's five levels (Executive, Project Manager, Finance, Engineer, Admin) that every existing rule reads from `profiles.role`. While a person holds a built-in role it is set to that role's base level and moves only with it.
 
-**Role tier** — manager, officer or field. Managers approve, officers prepare, field roles are light accounts; a manager stands in for a manager, never upward.
+**Fills a built-in role** — an active person who holds the built-in role, or who holds no built-in role and whose access level
+is the one the role is built on. A person who holds a built-in role is judged by it alone. Decided by one database function,
+`holds_job_role` (docs/specs/roles-that-decide.spec.md); approval steps and ordering read it. "Job role" in specs means built-in role.
+
+**Roles that order** — the built-in roles an organisation names (Administration › Accounting, "Who can order purchases") whose
+holders (holding the role, not only an access level it is built on) may also raise and send purchase orders, for approved purchases only, beside the four levels that always can. Empty by
+default, which changes nothing.
+
+**Role tier** — manager, officer or field: catalogue data on each built-in role; field roles are light accounts.
+
+**Role capability** — a narrow addition to the base level held by named built-in roles only (today: seeing prices, reading medical-document status and dates, reading, adding and renewing every person's non-medical documents). Each capability is read by one database gate function that every channel (app rule, email, screen) calls, and the screen reads it only through `can()`. A catalogue entry with no gate yet is listed as held for a ruling in `supabase/tests/2716`.
 
 **Role capability** — a narrow difference from the base level held by named built-in roles only (for example posting stock, validating a daily report, running billing stages). Other features read it through `actor_has_role_capability`.
 ## Leave requests (#2708)
@@ -1386,28 +1395,24 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Direct manager** — the app user recorded as a person's manager on the people register (`people.manager_id`). They are warned first when that person's documents are about to expire and may record the renewal (a later expiry date) for their own people only; Admin keeps the existing write. Separate from the line-management link on user accounts. A medical release is decided by the direct manager, or, when none is set, by the manager of the person's linked login.
 **Issue type** (*jenis isu*) — one entry of the organisation's own kept list that every issue picks from; an Admin adds, renames and archives entries, and the closing-time report groups by them. Archiving hides a type from new issues; issues that already have it keep it. A new organisation starts with one generic entry, "Other".
-
 **Effective working hours** (*jam kerja efektif*) — for one work order and one day: the site day on its validated daily report (start to end) minus the stopped time recorded on that report, never below zero. A day with no start and end time shows "times not entered", not zero. Shown beside the closing-time report; calendar closing time is not reduced by it.
-
-**Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
-
-**Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
-
 **Second record** (*catatan kedua*) — a surveyor's or timekeeper's record of one worker's hours for one work order and day, kept beside the crew tick on the site report and never paid or costed on its own. Who may enter one is an organisation setting (a list of built-in roles; managers always may).
-
 **Standing hours** (*jam yang berlaku*) — the one figure the attendance day carries for a worker and day, which is the figure that is paid and costed. It is the site-report (crew tick) figure until a person the organisation names decides the second record stands instead; the figure not chosen stays on file as evidence. Nobody decides hours they recorded, and a day waiting for a decision cannot be sent on for approval (pay-time, `docs/specs/pay-time.spec.md`).
-
 **Head-count line** — for one work order, one crew rostered on it that day, one date and one labour class, the number of people present who are not named in the roster (guards or helpers with no login). Entered by the crew's Foreman or a crew manager, never from a field account; it counts toward cost once a different Admin, Executive or Project Manager approves it, and is final once approved. A person is either named (costed through attendance or a timesheet) or counted here, never both. Cost is the number times the daily equivalent of the class rate in force on the date; its quantity is person-hours (the number times the rate's day length).
-
 **Daily equivalent** — a labour class rate stated per day: a daily rate is itself; an hourly rate times the rate's day length; a monthly rate divided by month length times day length. The conversions labour cost uses for one hour.
 **Claim ceiling / claimable quantity** (*batas klaim / kuantitas yang dapat ditagih*) — what a claim on one work-order line may still take: the surveyed quantity when there is one, otherwise the accepted (BAST) quantity (a BAST of zero counts), otherwise the ordered quantity, less what live claims and live opening balances already took (withdrawn and cancelled-invoice claims do not count). The claim form shows it as a warning; an organisation that sets **Claims over the claimable quantity** to Refuse (Administration, Accounting; Admin only; default Warn only) has the database refuse the claim instead (refusal code `CLM_OVER_CAP`). Lump-sum lines and claims with no work order are outside it. One rule in two places: `claimableHeadroom` (app) and `claimable_headroom` (database), tested against the same cases.
-
 **Survey record** (*catatan survei*) — what was measured on site for one work-order line: date, who took part (typed names, with or without an account), surveyed quantity, quality-ready quantity and attached documents. A draft becomes confirmed by Finance or an Admin who is not the recorder; a confirmed record is never edited, a correction is a new record that supersedes it.
-
 **Certified quantity** (*kuantitas tersertifikasi*) — the sum of the surveyed quantity of a work-order line's confirmed, not-superseded survey records. It is the claim ceiling's first choice.
-
 **Quality-ready quantity** (*kuantitas siap mutu*) — the part of a surveyed quantity that has quality documents attached. A claim past it only warns.
-
+**Issued share / progress share / gap** — for one item on a work order, the net quantity issued as a percent of its planned quantity (*issued share*); the work order's own percent complete (*progress share*); and issued share minus progress share in percentage points (*gap*). An item warns when the gap is strictly above the organisation's threshold (`work_order_stock_settings`). Information only: it blocks nothing. (`docs/specs/material-issued-vs-progress.spec.md`.)
+**Material alert** — a row of the usage-warning alert table (`material_installed_usage_alerts`) of kind `issued_ahead`, kept per work order and item while material issued is ahead of progress: opened by the posting or progress report that moved the comparison, resolved when the item no longer warns. One row is one *episode*; a later warning on the same item opens a new row and tells again. The person told is the work order's responsible person, else the project manager. It shows as a count on the work-order card and page header and as a needs-you entry that clears when the alert resolves. (`docs/specs/material-vs-progress.spec.md`.)
+**Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
+**Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
+**Responsible person** (*penanggung jawab*) — the one person named on a work order, the site engineer. The usage warning for the work order goes to them; with none named, or when they are no longer an active member, it goes to the project's manager. Whoever may edit the work order names or clears it.
+**Installed material** (*material terpasang*) — the quantity of an item on a work order that the organisation counts as installed: the material lines of its validated site reports (a correction replaces the version it supersedes), or, by an Admin's setting, the storekeeper's issues to the work order less returns. Requests and transfers are not installed material.
+**Usage warning** (*peringatan pemakaian*) — when installed material of an item on a work order reaches the organisation's first usage threshold (percent of plan), one warning is recorded for that work order and item and the responsible person is told to go and check. It never blocks anything; unset means off. The request-time warning at submit (#2686) is separate and unchanged.
+**Opening stock history** (*riwayat stok awal*) — the dated in-and-out movements of an item at a location up to the go-live date, loaded once from one template and posted through the stock ledger's own writer, so the balance at go-live equals the sum of the movements. A client-supplied item stays at zero cost throughout. An Admin previews the file, then confirms; nothing posts before the confirm.
+**Go-live date** (*tanggal mulai pakai*) — the one date every live opening of an organisation carries; no opening movement is dated after it.
 **Equipment manager** — the person who runs the machines: today a Project Manager (or Admin). They add and edit machines and their rental terms, set the working hours per day, the availability and use targets and the escalation limit, and read the rental invoice check; Finance keeps the costing and the unproven-days decision (equipment manager's day lane, migration 1600).
 
 **Hours log** — the weekly grid where hours on a machine are logged per project and day (`/equipment?view=hours`); Equipment itself opens on the machines and today's status.

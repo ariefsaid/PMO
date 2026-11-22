@@ -196,7 +196,10 @@
     "sourceRequired": "Pilih gudang asal material.",
     "standIn": "Pengganti ini tidak diizinkan: pilih rekan aktif dan rentang tanggal yang valid.",
     "unknown": "Gagal. Coba lagi.",
-    "workOrder": "Pilih $t(common:terms.clientWorkOrder) yang dapat Anda lihat."
+    "workOrder": "Pilih $t(common:terms.clientWorkOrder) yang dapat Anda lihat.",
+    "notJobRole": "Langkah ini untuk peran bawaan yang tidak Anda pegang. Minta peran itu kepada Admin, atau serahkan langkah ini kepada orang yang memegangnya.",
+    "jobRoleOff": "Aktifkan peran bawaan sebelum langkah dapat memakainya, atau pilih tingkat akses.",
+    "jobRoleUnknown": "Peran bawaan itu tidak ada. Pilih salah satu dari daftar."
   },
   "role": {
     "Admin": "Admin",
@@ -254,7 +257,12 @@
     "standInSub": "Orang yang dapat menyetujui menggantikan Anda pada rentang tanggal tertentu. Satu tingkat saja: pengganti tidak dapat meneruskannya.",
     "stepN": "Langkah {{n}}",
     "title": "Pengaturan persetujuan",
-    "to": "Sampai"
+    "to": "Sampai",
+    "jobRole": "Peran bawaan yang memutuskan",
+    "jobRoleNone": "Tidak ada: siapa pun dengan tingkat akses ini",
+    "jobRoleOff": "Peran bawaan nonaktif, jadi ini tidak dapat diubah. Aktifkan di Administrasi untuk memilih yang lain.",
+    "jobRoleHelp": "Orang tanpa peran bawaan ikut dihitung bila tingkat aksesnya adalah tingkat dasar peran ini.",
+    "roleSetByJobRole": "Ditentukan oleh peran bawaan."
   },
   "status": {
     "approved": "Disetujui",
@@ -274,7 +282,7 @@
   },
   "usage": {
     "title": "Peringatan pemakaian",
-    "sub": "Beri peringatan saat pemakaian material $t(common:terms.clientWorkOrder) mencapai persentase rencana ini. Kosongkan kolom untuk mematikan peringatan itu. Peringatan tidak pernah menghalangi permintaan.",
+    "sub": "Beri peringatan saat pemakaian material $t(common:terms.clientWorkOrder) mencapai persentase rencana ini. Kosongkan kolom untuk mematikan peringatan itu. Peringatan tidak pernah menghalangi permintaan. Peringatan pertama juga memberi tahu insinyur lapangan $t(common:terms.clientWorkOrder) saat material terpasang mencapainya.",
     "first": "Peringatan pertama (% dari rencana)",
     "second": "Peringatan kedua (% dari rencana)",
     "save": "Simpan peringatan",
@@ -283,6 +291,15 @@
     "invalidRange": "Masukkan persentase dari 1 sampai 1000.",
     "invalidOrder": "Peringatan kedua harus lebih tinggi dari yang pertama.",
     "reached": "Pemakaian mencapai {{reached}}% dari rencana, melewati peringatan {{threshold}}%.",
-    "planZero": "Rencana belum ditetapkan, jadi pemakaian apa pun melewati peringatan {{threshold}}%."
+    "planZero": "Rencana belum ditetapkan, jadi pemakaian apa pun melewati peringatan {{threshold}}%.",
+    "installedTitle": "Yang dihitung terpasang",
+    "installedSub": "Peringatan pemakaian membandingkan material terpasang dengan rencana. Pilih dari mana jumlah terpasang diambil.",
+    "installedLabel": "Material terpasang berasal dari",
+    "installedSiteReports": "Laporan lapangan yang divalidasi",
+    "installedStockIssues": "Pengeluaran penjaga gudang ke perintah kerja (dikurangi retur)",
+    "installedSave": "Simpan sumber",
+    "installedSaved": "Sumber disimpan",
+    "cardTitle": "Material terpasang melewati peringatan pemakaian",
+    "cardLine": "{{item}}: {{installed}} dari {{plan}} {{unit}} rencana terpasang, melewati peringatan {{threshold}}%."
   }
 }

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { useAuth } from '@/src/auth/useAuth';
+import { isLightAccount } from '@/src/auth/lightAccount';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useProcurements } from '@/src/hooks/useProcurements';
@@ -30,6 +31,9 @@ import { supplierUnpaid, withLinkedDocuments } from '@/src/lib/procurement/procu
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { selectOverdueTaskCount } from './overdueTasks';
 import { useWaitingSteps, useWaitingWorkOrderSteps } from '@/src/hooks/useBillingSteps';
+import { useWaitingMaterialAlerts } from '@/src/hooks/useWorkOrderMaterialAlerts';
+import { summariseWaitingMaterialAlerts } from '@/src/lib/materialAlertSteps';
+import type { WaitingMaterialAlertsFact } from '@/src/lib/materialAlertSteps';
 import { useCheckInRequests } from '@/src/hooks/usePhoneCheckIn';
 import { summariseWaitingSteps } from '@/src/lib/waitingSteps';
 import { summariseWaitingWorkOrderSteps } from '@/src/lib/workOrderBillingSteps';
@@ -97,6 +101,8 @@ export interface NeedsYouFacts {
   waitingManpower?: WaitingManpowerFact;
   /** Work-order billing steps waiting for the viewer (named person, else their built-in role): derived on read, cleared when the step is done. */
   waitingWorkOrderSteps?: WaitingWorkOrderStepsFact;
+  /** Work orders whose material issued is ahead of progress, for the people who control them (material-vs-progress): absent when none, unread or the read failed. */
+  waitingMaterialAlerts?: WaitingMaterialAlertsFact;
   /** Phone check-ins waiting for this person's decision (#2705): the database lists only the ones they may decide, so most people read zero. */
   checkInsWaiting?: number;
 }
@@ -250,6 +256,14 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       href: w.href, tone: w.overdue > 0 ? 'lost' : 'warn',
     });
   }
+  if (facts.waitingMaterialAlerts) {
+    const m = facts.waitingMaterialAlerts;
+    add({
+      id: 'material-ahead-of-progress', count: m.count,
+      label: counted(t, 'needs.materialAhead', 'work order with material ahead of progress', 'work orders with material ahead of progress', m.count),
+      href: m.href, tone: 'warn',
+    });
+  }
   if (facts.checkInsWaiting) add({
     id: 'check-ins-waiting', count: facts.checkInsWaiting, href: '/crews', tone: 'warn',
     label: counted(t, 'needs.checkIns', 'check-in waiting for your decision', 'check-ins waiting for your decision', facts.checkInsWaiting),
@@ -392,6 +406,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const manpowerToFillQuery = useManpowerToFill(Boolean(orgId && role));
   // Work-order billing steps waiting for the viewer (any role: the database returns only what they may see and act on).
   const waitingWoStepsQuery = useWaitingWorkOrderSteps(Boolean(orgId && role));
+  // material-vs-progress: open alerts on work orders the viewer controls. The responsible person can hold any role; the database returns none to everyone else and refuses a light account, so none is asked.
+  const waitingAlertsQuery = useWaitingMaterialAlerts(Boolean(orgId && role) && !isLightAccount(currentUser));
   // The check-in decisions this person may make; a failed read adds no item and never blocks the list.
   const checkInsQuery = useCheckInRequests();
 
@@ -451,6 +467,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     checkInsWaiting: checkInsQuery.isSuccess ? checkInsQuery.data.length : undefined,
     waitingBillingSteps: waitingStepsQuery.isSuccess ? summariseWaitingSteps(waitingStepsQuery.data ?? []) ?? undefined : undefined,
     waitingWorkOrderSteps: waitingWoStepsQuery.isSuccess ? summariseWaitingWorkOrderSteps(waitingWoStepsQuery.data ?? [], organizationDay.day ?? localToday()) ?? undefined : undefined,
+    waitingMaterialAlerts: waitingAlertsQuery.isSuccess ? summariseWaitingMaterialAlerts(waitingAlertsQuery.data ?? []) ?? undefined : undefined,
     returnedExpenses: role === 'Engineer' && !expenseClaimsQuery.isPending && !expenseClaimsQuery.isError ? currentReturnedExpenses.length : undefined,
   };
 

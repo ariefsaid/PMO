@@ -42,6 +42,24 @@ describe('AC-WCA-013 set_cost_attribution', () => {
     expect(err.code).toBe('23514');
   });
 
+  it('AC-WPL-011 attributeLines writes one call per distinct pair (lines grouped) and skips "same as the request"', async () => {
+    h.result.value = { data: 2, error: null };
+    await workOrderCostRepository.attributeLines('case1', {
+      l1: { workOrderId: 'w1', disciplineId: '' }, l2: { workOrderId: 'w1', disciplineId: '' }, l3: { workOrderId: 'w2', disciplineId: 'd1' }, l4: { workOrderId: '', disciplineId: '' },
+    });
+    expect(h.calls.rpc).toEqual([
+      ['set_cost_attribution', { p_source: 'procurement_item', p_ids: ['l1', 'l2'], p_work_order_id: 'w1', p_discipline_id: null }],
+      ['set_cost_attribution', { p_source: 'procurement_item', p_ids: ['l3'], p_work_order_id: 'w2', p_discipline_id: 'd1' }],
+    ]);
+  });
+
+  it('AC-WPL-011 a refused line attribution becomes AttributionRefusedError carrying the saved purchase id', async () => {
+    h.result.value = { data: null, error: { message: 'COST_WO_PROJECT: the work order belongs to another project', code: '23514' } };
+    const err = await workOrderCostRepository.attributeLines('case1', { l1: { workOrderId: 'w1', disciplineId: '' } }).catch((e) => e);
+    expect(err.name).toBe('AttributionRefusedError');
+    expect(err.recordId).toBe('case1');
+  });
+
   it('AC-WCA-013 attributeCreated makes no call when nothing was picked, and one call when something was', async () => {
     await workOrderCostRepository.attributeCreated('purchase_order', 'po1', { workOrderId: null, disciplineId: null });
     await workOrderCostRepository.attributeCreated('purchase_order', null, { workOrderId: 'wo1', disciplineId: null });

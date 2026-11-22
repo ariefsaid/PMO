@@ -40,3 +40,21 @@ describe('needs-you work-order billing step pointer (AC-WBS-009)', () => {
     expect(buildNeedsItems('Finance', {}, translate, 'IDR').some((i) => i.id === 'work-order-steps-waiting')).toBe(false);
   });
 });
+
+describe('needs-you ahead-of-progress pointer (AC-MVP-012)', () => {
+  it('shows one pointer with the count and a link to the project\'s work orders', () => {
+    const items = buildNeedsItems('Project Manager', { waitingMaterialAlerts: { count: 2, href: '/projects/p1/work-orders' } }, translate, 'IDR');
+    expect(items).toEqual([expect.objectContaining({
+      id: 'material-ahead-of-progress', count: 2, label: 'work orders with material ahead of progress', href: '/projects/p1/work-orders', tone: 'warn',
+    })]);
+  });
+
+  it('is singular for one work order, and any role listed as a recipient sees it (an Engineer too)', () => {
+    const [item] = buildNeedsItems('Engineer', { waitingMaterialAlerts: { count: 1, href: '/projects' } }, translate, 'IDR');
+    expect(item).toMatchObject({ id: 'material-ahead-of-progress', count: 1, label: 'work order with material ahead of progress' });
+  });
+
+  it('adds nothing when there are none, or the read is unread or failed', () => {
+    expect(buildNeedsItems('Project Manager', {}, translate, 'IDR').some((i) => i.id === 'material-ahead-of-progress')).toBe(false);
+  });
+});

@@ -27,7 +27,7 @@ const ROWS_WITH_DROPDOWN = 500;
  * field with whether it is required, what it holds and its accepted values. The version marker rides in the file's
  * properties, so no extra column appears and an upload can be checked without mis-mapping columns.
  */
-export async function buildTemplateWorkbook<Input>(d: ImportDescriptor<Input>, labels: Partial<TemplateLabels> = {}): Promise<ArrayBuffer> {
+export async function buildTemplateWorkbook<Input>(d: Pick<ImportDescriptor<Input>, 'entity' | 'fields' | 'template' | 'maxRows'>, labels: Partial<TemplateLabels> = {}): Promise<ArrayBuffer> {
   const L = { ...DEFAULT_LABELS, ...labels };
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();

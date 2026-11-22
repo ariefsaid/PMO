@@ -35,7 +35,7 @@ location holds, so progress, billing and stock continue from the right point ins
   invoice cap) and as claimed and billed quantity per contract line (project billing, billing reconciliation). It
   never becomes a claim or an invoice, so nothing is sent to an ERP.
 - **FR-OPB-006** The stock part is a stock document of kind `opening`, posted at go-live; its ledger rows carry kind
-  `opening`. Its cost reaches no project actual (it names no project or work order).
+  `opening`. Its cost reaches no project actual (it names no project or work order). Dated movement history (in and out) loads through the same routine: `docs/specs/opening-stock-history.spec.md`.
 - **FR-OPB-007** Loading and reversing are audited (`opening_balance.load`, `opening_balance.reverse`).
 - **FR-OPB-008** An Admin may reverse an opening while nothing real has happened since: for a work order, no other
   live acceptance, claim or invoice; for a location, no later stock movement. Reversal removes the opening

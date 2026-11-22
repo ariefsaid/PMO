@@ -77,6 +77,16 @@ vi.mock('@/src/hooks/useThreeWayMatch', () => ({
 // The hook's own suite and the settings-section suite unmock it; the print-action tests register their own value.
 vi.mock('@/src/hooks/usePurchaseOrderSettings', () => import('@/pages/__tests__/helpers/purchaseOrderSettingsMock'));
 
+// roles-that-decide: the ordering-by-built-in-role gate is a query the procurement, rail and shell suites do not provide a client
+// for. Default: no ordering role (an organisation that named none). The hook's suite and the settings-section suite unmock it.
+vi.mock('@/src/hooks/useOrderJobRoles', () => ({
+  ORDER_JOB_ROLES_KEY: 'order-job-roles',
+  MAY_ORDER_PURCHASES_KEY: 'may-order-purchases',
+  useMayOrderPurchases: () => false,
+  useOrderJobRoles: () => ({ data: [], isPending: false, isError: false, refetch: () => Promise.resolve() }),
+  useOrderJobRolesMutation: () => ({ mutateAsync: async () => [], isPending: false }),
+}));
+
 // The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not
 // provide. Its parts have their own suites; the view suites need only know it is mounted.
 vi.mock('@/src/components/integrations/odoo/OdooIntegrationSection', () => ({

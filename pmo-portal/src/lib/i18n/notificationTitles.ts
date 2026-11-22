@@ -20,6 +20,8 @@ export const NOTIFICATION_TITLES: Record<string, string> = {
   'Customer invoice awaiting your approval': 'customerInvoiceApproval',
   'Inspection overdue': 'inspectionOverdue',
   'Material usage threshold reached': 'materialUsageThreshold',
+  'Installed material usage reached': 'installedUsageReached',
+  'Material issued ahead of progress': 'materialAheadOfProgress',
   'Material request awaiting your approval': 'materialRequestApproval',
   'Out-of-plan site cash item awaiting your approval': 'outOfPlanSiteCash',
   'Procurement awaiting your approval': 'procurementApproval',

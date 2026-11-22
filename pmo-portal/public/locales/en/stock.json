@@ -153,7 +153,8 @@
       "empty": "No active members to assign.",
       "toggleLabel": "Keeper",
       "close": "Done"
-    }
+    },
+    "openingLink": "Opening stock"
   },
   "kinds": {
     "receive": "Receive",
@@ -654,6 +655,11 @@
   },
   "siteWork": {
     "materialProgress": {
+      "alert": {
+        "badge_one": "{{count}} item ahead of progress",
+        "badge_other": "{{count}} items ahead of progress",
+        "badgeHint": "Open the stock for this work order to see which items."
+      },
       "banner": {
         "title": "Items issued ahead of progress: {{count}}",
         "body": "Issued as a share of the planned quantity is more than {{threshold}} points above the work order's progress ({{progress}}%). This is a warning only.",
@@ -985,5 +991,69 @@
     "itemsAll": "Every item on a material line",
     "itemsConsumables": "Only items marked as consumables",
     "flagList": "Items counted as consumables"
+  },
+  "opening": {
+    "title": "Opening stock",
+    "backToSetup": "Back to set-up",
+    "asOf": "Go-live date",
+    "notAdmin": {
+      "title": "An Admin loads opening stock",
+      "sub": "Ask an Admin to load it here."
+    },
+    "template": {
+      "title": "Template",
+      "column": "Column",
+      "required": "Required",
+      "holds": "What it holds",
+      "yes": "Yes",
+      "no": "No",
+      "download": "Download template"
+    },
+    "file": {
+      "title": "File",
+      "choose": "Choose file",
+      "change": "Choose another file",
+      "rows": "{{count}} rows"
+    },
+    "preview": {
+      "title": "Preview",
+      "row": "Row",
+      "rowN": "Row {{n}}",
+      "column": "Column",
+      "date": "Date",
+      "location": "Location",
+      "item": "Item",
+      "direction": "Direction",
+      "in": "In",
+      "out": "Out",
+      "quantity": "Quantity",
+      "status": "Status",
+      "accepted": "Accepted",
+      "summary": "{{accepted}} accepted, {{refused}} refused. Nothing is posted until you confirm."
+    },
+    "closing": {
+      "title": "Closing balance",
+      "value": "Value",
+      "clientSupplied": "Client-supplied"
+    },
+    "confirm": {
+      "button": "Confirm opening stock",
+      "noFile": "Choose the file first.",
+      "noDate": "Choose the go-live date first.",
+      "fixFile": "Fix the rows listed in your file, then choose it again.",
+      "checking": "Checking the file.",
+      "checkFailed": "The check failed. Choose the file again.",
+      "refused": "Fix the {{count}} refused rows in your file, then choose it again."
+    },
+    "done": {
+      "title": "Opening stock loaded",
+      "sub": "{{count}} locations now start from this history.",
+      "openLedger": "Open the stock ledger"
+    },
+    "errors": {
+      "file": "This file could not be read. Use the template, saved as .xlsx.",
+      "missingColumn": "The file has no {{column}} column. Use the template.",
+      "tooMany": "A file holds 1 to {{max}} rows. Split it by location."
+    }
   }
 }

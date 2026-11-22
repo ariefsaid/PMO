@@ -72,6 +72,7 @@ import { subcontractCertificateRepository } from './subcontractCertificates';
 import { revenueRepository } from './revenue';
 import { timesheetRepository } from './timesheets';
 import { stockRepository } from './stock';
+import { stockOpeningRepository } from './stockOpening';
 import { budgetRepository } from './budget';
 import {
   milestoneRepository,
@@ -154,6 +155,7 @@ export const repositories: Repositories = {
   workInHand: workInHandRepository,
   quantityChange: quantityChangeRepository,
   stock: stockRepository,
+  stockOpening: stockOpeningRepository,
   workOrderAcceptance: workOrderAcceptanceRepository,
   procurementFiles: procurementFilesRepository,
   expenseClaim: expenseClaimRepository,

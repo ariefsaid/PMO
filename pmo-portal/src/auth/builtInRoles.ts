@@ -150,3 +150,22 @@ export function builtInRoleName(key: string, language: string, overrides?: RoleN
   if (custom) return custom;
   return id ? role.nameId : role.nameEn;
 }
+
+/** The person a job-role rule is asked about: their access level, their job role (null = none) and whether they are active. */
+export interface JobRolePerson {
+  role: Role | null | undefined;
+  builtInRoleKey: string | null | undefined;
+  active?: boolean;
+}
+
+/**
+ * Frontend mirror of the database's `holds_job_role(profile, key)` (migration 1840, docs/specs/roles-that-decide.spec.md §2.1):
+ * an active person fills job role `key` when they hold it, or when they hold no job role and their access level is the one the job
+ * role is built on. A person who holds a job role is judged by it alone. Null or unknown key: false. Affordance only (ADR-0016).
+ */
+export function holdsJobRole(person: JobRolePerson, key: string | null | undefined): boolean {
+  const base = baseLevelOf(key);
+  if (base == null || person.active === false) return false;
+  if (person.builtInRoleKey != null) return person.builtInRoleKey === key;
+  return person.role === base;
+}

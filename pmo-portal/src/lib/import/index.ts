@@ -31,6 +31,7 @@ export { makeRateCatalogueImportDescriptor, RATE_CATALOGUE_MAX_ROWS } from './ra
 export { makeContractLineImportDescriptor, type ContractLineImportInput } from './contractLineDescriptor';
 export { makeClientTakeoffImportDescriptor, type ClientTakeoffLine } from './clientTakeoffDescriptor';
 export { makeStockItemImportDescriptor, makeStockLocationImportDescriptor } from './stockItemDescriptor';
+export { makeStockMovementHistoryDescriptor, movementRowFromCells, STOCK_MOVEMENT_MAX_ROWS, type StockMovementRow } from './stockMovementHistoryDescriptor';
 export { makeEquipmentImportDescriptor, type EquipmentImportInput } from './equipmentDescriptor';
 export { makePersonDocumentImportDescriptor, type PersonDocumentImportDeps } from './personDocumentDescriptor';
 export { makePeopleImportDescriptor, type ManagerChoice, type PeopleImportDeps } from './employeeDescriptor';

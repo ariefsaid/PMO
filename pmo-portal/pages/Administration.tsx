@@ -44,6 +44,7 @@ import OrgClaimOverCap from './admin/OrgClaimOverCap';
 import WorkOrderCloseoutTemplate from './admin/WorkOrderCloseoutTemplate';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import PurchaseOrderSettingsSection from './admin/PurchaseOrderSettingsSection';
+import OrderJobRolesSection from './admin/OrderJobRolesSection';
 import OrgThreeWayMatch from './admin/OrgThreeWayMatch';
 import OrgPaymentChannels from './admin/OrgPaymentChannels';
 import OrgPurchaseLines from './admin/OrgPurchaseLines';
@@ -303,6 +304,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgClaimOverCap />
             <OrgProcurementGates />
             <PurchaseOrderSettingsSection />
+            <OrderJobRolesSection />
             <OrgThreeWayMatch />
             <OrgPaymentChannels />
             <OrgPurchaseLines />

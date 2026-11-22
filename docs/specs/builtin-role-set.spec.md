@@ -126,6 +126,8 @@ to #2712. Which role sees which document category stays the client's setting.
 (spend-approver routes name people; document categories and viewer roles are not on `dev` yet), so nothing is retrofitted. The seam is
 `actor_has_role_capability(capability)` (SQL, called by one gate function per capability) and `roleHasCapability` / the stable role keys
 (frontend); a later config table can store a role key with an FK to `built_in_roles(key)`.
+Built since: `docs/specs/roles-that-decide.spec.md` stores a role key with that FK on material-request approval steps and in the
+purchase-order ordering setting, and decides "fills the role" through one function, `holds_job_role(profile, key)`.
 
 ## 6. Not in this ticket
 

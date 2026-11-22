@@ -220,6 +220,11 @@ const StockSetup: React.FC = () => {
         <Link to="/stock" className="touch-target inline-flex min-h-9 items-center gap-1 rounded-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
           <Icon name="back" className="size-4" aria-hidden="true" />{t('setup.backToStock')}
         </Link>
+        {may('manage', 'warehouse') && (
+          <Link to="/stock/opening" className="touch-target inline-flex min-h-9 items-center rounded-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {t('setup.openingLink')}
+          </Link>
+        )}
         {odooConnected && (
           <Link to="/master-data/product" className="touch-target inline-flex min-h-9 items-center rounded-sm font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {t('setup.odooDirectories')}

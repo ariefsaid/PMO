@@ -528,6 +528,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          job_role: string | null
           label: string
           only_over_plan: boolean
           org_id: string
@@ -537,6 +538,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          job_role?: string | null
           label: string
           only_over_plan?: boolean
           org_id?: string
@@ -546,6 +548,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          job_role?: string | null
           label?: string
           only_over_plan?: boolean
           org_id?: string
@@ -553,6 +556,13 @@ export type Database = {
           role?: Database["public"]["Enums"]["user_role"]
         }
         Relationships: [
+          {
+            foreignKeyName: "approval_chain_steps_job_role_fkey"
+            columns: ["job_role"]
+            isOneToOne: false
+            referencedRelation: "built_in_roles"
+            referencedColumns: ["key"]
+          },
           {
             foreignKeyName: "approval_chain_steps_org_id_fkey"
             columns: ["org_id"]
@@ -622,6 +632,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          job_role: string | null
           org_id: string
           position: number
           project_id: string
@@ -632,6 +643,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          job_role?: string | null
           org_id?: string
           position: number
           project_id: string
@@ -642,6 +654,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          job_role?: string | null
           org_id?: string
           position?: number
           project_id?: string
@@ -654,6 +667,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_step_pins_job_role_fkey"
+            columns: ["job_role"]
+            isOneToOne: false
+            referencedRelation: "built_in_roles"
+            referencedColumns: ["key"]
           },
           {
             foreignKeyName: "approval_step_pins_org_id_fkey"
@@ -12011,6 +12031,7 @@ export type Database = {
           org_id: string
           updated_at: string
           updated_by: string | null
+          usage_installed_source: string
           usage_warn_pct_1: number | null
           usage_warn_pct_2: number | null
         }
@@ -12022,6 +12043,7 @@ export type Database = {
           org_id?: string
           updated_at?: string
           updated_by?: string | null
+          usage_installed_source?: string
           usage_warn_pct_1?: number | null
           usage_warn_pct_2?: number | null
         }
@@ -12033,6 +12055,7 @@ export type Database = {
           org_id?: string
           updated_at?: string
           updated_by?: string | null
+          usage_installed_source?: string
           usage_warn_pct_1?: number | null
           usage_warn_pct_2?: number | null
         }
@@ -12052,6 +12075,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           id: string
+          job_role: string | null
           label: string
           org_id: string
           position: number
@@ -12066,6 +12090,7 @@ export type Database = {
           decided_at?: string | null
           decided_by?: string | null
           id?: string
+          job_role?: string | null
           label: string
           org_id?: string
           position: number
@@ -12080,6 +12105,7 @@ export type Database = {
           decided_at?: string | null
           decided_by?: string | null
           id?: string
+          job_role?: string | null
           label?: string
           org_id?: string
           position?: number
@@ -12090,6 +12116,13 @@ export type Database = {
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "material_request_steps_job_role_fkey"
+            columns: ["job_role"]
+            isOneToOne: false
+            referencedRelation: "built_in_roles"
+            referencedColumns: ["key"]
+          },
           {
             foreignKeyName: "material_request_steps_org_id_fkey"
             columns: ["org_id"]
@@ -12102,6 +12135,66 @@ export type Database = {
             columns: ["request_id"]
             isOneToOne: false
             referencedRelation: "material_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_installed_usage_alerts: {
+        Row: {
+          created_at: string
+          id: string
+          installed_qty: number
+          item_id: string
+          kind: string
+          notified_user_id: string | null
+          org_id: string
+          pct: number
+          plan_qty: number
+          resolved_at: string | null
+          source: string
+          work_order_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          installed_qty: number
+          item_id: string
+          kind?: string
+          notified_user_id?: string | null
+          org_id?: string
+          pct: number
+          plan_qty: number
+          resolved_at?: string | null
+          source: string
+          work_order_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          installed_qty?: number
+          item_id?: string
+          kind?: string
+          notified_user_id?: string | null
+          org_id?: string
+          pct?: number
+          plan_qty?: number
+          resolved_at?: string | null
+          source?: string
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_installed_usage_alerts_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_installed_usage_alerts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -13068,6 +13161,7 @@ export type Database = {
           acceptance_id: string | null
           as_of: string
           claimed_amount: number
+          client_request_id: string | null
           currency: string | null
           id: string
           kind: string
@@ -13085,6 +13179,7 @@ export type Database = {
           acceptance_id?: string | null
           as_of: string
           claimed_amount?: number
+          client_request_id?: string | null
           currency?: string | null
           id?: string
           kind: string
@@ -13102,6 +13197,7 @@ export type Database = {
           acceptance_id?: string | null
           as_of?: string
           claimed_amount?: number
+          client_request_id?: string | null
           currency?: string | null
           id?: string
           kind?: string
@@ -15812,6 +15908,7 @@ export type Database = {
           amount: number | null
           category_id: string | null
           description: string | null
+          discipline_id: string | null
           erp_docstatus: number | null
           erp_line_amount: number | null
           erp_modified: string | null
@@ -15822,11 +15919,13 @@ export type Database = {
           procurement_id: string
           quantity: number
           rate: number
+          work_order_id: string | null
         }
         Insert: {
           amount?: number | null
           category_id?: string | null
           description?: string | null
+          discipline_id?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: number | null
           erp_modified?: string | null
@@ -15837,11 +15936,13 @@ export type Database = {
           procurement_id: string
           quantity?: number
           rate?: number
+          work_order_id?: string | null
         }
         Update: {
           amount?: number | null
           category_id?: string | null
           description?: string | null
+          discipline_id?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: number | null
           erp_modified?: string | null
@@ -15852,6 +15953,7 @@ export type Database = {
           procurement_id?: string
           quantity?: number
           rate?: number
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -15873,6 +15975,20 @@ export type Database = {
             columns: ["procurement_id"]
             isOneToOne: false
             referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_items_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_items_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
           {
@@ -17993,6 +18109,7 @@ export type Database = {
       purchase_order_settings: {
         Row: {
           authorised_collectors: string[]
+          order_job_roles: string[]
           org_id: string
           print_enabled: boolean
           signature_blocks: string[]
@@ -18001,6 +18118,7 @@ export type Database = {
         }
         Insert: {
           authorised_collectors?: string[]
+          order_job_roles?: string[]
           org_id?: string
           print_enabled?: boolean
           signature_blocks?: string[]
@@ -18009,6 +18127,7 @@ export type Database = {
         }
         Update: {
           authorised_collectors?: string[]
+          order_job_roles?: string[]
           org_id?: string
           print_enabled?: boolean
           signature_blocks?: string[]
@@ -20900,8 +21019,10 @@ export type Database = {
           id: string
           item_id: string
           line_no: number
+          occurred_on: string | null
           org_id: string
           quantity: number | null
+          reference: string | null
           source_line_id: string | null
           unit_cost: number | null
         }
@@ -20914,8 +21035,10 @@ export type Database = {
           id?: string
           item_id: string
           line_no: number
+          occurred_on?: string | null
           org_id: string
           quantity?: number | null
+          reference?: string | null
           source_line_id?: string | null
           unit_cost?: number | null
         }
@@ -20928,8 +21051,10 @@ export type Database = {
           id?: string
           item_id?: string
           line_no?: number
+          occurred_on?: string | null
           org_id?: string
           quantity?: number | null
+          reference?: string | null
           source_line_id?: string | null
           unit_cost?: number | null
         }
@@ -26323,6 +26448,7 @@ export type Database = {
           over_commit_ack_at: string | null
           over_commit_ack_by: string | null
           project_id: string
+          responsible_person_id: string | null
           site_warehouse_id: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["work_order_status"]
@@ -26362,6 +26488,7 @@ export type Database = {
           over_commit_ack_at?: string | null
           over_commit_ack_by?: string | null
           project_id: string
+          responsible_person_id?: string | null
           site_warehouse_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["work_order_status"]
@@ -26401,6 +26528,7 @@ export type Database = {
           over_commit_ack_at?: string | null
           over_commit_ack_by?: string | null
           project_id?: string
+          responsible_person_id?: string | null
           site_warehouse_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["work_order_status"]
@@ -27145,6 +27273,7 @@ export type Database = {
         Row: {
           amount: number | null
           description: string | null
+          discipline_id: string | null
           erp_docstatus: number | null
           erp_line_amount: number | null
           erp_modified: string | null
@@ -27154,10 +27283,12 @@ export type Database = {
           procurement_id: string | null
           quantity: number | null
           rate: number | null
+          work_order_id: string | null
         }
         Insert: {
           amount?: never
           description?: string | null
+          discipline_id?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: never
           erp_modified?: string | null
@@ -27167,10 +27298,12 @@ export type Database = {
           procurement_id?: string | null
           quantity?: number | null
           rate?: never
+          work_order_id?: string | null
         }
         Update: {
           amount?: never
           description?: string | null
+          discipline_id?: string | null
           erp_docstatus?: number | null
           erp_line_amount?: never
           erp_modified?: string | null
@@ -27180,6 +27313,7 @@ export type Database = {
           procurement_id?: string | null
           quantity?: number | null
           rate?: never
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -28450,14 +28584,16 @@ export type Database = {
       actor_bypasses_rls:
         | { Args: never; Returns: boolean }
         | { Args: { p_role: unknown }; Returns: boolean }
+      actor_has_person_documents_access: { Args: never; Returns: boolean }
       actor_has_role_capability: {
         Args: { p_capability: string }
         Returns: boolean
       }
-      actor_holds_built_in_role: { Args: { p_key: string }; Returns: boolean }
       actor_is_light: { Args: never; Returns: boolean }
+      actor_may_order_purchases: { Args: never; Returns: boolean }
       actor_may_run_billing_steps: { Args: never; Returns: boolean }
       actor_may_see_billing_steps: { Args: never; Returns: boolean }
+      actor_may_see_medical_documents: { Args: never; Returns: boolean }
       actor_may_see_prices: { Args: never; Returns: boolean }
       actor_may_see_prices_now: { Args: never; Returns: boolean }
       actor_sees_prices: { Args: never; Returns: boolean }
@@ -29100,14 +29236,7 @@ export type Database = {
         Args: { p_key: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
-      built_in_role_may_approve: { Args: { p_key: string }; Returns: boolean }
-      built_in_role_may_prepare: { Args: { p_key: string }; Returns: boolean }
-      built_in_role_may_stand_in: {
-        Args: { p_absent_key: string; p_actor_key: string }
-        Returns: boolean
-      }
       built_in_role_sees_prices: { Args: { p_key: string }; Returns: boolean }
-      built_in_role_tier: { Args: { p_key: string }; Returns: string }
       bv16_migration_0293_revert: { Args: never; Returns: undefined }
       calculate_standalone_tax_amount: {
         Args: {
@@ -31402,6 +31531,25 @@ export type Database = {
         Returns: Json
       }
       get_hide_prices_enabled: { Args: never; Returns: boolean }
+      get_imprest_open_requests: {
+        Args: { p_float: string }
+        Returns: {
+          budget_category: Database["public"]["Enums"]["budget_category"]
+          currency: string
+          line_amount: number
+          line_id: string
+          line_name: string
+          line_quantity: number
+          pr_number: string
+          procurement_id: string
+          request_total: number
+          status: Database["public"]["Enums"]["procurement_status"]
+          title: string
+          wo_number: string
+          wo_title: string
+          work_order_id: string
+        }[]
+      }
       get_imprest_plan_usage: {
         Args: { p_float: string; p_month: string }
         Returns: {
@@ -31748,6 +31896,10 @@ export type Database = {
       hold_committed_outbox: {
         Args: { p_generation: number; p_id: string; p_reason: string }
         Returns: number
+      }
+      holds_job_role: {
+        Args: { p_job_role: string; p_profile: string }
+        Returns: boolean
       }
       holds_pipeline_value_authority: {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
@@ -32607,6 +32759,15 @@ export type Database = {
         }
         Returns: string
       }
+      load_stock_opening_history: {
+        Args: {
+          p_as_of: string
+          p_client_request_id: string
+          p_lines: Json
+          p_note?: string
+        }
+        Returns: string[]
+      }
       load_work_order_opening: {
         Args: {
           p_as_of: string
@@ -33122,6 +33283,7 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: boolean
       }
+      may_see_medical_documents: { Args: { p_profile: string }; Returns: boolean }
       medical_release_can_enter: { Args: never; Returns: boolean }
       medical_release_create: {
         Args: { p_date: string; p_note: string; p_person_id: string }
@@ -33197,6 +33359,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      mrq_fills_step: {
+        Args: {
+          p_job_role: string
+          p_profile: string
+          p_role: Database["public"]["Enums"]["user_role"]
+        }
+        Returns: boolean
+      }
       mrq_log: {
         Args: {
           p_acted_for: string
@@ -33212,6 +33382,7 @@ export type Database = {
       }
       mrq_pinned_to: {
         Args: {
+          p_job_role: string
           p_position: number
           p_project_id: string
           p_role: Database["public"]["Enums"]["user_role"]
@@ -33320,6 +33491,7 @@ export type Database = {
       mrq_step_authority: {
         Args: {
           p_author: string
+          p_job_role: string
           p_org: string
           p_pin: string
           p_role: Database["public"]["Enums"]["user_role"]
@@ -33345,6 +33517,7 @@ export type Database = {
         Args: never
         Returns: {
           acting_for: string
+          job_role: string
           label: string
           request_id: string
           role: Database["public"]["Enums"]["user_role"]
@@ -33373,6 +33546,15 @@ export type Database = {
           project_name: string
           stage_id: string
           step_name: string
+        }[]
+      }
+      my_open_ahead_alerts: {
+        Args: never
+        Returns: {
+          item_count: number
+          project_id: string
+          wo_label: string
+          work_order_id: string
         }[]
       }
       my_waiting_decisions: {
@@ -33684,9 +33866,41 @@ export type Database = {
           work_order_id: string
         }[]
       }
+      opening_history_plan: {
+        Args: { p_as_of: string; p_lines: Json; p_org: string }
+        Returns: {
+          direction: string
+          item_code: string
+          item_id: string
+          location_code: string
+          message: string
+          occurred_on: string
+          quantity: number
+          reference: string
+          row_no: number
+          run_qty: number
+          run_val: number
+          unit_cost: number
+          verdict: string
+          warehouse_id: string
+          zero_cost: boolean
+        }[]
+      }
       opening_location_has_movement: {
         Args: { p_opening_document: string; p_org: string; p_warehouse: string }
         Returns: boolean
+      }
+      opening_post_location: {
+        Args: {
+          p_as_of: string
+          p_counted: boolean
+          p_note: string
+          p_org: string
+          p_request: string
+          p_rows: Json
+          p_warehouse: string
+        }
+        Returns: string
       }
       opening_work_order_has_activity: {
         Args: { p_opening: string; p_wo: string }
@@ -34094,6 +34308,7 @@ export type Database = {
         }
         Returns: string
       }
+      po_set_order_job_roles: { Args: { p_keys: string[] }; Returns: string[] }
       po_set_print_settings: {
         Args: {
           p_authorised_collectors: string[]
@@ -34213,6 +34428,26 @@ export type Database = {
           entry_count: number
           month: string
           project_id: string
+        }[]
+      }
+      preview_stock_opening_history: {
+        Args: { p_as_of: string; p_lines: Json }
+        Returns: {
+          direction: string
+          item_code: string
+          item_id: string
+          location_code: string
+          message: string
+          occurred_on: string
+          quantity: number
+          reference: string
+          row_no: number
+          run_qty: number
+          run_val: number
+          unit_cost: number
+          verdict: string
+          warehouse_id: string
+          zero_cost: boolean
         }[]
       }
       preview_task_reminders: { Args: { p_task_ids: string[] }; Returns: Json }
@@ -36585,6 +36820,11 @@ export type Database = {
       set_work_order_plan: {
         Args: { p_changes: Json; p_project_id: string; p_work_order_id: string }
         Returns: number
+      }
+      set_usage_installed_source: { Args: { p_source: string }; Returns: undefined }
+      set_work_order_responsible_person: {
+        Args: { p_person_id: string; p_work_order_id: string }
+        Returns: undefined
       }
       set_work_order_site_location: {
         Args: { p_warehouse_id: string; p_work_order_id: string }

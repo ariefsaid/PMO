@@ -56,6 +56,7 @@ const ENTITY_ROUTE_BASE: Record<string, string> = {
   sales_invoice: '/sales-invoices',
   material_request: '/material-requests',
   quantity_change_request: '/quantity-changes',
+  work_order: '/work-orders',
   daily_site_report: '/site-reports',
   subcontract_certificate: '/subcontract-certificates',
 };

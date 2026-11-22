@@ -45,6 +45,8 @@ import { SiteCheckpointFlag } from './work-order-detail/SiteCheckpointFlag';
 import { SafetySection } from './work-order-detail/SafetySection';
 import { OpenTasksSection } from './work-order-detail/OpenTasksSection';
 import { SiteLocationSection } from './work-order-detail/SiteLocationSection';
+import { ResponsiblePersonSection } from './work-order-detail/ResponsiblePersonSection';
+import { WorkOrderAheadBadge } from './project-detail/tabs/WorkOrderAheadBadge';
 
 /**
  * `/work-orders/:id` (#2518): one page for a work order — scope and progress, costs, billing and
@@ -135,6 +137,7 @@ const WorkOrderDetail: React.FC = () => {
         status={<StatusPill record="workOrder" state={row.status} />}
         meta={<span className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>{row.title}</span>
+          <WorkOrderAheadBadge workOrderId={row.id} href={`/projects/${row.project_id}/work-orders`} />
           {row.client_po_number && <span>{t('clientPo', 'Client PO {{po}}', { po: row.client_po_number })}</span>}
         </span>}
         stats={[
@@ -202,6 +205,7 @@ const WorkOrderDetail: React.FC = () => {
         <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />
         <SafetySection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         {issuesOn && <IssuesSection issues={issues.data ?? []} isPending={issues.isPending} isError={issues.isError} onRetry={() => void issues.refetch()} />}
+        <ResponsiblePersonSection workOrderId={row.id} />
         <SiteLocationSection workOrderId={row.id} projectId={row.project_id} />
         <OpenTasksSection tasks={openTasks.data ?? []} isPending={openTasks.isPending} isError={openTasks.isError} onRetry={() => void openTasks.refetch()} />
       </RecordStack>

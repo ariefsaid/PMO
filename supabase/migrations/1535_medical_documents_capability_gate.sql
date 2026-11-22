@@ -6,6 +6,7 @@
 -- is_active_member(uuid)); the signed-in adapter below and the email function, a definer, call it.
 -- Bodies restated: expiry_documents_select from 0970 (the only migration that defines it);
 -- enqueue_notification_email from 1466 (the latest migration that defines it; 1221 is the older one).
+-- drops: enqueue_notification_email's inline Admin-or-capability-table test (or p.role = 'Admin' / the built_in_role_capabilities read), now one call to may_see_medical_documents.
 
 create function public.may_see_medical_documents(p_profile uuid) returns boolean
   language sql stable security definer set search_path = pg_catalog, public as $$

@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   reps: null as unknown, counts: null as unknown, claims: null as unknown, postings: null as unknown,
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
+vi.mock('./imprest/OpenRequestsSection', () => ({ OpenRequestsSection: () => null })); // proven by its own test
 vi.mock('./imprest/FloatAmountSection', () => ({ FloatAmountSection: () => null }));
 vi.mock('./imprest/CashAccountSection', () => ({ CashAccountSection: () => null }));
 vi.mock('@/src/hooks/useImprest', () => ({
