@@ -62,6 +62,12 @@ begin
   return true;
 exception when others then return false;
 end $$;
+create or replace function pg_temp.try_add_medical(p_person uuid, p_type uuid) returns boolean language plpgsql as $$
+begin
+  insert into public.expiry_documents (subject_kind, person_id, type_id, medical_status, expires_on) values ('person', p_person, p_type, 'fit', '2027-01-01');
+  return true;
+exception when others then return false;
+end $$;
 create or replace function pg_temp.try_add(p_person uuid, p_type uuid) returns boolean language plpgsql as $$
 begin
   insert into public.expiry_documents (subject_kind, person_id, type_id, number, expires_on) values ('person', p_person, p_type, 'NEW', '2027-01-01');
@@ -78,7 +84,7 @@ select is((select count(*)::int from expiry_documents where subject_kind = 'pers
 select is((select count(*)::int from expiry_documents where subject_kind = 'equipment'), 0, 'AC-RCG-021 an HR Officer reads no equipment document');
 select ok(pg_temp.try_add('27180000-0000-0000-0000-0000000000e2', '27180000-0000-0000-0000-0000000000f1'), 'AC-RCG-020 an HR Officer adds a non-medical person document');
 select is(pg_temp.renew('27180000-0000-0000-0000-000000000101'), 1, 'AC-RCG-020 an HR Officer renews a non-medical person document');
-select ok(not pg_temp.try_add('27180000-0000-0000-0000-0000000000e2', '27180000-0000-0000-0000-0000000000f2'), 'AC-RCG-022 an HR Officer cannot add a medical document');
+select ok(not pg_temp.try_add_medical('27180000-0000-0000-0000-0000000000e2', '27180000-0000-0000-0000-0000000000f2'), 'AC-RCG-022 an HR Officer cannot add a medical document');
 select is(pg_temp.renew('27180000-0000-0000-0000-000000000102'), 0, 'AC-RCG-022 an HR Officer cannot change a medical document');
 select ok(not exists (select 1 from expiry_documents where id = '27180000-0000-0000-0000-000000000102' and expires_on = '2027-06-30'), 'AC-RCG-022 the medical date is untouched');
 select ok(not pg_temp.try_add('27180000-0000-0000-0000-0000000000e2', '27180000-0000-0000-0000-0000000000f3'), 'AC-RCG-021 an HR Officer cannot add an equipment-type document to a person');
