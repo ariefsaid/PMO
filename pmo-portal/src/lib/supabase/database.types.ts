@@ -32173,6 +32173,7 @@ export type Database = {
           submitted_at: string
         }[]
       }
+      my_decision_standing: { Args: never; Returns: boolean }
       my_home: { Args: never; Returns: Json }
       my_waiting_billing_steps: {
         Args: never
@@ -32184,6 +32185,16 @@ export type Database = {
           project_name: string
           stage_id: string
           step_name: string
+        }[]
+      }
+      my_waiting_decisions: {
+        Args: never
+        Returns: {
+          created_at: string
+          kind: string
+          project_id: string
+          record_id: string
+          title: string
         }[]
       }
       native_down_payment_item: { Args: never; Returns: string }
