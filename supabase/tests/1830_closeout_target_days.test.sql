@@ -72,6 +72,13 @@ create function pg_temp.detail(p_sql text) returns text language plpgsql as $$
 declare d text;
 begin execute p_sql; return 'ok';
 exception when others then get stacked diagnostics d = pg_exception_detail; return sqlstate || ' ' || coalesce(d, ''); end $$;
+-- A CHECK violation's message names the constraint, while its DETAIL is the whole failing row (random id and
+-- clock). This oracle asserts the SQLSTATE and the intended constraint, never the dynamic row image.
+create function pg_temp.check_violation(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'ok';
+exception when others then
+  return sqlstate || ' ' || coalesce(substring(sqlerrm from 'constraint "([^"]+)"'), 'no-constraint-named');
+end $$;
 create function pg_temp.as_user(p_user text) returns void language plpgsql as $$
 begin
   execute 'set local role authenticated';
@@ -113,16 +120,16 @@ select is((select string_agg(coalesce(target_days::text, '-'), ',' order by posi
 -- below), so they run in the privileged fixture context (the table owner) — the same context every pgTAP fixture writes
 -- through. The client ACL refusals stay as their own assertions.
 reset role;
-select is(pg_temp.detail($q$insert into closeout_checklist_templates (org_id, position, name, target_days)
+select is(pg_temp.check_violation($q$insert into closeout_checklist_templates (org_id, position, name, target_days)
   values ('28300000-0000-0000-0000-0000000000a1', 19, 'bad low', 0)$q$),
-  '23514 ', 'FR-CTD-001 the column itself refuses a target of 0 days');
-select is(pg_temp.detail($q$insert into closeout_checklist_templates (org_id, position, name, target_days)
+  '23514 closeout_checklist_templates_target_days_check', 'FR-CTD-001 the column itself refuses a target of 0 days');
+select is(pg_temp.check_violation($q$insert into closeout_checklist_templates (org_id, position, name, target_days)
   values ('28300000-0000-0000-0000-0000000000a1', 18, 'bad high', 366)$q$),
-  '23514 ', 'FR-CTD-001 the column itself refuses a target over 365 days');
-select is(pg_temp.detail($q$insert into work_order_closeout_items (org_id, work_order_id, project_id, position, name, required, due_on)
+  '23514 closeout_checklist_templates_target_days_check', 'FR-CTD-001 the column itself refuses a target over 365 days');
+select is(pg_temp.check_violation($q$insert into work_order_closeout_items (org_id, work_order_id, project_id, position, name, required, due_on)
   values ('28300000-0000-0000-0000-0000000000a1', '28300000-0000-0000-0000-0000000000e1',
           '28300000-0000-0000-0000-0000000000d1', 19, 'orphan due', true, current_date)$q$),
-  '23514 ', 'FR-CTD-002 a due day without a target is refused');
+  '23514 work_order_closeout_items_due_needs_target', 'FR-CTD-002 a due day without a target is refused');
 select ok(not has_table_privilege('authenticated', 'public.work_order_closeout_items', 'insert'),
   'FR-CTD-002 no client INSERT on a work order''s checklist items');
 select ok(not has_table_privilege('authenticated', 'public.work_order_closeout_items', 'update'),

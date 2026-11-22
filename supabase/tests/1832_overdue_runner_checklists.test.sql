@@ -71,7 +71,8 @@ insert into work_orders (id, org_id, project_id, wo_number, title, status, issue
 insert into project_documents (id, org_id, project_id, category, title, status, author_id, file_path) values
   ('28320000-0000-0000-0000-000000000d01', '28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000c01',
    'Acceptance', 'CTD run acceptance', 'Approved', '28320000-0000-0000-0000-000000000b02',
-   '28320000-0000-0000-0000-000000000a01/28320000-0000-0000-0000-000000000c01/doc.pdf');
+   -- 0342 guard: <org_id>/<project_id>/<document_id>/<filename>, exactly four segments, segment 3 = this row's id.
+   '28320000-0000-0000-0000-000000000a01/28320000-0000-0000-0000-000000000c01/28320000-0000-0000-0000-000000000d01/doc.pdf');
 -- Close-out items: overdue by rule, exactly due, done, without a due day, and one per issuer fallback.
 insert into work_order_closeout_items
   (id, org_id, work_order_id, project_id, position, name, required, started_on, target_days, due_on, done_on, document_id, attached_by, done_by) values
