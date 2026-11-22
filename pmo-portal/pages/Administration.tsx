@@ -52,6 +52,7 @@ import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
 import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
 import OrgCrewLoans from './admin/OrgCrewLoans';
+import OrgAttendanceTimeRoles from './admin/OrgAttendanceTimeRoles';
 import SiteCheckpointTemplate from './admin/SiteCheckpointTemplate';
 import WorkOrderCandidateTemplate from './admin/WorkOrderCandidateTemplate';
 import SafetyLists from './admin/SafetyLists';
@@ -283,6 +284,7 @@ const SelectedAdministrationPanel: React.FC<{
           <SectionName name={label('people')} />
           <People />
           <OrgCrewLoans />
+          <OrgAttendanceTimeRoles />
           <DocumentTypes />
           <OrgBuiltInRoles />
           <ClearanceSetting />

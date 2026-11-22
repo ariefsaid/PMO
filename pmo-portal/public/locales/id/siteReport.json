@@ -147,7 +147,49 @@
     "title": "Catatan"
   },
   "people": {
-    "title": "Jam orang"
+    "title": "Jam orang",
+    "byPerson": "Jam per orang",
+    "intro": "Angka yang berlaku adalah yang dibayar dan dibiayakan. Catatan kedua disimpan di sebelahnya sebagai bukti.",
+    "empty": "Belum ada yang dijadwalkan di perintah kerja ini untuk hari ini. Jadwalkan regu di halaman Regu.",
+    "noHours": "Belum ada jam tercatat",
+    "standing": "Berlaku",
+    "second": "Catatan kedua",
+    "hours": "{{hours}} jam",
+    "absent": "Tidak hadir",
+    "present": "Hadir",
+    "source": {
+      "roster_tick": "Laporan lapangan",
+      "phone_check_in": "Absen masuk",
+      "manual_correction": "Koreksi kantor"
+    },
+    "decided": {
+      "day": "Angka laporan lapangan berlaku",
+      "second": "Catatan kedua berlaku"
+    },
+    "needsDecision": "Kedua catatan berbeda. Putuskan jam mana yang berlaku.",
+    "addSecond": "Tambah catatan kedua",
+    "addSecondFor": "Catatan kedua untuk {{name}}",
+    "saveSecond": "Simpan catatan kedua",
+    "savedSecond": "Catatan kedua disimpan",
+    "decide": "Putuskan",
+    "decideFor": "Jam mana yang berlaku untuk {{name}}",
+    "confirmDecide": "Konfirmasi",
+    "decidedToast": "Keputusan disimpan",
+    "choose": "Angka mana yang berlaku (dibayar dan dibiayakan). Yang lain disimpan sebagai bukti.",
+    "chooseDay": "Laporan lapangan: {{figure}}",
+    "chooseSecond": "Catatan kedua: {{figure}}",
+    "hoursRange": "Isi jam dari 0 sampai 24.",
+    "reasonRequired": "Tulis alasan angka ini yang berlaku.",
+    "cannotDecideRole": "Peran Anda tidak memutuskan jam mana yang berlaku.",
+    "cannotDecideMine": "Anda mencatat salah satu angka ini. Orang lain yang memutuskan.",
+    "cannotDecideNoDay": "Angka laporan lapangan untuk hari ini belum dicatat.",
+    "field": {
+      "status": "Apakah orang ini hadir?",
+      "hours": "Jam",
+      "overtime": "Jam lembur",
+      "note": "Catatan (opsional)",
+      "reason": "Mengapa angka ini berlaku"
+    }
   },
   "photos": {
     "addForm": "Foto formulir kertas",

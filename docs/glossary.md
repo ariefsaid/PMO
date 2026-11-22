@@ -1376,8 +1376,12 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 <<<<<<< HEAD
 **Direct manager** — the app user recorded as a person's manager on the people register (`people.manager_id`). They are warned first when that person's documents are about to expire and may record the renewal (a later expiry date) for their own people only; Admin keeps the existing write. Separate from the line-management link on user accounts.
-=======
+
 **Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
 
 **Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
->>>>>>> origin/land/fix-1122
+=======
+**Second record** (*catatan kedua*) — a surveyor's or timekeeper's record of one worker's hours for one work order and day, kept beside the crew tick on the site report and never paid or costed on its own. Who may enter one is an organisation setting (a list of built-in roles; managers always may).
+
+**Standing hours** (*jam yang berlaku*) — the one figure the attendance day carries for a worker and day, which is the figure that is paid and costed. It is the site-report (crew tick) figure until a person the organisation names decides the second record stands instead; the figure not chosen stays on file as evidence. Nobody decides hours they recorded, and a day waiting for a decision cannot be sent on for approval (pay-time, `docs/specs/pay-time.spec.md`).
+>>>>>>> origin/feat/gap-people-pay-time

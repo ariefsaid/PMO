@@ -809,6 +809,18 @@
       "helper": "Pekerja yang dipinjamkan mengikuti jadwal dan kehadiran kru tujuan selama masa pinjaman. Jika mati, halaman Kru tidak menampilkan pinjaman.",
       "loadError": "Tidak dapat memuat pengaturan pinjaman kru",
       "adminOnly": "Hanya Admin yang dapat mengubah ini."
+    },
+    "attendanceRoles": {
+      "title": "Catatan waktu",
+      "intro": "Tentukan siapa yang boleh membuat catatan kedua untuk hari kerja seseorang (juru ukur atau pencatat waktu) dan siapa yang memutuskan jam mana yang berlaku bila dua catatan berbeda. Catatan kedua tidak mengubah jam yang dibayar dengan sendirinya.",
+      "secondLabel": "Boleh membuat catatan kedua",
+      "secondHelper": "Admin, Eksekutif, atau Manajer Proyek selalu boleh.",
+      "deciderLabel": "Memutuskan jam mana yang berlaku",
+      "deciderHelper": "Kosongkan untuk memakai penyetuju yang berlaku sekarang (Admin, Eksekutif, Manajer Proyek). Tidak ada yang memutuskan jam yang ia catat sendiri.",
+      "save": "Simpan",
+      "saved": "Peran catatan waktu disimpan",
+      "loadError": "Peran catatan waktu tidak dapat dimuat",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini."
     }
   },
   "exchangeRates": {
