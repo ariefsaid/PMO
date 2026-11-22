@@ -60,9 +60,10 @@ the read scopes, checked against 0646's expected-text table).
 12. `supabase/migrations/1843_purchasing_read_scope_order_roles.sql` — the 0350 §1-§3 restrictive read scopes gain
     `or (select public.actor_may_order_purchases())`; §4 money tables untouched. Rollback restores the 0350 text.
 13. `2711` sweep: add `actor_may_order_purchases` (helper); `po_set_order_job_roles` carries the in-body guard, check `2716` still green.
-14. FE: `src/lib/db/purchaseOrderSettings.ts`, `src/hooks/usePurchaseOrderSettings.ts`, `pages/admin/PurchaseOrderSettingsSection.tsx`
-    (multi-select of job roles, note on Q1 consequence), `src/auth/policy.ts` procurement `view`/`transition` to Ordered for a filler,
-    `src/components/shell/Rail.tsx` procurement nav. Tests: the section test, `policy` test, AC-RTD-015. Strings
+14. FE: `src/lib/db/orderJobRoles.ts` (typed, no casts), the procurement repository and contract, `src/hooks/useOrderJobRoles.ts`
+    (`useMayOrderPurchases` reads the database gate itself, no frontend mirror of the setting), `pages/admin/OrderJobRolesSection.tsx`
+    in Administration › Accounting (note on the Q1 consequence; disabled controls say why), `src/lib/procurement/mainAction.ts`
+    (Generate Purchase Order on Approved / Quote Selected), `src/components/shell/Rail.tsx` procurement nav. Tests: the section test, `policy` test, AC-RTD-015. Strings
     `public/locales/{en,id}/administration.json`, refusals.
 
 ### D. Docs (commit 5)
@@ -75,13 +76,13 @@ the read scopes, checked against 0646's expected-text table).
 | AC | Owning test |
 |---|---|
 | AC-RTD-001 | `supabase/tests/roles_that_decide_function.test.sql` |
-| AC-RTD-002 | `pmo-portal/src/auth/builtInRoles.test.ts` |
+| AC-RTD-002 | `pmo-portal/src/auth/holdsJobRole.test.ts` |
 | AC-RTD-003..009 | `supabase/tests/roles_that_decide_mrq.test.sql` (005: existing mrq files) |
 | AC-RTD-010 | `supabase/tests/mrq_submit_transfer.test.sql:62-86` (existing) |
 | AC-RTD-011..013 | `supabase/tests/roles_that_decide_purchasing.test.sql` (013 also existing 0350 test) |
-| AC-RTD-014 | `pmo-portal/pages/MaterialRequestSettings.test.tsx` |
-| AC-RTD-015 | `pmo-portal/pages/admin/PurchaseOrderSettingsSection.test.tsx`, `pmo-portal/src/auth/policy` tests |
-| AC-RTD-016 | `scripts/check-refusal-codes.mjs` + locale files |
+| AC-RTD-014 | `pmo-portal/pages/MaterialRequestSettings.jobRole.test.tsx`, `pmo-portal/src/lib/db/materialRequests.test.ts` (pins: `pages/project-detail/ProjectApprovalPins.test.tsx`) |
+| AC-RTD-015 | `pmo-portal/pages/admin/OrderJobRolesSection.test.tsx`, `pmo-portal/src/lib/procurement/mainAction.orderRole.test.ts`, `pmo-portal/src/components/shell/Rail.orderRole.test.ts` |
+| AC-RTD-016 | `scripts/check-refusal-codes.mjs` + locale files; `src/lib/db/materialRequests.test.ts` (key mapping) |
 | AC-RTD-017 | `pmo-portal/e2e/AC-RTD-017-job-role-approval-step.spec.ts` |
 
 ## Gates (builder, in `pmo-portal/`)

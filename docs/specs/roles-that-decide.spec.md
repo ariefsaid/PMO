@@ -81,12 +81,15 @@ against the same cases. `can()` reads it; the database is the authority.
 
 - `purchase_order_settings.order_job_roles text[] not null default '{}'`: the job roles that may raise and send purchase orders in
   addition to today's levels. Each entry must be a catalogue key. Empty (the default, every existing organisation) = today.
-  Written through `po_set_order_job_roles(text[])` (Admin only, beside the existing Admin-only `po_set_print_settings`).
+  Written through `po_set_order_job_roles(text[])` (Admin only, beside the existing Admin-only `po_set_print_settings`); a BEFORE
+  trigger on the column holds the rules on every write path (the RPC and the existing Admin table policy): catalogue keys only, no
+  field role, and a non-empty list only while built-in roles are on.
 - One gate, `actor_may_order_purchases() returns boolean`: true when the real signed-in person (never the view-as role) holds
   one of their organisation's `order_job_roles` by `holds_job_role`. Granted to `authenticated` (the read-scope policies call it,
   wrapped `(select ...)`); a scalar helper for the field-account sweep (`2711`). Every channel calls it, ORed with the existing level rule, never replacing it:
-  `create_purchase_order`, `transition_procurement` for `Approved`/`Vendor Quoted`/`Quote Selected` -> `Ordered` (a job-role orderer
-  never skips approval: from `Draft` stays today's levels), `purchase_orders_insert` / `_update`, and the 0350 restrictive read
+  `create_purchase_order` (on an Approved, Vendor Quoted, Quote Selected or Ordered purchase), `transition_procurement` from `Approved`
+  or `Quote Selected` to `Ordered` (a job-role orderer never skips approval: from `Draft` it is refused), `purchase_orders_insert` /
+  `_update` (on the same approved states), and the 0350 restrictive read
   scopes for purchases and their order-side records (items, quotations, status events, documents, purchase requests, RFQs, purchase
   orders, and their file rows). Vendor bills, payments and client billing stay with today's four levels.
 - Refusals a person can meet: ordering without the right raises `PO_ORDER_FORBIDDEN` (from `create_purchase_order`, and from
@@ -163,7 +166,7 @@ reading that column, once that branch lands.
 | AC-RTD-014 | Given the chain editor with built-in roles on, an Admin picks a job role per step, sees its access level read-only, saves through the repository; with the setting off, the editor is today's. | vitest |
 | AC-RTD-015 | Given the purchase-order settings with built-in roles on, an Admin picks ordering job roles; a non-Admin sees them read-only. `can()` offers Order and the purchase list to a person who fills one. | vitest |
 | AC-RTD-016 | Given each new refusal code, then `refusals.json` has an English and a Bahasa Indonesia sentence (the refusal-code gate). | vitest / guard |
-| AC-RTD-017 | Given an Admin in the browser with built-in roles on, when a step is set to a job role and a holder approves a request in order, then the request is approved. | E2E (serial lane) |
+| AC-RTD-017 | Given an Admin in the browser with built-in roles on, when a step is set to a job role and a holder approves a request in order, then the request is approved. | E2E (serial lane, `e2e/serial/AC-RTD-017-job-role-approval-step.spec.ts`) |
 
 ### Mutation checks (each turns the named AC red, then is restored)
 
@@ -174,10 +177,17 @@ let a job-role orderer move from Draft (AC-RTD-012); widen the bill or payment r
 
 ## 5. Existing tests whose steps change
 
-None of the existing journeys change steps: a step with no job role and an empty ordering setting are today's paths. Two standing
-sweeps gain entries because the schema grows: `2711` (the field-account sweep) lists `actor_may_order_purchases` as a scalar
-helper (`holds_job_role` is not executable by a signed-in caller, so the sweep does not reach it); `2716` needs nothing (no capability is added). The `mrq_waiting_for_me` result type grows a `job_role` column, so its
-DAL and mocks gain the field.
+None of the existing journeys change steps: a step with no job role and an empty ordering setting are today's paths. What grows:
+- `2711` (the field-account sweep) lists `actor_may_order_purchases` as a scalar helper; `holds_job_role` and `mrq_fills_step` are not
+  executable by a signed-in caller, so the sweep does not reach them. `2716` needs nothing (no capability is added).
+- The `mrq_waiting_for_me` result, the chain row and the pin row gain `job_role`, so `src/lib/db/materialRequests.test.ts` mock rows and
+  expectations gain the field, and `ChainStepInput` literals in two tests gain `jobRole: null`.
+- The two existing `MaterialRequestSettings` suites mock `useBuiltInRolesEnabled` (the page now reads it); `test/setup.ts` stubs
+  `useOrderJobRoles` off for the procurement and shell suites that have no query client, as it already does for the print setting.
+- `src/lib/repositories/index.test.ts` lists the three new procurement repository methods.
+- The Users "Edit role" picker now builds its options with the shared `useJobRoleOptions` (same options; its tests unchanged).
+- The merged role-capabilities branch's 1535 and 1536 carried restatements without a `-- drops:` line, which the restated-function
+  guard refuses; each now names what it removes (comment only, no SQL change).
 
 ## 6. Settings and defaults
 

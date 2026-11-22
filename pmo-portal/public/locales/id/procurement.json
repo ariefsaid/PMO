@@ -1063,5 +1063,21 @@
     "lineLabel": "Baris {{name}}",
     "saveFailed": "Kategori dan tanggal tidak dapat disimpan untuk beberapa baris. Buka permintaan untuk mengaturnya.",
     "columnEmpty": "—"
+  },
+  "orderRoles": {
+    "heading": "Siapa yang dapat memesan pembelian",
+    "subline": "Admin, Eksekutif, Manajer Proyek dan Keuangan selalu dapat memesan. Cantumkan peran bawaan yang pemegangnya juga dapat membuat dan mengirim purchase order, hanya untuk pembelian yang sudah disetujui.",
+    "loadError": "Tidak dapat memuat siapa yang dapat memesan pembelian",
+    "none": "Belum ada peran bawaan yang dicantumkan, jadi hanya tingkat akses di atas yang dapat memesan.",
+    "remove": "Hapus",
+    "removeNamed": "Hapus {{role}}",
+    "noRoleNote": "Orang yang belum memiliki peran bawaan ikut dihitung bila tingkat aksesnya adalah tingkat dasar peran yang dicantumkan.",
+    "add": "Tambah peran bawaan",
+    "choose": "Pilih peran bawaan",
+    "addButton": "Tambah",
+    "save": "Simpan",
+    "saved": "Siapa yang dapat memesan pembelian tersimpan",
+    "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
+    "turnOn": "Aktifkan peran bawaan di Administrasi > Orang > Peran bawaan untuk mencantumkan peran yang dapat memesan."
   }
 }

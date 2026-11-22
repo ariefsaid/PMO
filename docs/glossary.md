@@ -608,9 +608,10 @@ contract lines the work order carries, in proportion to the share of each line t
 Each request line keeps the figure it was submitted against and where it came from (standard, adjusted, allowance,
 none). A line whose already-requested quantity plus the new quantity exceeds it is **over plan** and carries a reason.
 
-**Approval chain** — the organisation's ordered list of approval steps for material requests, each naming a role and
-a purpose; a step may apply only to over-plan requests. A submitted request keeps a copy of the chain as it was, and
-steps are decided in order. The requester never decides a step, and one person decides at most one step of a request.
+**Approval chain** — the organisation's ordered list of approval steps for material requests, each naming an access level
+or a built-in role (who **fills the role**, below) and a purpose; a step may apply only to over-plan requests. A step with no
+built-in role decides by its access level, as before. A submitted request keeps a copy of the chain as it was, and steps are
+decided in order. The requester never decides a step, and one person decides at most one step of a request.
 
 **Stand-in** — a person named, for a date range, to decide approval steps on behalf of someone away. Only that
 person's own role counts (one hop), never on a request the stand-in or the person away raised; both names are kept on
@@ -797,10 +798,6 @@ it moves stock the organisation already holds.
 **Planned quantity (material request)** — the material allowances of the contract lines a work order carries, in
 proportion to the share of each line the work order holds. A line whose already-requested quantity plus the new quantity
 exceeds it is **over plan** and carries a reason.
-
-**Approval chain** — the organisation's ordered list of approval steps for material requests, each naming a role and a
-purpose; a step may apply only to over-plan requests. A submitted request keeps a copy of the chain as it was, and steps
-are decided in order. The requester never decides a step, and one person decides at most one step of a request.
 
 **Stand-in** (*pengganti*) — a person named, for a date range, to decide approval steps on behalf of someone away. Never
 on a request the stand-in or the person away raised; chains of stand-ins are not followed (one hop); both names are kept
@@ -1207,6 +1204,14 @@ the material close-out: joint count, loss report, material completion report). T
 **Built-in role** — one of 28 stable roles (key such as `storekeeper`) in three tiers, offered once an organization turns the set on. Each starts from exactly one **base access level** and adds only the narrower rules listed for it as **role capabilities**. A person with no built-in role behaves exactly as before. Names are defaults a client may rename. (#2709, `docs/specs/builtin-role-set.spec.md`.)
 
 **Base access level** — one of today's five levels (Executive, Project Manager, Finance, Engineer, Admin) that every existing rule reads from `profiles.role`. While a person holds a built-in role it is set to that role's base level and moves only with it.
+
+**Fills a built-in role** — an active person who holds the built-in role, or who holds no built-in role and whose access level
+is the one the role is built on. A person who holds a built-in role is judged by it alone. Decided by one database function,
+`holds_job_role` (docs/specs/roles-that-decide.spec.md); approval steps and ordering read it. "Job role" in specs means built-in role.
+
+**Roles that order** — the built-in roles an organisation names (Administration › Accounting, "Who can order purchases") whose
+fillers may also raise and send purchase orders, for approved purchases only, beside the four levels that always can. Empty by
+default, which changes nothing.
 
 **Role tier** — manager, officer or field: catalogue data on each built-in role; field roles are light accounts.
 
