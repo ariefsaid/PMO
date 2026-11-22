@@ -153,17 +153,17 @@ select throws_ok($$ insert into manpower_need_people (need_id, person_id) values
 select is((select count(*)::int from manpower_needs), 5, 'AC-MPN-001 Finance reads the needs');
 select is((select count(*)::int from public.my_manpower_to_fill()), 0, 'AC-MPN-011 Finance is not pointed at needs to fill');
 
--- AC-MPN-011 a need that is met or cancelled leaves the list; AC-MPN-010 its creator hears it once, never from their own action
+-- AC-MPN-011 a need that is met or cancelled leaves the list (counted over the two fixture needs: the Admin, Executive and HR needs created above are open with places to fill and stay listed, correctly); AC-MPN-010 its creator hears it once, never from their own action
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a2');
 update manpower_needs set status = 'met' where id = '17400000-0000-0000-0000-000000000a01';
 select is((select count(*)::int from notifications where owner_id = '17400000-0000-0000-0000-0000000000a2' and title = 'Manpower need met'), 0, 'AC-MPN-010 the creator is not told about their own action');
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a5');
-select is((select count(*)::int from public.my_manpower_to_fill()), 1, 'AC-MPN-011 a met need leaves the list');
+select is((select count(*)::int from public.my_manpower_to_fill() where need_id in ('17400000-0000-0000-0000-000000000a01', '17400000-0000-0000-0000-000000000a02')), 1, 'AC-MPN-011 a met need leaves the list');
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a1');
 update manpower_needs set status = 'cancelled' where id = '17400000-0000-0000-0000-000000000a02';
 update manpower_needs set note = 'edited' where id = '17400000-0000-0000-0000-000000000a02';
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a5');
-select is((select count(*)::int from public.my_manpower_to_fill()), 0, 'AC-MPN-011 a cancelled need leaves the list');
+select is((select count(*)::int from public.my_manpower_to_fill() where need_id in ('17400000-0000-0000-0000-000000000a01', '17400000-0000-0000-0000-000000000a02')), 0, 'AC-MPN-011 a cancelled need leaves the list');
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a2');
 select is((select count(*)::int from notifications where owner_id = '17400000-0000-0000-0000-0000000000a2' and title = 'Manpower need cancelled'), 1, 'AC-MPN-010 the creator is told once when another person cancels (a later edit adds no notice)');
 
