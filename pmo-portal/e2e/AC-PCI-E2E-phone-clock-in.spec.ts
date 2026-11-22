@@ -11,7 +11,7 @@
  * Engineer, rendered this journey's light home (and this journey's slab) instead of the project procurement page. A disposable profile
  * carries the same real role with a real JWT, and no other journey can read or clear it.
  */
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey } from './helpers';
@@ -150,61 +150,82 @@ test('AC-PCI-E2E inside the area records attendance; outside goes to the supervi
   const mine = (p: Page) => p.getByRole('listitem').filter({ hasText: `${run} slab` });
   // Outside first: about 1.1 km north of the area centre.
   const worker = await browser.newContext({ permissions: ['geolocation'], geolocation: { latitude: -6.19, longitude: 106.8, accuracy: 10 } });
-  const page = await worker.newPage();
-  await signInAs(page, email, password);
-  await page.goto('/my');
-  await expect(page.getByRole('heading', { name: 'Clock in' })).toBeVisible();
-  await mine(page).getByRole('button', { name: 'Clock in' }).click();
-  // Waiting state: says it is waiting and who decides; it survives a reload; no second tap is offered.
-  await expect(mine(page).getByText(/outside the work area/i)).toBeVisible();
-  await expect(mine(page).getByText(/Waiting for .+ to approve/)).toBeVisible();
-  await page.reload();
-  await expect(mine(page).getByText(/Waiting for .+ to approve/)).toBeVisible();
-  await expect(mine(page).getByRole('button', { name: /Clock in/ })).toHaveCount(0);
-  const before = await admin.from('attendance_days').select('id').eq('work_order_id', workOrderId);
-  expect(before.data ?? []).toHaveLength(0);
+  // The supervisor's context is only opened mid-journey, so it stays nullable: a failure before it opens — or the failure to
+  // open it — must still tear down the worker context that was opened first.
+  let supervisor: BrowserContext | undefined;
+  let journeyComplete = false;
+  try {
+    const page = await worker.newPage();
+    await signInAs(page, email, password);
+    await page.goto('/my');
+    await expect(page.getByRole('heading', { name: 'Clock in' })).toBeVisible();
+    await mine(page).getByRole('button', { name: 'Clock in' }).click();
+    // Waiting state: says it is waiting and who decides; it survives a reload; no second tap is offered.
+    await expect(mine(page).getByText(/outside the work area/i)).toBeVisible();
+    await expect(mine(page).getByText(/Waiting for .+ to approve/)).toBeVisible();
+    await page.reload();
+    await expect(mine(page).getByText(/Waiting for .+ to approve/)).toBeVisible();
+    await expect(mine(page).getByRole('button', { name: /Clock in/ })).toHaveCount(0);
+    const before = await admin.from('attendance_days').select('id').eq('work_order_id', workOrderId);
+    expect(before.data ?? []).toHaveLength(0);
 
-  // The supervisor is told where they already look: the home list of things needing them; one tap opens the request.
-  const supervisor = await browser.newContext();
-  const adminPage = await supervisor.newPage();
-  await signIn(adminPage, 'admin@acme.test');
-  await adminPage.goto('/');
-  await adminPage.getByText(/check-ins? waiting for your decision/).first().click();
-  await expect(adminPage).toHaveURL(/\/crews/);
-  await expect(adminPage.getByRole('heading', { name: 'Check-ins waiting for you' })).toBeVisible();
-  // The decision is made on this run's own request, not on whatever else the organisation happens to be waiting for.
-  const request = adminPage.getByRole('listitem').filter({ hasText: `${run} slab` });
-  // The area they judge against is on the request.
-  await expect(request.getByText(/Work area: centre -6\.2, 106\.8, radius 150 m/)).toBeVisible();
-  // First decision: refuse with a reason; the worker sees the reason and can try again.
-  await request.getByRole('button', { name: 'Reject' }).click();
-  const reason = adminPage.getByRole('dialog');
-  await reason.getByRole('textbox').fill('too far from the gate');
-  await reason.getByRole('button', { name: /^reject$/i }).click();
-  await expect(adminPage.getByLabel('Notifications alt+T').getByText('Check-in rejected')).toBeVisible();
-  await page.reload();
-  await expect(mine(page).getByText(/refused this check-in: too far from the gate/)).toBeVisible();
-  await expect(mine(page).getByRole('button', { name: 'Clock in again' })).toBeVisible();
+    // The supervisor is told where they already look: the home list of things needing them; one tap opens the request.
+    supervisor = await browser.newContext();
+    const adminPage = await supervisor.newPage();
+    await signIn(adminPage, 'admin@acme.test');
+    await adminPage.goto('/');
+    await adminPage.getByText(/check-ins? waiting for your decision/).first().click();
+    await expect(adminPage).toHaveURL(/\/crews/);
+    await expect(adminPage.getByRole('heading', { name: 'Check-ins waiting for you' })).toBeVisible();
+    // The decision is made on this run's own request, not on whatever else the organisation happens to be waiting for.
+    const request = adminPage.getByRole('listitem').filter({ hasText: `${run} slab` });
+    // The area they judge against is on the request.
+    await expect(request.getByText(/Work area: centre -6\.2, 106\.8, radius 150 m/)).toBeVisible();
+    // First decision: refuse with a reason; the worker sees the reason and can try again.
+    await request.getByRole('button', { name: 'Reject' }).click();
+    const reason = adminPage.getByRole('dialog');
+    await reason.getByRole('textbox').fill('too far from the gate');
+    await reason.getByRole('button', { name: /^reject$/i }).click();
+    await expect(adminPage.getByLabel('Notifications alt+T').getByText('Check-in rejected')).toBeVisible();
+    await page.reload();
+    await expect(mine(page).getByText(/refused this check-in: too far from the gate/)).toBeVisible();
+    await expect(mine(page).getByRole('button', { name: 'Clock in again' })).toBeVisible();
 
-  // Second try, still outside: approve this time; the worker's home says clocked in, with the time.
-  await mine(page).getByRole('button', { name: 'Clock in again' }).click();
-  await expect(mine(page).getByText(/Waiting for .+ to approve/)).toBeVisible();
-  await adminPage.goto('/crews');
-  await expect(adminPage.getByRole('heading', { name: 'Check-ins waiting for you' })).toBeVisible();
-  await request.getByRole('button', { name: 'Approve' }).click();
-  await expect(adminPage.getByLabel('Notifications alt+T').getByText('Check-in approved')).toBeVisible();
-  await expect.poll(async () => ((await admin.from('attendance_days').select('id').eq('work_order_id', workOrderId)).data ?? []).length).toBe(1);
-  await page.reload();
-  await expect(mine(page).getByText(/Clocked in at \d{1,2}:\d{2}/)).toBeVisible();
+    // Second try, still outside: approve this time; the worker's home says clocked in, with the time.
+    await mine(page).getByRole('button', { name: 'Clock in again' }).click();
+    await expect(mine(page).getByText(/Waiting for .+ to approve/)).toBeVisible();
+    await adminPage.goto('/crews');
+    await expect(adminPage.getByRole('heading', { name: 'Check-ins waiting for you' })).toBeVisible();
+    await request.getByRole('button', { name: 'Approve' }).click();
+    await expect(adminPage.getByLabel('Notifications alt+T').getByText('Check-in approved')).toBeVisible();
+    await expect.poll(async () => ((await admin.from('attendance_days').select('id').eq('work_order_id', workOrderId)).data ?? []).length).toBe(1);
+    await page.reload();
+    await expect(mine(page).getByText(/Clocked in at \d{1,2}:\d{2}/)).toBeVisible();
 
-  // Inside the area on a fresh day records straight away (the records are cleared to stand in for the next day).
-  await admin.from('attendance_days').delete().eq('work_order_id', workOrderId);
-  await admin.from('phone_check_ins').delete().eq('work_order_id', workOrderId);
-  await worker.setGeolocation({ latitude: -6.2, longitude: 106.8, accuracy: 10 });
-  await page.goto('/my');
-  await mine(page).getByRole('button', { name: 'Clock in' }).click();
-  await expect(mine(page).getByText(/Clocked in at \d{1,2}:\d{2}/)).toBeVisible();
-  await expect.poll(async () => ((await admin.from('attendance_days').select('source').eq('work_order_id', workOrderId)).data ?? []).map((r) => r.source)).toEqual(['phone_check_in']);
-  await worker.close();
-  await supervisor.close();
+    // Inside the area on a fresh day records straight away (the records are cleared to stand in for the next day).
+    await admin.from('attendance_days').delete().eq('work_order_id', workOrderId);
+    await admin.from('phone_check_ins').delete().eq('work_order_id', workOrderId);
+    await worker.setGeolocation({ latitude: -6.2, longitude: 106.8, accuracy: 10 });
+    await page.goto('/my');
+    await mine(page).getByRole('button', { name: 'Clock in' }).click();
+    await expect(mine(page).getByText(/Clocked in at \d{1,2}:\d{2}/)).toBeVisible();
+    await expect.poll(async () => ((await admin.from('attendance_days').select('source').eq('work_order_id', workOrderId)).data ?? []).map((r) => r.source)).toEqual(['phone_check_in']);
+    journeyComplete = true;
+  } finally {
+    // Both contexts are this test's own and are closed whatever the outcome — a failed assertion, a timeout, or the failure
+    // to open the supervisor's context at all. A close failure is collected, and only surfaced when the journey itself
+    // completed: an early failure must propagate as itself, never be replaced by its teardown.
+    const closeFailures: string[] = [];
+    for (const [name, context] of [['worker', worker], ['supervisor', supervisor]] as const) {
+      if (!context) continue;
+      try {
+        await context.close();
+      } catch (error) {
+        closeFailures.push(`${name}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    if (journeyComplete && closeFailures.length > 0) {
+      throw new Error(`AC-PCI-E2E context close failed: ${closeFailures.join('; ')}`);
+    }
+  }
 });
