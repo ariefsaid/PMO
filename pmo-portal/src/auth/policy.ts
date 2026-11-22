@@ -743,6 +743,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(ALL), // ANY member incl. Engineer (requester server-stamped)
     edit: allow(ALL), // record-scoped (requester while Draft/Rejected) at the call-site
     transition: allow([...MASTER_DATA]), // FE shows; SoD identity + RPC are the authority
+    /** An Admin may decide any request, not only the ones routed to them (the waiting list counts all of them for an Admin). */
+    decide: allow(ADMIN),
     setPaymentChannel: (role, ctx) =>
       ctx.record?.viewOnly !== true &&
       (((ctx.record?.status === 'Draft' || ctx.record?.status === 'Rejected') &&

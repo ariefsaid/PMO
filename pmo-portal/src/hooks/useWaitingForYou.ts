@@ -67,6 +67,7 @@ function useLiveWaitingForYou(): WaitingForYou {
   const signedIn = Boolean(orgId && userId && realRole);
 
   const procurementRole = can('transition', 'procurement', { realRole });
+  const procurementAdmin = can('decide', 'procurement', { realRole });
   const invoiceRole = can('transition', 'salesInvoice', { realRole });
   const expenseRole = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
 
@@ -85,7 +86,7 @@ function useLiveWaitingForYou(): WaitingForYou {
   /* eslint-enable react-hooks/rules-of-hooks */
 
   const entries = useMemo<ApprovalPopulationEntry[]>(() => {
-    const procurementRows = procurementRole ? pendingProcurementApprovals(procurements.data, userId, realRole === 'Admin') : [];
+    const procurementRows = procurementRole ? pendingProcurementApprovals(procurements.data, userId, procurementAdmin) : [];
     const expenseRows = expenseRole ? claimsAwaitingViewer(expenses.data ?? [], userId, realRole) : [];
     const imprestData = imprest.data;
     const imprestEntries: ApprovalPopulationEntry[] = [
@@ -109,7 +110,7 @@ function useLiveWaitingForYou(): WaitingForYou {
     };
     for (const row of database.data ?? []) byKind[row.kind].push({ key: `${row.kind}:${row.recordId}`, kind: row.kind, createdAt: row.createdAt, row });
     return WAITING_KINDS.flatMap((kind) => byKind[kind]);
-  }, [database.data, expenseRole, expenses.data, imprest.data, invoiceRole, invoices.enabled, invoices.rows, leave.data, material.data, procurementRole, procurements.data, realRole, timesheets.data, userId]);
+  }, [database.data, expenseRole, expenses.data, imprest.data, invoiceRole, invoices.enabled, invoices.rows, leave.data, material.data, procurementAdmin, procurementRole, procurements.data, realRole, timesheets.data, userId]);
 
   const population = useMemo(() => approvalPopulation(entries, 'all'), [entries]);
 
