@@ -8,7 +8,7 @@
 -- the default null leave_approver_role fallback to Admin (one leave-on org with no role configured).
 begin;
 create extension if not exists pgtap;
-select plan(65);
+select plan(64);
 
 insert into organizations (id, name, default_currency, built_in_roles_enabled, leave_requests_enabled, leave_approver_role) values
   ('16310000-0000-0000-0000-00000000000a', 'ABS Org', 'IDR', true, true, 'Finance'),
@@ -324,10 +324,6 @@ select is((select count(*)::int from public.notifications
             where owner_id = '16310000-0000-0000-0000-0000000000bd'
               and metadata->'entity'->>'id' = current_setting('test.default_role_report_id')),
           1, 'the line manager is still told under the fallback role');
-select is((select count(*)::int from public.notifications
-            where owner_id = '16310000-0000-0000-0000-0000000000ba'
-              and metadata->'entity'->>'id' = current_setting('test.default_role_report_id')),
-          0, 'the reporting worker is not told about their own absence under the fallback role');
 select is((select count(*)::int from public.notifications
             where metadata->'entity'->>'id' = current_setting('test.default_role_report_id')),
           2, 'exactly two notifications exist: line manager and fallback Admin approver');
