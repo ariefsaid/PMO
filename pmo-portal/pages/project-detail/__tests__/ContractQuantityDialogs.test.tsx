@@ -25,7 +25,7 @@ describe('AC-CQ-014 BoqItemFormModal earning basis', () => {
     return { onSave, user: userEvent.setup() };
   }
   const base = async (user: ReturnType<typeof userEvent.setup>, unit: string) => {
-    await user.type(screen.getByLabelText(/ERP item/), 'LINE-1');
+    await user.type(screen.getByLabelText(/Item code/), 'LINE-1');
     await user.type(screen.getByLabelText(/Description/), 'Synthetic line');
     await user.type(screen.getByLabelText(/^Unit/), unit);
     await user.type(screen.getByLabelText(/Rate/), '50000');

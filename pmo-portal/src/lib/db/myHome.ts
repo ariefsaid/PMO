@@ -6,18 +6,26 @@ import { AppError } from '@/src/lib/appError';
  * assigned tasks, work orders rostered today, reported issues. No price or budget field exists in the response.
  */
 export interface MyHomeTask { id: string; name: string; status: string; end_date: string | null; project_id: string; project_name: string }
+/** What became of today's clock-in on a work order (1552): clocked in at `at`, waiting for the supervisor, or refused with a reason. */
+export interface MyHomeCheckIn { state: 'clocked_in' | 'pending' | 'rejected'; at?: string | null; outcome?: string; reason?: string | null }
 export interface MyHomeWorkOrder {
   work_order_id: string; title: string; project_name: string; crew_id: string; crew_name: string;
   /** The person's own record in the workforce register; null when they have none (no clock-in then). */
   my_worker_id: string | null; is_controller: boolean;
   /** #2705: the work order has a check-in area, so a position is read on the tap. Absent or false = today's clock-in. */
   has_area?: boolean;
+  /** Today's clock-in result here; null or absent = not clocked in yet. */
+  check_in?: MyHomeCheckIn | null;
 }
 export interface MyHomeIssue { id: string; type: string; severity: string; status: string; incident_date: string; description: string | null }
-export interface MyHome { today: string; tasks: MyHomeTask[]; work_orders: MyHomeWorkOrder[]; issues: MyHomeIssue[] }
+export interface MyHome {
+  today: string; tasks: MyHomeTask[]; work_orders: MyHomeWorkOrder[]; issues: MyHomeIssue[];
+  /** Built-in role key that decides outside-area check-ins; null = the crew's Foreman or a crew manager. */
+  decider_role: string | null;
+}
 
 /** A delivery addressed to the person, to confirm with count and photo. Supplied by the handover ticket; none exists yet. */
-export interface MyDelivery { id: string; description: string }
+export interface MyDelivery { id: string; number: string; description: string; lineCount: number }
 
 export async function getMyHome(): Promise<MyHome> {
   const { data, error } = await supabase.rpc('my_home');
@@ -25,7 +33,7 @@ export async function getMyHome(): Promise<MyHome> {
   // `my_home` is declared `returns jsonb`, so its generated type is `Json` and carries no shape; the interface above is
   // the contract, and every field is defaulted rather than trusted.
   const home = data as unknown as MyHome | null;
-  return { today: home?.today ?? '', tasks: home?.tasks ?? [], work_orders: home?.work_orders ?? [], issues: home?.issues ?? [] };
+  return { today: home?.today ?? '', tasks: home?.tasks ?? [], work_orders: home?.work_orders ?? [], issues: home?.issues ?? [], decider_role: home?.decider_role ?? null };
 }
 
 /** A light account may change only the status of its own task (database-enforced). */
@@ -35,8 +43,19 @@ export async function setMyTaskStatus(taskId: string, status: 'To Do' | 'In Prog
   if (!data || data.length === 0) throw new AppError('Task not found', 'PGRST116');
 }
 
-export async function getMyDeliveries(): Promise<MyDelivery[]> {
-  return []; // seam: the handover ticket supplies deliveries addressed to a person; no table, no stock write here.
+/**
+ * Transfers sent to the person that wait for their count. The database decides who sees what (a light account reads only its own
+ * transfer, 1480), so the filter on `to_user_id` is for the full accounts that can read every transfer. Read-only: the count,
+ * photo and confirmation go through the transfer page and `receive_stock_transfer`.
+ */
+export async function getMyDeliveries(userId: string): Promise<MyDelivery[]> {
+  const { data, error } = await (supabase as unknown as { from: (t: string) => any }) // eslint-disable-line @typescript-eslint/no-explicit-any
+    .from('stock_transfers').select('id, number, note, sent_by, stock_transfer_lines(id)')
+    .eq('status', 'Sent').eq('to_user_id', userId).order('sent_at', { ascending: false }).limit(20);
+  if (error) throw new AppError(error.message, error.code);
+  return ((data ?? []) as { id: string; number: string; note: string | null; sent_by: string; stock_transfer_lines: unknown[] | null }[])
+    .filter((r) => r.sent_by !== userId) // the sender never counts their own shipment
+    .map((r) => ({ id: r.id, number: r.number, description: r.note ?? '', lineCount: r.stock_transfer_lines?.length ?? 0 }));
 }
 
 export interface SeatReport { full: number; light: number; total: number }
