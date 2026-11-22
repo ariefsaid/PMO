@@ -64,7 +64,9 @@ const RequestRecord: React.FC<{ detail: QcrDetail }> = ({ detail }) => {
   const approval = useQuantityChangeApproval(request.id, status === 'pending_approval');
   const mayApproveRole = status === 'pending_approval' && can('approve', 'quantityChange', ctx);
 
-  // fix-waiting item 3: who the pending request waits for (1177: Admin, Executive or Finance; author/editor/submitter excluded).
+  // fix-waiting item 3: who the pending request waits for (1177: Admin, Executive or Finance; author/editor/
+  // submitter excluded). One owned line: the approval section speaks it, gated by the server's own
+  // `eligible_approver_exists` fact (1178) so it can never contradict the nobody sentence.
   const waitingLine = status === 'pending_approval'
     ? waitingForText({ names: [], role: waitingRoleLabel('roleFinanceExecAdmin', t) }, t)
     : null;
@@ -113,7 +115,8 @@ const RequestRecord: React.FC<{ detail: QcrDetail }> = ({ detail }) => {
   };
 
   const approveRequest = () => run(() => m.approve.mutateAsync(request.id), t('toast.approved', 'Approved'));
-  const eligible = approval.data?.eligible_approver_exists ?? true;
+  // undefined while the server fact is loading or failed: never assume "eligible" (the old `?? true`).
+  const eligible = approval.data?.eligible_approver_exists;
   const blockReason = approval.data && !approval.data.can_approve ? approval.data.reason : null;
   const blockText = {
     role: t('approval.block.role', 'Your role cannot approve quantity change requests.'),
@@ -162,7 +165,6 @@ const RequestRecord: React.FC<{ detail: QcrDetail }> = ({ detail }) => {
           </div>
         )}
       >
-        {waitingLine && <p className="font-medium text-foreground" role="status" data-testid="qcr-waiting-for">{waitingLine}</p>}
         {request.note && <p className="text-foreground">{request.note}</p>}
       </RecordHeader>
 
@@ -226,9 +228,21 @@ const RequestRecord: React.FC<{ detail: QcrDetail }> = ({ detail }) => {
 
         {status === 'pending_approval' && (
           <RecordSection title={t('approval.title', 'Internal approval')} data-testid="qcr-approval">
-            <p className="text-foreground" data-testid="qcr-waiting-approval">{waitingLine ?? t('approval.waiting', 'Waiting for approval')}</p>
+            {eligible === false ? (
+              <p className="text-foreground" data-testid="qcr-approval-nobody">{t('approval.nobody', 'Nobody else can approve this request: it waits until another approver exists.')}</p>
+            ) : eligible === true && waitingLine ? (
+              <p className="text-foreground" data-testid="qcr-waiting-approval">{waitingLine}</p>
+            ) : (
+              <p className="text-foreground" data-testid="qcr-approval-checking">
+                {approval.isError
+                  ? t('common:uxs32.routeUnavailable', "Couldn't verify who can approve right now.")
+                  : t('approval.waiting', 'Waiting for approval')}
+              </p>
+            )}
+            {approval.isError && (
+              <Button variant="outline" size="sm" onClick={() => void approval.refetch()}>{t('common:ui.listState.retry', 'Retry')}</Button>
+            )}
             {blockReason && <p className="text-foreground" data-testid="qcr-approval-block">{blockText[blockReason]}</p>}
-            {!eligible && <p className="text-foreground" data-testid="qcr-approval-nobody">{t('approval.nobody', 'Nobody else can approve this request: it waits until another approver exists.')}</p>}
           </RecordSection>
         )}
         {request.approved_at && names.approver && (

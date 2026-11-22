@@ -43,6 +43,9 @@ const h = vi.hoisted(() => ({
   pm: 'pm' as string | null,
   pmName: 'Rina Wati' as string | null,
   noItems: false,
+  route: null as unknown,
+  routeError: false,
+  routeIdCalls: [] as (string | null | undefined)[],
   m: {
     save: { mutateAsync: vi.fn(), isPending: false }, submit: { mutateAsync: vi.fn(), isPending: false },
     validate: { mutateAsync: vi.fn(), isPending: false }, returnReport: { mutateAsync: vi.fn(), isPending: false },
@@ -66,6 +69,16 @@ vi.mock('@/src/hooks/useProjects', () => ({
     data: h.pm !== undefined ? { id: 'p1', name: 'Pipeline', project_manager_id: h.pm, pm: h.pmName ? { full_name: h.pmName } : null } : null,
   }),
 }));
+vi.mock('@/src/hooks/useDsrValidationRoute', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/hooks/useDsrValidationRoute')>();
+  return {
+    ...actual,
+    useDsrValidationRoute: (reportId: string | null | undefined) => {
+      h.routeIdCalls.push(reportId);
+      return { data: h.route, isPending: false, isError: h.routeError, refetch: vi.fn() };
+    },
+  };
+});
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master: { listItems: async () => [] } }, dailySiteReport: { photoUrl: vi.fn() } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.realRole }) }));
@@ -104,6 +117,9 @@ const renderPage = (lng: 'en' | 'id' = 'en') => render(
 
 beforeEach(() => {
   h.userId = 'eng'; h.realRole = 'Engineer'; h.pm = 'pm'; h.pmName = 'Rina Wati'; h.noItems = false; h.equipment = []; h.peopleHours = '8';
+  h.route = { routeKind: 'finance_admin', approvers: [] };
+  h.routeError = false;
+  h.routeIdCalls = [];
   h.revenue = [{ line_id: 'pl1', rate: 5, rate_source: 'catalogue', amount: 50, frozen: false }, { line_id: 'pl2', rate: null, rate_source: null, amount: null, frozen: false }];
   Object.values(h.m).forEach((x) => x.mutateAsync.mockReset());
 });
@@ -233,48 +249,84 @@ describe('site report record', () => {
     expect(screen.queryByRole('button', { name: 'Correct' })).toBeNull();
   });
 
-  describe('who-next waiting line (dsr_may_validate)', () => {
-    it('submitted DSR with assigned PM who is not author shows named PM plus alternative roles Finance/Admin', () => {
+  describe('who-next waiting line (FR-WAIT-006; server route over dsr_may_validate)', () => {
+    it('a named eligible PM is spoken with the project-approver role and Finance/Admin as true alternatives, EN and ID', () => {
       h.detail = make('submitted');
-      h.userId = 'eng';
-      h.pm = 'pm';
-      h.pmName = 'Rina Wati';
+      h.route = { routeKind: 'project_manager', approvers: [{ id: 'pm', name: 'Rina Wati', role: 'Project Manager' }] };
       const first = renderPage('en');
       expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for Rina Wati, project approver or Finance or Admin');
+      expect(h.routeIdCalls).toContain('r1');
       first.unmount();
 
       renderPage('id');
       expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Menunggu Rina Wati, penyetuju proyek atau Keuangan atau Admin');
     });
 
-    it('submitted DSR where assigned PM is the author does not name author and shows truthful role-only Finance/Admin', () => {
-      h.detail = make('submitted', { author_id: 'pm' });
-      h.userId = 'pm';
-      h.pm = 'pm';
-      h.pmName = 'Rina Wati';
+    it('the server role fallback (no eligible PM: unassigned, inactive, light, or wrong-role) names no person, EN and ID', () => {
+      h.detail = make('submitted');
+      h.route = { routeKind: 'finance_admin', approvers: [] };
       const first = renderPage('en');
       expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for Finance or Admin');
       expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('Rina Wati');
+      expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('project approver');
       first.unmount();
 
       renderPage('id');
       expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Menunggu Keuangan atau Admin');
     });
 
-    it('submitted DSR when PM is not assigned falls back to truthful role-only project approver or Finance or Admin', () => {
-      h.detail = make('submitted');
-      h.userId = 'eng';
-      h.pm = null;
-      h.pmName = null;
+    it('a PM who authored the report is never named: the server says finance_admin and the page does not guess', () => {
+      h.detail = make('submitted', { author_id: 'pm' });
+      h.userId = 'pm';
+      h.pm = 'pm';
+      h.pmName = 'Rina Wati';
+      h.route = { routeKind: 'finance_admin', approvers: [] };
       renderPage('en');
-      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for project approver or Finance or Admin');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for Finance or Admin');
+      expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('Rina Wati');
     });
 
-    it('non-waiting states do not show waiting-for line', () => {
+    it('a proven empty route says nobody active can validate, instead of inventing a project approver, EN and ID', () => {
+      h.detail = make('submitted');
+      h.route = { routeKind: 'nobody', approvers: [] };
+      const first = renderPage('en');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Nobody active can validate this report right now.');
+      expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('project approver');
+      first.unmount();
+
+      renderPage('id');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Saat ini tidak ada anggota aktif yang dapat memvalidasi laporan ini.');
+    });
+
+    it('the non-leaking unavailable shape, and a still-loading read, show no waiting claim at all', () => {
+      h.detail = make('submitted');
+      h.route = { routeKind: 'unavailable', approvers: [] };
+      const first = renderPage();
+      expect(screen.queryByTestId('dsr-waiting-for')).toBeNull();
+      first.unmount();
+
+      h.route = null;
+      renderPage();
+      expect(screen.queryByTestId('dsr-waiting-for')).toBeNull();
+    });
+
+    it('a failed route read says it could not verify and offers a retry', async () => {
+      h.detail = make('submitted');
+      h.route = null;
+      h.routeError = true;
+      renderPage('en');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent("Couldn't verify who can approve right now.");
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    });
+
+    it('non-waiting states show no line and ask for no route (the read is bound to Submitted)', () => {
       for (const st of ['draft', 'validated', 'returned'] as const) {
         h.detail = make(st);
+        h.routeIdCalls = [];
         const { unmount } = renderPage();
         expect(screen.queryByTestId('dsr-waiting-for')).toBeNull();
+        expect(h.routeIdCalls.length).toBeGreaterThan(0);
+        expect(h.routeIdCalls.every((id) => id === null)).toBe(true);
         unmount();
       }
     });

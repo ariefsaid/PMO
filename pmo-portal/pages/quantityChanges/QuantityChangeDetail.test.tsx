@@ -35,7 +35,10 @@ function makeI18n(lng: 'en' | 'id') {
 /** #2578 request record page: what each person is offered, and why not (AC-QCR-011, 013, 023, 027, 030). */
 const h = vi.hoisted(() => ({
   detail: null as unknown,
-  approval: { can_approve: true, reason: null as string | null, eligible_approver_exists: true },
+  approval: { can_approve: true, reason: null as string | null, eligible_approver_exists: true } as
+    { can_approve: boolean; reason: string | null; eligible_approver_exists: boolean } | null,
+  approvalError: false,
+  refetch: vi.fn(),
   versions: [] as unknown[],
   userId: 'fin2',
   realRole: 'Finance',
@@ -44,7 +47,12 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/src/hooks/useQuantityChanges', () => ({
   useQuantityChangeRequest: () => ({ data: h.detail, isPending: false, isError: false, refetch: vi.fn() }),
-  useQuantityChangeApproval: (_id: string, enabled: boolean) => ({ data: enabled ? h.approval : undefined }),
+  useQuantityChangeApproval: (_id: string, enabled: boolean) => ({
+    data: enabled ? h.approval : undefined,
+    isPending: enabled && h.approval === null,
+    isError: enabled && h.approvalError,
+    refetch: h.refetch,
+  }),
   useQuantityVersions: () => ({ data: h.versions, isPending: false }),
   useQuantityChangeMutations: () => h.m,
 }));
@@ -83,6 +91,8 @@ const renderPage = (lng: 'en' | 'id' = 'en') => render(
 beforeEach(() => {
   h.userId = 'fin2'; h.realRole = 'Finance'; h.versions = [];
   h.approval = { can_approve: true, reason: null, eligible_approver_exists: true };
+  h.approvalError = false;
+  h.refetch.mockReset();
   Object.values(h.m).forEach((x) => (x as { mutateAsync: { mockReset: () => void } }).mutateAsync.mockReset());
 });
 
@@ -163,24 +173,56 @@ describe('quantity change request record', () => {
     expect(screen.getByTestId('qcr-withdrawn').textContent).toMatch(/No longer needed/);
   });
 
-  describe('who-next waiting line (QCR 1177: Admin, Executive, Finance)', () => {
-    it('pending_approval QCR shows truthful role-only Finance, Executive, or Admin (using roleFinanceExecAdmin) in EN and ID', () => {
+  describe('who-next waiting line (FR-WAIT-006; QCR 1177: Admin, Executive, Finance)', () => {
+    it('pending_approval QCR shows ONE truthful role-only line (roleFinanceExecAdmin), in EN and ID, never a duplicate header copy', () => {
       h.detail = make('pending_approval');
       const first = renderPage('en');
-      expect(screen.getByTestId('qcr-waiting-for')).toHaveTextContent('Waiting for Finance, Executive, or Admin');
       expect(screen.getByTestId('qcr-waiting-approval')).toHaveTextContent('Waiting for Finance, Executive, or Admin');
+      expect(screen.getAllByText('Waiting for Finance, Executive, or Admin')).toHaveLength(1);
+      expect(screen.queryByTestId('qcr-waiting-for')).toBeNull();
       first.unmount();
 
       renderPage('id');
-      expect(screen.getByTestId('qcr-waiting-for')).toHaveTextContent('Menunggu Keuangan, Eksekutif, atau Admin');
       expect(screen.getByTestId('qcr-waiting-approval')).toHaveTextContent('Menunggu Keuangan, Eksekutif, atau Admin');
+      expect(screen.getAllByText('Menunggu Keuangan, Eksekutif, atau Admin')).toHaveLength(1);
+      expect(screen.queryByTestId('qcr-waiting-for')).toBeNull();
     });
 
-    it('non-waiting states do not show waiting-for line in RecordHeader', () => {
+    it('eligible_approver_exists false shows only the nobody sentence and never the who-next line', () => {
+      h.detail = make('pending_approval');
+      h.userId = 'fin1';
+      h.approval = { can_approve: false, reason: 'editor', eligible_approver_exists: false };
+      renderPage('en');
+      expect(screen.getByTestId('qcr-approval-nobody')).toHaveTextContent('Nobody else can approve this request');
+      expect(screen.queryByTestId('qcr-waiting-approval')).toBeNull();
+      expect(screen.queryByText('Waiting for Finance, Executive, or Admin')).toBeNull();
+    });
+
+    it('while the server fact is still loading it claims no eligibility, only the neutral sentence', () => {
+      h.detail = make('pending_approval');
+      h.approval = null;
+      renderPage('en');
+      expect(screen.getByTestId('qcr-approval-checking')).toHaveTextContent('Waiting for approval');
+      expect(screen.queryByTestId('qcr-waiting-approval')).toBeNull();
+      expect(screen.queryByTestId('qcr-approval-nobody')).toBeNull();
+    });
+
+    it('a failed eligibility read says it could not verify and offers a retry', async () => {
+      h.detail = make('pending_approval');
+      h.approval = null;
+      h.approvalError = true;
+      renderPage('en');
+      expect(screen.getByTestId('qcr-approval-checking')).toHaveTextContent("Couldn't verify who can approve right now.");
+      await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      expect(h.refetch).toHaveBeenCalled();
+    });
+
+    it('non-waiting states do not show the approval waiting section', () => {
       for (const st of ['draft', 'approved', 'client_accepted', 'withdrawn', 'returned'] as const) {
         h.detail = make(st);
         const { unmount } = renderPage();
-        expect(screen.queryByTestId('qcr-waiting-for')).toBeNull();
+        expect(screen.queryByTestId('qcr-approval')).toBeNull();
+        expect(screen.queryByTestId('qcr-waiting-approval')).toBeNull();
         unmount();
       }
     });
@@ -190,7 +232,7 @@ describe('quantity change request record', () => {
       h.userId = 'fin1';
       h.approval = { can_approve: false, reason: 'editor', eligible_approver_exists: true };
       renderPage('en');
-      expect(screen.getByTestId('qcr-waiting-for')).toHaveTextContent('Waiting for Finance, Executive, or Admin');
+      expect(screen.getByTestId('qcr-waiting-approval')).toHaveTextContent('Waiting for Finance, Executive, or Admin');
       expect(screen.getByTestId('qcr-approval-block')).toHaveTextContent('You edited this request, so someone else must approve it.');
     });
   });
