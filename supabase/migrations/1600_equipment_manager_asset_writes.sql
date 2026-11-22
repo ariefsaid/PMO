@@ -1,4 +1,5 @@
 -- 1600_equipment_manager_asset_writes.sql — fix lane "equipment manager's day" (owner ruling): the equipment manager
+-- drops: equipment_can_edit_terms, equipment_rental_check, set_equipment_targets and set_equipment_working_hours each replace the one role-test line with the wider role set (the equipment manager joins Admin); the light-account guard stays in every body.
 -- (Project Manager) may add and edit assets and their rental terms, and set the working hours per day, the availability
 -- and use targets and the escalation limit. Costing assignment and the rental invoice STATE-CHANGING path (stating a reason
 -- to include unproven days) stay with Admin and Finance; the manager reads the invoice check and its downtime deduction.

@@ -1,4 +1,5 @@
 -- 1601_equipment_metrics_before_org_existed.sql — fix lane "equipment manager's day" item 9: days before the organisation
+-- drops: equipment_metrics replaces its declare line to carry the organisation's first recorded day and adds one select for it; no read is removed.
 -- existed are not counted as "not recorded". The first day is the earliest of the organisation's creation date and its
 -- earliest recorded status or usage entry (so imported history keeps counting). Body copied from 1033 plus the 1209 guard.
 -- Reverse: rollback/1601_equipment_metrics_before_org_existed_down.sql

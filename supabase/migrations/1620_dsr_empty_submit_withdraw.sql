@@ -1,4 +1,5 @@
 -- 1620_dsr_empty_submit_withdraw.sql -- a daily report cannot be sent empty, and its author can take a sent one back.
+-- drops: dsr_submit replaces its declare line to carry the missing-part list for the empty-report refusal; no rule is removed.
 -- Rollback: supabase/migrations/rollback/1620_dsr_empty_submit_withdraw_down.sql
 -- Walk fix (site controller): an empty report (no progress, no hours, no photo, no consumables, no idle time) went to
 -- validation in one tap. dsr_submit now refuses it and says what is missing; dsr_withdraw lets the author pull a sent
