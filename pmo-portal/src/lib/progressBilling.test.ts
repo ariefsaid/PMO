@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fromCents, pctOf, toCents } from '@/src/lib/reports/managementPack';
-import { claimNet, prefillFromAssessment, remainingQuantity, suggestedRecoveryPct, summarizeBilling } from './progressBilling';
+import { claimNet, claimableHeadroom, prefillFromAssessment, remainingQuantity, suggestedRecoveryPct, summarizeBilling } from './progressBilling';
 import type { ContractLineFacts } from './progressBilling';
 
 const FACTS = {
@@ -83,5 +83,22 @@ describe('progress billing helpers', () => {
 
   it('AC-CQ-012 earned value subtracts billed work in exact cents', () => {
     expect(summarizeBilling({ ...FACTS, workBilled: 0.1, earnedValue: 0.3, contractLines: [LINE] }).unbilledWork).toBe(0.2);
+  });
+});
+
+describe('claimableHeadroom (AC-SCW-001..004)', () => {
+  it('AC-SCW-001 uses accepted minus claimed when a BAST exists', () => {
+    expect(claimableHeadroom({ ordered: 10, claimed: 3, accepted: 6 })).toEqual({ ceiling: 6, basis: 'accepted', headroom: 3, signedHeadroom: 3 });
+  });
+  it('AC-SCW-002 uses ordered minus claimed when nothing is accepted; a BAST of zero is a BAST', () => {
+    expect(claimableHeadroom({ ordered: 10, claimed: 4, accepted: null })).toMatchObject({ basis: 'ordered', headroom: 6 });
+    expect(claimableHeadroom({ ordered: 10, claimed: 0, accepted: 0 })).toMatchObject({ basis: 'accepted', headroom: 0 });
+  });
+  it('AC-SCW-003 a line already past its ceiling has zero headroom and a negative signed figure', () => {
+    expect(claimableHeadroom({ ordered: 10, claimed: 7, accepted: 5 })).toMatchObject({ headroom: 0, signedHeadroom: -2 });
+  });
+  it('AC-SCW-004 is exact in milli-units and a surveyed figure takes precedence', () => {
+    expect(claimableHeadroom({ ordered: 1, claimed: 0.1, accepted: 0.3 }).headroom).toBe(0.2);
+    expect(claimableHeadroom({ ordered: 10, claimed: 1, accepted: 8, surveyed: 4 })).toMatchObject({ basis: 'surveyed', headroom: 3 });
   });
 });

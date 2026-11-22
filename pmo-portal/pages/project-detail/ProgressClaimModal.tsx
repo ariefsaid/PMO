@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Checkbox, EntityFormModal, FieldError, FormGrid, FormSection, ListState, NumberField, SelectField, type SubmitError,
+  Button, Checkbox, EntityFormModal, FieldError, FormGrid, FormSection, Icon, ListState, NumberField, SelectField, type SubmitError,
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, formatNumberExact, formatUtcMonthYear, parseMoneyInputAtScale } from '@/src/lib/format';
-import { fractionToPercentInput, percentToFraction, prefillFromAssessment, suggestedRecoveryPct, type ContractLineFacts } from '@/src/lib/progressBilling';
+import { claimableHeadroom, fractionToPercentInput, milli, percentToFraction, prefillFromAssessment, suggestedRecoveryPct, type ContractLineFacts } from '@/src/lib/progressBilling';
 import { prefillForWorkOrder } from '@/src/lib/contractQuantityPrefill';
 import type { BoqItemRow, ProgressClaimInput } from '@/src/lib/db/progressBilling';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
@@ -72,6 +72,27 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
   const prefill = woPrefill ? woPrefill.quantities : prefillFromAssessment(inScopeIds, assessedByBoqItem, claimedByBoqItem);
   const dpValue = parseMoneyInputAtScale(dpAmount, 2);
   const suggested = dpValue === null ? null : suggestedRecoveryPct(dpValue, contractNet);
+
+  /** Over-claim warning (never a block, OD-SCOPE-6): a typed quantity past what the work-order line can still claim. */
+  const overClaimHelper = (line: BoqItemRow): React.ReactNode => {
+    if (scope === '' || line.earning_basis === 'lump_sum') return undefined;
+    const allocation = contractLines.find((l) => l.boqItemId === line.id)?.allocations.find((a) => a.workOrderId === scope);
+    const typed = parseMoneyInputAtScale((quantities[line.id] ?? '').trim(), 3);
+    if (!allocation || typed === null || typed <= 0) return undefined;
+    const room = claimableHeadroom({ ordered: allocation.quantity, claimed: allocation.claimedQuantity, accepted: allocation.acceptedQuantity });
+    if (milli(typed) <= milli(room.headroom)) return undefined;
+    const text = room.basis === 'accepted'
+      ? t('projectTabs:contractQuantities.billing.claimForm.overClaimAccepted', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (accepted {{ceiling}}, already claimed {{claimed}}). Lower it to {{headroom}}, or confirm the next BAST first. You can still raise the claim.',
+        { headroom: formatNumberExact(room.headroom), unit: line.unit, ceiling: formatNumberExact(room.ceiling), claimed: formatNumberExact(allocation.claimedQuantity) })
+      : t('projectTabs:contractQuantities.billing.claimForm.overClaimOrdered', 'Warning: this is more than the {{headroom}} {{unit}} still claimable (ordered {{ceiling}}, already claimed {{claimed}}, nothing accepted yet). Lower it to {{headroom}}, or confirm a BAST first. You can still raise the claim.',
+        { headroom: formatNumberExact(room.headroom), unit: line.unit, ceiling: formatNumberExact(room.ceiling), claimed: formatNumberExact(allocation.claimedQuantity) });
+    return (
+      <span data-testid={`claim-overclaim-${line.id}`} role="status" className="flex items-start gap-1.5 text-control font-medium text-warning-foreground">
+        <Icon name="alert" className="mt-0.5 size-[13px] shrink-0 text-warning-icon" />
+        {text}
+      </span>
+    );
+  };
 
   const kindOptions = [
     { value: 'progress', label: t('projectDetail.billing.claimForm.kindProgress', 'Progress: quantities against the bill of quantities') },
@@ -216,7 +237,7 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
                     { item: line.item_code, description: line.description, unit: line.unit })}
                   value={quantities[line.id] ?? ''}
                   onChange={(value) => setQuantities((current) => ({ ...current, [line.id]: value }))}
-                  error={errors[line.id]} localeAware />
+                  error={errors[line.id]} helper={overClaimHelper(line)} localeAware />
               ))}
             </FormGrid>
           )}

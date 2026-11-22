@@ -16,6 +16,7 @@
  *
  * DESIGN.md tokens: dashed capture row uses `border-primary/35 bg-primary/[0.04]` per §6.
  */
+import type { CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 import React, { useEffect, useRef, useState } from 'react';
 import { Icon, SelectField } from '@/src/components/ui';
 import { RecordCaptureForm, type RecordKind, type StagedRecord } from './RecordCaptureForm';
@@ -94,6 +95,7 @@ export interface LedgerCaptureRowProps {
   currency?: string | null;
   /** #2517: the purchase's project, whose work orders the capture form offers. */
   projectId?: string | null;
+  defaultAttribution?: CostAttribution;
   /** The org's purchase rules (read by the page). Unknown = nothing is held back; the server still enforces. */
   gates?: ProcurementGates;
 }
@@ -139,6 +141,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   itemsNet,
   currency,
   projectId = null,
+  defaultAttribution,
   gates,
 }) => {
   const [open, setOpen] = useState(false);
@@ -205,6 +208,8 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
           itemsNet={itemsNet}
           currency={currency}
           projectId={projectId}
+          defaultAttribution={defaultAttribution}
+          hasReceipt={existingTypes.has('GR')}
           busy={busy}
           onCreate={(input) => onCreate(nextKind, input)}
           onStage={onStage && (nextKind === 'goods_receipt' || nextKind === 'vendor_invoice') ? onStage : undefined}
