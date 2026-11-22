@@ -3,11 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Chainable, thenable query-builder mock: each awaited builder shifts the next queued result.
 const h = vi.hoisted(() => {
   const queue: Array<{ data: unknown; error: unknown }> = [];
-  const calls = { from: [] as string[], range: [] as unknown[], is: [] as unknown[], in: [] as unknown[], eq: [] as unknown[], insert: [] as unknown[], update: [] as unknown[] };
+  const calls = { from: [] as string[], range: [] as unknown[], is: [] as unknown[], in: [] as unknown[], eq: [] as unknown[], insert: [] as unknown[], update: [] as unknown[], not: [] as unknown[] };
   const builder: Record<string, unknown> = {};
-  const rec = (name: 'range' | 'is' | 'insert' | 'update' | 'in' | 'eq') => (...a: unknown[]) => { calls[name].push(a.length === 1 ? a[0] : a); return builder; };
+  const rec = (name: 'range' | 'is' | 'insert' | 'update' | 'in' | 'eq' | 'not') => (...a: unknown[]) => { calls[name].push(a.length === 1 ? a[0] : a); return builder; };
   for (const n of ['select', 'order', 'single']) builder[n] = () => builder;
-  builder.range = rec('range'); builder.is = rec('is'); builder.insert = rec('insert'); builder.update = rec('update'); builder.in = rec('in'); builder.eq = rec('eq');
+  builder.range = rec('range'); builder.is = rec('is'); builder.insert = rec('insert'); builder.update = rec('update'); builder.in = rec('in'); builder.eq = rec('eq'); builder.not = rec('not');
   builder.then = (resolve: (v: unknown) => unknown) => resolve(queue.shift() ?? { data: [], error: null });
   const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
   const rpc = vi.fn(async () => queue.shift() ?? { data: null, error: null });
@@ -17,7 +17,7 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  archiveStockItem, createStockItem, listStockItems, setWarehouseKeeper, updateStockItem, updateStockUnit,
+  archiveStockItem, createStockItem, listItemTagNames, listStockItems, setWarehouseKeeper, updateStockItem, updateStockUnit,
 } from './stockMaster';
 
 beforeEach(() => {
@@ -72,6 +72,19 @@ describe('stockMaster DAL', () => {
     expect(out).toHaveLength(500);
     expect(h.calls.in).toEqual([['tag_id', ['t1', 't2']]]);
     expect(h.calls.range).toEqual([[0, 499]]);
+  });
+
+  it('FR-SSW-010 reads only tagged items: the item id and the tag’s own configured name; an ordinary item is absent', async () => {
+    h.queue.push({ data: [{ id: 'i1', tag: { name: 'Client supplied' } }, { id: 'i2', tag: null }], error: null });
+    const out = await listItemTagNames();
+    expect(out).toEqual([{ itemId: 'i1', tagName: 'Client supplied' }]);
+    expect(h.calls.from).toEqual(['stock_items']);
+    expect(h.calls.not).toEqual([['tag_id', 'is', null]]);
+  });
+
+  it('FR-SSW-010 a failed tag read is an error, never a silent empty list', async () => {
+    h.queue.push({ data: null, error: { message: 'boom', code: '500' } });
+    await expect(listItemTagNames()).rejects.toMatchObject({ code: '500' });
   });
 
   it('FR-STK-001 listStockItems with empty tagIds returns empty array without querying database', async () => {

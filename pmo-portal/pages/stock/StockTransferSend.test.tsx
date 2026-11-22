@@ -16,7 +16,7 @@ vi.mock('@/src/hooks/useStock', () => ({
     { id: 'w9', code: 'TRN-1', name: 'In transit TST-1', kind: 'transit' }] }),
   useStockKeepers: () => ({ data: [{ user_id: 'me', warehouse_id: 'w1' }, { user_id: 'p2', warehouse_id: 'w2' }, { user_id: 'p3', warehouse_id: 'w1' }] }),
   useStockItems: () => ({ data: [{ id: 'i1', code: 'PIPE', name: 'Pipe', unit_id: 'u1', archived_at: null }] }),
-  useStockUnits: () => ({ data: [{ id: 'u1', whole_only: false }] }),
+  useStockUnits: () => ({ data: [{ id: 'u1', code: 'pc', whole_only: false }] }),
 }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [{ id: 'p2', full_name: 'Site Foreman', is_active: true }, { id: 'p3', full_name: 'Central Clerk', is_active: true }, { id: 'me', full_name: 'Me', is_active: true }] }) }));
 vi.mock('@/src/lib/repositories/stockTransfers', () => ({ stockTransfersRepository: { send: h.send } }));
@@ -47,21 +47,46 @@ describe('StockTransferSend (AC-TST-023)', () => {
     expect(within(to).queryByRole('option', { name: /TRN-1/ })).not.toBeInTheDocument();
   });
 
-  it('AC-TST-023 sending refuses a blank form, then sends the lines with a named receiver and one request id', async () => {
-    renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Send transfer' }));
-    expect(h.send).not.toHaveBeenCalled();
+  /** Fill a valid transfer: central to the site, named receiver, one line of 4 pipe. */
+  const fillValidTransfer = async () => {
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /From warehouse/ }), 'CEN - Central');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /To warehouse/ }), 'SITE1 - Site one');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /Receiver/ }), 'Site Foreman');
     await userEvent.click(screen.getByRole('combobox', { name: /Item1/ }));
     await userEvent.click(await screen.findByRole('option', { name: 'PIPE - Pipe' }));
     await userEvent.type(screen.getByRole('textbox', { name: /Quantity1/ }), '4');
+  };
+
+  it('AC-TST-023 sending refuses a blank form without asking, then confirms once and sends the lines with a named receiver and one request id', async () => {
+    renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'Send transfer' }));
+    expect(h.send).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();          // a missing field is a field error, not a confirmation
+    await fillValidTransfer();
+    await userEvent.click(screen.getByRole('button', { name: 'Send transfer' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Send this transfer?')).toBeInTheDocument();
+    expect(within(dialog).getByText('From CEN - Central to SITE1 - Site one')).toBeInTheDocument();
+    expect(within(dialog).getByText('PIPE - Pipe: 4 pc')).toBeInTheDocument();  // the item, its quantity and unit
+    expect(h.send).not.toHaveBeenCalled();                                  // nothing posts before the one confirmation
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send transfer' }));
     await waitFor(() => expect(h.send).toHaveBeenCalledTimes(1));
     expect(h.send.mock.calls[0][0]).toEqual({ fromWarehouseId: 'w1', toWarehouseId: 'w2', toUserId: 'p2', note: '', lines: [{ itemId: 'i1', quantity: '4' }] });
     expect(h.send.mock.calls[0][1]).toMatch(/[0-9a-f-]{36}/);
     await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/stock/transfers/tr-1'));
+  });
+
+  it('FR-SKD-005 cancelling the guard sends nothing and keeps the filled form', async () => {
+    renderPage();
+    await fillValidTransfer();
+    await userEvent.click(screen.getByRole('button', { name: 'Send transfer' }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(h.send).not.toHaveBeenCalled();
+    expect(h.navigate).not.toHaveBeenCalled();
+    expect(screen.getByRole('combobox', { name: /From warehouse/ })).toHaveValue('CEN - Central');
+    expect(screen.getByRole('combobox', { name: /To warehouse/ })).toHaveValue('SITE1 - Site one');
+    expect(screen.getByRole('textbox', { name: /Quantity1/ })).toHaveValue('4');
   });
 
   it('JOB-1122-1 the receiver picker offers only people who can receive at the destination, never the sender', async () => {

@@ -1,7 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import i18next from 'i18next';
 import { ToastProvider } from '@/src/components/ui';
+import { formatDay } from '@/src/lib/format';
+import { uncoveredLoanDays } from '@/src/lib/crewLoanCoverage';
+import crewsEn from '@/public/locales/en/crews.json';
+import crewsId from '@/public/locales/id/crews.json';
 
 /** AC-LOAN-010 — the loans card: off means nothing renders; on shows loans; only a crew manager lends. */
 const h = vi.hoisted(() => ({
@@ -26,8 +31,29 @@ import { CrewLoans } from './CrewLoans';
 
 const view = () => render(<ToastProvider><CrewLoans /></ToastProvider>);
 
+/** Open the lend modal and fill home crew, person, host crew and a three-day span (2–4 Mar 2026). */
+const fillLoanSpan = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getAllByRole('button', { name: /Lend worker|Pinjamkan pekerja/ })[0]);
+  await user.selectOptions(screen.getByRole('combobox', { name: /Home crew|Kru asal/ }), 'a');
+  await user.selectOptions(screen.getByRole('combobox', { name: /Person|Pilih orang/ }), 'w1');
+  await user.selectOptions(screen.getByRole('combobox', { name: /Host crew|Kru tujuan/ }), 'b');
+  // The end first, so the range is never inverted while both are typed; the field reads an ISO day on blur.
+  await user.clear(screen.getByLabelText(/^To/));
+  await user.type(screen.getByLabelText(/^To/), '2026-03-04');
+  await user.tab();
+  await user.clear(screen.getByLabelText(/^From/));
+  await user.type(screen.getByLabelText(/^From/), '2026-03-02');
+  await user.tab();
+};
+
+beforeAll(() => {
+  i18next.addResourceBundle('en', 'crews', crewsEn, true, true);
+  i18next.addResourceBundle('id', 'crews', crewsId, true, true);
+});
+
 describe('AC-LOAN-010 crew loans card', () => {
   beforeEach(() => { h.enabled = true; h.canManage = true; h.lend.mockClear(); h.endLoan.mockClear(); });
+  afterEach(async () => { await i18next.changeLanguage('en'); h.schedule = []; });
 
   it('renders nothing while the setting is off (the Crews page is as it was)', () => {
     h.enabled = false;
@@ -58,7 +84,33 @@ describe('AC-LOAN-010 crew loans card', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /Person/ }), 'w1');
     await user.selectOptions(screen.getByRole('combobox', { name: /Host crew/ }), 'b');
     expect(screen.getByTestId('loan-host-coverage')).toHaveTextContent('Host crew is not on any work order');
+    expect(screen.getByTestId('loan-host-coverage')).toHaveAttribute('role', 'alert');
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Lend worker' })).toBeDisabled();
+  });
+
+  it('AC-SD-002 a partly covered span is allowed and says those days stay on the home crew’s roster', async () => {
+    const user = userEvent.setup();
+    // The host crew is on a work order on 3 Mar only; the loan spans 2–4 Mar, so 2 and 4 Mar fall back to the home crew.
+    h.schedule = [{ valid_from: '2026-03-03', valid_to: '2026-03-03' }];
+    view();
+    await fillLoanSpan(user);
+    const note = screen.getByTestId('loan-host-coverage');
+    expect(note).toHaveAttribute('role', 'status');
+    const homeDays = uncoveredLoanDays('2026-03-02', '2026-03-04', h.schedule as { valid_from: string; valid_to: string | null }[]).map((d) => formatDay(d)).join(', ');
+    expect(note).toHaveTextContent(`Host crew is not on any work order on ${homeDays}. On those days this person stays on the Home crew roster.`);
+    expect(note).not.toHaveTextContent('no roster');
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Lend worker' })).not.toBeDisabled();
+  });
+
+  it('AC-SD-002 the same partial case in Bahasa Indonesia names the home crew, not a missing roster', async () => {
+    const user = userEvent.setup();
+    h.schedule = [{ valid_from: '2026-03-03', valid_to: '2026-03-03' }];
+    view();
+    await fillLoanSpan(user);
+    await i18next.changeLanguage('id');
+    const note = screen.getByTestId('loan-host-coverage');
+    await waitFor(() => expect(note).toHaveTextContent('Pada hari-hari itu, orang ini tetap tercatat di daftar hadir Home crew.'));
+    expect(note).not.toHaveTextContent('tidak akan muncul di daftar hadir pada hari tersebut');
   });
 
   it('lends a worker from the home crew to another crew', async () => {
