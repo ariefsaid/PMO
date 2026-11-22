@@ -631,6 +631,22 @@
   },
   "siteWork": {
     "materialProgress": {
+      "alert": {
+        "badge_one": "{{count}} item ahead of progress",
+        "badge_other": "{{count}} items ahead of progress",
+        "badgeHint": "Open the stock for this work order to see which items.",
+        "roles": {
+          "manage": "Who is told when material runs ahead",
+          "label": "Also tell these roles",
+          "help": "When material issued to a work order runs ahead of its progress, the project manager is told. Tick roles to tell as well. If the project has no manager and no role is ticked, the Admins are told.",
+          "none": "No extra roles. The project manager is told; if there is none, the Admins are.",
+          "adminOnly": "Only an Admin changes this list. Ask an Admin to add a role.",
+          "save": "Save",
+          "saved": "Saved.",
+          "saveError": "Could not save the roles. Try again, or ask an Admin.",
+          "loadError": "Could not load the roles. Reload the page."
+        }
+      },
       "banner": {
         "title": "Items issued ahead of progress: {{count}}",
         "body": "Issued as a share of the planned quantity is more than {{threshold}} points above the work order's progress ({{progress}}%). This is a warning only.",

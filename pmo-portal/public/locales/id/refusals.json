@@ -184,6 +184,8 @@
   "RSV_OVERDRAW": "Cadangan lebih sedikit dari yang dipakai permintaan.",
   "RSV_WORK_ORDER": "Perintah kerja sudah ditutup atau dibatalkan.",
   "STK_ACTOR": "Hanya anggota aktif organisasi ini yang dapat memposting stok.",
+  "STK_ALERT_ROLES_ADMIN_ONLY": "Hanya Admin yang dapat mengubah siapa yang diberi tahu saat material melebihi progres. Minta Admin.",
+  "STK_ALERT_ROLE_UNKNOWN": "Salah satu peran tidak dikenal di sistem ini. Muat ulang halaman dan pilih perannya lagi.",
   "STK_ARCHIVED": "Data ini sudah diarsipkan.",
   "STK_BACKDATE": "Hanya Admin yang dapat memberi tanggal lebih dari 31 hari ke belakang, dan tidak ada yang dapat memakai tanggal di masa depan.",
   "STK_BOQ_MISMATCH": "Item pekerjaan itu bukan milik proyek ini.",

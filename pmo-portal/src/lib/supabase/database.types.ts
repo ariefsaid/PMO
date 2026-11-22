@@ -25227,20 +25227,90 @@ export type Database = {
           },
         ]
       }
+      work_order_material_alerts: {
+        Row: {
+          gap_pp: number
+          id: string
+          issued_pct: number
+          item_id: string
+          last_seen_at: string
+          notified_user_ids: string[]
+          opened_at: string
+          org_id: string
+          progress_pct: number
+          resolved_at: string | null
+          threshold_pct: number
+          work_order_id: string
+        }
+        Insert: {
+          gap_pp: number
+          id?: string
+          issued_pct: number
+          item_id: string
+          last_seen_at?: string
+          notified_user_ids?: string[]
+          opened_at?: string
+          org_id?: string
+          progress_pct: number
+          resolved_at?: string | null
+          threshold_pct: number
+          work_order_id: string
+        }
+        Update: {
+          gap_pp?: number
+          id?: string
+          issued_pct?: number
+          item_id?: string
+          last_seen_at?: string
+          notified_user_ids?: string[]
+          opened_at?: string
+          org_id?: string
+          progress_pct?: number
+          resolved_at?: string | null
+          threshold_pct?: number
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_order_material_alerts_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_material_alerts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_material_alerts_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_order_stock_settings: {
         Row: {
+          ahead_alert_roles: string[]
           issue_progress_threshold_pct: number | null
           org_id: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          ahead_alert_roles?: string[]
           issue_progress_threshold_pct?: number | null
           org_id?: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          ahead_alert_roles?: string[]
           issue_progress_threshold_pct?: number | null
           org_id?: string
           updated_at?: string
@@ -32103,6 +32173,15 @@ export type Database = {
           step_name: string
         }[]
       }
+      my_open_material_alerts: {
+        Args: never
+        Returns: {
+          item_count: number
+          project_id: string
+          wo_label: string
+          work_order_id: string
+        }[]
+      }
       native_down_payment_item: { Args: never; Returns: string }
       native_invoice_gross: {
         Args: {
@@ -35213,6 +35292,10 @@ export type Database = {
       set_work_order_candidate_template: {
         Args: { p_items: Json }
         Returns: number
+      }
+      set_work_order_ahead_alert_roles: {
+        Args: { p_roles: string[] }
+        Returns: string[]
       }
       set_work_order_issue_threshold: {
         Args: { p_threshold_pct: number }

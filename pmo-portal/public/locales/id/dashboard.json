@@ -136,6 +136,8 @@
     "billingSteps_other": "langkah penagihan menunggu peran Anda",
     "billingStepsOverdue_one": "terlama terlambat {{count}} hari",
     "billingStepsOverdue_other": "terlama terlambat {{count}} hari",
+    "materialAhead_one": "$t(common:terms.clientWorkOrder) dengan material melebihi progres",
+    "materialAhead_other": "$t(common:terms.clientWorkOrder) dengan material melebihi progres",
     "pmTasks_one": "tugas proyek Anda terlambat",
     "pmTasks_other": "tugas proyek Anda terlambat",
     "pmTimesheets_one": "$t(common:terms.timesheet) tim menunggu persetujuan",

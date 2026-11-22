@@ -631,6 +631,22 @@
   },
   "siteWork": {
     "materialProgress": {
+      "alert": {
+        "badge_one": "{{count}} barang melebihi progres",
+        "badge_other": "{{count}} barang melebihi progres",
+        "badgeHint": "Buka stok $t(common:terms.clientWorkOrder) ini untuk melihat barangnya.",
+        "roles": {
+          "manage": "Siapa yang diberi tahu saat material melebihi progres",
+          "label": "Beri tahu juga peran berikut",
+          "help": "Saat material yang dikeluarkan untuk $t(common:terms.clientWorkOrder) melebihi progresnya, manajer proyek diberi tahu. Centang peran lain yang perlu diberi tahu. Jika proyek tidak punya manajer dan tidak ada peran yang dicentang, Admin yang diberi tahu.",
+          "none": "Tidak ada peran tambahan. Manajer proyek diberi tahu; jika tidak ada, Admin yang diberi tahu.",
+          "adminOnly": "Hanya Admin yang dapat mengubah daftar ini. Minta Admin menambahkan peran.",
+          "save": "Simpan",
+          "saved": "Tersimpan.",
+          "saveError": "Peran tidak dapat disimpan. Coba lagi, atau minta Admin.",
+          "loadError": "Peran tidak dapat dimuat. Muat ulang halaman."
+        }
+      },
       "banner": {
         "title": "Barang dikeluarkan melebihi progres: {{count}}",
         "body": "Porsi yang dikeluarkan dari jumlah rencana lebih dari {{threshold}} poin di atas progres perintah kerja ({{progress}}%). Ini hanya peringatan.",

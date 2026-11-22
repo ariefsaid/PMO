@@ -22,6 +22,7 @@ import { StockTagsPanel } from './StockTagsPanel';
 import { SimilarItemNotice, type SimilarCheckState } from '@/src/components/stock/SimilarItemNotice';
 import { findNearDuplicateItems, indexStockItems, type IndexedStockItem } from '@/src/lib/stockSimilarity';
 import { WorkOrderIssueThresholdPanel } from './WorkOrderIssueThresholdPanel';
+import { WorkOrderAheadAlertRolesPanel } from './WorkOrderAheadAlertRolesPanel';
 import { StockTransferSettings } from './StockTransferSettings';
 import { isOwnershipCacheSynced, routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 import { useRefusalText } from '@/src/lib/refusals';
@@ -66,6 +67,7 @@ const StockSetup: React.FC = () => {
   const tagsEnabled = ownership === 'pmo';
   const [tagsOpen, setTagsOpen] = useState(false);
   const [thresholdOpen, setThresholdOpen] = useState(false);
+  const [aheadRolesOpen, setAheadRolesOpen] = useState(false);
   const [form, setForm] = useState<{ tab: Tab; row: StockUnitRow | StockItemRow | StockWarehouseRow | null } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<{ tab: Tab; id: string; archived: boolean } | null>(null);
   const [keepersFor, setKeepersFor] = useState<StockWarehouseRow | null>(null);
@@ -233,6 +235,9 @@ const StockSetup: React.FC = () => {
       </div>}
       {canThreshold && tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={thresholdOpen} onClick={() => setThresholdOpen(!thresholdOpen)}>{t('siteWork.materialProgress.setting.manage')}</Button>
         {thresholdOpen && <WorkOrderIssueThresholdPanel />}
+      </div>}
+      {tagsEnabled && <div className="my-3"><Button variant="outline" aria-expanded={aheadRolesOpen} onClick={() => setAheadRolesOpen(!aheadRolesOpen)}>{t('siteWork.materialProgress.alert.roles.manage')}</Button>
+        {aheadRolesOpen && <WorkOrderAheadAlertRolesPanel canEdit={canThreshold} />}
       </div>}
       {canKeepers && tagsEnabled && <StockTransferSettings />}
       <div className="mb-4 flex flex-col items-stretch border-b border-border sm:flex-row sm:items-center">

@@ -56,7 +56,12 @@ const ENTITY_ROUTE_BASE: Record<string, string> = {
   sales_invoice: '/sales-invoices',
   material_request: '/material-requests',
   quantity_change_request: '/quantity-changes',
+  // material-vs-progress: the alert names the project (id) and opens its work orders, where the badge and the stock warning are.
+  work_order_alert: '/projects',
 };
+
+/** Types whose destination is a tab under the record's own route. */
+const ENTITY_ROUTE_SUFFIX: Record<string, string> = { work_order_alert: '/work-orders' };
 
 /** Workflow hand-offs (#788) whose destination is a queue/list page with no `/x/:id` detail route:
  * a submitted timesheet opens the approvals page, an assigned task opens My tasks. */
@@ -90,7 +95,7 @@ function entityRoute(entity: NotificationEntity | undefined): string | null {
   if (entity?.type && ENTITY_LIST_ROUTE[entity.type]) return ENTITY_LIST_ROUTE[entity.type];
   if (!entity?.type || !entity.id) return null;
   const base = ENTITY_ROUTE_BASE[entity.type];
-  return base ? `${base}/${entity.id}` : null;
+  return base ? `${base}/${entity.id}${ENTITY_ROUTE_SUFFIX[entity.type] ?? ''}` : null;
 }
 
 type InboxState =

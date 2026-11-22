@@ -35,6 +35,9 @@ import { supplierUnpaid, withLinkedDocuments } from '@/src/lib/procurement/procu
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { selectOverdueTaskCount } from './overdueTasks';
 import { useWaitingSteps } from '@/src/hooks/useBillingSteps';
+import { useWaitingMaterialAlerts } from '@/src/hooks/useWorkOrderMaterialAlerts';
+import { summariseWaitingMaterialAlerts } from '@/src/lib/materialAlertSteps';
+import type { WaitingMaterialAlertsFact } from '@/src/lib/materialAlertSteps';
 import { summariseWaitingSteps } from '@/src/lib/waitingSteps';
 import type { WaitingStepsFact } from '@/src/lib/waitingSteps';
 
@@ -90,6 +93,8 @@ export interface NeedsYouFacts {
   returnedExpenses?: number;
   /** Billing steps waiting on the viewer's role (#2680): a pointer derived on read, absent when none, unread or the read failed. */
   waitingBillingSteps?: WaitingStepsFact;
+  /** Work orders whose material issued is ahead of progress, for the people who control them (material-vs-progress): absent when none, unread or the read failed. */
+  waitingMaterialAlerts?: WaitingMaterialAlertsFact;
 }
 
 type Translate = (key: string, defaultValue: string, options?: Record<string, unknown>) => string;
@@ -217,6 +222,15 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       label: counted(t, 'needs.billingSteps', 'billing step waiting on your role', 'billing steps waiting on your role', w.count),
       detail: w.oldestOverdueDays !== null ? t('needs.billingStepsOverdue', 'oldest {{count}} days overdue', { count: w.oldestOverdueDays }) : undefined,
       href: w.href, tone: w.overdue > 0 ? 'lost' : 'warn',
+    });
+  }
+
+  if (facts.waitingMaterialAlerts) {
+    const m = facts.waitingMaterialAlerts;
+    add({
+      id: 'material-ahead-of-progress', count: m.count,
+      label: counted(t, 'needs.materialAhead', 'work order with material ahead of progress', 'work orders with material ahead of progress', m.count),
+      href: m.href, tone: 'warn',
     });
   }
 
@@ -371,6 +385,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const invoiceApprovals = useInvoicesAwaitingViewer();
   // #2680: steps waiting on the viewer's role. Additive: a failed or unread query adds no item and never blocks the list.
   const waitingStepsQuery = useWaitingSteps(Boolean(orgId && role && role !== 'Engineer'));
+  // material-vs-progress: open alerts on work orders the viewer controls. Any role can be listed as a recipient; the database returns none to everyone else.
+  const waitingAlertsQuery = useWaitingMaterialAlerts(Boolean(orgId && role));
 
   const procApprovals = useMemo(
     () => pendingProcurementApprovals(procurementsQuery.data, userId, realRole === 'Admin'),
@@ -447,6 +463,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     timesheetStatus: currentTimesheet?.status ?? (currentWeek && !timesheetsQuery.isPending && !timesheetsQuery.isError ? 'Draft' : null),
     engineerTasks: role === 'Engineer' && !myTasksQuery.isPending && !myTasksQuery.isError && currentWeek ? engineerTasksCount : undefined,
     waitingBillingSteps: waitingStepsQuery.isSuccess ? summariseWaitingSteps(waitingStepsQuery.data ?? []) ?? undefined : undefined,
+    waitingMaterialAlerts: waitingAlertsQuery.isSuccess ? summariseWaitingMaterialAlerts(waitingAlertsQuery.data ?? []) ?? undefined : undefined,
     returnedExpenses: role === 'Engineer' && !expenseClaimsQuery.isPending && !expenseClaimsQuery.isError ? currentReturnedExpenses.length : undefined,
   };
 
