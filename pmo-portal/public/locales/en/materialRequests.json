@@ -188,7 +188,10 @@
     "sourceRequired": "Choose the warehouse the material leaves from.",
     "standIn": "This stand-in is not allowed: choose an active colleague and a valid date range.",
     "unknown": "That did not work. Try again.",
-    "workOrder": "Choose a work order you can see."
+    "workOrder": "Choose a work order you can see.",
+    "notJobRole": "This step is for a built-in role you do not hold. Ask an Admin for the role, or leave the step to someone who holds it.",
+    "jobRoleOff": "Turn on built-in roles before a step can name one, or choose an access level.",
+    "jobRoleUnknown": "That built-in role does not exist. Choose one from the list."
   },
   "role": {
     "Admin": "Admin",
@@ -246,7 +249,12 @@
     "standInSub": "Someone who can approve in your place for a date range. One hop only: a stand-in cannot hand it on.",
     "stepN": "Step {{n}}",
     "title": "Approval settings",
-    "to": "To"
+    "to": "To",
+    "jobRole": "Built-in role that decides",
+    "jobRoleNone": "None: anyone with the access level",
+    "jobRoleOff": "Built-in roles are off, so this cannot change. Turn them on in Administration to pick another.",
+    "jobRoleHelp": "People without a built-in role count when their access level is the one this role is built on.",
+    "roleSetByJobRole": "Set by the built-in role."
   },
   "status": {
     "approved": "Approved",

@@ -11,11 +11,16 @@ import { useApprovalChain, useDeliveryNoteSettings, useMaterialRequestCutoff, us
 import type { ChainStepInput } from '@/src/lib/repositories/materialRequests';
 import type { Role } from '@/src/auth/AuthContext';
 import { formatDay } from '@/src/lib/format';
+import { baseLevelOf } from '@/src/auth/builtInRoles';
+import { useBuiltInRolesEnabled } from '@/src/hooks/useBuiltInRoles';
+import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
 import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
 import { UsageThresholdsEditor } from './materialRequests/UsageThresholdsEditor';
 import { ApproverInboxSetting } from './materialRequests/ApproverInboxSetting';
 
 const ROLES: Role[] = ['Engineer', 'Project Manager', 'Finance', 'Executive', 'Admin'];
+/** An approver is never a field (light) account, so the step picker offers managers and officers only. */
+const APPROVER_TIERS = ['manager', 'officer'] as const;
 
 const ChainEditor: React.FC = () => {
   const { t } = useTranslation('materialRequests');
@@ -27,7 +32,10 @@ const ChainEditor: React.FC = () => {
   const canManage = usePermission()('manage', 'approvalChain');
   const [draft, setDraft] = useState<ChainStepInput[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const steps: ChainStepInput[] = draft ?? (chain.data ?? []).map((s) => ({ role: s.role, label: s.label, onlyOverPlan: s.onlyOverPlan }));
+  // roles-that-decide FR-RTD-004/008: a step names a built-in role only while the organisation has built-in roles on.
+  const builtInOn = useBuiltInRolesEnabled().data === true;
+  const jobRoleOptions = useJobRoleOptions(t('settings.jobRoleNone', 'None: anyone with the access level'), APPROVER_TIERS);
+  const steps: ChainStepInput[] = draft ?? (chain.data ?? []).map((s) => ({ role: s.role, jobRole: s.jobRole, label: s.label, onlyOverPlan: s.onlyOverPlan }));
   const edit = (i: number, p: Partial<ChainStepInput>) => setDraft(steps.map((s, j) => (j === i ? { ...s, ...p } : s)));
   const move = (i: number, d: -1 | 1) => { const n = [...steps]; const [x] = n.splice(i, 1); n.splice(i + d, 0, x); setDraft(n); };
   const save = async () => {
@@ -47,8 +55,17 @@ const ChainEditor: React.FC = () => {
           {steps.map((s, i) => (
             <li key={i} className="space-y-2 rounded-md border border-border p-3" data-testid="chain-step">
               <p className="font-medium">{t('settings.stepN', 'Step {{n}}', { n: i + 1 })}</p>
-              <SelectField label={t('settings.role', 'Role')} value={s.role} onChange={(v) => edit(i, { role: v as Role })} fullWidth disabled={!canManage}
-                options={ROLES.map((r) => ({ value: r, label: labels.role[r] ?? r }))} />
+              {(builtInOn || s.jobRole) && (
+                <SelectField label={t('settings.jobRole', 'Built-in role that decides')} value={s.jobRole ?? ''} fullWidth disabled={!canManage || !builtInOn}
+                  onChange={(v) => { const base = baseLevelOf(v); edit(i, base ? { jobRole: v, role: base } : { jobRole: null }); }}
+                  options={jobRoleOptions}
+                  helper={!builtInOn
+                    ? t('settings.jobRoleOff', 'Built-in roles are off, so this cannot change. Turn them on in Administration to pick another.')
+                    : t('settings.jobRoleHelp', 'People without a built-in role count when their access level is the one this role is built on.')} />
+              )}
+              <SelectField label={t('settings.role', 'Role')} value={s.role} onChange={(v) => edit(i, { role: v as Role })} fullWidth disabled={!canManage || !!s.jobRole}
+                options={ROLES.map((r) => ({ value: r, label: labels.role[r] ?? r }))}
+                helper={s.jobRole ? t('settings.roleSetByJobRole', 'Set by the built-in role.') : undefined} />
               <TextField label={t('settings.purpose', 'What this step checks')} value={s.label} onChange={(v) => edit(i, { label: v })} disabled={!canManage} />
               <Checkbox checked={s.onlyOverPlan} disabled={!canManage} onChange={(v) => edit(i, { onlyOverPlan: v })}
                 label={t('settings.onlyOverPlan', 'Only when a line is over plan')} />
@@ -62,7 +79,7 @@ const ChainEditor: React.FC = () => {
         </ol>
         <CanWrite entity="approvalChain" action="manage">
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setDraft([...steps, { role: 'Project Manager', label: '', onlyOverPlan: false }])}>{t('settings.addStep', 'Add step')}</Button>
+            <Button variant="outline" onClick={() => setDraft([...steps, { role: 'Project Manager', jobRole: null, label: '', onlyOverPlan: false }])}>{t('settings.addStep', 'Add step')}</Button>
             <Button variant="primary" disabled={!draft || !valid} loading={m.setChain.isPending} onClick={() => void save()}>{t('settings.saveChain', 'Save chain')}</Button>
           </div>
         </CanWrite>

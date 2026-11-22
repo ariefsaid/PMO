@@ -70,7 +70,7 @@ describe('material request writes', () => {
       await result.current.decide.mutateAsync({ id: 'mr1', position: 2, decision: 'return', reason: 'split it', sourceWarehouseId: 'wh1' });
       await result.current.cancel.mutateAsync({ id: 'mr1', reason: 'not needed' });
       await result.current.retryTransfer.mutateAsync({ id: 'mr1', sourceWarehouseId: 'wh1' });
-      await result.current.setChain.mutateAsync([{ role: 'Engineer', label: 'Plan check', onlyOverPlan: false }]);
+      await result.current.setChain.mutateAsync([{ role: 'Engineer', jobRole: null, label: 'Plan check', onlyOverPlan: false }]);
       await result.current.setCutoff.mutateAsync('12:00');
       await result.current.setStandIn.mutateAsync({ delegatorId: 'u1', standInId: 'u2', startsOn: '2026-11-20', endsOn: '2026-11-27' });
       await result.current.revokeStandIn.mutateAsync('s1');

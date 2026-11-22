@@ -528,6 +528,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          job_role: string | null
           label: string
           only_over_plan: boolean
           org_id: string
@@ -537,6 +538,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          job_role?: string | null
           label: string
           only_over_plan?: boolean
           org_id?: string
@@ -546,6 +548,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          job_role?: string | null
           label?: string
           only_over_plan?: boolean
           org_id?: string
@@ -553,6 +556,13 @@ export type Database = {
           role?: Database["public"]["Enums"]["user_role"]
         }
         Relationships: [
+          {
+            foreignKeyName: "approval_chain_steps_job_role_fkey"
+            columns: ["job_role"]
+            isOneToOne: false
+            referencedRelation: "built_in_roles"
+            referencedColumns: ["key"]
+          },
           {
             foreignKeyName: "approval_chain_steps_org_id_fkey"
             columns: ["org_id"]
@@ -622,6 +632,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          job_role: string | null
           org_id: string
           position: number
           project_id: string
@@ -632,6 +643,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          job_role?: string | null
           org_id?: string
           position: number
           project_id: string
@@ -642,6 +654,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          job_role?: string | null
           org_id?: string
           position?: number
           project_id?: string
@@ -654,6 +667,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_step_pins_job_role_fkey"
+            columns: ["job_role"]
+            isOneToOne: false
+            referencedRelation: "built_in_roles"
+            referencedColumns: ["key"]
           },
           {
             foreignKeyName: "approval_step_pins_org_id_fkey"
@@ -11622,6 +11642,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           id: string
+          job_role: string | null
           label: string
           org_id: string
           position: number
@@ -11636,6 +11657,7 @@ export type Database = {
           decided_at?: string | null
           decided_by?: string | null
           id?: string
+          job_role?: string | null
           label: string
           org_id?: string
           position: number
@@ -11650,6 +11672,7 @@ export type Database = {
           decided_at?: string | null
           decided_by?: string | null
           id?: string
+          job_role?: string | null
           label?: string
           org_id?: string
           position?: number
@@ -11660,6 +11683,13 @@ export type Database = {
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "material_request_steps_job_role_fkey"
+            columns: ["job_role"]
+            isOneToOne: false
+            referencedRelation: "built_in_roles"
+            referencedColumns: ["key"]
+          },
           {
             foreignKeyName: "material_request_steps_org_id_fkey"
             columns: ["org_id"]
@@ -31934,6 +31964,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      mrq_fills_step: {
+        Args: {
+          p_job_role: string
+          p_profile: string
+          p_role: Database["public"]["Enums"]["user_role"]
+        }
+        Returns: boolean
+      }
       mrq_log: {
         Args: {
           p_acted_for: string
@@ -31949,6 +31987,7 @@ export type Database = {
       }
       mrq_pinned_to: {
         Args: {
+          p_job_role: string
           p_position: number
           p_project_id: string
           p_role: Database["public"]["Enums"]["user_role"]
@@ -32057,6 +32096,7 @@ export type Database = {
       mrq_step_authority: {
         Args: {
           p_author: string
+          p_job_role: string
           p_org: string
           p_pin: string
           p_role: Database["public"]["Enums"]["user_role"]
@@ -32082,6 +32122,7 @@ export type Database = {
         Args: never
         Returns: {
           acting_for: string
+          job_role: string
           label: string
           request_id: string
           role: Database["public"]["Enums"]["user_role"]

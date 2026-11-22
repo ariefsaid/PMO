@@ -95,12 +95,31 @@ against the same cases. `can()` reads it; the database is the authority.
   sentence naming the job role route), and the settings raise `MRQ_JOB_ROLE_OFF`, `PO_JOB_ROLE_OFF`, `PO_ORDER_ROLE_INVALID`,
   `PO_ADMIN_ONLY`. Each has an English and a Bahasa Indonesia sentence saying what to do next.
 
-### 2.4 Consumer (c): billing step owner and document viewers
+### 2.4 Consumer (c): billing step owner and viewers (the billing lane builds it)
 
-Not built: the billing lane has not pushed its spec. The function is exposed with consumers (a) and (b), so it is not an unread
-right. When billing lands, `owner_role` gains a sibling `owner_job_role` read through `holds_job_role` in `my_waiting_billing_steps`
-and the needs-you seam, with the same "no job role = today" default. Document viewers (`document_category_roles`) follow the same
-shape when ruled.
+Not built here. The billing lane's spec (`docs/specs/billing-steps.spec.md` on `feat/gap-billing-billing-steps`, spec and plan only)
+adds `owner_role_key` beside `owner_role` on steps, the project list and template steps, an organisation setting of step actor roles
+(`org_billing_step_settings.actor_role_keys`) and a per-step hidden list. The contract above fits it unchanged; the exact calls are:
+
+- **Holders of a step's owner role key** (FR-WBS-030, waiting list and notices; called inside their security-definer reads, which run
+  as the owner): `public.holds_job_role(p.id, s.owner_role_key)` for a step with `owner_role_key` set; a step with only `owner_role`
+  keeps today's base-level rule. Under the approved Q1 answer this also counts a person with no job role whose access level is the job
+  role's base level, the same rule as material-request steps. Their FR-WBS-030 wording "the active holders of its owner role key" should
+  read "the people who fill its owner role key (`holds_job_role`)"; if billing needs key holders only, that is a ruling for the whole
+  product, not a second function.
+- **Acting on an owned step** (FR-WBS-021): `p.built_in_role = any(v_actor_role_keys) and public.holds_job_role(p.id, s.owner_role_key)`.
+  The actor-roles membership test stays theirs and already requires a held key, so a person with no job role never acts through it.
+- **Reads and hidden steps** (FR-WBS-022/023): these test key membership (`built_in_role = any(...)`), not "fills a job role", so they do
+  not call `holds_job_role`. A restrictive policy must not call `holds_job_role` directly (it is not granted to signed-in callers); if one
+  ever needs it, the billing lane adds one actor-scoped gate (as `actor_may_order_purchases` does here), one gate per right.
+
+Document-type viewers (`document_category_roles`) follow the same shape when ruled; nothing is built for them.
+
+### 2.5 Not built: a per-work-order approver
+
+A work-order "responsible person" column is built by the usage-warning lane (migration 1860 on `feat/gap-material-usage-warning`). An
+approval step that resolves to that person is optional and is not built here; it can be added later as a step kind beside the job role,
+reading that column, once that branch lands.
 
 ## 3. Requirements (EARS)
 
@@ -176,5 +195,5 @@ DAL and mocks gain the field.
 2. **Who orders.** Recommended: the Admin names Buyer in the ordering setting; until then nothing changes. Consequence of Q1: while an
    Engineer has no job role, naming Buyer lets them order too; the settings screen says so. Built meanwhile: the setting, empty.
 3. **Can a Buyer order an unapproved purchase?** Recommended: no, only after approval (FR-RTD-010). Built meanwhile: that rule.
-4. **Billing step owners and document viewers.** Recommended: the same "job role or no job role = today" shape once the billing lane's
-   spec is pushed. Built meanwhile: nothing beyond the function.
+4. **Billing step owners and document viewers.** Answered: the billing lane's spec is pushed; §2.4 gives the exact calls. Their lane
+   builds the billing code.
