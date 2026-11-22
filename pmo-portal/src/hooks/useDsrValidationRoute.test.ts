@@ -83,10 +83,17 @@ describe('FR-WAIT-006 useDsrValidationRoute', () => {
   });
 
   it('surfaces a read failure as an error state so the screen can offer a retry', async () => {
-    h.validationRoute.mockRejectedValue(new Error('boom'));
+    h.validationRoute.mockRejectedValueOnce(new Error('boom'));
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useDsrValidationRoute('r1'), { wrapper: Wrapper });
+
     await waitFor(() => expect(result.current.isError).toBe(true));
+    // A failed read is the screen's RETRY state, never a rendered route: React Query holds the failure
+    // (it does not throw it out of the hook), no validator is fabricated, and `refetch` is the affordance
+    // the page binds its Retry button to.
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.error?.message).toBe('boom');
+    expect(typeof result.current.refetch).toBe('function');
   });
 });
 

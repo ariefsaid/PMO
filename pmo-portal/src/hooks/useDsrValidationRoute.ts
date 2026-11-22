@@ -38,6 +38,11 @@ export function useDsrValidationRoute(reportId: string | null | undefined) {
     // than reaching the network. `reportId` alone decides the one-report scope.
     enabled: Boolean(qc && orgId && userId && reportId),
     refetchInterval: ELIGIBILITY_REFRESH_MS,
+    // The read's contract is an ERROR STATE, never a render throw: the page turns `isError` into its
+    // "couldn't verify the route" line plus a Retry (`pages/siteReports/SiteReportDetail.tsx`), so a
+    // throw here would be swallowed by any boundary above instead of letting the reader retry.
+    // Pinned explicitly rather than inherited from the client's default.
+    throwOnError: false,
   }, qc ?? IDLE_CLIENT);
 }
 

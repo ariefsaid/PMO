@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const h = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
 
+import { AppError } from '@/src/lib/appError';
 import { timesheetRepository } from '../timesheets';
 
 beforeEach(() => h.rpc.mockReset());
@@ -30,9 +31,11 @@ describe('FR-WAIT-006 timesheetRepository.getApprovalRoute', () => {
   it('normalizes a thrown transport failure through the repository wrap contract', async () => {
     h.rpc.mockRejectedValue(new Error('network down'));
 
-    await expect(timesheetRepository.getApprovalRoute('ts-1')).rejects.toMatchObject({
-      name: 'AppError',
-      message: 'network down',
-    });
+    // Capture the thrown value explicitly: the seam must REJECT with one normalized `AppError`
+    // (never the raw transport `Error`), because that is the single type every consumer classifies on.
+    const failure = await timesheetRepository.getApprovalRoute('ts-1').catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(AppError);
+    expect((failure as AppError).message).toBe('network down');
   });
 });
