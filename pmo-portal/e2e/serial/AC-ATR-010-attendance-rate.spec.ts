@@ -51,7 +51,7 @@ test.beforeEach(async () => {
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
   run = `E2E-ATR-${Date.now()}`;
   crewCode = `ATR-${String(Date.now()).slice(-10)}`;
-  const from = new Date(); from.setDate(from.getDate() - 10);
+  const from = new Date(); // placed and rostered from today: the default month period then holds exactly the one rostered day below
 
   const org = need('target read', await admin.from('organizations').select('attendance_target_rate').eq('id', ORG_ID).single());
   previousTarget = org.attendance_target_rate === null ? null : Number(org.attendance_target_rate);
