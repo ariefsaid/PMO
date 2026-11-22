@@ -2,7 +2,7 @@
 -- AC-CHR-001..007. Spec docs/specs/change-review.spec.md. Builds on the 1177 shape (one org, one work order, one over-contract item).
 begin;
 create extension if not exists pgtap;
-select plan(23);
+select plan(28);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('18100000-0000-0000-0000-0000000000a1', 'CHR Org A', 'USD', 'UTC', true),
@@ -73,6 +73,8 @@ select throws_ok($$update organizations set quantity_change_approver_roles = arr
   'QCR_APPROVER_ROLE_UNKNOWN: choose reviewer roles from the role list', 'AC-CHR-005 a key outside the catalogue is refused');
 select throws_ok($$update organizations set quantity_change_approver_roles = array['foreman'] where id = '18100000-0000-0000-0000-0000000000a1'$$, '22023',
   'QCR_APPROVER_ROLE_LIGHT: a field role cannot review requests; choose a manager or officer role', 'AC-CHR-005 a light-account (field) role is refused');
+select throws_ok($$update organizations set quantity_change_approver_roles = array['engineer'] where id = '18100000-0000-0000-0000-0000000000a1'$$, '22023',
+  'QCR_APPROVER_ROLE_CANNOT_READ: choose a role that can see change requests', 'AC-CHR-005 an officer role with Engineer base (cannot read change requests) is refused');
 update organizations set quantity_change_approver_roles = array['project_control_manager'] where id = '18100000-0000-0000-0000-0000000000a1';
 select is((select quantity_change_approver_roles from organizations where id = '18100000-0000-0000-0000-0000000000a1'), array['project_control_manager'], 'AC-CHR-005 the Admin sets the list');
 reset role;
@@ -110,6 +112,26 @@ select ok(exists (select 1 from notifications where owner_id = '18100000-0000-00
   'AC-CHR-002 a listed-role user was told the request awaits approval');
 select ok(exists (select 1 from notifications where owner_id = '18100000-0000-0000-0000-0000000000b1' and title = 'Quantity change request approved'),
   'AC-CHR-002 the person who raised it was told the outcome');
+
+-- ── the listed-role branch needs the organisation's built-in roles switched on (AC-CHR-011) ──────────
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+insert into ids select 'r2', qcr_raise('18100000-0000-0000-0000-0000000000e1', null,
+  '[{"boq_item_id":"18100000-0000-0000-0000-0000000000f2","requested_quantity":260,"reason":"more road"}]'::jsonb);
+select lives_ok($$select qcr_submit((select v from ids where k = 'r2'))$$, 'a second request is submitted');
+reset role;
+update organizations set built_in_roles_enabled = false where id = '18100000-0000-0000-0000-0000000000a1';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b7","role":"authenticated"}';
+select throws_ok($$select qcr_approve((select v from ids where k = 'r2'))$$, '42501',
+  'QCR_NOT_APPROVER: your role cannot approve or return quantity change requests; ask an approver, or an Admin to add your role to the reviewer list',
+  'AC-CHR-011 a listed-role holder is refused once the organisation turns built-in roles off');
+select is((select reason from qcr_approval_state((select v from ids where k = 'r2'))), 'role', 'AC-CHR-011 the screen is told why');
+reset role;
+update organizations set built_in_roles_enabled = true where id = '18100000-0000-0000-0000-0000000000a1';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b7","role":"authenticated"}';
+select lives_ok($$select qcr_approve((select v from ids where k = 'r2'))$$, 'AC-CHR-011 with built-in roles back on the listed role approves again');
 
 select * from finish();
 rollback;

@@ -170,6 +170,7 @@
   "PTYPE_PERIOD_NOT_ALLOWED": "Hanya pembelian sewa yang memiliki masa sewa.",
   "PTYPE_PERIOD_REQUIRED": "Pembelian sewa memerlukan masa sewa.",
   "PTYPE_UNAVAILABLE": "Jenis itu tidak tersedia.",
+  "QCR_APPROVER_ROLE_CANNOT_READ": "Pilih peran yang dapat melihat permintaan perubahan.",
   "QCR_APPROVER_ROLE_LIGHT": "Peran lapangan tidak dapat meninjau permintaan. Pilih peran manajer atau petugas.",
   "QCR_APPROVER_ROLE_UNKNOWN": "Pilih peran peninjau dari daftar peran.",
   "QCR_NOT_APPROVER": "Peran Anda tidak dapat menyetujui atau mengembalikan permintaan perubahan kuantitas. Minta peninjau, atau minta Admin menambahkan peran Anda ke daftar peninjau.",

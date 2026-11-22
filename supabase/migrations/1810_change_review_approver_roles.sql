@@ -27,6 +27,11 @@ begin
     if exists (select 1 from unnest(new.quantity_change_approver_roles) k where not exists (select 1 from public.built_in_roles b where b.key = k)) then
       raise exception 'QCR_APPROVER_ROLE_UNKNOWN: choose reviewer roles from the role list' using errcode = '22023';
     end if;
+    -- a reviewer must be able to read the request: only these base levels can (qcr_* reads and the author roles)
+    if exists (select 1 from unnest(new.quantity_change_approver_roles) k join public.built_in_roles b on b.key = k
+                where b.base_level not in ('Admin','Executive','Project Manager','Finance')) then
+      raise exception 'QCR_APPROVER_ROLE_CANNOT_READ: choose a role that can see change requests' using errcode = '22023';
+    end if;
     new.quantity_change_approver_roles := (select coalesce(array_agg(distinct k order by k), '{}') from unnest(new.quantity_change_approver_roles) k);
   end if;
   return new;
@@ -52,7 +57,7 @@ create trigger organizations_audit_qcr_approver_roles after update on public.org
 create function public.qcr_profile_may_approve(p_role public.user_role, p_built_in_role text, p_org uuid) returns boolean
   language sql stable security definer set search_path = public, pg_temp as $$
   select p_role in ('Admin','Executive','Finance')
-      or (p_built_in_role is not null and not public.is_light_role_key(p_built_in_role) and exists (select 1 from public.organizations o
+      or (p_built_in_role is not null and not public.is_light_role_key(p_built_in_role) and public.org_built_in_roles_enabled(p_org) and exists (select 1 from public.organizations o
             where o.id = p_org and p_built_in_role = any (o.quantity_change_approver_roles)))
 $$;
 revoke all on function public.qcr_profile_may_approve(public.user_role, text, uuid) from public, anon, authenticated;

@@ -23,7 +23,7 @@ const t = ((key: string, opts?: Record<string, unknown>) => {
 
 describe('AC-CHR-008 the change-request refusals', () => {
   it('has an English sentence for every new code', () => {
-    for (const code of ['QCR_NOT_APPROVER', 'QCR_SOD_AUTHOR', 'QCR_APPROVER_ROLE_UNKNOWN', 'QCR_APPROVER_ROLE_LIGHT']) {
+    for (const code of ['QCR_NOT_APPROVER', 'QCR_SOD_AUTHOR', 'QCR_APPROVER_ROLE_UNKNOWN', 'QCR_APPROVER_ROLE_LIGHT', 'QCR_APPROVER_ROLE_CANNOT_READ']) {
       expect(refusalText({ code: '42501', message: `${code}: x` }, tReal).known).toBe(true);
     }
   });

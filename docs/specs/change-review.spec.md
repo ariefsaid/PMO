@@ -18,6 +18,7 @@
 - **FR-CHR-002** The list shall be editable by Admin only, shall accept only keys of the built-in role catalogue, and shall be audited (before and after).
 - **FR-CHR-003** When a user whose built-in role key is in the organisation's list calls approve or return, the system shall treat them as an approver; a user whose key is not in the list, or who has no key, is judged by today's rule.
 - **FR-CHR-001a** The setting shall refuse a light-account (field) role key. A light account never reviews, whatever the list says.
+- **FR-CHR-001b** The setting shall refuse a role whose base level cannot read change requests (only Admin, Executive, Project Manager and Finance can), and the listed-role branch shall count only while the organisation's built-in roles setting is on.
 - **FR-CHR-004** The separation-of-duties rule shall apply unchanged to every approver: the author, any editor and the submitter are refused, with no sole-user exception.
 - **FR-CHR-005** The approval-state read (`qcr_approval_state`) and its "an eligible approver exists" flag shall use the same rule, so the screen shows the approve action and the waiting message correctly.
 - **FR-CHR-006** When a request is submitted, every active member who may review it under FR-CHR-003 (never the author, an editor or the submitter) shall be told it awaits approval (the notification the bell and inbox read); the person who raised it is told the outcome (already shipped, unchanged).
@@ -32,6 +33,7 @@
 | AC-CHR-003 | Given the role is listed, when the same user authored, edited or submitted the request, then refused 42501 `QCR_SOD_AUTHOR` and the status is unchanged (mutation target). | pgTAP |
 | AC-CHR-004 | Given the role is listed, when a different non-listed role with no key (e.g. Engineer) or a listed-role user of another organisation approves, then refused. | pgTAP |
 | AC-CHR-005 | Given a non-Admin writes the list, then nothing changes; given the Admin writes a key not in the catalogue, or a light-account key (`foreman`, `field_user`), then refused; given a valid change, an audit row holds before and after. | pgTAP |
+| AC-CHR-011 | Given a listed role and the organisation turns built-in roles off, then its holder is refused approve (`QCR_NOT_APPROVER`) and `qcr_approval_state` says `role`; given an officer key with Engineer base is written to the list, then refused `QCR_APPROVER_ROLE_CANNOT_READ`. | pgTAP |
 | AC-CHR-006 | Given the role is listed, when a request is submitted, then a listed-role user who did not touch it is notified; when it is approved, the person who raised it is notified. | pgTAP |
 | AC-CHR-007 | Given the listed role, `qcr_approval_state` returns `can_approve` true for a non-author and `eligible_approver_exists` true when only listed-role users exist. | pgTAP |
 | AC-CHR-008 | Given the refusal codes raised by the migration, then each has non-empty `en` and `id` sentences (gate `check-refusal-codes`). | vitest + gate |
