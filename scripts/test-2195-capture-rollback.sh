@@ -24,8 +24,9 @@ refs = reference('supabase/migrations/0858_record_only_journal.sql', 'undo_captu
 refs += reference('supabase/migrations/0372_procurement_link_integrity.sql', 'unlink_erp_purchase_document',
                   'p0_proof_unlink_reference', 'uuid')
 # The forward state is 0866 plus the migrations stacked on it; the down state undoes them newest first. 1209 later
-# guards three of the catalog's read RPCs and strips no body on rollback, so the proof asserts that guard at head
-# and compares those three against their own level body (head minus that one line); everything else is verbatim.
+# guards three of the catalog's read RPCs and 1530 guards unlink_erp_purchase_document; neither rollback strips a body,
+# so the proof asserts those guards at the peeled head and compares those four entries against their own level body
+# (head minus that one line); everything else is verbatim.
 ups = ['0866_erp_purchase_capture.sql', '0873_capture_revision_fingerprint.sql', '0874_capture_feed_currency.sql']
 downs = ['0874_capture_feed_currency_down.sql', '0873_capture_revision_fingerprint_down.sql', '0866_erp_purchase_capture_down.sql']
 up_sql = '\n'.join(Path('supabase/migrations/' + name).read_text() for name in ups)
