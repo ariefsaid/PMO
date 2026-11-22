@@ -12,13 +12,15 @@
 --   mut:usage_never_blocks (1862 usage_check_safe): delete the exception block                                         -> AC-UW-017 red
 --   the supersede clause of daily_site_reports_zz_usage_check: fire on a correction's own validation instead           -> AC-UW-004 red
 --   usage_warning_recipient: return the project manager first                                                          -> AC-UW-001 red
+--   mut:usage_recipient_light (1862 usage_warning_recipient): drop the `not is_light_role_key` test                     -> AC-UW-020 red
 --   mut:usage_source_admin (1861): replace the role test with `false`                                                  -> AC-UW-008 red
 begin;
 create extension if not exists pgtap;
-select plan(44);
+select plan(46);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('26860000-0000-0000-0000-00000000010a', 'UW Org', 'IDR', 'Asia/Jakarta'), ('26860000-0000-0000-0000-00000000010b', 'UW Other Org', 'IDR', 'Asia/Jakarta');
+update organizations set built_in_roles_enabled = true where id = '26860000-0000-0000-0000-00000000010a';
 insert into auth.users (id, email) values
   ('26860000-0000-0000-0000-0000000001a1', 'uw-admin@example.com'), ('26860000-0000-0000-0000-0000000001a2', 'uw-eng@example.com'), ('26860000-0000-0000-0000-0000000001a3', 'uw-pm@example.com'),
   ('26860000-0000-0000-0000-0000000001a4', 'uw-eng3@example.com'), ('26860000-0000-0000-0000-0000000001a5', 'uw-eng2@example.com'), ('26860000-0000-0000-0000-0000000001a6', 'uw-other@example.com');
@@ -183,6 +185,17 @@ select pg_temp._rep('26860000-0000-0000-0000-000000002011', '26860000-0000-0000-
 select pg_temp._val('26860000-0000-0000-0000-000000002011');
 select is((select notified_user_id from public.material_installed_usage_alerts where item_id = '26860000-0000-0000-0000-000000001316'), '26860000-0000-0000-0000-0000000001a3'::uuid, 'AC-UW-002 a disabled responsible person falls back to the project manager');
 select is(pg_temp._told('26860000-0000-0000-0000-0000000001a5'), 0, 'AC-UW-002 the disabled person has no notification');
+
+-- ── AC-UW-020 a field account named earlier is skipped: the project manager is told ─────────────────
+set local role authenticated;
+select pg_temp._as('26860000-0000-0000-0000-0000000001a3');
+select lives_ok($$ select public.set_work_order_responsible_person('26860000-0000-0000-0000-000000001401', '26860000-0000-0000-0000-0000000001a2') $$, 'AC-UW-020 the project manager names an office engineer');
+reset role;
+update public.profiles set built_in_role = 'foreman' where id = '26860000-0000-0000-0000-0000000001a2';
+select pg_temp._rep('26860000-0000-0000-0000-000000002016', '26860000-0000-0000-0000-0000000001a4', date '2026-12-14', '26860000-0000-0000-0000-000000001314', 90);
+select pg_temp._val('26860000-0000-0000-0000-000000002016');
+select is((select notified_user_id from public.material_installed_usage_alerts where item_id = '26860000-0000-0000-0000-000000001314'), '26860000-0000-0000-0000-0000000001a3'::uuid, 'AC-UW-020 a responsible person who is now a field account is skipped for the project manager');
+update public.profiles set built_in_role = null where id = '26860000-0000-0000-0000-0000000001a2';
 
 -- ── AC-UW-018 archiving a report runs the check ───────────────────────────────────────────────────
 select pg_temp._rep_validated('26860000-0000-0000-0000-000000002012', '26860000-0000-0000-0000-0000000001a4', date '2026-12-10', '26860000-0000-0000-0000-000000001318', 90);
