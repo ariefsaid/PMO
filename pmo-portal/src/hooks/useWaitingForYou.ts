@@ -16,12 +16,12 @@ import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { availablePlanActions, availableReplenishmentActions } from '@/src/lib/imprest/imprestRules';
 import { approvalPopulation, pendingProcurementApprovals, type ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
 import { WAITING_KINDS, type WaitingKind } from '@/src/lib/approvals/waitingKinds';
-import type { WaitingStep } from '@/src/lib/repositories/materialRequests';
-import type { LeaveRequestRow } from '@/src/lib/db/leave';
 
 
-const IDLE = <T,>() => ({ data: undefined as T | undefined, isPending: false, isError: false, refetch: () => undefined as unknown });
-type AwaitingImprest = Awaited<ReturnType<typeof import('@/src/lib/db/imprest').listAwaitingImprest>>;
+/** No data layer (a bare render): the list is unknown, never "nothing waiting". The client never changes within a mount. */
+const NO_DATA_LAYER: WaitingForYou = {
+  entries: [], count: undefined, countFor: () => 0, pendingKinds: [], failedKinds: [], isPending: true, isError: false, refetch: () => undefined,
+};
 
 export interface WaitingForYou {
   /** Everything the viewer can decide now, oldest first, one entry per record. The home list, the badge and the inbox all read THIS. */
@@ -41,7 +41,7 @@ export interface WaitingForYou {
  * stays the authority), then combined and de-duplicated by `approvalPopulation`. The kinds are the registry in
  * `src/lib/approvals/waitingKinds.ts`; `Record<WaitingKind, ...>` below makes a kind with no read a compile error.
  */
-export function useWaitingForYou(): WaitingForYou {
+function useLiveWaitingForYou(): WaitingForYou {
   const { currentUser } = useAuth();
   const { realRole } = useEffectiveRole();
   const orgId = useOrgId();
@@ -59,13 +59,9 @@ export function useWaitingForYou(): WaitingForYou {
   const invoices = useInvoicesAwaitingViewer();
   // A material-request step is the viewer's whenever the database says so: the organisation's inbox setting only decides
   // whether a notification is also written, never whether the step is counted.
-  // A bare render (no query client) has nothing to read: these three kinds are then idle. The client never changes within a mount.
-  const hasClient = Boolean(useContext(QueryClientContext));
-  /* eslint-disable react-hooks/rules-of-hooks -- hasClient is fixed for the life of the tree */
-  const material = hasClient ? useWaitingForMe(signedIn) : IDLE<WaitingStep[]>();
-  const leave = hasClient ? useLeaveRequests() : IDLE<LeaveRequestRow[]>();
-  const imprest = hasClient ? useImprestAwaiting() : IDLE<AwaitingImprest>();
-  /* eslint-enable react-hooks/rules-of-hooks */
+  const material = useWaitingForMe(signedIn);
+  const leave = useLeaveRequests();
+  const imprest = useImprestAwaiting();
   const database = useDatabaseWaiting(orgId, userId, signedIn);
 
   const entries = useMemo<ApprovalPopulationEntry[]>(() => {
@@ -131,6 +127,12 @@ export function useWaitingForYou(): WaitingForYou {
     isError: failedKinds.length > 0,
     refetch,
   };
+}
+
+export function useWaitingForYou(): WaitingForYou {
+  const client = useContext(QueryClientContext);
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- the client is fixed for the life of the tree
+  return client ? useLiveWaitingForYou() : NO_DATA_LAYER;
 }
 
 /**

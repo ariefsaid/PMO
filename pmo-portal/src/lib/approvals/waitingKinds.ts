@@ -32,18 +32,54 @@ export const WAITING_KIND_META: Record<WaitingKind, WaitingKindMeta> = {
   expense: { scopeKey: 'approvals.scope.expense', scopeLabel: 'Expense claims', inboxSection: 'section' },
   invoice: { scopeKey: 'approvals.scope.invoice', scopeLabel: 'Customer invoices', inboxSection: 'section' },
   material: { scopeKey: 'materialRequests:inbox.scope', scopeLabel: 'Material requests', href: (id) => `/material-requests/${id}`, inboxSection: 'section' },
-  leave: { scopeKey: 'approvals.scope.leave', scopeLabel: 'Leave requests', inboxSection: 'section' },
-  imprest: { scopeKey: 'approvals.scope.imprest', scopeLabel: 'Site cash', inboxSection: 'section' },
-  daily_report: { scopeKey: 'approvals.scope.daily_report', scopeLabel: 'Daily reports', href: (id) => `/site-reports/${id}`, inboxSection: 'section' },
-  work_order_issue: { scopeKey: 'approvals.scope.work_order_issue', scopeLabel: 'Work orders to issue', href: (id) => `/work-orders/${id}`, inboxSection: 'section' },
-  delivery_record: { scopeKey: 'approvals.scope.delivery_record', scopeLabel: 'Deliveries to confirm', href: (id) => `/procurement/${id}`, inboxSection: 'section' },
-  transfer_receipt: { scopeKey: 'approvals.scope.transfer_receipt', scopeLabel: 'Transfers to receive', href: (id) => `/stock/transfers/${id}`, inboxSection: 'section' },
-  quantity_change: { scopeKey: 'approvals.scope.quantity_change', scopeLabel: 'Quantity changes', href: (id) => `/quantity-changes/${id}`, inboxSection: 'section' },
-  certificate: { scopeKey: 'approvals.scope.certificate', scopeLabel: 'Subcontract certificates', href: (id) => `/subcontract-certificates/${id}`, inboxSection: 'section' },
-  equipment_plan: { scopeKey: 'approvals.scope.equipment_plan', scopeLabel: 'Equipment plans', href: () => '/equipment-plans', inboxSection: 'section' },
+  leave: { scopeKey: 'waitingList:scope.leave', scopeLabel: 'Leave requests', inboxSection: 'section' },
+  imprest: { scopeKey: 'waitingList:scope.imprest', scopeLabel: 'Site cash', inboxSection: 'section' },
+  daily_report: { scopeKey: 'waitingList:scope.daily_report', scopeLabel: 'Daily reports', href: (id) => `/site-reports/${id}`, inboxSection: 'section' },
+  work_order_issue: { scopeKey: 'waitingList:scope.work_order_issue', scopeLabel: 'Work orders to issue', href: (id) => `/work-orders/${id}`, inboxSection: 'section' },
+  delivery_record: { scopeKey: 'waitingList:scope.delivery_record', scopeLabel: 'Deliveries to confirm', href: (id) => `/procurement/${id}`, inboxSection: 'section' },
+  transfer_receipt: { scopeKey: 'waitingList:scope.transfer_receipt', scopeLabel: 'Transfers to receive', href: (id) => `/stock/transfers/${id}`, inboxSection: 'section' },
+  quantity_change: { scopeKey: 'waitingList:scope.quantity_change', scopeLabel: 'Quantity changes', href: (id) => `/quantity-changes/${id}`, inboxSection: 'section' },
+  certificate: { scopeKey: 'waitingList:scope.certificate', scopeLabel: 'Subcontract certificates', href: (id) => `/subcontract-certificates/${id}`, inboxSection: 'section' },
+  equipment_plan: { scopeKey: 'waitingList:scope.equipment_plan', scopeLabel: 'Equipment plans', href: () => '/equipment-plans', inboxSection: 'section' },
 };
 
 export const isDatabaseListedKind = (kind: string): kind is DatabaseListedKind => (DATABASE_LISTED_KINDS as readonly string[]).includes(kind);
 
 /** The scope label's i18n key with its namespace (`common` unless the key names its own), so any screen can resolve it. */
 export const scopeKeyWithNamespace = (meta: WaitingKindMeta): string => (meta.scopeKey.includes(':') ? meta.scopeKey : `common:${meta.scopeKey}`);
+
+type Translate = (key: string, defaultValue: string, options?: Record<string, unknown>) => string;
+
+/**
+ * The scope / tab label of a kind in the reader's language. One literal `t()` call per kind (not a key built from a variable), so the
+ * catalogue gate that finds keys by their call sites sees each of them.
+ */
+export function scopeLabelText(kind: WaitingKind, t: Translate): string {
+  switch (kind) {
+    case 'leave': return t('waitingList:scope.leave', 'Leave requests');
+    case 'imprest': return t('waitingList:scope.imprest', 'Site cash');
+    case 'daily_report': return t('waitingList:scope.daily_report', 'Daily reports');
+    case 'work_order_issue': return t('waitingList:scope.work_order_issue', 'Work orders to issue');
+    case 'delivery_record': return t('waitingList:scope.delivery_record', 'Deliveries to confirm');
+    case 'transfer_receipt': return t('waitingList:scope.transfer_receipt', 'Transfers to receive');
+    case 'quantity_change': return t('waitingList:scope.quantity_change', 'Quantity changes');
+    case 'certificate': return t('waitingList:scope.certificate', 'Subcontract certificates');
+    case 'equipment_plan': return t('waitingList:scope.equipment_plan', 'Equipment plans');
+    default: return t(WAITING_KIND_META[kind].scopeKey, WAITING_KIND_META[kind].scopeLabel);
+  }
+}
+
+/** The heading of a kind's inbox section, with the number waiting. */
+export function waitingHeadingText(kind: DatabaseListedKind | 'leave' | 'imprest', count: number, t: Translate): string {
+  switch (kind) {
+    case 'leave': return t('waitingList:heading.leave', 'Leave requests waiting for you ({{count}})', { count });
+    case 'imprest': return t('waitingList:heading.imprest', 'Site cash waiting for you ({{count}})', { count });
+    case 'daily_report': return t('waitingList:heading.daily_report', 'Daily reports to validate ({{count}})', { count });
+    case 'work_order_issue': return t('waitingList:heading.work_order_issue', 'Work orders to issue ({{count}})', { count });
+    case 'delivery_record': return t('waitingList:heading.delivery_record', 'Deliveries to confirm ({{count}})', { count });
+    case 'transfer_receipt': return t('waitingList:heading.transfer_receipt', 'Transfers to receive ({{count}})', { count });
+    case 'quantity_change': return t('waitingList:heading.quantity_change', 'Quantity changes to decide ({{count}})', { count });
+    case 'certificate': return t('waitingList:heading.certificate', 'Subcontract certificates to approve ({{count}})', { count });
+    case 'equipment_plan': return t('waitingList:heading.equipment_plan', 'Equipment plans to approve ({{count}})', { count });
+  }
+}

@@ -902,45 +902,14 @@
       "procurement": "Procurement cases",
       "timesheets": "Timesheets",
       "expense": "Expense claims",
-      "invoice": "Customer invoices",
-      "leave": "Leave requests",
-      "imprest": "Site cash",
-      "daily_report": "Daily reports",
-      "work_order_issue": "Work orders to issue",
-      "delivery_record": "Deliveries to confirm",
-      "transfer_receipt": "Transfers to receive",
-      "quantity_change": "Quantity changes",
-      "certificate": "Subcontract certificates",
-      "equipment_plan": "Equipment plans"
+      "invoice": "Customer invoices"
     },
     "timesheets": {},
     "scopeToggleLabel": "Approvals scope",
     "title": "Approvals",
     "unknownOwner": "Unknown",
     "unknownRequester": "Unknown requester",
-    "weekOf": "Week of",
-    "waiting": {
-      "certificate": "Subcontract certificates to approve ({{count}})",
-      "daily_report": "Daily reports to validate ({{count}})",
-      "delivery_record": "Deliveries to confirm ({{count}})",
-      "equipment_plan": "Equipment plans to approve ({{count}})",
-      "imprest": "Site cash waiting for you ({{count}})",
-      "leave": "Leave requests waiting for you ({{count}})",
-      "quantity_change": "Quantity changes to decide ({{count}})",
-      "since": "Waiting since {{date}}",
-      "transfer_receipt": "Transfers to receive ({{count}})",
-      "work_order_issue": "Work orders to issue ({{count}})"
-    },
-    "waitingFor": {
-      "named": "Waiting for {{who}}",
-      "or": " or ",
-      "plain": "Waiting for approval",
-      "roleAdmin": "Admin",
-      "roleFlat": "project manager or Finance",
-      "roleOrg": "senior approver",
-      "roleProject": "project approver",
-      "withStep": "Waiting for {{who}} (step {{n}} of {{of}})"
-    }
+    "weekOf": "Week of"
   },
   "combobox": {
     "search": {

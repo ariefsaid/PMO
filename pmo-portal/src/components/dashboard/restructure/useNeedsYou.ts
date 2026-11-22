@@ -13,15 +13,10 @@ import { useWaitingForYou } from '@/src/hooks/useWaitingForYou';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
-import { awaitingApprovalKey, expenseClaimsAwaitingKey } from '@/src/hooks/approvalsQueryKeys';
 import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
-import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
-import { useApprovalPopulation } from '@/src/hooks/useApprovalPopulation';
-import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { clientInvoiceDueNowCents, clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects } from '@/src/lib/db/dashboard';
-import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { formatTileMoney } from '@/src/lib/format';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { tileMoneyLines } from './currencyOrder';
@@ -308,10 +303,6 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const userId = currentUser?.id;
   const companyRole = isCompanyRole(role);
   const procurementApprovalRole = can('transition', 'procurement', { realRole });
-  // The inbox exposes caller-filtered assigned timesheets to any authenticated real role.
-  const readAwaitingTimesheets = Boolean(orgId && userId && realRole);
-  const expenseApprovalRole = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
-  const needsProcurements = procurementApprovalRole && role !== 'Engineer';
   const organizationDay = useFxOrgDay(true);
 
   const dashboardQuery = useQuery({

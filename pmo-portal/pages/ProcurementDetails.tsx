@@ -418,10 +418,10 @@ const ProcurementDetails: React.FC = () => {
   const waitingNote = p.status === 'Requested' && isRequester
     ? waitingForText({
         names: (requestedRoute?.approvers ?? []).map((approver) => approver.fullName),
-        role: requestedRoute?.route === 'admin' ? t('approvals.waitingFor.roleAdmin', 'Admin')
-          : requestedRoute?.route === 'org' ? t('approvals.waitingFor.roleOrg', 'senior approver')
-          : requestedRoute?.route === 'project' ? t('approvals.waitingFor.roleProject', 'project approver')
-          : t('approvals.waitingFor.roleFlat', 'project manager or Finance'),
+        role: requestedRoute?.route === 'admin' ? t('waitingList:waitingFor.roleAdmin', 'Admin')
+          : requestedRoute?.route === 'org' ? t('waitingList:waitingFor.roleOrg', 'senior approver')
+          : requestedRoute?.route === 'project' ? t('waitingList:waitingFor.roleProject', 'project approver')
+          : t('waitingList:waitingFor.roleFlat', 'project manager or Finance'),
       }, t)
     : p.status === 'Vendor Invoiced' && !actionFor('Paid')
       ? t('procurementRecord:waiting.payment', 'Payment: waiting for Finance')

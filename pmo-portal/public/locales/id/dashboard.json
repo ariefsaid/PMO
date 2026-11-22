@@ -762,7 +762,8 @@
       "dueTodayFinding_other": "{{count}} jatuh tempo hari ini",
       "tasksOverdueFinding_one": "{{count}} terlambat",
       "tasksOverdueFinding_other": "{{count}} terlambat",
-      "nextUp": "Berikutnya"
+      "nextUp": "Berikutnya",
+      "waitingForYou": "Menunggu keputusan Anda"
     },
     "help": {
       "basis": "Posisi hari ini dalam mata uang tiap catatan. Ditagih, diterima, dan menang mengikuti periode yang dipilih.",

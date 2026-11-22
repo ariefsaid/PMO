@@ -18,12 +18,12 @@ export function waitingForText(input: WaitingForInput, t: TFunction): string {
   const names = input.names.filter((name) => name.trim() !== '');
   const role = input.role?.trim() || null;
   const who = [
-    names.length > 0 ? names.join(t('approvals.waitingFor.or', ' or ')) : null,
+    names.length > 0 ? names.join(t('waitingList:waitingFor.or', ' or ')) : null,
     role,
   ].filter(Boolean).join(', ');
-  if (!who) return t('approvals.waitingFor.plain', 'Waiting for approval');
+  if (!who) return t('waitingList:waitingFor.plain', 'Waiting for approval');
   if (input.step && input.step.of > 1) {
-    return t('approvals.waitingFor.withStep', 'Waiting for {{who}} (step {{n}} of {{of}})', { who, n: input.step.n, of: input.step.of });
+    return t('waitingList:waitingFor.withStep', 'Waiting for {{who}} (step {{n}} of {{of}})', { who, n: input.step.n, of: input.step.of });
   }
-  return t('approvals.waitingFor.named', 'Waiting for {{who}}', { who });
+  return t('waitingList:waitingFor.named', 'Waiting for {{who}}', { who });
 }

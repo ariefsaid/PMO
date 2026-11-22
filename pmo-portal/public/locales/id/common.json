@@ -902,45 +902,14 @@
       "procurement": "Kasus pengadaan",
       "timesheets": "$t(common:terms.timesheet)",
       "expense": "Klaim biaya",
-      "invoice": "Invoice pelanggan",
-      "leave": "Permohonan cuti",
-      "imprest": "Kas lapangan",
-      "daily_report": "Laporan harian",
-      "work_order_issue": "Work order untuk diterbitkan",
-      "delivery_record": "Pengiriman untuk dikonfirmasi",
-      "transfer_receipt": "Transfer untuk diterima",
-      "quantity_change": "Perubahan kuantitas",
-      "certificate": "Sertifikat subkontraktor",
-      "equipment_plan": "Rencana peralatan"
+      "invoice": "Invoice pelanggan"
     },
     "timesheets": {},
     "scopeToggleLabel": "Cakupan persetujuan",
     "title": "Persetujuan",
     "unknownOwner": "Tidak diketahui",
     "unknownRequester": "Peminta tidak diketahui",
-    "weekOf": "Minggu",
-    "waiting": {
-      "certificate": "Sertifikat subkontraktor untuk disetujui ({{count}})",
-      "daily_report": "Laporan harian untuk divalidasi ({{count}})",
-      "delivery_record": "Pengiriman untuk dikonfirmasi ({{count}})",
-      "equipment_plan": "Rencana peralatan untuk disetujui ({{count}})",
-      "imprest": "Kas lapangan menunggu Anda ({{count}})",
-      "leave": "Permohonan cuti menunggu Anda ({{count}})",
-      "quantity_change": "Perubahan kuantitas untuk diputuskan ({{count}})",
-      "since": "Menunggu sejak {{date}}",
-      "transfer_receipt": "Transfer barang untuk diterima ({{count}})",
-      "work_order_issue": "Work order untuk diterbitkan ({{count}})"
-    },
-    "waitingFor": {
-      "named": "Menunggu {{who}}",
-      "or": " atau ",
-      "plain": "Menunggu persetujuan",
-      "roleAdmin": "Admin",
-      "roleFlat": "manajer proyek atau Finance",
-      "roleOrg": "penyetuju senior",
-      "roleProject": "penyetuju proyek",
-      "withStep": "Menunggu {{who}} (langkah {{n}} dari {{of}})"
-    }
+    "weekOf": "Minggu"
   },
   "combobox": {
     "search": {

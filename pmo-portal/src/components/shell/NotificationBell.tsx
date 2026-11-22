@@ -315,6 +315,8 @@ export const NotificationBell: React.FC = () => {
                 const isUnread = row.read_at === null;
                 const sev = severityStyle(row.severity);
                 const body = notificationBody(row, t);
+                // fix-waiting item 4: a decision notification says WHAT was decided (the record's number or name), not only that something was.
+                const entityLabel = readMetadata(row.metadata).entity?.label?.trim() || null;
                 return (
                   <li key={row.id}>
                     <button
@@ -343,6 +345,9 @@ export const NotificationBell: React.FC = () => {
                           ? t('incidents:notification.overdue', 'Issue is overdue')
                           : notificationTitle(row, t)}
                       </span>
+                      {entityLabel && !(body ?? '').includes(entityLabel) && !notificationTitle(row, t).includes(entityLabel) && (
+                        <span className="break-words text-control font-medium text-foreground" data-testid="notification-entity-label">{entityLabel}</span>
+                      )}
                       {body && (
                         <span className="break-words text-control text-muted-foreground">{body}</span>
                       )}

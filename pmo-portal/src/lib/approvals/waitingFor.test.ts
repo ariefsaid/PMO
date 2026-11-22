@@ -4,8 +4,10 @@ import { waitingForText } from './waitingFor';
 
 const t = i18next.createInstance();
 await t.init({
-  lng: 'en', resources: { en: { translation: {} }, id: { translation: {
-    approvals: { waitingFor: { named: 'Menunggu {{who}}', or: ' atau ', plain: 'Menunggu persetujuan', withStep: 'Menunggu {{who}} (langkah {{n}} dari {{of}})' } } } } },
+  lng: 'en', ns: ['waitingList'], defaultNS: 'waitingList',
+  resources: { en: { waitingList: {} }, id: { waitingList: {
+    waitingFor: { named: 'Menunggu {{who}}', or: ' atau ', plain: 'Menunggu persetujuan', withStep: 'Menunggu {{who}} (langkah {{n}} dari {{of}})' },
+  } } },
   interpolation: { escapeValue: false },
 });
 

@@ -8,7 +8,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { WaitingStep } from '@/src/lib/repositories/materialRequests';
 import type { LeaveRequestRow } from '@/src/lib/db/leave';
 import type { WaitingDecisionRow } from '@/src/lib/db/waitingDecisions';
-import { isDatabaseListedKind, scopeKeyWithNamespace, WAITING_KIND_META } from '@/src/lib/approvals/waitingKinds';
+import { isDatabaseListedKind, scopeLabelText, WAITING_KIND_META } from '@/src/lib/approvals/waitingKinds';
 
 export interface ApprovalItem { key: string; what: string; who: string | null; amount: string | null; days: number | null; href: string }
 
@@ -61,7 +61,7 @@ export function approvalItem(entry: ApprovalPopulationEntry, t: (key: string, fa
       if (!isDatabaseListedKind(entry.kind)) throw new Error(`approvalItem: kind ${entry.kind} has no row mapping`);
       const row = entry.row as WaitingDecisionRow;
       const meta = WAITING_KIND_META[entry.kind];
-      return { key: entry.key, what: `${t(scopeKeyWithNamespace(meta), meta.scopeLabel)}: ${row.title}`, who: null, amount: null, days, href: meta.href ? meta.href(row.recordId) : '/approvals' };
+      return { key: entry.key, what: `${scopeLabelText(entry.kind, (key, fallback) => t(key.includes(':') ? key : `common:${key}`, fallback))}: ${row.title}`, who: null, amount: null, days, href: meta.href ? meta.href(row.recordId) : '/approvals' };
     }
   }
 }

@@ -23,13 +23,12 @@ import { QueueGroup, type QueueItem } from './approvals/ApprovalQueue';
 import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
 import { useWaitingForYou } from '@/src/hooks/useWaitingForYou';
 import { useDecisionStanding } from '@/src/hooks/useWaitingDecisions';
-import { DATABASE_LISTED_KINDS, WAITING_KIND_META, WAITING_KINDS, type DatabaseListedKind } from '@/src/lib/approvals/waitingKinds';
+import { DATABASE_LISTED_KINDS, WAITING_KINDS, scopeLabelText, type DatabaseListedKind } from '@/src/lib/approvals/waitingKinds';
 import { WaitingDecisionSection } from './approvals/WaitingDecisionSection';
 import { MaterialRequestApprovalSection } from './approvals/MaterialRequestApprovalSection';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals, type ApprovalPopulationEntry, type ApprovalScope } from '@/src/lib/selectors/approvals';
-import { useApprovalPopulation } from '@/src/hooks/useApprovalPopulation';
-import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
+import { useExpenseClaimsAwaitingDecision } from '@/src/hooks/useExpenseClaims';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 
 /** `lg` breakpoint — the two-pane triage activates here. */
@@ -164,7 +163,7 @@ const ApprovalsPage: React.FC = () => {
     invoice: t('approvals.scope.invoice', 'Customer invoices'),
     material: t('materialRequests:inbox.scope', 'Material requests'),
     ...Object.fromEntries(WAITING_KINDS.filter((kind) => !['procurement', 'timesheets', 'expense', 'invoice', 'material'].includes(kind))
-      .map((kind) => [kind, t(WAITING_KIND_META[kind].scopeKey, WAITING_KIND_META[kind].scopeLabel)])),
+      .map((kind) => [kind, scopeLabelText(kind, (key, fallback) => t(key, fallback))])),
   } as Record<Scope, string>;
   // Only name queues this viewer can act on; the empty state must not imply inaccessible work is theirs.
   const caughtUpLabels = availableKinds.map((kind) => scopeLabels[kind].toLowerCase());

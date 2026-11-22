@@ -6,6 +6,9 @@ import { useExpenseClaims } from '@/src/hooks/useExpenseClaims';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
+import { useWaitingForYou } from '@/src/hooks/useWaitingForYou';
+import { ApprovalItems } from './hub/company/ApprovalItems';
+import { Card, CardHead, CardPad } from '@/src/components/ui';
 import { recentEntries } from '@/src/lib/timesheet-derive';
 import { Button } from '@/src/components/ui/Button';
 import { Icon } from '@/src/components/ui/icons';
@@ -45,6 +48,21 @@ const RECENT_WEEKS = 4;
 function activeTask(status: string): boolean {
   return !['Done', 'Complete', 'Completed', 'Cancelled'].includes(status);
 }
+
+/** fix-waiting item 1: an Engineer can be asked to decide too (a material-request step, a delivery to confirm); it shows here, from the one shared list. */
+const EngineerWaitingCard: React.FC = () => {
+  const { t } = useTranslation('dashboard');
+  const waiting = useWaitingForYou();
+  if (waiting.entries.length === 0) return null;
+  return (
+    <Card role="region" aria-labelledby="eng-waiting-heading" data-testid="eng-waiting-for-you">
+      <CardHead id="eng-waiting-heading">{t('home.eng.waitingForYou', 'Waiting for your decision')} ({waiting.entries.length})</CardHead>
+      <CardPad>
+        <ul className="divide-y divide-border"><ApprovalItems entries={waiting.entries} limit={5} /></ul>
+      </CardPad>
+    </Card>
+  );
+};
 
 export const EngineerDashboard: React.FC = () => {
   const { t } = useTranslation('dashboard');
@@ -178,6 +196,7 @@ export const EngineerDashboard: React.FC = () => {
       <FigureScope>
         <div className="space-y-[var(--space-panel-gap)]" data-home-layout="overview">
           <div>{header}<FigureHiddenLine compact /></div>
+          <EngineerWaitingCard />
           {/* With no open task at all, the week leads the page and the all-clear sits under it as one line, not a tall empty card. */}
           <div className={cn('grid gap-[var(--space-panel-gap)]', !noOpenTasks && 'min-[900px]:grid-cols-2')}>
             {noOpenTasks
@@ -199,6 +218,7 @@ export const EngineerDashboard: React.FC = () => {
   return (
     <div className="space-y-[var(--space-panel-gap)]" data-home-layout="focused">
       {header}
+      <EngineerWaitingCard />
       <div className="grid gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2 min-[900px]:items-start">
         <EngineerTasksCard overdue={overdueTasks} dueThisWeek={dueTasks} undated={undatedTasks} today={organizationDay.day} dayError={dayError} loading={taskLoading} error={taskError} onRetry={refresh} />
         <EngineerTimesheetCard loading={timeLoading} error={timeError} onRetry={refresh} status={currentStatus} days={hoursByDay} hours={hoursThisWeek} />
