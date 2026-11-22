@@ -19,6 +19,7 @@ import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import { dsrReportRevenue } from '@/src/lib/dsrRevenue';
+import { waitingForText, waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
 import type { DsrReportDetail } from '@/src/lib/db/dailySiteReports';
 import {
   siteReportDraftInput, siteReportFormFromDetail, validateSiteReportForm, workingMinutes, type SiteReportForm,
@@ -51,7 +52,7 @@ const SiteReportDetail: React.FC = () => {
 };
 
 const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => {
-  const { t } = useTranslation(['siteReport', 'status']);
+  const { t } = useTranslation(['siteReport', 'status', 'waitingList']);
   const navigate = useNavigate();
   const { toast } = useToast();
   const narrow = useIsNarrow();
@@ -66,6 +67,17 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const mayValidate = report.status === 'submitted' && can('approve', 'dailySiteReport', ctx);
   const mayCorrect = report.status === 'validated' && !report.superseded_at && can('revise', 'dailySiteReport', ctx);
   const seeRevenue = can('view', 'dailySiteReportRevenue', ctx);
+
+  // fix-waiting item 3: who the submitted report waits for (dsr_may_validate: PM plus Finance/Admin; author cannot validate).
+  const isAuthorPm = Boolean(project?.project_manager_id && project.project_manager_id === report.author_id);
+  const pmName = !isAuthorPm && project?.pm?.full_name ? project.pm.full_name.trim() : null;
+  const waitingLine = report.status === 'submitted'
+    ? isAuthorPm
+      ? waitingForText({ names: [], role: waitingRoleLabel('roleFinanceAdmin', t) }, t)
+      : pmName
+        ? waitingForText({ names: [pmName], role: waitingRoleLabel('roleProject', t), alternativeRoles: [waitingRoleLabel('roleFinanceAdmin', t)] }, t)
+        : waitingForText({ names: [], role: waitingRoleLabel('roleProject', t), alternativeRoles: [waitingRoleLabel('roleFinanceAdmin', t)] }, t)
+    : null;
 
   const lookups = useDsrLookups(report.work_order_id, report.id);
   const stock = useQuery({ queryKey: ['daily-site-reports', 'stock-items'], queryFn: () => repositories.stock.master.listItems(false), enabled: editable || detail.consumables.length > 0 });
@@ -178,6 +190,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           </div>
         )}
       >
+        {waitingLine && <p className="font-medium text-foreground" role="status" data-testid="dsr-waiting-for">{waitingLine}</p>}
         {editable && !hasPaperForm && <p className="text-foreground" role="status" data-testid="dsr-author-needs-photo">{t('detail.needsPhotoAuthor', 'Add a photo of the paper form before you send. The validator cannot accept the report without it.')}</p>}
         {mayValidate && !hasPaperForm && <p className="text-foreground">{t('detail.needsPhoto', 'A photo of the paper form is needed to validate')}</p>}
         {report.superseded_at && <p className="text-foreground">{t('detail.superseded', 'Replaced by a correction')}</p>}

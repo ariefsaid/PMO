@@ -20,6 +20,7 @@ import { formatCurrency, formatDay } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
 import { lineValueCents, validateRequestedQuantity, versionValueChanges } from '@/src/lib/quantityChangeRules';
 import { formatExactCents, sumDecimal } from '@/src/lib/exactDecimal';
+import { waitingForText, waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
 import { useRequestedQuantityErrorText } from './requestedQuantityError';
 import type { QcrDetail, QcrFileKind, QcrLine } from '@/src/lib/db/quantityChanges';
 
@@ -42,7 +43,7 @@ const QuantityChangeDetail: React.FC = () => {
 };
 
 const RequestRecord: React.FC<{ detail: QcrDetail }> = ({ detail }) => {
-  const { t } = useTranslation(['quantityChanges', 'status']);
+  const { t } = useTranslation(['quantityChanges', 'status', 'waitingList']);
   const { toast } = useToast();
   const narrow = useIsNarrow();
   const userId = useAuth().currentUser?.id ?? null;
@@ -62,6 +63,11 @@ const RequestRecord: React.FC<{ detail: QcrDetail }> = ({ detail }) => {
   const mayDecide = can('decide', 'quantityChange', ctx);
   const approval = useQuantityChangeApproval(request.id, status === 'pending_approval');
   const mayApproveRole = status === 'pending_approval' && can('approve', 'quantityChange', ctx);
+
+  // fix-waiting item 3: who the pending request waits for (1177: Admin, Executive or Finance; author/editor/submitter excluded).
+  const waitingLine = status === 'pending_approval'
+    ? waitingForText({ names: [], role: waitingRoleLabel('roleFinanceExecAdmin', t) }, t)
+    : null;
 
   const [dialog, setDialog] = useState<Dialog>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
@@ -156,6 +162,7 @@ const RequestRecord: React.FC<{ detail: QcrDetail }> = ({ detail }) => {
           </div>
         )}
       >
+        {waitingLine && <p className="font-medium text-foreground" role="status" data-testid="qcr-waiting-for">{waitingLine}</p>}
         {request.note && <p className="text-foreground">{request.note}</p>}
       </RecordHeader>
 
@@ -219,7 +226,7 @@ const RequestRecord: React.FC<{ detail: QcrDetail }> = ({ detail }) => {
 
         {status === 'pending_approval' && (
           <RecordSection title={t('approval.title', 'Internal approval')} data-testid="qcr-approval">
-            <p className="text-foreground">{t('approval.waiting', 'Waiting for approval')}</p>
+            <p className="text-foreground" data-testid="qcr-waiting-approval">{waitingLine ?? t('approval.waiting', 'Waiting for approval')}</p>
             {blockReason && <p className="text-foreground" data-testid="qcr-approval-block">{blockText[blockReason]}</p>}
             {!eligible && <p className="text-foreground" data-testid="qcr-approval-nobody">{t('approval.nobody', 'Nobody else can approve this request: it waits until another approver exists.')}</p>}
           </RecordSection>

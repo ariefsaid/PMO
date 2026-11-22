@@ -4,8 +4,33 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ToastProvider } from '@/src/components/ui';
 import type { QcrDetail } from '@/src/lib/db/quantityChanges';
+
+const load = (lng: 'en' | 'id', ns: string) => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/${ns}.json`), 'utf8'));
+function makeI18n(lng: 'en' | 'id') {
+  const i18n = i18next.createInstance();
+  const bundle = (l: 'en' | 'id') => ({
+    common: load(l, 'common'),
+    quantityChanges: load(l, 'quantityChanges'),
+    status: load(l, 'status'),
+    waitingList: load(l, 'waitingList'),
+  });
+  void i18n.init({
+    lng,
+    fallbackLng: 'en',
+    ns: ['common', 'quantityChanges', 'status', 'waitingList'],
+    defaultNS: 'quantityChanges',
+    resources: { en: bundle('en'), id: bundle('id') },
+    initImmediate: false,
+    interpolation: { escapeValue: false },
+  });
+  return i18n;
+}
 
 /** #2578 request record page: what each person is offered, and why not (AC-QCR-011, 013, 023, 027, 030). */
 const h = vi.hoisted(() => ({
@@ -45,12 +70,14 @@ const make = (status: string, over: Partial<QcrDetail['request']> = {}, wo: Part
   files: [],
 });
 
-const renderPage = () => render(
-  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <MemoryRouter initialEntries={['/quantity-changes/q1']}>
-      <ToastProvider><Routes><Route path="/quantity-changes/:requestId" element={<QuantityChangeDetail />} /></Routes></ToastProvider>
-    </MemoryRouter>
-  </QueryClientProvider>,
+const renderPage = (lng: 'en' | 'id' = 'en') => render(
+  <I18nextProvider i18n={makeI18n(lng)}>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={['/quantity-changes/q1']}>
+        <ToastProvider><Routes><Route path="/quantity-changes/:requestId" element={<QuantityChangeDetail />} /></Routes></ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
+  </I18nextProvider>,
 );
 
 beforeEach(() => {
@@ -134,5 +161,37 @@ describe('quantity change request record', () => {
     h.detail = make('withdrawn', { withdrawn_from: 'returned', withdraw_reason: 'No longer needed', withdrawn_at: '2026-03-12T00:00:00Z' });
     renderPage();
     expect(screen.getByTestId('qcr-withdrawn').textContent).toMatch(/No longer needed/);
+  });
+
+  describe('who-next waiting line (QCR 1177: Admin, Executive, Finance)', () => {
+    it('pending_approval QCR shows truthful role-only Finance, Executive, or Admin (using roleFinanceExecAdmin) in EN and ID', () => {
+      h.detail = make('pending_approval');
+      const first = renderPage('en');
+      expect(screen.getByTestId('qcr-waiting-for')).toHaveTextContent('Waiting for Finance, Executive, or Admin');
+      expect(screen.getByTestId('qcr-waiting-approval')).toHaveTextContent('Waiting for Finance, Executive, or Admin');
+      first.unmount();
+
+      renderPage('id');
+      expect(screen.getByTestId('qcr-waiting-for')).toHaveTextContent('Menunggu Keuangan, Eksekutif, atau Admin');
+      expect(screen.getByTestId('qcr-waiting-approval')).toHaveTextContent('Menunggu Keuangan, Eksekutif, atau Admin');
+    });
+
+    it('non-waiting states do not show waiting-for line in RecordHeader', () => {
+      for (const st of ['draft', 'approved', 'client_accepted', 'withdrawn', 'returned'] as const) {
+        h.detail = make(st);
+        const { unmount } = renderPage();
+        expect(screen.queryByTestId('qcr-waiting-for')).toBeNull();
+        unmount();
+      }
+    });
+
+    it('SoD block reason is preserved alongside who-next line', () => {
+      h.detail = make('pending_approval');
+      h.userId = 'fin1';
+      h.approval = { can_approve: false, reason: 'editor', eligible_approver_exists: true };
+      renderPage('en');
+      expect(screen.getByTestId('qcr-waiting-for')).toHaveTextContent('Waiting for Finance, Executive, or Admin');
+      expect(screen.getByTestId('qcr-approval-block')).toHaveTextContent('You edited this request, so someone else must approve it.');
+    });
   });
 });

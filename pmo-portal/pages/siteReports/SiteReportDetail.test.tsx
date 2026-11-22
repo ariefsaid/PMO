@@ -4,8 +4,33 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ToastProvider } from '@/src/components/ui';
 import type { DsrReportDetail } from '@/src/lib/db/dailySiteReports';
+
+const load = (lng: 'en' | 'id', ns: string) => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/${ns}.json`), 'utf8'));
+function makeI18n(lng: 'en' | 'id') {
+  const i18n = i18next.createInstance();
+  const bundle = (l: 'en' | 'id') => ({
+    common: load(l, 'common'),
+    siteReport: load(l, 'siteReport'),
+    status: load(l, 'status'),
+    waitingList: load(l, 'waitingList'),
+  });
+  void i18n.init({
+    lng,
+    fallbackLng: 'en',
+    ns: ['common', 'siteReport', 'status', 'waitingList'],
+    defaultNS: 'siteReport',
+    resources: { en: bundle('en'), id: bundle('id') },
+    initImmediate: false,
+    interpolation: { escapeValue: false },
+  });
+  return i18n;
+}
 
 /** #1522 site report record page: what each role is offered, and what the day shows (AC-DSR-004/005/008/011/013). */
 const h = vi.hoisted(() => ({
@@ -15,7 +40,8 @@ const h = vi.hoisted(() => ({
   peopleHours: '8',
   userId: 'eng',
   realRole: 'Engineer',
-  pm: 'pm',
+  pm: 'pm' as string | null,
+  pmName: 'Rina Wati' as string | null,
   noItems: false,
   m: {
     save: { mutateAsync: vi.fn(), isPending: false }, submit: { mutateAsync: vi.fn(), isPending: false },
@@ -35,7 +61,11 @@ vi.mock('@/src/hooks/useDailySiteReports', () => ({
   }),
   useDailySiteReportMutations: () => h.m,
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { id: 'p1', name: 'Pipeline', project_manager_id: h.pm, pm: { full_name: 'Rina Wati' } } }) }));
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProject: () => ({
+    data: h.pm !== undefined ? { id: 'p1', name: 'Pipeline', project_manager_id: h.pm, pm: h.pmName ? { full_name: h.pmName } : null } : null,
+  }),
+}));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master: { listItems: async () => [] } }, dailySiteReport: { photoUrl: vi.fn() } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.realRole }) }));
@@ -62,16 +92,18 @@ const make = (status: string, extra: Partial<DsrReportDetail['report']> = {}): D
   ],
 });
 
-const renderPage = () => render(
-  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <MemoryRouter initialEntries={['/site-reports/r1']}>
-      <ToastProvider><Routes><Route path="/site-reports/:reportId" element={<SiteReportDetail />} /></Routes></ToastProvider>
-    </MemoryRouter>
-  </QueryClientProvider>,
+const renderPage = (lng: 'en' | 'id' = 'en') => render(
+  <I18nextProvider i18n={makeI18n(lng)}>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={['/site-reports/r1']}>
+        <ToastProvider><Routes><Route path="/site-reports/:reportId" element={<SiteReportDetail />} /></Routes></ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>
+  </I18nextProvider>,
 );
 
 beforeEach(() => {
-  h.userId = 'eng'; h.realRole = 'Engineer'; h.pm = 'pm'; h.noItems = false; h.equipment = []; h.peopleHours = '8';
+  h.userId = 'eng'; h.realRole = 'Engineer'; h.pm = 'pm'; h.pmName = 'Rina Wati'; h.noItems = false; h.equipment = []; h.peopleHours = '8';
   h.revenue = [{ line_id: 'pl1', rate: 5, rate_source: 'catalogue', amount: 50, frozen: false }, { line_id: 'pl2', rate: null, rate_source: null, amount: null, frozen: false }];
   Object.values(h.m).forEach((x) => x.mutateAsync.mockReset());
 });
@@ -199,5 +231,52 @@ describe('site report record', () => {
     h.detail = make('validated', { validated_by: 'fin', validated_at: '2026-03-11T09:00:00Z' });
     renderPage();
     expect(screen.queryByRole('button', { name: 'Correct' })).toBeNull();
+  });
+
+  describe('who-next waiting line (dsr_may_validate)', () => {
+    it('submitted DSR with assigned PM who is not author shows named PM plus alternative roles Finance/Admin', () => {
+      h.detail = make('submitted');
+      h.userId = 'eng';
+      h.pm = 'pm';
+      h.pmName = 'Rina Wati';
+      const first = renderPage('en');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for Rina Wati, project approver or Finance or Admin');
+      first.unmount();
+
+      renderPage('id');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Menunggu Rina Wati, penyetuju proyek atau Keuangan atau Admin');
+    });
+
+    it('submitted DSR where assigned PM is the author does not name author and shows truthful role-only Finance/Admin', () => {
+      h.detail = make('submitted', { author_id: 'pm' });
+      h.userId = 'pm';
+      h.pm = 'pm';
+      h.pmName = 'Rina Wati';
+      const first = renderPage('en');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for Finance or Admin');
+      expect(screen.getByTestId('dsr-waiting-for')).not.toHaveTextContent('Rina Wati');
+      first.unmount();
+
+      renderPage('id');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Menunggu Keuangan atau Admin');
+    });
+
+    it('submitted DSR when PM is not assigned falls back to truthful role-only project approver or Finance or Admin', () => {
+      h.detail = make('submitted');
+      h.userId = 'eng';
+      h.pm = null;
+      h.pmName = null;
+      renderPage('en');
+      expect(screen.getByTestId('dsr-waiting-for')).toHaveTextContent('Waiting for project approver or Finance or Admin');
+    });
+
+    it('non-waiting states do not show waiting-for line', () => {
+      for (const st of ['draft', 'validated', 'returned'] as const) {
+        h.detail = make(st);
+        const { unmount } = renderPage();
+        expect(screen.queryByTestId('dsr-waiting-for')).toBeNull();
+        unmount();
+      }
+    });
   });
 });
