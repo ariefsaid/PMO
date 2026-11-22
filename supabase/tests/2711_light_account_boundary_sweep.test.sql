@@ -85,6 +85,7 @@ insert into la_fn_allow values
   ('project_win_eligibility', 'a capability or audience helper the shell and the policies read'),
   ('propose_project_number', 'a capability or audience helper the shell and the policies read'),
   ('qcr_file_object_access', 'a capability or audience helper the shell and the policies read'),
+  ('record_history_table', 'history visibility only: names the table a registered history entity lives in and reads no tenant row, so a field account can learn nothing from it'),
   ('spc_may_prepare', 'a capability or audience helper the shell and the policies read'),
   ('spc_may_read', 'a capability or audience helper the shell and the policies read'),
   ('spc_may_read_rates', 'a capability or audience helper the shell and the policies read'),
