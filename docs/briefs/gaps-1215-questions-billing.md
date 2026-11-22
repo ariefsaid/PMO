@@ -33,3 +33,6 @@ Each line: question · recommended answer · what was built meanwhile.
 
 ## Base-branch notes (not this lane's change)
 - The isolation-denominator guard reports a function from migration 1550 missing from its manifest on the base branch · Add the manifest entry in the fix round · Not changed in this lane.
+- Is each survey an increment (summed into the certified figure) or a cumulative reading (latest wins)? · Increment, with a correction replacing a mistaken survey · Built as increments; the screen says so; every confirmation needs the survey sheet attached.
+- Should the database stop on over-claim be selectable per project as well as per organisation? · No, per organisation only · Built per organisation, default warn.
+- Should a survey line read "reported" as progress to date or as the measured figure in the missing list? · Progress to date · Built as progress to date.
