@@ -2,7 +2,7 @@
 -- account first, then re-asserting membership, organisation and role (a definer body bypasses RLS). Who may record and confirm follows
 -- the BAST flow: record = may_record_project_progress on an Issued work order; confirm = Admin or Finance, and not the recorder unless
 -- the organisation's only active member (basis stored). Lock order as confirm_work_order_acceptance (0339): billing lock, then the
--- work-order row. Every refusal is 'SVY_CODE: sentence' (refusals catalogue). Reversal: rollback/1786_survey_record_functions_down.sql.
+-- work-order row. Every refusal is a code and a sentence (refusals catalogue). Reversal: rollback/1786_survey_record_functions_down.sql.
 
 -- shared: lock the work order and return its facts; refuses when the work order is not Issued.
 create function public.survey_lock_work_order(p_work_order uuid) returns table (project_id uuid, org_id uuid)

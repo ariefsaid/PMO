@@ -124,6 +124,7 @@ import type {
 } from './contracts/workOrders';
 import type { BillingStagesRepository } from './contracts/billingStages';
 import type { CloseoutChecklistRepository } from './contracts/closeoutChecklist';
+import type { SurveyRecordRepository } from './contracts/surveyRecords';
 import type { WorkInHandRepository } from './contracts/workInHand';
 import type { SupplyRiskRepository } from './contracts/supplyRisk';
 
@@ -164,6 +165,7 @@ export interface Repositories {
   progressBilling: ProgressBillingRepository;
   billingStages: BillingStagesRepository;
   closeoutChecklist: CloseoutChecklistRepository;
+  surveyRecord: SurveyRecordRepository;
   workInHand: WorkInHandRepository;
   stock: StockRepository;
   workOrderAcceptance: WorkOrderAcceptanceRepository;
@@ -232,6 +234,7 @@ export type { CommentRepository } from './contracts/comments';
 export type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
 export type { BillingStagesRepository } from './contracts/billingStages';
 export type { CloseoutChecklistRepository } from './contracts/closeoutChecklist';
+export type { SurveyRecordRepository } from './contracts/surveyRecords';
 export type { WorkInHandRepository } from './contracts/workInHand';
 export type { ExpenseClaimRepository, ExpensePostingRepository, ExpenseReceiptRepository } from './contracts/expenses';
 export type { ImprestRepository } from './contracts/imprest';

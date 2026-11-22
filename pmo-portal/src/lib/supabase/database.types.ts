@@ -36198,10 +36198,6 @@ export type Database = {
         Args: { p_boq_item_id: string; p_work_order_id: string }
         Returns: number
       }
-      survey_quantity_for_line: {
-        Args: { p_boq_item_id: string; p_work_order_id: string }
-        Returns: number
-      }
       switch_budget_draft_mode: {
         Args: {
           p_assignments: Json

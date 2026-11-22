@@ -114,6 +114,7 @@ export type Entity =
   | 'closeoutChecklist'
   | 'workOrderLine'
   | 'workOrderAcceptance'
+  | 'surveyRecord'
   | 'expenseClaim'
   | 'imprestFloat'
   | 'imprestPlan'
@@ -634,6 +635,24 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     withdraw: (role, ctx) =>
       ctx.record?.viewOnly !== true && ctx.record?.status === 'Draft' &&
       (has(CONFIRM_BAST, role) || (!!ctx.currentUserId && ctx.record?.prepared_by === ctx.currentUserId)),
+  },
+  /**
+   * Survey records (survey-cap-record, 1784-1787). UX only — the survey RPCs are the authority. Same people as a BAST:
+   *   create  ← Finance rank and above, or the project's own manager, on an Issued work order (`record.status`).
+   *   confirm ← Admin/Finance on a draft; the recorder is offered it and the server refuses it (sole operator excepted).
+   *   discard ← the recorder, or Admin/Finance, on a draft.
+   */
+  surveyRecord: {
+    view: allow(MASTER_DATA),
+    create: (role, ctx) =>
+      ctx.record?.viewOnly !== true && ctx.record?.status === 'Issued' &&
+      (has(MONEY_AUTHORITY, role) ||
+        (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
+    confirm: (role, ctx) =>
+      ctx.record?.viewOnly !== true && ctx.record?.status === 'draft' && has(CONFIRM_BAST, role),
+    delete: (role, ctx) =>
+      ctx.record?.viewOnly !== true && ctx.record?.status === 'draft' &&
+      (has(CONFIRM_BAST, role) || (!!ctx.currentUserId && ctx.record?.recorded_by === ctx.currentUserId)),
   },
   /**
    * Billing claims (#766). view = the revenue read set; create (raise included) and transition (evidence,
