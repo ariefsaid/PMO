@@ -3,7 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import { setOrgTerms } from '@/src/lib/i18n/orgTerms';
+import { setOrgRoleNames } from '@/src/hooks/useOrgRoleNames';
 
+import i18nextRuntime from 'i18next';
+import { orgTermsPlugin } from '@/src/lib/i18n';
+import procEn from '@/public/locales/en/procurement.json';
 const h = vi.hoisted(() => ({
   procurement: {
     data: undefined as unknown,
@@ -51,6 +56,10 @@ vi.mock('@/src/hooks/useWorkOrderRecord', () => ({
 }));
 
 import PurchaseOrderPrintPage from './PurchaseOrderPrint';
+
+// The shipped runtime registers this plugin at boot; the test instance does not, so attach it here.
+orgTermsPlugin.init(i18nextRuntime);
+i18nextRuntime.addResourceBundle('en', 'procurement', procEn, true, true);
 
 const mockProcurementWithPo = {
   id: 'proc-100',
@@ -119,6 +128,8 @@ const renderPage = (procurementId = 'proc-100', orderId = 'po-1') =>
 describe('PurchaseOrderPrintPage (#2688)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setOrgTerms({});
+    setOrgRoleNames({});
     h.poSettings = {
       data: {
         enabled: true,
@@ -134,6 +145,21 @@ describe('PurchaseOrderPrintPage (#2688)', () => {
       isError: false,
       refetch: vi.fn(),
     };
+  });
+
+  it('AC-TR-010 shows a renamed term in a label and a renamed role on the signature line', () => {
+    setOrgTerms({ en: { workOrder: { singular: 'job card', plural: 'job cards' } } });
+    setOrgRoleNames({ en: { buyer: 'Purchasing lead' } });
+    h.poSettings = {
+      data: { enabled: true, signatureBlocks: ['Buyer', 'Vendor acceptance'], authorisedCollectors: [] },
+      isPending: false,
+      isError: false,
+    };
+    renderPage();
+    expect(screen.getByText('Job card')).toBeInTheDocument();
+    expect(screen.queryByText('Work order')).not.toBeInTheDocument();
+    expect(screen.getByText('Purchasing lead')).toBeInTheDocument();
+    expect(screen.queryByText('Buyer')).not.toBeInTheDocument();
   });
 
   it('AC-POP-003 shows disabled state notice when purchase order printing is disabled', () => {

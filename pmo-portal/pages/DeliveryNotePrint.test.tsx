@@ -4,7 +4,11 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { setOrgTerms } from '@/src/lib/i18n/orgTerms';
+import { setOrgRoleNames } from '@/src/hooks/useOrgRoleNames';
 
+import i18nextRuntime from 'i18next';
+import { orgTermsPlugin } from '@/src/lib/i18n';
+import mrEn from '@/public/locales/en/materialRequests.json';
 const h = vi.hoisted(() => ({
   req: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   dnSettings: { data: { enabled: true, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] }, isPending: false, isError: false },
@@ -63,6 +67,10 @@ vi.mock('@/src/hooks/useProjects', () => ({
 
 import DeliveryNotePrintPage from './DeliveryNotePrint';
 
+// The shipped runtime registers this plugin at boot; the test instance does not, so attach it here.
+orgTermsPlugin.init(i18nextRuntime);
+i18nextRuntime.addResourceBundle('en', 'materialRequests', mrEn, true, true);
+
 const mockApprovedRequest = {
   id: 'mrq-1',
   number: 'MRQ-2026-0042',
@@ -117,6 +125,7 @@ describe('DeliveryNotePrintPage (#2687)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setOrgTerms({});
+    setOrgRoleNames({});
     h.dnSettings = {
       data: { enabled: true, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] },
       isPending: false,
@@ -188,6 +197,21 @@ describe('DeliveryNotePrintPage (#2687)', () => {
     // Signature blocks
     expect(screen.getByText('Dispatched by')).toBeInTheDocument();
     expect(screen.getByText('Delivered by')).toBeInTheDocument();
+    expect(screen.getByText('Received by')).toBeInTheDocument();
+  });
+
+  it('AC-TR-010 shows a renamed role on the signature line and the renamed term once in the title', () => {
+    setOrgTerms({ en: { deliveryNote: { singular: 'dispatch docket', plural: 'dispatch dockets' } } });
+    setOrgRoleNames({ en: { storekeeper: 'Yard keeper' } });
+    h.dnSettings = {
+      data: { enabled: true, signatureBlocks: ['Storekeeper', 'Received by'] },
+      isPending: false,
+      isError: false,
+    };
+    renderPage();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/^Dispatch docket$/);
+    expect(screen.getByText('Yard keeper')).toBeInTheDocument();
+    expect(screen.queryByText('Storekeeper')).not.toBeInTheDocument();
     expect(screen.getByText('Received by')).toBeInTheDocument();
   });
 
