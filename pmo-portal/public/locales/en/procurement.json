@@ -1114,7 +1114,7 @@
     "none": "No built-in role is named, so only the access levels above can order.",
     "remove": "Remove",
     "removeNamed": "Remove {{role}}",
-    "noRoleNote": "People who have no built-in role yet count when their access level is the one the named role is built on.",
+    "heldOnlyNote": "Only people who hold a named built-in role can order. An access level alone is not enough, even when the role is built on it.",
     "add": "Add a built-in role",
     "choose": "Choose a built-in role",
     "addButton": "Add",

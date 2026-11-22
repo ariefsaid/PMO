@@ -1114,7 +1114,7 @@
     "none": "Belum ada peran bawaan yang dicantumkan, jadi hanya tingkat akses di atas yang dapat memesan.",
     "remove": "Hapus",
     "removeNamed": "Hapus {{role}}",
-    "noRoleNote": "Orang yang belum memiliki peran bawaan ikut dihitung bila tingkat aksesnya adalah tingkat dasar peran yang dicantumkan.",
+    "heldOnlyNote": "Hanya orang yang memegang peran bawaan yang dicantumkan yang dapat memesan. Tingkat akses saja tidak cukup, meskipun peran itu dibangun di atasnya.",
     "add": "Tambah peran bawaan",
     "choose": "Pilih peran bawaan",
     "addButton": "Tambah",

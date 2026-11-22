@@ -1212,7 +1212,7 @@ is the one the role is built on. A person who holds a built-in role is judged by
 `holds_job_role` (docs/specs/roles-that-decide.spec.md); approval steps and ordering read it. "Job role" in specs means built-in role.
 
 **Roles that order** — the built-in roles an organisation names (Administration › Accounting, "Who can order purchases") whose
-fillers may also raise and send purchase orders, for approved purchases only, beside the four levels that always can. Empty by
+holders (holding the role, not only an access level it is built on) may also raise and send purchase orders, for approved purchases only, beside the four levels that always can. Empty by
 default, which changes nothing.
 
 **Role tier** — manager, officer or field: catalogue data on each built-in role; field roles are light accounts.

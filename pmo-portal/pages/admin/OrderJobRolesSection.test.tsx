@@ -38,6 +38,9 @@ describe('AC-RTD-015 who can order purchases', () => {
   it('an Admin names Buyer and saves the list through the repository', async () => {
     mount();
     expect(await screen.findByText(/No built-in role is named/)).toBeInTheDocument();
+    // ordering needs the role held: the approval-step note about people with no built-in role is not shown here
+    expect(screen.getByText(/Only people who hold a named built-in role can order/)).toBeInTheDocument();
+    expect(screen.queryByText(/People who have no built-in role yet count/)).not.toBeInTheDocument();
     const select = screen.getByLabelText('Add a built-in role') as HTMLSelectElement;
     expect(Array.from(select.options).some((o) => o.value === 'field_user')).toBe(false); // a field role never orders
     await userEvent.selectOptions(select, 'buyer');

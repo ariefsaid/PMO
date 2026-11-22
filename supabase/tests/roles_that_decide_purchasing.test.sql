@@ -1,6 +1,6 @@
 -- roles_that_decide_purchasing.test.sql — a person who fills an ordering job role raises and sends a purchase order
 -- (docs/specs/roles-that-decide.spec.md §2.3). Migrations under test: 1840, 1842_purchase_order_job_roles.sql,
--- 1843_purchasing_read_scope_order_roles.sql.
+-- 1843_purchasing_read_scope_order_roles.sql, 1845_order_roles_held_only.sql.
 -- AC-RTD-009 (ordering setting) Admin only, built-in roles on, catalogue keys that are not field roles, on every write path ·
 -- AC-RTD-011 a Buyer named in the setting reads purchases, moves an approved one to Ordered and records the order ·
 -- AC-RTD-012 never an unapproved purchase, never an approval, never a bill or a payment; a job role not named reads only its own ·
@@ -16,9 +16,11 @@
 --   1843 add "or (select public.actor_may_order_purchases())" to payments_engineer_read_scope
 --                                                                         'AC-RTD-012 a Buyer reads no payment'
 --   1843 drop the mut:read_procurements branch ........................... 'AC-RTD-011 a Buyer named in the setting reads every purchase'
+--   1845 drop "and public.actor_built_in_role() is not distinct from k" (mut:order_holds_key)
+--                                                    'AC-RTD-012 an Engineer with no built-in role cannot order when Buyer is named'
 begin;
 create extension if not exists pgtap;
-select plan(27);
+select plan(30);
 
 insert into organizations (id, name, built_in_roles_enabled) values
   ('18420000-0000-0000-0000-00000000000a', 'RTD Buy Org', true),
@@ -117,15 +119,22 @@ select is((select status::text from procurements where id = '18420000-0000-0000-
 select is((select count(*)::int from procurement_invoices), 0, 'AC-RTD-012 a Buyer reads no vendor bill');
 select is((select count(*)::int from payments), 0, 'AC-RTD-012 a Buyer reads no payment');
 
--- A job role not named reads only its own; a person with no job role on the Buyer's level counts (FR-RTD-003, spec §7 Q2).
+-- A job role not named reads only its own. Ordering needs the named role HELD (1845): an Engineer with no built-in role does not
+-- count for Buyer here, unlike approval steps, because ordering widens purchase reads.
 select pg_temp._as('18420000-0000-0000-0000-0000000000a3');
 select is((select count(*)::int from procurements), 0, 'AC-RTD-012 a Storekeeper, not named in the setting, reads no one else''s purchase');
 select throws_ok($$ select transition_procurement('18420000-0000-0000-0000-0000000000c4', 'Ordered') $$, '42501',
   'PO_ORDER_FORBIDDEN: you cannot order purchases; ask an Admin to name your built-in role as one that orders',
   'AC-RTD-012 a Storekeeper, not named in the setting, cannot order');
 select pg_temp._as('18420000-0000-0000-0000-0000000000a4');
-select is((select count(*)::int from procurements), 5,
-  'AC-RTD-012 an Engineer with no built-in role fills Buyer and reads purchases while the setting names Buyer (spec Q2)');
+select is((select count(*)::int from procurements), 0,
+  'AC-RTD-012 an Engineer with no built-in role does not widen their purchase reads when Buyer is named');
+select throws_ok($$ select transition_procurement('18420000-0000-0000-0000-0000000000c4', 'Ordered') $$, '42501',
+  'PO_ORDER_FORBIDDEN: you cannot order purchases; ask an Admin to name your built-in role as one that orders',
+  'AC-RTD-012 an Engineer with no built-in role cannot order when Buyer is named');
+select ok(not public.actor_may_order_purchases(), 'AC-RTD-012 the ordering gate answers no for a person who does not hold the named role');
+select pg_temp._as('18420000-0000-0000-0000-0000000000a2');
+select ok(public.actor_may_order_purchases(), 'AC-RTD-011 the ordering gate answers yes for the Buyer who holds the named role');
 
 select * from finish();
 rollback;
