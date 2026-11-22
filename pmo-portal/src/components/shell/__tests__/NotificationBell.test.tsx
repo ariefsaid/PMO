@@ -233,6 +233,24 @@ describe('NotificationBell', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/equipment/expiring'));
   });
 
+  it('#2800 an overdue close-out item opens its work order', async () => {
+    listUnreadCount.mockResolvedValue(1);
+    listNotifications.mockResolvedValue([row({ id: 'n1', title: 'Close-out item is overdue', metadata: { entity: { type: 'work_order', id: 'wo-7', label: 'WO-7' } } })]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /close-out item is overdue/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/work-orders/wo-7'));
+  });
+
+  it('#2800 an overdue clearance item opens that person’s clearance checklist', async () => {
+    listUnreadCount.mockResolvedValue(1);
+    listNotifications.mockResolvedValue([row({ id: 'n1', title: 'Clearance item is overdue', metadata: { entity: { type: 'person_clearance', id: 'p-9', label: 'Site induction' } } })]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /clearance item is overdue/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/administration/clearance/p-9'));
+  });
+
   it('AC-WFN-001 selecting a timesheet or task hand-off navigates to its queue page', async () => {
     listUnreadCount.mockResolvedValue(2);
     listNotifications.mockResolvedValue([

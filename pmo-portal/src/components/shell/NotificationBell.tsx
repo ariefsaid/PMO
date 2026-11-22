@@ -58,6 +58,9 @@ const ENTITY_ROUTE_BASE: Record<string, string> = {
   quantity_change_request: '/quantity-changes',
   daily_site_report: '/site-reports',
   subcontract_certificate: '/subcontract-certificates',
+  // #2800: an overdue close-out item opens its work order; an overdue clearance item opens that person's checklist.
+  work_order: '/work-orders',
+  person_clearance: '/administration/clearance',
 };
 
 /** Workflow hand-offs (#788) whose destination is a queue/list page with no `/x/:id` detail route:

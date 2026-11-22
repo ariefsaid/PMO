@@ -80,6 +80,8 @@
   "CWO_REPLACES": "Hanya kandidat proyek ini yang ditolak yang dapat digantikan.",
   "CWO_TEMPLATE": "Ada butir yang berulang atau tidak ada di daftar periksa organisasi ini.",
   "CWO_TITLE": "Kandidat perlu judul 1 sampai 200 karakter.",
+  "COT_TARGET_DAYS": "Target adalah bilangan bulat 1 sampai 365 hari.",
+  "COT_TARGET_DAYS_detail": "Kosongkan target bila butir ini tidak punya target.",
   "DRS_FORBIDDEN": "Peran Anda tidak dapat menetapkan lokasi lapangan $t(common:terms.clientWorkOrder).",
   "DRS_LOCATION": "Pilih lokasi lapangan, yard, atau staging yang terbuka milik proyek $t(common:terms.clientWorkOrder) ini.",
   "DRS_REVERSAL_FAILED": "Pengeluaran stok sebelumnya tidak bisa dikembalikan. Hubungi administrator Anda.",

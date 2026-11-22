@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,8 +7,9 @@ import {
 } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
 import { usePerson } from '@/src/hooks/useDocumentExpiry';
-import { useClearanceEnabled, useClearanceStateMutations, useClearanceSummary, usePersonChecklist } from '@/src/hooks/useClearance';
+import { useClearanceDue, useClearanceEnabled, useClearanceStateMutations, useClearanceSummary, usePersonChecklist } from '@/src/hooks/useClearance';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { clearanceDueByItem } from '@/src/lib/checklistDue';
 import { formatCalendarDayInTimeZone, formatIsoDay } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { ClearanceState, PersonChecklistRow } from '@/src/lib/repositories/clearance';
@@ -66,6 +67,10 @@ export default function PersonClearance() {
   const person = usePerson(personId);
   const checklist = usePersonChecklist(personId, enabled.data === true);
   const summary = useClearanceSummary();
+  // The due day and the overdue answer are the database's (#2800, `person_clearance_due`); this screen reads the same
+  // batch the people list does and picks this person's rows.
+  const due = useClearanceDue(enabled.data === true);
+  const dueByItem = useMemo(() => clearanceDueByItem(due.data ?? [], personId), [due.data, personId]);
   const { clear } = useClearanceStateMutations(personId);
   const [editing, setEditing] = useState<PersonChecklistRow | null>(null);
   const [clearing, setClearing] = useState<PersonChecklistRow | null>(null);
@@ -91,14 +96,16 @@ export default function PersonClearance() {
       <section aria-labelledby="clearance-checklist-heading" className="mt-4">
         <h2 id="clearance-checklist-heading" className="text-group font-semibold">{t('clearance.person.heading', 'Cleared-for-site checklist')}</h2>
         <div className="mt-3">
-          {checklist.isError ? <ListState variant="error" title={t('clearance.person.loadError', 'Couldn’t load this checklist')} onRetry={() => void checklist.refetch()} />
+          {checklist.isError || due.isError ? <ListState variant="error" title={t('clearance.person.loadError', 'Couldn’t load this checklist')} onRetry={() => { void checklist.refetch(); void due.refetch(); }} />
             : checklist.isPending ? <ListState variant="loading" rows={4} />
             : checklist.data.length === 0 ? (
               <ListState variant="empty" title={t('clearance.person.emptyTitle', 'No checklist items yet')}
                 sub={t('clearance.person.emptySub', 'An Admin lists what a person needs under Clearance; the items then appear here.')} />
             ) : (
               <ul className="divide-y divide-border rounded-lg border border-border bg-card">
-                {checklist.data.map((row) => (
+                {checklist.data.map((row) => {
+                  const itemDue = dueByItem.get(row.item_id);
+                  return (
                   <li key={row.item_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                     <div className="min-w-0">
                       <p className="break-words font-medium">{row.name}{!row.is_required && <span className="ml-2 text-control font-normal text-muted-foreground">{t('clearance.items.optionalTag', 'Optional')}</span>}</p>
@@ -117,6 +124,13 @@ export default function PersonClearance() {
                         </p>
                       )}
                       {row.note && <p className="break-words text-control text-muted-foreground">{row.note}</p>}
+                      {itemDue && (itemDue.overdue
+                        ? <p data-testid={`clearance-overdue-${row.item_id}`} className="text-control font-semibold text-warning-foreground">
+                            {t('clearance.person.overdue', 'Overdue · due {{date}}', { date: formatIsoDay(itemDue.dueOn) })}
+                          </p>
+                        : <p data-testid={`clearance-due-${row.item_id}`} className="text-control text-muted-foreground">
+                            {t('clearance.person.due', 'Due {{date}}', { date: formatIsoDay(itemDue.dueOn) })}
+                          </p>)}
                     </div>
                     <div className="flex items-center gap-2">
                       <StatusPill variant={STATE_VARIANT[row.state]}>{stateLabel[row.state]}</StatusPill>
@@ -132,7 +146,8 @@ export default function PersonClearance() {
                       )}
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
         </div>

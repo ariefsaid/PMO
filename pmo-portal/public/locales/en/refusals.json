@@ -80,6 +80,8 @@
   "CWO_REPLACES": "Only a rejected candidate of this project can be replaced.",
   "CWO_TEMPLATE": "An item is repeated or is not on this organisation's checklist.",
   "CWO_TITLE": "A candidate needs a title of 1 to 200 characters.",
+  "COT_TARGET_DAYS": "A target is a whole number of days from 1 to 365.",
+  "COT_TARGET_DAYS_detail": "Leave the target blank when the item has no target.",
   "DRS_FORBIDDEN": "Your role cannot set a work order's site location.",
   "DRS_LOCATION": "Choose an open site, yard or staging location of this work order's project.",
   "DRS_REVERSAL_FAILED": "The earlier stock issue could not be returned. Ask your administrator.",

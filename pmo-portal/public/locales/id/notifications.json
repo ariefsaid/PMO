@@ -69,6 +69,8 @@
     "supplierAtRisk": "Pemasok ditandai berisiko",
     "supplierInactive": "Pemasok ditandai tidak aktif",
     "billingStepOverdue": "Langkah penagihan terlambat",
+    "closeoutItemOverdue": "Butir penutupan melewati tenggat",
+    "clearanceItemOverdue": "Butir izin ke lokasi melewati tenggat",
     "doneNotClaimed": "Pekerjaan sudah selesai tetapi belum ditagih",
     "actionRequired": "Perlu tindakan",
     "equipmentDown": "Peralatan rusak lebih dari {{count}} hari",

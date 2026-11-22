@@ -11,14 +11,17 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useCloseoutItemMutations, useWorkOrderCloser, useWorkOrderCloseoutItems } from '@/src/hooks/useCloseoutChecklist';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { closeoutItemActionable, closeoutItemAgeDays, closeoutRemaining } from '@/src/lib/closeoutChecklist';
+import { isChecklistItemOverdue, orgToday } from '@/src/lib/checklistDue';
 import { formatIsoDay, formatNumberExact } from '@/src/lib/format';
-import { localToday } from '@/src/lib/efaktur';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 
 /**
  * The work order's close-out checklist (#2593, FR-WCO-010..013, 020): the organisation's ordered list as it stood when this
  * work order was issued, each item needing an attached document. The database decides (order, document, dates, who may record)
  * and refuses to close the work order while a required item is open. Nothing shows for a work order that has no checklist.
  * The item names are the organisation's own data: this component knows none of them.
+ * A targeted item shows its due day (the database's `due_on`, #2800); past the organisation's day and not done it reads as
+ * overdue. Nothing here works out a due day of its own.
  */
 export interface CloseoutSectionProps {
   workOrderId: string;
@@ -38,7 +41,7 @@ const REFUSALS: Record<string, [string, string]> = {
   'work-order-not-issued': ['refusal.notIssued', 'Items can be recorded only while the work order is issued.'],
 };
 
-const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, status, today = localToday() }) => {
+const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, status, today = orgToday(new Date(), getActiveLocale().timezone) }) => {
   const { t } = useTranslation('closeout');
   const may = usePermission();
   const query = useWorkOrderCloseoutItems(workOrderId);
@@ -94,6 +97,7 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
       {items.map((item, index) => {
         const age = closeoutItemAgeDays(item, today);
         const isCurrent = closeoutItemActionable(items, index);
+        const overdue = isChecklistItemOverdue({ dueOn: item.dueOn, done: item.doneOn !== null }, today);
         return <li key={item.id} aria-label={item.name} className="py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-medium">
@@ -102,6 +106,13 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
             </span>
             <span className="flex items-center gap-2 text-control">
               {age !== null && <span className="tabular-nums text-muted-foreground">{t('age', '{{count}} days', { count: age })}</span>}
+              {item.dueOn !== null && (overdue
+                ? <span data-testid={`closeout-overdue-${item.id}`} className="font-semibold text-warning-foreground">
+                    {t('overdue', 'Overdue · due {{date}}', { date: formatIsoDay(item.dueOn) })}
+                  </span>
+                : !item.doneOn && <span data-testid={`closeout-due-${item.id}`} className="text-muted-foreground">
+                    {t('due', 'Due {{date}}', { date: formatIsoDay(item.dueOn) })}
+                  </span>)}
               <StatusPill variant={item.doneOn ? 'won' : isCurrent ? 'progress' : 'neutral'} wrap={false}>
                 {item.doneOn
                   ? t('done', 'Done {{date}}', { date: formatIsoDay(item.doneOn) })
