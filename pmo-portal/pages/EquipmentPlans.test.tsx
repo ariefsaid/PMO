@@ -214,6 +214,31 @@ describe('monthly equipment plan page (#2700)', () => {
     expect(h.routeRefetch).toHaveBeenCalledTimes(1);
   });
 
+  it('AC-EQP-008 an errored refetch never also prints the cached "no one can approve" answer', async () => {
+    h.plans = [plan({ status: 'Submitted', createdBy: 'someone-else' })];
+    h.routeData = { kind: 'project', approvers: [] }; // the last successful answer, which TanStack keeps
+    h.routeError = true; // ...while the refetch that raised on submit/approve failed
+    renderPage();
+    await pickProject();
+    const waiting = screen.getByTestId('plan-waiting-for');
+    expect(waiting.textContent).toContain("Couldn't read who approves this plan");
+    expect(waiting.textContent).not.toContain('No one can approve this plan yet.');
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.routeRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-EQP-008 an errored refetch never also names the cached approver', async () => {
+    h.plans = [plan({ status: 'Submitted', createdBy: 'someone-else' })];
+    h.routeData = { kind: 'project', approvers: [{ id: 'u9', name: 'Ani', role: 'Finance' }] };
+    h.routeError = true;
+    renderPage();
+    await pickProject();
+    const text = screen.getByTestId('plan-waiting-for').textContent ?? '';
+    expect(text).toContain("Couldn't read who approves this plan");
+    expect(text).not.toContain('Waiting for Ani');
+    expect(text).not.toContain('Finance');
+  });
+
   it('AC-EQP-008 a plan that is not waiting asks for no route and says nothing about waiting', async () => {
     h.plans = [plan()]; // Draft
     renderPage();

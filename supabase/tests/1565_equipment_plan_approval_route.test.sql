@@ -3,11 +3,16 @@
 -- pgTAP proof at the same layer, for the read that must name EXACTLY the people the decision function would let decide.
 -- Migrations under test: 1358 (equipment_plan_approver_ok, the authority), 1565 (the read).
 --
--- The equivalence is asserted the only way that means anything: every name the route returns is set as a real caller and
--- the decision function is asked (must be true); every legal actor the route leaves out is asked too (must be false).
+-- The equivalence is asserted the only way that means anything, and it is scoped to what the app can produce: for a caller
+-- who can READ the plan, every name the route returns is set as a real caller and the decision function is asked (must be
+-- true), and the legal actors the route leaves out are asked too (must be false). Two states sit outside that claim and are
+-- named rather than papered over: (1) an out-of-band ban written straight into auth.users with profiles.status left
+-- 'active' is invisible to an invoker read (no auth.users access), so it is NOT exercised here — the decision function still
+-- refuses that person; (2) a same-org account that may not read this plan gets 'unavailable' (proved below) even if the raw
+-- approver list names them, because the read is row-level-security first. That is the read's premise, not a decision.
 begin;
 create extension if not exists pgtap;
-select plan(62);
+select plan(64);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('27650000-0000-0000-0000-0000000000a0', 'EQP Route Org',       'IDR', 'Asia/Jakarta'),
@@ -66,9 +71,10 @@ grant execute on function pg_temp._roles(jsonb) to authenticated;
 -- ── guards: a read every signed-in account may call, and nobody else ────────────────────────────────────────────────
 select is((select p.prosecdef from pg_proc p where p.oid = 'public.get_equipment_plan_approval_route(uuid)'::regprocedure), false,
   'AC-EQP-008 the route read runs as the caller, so the plan''s own row-level policy decides what it can see');
-select ok((select exists (select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) c where c like 'search_path=%')
+select ok((select exists (select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) c
+                            where c like 'search_path=%' and c ~* 'public' and c !~* 'pg_temp')
              from pg_proc p where p.oid = 'public.get_equipment_plan_approval_route(uuid)'::regprocedure),
-  'AC-EQP-008 and pins its search_path');
+  'AC-EQP-008 and pins a search_path that reaches public and no temp schema (no injection surface)');
 select ok(has_function_privilege('authenticated', 'public.get_equipment_plan_approval_route(uuid)', 'execute'),
   'AC-EQP-008 a signed-in account may call it');
 select ok(not has_function_privilege('anon', 'public.get_equipment_plan_approval_route(uuid)', 'execute'),
@@ -136,6 +142,17 @@ select is(pg_temp._roles(public.get_equipment_plan_approval_route('27650000-0000
 select pg_temp._as('27650000-0000-0000-0000-0000000000a5');
 select is(public.equipment_plan_approver_ok('27650000-0000-0000-0000-0000000000d1'), true,
   'AC-EQP-008 the decision function still lets that role-changed member decide (raw list membership)');
+
+-- ── a same-organisation account that may not READ the plan reads no route ────────────────────────────────────────────
+-- a5 is an Engineer with no purchase on the project (equipment_plans_select hides it) AND is on the project's raw approver
+-- list above, so this proves the RLS-first axis rather than a role-only one: the read answers exactly as it does for an id
+-- that does not exist, and names nobody. The decision function's own answer for a caller who cannot read the plan is
+-- outside this read (it is a definer and does not test plan visibility); the equivalence claim above covers readers.
+select pg_temp._as('27650000-0000-0000-0000-0000000000a5');
+select is(public.get_equipment_plan_approval_route('27650000-0000-0000-0000-0000000000d1')->>'route_kind', 'unavailable',
+  'AC-EQP-008 a same-organisation Engineer who may not read the plan reads no route');
+select is(pg_temp._ids(public.get_equipment_plan_approval_route('27650000-0000-0000-0000-0000000000d1')), '{}'::text[],
+  'AC-EQP-008 and no approver is named to them, not even the list that itself names them');
 
 -- ── only a role-changed member on the project list: that level does NOT answer (v_has is eligibility) ───────────────
 reset role;

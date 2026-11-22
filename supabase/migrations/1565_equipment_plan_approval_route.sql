@@ -6,8 +6,9 @@
 --   'project' | 'org' | 'admin' | 'senior_role' (a configured route that has somebody),
 --   'disabled' | 'not_waiting' | 'unavailable' (an honest empty).
 --
--- It mirrors equipment_plan_approver_ok (1358, the only definition; no later migration restates it) EXACTLY, because that
--- is the function that decides, and this one must never answer with a different route or a stricter one:
+-- It mirrors equipment_plan_approver_ok (1358, the only definition; no later migration restates it) EXACTLY for every state
+-- the app can produce, because that is the function that decides, and this one must never answer with a different route or a
+-- stricter one (the one out-of-band state it cannot see is named below):
 --   * the organisation switch must be on, and the author is out while allow_self_approval is off — every role, Admin included;
 --   * approval_step 'senior_role' → anyone whose role holds spend-approval authority;
 --   * otherwise the project's spend_approvers list when that level has an eligible (active, rank-holding) member,

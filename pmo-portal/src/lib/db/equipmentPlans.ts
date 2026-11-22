@@ -1,8 +1,8 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { Constants } from '@/src/lib/supabase/database.types';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import { formatDecimal, mulRound } from '@/src/lib/exactDecimal';
-import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 import type { UserRole } from './adminUsers';
 
 /**
@@ -175,8 +175,13 @@ export interface PlanApprovalRoute {
 }
 
 const PLAN_ROUTE_KINDS: readonly string[] = ['project', 'org', 'admin', 'senior_role', 'disabled', 'not_waiting', 'unavailable'];
-/** The `user_role` enum's five values, derived from the built-in role catalogue's base levels (one source, no literals). */
-const USER_ROLES: readonly string[] = [...new Set(BUILT_IN_ROLES.map((r) => r.base))];
+/**
+ * The `user_role` enum's values as the DATABASE declares them (`Constants.public.Enums.user_role`, generated from the
+ * schema). Not the UI role catalogue: that one exists to offer roles in forms and can drift a release behind the enum, and
+ * a drifted list here would reject a valid approver and error the whole sentence. Widened to `readonly string[]` so the
+ * check reads a plain string; `UserRole` (the generated column type) still types the parsed value.
+ */
+const USER_ROLES: readonly string[] = Constants.public.Enums.user_role;
 const malformedRoute = () => new AppError('The approval route response was malformed', 'plan-route-malformed');
 
 /** Narrow the RPC's jsonb to the route shape. A malformed body is an error, never an empty list that would read as

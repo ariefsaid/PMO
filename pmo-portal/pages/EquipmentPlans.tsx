@@ -127,8 +127,11 @@ const PlanEditor: React.FC<{ projectId: string; month: string; plan: EquipmentPl
           {route.isError && (
             <ListState variant="error" quiet title={t('route.loadError', "Couldn't read who approves this plan")} onRetry={() => void route.refetch()} />
           )}
-          {route.data && route.data.approvers.length > 0 && <span>{waitingFor}</span>}
-          {honestEmptyRoute && <span>{t('route.nobody', 'No one can approve this plan yet.')}</span>}
+          {/* A failed read keeps its cached answer (TanStack holds `data` through an errored refetch), so both data
+              branches are gated on the error state: an error never prints a name or a definitive "no one can approve"
+              beside it. Retry restores whichever sentence is true. */}
+          {!route.isError && route.data && route.data.approvers.length > 0 && <span>{waitingFor}</span>}
+          {!route.isError && honestEmptyRoute && <span>{t('route.nobody', 'No one can approve this plan yet.')}</span>}
         </div>
       )}
       {plan?.status === 'Rejected' && plan.rejectReason && <FormErrorStrip>{t('rejectedWhy', 'Rejected: {{reason}}', { reason: plan.rejectReason })}</FormErrorStrip>}
