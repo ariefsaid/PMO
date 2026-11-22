@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -60,8 +61,8 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiv
 
 const row = (kind: string, recordId: string, title: string, createdAt: string) => ({ kind, recordId, projectId: null, title, createdAt });
 
-const renderPage = (scope = 'all') => {
-  vi.stubGlobal('matchMedia', vi.fn().mockImplementation(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+const renderPage = (scope = 'all', isLargeScreen = true) => {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation(() => ({ matches: isLargeScreen, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
   return render(
     <MemoryRouter initialEntries={[`/approvals?scope=${scope}`]}>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -186,7 +187,8 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       const scopeToggle = screen.getByLabelText('Approvals scope');
       expect(within(scopeToggle).getByText('Leave requests')).toBeInTheDocument();
       const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
-      expect(within(allTab!).queryByText('0')).toBeNull();
+      // Strong numeric oracle: no count badge rendered at all on All tab while unknown
+      expect(within(allTab!).queryByText(/\d+/)).toBeNull();
     });
 
     it('applicable leave error with zero rows prevents all-caught-up, withholds count, and is present in extraKinds', () => {
@@ -205,7 +207,42 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       const scopeToggle = screen.getByLabelText('Approvals scope');
       expect(within(scopeToggle).getByText('Leave requests')).toBeInTheDocument();
       const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
-      expect(within(allTab!).queryByText('0')).toBeNull();
+      expect(within(allTab!).queryByText(/\d+/)).toBeNull();
+    });
+
+    it('selected leave scope renders loading ListState while pending with zero rows', () => {
+      h.role = 'Project Manager';
+      h.leave = {
+        data: [],
+        isPending: true,
+        isError: false,
+        enabled: true,
+        prerequisitePending: false,
+        prerequisiteError: false,
+        refetch: vi.fn(),
+      };
+      renderPage('leave');
+      expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+      expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+    });
+
+    it('selected leave scope renders error ListState and retries via waiting.refetch when failed', async () => {
+      h.role = 'Project Manager';
+      const refetchLeave = vi.fn();
+      h.leave = {
+        data: [],
+        isPending: false,
+        isError: true,
+        enabled: true,
+        prerequisitePending: false,
+        prerequisiteError: false,
+        refetch: refetchLeave,
+      };
+      renderPage('leave');
+      expect(screen.getByText("Couldn't load the selected queue")).toBeInTheDocument();
+      const retryBtn = screen.getByRole('button', { name: /retry/i });
+      await userEvent.click(retryBtn);
+      expect(refetchLeave).toHaveBeenCalled();
     });
 
     it('applicable imprest pending with zero rows prevents all-caught-up, withholds count, and is present in extraKinds', () => {
@@ -222,7 +259,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       const scopeToggle = screen.getByLabelText('Approvals scope');
       expect(within(scopeToggle).getByText('Site cash')).toBeInTheDocument();
       const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
-      expect(within(allTab!).queryByText('0')).toBeNull();
+      expect(within(allTab!).queryByText(/\d+/)).toBeNull();
     });
 
     it('applicable imprest error with zero rows prevents all-caught-up, withholds count, and is present in extraKinds', () => {
@@ -239,7 +276,132 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       const scopeToggle = screen.getByLabelText('Approvals scope');
       expect(within(scopeToggle).getByText('Site cash')).toBeInTheDocument();
       const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
-      expect(within(allTab!).queryByText('0')).toBeNull();
+      expect(within(allTab!).queryByText(/\d+/)).toBeNull();
+    });
+
+    it('selected imprest scope renders loading ListState while pending with zero rows', () => {
+      h.role = 'Finance';
+      h.imprest = {
+        data: { plans: [], replenishments: [] },
+        isPending: true,
+        isError: false,
+        enabled: true,
+        refetch: vi.fn(),
+      };
+      renderPage('imprest');
+      expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+      expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+    });
+
+    it('selected imprest scope renders error ListState and retries via waiting.refetch when failed', async () => {
+      h.role = 'Finance';
+      const refetchImprest = vi.fn();
+      h.imprest = {
+        data: { plans: [], replenishments: [] },
+        isPending: false,
+        isError: true,
+        enabled: true,
+        refetch: refetchImprest,
+      };
+      renderPage('imprest');
+      expect(screen.getByText("Couldn't load the selected queue")).toBeInTheDocument();
+      const retryBtn = screen.getByRole('button', { name: /retry/i });
+      await userEvent.click(retryBtn);
+      expect(refetchImprest).toHaveBeenCalled();
+    });
+
+    it('phone layout withholds numeric counts in SelectField when counts are unknown', () => {
+      h.role = 'Project Manager';
+      h.leave = {
+        data: [],
+        isPending: true,
+        isError: false,
+        enabled: true,
+        prerequisitePending: false,
+        prerequisiteError: false,
+        refetch: vi.fn(),
+      };
+      renderPage('all', false);
+      const select = screen.getByLabelText('Approvals scope');
+      expect(select).toBeInTheDocument();
+      expect(within(select).getByRole('option', { name: 'All pending' })).toBeInTheDocument();
+      expect(within(select).getByRole('option', { name: 'Leave requests' })).toBeInTheDocument();
+      expect(within(select).queryByText(/· \d+/)).toBeNull();
+    });
+
+    it('canonical headline banner withholds count as — when unknown and shows canonical total when known', () => {
+      h.role = 'Project Manager';
+      h.leave = {
+        data: [],
+        isPending: true,
+        isError: false,
+        enabled: true,
+        prerequisitePending: false,
+        prerequisiteError: false,
+        refetch: vi.fn(),
+      };
+      renderPage('all');
+      const countSpan = screen.getByTestId('approvals-waiting-count');
+      expect(countSpan).toHaveTextContent('—');
+
+      cleanup();
+      h.leave = {
+        data: [{ id: 'l-1', can_decide: true, start_date: '2026-11-20T00:00:00Z', notes: 'Medical leave' }],
+        isPending: false,
+        isError: false,
+        enabled: true,
+        prerequisitePending: false,
+        prerequisiteError: false,
+        refetch: vi.fn(),
+      };
+      renderPage('all');
+      expect(screen.getByTestId('approvals-waiting-count')).toHaveTextContent('1');
+    });
+
+    it('Engineer with no standing or approval eligibility is denied access when leave is pending or failed', () => {
+      h.role = 'Engineer';
+      h.standing = { data: false, isPending: false, isError: false };
+      h.leave = {
+        data: [],
+        isPending: true,
+        isError: false,
+        enabled: true,
+        prerequisitePending: false,
+        prerequisiteError: false,
+        refetch: vi.fn(),
+      };
+      renderPage('all');
+      expect(screen.getByText(/don't have access to approvals/i)).toBeInTheDocument();
+
+      cleanup();
+      h.leave = {
+        data: [],
+        isPending: false,
+        isError: true,
+        enabled: true,
+        prerequisitePending: false,
+        prerequisiteError: false,
+        refetch: vi.fn(),
+      };
+      renderPage('all');
+      expect(screen.getByText(/don't have access to approvals/i)).toBeInTheDocument();
+    });
+
+    it('Engineer with no standing is granted access when they have actual known can_decide leave rows', () => {
+      h.role = 'Engineer';
+      h.standing = { data: false, isPending: false, isError: false };
+      h.leave = {
+        data: [{ id: 'l-2', can_decide: true, start_date: '2026-11-22T00:00:00Z', notes: 'Site handover leave' }],
+        isPending: false,
+        isError: false,
+        enabled: true,
+        prerequisitePending: false,
+        prerequisiteError: false,
+        refetch: vi.fn(),
+      };
+      renderPage('all');
+      expect(screen.queryByText(/don't have access to approvals/i)).toBeNull();
+      expect(screen.getByText('Site handover leave')).toBeInTheDocument();
     });
 
     it('settled empty: all sources settled with zero rows renders all-caught-up', () => {

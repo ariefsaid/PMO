@@ -30,6 +30,12 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: {}
 vi.mock('@/src/hooks/useFinancePosition', () => ({ useFinancePosition: () => ({ isPending: true }) }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 vi.mock('@/src/components/shell/ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
+vi.mock('@/src/hooks/useLeave', () => ({
+  useLeaveRequests: () => ({ data: [], isPending: false, isError: false, enabled: false, prerequisitePending: false, prerequisiteError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useImprest', () => ({
+  useImprestAwaiting: () => ({ data: { plans: [], replenishments: [] }, isPending: false, isError: false, enabled: false, refetch: vi.fn() }),
+}));
 
 import ApprovalsPage from '../Approvals';
 import { Rail } from '@/src/components/shell/Rail';
