@@ -164,7 +164,7 @@ export const MODULES: ModuleDef[] = [
   { module: 'equipment', icon: 'equipment', label: 'Equipment', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'equipment:nav.equipment', path: '/equipment', detail: { pattern: '/equipment/assets/:assetId', param: 'assetId' } },
   // Work orders across projects: a front door for every role (reads are RLS-scoped); the rail mirrors it.
-  { module: 'work-orders', icon: 'doc', label: 'Work orders', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+  { module: 'work-orders', icon: 'doc', label: 'Orders', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'terms.clientWorkOrder', path: '/work-orders', detail: { pattern: '/work-orders/:id', param: 'id' } },
   // The asset register; the rail mirrors it.
   { module: 'equipment-assets', icon: 'folder', label: 'Equipment assets', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation

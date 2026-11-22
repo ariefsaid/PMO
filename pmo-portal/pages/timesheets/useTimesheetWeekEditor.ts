@@ -497,7 +497,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
           toast(
             t('timesheets.toast.submitted.headline', 'Timesheet submitted'),
             approverName
-              ? t('timesheets.toast.submitted.detailTo', { defaultValue: '{{hours}} hours for {{week}} sent to {{name}} for approval', hours: sentHours, week: weekRangeLabel, name: approverName })
+              ? t('timesheets:toast.submitted.detailTo', { defaultValue: '{{hours}} hours for {{week}} sent to {{name}} for approval', hours: sentHours, week: weekRangeLabel, name: approverName })
               : t('timesheets.toast.submitted.detail', 'Sent to your line manager for approval'),
             'success',
           );

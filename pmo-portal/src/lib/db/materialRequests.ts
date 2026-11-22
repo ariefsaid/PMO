@@ -343,7 +343,8 @@ export async function listPriorRequestLines(workOrderId: string, itemId: string,
     .select('quantity, material_requests!inner(id, number, status, needed_by, work_order_id, created_at)')
     .eq('item_id', itemId)
     .eq('material_requests.work_order_id', workOrderId)
-    .in('material_requests.status', ['pending', 'approved']) as unknown as DbResult<Array<{
+    .in('material_requests.status', ['pending', 'approved'])
+    .limit(200) as unknown as DbResult<Array<{
       quantity: number | string;
       material_requests: { id: string; number: string; status: MaterialRequestStatus; needed_by: string; created_at: string };
     }>>);

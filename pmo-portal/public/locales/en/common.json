@@ -3370,7 +3370,6 @@
     "submitConfirm": {
       "confirmLabel": "Submit week",
       "description": "This sends the whole week to your line manager. You can't edit it again until it's returned.",
-      "descriptionTo": "This sends {{hours}} hours for {{week}} to {{name}} for approval. You can't edit the week again until it's returned.",
       "title": "Submit this week for approval?"
     },
     "title": "Timesheets",
@@ -3387,7 +3386,6 @@
       "saveFailed": "Save failed",
       "submitted": {
         "detail": "Sent to your line manager for approval",
-        "detailTo": "{{hours}} hours for {{week}} sent to {{name}} for approval",
         "headline": "Timesheet submitted"
       }
     },

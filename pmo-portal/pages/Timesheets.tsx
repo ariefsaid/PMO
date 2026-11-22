@@ -185,7 +185,7 @@ const TimesheetsPage: React.FC = () => {
       tone="default"
       title={t('timesheets.submitConfirm.title', 'Submit this week for approval?')}
       description={approverName
-        ? t('timesheets.submitConfirm.descriptionTo', { defaultValue: "This sends {{hours}} hours for {{week}} to {{name}} for approval. You can't edit the week again until it's returned.", hours: formatNumberMax2(editTotals.weekly), week: weekRangeLabel, name: approverName })
+        ? t('timesheets:submitConfirm.descriptionTo', { defaultValue: "This sends {{hours}} hours for {{week}} to {{name}} for approval. You can't edit the week again until it's returned.", hours: formatNumberMax2(editTotals.weekly), week: weekRangeLabel, name: approverName })
         : t('timesheets.submitConfirm.description', "This sends the whole week to your line manager. You can't edit it again until it's returned.")}
       confirmLabel={t('timesheets.submitConfirm.confirmLabel', 'Submit week')}
       loading={submit.isPending || saveWeek.isPending}
