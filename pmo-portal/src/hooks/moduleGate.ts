@@ -11,7 +11,7 @@ export function useOffWhenModuleOff<Q extends { data: boolean | undefined }>(mod
 }
 
 /** The same for a settings read shaped `{ enabled, ... }`. */
-export function useEnabledOffWhenModuleOff<Q extends { data: { enabled: boolean } | null | undefined }>(module: OrgModuleKey, q: Q): Q {
-  const on = useModuleOn(module);
+export function useEnabledOffWhenModuleOff<Q extends { data: { enabled: boolean } | null | undefined }>(module: OrgModuleKey, q: Q, enabled = true): Q {
+  const on = useModuleOn(module, enabled);
   return on || !q.data ? q : { ...q, data: { ...q.data, enabled: false } };
 }

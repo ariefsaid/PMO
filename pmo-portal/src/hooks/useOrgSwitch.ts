@@ -18,13 +18,13 @@ const IDLE_CLIENT = new QueryClient();
  * lists when off. UI only; no database guard reads it. While the read is loading or failed the module counts as on, so a page never
  * flashes empty for the organisations that use it. Shares one cached read with `useOrgSwitch(module)`.
  */
-export function useModuleOn(module: OrgModuleKey | undefined): boolean {
+export function useModuleOn(module: OrgModuleKey | undefined, enabled = true): boolean {
   const qc = useContext(QueryClientContext);
   const orgId = useContext(AuthContext)?.currentUser?.org_id;
   const q = useQuery({
     queryKey: orgSwitchKey(orgId, module ?? 'modulePeopleCrews'),
     queryFn: () => orgSwitchRepository.read(module as OrgModuleKey),
-    enabled: Boolean(qc && orgId && module),
+    enabled: enabled && Boolean(qc && orgId && module),
     ...SERVER_SESSION_QUERY_OPTIONS,
   }, qc ?? IDLE_CLIENT);
   return q.data !== false;
