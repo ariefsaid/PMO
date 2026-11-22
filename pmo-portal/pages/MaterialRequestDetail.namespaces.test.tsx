@@ -25,7 +25,6 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useMaterialRequest: () => h.req,
   useWaitingForMe: () => h.waiting,
-  useLinePlans: () => ({ data: [], isPending: false, isError: false }),
   useDeliveryNoteSettings: () => ({ data: null }),
   useMaterialRequestMutations: () => ({
     decide: h.decide, cancel: { mutateAsync: vi.fn(), isPending: false }, retryTransfer: { mutateAsync: vi.fn(), isPending: false },

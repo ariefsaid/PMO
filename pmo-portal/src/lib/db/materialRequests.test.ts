@@ -198,9 +198,9 @@ describe('AC-MRQ-003 refusal keys', () => {
     expect(dal.materialRequestRefusal(new Error(message))).toBe(key);
   });
   it('FR-CUS-012 an unknown or missing plan source reads as null, never as a made-up label', async () => {
-    h.result.value = { data: [{ item_id: 'i1', plan_qty: '1', prior_qty: '0', installed_qty: '2', plan_source: 'banana' }, { item_id: 'i2', plan_qty: '1', prior_qty: '0', installed_qty: '0' }], error: null };
+    h.result.value = { data: [{ item_id: 'i1', plan_qty: '1', prior_qty: '0', plan_source: 'banana' }, { item_id: 'i2', plan_qty: '1', prior_qty: '0' }], error: null };
     await expect(dal.getLinePlans('wo1', ['i1', 'i2'])).resolves.toEqual([
-      { itemId: 'i1', planQty: 1, priorQty: 0, installedQty: 2, planSource: null }, { itemId: 'i2', planQty: 1, priorQty: 0, installedQty: 0, planSource: null },
+      { itemId: 'i1', planQty: 1, priorQty: 0, planSource: null }, { itemId: 'i2', planQty: 1, priorQty: 0, planSource: null },
     ]);
   });
   it('a non-error value is unknown, not a crash', () => {
@@ -209,17 +209,15 @@ describe('AC-MRQ-003 refusal keys', () => {
 });
 
 describe('material request reads and the rest of the writes', () => {
-  it('FR-MRQ-002 plans and installed quantities are asked per item, excluding the request being edited, and skipped when no items', async () => {
+  it('FR-MRQ-002 plans are asked per item, excluding the request being edited, and skipped when no items', async () => {
     await expect(dal.getLinePlans('wo1', [])).resolves.toEqual([]);
     expect(h.calls.rpc).toEqual([]);
-    h.result.value = { data: [{ item_id: 'i1', plan_qty: '100', prior_qty: '40', installed_qty: '7', plan_source: 'standard' }], error: null };
-    await expect(dal.getLinePlans('wo1', ['i1'], 'mr9')).resolves.toEqual([{ itemId: 'i1', planQty: 100, priorQty: 40, installedQty: 7, planSource: 'standard' }]);
+    h.result.value = { data: [{ item_id: 'i1', plan_qty: '100', prior_qty: '40', plan_source: 'standard' }], error: null };
+    await expect(dal.getLinePlans('wo1', ['i1'], 'mr9')).resolves.toEqual([{ itemId: 'i1', planQty: 100, priorQty: 40, planSource: 'standard' }]);
     await dal.getLinePlans('wo1', ['i1']);
     expect(h.calls.rpc).toEqual([
       ['mrq_plan_for', { p_work_order_id: 'wo1', p_item_ids: ['i1'], p_exclude_request: 'mr9' }],
-      ['mrq_installed_for', { p_work_order_id: 'wo1', p_item_ids: ['i1'] }],
       ['mrq_plan_for', { p_work_order_id: 'wo1', p_item_ids: ['i1'] }],
-      ['mrq_installed_for', { p_work_order_id: 'wo1', p_item_ids: ['i1'] }],
     ]);
   });
   it('FR-MRQ-005 the approval chain reads in position order', async () => {
