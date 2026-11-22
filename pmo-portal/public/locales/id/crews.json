@@ -272,6 +272,17 @@
     "areaInvalid": "Isi lintang -90 sampai 90, bujur -180 sampai 180, dan radius di atas 0",
     "supervisorRole": "Siapa yang memutuskan absen di luar area",
     "supervisorRoleDefault": "Pengendali lapangan kru atau pengelola kru",
-    "supervisorRoleHelper": "Pemegang peran ini yang memutuskan. Orang yang absen tidak pernah memutuskan absennya sendiri."
-  }
+    "supervisorRoleHelper": "Pemegang peran ini yang memutuskan. Orang yang absen tidak pernah memutuskan absennya sendiri.",
+    "areaHelperRead": "Orang absen dari ponselnya di dalam area ini. Perintah kerja tanpa area tidak meminta lokasi.",
+    "areaCurrent": "Titik tengah {{latitude}}, {{longitude}}, radius {{radius}} m",
+    "areaNone": "Area absen belum diatur pada perintah kerja ini. Minta manajer proyek mengaturnya.",
+    "areaUseMine": "Pakai lokasi saya sekarang",
+    "areaFix": "Posisi terbaca, akurat sekitar {{metres}} m. Isi radius, lalu simpan.",
+    "areaReload": "Muat ulang halaman ini, lalu ketuk Pakai lokasi saya sekarang lagi.",
+    "areaLocateDenied": "Lokasi diblokir untuk situs ini. Izinkan di peramban Anda, atau ketik angkanya.",
+    "areaLocateUnavailable": "Posisi Anda tidak dapat dibaca. Coba lagi, atau ketik angkanya.",
+    "areaLocateTimeout": "Membaca posisi Anda terlalu lama. Coba lagi, atau ketik angkanya.",
+    "requestArea": "Area kerja: titik tengah {{latitude}}, {{longitude}}, radius {{radius}} m"
+  },
+  "tickReadOnly": "Hanya mandor regu ini atau pengelola regu yang bisa mengisi absensi ini."
 }

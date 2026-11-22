@@ -26,6 +26,8 @@ let admin: SupabaseClient;
 let projectId = '';
 let priorSetting = false;
 let crewId = '';
+let workOrderId = '';
+let hadPerson = false;
 
 const need = <D>(step: string, r: { data: D; error: { message: string } | null }): NonNullable<D> => {
   if (r.error) throw new Error(`AC-LA-E2E ${step}: ${r.error.message}`);
@@ -41,7 +43,7 @@ test.beforeEach(async () => {
   priorSetting = need('read setting', await admin.from('organizations').select('built_in_roles_enabled').eq('id', ORG_ID).single()).built_in_roles_enabled;
   need('enable', await admin.from('organizations').update({ built_in_roles_enabled: true }).eq('id', ORG_ID).select('id').single());
   projectId = need('project', await admin.from('projects').insert({ org_id: ORG_ID, name: run, status: 'Ongoing Project', project_manager_id: PM_ID }).select('id').single()).id;
-  const workOrderId = need('work order', await admin.from('work_orders').insert({
+  workOrderId = need('work order', await admin.from('work_orders').insert({
     org_id: ORG_ID, project_id: projectId, title: `${run} slab`, status: 'Issued', order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0,
   }).select('id').single()).id;
   crewId = need('crew', await admin.from('crews').insert({
@@ -51,12 +53,17 @@ test.beforeEach(async () => {
   need('roster', await admin.from('work_order_crews').insert({
     org_id: ORG_ID, work_order_id: workOrderId, crew_id: crewId, valid_from: from.toISOString().slice(0, 10),
   }).select('id').single());
+  // The Foreman clocks in himself: his first clock-in enters him in the workforce register when he is not there, and the journey removes that entry again.
+  hadPerson = Boolean((await admin.from('people').select('id').eq('org_id', ORG_ID).eq('profile_id', ENGINEER_ID).is('archived_at', null).maybeSingle()).data);
   need('role', await admin.from('profiles').update({ built_in_role: 'foreman' }).eq('id', ENGINEER_ID).select('id').single());
 });
 
 test.afterEach(async () => {
   await admin.from('profiles').update({ built_in_role: null }).eq('id', ENGINEER_ID);
+  await admin.from('phone_check_ins').delete().eq('work_order_id', workOrderId);
+  await admin.from('attendance_days').delete().eq('work_order_id', workOrderId);
   await admin.from('work_order_crews').delete().eq('crew_id', crewId);
+  if (!hadPerson) await admin.from('people').delete().eq('org_id', ORG_ID).eq('profile_id', ENGINEER_ID);
   await admin.from('organizations').update({ built_in_roles_enabled: priorSetting }).eq('id', ORG_ID);
 });
 
@@ -71,4 +78,20 @@ test('AC-LA-E2E a Foreman lands on the phone home screen and cannot open a proje
   await expect(page.getByRole('navigation')).toHaveCount(0);
   await page.goto(`/projects/${projectId}`);
   await expect(page).toHaveURL(/\/my$/);
+});
+
+test('AC-LA-E2E-FOREMAN a Foreman clocks in himself on his crew\'s work order, and the home says so, with the time, after a reload', async ({ page }) => {
+  await signIn(page, 'engineer@acme.test', { home: '/my' });
+  const card = page.getByRole('listitem').filter({ hasText: 'slab' });
+  // The button is enabled, or says why it is not: never a dead grey button.
+  await expect(card.getByRole('button', { name: 'Clock in' })).toBeEnabled();
+  await expect(card.getByText(/Crew:/)).toBeVisible();
+  await card.getByRole('button', { name: 'Clock in' }).click();
+  await expect(card.getByText(/Clocked in at \d{1,2}:\d{2}/)).toBeVisible();
+  await expect.poll(async () => ((await admin.from('attendance_days').select('source, crew_id').eq('work_order_id', workOrderId)).data ?? [])
+    .map((r) => `${r.source}:${r.crew_id}`)).toEqual([`phone_check_in:${crewId}`]);
+  // After a reload the card still says clocked in and offers no second tap that could answer "already clocked in".
+  await page.reload();
+  await expect(card.getByText(/Clocked in at \d{1,2}:\d{2}/)).toBeVisible();
+  await expect(card.getByRole('button', { name: /Clock in/ })).toHaveCount(0);
 });

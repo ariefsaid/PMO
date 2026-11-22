@@ -28,7 +28,7 @@ const MyHome: React.FC = () => {
           <>
             <MyTasks tasks={home.data.tasks} busyId={status.isPending ? (status.variables?.id ?? null) : null}
               onSetStatus={(id, s) => status.mutate({ id, status: s })} />
-            <ClockInSection today={home.data.today} workOrders={home.data.work_orders} />
+            <ClockInSection today={home.data.today} workOrders={home.data.work_orders} deciderRole={home.data.decider_role} />
             {isForeman && <CrewRoster today={home.data.today} workOrders={home.data.work_orders} />}
             <DeliveriesSection deliveries={deliveries.data ?? []} />
             <MyIssues issues={home.data.issues} />

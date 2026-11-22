@@ -93,6 +93,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
       <CardHead>{crew.crew_code} · {crew.crew_name}</CardHead>
       <CardPad>
         {problem && <p role="alert" className="mb-3 text-sm text-destructive-text">{problem}</p>}
+        {!canRecord && <p className="mb-3 text-control text-foreground">{t('crews:tickReadOnly', "Only this crew's Foreman or a crew manager ticks this roster.")}</p>}
         <div className="mb-4 grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)]">
           <TextField label={t('crews:crewHours', 'Hours for the crew')} value={state.defaultHours} inputMode="decimal"
             onChange={(v) => { setDirty(true); setState((s) => ({ ...s, defaultHours: v })); }} disabled={!canRecord || busy} />

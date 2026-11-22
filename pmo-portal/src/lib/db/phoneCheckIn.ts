@@ -30,6 +30,8 @@ export async function phoneCheckIn(a: CheckInArgs): Promise<CheckInResult> {
 export interface CheckInRequest {
   id: string; work_order_id: string; work_order_title: string; worker_name: string; crew_id: string | null; crew_name: string | null;
   work_date: string; hours: number; outcome: CheckInOutcome; distance_m: number | null; accuracy_m: number | null; checked_in_at: string;
+  /** The area this request is judged against (1553); null when the work order has none. */
+  area_lat: number | null; area_lng: number | null; area_radius_m: number | null;
 }
 
 export async function listCheckInRequests(): Promise<CheckInRequest[]> {
@@ -47,7 +49,6 @@ export interface WorkOrderArea { lat: number; lng: number; radius_m: number }
 interface AreaRow { area_lat: number | null; area_lng: number | null; area_radius_m: number | null }
 interface AreaTable {
   select: (cols: string) => { eq: (c: string, v: string) => { maybeSingle: () => Promise<{ data: AreaRow | null; error: { message: string; code?: string } | null }> } };
-  update: (v: AreaRow) => { eq: (c: string, v: string) => Promise<{ error: { message: string; code?: string } | null }> };
 }
 const workOrders = () => (supabase as unknown as { from: (t: string) => AreaTable }).from('work_orders');
 
@@ -58,12 +59,14 @@ export async function getWorkOrderArea(workOrderId: string): Promise<WorkOrderAr
   return { lat: data.area_lat, lng: data.area_lng, radius_m: data.area_radius_m };
 }
 
-/** Whoever may update a work order today may set its area (RLS decides); `null` clears it. */
+/**
+ * Admin, Executive, Project Manager and Finance set the area through the definer RPC (the work-order column grant names no area
+ * column, so a direct write is refused); `null` clears it. The database decides who may.
+ */
 export async function setWorkOrderArea(workOrderId: string, area: WorkOrderArea | null): Promise<void> {
-  const patch: AreaRow = area
-    ? { area_lat: area.lat, area_lng: area.lng, area_radius_m: area.radius_m }
-    : { area_lat: null, area_lng: null, area_radius_m: null };
-  const { error } = await workOrders().update(patch).eq('id', workOrderId);
+  const { error } = await supabase.rpc('set_work_order_check_in_area' as never, {
+    p_work_order: workOrderId, p_lat: area?.lat ?? null, p_lng: area?.lng ?? null, p_radius_m: area?.radius_m ?? null,
+  } as never);
   if (error) throw new AppError(error.message, error.code);
 }
 
