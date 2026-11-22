@@ -25,7 +25,7 @@ revoke all on function public.audit_org_setting_change() from public, anon, auth
 create trigger zz_audit_org_setting_change after update on public.organizations for each row
   execute function public.audit_org_setting_change(
     'quantity_change_limit', 'built_in_roles_enabled', 'phone_check_in_supervisor_role', 'hide_prices_from_requesters',
-    'clearance_checklist_enabled', 'leave_requests_enabled', 'leave_approver_role', 'crew_loans_enabled',
+    'clearance_checklist_enabled', 'leave_requests_enabled', 'leave_approver_role',
     'discipline_profit_enabled', 'performance_indices_enabled', 'performance_band_low', 'performance_band_high',
     'stock_transfer_mode', 'stock_proof_timing', 'stock_wo_transfers', 'stock_reservations', 'reservation_borrow_mode',
     'reservation_borrow_role', 'reservation_borrow_label', 'dsr_stock_issue', 'dsr_stock_issue_items',
