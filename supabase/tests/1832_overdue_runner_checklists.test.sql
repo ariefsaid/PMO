@@ -27,7 +27,8 @@ select plan(51);
 insert into organizations (id, name, default_currency, default_timezone, clearance_checklist_enabled) values
   ('28320000-0000-0000-0000-000000000a01', 'CTD Run Org A', 'IDR', 'UTC', true),
   ('28320000-0000-0000-0000-000000000a02', 'CTD Run Org B', 'IDR', 'UTC', true),
-  ('28320000-0000-0000-0000-000000000a03', 'CTD Run Org C', 'IDR', 'UTC', false);
+  ('28320000-0000-0000-0000-000000000a03', 'CTD Run Org C', 'IDR', 'UTC', false),
+  ('28320000-0000-0000-0000-000000000a04', 'CTD Run Race Org', 'IDR', 'UTC', true);
 insert into auth.users (id, email) values
   ('28320000-0000-0000-0000-000000000b01', 'ctdr-admin@example.com'),
   ('28320000-0000-0000-0000-000000000b02', 'ctdr-pm@example.com'),
@@ -36,7 +37,8 @@ insert into auth.users (id, email) values
   ('28320000-0000-0000-0000-000000000b05', 'ctdr-eng@example.com'),
   ('28320000-0000-0000-0000-000000000b08', 'ctdr-foreign-admin@example.com'),
   ('28320000-0000-0000-0000-000000000b09', 'ctdr-foreign-pm@example.com'),
-  ('28320000-0000-0000-0000-000000000b31', 'ctdr-off-admin@example.com');
+  ('28320000-0000-0000-0000-000000000b31', 'ctdr-off-admin@example.com'),
+  ('28320000-0000-0000-0000-000000000b41', 'ctdr-race-admin@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('28320000-0000-0000-0000-000000000b01', '28320000-0000-0000-0000-000000000a01', 'CTDR Admin',    'ctdr-admin@example.com',    'Admin', 'active'),
   ('28320000-0000-0000-0000-000000000b02', '28320000-0000-0000-0000-000000000a01', 'CTDR PM',       'ctdr-pm@example.com',       'Project Manager', 'active'),
@@ -45,7 +47,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('28320000-0000-0000-0000-000000000b05', '28320000-0000-0000-0000-000000000a01', 'CTDR Eng',      'ctdr-eng@example.com',      'Engineer', 'active'),
   ('28320000-0000-0000-0000-000000000b08', '28320000-0000-0000-0000-000000000a02', 'CTDR B Admin',  'ctdr-foreign-admin@example.com', 'Admin', 'active'),
   ('28320000-0000-0000-0000-000000000b09', '28320000-0000-0000-0000-000000000a02', 'CTDR B PM',     'ctdr-foreign-pm@example.com', 'Project Manager', 'active'),
-  ('28320000-0000-0000-0000-000000000b31', '28320000-0000-0000-0000-000000000a03', 'CTDR C Admin',  'ctdr-off-admin@example.com', 'Admin', 'active');
+  ('28320000-0000-0000-0000-000000000b31', '28320000-0000-0000-0000-000000000a03', 'CTDR C Admin',  'ctdr-off-admin@example.com', 'Admin', 'active'),
+  ('28320000-0000-0000-0000-000000000b41', '28320000-0000-0000-0000-000000000a04', 'CTDR Race Admin', 'ctdr-race-admin@example.com', 'Admin', 'active');
 insert into companies (id, org_id, name, type) values
   ('28320000-0000-0000-0000-000000000ca1', '28320000-0000-0000-0000-000000000a01', 'CTDR Client A', 'Client'),
   ('28320000-0000-0000-0000-000000000ca2', '28320000-0000-0000-0000-000000000a02', 'CTDR Client B', 'Client'),
@@ -268,18 +271,20 @@ insert into work_order_closeout_items
    public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 10, 5,
    public.native_org_today('28320000-0000-0000-0000-000000000a01'::uuid) - 4, now());
 insert into clearance_items (id, org_id, name, is_required, sort_order, created_by, target_days) values
-  ('28320000-0000-0000-0000-000000000c13', '28320000-0000-0000-0000-000000000a01', 'Already told clearance', true, 3, '28320000-0000-0000-0000-000000000b01', 5);
--- A target set forty days ago, with the person created thirty days ago, is overdue by twenty-five days and was created before
--- the other items' targets were set (so it is nobody else's item); the row then simulates a concurrent run that already wrote
--- the notice.
+  ('28320000-0000-0000-0000-000000000c13', '28320000-0000-0000-0000-000000000a04', 'Already told clearance', true, 1, '28320000-0000-0000-0000-000000000b41', 5);
+-- Independence from the existing cohort is what makes the "another run already won" simulation meaningful:
+--   eligibility is person.created_at >= item.target_set_at; Org A's people were created 0..20 days ago, so ANY stamp that
+--   makes one person's pair overdue also makes all older-created Org A people eligible (the original 6-notice leak).
+--   This pair therefore lives in its own organisation, whose only person is created 30 days ago against a 40-day-old target:
+--   due 25 days ago, so absent the pre-existing marker the runner WOULD write and notify — the marker is the only suppressor.
 set local session_replication_role = replica;
 update clearance_items set target_set_at = now() - interval '40 days' where id = '28320000-0000-0000-0000-000000000c13';
 set local session_replication_role = origin;
 insert into people (id, org_id, code, name, created_by, created_at) values
-  ('28320000-0000-0000-0000-000000000e18', '28320000-0000-0000-0000-000000000a01', 'CTDR-8', 'Clearance Eight',
-   '28320000-0000-0000-0000-000000000b03', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c13') + interval '10 days');
+  ('28320000-0000-0000-0000-000000000e18', '28320000-0000-0000-0000-000000000a04', 'CTDR-8', 'Clearance Eight',
+   '28320000-0000-0000-0000-000000000b41', (select target_set_at from clearance_items where id = '28320000-0000-0000-0000-000000000c13') + interval '10 days');
 insert into person_clearance_overdue_notices (id, org_id, person_id, item_id) values
-  ('28320000-0000-0000-0000-000000000aa1', '28320000-0000-0000-0000-000000000a01',
+  ('28320000-0000-0000-0000-000000000aa1', '28320000-0000-0000-0000-000000000a04',
    '28320000-0000-0000-0000-000000000e18', '28320000-0000-0000-0000-000000000c13');
 select pg_temp.as_job();
 select is(notify_overdue_billing_stages(), 0,
@@ -287,11 +292,11 @@ select is(notify_overdue_billing_stages(), 0,
 select is(pg_temp.notes('b02', 'Close-out item is overdue'), 1,
   'AC-CTD-002 the already-stamped close-out item is not told again');
 select is(pg_temp.notes('b03', 'Clearance item is overdue'), 2,
-  'AC-CTD-006 the clearance pair another run won is not told again');
+  'AC-CTD-006 the racing scenario adds no notice, so the existing organisation keeps exactly its two');
 select is((select count(*)::int from person_clearance_overdue_notices), 10,
   'AC-CTD-006 no notice row grew on the racing pair (the simulated winner''s row is the only one)');
 select throws_ok($q$insert into person_clearance_overdue_notices (org_id, person_id, item_id)
-  values ('28320000-0000-0000-0000-000000000a01', '28320000-0000-0000-0000-000000000e18', '28320000-0000-0000-0000-000000000c13')$q$,
+  values ('28320000-0000-0000-0000-000000000a04', '28320000-0000-0000-0000-000000000e18', '28320000-0000-0000-0000-000000000c13')$q$,
   '23505', null, 'AC-CTD-006 the (person, item) unique key refuses a second notice row');
 
 -- ── the module switch is the existing organisation flag, nothing new ─────────────────────────────────────────────────────
