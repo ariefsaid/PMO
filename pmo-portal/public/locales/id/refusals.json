@@ -312,5 +312,11 @@
   "WRP_OFF": "Rencana pendapatan belum diaktifkan untuk organisasi ini.",
   "WRP_RANGE": "Pilih rentang paling lama dua tahun.",
   "WRP_ROLE": "Anda tidak dapat melihat pendapatan proyek ini.",
-  "WRP_SETTINGS": "Pilih satu sampai tujuh hari kerja yang berbeda, 1 untuk Senin sampai 7 untuk Minggu."
+  "WRP_SETTINGS": "Pilih satu sampai tujuh hari kerja yang berbeda, 1 untuk Senin sampai 7 untuk Minggu.",
+  "HC_CLASS": "Pilih kelas tenaga kerja yang masih dipakai, lalu simpan jumlah orang lagi.",
+  "HC_COUNT": "Jumlah orang adalah bilangan bulat dari 1 sampai 500. Isi angka dalam rentang itu.",
+  "HC_CREW_NOT_ROSTERED": "Kru itu tidak ada di work order ini pada tanggal tersebut. Pilih kru yang ada, atau tambahkan kru ke work order terlebih dahulu.",
+  "HC_DATE_FUTURE": "Jumlah orang tidak bisa dicatat untuk tanggal yang belum tiba. Pilih hari ini atau hari sebelumnya.",
+  "HC_DATE_OLD": "Tanggal paling awal yang terbuka untuk jumlah orang adalah {{date}}. Minta Admin jika hari yang lebih awal harus dicatat.",
+  "HC_LOCKED": "Jumlah orang ini sudah disetujui dan final. Minta Admin atau Keuangan jika harus dikoreksi."
 }

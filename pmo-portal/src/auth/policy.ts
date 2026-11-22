@@ -204,6 +204,7 @@ export type Entity =
   | 'tmSignoff'
   | 'crew'
   | 'attendance'
+  | 'headcount'
   | 'crewTool'
   | 'attendanceRate'
   | 'attendanceTarget'
@@ -1202,6 +1203,17 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   crew: { view: allow(ALL), create: allowUnlessViewOnly(DELIVERY), manage: allowUnlessViewOnly(DELIVERY) },
   attendance: {
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (
+      has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+    approve: (role, ctx) => ctx.record?.viewOnly !== true && has(DELIVERY, role) && !(
+      !!ctx.currentUserId && Array.isArray(ctx.record?.recorder_ids) && (ctx.record.recorder_ids as unknown[]).includes(ctx.currentUserId)),
+  },
+  /**
+   * Daily head count of people with no name on the roster (guard-headcount, migration 1710). UX ONLY: `record_headcount_day`
+   * (`attendance_can_record`, never a field account), `approve_headcount_day` (a crew manager who entered none of it) and the
+   * RLS are the authority (ADR-0016). Same shape as `attendance`: `record.field_controller_id`, `record.recorder_ids`.
+   */
+  headcount: {
     create: (role, ctx) => ctx.record?.viewOnly !== true && (
       has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
     approve: (role, ctx) => ctx.record?.viewOnly !== true && has(DELIVERY, role) && !(

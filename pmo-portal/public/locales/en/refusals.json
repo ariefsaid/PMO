@@ -312,5 +312,11 @@
   "WRP_OFF": "The revenue plan is not switched on for this organisation.",
   "WRP_RANGE": "Choose a range of at most two years.",
   "WRP_ROLE": "You cannot see revenue on this project.",
-  "WRP_SETTINGS": "Choose one to seven different weekdays, 1 for Monday to 7 for Sunday."
+  "WRP_SETTINGS": "Choose one to seven different weekdays, 1 for Monday to 7 for Sunday.",
+  "HC_CLASS": "Choose a labour class that is still in use, then save the head count again.",
+  "HC_COUNT": "A head count is a whole number from 1 to 500. Enter a number in that range.",
+  "HC_CREW_NOT_ROSTERED": "That crew is not on this work order on that date. Choose a crew that is, or add the crew to the work order first.",
+  "HC_DATE_FUTURE": "A head count cannot be recorded for a future date. Choose today or an earlier day.",
+  "HC_DATE_OLD": "The earliest date open for a head count is {{date}}. Ask an Admin if an earlier day must be recorded.",
+  "HC_LOCKED": "This head count is approved and final. Ask an Admin or Finance if it must be corrected."
 }
