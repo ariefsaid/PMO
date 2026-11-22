@@ -3,9 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const h = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
 
+import { AppError } from '@/src/lib/appError';
 import { timesheetRepository } from '../timesheets';
 
-beforeEach(() => h.rpc.mockReset());
+// Block-bodied on purpose: `mockReset()` RETURNS the mock, and Vitest registers any function returned
+// from `beforeEach` as an after-test cleanup — a phantom call that would reject with the body's own
+// armed mock value and fail an otherwise passing test.
+beforeEach(() => { h.rpc.mockReset(); });
 
 /**
  * fix-waiting item 3 (FR-WAIT-006) — the repository seam exposes the typed route read unchanged: the
@@ -30,9 +34,10 @@ describe('FR-WAIT-006 timesheetRepository.getApprovalRoute', () => {
   it('normalizes a thrown transport failure through the repository wrap contract', async () => {
     h.rpc.mockRejectedValue(new Error('network down'));
 
-    await expect(timesheetRepository.getApprovalRoute('ts-1')).rejects.toMatchObject({
-      name: 'AppError',
-      message: 'network down',
-    });
+    // ONE rejected promise, asserted as a REJECTION (never resolved-and-caught): the seam must throw
+    // exactly one normalized `AppError`, the single type every consumer classifies on.
+    const read = timesheetRepository.getApprovalRoute('ts-1');
+    await expect(read).rejects.toBeInstanceOf(AppError);
+    await expect(read).rejects.toMatchObject({ message: 'network down' });
   });
 });

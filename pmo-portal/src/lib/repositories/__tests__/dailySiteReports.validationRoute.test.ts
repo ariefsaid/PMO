@@ -5,7 +5,7 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
 
 import { dailySiteReportRepository } from '../dailySiteReports';
 
-beforeEach(() => h.rpc.mockReset());
+beforeEach(() => { h.rpc.mockReset(); });
 
 /**
  * fix-waiting item 3 (FR-WAIT-006) — the repository seam exposes the typed route read unchanged: the

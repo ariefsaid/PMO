@@ -58,7 +58,10 @@ function makeWrapper() {
   return { qc, Wrapper };
 }
 
-beforeEach(() => h.validationRoute.mockReset());
+// Block-bodied on purpose: `mockReset()` RETURNS the mock, and Vitest registers any function returned
+// from `beforeEach` as an after-test cleanup — a phantom call that would reject with the body's own
+// armed mock value and fail an otherwise passing test.
+beforeEach(() => { h.validationRoute.mockReset(); });
 
 describe('FR-WAIT-006 useDsrValidationRoute', () => {
   it('reads ONE visible Submitted report through the typed repository, keyed by real org + user + report', async () => {
@@ -86,7 +89,14 @@ describe('FR-WAIT-006 useDsrValidationRoute', () => {
     h.validationRoute.mockRejectedValue(new Error('boom'));
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useDsrValidationRoute('r1'), { wrapper: Wrapper });
+
     await waitFor(() => expect(result.current.isError).toBe(true));
+    // A failed read is the screen's RETRY state, never a rendered route: React Query holds the failure
+    // (it does not throw it out of the hook), no validator is fabricated, and `refetch` is the affordance
+    // the page binds its Retry button to.
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.error?.message).toBe('boom');
+    expect(typeof result.current.refetch).toBe('function');
   });
 });
 
