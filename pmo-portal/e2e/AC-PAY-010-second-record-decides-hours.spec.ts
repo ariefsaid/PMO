@@ -111,8 +111,8 @@ test('AC-PAY-010 a second record of 5 hours against the foreman\'s 8 is decided 
   await signIn(page, 'admin@acme.test');
   await page.goto(`/site-reports/${reportId}`);
   await page.getByTestId(`dsr-people-row-${ana.id}`).getByRole('button', { name: 'Decide' }).click();
-  await page.getByRole('radio', { name: /Second record: 5 h/ }).check();
-  await page.getByRole('dialog').getByRole('textbox').fill('Survey sheet is signed');
+  await page.getByRole('combobox', { name: /Which figure stands/ }).selectOption('second');
+  await page.getByRole('dialog').getByRole('textbox', { name: /Why this figure stands/ }).fill('Survey sheet is signed');
   await page.getByRole('button', { name: 'Confirm' }).click();
   await expect(visibleToast(page, 'Decision saved')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId(`dsr-people-row-${ana.id}`)).toContainText('Stands: 5 h');

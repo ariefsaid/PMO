@@ -175,7 +175,7 @@
     "decideFor": "Jam mana yang berlaku untuk {{name}}",
     "confirmDecide": "Konfirmasi",
     "decidedToast": "Keputusan disimpan",
-    "choose": "Angka yang berlaku dibayar dan dibiayakan. Yang lain disimpan sebagai bukti.",
+    "choose": "Angka mana yang berlaku (dibayar dan dibiayakan). Yang lain disimpan sebagai bukti.",
     "chooseDay": "Laporan lapangan: {{figure}}",
     "chooseSecond": "Catatan kedua: {{figure}}",
     "hoursRange": "Isi jam dari 0 sampai 24.",

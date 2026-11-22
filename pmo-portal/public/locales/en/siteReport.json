@@ -175,7 +175,7 @@
     "decideFor": "Which hours stand for {{name}}",
     "confirmDecide": "Confirm",
     "decidedToast": "Decision saved",
-    "choose": "The figure that stands is paid and costed. The other is kept as evidence.",
+    "choose": "Which figure stands (paid and costed). The other is kept as evidence.",
     "chooseDay": "Site report: {{figure}}",
     "chooseSecond": "Second record: {{figure}}",
     "hoursRange": "Enter hours from 0 to 24.",

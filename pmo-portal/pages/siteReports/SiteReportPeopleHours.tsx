@@ -147,17 +147,12 @@ export const SiteReportPeopleHours: React.FC<{ reportId: string; workOrderId: st
           loading={m.decide.isPending} error={error} onCancel={close} onConfirm={() => submitDecide(dialog.worker)}
           description={(
             <div className="space-y-3">
-              <fieldset className="space-y-2">
-                <legend className="text-control font-medium text-foreground">{t('people.choose', 'The figure that stands is paid and costed. The other is kept as evidence.')}</legend>
-                <label className="flex min-h-11 items-center gap-3">
-                  <input type="radio" name="stand" checked={stand === 'day'} onChange={() => setStand('day')} />
-                  <span>{t('people.chooseDay', 'Site report: {{figure}}', { figure: figureText(dialog.worker.day) })}</span>
-                </label>
-                <label className="flex min-h-11 items-center gap-3">
-                  <input type="radio" name="stand" checked={stand === 'second'} onChange={() => setStand('second')} />
-                  <span>{t('people.chooseSecond', 'Second record: {{figure}}', { figure: figureText(dialog.worker.second) })}</span>
-                </label>
-              </fieldset>
+              <SelectField label={t('people.choose', 'Which figure stands (paid and costed). The other is kept as evidence.')} fullWidth value={stand}
+                onChange={(v) => setStand(v === 'second' ? 'second' : 'day')}
+                options={[
+                  { value: 'day', label: t('people.chooseDay', 'Site report: {{figure}}', { figure: figureText(dialog.worker.day) }) },
+                  { value: 'second', label: t('people.chooseSecond', 'Second record: {{figure}}', { figure: figureText(dialog.worker.second) }) },
+                ]} />
               <TextArea label={t('people.field.reason', 'Why this figure stands')} required fullWidth rows={2} maxLength={500} value={reason} onChange={setReason} />
             </div>
           )}

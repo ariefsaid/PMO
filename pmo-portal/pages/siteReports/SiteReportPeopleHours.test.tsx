@@ -68,7 +68,7 @@ describe('SiteReportPeopleHours', () => {
     const user = userEvent.setup();
     view({ mayDecide: true, workers: [worker({ undecided: true, second: { status: 'present', hours: 5, overtimeHours: null, note: null, standing: null, decidedAt: null, decisionReason: null } })] });
     await user.click(screen.getByRole('button', { name: 'Decide' }));
-    await user.click(screen.getByRole('radio', { name: /Second record: 5 h/ }));
+    await user.selectOptions(screen.getByRole('combobox', { name: /Which figure stands/ }), 'second');
     await user.click(screen.getByRole('button', { name: 'Confirm' }));
     expect(h.decide).not.toHaveBeenCalled();
     expect(screen.getByText('Say why this figure stands.')).toBeInTheDocument();
