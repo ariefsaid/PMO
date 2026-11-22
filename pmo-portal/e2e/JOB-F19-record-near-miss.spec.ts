@@ -7,7 +7,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { signIn, pickComboboxOption } from './helpers';
-import { cleanSiteIssue } from './siteIssueFixture';
+import { addIssueType, cleanSiteIssue } from './siteIssueFixture';
 import { need, ORG_ID, serviceClient } from './support/jobJourney';
 import { seedWorkOrder } from './support/crewJourney';
 
@@ -25,11 +25,12 @@ test.afterEach(async () => {
 });
 
 test('JOB-F19 a near miss recorded on a work order is in the register with the work order and its date', async ({ page }) => {
+  await addIssueType(`${run} near miss`);
   await signIn(page, 'pm@acme.test');
   await page.goto(`/incidents?project=${wo.projectId}`);
   await page.getByRole('button', { name: /file incident/i }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel(/^type/i).fill(`${run} near miss`);
+  await dialog.getByLabel(/^type/i).selectOption({ label: `${run} near miss` });
   await dialog.getByLabel(/severity/i).selectOption('Low');
   await pickComboboxOption(dialog, page, /^Work order/, new RegExp(wo.title));
   await dialog.getByRole('button', { name: /^file incident$/i }).click();

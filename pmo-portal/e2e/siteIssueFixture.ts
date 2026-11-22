@@ -3,6 +3,26 @@ import { loadEnv } from 'vite';
 import { requireServiceRoleKey } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
+function localAdmin() {
+  const env = loadEnv('development', process.cwd(), 'VITE_');
+  const url = requireMatchingLocalSupabaseUrls(
+    process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
+    process.env.VITE_SUPABASE_URL ?? env.VITE_SUPABASE_URL,
+  );
+  const key = requireServiceRoleKey();
+  if (!key) throw new Error('Site issue journeys require a local service-role key');
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+/**
+ * An issue's type is picked from the organisation's kept list (migration 1820), so a journey that raises an issue of its own
+ * uniquely named type puts that type on the list first, before the page opens. `cleanSiteIssue` removes it again.
+ */
+export async function addIssueType(label: string, orgId = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001'): Promise<void> {
+  const { error } = await localAdmin().from('incident_types').insert({ org_id: orgId, label });
+  if (error) throw error;
+}
+
 /** Remove only this journey's issue, its storage objects and its notifications. */
 export async function cleanSiteIssue(type: string): Promise<void> {
   if (!type) return;
@@ -29,4 +49,6 @@ export async function cleanSiteIssue(type: string): Promise<void> {
       if (removed.error) throw removed.error;
     }
   }
+  const listed = await admin.from('incident_types').delete().eq('label', type);
+  if (listed.error) throw listed.error;
 }

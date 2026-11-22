@@ -5,7 +5,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { signIn, pickComboboxOption } from './helpers';
-import { cleanSiteIssue } from './siteIssueFixture';
+import { addIssueType, cleanSiteIssue } from './siteIssueFixture';
 import { ENGINEER_ID, serviceClient } from './support/jobJourney';
 import { seedWorkOrder } from './support/crewJourney';
 
@@ -25,11 +25,12 @@ test.afterEach(async () => {
 });
 
 test('JOB-F17 an open issue made into a task links back and lands in the owner\'s My Tasks', async ({ page }) => {
+  await addIssueType(`${run} issue`);
   await signIn(page, 'pm@acme.test');
   await page.goto(`/incidents?project=${wo.projectId}`);
   await page.getByRole('button', { name: /file incident/i }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel(/^type/i).fill(`${run} issue`);
+  await dialog.getByLabel(/^type/i).selectOption({ label: `${run} issue` });
   await dialog.getByLabel(/what must be done/i).fill(`${run} replace the guard rail`);
   await pickComboboxOption(dialog, page, /person in charge/i, /Tomas/);
   await dialog.getByRole('button', { name: /^file incident$/i }).click();

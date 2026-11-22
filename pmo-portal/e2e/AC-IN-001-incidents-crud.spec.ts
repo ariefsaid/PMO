@@ -1,6 +1,7 @@
 // @e2e-isolation: self-isolated — unique incident type (Date.now()), Engineer files, PM investigates/closes own data; feature-flagged skip.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
+import { addIssueType } from './siteIssueFixture';
 
 /**
  * AC-IN-001  Incident register CRUD — real user journey (binding BDD authoring principle).
@@ -60,6 +61,7 @@ test.skip(
   async ({ page }) => {
     const runId = Date.now();
     const inType = `E2E-Incident-${runId}`;
+    await addIssueType(inType);
 
     await login(page, 'engineer@acme.test');
 
@@ -78,7 +80,7 @@ test.skip(
     await expect(dialog).toBeVisible({ timeout: 8_000 });
 
     await dialog.getByLabel(/date/i).fill('2026-06-08');
-    await dialog.getByLabel(/^type/i).fill(inType);
+    await dialog.getByLabel(/^type/i).selectOption({ label: inType });
     // Severity SelectField renders a native <select>
     await dialog.locator('select').first().selectOption('High');
     await dialog.getByLabel(/location/i).fill('Regional Site B');
@@ -105,6 +107,7 @@ test.skip(
   async ({ page }) => {
     const runId = Date.now();
     const inType = `E2E-Workflow-${runId}`;
+    await addIssueType(inType);
 
     // The PM both files and then advances the incident, so the journey is self-seeding.
     await login(page, 'pm@acme.test');
@@ -115,7 +118,7 @@ test.skip(
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 8_000 });
     await dialog.getByLabel(/date/i).fill('2026-06-08');
-    await dialog.getByLabel(/^type/i).fill(inType);
+    await dialog.getByLabel(/^type/i).selectOption({ label: inType });
     await dialog.locator('select').first().selectOption('Medium');
     await dialog.getByRole('button', { name: /^file incident$/i }).click();
     await expect(dialog).not.toBeVisible({ timeout: 15_000 });

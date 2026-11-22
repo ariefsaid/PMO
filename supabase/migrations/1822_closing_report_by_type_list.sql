@@ -2,7 +2,7 @@
 -- issue-type list. Restates get_issue_closing_time_report. Source body: the LATEST migration defining it, 1424, plus the one
 -- line 1480 injects at database head (`perform public.assert_not_light();` after `begin`); the orchestrator verifies against
 -- pg_get_functiondef. Result columns, parameters, grants and every existing behaviour are unchanged; only the label an issue
--- is grouped under changes: the type's current list label (so a rename never splits a group), falling back to the stored text.
+-- is grouped under changes (an issue with no list entry, i.e. old free text that matched nothing, groups under its own text marked "(unlisted)"): the type's current list label (so a rename never splits a group), falling back to the stored text.
 -- drops: the two grouping expressions (type text -> list label) and the department match (exact text -> case-insensitive label); everything else is carried.
 -- Proven by supabase/tests/1822_closing_report_types.test.sql. Reverse: rollback/1822_closing_report_by_type_list_down.sql (restores 1424's body).
 
@@ -95,7 +95,7 @@ begin
     return query
     with base_issues as (
       select
-        coalesce(nullif(btrim(t.label), ''), nullif(btrim(i.type), ''), 'Unassigned') as dept_name,
+        coalesce(nullif(btrim(t.label), ''), nullif(btrim(i.type), '') || ' (unlisted)', 'Unassigned') as dept_name,
         i.status,
         i.due_at,
         case

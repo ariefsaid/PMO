@@ -11,16 +11,14 @@ import { useIncidentTypes, useIncidentTypeMutations } from '@/src/hooks/useIncid
  * carries to the issues of that type; archiving hides a type from new issues and keeps it on old ones. UX gate only:
  * the Admin-only row rules are the authority (ADR-0016).
  */
-const OrgIssueTypes: React.FC = () => {
+const IssueTypesCard: React.FC = () => {
   const { t } = useTranslation('administration');
   const { toast } = useToast();
-  const may = usePermission();
   const query = useIncidentTypes();
   const m = useIncidentTypeMutations();
   const [newLabel, setNewLabel] = useState('');
   const [editing, setEditing] = useState<{ id: string; label: string } | null>(null);
   const [error, setError] = useState<string>();
-  if (!may('manage', 'incidentTypes')) return null;
 
   const run = async (work: () => Promise<unknown>, after?: () => void) => {
     setError(undefined);
@@ -87,5 +85,10 @@ const OrgIssueTypes: React.FC = () => {
       </div>
     </section>
   );
+};
+
+const OrgIssueTypes: React.FC = () => {
+  const may = usePermission();
+  return may('manage', 'incidentTypes') ? <IssueTypesCard /> : null;
 };
 export default OrgIssueTypes;
