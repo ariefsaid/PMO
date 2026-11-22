@@ -19,7 +19,7 @@ const shots = async (page: import('@playwright/test').Page, locator: import('@pl
   }
 };
 
-test('AC-DPR-013 the project tab shows revenue next to cost and margin per discipline', async ({ page, browser }) => {
+test('AC-DPR-013 the project tab shows revenue next to cost and margin per discipline', async ({ page }) => {
   const serviceKey = requireServiceRoleKey();
   if (!serviceKey) throw new Error('AC-DPR-013 requires the local fixture service client');
   const admin: SupabaseClient = createClient(requireMatchingLocalSupabaseUrls(undefined, undefined), serviceKey, { auth: { persistSession: false } });

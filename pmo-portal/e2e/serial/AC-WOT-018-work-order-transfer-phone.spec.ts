@@ -10,7 +10,8 @@ import { makeItem, makeWorkItem, postReceive, runSuffix, userClient, SEED_PROJEC
 test.setTimeout(240_000);
 
 let admin: SupabaseClient | undefined;
-test.afterEach(async () => { if (admin) await admin.rpc('set_stock_wo_transfers', { p_on: true }); // on for every organisation (#2746) });
+// Work-order transfers are on for every organisation (#2746): put them back on after the run.
+test.afterEach(async () => { if (admin) await admin.rpc('set_stock_wo_transfers', { p_on: true }); });
 
 test('AC-WOT-018 a keeper moves 4 leftover from one work order to another on a phone and both balances follow', async ({ page }) => {
   const sfx = runSuffix();
