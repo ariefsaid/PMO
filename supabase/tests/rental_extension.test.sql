@@ -16,6 +16,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('26972000-0000-0000-0000-0000000000a2', '26972000-0000-0000-0000-00000000000a', 'PTE PM',    'pte-pm@example.com',    'Project Manager', 'active'),
   ('26972000-0000-0000-0000-0000000000b1', '26972000-0000-0000-0000-00000000000b', 'PTE XAdmin','pte-xadmin@example.com','Admin', 'active');
 insert into org_purchase_type_settings (org_id, enabled) values ('26972000-0000-0000-0000-00000000000a', true) on conflict (org_id) do update set enabled = true;
+-- the organisation trigger already seeded starter purchase types; this file brings its own
+delete from purchase_types where org_id = '26972000-0000-0000-0000-00000000000a';
 insert into purchase_types (id, org_id, name, is_rental, position) values
   ('26972000-0000-0000-0000-0000000000f1', '26972000-0000-0000-0000-00000000000a', 'Hire',  true,  1),
   ('26972000-0000-0000-0000-0000000000f2', '26972000-0000-0000-0000-00000000000a', 'Buy',   false, 2);

@@ -24,6 +24,8 @@
 --      module_billing_extras:    work_order_revenue_plan, billing_plan_month_targets, done_not_claimed_notices, cost_disciplines
 --    A fresh local database runs this with no rows, so seed.sql turns the modules on for its organisation.
 -- The backfill writes no audit lines (it is a release change, not an Admin's); the audit trigger gains the five module columns.
+-- 5. The new rows would block deleting an organisation, so the foreign keys from the settings and starter-row tables to organizations
+--    become ON DELETE CASCADE (the rollback leaves them cascading).
 -- Rollback: rollback/1670_features_on_by_default_down.sql restores the old defaults and the old setter bodies; it does not restore
 -- per-organisation values.
 
@@ -188,6 +190,26 @@ alter table public.org_payment_channel_settings alter column enabled set default
 alter table public.issue_closing_report_settings alter column enabled set default true;
 alter table public.purchase_order_settings alter column print_enabled set default true;
 alter table public.material_request_settings alter column delivery_note_enabled set default true;
+
+-- Every organisation now owns rows in these tables from its first moment, so deleting an organisation must take them along:
+-- their foreign keys to organizations become ON DELETE CASCADE (those that already cascade are left alone).
+do $$
+declare r record;
+begin
+  for r in
+    select c.conrelid::regclass as tbl, c.conname, a.attname
+      from pg_constraint c join pg_attribute a on a.attrelid = c.conrelid and a.attnum = c.conkey[1]
+     where c.contype = 'f' and c.confrelid = 'public.organizations'::regclass and array_length(c.conkey, 1) = 1 and c.confdeltype <> 'c'
+       and c.conrelid in ('public.idle_cost_settings'::regclass, 'public.org_revenue_plan_settings'::regclass,
+                          'public.org_purchase_type_settings'::regclass, 'public.org_payment_channel_settings'::regclass,
+                          'public.issue_closing_report_settings'::regclass, 'public.purchase_order_settings'::regclass,
+                          'public.material_request_settings'::regclass, 'public.purchase_line_categories'::regclass,
+                          'public.purchase_types'::regclass, 'public.org_payment_channels'::regclass)
+  loop
+    execute format('alter table %s drop constraint %I, add constraint %I foreign key (%I) references public.organizations(id) on delete cascade',
+                   r.tbl, r.conname, r.conname, r.attname);
+  end loop;
+end $$;
 
 -- One function gives an organisation its seven settings rows (on) and its starter rows. Existing organisations below; new ones by trigger.
 create function public.apply_org_switch_defaults(p_org uuid) returns void
