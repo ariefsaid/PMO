@@ -88,6 +88,12 @@ describe('WorkOrderAcceptances C21 primary actions', () => {
     expect(onPrepare).toHaveBeenCalledOnce();
   });
 
+  it('fix-billing item 1: a draft names who it waits on (never an unnamed other party)', () => {
+    renderAcceptances();
+    expect(screen.getByTestId('bast-waiting-acceptance-1')).toHaveTextContent('Waiting for Finance or an Admin to confirm');
+    expect(screen.queryByText(/someone else|other party/i)).not.toBeInTheDocument();
+  });
+
   it('keeps Prepare BAST as the named primary when no draft needs confirmation', () => {
     renderAcceptances([]);
 

@@ -233,6 +233,10 @@ select is((select count(*)::int from jsonb_array_elements(link_erp_purchase_docu
 select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e10'), 150::numeric,
   'a zero-value native purchase takes the combined linked order value');
 reset role;
+-- 1580: a signed-in order names a supplier, so this purchase is given one before its order is written.
+insert into companies (id, org_id, name, type)
+  values ('03720000-0000-0000-0000-0000000000c9', '03720000-0000-0000-0000-00000000000a', 'Fixture supplier', 'Vendor') on conflict (id) do nothing;
+update procurements set vendor_id = '03720000-0000-0000-0000-0000000000c9' where id = '03720000-0000-0000-0000-000000000e10' and vendor_id is null;
 insert into purchase_orders (procurement_id, org_id, status, amount, currency)
 values ('03720000-0000-0000-0000-000000000e10','03720000-0000-0000-0000-00000000000a','Issued',20,'IDR');
 select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e10'), 170::numeric,

@@ -6,6 +6,11 @@ insert into profiles(id,org_id,full_name,email,role) values
  ('d0500000-0000-0000-0000-000000000011','d0500000-0000-0000-0000-000000000001','Admin','values-admin@example.invalid','Admin'),
  ('d0500000-0000-0000-0000-000000000012','d0500000-0000-0000-0000-000000000001','Engineer','values-engineer@example.invalid','Engineer');
 insert into procurements(id,org_id,title,status,requested_by_id) values ('d0500000-0000-0000-0000-000000000021','d0500000-0000-0000-0000-000000000001','Case','Ordered','d0500000-0000-0000-0000-000000000011');
+-- 1580: an order needs a supplier, so the fixture purchases are given one before the first signed-in write.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid where p.vendor_id is null;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"d0500000-0000-0000-0000-000000000011","role":"authenticated"}';
 select lives_ok(format('select public.create_purchase_request(%L,null,%L,null,null)', 'd0500000-0000-0000-0000-000000000021', s), 'request ' || s) from unnest(array['Draft','Submitted','Approved','Closed']) s;

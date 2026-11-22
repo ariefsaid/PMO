@@ -12,6 +12,7 @@ export function usePhoneCheckIn() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['attendance-day'] });
       void qc.invalidateQueries({ queryKey: [CHECK_IN_REQUESTS_KEY] });
+      void qc.invalidateQueries({ queryKey: ['my-home'] });
     },
   });
 }

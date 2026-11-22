@@ -652,6 +652,10 @@
         "helper": "Peran bawaan berawal dari satu tingkat akses dan menentukan apa yang dilihat dan dilakukan orang ini untuk pekerjaannya.",
         "baseLevel": "Tingkat akses: {{level}} (ditentukan oleh peran bawaan)"
       },
+      "fieldLogin": {
+        "noPerson": "Akun ini belum ada di daftar tenaga kerja, jadi tidak bisa absen masuk. Tambahkan orangnya ke daftar tenaga kerja, lalu masukkan ke regu.",
+        "noCrew": "Orang ini belum masuk regu mana pun, jadi kartu absen masuk kosong. Masukkan ke regu (untuk Mandor: jadikan kepala regu)."
+      },
       "roleConfirm": {
         "clearTitle": "Hapus peran bawaan {{name}}?"
       },

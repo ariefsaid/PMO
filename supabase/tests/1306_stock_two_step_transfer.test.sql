@@ -4,7 +4,7 @@
 -- 031 two-step may_follow · 032 mrq_prior_quantity.
 -- Mutation checks (break the marked line in the migration, expect red, restore): mut:transit_carry (004, 014) · mut:one_step_block (003) · mut:count_cap (009) ·
 -- mut:accept_sum (008) · mut:quality_fail (010) · mut:self_receive (013) · mut:proof_check (018) · mut:writeoff_admin (011) · mut:transit_system_only (005) ·
--- mut:timing_block (030) · mut:late_actor (031) · mut:receiver_actor (013: remove the receiver check and the 'no part in the transfer' case goes red).
+-- mut:timing_block (030) · mut:late_actor (031) · mut:guest_self_receive (013: the guest-signer case) · mut:sender_not_receiver (013) · mut:receiver_actor (013: remove the receiver check and the 'no part in the transfer' case goes red).
 begin;
 create extension if not exists pgtap;
 select * from no_plan();
@@ -121,6 +121,13 @@ select throws_ok($$ select tst_recv(tst_tr('t1'), 10, 10) $$, 'P0001', 'STK_NOT_
 reset role;
 select tst_as('26920000-0000-0000-0000-0000000000a2');
 select throws_ok($$ select tst_recv(tst_tr('t1'), 10, 10) $$, 'P0001', 'STK_SELF_RECEIVE: the person who sent a transfer cannot be the one who receives it', 'AC-TST-013 the sender cannot receive (they also keep the destination here)');
+reset role;
+
+-- a guest signer does not change who is counting: the logged-in sender is refused whoever co-signs (mut:guest_self_receive)
+select tst_as('26920000-0000-0000-0000-0000000000a2');
+select throws_ok($$ select tst_recv(tst_tr('t1'), 10, 10, '{}', '{"signer_kind":"guest","signer_name":"Gate Guard","proof_type":"in_app"}'::jsonb) $$, 'P0001', 'STK_SELF_RECEIVE: the person who sent a transfer cannot be the one who receives it', 'AC-TST-013 the sender cannot record the count with a guest signer either');
+-- a transfer cannot name its own sender as the receiver (mut:sender_not_receiver)
+select throws_ok($$ select tst_send('26920000-0000-0000-0000-000000002001', '26920000-0000-0000-0000-000000002002', '26920000-0000-0000-0000-000000001001', 1, jsonb_build_object('to_user_id', '26920000-0000-0000-0000-0000000000a2')) $$, 'P0001', 'STK_SELF_RECEIVE: the person who sends a transfer cannot be named as its receiver', 'AC-TST-013 the sender cannot be named as the receiver');
 reset role;
 
 -- ── AC-TST-006 full receive closes the transfer ─────────────────────────────────────────────────
