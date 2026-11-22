@@ -16,7 +16,6 @@ export type InspectionStatus = 'requested' | 'purchase_raised' | 'invited' | 'ex
 export type InspectionResult = 'pending' | 'pass' | 'fail' | 'conditional';
 export type InspectionGate = 'readiness' | 'billing';
 
-export const INSPECTION_GATES: readonly InspectionGate[] = ['readiness', 'billing'];
 export const INSPECTION_FILE_MAX_COUNT = 10;
 export const INSPECTION_FILE_MAX_BYTES = 15 * 1024 * 1024;
 export const INSPECTION_FILE_ALLOWED_MIME = [

@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { sumDecimal } from '@/src/lib/exactDecimal';
 
 /**
  * Idle hours as cost (#2673, migrations 1255-1256). Data access only. The switch is written by Admin and Finance
@@ -42,12 +43,9 @@ export async function listProjectIdleCost(projectId: string): Promise<IdleCostRo
   });
 }
 
-/** Sum of the priced rows of one work order, exact to the cent (integer cents, no float drift). */
+/** Sum of the priced rows of one work order, exact to the cent: the amount strings are summed as exact decimals, no float drift. */
 export function totalIdleAmount(rows: readonly IdleCostRow[]): string | null {
   const priced = rows.filter((r) => r.amount !== null);
   if (priced.length === 0) return null;
-  const cents = priced.reduce((s, r) => s + Math.round(Number(r.amount) * 100), 0);
-  const sign = cents < 0 ? '-' : '';
-  const abs = Math.abs(cents);
-  return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
+  return sumDecimal(priced.map((r) => r.amount), 2);
 }

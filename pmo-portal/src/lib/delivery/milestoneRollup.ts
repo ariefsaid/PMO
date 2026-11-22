@@ -1,10 +1,9 @@
 /**
  * Milestone roll-up with task groups (#2679, spec docs/specs/task-group-milestone-rollup.spec.md §3).
- * The database is the authority (get_project_milestones / get_projects_delivery, migration 1396); this pure
- * function is the readable statement of the rule and is parity-tested against the same fixtures as the pgTAP proof.
+ * The database is the authority (get_project_milestones / get_projects_delivery, migration 1396): a phase's own
+ * percentage comes from that read, and the screen computes only a group's progress here (#2753).
  *
- * A task counts toward milestone M when it is top-level, not archived, and either its own milestone is M or its
- * group is active and linked to M. A task counts once per milestone. Calculated % is Done / counted, null when none.
+ * groupProgress counts a group's top-level, non-archived tasks. Calculated % is Done / counted, null when none.
  */
 
 export interface RollupTask {
@@ -38,16 +37,6 @@ function progressOf(tasks: RollupTask[]): Progress {
     doneCount,
     calculatedPct: tasks.length === 0 ? null : (doneCount * 100) / tasks.length,
   };
-}
-
-/** Progress of one milestone: its direct tasks plus the tasks of its active linked groups, each counted once. */
-export function milestoneProgress(milestoneId: string, tasks: RollupTask[], groups: RollupGroup[]): Progress {
-  const linked = new Set(
-    groups.filter((g) => g.milestone_id === milestoneId && g.archived_at === null).map((g) => g.id),
-  );
-  return progressOf(
-    tasks.filter((t) => isLive(t) && (t.milestone_id === milestoneId || (t.task_group_id !== null && linked.has(t.task_group_id)))),
-  );
 }
 
 /** Progress of one group itself: its top-level, non-archived tasks. */

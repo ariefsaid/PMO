@@ -1,35 +1,14 @@
 /**
  * workOrderSections.ts (#2576) — the pure arithmetic and shape behind a work order's sections. No I/O.
  *
- * Quantities and money are exact decimals held as integer units (BigInt) at a fixed scale, never floats; a figure
- * is rounded only for display (NFR-WOS-003). The roll-up invariant (spec): for every measure,
- * sum(sections) + the unsectioned remainder = the work-order total, exactly. The server read
- * (`work_order_section_rollup`, 1098) is the source of every figure the screen shows; this module only
- * restates it in the shapes the screen needs and is the unit proof of the invariant.
+ * Quantities and money are exact decimals held as integer units (BigInt) at a fixed scale, never floats; parsing and
+ * formatting come from the one decimal module (`exactDecimal`, #2748) and a figure is rounded only for display
+ * (NFR-WOS-003). The roll-up invariant (spec): for every measure, sum(sections) + the unsectioned remainder = the
+ * work-order total, exactly. The server read (`work_order_section_rollup`, 1098) is the source of every figure the
+ * screen shows; this module only restates it in the shapes the screen needs and is the unit proof of the invariant.
  */
 
-const DECIMAL = /^(-?)(\d+)(?:\.(\d+))?$/;
-
-/** Parse a decimal string to integer units at `scale` decimals; null when malformed or finer than the scale. */
-export function toUnits(value: string, scale: number): bigint | null {
-  const match = DECIMAL.exec(value);
-  if (!match) return null;
-  const fraction = match[3] ?? '';
-  if (fraction.length > scale) {
-    if (/[1-9]/.test(fraction.slice(scale))) return null;
-  }
-  const units = BigInt(match[2]) * 10n ** BigInt(scale) + BigInt(fraction.slice(0, scale).padEnd(scale, '0') || '0');
-  return match[1] ? -units : units;
-}
-
-/** Format integer units at `scale` decimals. */
-export function fromUnits(units: bigint, scale: number): string {
-  const negative = units < 0n;
-  const abs = negative ? -units : units;
-  if (scale === 0) return `${negative ? '-' : ''}${abs}`;
-  const factor = 10n ** BigInt(scale);
-  return `${negative ? '-' : ''}${abs / factor}.${String(abs % factor).padStart(scale, '0')}`;
-}
+import { formatDecimal, parseDecimal } from './exactDecimal';
 
 export interface SectionFigure {
   /** null = the unsectioned remainder ("Not in a section"). */
@@ -60,15 +39,15 @@ export function rollupBySection(rows: readonly SectionFigure[], scale = 2): Meas
   const sections: MeasureRollup['sections'] = [];
   for (const row of rows) {
     if (row.value !== null) {
-      const units = toUnits(row.value, scale);
+      const units = parseDecimal(row.value, scale);
       if (units === null) throw new Error(`rollupBySection: unreadable figure "${row.value}"`);
       total += units;
       any = true;
       if (row.sectionId === null) remainder += units;
     }
-    if (row.sectionId !== null) sections.push({ sectionId: row.sectionId, value: row.value === null ? null : fromUnits(toUnits(row.value, scale) as bigint, scale) });
+    if (row.sectionId !== null) sections.push({ sectionId: row.sectionId, value: row.value === null ? null : formatDecimal(parseDecimal(row.value, scale) as bigint, scale) });
   }
-  return { sections, remainder: fromUnits(remainder, scale), total: fromUnits(total, scale), empty: !any };
+  return { sections, remainder: formatDecimal(remainder, scale), total: formatDecimal(total, scale), empty: !any };
 }
 
 export interface UnitQuantity { unit: string; quantity: string }
@@ -80,7 +59,7 @@ export interface UnitQuantity { unit: string; quantity: string }
 export function quantitiesByUnit(rows: readonly { sectionId: string | null; unit: string; quantity: string }[], scale = 3): Map<string | null, UnitQuantity[]> {
   const sums = new Map<string | null, Map<string, bigint>>();
   for (const r of rows) {
-    const units = toUnits(r.quantity, scale);
+    const units = parseDecimal(r.quantity, scale);
     if (units === null) throw new Error(`quantitiesByUnit: unreadable quantity "${r.quantity}"`);
     const perUnit = sums.get(r.sectionId) ?? new Map<string, bigint>();
     perUnit.set(r.unit, (perUnit.get(r.unit) ?? 0n) + units);
@@ -88,7 +67,7 @@ export function quantitiesByUnit(rows: readonly { sectionId: string | null; unit
   }
   const out = new Map<string | null, UnitQuantity[]>();
   for (const [key, perUnit] of sums) {
-    out.set(key, [...perUnit].sort(([a], [b]) => a.localeCompare(b)).map(([unit, units]) => ({ unit, quantity: fromUnits(units, scale) })));
+    out.set(key, [...perUnit].sort(([a], [b]) => a.localeCompare(b)).map(([unit, units]) => ({ unit, quantity: formatDecimal(units, scale) })));
   }
   return out;
 }
@@ -135,18 +114,13 @@ export interface AllocationHeadroom {
 
 /** AC-WOS-008: allocations of a planned quantity (3 decimals) against the work order's plan. */
 export function allocationHeadroom(workOrderPlan: string, allocations: readonly string[], scale = 3): AllocationHeadroom {
-  const plan = toUnits(workOrderPlan, scale);
+  const plan = parseDecimal(workOrderPlan, scale);
   if (plan === null) throw new Error(`allocationHeadroom: unreadable plan "${workOrderPlan}"`);
   let sum = 0n;
   for (const a of allocations) {
-    const units = toUnits(a, scale);
+    const units = parseDecimal(a, scale);
     if (units === null) throw new Error(`allocationHeadroom: unreadable allocation "${a}"`);
     sum += units;
   }
-  return { allocated: fromUnits(sum, scale), remaining: fromUnits(plan - sum, scale), overAllocated: sum > plan };
-}
-
-/** Whether a proposed allocation fits: it must not take the sum of allocations above the work order's plan. */
-export function allocationFits(workOrderPlan: string, otherAllocations: readonly string[], proposed: string, scale = 3): boolean {
-  return !allocationHeadroom(workOrderPlan, [...otherAllocations, proposed], scale).overAllocated;
+  return { allocated: formatDecimal(sum, scale), remaining: formatDecimal(plan - sum, scale), overAllocated: sum > plan };
 }

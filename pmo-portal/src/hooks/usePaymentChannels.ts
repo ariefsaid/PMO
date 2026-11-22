@@ -17,11 +17,6 @@ function useChannelContext() {
   return { client: client ?? FALLBACK_CLIENT, orgId, ready: client !== undefined && Boolean(orgId) };
 }
 
-/** True when a data provider is mounted. */
-export function useHasQueryClient(): boolean {
-  return useContext(QueryClientContext) !== undefined;
-}
-
 /** Whether the organisation records a payment channel (#2698). Off until an Admin turns it on; a failed read counts as off. */
 export function usePaymentChannelsOn() {
   const { client, orgId, ready } = useChannelContext();
