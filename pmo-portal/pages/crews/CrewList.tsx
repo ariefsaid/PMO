@@ -84,7 +84,7 @@ const NewCrewModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         <legend className="mb-2 text-sm font-medium text-foreground">{t('crews:standardRoles', 'Standard roles')}</legend>
         {roles.map((r, i) => (
           <div key={i} className="mb-2 grid grid-cols-[1fr_96px] gap-2">
-            <TextField label={t('crews:roleName', 'Role')} hideLabel={i > 0} value={r.name}
+            <TextField label={t('crews:roleName', 'Crew role')} hideLabel={i > 0} value={r.name}
               onChange={(v) => setRoles((rs) => rs.map((x, j) => (j === i ? { ...x, name: v } : x)))} />
             <TextField label={t('crews:headcount', 'Headcount')} hideLabel={i > 0} value={r.headcount} inputMode="numeric"
               onChange={(v) => setRoles((rs) => rs.map((x, j) => (j === i ? { ...x, headcount: v } : x)))} />
@@ -107,19 +107,30 @@ const PlacePersonModal: React.FC<{ crew: CrewRow; onClose: () => void }> = ({ cr
   const canCreatePerson = realRole === effectiveRole && (realRole === 'Admin' || realRole === 'Project Manager');
   const { place, placeNewWorker } = useCrewMutations();
   const workers = useCrewWorkers();
-  const users = useUsers();
   const roles = useCrewRoles(crew.id);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
+  const [query, setQuery] = useState('');
   const form = useEntityForm({
-    initialValues: { worker: '', newName: '', profile: '', role: '', from: toIso(new Date()), to: '' },
+    initialValues: { worker: '', newName: '', role: '', from: toIso(new Date()), to: '' },
     idPrefix: 'crew-place',
     requiredFields: ['from'],
     validate: (v) => (!v.worker && (!canCreatePerson || !v.newName.trim()) ? { worker: t('crews:personRequired', 'Choose a person or type a new name') } : {}),
   });
-  const workerOptions: ComboboxOption[] = useMemo(() => (workers.data ?? []).map((w) => ({
-    value: w.id, label: w.display_name,
-  })), [workers.data]);
-  const loadWorkers = useCallback(async () => workerOptions, [workerOptions]);
+  // ONE field: pick someone in the register, or type a name and add them as a new person (Admin and Project Manager only).
+  const NEW = 'new:';
+  const typed = query.trim();
+  const workerOptions: ComboboxOption[] = useMemo(() => {
+    const existing = (workers.data ?? []).map((w) => ({ value: w.id, label: w.display_name }));
+    const shown = typed ? existing.filter((o) => o.label.toLowerCase().includes(typed.toLowerCase())) : existing;
+    const exact = existing.some((o) => o.label.toLowerCase() === typed.toLowerCase());
+    return canCreatePerson && typed && !exact
+      ? [...shown, { value: `${NEW}${typed}`, label: t('crews:addNewPerson', 'Add "{{name}}" as a new person', { name: typed }) }]
+      : shown;
+  }, [workers.data, typed, canCreatePerson, t]);
+  const chosen = form.values.worker || (form.values.newName ? `${NEW}${form.values.newName}` : '');
+  const selectedOption: ComboboxOption | null = form.values.worker
+    ? (workers.data ?? []).map((w) => ({ value: w.id, label: w.display_name })).find((o) => o.value === form.values.worker) ?? null
+    : form.values.newName ? { value: chosen, label: t('crews:newPersonChip', '{{name}} (new person)', { name: form.values.newName }) } : null;
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
@@ -130,7 +141,7 @@ const PlacePersonModal: React.FC<{ crew: CrewRow; onClose: () => void }> = ({ cr
           await place.mutateAsync({ ...placement, worker_id: v.worker });
         } else {
           await placeNewWorker.mutateAsync({
-            person: { kind: crew.kind, display_name: v.newName.trim(), id_reference: null, profile_id: crew.kind === 'own' ? v.profile || null : null,
+            person: { kind: crew.kind, display_name: v.newName.trim(), id_reference: null, profile_id: null,
               vendor_company_id: crew.kind === 'vendor' ? crew.vendor_company_id : null },
             placement,
           });
@@ -147,21 +158,52 @@ const PlacePersonModal: React.FC<{ crew: CrewRow; onClose: () => void }> = ({ cr
       submitLabel={t('crews:place', 'Add person')} onSubmit={submit} onClose={onClose} loading={form.isSubmitting}
       dirty={form.isDirty} submitDisabled={!form.isComplete} submitError={submitError}>
       <FormGrid>
-        <Combobox id="crew-place-worker" label={t('crews:person', 'Person')} value={form.values.worker || null}
-          selectedOption={workerOptions.find((o) => o.value === form.values.worker) ?? null} loadOptions={loadWorkers}
-          onChange={(v) => form.setValue('worker', v)} clearable onClear={() => form.setValue('worker', '')} error={form.errors.worker}
+        <Combobox id="crew-place-worker" label={t('crews:person', 'Person')} value={chosen || null} selectedOption={selectedOption}
+          serverSearch={{ options: workerOptions, status: workers.isPending ? 'loading' : 'ready', onQueryChange: setQuery, onRetry: () => undefined }}
+          onChange={(v) => {
+            if (v.startsWith(NEW)) { form.setValue('worker', ''); form.setValue('newName', v.slice(NEW.length)); }
+            else { form.setValue('worker', v); form.setValue('newName', ''); }
+          }}
+          clearable onClear={() => { form.setValue('worker', ''); form.setValue('newName', ''); }} error={form.errors.worker}
+          placeholder={canCreatePerson ? t('crews:personPickOrType', 'Choose a person, or type a new name') : t('crews:personPick', 'Choose a person')}
+          searchPlaceholder={t('crews:personSearch', 'Search or type a name')}
           noun={t('crews:personNoun', 'person')} nounPlural={t('crews:personNounPlural', 'people')} />
-        {!form.values.worker && canCreatePerson && <TextField label={t('crews:newPerson', 'Or a new person')} {...form.fieldProps('newName')} />}
-        {!form.values.worker && canCreatePerson && crew.kind === 'own' && (
-          <SelectField label={t('crews:linkedUser', 'Linked user')} value={form.values.profile}
-            onChange={(v) => form.setValue('profile', v)}
-            options={[{ value: '', label: t('crews:noLinkedUser', 'No linked user') },
-              ...(users.data ?? []).filter((u) => u.status === 'active').map((u) => ({ value: u.id, label: u.full_name ?? u.email ?? u.id }))]} />
-        )}
-        <SelectField label={t('crews:roleName', 'Role')} value={form.values.role} onChange={(v) => form.setValue('role', v)}
-          options={[{ value: '', label: t('crews:noRole', 'No role') }, ...(roles.data ?? []).map((r) => ({ value: r.id, label: r.name }))]} />
+        <SelectField label={t('crews:roleName', 'Crew role')} value={form.values.role} onChange={(v) => form.setValue('role', v)}
+          options={[{ value: '', label: t('crews:noRole', 'Not set yet') }, ...(roles.data ?? []).map((r) => ({ value: r.id, label: r.name }))]} />
         <DateField label={t('crews:from', 'From')} required value={form.values.from} onChange={(v) => form.setValue('from', v)} />
         <DateField label={t('crews:to', 'To')} value={form.values.to} onChange={(v) => form.setValue('to', v)} min={form.values.from} />
+      </FormGrid>
+    </EntityFormModal>
+  );
+};
+
+/** Set or change the crew role of someone already in the crew. Their dates stay; the roster figures count them from now on. */
+const SetCrewRoleModal: React.FC<{ crew: CrewRow; member: CrewMemberRow; personName: string; onClose: () => void }> = ({ crew, member, personName, onClose }) => {
+  const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
+  const { toast } = useToast();
+  const roles = useCrewRoles(crew.id);
+  const { setPlacementRole } = useCrewMutations();
+  const [role, setRole] = useState(member.standard_role_id ?? '');
+  const [submitError, setSubmitError] = useState<SubmitError | null>(null);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitError(null);
+    try {
+      await setPlacementRole.mutateAsync({ id: member.id, version: member.version, valid_from: member.valid_from, valid_to: member.valid_to, standard_role_id: role || null });
+      toast(t('crews:roleSet', 'Crew role saved'), undefined, 'success');
+      onClose();
+    } catch (err) {
+      setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: writeError(err) });
+    }
+  };
+  return (
+    <EntityFormModal open title={t('crews:setRoleTitle', 'Crew role for {{name}}', { name: personName })} submitLabel={t('crews:saveRole', 'Save crew role')}
+      onSubmit={(e) => void submit(e)} onClose={onClose} loading={setPlacementRole.isPending} dirty={role !== (member.standard_role_id ?? '')}
+      submitDisabled={!role} submitError={submitError}>
+      <FormGrid>
+        <SelectField label={t('crews:roleName', 'Crew role')} required value={role} onChange={setRole} placeholder={t('crews:pickRole', 'Choose a crew role')}
+          options={(roles.data ?? []).map((r) => ({ value: r.id, label: r.name }))} />
       </FormGrid>
     </EntityFormModal>
   );
@@ -178,9 +220,10 @@ const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew
   const { endPlacement } = useCrewMutations();
   const [placing, setPlacing] = useState(false);
   const [ending, setEnding] = useState<CrewMemberRow | null>(null);
+  const [settingRole, setSettingRole] = useState<CrewMemberRow | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const nameOf = (id: string) => workers.data?.find((w) => w.id === id)?.display_name ?? '—';
-  const roleOf = (id: string | null) => (id ? roles.data?.find((r) => r.id === id)?.name ?? '—' : '—');
+  const roleOf = (id: string | null) => (id ? roles.data?.find((r) => r.id === id)?.name ?? '—' : null);
   const today = toIso(new Date());
   const end = async () => {
     const m = ending;
@@ -194,7 +237,8 @@ const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew
   };
   const columns: Column<CrewMemberRow>[] = [
     { key: 'person', header: t('crews:person', 'Person'), kind: 'primary', rowHeader: true, cell: (m) => nameOf(m.worker_id) },
-    { key: 'role', header: t('crews:roleName', 'Role'), cell: (m) => roleOf(m.standard_role_id) },
+    { key: 'role', header: t('crews:roleName', 'Crew role'), cell: (m) => roleOf(m.standard_role_id)
+      ?? <span className="text-warning-foreground">{t('crews:roleNotSet', 'Crew role not set')}</span> },
     { key: 'from', header: t('crews:from', 'From'), cell: (m) => formatDay(m.valid_from) },
     { key: 'to', header: t('crews:to', 'To'), cell: (m) => (m.valid_to ? formatDay(m.valid_to) : t('crews:open', 'Open')) },
   ];
@@ -211,7 +255,10 @@ const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew
         ) : (
           <DataTable<CrewMemberRow> rows={members.data ?? []} columns={columns} rowKey={(m) => m.id} tableId="crew-members-table"
             rowMenu={(m) => (canManage && (!m.valid_to || m.valid_to >= today)
-              ? [{ label: t('crews:endPlacement', 'End placement'), onClick: () => setEnding(m) }] : [])}
+              ? [
+                  ...((roles.data ?? []).length > 0 ? [{ label: m.standard_role_id ? t('crews:changeRole', 'Change crew role') : t('crews:setRole', 'Set crew role'), onClick: () => setSettingRole(m) }] : []),
+                  { label: t('crews:endPlacement', 'End placement'), onClick: () => setEnding(m) },
+                ] : [])}
             state={(members.data ?? []).length === 0 ? 'empty' : undefined}
             emptyTitle={t('crews:noMembers', 'No people in this crew yet')}
             emptyAction={canManage ? { label: t('crews:place', 'Add person'), onClick: () => setPlacing(true) } : undefined}
@@ -219,6 +266,7 @@ const CrewMembersCard: React.FC<{ crew: CrewRow; canManage: boolean }> = ({ crew
         )}
       </CardPad>
       {placing && <PlacePersonModal crew={crew} onClose={() => setPlacing(false)} />}
+      {settingRole && <SetCrewRoleModal crew={crew} member={settingRole} personName={nameOf(settingRole.worker_id)} onClose={() => setSettingRole(null)} />}
       <ConfirmDialog open={ending !== null} title={t('crews:endTitle', 'End this placement?')}
         description={t('crews:endBody', '{{name}} leaves the crew after today. Recorded attendance stays.', { name: ending ? nameOf(ending.worker_id) : '' })}
         confirmLabel={t('crews:endPlacement', 'End placement')} onCancel={() => setEnding(null)} onConfirm={() => void end()} />

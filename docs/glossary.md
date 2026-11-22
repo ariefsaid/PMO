@@ -849,7 +849,7 @@ parts. One per machine per day; separate from what the machine did (usage).
 
 **Physical availability** (*ketersediaan*) — the share of a machine's recorded in-service days on which it was ready or
 standby, shown to one decimal. A day with no status is unrecorded and counts in neither the top nor the bottom of the
-fraction; the screen names how many.
+fraction; the screen names how many. Days before the organisation's first day (its creation, or its earliest recorded status or usage) are not counted as unrecorded.
 
 **Utilisation** (*pemanfaatan*) — approved work hours divided by available days times the organisation's working hours per
 day. Standby is available but not utilised; unapproved usage is left out and named.
@@ -1381,6 +1381,7 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
 
 **Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
+
 **Second record** (*catatan kedua*) — a surveyor's or timekeeper's record of one worker's hours for one work order and day, kept beside the crew tick on the site report and never paid or costed on its own. Who may enter one is an organisation setting (a list of built-in roles; managers always may).
 
 **Standing hours** (*jam yang berlaku*) — the one figure the attendance day carries for a worker and day, which is the figure that is paid and costed. It is the site-report (crew tick) figure until a person the organisation names decides the second record stands instead; the figure not chosen stays on file as evidence. Nobody decides hours they recorded, and a day waiting for a decision cannot be sent on for approval (pay-time, `docs/specs/pay-time.spec.md`).
@@ -1388,3 +1389,25 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Head-count line** — for one work order, one crew rostered on it that day, one date and one labour class, the number of people present who are not named in the roster (guards or helpers with no login). Entered by the crew's Foreman or a crew manager, never from a field account; it counts toward cost once a different Admin, Executive or Project Manager approves it, and is final once approved. A person is either named (costed through attendance or a timesheet) or counted here, never both. Cost is the number times the daily equivalent of the class rate in force on the date; its quantity is person-hours (the number times the rate's day length).
 
 **Daily equivalent** — a labour class rate stated per day: a daily rate is itself; an hourly rate times the rate's day length; a monthly rate divided by month length times day length. The conversions labour cost uses for one hour.
+
+**Equipment manager** — the person who runs the machines: today a Project Manager (or Admin). They add and edit machines and their rental terms, set the working hours per day, the availability and use targets and the escalation limit, and read the rental invoice check; Finance keeps the costing and the unproven-days decision (equipment manager's day lane, migration 1600).
+
+**Hours log** — the weekly grid where hours on a machine are logged per project and day (`/equipment?view=hours`); Equipment itself opens on the machines and today's status.
+
+**Sign-in language** (*bahasa halaman masuk*) — the language of the pages seen before a session exists (sign-in, password reset). No organisation is known there, so the page follows the browser language (Bahasa Indonesia or English), shows a visible switch, and remembers the choice on the device. Once the person's profile loads, the normal order applies again: profile, then organisation, then English.
+
+**Work orders list** — the menu entry and page that lists every work order the reader may see, across projects, with its status. Its name everywhere is the terminology dictionary's term for work order, so one thing has one name on every screen. The project's contract card remains the other way in.
+
+## People, crews and their papers (fix/walk-people)
+
+**Access level** — one of the five levels (Engineer, Project Manager, Finance, Executive, Admin) that drives what a login can see and do. Shown in Bahasa Indonesia as "Tingkat akses". Never called "role" on its own.
+
+**Job role** — a built-in role (storekeeper, foreman, HR manager and the rest of the set) that starts from one access level. Shown as "Job role" / "Jabatan". When built-in roles are on, inviting a user asks the job role and the access level follows from it.
+
+**Crew role** — the position a person fills in a crew (welder, foreman of that crew…), counted against the crew's headcount. Shown as "Crew role" / "Posisi kru". A person placed with no crew role is not counted in the roster's figures and is shown as "Crew role not set".
+
+**Mark as left** — an Admin records the last day a person worked. They become former staff and leave every crew roster from that day; the history stays.
+
+**Waiting list** (*daftar yang menunggu*) — everything one login can be asked to decide right now, in one list: purchase approvals, timesheets, expense claims, customer invoices, material-request steps, leave, site cash, daily reports to validate, work orders to issue, deliveries to confirm, transfers to receive, quantity changes, subcontract certificates and equipment plans. The home "waits for you" list, the Approvals badge, the Finance page and the Approvals inbox are all this one list, so they agree; its headline count is its length. Each kind is a registered entry (`src/lib/approvals/waitingKinds.ts`), so a new kind of decision cannot be added without an inbox entry. The database decides what a login may decide; the list only shows it.
+
+**Decision standing** — whether a login can decide anything at all: a decision role, a role named in the approval chain, a pinned step, an in-window stand-in, or a line manager. A login with standing has the Approvals entry in its menu even when nothing waits.

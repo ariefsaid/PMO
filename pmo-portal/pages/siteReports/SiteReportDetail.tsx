@@ -16,13 +16,14 @@ import {
   useDailySiteReport, useDailySiteReportMutations, useDailySiteReportRevenue, useDsrLookups, useWorkOrderValidatedRevenue,
 } from '@/src/hooks/useDailySiteReports';
 import { repositories } from '@/src/lib/repositories';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import { dsrReportRevenue } from '@/src/lib/dsrRevenue';
 import type { DsrReportDetail } from '@/src/lib/db/dailySiteReports';
 import {
   siteReportDraftInput, siteReportFormFromDetail, validateSiteReportForm, workingMinutes, type SiteReportForm,
 } from './siteReportForm';
+import { missingPartsFrom } from './emptyReport';
 import { SiteReportPhotos } from './SiteReportPhotos';
 import { SiteCheckpoints } from './SiteCheckpoints';
 import SiteReportPeopleHours from './SiteReportPeopleHours';
@@ -62,6 +63,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const ctx = { realRole, currentUserId: userId, record: { author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
   const editable = (report.status === 'draft' || report.status === 'returned')
     && (report.author_id === userId || can('create', 'dailySiteReport', ctx));
+  const mayWithdraw = report.status === 'submitted' && report.author_id === userId;
   const mayValidate = report.status === 'submitted' && can('approve', 'dailySiteReport', ctx);
   const mayCorrect = report.status === 'validated' && !report.superseded_at && can('revise', 'dailySiteReport', ctx);
   const seeRevenue = can('view', 'dailySiteReportRevenue', ctx);
@@ -97,9 +99,19 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
 
   const run = async (work: () => Promise<unknown>, success: string) => {
     try { await work(); toast(success, detail.workOrder?.label ?? '', 'success'); return true; } catch (err) {
+      const missing = missingPartsFrom(err);
+      if (missing) {
+        const words = { progress: t('empty.progress', 'progress'), hours: t('empty.hours', 'start and end time'), photo: t('empty.photo', 'a photo') };
+        const list = missing.map((part) => words[part]).join(', ');
+        const headline = t('empty.headline', 'This report is empty');
+        const d = t('empty.detail', { defaultValue: 'Add at least one of: {{list}}.', list });
+        toast(headline, d, 'warning');
+        setDialogError(joinSentences(headline, d));
+        return false;
+      }
       const { headline, detail: d } = classifyMutationError(err);
       toast(headline, d, 'warning');
-      setDialogError(d ? `${headline}. ${d}` : headline);
+      setDialogError(d ? joinSentences(headline, d) : headline);
       return false;
     }
   };
@@ -111,6 +123,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
     return ok;
   };
   const submit = async () => { if (await save()) await run(() => m.submit.mutateAsync(report.id), t('toast.submitted', 'Sent for validation')); };
+  const withdraw = () => run(() => m.withdraw.mutateAsync(report.id), t('toast.withdrawn', 'Report taken back. You can edit it again.'));
   const validate = () => run(() => m.validate.mutateAsync(report.id), t('toast.validated', 'Report validated'));
   const hasPaperForm = detail.photos.some((p) => p.kind === 'paper_form');
 
@@ -119,6 +132,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
       { key: 'save', label: t('actions.save', 'Save draft'), variant: 'outline' as const, onSelect: () => void save(), loading: m.save.isPending },
       { key: 'submit', label: t('actions.submit', 'Submit'), onSelect: () => void submit(), loading: m.submit.isPending },
     ] : []),
+    ...(mayWithdraw ? [{ key: 'withdraw', label: t('actions.withdraw', 'Withdraw'), variant: 'outline' as const, onSelect: () => void withdraw(), loading: m.withdraw.isPending }] : []),
     ...(mayValidate ? [
       { key: 'return', label: t('actions.return', 'Return'), variant: 'outline' as const, onSelect: () => { setDialogError(null); setDialog('return'); } },
       { key: 'validate', label: t('actions.validate', 'Validate'), onSelect: () => void validate(), loading: m.validate.isPending, disabled: !hasPaperForm },
@@ -176,6 +190,13 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
             <p className="text-foreground">{t('progress.unrated', { defaultValue: '{{count}} lines without a rate', count: lineRevenue.unratedCount })}</p>
           )}
           {form.progress.length === 0 && !editable && <p className="text-muted-foreground">{t('progress.none', 'No progress recorded')}</p>}
+          {editable && itemsData !== undefined && items.length === 0 && (
+            <p className="text-foreground" data-testid="dsr-no-items">
+              {project?.pm?.full_name
+                ? t('progress.noItemsAsk', { defaultValue: 'This work order has no items yet. Ask {{name}}.', name: project.pm.full_name })
+                : t('progress.noItems', 'This work order has no items yet. Ask the project manager.')}
+            </p>
+          )}
           {form.progress.length > 0 && <ul className="space-y-3">
             {form.progress.map((line, i) => {
               const saved = detail.progress[i];
@@ -336,7 +357,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
             navigate(`/site-reports/${id}`);
           } catch (err) {
             const { headline, detail: d } = classifyMutationError(err);
-            setDialogError(d ? `${headline}. ${d}` : headline);
+            setDialogError(d ? joinSentences(headline, d) : headline);
           }
         })()}
       />

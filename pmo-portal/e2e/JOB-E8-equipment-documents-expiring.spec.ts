@@ -32,3 +32,18 @@ test('JOB-E8 an equipment manager sees a unit whose permit expires in 7 days, wi
   await expect(row.getByText(`${run} permit`)).toBeVisible();
   await expect(row.getByRole('cell', { name: /^[67]$/ })).toBeVisible();
 });
+
+test('JOB-E8 the equipment manager renews an expiring permit from the list and it leaves the list', async ({ page }) => {
+  await signIn(page, 'pm@acme.test');
+  await page.goto('/equipment/expiring');
+  const row = page.getByRole('row', { name: new RegExp(`${run} crane`) });
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await expect(row.getByRole('link', { name: `Open the record of ${run} crane` })).toBeVisible();
+  await row.getByRole('button', { name: `Renew ${run} permit of ${run} crane` }).click();
+  const form = page.getByRole('dialog');
+  await form.getByLabel(/^Expiry date/).fill(inDays(400));
+  await form.getByRole('button', { name: 'Renew' }).click();
+  await expect(page.getByRole('row', { name: new RegExp(`${run} crane`) })).toHaveCount(0, { timeout: 20_000 });
+  const doc = await db.from('expiry_documents').select('expires_on').eq('asset_id', assetId).single();
+  expect(doc.data?.expires_on).toBe(inDays(400));
+});

@@ -75,8 +75,10 @@ export async function updatePersonFields(id: string, input: { name?: string; job
   assertWriteLanded(data, 'Person not found, or you may not change them.');
 }
 
-export async function archivePerson(id: string): Promise<void> {
-  const { data, error } = await table().update({ archived_at: new Date().toISOString() }).eq('id', id).select('id');
+/** Mark a person as having left on a day (1610 person_mark_left): they become former staff and leave every crew roster from
+ *  that day, history kept. Admin only; the database refuses anyone else. */
+export async function markPersonLeft(id: string, leftOn: string): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).rpc('person_mark_left', { p_person_id: id, p_left_on: leftOn });
   if (error) fail(error);
-  assertWriteLanded(data, 'Person not found, or you may not change them.');
 }

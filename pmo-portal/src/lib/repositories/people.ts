@@ -8,5 +8,5 @@ export const peopleRepository: PeopleRepository = {
   create: (input) => wrap(() => dal.createPerson(input)),
   update: (id, input) => wrap(() => dal.updatePerson(id, input)),
   updateFields: (id, input) => wrap(() => dal.updatePersonFields(id, input)),
-  archive: (id) => wrap(() => dal.archivePerson(id)),
+  markLeft: (id, leftOn) => wrap(() => dal.markPersonLeft(id, leftOn)),
 };

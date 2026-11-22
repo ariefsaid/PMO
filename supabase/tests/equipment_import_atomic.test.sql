@@ -26,7 +26,8 @@ select lives_ok($$select create_rented_equipment_asset('RETRY','Crane','hours','
 select throws_ok($$select create_rented_equipment_asset('CROSS','Crane','hours','25300000-0000-0000-0000-000000000022',100,'day','IDR','2026-01-01',null)$$,'P0002',null,'other org vendor rejected');
 select is((select count(*)::int from equipment_assets where code='CROSS'),0,'cross org failure rolls back');
 select pg_temp.act_as('25300000-0000-0000-0000-000000000012');
-select throws_ok($$select create_rented_equipment_asset('PM','Crane','days','25300000-0000-0000-0000-000000000021',100,'month','IDR','2026-01-01',null)$$,'42501',null,'PM cannot create rental (terms are Admin or Finance)');
+-- 1600 (deliberate rule change): the equipment manager (Project Manager) joins Admin and Finance on rental terms; an Engineer still cannot (next case).
+select lives_ok($$select create_rented_equipment_asset('PM','Crane','days','25300000-0000-0000-0000-000000000021',100,'month','IDR','2026-01-01',null)$$,'PM can create rental (terms are Admin, Finance or the equipment manager)');
 select pg_temp.act_as('25300000-0000-0000-0000-000000000013');
 select throws_ok($$select create_rented_equipment_asset('DENIED','Crane','hours','25300000-0000-0000-0000-000000000021',100,'day','IDR','2026-01-01',null)$$,'42501',null,'Engineer cannot create rental');
 reset role;

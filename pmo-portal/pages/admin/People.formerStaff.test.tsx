@@ -16,7 +16,7 @@ const h = vi.hoisted(() => ({
   role: 'Admin' as string,
   statusCalls: [] as string[],
   rows: [] as unknown[],
-  archive: vi.fn(),
+  markLeft: vi.fn(),
 }));
 
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
@@ -28,7 +28,7 @@ vi.mock('@/src/hooks/usePeople', () => ({
         : h.rows;
     return { data, isPending: false, isError: false, refetch: vi.fn() };
   },
-  usePeopleMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: vi.fn() }, archive: { mutateAsync: h.archive, isPending: false } }),
+  usePeopleMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: vi.fn() }, markLeft: { mutateAsync: h.markLeft, isPending: false } }),
 }));
 vi.mock('@/src/hooks/useOrgProfilesLoader', () => ({ useOrgProfilesLoader: () => () => Promise.resolve([]) }));
 
@@ -47,7 +47,7 @@ describe('People register former-staff filter (#2703)', () => {
     h.role = 'Admin';
     h.statusCalls = [];
     h.rows = [active, former];
-    h.archive.mockReset().mockResolvedValue(undefined);
+    h.markLeft.mockReset().mockResolvedValue(undefined);
   });
 
   it('AC-FSF-003 opens on Active, with the three staff-status choices offered', () => {
@@ -78,13 +78,13 @@ describe('People register former-staff filter (#2703)', () => {
     expect(within(screen.getByRole('row', { name: /Ayu Lestari/ })).getByText('Former staff')).toBeInTheDocument();
   });
 
-  it('AC-FSF-006 a former-staff row opens the person record but offers no edit or archive', async () => {
+  it('AC-FSF-006 a former-staff row opens the person record but offers no edit or mark as left', async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole('button', { name: 'Former staff' }));
     expect(screen.getByRole('link', { name: 'Ayu Lestari' })).toHaveAttribute('href', '/equipment/people/p2');
     expect(screen.queryByRole('button', { name: /Edit Ayu Lestari/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Archive Ayu Lestari/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Mark Ayu Lestari as left/ })).toBeNull();
   });
 
   it('AC-FSF-007 an empty Former staff view names it and offers no add', async () => {

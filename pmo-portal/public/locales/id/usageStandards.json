@@ -1,6 +1,6 @@
 {
   "title": "Standar pemakaian",
-  "intro": "Berapa banyak bahan habis pakai yang dipakai satu satuan pekerjaan. Perintah kerja mengubahnya menjadi rencana bahan habis pakai.",
+  "intro": "Berapa banyak bahan habis pakai yang dipakai satu satuan pekerjaan. $t(common:terms.clientWorkOrder) mengubahnya menjadi rencana bahan habis pakai.",
   "archivedBadge": "Diarsipkan",
   "active": "Aktif",
   "empty": "Belum ada standar pemakaian",
@@ -78,7 +78,7 @@
     "adjustSaved": "Rencana diperbarui",
     "reverted": "Kembali ke jumlah hasil hitung",
     "empty": "Belum ada rencana bahan habis pakai. Buat dari standar pemakaian.",
-    "emptyClosed": "Tidak ada rencana bahan habis pakai untuk perintah kerja ini.",
+    "emptyClosed": "Tidak ada rencana bahan habis pakai untuk $t(common:terms.clientWorkOrder) ini.",
     "outOfDate": "Pekerjaan atau standar pemakaian berubah sejak rencana ini dibuat. Permintaan tetap memakai rencana yang tersimpan.",
     "outOfDateAction": "Buat ulang agar sesuai terbaru.",
     "noPlan": "Tidak ada rencana",
@@ -108,9 +108,9 @@
     "previewAdded": "{{item}}: baru, {{new}}",
     "previewChanged": "{{item}}: {{old}} menjadi {{new}}",
     "errors": {
-      "CUS_NOT_FOUND": "Perintah kerja ini tidak tersedia.",
-      "CUS_FORBIDDEN": "Anda tidak dapat merencanakan bahan habis pakai untuk perintah kerja ini.",
-      "CUS_WORK_ORDER": "Perintah kerja sudah ditutup atau dibatalkan.",
+      "CUS_NOT_FOUND": "$t(common:terms.clientWorkOrder) ini tidak tersedia.",
+      "CUS_FORBIDDEN": "Anda tidak dapat merencanakan bahan habis pakai untuk $t(common:terms.clientWorkOrder) ini.",
+      "CUS_WORK_ORDER": "$t(common:terms.clientWorkOrder) sudah ditutup atau dibatalkan.",
       "CUS_REASON": "Isi alasan (maksimal 500 karakter).",
       "CUS_ITEM": "Pilih barang yang aktif.",
       "CUS_INVALID": "Isi nol atau lebih."

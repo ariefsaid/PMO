@@ -25,6 +25,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useMaterialRequest: () => h.req,
+  useStepPins: () => ({ data: [] }),
   useWaitingForMe: () => h.waiting,
   useDeliveryNoteSettings: () => h.dnSettings,
   useMaterialRequestMutations: () => ({
@@ -89,6 +90,11 @@ describe('material request detail', () => {
     expect(screen.getByTestId('mrq-chain')).toHaveTextContent('Finn Away');
     expect(screen.getByText(/Over plan: Extra slab/)).toBeInTheDocument();
     expect(screen.getByText(/Plan 10 · already requested 0 · new total 12/)).toBeInTheDocument();
+  });
+
+  it('JOB-WAIT-3 the request says which step it waits at and for whom (never a bare "waiting")', () => {
+    renderPage();
+    expect(screen.getByTestId('mrq-waiting-for')).toHaveTextContent(/^Waiting for .*\(step 2 of 3\)$/);
   });
 
   it('#2609 header names the work order (linked) and its project', () => {

@@ -41,9 +41,9 @@
     "timesheetLabel": "{{person}}, minggu {{week}}",
     "timesheetFallback": "Lembar waktu",
     "commitment": {
-      "purchase_request": "Belum dihitung sebagai biaya langsung: permintaan dihitung setelah tagihan supplier dicatat.",
-      "purchase_order": "Belum dihitung sebagai biaya langsung: pesanan dihitung setelah tagihan supplier dicatat.",
-      "goods_receipt": "Barang sudah diterima, tetapi belum dihitung sebagai biaya langsung: penerimaan dihitung setelah tagihan supplier dicatat."
+      "purchase_request": "Belum dihitung sebagai biaya langsung: permintaan dihitung setelah invoice supplier dicatat.",
+      "purchase_order": "Belum dihitung sebagai biaya langsung: pesanan dihitung setelah invoice supplier dicatat.",
+      "goods_receipt": "Barang sudah diterima, tetapi belum dihitung sebagai biaya langsung: penerimaan dihitung setelah invoice supplier dicatat."
     },
     "attendanceLabel": "Kehadiran"
   },
@@ -96,13 +96,13 @@
     "title": "Lokasi lapangan",
     "label": "Material laporan harian diambil dari",
     "none": "Belum diatur",
-    "help": "Laporan harian yang divalidasi mengeluarkan materialnya dari sini ke perintah kerja ini.",
+    "help": "Laporan harian yang divalidasi mengeluarkan materialnya dari sini ke $t(common:terms.clientWorkOrder) ini.",
     "error": "Lokasi lapangan tidak dapat disimpan"
   },
   "inspections": {
     "title": "Inspeksi pihak ketiga",
     "error": "Inspeksi tidak dapat dimuat",
-    "empty": "Belum ada inspeksi pihak ketiga pada Work Order ini.",
+    "empty": "Belum ada inspeksi pihak ketiga pada $t(common:terms.clientWorkOrder) ini.",
     "request": "Ajukan inspeksi",
     "create": "Ajukan",
     "dismiss": "Tutup",
@@ -205,7 +205,7 @@
     "clientReference": "Referensi klien {{ref}}",
     "collected": "Sudah diambil",
     "edit": "Ubah",
-    "empty": "Belum ada material klien yang diminta untuk perintah kerja ini.",
+    "empty": "Belum ada material klien yang diminta untuk $t(common:terms.clientWorkOrder) ini.",
     "error": "Material klien tidak dapat dimuat",
     "form": {
       "addLine": "Tambah item",
@@ -285,5 +285,14 @@
     "stillToCollect": "Belum diambil",
     "title": "Material klien",
     "importTakeoff": "Impor take-off"
+  },
+  "all": {
+    "empty": "Anda belum punya $t(common:terms.clientWorkOrder)",
+    "error": "Gagal memuat daftar $t(common:terms.clientWorkOrder) Anda",
+    "noMatch": "Tidak ada $t(common:terms.clientWorkOrder) yang cocok dengan pencarian Anda",
+    "search": "Cari menurut nomor, judul, atau proyek",
+    "seeAll": "Lihat semua",
+    "tileEmpty": "Tidak ada $t(common:terms.clientWorkOrder) yang terbuka",
+    "until": "sampai {{date}}"
   }
 }

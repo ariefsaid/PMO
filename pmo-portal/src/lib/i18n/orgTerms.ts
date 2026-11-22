@@ -89,6 +89,13 @@ export function matchCase(matched: string, replacement: string): string {
   return /^\p{Ll}/u.test(matched) ? replacement.charAt(0).toLowerCase() + replacement.slice(1) : replacement;
 }
 
+/** A renamed term is used exactly as the Admin typed it. Only a term typed with no capital letter at all has no stated casing,
+ *  so it follows the shape of the wording it replaces (sentence start, Title Case, ALL CAPS); typing "SPK" or "Perintah Kerja"
+ *  is never re-cased to "sPK" or "perintah Kerja". */
+function verbatimOrShaped(matched: string, replacement: string): string {
+  return replacement === replacement.toLowerCase() ? matchCase(matched, replacement) : replacement;
+}
+
 /**
  * Rewrite the shipped wording of every overridden term in `text`. Pure. Plural forms are matched
  * before singular so "work orders" is not left as "<new> s". Matching is whole-word and
@@ -149,7 +156,7 @@ export function applyOrgTerms(text: string, locale: string, terms: OrgTerms, con
     const lowered = match.toLowerCase();
     const suffix = loc === 'id' && found.key === 'project' && lowered === 'proyeknya' ? 'nya' : '';
     const prefix = loc === 'id' && found.key === 'project' && lowered === 'antarproyek' ? 'antar ' : '';
-    return protect(matchCase(match, prefix + override[number] + suffix));
+    return protect(verbatimOrShaped(match, prefix + override[number] + suffix));
   });
 }
 

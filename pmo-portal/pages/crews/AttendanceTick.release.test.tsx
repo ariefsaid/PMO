@@ -26,6 +26,11 @@ vi.mock('@/src/hooks/useCrews', () => ({
     record: { mutateAsync: h.record }, uploadPhoto: { mutateAsync: vi.fn() }, generateWeek: { mutateAsync: vi.fn() }, decideWeek: { mutateAsync: vi.fn() },
   }),
 }));
+vi.mock('@/src/hooks/useHeadcount', () => ({
+  useHeadcountDay: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useHeadcountMutations: () => ({ record: { mutateAsync: vi.fn() }, approve: { mutateAsync: vi.fn() }, clear: { mutateAsync: vi.fn() } }),
+}));
+vi.mock('@/src/hooks/useLabourCost', () => ({ useLabourClasses: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useMedicalRelease', () => ({ useReleaseHolds: () => (h.failed ? { data: undefined, isError: true } : { data: h.holds }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer' as Role, effectiveRole: 'Engineer' as Role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'fc1', org_id: 'org1' } }) }));

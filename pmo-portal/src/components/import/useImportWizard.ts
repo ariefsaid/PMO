@@ -10,6 +10,7 @@ import {
   ImportParseError,
   IMPORT_SKIPPED,
   type ImportDescriptor,
+  type ImportField,
   type ImportResult,
   type Mapping,
   type ParsedSheet,
@@ -65,6 +66,17 @@ export interface UseImportWizard {
  * best-effort) flow. The commit iterates the VALID rows sequentially (not Promise.all — a
  * gentle, honest progress), try/catching each so a per-row failure never aborts the run.
  */
+/** True when the sheet is exactly the template: every field's header is the template's own column name (its label, not an old name
+ *  or an alias) and no column is left over. Such a file has nothing to match, so the wizard goes straight to the preview (the
+ *  person can still go Back to the matching). */
+export function isTemplateMatch<Input>(headers: string[], fields: ImportField<Input>[], mapping: Mapping): boolean {
+  const norm = (v: string) => v.toLowerCase().replace(/\s+/g, ' ').trim();
+  const used = fields.map((f) => mapping[f.key]);
+  if (used.some((i) => i === null || i === undefined)) return false;
+  if (new Set(used).size !== headers.length || headers.length !== fields.length) return false;
+  return fields.every((f) => norm(headers[mapping[f.key] as number]) === norm(f.label));
+}
+
 export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): UseImportWizard {
   const [step, setStep] = useState<WizardStep>('upload');
   const [fileName, setFileName] = useState<string | null>(null);
@@ -129,61 +141,6 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     setExisting(null);
   }, []);
 
-  const selectFile = useCallback(
-    async (file: File) => {
-      const generation = ++parseGeneration.current;
-      setParsing(true);
-      setParseError(null);
-      try {
-        const buf = await file.arrayBuffer();
-        if (generation !== parseGeneration.current) return;
-        const sheet = await parseWorkbook(buf, descriptor.maxRows);
-        if (generation !== parseGeneration.current) return;
-        if (checkTemplateMarker(descriptor, sheet.templateMarker) === 'outOfDate') {
-          throw new ImportParseError('not_xlsx', 'This template is out of date. Download a new template and copy your rows into it.');
-        }
-        setParsed(sheet);
-        setFileName(file.name);
-        setMapping(autoMap(sheet.headers, descriptor.fields));
-        setStep('mapping');
-      } catch (err) {
-        if (generation !== parseGeneration.current) return;
-        // Typed parse rejections (bad/empty/oversized) surface their message; anything
-        // else (unexpected) gets a generic note. NO writes happen on this path.
-        setParsed(null);
-        setFileName(null);
-        setParseError(
-          err instanceof ImportParseError ? err.message : 'Could not read that file. Use a valid .xlsx.',
-        );
-      } finally {
-        if (generation === parseGeneration.current) setParsing(false);
-      }
-    },
-    [descriptor],
-  );
-
-  const selectPaste = useCallback(
-    (text: string) => {
-      parseGeneration.current++;
-      setParseError(null);
-      try {
-        const sheet = parsePastedRows(text, descriptor.maxRows);
-        setParsed(sheet);
-        setFileName(null);
-        setMapping(autoMap(sheet.headers, descriptor.fields));
-        setStep('mapping');
-      } catch (err) {
-        setParsed(null);
-        setParseError(err instanceof ImportParseError ? err.message : 'Could not read the pasted rows.');
-      }
-    },
-    [descriptor.fields, descriptor.maxRows],
-  );
-
-  const setFieldMapping = useCallback((fieldKey: string, headerIndex: number | null) => {
-    setMapping((prev) => ({ ...prev, [fieldKey]: headerIndex }));
-  }, []);
-
   const loadExisting = useCallback(() => {
     if (!existingKeys && !matchExisting) return;
     // Read once per opening of the preview; a failed `existingKeys` read leaves the insert-time skip to decide, never blocks.
@@ -200,11 +157,74 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     );
   }, [existingKeys, matchExisting]);
 
-  const goPreview = useCallback(() => {
-    if (!allRequiredMapped) return;
+  const openPreview = useCallback(() => {
     setStep('preview');
     loadExisting();
-  }, [allRequiredMapped, loadExisting]);
+  }, [loadExisting]);
+
+  const selectFile = useCallback(
+    async (file: File) => {
+      const generation = ++parseGeneration.current;
+      setParsing(true);
+      setParseError(null);
+      try {
+        const buf = await file.arrayBuffer();
+        if (generation !== parseGeneration.current) return;
+        const sheet = await parseWorkbook(buf, descriptor.maxRows);
+        if (generation !== parseGeneration.current) return;
+        if (checkTemplateMarker(descriptor, sheet.templateMarker) === 'outOfDate') {
+          throw new ImportParseError('not_xlsx', 'This template is out of date. Download a new template and copy your rows into it.');
+        }
+        setParsed(sheet);
+        setFileName(file.name);
+        const mapped = autoMap(sheet.headers, descriptor.fields);
+        setMapping(mapped);
+        if (isTemplateMatch(sheet.headers, descriptor.fields, mapped)) openPreview();
+        else setStep('mapping');
+      } catch (err) {
+        if (generation !== parseGeneration.current) return;
+        // Typed parse rejections (bad/empty/oversized) surface their message; anything
+        // else (unexpected) gets a generic note. NO writes happen on this path.
+        setParsed(null);
+        setFileName(null);
+        setParseError(
+          err instanceof ImportParseError ? err.message : 'Could not read that file. Use a valid .xlsx.',
+        );
+      } finally {
+        if (generation === parseGeneration.current) setParsing(false);
+      }
+    },
+    [descriptor, openPreview],
+  );
+
+  const selectPaste = useCallback(
+    (text: string) => {
+      parseGeneration.current++;
+      setParseError(null);
+      try {
+        const sheet = parsePastedRows(text, descriptor.maxRows);
+        setParsed(sheet);
+        setFileName(null);
+        const mapped = autoMap(sheet.headers, descriptor.fields);
+        setMapping(mapped);
+        if (isTemplateMatch(sheet.headers, descriptor.fields, mapped)) openPreview();
+        else setStep('mapping');
+      } catch (err) {
+        setParsed(null);
+        setParseError(err instanceof ImportParseError ? err.message : 'Could not read the pasted rows.');
+      }
+    },
+    [descriptor.fields, descriptor.maxRows, openPreview],
+  );
+
+  const setFieldMapping = useCallback((fieldKey: string, headerIndex: number | null) => {
+    setMapping((prev) => ({ ...prev, [fieldKey]: headerIndex }));
+  }, []);
+
+  const goPreview = useCallback(() => {
+    if (!allRequiredMapped) return;
+    openPreview();
+  }, [allRequiredMapped, openPreview]);
 
   const back = useCallback(() => {
     parseGeneration.current++;

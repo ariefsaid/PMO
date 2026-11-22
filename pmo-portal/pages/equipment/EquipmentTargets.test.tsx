@@ -1,5 +1,5 @@
 /** AC-ETS-007/008/009 (unit layer, #2701): targets mark metric figures only when set, the flag label names the
- *  organisation's escalation limit, and only a real Admin sees the settings form. */
+ *  organisation's escalation limit, and only an Admin or the equipment manager sees the settings form. */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -40,6 +40,7 @@ vi.mock('@/src/lib/repositories', () => ({
   repositories: { equipmentAvailability: { getTargets: () => Promise.resolve(h.targets), setTargets: (v: unknown) => h.save(v) } },
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
+vi.mock('@/src/auth/policy', async (orig) => ({ ...(await orig<typeof import('@/src/auth/policy')>()), can: (action: string) => action !== 'configure' || ['Admin', 'Project Manager'].includes(h.role) })); // the configure roles themselves are proven in policy.test.ts
 
 import EquipmentAvailabilityPage from './EquipmentAvailability';
 
@@ -86,8 +87,16 @@ describe('equipment target settings (#2701)', () => {
   });
 
   it('AC-ETS-009 other roles do not see the settings form', () => {
-    h.role = 'Project Manager';
+    h.role = 'Finance';
     renderPage();
     expect(screen.queryByLabelText('Availability target (%)')).not.toBeInTheDocument();
+  });
+
+  it('AC-EQM-003 the equipment manager (Project Manager) sees and saves the settings form', async () => {
+    h.role = 'Project Manager';
+    renderPage();
+    await userEvent.type(await screen.findByLabelText('Availability target (%)'), '90');
+    await userEvent.click(screen.getByRole('button', { name: 'Save targets' }));
+    expect(h.save).toHaveBeenCalledWith(expect.objectContaining({ availability: '90' }));
   });
 });

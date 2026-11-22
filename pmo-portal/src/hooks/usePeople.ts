@@ -16,7 +16,7 @@ export function usePeople(status: PeopleListStatus = 'active') {
   });
 }
 
-/** Create, edit and archive; each refreshes the register, the person record and the expiry views. */
+/** Create, edit and mark as left; each refreshes the register, the person record and the expiry views. */
 export function usePeopleMutations() {
   const qc = useQueryClient();
   const repo = repositories.people;
@@ -26,6 +26,6 @@ export function usePeopleMutations() {
   ]);
   const create = useMutation({ mutationFn: (v: PersonInput) => repo.create(v), onSuccess: refresh });
   const update = useMutation({ mutationFn: (v: { id: string; input: PersonInput & { code: string } }) => repo.update(v.id, v.input), onSuccess: refresh });
-  const archive = useMutation({ mutationFn: (id: string) => repo.archive(id), onSuccess: refresh });
-  return { create, update, archive };
+  const markLeft = useMutation({ mutationFn: (v: { id: string; leftOn: string }) => repo.markLeft(v.id, v.leftOn), onSuccess: () => Promise.all([refresh(), qc.invalidateQueries({ queryKey: ['crews'] }), qc.invalidateQueries({ queryKey: ['crew-members'] }), qc.invalidateQueries({ queryKey: ['crew-workers'] })]) });
+  return { create, update, markLeft };
 }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import {
   Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, DateField, EntityFormModal, FormGrid, Icon, ListState,
   SelectField, StatusPill, useToast, useUrlFilters, type Column, type SubmitError,
@@ -60,7 +61,8 @@ const RosterCrewModal: React.FC<{ workOrderId: string; from: string; onClose: ()
 const RosterCrewCard: React.FC<{ crew: RosterCrew; onLeave: ReadonlySet<string>; releaseHolds?: ReadonlyMap<string, ReleaseState> }> = ({ crew, onLeave, releaseHolds }) => {
   const { t } = useTranslation('crews');
   const headingId = `roster-crew-${crew.crew_id}`;
-  const roleName = (id: string | null) => crew.roles.find((r) => r.standard_role_id === id)?.name ?? '—';
+  const roleName = (id: string | null) => crew.roles.find((r) => r.standard_role_id === id)?.name ?? null;
+  const noRole = crew.members.filter((m) => !m.standard_role_id).length;
   return (
     <Card role="region" aria-labelledby={headingId}>
       <CardHead id={headingId} actions={crew.shortfall > 0
@@ -71,7 +73,7 @@ const RosterCrewCard: React.FC<{ crew: RosterCrew; onLeave: ReadonlySet<string>;
         {crew.roles.length > 0 && (
           <table className="mb-4 w-full text-sm">
             <thead><tr className="text-left text-muted-foreground">
-              <th scope="col" className="py-1 font-normal">{t('crews:roleName', 'Role')}</th>
+              <th scope="col" className="py-1 font-normal">{t('crews:roleName', 'Crew role')}</th>
               <th scope="col" className="py-1 font-normal">{t('crews:placedOf', 'Placed')}</th>
               <th scope="col" className="py-1 font-normal"><span className="sr-only">{t('crews:shortfall', 'Shortfall')}</span></th>
             </tr></thead>
@@ -86,6 +88,12 @@ const RosterCrewCard: React.FC<{ crew: RosterCrew; onLeave: ReadonlySet<string>;
             </tbody>
           </table>
         )}
+        {noRole > 0 && crew.roles.length > 0 && (
+          <p className="mb-3 text-sm text-warning-foreground" data-testid="roster-no-role-note">
+            {t('crews:noRoleNote', { defaultValue: 'Not counted above: {{count}} with no crew role set.', count: noRole })}
+            {' '}<Link to="/crews" className="underline underline-offset-2">{t('crews:noRoleFix', 'Set their crew role under Crews')}</Link>
+          </p>
+        )}
         {crew.members.length === 0 ? <p className="text-sm text-muted-foreground">{t('crews:noMembersDay', 'Nobody is placed in this crew that day')}</p> : (
           <ul className="divide-y divide-border">
             {crew.members.map((m) => (
@@ -95,7 +103,7 @@ const RosterCrewCard: React.FC<{ crew: RosterCrew; onLeave: ReadonlySet<string>;
                   {onLeave.has(m.worker_id) && <StatusPill variant="neutral" className="ml-2">{t('crews:leave.onLeave', 'On leave')}</StatusPill>}
                   {releaseHolds?.has(m.worker_id) && <StatusPill variant="warn" className="ml-2">{releaseHolds.get(m.worker_id) === 'deferred' ? t('crews:release.status.deferred', 'Release deferred') : t('crews:release.status.pending', 'Release pending')}</StatusPill>}
                 </span>
-                <span className="text-muted-foreground">{roleName(m.standard_role_id)}</span>
+                <span className="text-muted-foreground">{roleName(m.standard_role_id) ?? t('crews:roleNotSet', 'Crew role not set')}</span>
               </li>
             ))}
           </ul>
@@ -150,7 +158,7 @@ export const WorkOrderRoster: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <WorkOrderPicker id="roster-work-order" value={workOrderId} onChange={(v) => setFilter('wo', v ?? '')} />
+        <WorkOrderPicker id="roster-work-order" remember value={workOrderId} onChange={(v) => setFilter('wo', v ?? '')} />
         <DateField label={t('crews:date', 'Date')} value={date} onChange={(v) => setFilter('date', v === today ? '' : v)} />
       </div>
       {problem && <p role="alert" className="text-sm text-destructive-text">{problem}</p>}

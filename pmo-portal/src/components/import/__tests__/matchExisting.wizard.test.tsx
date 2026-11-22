@@ -40,7 +40,8 @@ const open = async (d: ImportDescriptor<P>) => {
   (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue(sheet);
   const hook = renderHook(() => useImportWizard(d));
   await act(async () => { await hook.result.current.selectFile(new File(['x'], 'x.xlsx')); });
-  await act(async () => { hook.result.current.goPreview(); });
+  // A sheet with exactly the template's columns opens the preview by itself (isTemplateMatch); otherwise the person confirms the matching first.
+  if (hook.result.current.step === 'mapping') await act(async () => { hook.result.current.goPreview(); });
   return hook;
 };
 

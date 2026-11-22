@@ -613,8 +613,8 @@
   "admin": {
     "candidateTemplate": {
       "saved": "Daftar pemeriksaan disimpan",
-      "title": "Daftar pemeriksaan kandidat perintah kerja",
-      "helper": "Pemeriksaan yang dilakukan sebelum kandidat perintah kerja diterima. Kandidat menyalin daftar ini saat dibuka, sehingga perubahan berikutnya tidak mengubah kandidat yang sudah terbuka.",
+      "title": "Daftar pemeriksaan kandidat $t(common:terms.clientWorkOrder)",
+      "helper": "Pemeriksaan yang dilakukan sebelum kandidat $t(common:terms.clientWorkOrder) diterima. Kandidat menyalin daftar ini saat dibuka, sehingga perubahan berikutnya tidak mengubah kandidat yang sudah terbuka.",
       "loadError": "Daftar pemeriksaan tidak dapat dimuat",
       "empty": "Belum ada pemeriksaan. Tanpa pemeriksaan, kandidat dapat langsung diterima.",
       "itemLabel": "Pemeriksaan {{n}}",
@@ -647,10 +647,17 @@
           "officer": "Petugas",
           "field": "Lapangan"
         },
-        "none": "Tanpa peran bawaan (hanya tingkat akses)",
-        "label": "Peran bawaan",
-        "helper": "Peran bawaan berawal dari satu tingkat akses dan menentukan apa yang dilihat dan dilakukan orang ini untuk pekerjaannya.",
-        "baseLevel": "Tingkat akses: {{level}} (ditentukan oleh peran bawaan)"
+        "none": "Tanpa jabatan (hanya tingkat akses)",
+        "label": "Jabatan",
+        "helper": "Jabatan berawal dari satu tingkat akses dan menentukan apa yang dilihat dan dilakukan orang ini untuk pekerjaannya.",
+        "baseLevel": "Tingkat akses: {{level}} (ditentukan oleh jabatan)",
+        "inviteRequired": "Pilih jabatannya.",
+        "invitePlaceholder": "Pilih jabatan",
+        "inviteSearch": "Cari jabatan",
+        "inviteNoun": "jabatan",
+        "menuEdit": "Ubah jabatan",
+        "formTitle": "Ubah jabatan: {{name}}",
+        "formSubmit": "Simpan jabatan"
       },
       "fieldLogin": {
         "noPerson": "Akun ini belum ada di daftar tenaga kerja, jadi tidak bisa absen masuk. Tambahkan orangnya ke daftar tenaga kerja, lalu masukkan ke regu.",
@@ -686,7 +693,12 @@
         "retry": "Alamat ini sedang diundang",
         "retryDetail": "Coba lagi sebentar lagi.",
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
-        "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu undang kembali."
+        "seatLimitDetail": "Semua kursi pada paket Anda sudah terpakai. Minta Operator meningkatkan paket, lalu undang kembali.",
+        "notSent": "Undangan belum terkirim",
+        "notSentDetail": "Email tidak bisa dikirim, jadi belum ada yang tersimpan. Isian Anda masih ada di sini: periksa alamatnya lalu coba lagi. Jika terus gagal, beri tahu Operator bahwa email undangan tidak terkirim.",
+        "rateLimited": "Terlalu banyak undangan dalam waktu singkat. Belum ada yang tersimpan. Tunggu semenit, lalu undang lagi.",
+        "roleNotSet": "Undangan terkirim, jabatan belum tersimpan",
+        "roleNotSetDetail": "{{email}} sudah diundang. Buka barisnya dan pilih Ubah jabatan untuk mengaturnya."
       },
       "statusError": {
         "seatLimit": "Paket Anda tidak memiliki sisa kursi",
@@ -697,6 +709,12 @@
         "alreadyInvitedDetail": "{{email}} sudah memiliki undangan yang masih berlaku. Tidak ada email baru yang dikirim.",
         "inviteResent": "Undangan dikirim ulang",
         "inviteResentDetail": "Tautan sebelumnya untuk {{email}} sudah kedaluwarsa. Tautan baru sedang dikirim."
+      },
+      "setup": {
+        "unlinked": "Login belum ditautkan ke seorang personel, jadi belum bisa dimasukkan ke kru.",
+        "linkAction": "Tautkan ke personel",
+        "noCrew": "Belum masuk kru mana pun, jadi belum ada pekerjaan untuk absen.",
+        "crewAction": "Masukkan ke kru"
       }
     },
     "spendApprovers": {
@@ -715,7 +733,7 @@
     },
     "siteCheckpoints": {
       "title": "Titik pemeriksaan harian",
-      "helper": "Titik pemeriksaan dalam satu hari kerja, beserta waktu jatuh temponya. Pengawas lapangan mencatat tiap titik dengan foto; yang terlambat mengingatkan pelapor dan menandai perintah kerja. Tanpa titik pemeriksaan, tidak ada yang dibuat atau diingatkan.",
+      "helper": "Titik pemeriksaan dalam satu hari kerja, beserta waktu jatuh temponya. Pengawas lapangan mencatat tiap titik dengan foto; yang terlambat mengingatkan pelapor dan menandai $t(common:terms.clientWorkOrder). Tanpa titik pemeriksaan, tidak ada yang dibuat atau diingatkan.",
       "loadError": "Titik pemeriksaan tidak dapat dimuat",
       "empty": "Belum ada titik pemeriksaan. Tidak ada yang dibuat atau diingatkan sampai Anda menambahkannya.",
       "name": "Nama",
@@ -904,16 +922,11 @@
     "userSearch": "Cari pengguna",
     "edit": "Ubah",
     "editLabel": "Ubah {{name}}",
-    "archive": "Arsipkan",
-    "archiveLabel": "Arsipkan {{name}}",
-    "archiveTitle": "Arsipkan personel",
-    "archiveBody": "Personel ini keluar dari daftar aktif dan peringatan kedaluwarsa, dan tetap tercatat sebagai mantan personel.",
     "staffStatus": "Status personel",
     "active": "Aktif",
     "former": "Mantan personel",
     "all": "Semua",
-    "formerEmpty": "Belum ada mantan personel. Personel yang Anda arsipkan muncul di sini.",
-    "archived": "Personel diarsipkan",
+    "formerEmpty": "Belum ada mantan personel. Personel yang Anda tandai sudah keluar muncul di sini.",
     "actions": "Tindakan",
     "errName": "Isi nama",
     "errCode": "Isi kode personel",
@@ -929,7 +942,13 @@
     "manager": "Atasan langsung (opsional)",
     "managerPlaceholder": "Atasan belum ditetapkan",
     "managerSearch": "Cari pengguna",
-    "managerHelp": "Atasan diperingatkan lebih dulu saat dokumen personel ini hampir kedaluwarsa, dan mencatat perpanjangannya."
+    "managerHelp": "Atasan diperingatkan lebih dulu saat dokumen personel ini hampir kedaluwarsa, dan mencatat perpanjangannya.",
+    "markLeft": "Tandai sudah keluar",
+    "markLeftLabel": "Tandai {{name}} sudah keluar",
+    "leftTitle": "Tandai {{name}} sudah keluar",
+    "leftBody": "Personel ini pindah ke Mantan personel dan keluar dari semua susunan kru mulai hari ini. Dokumen, jam kerja, dan riwayatnya tetap tercatat.",
+    "leftOn": "Hari kerja terakhir",
+    "markedLeft": "{{name}} sekarang menjadi mantan personel"
   },
   "roleNames": {
     "title": "Nama peran",
@@ -1024,7 +1043,7 @@
   },
   "labourCost": {
     "title": "Biaya tenaga kerja",
-    "intro": "Ubah jam lembar waktu yang disetujui menjadi biaya dalam uang pada setiap perintah kerja, dengan tarif biaya yang Anda tetapkan untuk seseorang atau satu peran. Ini hanya biaya, bukan gaji.",
+    "intro": "Ubah jam lembar waktu yang disetujui menjadi biaya dalam uang pada setiap $t(common:terms.clientWorkOrder), dengan tarif biaya yang Anda tetapkan untuk seseorang atau satu peran. Ini hanya biaya, bukan gaji.",
     "loadError": "Pengaturan biaya tenaga kerja gagal dimuat",
     "switch": "Hitung jam yang disetujui sebagai biaya dalam uang",
     "adminOnly": "Hanya Admin atau Keuangan yang dapat mengubah pengaturan biaya tenaga kerja.",
@@ -1109,7 +1128,7 @@
   },
   "performanceIndices": {
     "title": "Kinerja biaya dan jadwal",
-    "description": "Menampilkan indeks kinerja biaya dan jadwal pada proyek dan perintah kerja. Nonaktif sampai Anda mengaktifkannya.",
+    "description": "Menampilkan indeks kinerja biaya dan jadwal pada proyek dan $t(common:terms.clientWorkOrder). Nonaktif sampai Anda mengaktifkannya.",
     "enabled": "Tampilkan indeks kinerja",
     "low": "Batas bawah (di bawah ini dianggap bermasalah)",
     "high": "Batas atas (di atas ini dianggap lebih cepat)",
@@ -1193,7 +1212,10 @@
       "archiveBody": "Butir ini hilang dari semua daftar periksa dan tidak lagi dihitung untuk status lolos. Tanggal yang sudah dicatat tetap tersimpan.",
       "archived": "Butir diarsipkan",
       "editLabel": "Ubah {{name}}",
-      "archiveLabel": "Arsipkan {{name}}"
+      "archiveLabel": "Arsipkan {{name}}",
+      "documentType": "Ambil tanggal dari dokumen ini",
+      "noDocumentType": "Tidak ada: catat tanggalnya di daftar periksa",
+      "documentTypeHelp": "Pilih jenis dokumen, misalnya SIM atau lisensi. Tanggal kedaluwarsa lalu hanya disimpan sekali, di dokumen orangnya, dan juga muncul di daftar kedaluwarsa."
     },
     "people": {
       "heading": "Siapa yang lolos",
@@ -1228,7 +1250,12 @@
       "removed": "Tanggal dihapus",
       "link": "Daftar periksa izin ke lokasi",
       "editLabel": "{{action}} {{name}}",
-      "removeLabel": "Hapus {{name}}"
+      "removeLabel": "Hapus {{name}}",
+      "documentLabel": "{{action}} {{name}}",
+      "openDocument": "Buka dokumennya",
+      "addDocument": "Tambahkan dokumennya",
+      "fromDocument": "Dari dokumen {{type}}",
+      "noDocument": "Belum ada dokumen {{type}}. Tambahkan di catatan orangnya."
     },
     "state": {
       "done": "Selesai",

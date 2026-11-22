@@ -6,5 +6,5 @@ export interface PeopleRepository {
   create: typeof dal.createPerson;
   update: typeof dal.updatePerson;
   updateFields: typeof dal.updatePersonFields;
-  archive: typeof dal.archivePerson;
+  markLeft: typeof dal.markPersonLeft;
 }

@@ -217,7 +217,8 @@ describe('useImportWizard', () => {
     const create = vi.fn().mockResolvedValue({ id: '1' });
     const { result } = renderHook(() => useImportWizard(makeDescriptor(create)));
     act(() => result.current.selectPaste('Company name\tType\nAcme\tClient\nBad\tNope\n'));
-    expect(result.current.step).toBe('mapping');
+    // Every header is the template's, so there is nothing to match: the preview opens at once.
+    expect(result.current.step).toBe('preview');
     expect(result.current.mapping).toEqual({ name: 0, type: 1 });
     act(() => result.current.goPreview());
     expect(result.current.counts).toMatchObject({ valid: 1, invalid: 1, total: 2 });
@@ -254,7 +255,7 @@ describe('useImportWizard', () => {
     await act(async () => {
       await result.current.selectFile(file());
     });
-    expect(result.current.step).toBe('mapping');
+    expect(result.current.step).toBe('preview');
     expect(result.current.allRequiredMapped).toBe(true);
 
     act(() => result.current.goPreview());
@@ -479,4 +480,17 @@ it('stops reading a file when the wizard unmounts before its buffer arrives', as
   unmount();
   await act(async () => { finish(new ArrayBuffer(0)); await pending; });
   expect(parseWorkbook).not.toHaveBeenCalled();
+
+});
+
+it('fix/walk-people item 11: a file whose headers are exactly the template goes straight to the preview; any extra or missing column shows the matching', () => {
+  const { result } = renderHook(() => useImportWizard(makeDescriptor(vi.fn())));
+  act(() => result.current.selectPaste('Company name\tType\nAcme\tClient\n'));
+  expect(result.current.step).toBe('preview');
+  act(() => result.current.reset());
+  act(() => result.current.selectPaste('Company name\tType\tNotes\nAcme\tClient\tx\n'));
+  expect(result.current.step).toBe('mapping');
+  act(() => result.current.reset());
+  act(() => result.current.selectPaste('Company name\nAcme\n'));
+  expect(result.current.step).toBe('mapping');
 });

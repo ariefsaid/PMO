@@ -11,7 +11,7 @@ import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDocumentTypes, useExpiryDocumentMutations, useSubjectDocuments } from '@/src/hooks/useDocumentExpiry';
 import { repositories } from '@/src/lib/repositories';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { EXPIRY_ATTACHMENT_ACCEPT, type ExpiryDocumentRow, type SubjectKind } from '@/src/lib/db/documentExpiry';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -31,7 +31,7 @@ const empty = (d?: ExpiryDocumentRow): FormValues => ({
 });
 
 /** Add or edit one expiring document (#2542). Type and subject are fixed once saved; a medical type holds a status and dates only. */
-const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string; doc?: ExpiryDocumentRow; onClose: () => void }> = ({ kind, subjectId, doc, onClose }) => {
+export const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string; doc?: ExpiryDocumentRow; renew?: boolean; onClose: () => void }> = ({ kind, subjectId, doc, renew = false, onClose }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const types = useDocumentTypes(kind);
@@ -39,10 +39,13 @@ const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string; doc?:
   const [file, setFile] = useState<File | null>(null);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const form = useEntityForm<FormValues>({
-    initialValues: empty(doc), idPrefix: 'expiry-doc', requiredFields: ['type_id', 'expires_on'], module: 'expiry_documents',
+    initialValues: renew && doc ? { ...empty(doc), issued_on: '', expires_on: '' } : empty(doc), idPrefix: 'expiry-doc', requiredFields: ['type_id', 'expires_on'], module: 'expiry_documents',
     validate: (v) => {
       const e: Partial<Record<keyof FormValues, string>> = {};
+      if (renew && doc && v.expires_on && v.expires_on <= doc.expires_on) e.expires_on = t('equipment:expiryEdit.errRenew', 'The new expiry date must be after the current one ({{date}})', { date: formatDay(doc.expires_on) });
       if (!v.type_id) e.type_id = t('equipment:expiryEdit.errType', 'Choose a document type');
+      const isMedical = doc ? doc.is_medical : Boolean((types.data ?? []).find((x) => x.id === v.type_id)?.is_medical);
+      if (isMedical && !v.medical_status) e.medical_status = t('equipment:expiryEdit.errStatus', 'Choose the medical status: fit or unfit');
       if (!v.expires_on) e.expires_on = t('equipment:expiryEdit.errExpiry', 'Enter the expiry date');
       else if (v.issued_on && v.issued_on > v.expires_on) e.expires_on = t('equipment:expiryEdit.errOrder', 'Expiry date must be on or after the issue date');
       return e;
@@ -62,20 +65,20 @@ const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string; doc?:
         issued_on: v.issued_on || null,
         expires_on: v.expires_on,
         location_note: medical ? null : v.location_note.trim() || null,
-        medical_status: medical ? ((v.medical_status || 'fit') as 'fit' | 'unfit') : null,
+        medical_status: medical ? (v.medical_status as 'fit' | 'unfit') : null,
       };
       try {
         if (doc) await update.mutateAsync({ id: doc.id, fields, file: medical ? null : file, previousPath: doc.attachment_path });
         else await create.mutateAsync({ type_id: v.type_id, ...fields, file: medical ? null : file });
-        toast(t('equipment:expiryEdit.saved', 'Document saved'), undefined, 'success');
+        toast(renew ? t('equipment:expiryEdit.renewed', 'Document renewed') : t('equipment:expiryEdit.saved', 'Document saved'), undefined, 'success');
         onClose();
       } catch (err) { const c = classifyMutationError(err); setSubmitError({ headline: c.headline, detail: c.detail }); }
     });
   };
 
   return (
-    <EntityFormModal open title={doc ? t('equipment:expiryEdit.editTitle', 'Edit document') : t('equipment:expiryEdit.addTitle', 'Add document')}
-      submitLabel={t('equipment:expiryEdit.save', 'Save document')} onSubmit={submit} onClose={onClose}
+    <EntityFormModal open title={renew ? t('equipment:expiryEdit.renewTitle', 'Renew document') : doc ? t('equipment:expiryEdit.editTitle', 'Edit document') : t('equipment:expiryEdit.addTitle', 'Add document')}
+      submitLabel={renew ? t('equipment:expiryEdit.renew', 'Renew') : t('equipment:expiryEdit.save', 'Save document')} onSubmit={submit} onClose={onClose}
       loading={form.isSubmitting} dirty={form.isDirty || file !== null} submitError={submitError}
       errorSummary={form.hasAttemptedSubmit ? Object.entries(form.errors).map(([k, m]) => ({ fieldId: form.fieldProps(k as keyof FormValues).id, message: String(m) })) : undefined}>
       <FormGrid>
@@ -84,9 +87,9 @@ const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string; doc?:
           : <SelectField label={t('equipment:expiryEdit.type', 'Document type')} required placeholder={t('equipment:expiryEdit.typePlaceholder', 'Choose a type')}
               options={typeOptions} {...form.fieldProps('type_id')} />}
         {medical
-          ? <SelectField label={t('equipment:expiryEdit.status', 'Medical status')} required
+          ? <SelectField label={t('equipment:expiryEdit.status', 'Medical status')} required placeholder={t('equipment:expiryEdit.statusPlaceholder', 'Choose fit or unfit')}
               options={[{ value: 'fit', label: t('equipment:expiry.medical.fit', 'Fit') }, { value: 'unfit', label: t('equipment:expiry.medical.unfit', 'Unfit') }]}
-              {...form.fieldProps('medical_status')} value={form.values.medical_status || 'fit'} />
+              {...form.fieldProps('medical_status')} />
           : <TextField label={t('equipment:expiryEdit.number', 'Number')} spellCheck={false} {...form.fieldProps('number')} />}
         <DateField label={t('equipment:expiryEdit.issued', 'Issue date')} {...form.fieldProps('issued_on')} />
         <DateField label={t('equipment:expiryEdit.expires', 'Expiry date')} required {...form.fieldProps('expires_on')} />
@@ -133,7 +136,7 @@ export const ExpiryDocumentsCard: React.FC<{ kind: SubjectKind; subjectId: strin
     if (!archiving) return;
     setProblem(null);
     try { await archive.mutateAsync(archiving.id); toast(t('equipment:expiryEdit.archived', 'Document archived'), undefined, 'success'); setArchiving(null); }
-    catch (err) { const c = classifyMutationError(err); setProblem(`${c.headline}. ${c.detail}`); }
+    catch (err) { const c = classifyMutationError(err); setProblem(joinSentences(c.headline, c.detail)); }
   };
 
   const label = (d: ExpiryDocumentRow) => d.number ?? typeName(d.type_id);

@@ -9,7 +9,7 @@ import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import type { PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import type { PoVariationWithLines } from '@/src/lib/db/subcontracts';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { matchRefusalReasonKey } from '@/src/lib/procurement/odooOutcome';
 import { formatCurrency, formatNumberExact } from '@/src/lib/format';
 
@@ -60,11 +60,11 @@ export const PoVariationsList: React.FC<PoVariationsListProps> = ({ poId, projec
       const headline = t(`subcontract.variations.refusal.${refusalKey}.headline`, DEFAULT_REFUSAL_HEADLINES[refusalKey]);
       const detail = t(`subcontract.variations.refusal.${refusalKey}.detail`, DEFAULT_REFUSAL_DETAILS[refusalKey]);
       toast(headline, detail, 'warning');
-      return `${headline}. ${detail}`;
+      return joinSentences(headline, detail);
     }
     const classified = classifyMutationError(error);
     toast(classified.headline, classified.detail, 'warning');
-    return classified.detail ? `${classified.headline}. ${classified.detail}` : classified.headline;
+    return classified.detail ? joinSentences(classified.headline, classified.detail) : classified.headline;
   };
   const canLink = may('link', 'poVariation', { currentUserId });
   const workOrderOptions = [

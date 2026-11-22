@@ -420,7 +420,7 @@ describe('AC-PR-S4-002: SoD gate messaging shows correctly', () => {
     detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
     // The restructured header (#1404) replaces the long self-approve paragraph with "Waiting for approval".
-    expect(headerActions().getByText(/waiting for approval/i)).toBeInTheDocument();
+    expect(headerActions().getByText(/^waiting for /i)).toBeInTheDocument();
     // No Approve button offered to the requester
     expect(screen.queryByRole('button', { name: /^approve$/i })).toBeNull();
   });

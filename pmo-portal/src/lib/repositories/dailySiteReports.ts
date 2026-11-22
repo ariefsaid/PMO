@@ -14,6 +14,7 @@ export const dailySiteReportRepository: DailySiteReportRepository = {
   reportHours: dal.reportHours,
   saveDraft: dal.saveDraft,
   submit: dal.submitReport,
+  withdraw: dal.withdrawReport,
   validate: dal.validateReport,
   returnReport: dal.returnReport,
   correct: dal.correctReport,

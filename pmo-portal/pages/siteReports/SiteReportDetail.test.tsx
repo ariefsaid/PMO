@@ -16,9 +16,11 @@ const h = vi.hoisted(() => ({
   userId: 'eng',
   realRole: 'Engineer',
   pm: 'pm',
+  noItems: false,
   m: {
     save: { mutateAsync: vi.fn(), isPending: false }, submit: { mutateAsync: vi.fn(), isPending: false },
     validate: { mutateAsync: vi.fn(), isPending: false }, returnReport: { mutateAsync: vi.fn(), isPending: false },
+    withdraw: { mutateAsync: vi.fn(), isPending: false },
     correct: { mutateAsync: vi.fn(), isPending: false }, uploadPhoto: { mutateAsync: vi.fn(), isPending: false },
   },
 }));
@@ -28,7 +30,7 @@ vi.mock('@/src/hooks/useDailySiteReports', () => ({
   useWorkOrderValidatedRevenue: (_id: string, enabled: boolean) => ({ data: enabled ? 140 : undefined }),
   useDsrLookups: () => ({
     idle: { data: [{ id: 'ir1', label: 'Weather' }] }, weather: { data: [{ id: 'wx1', label: 'Rain' }] },
-    items: { data: [{ id: 'l1', boq_item_id: 'b1', item_code: 'W-1', description: 'Weld', unit: 'm' }, { id: 'l2', boq_item_id: 'b2', item_code: 'X-9', description: 'Unpriced', unit: 'ea' }] },
+    items: { data: h.noItems ? [] : [{ id: 'l1', boq_item_id: 'b1', item_code: 'W-1', description: 'Weld', unit: 'm' }, { id: 'l2', boq_item_id: 'b2', item_code: 'X-9', description: 'Unpriced', unit: 'ea' }] },
     hours: { data: { peopleHours: h.peopleHours, equipment: h.equipment } },
   }),
   useDailySiteReportMutations: () => h.m,
@@ -37,7 +39,7 @@ vi.mock('@/src/hooks/useAttendanceSecondRecords', () => ({
   useReportDayHours: () => ({ data: { detail: false, mayEnter: false, mayDecide: false, workers: [] }, isPending: false, isError: false, refetch: vi.fn() }),
   useSecondRecordMutations: () => ({ enter: { mutate: vi.fn(), isPending: false }, decide: { mutate: vi.fn(), isPending: false } }),
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { id: 'p1', name: 'Pipeline', project_manager_id: h.pm } }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { id: 'p1', name: 'Pipeline', project_manager_id: h.pm, pm: { full_name: 'Rina Wati' } } }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master: { listItems: async () => [] } }, dailySiteReport: { photoUrl: vi.fn() } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.realRole }) }));
@@ -73,9 +75,45 @@ const renderPage = () => render(
 );
 
 beforeEach(() => {
-  h.userId = 'eng'; h.realRole = 'Engineer'; h.pm = 'pm'; h.equipment = []; h.peopleHours = '8';
+  h.userId = 'eng'; h.realRole = 'Engineer'; h.pm = 'pm'; h.noItems = false; h.equipment = []; h.peopleHours = '8';
   h.revenue = [{ line_id: 'pl1', rate: 5, rate_source: 'catalogue', amount: 50, frozen: false }, { line_id: 'pl2', rate: null, rate_source: null, amount: null, frozen: false }];
   Object.values(h.m).forEach((x) => x.mutateAsync.mockReset());
+});
+
+describe('site report record — walk fixes', () => {
+  it('JOB-DSR-EMPTY: sending an empty report says what is missing, in words, and no database text', async () => {
+    h.detail = make('draft');
+    h.m.save.mutateAsync.mockResolvedValue('r1');
+    h.m.submit.mutateAsync.mockRejectedValue(Object.assign(new Error('dsr_empty: progress,hours,photo'), { code: 'DS001' }));
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    expect((await screen.findAllByText(/Add at least one of: progress, start and end time, a photo\./)).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/dsr_empty/)).toBeNull();
+  });
+
+  it('JOB-DSR-WITHDRAW: the author can take a sent report back; nobody else is offered it', async () => {
+    h.detail = make('submitted');
+    h.m.withdraw.mutateAsync.mockResolvedValue(undefined);
+    const first = renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Withdraw' }));
+    expect(h.m.withdraw.mutateAsync).toHaveBeenCalledWith('r1');
+    first.unmount();
+    h.userId = 'fin'; h.realRole = 'Finance';
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull();
+  });
+
+  it('JOB-DSR-WITHDRAW: a validated report cannot be withdrawn', () => {
+    h.detail = make('validated');
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Withdraw' })).toBeNull();
+  });
+
+  it('JOB-DSR-SCOPE: a work order with no items says so and names the project manager', () => {
+    h.detail = make('draft'); h.noItems = true;
+    renderPage();
+    expect(screen.getByTestId('dsr-no-items')).toHaveTextContent('This work order has no items yet. Ask Rina Wati.');
+  });
 });
 
 describe('site report record', () => {

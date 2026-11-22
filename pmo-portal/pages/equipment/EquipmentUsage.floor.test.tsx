@@ -54,6 +54,7 @@ vi.mock('@/src/hooks/useEquipment', async () => {
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjectPickerOptions: () => ({ data: [{ id: 'pj1', name: 'EQU P1', short_name: null, project_manager_id: 'u-pm' }] }),
 }));
+vi.mock('@/src/hooks/useEquipmentAvailability', () => ({ useLatestStatusDays: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [{ id: 'u-eng', full_name: 'Engineer' }] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-eng', org_id: 'org1' } }) }));
 
@@ -90,7 +91,7 @@ const weekRead = () => h.usageArgs.at(-1) as { from: string; to: string };
 
 it('opens equipment availability from usage', async () => {
   renderPage();
-  await userEvent.click(screen.getByRole('button', { name: 'Availability' }));
+  await userEvent.click(screen.getByRole('link', { name: 'Availability' })); // a plain link now, beside the machines and expiring links
   expect(probe()).toHaveAttribute('data-path', '/equipment/availability');
 });
 

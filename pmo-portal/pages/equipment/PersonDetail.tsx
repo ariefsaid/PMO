@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, RecordHeader } from '@/src/components/ui';
+import { Button, ListState, RecordHeader } from '@/src/components/ui';
 import { usePerson } from '@/src/hooks/useDocumentExpiry';
 import { ExpiryDocumentsCard } from './ExpiryDocumentsCard';
 import { usePermission } from '@/src/auth/usePermission';
 import { useClearanceEnabled } from '@/src/hooks/useClearance';
+import { MarkLeftDialog } from '../admin/MarkLeftDialog';
 
 /** A person's record (#2542): name, code and their expiring documents. The roster increment extends it. */
 const PersonDetail: React.FC = () => {
@@ -13,6 +14,8 @@ const PersonDetail: React.FC = () => {
   const navigate = useNavigate();
   const { personId = '' } = useParams();
   const q = usePerson(personId);
+  const [leaving, setLeaving] = useState(false);
+  const mayMarkLeft = usePermission()('archive', 'person');
   // #2707: the checklist link exists only while the organisation setting is on and the role may read it.
   const clearanceOn = useClearanceEnabled().data === true;
   const mayViewClearance = usePermission()('view', 'personClearance');
@@ -25,7 +28,8 @@ const PersonDetail: React.FC = () => {
     action={{ label: t('equipment:expiry.title', 'Expiring documents'), onClick: () => navigate('/equipment/expiring') }} />;
   return (
     <div>
-      <RecordHeader name={q.data.name} status={<span className="record-id">{q.data.code}</span>} />
+      <RecordHeader name={q.data.name} status={<span className="record-id">{q.data.code}</span>}
+        actions={mayMarkLeft ? <Button variant="ghost" onClick={() => setLeaving(true)}>{t('administration:people.markLeft', 'Mark as left')}</Button> : undefined} />
       {showClearance && (
         <p className="mb-3">
           <Link to={`/administration/clearance/${q.data.id}`} className="text-control font-medium underline-offset-2 hover:underline">
@@ -34,6 +38,7 @@ const PersonDetail: React.FC = () => {
         </p>
       )}
       <ExpiryDocumentsCard kind="person" subjectId={q.data.id} />
+      <MarkLeftDialog person={leaving ? q.data : null} onClose={() => setLeaving(false)} />
     </div>
   );
 };

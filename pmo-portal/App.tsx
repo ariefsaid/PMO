@@ -100,6 +100,7 @@ const ProcurementDetails = lazyWithPreload(() => import('./pages/ProcurementDeta
 const ProcurementCreate = lazyWithPreload(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = lazyWithPreload(() => import('./pages/Timesheets'));
 const ImprestFloatsPage = lazyWithPreload(() => import('./pages/ImprestFloats'));
+const WorkOrdersPage = lazyWithPreload(() => import('./pages/WorkOrders'));
 const WorkOrderDetailPage = lazyWithPreload(() => import('./pages/WorkOrderDetail'));
 const ImprestFloatDetailPage = lazyWithPreload(() => import('./pages/ImprestFloatDetail'));
 const MaterialRequestsPage = lazyWithPreload(() => import('./pages/MaterialRequests'));
@@ -111,7 +112,7 @@ const MaterialRequestSettingsPage = lazyWithPreload(() => import('./pages/Materi
 const PurchaseTypeSettingsPage = lazyWithPreload(() => import('./pages/PurchaseTypeSettings'));
 const EquipmentPlansPage = lazyWithPreload(() => import('./pages/EquipmentPlans'));
 const EquipmentPlanSettingsPage = lazyWithPreload(() => import('./pages/EquipmentPlanSettings'));
-const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
+const EquipmentHomePage = lazyWithPreload(() => import('./pages/equipment/EquipmentHome'));
 const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAvailability'));
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
 const ExpiringDocumentsPage = lazyWithPreload(() => import('./pages/equipment/ExpiringDocuments'));
@@ -261,7 +262,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/equipment-plans/settings', chunks: [EquipmentPlanSettingsPage], namespaces: ['equipmentPlans'] },
   { path: '/timesheets', chunks: [TimesheetsPage], namespaces: ['timesheets'] },
   // The triage queue renders one section per approval domain; all four are static imports.
-  { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance', 'materialRequests'] },
+  { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance', 'materialRequests', 'waitingList'] },
   { path: '/companies', chunks: [CompaniesPage], namespaces: ['crm'] },
   { path: '/master-data/:kind', chunks: [MasterDataPage], namespaces: ['administration'] },
   { path: '/companies/:companyId', chunks: [CompanyDetailPage], namespaces: ['crm', 'supplyRisk'] },
@@ -284,12 +285,13 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/material-requests/:requestId/delivery-note', chunks: [DeliveryNotePrintPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests/:requestId', chunks: [MaterialRequestDetailPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests', chunks: [MaterialRequestsPage], namespaces: ['materialRequests'] },
+  { path: '/work-orders', chunks: [WorkOrdersPage], namespaces: ['workOrders', 'status'] },
   { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk', 'safety'] },
   { path: '/safety-days/:dayId', chunks: [SafetyDayFormPage], namespaces: ['safety', 'status'] },
   { path: '/safety', chunks: [SafetySummaryPage], namespaces: ['safety'] },
   { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
   { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage], namespaces: ['imprest'] },
-  { path: '/equipment', chunks: [EquipmentUsagePage], namespaces: ['equipment'] },
+  { path: '/equipment', chunks: [EquipmentHomePage], namespaces: ['equipment'] },
   { path: '/equipment/assets', chunks: [EquipmentAssetsPage], namespaces: ['equipment'] },
   { path: '/equipment/expiring', chunks: [ExpiringDocumentsPage], namespaces: ['equipment'] },
   { path: '/equipment/availability', chunks: [EquipmentAvailabilityPage], namespaces: ['equipment'] },
@@ -303,7 +305,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/subcontract-certificates', chunks: [SubcontractCertificatesPage], namespaces: ['subcontractCertificates'] },
   { path: '/subcontract-certificates/:certificateId', chunks: [SubcontractCertificateDetailPage], namespaces: ['subcontractCertificates'] },
   { path: '/leave', chunks: [LeaveRequestsPage], namespaces: ['crews'] },
-  { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
+  { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment', 'administration'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
   { path: '/administration/clearance/:personId', chunks: [PersonClearancePage], namespaces: ['administration'] },
   { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement', 'safety'] },
@@ -528,6 +530,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/material-requests/:requestId/edit', element: <MaterialRequestNewPage /> },
   { path: '/material-requests/:requestId/delivery-note', element: <DeliveryNotePrintPage /> },
   { path: '/material-requests/:requestId', element: <MaterialRequestDetailPage /> },
+  { path: '/work-orders', element: <WorkOrdersPage /> },
   { path: '/work-orders/:id', element: <WorkOrderDetailPage /> },
   // #2596: daily safety records per work order and day, and the monthly safety summary.
   { path: '/safety-days/:dayId', element: <SafetyDayFormPage /> },
@@ -535,7 +538,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/imprest', element: gated('imprest', <ImprestFloatsPage />) },
   { path: '/imprest/:floatId', element: gated('imprest', <ImprestFloatDetailPage />) },
   // #1519: equipment usage grid, asset reference and per-asset costing.
-  { path: '/equipment', element: <EquipmentUsagePage /> },
+  { path: '/equipment', element: <EquipmentHomePage /> },
   { path: '/equipment/assets', element: <EquipmentAssetsPage /> },
   { path: '/equipment/expiring', element: <ExpiringDocumentsPage /> },
   { path: '/equipment/availability', element: <EquipmentAvailabilityPage /> },

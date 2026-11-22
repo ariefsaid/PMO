@@ -1,22 +1,27 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, ConfirmDialog, EntityFormModal, FormGrid, ListState, StatusPill, TextField, useToast, type SubmitError } from '@/src/components/ui';
+import { Button, Checkbox, ConfirmDialog, EntityFormModal, FormGrid, ListState, SelectField, StatusPill, TextField, useToast, type SubmitError } from '@/src/components/ui';
+import { useDocumentTypes } from '@/src/hooks/useDocumentExpiry';
 import { CanWrite } from '@/src/auth/usePermission';
 import { usePeople } from '@/src/hooks/usePeople';
 import {
   useClearanceEnabled, useClearanceItemMutations, useClearanceItems, useClearanceSummary,
 } from '@/src/hooks/useClearance';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useRefusalText } from '@/src/lib/refusals';
 import type { ClearanceItemRow } from '@/src/lib/repositories/clearance';
 
 /** Add or edit one checklist item. The organisation names its own items; PMO ships none. */
 const ItemForm: React.FC<{ item?: ClearanceItemRow; nextOrder: number; onClose: () => void }> = ({ item, nextOrder, onClose }) => {
   const { t } = useTranslation('administration');
+  const refusal = useRefusalText();
   const { toast } = useToast();
   const { create, update } = useClearanceItemMutations();
   const [name, setName] = useState(item?.name ?? '');
   const [required, setRequired] = useState(item?.is_required ?? true);
+  const [docType, setDocType] = useState(item?.document_type_id ?? '');
+  const docTypes = useDocumentTypes('person');
   const [nameError, setNameError] = useState<string>();
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const [saving, setSaving] = useState(false);
@@ -27,13 +32,13 @@ const ItemForm: React.FC<{ item?: ClearanceItemRow; nextOrder: number; onClose: 
     if (!name.trim()) { setNameError(t('clearance.items.errName', 'Enter the item name')); return; }
     setSaving(true);
     const run = item
-      ? update.mutateAsync({ id: item.id, patch: { name, is_required: required } })
-      : create.mutateAsync({ name, is_required: required, sort_order: nextOrder });
+      ? update.mutateAsync({ id: item.id, patch: { name, is_required: required, document_type_id: docType || null } })
+      : create.mutateAsync({ name, is_required: required, sort_order: nextOrder, document_type_id: docType || null });
     run.then(() => { toast(t('clearance.items.saved', 'Item saved'), undefined, 'success'); onClose(); })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : '';
         if (message.includes('clearance_items_name_live')) setNameError(t('clearance.items.dupName', 'An item with that name already exists'));
-        else { const c = classifyMutationError(err); setSubmitError({ headline: c.headline, detail: c.detail }); }
+        else { const c = refusal(err); setSubmitError({ headline: c.headline, detail: c.detail }); }
       })
       .finally(() => setSaving(false));
   };
@@ -44,6 +49,10 @@ const ItemForm: React.FC<{ item?: ClearanceItemRow; nextOrder: number; onClose: 
       <FormGrid>
         <TextField id="clearance-item-name" label={t('clearance.items.name', 'Item name')} required value={name} error={nameError}
           onChange={(v) => { setName(v); setNameError(undefined); }} />
+        <SelectField label={t('clearance.items.documentType', 'Takes its dates from this document')} value={docType} onChange={setDocType}
+          options={[{ value: '', label: t('clearance.items.noDocumentType', 'None: record the date on the checklist') },
+            ...(docTypes.data ?? []).filter((x) => !x.is_medical).map((x) => ({ value: x.id, label: x.name }))]}
+          helper={t('clearance.items.documentTypeHelp', 'Pick the document type, such as a licence. The expiry is then kept once, on the person’s document, and also appears on the expiring list.')} />
         <Checkbox checked={required} onChange={setRequired} label={t('clearance.items.required', 'Required to be cleared')}>
           {t('clearance.items.required', 'Required to be cleared')}
         </Checkbox>

@@ -1,6 +1,6 @@
 /**
  * 0179 self-edit gate (migration `0179_profiles_hierarchy_write.sql`): the signed-in
- * caller's own row must NOT offer the 'Edit role' / 'Change manager' row-menu items.
+ * caller's own row must NOT offer the 'Edit access level' / 'Change manager' row-menu items.
  * That migration made the profiles write RLS deny an Admin editing their OWN role or
  * manager_id — so the FE affordance is gated off on the own-row (UX-only per ADR-0016;
  * RLS stays the enforcement authority) instead of dying with a 42501 toast. The two
@@ -101,10 +101,10 @@ describe('AdminUsers — self-edit affordance gate (0179 profiles hierarchy writ
     expect(within(row).queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
   });
 
-  it('still offers "Edit role" and "Change manager" on another user\'s row', async () => {
+  it('still offers "Edit access level" and "Change manager" on another user\'s row', async () => {
     renderPage();
     await openRowMenu('Engineer One');
-    expect(await screen.findByRole('menuitem', { name: /edit role/i })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: /edit access level/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /change manager/i })).toBeInTheDocument();
   });
 });

@@ -187,9 +187,9 @@
   "PCI_DECIDED": "This check-in request was already decided. Reload to see it.",
   "PCI_DECISION": "Choose approve or reject.",
   "PCI_FOLLOW_NO_AREA": "This work order has no check-in area, so the check-in cannot be sent for approval. Ask the foreman of that crew to record you.",
-  "PCI_NO_PERSON": "Your account is not in the workforce register. Ask your supervisor to add you.",
+  "PCI_NO_PERSON": "You are not in the workforce list yet. Ask your supervisor.",
   "PCI_PATH": "A work order with an area is clocked in through the phone check-in.",
-  "PCI_POSITION": "Your position could not be read. Allow location and try again.",
+  "PCI_POSITION": "Your position could not be read. Tap Ask my supervisor, or try again.",
   "PCI_REASON": "Give a reason for rejecting.",
   "PCI_ROLE": "That role is not recognised. Reload and try again.",
   "PCI_SELF": "You cannot decide your own check-in. Someone else must.",
@@ -361,5 +361,9 @@
   "HC_CREW_NOT_ROSTERED": "That crew is not on this work order on that date. Choose a crew that is, or add the crew to the work order first.",
   "HC_DATE_FUTURE": "A head count cannot be recorded for a future date. Choose today or an earlier day.",
   "HC_DATE_OLD": "The earliest date open for a head count is {{date}}. Ask an Admin if an earlier day must be recorded.",
-  "HC_LOCKED": "This head count is approved and final. Ask an Admin or Finance if it must be corrected."
+  "HC_LOCKED": "This head count is approved and final. Ask an Admin or Finance if it must be corrected.",
+  "CLR_DOC_TYPE": "Choose one of your document types for people.",
+  "PPL_DATE": "Choose the day the person left.",
+  "PPL_FORBIDDEN": "Only an Admin can mark a person as having left.",
+  "PPL_NOT_FOUND": "That person was not found, or has already left."
 }

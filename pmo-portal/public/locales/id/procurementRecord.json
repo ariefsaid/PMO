@@ -71,10 +71,7 @@
     "addLineItem": "Tambahkan setidaknya satu item baris sebelum mengajukan."
   },
   "waiting": {
-    "approval": "Menunggu persetujuan",
-    "engineerApproval": "Menunggu persetujuan dari manajer proyek atau Finance",
-    "payment": "Pembayaran: menunggu Finance",
-    "approvalGoesTo": "Menunggu persetujuan. Diteruskan ke {{name}}."
+    "payment": "Pembayaran: menunggu Finance"
   },
   "record": {
     "purchaseRequest": "Permintaan pembelian",
@@ -192,7 +189,7 @@
       "Payment": "Pembayaran"
     },
     "groupRef": "Ref. grup",
-    "workOrder": "Work Order / SPK"
+    "workOrder": "$t(common:terms.clientWorkOrder)"
   },
   "files": {
     "heading": "Lampiran",
