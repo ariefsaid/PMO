@@ -9,6 +9,7 @@ import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useDeliveryNoteSettings, useMaterialRequest, useMaterialRequestMutations, useStepPins, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { waitingForText } from '@/src/lib/approvals/waitingFor';
 import { useStockItems, useStockKeepers, useStockWarehouses } from '@/src/hooks/useStock';
 import { formatDay } from '@/src/lib/format';
@@ -33,6 +34,7 @@ const MaterialRequestDetailPage: React.FC = () => {
   const refusal = useRefusalText();
   const name = useUserNames();
   const labels = useLabels();
+  const roleName = useBuiltInRoleName();
   const q = useMaterialRequest(requestId);
   const usage = useUsageThresholds();
   const waiting = useWaitingForMe();
@@ -72,8 +74,11 @@ const MaterialRequestDetailPage: React.FC = () => {
   const noApprover = req.status === 'pending' && !open;
   // fix-waiting item 3: who the open step waits for. A pinned person is named; otherwise the step's role.
   const pinned = open ? (pins.data ?? []).find((pin) => pin.position === open.position) : undefined;
+  // FR-TR-010: an unpinned step shows its built-in job role through the org's rename, or its localised access level.
+  // A pinned step keeps the named person and its label, so no role is invented for them.
+  const openRole = open ? (open.jobRole ? roleName(open.jobRole) : labels.role[open.role] ?? open.role) : '';
   const waitingLine = req.status === 'pending' && open
-    ? waitingForText({ names: pinned ? [name(pinned.approverId)] : [], role: pinned ? open.label : `${open.label} · ${open.role}`, step: { n: open.position, of: last } }, tc)
+    ? waitingForText({ names: pinned ? [name(pinned.approverId)] : [], role: pinned ? open.label : `${open.label} · ${openRole}`, step: { n: open.position, of: last } }, tc)
     : null;
   const canPrintDeliveryNote = Boolean(dnSettings?.enabled) && (req.status === 'approved' || req.status === 'fulfilled');
 

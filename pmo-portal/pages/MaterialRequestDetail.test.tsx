@@ -17,6 +17,7 @@ import { ToastProvider } from '@/src/components/ui';
 const h = vi.hoisted(() => ({
   req: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   waiting: { data: [] as unknown[] },
+  pins: { data: [] as unknown[] },
   dnSettings: { data: { enabled: false, signatureBlocks: ['Dispatched by', 'Delivered by', 'Received by'] } },
   userId: 'u-approver',
   keepers: [{ warehouse_id: 'w1', user_id: 'u-approver' }] as unknown[],
@@ -25,7 +26,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useMaterialRequest: () => h.req,
-  useStepPins: () => ({ data: [] }),
+  useStepPins: () => h.pins,
   useWaitingForMe: () => h.waiting,
   useDeliveryNoteSettings: () => h.dnSettings,
   useMaterialRequestMutations: () => ({
@@ -47,9 +48,10 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 vi.mock('@/src/components/shell', () => ({ BackBar: () => null }));
 
 import MaterialRequestDetailPage from './MaterialRequestDetail';
+import { setOrgRoleNames } from '@/src/hooks/useOrgRoleNames';
 
 const step = (position: number, status: string, extra: Record<string, unknown> = {}) => ({
-  id: `s${position}`, round: 1, position, role: 'Project Manager', label: `Check ${position}`, status, decidedBy: null, actedFor: null, decidedAt: null, reason: null, ...extra,
+  id: `s${position}`, round: 1, position, role: 'Project Manager', jobRole: null, label: `Check ${position}`, status, decidedBy: null, actedFor: null, decidedAt: null, reason: null, ...extra,
 });
 const request = (over: Record<string, unknown> = {}) => ({
   id: 'r1', number: 'MRQ-0001', workOrderId: 'w', projectId: 'p', toWarehouseId: null, neededBy: '2026-11-25', note: null, status: 'pending', round: 1,
@@ -68,6 +70,8 @@ describe('material request detail', () => {
   beforeEach(() => {
     h.userId = 'u-approver';
     h.keepers = [{ warehouse_id: 'w1', user_id: 'u-approver' }];
+    h.pins = { data: [] };
+    setOrgRoleNames({});
     h.waiting = { data: [{ requestId: 'r1', stepPosition: 2, role: 'Project Manager', label: 'Check 2', actingFor: null, submittedAt: '2026-11-19T08:05:00Z' }] };
     h.req = { data: request(), isPending: false, isError: false, refetch: vi.fn() };
     h.decide.mutateAsync = vi.fn().mockResolvedValue(undefined);
@@ -95,6 +99,45 @@ describe('material request detail', () => {
   it('JOB-WAIT-3 the request says which step it waits at and for whom (never a bare "waiting")', () => {
     renderPage();
     expect(screen.getByTestId('mrq-waiting-for')).toHaveTextContent(/^Waiting for .*\(step 2 of 3\)$/);
+  });
+
+  describe('AC-TR-009 the open step names its real role', () => {
+    it('shows the organisation\'s renamed built-in job role on an unpinned step', () => {
+      setOrgRoleNames({ en: { storekeeper: 'Warehouse lead' } });
+      h.req = {
+        data: request({ steps: [step(1, 'approved'), step(2, 'open', { role: 'Engineer', jobRole: 'storekeeper' }), step(3, 'waiting')] }),
+        isPending: false, isError: false, refetch: vi.fn(),
+      };
+      renderPage();
+      const line = screen.getByTestId('mrq-waiting-for');
+      expect(line).toHaveTextContent('Waiting for Check 2 · Warehouse lead (step 2 of 3)');
+      expect(line).not.toHaveTextContent('Engineer');
+    });
+
+    it('keeps the localised access level when the step names no job role', () => {
+      setOrgRoleNames({ en: { storekeeper: 'Warehouse lead' } });
+      h.req = {
+        data: request({ steps: [step(1, 'approved'), step(2, 'open', { role: 'Project Manager', jobRole: null }), step(3, 'waiting')] }),
+        isPending: false, isError: false, refetch: vi.fn(),
+      };
+      renderPage();
+      const line = screen.getByTestId('mrq-waiting-for');
+      expect(line).toHaveTextContent('Waiting for Check 2 · Project Manager (step 2 of 3)');
+      expect(line).not.toHaveTextContent('Warehouse lead');
+    });
+
+    it('keeps the named person on a pinned step rather than inventing a role for them', () => {
+      setOrgRoleNames({ en: { storekeeper: 'Warehouse lead' } });
+      h.pins = { data: [{ position: 2, role: 'Engineer', jobRole: 'storekeeper', approverId: 'u-approver' }] };
+      h.req = {
+        data: request({ steps: [step(1, 'approved'), step(2, 'open', { role: 'Engineer', jobRole: 'storekeeper' }), step(3, 'waiting')] }),
+        isPending: false, isError: false, refetch: vi.fn(),
+      };
+      renderPage();
+      const line = screen.getByTestId('mrq-waiting-for');
+      expect(line).toHaveTextContent('Waiting for Pia Manager, Check 2 (step 2 of 3)');
+      expect(line).not.toHaveTextContent('Warehouse lead');
+    });
   });
 
   it('#2609 header names the work order (linked) and its project', () => {
