@@ -1,9 +1,9 @@
-# Spec: Followed crew, record on the day whose crew a worker followed
+# Spec: Followed crew, record on the day whose crew a worker followed (phone clock-in and foreman tick)
 
 **Status:** proposed. IDs `FR-FOL-###`, `AC-FOL-###`. Plan: `docs/plans/2026-11-22-crew-followed.md`. Builds on `docs/specs/crews-roster-attendance.spec.md` and `docs/specs/crew-loan.spec.md`; read both. Scope ruling OD-SCOPE-2 (no client process in code). No setting: new for every organisation. It adds a way to record a day that is refused today; it changes no money figure, approval route or visibility for anyone not using it.
 
 ## Job story
-When a worker joined a different crew for the day without anyone arranging it in advance, I want the foreman of that crew (or the roster keeper) to record on the day whose crew the worker followed, so hours and roster agree, with no advance loan.
+When a worker (with a phone) clocks in on a work order and picks the crew they joined, or a foreman or roster keeper ticks a worker without a phone, I want the day record to say which crew they followed. Original wording: when a worker joined a different crew for the day without anyone arranging it in advance, I want the foreman of that crew (or the roster keeper) to record on the day whose crew the worker followed, so hours and roster agree, with no advance loan.
 
 ## Today (verified on base `land/fix-1122`, fc42e1a0)
 - Day roster ticked through ONE RPC `attendance_record(work_order, date, source, rows)`; head body is `supabase/migrations/1465_attendance_phone_path.sql` (restating 1248, which restated 1110/1036). Sources `phone_check_in | roster_tick | manual_correction`. Rows stored in `attendance_days` (1036:103), unique per (worker, work order, date) (1036:133); `crew_id` = "crew the person was in when recorded" (1036:111).
@@ -15,11 +15,13 @@ When a worker joined a different crew for the day without anyone arranging it in
 - UI: `pmo-portal/pages/crews/AttendanceTick.tsx` ticks only `crew.members` from the roster. No way to add an off-roster person; the DAL is `pmo-portal/src/lib/db/attendance.ts:74`.
 - Prior-art sweep (`scripts/prior-art.sh`) for "crew roster", "loan": only the migrations above. The base does NOT answer the ask: a one-day follow without a loan is refused.
 
+- Phone clock-in on the base: `phone_check_in(work_order, crew, lat, lng, accuracy, hours, no_position)` (head body `1465_attendance_phone_path.sql`, restating 1212). `p_crew_id` must be a crew the worker is placed in today (`PCI_CREW`, 1212:36-41 area of the body). Not rostered on that work order, outside the area or no position: a pending request `phone_check_ins` (1211) with `crew_id` kept, outcome `not_rostered`; nothing recorded. With a check-in area and rostered and inside: recorded at once. No area: straight to `attendance_record` (refused `ATT_NOT_ROSTERED` if not rostered). Approval: `phone_check_in_decide` (head 1465) lets `phone_check_in_may_decide` (1213) decide (crew managers, or the picked crew's field controller when no supervisor role is set; never the requester), then calls `attendance_record(..., 'phone_check_in', ...)` inside a transaction mark `pmo.phone_check_in`; as shipped, approving a not-rostered request fails again with `ATT_NOT_ROSTERED` because the attendance record resolves only the worker's own crew. That is the gap this item closes.
+
 ## Model
-A day record may carry `followed_crew_id`: "this worker followed this crew on this day". It lives on the `attendance_days` row (same record, same work order, same hours); the home placement and the loans table are never touched. When set, `crew_id = followed_crew_id`. For that worker and date it becomes the effective crew: the worker shows on the receiving crew's roster (marked `followed`, no standard role, like a loan) and not on the home crew's. Timesheet derivation is untouched: it reads the saved row exactly as now.
+A day record may carry `followed_crew_id`: "this worker followed this crew on this day". It lives on the `attendance_days` row (same record, same work order, same hours); the home placement and the loans table are never touched. When set, `crew_id = followed_crew_id`. Phone: the person picks any live crew rostered on the work order today (not only their own); a pick outside their own crew becomes the existing supervisor request, and the approval records the picked crew as `followed_crew_id`. For that worker and date it becomes the effective crew: the worker shows on the receiving crew's roster (marked `followed`, no standard role, like a loan) and not on the home crew's. Timesheet derivation is untouched: it reads the saved row exactly as now.
 
 ## Requirements (EARS)
-- FR-FOL-001 The system shall let `attendance_record` accept per row an optional `followed_crew_id` (sources `roster_tick`, `manual_correction`; refused for `phone_check_in`).
+- FR-FOL-001 The system shall let `attendance_record` accept per row an optional `followed_crew_id` for `roster_tick` and `manual_correction`; for `phone_check_in` only inside a supervisor's approval of that person's request (never the person's own direct call).
 - FR-FOL-002 When `followed_crew_id` is given, the crew shall be rostered on this work order that day, differ from the worker's effective crew that day, be a live crew of the organisation, and the worker shall hold a placement that day (a person with no crew is not "following" anyone).
 - FR-FOL-003 Who may record a followed day shall be decided by `attendance_can_record(followed crew)`: the receiving crew's field controller or a crew manager (roster keeper). The home crew's foreman, as such, may not. Enforced in the database.
 - FR-FOL-004 While a followed record exists for (worker, date), `worker_effective_crew` shall return the followed crew, so the roster lists the worker on the receiving crew and not on the home crew, and a later recording on the receiving crew's work order is accepted without repeating the follow.
@@ -27,6 +29,8 @@ A day record may carry `followed_crew_id`: "this worker followed this crew on th
 - FR-FOL-006 The row shall keep `followed_crew_id = crew_id`; the audit entry for `attendance.record` shall carry it; all existing day rules (window, week submitted, locked, 24 hours, off rotation) apply unchanged.
 - FR-FOL-007 Where no row carries `followed_crew_id`, every roster and attendance result shall equal today's.
 - FR-FOL-008 The tick screen shall offer "Add someone from another crew" (person picker over people placed elsewhere), shown to who may tick the crew; the added person appears marked "followed from <home crew>" and is saved with the rest. Strings in English and Bahasa Indonesia, phone and desktop.
+- FR-FOL-010 `phone_check_in` shall accept as `p_crew_id` any live crew rostered on the work order today, besides the person's own crews; a pick that is not the person's own crew shall never be recorded without approval (it becomes the pending request, outcome as today, with the picked crew kept), and on a work order with no check-in area it shall be refused with a sentence saying to ask the foreman (`PCI_FOLLOW_NO_AREA`).
+- FR-FOL-011 `phone_check_in_decide` on approval shall record the picked crew as the day's followed crew when it is not where the person is that day; whoever may decide today (unchanged `phone_check_in_may_decide`: the picked crew's foreman or a crew manager) may approve; the home crew's foreman, as such, may not.
 - FR-FOL-009 Every refusal a person can meet shall have an English and a Bahasa Indonesia sentence in the refusals catalogue saying what to do next.
 
 ## Acceptance criteria and owning layer
@@ -40,11 +44,13 @@ A day record may carry `followed_crew_id`: "this worker followed this crew on th
 | AC-FOL-006 | Given `phone_check_in` with `followed_crew_id`, then refused; given a submitted or approved week, then `ATT_SUBMITTED`/`ATT_LOCKED` as today; 24-hour ceiling still holds across the follow. | pgTAP |
 | AC-FOL-007 | Given no followed rows, the existing roster, loan and attendance pgTAP files pass untouched. | pgTAP (existing) |
 | AC-FOL-008 | Given the tick screen, when a foreman adds a person from another crew with hours and saves, then the RPC is called with `followed_crew_id`; a refusal shows its catalogue sentence; the add control is hidden for someone who may not tick. | Unit (RTL) |
+| AC-FOL-011 | Given a person with a phone, a work order with a check-in area, a crew rostered there that is not theirs, when they clock in inside the area picking that crew, then a pending request keeps the crew and nothing is recorded; a crew not on the work order is `PCI_CREW`; with no area the pick is refused; their own direct follow call is refused. | pgTAP |
+| AC-FOL-012 | Given that request, when the picked crew's foreman approves, then the day record carries the picked crew and `followed_crew_id`; the home crew's foreman is refused. | pgTAP (+ mutation check) |
 | AC-FOL-009 | Given the en and id catalogues, then every new refusal key exists in both. | Unit |
 | AC-FOL-010 | Given a foreman, when they add a person from another crew and save on a rich seed, then the roster shows the person on the receiving crew and the hours appear in the week. | E2E (one journey) |
 
 ## Errors (new codes)
-`ATT_FOLLOW_CREW` (crew not rostered here that day, same as own crew, or not live), `ATT_FOLLOW_UNPLACED` (worker has no placement that day), `ATT_FOLLOW_LOAN` (a loan to another crew covers the day), `ATT_FOLLOW_SOURCE` (phone check-in cannot follow). Not authorised stays `42501` as today.
+`ATT_FOLLOW_CREW` (crew not rostered here that day, same as own crew, or not live), `ATT_FOLLOW_UNPLACED` (worker has no placement that day), `ATT_FOLLOW_LOAN` (a loan to another crew covers the day), `ATT_FOLLOW_SOURCE` (a follow outside a supervisor's approval of a phone request), `PCI_FOLLOW_NO_AREA` (phone pick with no check-in area). Not authorised stays `42501` as today.
 
 ## Rulings and open question
 - Hours already submitted or approved never move: the follow is a new row or an unsubmitted row only (existing `ATT_SUBMITTED`/`ATT_LOCKED`).

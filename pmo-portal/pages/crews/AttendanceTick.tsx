@@ -10,8 +10,8 @@ import { useAuth } from '@/src/auth/useAuth';
 import {
   useAttendanceDay, useAttendanceMutations, useAwaitingAttendance, useCrewWorkers, useWorkOrderRoster,
 } from '@/src/hooks/useCrews';
-import type { AttendanceDayRow, AttendanceStatus, RosterCrew } from '@/src/lib/repositories/crews';
-import { buildTickRows, initialTickState, isoWeekStart, type TickError, type TickState } from '@/src/lib/attendanceTick';
+import type { AttendanceDayRow, AttendanceStatus, RosterCrew, RosterMember } from '@/src/lib/repositories/crews';
+import { addFollower, buildTickRows, initialTickState, isoWeekStart, type TickError, type TickState } from '@/src/lib/attendanceTick';
 import { formatDay, formatNumberMax2 } from '@/src/lib/format';
 import { toIso } from '../equipment/equipmentWeek';
 import { WorkOrderPicker } from './CrewPickers';
@@ -28,6 +28,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
   const writeError = useCrewErrorText();
   const { toast } = useToast();
   const { record, uploadPhoto, generateWeek } = useAttendanceMutations();
+  const workers = useCrewWorkers();
   const [state, setState] = useState<TickState>(() => initialTickState(
     crew.members.map((m) => ({ worker_id: m.worker_id, off_rotation: Boolean(m.off_rotation) })),
     held.filter((h) => crew.members.some((m) => m.worker_id === h.worker_id)),
@@ -52,9 +53,22 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
     setState((s) => ({ ...s, people: { ...s.people, [id]: { ...s.people[id], ...patch } } }));
   };
 
+  const names = useMemo(() => new Map((workers.data ?? []).map((w) => [w.id, w.display_name])), [workers.data]);
+  // The crew's own members, then the people added from another crew in this session (not yet saved).
+  const rows = useMemo<RosterMember[]>(() => [
+    ...crew.members,
+    ...state.followers.map((id) => ({ worker_id: id, display_name: names.get(id) ?? '—', standard_role_id: null })),
+  ], [crew.members, state.followers, names]);
+  const addable = (workers.data ?? []).filter((w) => !state.people[w.id]);
+  const follow = (id: string) => {
+    if (!id) return;
+    setDirty(true);
+    setState((s) => addFollower(s, id));
+  };
+
   const save = async () => {
     setProblem(null);
-    const built = buildTickRows(state);
+    const built = buildTickRows(state, crew.crew_id);
     setErrors(built.errors);
     if (Object.keys(built.errors).length > 0) return;
     setBusy(true);
@@ -113,7 +127,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
             <th scope="col" className="py-2 font-normal">{t('crews:reason', 'Reason')}</th>
           </tr></thead>
           <tbody>
-            {crew.members.map((m) => {
+            {rows.map((m) => {
               const p = state.people[m.worker_id];
               if (!p) return null;
               const err = errors[m.worker_id];
@@ -121,6 +135,8 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
                 <tr key={m.worker_id} aria-label={m.display_name} className="border-t border-border align-top">
                   <th scope="row" className="py-2 pr-2 text-left font-normal text-foreground">
                     {m.display_name}
+                    {m.followed && <span className="block text-xs text-muted-foreground">{t('crews:followedFrom', 'Followed from {{crew}}', { crew: m.from_crew_name ?? '—' })}</span>}
+                    {state.followers.includes(m.worker_id) && <span className="block text-xs text-muted-foreground">{t('crews:followedToday', 'Followed this crew today')}</span>}
                     {err && <FieldError id={`tick-err-${m.worker_id}`}>{errorText(err)}</FieldError>}
                   </th>
                   <td className="py-2 pr-2">
@@ -149,6 +165,14 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
             })}
           </tbody>
         </table>
+        {canRecord && (
+          <div className="mt-4 max-w-sm">
+            <SelectField label={t('crews:addFollower', 'Add someone from another crew')} value="" onChange={follow} disabled={busy || addable.length === 0}
+              placeholder={t('crews:addFollowerPlaceholder', 'Choose a person')}
+              helper={addable.length === 0 ? t('crews:addFollowerNone', 'Everyone in the register is already listed.') : t('crews:addFollowerHint', 'For someone who joined this crew today without a loan. Their hours are recorded here.')}
+              options={addable.map((w) => ({ value: w.id, label: w.display_name }))} />
+          </div>
+        )}
         {canRecord && dirty && <p className="mb-3 text-sm text-muted-foreground">{t('crews:saveBeforeSending', 'Save attendance before sending the week.')}</p>}
         {canRecord && (
           <div className="mt-4 flex flex-wrap gap-2">

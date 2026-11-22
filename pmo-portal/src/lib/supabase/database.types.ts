@@ -676,6 +676,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           crew_id: string | null
+          followed_crew_id: string | null
           hours: number | null
           id: string
           locked_at: string | null
@@ -702,6 +703,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           crew_id?: string | null
+          followed_crew_id?: string | null
           hours?: number | null
           id?: string
           locked_at?: string | null
@@ -728,6 +730,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           crew_id?: string | null
+          followed_crew_id?: string | null
           hours?: number | null
           id?: string
           locked_at?: string | null
@@ -761,6 +764,13 @@ export type Database = {
           {
             foreignKeyName: "attendance_days_crew_id_fkey"
             columns: ["crew_id"]
+            isOneToOne: false
+            referencedRelation: "crews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_days_followed_crew_id_fkey"
+            columns: ["followed_crew_id"]
             isOneToOne: false
             referencedRelation: "crews"
             referencedColumns: ["id"]
@@ -30134,6 +30144,13 @@ export type Database = {
         Args: { p_fiscal_years: string[]; p_project_id: string }
         Returns: string
       }
+      followed_workers_on: {
+        Args: { p_date: string }
+        Returns: {
+          crew_id: string
+          worker_id: string
+        }[]
+      }
       fx_rate_on: {
         Args: { base: string; on_date: string; quote: string }
         Returns: {
@@ -36562,6 +36579,10 @@ export type Database = {
         Returns: number
       }
       worker_effective_crew: {
+        Args: { p_date: string; p_worker_id: string }
+        Returns: string
+      }
+      worker_followed_crew: {
         Args: { p_date: string; p_worker_id: string }
         Returns: string
       }

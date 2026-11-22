@@ -250,5 +250,11 @@
     "supervisorRole": "Siapa yang memutuskan absen di luar area",
     "supervisorRoleDefault": "Pengendali lapangan kru atau pengelola kru",
     "supervisorRoleHelper": "Pemegang peran ini yang memutuskan. Orang yang absen tidak pernah memutuskan absennya sendiri."
-  }
+  },
+  "addFollower": "Tambah orang dari kru lain",
+  "addFollowerPlaceholder": "Pilih orang",
+  "addFollowerNone": "Semua orang di daftar sudah tercantum.",
+  "addFollowerHint": "Untuk orang yang bergabung dengan kru ini hari ini tanpa peminjaman. Jam kerjanya dicatat di sini.",
+  "followedFrom": "Ikut kru ini, berasal dari {{crew}}",
+  "followedToday": "Ikut kru ini hari ini"
 }

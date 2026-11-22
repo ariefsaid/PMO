@@ -179,4 +179,37 @@ describe('attendance tick screen (#2528)', () => {
     await user.click(within(row).getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(h.decide).toHaveBeenCalledWith({ workerId: 'v1', weekStart: '2026-11-16', decision: 'approve', reason: null }));
   });
+
+  it('AC-FOL-008 the foreman adds someone from another crew, who is saved as following this crew', async () => {
+    const user = userEvent.setup();
+    renderAt();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Add someone from another crew' }), 'v1');
+    const row = screen.getByRole('row', { name: /Vendor One/ });
+    expect(within(row).getByText('Followed this crew today')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
+    await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
+    const { rows } = h.record.mock.calls[0][0];
+    expect(rows).toHaveLength(7);
+    expect(rows[6]).toMatchObject({ worker_id: 'v1', status: 'present', hours: 8, followed_crew_id: 'c1' });
+    expect(rows.slice(0, 6).some((r: Record<string, unknown>) => 'followed_crew_id' in r)).toBe(false);
+  });
+
+  it('AC-FOL-008 a recorded follow shows where the person came from and is not sent as a new follow', async () => {
+    const user = userEvent.setup();
+    h.roster = { ...h.roster, data: [{
+      crew_id: 'c1', crew_code: 'CR-1', crew_name: 'Crew one', field_controller_id: 'fc1', roles: [], shortfall: 0,
+      members: [{ worker_id: 'w1', display_name: 'Ana', standard_role_id: null, off_rotation: false, followed: true, from_crew_name: 'Home crew' }],
+    }] };
+    renderAt();
+    expect(within(screen.getByRole('row', { name: /Ana/ })).getByText('Followed from Home crew')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save attendance' }));
+    await waitFor(() => expect(h.record).toHaveBeenCalledTimes(1));
+    expect('followed_crew_id' in h.record.mock.calls[0][0].rows[0]).toBe(false);
+  });
+
+  it('AC-FOL-008 someone who may not tick this crew is not offered the add control', () => {
+    h.uid = 'someone-else';
+    renderAt();
+    expect(screen.queryByRole('combobox', { name: 'Add someone from another crew' })).toBeNull();
+  });
 });
