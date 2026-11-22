@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { TFunction } from 'i18next';
 import i18next from 'i18next';
 import { parseRefusal, refusalText } from './refusals';
+import idRefusals from '@/public/locales/id/refusals.json';
+import idCommon from '@/public/locales/id/common.json';
 
 /** The real instance from test/setup.ts, loaded with the shipped English catalogue. */
 const tReal = i18next.t.bind(i18next) as unknown as TFunction;
@@ -47,6 +49,18 @@ describe('parseRefusal', () => {
 });
 
 describe('refusalText', () => {
+  it('renders configured work-order terminology and the Timesheet label in Indonesian refusals', async () => {
+    const instance = i18next.createInstance();
+    await instance.init({ lng: 'id', resources: { id: { refusals: idRefusals, common: { ...idCommon, terms: { ...idCommon.terms, clientWorkOrder: 'SPK khusus' } } } }, initImmediate: false });
+    const translate = instance.t.bind(instance) as TFunction;
+    for (const code of ['CSR_ALLOCATION', 'CSR_WORK_ORDER', 'RSV_NOT_FOUND', 'RSV_NO_BORROW_APPROVER', 'RSV_WORK_ORDER', 'STK_WOT_EXCEEDS', 'STK_WOT_INCOMPLETE', 'STK_WOT_LOCATION', 'STK_WOT_OFF', 'STK_WOT_PROJECT', 'STK_WOT_SYSTEM']) {
+      expect(refusalText(new Error(`${code}: x`), translate).headline).toContain('SPK khusus');
+    }
+    for (const code of ['ATT_HAS_TIMESHEET', 'ATT_LOCKED', 'ATT_TS_MANUAL_ENTRY', 'ATT_TS_NOT_DRAFT']) {
+      expect(refusalText(new Error(`${code}: x`), translate).headline).toContain('Timesheet');
+    }
+    expect(refusalText(new Error('PCI_CREW: x'), translate).headline).toBe('Anda tidak ada di kru itu hari ini. Pilih kru lain atau tanyakan ke supervisor Anda.');
+  });
   it('is the catalogue sentence for the code, never the server text or the code', () => {
     const r = refusalText({ code: '23514', message: 'PCI_CREW: you are not in that crew today' }, t);
     expect(r).toEqual({ headline: 'You are not in that crew today.', detail: '', known: true });

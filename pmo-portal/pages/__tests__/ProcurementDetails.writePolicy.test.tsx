@@ -254,7 +254,7 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(/Acme Supplies/)).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Generate Purchase Order' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Record order' }));
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Ordered' })),
     );
