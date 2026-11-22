@@ -33,7 +33,17 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
   }),
 }));
 
-import { act, render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
+import { render as rtlRender, act, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: the follow-up task button mounts with its host page now, so every render here runs
+// inside the shared test query client and the button's open-task read is stubbed quiet.
+const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(<QueryClientTestProvider>{ui}</QueryClientTestProvider>, options)) as typeof rtlRender;
+vi.mock('@/src/lib/repositories', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
+  return { repositories: { ...actual.repositories, task: { ...actual.repositories.task, findOpenForRecord: async () => null } } };
+});
+
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -1831,11 +1841,11 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     });
     detailState.data = { ...baseProcurement, status: 'Paid', requested_by_id: 'u-other', purchase_requests: [request], invoices: [invoice], payments: [payment] };
     render(
-      <I18nextProvider i18n={i18n}>
+      <QueryClientTestProvider><I18nextProvider i18n={i18n}>
         <MemoryRouter initialEntries={['/procurement/proc-001']}>
           <Routes><Route path="/procurement/:procurementId" element={<ProcurementDetails />} /></Routes>
         </MemoryRouter>
-      </I18nextProvider>,
+      </I18nextProvider></QueryClientTestProvider>,
     );
     expect(within(screen.getByTestId('procurement-status-badge')).getByText('Dibayar')).toBeInTheDocument();
     expect(statusWordCount('Dibayar')).toBe(1);
@@ -1973,7 +1983,7 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     detailState.data = invoicedOver;
     const view = renderPage();
     fireEvent.click(screen.getByRole('button', { name: 'Approve higher amount' }));
-    const refresh = () => view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001']}><Routes><Route path="/procurement/:procurementId" element={<ProcurementDetails />} /></Routes></MemoryRouter>);
+    const refresh = () => view.rerender(<QueryClientTestProvider><MemoryRouter initialEntries={['/procurement/proc-001']}><Routes><Route path="/procurement/:procurementId" element={<ProcurementDetails />} /></Routes></MemoryRouter></QueryClientTestProvider>);
     detailState.isFetching = true; refresh();
     expect(screen.getByText('Checking approval eligibility…')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();

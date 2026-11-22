@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StatusPill } from '@/src/components/ui/StatusPill';
-import { QueryClientGate } from '@/src/components/billing/QueryClientGate';
 import { useOverdueClaimSteps } from '@/src/hooks/useBillingSteps';
 
 /**
@@ -19,8 +18,6 @@ const Marker: React.FC<{ claimId: string; projectId: string }> = ({ claimId, pro
   </StatusPill>;
 };
 
-export const ClaimOverdueMarker: React.FC<{ claimId: string; projectId: string }> = (props) => (
-  <QueryClientGate><Marker {...props} /></QueryClientGate>
-);
+export const ClaimOverdueMarker: React.FC<{ claimId: string; projectId: string }> = (props) => <Marker {...props} />;
 
 export default ClaimOverdueMarker;

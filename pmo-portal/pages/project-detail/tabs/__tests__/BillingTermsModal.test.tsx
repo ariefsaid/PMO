@@ -8,13 +8,19 @@ const h = vi.hoisted(() => ({
   data: null as unknown,
   state: { isPending: false, isError: false, refetch: vi.fn() },
   save: vi.fn(),
+  loadTemplate: vi.fn(),
 }));
 vi.mock('@/src/hooks/useBillingStages', () => ({
   useProjectBillingTerms: () => ({ data: h.data, ...h.state }),
   useSaveBillingTerms: () => ({ mutateAsync: h.save, isPending: false }),
 }));
+vi.mock('@/src/hooks/useBillingSteps', () => ({
+  useStepTemplates: () => ({ data: [{ id: 'tpl-1', name: 'Fit-out' }] }),
+  useLoadTemplateOntoProject: () => ({ mutateAsync: h.loadTemplate, isPending: false }),
+}));
 
 import { BillingTermsModal } from '../BillingTermsModal';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 
 beforeEach(() => {
   h.data = {
@@ -26,11 +32,18 @@ beforeEach(() => {
   };
   h.state = { isPending: false, isError: false, refetch: vi.fn() };
   h.save.mockReset().mockResolvedValue(undefined);
+  h.loadTemplate.mockReset().mockResolvedValue(undefined);
 });
 
-const renderIt = (onClose = vi.fn()) => { render(<BillingTermsModal projectId="p1" onClose={onClose} />); return { user: userEvent.setup(), onClose }; };
+const renderIt = (onClose = vi.fn()) => { render(<QueryClientTestProvider><BillingTermsModal projectId="p1" onClose={onClose} /></QueryClientTestProvider>); return { user: userEvent.setup(), onClose }; };
 
 describe('BillingTermsModal', () => {
+  it('AC-BSX-020 the template tools sit in the modal: pick a template and replace the stages (#2680)', () => {
+    renderIt();
+    expect(screen.getByRole('button', { name: 'Manage templates' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Replace stages with template' })).toBeDisabled();
+  });
+
   it('AC-BST-002 shows the current stage list, deadline and retention', () => {
     renderIt();
     const stages = screen.getAllByRole('group', { name: /^Stage \d/ });

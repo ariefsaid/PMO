@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render as rtlRender, fireEvent, screen } from '@testing-library/react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+// C11: the purchase-type fields mount with the form now, so renders run inside the shared test
+// query client; with no signed-in org the reads stay disabled, as the page itself sees.
+const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(<QueryClientTestProvider>{ui}</QueryClientTestProvider>, options)) as typeof rtlRender;
+
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
 
@@ -71,7 +77,7 @@ describe('Procurement create readiness transition', () => {
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     const cached = await screen.findByRole('option', { name: /Supplier One/ });
     mocks.vendorQuery.isError = true;
-    view.rerender(<MemoryRouter initialEntries={['/procurement/new?have=need']}><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></MemoryRouter>);
+    view.rerender(<QueryClientTestProvider><MemoryRouter initialEntries={['/procurement/new?have=need']}><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></MemoryRouter></QueryClientTestProvider>);
     expect(screen.getByRole('combobox', { name: 'Supplier' })).toBeDisabled();
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     fireEvent.click(cached);
@@ -81,7 +87,7 @@ describe('Procurement create readiness transition', () => {
     expect(mocks.vendorQuery.refetch).toHaveBeenCalled();
     mocks.vendorQuery.isError = false;
     mocks.vendorQuery.data = [{ value: 'v2', label: 'New Supplier', sub: 'Vendor' }];
-    view.rerender(<MemoryRouter initialEntries={['/procurement/new?have=need']}><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></MemoryRouter>);
+    view.rerender(<QueryClientTestProvider><MemoryRouter initialEntries={['/procurement/new?have=need']}><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></MemoryRouter></QueryClientTestProvider>);
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     fireEvent.click(await screen.findByRole('option', { name: /New Supplier/ }));
     expect(screen.getByRole('combobox', { name: 'Supplier' })).toHaveTextContent('New Supplier');

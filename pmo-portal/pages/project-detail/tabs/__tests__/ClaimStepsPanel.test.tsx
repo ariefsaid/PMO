@@ -47,11 +47,6 @@ beforeEach(() => {
 });
 
 describe('ClaimStepsPanel (AC-CBS-014)', () => {
-  it('renders nothing without a data layer, so the host screen is unchanged', () => {
-    const { container } = render(<ClaimStepsPanel claimId="c1" projectId="p1" stages={stages()} open />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
   it('renders nothing for an invoiced or withdrawn claim', () => {
     renderIt(stages(), false);
     expect(screen.queryByRole('button', { name: 'Edit steps' })).not.toBeInTheDocument();

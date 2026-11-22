@@ -25,6 +25,13 @@ vi.mock('@/src/auth/usePermission', () => ({
   // The page's own gate: finance.view, which the role inventory denies to Engineer.
   usePermission: () => (action: string, entity: string) => state.role !== 'Engineer' && entity === 'finance' && action === 'view',
 }));
+// C11: the channel reads lost their no-provider fallback, so these url/state suites pin them off explicitly
+// (the payables channel columns themselves are proven by PayablesPage.paymentChannel.test.tsx).
+vi.mock('@/src/hooks/usePaymentChannels', () => ({
+  usePaymentChannelsOn: () => ({ on: false }),
+  usePaymentChannelNames: () => ({ data: undefined }),
+}));
+
 vi.mock('@/src/hooks/useFinancePosition', () => ({
   useFinancePosition: () => ({ position: state.position, isPending: state.financePending, isError: state.financeError, retry: vi.fn() }),
 }));
