@@ -10,7 +10,7 @@
 --   drop `perform public.assert_not_light()` from complete_work_order_step ........ 'AC-WBS-005 a field account is refused ... complete'
 begin;
 create extension if not exists pgtap;
-select plan(67);
+select plan(69);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('17700000-0000-0000-0000-0000000000a1', 'WBS Org A', 'IDR', 'UTC', true),
@@ -225,6 +225,17 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
   ('17700000-0000-0000-0000-000000000034', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-0000000000c1', 'WBS four', 'Draft', 10000, 'exclusive', 0);
 update work_orders set status = 'Issued', issued_at = now() where id = '17700000-0000-0000-0000-000000000034';
 select is((select count(*)::int from email_outbox where event_key = 'billing_step' and recipient_id = '17700000-0000-0000-0000-0000000000b4'), 1, 'AC-WBS-008 with the switch on one email is queued for the person told');
+
+-- ── AC-WBS-007: steps change only while the work order is Issued ─────────────────────────────────────────────────────────────────────────
+-- A Draft work order gets no list even with a default template; a step row forced onto it cannot be acted on.
+insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
+  ('17700000-0000-0000-0000-000000000035', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-0000000000c1', 'WBS draft', 'Draft', 10000, 'exclusive', 0);
+select is((select count(*)::int from work_order_billing_steps where work_order_id = '17700000-0000-0000-0000-000000000035'), 0, 'AC-WBS-007 a Draft work order gets no list even with a default template');
+insert into work_order_billing_steps (id, org_id, work_order_id, project_id, position, name, owner_role_key, started_on) values
+  ('17700000-0000-0000-0000-0000000000e5', '17700000-0000-0000-0000-0000000000a1', '17700000-0000-0000-0000-000000000035', '17700000-0000-0000-0000-0000000000c1', 1, 'Forced step', 'quantity_surveyor', current_date);
+select pg_temp.as_user('b4');
+select is(pg_temp.err($$select complete_work_order_step('17700000-0000-0000-0000-0000000000e5', current_date)$$), '55000 WBS_NOT_ISSUED', 'AC-WBS-007 a step of a work order that is not issued cannot be changed');
+reset role;
 
 select * from finish();
 rollback;

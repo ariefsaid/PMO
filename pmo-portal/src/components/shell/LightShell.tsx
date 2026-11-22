@@ -8,10 +8,11 @@ import { useAuth } from '@/src/auth/useAuth';
 import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
 
 const MyHome = lazyWithPreload(() => import('@/pages/MyHome'));
+const TransferDetail = lazyWithPreload(() => import('@/pages/stock/StockTransferDetail'));
 
 /**
  * The shell of a light account (#2710, OD-SCOPE-4): no rail, no phone bottom bar, no search, no command palette, no assistant.
- * One route, `/my`; every other path redirects to it, so a typed project or work-order link lands on the home screen.
+ * One home route, `/my`, plus the one delivery addressed to the person (`/stock/transfers/:id`, #1122); every other path redirects to it, so a typed project or work-order link lands on the home screen.
  * Mounted instead of the full shell by `ShellGate` in App.tsx; the database stays the authority (restrictive RLS).
  */
 export const LightShell: React.FC = () => {
@@ -28,6 +29,7 @@ export const LightShell: React.FC = () => {
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               <Route path="/my" element={<MyHome />} />
+              <Route path="/stock/transfers/:transferId" element={<TransferDetail />} />
               <Route path="*" element={<Navigate to="/my" replace />} />
             </Routes>
           </Suspense>

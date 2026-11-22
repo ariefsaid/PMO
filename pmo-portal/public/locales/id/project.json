@@ -100,7 +100,7 @@
     "cascade": {
       "error": "Kontrak tidak dapat dimuat.",
       "title": "Kontrak",
-      "contract": "Nilai kontrak",
+      "contract": "Nilai kontrak · jumlah baris kontrak",
       "source": {
         "contract": "Sumber: baris kontrak berharga (kuantitas × tarif), tidak termasuk pajak.",
         "contractFallback": "Sumber: ringkasan penagihan proyek, tidak termasuk pajak.",
@@ -127,7 +127,7 @@
         "invoiceAmount": "Sumber: jumlah invoice yang disinkronkan dari akuntansi.",
         "invoicePaid": "Dihitung dari jumlah invoice dikurangi saldo terutang menurut akuntansi."
       },
-      "ordered": "Dipesan",
+      "ordered": "Dipesan · pada pesanan pelanggan",
       "delivered": "Terkirim",
       "invoiced": "Ditagih",
       "signedContractInclusive": "Kontrak ditandatangani · termasuk pajak",
@@ -371,10 +371,10 @@
         "subtitle": "Kuantitas yang selesai s.d. bulan ini. Ini penilaian operasional, tidak pernah membuat invoice.",
         "errors": {
           "quantity": "Setiap kuantitas selesai harus 0 atau lebih dengan paling banyak 3 angka desimal",
-          "month": "Isi bulan dengan format YYYY-MM"
+          "month": "Pilih bulan"
         },
         "title": "Catat progres",
-        "month": "Bulan (YYYY-MM)",
+        "month": "Bulan",
         "record": "Catat progres",
         "toast": {
           "saved": "Progres tercatat: {{pct}}% selesai"
@@ -418,6 +418,9 @@
         "titleNew": "Tambah baris bill of quantities",
         "legend": "Baris",
         "item": "Item ERP",
+        "itemCode": "Kode item",
+        "existingLine": "Item ini sudah punya baris: {{code}}. Ubah baris itu, jangan tambah baris kedua.",
+        "editExisting": "Ubah baris itu",
         "description": "Deskripsi",
         "titleEdit": "Ubah baris bill of quantities"
       },
@@ -1506,7 +1509,8 @@
     "submittal": "Submittal",
     "certificate": "Sertifikat",
     "other": "Lainnya",
-    "reference": "Referensi"
+    "reference": "Referensi",
+    "deliveryRecord": "Berita acara serah terima (BAST)"
   },
   "documentRevision": {
     "title": "Revisi baru",

@@ -652,6 +652,10 @@
         "helper": "A built-in role starts from one access level and sets what this person sees and does for their job.",
         "baseLevel": "Access level: {{level}} (set by the built-in role)"
       },
+      "fieldLogin": {
+        "noPerson": "This login is not in the workforce list, so it cannot clock in. Add this person to the workforce list, then place them in a crew.",
+        "noCrew": "This person is not in any crew, so the clock-in shows nothing. Place them in a crew (a Foreman: set them as the crew lead)."
+      },
       "roleConfirm": {
         "clearTitle": "Remove {{name}}'s built-in role?"
       },

@@ -1,5 +1,6 @@
 -- 1535: who may see medical-document status and dates is decided by one rule, read by the in-app policy and the expiry email.
 -- Rollback: supabase/migrations/rollback/1535_medical_documents_capability_gate_down.sql
+-- drops: enqueue_notification_email no longer spells the Admin-or-capability test inline (the three lines naming p.role = 'Admin' and the capability table); it calls may_see_medical_documents(p.id), the same rule in its one gate.
 -- may_see_medical_documents(profile) = an active person holding the Admin access level or the medical_documents_view capability
 -- (HR Manager, HR Officer, Administrator). It is not executable by signed-in callers (an is-this-person-X oracle, as
 -- is_active_member(uuid)); the signed-in adapter below and the email function, a definer, call it.

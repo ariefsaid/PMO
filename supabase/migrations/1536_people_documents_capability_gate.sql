@@ -1,5 +1,6 @@
 -- 1536: who reads, adds and renews every person's non-medical documents (and reads the person list to reach them) is decided
 -- by one rule: the people_documents_view capability, through actor_has_person_documents_access().
+-- drops: expiry_document_object_writable rewrites its person line to `(public.auth_role() = 'Admin' or public.actor_has_person_documents_access())`; the Admin-only form is replaced, Admin keeps the same access.
 -- Rollback: supabase/migrations/rollback/1536_people_documents_capability_gate_down.sql
 -- Medical documents stay with 1535's rule and Admin only for writes. Bodies restated: people_select, expiry_documents_insert and
 -- expiry_documents_update from 0970 (the only migration that defines them; 1035 changed the people insert/update policies only);

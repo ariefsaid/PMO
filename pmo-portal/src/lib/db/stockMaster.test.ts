@@ -17,7 +17,7 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  archiveStockItem, createStockItem, listStockItems, setWarehouseKeeper, updateStockUnit,
+  archiveStockItem, createStockItem, listStockItems, setWarehouseKeeper, updateStockItem, updateStockUnit,
 } from './stockMaster';
 
 beforeEach(() => {
@@ -84,5 +84,17 @@ describe('stockMaster DAL', () => {
     h.queue.push({ data: { id: 'i1' }, error: null });
     await createStockItem({ code: ' CEM ', name: ' Cement ', description: '  ', unitId: 'u1', leadTimeDays: 7 });
     expect(h.calls.insert[0]).toEqual({ code: 'CEM', name: 'Cement', description: null, unit_id: 'u1', lead_time_days: 7 });
+  });
+
+  it('AC-SKD-011 an item saves with its consumable flag on create and on edit, and a save that does not carry the flag does not send it', async () => {
+    h.queue.push({ data: { id: 'i1' }, error: null });
+    await createStockItem({ code: 'ROD', name: 'Welding rod', description: null, unitId: 'u1', leadTimeDays: null, consumable: true });
+    expect(h.calls.insert[0]).toMatchObject({ code: 'ROD', consumable: true });
+    h.queue.push({ data: [{ id: 'i1' }], error: null });
+    await expect(updateStockItem('i1', { code: 'ROD', name: 'Welding rod', description: null, unitId: 'u1', leadTimeDays: null, consumable: false })).resolves.toBeUndefined();
+    expect(h.calls.update[0]).toMatchObject({ consumable: false });
+    h.queue.push({ data: [{ id: 'i1' }], error: null });
+    await updateStockItem('i1', { code: 'ROD', name: 'Welding rod', description: null, unitId: 'u1', leadTimeDays: null });
+    expect(h.calls.update[1]).not.toHaveProperty('consumable');
   });
 });

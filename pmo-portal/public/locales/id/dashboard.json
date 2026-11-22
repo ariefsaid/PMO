@@ -156,7 +156,9 @@
     "balancesNotSynced_one": "{{count}} saldo tidak tersinkron",
     "balancesNotSynced_other": "{{count}} saldo tidak tersinkron",
     "amountsMissing_one": "{{count}} jumlah belum ada",
-    "amountsMissing_other": "{{count}} jumlah belum ada"
+    "amountsMissing_other": "{{count}} jumlah belum ada",
+    "checkIns_one": "absen menunggu keputusan Anda",
+    "checkIns_other": "absen menunggu keputusan Anda"
   },
   "figures": {
     "contractOnHand": "Kontrak berjalan · di luar pajak",
@@ -380,6 +382,7 @@
       "openProjects": "Buka proyek",
       "openSales": "Buka penjualan",
       "openInvoices": "Buka invoice",
+      "claimsBoard": "Papan klaim",
       "openProcurements": "Buka pengadaan",
       "openFigure": "Buka catatan terkait untuk {{metric}}.",
       "export": "Ekspor",
