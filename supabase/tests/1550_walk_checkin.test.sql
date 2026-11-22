@@ -26,7 +26,8 @@ insert into profiles (id, org_id, full_name, email, role, status, built_in_role)
   ('15500000-0000-0000-0000-000000000028', '15500000-0000-0000-0000-000000000010', 'WCI Foreman Two', 'wci-fm2@example.com', 'Engineer', 'active', 'foreman'),
   ('15500000-0000-0000-0000-000000000029', '15500000-0000-0000-0000-000000000010', 'WCI Field', 'wci-field@example.com', 'Engineer', 'active', 'field_user'),
   ('15500000-0000-0000-0000-000000000030', '15500000-0000-0000-0000-000000000010', 'WCI Foreman Three', 'wci-fm3@example.com', 'Engineer', 'active', 'foreman'),
-  ('15500000-0000-0000-0000-000000000031', '15500000-0000-0000-0000-000000000011', 'WCI XAdmin', 'wci-xadmin@example.com', 'Admin', 'active', null);
+  ('15500000-0000-0000-0000-000000000031', '15500000-0000-0000-0000-000000000011', 'WCI XAdmin', 'wci-xadmin@example.com', 'Admin', 'active', null),
+  ('15500000-0000-0000-0000-000000000032', '15500000-0000-0000-0000-000000000010', 'WCI Foreman Unlinked', 'wci-fm4@example.com', 'Engineer', 'active', 'foreman');
 insert into projects (id, org_id, name, status, project_manager_id) values
   ('15500000-0000-0000-0000-000000000040', '15500000-0000-0000-0000-000000000010', 'WCI Site', 'Ongoing Project', '15500000-0000-0000-0000-000000000022');
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, area_lat, area_lng, area_radius_m) values
@@ -45,11 +46,12 @@ insert into crews (id, org_id, code, name, field_controller_id) values
   ('15500000-0000-0000-0000-000000000065', '15500000-0000-0000-0000-000000000010', 'WCI-5', 'WCI crew five',  '15500000-0000-0000-0000-000000000030'),
   ('15500000-0000-0000-0000-000000000066', '15500000-0000-0000-0000-000000000010', 'WCI-6', 'WCI crew six',   '15500000-0000-0000-0000-000000000027'),
   ('15500000-0000-0000-0000-000000000067', '15500000-0000-0000-0000-000000000010', 'WCI-7', 'WCI crew seven', '15500000-0000-0000-0000-000000000028'),
-  ('15500000-0000-0000-0000-000000000068', '15500000-0000-0000-0000-000000000010', 'WCI-8', 'WCI crew eight', null);
+  ('15500000-0000-0000-0000-000000000068', '15500000-0000-0000-0000-000000000010', 'WCI-8', 'WCI crew eight', '15500000-0000-0000-0000-000000000032');
 insert into people (id, org_id, kind, code, name, profile_id) values
   ('15500000-0000-0000-0000-000000000071', '15500000-0000-0000-0000-000000000010', 'own', 'WCI-P1', 'WCI Field person', '15500000-0000-0000-0000-000000000029'),
   ('15500000-0000-0000-0000-000000000072', '15500000-0000-0000-0000-000000000010', 'own', 'WCI-P2', 'WCI Foreman Two person', '15500000-0000-0000-0000-000000000028'),
-  ('15500000-0000-0000-0000-000000000073', '15500000-0000-0000-0000-000000000010', 'own', 'WCI-P3', 'WCI Foreman Three person', '15500000-0000-0000-0000-000000000030');
+  ('15500000-0000-0000-0000-000000000073', '15500000-0000-0000-0000-000000000010', 'own', 'WCI-P3', 'WCI Foreman Three person', '15500000-0000-0000-0000-000000000030'),
+  ('15500000-0000-0000-0000-000000000074', '15500000-0000-0000-0000-000000000010', 'own', 'WCI-P4', 'WCI Foreman One person', '15500000-0000-0000-0000-000000000027');
 insert into crew_members (org_id, crew_id, worker_id, valid_from) values
   ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000064', '15500000-0000-0000-0000-000000000071', current_date - 30);
 insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values
@@ -126,7 +128,6 @@ select pg_temp.act_as('15500000-0000-0000-0000-000000000027');
 select is(public.phone_check_in('15500000-0000-0000-0000-000000000052', '15500000-0000-0000-0000-000000000061', null, null, null)->>'status', 'recorded',
   'AC-WCI-010 a Foreman clocks in on a work order his crew is rostered on (no area), though he is not a member of the crew');
 reset role;
-select is((select count(*)::int from people where profile_id = '15500000-0000-0000-0000-000000000027'), 1, 'AC-WCI-010 his first clock-in entered him in the workforce register');
 select is((select crew_id from attendance_days where work_order_id = '15500000-0000-0000-0000-000000000052' and work_date = current_date), '15500000-0000-0000-0000-000000000061'::uuid,
   'AC-WCI-010 his attendance is recorded against the crew he leads');
 set local role authenticated;
@@ -136,6 +137,9 @@ select throws_ok($$ select public.phone_check_in('15500000-0000-0000-0000-000000
   'AC-WCI-012 a Foreman cannot pick a crew he neither leads nor belongs to');
 select is(public.phone_check_in('15500000-0000-0000-0000-000000000053', null, 0.0003, 0, 10)->>'outcome', 'not_rostered',
   'AC-WCI-012 on a work order none of his crews is rostered on he is a request to the supervisor, not attendance');
+select pg_temp.act_as('15500000-0000-0000-0000-000000000032');
+select throws_ok($$ select public.phone_check_in('15500000-0000-0000-0000-000000000053', null, null, null, null) $$, '23514', null,
+  'AC-WCI-012 a Foreman login with no person in the workforce register cannot clock in, though he leads a rostered crew');
 select pg_temp.act_as('15500000-0000-0000-0000-000000000025');
 select throws_ok($$ select public.phone_check_in('15500000-0000-0000-0000-000000000052', null, null, null, null) $$, '23514', null,
   'AC-WCI-012 someone who leads no crew and is not in the register still cannot clock in');
@@ -182,7 +186,7 @@ select is((select e->'check_in'->>'state' from jsonb_array_elements(public.my_ho
 select ok((select (e->'check_in'->>'at') is not null from jsonb_array_elements(public.my_home()->'work_orders') e where e->>'work_order_id' = '15500000-0000-0000-0000-000000000052'),
   'AC-WCI-020 and carries the time');
 select ok((select e->>'my_worker_id' is not null from jsonb_array_elements(public.my_home()->'work_orders') e where e->>'work_order_id' = '15500000-0000-0000-0000-000000000052'),
-  'AC-WCI-020 the Foreman now has a person of his own on the home');
+  'AC-WCI-020 the Foreman has his own person on the home');
 select pg_temp.act_as('15500000-0000-0000-0000-000000000029');
 select is(public.phone_check_in('15500000-0000-0000-0000-000000000051', '15500000-0000-0000-0000-000000000064', 0.003, 0, 10)->>'status', 'pending', 'AC-WCI-021 a worker outside the area is waiting');
 select is((select e->'check_in'->>'state' from jsonb_array_elements(public.my_home()->'work_orders') e where e->>'work_order_id' = '15500000-0000-0000-0000-000000000051' and e->>'crew_id' = '15500000-0000-0000-0000-000000000064'),

@@ -1,8 +1,7 @@
 -- 1551_foreman_clock_in.sql -- a crew's Foreman clocks in himself on a work order his crew is rostered on, and chooses the crew when he leads more than one.
 -- Until now the phone check-in knew a person only as a MEMBER of a crew, so a Foreman (who leads a crew but is not one of its
 -- members) was stopped at 'not in the workforce register' or 'not rostered'. Now: leading a crew rostered on the work order today
--- counts as being rostered on it; the first clock-in enters him in the workforce register (own staff, his login) when he is not
--- there yet; attendance_record records him against the crew he leads (the one named, else the first). Everything else is as 1465.
+-- counts as being rostered on it; a login with no person in the workforce register still cannot clock in (PCI_NO_PERSON); attendance_record records him against the crew he leads (the one named, else the first). Everything else is as 1465.
 -- Callable by a light account (the Foreman is one): neither function calls assert_not_light, as before.
 -- Each function is restated whole from its latest definition (1465); the ACL statements are unchanged.
 -- Rollback: supabase/migrations/rollback/1551_foreman_clock_in_down.sql
@@ -242,15 +241,6 @@ begin
     select 1 from public.crews c join public.work_order_crews ro on ro.crew_id = c.id and ro.work_order_id = p_work_order_id
      where c.field_controller_id = v_uid and c.org_id = v_org and (p_crew_id is null or c.id = p_crew_id)    -- mut:foreman_leads
        and v_today between ro.valid_from and coalesce(ro.valid_to, 'infinity'::date));
-  if v_worker is null and v_leads then
-    -- A Foreman who leads a crew on this work order is a person of the organisation: the first clock-in enters him in the
-    -- workforce register (own staff, his login), so his attendance has someone to belong to.
-    insert into public.people (code, name, kind, profile_id)
-    select 'FM-' || upper(substr(replace(v_uid::text, '-', ''), 1, 8)), coalesce(nullif(btrim(pr.full_name), ''), 'Foreman'), 'own', v_uid
-      from public.profiles pr where pr.id = v_uid
-    returning id into v_worker;
-    perform public.log_audit('phone_check_in.person_created', v_org, v_uid, v_worker, jsonb_build_object('work_order_id', p_work_order_id));
-  end if;
   if v_worker is null then
     raise exception 'PCI_NO_PERSON: this account is not in the workforce register' using errcode = '23514';
   end if;
