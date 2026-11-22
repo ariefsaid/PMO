@@ -1,6 +1,6 @@
 # Lane report: gap-people (People, crews and time). State file, written on a usage-limit pause.
 
-Status: PAUSED before the FINAL step. The final done ref `cloud/done/gap-people` is NOT pushed yet.
+Status: STOPPED (weekly usage limit) before the FINAL step. Others finish from this file. The final done ref `cloud/done/gap-people` is NOT pushed yet.
 To resume, read "Next steps" at the bottom.
 
 Base: origin/land/fix-1122. Integration branch: lane/gap-people-int (head: see `git log -1`).
@@ -63,7 +63,18 @@ Last whole-suite result (round 6, before guard-headcount, idle-with-rent and the
   - The history lock is extended.
   - Screen: a Head count section under each crew's day.
 - Spec: docs/specs/guard-headcount.spec.md (not yet updated for the extra migration 1724).
-- Left to do: pgTAP 1710 and 1722 (never run), journey AC-HC-011, the mutation checks M1-M7, the heavy security read, screenshots, then the done ref.
+- Unrun tests:
+  - supabase/tests/1710_headcount_days.test.sql (38 assertions; plan count set by hand).
+  - supabase/tests/1722_headcount_cost.test.sql (32).
+  - pmo-portal/e2e/serial/AC-HC-011-headcount-day.spec.ts.
+  - The existing 1720, 1721, 2711, 0173, 0203 and isolation denominator tests have not been re-run with guard-headcount applied.
+- Left to do:
+  - Run those tests and fix reds.
+  - Mutation checks M1-M7 (spec section 5).
+  - The heavy security read.
+  - Screenshots of the head-count section.
+  - Update the spec for the extra migration 1724 and for unpriced rows carrying null quantity.
+  - Push cloud/done/gap-people-guard-headcount.
 
 ### idle-with-rent: BUILT, UNPROVEN (no done ref; NOT yet merged into the integration branch)
 - Branch: feat/gap-people-idle-with-rent @ accc77aef. It contains guard-headcount.
@@ -72,7 +83,18 @@ Last whole-suite result (round 6, before guard-headcount, idle-with-rent and the
   - At `people_and_equipment`, idle cost = idle hours × that day's head count (present workers plus approved head-count lines) × hourly cost, plus approved standby equipment shared by idle minutes.
   - It is a view only and never enters actuals.
 - Spec: docs/specs/idle-with-rent.spec.md.
-- Left to do: merge into the integration branch, then pgTAP 1730 and 1731, journey AC-IWR-012, mutation steps 1-8, the heavy security read, screenshots, then the done ref.
+- Unrun tests:
+  - supabase/tests/1730_idle_cost_scope.test.sql (8 assertions).
+  - supabase/tests/1731_idle_with_rent.test.sql (19).
+  - pmo-portal/e2e/serial/AC-IWR-012-idle-cost-scope.spec.ts.
+  - The existing AC-IHC-011 journey and its idle-cost pgTAP files have not been re-run against the restated work_order_idle_cost.
+- Left to do:
+  - Merge feat/gap-people-idle-with-rent into lane/gap-people-int. It carries guard-headcount, already merged.
+  - Run those tests and fix reds.
+  - Mutation steps 1-8 (header of 1731).
+  - The heavy security read.
+  - Screenshots of the idle block and of the "Idle cost covers" control.
+  - Push cloud/done/gap-people-idle-with-rent.
 
 ### manpower-request (simplified by steering): VERIFIED (cloud/done/gap-people-manpower-request @ 7ce5f52e7)
 - Before: nothing existed.
