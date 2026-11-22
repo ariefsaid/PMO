@@ -5,7 +5,8 @@ import { useTerms } from '@/src/lib/i18n/terms';
 import { useStockItems, useStockUnits } from '@/src/hooks/useStock';
 import { useLinePlans } from '@/src/hooks/useMaterialRequests';
 import { useSectionAllocations, useSetAllocation } from '@/src/hooks/useWorkOrderSectionMaterials';
-import { allocationHeadroom, toUnits } from '@/src/lib/workOrderSections';
+import { parseDecimal } from '@/src/lib/exactDecimal';
+import { allocationHeadroom } from '@/src/lib/workOrderSections';
 import { sectionRefusal } from '@/src/lib/workOrderSectionRefusal';
 import type { SectionRollupRow } from '@/src/lib/repositories/workOrderSections';
 
@@ -40,7 +41,7 @@ export const SectionMaterialModal: React.FC<Props> = ({ workOrderId, section, on
   const plan = plans.data?.find((p) => p.itemId === itemId)?.planQty;
   const elsewhere = (allocations.data ?? []).filter((a) => a.itemId === itemId && a.sectionId !== sectionId).map((a) => a.quantity);
   const headroom = plan === undefined ? null : allocationHeadroom(plan.toFixed(3), elsewhere);
-  const invalid = qty.trim() !== '' && (!QTY.test(qty.trim()) || toUnits(qty.trim(), 3) === 0n);
+  const invalid = qty.trim() !== '' && (!QTY.test(qty.trim()) || parseDecimal(qty.trim(), 3) === 0n);
 
   const write = async (id: string, quantity: string | null) => {
     setSubmitError(null);

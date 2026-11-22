@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { formatDecimal, mulRound } from '@/src/lib/exactDecimal';
 
 /**
  * Monthly equipment and service plan (#2700, migrations 1358-1359; spec docs/specs/monthly-equipment-service-plan.spec.md).
@@ -69,9 +70,14 @@ export function monthEnd(month: string): string {
   return `${month.slice(0, 8)}${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
 }
 
-/** The plan total: each line's quantity times rate rounded to the cent, then summed in cents, so no float drift reaches the screen. */
+/** The plan total: each line's quantity times rate rounded once to the cent, then summed, all in exact BigInt cents — no float arithmetic on money. */
 export function planTotal(lines: Array<{ quantity: number; rate: number }>): number {
-  return lines.reduce((sum, l) => sum + Math.round((Math.round(l.quantity * 100) * Math.round(l.rate * 100)) / 100), 0) / 100;
+  let cents = 0n;
+  for (const l of lines) {
+    const line = mulRound(String(l.quantity), String(l.rate), 2);
+    if (line !== null) cents += line;
+  }
+  return Number(formatDecimal(cents, 2));
 }
 
 export async function getPlanSettings(): Promise<PlanSettings> {

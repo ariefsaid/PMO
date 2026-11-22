@@ -2,8 +2,10 @@
  * Pure rollup of client material requisitions (#2585, FR-CSR-018/019). Mirrors `csr_work_order_rollup` in SQL:
  * reserved = reservations - releases, collected = pickups, still to collect = reserved - collected,
  * awaiting reservation = max(requested - reserved, 0). Nothing is stored; figures derive from events.
- * Quantities are exact decimals (numeric(14,3)) held as thousandths in a bigint, never floating point.
+ * Quantities are exact decimals (numeric(14,3)) held as thousandths in a bigint, never floating point;
+ * parse and format come from the one decimal module (`exactDecimal`, #2748).
  */
+import { formatDecimal, parseDecimal } from './exactDecimal';
 export type CsrEventKind = 'created' | 'sent' | 'cancelled' | 'reserved' | 'released' | 'pickup';
 
 export interface CsrLine {
@@ -50,20 +52,13 @@ export interface CsrRollup {
   items: CsrItemFigures[];
 }
 
-/** Parse a non-negative decimal with up to three places into thousandths; anything else counts as zero. */
-export function parseMilli(value: string | null | undefined): bigint {
-  if (value == null) return 0n;
-  const m = /^(\d+)(?:\.(\d{1,3}))?$/.exec(value.trim());
-  if (!m) return 0n;
-  return BigInt(m[1]) * 1000n + BigInt((m[2] ?? '').padEnd(3, '0'));
+/** A quantity for the rollup: null/undefined or unreadable counts as zero (one bad string never blocks the read). */
+function parseMilli(value: string | null | undefined): bigint {
+  return value == null ? 0n : parseDecimal(value.trim(), 3) ?? 0n;
 }
 
-export function formatMilli(milli: bigint): string {
-  const neg = milli < 0n;
-  const abs = neg ? -milli : milli;
-  const whole = abs / 1000n;
-  const frac = String(abs % 1000n).padStart(3, '0').replace(/0+$/, '');
-  return `${neg ? '-' : ''}${whole}${frac ? `.${frac}` : ''}`;
+function formatMilli(milli: bigint): string {
+  return formatDecimal(milli, 3, { trim: true });
 }
 
 interface Acc { requested: bigint; reserved: bigint; released: bigint; collected: bigint; awaiting?: bigint }

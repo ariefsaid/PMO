@@ -1,4 +1,4 @@
-import { formatExactCents, parseExactCents } from './exactDecimal';
+import { formatExactCents, mulRound } from './exactDecimal';
 
 /**
  * Quantity change request rules (#2578, docs/specs/quantity-change-requests.spec.md). Pure functions that MIRROR
@@ -45,24 +45,17 @@ export function validateRequestedQuantity(requested: string, contract: number, t
   return null;
 }
 
-/** quantity x rate in cents, rounded half-up once (the claim-line rule, 0250). Both inputs are non-negative decimals. */
+/** quantity x rate in cents, rounded once, half away from zero — the exact-decimal rule every figure shares (claim-line rule, 0250). Both inputs are non-negative decimals. */
 export function lineValueCents(quantity: string | number, rate: string | number): bigint | null {
-  const q = scale(quantity);
-  const r = scale(rate);
-  if (!q || !r) return null;
-  const product = q.units * r.units;
-  const places = q.places + r.places;
-  if (places <= 2) return product * 10n ** BigInt(2 - places);
-  const divisor = 10n ** BigInt(places - 2);
-  return (product * 2n + divisor) / (divisor * 2n);
+  const q = nonNegativeDecimal(quantity);
+  const r = nonNegativeDecimal(rate);
+  return q === null || r === null ? null : mulRound(q, r, 2);
 }
 
-function scale(value: string | number): { units: bigint; places: number } | null {
+/** The claim-line grammar: a non-negative decimal, trimmed; null otherwise. */
+function nonNegativeDecimal(value: string | number): string | null {
   const text = typeof value === 'number' ? (Number.isFinite(value) ? String(value) : '') : value.trim();
-  const m = /^(\d+)(?:\.(\d+))?$/.exec(text);
-  if (!m) return null;
-  const fraction = m[2] ?? '';
-  return { units: BigInt(m[1] + fraction), places: fraction.length };
+  return /^(\d+)(?:\.(\d+))?$/.test(text) ? text : null;
 }
 
 export interface QuantityVersion {
@@ -101,16 +94,6 @@ export function versionValueChanges(versions: QuantityVersion[], rate: string | 
       change: changeCents === null ? null : formatExactCents(changeCents),
     };
   });
-}
-
-/** Sum of exact decimal money strings ("5000000.00"), in cents. Invalid entries are skipped. */
-export function sumMoney(values: (string | null)[]): string {
-  let total = 0n;
-  for (const v of values) {
-    const cents = v === null ? null : parseExactCents(v);
-    if (cents !== null) total += cents;
-  }
-  return formatExactCents(total);
 }
 
 // ── the state machine (what the screen may offer; the functions are the authority) ───────────────────

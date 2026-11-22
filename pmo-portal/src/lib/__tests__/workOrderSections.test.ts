@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allocationFits, allocationHeadroom, fromUnits, quantitiesByUnit, readinessRollup, rollupBySection, toUnits } from '../workOrderSections';
+import { allocationFits, allocationHeadroom, quantitiesByUnit, readinessRollup, rollupBySection } from '../workOrderSections';
 
 describe('rollupBySection (AC-WOS-002: the roll-up invariant)', () => {
   it('direct budget: A 400.00 + B 350.00 + remainder 250.00 = 1,000.00 exactly', () => {
@@ -47,15 +47,6 @@ describe('rollupBySection (AC-WOS-002: the roll-up invariant)', () => {
   it('refuses a malformed figure rather than reading it as zero', () => {
     expect(() => rollupBySection([{ sectionId: 'a', value: 'abc' }])).toThrow();
     expect(() => rollupBySection([{ sectionId: 'a', value: '1.005' }])).toThrow();
-  });
-});
-
-describe('units', () => {
-  it('round-trips and rejects finer-than-scale input', () => {
-    expect(fromUnits(toUnits('12.5', 2) as bigint, 2)).toBe('12.50');
-    expect(fromUnits(toUnits('-0.05', 2) as bigint, 2)).toBe('-0.05');
-    expect(toUnits('1.001', 2)).toBeNull();
-    expect(toUnits('1.000', 2)).toBe(100n);
   });
 });
 

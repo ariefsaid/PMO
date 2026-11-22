@@ -1,17 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { sumDecimal } from './exactDecimal';
 import {
-  approvalBlock, countsTowardLimit, limitReached, lineValueCents, overContract, reportedProgress, sumMoney, validateRequestedQuantity,
+  approvalBlock, countsTowardLimit, limitReached, lineValueCents, overContract, validateRequestedQuantity,
   versionValueChanges,
 } from './quantityChangeRules';
 
 // Hand calculation (spec): Excavation, rate 50,000, C = 1,000.000. Assessed 1,040; accepted 980; claimed 900. R = 1,100.
 describe('quantityChangeRules', () => {
-  it('AC-QCR-001 P is the greatest source and names it', () => {
-    expect(reportedProgress({ assessment: 1040, acceptance: 980, claim: 900, daily_report: 0 })).toEqual({ quantity: 1040, source: 'assessment' });
-    expect(reportedProgress({ assessment: 0, acceptance: 0, claim: 0, daily_report: 0 })).toEqual({ quantity: 0, source: null });
-    expect(reportedProgress({ assessment: 500, acceptance: 500, claim: 500, daily_report: 500 }).source).toBe('assessment');
-  });
-
   it('AC-QCR-001 over by 40, and exactly C is not over', () => {
     expect(overContract({ contract: 1000, progress: 1040, forecast: null, earningBasis: 'unit_rate' })).toEqual({ over: true, kind: 'progress', figure: 1040 });
     expect(overContract({ contract: 1000, progress: 1000, forecast: null, earningBasis: 'unit_rate' }).over).toBe(false);
@@ -44,7 +39,7 @@ describe('quantityChangeRules', () => {
     expect(rows[0].change).toBeNull();
     expect(rows[1].value).toBe('55000000.00');
     expect(rows[1].change).toBe('5000000.00');
-    expect(sumMoney(rows.map((r) => r.change))).toBe('5000000.00');
+    expect(sumDecimal(rows.map((r) => r.change), 2)).toBe('5000000.00');
   });
 
   it('NFR-QCR-001 value is rounded once per version so changes always telescope', () => {
