@@ -42,6 +42,7 @@ insert into la_fn_allow values
   ('actor_has_role_capability', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('actor_is_light', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('actor_may_see_medical_documents', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
+  ('actor_may_order_purchases', 'helper', 'the ordering-job-role gate the purchasing read policies call; a field account never holds an ordering role (the setting refuses field roles), so it answers false'),
   ('actor_may_see_prices', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('actor_may_see_prices_now', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('actor_sees_prices', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
