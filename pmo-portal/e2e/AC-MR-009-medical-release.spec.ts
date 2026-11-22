@@ -50,7 +50,9 @@ test('AC-MR-009 the people team opens a release, the direct manager approves it,
   await page.getByRole('button', { name: 'Open release' }).click();
   await expect(visibleToast(page, 'Release opened')).toBeVisible({ timeout: 15_000 });
   // The opener cannot decide their own release.
-  await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0);
+  const section = page.getByRole('region', { name: 'Medical releases' });
+  await expect(section.getByRole('listitem', { name: new RegExp(`${run} Worker`) })).toBeVisible({ timeout: 15_000 });
+  await expect(section.getByRole('button', { name: 'Approve' })).toHaveCount(0);
 
   // 2. The person is held on the attendance tick.
   await signIn(page, 'pm@acme.test');
