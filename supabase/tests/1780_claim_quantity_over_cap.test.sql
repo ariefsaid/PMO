@@ -81,6 +81,8 @@ select alike(pg_temp.err($q$select create_progress_claim('17800000-0000-0000-000
 select lives_ok($q$select create_progress_claim('17800000-0000-0000-0000-000000000021','progress',p_work_order_id=>'17800000-0000-0000-0000-000000000032',p_lines=>'[{"boq_item_id":"17800000-0000-0000-0000-000000000046","quantity":6}]'::jsonb)$q$,'AC-SCS-005 block: the rest after the opening balance is allowed');
 -- withdrawn and Cancelled-invoice claims do not count
 create temp table ids(k text, v uuid);
+create temp table bill(k text, v numeric);
+grant all on bill to authenticated;
 grant all on ids to authenticated;
 insert into ids select 'w1', create_progress_claim('17800000-0000-0000-0000-000000000021','progress',p_work_order_id=>'17800000-0000-0000-0000-000000000031',p_lines=>'[{"boq_item_id":"17800000-0000-0000-0000-000000000044","quantity":10}]'::jsonb);
 select alike(pg_temp.err($q$select create_progress_claim('17800000-0000-0000-0000-000000000021','progress',p_work_order_id=>'17800000-0000-0000-0000-000000000031',p_lines=>'[{"boq_item_id":"17800000-0000-0000-0000-000000000044","quantity":0.001}]'::jsonb)$q$),'CLM\_OVER\_CAP:%','AC-SCS-005 a live claim counts');
@@ -95,8 +97,13 @@ select lives_ok($q$select transition_native_sales_invoice((select v from ids whe
 set local request.jwt.claims = '{"sub":"17800000-0000-0000-0000-000000000012","role":"authenticated"}';
 select lives_ok($q$select create_progress_claim('17800000-0000-0000-0000-000000000021','progress',p_work_order_id=>'17800000-0000-0000-0000-000000000031',p_lines=>'[{"boq_item_id":"17800000-0000-0000-0000-000000000044","quantity":10}]'::jsonb)$q$,'AC-SCS-005 withdrawn and Cancelled-invoice claims leave the headroom free');
 -- the facts are the same ones the Billing tab reads (get_project_billing)
-select is((select claimed from (select (al->>'claimed_quantity')::numeric claimed from jsonb_array_elements(get_project_billing('17800000-0000-0000-0000-000000000021')->'boq') bq, jsonb_array_elements(bq->'allocations') al where (al->>'boq_item_id')::uuid = '17800000-0000-0000-0000-000000000046' and (al->>'work_order_id')::uuid = '17800000-0000-0000-0000-000000000032') x), work_order_line_claimed_quantity('17800000-0000-0000-0000-000000000032','17800000-0000-0000-0000-000000000046'), 'AC-SCS-005 the claimed figure equals the Billing tab for a line with a claim and an opening balance');
-select is((select claimed from (select (al->>'claimed_quantity')::numeric claimed from jsonb_array_elements(get_project_billing('17800000-0000-0000-0000-000000000021')->'boq') bq, jsonb_array_elements(bq->'allocations') al where (al->>'boq_item_id')::uuid = '17800000-0000-0000-0000-000000000044' and (al->>'work_order_id')::uuid = '17800000-0000-0000-0000-000000000031') x), work_order_line_claimed_quantity('17800000-0000-0000-0000-000000000031','17800000-0000-0000-0000-000000000044'), 'AC-SCS-005 the claimed figure equals the Billing tab with a withdrawn and a Cancelled claim');
+insert into bill select 'a', (select claimed from (select (al->>'claimed_quantity')::numeric claimed from jsonb_array_elements(get_project_billing('17800000-0000-0000-0000-000000000021')->'boq') bq, jsonb_array_elements(bq->'allocations') al where (al->>'boq_item_id')::uuid = '17800000-0000-0000-0000-000000000046' and (al->>'work_order_id')::uuid = '17800000-0000-0000-0000-000000000032') x);
+insert into bill select 'b', (select claimed from (select (al->>'claimed_quantity')::numeric claimed from jsonb_array_elements(get_project_billing('17800000-0000-0000-0000-000000000021')->'boq') bq, jsonb_array_elements(bq->'allocations') al where (al->>'boq_item_id')::uuid = '17800000-0000-0000-0000-000000000044' and (al->>'work_order_id')::uuid = '17800000-0000-0000-0000-000000000031') x);
+reset role;
+select is((select v from bill where k='a'), work_order_line_claimed_quantity('17800000-0000-0000-0000-000000000032','17800000-0000-0000-0000-000000000046'), 'AC-SCS-005 the claimed figure equals the Billing tab for a line with a claim and an opening balance');
+select is((select v from bill where k='b'), work_order_line_claimed_quantity('17800000-0000-0000-0000-000000000031','17800000-0000-0000-0000-000000000044'), 'AC-SCS-005 the claimed figure equals the Billing tab with a withdrawn and a Cancelled claim');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"17800000-0000-0000-0000-000000000012","role":"authenticated"}';
 -- AC-SCS-006 another organisation on the default is unaffected
 set local request.jwt.claims = '{"sub":"17800000-0000-0000-0000-000000000015","role":"authenticated"}';
 select lives_ok($q$select create_progress_claim('17800000-0000-0000-0000-000000000022','progress',p_work_order_id=>'17800000-0000-0000-0000-000000000033',p_lines=>'[{"boq_item_id":"17800000-0000-0000-0000-000000000047","quantity":15}]'::jsonb)$q$,'AC-SCS-006 organisation B (warn) may still claim over the ordered quantity');
