@@ -303,8 +303,8 @@
    "en": { "singular": [ "checkpoint" ],
     "plural": [ "checkpoints" ]
    },
-   "id": { "singular": [ "checkpoint", "titik periksa" ],
-    "plural": [ "checkpoint", "titik periksa" ]
+   "id": { "singular": [ "checkpoint", "titik pemeriksaan", "titik periksa" ],
+    "plural": [ "checkpoint", "titik pemeriksaan", "titik periksa" ]
    }
   },
   {

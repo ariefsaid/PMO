@@ -30,7 +30,7 @@ test('AC-MAP-011 a transfer posted without its paper is listed, and leaves the l
     await page.getByLabel('To warehouse').selectOption({ label: label(to) });
     await chooseItem(page, item.code);
     await page.getByLabel(/^Quantity/).fill('4');
-    await page.getByRole('button', { name: 'Post transfer' }).click();
+    await page.getByRole('button', { name: 'Post stock transfer' }).click();
     await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
     const documentPath = new URL(page.url()).pathname;
 

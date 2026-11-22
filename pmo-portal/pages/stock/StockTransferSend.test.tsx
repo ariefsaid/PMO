@@ -33,8 +33,8 @@ describe('StockTransferSend (AC-TST-023)', () => {
   it('AC-TST-023 a one-step organisation sees that two-step transfers are off, not a form', () => {
     h.twoStep = false;
     renderPage();
-    expect(screen.getByText('Two-step transfers are off')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Send transfer' })).not.toBeInTheDocument();
+    expect(screen.getByText('Two-step stock transfers are off')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send stock transfer' })).not.toBeInTheDocument();
   });
 
   it('AC-TST-023 the pickers list the kept source and every real destination, never an in-transit location', async () => {
@@ -49,7 +49,7 @@ describe('StockTransferSend (AC-TST-023)', () => {
 
   it('AC-TST-023 sending refuses a blank form, then sends the lines with a named receiver and one request id', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Send transfer' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send stock transfer' }));
     expect(h.send).not.toHaveBeenCalled();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /From warehouse/ }), 'CEN - Central');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /To warehouse/ }), 'SITE1 - Site one');
@@ -57,7 +57,7 @@ describe('StockTransferSend (AC-TST-023)', () => {
     await userEvent.click(screen.getByRole('combobox', { name: /Item1/ }));
     await userEvent.click(await screen.findByRole('option', { name: 'PIPE - Pipe' }));
     await userEvent.type(screen.getByRole('textbox', { name: /Quantity1/ }), '4');
-    await userEvent.click(screen.getByRole('button', { name: 'Send transfer' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send stock transfer' }));
     await waitFor(() => expect(h.send).toHaveBeenCalledTimes(1));
     expect(h.send.mock.calls[0][0]).toEqual({ fromWarehouseId: 'w1', toWarehouseId: 'w2', toUserId: 'p2', note: '', lines: [{ itemId: 'i1', quantity: '4' }] });
     expect(h.send.mock.calls[0][1]).toMatch(/[0-9a-f-]{36}/);
