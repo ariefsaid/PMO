@@ -45,7 +45,7 @@ export async function listPeople(status: PeopleListStatus = 'active'): Promise<P
   });
 }
 
-/** `job_title`, `profile_id` and `manager_id` are optional on create (the people import sends only code and name). */
+/** `job_title`, `profile_id` and `manager_id` are optional on create (the people import sends code, name, job title and manager). */
 export async function createPerson(input: Omit<PersonInput, 'job_title' | 'profile_id' | 'manager_id'> & Partial<Pick<PersonInput, 'job_title' | 'profile_id' | 'manager_id'>>): Promise<PersonListRow> {
   const code = input.code?.trim();
   const row = { name: input.name.trim(), job_title: input.job_title ?? null, profile_id: input.profile_id ?? null, manager_id: input.manager_id ?? null, ...(code ? { code } : {}) };

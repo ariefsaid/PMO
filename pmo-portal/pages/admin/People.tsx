@@ -120,7 +120,7 @@ const People: React.FC = () => {
 
   React.useEffect(() => {
     let live = true;
-    void loadProfiles().then((ps) => { if (live) { setProfileNames(new Map(ps.map((p) => [p.id, p.full_name]))); setManagerChoices(ps.filter((p) => p.status === 'active').map((p) => ({ id: p.id, email: p.email }))); } }).catch(() => undefined);
+    void loadProfiles().then((ps) => { if (live) { setProfileNames(new Map(ps.map((p) => [p.id, p.full_name]))); setManagerChoices(ps.filter((p) => p.status === 'active' && p.email).map((p) => ({ id: p.id, email: p.email }))); } }).catch(() => undefined);
     return () => { live = false; };
   }, [loadProfiles]);
 
