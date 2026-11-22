@@ -10,10 +10,10 @@ import { createProcurementFixture, serviceClient, type ProcurementFixture } from
 
 test.setTimeout(120_000);
 
-let fixture: ProcurementFixture;
-let workOrderId: string;
-let woNumber: string;
-let receiptId: string;
+let fixture: ProcurementFixture | undefined;
+let workOrderId: string | undefined;
+let woNumber: string | undefined;
+let receiptId: string | undefined;
 
 test.beforeAll(async () => {
   fixture = await createProcurementFixture({
@@ -30,7 +30,7 @@ test.beforeAll(async () => {
     .select('org_id, project_id')
     .eq('id', fixture.id)
     .single();
-  if (procFetchError || !proc) throw new Error(`JOB-PU22 procurement lookup: ${procFetchError?.message}`);
+  if (procFetchError || !proc) throw new Error(`JOB-PU22 procurement lookup: ${procFetchError?.message ?? 'missing row'}`);
 
   workOrderId = randomUUID();
   woNumber = `WO-PU22-${workOrderId.slice(0, 8).toUpperCase()}`;
@@ -69,18 +69,65 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   const admin = serviceClient();
+  const failures: string[] = [];
+  const attempt = async (step: string, op: () => PromiseLike<{ error: { message: string } | null }>) => {
+    try {
+      const { error } = await op();
+      if (error) failures.push(`${step}: ${error.message}`);
+    } catch (e) {
+      failures.push(`${step}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   if (receiptId) {
-    await admin.from('procurement_receipts').delete().eq('id', receiptId);
+    await attempt('delete owned receipt', () => admin.from('procurement_receipts').delete().eq('id', receiptId!));
   }
-  if (fixture) {
-    await fixture.cleanup();
+  if (fixture?.id) {
+    const tables = [
+      'procurement_receipts',
+      'purchase_orders',
+      'purchase_requests',
+      'procurement_documents',
+      'procurement_status_events',
+      'procurement_quotations',
+      'procurement_items',
+    ];
+    for (const table of tables) {
+      await attempt(`delete procurement child ${table}`, () => admin.from(table).delete().eq('procurement_id', fixture!.id));
+    }
+    await attempt('delete procurement', () => admin.from('procurements').delete().eq('id', fixture!.id));
   }
   if (workOrderId) {
-    await admin.from('work_orders').delete().eq('id', workOrderId);
+    await attempt('delete work order', () => admin.from('work_orders').delete().eq('id', workOrderId!));
+  }
+
+  // Verify absence of owned rows to guarantee teardown actually succeeded
+  if (receiptId) {
+    const { data, error } = await admin.from('procurement_receipts').select('id').eq('id', receiptId);
+    if (error) failures.push(`verify receipt absence: ${error.message}`);
+    else if ((data ?? []).length > 0) failures.push('verify receipt absence: receipt row still exists');
+  }
+  if (fixture?.id) {
+    const { data, error } = await admin.from('procurements').select('id').eq('id', fixture.id);
+    if (error) failures.push(`verify procurement absence: ${error.message}`);
+    else if ((data ?? []).length > 0) failures.push('verify procurement absence: procurement row still exists');
+  }
+  if (workOrderId) {
+    const { data, error } = await admin.from('work_orders').select('id').eq('id', workOrderId);
+    if (error) failures.push(`verify work order absence: ${error.message}`);
+    else if ((data ?? []).length > 0) failures.push('verify work order absence: work order row still exists');
+  }
+
+  if (failures.length > 0) {
+    throw new Error(`JOB-PU22 teardown failed: ${failures.join('; ')}`);
   }
 });
 
 test('JOB-PU22 the receipt row shows its value read from the order lines (Rp 45 million)', async ({ page }) => {
+  if (!fixture || !workOrderId || !woNumber || !receiptId) {
+    throw new Error('JOB-PU22 fixture setup did not complete');
+  }
+
   await signIn(page, 'finance@acme.test');
   await page.goto(`${fixture.url}/files`);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
@@ -91,18 +138,22 @@ test('JOB-PU22 the receipt row shows its value read from the order lines (Rp 45 
 
   // Service-read owned IDs: establish no supplier bill recorded, and confirm WO / receipt binding
   const admin = serviceClient();
-  const { data: bills } = await admin
+  const { data: bills, error: billsError } = await admin
     .from('procurement_invoices')
     .select('id')
     .eq('procurement_id', fixture.id);
-  expect(bills ?? []).toHaveLength(0);
+  if (billsError) throw new Error(`JOB-PU22 bills: ${billsError.message}`);
+  expect(bills).toHaveLength(0);
 
-  const { data: boundReceipt } = await admin
+  const { data: boundReceipt, error: boundReceiptError } = await admin
     .from('procurement_receipts')
     .select('work_order_id')
     .eq('id', receiptId)
     .single();
-  expect(boundReceipt?.work_order_id).toBe(workOrderId);
+  if (boundReceiptError || !boundReceipt) {
+    throw new Error(`JOB-PU22 bound receipt: ${boundReceiptError?.message ?? 'missing row'}`);
+  }
+  expect(boundReceipt.work_order_id).toBe(workOrderId);
 
   // Navigate to real work-order cost page as lawful role (Finance)
   await page.goto(`/work-orders/${workOrderId}`);
