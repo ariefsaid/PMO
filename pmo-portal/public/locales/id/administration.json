@@ -941,7 +941,8 @@
     "markLeftLabel": "Tandai {{name}} sudah keluar",
     "leftTitle": "Tandai {{name}} sudah keluar",
     "leftBody": "Personel ini pindah ke Mantan personel dan keluar dari semua susunan kru mulai hari ini. Dokumen, jam kerja, dan riwayatnya tetap tercatat.",
-    "leftOn": "Hari kerja terakhir",
+    "leftOn": "Hari pertama keluar dari susunan kru",
+    "leftOnHelp": "Hari pertama keluar dari susunan kru",
     "markedLeft": "{{name}} sekarang menjadi mantan personel"
   },
   "roleNames": {
