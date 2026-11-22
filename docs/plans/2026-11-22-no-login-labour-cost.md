@@ -187,10 +187,19 @@ rows with and without `profile_id`; approved no-login days inserted as postgres 
 | AC-NLL-001..008 | `supabase/tests/1721_no_login_labour_cost.test.sql` |
 | AC-NLL-009..011 | `supabase/tests/1720_labour_class_rates.test.sql` |
 | AC-NLL-012 | `pmo-portal/src/lib/db/workOrderFinance.test.ts` |
-| AC-NLL-013 | `pmo-portal/src/lib/workOrderPlanVsActual.test.ts` |
+| AC-NLL-013 | `pmo-portal/src/lib/workOrderLabourCost.test.ts` (the labour-cost rollup gate-tests) |
 | AC-NLL-014 | `pmo-portal/pages/admin/LabourClassAssignments.test.tsx` + `e2e/serial/AC-NLL-014-crew-member-class.spec.ts` |
 Regression guards that must stay green: `1250_labour_cost_rates`, `1251_labour_cost_amounts`, `1255_idle_cost`,
 `1298_work_order_labour_reads`, `1299_labour_rate_history_lock`, `attendance_timesheet`, `1286` performance tests.
+
+## Added on the Director's go (Phase B)
+- `pmo-portal/src/lib/db/workOrderFinance.ts` lists `expense_claim`: a project with an expense claim naming a work order
+  no longer makes the plan-versus-actual read fail (`workOrderFinance.test.ts`).
+- `pmo-portal/src/lib/db/workOrderCosts.ts` lists `attendance_day`: the work-order Costs section shows approved no-login
+  attendance from the attribution view instead of dropping it, labelled "Attendance" (`workOrderCosts.test.ts`,
+  `pages/WorkOrderDetail.test.tsx`).
+- Customer answers taken for the build (logged as open by the Director): overtime by the timesheet day-length rule; a
+  class rate does not price login people; no rate by crew position.
 
 ## Mutation checks (wave run; each: edit, `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db <file>'`, expect `not ok` on the named AC, `git checkout -- <migration>`, reset again)
 - **M1 no double count (a):** in `1720_labour_class_rates.sql` view `labour_cost_attendance_days` delete

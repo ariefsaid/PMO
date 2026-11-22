@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({
   role: 'Admin' as string,
   enabled: false,
   classes: [{ id: 'c1', code: 'direct', name: 'Direct', archivedAt: null }, { id: 'c2', code: 'guard', name: 'Guard', archivedAt: null }],
-  rates: [{ id: 'r1', subjectKind: 'role', personId: null, personName: null, roleKey: 'Engineer', classId: 'c1', basis: 'hourly', amount: '50000.00',
+  rates: [{ id: 'r1', subjectKind: 'role', personId: null, personName: null, roleKey: 'Engineer' as string | null, classId: 'c1', basis: 'hourly', amount: '50000.00',
     overtimeMultiplier: '1.50', dayHours: '8.00', monthHours: '173.00', effectiveFrom: '2026-11-01', effectiveTo: null }],
   repo: { setEnabled: vi.fn(), renameClass: vi.fn(), addClass: vi.fn(), archiveClass: vi.fn(), saveRate: vi.fn(), endRate: vi.fn(), archiveRate: vi.fn(),
     saveAssignment: vi.fn(), endAssignment: vi.fn(), archiveAssignment: vi.fn() },
