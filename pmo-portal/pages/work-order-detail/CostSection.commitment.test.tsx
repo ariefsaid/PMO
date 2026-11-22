@@ -12,7 +12,7 @@ const renderIt = (source: string) => render(
   <MemoryRouter><CostSection links={{}} labels={{}} groups={[group(source)]} disciplines={[]} isPending={false} isError={false} onRetry={vi.fn()} moneyPending={false} /></MemoryRouter>,
 );
 
-describe('JOB-PU4 the work order cost page says what a receipt is still missing', () => {
+describe('JOB-PU22 the work order cost page says what a receipt is still missing', () => {
   it('a goods receipt with no bill says it counts once its supplier bill is recorded, not "amount unavailable"', () => {
     renderIt('goods_receipt');
     expect(screen.getByTestId('cost-commitment-goods_receipt')).toHaveTextContent(/receipt counts once its supplier bill is recorded/);

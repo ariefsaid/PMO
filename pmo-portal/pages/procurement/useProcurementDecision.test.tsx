@@ -71,7 +71,7 @@ describe('useProcurementDecision', () => {
     expect(toast).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'warning');
   });
 
-  describe('JOB-PU3 recording an order', () => {
+  describe('JOB-PU1 recording an order', () => {
     const WITH_SUPPLIER = { ...(PROC as object), status: 'Approved', total_value: 45000000, currency: 'IDR', vendor_id: 'v-1', vendor: { name: 'Toko Baja' } } as never;
     const NO_SUPPLIER = { ...(PROC as object), status: 'Approved', total_value: 45000000, currency: 'IDR', vendor_id: null, vendor: null } as never;
     const order = { to: 'Ordered', label: 'Record order', variant: 'primary' } as never;

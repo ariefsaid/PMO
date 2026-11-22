@@ -13,7 +13,7 @@ const GATES = { request_before_order: false, approval_before_order: false, recei
 
 beforeEach(() => { h.gates = { data: GATES }; h.match = { on: false }; });
 
-describe('JOB-PU5 the bill form says what holds the bill and who releases it', () => {
+describe('JOB-PU23 the bill form says what holds the bill and who releases it', () => {
   it('names the receipt rule while no receipt is recorded, and who changes the rule', () => {
     render(<BillHoldNotice hasReceipt={false} />);
     expect(screen.getByTestId('bill-hold-rule')).toHaveTextContent(/held by a purchase rule/);

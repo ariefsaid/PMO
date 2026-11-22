@@ -18,7 +18,7 @@ import { NewVendorBillDialog } from './NewVendorBillDialog';
 
 beforeEach(() => h.navigate.mockReset());
 
-describe('JOB-PU5 New vendor bill from the payables list', () => {
+describe('JOB-PU23 New vendor bill from the payables list', () => {
   it('offers only purchases that can take a bill and opens the bill form on the chosen one', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

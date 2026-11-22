@@ -5,7 +5,7 @@ import { Combobox, EntityFormModal } from '@/src/components/ui';
 import { useProcurements } from '@/src/hooks/useProcurements';
 
 /** A supplier bill is recorded against a purchase that has been ordered; a closed or unapproved one takes none. */
-export const BILLABLE_STATUSES: ReadonlySet<string> = new Set(['Approved', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced']);
+const BILLABLE_STATUSES: ReadonlySet<string> = new Set(['Approved', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced']);
 
 /**
  * "New vendor bill" from the payables list: pick the purchase the bill belongs to, then the purchase page opens its

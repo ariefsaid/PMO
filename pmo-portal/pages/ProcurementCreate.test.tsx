@@ -518,7 +518,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createItem).not.toHaveBeenCalled();
   });
 
-  it('JOB-PU2 a project with one open work order starts the request on it and saves it with the request', async () => {
+  it('JOB-PU21 a project with one open work order starts the request on it and saves it with the request', async () => {
     workOrders.data = [
       { id: 'wo-open', status: 'Issued', title: 'Pump house', wo_number: 'WO-1' },
       { id: 'wo-done', status: 'Closed', title: 'Old job', wo_number: 'WO-0' },
@@ -532,7 +532,7 @@ describe('AC-PROC1 one-page request creation', () => {
     } finally { workOrders.data = []; }
   });
 
-  it('JOB-PU2 a project with several open work orders asks for one and never picks for the person', async () => {
+  it('JOB-PU21 a project with several open work orders asks for one and never picks for the person', async () => {
     workOrders.data = [
       { id: 'wo-a', status: 'Issued', title: 'A', wo_number: 'WO-A' },
       { id: 'wo-b', status: 'Draft', title: 'B', wo_number: 'WO-B' },

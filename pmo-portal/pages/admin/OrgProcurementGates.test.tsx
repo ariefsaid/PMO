@@ -73,7 +73,7 @@ describe('OrgProcurementGates', () => {
     expect(await screen.findAllByRole('switch')).toHaveLength(4);
   });
 
-  it('JOB-PU1 an Admin sets the site cash limit that site cash needs', async () => {
+  it('JOB-PU20 an Admin sets the site cash limit that site cash needs', async () => {
     h.get.mockResolvedValue(OFF);
     h.setLimit.mockResolvedValue(undefined);
     renderIt();
@@ -83,7 +83,7 @@ describe('OrgProcurementGates', () => {
     await waitFor(() => expect(h.setLimit).toHaveBeenCalledWith(5000000));
   });
 
-  it('JOB-PU1 a non-Admin sees the limit but cannot change it, and the field is hidden when site cash is off', async () => {
+  it('JOB-PU20 a non-Admin sees the limit but cannot change it, and the field is hidden when site cash is off', async () => {
     h.get.mockResolvedValue(OFF);
     h.getLimit.mockResolvedValue(5000000);
     h.canManage = false;

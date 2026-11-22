@@ -148,7 +148,7 @@ describe('/imprest list (AC-IMP-082)', () => {
     await waitFor(() => expect(h.establish.mutateAsync).toHaveBeenCalledWith({ projectId: 'p1', custodianId: 'u-fin', amount: 5000000 }));
   });
 
-  it('JOB-PU1 a refusal for the missing site cash limit names where an Admin sets it', async () => {
+  it('JOB-PU20 a refusal for the missing site cash limit names where an Admin sets it', async () => {
     const user = userEvent.setup();
     h.establish.mutateAsync.mockRejectedValue(Object.assign(new Error("set the org's procurement limit before establishing a site float"), { code: 'P0001' }));
     renderPage();

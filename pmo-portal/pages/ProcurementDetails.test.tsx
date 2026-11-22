@@ -2277,7 +2277,7 @@ describe('Procurement detail restructure fixes', () => {
     expect(rows[5]).toHaveTextContent('Paid');
   });
 
-  describe('JOB-PU6 things that exist but were not found', () => {
+  describe('JOB-PU24 things that exist but were not found', () => {
     it('the requester is told who a request goes to, not just that it waits', () => {
       detailState.data = {
         ...baseProcurement, requested_by_id: 'u-alice',

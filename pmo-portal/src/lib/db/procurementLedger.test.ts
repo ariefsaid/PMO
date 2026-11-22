@@ -419,10 +419,10 @@ describe('AC-PR-LEDGER-015: Quote externalRef + amount from procurement_quotatio
   });
 });
 
-describe('JOB-PU4 a receipt shows its value, read from the order lines', () => {
+describe('JOB-PU22 a receipt shows its value, read from the order lines', () => {
   const gr = (id: string, status: 'Partial' | 'Complete'): GRRow => ({
     id, org_id: 'org-1', procurement_id: 'proc-1', gr_number: `GR-${id}`, status,
-    receipt_date: '2026-05-11', created_at: '2026-05-11T08:00:00Z', po_id: null,
+    receipt_date: '2026-05-11', created_at: '2026-05-11T08:00:00Z', po_id: null, reference_number: null,
   });
   const items = [{ id: 'i1', name: 'Cable', quantity: 100, rate: 250000 }, { id: 'i2', name: 'Pipe', quantity: 10, rate: 2000000 }];
 

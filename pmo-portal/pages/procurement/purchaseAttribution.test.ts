@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { purchaseAttribution } from './purchaseAttribution';
 
-describe('JOB-PU2 purchaseAttribution', () => {
+describe('JOB-PU21 purchaseAttribution', () => {
   it('starts a receipt or bill on the order\'s work order and discipline', () => {
     expect(purchaseAttribution({ work_order_id: 'wo-header', discipline_id: null, purchase_orders: [{ work_order_id: 'wo-order', discipline_id: 'd-1' }] }))
       .toEqual({ workOrderId: 'wo-order', disciplineId: 'd-1' });

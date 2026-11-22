@@ -259,7 +259,7 @@ describe('PR-1 Bahasa rendered-copy contract', () => {
   });
 });
 
-describe('JOB-PU4 the receipt row shows its value', () => {
+describe('JOB-PU22 the receipt row shows its value', () => {
   const grRow = (over: Partial<LedgerRow>): LedgerRow => ({
     id: 'GR-gr-1', date: '2026-05-14', type: 'GR', systemNumber: 'GR-0001', externalRef: null, amount: null, status: 'Complete', statusVariant: 'won',
     fileHref: null, fileTitle: null, fileCount: 0, financial: false, recordId: 'gr-1', currency: 'IDR', ...over,
