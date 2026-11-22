@@ -58,6 +58,8 @@ import { AccessDenied, ToastProvider, TOOLTIP_OPEN_DELAY_MS } from '@/src/compon
 import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 import { EnvBadge } from '@/src/components/EnvBadge';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
+import { isLightAccount } from '@/src/auth/lightAccount';
+import { LightShell } from '@/src/components/shell/LightShell';
 import { DocumentViewerProvider } from '@/src/components/documents';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { useFeature } from '@/src/auth/useFeature';
@@ -83,6 +85,7 @@ import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { AccountMenu } from '@/src/components/shell/AccountMenu';
+import { usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
 
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
@@ -102,7 +105,12 @@ const ImprestFloatDetailPage = lazyWithPreload(() => import('./pages/ImprestFloa
 const MaterialRequestsPage = lazyWithPreload(() => import('./pages/MaterialRequests'));
 const MaterialRequestNewPage = lazyWithPreload(() => import('./pages/MaterialRequestNew'));
 const MaterialRequestDetailPage = lazyWithPreload(() => import('./pages/MaterialRequestDetail'));
+const DeliveryNotePrintPage = lazyWithPreload(() => import('./pages/DeliveryNotePrint'));
+const PurchaseOrderPrintPage = lazyWithPreload(() => import('./pages/PurchaseOrderPrint'));
 const MaterialRequestSettingsPage = lazyWithPreload(() => import('./pages/MaterialRequestSettings'));
+const PurchaseTypeSettingsPage = lazyWithPreload(() => import('./pages/PurchaseTypeSettings'));
+const EquipmentPlansPage = lazyWithPreload(() => import('./pages/EquipmentPlans'));
+const EquipmentPlanSettingsPage = lazyWithPreload(() => import('./pages/EquipmentPlanSettings'));
 const EquipmentUsagePage = lazyWithPreload(() => import('./pages/equipment/EquipmentUsage'));
 const EquipmentAvailabilityPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAvailability'));
 const EquipmentAssetsPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssets'));
@@ -111,7 +119,15 @@ const PersonDetailPage = lazyWithPreload(() => import('./pages/equipment/PersonD
 const EquipmentAssetDetailPage = lazyWithPreload(() => import('./pages/equipment/EquipmentAssetDetail'));
 const SiteReportsPage = lazyWithPreload(() => import('./pages/siteReports/SiteReports'));
 const SiteReportDetailPage = lazyWithPreload(() => import('./pages/siteReports/SiteReportDetail'));
+const CrewPunctualityPage = lazyWithPreload(() => import('./pages/siteReports/CrewPunctuality'));
+const SafetyDayFormPage = lazyWithPreload(() => import('./pages/safetyDays/SafetyDayForm'));
+const SafetySummaryPage = lazyWithPreload(() => import('./pages/SafetySummary'));
+const QuantityChangesPage = lazyWithPreload(() => import('./pages/quantityChanges/QuantityChanges'));
+const QuantityChangeDetailPage = lazyWithPreload(() => import('./pages/quantityChanges/QuantityChangeDetail'));
 const CrewsPage = lazyWithPreload(() => import('./pages/crews/Crews'));
+const LeaveRequestsPage = lazyWithPreload(() => import('./pages/leave/LeaveRequests'));
+const SubcontractCertificatesPage = lazyWithPreload(() => import('./pages/subcontractCertificates/SubcontractCertificates'));
+const SubcontractCertificateDetailPage = lazyWithPreload(() => import('./pages/subcontractCertificates/SubcontractCertificateDetail'));
 const ApprovalsPage = lazyWithPreload(() => import('./pages/Approvals'));
 const CompaniesPage = lazyWithPreload(() => import('./pages/Companies'));
 const MasterDataPage = lazyWithPreload(() => import('./pages/MasterData'));
@@ -119,8 +135,10 @@ const CompanyDetailPage = lazyWithPreload(() => import('./pages/CompanyDetail'))
 const ContactsPage = lazyWithPreload(() => import('./pages/Contacts'));
 const ContactDetailPage = lazyWithPreload(() => import('./pages/ContactDetail'));
 const IncidentsPage = lazyWithPreload(() => import('./pages/Incidents'));
+const ClosingTimeReportPage = lazyWithPreload(() => import('./pages/incidents/ClosingTimeReport'));
 const IncidentDetailPage = lazyWithPreload(() => import('./pages/IncidentDetail'));
 const AdministrationPage = lazyWithPreload(() => import('./pages/Administration'));
+const PersonClearancePage = lazyWithPreload(() => import('./pages/admin/PersonClearance'));
 const IntegrationsPage = lazyWithPreload(() => import('./pages/Integrations'));
 const MyTasksPage = lazyWithPreload(() => import('./pages/MyTasks'));
 const CalendarPage = lazyWithPreload(() => import('./pages/Calendar'));
@@ -140,9 +158,12 @@ const ErpPurchasesPage = lazyWithPreload(() => import('./pages/ErpPurchases'));
 const FinancialStatementsPage = lazyWithPreload(() => import('./pages/FinancialStatements'));
 const JournalsPage = lazyWithPreload(() => import('./pages/Journals'));
 const ManagementPackPage = lazyWithPreload(() => import('./pages/ManagementPack'));
-const FinanceHubPage = lazyWithPreload(() => import('./pages/finance/FinanceHub'));
+const FinanceHubPage = lazyWithPreload(() => import('./pages/finance/FinanceHubRoute'));
 const ReceivablesPage = lazyWithPreload(() => import('./pages/finance/ReceivablesPage'));
+const BillingBoardPage = lazyWithPreload(() => import('./pages/BillingBoard'));
+const BillingPlanPage = lazyWithPreload(() => import('./pages/BillingPlan'));
 const PayablesPage = lazyWithPreload(() => import('./pages/finance/PayablesPage'));
+const WorkInHandPage = lazyWithPreload(() => import('./pages/finance/WorkInHand'));
 const ProfileSettingsPage = lazyWithPreload(() => import('./pages/ProfileSettings'));
 const StockSetupPage = lazyWithPreload(() => import('./pages/stock/StockSetup'));
 const StockOnHandPage = lazyWithPreload(() => import('./pages/stock/StockOnHand'));
@@ -152,6 +173,13 @@ const StockLedgerPage = lazyWithPreload(() => import('./pages/stock/StockLedger'
 const StockMovementFormPage = lazyWithPreload(() => import('./pages/stock/StockMovementForm'));
 const StockCountPage = lazyWithPreload(() => import('./pages/stock/StockCount'));
 const StockReorderPage = lazyWithPreload(() => import('./pages/stock/StockReorder'));
+const StockTransfersPage = lazyWithPreload(() => import('./pages/stock/StockTransfers'));
+const StockTransferSendPage = lazyWithPreload(() => import('./pages/stock/StockTransferSend'));
+const StockTransferDetailPage = lazyWithPreload(() => import('./pages/stock/StockTransferDetail'));
+const StockWorkOrderTransferPage = lazyWithPreload(() => import('./pages/stock/StockWorkOrderTransfer'));
+const StockWorkOrderTransferDetailPage = lazyWithPreload(() => import('./pages/stock/StockWorkOrderTransferDetail'));
+const UsageStandardsPage = lazyWithPreload(() => import('./pages/stock/UsageStandards'));
+const StockAtRiskPage = lazyWithPreload(() => import('./pages/stock/StockAtRisk'));
 
 // ── Route-entry + nav-link preloads (#1834) ──────────────────────────────────
 /** Anything with the lazyWithPreload preload() handle (structural — the rules
@@ -217,24 +245,29 @@ const PRELOAD_RULES: PreloadRule[] = [
     chunks,
     namespaces: PROJECT_TAB_NAMESPACES[path.split('/').pop() ?? ''] ?? ['project'],
   })),
-  { path: '/projects/:projectId/:tab', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
+  { path: '/projects/:projectId/:tab', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project', 'supplyRisk'] },
   { path: '/projects/:projectId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
   { path: '/sales', chunks: [SalesPipeline], namespaces: ['sales'] },
   // /sales/:id redirects to /projects/:projectId — start that download now.
   { path: '/sales/:opportunityId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
   { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList'] },
-  { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate'] },
-  { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
-  { path: '/procurement/:procurementId', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord'] },
+  { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate', 'purchaseTypes'] },
+  { path: '/procurement/:procurementId/purchase-orders/:orderId/print', chunks: [PurchaseOrderPrintPage], namespaces: ['procurement'] },
+  { path: '/procurement/:procurementId/:tab', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord', 'purchaseTypes'] },
+  { path: '/procurement/:procurementId', chunks: [ProcurementDetails], namespaces: ['procurement', 'procurementCreate', 'procurementRecord', 'purchaseTypes'] },
+  { path: '/purchase-types/settings', chunks: [PurchaseTypeSettingsPage], namespaces: ['purchaseTypes'] },
+  { path: '/equipment-plans', chunks: [EquipmentPlansPage], namespaces: ['equipmentPlans'] },
+  { path: '/equipment-plans/settings', chunks: [EquipmentPlanSettingsPage], namespaces: ['equipmentPlans'] },
   { path: '/timesheets', chunks: [TimesheetsPage], namespaces: ['timesheets'] },
   // The triage queue renders one section per approval domain; all four are static imports.
-  { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance'] },
+  { path: '/approvals', chunks: [ApprovalsPage], namespaces: ['procurement', 'imprest', 'timesheets', 'finance', 'materialRequests'] },
   { path: '/companies', chunks: [CompaniesPage], namespaces: ['crm'] },
   { path: '/master-data/:kind', chunks: [MasterDataPage], namespaces: ['administration'] },
-  { path: '/companies/:companyId', chunks: [CompanyDetailPage], namespaces: ['crm'] },
+  { path: '/companies/:companyId', chunks: [CompanyDetailPage], namespaces: ['crm', 'supplyRisk'] },
   { path: '/contacts', chunks: [ContactsPage], namespaces: ['crm'] },
   { path: '/contacts/:contactId', chunks: [ContactDetailPage], namespaces: ['crm'] },
   { path: '/incidents', chunks: [IncidentsPage], namespaces: ['incidents'] },
+  { path: '/incidents/closing-time', chunks: [ClosingTimeReportPage], namespaces: ['incidents'] },
   { path: '/incidents/:incidentId', chunks: [IncidentDetailPage], namespaces: ['incidents'] },
   { path: '/my-tasks', chunks: [MyTasksPage], namespaces: ['tasks'] },
   { path: '/calendar', chunks: [CalendarPage], namespaces: ['calendar'] },
@@ -247,9 +280,12 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/material-requests/settings', chunks: [MaterialRequestSettingsPage], namespaces: ['materialRequests'] },
   { path: '/material-requests/new', chunks: [MaterialRequestNewPage], namespaces: ['materialRequests'] },
   { path: '/material-requests/:requestId/edit', chunks: [MaterialRequestNewPage], namespaces: ['materialRequests'] },
+  { path: '/material-requests/:requestId/delivery-note', chunks: [DeliveryNotePrintPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests/:requestId', chunks: [MaterialRequestDetailPage], namespaces: ['materialRequests', 'stock'] },
   { path: '/material-requests', chunks: [MaterialRequestsPage], namespaces: ['materialRequests'] },
-  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'status'] },
+  { path: '/work-orders/:id', chunks: [WorkOrderDetailPage], namespaces: ['workOrders', 'workOrderCost', 'workOrderSections', 'status', 'usageStandards', 'supplyRisk', 'safety'] },
+  { path: '/safety-days/:dayId', chunks: [SafetyDayFormPage], namespaces: ['safety', 'status'] },
+  { path: '/safety', chunks: [SafetySummaryPage], namespaces: ['safety'] },
   { path: '/imprest', chunks: [ImprestFloatsPage], namespaces: ['imprest'] },
   { path: '/imprest/:floatId', chunks: [ImprestFloatDetailPage], namespaces: ['imprest'] },
   { path: '/equipment', chunks: [EquipmentUsagePage], namespaces: ['equipment'] },
@@ -258,16 +294,26 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/equipment/availability', chunks: [EquipmentAvailabilityPage], namespaces: ['equipment'] },
   { path: '/equipment/assets/:assetId', chunks: [EquipmentAssetDetailPage], namespaces: ['equipment'] },
   { path: '/site-reports', chunks: [SiteReportsPage], namespaces: ['siteReport'] },
+  { path: '/site-reports/crews', chunks: [CrewPunctualityPage], namespaces: ['siteReport'] },
   { path: '/site-reports/:reportId', chunks: [SiteReportDetailPage], namespaces: ['siteReport'] },
-  { path: '/crews', chunks: [CrewsPage], namespaces: ['crews'] },
+  { path: '/quantity-changes', chunks: [QuantityChangesPage], namespaces: ['quantityChanges', 'status'] },
+  { path: '/quantity-changes/:requestId', chunks: [QuantityChangeDetailPage], namespaces: ['quantityChanges', 'status'] },
+  { path: '/crews', chunks: [CrewsPage], namespaces: ['crews', 'crewTools'] },
+  { path: '/subcontract-certificates', chunks: [SubcontractCertificatesPage], namespaces: ['subcontractCertificates'] },
+  { path: '/subcontract-certificates/:certificateId', chunks: [SubcontractCertificateDetailPage], namespaces: ['subcontractCertificates'] },
+  { path: '/leave', chunks: [LeaveRequestsPage], namespaces: ['crews'] },
   { path: '/equipment/people/:personId', chunks: [PersonDetailPage], namespaces: ['equipment'] },
   { path: '/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
-  { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
-  { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement'] },
+  { path: '/administration/clearance/:personId', chunks: [PersonClearancePage], namespaces: ['administration'] },
+  { path: '/administration/:section', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement', 'safety'] },
+  { path: '/administration', chunks: [AdministrationPage], namespaces: ['administration', 'costAttribution', 'plans', 'procurement', 'safety'] },
   { path: '/finance', chunks: [FinanceHubPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/receivables', chunks: [ReceivablesPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/finance/billing-board', chunks: [BillingBoardPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/finance/billing-plan', chunks: [BillingPlanPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/payables', chunks: [PayablesPage], namespaces: ['finance', 'financeHub'] },
   { path: '/finance/reports', chunks: [ManagementPackPage], namespaces: ['finance', 'financeHub'] },
+  { path: '/finance/work-in-hand', chunks: [WorkInHandPage], namespaces: ['workInHand', 'financeHub'] },
   { path: '/finance/statements', chunks: [FinancialStatementsPage], namespaces: ['finance'] },
   { path: '/journals', chunks: [JournalsPage], namespaces: ['journals'] },
   { path: '/sales-invoices/:invoiceId', chunks: [SalesInvoicesPage], namespaces: ['finance'] },
@@ -291,6 +337,13 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/stock/documents', chunks: [StockDocumentsPage], namespaces: ['stock'] },
   { path: '/stock/ledger', chunks: [StockLedgerPage], namespaces: ['stock'] },
   { path: '/stock/reorder', chunks: [StockReorderPage], namespaces: ['stock'] },
+  { path: '/stock/transfers/new', chunks: [StockTransferSendPage], namespaces: ['stock'] },
+  { path: '/stock/transfers/:transferId', chunks: [StockTransferDetailPage], namespaces: ['stock'] },
+  { path: '/stock/transfers', chunks: [StockTransfersPage], namespaces: ['stock'] },
+  { path: '/stock/work-order-transfer/:transferId', chunks: [StockWorkOrderTransferDetailPage], namespaces: ['stock', 'workOrders'] },
+  { path: '/stock/work-order-transfer', chunks: [StockWorkOrderTransferPage], namespaces: ['stock'] },
+  { path: '/stock/usage-standards', chunks: [UsageStandardsPage], namespaces: ['stock', 'usageStandards'] },
+  { path: '/stock/at-risk', chunks: [StockAtRiskPage], namespaces: ['stock'] },
   { path: '/stock/new/:kind', chunks: [StockMovementFormPage], namespaces: ['stock'] },
   { path: '/stock', chunks: [StockOnHandPage], namespaces: ['stock'] },
   { path: '*', chunks: [NotFoundPage] },
@@ -429,6 +482,7 @@ export const appRouteConfig: RouteObject[] = [
     )),
   },
   { path: '/procurement/new', element: gated('procurement', <ProcurementCreate />) },
+  { path: '/procurement/:procurementId/purchase-orders/:orderId/print', element: gated('procurement', <PurchaseOrderPrintPage />) },
   // Tabbed record shell (mirrors /projects/:id/:tab). The bare /procurement/:id keeps working
   //   (defaults to the Overview tab); :tab deep-links a panel.
   { path: '/procurement/:procurementId', element: gated('procurement', <ProcurementDetails />) },
@@ -447,6 +501,7 @@ export const appRouteConfig: RouteObject[] = [
   //   FeatureRoute renders the page when enabled, else redirects deep-links to home instead of
   //   404. CW-4a: /incidents/:id is the routable detail page when the module is on.
   { path: '/incidents', element: <FeatureRoute feature="incidents" element={<IncidentsPage />} /> },
+  { path: '/incidents/closing-time', element: <FeatureRoute feature="incidents" element={<ClosingTimeReportPage />} /> },
   { path: '/incidents/:incidentId', element: <FeatureRoute feature="incidents" element={<IncidentDetailPage />} /> },
   // B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list.
   { path: '/my-tasks', element: <MyTasksPage /> },
@@ -465,9 +520,16 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/material-requests', element: <MaterialRequestsPage /> },
   { path: '/material-requests/new', element: <MaterialRequestNewPage /> },
   { path: '/material-requests/settings', element: <MaterialRequestSettingsPage /> },
+  { path: '/purchase-types/settings', element: gated('procurement', <PurchaseTypeSettingsPage />) },
+  { path: '/equipment-plans', element: gated('procurement', <EquipmentPlansPage />) },
+  { path: '/equipment-plans/settings', element: gated('procurement', <EquipmentPlanSettingsPage />) },
   { path: '/material-requests/:requestId/edit', element: <MaterialRequestNewPage /> },
+  { path: '/material-requests/:requestId/delivery-note', element: <DeliveryNotePrintPage /> },
   { path: '/material-requests/:requestId', element: <MaterialRequestDetailPage /> },
   { path: '/work-orders/:id', element: <WorkOrderDetailPage /> },
+  // #2596: daily safety records per work order and day, and the monthly safety summary.
+  { path: '/safety-days/:dayId', element: <SafetyDayFormPage /> },
+  { path: '/safety', element: <SafetySummaryPage /> },
   { path: '/imprest', element: gated('imprest', <ImprestFloatsPage />) },
   { path: '/imprest/:floatId', element: gated('imprest', <ImprestFloatDetailPage />) },
   // #1519: equipment usage grid, asset reference and per-asset costing.
@@ -478,14 +540,24 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/equipment/assets/:assetId', element: <EquipmentAssetDetailPage /> },
   // #1522: daily site reports per work order and the QS validation queue.
   { path: '/site-reports', element: <SiteReportsPage /> },
+  { path: '/site-reports/crews', element: <CrewPunctualityPage /> },
   { path: '/site-reports/:reportId', element: <SiteReportDetailPage /> },
+  { path: '/quantity-changes', element: <QuantityChangesPage /> },
+  { path: '/quantity-changes/:requestId', element: <QuantityChangeDetailPage /> },
   // #2528: crews, the roster per work order and the daily attendance tick.
   { path: '/crews', element: <CrewsPage /> },
+  // #2708: leave and sick requests; the rail entry appears only where the organisation switched them on.
+  { path: '/leave', element: <LeaveRequestsPage /> },
+  // #2584: subcontractor progress certificates and the subcontractor rate card (gated by the procurement plan switch).
+  { path: '/subcontract-certificates', element: gated('procurement', <SubcontractCertificatesPage />) },
+  { path: '/subcontract-certificates/:certificateId', element: gated('procurement', <SubcontractCertificateDetailPage />) },
   { path: '/equipment/people/:personId', element: <PersonDetailPage /> },
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
   { path: '/administration/people', element: <AdministrationPage /> },
+  { path: '/administration/clearance', element: <AdministrationPage /> },
+  { path: '/administration/clearance/:personId', element: <PersonClearancePage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },
   { path: '/administration/accounting', element: <AdministrationPage /> },
   { path: '/administration/projects', element: <AdministrationPage /> },
@@ -501,8 +573,11 @@ export const appRouteConfig: RouteObject[] = [
   // Finance section. Each area has one canonical URL; Statements keeps its existing page.
   { path: '/finance', element: <FinanceAccessRoute><FinanceHubPage /></FinanceAccessRoute> },
   { path: '/finance/receivables', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<ReceivablesPage />} /></FinanceAccessRoute> },
+  { path: '/finance/billing-board', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<BillingBoardPage />} /></FinanceAccessRoute> },
+  { path: '/finance/billing-plan', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<BillingPlanPage />} /></FinanceAccessRoute> },
   { path: '/finance/payables', element: <FinanceAccessRoute><FeatureRoute feature="procurement" element={<PayablesPage />} /></FinanceAccessRoute> },
   { path: '/finance/reports', element: <FinanceAccessRoute><FeatureRoute feature="management_pack" element={<ManagementPackPage />} /></FinanceAccessRoute> },
+  { path: '/finance/work-in-hand', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<WorkInHandPage />} /></FinanceAccessRoute> },
   { path: '/finance/statements', element: <FinanceAccessRoute>{gated('financial_statements', <FinancialStatementsPage />)}</FinanceAccessRoute> },
   // #895 manual journals: role-gated like the Finance hub (Finance·Executive·Admin); the RPCs re-check the role.
   { path: '/journals', element: <FinanceAccessRoute><JournalsPage /></FinanceAccessRoute> },
@@ -537,6 +612,13 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/stock/documents/:documentId/edit', element: gated('stock', <StockCountPage />) },
   { path: '/stock/ledger', element: gated('stock', <StockLedgerPage />) },
   { path: '/stock/reorder', element: gated('stock', <StockReorderPage />) },
+  { path: '/stock/transfers', element: gated('stock', <StockTransfersPage />) },
+  { path: '/stock/transfers/new', element: gated('stock', <StockTransferSendPage />) },
+  { path: '/stock/transfers/:transferId', element: gated('stock', <StockTransferDetailPage />) },
+  { path: '/stock/work-order-transfer', element: gated('stock', <StockWorkOrderTransferPage />) },
+  { path: '/stock/work-order-transfer/:transferId', element: gated('stock', <StockWorkOrderTransferDetailPage />) },
+  { path: '/stock/usage-standards', element: gated('stock', <UsageStandardsPage />) },
+  { path: '/stock/at-risk', element: gated('stock', <StockAtRiskPage />) },
   { path: '/stock/new/:kind', element: gated('stock', <StockMovementFormPage />) },
   { path: '*', element: <NotFoundPage /> },
 ];
@@ -554,6 +636,7 @@ export const ShellChrome: React.FC = () => {
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
+  usePriceVisibilitySync();
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
 
   // #1834: route entry fires the route's — and its late in-page chunks' —
@@ -922,6 +1005,15 @@ const Shell: React.FC = () => {
   );
 };
 
+/**
+ * #2710: a light account (Foreman, Field user) gets its one phone home screen instead of the full shell. Everyone else renders the
+ * same `Shell` as before. The database enforces the limit; this only chooses the surface.
+ */
+const ShellGate: React.FC = () => {
+  const { currentUser } = useAuth();
+  return isLightAccount(currentUser) ? <LightShell /> : <Shell />;
+};
+
 // ── Router (data router — enables router-level Back/Forward blocking) ──────
 /**
  * The application's router, as DATA (#1525). `createBrowserRouter` replaces the plain
@@ -955,7 +1047,7 @@ export const createAppRouter = (): DataRouter => createBrowserRouter([
               // #728: Supabase's OAuth server sends the browser here to approve an outside
               // client (the PMO CLI). Signed-in only, but outside the app shell.
               { path: '/oauth/consent', element: <OAuthConsentPage /> },
-              { path: '/*', element: <Shell /> },
+              { path: '/*', element: <ShellGate /> },
             ],
           },
         ],

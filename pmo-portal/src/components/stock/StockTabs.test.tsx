@@ -54,11 +54,11 @@ describe('the stock section strip', () => {
   it('offers Setup to a master-data writer and hides it from a reader', () => {
     realRole = 'Admin';
     const first = renderStrip();
-    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['On hand', 'Documents', 'Ledger', 'Reorder', 'Setup']);
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['On hand', 'Documents', 'Ledger', 'Reorder', 'Usage standards', 'At risk', 'Setup']);
     first.unmount();
     realRole = 'Engineer';
     renderStrip();
-    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['On hand', 'Documents', 'Ledger', 'Reorder']);
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['On hand', 'Documents', 'Ledger', 'Reorder', 'Usage standards', 'At risk']);
   });
 
   it('scrolls only the current section tab into view on mount and route change', async () => {

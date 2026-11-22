@@ -151,6 +151,6 @@ describe('stock setup floor controls', () => {
     await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Kind' }), 'site');
     await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Site project' }), 'pr1');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create warehouse' }));
-    await waitFor(() => expect(master.createWarehouse).toHaveBeenCalledWith({ code: 'SITE-B', name: 'North yard', kind: 'site', projectId: 'pr1' }));
+    await waitFor(() => expect(master.createWarehouse).toHaveBeenCalledWith({ code: 'SITE-B', name: 'North yard', kind: 'site', projectId: 'pr1', coverValue: null }));
   });
 });

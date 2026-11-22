@@ -21,10 +21,24 @@ export function stageAgeDays(stage: { startedOn: string | null; completedOn: str
   return dayNumber(stage.completedOn ?? today) - dayNumber(stage.startedOn);
 }
 
-/** Index of the first stage not completed (the current one), or null when all are complete. */
-export function currentStageIndex(stages: ReadonlyArray<{ completedOn: string | null }>): number | null {
-  const i = stages.findIndex((s) => !s.completedOn);
+/** Index of the first stage neither completed nor marked not needed (the current one), or null when none is left. */
+export function currentStageIndex(stages: ReadonlyArray<{ completedOn: string | null; skippedOn?: string | null }>): number | null {
+  const i = stages.findIndex((s) => !s.completedOn && !s.skippedOn);
   return i === -1 ? null : i;
+}
+
+/**
+ * #2592 — a current stage is overdue when its age in calendar days is greater than its target (FR-BSX-010). Returns the age and
+ * the target for the label, or null: no target, not started, completed or skipped, or still within the target. The server's job
+ * applies the same rule on the organisation's calendar (`notify_overdue_billing_stages`).
+ */
+export function stageOverdue(
+  stage: { startedOn: string | null; completedOn: string | null; skippedOn?: string | null; targetDays?: number | null },
+  today: string,
+): { age: number; target: number } | null {
+  if (stage.targetDays == null || stage.completedOn || stage.skippedOn) return null;
+  const age = stageAgeDays({ startedOn: stage.startedOn, completedOn: null }, today);
+  return age !== null && age > stage.targetDays ? { age, target: stage.targetDays } : null;
 }
 
 export interface InvoiceDeadline {
@@ -48,4 +62,17 @@ export function nextInvoiceDeadline(today: string, day: number | null, warnDays:
   if (dayNumber(date) < dayNumber(today)) date = inMonth(m === 12 ? y + 1 : y, m % 12);
   const daysLeft = dayNumber(date) - dayNumber(today);
   return { date, daysLeft, warn: daysLeft <= warnDays };
+}
+
+/**
+ * #2680 — days past a step's own target date, or null: no target date, completed, skipped, or not yet past it. The step's target
+ * date wins over its target days (the server's `billing_stage_due_on`), so a step with a date is judged by it alone.
+ */
+export function stageDaysPastTargetDate(
+  stage: { completedOn: string | null; skippedOn?: string | null; targetOn?: string | null },
+  today: string,
+): number | null {
+  if (!stage.targetOn || stage.completedOn || stage.skippedOn) return null;
+  const over = dayNumber(today) - dayNumber(stage.targetOn);
+  return over > 0 ? over : null;
 }

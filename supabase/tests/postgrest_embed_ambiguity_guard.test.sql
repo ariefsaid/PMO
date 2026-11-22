@@ -52,7 +52,24 @@ select set_eq(
             -- 1004 (#1522): daily_site_reports carries author_id AND validated_by, both -> profiles. New
             -- table: the DAL (src/lib/db/dailySiteReports.ts) embeds no profiles; names resolve by id.
             ('daily_site_reports -> profiles'),
+            -- 1185 (#2584): subcontract_certificates carries prepared_by, submitted_by, approved_by and cancelled_by, all ->
+            -- profiles. New table: the DAL (src/lib/db/subcontractCertificates.ts) selects explicit columns and embeds no profiles.
+            ('subcontract_certificates -> profiles'),
+            -- lane-b (1250, #2670): labour_cost_rates carries person_id AND created_by, both -> profiles. Checked
+            -- before adding: the only DAL embed of profiles from it is already qualified
+            -- (person:profiles!labour_cost_rates_person_id_fkey, src/lib/db/labourCost.ts). Any future embed must name its constraint.
+            ('labour_cost_rates -> profiles'),
+            -- lane-b (1275, #2671): work_order_revenue_plan carries created_by AND updated_by, both -> profiles. Checked
+            -- before adding: nothing reads the table through PostgREST (the reads go through the wrp_* RPCs), so no
+            -- embed exists. Any future embed must name its constraint.
+            ('work_order_revenue_plan -> profiles'),
             ('credits -> profiles'),
+            -- 1158 (#2581): crew_tool_reports carries reported_by AND closed_by, org_crew_tool_settings carries
+            -- coordinator_id AND updated_by, all -> profiles. Checked before adding: no DAL, repository, edge fn or
+            -- e2e code embeds profiles from either (names resolve by id through the users list), so nothing broke.
+            -- The report DAL embeds tasks and crew_tool_lines, and qualifies both with !constraint_name.
+            ('crew_tool_reports -> profiles'),
+            ('org_crew_tool_settings -> profiles'),
             -- 0882 (#2195): erp_capture_invoice_assignments carries actor_id, undone_by and the two
             -- prior_mark_* columns, all -> profiles. Checked before adding: no DAL, repository,
             -- edge-function or e2e code embeds profiles from it (the command line reads placements
@@ -81,6 +98,11 @@ select set_eq(
             ('journal_entries -> profiles'),
             -- 0970: people has profile_id and manager_id; the expiry DAL uses an RPC, not a profiles embed.
             ('people -> profiles'),
+            -- 1176 (#2578): quantity_change_requests carries author_id, submitted_by, approved_by, returned_by, withdrawn_by,
+            -- sent_by and decided_by, all -> profiles. Checked before adding: the only embeds of profiles from it
+            -- (pmo-portal/src/lib/db/quantityChanges.ts) are qualified with !quantity_change_requests_author_id_fkey and
+            -- !quantity_change_requests_approved_by_fkey. Any future embed must name its constraint.
+            ('quantity_change_requests -> profiles'),
             ('platform_operators -> profiles'),
             ('procurements -> profiles'),
             ('projects -> profiles'),
@@ -101,6 +123,9 @@ select set_eq(
             -- tasks selects (`useMyTasks.ts:41`, `milestones.ts:230`, the ClickUp dispatch factory)
             -- embed no profile at all. So nothing broke; the pair is recorded, not waived.
             ('tasks -> profiles'),
+            -- 1179 (#2580): third_party_inspections carries created_by and the invited/executed/reported/waived/cancelled/purchase actors, all
+            -- -> profiles. Checked before adding: src/lib/db/thirdPartyInspections.ts embeds no profile from it; a future embed must name its constraint.
+            ('third_party_inspections -> profiles'),
             -- 0205 (#526): meeting_access_grants carries user_id AND granted_by, both -> profiles.
             -- The DAL shipped in the same branch and every profiles embed in it is
             -- constraint-qualified (src/lib/db/meetings.ts — `!meeting_access_grants_user_id_fkey`
@@ -201,7 +226,37 @@ select set_eq(
             -- 0997 (#2519): work_order_plan_lines carries created_by AND updated_by -> profiles. CHECKED BEFORE ADDING:
             -- the only DAL read (workOrderFinance.ts) selects plain columns, no profiles embed. Whatever ships first
             -- MUST qualify it with !constraint_name.
-            ('work_order_plan_lines -> profiles') $$,
+            ('work_order_plan_lines -> profiles'),
+            -- 1245 (#2704): crew_loans carries home_crew_id AND host_crew_id, both -> crews. CHECKED BEFORE ADDING: the DAL
+            -- (src/lib/db/crewLoans.ts) embeds no crews from it; whatever ships first MUST qualify it with !constraint_name.
+            ('crew_loans -> crews'),
+            -- 1211 (#2705): phone_check_ins carries requester_id AND decided_by, both -> profiles. CHECKED BEFORE ADDING: no DAL,
+            -- repository, edge-function or e2e code embeds profiles from it; whatever ships first MUST qualify it with !constraint_name.
+            ('phone_check_ins -> profiles'),
+            -- 1240 (#2708): leave_requests carries entered_by AND decided_by, both -> profiles. CHECKED BEFORE ADDING: the leave DAL
+            -- (src/lib/db/leave.ts) reads through the leave_requests_visible RPC and embeds nothing; whatever ships first MUST
+            -- qualify it with !constraint_name.
+            ('leave_requests -> profiles'),
+            -- 1405 (candidate work orders): work_order_candidates carries decided_by AND created_by, both -> profiles.
+            -- 1401 (close-out checklist): work_order_closeout_items carries done_by AND attached_by, both -> profiles.
+            -- 1365 (billing steps): claim_billing_stages carries completed_by AND skipped_by, both -> users.
+            -- Checked before adding: no DAL embeds profiles from work_order_candidates or users from claim_billing_stages
+            -- (billingStages.ts and workOrderCandidates.ts embed only their own child tables); closeoutChecklist.ts
+            -- qualifies both profiles embeds from work_order_closeout_items by column (profiles!done_by, profiles!closed_by).
+            ('work_order_candidates -> profiles'),
+            ('work_order_closeout_items -> profiles'),
+            ('claim_billing_stages -> users'),
+            -- Stock-and-purchasing lane (stock_transfers 1306, stock_handover_confirmations 1307, stock_wo_transfers 1310,
+            -- dsr_stock_postings 1321, equipment_plans 1358). CHECKED BEFORE ADDING: no DAL, repository, page or edge-function
+            -- code embeds profiles, stock_warehouses, stock_documents or work_orders from these tables (stockTransfers.ts embeds only
+            -- stock_transfer_lines; equipmentPlans.ts only equipment_plan_lines; names and locations resolve by id), so no unqualified
+            -- embed exists. Any future embed must name its constraint with !constraint_name.
+            ('dsr_stock_postings -> stock_documents'),
+            ('stock_handover_confirmations -> profiles'),
+            ('equipment_plans -> profiles'),
+            ('stock_wo_transfers -> work_orders'),
+            ('stock_transfers -> profiles'),
+            ('stock_transfers -> stock_warehouses') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

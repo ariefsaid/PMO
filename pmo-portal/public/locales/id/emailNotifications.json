@@ -1,0 +1,77 @@
+{
+  "title": "Notifikasi email",
+  "intro": "Kirim email selain notifikasi di dalam aplikasi. Setiap kejadian nonaktif sampai Anda mengaktifkannya. Setiap orang dapat berhenti menerima email di profilnya.",
+  "loading": "Memuat pengaturan email",
+  "loadError": "Pengaturan email tidak dapat dimuat.",
+  "retry": "Coba lagi",
+  "saveError": "Perubahan tidak tersimpan",
+  "on": "Aktif",
+  "off": "Nonaktif",
+  "saved": "Tersimpan",
+  "language": "Bahasa email",
+  "languageEn": "Inggris",
+  "languageId": "Bahasa Indonesia",
+  "extraRoles": "Kirim juga ke peran ini",
+  "events": {
+    "approval_request": {
+      "title": "Permintaan persetujuan",
+      "description": "Ada yang menunggu persetujuan seseorang."
+    },
+    "billing_step": {
+      "title": "Langkah penagihan",
+      "description": "Pemilik berikutnya dari sebuah langkah penagihan."
+    },
+    "overdue_item": {
+      "title": "Item terlambat",
+      "description": "Tugas atau masalah melewati tanggalnya."
+    },
+    "document_expiry": {
+      "title": "Dokumen akan kedaluwarsa",
+      "description": "Dokumen mendekati tanggal kedaluwarsa."
+    }
+  },
+  "optOut": {
+    "title": "Notifikasi email",
+    "description": "Matikan email dari PMO tentang persetujuan, item terlambat, dan dokumen yang akan kedaluwarsa. Notifikasi di dalam aplikasi tidak terpengaruh.",
+    "label": "Kirim notifikasi email kepada saya"
+  },
+  "scheduled": {
+    "title": "Laporan terjadwal",
+    "intro": "Kirim laporan lewat email ke orang atau peran sesuai jadwal. Waktu mengikuti zona waktu organisasi. Setiap orang hanya melihat angka yang diizinkan perannya.",
+    "loadError": "Laporan terjadwal tidak dapat dimuat.",
+    "empty": "Belum ada laporan terjadwal.",
+    "add": "Tambah laporan terjadwal",
+    "edit": "Ubah",
+    "archive": "Arsipkan",
+    "archiveTitle": "Arsipkan laporan terjadwal ini",
+    "archiveBody": "Laporan berhenti dikirim. Email yang sudah terkirim tidak terpengaruh.",
+    "formLabel": "Laporan terjadwal",
+    "name": "Nama",
+    "kind": "Laporan",
+    "frequency": "Berulang",
+    "daily": "Harian",
+    "weekly": "Mingguan",
+    "weekday": "Pada hari",
+    "time": "Jam kirim",
+    "roles": "Kirim ke peran ini",
+    "people": "Dan orang ini",
+    "recipientsHint": "Pilih setidaknya satu peran atau orang.",
+    "save": "Simpan laporan",
+    "cancel": "Batal",
+    "dailyAt": "Setiap hari pukul {{time}}",
+    "weeklyAt": "{{day}} pukul {{time}}",
+    "kinds": {
+      "daily_progress": "Ringkasan kemajuan harian",
+      "overdue_tasks": "Tugas terlambat"
+    },
+    "days": {
+      "1": "Senin",
+      "2": "Selasa",
+      "3": "Rabu",
+      "4": "Kamis",
+      "5": "Jumat",
+      "6": "Sabtu",
+      "7": "Minggu"
+    }
+  }
+}

@@ -11,10 +11,14 @@ import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useStockItems, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
 import { useLinePlans, useMaterialRequest, useMaterialRequestMutations } from '@/src/hooks/useMaterialRequests';
+import { useLiveSections, useSectionLinePlans } from '@/src/hooks/useWorkOrderSectionMaterials';
+import { useTerms } from '@/src/lib/i18n/terms';
 import { draftLineErrors, linePlanStatus } from '@/src/lib/repositories/materialRequests';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useRefusalText } from './materialRequests/useMaterialRequestText';
+import { UsageWarning } from './materialRequests/UsageWarning';
+import { useUsageThresholds } from '@/src/hooks/useUsageThresholds';
 
 interface FormLine { key: string; itemId: string; quantity: string; reason: string }
 /** A typed quantity (dot or decimal comma, 3 decimals at most) as the number to send; 0 when it is not a positive quantity. */
@@ -39,9 +43,11 @@ const MaterialRequestNewPage: React.FC = () => {
   const warehousesReady = !warehousesPending && !warehousesError && warehouses !== undefined;
   const wholeByUnit = useMemo(() => new Map((units ?? []).map((u) => [u.id, u.whole_only])), [units]);
   const m = useMaterialRequestMutations();
+  const terms = useTerms();
 
   const [projectId, setProjectId] = useState('');
   const [workOrderId, setWorkOrderId] = useState('');
+  const [sectionId, setSectionId] = useState('');
   // Dates are the organisation's calendar days (the cut-off is judged in the organisation's zone), never the browser's or UTC's.
   const orgTz = useOrgFxContext().data?.timezone;
   const orgToday = useOrgToday(orgTz);
@@ -59,7 +65,7 @@ const MaterialRequestNewPage: React.FC = () => {
   const req = existing.data;
   if (requestId && req && !seeded) {
     setSeeded(true);
-    setProjectId(req.projectId); setWorkOrderId(req.workOrderId); setNeededBy(req.neededBy); setNote(req.note ?? ''); setToWarehouseId(req.toWarehouseId ?? '');
+    setProjectId(req.projectId); setWorkOrderId(req.workOrderId); setSectionId(req.sectionId ?? ''); setNeededBy(req.neededBy); setNote(req.note ?? ''); setToWarehouseId(req.toWarehouseId ?? '');
     setLines(req.lines.map((l) => ({ key: l.id, itemId: l.itemId, quantity: String(l.quantity), reason: l.overPlanReason ?? '' })));
   }
 
@@ -70,7 +76,14 @@ const MaterialRequestNewPage: React.FC = () => {
   const destination = locations.length > 1 ? (locations.some((o) => o.value === toWarehouseId) ? toWarehouseId : '') : '';
   const itemIds = lines.map((l) => l.itemId).filter(Boolean);
   const plans = useLinePlans(workOrderId || undefined, itemIds, requestId);
+  const usage = useUsageThresholds();
   const planOf = (itemId: string) => plans.data?.find((p) => p.itemId === itemId);
+  // #2576: an optional live section of the work order, with its own allocation checked beside the work order's plan.
+  const sections = useLiveSections(workOrderId || undefined);
+  const sectionPlans = useSectionLinePlans(workOrderId || undefined, sectionId || undefined, itemIds, requestId);
+  const sectionPlanOf = (itemId: string) => sectionPlans.data?.find((p) => p.itemId === itemId);
+  const sectionOptions = (sections.data ?? []).map((x) => ({ value: x.id, label: `${x.code} · ${x.name}` }));
+  const sectionWord = terms.section.toLowerCase();
 
   const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
   const woOptions = useMemo(() => (workOrders.data ?? []).filter((w) => w.status === 'Issued' || w.status === 'Draft')
@@ -81,7 +94,9 @@ const MaterialRequestNewPage: React.FC = () => {
   const planReady = !plans.isPending && !plans.isError;
   const errors = draftLineErrors(lines.map((l) => {
     const p = planOf(l.itemId);
-    return { itemId: l.itemId, quantity: quantityOf(l.quantity), overPlanReason: l.reason, planQty: p?.planQty ?? 0, priorQty: p?.priorQty ?? 0 };
+    const sp = sectionPlanOf(l.itemId);
+    return { itemId: l.itemId, quantity: quantityOf(l.quantity), overPlanReason: l.reason, planQty: p?.planQty ?? 0, priorQty: p?.priorQty ?? 0,
+      sectionPlanQty: sp?.sectionPlanQty ?? null, sectionPriorQty: sp?.sectionPriorQty ?? null };
   }));
   // Checks the server also makes (MRQ_INVALID), caught here so the person sees which line and why.
   const extraErrors = lines.map((l, i): 'duplicateItem' | 'quantityDecimals' | 'wholeOnly' | undefined => {
@@ -102,7 +117,7 @@ const MaterialRequestNewPage: React.FC = () => {
     try {
       const id = await m.saveDraft.mutateAsync({
         id: requestId ?? null,
-        header: { workOrderId, neededBy, toWarehouseId: destination || null, note: note.trim() || null },
+        header: { workOrderId, sectionId: sectionId || null, neededBy, toWarehouseId: destination || null, note: note.trim() || null },
         lines: lines.map((l) => ({ itemId: l.itemId, quantity: quantityOf(l.quantity), overPlanReason: l.reason.trim() || null })),
         clientRequestId: requestId ? undefined : clientRequestId,
       });
@@ -132,7 +147,11 @@ const MaterialRequestNewPage: React.FC = () => {
           disabled={!projectId} helper={!projectId ? t('form.chooseProject', 'Choose a project to see its work orders.') : undefined}
           statusOverride={workOrders.isPending && projectId ? 'loading' : workOrders.isError ? 'error' : undefined} onRetry={() => void workOrders.refetch()}
           selectedOption={woOptions.find((o) => o.value === workOrderId) ?? null} loadOptions={() => Promise.resolve(woOptions)}
-          onChange={(v) => setWorkOrderId(v)} />
+          onChange={(v) => { setWorkOrderId(v); setSectionId(''); }} />
+        {sectionOptions.length > 0 && (
+          <SelectField label={terms.section} value={sectionId} onChange={setSectionId} fullWidth
+            options={[{ value: '', label: t('form.noSection', 'No {{section}}', { section: sectionWord }) }, ...sectionOptions]} />
+        )}
         {projectId && warehousesPending && <ListState variant="loading" rows={1} />}
         {projectId && warehousesError && <ListState variant="error" title={t('form.warehousesError', "Couldn't load delivery locations")} onRetry={() => void refetchWarehouses()} />}
         {projectId && warehousesReady && locations.length > 1 && (
@@ -152,7 +171,8 @@ const MaterialRequestNewPage: React.FC = () => {
           {itemsError && <ListState variant="error" title={t('form.itemsError', "Couldn't load stock items")} onRetry={() => void refetchItems()} />}
           {lines.map((l, i) => {
             const p = planOf(l.itemId);
-            const st = p ? linePlanStatus({ planQty: p.planQty, priorQty: p.priorQty, quantity: quantityOf(l.quantity) }) : null;
+            const sp = sectionPlanOf(l.itemId);
+            const st = p ? linePlanStatus({ planQty: p.planQty, priorQty: p.priorQty, quantity: quantityOf(l.quantity), sectionPlanQty: sp?.sectionPlanQty, sectionPriorQty: sp?.sectionPriorQty }) : null;
             const err = touched ? errors[i] : undefined;
             const item = items?.find((x) => x.id === l.itemId);
             return (
@@ -170,7 +190,14 @@ const MaterialRequestNewPage: React.FC = () => {
                     {plans.isPending ? '…' : p
                       ? t('form.planLine', 'Plan {{plan}} · already requested {{prior}} · new total {{total}}', { plan: p.planQty, prior: p.priorQty, total: st?.newTotal })
                       : t('form.planUnknown', 'Plan figures unavailable')}
+                    {p?.planSource && <span className="ml-2" data-testid="mrq-plan-source">{t(`form.planSource.${p.planSource}`, { standard: 'From usage standards', adjusted: 'Adjusted by the planner', allowance: 'From material allowance', none: 'No plan' }[p.planSource])}</span>}
                     {st?.overPlan && <strong className="ml-2 text-warning-foreground">{t('form.overPlan', 'Over plan')}</strong>}
+                  </p>
+                )}
+                {l.itemId && p && !plans.isPending && <UsageWarning line={{ planQty: p.planQty, priorQty: p.priorQty, quantity: quantityOf(l.quantity) }} thresholds={usage.thresholds} />}
+                {l.itemId && sp && sp.sectionPlanQty !== null && (
+                  <p className="text-control text-muted-foreground" data-testid="mrq-section-plan">
+                    {t('form.sectionPlanLine', '{{section}} plan {{plan}} · already requested {{prior}}', { section: terms.section, plan: sp.sectionPlanQty, prior: sp.sectionPriorQty ?? 0 })}
                   </p>
                 )}
                 {st?.overPlan && (

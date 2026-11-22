@@ -10,7 +10,7 @@ export async function listOrgTerminology(): Promise<OrgTerms> {
   const { data, error } = await supabase
     .from('org_terminology')
     .select('term_key, locale, singular, plural')
-    .limit(50); // bounded: 5 terms x 2 languages
+    .limit(50); // bounded: 17 terms x 2 languages
   if (error) throw new AppError(error.message, error.code);
   return rowsToOrgTerms((data ?? []) as OrgTermRow[]);
 }

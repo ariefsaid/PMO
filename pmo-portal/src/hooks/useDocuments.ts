@@ -27,6 +27,8 @@ export function useDocuments(projectId: string) {
 export interface UpdateDocumentArgs {
   id: string;
   input: ProjectDocumentInput;
+  /** Move the document's whole revision lineage to this category after the edit (#2579); never a single-row category write. */
+  refileTo?: string;
 }
 
 export interface LinkArgs {
@@ -61,7 +63,10 @@ export function useDocumentMutations(projectId: string) {
   });
 
   const update = useMutation({
-    mutationFn: ({ id, input }: UpdateDocumentArgs) => repositories.document.update(id, input),
+    mutationFn: async ({ id, input, refileTo }: UpdateDocumentArgs) => {
+      await repositories.document.update(id, input);
+      if (refileTo) await repositories.documentCategory.refileLineage(id, refileTo);
+    },
     onSuccess: invalidate,
   });
 

@@ -40,10 +40,12 @@ export type Action =
   | 'manage_external_bindings'
   | 'view_financial_directory'
   | 'manage'
+  | 'viewPeople'
   | 'push_timesheet'
   | 'confirm_employee_link'
   | 'upload'
   | 'withdraw'
+  | 'cancel'
   | 'post'
   | 'confirm'
   | 'resolve'
@@ -53,7 +55,24 @@ export type Action =
   | 'revise'
   | 'link'
   | 'void'
-  | 'approve';
+  | 'approve'
+  | 'bill'
+  | 'set_readiness'
+  | 'set_plan'
+  | 'generate'
+  | 'adjust'
+  | 'advance'
+  | 'raise_purchase'
+  | 'waive'
+  | 'cancel'
+  | 'report'
+  | 'close'
+  | 'configure'
+  | 'set'
+  | 'send'
+  | 'recordReservation'
+  | 'recordRelease'
+  | 'recordPickup';
 
 export type Entity =
   | 'project'
@@ -76,12 +95,18 @@ export type Entity =
   | 'approval'
   | 'milestone'
   | 'workOrder'
+  | 'thirdPartyInspection'
   | 'boqItem'
   | 'rateCatalogue'
   | 'dailySiteReport'
   | 'dailySiteReportRevenue'
+  | 'safetyDay'
+  | 'safetyLists'
+  | 'quantityChange'
   | 'progressClaim'
   | 'billingStage'
+  | 'closeoutItem'
+  | 'closeoutChecklist'
   | 'workOrderLine'
   | 'workOrderAcceptance'
   | 'expenseClaim'
@@ -101,15 +126,29 @@ export type Entity =
   | 'integration'
   | 'orgAccounting'
   | 'orgFeedback'
+  | 'orgEmailNotifications'
   | 'costAttribution'
   | 'workOrderPlan'
+  | 'workOrderSection'
+  | 'workOrderPerformance'
+  | 'orgPerformanceIndices'
   | 'sharedCostSplit'
+  | 'labourCost'
   | 'vendorTaxDefault'
+  | 'supplyRisk'
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
   | 'siteReportLists'
+  | 'workOrderRevenuePlan'
+  | 'revenuePlanSettings'
+  | 'siteCheckpoint'
+  | 'siteCheckpointList'
+  | 'workOrderCandidate'
+  | 'workOrderCandidateTemplate'
   | 'costDiscipline'
+  | 'workOrderList'
   | 'billMatch'
+  | 'threeWayMatchSettings'
   | 'employeeLink'
   | 'pushHold'
   | 'odooHeldCommand'
@@ -128,13 +167,20 @@ export type Entity =
   | 'warehouse'
   | 'stockDocument'
   | 'materialRequest'
+  | 'clientRequisition'
   | 'approvalChain'
+  | 'purchaseType'
+  | 'equipmentPlan'
   | 'standIn'
   | 'approvalStepPin'
   | 'materialAllowance'
+  | 'usageStandard'
+  | 'consumablePlan'
   | 'reorderLevel'
   | 'subcontractLines'
   | 'subcontractAcceptance'
+  | 'subcontractCertificate'
+  | 'subcontractRate'
   | 'poVariation'
   | 'equipmentAsset'
   | 'equipmentUsage'
@@ -142,14 +188,21 @@ export type Entity =
   | 'equipmentAvailability'
   | 'equipmentRegister'
   | 'expiryDocument'
+  | 'documentCategory'
   | 'documentType'
   | 'person'
+  | 'clearanceItem'
+  | 'personClearance'
   | 'maintenance'
   | 'tmRate'
   | 'tmClaim'
   | 'tmSignoff'
   | 'crew'
-  | 'attendance';
+  | 'attendance'
+  | 'crewTool'
+  | 'attendanceRate'
+  | 'attendanceTarget'
+  | 'leaveRequest';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -168,8 +221,15 @@ export interface PolicyContext {
     /** Project task write ownership and saved-view owner for record-scoped checks. */
     externallyOwned?: boolean;
     user_id?: string | null;
+    /** The crew's field controller — timed checkpoints (#2594): the controller records their own crew's checkpoints. */
+    field_controller_id?: string | null;
     /** Author id — for equipment usage visibility and the document-edit author rule (A-7). */
     author_id?: string | null;
+    /** #2584 progress certificate: who prepared and who submitted it (the approver is neither). */
+    prepared_by?: string | null;
+    submitted_by?: string | null;
+    /** Work-order section foreman (#2576) — the only non-structure caller who may set a section's readiness. */
+    foreman_id?: string | null;
     /** Task creator — DD-TASK-8. Trigger-stamped server-side (`0204`), never client-set, so it is
      *  safe to read as an edit right here. Distinct from `assignee_id`: a task you created and
      *  assigned to someone else is still yours to edit. */
@@ -218,6 +278,8 @@ const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Ad
 const REVENUE_WRITE: Role[] = [...REVENUE_WRITE_ROLES];
 /** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0273). */
 const TAX_SETUP: Role[] = ['Admin', 'Finance'];
+/** #2583: who may set a supplier's supply-risk status — mirrors set_vendor_supply_status (1067: Admin, Finance). */
+const SUPPLY_RISK_SET: Role[] = ['Admin', 'Finance'];
 /** #1515: establish a float, propose its amount (0422). */
 const IMPREST_SETUP: Role[] = ['Admin', 'Finance'];
 /** #1271: who may save / end / preview cost attribution rules — mirrors the 0376 RPC gate. */
@@ -243,6 +305,11 @@ const TM_CONFIRM: Role[] = ['Admin', 'Finance'];
 const DSR_ENTER: Role[] = ['Admin', 'Engineer'];
 const DSR_VALIDATE: Role[] = ['Admin', 'Finance'];
 const DSR_REVENUE: Role[] = ['Admin', 'Finance', 'Executive'];
+
+// #2578 quantity change requests (1127/1128, OD-QCR-2): author roles raise, edit and record; approver roles approve, never
+// the author, an editor or the submitter (the SoD below mirrors qcr_assert_approver); the limit is Admin-only (FR-QCR-021).
+const QCR_AUTHOR: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance'];
+const QCR_APPROVER: Role[] = ['Admin', 'Executive', 'Finance'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -278,6 +345,10 @@ const stockMaster = () => ({
   archive: allowUnlessViewOnly(MASTER_DATA),
   delete: allowUnlessViewOnly(ADMIN),
 });
+
+const clientRequisitionAuthor: Predicate = (role, ctx) =>
+  has(ALL, role) && ctx.record?.viewOnly !== true &&
+  (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.created_by === ctx.currentUserId));
 
 const allowanceWriter: Predicate = (role, ctx) =>
   ctx.record?.viewOnly !== true &&
@@ -336,6 +407,39 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     setValue: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     transition: allow(MASTER_DATA),
   },
+  /**
+   * Third-party inspections (#2580, migrations 1130-1134). UX ONLY: tpi_create / tpi_record_* / tpi_raise_purchase / tpi_waive /
+   * tpi_cancel and the guard_tpi_transition trigger are the authority (ADR-0016); this mirrors them.
+   *   view           every role reads (RLS: org + active member). Money is separate: tpi_costs nulls amounts outside
+   *                  Admin/Executive/Finance/Project Manager, so the screen is not the fence.
+   *   create/advance Admin, Project Manager, Finance, Engineer (the Engineer's scope is org-wide, OD-TPI-7).
+   *   raise_purchase Admin, Project Manager, Finance — never the Engineer (a purchase is procurement's money path).
+   *   waive          the same managers, and never the creator (TPI_WAIVE_SELF, OD-TPI-3); only where a gate exists to release.
+   *   cancel         tracked-only inspections only (TPI_CANCEL_REQUIRED, OD-TPI-8): managers any time, the creator
+   *                  (Engineer) only while `requested`.
+   */
+  thirdPartyInspection: {
+    view: allow(ALL),
+    create: allow(['Admin', 'Project Manager', 'Finance', 'Engineer']),
+    advance: (role, ctx) => has(['Admin', 'Project Manager', 'Finance', 'Engineer'], role)
+      && ctx.record?.status !== 'cancelled' && ctx.record?.status !== 'reported',
+    raise_purchase: (role, ctx) => has(['Admin', 'Project Manager', 'Finance'], role) && ctx.record?.status === 'requested',
+    waive: (role, ctx) => {
+      const gates = ctx.record?.required_for;
+      return has(['Admin', 'Project Manager', 'Finance'], role)
+        && Array.isArray(gates) && gates.length > 0
+        && ctx.record?.status !== 'cancelled' && !ctx.record?.waived_at
+        && !(ctx.currentUserId && ctx.record?.created_by === ctx.currentUserId);
+    },
+    cancel: (role, ctx) => {
+      const gates = ctx.record?.required_for;
+      if (!Array.isArray(gates) || gates.length > 0) return false;
+      const status = ctx.record?.status;
+      if (status === 'cancelled' || status === 'reported') return false;
+      if (has(['Admin', 'Project Manager', 'Finance'], role)) return true;
+      return role === 'Engineer' && status === 'requested' && Boolean(ctx.currentUserId) && ctx.record?.created_by === ctx.currentUserId;
+    },
+  },
   /** Bill of quantities (#766) — mirrors 0250's boq_items policies: the work-order writer set. */
   rateCatalogue: { view: allow(MASTER_DATA), create: allowUnlessViewOnly(REVENUE_WRITE) },
   /**
@@ -354,6 +458,44 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     revise: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_VALIDATE, role) || isOwnProjectPm(role, ctx)),
   },
   dailySiteReportRevenue: { view: (role, ctx) => has(DSR_REVENUE, role) || isOwnProjectPm(role, ctx) },
+  /**
+   * Daily safety records (#2596, 1410-1414). UX ONLY. Mirrors safety_may_enter: Admin, Engineer, or the project's own PM
+   * enter, submit and correct; every active member reads counts; worker names and photos follow OD-DSF-6
+   * (`viewPeople`). The database refuses everything else.
+   */
+  safetyDay: {
+    view: allow(ALL),
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_ENTER, role) || isOwnProjectPm(role, ctx)),
+    edit: (role, ctx) => ctx.record?.viewOnly !== true && (has(DSR_ENTER, role) || isOwnProjectPm(role, ctx)),
+    viewPeople: (role, ctx) => has(['Admin', 'Executive', 'Engineer'], role) || isOwnProjectPm(role, ctx),
+  },
+  /** The check types, permit types and pre-work checklist: Admin-only rows (1410) and the switch (set_safety_records_enabled). */
+  safetyLists: { manage: allow(ADMIN) },
+  /**
+   * Quantity change requests (#2578). UX only: qcr_* functions and RLS are the authority (ADR-0016/0019).
+   *   view ← read;  create ← raise or edit a draft;  act ← submit (the author or an editor);
+   *   approve ← approve or return, never the author, ANY editor (`record.editor_ids`) or the submitter (`record.submitted_by`);
+   *   withdraw ← author, editor or an approver role;  decide ← record the client send and decision;
+   *   request ← record a forecast quantity (the project's own PM, or Finance and above, mirrors may_record_project_progress);
+   *   manage ← set the organisation's request limit.
+   */
+  quantityChange: {
+    view: allow(QCR_AUTHOR),
+    create: allowUnlessViewOnly(QCR_AUTHOR),
+    act: (role, ctx) =>
+      ctx.record?.viewOnly !== true && has(QCR_AUTHOR, role) && !!ctx.currentUserId &&
+      (ctx.record?.author_id === ctx.currentUserId || (ctx.record?.editor_ids ?? []).includes(ctx.currentUserId)),
+    approve: (role, ctx) =>
+      ctx.record?.viewOnly !== true && has(QCR_APPROVER, role) && !!ctx.currentUserId &&
+      ctx.record?.author_id !== ctx.currentUserId && ctx.record?.submitted_by !== ctx.currentUserId &&
+      !(ctx.record?.editor_ids ?? []).includes(ctx.currentUserId),
+    withdraw: (role, ctx) =>
+      ctx.record?.viewOnly !== true && has(QCR_AUTHOR, role) && !!ctx.currentUserId &&
+      (has(QCR_APPROVER, role) || ctx.record?.author_id === ctx.currentUserId || (ctx.record?.editor_ids ?? []).includes(ctx.currentUserId)),
+    decide: allowUnlessViewOnly(QCR_AUTHOR),
+    request: (role, ctx) => ctx.record?.viewOnly !== true && (has(QCR_APPROVER, role) || isOwnProjectPm(role, ctx)),
+    manage: allowUnlessViewOnly(ADMIN),
+  },
   boqItem: {
     view: allow(MASTER_DATA),
     create: allow(MASTER_DATA),
@@ -372,6 +514,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: (role, ctx) => allowanceWriter(role, ctx),
     delete: (role, ctx) => allowanceWriter(role, ctx),
   },
+  /** Consumable usage standards (#2577, 1075): mirrors `stock_master_writer()` - rank >= 20 (PM, Finance, Executive, Admin) writes;
+   *  archive, never delete (ADR-0018). UX only; RLS is the authority. */
+  usageStandard: { view: allow(ALL), create: allowUnlessViewOnly(MASTER_DATA), edit: allowUnlessViewOnly(MASTER_DATA), archive: allowUnlessViewOnly(MASTER_DATA) },
+  /** Work-order consumable plan (#2577, 1076): generate and adjust follow the allowance write rule (`may_record_project_progress`):
+   *  Admin, Executive, Finance on any project, a PM only on their own. Pass the work order's PROJECT row as `ctx.record`
+   *  (a work order has no `project_manager_id`). UX only; the RPCs are the authority. */
+  consumablePlan: { view: allow(ALL), generate: allowanceWriter, adjust: allowanceWriter },
   /** Reorder levels (#1512 S6, PQ-6): everyone reads; rank >= 20 sets, edits or clears. UX only; the RPC is the authority. */
   reorderLevel: { view: allow(ALL), edit: allowUnlessViewOnly(MASTER_DATA) },
   /** Stock documents (#1512 S3): mirrors FR-STK-061/062. `isKeeper` is supplied by the screen from the keeper list. UX only; RLS/RPC is the authority. */
@@ -405,8 +554,31 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       has(ALL, role) && ctx.record?.viewOnly !== true && ctx.record?.inMyQueue === true &&
       !!ctx.currentUserId && ctx.record?.created_by !== ctx.currentUserId,
   },
+  /**
+   * Client material requisitions (#2585, migrations 1086/1087; spec docs/specs/client-material-requisitions.spec.md).
+   * Mirrors the csr_* RPCs: every member raises one; the author (or an Admin) edits, sends and cancels it (cancel not once
+   * a pickup is posted, `record.hasPickup`); Project Manager and above record the client's reservation or release on an
+   * open requisition; the keeper of the receiving location (`record.isKeeper`, supplied by the screen) or an Admin records
+   * a pickup. View-as sessions are view-only. UX only: the RPCs are the authority.
+   */
+  clientRequisition: {
+    view: allow(ALL),
+    create: allowUnlessViewOnly(ALL),
+    edit: (role, ctx) => clientRequisitionAuthor(role, ctx) && ctx.record?.status === 'draft',
+    send: (role, ctx) => clientRequisitionAuthor(role, ctx) && ctx.record?.status === 'draft',
+    cancel: (role, ctx) =>
+      clientRequisitionAuthor(role, ctx) && (ctx.record?.status === 'draft' || ctx.record?.status === 'open') && ctx.record?.hasPickup !== true,
+    recordReservation: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open',
+    recordRelease: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open',
+    recordPickup: (role, ctx) =>
+      has(ALL, role) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open' && (ctx.record?.isKeeper === true || role === 'Admin'),
+  },
   /** The org's approval chain and daily cut-off (FR-MRQ-005/014): Admin only, mirroring mrq_set_chain / mrq_set_cutoff. */
   approvalChain: { view: allow(ALL), manage: allowUnlessViewOnly(ADMIN) },
+  /** The org's purchase types and the switch that turns them on (#2697): Admin only, mirroring set_purchase_types_enabled / upsert_purchase_type. */
+  purchaseType: { view: allow(ALL), manage: allowUnlessViewOnly(ADMIN) },
+  /** The monthly equipment and service plan (#2700). UX only: the RPCs enforce the same roles and the approver route (the database also checks who approves and refuses the author). `manage` = the settings and categories, Admin only. */
+  equipmentPlan: { view: allow(ALL), create: allowUnlessViewOnly(ALL), manage: allowUnlessViewOnly(ADMIN) },
   /** Stand-ins (FR-MRQ-009): the person away names their own; an Admin names anyone's (mrq_set_stand_in). */
   standIn: {
     view: allow(ALL),
@@ -473,6 +645,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     transition: allow(['Admin', 'Finance', 'Project Manager']),
     edit: allow(CONFIRM_BAST),
   },
+  /**
+   * Work-order close-out checklist (#2593; 1400–1402). transition = attach a document to an item and mark it done
+   * (lock_closeout_item: Admin, Finance, and the project's own manager); edit = the organisation's list (Admin). The close
+   * itself stays with transition_work_order's roles; the database guard refuses it while a required item is open. UX only.
+   */
+  closeoutItem: { view: allow(ALL), transition: allow(['Admin', 'Finance', 'Project Manager']) },
+  closeoutChecklist: { view: allow(ALL), edit: allow(ADMIN) },
   /**
    * Expense claims and cash advances (#775, migration 0247). Mirrors the server:
    *   view/create ← every active member raises their own (RLS insert: claimant = auth.uid()); reads are RLS-scoped
@@ -590,6 +769,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     },
     archive: allow(DELIVERY), // 0355: Finance lost the write-role path (archived_at is a lifecycle column)
     delete: allow(DELIVERY),
+    // #2587 FR-RLT-004: set or clear the record link. A delivery role on any task; anyone else only on a task they
+    // CREATED (the link is a work field on the creator allow-list); never the assignee, never an externally-owned task.
+    // Same shape as `edit` — the database (check_task_record_link + the column pin) is the authority.
+    link: (role, ctx) => {
+      if (has(DELIVERY, role)) return true;
+      if (!ctx.currentUserId) return false;
+      return ctx.record?.externallyOwned !== true && ctx.record?.created_by === ctx.currentUserId;
+    },
   },
   taskStatus: {
     // Managers may set any task's status; an Engineer or Finance member may set status only on
@@ -839,25 +1026,85 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // tax posture is an accounting judgement, the same class as the budget→ERP account map (0137).
   // UX ONLY — RLS is the enforcement authority (ADR-0016), and the FE may be stricter, never looser.
   orgProjectClassification: { manage: allow(ADMIN) },
+  // #2595: candidate work orders. Open and assess: Admin, Engineer, or the project's own Project Manager (mirrors create_work_order_candidate and
+  // the item policies of 1405); decide: Admin or the project's Project Manager (decide_work_order_candidate, 1407). The checklist template is Admin-only
+  // (set_work_order_candidate_template). Pass the project's manager id as ctx.record.project_manager_id. UX ONLY; the database decides.
+  workOrderCandidate: {
+    view: allow(ALL),
+    create: (role, ctx) => has(['Admin', 'Engineer'], role) || isOwnProjectPm(role, ctx),
+    edit: (role, ctx) => has(['Admin', 'Engineer'], role) || isOwnProjectPm(role, ctx),
+    approve: (role, ctx) => role === 'Admin' || isOwnProjectPm(role, ctx),
+  },
+  workOrderCandidateTemplate: { manage: allow(ADMIN) },
   // #2621: the site report idle-reason and weather lists. Mirrors the Admin-only insert/update policies of 1040. UX ONLY.
   siteReportLists: { manage: allow(ADMIN) },
+  // #2671 dated revenue plan per work order. UX ONLY — wo_revenue_plan_* (1276) and the reads (1277) are the authority
+  // (ADR-0016): the project's own Project Manager only, Admin/Executive/Finance on any project.
+  workOrderRevenuePlan: { view: allow(['Admin', 'Executive', 'Finance', 'Project Manager']), manage: allow(['Admin', 'Executive', 'Finance', 'Project Manager']) },
+  revenuePlanSettings: { manage: allow(ADMIN) },
+  /**
+   * Timed checkpoints (#2594, 1385..1388). UX ONLY — record_site_checkpoint and the read rule are the authority (ADR-0016).
+   *   view   ← Admin, Executive, Engineer, the work order's project manager, the crew's own field controller;
+   *   create ← record: Admin, Engineer, the work order's project manager, the crew's own field controller (not Executive).
+   */
+  siteCheckpoint: {
+    view: (role, ctx) => has(['Admin', 'Executive', 'Engineer'], role) || isOwnProjectPm(role, ctx)
+      || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId),
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (has(['Admin', 'Engineer'], role) || isOwnProjectPm(role, ctx)
+      || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+  },
+  siteCheckpointList: { manage: allow(ADMIN) },
   // #2623 (FR-WCA-011): the organisation's cost disciplines. Mirrors 0950's RLS (insert/update/delete: active Admin). UX ONLY.
   costDiscipline: { create: allow(ADMIN), edit: allow(ADMIN), archive: allow(ADMIN) },
+  // #2668 (FR-WAG-002): the organisation's work-order area and group lists. Mirrors 1382's RLS (Admin writes). UX ONLY.
+  workOrderList: { create: allow(ADMIN), edit: allow(ADMIN), archive: allow(ADMIN) },
   // #2622 (1018): a bill's three-way match. get_bill_match reads for Admin/Executive/PM/Finance; approve_bill_match_exception
   // is Admin/Finance, never the bill's author nor its lines' recorder (SoD in the RPC). UX ONLY.
-  billMatch: { view: allow(WORK_ORDER_MONEY), approve: allow(['Admin', 'Finance']) },
+  billMatch: { view: allow(WORK_ORDER_MONEY), approve: allow(['Admin', 'Finance']), edit: allow(WORK_ORDER_MONEY) },
+  // #2634 (1018 §8 / 1357): the organisation's match on/off and tolerances. set_three_way_match_settings is Admin only. UX ONLY.
+  // `billMatch.edit` is the receipt-line and bill-line editors (record_receipt_match_lines / record_bill_match_lines).
+  threeWayMatchSettings: { manage: allow(ADMIN) },
   orgAccounting: {
     manage: allow(ADMIN),
   },
+  // #2579: document categories and their viewer roles. Mirrors the management functions of migration 1093 (active Admin). UX ONLY — they are the authority (ADR-0016).
+  documentCategory: { manage: allow(ADMIN) },
   // #1532 S9: the org's feedback-and-surveys switch. Mirrors admin_set_feedback_surveys (0419: active Admin). UX ONLY.
   orgFeedback: { manage: allow(ADMIN) },
+  // #2711: which events send email, the extra roles copied, the email language. Mirrors set_email_* (1223: active Admin). UX ONLY.
+  orgEmailNotifications: { manage: allow(ADMIN) },
   // #1271: cost attribution rules — mirrors save/end/preview_cost_attribution (0376: active Admin or Finance).
   // UX ONLY — the RPCs are the authority (ADR-0016).
   costAttribution: { manage: allow(COST_ATTRIBUTION_WRITE) },
   // #2519 plan vs actual per work order. UX ONLY — work_order_plan_lines RLS (0997), set/clear_shared_cost_split (0998)
   // and work_order_cost_amounts (0999) are the authority (ADR-0016).
   workOrderPlan: { view: allow(WORK_ORDER_MONEY), manage: allow(WORK_ORDER_MONEY) },
+  // #2597: cost and schedule indices. UX ONLY: get_work_order_performance refuses anyone who cannot read revenue and cost,
+  // and the organisation setting is written by an Admin only (RLS on organizations).
+  workOrderPerformance: { view: allow(WORK_ORDER_MONEY) },
+  orgPerformanceIndices: { manage: allow(ADMIN) },
   sharedCostSplit: { manage: allow(['Admin', 'Executive', 'Finance']) },
+  // #2670: labour cost rates, classes and the switch. Mirrors save_labour_cost_*/RLS of 1250 (Admin, Finance write; Executive also reads). UX ONLY.
+  labourCost: { view: allow(['Admin', 'Finance', 'Executive']), manage: allow(['Admin', 'Finance']) },
+  /**
+   * #2576 work-order sections. UX ONLY — work_order_sections RLS + guard_work_order_section (1095) and
+   * set_work_order_plan (1096) are the authority (ADR-0016).
+   *   view          ← every active member (read follows work-order read).
+   *   create/edit/archive/set_plan ← the roles that write plan figures (0997): WORK_ORDER_MONEY.
+   *   delete        ← Admin only (RLS delete policy); the foreign keys still block a referenced section.
+   *   set_readiness ← those roles, or the section's own foreman (the guard trigger limits a foreman to readiness).
+   * The work order must be open for structure edits (Cancelled freezes every section; Closed allows readiness and archive).
+   */
+  workOrderSection: {
+    view: allow(ALL),
+    create: (role, ctx) => has(WORK_ORDER_MONEY, role) && ctx.record?.viewOnly !== true && !['Closed', 'Cancelled'].includes(ctx.record?.status ?? ''),
+    edit: (role, ctx) => has(WORK_ORDER_MONEY, role) && ctx.record?.viewOnly !== true && !['Closed', 'Cancelled'].includes(ctx.record?.status ?? ''),
+    archive: (role, ctx) => has(WORK_ORDER_MONEY, role) && ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled',
+    delete: (role, ctx) => role === 'Admin' && ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled',
+    set_plan: (role, ctx) => has(WORK_ORDER_MONEY, role) && ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled',
+    set_readiness: (role, ctx) => ctx.record?.viewOnly !== true && ctx.record?.status !== 'Cancelled'
+      && (has(WORK_ORDER_MONEY, role) || (!!ctx.currentUserId && ctx.record?.foreman_id === ctx.currentUserId)),
+  },
   /**
    * Equipment usage and allocation (#1519, migrations 0447/0460/0471). UX ONLY — transition_equipment_usage,
    * save_equipment_costing and the reads are the authority (ADR-0016); the FE may be stricter, never looser.
@@ -908,6 +1155,21 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    *                 approve (a no-login week) = a crew manager who recorded none of it (`record.recorder_ids`, the SoD
    *                 mirror of 0990). A login's week is approved on the timesheet, whose own gate applies.
    */
+  /**
+   * Leave and sick requests (#2708, migrations 1240-1243). UX ONLY — `leave_request_submit/decide/cancel` and
+   * `set_leave_settings` are the authority (ADR-0016); the FE may be stricter, never looser.
+   *   request / cancel ← every member; the database narrows to the person, their line manager or an office user.
+   *   decide           ← any role (the line manager can be any role); the screen also needs the database's `can_decide`
+   *                      for the row, which carries line manager, approver role and the self-decide refusal (LV_SOD).
+   *   manage           ← Admin: the on/off switch, the approver role and the leave type list (`set_leave_settings`).
+   *   A view-as session may do none of them.
+   */
+  leaveRequest: {
+    request: allowUnlessViewOnly(ALL),
+    cancel: allowUnlessViewOnly(ALL),
+    decide: allowUnlessViewOnly(ALL),
+    manage: allowUnlessViewOnly(ADMIN),
+  },
   crew: { view: allow(ALL), create: allowUnlessViewOnly(DELIVERY), manage: allowUnlessViewOnly(DELIVERY) },
   attendance: {
     create: (role, ctx) => ctx.record?.viewOnly !== true && (
@@ -915,6 +1177,33 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     approve: (role, ctx) => ctx.record?.viewOnly !== true && has(DELIVERY, role) && !(
       !!ctx.currentUserId && Array.isArray(ctx.record?.recorder_ids) && (ctx.record.recorder_ids as unknown[]).includes(ctx.currentUserId)),
   },
+  /**
+   * Crew hand-tools register and damage/loss reports (#2581, migrations 1080-1083). UX ONLY — RLS, the column grants and the
+   * `report_crew_tool` / `correct_crew_tool_report` / `close_crew_tool_report` / `set_crew_tool_settings` RPCs are the authority.
+   *   view      ← every active member (the crew master's own read rule, OQ-CTR-4).
+   *   manage    ← add, edit, move, archive lines, and correct a report: a crew manager (`crew_can_manage`: Admin, Executive, PM).
+   *   report    ← a crew manager, or the crew's field controller (`record.field_controller_id`).
+   *   close     ← a crew manager, or the report task's assignee (`record.assignee_id`); never the reporter by that fact alone.
+   *   configure ← the equipment coordinator and due days: Admin and Project Manager (the equipment register write set).
+   */
+  crewTool: {
+    view: allow(ALL),
+    manage: allowUnlessViewOnly(DELIVERY),
+    report: (role, ctx) => ctx.record?.viewOnly !== true && (
+      has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+    close: (role, ctx) => ctx.record?.viewOnly !== true && (
+      has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.assignee_id === ctx.currentUserId)),
+    configure: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),
+  },
+  /**
+   * #2706 attendance rate against a target. UX ONLY — the RPC `attendance_rate_by_crew` (1437) re-asserts the active
+   * membership, the caller's org and these four roles, mirroring attendance_days_select (1036): a crew-level reader
+   * would see a figure built from rows they cannot read. `attendanceTarget` mirrors the Admin-only organizations
+   * update policy (0207/0231) and the column grant of 1436.
+   */
+  attendanceRate: { view: allow(['Admin', 'Executive', 'Project Manager', 'Finance']) },
+  attendanceTarget: { manage: allow(ADMIN) },
+
   /**
    * The Odoo fleet and maintenance register (#1511 F5). UX ONLY — the `adapter-dispatch` `equipment` domain's role
    * gates and 0797's RPC/RLS are the authority (ADR-0016); the FE may be stricter, never looser.
@@ -947,6 +1236,18 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allowUnlessViewOnly(['Admin', 'Project Manager']),
     edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
     archive: allowUnlessViewOnly(ADMIN),
+  },
+  /**
+   * Cleared-for-site checklist (#2707, migrations 1235-1237). UX ONLY — RLS is the authority (ADR-0016). Admin defines the items and
+   * switches the feature on; Admin and Project Manager record a person's state; Finance and Executive read. View-as is view-only.
+   */
+  clearanceItem: {
+    view: allow(['Admin', 'Project Manager', 'Finance', 'Executive']),
+    manage: allowUnlessViewOnly(ADMIN),
+  },
+  personClearance: {
+    view: allow(['Admin', 'Project Manager', 'Finance', 'Executive']),
+    edit: allowUnlessViewOnly(['Admin', 'Project Manager']),
   },
   maintenance: {
     view: allow(ALL),
@@ -990,6 +1291,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   // #876 slice 2: a vendor's default VAT / PPh treatment. UX ONLY — set_vendor_tax_defaults is the authority.
   vendorTaxDefault: { manage: allow(TAX_SETUP) },
+  // #2583: a supplier's supply-risk status. UX ONLY — set_vendor_supply_status (1067) and companies_supply_risk_guard
+  // (1065) are the authority; `view` offers the panel to the Master-data roles (the flag itself is org-readable).
+  supplyRisk: { view: allow(MASTER_DATA), set: allow(SUPPLY_RISK_SET) },
   orgProjectNumbering: {
     manage: allow(ADMIN),
   },
@@ -1039,6 +1343,28 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
           !!ctx.currentUserId &&
           ctx.record?.project_manager_id === ctx.currentUserId)),
     confirm: allowUnlessViewOnly(['Admin', 'Finance']),
+  },
+  // #2584 subcontractor progress certificate. UX ONLY — the database RPCs and RLS are the authority:
+  // prepare (also submit, cancel and backcharges): Finance and Admin, or the project's own PM (spc_may_prepare);
+  // approve (also return): Finance, Executive and Admin, never the preparer or submitter (approve_subcontract_certificate; OD-SPC-9);
+  // bill: Finance and Admin; read: Admin, Executive, Finance, or the project's PM (spc_may_read).
+  subcontractCertificate: {
+    view: (role, ctx) =>
+      has(MONEY_AUTHORITY, role) ||
+      (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId),
+    prepare: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (has(['Admin', 'Finance'], role) ||
+        (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
+    approve: (role, ctx) =>
+      ctx.record?.viewOnly !== true && has(['Admin', 'Finance', 'Executive'], role) &&
+      !(ctx.currentUserId && (ctx.record?.prepared_by === ctx.currentUserId || ctx.record?.submitted_by === ctx.currentUserId)),
+    bill: allowUnlessViewOnly(['Admin', 'Finance']),
+  },
+  // The subcontractor rate card is cost data (FR-SPC-003): Admin and Finance write, Executive reads.
+  subcontractRate: {
+    manage: allowUnlessViewOnly(['Admin', 'Finance']),
+    view: (role) => has(['Admin', 'Executive', 'Finance', 'Project Manager'], role),
   },
   poVariation: {
     request: (role, ctx) =>

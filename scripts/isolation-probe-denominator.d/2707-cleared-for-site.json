@@ -1,0 +1,6 @@
+{
+  "tables": [
+    {"table":"clearance_items","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"person_clearances","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ]
+}

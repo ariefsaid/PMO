@@ -1,0 +1,24 @@
+{
+  "tables": [
+    { "table": "org_equipment_plan_settings", "has_org": true, "pk": "org_id", "columns": "org_id,enabled", "b_read": "own-org-only",
+      "by_id": "n/a: one settings row per organisation; the org-scoped read proves it" },
+    { "table": "equipment_plan_categories", "has_org": true, "pk": "id", "columns": "id,org_id,name", "b_read": "own-org-only", "by_id": "applicable" },
+    { "table": "equipment_plans", "has_org": true, "pk": "id", "columns": "id,org_id,status", "b_read": "own-org-only", "by_id": "applicable" },
+    { "table": "equipment_plan_lines", "has_org": true, "pk": "id", "columns": "id,org_id,plan_id", "b_read": "own-org-only", "by_id": "applicable" }
+  ],
+  "definer_functions": [
+    "equipment_plan_engineer_on_project(uuid)",
+    "equipment_plan_enabled(uuid)",
+    "equipment_plan_rental_type(uuid)",
+    "equipment_plan_approver_ok(uuid)",
+    "equipment_plan_gate()",
+    "set_equipment_plan_settings(boolean,text,boolean)",
+    "upsert_equipment_plan_category(uuid,text,text,integer)",
+    "set_equipment_plan_category_active(uuid,boolean)",
+    "save_equipment_plan(uuid,uuid,date,jsonb)",
+    "submit_equipment_plan(uuid)",
+    "reopen_equipment_plan(uuid)",
+    "reject_equipment_plan(uuid,text)",
+    "approve_equipment_plan(uuid)"
+  ]
+}

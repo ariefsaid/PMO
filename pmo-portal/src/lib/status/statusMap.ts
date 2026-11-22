@@ -52,6 +52,16 @@ export const STATUS_MAP = {
     Rejected: e('waiting', (t) => t('status:procurement.rejected', 'Returned')),
     Cancelled: e('neutral', (t) => t('status:procurement.cancelled', 'Cancelled')),
   },
+  quantityChange: {
+    draft: e('neutral', (t) => t('status:quantityChange.draft', 'Draft')),
+    pending_approval: e('waiting', (t) => t('status:quantityChange.pending_approval', 'Waiting for approval')),
+    returned: e('waiting', (t) => t('status:quantityChange.returned', 'Returned')),
+    approved: e('neutral', (t) => t('status:quantityChange.approved', 'Approved')),
+    sent_to_client: e('waiting', (t) => t('status:quantityChange.sent_to_client', 'With the client')),
+    client_accepted: e('done', (t) => t('status:quantityChange.client_accepted', 'Client accepted')),
+    client_declined: e('neutral', (t) => t('status:quantityChange.client_declined', 'Client declined')),
+    withdrawn: e('neutral', (t) => t('status:quantityChange.withdrawn', 'Withdrawn')),
+  },
   siteReport: {
     draft: e('neutral', (t) => t('status:siteReport.draft', 'Draft')),
     submitted: e('waiting', (t) => t('status:siteReport.submitted', 'Waiting to validate')),
@@ -65,6 +75,15 @@ export const STATUS_MAP = {
     Rejected: e('waiting', (t) => t('status:expense.rejected', 'Returned')),
     Paid: e('done', (t) => t('status:expense.paid', 'Paid')),
     Cancelled: e('neutral', (t) => t('status:expense.cancelled', 'Cancelled')),
+  },
+  // #2587: a linked task shows the request's status; the words match the request's own screen (materialRequests:status).
+  materialRequest: {
+    draft: e('neutral', (t) => t('status:materialRequest.draft', 'Draft')),
+    pending: e('waiting', (t) => t('status:materialRequest.pending', 'Waiting for approval')),
+    approved: e('done', (t) => t('status:materialRequest.approved', 'Approved')),
+    rejected: e('exception', (t) => t('status:materialRequest.rejected', 'Rejected')),
+    cancelled: e('neutral', (t) => t('status:materialRequest.cancelled', 'Withdrawn')),
+    fulfilled: e('done', (t) => t('status:materialRequest.fulfilled', 'Delivered')),
   },
   imprest: {
     Draft: e('neutral', (t) => t('status:imprest.draft', 'Draft')),

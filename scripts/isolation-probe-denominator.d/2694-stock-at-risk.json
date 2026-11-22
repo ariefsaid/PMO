@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "get_stock_at_risk()"
+  ]
+}

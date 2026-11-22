@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { IncidentRow, IncidentStatus, IncidentInput, IncidentFileRow, IncidentFileKind } from '@/src/lib/db/incidents';
+import type { IncidentRow, IncidentDetailRow, IncidentStatus, IncidentInput, IncidentFileRow, IncidentFileKind } from '@/src/lib/db/incidents';
 import type { ComboboxOption } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { withTimeout } from '@/src/lib/withTimeout';
@@ -61,7 +61,7 @@ export function useIncidentsExportAll() {
 export function useIncident(id: string | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<IncidentRow | null>({
+  return useQuery<IncidentDetailRow | null>({
     queryKey: ['incident', orgId, id],
     queryFn: () => repositories.incident.get(id!),
     enabled: Boolean(orgId && id),
@@ -161,7 +161,16 @@ export function useIncidentEvidenceMutations() {
     mutationFn: (incidentId: string) => withTimeout(repositories.incident.createTask(incidentId)),
     onSettled: invalidate,
   });
-  return { upload, makeTask };
+  const addTask = useMutation({
+    mutationFn: (args: { incidentId: string; name: string; assigneeId?: string | null; dueDate?: string | null }) =>
+      withTimeout(repositories.incident.addTask(args.incidentId, { name: args.name, assigneeId: args.assigneeId, dueDate: args.dueDate })),
+    onSettled: invalidate,
+  });
+  const saveRootCause = useMutation({
+    mutationFn: (args: { id: string; rootCause: string }) => withTimeout(repositories.incident.setRootCause(args.id, args.rootCause)),
+    onSettled: invalidate,
+  });
+  return { upload, makeTask, addTask, saveRootCause };
 }
 
 /** Active members of the org as assignee options (RLS scopes the list; org_id only keys the cache). */

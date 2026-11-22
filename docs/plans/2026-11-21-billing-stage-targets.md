@@ -1,9 +1,14 @@
 # Billing Stage Targets and Optional Stages Implementation Plan (#2592)
 
-> Fresh Orca worker per slice; Director-dispatched (money path: it edits the invoice gate). Spec: `docs/specs/billing-stage-targets.spec.md`. Starts after OD-BSX-1..7 are signed, in the first release after the 15 December go-live. Builds on migrations 1021 and 1022 and the overdue-job shape in 1028.
+> Fresh Orca worker per slice; Director-dispatched (money path: it edits the invoice gate). Spec: `docs/specs/billing-stage-targets.spec.md`. Ships in the 15 December 2026 release (OD-SCOPE-1/12); OD-BSX-1..7 taken as the recommended defaults. Builds on migrations 1021 and 1022 and the overdue-job shape in 1028.
 
-## Migration (number assigned by the Director from the next free range; not numbered here)
-One migration, additive:
+## Migrations (range 1360-1364; 1364 held in reserve, up to four used)
+- 1360 `billing_stage_targets_columns`: the new columns, checks, partial index, `record_history_config` entries.
+- 1361 `billing_stage_targets_template_gate`: `set_billing_stage_template`, `instantiate_claim_billing_stages`, `billing_stages_open`, `complete_billing_stage` replaced.
+- 1362 `billing_stage_skip`: `skip_billing_stage`.
+- 1363 `billing_stage_overdue_job`: `billing_stage_due_on`, `billing_stage_overdue_recipients` (single seams so #2680 can swap target date and owner role), `notify_overdue_billing_stages`, cron schedule.
+- Each has `supabase/migrations/rollback/<n>_..._down.sql`; isolation-probe fragment `scripts/isolation-probe-denominator.d/2592-billing-stage-targets.json` for the new definer functions.
+The contents, one logical change in total, additive:
 - `billing_stage_templates`: add `target_days smallint check (target_days between 1 and 365)`, `optional boolean not null default false`.
 - `claim_billing_stages`: add the same two columns, plus `skipped_on date`, `skipped_by uuid references auth.users(id)`, `skipped_reason text check (skipped_reason is null or char_length(btrim(skipped_reason)) between 3 and 500)`, `overdue_notified_at timestamptz`; check `not (completed_on is not null and skipped_on is not null)`; check `skipped_on is null or (optional and skipped_by is not null and skipped_reason is not null)`. Extend the existing completed check so a skipped stage needs `started_on`. Partial index on `(project_id) where completed_on is null and skipped_on is null and target_days is not null` for the job.
 - `create or replace set_billing_stage_template`: read `target_days` and `optional` from each stage object (validate 1..365, else `23514` detail `stage-target-invalid`). Keep every existing assertion (member, role Admin/Finance, org, project lock, 20-stage cap).

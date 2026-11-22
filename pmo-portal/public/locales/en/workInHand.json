@@ -1,0 +1,87 @@
+{
+  "asOf": "As of {{date}}",
+  "attention": {
+    "noRate": "No billing rate",
+    "over": "Billed over value",
+    "title": "Needs a look"
+  },
+  "col": {
+    "backlog": "Months of backlog",
+    "billed": "Billed to date",
+    "item": "Contract or work order",
+    "left": "Left to bill",
+    "months": "Months",
+    "rate": "Billing rate per month",
+    "value": "Value"
+  },
+  "empty": {
+    "action": "Open projects",
+    "title": "No contract is in work in hand"
+  },
+  "error": {
+    "retry": "Try again",
+    "title": "Couldn't load work in hand"
+  },
+  "help": {
+    "backlog": "Months of backlog is Left to bill divided by the billing rate. A contract and its work orders are shown together and never added.",
+    "leftToBill": "Left to bill is the value not yet invoiced: the contract or work-order value less invoiced work, before tax. Draft and cancelled invoices do not count.",
+    "rate": "Billing rate per month is invoiced work in the last 6 complete months, divided by the months since billing began (at most 6)."
+  },
+  "hidden": {
+    "incomplete": "Left to bill",
+    "incompleteReason_one": "{{count}} row has invoices that cannot be totalled",
+    "incompleteReason_other": "{{count}} rows have invoices that cannot be totalled",
+    "noValue": "No contract value",
+    "noValueFix": "Set value",
+    "noValueReason_one": "{{count}} contract has no value set",
+    "noValueReason_other": "{{count}} contracts have no value set",
+    "truncated": "Rows beyond the limit",
+    "truncatedReason": "the list is cut at 500 contracts and 3,000 work orders",
+    "undated": "Undated invoices",
+    "undatedFix": "Open invoices",
+    "undatedReason_one": "{{count}} invoice has no date and is not counted",
+    "undatedReason_other": "{{count}} invoices have no date and are not counted"
+  },
+  "incomplete": {
+    "foreign_one": "{{count}} invoice in another currency",
+    "foreign_other": "{{count}} invoices in another currency",
+    "title": "Figures incomplete",
+    "unknown": "Some invoices cannot be totalled",
+    "unpriced_one": "{{count}} invoice with no amount",
+    "unpriced_other": "{{count}} invoices with no amount"
+  },
+  "loading": "Loading work in hand",
+  "row": {
+    "hideMonths": "Hide months for {{name}}",
+    "monthsCounted_one": "{{count}} month counted",
+    "monthsCounted_other": "{{count}} months counted",
+    "noRate": "No billing rate",
+    "noRateNothing": "Nothing billed in 6 months",
+    "noRateThisMonth": "Billing began this month",
+    "open": "Open {{name}}",
+    "over": "Billed over value",
+    "showMonths": "Show months for {{name}}",
+    "workOrder": "Work order"
+  },
+  "sort": {
+    "backlog": "Months of backlog",
+    "label": "Order by",
+    "leftToBill": "Left to bill"
+  },
+  "status": {
+    "Close Out": "Closing out",
+    "Issued": "Issued",
+    "On Hold": "On hold",
+    "Ongoing Project": "Ongoing",
+    "Won, Pending KoM": "Won, pending kick-off"
+  },
+  "tile": {
+    "backlog": "Months of backlog",
+    "backlogCaption_one": "{{count}} row has no rate",
+    "backlogCaption_other": "{{count}} rows have no rate",
+    "left": "Left to bill",
+    "rate": "Billing rate per month",
+    "rateUnknown": "no row has a billing rate"
+  },
+  "title": "Work in hand"
+}

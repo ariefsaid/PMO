@@ -3,6 +3,9 @@ import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { LateText, ListState, PageHeader, SearchMini, StatusPill, SelectField, Icon, buttonClasses, useToast, ViewToggle, isMostUrgentLateRow } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
+import { useTaskLinkedRecords } from '@/src/hooks/useTaskLinkedRecords';
+import { LinkedRecordLine } from '@/src/components/tasks/LinkedRecordLine';
+import { recordLinkOf } from '@/src/lib/db/tasks';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
 import { formatDay, formatCalendarDayInTimeZone, formatDaysOverdue } from '@/src/lib/format';
@@ -149,6 +152,10 @@ const MyTasks: React.FC = () => {
   const setSearch = (value: string) => setParam('q', value);
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
+  // #2587: the live status of every followed record on the page, one read for all rows (never one per row).
+  const { data: linkedRecords } = useTaskLinkedRecords(
+    (tasks ?? []).filter((task) => recordLinkOf({ procurement_id: task.procurement_id ?? null, expense_claim_id: task.expense_claim_id ?? null, material_request_id: task.material_request_id ?? null })).map((task) => task.id),
+  );
   const { toast } = useToast();
 
   // Display labels for the DB `task_status` enum. The VALUES stay the raw enum strings (they are
@@ -442,6 +449,17 @@ const MyTasks: React.FC = () => {
                           </LateText>
                         )}
                       </div>
+                      <LinkedRecordLine
+                        className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-control"
+                        task={{
+                          procurement_id: task.procurement_id ?? null,
+                          expense_claim_id: task.expense_claim_id ?? null,
+                          material_request_id: task.material_request_id ?? null,
+                          closed_by_record_type: task.closed_by_record_type ?? null,
+                          closed_by_record_status: task.closed_by_record_status ?? null,
+                        }}
+                        linked={linkedRecords?.get(task.id)}
+                      />
                       {(task.start_date || task.end_date) && (
                         <span className="mt-0.5 block text-control text-muted-foreground">
                           {task.start_date && (

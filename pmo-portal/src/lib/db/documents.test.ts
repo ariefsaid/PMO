@@ -244,7 +244,8 @@ describe('AC-DOC-052 createDocumentRevision', () => {
         project_id: 'p1',
         title: 'Edited revision title',
         code: 'DWG-009',
-        category: 'Specification',
+        category: 'Drawing',
+        category_id: 'cat-drawing',
         revision: 'B',
         doc_date: '2026-06-12',
         status: 'Draft',
@@ -270,7 +271,9 @@ describe('AC-DOC-052 createDocumentRevision', () => {
     const insert = h.calls.insert[0] as Record<string, unknown>;
     expect(insert.title).toBe('Edited revision title');
     expect(insert.code).toBe('DWG-009');
-    expect(insert.category).toBe('Specification');
+    // FR-DCV-009: the child takes its parent's category by reference; no text name is sent
+    expect(insert.category_id).toBe('cat-drawing');
+    expect(insert).not.toHaveProperty('category');
     expect(insert.revision).toBe('B');
     expect(insert.doc_date).toBe('2026-06-12');
     expect(insert.parent_document_id).toBe('d1');

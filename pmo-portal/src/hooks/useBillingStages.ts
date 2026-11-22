@@ -43,7 +43,11 @@ export function useBillingStageMutations(claimId: string, projectId: string) {
     mutationFn: (input: CompleteStageInput) => repositories.billingStages.completeStage(input),
     onSuccess: invalidate,
   });
-  return { attachDocument, completeStage };
+  const skipStage = useMutation({
+    mutationFn: ({ stageId, reason }: { stageId: string; reason: string }) => repositories.billingStages.skipStage(stageId, reason),
+    onSuccess: invalidate,
+  });
+  return { attachDocument, completeStage, skipStage };
 }
 
 /** The project's billing terms: its stage list, monthly invoice deadline and retention percentage. */

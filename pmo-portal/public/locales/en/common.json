@@ -2,6 +2,8 @@
   "terms": {
     "clientWorkOrder": "Work order",
     "dashboard": "Dashboard",
+    "section": "Section",
+    "sections": "Sections",
     "supplier": "Supplier",
     "timesheet": "Timesheet"
   },

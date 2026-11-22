@@ -69,7 +69,9 @@ test.beforeEach(async () => {
 
 test.afterEach(async () => {
   if (!admin || !crewId) return;
-  const today = iso(new Date());
+  // Ends yesterday: valid_to is inclusive, so ending today would leave the crew rostered for the rest of today (the Engineer's phone home would list this work order).
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  const today = iso(yesterday);
   const fail = (step: string, e: { message: string } | null) => { if (e) throw new Error(`AC-CRW-015 cleanup ${step}: ${e.message}`); };
   fail('roster', (await admin.from('work_order_crews').update({ valid_to: today }).eq('crew_id', crewId)).error);
   fail('placements', (await admin.from('crew_members').update({ valid_to: today }).eq('crew_id', crewId)).error);

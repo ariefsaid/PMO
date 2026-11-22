@@ -1,0 +1,6 @@
+{
+  "tables": [
+    {"table":"material_request_usage_alerts","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ],
+  "definer_functions": ["mrq_set_usage_thresholds(numeric,numeric)", "mrq_usage_check(uuid)"]
+}

@@ -53,6 +53,7 @@ const EXPECTED_ORGANIZATION_LINKS = [
   'Your plan',
   // #2529 deliberately adds the org terminology settings.
   'Terminology',
+  'Document categories', // #2579: an Admin-only destination, shown to this Admin
   'Cost attribution',
 ];
 

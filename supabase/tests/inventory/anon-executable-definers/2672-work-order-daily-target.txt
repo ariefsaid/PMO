@@ -1,0 +1,8 @@
+# #2672 daily target (1280-1282): SECURITY DEFINER calls made under a member's JWT
+# (pmo-portal/src/lib/db/workOrderRevenuePlan.ts). Each re-asserts active membership and the caller's org, then a role gate
+# (non_working_date_add/remove: Admin; the reads: dsr_may_see_revenue) in its body; proven by
+# supabase/tests/1280_non_working_dates.test.sql and 1281_work_order_daily_target_reads.test.sql.
+non_working_date_add
+non_working_date_remove
+wo_daily_target_vs_actual
+project_daily_target_vs_actual

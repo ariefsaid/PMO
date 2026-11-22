@@ -77,6 +77,8 @@ export interface WorkOrderInput {
   orderDate: string | null;
   startDate: string | null;
   endDate: string | null;
+  areaId?: string | null;
+  groupId?: string | null;
 }
 
 /**
@@ -92,6 +94,8 @@ export interface WorkOrderPatch {
   orderDate: string | null;
   startDate: string | null;
   endDate: string | null;
+  areaId?: string | null;
+  groupId?: string | null;
 }
 
 /** The value + the basis that describes it — always written as one call (`0197 §5`). */
@@ -218,6 +222,23 @@ export async function getWorkOrder(id: string): Promise<WorkOrderRow | null> {
 }
 
 /**
+ * #2668: the area and group are written only through `set_work_order_area_group` (1384; the table's column grants are a
+ * pinned SoD surface and name neither). Called after the body write and only when the caller carries one of the two, so a
+ * work order created or edited with no lists configured makes no extra call. `undefined` leaves a column alone.
+ */
+async function setAreaGroup(id: string, v: { areaId?: string | null; groupId?: string | null }): Promise<void> {
+  if (v.areaId === undefined && v.groupId === undefined) return;
+  const { error } = await supabase.rpc('set_work_order_area_group', {
+    p_work_order: id,
+    p_area: v.areaId ?? undefined,
+    p_group: v.groupId ?? undefined,
+    p_set_area: v.areaId !== undefined,
+    p_set_group: v.groupId !== undefined,
+  });
+  if (error) throwWrite(error as PostgrestErrorLike);
+}
+
+/**
  * Mint a Draft work order under a project.
  *
  * ⚑ `status` is NOT sent. The column defaults to `'Draft'` and the origination guard refuses any
@@ -249,7 +270,9 @@ export async function createWorkOrder(
     .select()
     .single();
   if (error) throwWrite(error);
-  return data as WorkOrderRow;
+  const created = data as WorkOrderRow;
+  await setAreaGroup(created.id, input);
+  return created;
 }
 
 /**
@@ -272,6 +295,7 @@ export async function updateWorkOrder(id: string, patch: WorkOrderPatch): Promis
     .select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Work order not found or you do not have permission to edit it.');
+  await setAreaGroup(id, patch);
 }
 
 /**

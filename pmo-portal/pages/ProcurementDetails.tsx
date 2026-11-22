@@ -1,3 +1,4 @@
+import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { Avatar } from '@/src/components/ui/Avatar';
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
@@ -37,10 +38,12 @@ import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
+import RentalPanel from '@/src/components/procurement/RentalPanel';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
 import { ProcurementDetailsTab, ProcurementItemsTab, ProcurementQuotesTab } from './procurement/ProcurementDetailTabs';
+import { LinePlanningPanel } from './procurement/LinePlanningPanel';
 import { procurementAttachTargets, procurementDetailRows, procurementTabs, tabFromParam, type ProcTab } from './procurement/procurementDetailView';
 import { useProcurementDecision } from './procurement/useProcurementDecision';
 import { PaymentCeilingNotice } from './procurement/PaymentCeilingNotice';
@@ -48,8 +51,10 @@ import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementLedger } from './procurement/ProcurementLedger';
 import { OdooCaseStatus } from './procurement/OdooCaseStatus';
 import { useProcurementGates } from '@/src/hooks/useProcurementGates';
+import { usePurchaseOrderSettings } from '@/src/hooks/usePurchaseOrderSettings';
 import { itemsNetTotal } from '@/src/lib/itemsNet';
 import { purchaseHasValue } from '@/src/lib/procurement/purchaseValue';
+import { formatCurrency } from '@/src/lib/format';
 import { recordableFirstKinds } from './procurement/firstDocument';
 import { useLinkedErpDocuments } from '@/src/hooks/useErpPurchaseLinks';
 import { LinkedErpDocuments } from './procurement/LinkedErpDocuments';
@@ -76,6 +81,7 @@ import { PANEL_VISIBLE_STATUSES } from '@/src/lib/procurement/computeBudgetSigna
 import { ProcurementBudgetSignal, ProcurementStageTracker, ProcurementMoneySummary, ProcurementTimeline } from './procurement/detail/ProcurementDetailPanels';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { selectedQuotation } from '../components/procurement';
+import { PaymentChannelSection } from './procurement/PaymentChannelSection';
 import { ProcurementStatusPill } from '@/src/components/procurement/ProcurementStatusPill';
 import { stageForStatus } from '@/src/lib/procurement/stage';
 import {
@@ -146,6 +152,7 @@ const ProcurementDetails: React.FC = () => {
   const linkedErpQuery = useLinkedErpDocuments(procurementId);
   const linkedDocs = linkedErpQuery.data ?? [];
   const gates = useProcurementGates().data;
+  const poSettingsQuery = usePurchaseOrderSettings();
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
   const recordMutations = useProcurementRecordMutations(procurementId ?? '');
@@ -396,6 +403,15 @@ const ProcurementDetails: React.FC = () => {
         ? t('procurementRecord:approval.goesTo', 'Goes to {{name}}', { name: p.approvalRoute.approvers.map((approver) => approver.fullName).join(' or ') })
         : null
     : null;
+  // #2695: the approver sees how much of the budget line is already used. Text, not colour; absent when the figures are
+  // not readable (below approval rank, unknown spending), so it never states a number the server did not give.
+  const budgetUsedLine = p.status === 'Requested' && !isRequester && routeAllows
+    && p.approvalRoute && p.approvalRoute.lineBudget != null && p.approvalRoute.lineUsed != null
+    ? t('procurementRecord:approval.budgetUsed', 'Budget line used {{used}} of {{budget}}', {
+        used: formatCurrency(p.approvalRoute.lineUsed, p.currency),
+        budget: formatCurrency(p.approvalRoute.lineBudget, p.currency),
+      })
+    : null;
   const waitingNote = p.status === 'Requested' && isRequester
     ? isEngineer
       ? t('procurementRecord:waiting.engineerApproval', 'Waiting for approval by a project manager or Finance')
@@ -423,6 +439,11 @@ const ProcurementDetails: React.FC = () => {
   // transition in the action zone. RLS remains the enforcement authority.
   const canEditHeader =
     (isDraft || isRejected) && (isRequester || realRole === 'Admin') && may('edit', 'procurement');
+  // #2698: the payment channel (shown only where the org switched it on). Requester or Admin while Draft/Rejected (the header
+  // rule), or Finance/Admin until Paid or Cancelled. UX only: set_procurement_payment_channel (1356) is the authority.
+  const canSetPaymentChannel =
+    ((isDraft || isRejected) && (isRequester || realRole === 'Admin'))
+    || ((realRole === 'Finance' || realRole === 'Admin') && p.status !== 'Paid' && p.status !== 'Cancelled');
   // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
   const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
   const canEditItems = ownershipReady && isDraft && (isRequester || may('edit', 'procItem'));
@@ -615,6 +636,9 @@ const ProcurementDetails: React.FC = () => {
     URL.revokeObjectURL(link.href);
   };
 
+  const poPrintEnabled = poSettingsQuery.data?.enabled ?? false;
+  const primaryPo = p.purchase_orders?.[0];
+
   // Menu data for the record header and the phone action bar. `narrowOnly` rows repeat verbs the
   // desktop header already shows elsewhere (the Record another document menu).
   const recordMenuItems: RecordMenuItem[] = [
@@ -626,6 +650,7 @@ const ProcurementDetails: React.FC = () => {
   const moreMenuItems: RecordMenuItem[] = [
     ...(isNarrow ? recordMenuItems : []),
     ...(canEditHeader ? [{ key: 'edit-header', testId: 'edit-header', label: t('procurementRecord:editDetails', 'Edit details'), onSelect: () => setHeaderEditOpen(true) }] : []),
+    ...(poPrintEnabled && primaryPo ? [{ key: 'print-po', testId: 'print-purchase-order', label: t('procurement:purchaseOrderPrint.printAction', 'Print purchase order'), onSelect: () => navigate(`/procurement/${p.id}/purchase-orders/${primaryPo.id}/print`) }] : []),
     { key: 'history', label: t('procurementRecord:timeline.fullHistory', 'Full history'), onSelect: () => { setHistoryOpen(true); setTab('timeline'); } },
     ...secondaryTransitionActions.map((action) => ({ key: `to-${action.to}`, label: action.label, onSelect: () => onActionClick(action) })),
     { key: 'export', label: t('procurementRecord:export', 'Export'), onSelect: exportCurrentProcurement },
@@ -637,7 +662,7 @@ const ProcurementDetails: React.FC = () => {
   // limit, separation of duties, what gates Submit, the payment ceiling, the optional approval note). One line each.
   // The approver's decision: the limit and separation-of-duties facts read as one line, then the optional note.
   const decidesHere = mainAction?.to === 'Approved';
-  const decisionLine = [approverLimitLine, decisionContextNote].filter(Boolean);
+  const decisionLine = [approverLimitLine, budgetUsedLine, decisionContextNote].filter(Boolean);
   const approvalNote = mainAction?.to === 'Approved' && <label key="approval-note" className="block max-w-xl text-control font-medium text-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
     <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
   </label>;
@@ -750,6 +775,7 @@ const ProcurementDetails: React.FC = () => {
       >
         {/* The notes that speak about the header's actions sit inside the header, under its band. */}
         {headerNotes.length > 0 ? headerNotes : null}
+        <div><FollowUpTaskButton type="procurement" recordId={p.id} projectId={p.project_id} defaultName={p.po_number ?? p.pr_number ?? p.title} finished={p.status === 'Paid' || p.status === 'Cancelled'} /></div>
       </RecordHeader>
 
       {/* The header edit form opens as a panel under the header, before the tabs. */}
@@ -778,6 +804,16 @@ const ProcurementDetails: React.FC = () => {
       )}
       </div>
 
+      {/* #2697: type, rental period, extension links and the guided extend step. Mounted only on a typed purchase, so an organisation
+          without purchase types renders exactly what it did before. */}
+      {p.purchase_type_id && (
+        <div className="mb-3">
+          <RentalPanel procurementId={p.id} title={p.title} status={p.status} purchaseTypeId={p.purchase_type_id}
+            rentalFrom={p.rental_from} rentalTo={p.rental_to} extendsId={p.extends_procurement_id}
+            lines={(p.items ?? []).map((i) => ({ id: i.id, name: i.name, description: i.description ?? null, quantity: Number(i.quantity), rate: Number(i.rate) }))} />
+        </div>
+      )}
+
       {/* Deep-linkable detail sections, directly under the header (as on the project record). */}
       <Tabs<ProcTab>
         items={procTabs}
@@ -802,7 +838,7 @@ const ProcurementDetails: React.FC = () => {
           {historyOpen && <RecordSection data-testid="procurement-full-history" title={t('procurementRecord:timeline.fullHistory', 'Full history')} actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></RecordSection>}
         </RecordStack>}
 
-        {tab === 'items' && <ProcurementItemsTab p={p} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} />}
+        {tab === 'items' && <><ProcurementItemsTab p={p} ownership={ownership} ownershipReady={ownershipReady} casePushInFlight={casePushInFlight} canEditItems={canEditItems} canEditItemValues={canEditItemValues} itemEligibility={itemEligibility} erpItems={erpItems} crud={crud} onMutationError={onMutationError} currentUserId={currentUserId} managerId={managerId} /><LinePlanningPanel items={p.items} editable={canEditItems && canEditItemValues} /></>}
 
         {/* ░░ Documents tab — Slice 2: ProcurementLedger (the single case ledger).
             All 7 record types, chronological, one row each. Filter chips: All /
@@ -905,6 +941,7 @@ const ProcurementDetails: React.FC = () => {
 
         {tab === 'quotes' && <ProcurementQuotesTab p={p} selectedQuote={selectedQuote} vendorMap={vendorMap} mutations={mutations} crud={crud} canAddQuote={canAddQuote} canSelectQuote={canSelectQuote} canManageFiles={canManageFiles} currentUserId={currentUserId} onMutationError={onMutationError} />}
         {tab === 'details' && <ProcurementDetailsTab rows={detailRows} canEditHeader={canEditHeader} onEdit={() => setHeaderEditOpen(true)} />}
+        {tab === 'details' && <PaymentChannelSection procurementId={p.id} canSet={canSetPaymentChannel} />}
       </div>
 
       {captureKind && <RecordSection className="mt-[var(--space-section)]" data-testid="procurement-record-capture" title={recordKindLabels[captureKind]} actions={<Button variant="outline" size="sm" onClick={() => guardCaptureLeave(closeCapture)}>{t('procurementRecord:close', 'Close')}</Button>}>

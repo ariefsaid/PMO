@@ -1,0 +1,5 @@
+# 2693: client-callable security-definer writers of stock reservations (authenticated only; each checks membership and its own role rule).
+reserve_stock
+release_reservation
+release_stale_reservations
+set_stock_reservations

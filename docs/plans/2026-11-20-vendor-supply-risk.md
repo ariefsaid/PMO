@@ -1,5 +1,23 @@
 # Supplier Supply-Risk Status Implementation Plan (#2583)
 
+## Built on defaults (owner to confirm)
+
+Built to the spec's recommended defaults; the owner has not yet signed the decisions below.
+- **OD-VSR-1** the age signal only suggests; a person sets the status. No job, trigger or read changes it.
+- **OD-VSR-2** suggest `at_risk` when any unpaid balance is over 60 days old (61-90 plus over 90), aged from the case's earliest invoice date; the ERP basis reads the ERP's own `b_61_90` + `b_90_plus`.
+- **OD-VSR-3** Admin and Finance set the status (`set_vendor_supply_status`, 42501 otherwise); Executive and Project Manager see the panel, Engineer does not.
+- **OD-VSR-4** `inactive` is a flag with a reason, never a block.
+- **OD-VSR-5** warn the exposed projects' managers on a change (notification, once per change, never the actor) and every viewer of an exposed work order at read time.
+- **OD-VSR-6** DEFERRED to `fix/2600-unpaid-voided`: this branch does not touch the shared unpaid rule (`supplierUnpaid`). Voided bills are counted by the suggestion exactly as `/finance/payables` counts them today; the voided-bill half of AC-VSR-002 lands with that fix. This branch's AC-VSR-002 proof covers the `Paid`/`Cancelled`-case half only.
+- **OQ-VSR-1** `Draft` work orders count as exposed (Draft and Issued).
+- **OQ-VSR-2** orders that name no work order are listed on the supplier as project-level orders; no per-project warning.
+- **OQ-VSR-3** the status is not sent to the ERP supplier record.
+- **OQ-VSR-4** moving back to `active` notifies nobody.
+- The flag stays a `companies` column (readable by every active member of the org); `supplyRisk.view` is a screen affordance only.
+
+Build notes: migrations were renumbered to this branch's range (1149 columns + guard, 1150 reads, 1151 set function); the read functions return `jsonb` / a table so the screen and the unit mirror share one shape; the suggestion's `invoice_count` counts the PMO invoices of the counted over-60 cases; a case with only linked ERP invoices has no PMO invoice date, so it carries unpaid but no age (the shipped payables rule ages by PMO `invoice_date` only).
+
+
 > Fresh Orca worker per slice; Slice 2 (the governed status write) is Director-dispatched. Spec: `docs/specs/vendor-supply-risk.spec.md`. Sign OD-VSR and answer OQ-VSR first.
 
 ## Design summary
@@ -27,7 +45,7 @@
 
 ## Slice 1 — pure suggestion (Orca)
 - [ ] Write `supplyRisk.test.ts` first from the hand-worked invoices (AC-VSR-001, 003, 005, 018); then implement `suggestSupplyRisk` with exact decimals. `npx vitest run src/lib/__tests__/supplyRisk.test.ts`.
-- [ ] OD-VSR-6 first, in the shared rule: `procurementMoney.test.ts`/`payablesPosition.test.ts` gain the voided-bill case (AC-VSR-002), then `supplierUnpaid` excludes `voided_at`. This is a money-path branch: Director-dispatched, ships alone.
+- [ ] (deferred to `fix/2600-unpaid-voided`; not built on this branch) OD-VSR-6 first, in the shared rule: `procurementMoney.test.ts`/`payablesPosition.test.ts` gain the voided-bill case (AC-VSR-002), then `supplierUnpaid` excludes `voided_at`. This is a money-path branch: Director-dispatched, ships alone.
 
 ## Slice 2 — governed status write (Director)
 - [ ] pgTAP `vendor_supply_risk.test.sql` for AC-VSR-006..010 and 014 first. Run chained: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/vendor_supply_risk.test.sql'`.

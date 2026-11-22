@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
+  Checkbox,
   Combobox,
   ConfirmDialog,
   EntityFormModal,
@@ -10,6 +11,7 @@ import {
   FormSection,
   ListState,
   SelectField,
+  TextField,
   useEntityForm,
   useToast,
   type ComboboxOption,
@@ -20,9 +22,11 @@ import { useAuth } from '@/src/auth/useAuth';
 import { can } from '@/src/auth/policy';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { repositories } from '@/src/lib/repositories';
+import { spendApprovalSettingsRepository } from '@/src/lib/repositories/spendApprovalSettings';
 import { useProjectOptions } from '@/src/hooks/useFkOptions';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
+import { formatMoneyInputValue } from '@/src/lib/format';
 
 /**
  * Administration › Spend approvers (#803, migration 0242, ADR-0075). Spend charged to a project and
@@ -49,9 +53,26 @@ const SpendApprovers: React.FC = () => {
     enabled: Boolean(orgId),
   });
   const invalidate = () => qc.invalidateQueries({ queryKey: listKey });
+  // #2695: amount tiers on the approver lists. Off unless the organisation turns it on (no row = off).
+  const tiersKey = ['spend-approval-tiers', orgId] as const;
+  const { data: tiersOn } = useQuery<boolean>({
+    queryKey: tiersKey,
+    queryFn: () => spendApprovalSettingsRepository.getTiersEnabled(),
+    enabled: Boolean(orgId),
+  });
+  const tiersMutation = useMutation({
+    mutationFn: (enabled: boolean) => spendApprovalSettingsRepository.setTiersEnabled(enabled),
+    onSuccess: () => qc.invalidateQueries({ queryKey: tiersKey }),
+    onError: (err) => {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    },
+  });
   const addMutation = useMutation({
-    mutationFn: (v: { profileId: string; projectId: string | null }) =>
-      repositories.orgSettings.addSpendApprover(v.profileId, v.projectId),
+    mutationFn: (v: { profileId: string; projectId: string | null; minAmount: number | null }) =>
+      v.minAmount === null
+        ? repositories.orgSettings.addSpendApprover(v.profileId, v.projectId)
+        : repositories.orgSettings.addSpendApprover(v.profileId, v.projectId, v.minAmount),
     onSuccess: invalidate,
   });
   const removeMutation = useMutation({
@@ -173,6 +194,16 @@ const SpendApprovers: React.FC = () => {
               <span className="min-w-0">
                 <span className="font-medium">{r.fullName}</span>
                 {scope === 'org' && r.projectName && <span className="ml-2 text-muted-foreground">{r.projectName}</span>}
+                {tiersOn === true && (
+                  <span data-testid="spend-approver-tier" className="ml-2 text-muted-foreground">
+                    {r.minAmount !== undefined && r.minAmount > 0
+                      ? t('administration:admin.spendApprovers.tiers.from', {
+                          defaultValue: 'From {{amount}}',
+                          amount: formatMoneyInputValue(r.minAmount),
+                        })
+                      : t('administration:admin.spendApprovers.tiers.base', 'Base tier')}
+                  </span>
+                )}
               </span>
               {canManage && (
                 <Button variant="ghost" size="sm" onClick={() => setRemoving(r)}>
@@ -219,6 +250,30 @@ const SpendApprovers: React.FC = () => {
               retryLabel={t('admin.retry', 'Retry')}
               onRetry={() => void peopleRefetch()}
             />
+          )}
+          {(canManage || tiersOn === true) && (
+            <div data-testid="spend-tiers-setting">
+              {canManage ? (
+                <Checkbox
+                  checked={tiersOn === true}
+                  onChange={(next) => tiersMutation.mutate(next)}
+                  disabled={tiersOn === undefined || tiersMutation.isPending}
+                  label={t('administration:admin.spendApprovers.tiers.switch', 'Choose the approver by amount')}
+                >
+                  {t('administration:admin.spendApprovers.tiers.switch', 'Choose the approver by amount')}
+                </Checkbox>
+              ) : (
+                <p className="text-control text-muted-foreground">
+                  {t('administration:admin.spendApprovers.tiers.on', 'The approver is chosen by amount.')}
+                </p>
+              )}
+              <p className="mt-1 max-w-[68ch] text-control text-muted-foreground">
+                {t(
+                  'administration:admin.spendApprovers.tiers.help',
+                  'Each approver decides from the amount you set. A request goes to the highest tier at or below its amount; anyone with no amount sits in the base tier. Add a person to each tier they cover. Amounts are in your organisation currency.',
+                )}
+              </p>
+            </div>
           )}
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -270,9 +325,9 @@ const SpendApprovers: React.FC = () => {
           eligible={eligible}
           submitError={saveError}
           onClose={() => setAdding(null)}
-          onSubmit={async (profileId, projectId) => {
+          onSubmit={async (profileId, projectId, minAmount) => {
             try {
-              await addMutation.mutateAsync({ profileId, projectId });
+              await addMutation.mutateAsync({ profileId, projectId, minAmount });
               toast(t('admin.spendApprovers.toast.added', 'Approver added'), '', 'success');
               setAdding(null);
             } catch (err) {
@@ -308,6 +363,7 @@ const SpendApprovers: React.FC = () => {
 interface AddValues {
   profileId: string;
   projectId: string | null;
+  minAmount: string;
 }
 
 interface AddApproverModalProps {
@@ -318,7 +374,7 @@ interface AddApproverModalProps {
   /** #559: owned by the parent (which owns the mutation), rendered here. */
   submitError: SubmitError | null;
   onClose: () => void;
-  onSubmit: (profileId: string, projectId: string | null) => Promise<void>;
+  onSubmit: (profileId: string, projectId: string | null, minAmount: number | null) => Promise<void>;
 }
 
 const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, eligible, submitError, onClose, onSubmit }) => {
@@ -337,12 +393,16 @@ const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, eligible, sub
   );
 
   const form = useEntityForm<AddValues>({
-    initialValues: { profileId: '', projectId: null },
+    initialValues: { profileId: '', projectId: null, minAmount: '' },
     validate: (v) => {
       const errors: Partial<Record<keyof AddValues, string>> = {};
       if (!v.profileId) errors.profileId = t('admin.spendApprovers.form.personRequired', 'Choose a person.');
       if (mode === 'project' && !v.projectId) {
         errors.projectId = t('admin.spendApprovers.form.projectRequired', 'Choose a project.');
+      }
+      const raw = v.minAmount.trim();
+      if (raw !== '' && !(Number.isFinite(Number(raw)) && Number(raw) >= 0)) {
+        errors.minAmount = t('administration:admin.spendApprovers.tiers.amountInvalid', 'Enter an amount of zero or more.');
       }
       return errors;
     },
@@ -354,7 +414,8 @@ const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, eligible, sub
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (v) => {
-      await onSubmit(v.profileId, mode === 'project' ? v.projectId : null);
+      const raw = v.minAmount.trim();
+      await onSubmit(v.profileId, mode === 'project' ? v.projectId : null, raw === '' ? null : Number(raw));
     });
   };
 
@@ -403,6 +464,15 @@ const AddApproverModal: React.FC<AddApproverModalProps> = ({ mode, eligible, sub
             onChange={(v) => form.setValue('profileId', v)}
             options={personOptions}
             placeholder={t('admin.spendApprovers.form.personPlaceholder', 'Select a person…')}
+          />
+          <TextField
+            id="spend-approver-min-amount"
+            label={t('administration:admin.spendApprovers.tiers.fromAmount', 'From amount (optional)')}
+            helper={t('administration:admin.spendApprovers.tiers.fromAmountHelp', 'Leave empty for the base tier. Used only while choosing the approver by amount is on.')}
+            inputMode="decimal"
+            value={form.values.minAmount}
+            onChange={(v) => form.setValue('minAmount', v)}
+            error={form.errors.minAmount}
           />
         </FormGrid>
       </FormSection>

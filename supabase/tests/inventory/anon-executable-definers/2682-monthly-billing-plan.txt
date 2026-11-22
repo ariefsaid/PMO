@@ -1,0 +1,3 @@
+# Client-callable SECURITY DEFINER writers added by #2682 (migration 1375). Each is revoked from public and anon, checks active membership and the Admin/Finance role in the body, and is proven by 1375_billing_plan_settings.test.sql.
+set_billing_plan_month_target
+set_billing_plan_settings

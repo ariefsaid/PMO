@@ -1,3 +1,4 @@
+import { WorkOrderSupplyWarning } from '@/src/components/SupplyRiskWarning';
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +10,7 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { formatDay } from '@/src/lib/format';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
+import { WorkOrderAreaGroup } from './WorkOrderAreaGroup';
 
 /** The draft-orders list on the work orders tab — draft rows stay out of the issued register. */
 const WorkOrdersDraftOrders: React.FC<{
@@ -55,8 +57,10 @@ const WorkOrdersDraftOrders: React.FC<{
               </button>
               {row.wo_number && <span className="ml-2 text-sm text-muted-foreground">{row.title}</span>}
               <span className="ml-2"><Link to={`/work-orders/${row.id}`} data-testid={`wo-page-link-${row.id}`} className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground">{t('workOrders:openPage', 'Open page')}</Link></span>
+              <WorkOrderAreaGroup row={row} withStatus wrapperClassName="ml-3 inline-flex flex-wrap items-center gap-x-3 gap-y-1 align-middle" />
               {row.client_po_number && <span className="ml-3 text-sm text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Customer PO')} {row.client_po_number}</span>}
               {row.order_date && <span className="ml-3 text-sm text-muted-foreground">{t('projectDetail.workOrders.orderDate', 'Order date')} {formatDay(row.order_date)}</span>}
+              <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
             </div>
             <div className="flex flex-wrap items-center gap-1">
               {canEdit && <Button variant="ghost" size="sm" onClick={() => onEdit(row)}>{t('projectDetail.workOrders.action.editOrder', 'Edit order')}</Button>}

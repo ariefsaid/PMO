@@ -3,6 +3,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
 import { ListState, RecordHeader, RecordStack, type PageStat, StatusPill, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
@@ -21,6 +22,8 @@ import { statusLabel } from '@/src/lib/status/statusMap';
 import { ExpenseDecisionBar } from './expenses/ExpenseDecisionBar';
 import { ExpenseLinesCard } from './expenses/ExpenseLinesCard';
 import { ExpenseReceiptsCard } from './expenses/ExpenseReceiptsCard';
+import { ExpenseAttributionCard } from './expenses/ExpenseAttributionCard';
+import { canAttributeExpenseClaim } from './expenses/canAttributeExpenseClaim';
 import { ExpensePostingNote, ExpensePostingsCard } from './expenses/ExpensePostingsCard';
 import { ExpenseClaimFormModal } from './expenses/ExpenseClaimFormModal';
 import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
@@ -183,6 +186,7 @@ const ExpenseClaimDetail: React.FC = () => {
           </p>
         )}
         <ExpensePostingNote claimId={claim.id} />
+        <div><FollowUpTaskButton type="expense_claim" recordId={claim.id} projectId={claim.project_id} defaultName={claim.claim_number ?? claim.title} finished={claim.status === 'Paid' || claim.status === 'Cancelled'} /></div>
       </RecordHeader>
 
       <RecordStack>
@@ -203,6 +207,7 @@ const ExpenseClaimDetail: React.FC = () => {
           <ExpenseLinesCard claimId={claim.id} lines={linesQuery.data ?? []} isPending={linesQuery.isPending}
             isError={linesQuery.isError} currency={claim.currency} editable={canEdit} />
         )}
+        <ExpenseAttributionCard claim={claim} canEdit={canAttributeExpenseClaim(realRole, userId, claim)} />
         <ExpenseReceiptsCard claimId={claim.id} canWrite={canEdit} />
         <ExpensePostingsCard claimId={claim.id} noteInHeader />
       </RecordStack>

@@ -8,7 +8,7 @@ import {
   FormGrid,
 } from '@/src/components/ui';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
-import { categoryOptions } from '@/src/lib/documentCategories';
+import { documentCategoryLabel } from '@/src/lib/documentCategories';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { DocumentDriftBadge } from '@/src/components/m365/DocumentDriftBadge';
 import { DateField } from '@/src/components/ui/DateField';
@@ -64,7 +64,7 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
   const { t } = useTranslation();
   const [title, setTitle] = useState(parent.title);
   const [code, setCode] = useState(parent.code ?? '');
-  const [category, setCategory] = useState(parent.category);
+  const category = parent.category;
   const [revision, setRevision] = useState(bumpRevision(parent.revision));
   const [docDate, setDocDate] = useState('');
 
@@ -142,13 +142,15 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
             onChange={setCode}
             placeholder={t('project:documentRevision.codePlaceholder', 'e.g. DWG-001')}
           />
+          {/* A revision keeps the category of the document it revises (FR-DCV-009): the server stamps it and refuses any other. */}
           <SelectField
             id="rev-category"
             label={t('project:documentRevision.fieldCategory', 'Category')}
-            required
             value={category}
-            onChange={setCategory}
-            options={categoryOptions(t)}
+            onChange={() => undefined}
+            disabled
+            options={[{ value: category, label: documentCategoryLabel(t, category) }]}
+            helper={t('project:documentRevision.categoryLocked', 'A revision stays in the category of the document it revises.')}
           />
           <TextField
             id="rev-revision"

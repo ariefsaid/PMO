@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/documents';
 import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -66,10 +67,10 @@ function renderSection(open?: DocumentViewerApi['open']) {
   });
   return render(
     <I18nextProvider i18n={i18n}>
-      <ToastProvider>{open
+      <MemoryRouter><ToastProvider>{open
         ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}><SubcontractLinesSection poId="po1" procurementId="pr1" projectId="prj1" currency="IDR" currentUserId="u1" /></DocumentViewerContext.Provider>
         : <SubcontractLinesSection poId="po1" procurementId="pr1" projectId="prj1" currency="IDR" currentUserId="u1" />}
-      </ToastProvider>
+      </ToastProvider></MemoryRouter>
     </I18nextProvider>,
   );
 }
@@ -87,6 +88,11 @@ beforeEach(() => {
 });
 
 describe('SubcontractLinesSection', () => {
+  it('#2584 an issued subcontract offers the progress certificates screen', () => {
+    renderSection();
+    expect(screen.getByRole('link', { name: 'Progress certificates' })).toHaveAttribute('href', '/subcontract-certificates');
+  });
+
   it('AC-SCA-015 shows per-line PO / verified / billed / payable / verified-not-on-PO and totals that reconcile to the bill lines', async () => {
     renderSection();
     const r = await screen.findByRole('row', { name: /L1/ });

@@ -16,6 +16,8 @@ import {
 import type { Margin } from '@/src/lib/projectFinances';
 import WorkOrderPlanModal from './WorkOrderPlanModal';
 import SharedCostSplitModal from './SharedCostSplitModal';
+import { LabourByClass } from '../work-order-detail/LabourByClass';
+import { IdleCostBlock } from '../work-order-detail/IdleCostBlock';
 
 /**
  * Plan versus actual and profit per work order (#2519, spec docs/specs/work-order-plan-vs-actual.spec.md).
@@ -217,6 +219,8 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
                 <li key={d.disciplineId ?? 'none'}>{disciplineName(d.disciplineId)}: {t('col.plan', 'Planned direct')} {d.planDirect === null ? t('noPlan', 'No plan') : money(d.planDirect, w.currency)} · {money(d.direct, w.currency)} {t('directShort', 'direct')}{d.planDirect !== null && ` · ${variantText(d.planDirect, d.direct, w.currency)}`} · {t('col.planIndirect', 'Planned indirect')} {d.planIndirect === null ? t('noPlan', 'No plan') : money(d.planIndirect, w.currency)} · {money(d.allocated, w.currency)} {t('sharedShort', 'shared')}{d.planIndirect !== null && ` · ${variantText(d.planIndirect, d.allocated, w.currency)}`}</li>
               ))}</ul>
             )}
+            {f.labour && f.labour.length > 0 && <LabourByClass labour={f.labour} currency={w.currency} testId={`wo-pva-labour-${w.id}`} />}
+            <IdleCostBlock projectId={projectId} workOrderId={w.id} testId={`wo-pva-idle-${w.id}`} />
             {f.pendingCrewHours > 0 && <p className="text-sm text-muted-foreground">{pendingText(f.pendingCrewHours)}</p>}
             {f.uncostedHours > 0 && <p className="text-sm text-muted-foreground">{t('uncosted', '{{hours}} h carry no rate and are not in the cost.', { hours: formatNumberExact(f.uncostedHours) })}</p>}
             {basisTable(f.lines, basisId)}
@@ -330,7 +334,7 @@ const WorkOrderPlanVsActual: React.FC<Props> = ({ projectId }) => {
         <WorkOrderPlanModal
           projectId={projectId}
           workOrder={planFor}
-          plans={data.plans.filter((p) => p.workOrderId === planFor.id && p.disciplineId === null)}
+          plans={data.plans.filter((p) => p.workOrderId === planFor.id && p.disciplineId === null && (p.sectionId ?? null) === null)}
           onClose={() => setPlanFor(null)}
         />
       )}

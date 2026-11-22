@@ -4,8 +4,11 @@ import { spawnSync } from 'node:child_process';
 
 const container = process.env.SUPABASE_DB_CONTAINER || 'supabase_db_pmo-portal';
 const args = ['exec', '-i', container, 'psql', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres'];
-const down = readFileSync('supabase/migrations/rollback/0880_stock_connect_refs_down.sql', 'utf8');
-const up = readFileSync('supabase/migrations/0880_stock_connect_refs.sql', 'utf8');
+// The down file carries its own begin;/commit; (it is written to be run standalone). Strip them: the proof runs as ONE
+// transaction and must leave the shared local database exactly as it found it, so an inner commit cannot escape.
+const withoutTx = sql => sql.replace(/^[ \t]*(?:begin|commit)[ \t]*;[ \t]*$/gim, '');
+const down = withoutTx(readFileSync('supabase/migrations/rollback/0880_stock_connect_refs_down.sql', 'utf8'));
+const up = withoutTx(readFileSync('supabase/migrations/0880_stock_connect_refs.sql', 'utf8'));
 const names = ['connect_link_in_use', 'apply_connect_link', 'accept_connect_proposals', 'unlink_connect_match', 'list_unlinkable_connect_matches', 'decide_connect_review'];
 const sources = ['0480_erp_connect_setup.sql', '0750_party_link_rereads_revenue.sql', '0590_erp_connect_review_list.sql', '0496_odoo_project_links_config.sql', '0590_erp_connect_review_list.sql', '0590_erp_connect_review_list.sql'];
 const previous = names.map((name, i) => {
@@ -32,9 +35,17 @@ for (const [label, fixture] of cases) {
   console.log(`AC-OSP-006 rollback refused with ${label}`);
 }
 const predicate = `n.nspname='public' and p.proname in (${names.map(x => `'${x}'`).join(',')})`;
-const catalogue = `select p.oid::regprocedure::text as signature, pg_get_functiondef(p.oid) as body, p.proacl::text as acl from pg_proc p join pg_namespace n on n.oid=p.pronamespace where ${predicate}`;
+// 1209 (above 0880's level) puts the light-account refusal on two of these RPCs and strips no body on rollback, so a
+// re-applied 0880 body can never carry it: compare the forward bodies with that one injected line normalised out,
+// and assert the guard itself against the head catalog right below.
+const catalogue = `select p.oid::regprocedure::text as signature, replace(pg_get_functiondef(p.oid), E'\\n  perform public.assert_not_light();', '') as body, p.proacl::text as acl from pg_proc p join pg_namespace n on n.oid=p.pronamespace where ${predicate}`;
+const guarded = `select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('accept_connect_proposals','list_unlinkable_connect_matches') and p.prosrc like '%perform public.assert_not_light();%'`;
 const checks = `select conrelid::regclass::text as table_name, conname, pg_get_constraintdef(oid) as definition from pg_constraint where conname in ('erp_connect_staged_kind_check','erp_connect_proposals_kind_check')`;
-const proof = `create temp table up_functions as ${catalogue};
+const proof = `begin;
+create temp table up_functions as ${catalogue};
+do $$ begin
+ if (${guarded}) <> 2 then raise exception '1209 light-account guard missing from the connect RPCs at head'; end if;
+end $$;
 create temp table up_checks as ${checks};
 ${previous}
 create temp table before_functions as ${catalogue};
@@ -53,11 +64,10 @@ do $$ begin
  if exists ((select * from up_functions except ${catalogue}) union all (${catalogue} except select * from up_functions)) then raise exception 'up function bodies or grants differ'; end if;
  if exists ((select * from up_checks except ${checks}) union all (${checks} except select * from up_checks)) then raise exception 'up checks differ'; end if;
 end $$;
-select 'AC-OSP-006 empty rollback restores predecessors and reapply restores 0880';`;
+select 'AC-OSP-006 empty rollback restores predecessors and reapply restores 0880';
+rollback;`;
+// One transaction: the proof applies predecessor/up/down DDL to the shared local database, so it must leave it exactly
+// as it found it (the capture harness works the same way). A failure aborts the psql session and rolls back with it.
 const result = q(proof);
-if (result.status !== 0) {
-  const recovery = q(up);
-  if (recovery.status !== 0) console.error(`Reapply recovery failed: ${recovery.stderr}`);
-  throw new Error(result.stderr || result.stdout);
-}
+if (result.status !== 0) throw new Error(result.stderr || result.stdout);
 console.log(result.stdout.trim());

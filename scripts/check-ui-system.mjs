@@ -31,6 +31,7 @@ export const ALLOW = {
 
 const STRUCTURAL_ALLOW = [
   { path: 'pmo-portal/src/components/tasks/TaskProofPanel.tsx', rule: 'button-default', count: 1, reason: 'Mark done is the single filled action; Add photo, Add document and Remove are outline or ghost.' },
+  { path: 'pmo-portal/pages/work-order-detail/InspectionsSection.tsx', rule: 'raw-control', count: 1, reason: 'Visually hidden report-file input opened by the Attach report button; there is no shared file-picker primitive.' },
   { path: 'pmo-portal/src/components/tasks/TaskProofPanel.tsx', rule: 'raw-control', count: 2, reason: 'Visually hidden file inputs (camera and document) opened by their buttons; there is no shared file-picker primitive for a hidden capture input.' },
   { path: 'pmo-portal/pages/AdministrationExchangeRates.tsx', rule: 'button-default', count: 1, reason: 'Upload rates is the filled create action; the peer action is explicitly outline.' },
   { path: 'pmo-portal/pages/admin/CostAttribution.tsx', rule: 'button-default', count: 1, reason: 'Add rule is the single filled create action for this list.' },
@@ -55,6 +56,9 @@ const STRUCTURAL_ALLOW = [
   { path: 'pmo-portal/pages/expenses/ExpenseClaimFormModal.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/expenses/ExpenseReceiptsCard.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },
   { path: 'pmo-portal/pages/siteReports/SiteReportPhotos.tsx', rule: 'raw-control', count: 1, reason: 'Visually hidden camera/file picker opened by the two photo Buttons; no shared file control exists.' },
+  { path: 'pmo-portal/pages/siteReports/SiteCheckpoints.tsx', rule: 'raw-control', count: 1, reason: 'Visually hidden camera/file picker opened by the Take photo Button; no shared file control exists.' },
+  { path: 'pmo-portal/pages/safetyDays/ToolboxPart.tsx', rule: 'raw-control', count: 1, reason: 'Visually hidden file input opened by its button for the attendance photo (#2596); no shared file-picker primitive for a hidden capture input.' },
+  { path: 'pmo-portal/pages/quantityChanges/QuantityChangeDetail.tsx', rule: 'raw-control', count: 1, reason: 'Visually hidden file picker opened by the Attach file button; no shared file control exists (same exception as the site report photos).' },
   { path: 'pmo-portal/pages/procurement/LedgerFileCell.tsx', rule: 'raw-control', count: 1, reason: 'Existing screen-owned native control is retained; A1 adds the guard without changing procurement file behavior.' },
   { path: 'pmo-portal/pages/procurement/ProcurementDecisionZone.tsx', rule: 'raw-control', count: 6, reason: 'Existing approval form controls are outside A1 ownership; this guard preserves their behavior and caps the baseline.' },
   { path: 'pmo-portal/pages/procurement/ProcurementFilesSubsection.tsx', rule: 'raw-control', count: 1, reason: 'Existing form control is outside A1 ownership and is retained as shipped.' },

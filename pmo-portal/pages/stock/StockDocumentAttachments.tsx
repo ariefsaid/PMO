@@ -18,7 +18,7 @@ export function StockDocumentAttachments({ orgId, documentId, canWrite, status }
   const [error, setError] = useState(false);
   const key = ['stock-document-files', orgId, documentId];
   const query = useQuery({ queryKey: key, queryFn: () => stockSiteWorkRepository.files.list(documentId) });
-  const refresh = () => qc.invalidateQueries({ queryKey: key });
+  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: key }), qc.invalidateQueries({ queryKey: ['stock-proof-status'] })]);
   const upload = useMutation({ mutationFn: () => stockSiteWorkRepository.files.upload(orgId, documentId, file!, label.trim() || null), onSuccess: async () => { setFile(null); setLabel(''); setError(false); await refresh(); }, onError: () => setError(true) });
   const change = useMutation({ mutationFn: ({ id, archive, filePath }: { id: string; archive: boolean; filePath: string }) => archive ? stockSiteWorkRepository.files.archive(id, reason) : stockSiteWorkRepository.files.remove(id, filePath), onSuccess: async () => { setReasonFor(null); setReason(''); setError(false); await refresh(); }, onError: () => setError(true) });
   const download = async (path: string) => { try { const url = await stockSiteWorkRepository.files.download(path); window.open(url, '_blank', 'noopener,noreferrer'); } catch { setError(true); } };

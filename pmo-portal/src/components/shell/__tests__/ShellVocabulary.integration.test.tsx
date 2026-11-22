@@ -7,6 +7,7 @@ import id from '@/public/locales/id/common.json';
 import en from '@/public/locales/en/common.json';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const runtime = vi.hoisted(() => ({ createRun: vi.fn(), followUp: vi.fn(), control: vi.fn(), subscribe: vi.fn() }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ session: { access_token: 'test' } }) }));
@@ -47,6 +48,10 @@ import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvid
 import { ShellChrome } from '@/App';
 
 const LocationProbe = () => { const loc = useLocation(); return <output data-testid="location">{loc.pathname + loc.search}</output>; };
+/** `App` mounts a QueryClientProvider above the shell (#2699's price-visibility sync reads the cache). */
+const withQueryClient = (ui: React.ReactNode) => (
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>
+);
 
 
 describe('UXS-006 localized shell vocabulary', () => {
@@ -55,7 +60,7 @@ describe('UXS-006 localized shell vocabulary', () => {
     const i18n = i18next.createInstance();
     await i18n.init({ lng: 'id', fallbackLng: 'en', defaultNS: 'common', resources: { en: { common: en }, id: { common: id } } });
     const user = userEvent.setup();
-    render(<I18nextProvider i18n={i18n}><MemoryRouter><AgentRuntimeProvider><ShellChrome /><LocationProbe /></AgentRuntimeProvider></MemoryRouter></I18nextProvider>);
+    render(withQueryClient(<I18nextProvider i18n={i18n}><MemoryRouter><AgentRuntimeProvider><ShellChrome /><LocationProbe /></AgentRuntimeProvider></MemoryRouter></I18nextProvider>));
     const rail = screen.getByRole('navigation', { name: /primary navigation|navigasi utama/i });
     expect(within(rail).getByRole('link', { name: /^Tugas Saya/ })).toBeVisible();
     expect(within(rail).queryByRole('link', { name: 'Supplier' })).not.toBeInTheDocument();

@@ -1,0 +1,11 @@
+{
+  "tables": [
+    {"table":"leave_requests","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"leave_types","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ],
+  "definer_functions": [
+    "leave_authority(uuid)", "leave_enabled()", "leave_on_date(date)", "leave_request_cancel(uuid)",
+    "leave_request_decide(uuid,text,text)", "leave_request_submit(uuid,uuid,date,date,text)",
+    "leave_requestable_people()", "set_leave_settings(boolean,text)"
+  ]
+}

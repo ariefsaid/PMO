@@ -37,11 +37,25 @@ vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({
   CostAttributionFields: ({ idPrefix }: { idPrefix?: string }) => createElement('div', { 'data-testid': 'cost-attribution-stub', 'data-prefix': idPrefix }),
 }));
 
+// #2732: the claim's work-order card reads its own queries (work orders, disciplines) and needs a query client, which the
+// ExpenseClaimDetail suites do not provide. ExpenseAttributionCard.test.tsx unmocks and proves it.
+vi.mock('@/pages/expenses/ExpenseAttributionCard', () => ({
+  ExpenseAttributionCard: () => createElement('div', { 'data-testid': 'expense-attribution-stub' }),
+}));
+
 // #2519: the plan-vs-actual card reads its own queries (work-order money, disciplines) and auth, which the contract-area
 // suites (WorkOrdersTab.*) do not provide. WorkOrderPlanVsActual.test.tsx unmocks and proves it.
 vi.mock('@/pages/project-detail/WorkOrderPlanVsActual', () => ({
   default: ({ projectId }: { projectId: string }) => createElement('div', { 'data-testid': 'wo-plan-vs-actual-stub', 'data-project': projectId }),
 }));
+
+// #2669: profit per discipline and the contract-line discipline field read their own queries (setting, revenue, auth),
+// which the contract-area suites do not provide; both render nothing while the setting is off. Their own tests unmock them.
+vi.mock('@/pages/project-detail/DisciplineProfit', () => ({ default: () => null }));
+vi.mock('@/pages/project-detail/EarnedBilledProfit', () => ({ default: () => null })); // #2733
+vi.mock('@/pages/ManagementPackEarned', () => ({ default: () => null })); // #2733
+vi.mock('@/pages/project-detail/BoqDisciplinePicker', () => ({ default: () => null }));
+vi.mock('@/pages/admin/OrgDisciplineProfit', () => ({ default: () => null }));
 
 // #2622: the purchase ledger reads the organisation's three-way match and each bill's match, which the procurement page
 // suites (ProcurementDetails.*) do not provide a query client for. Default: the match is off. ProcurementLedger.threeWayMatch
@@ -51,6 +65,11 @@ vi.mock('@/src/hooks/useThreeWayMatch', () => ({
   useBillMatches: (ids: readonly string[]) => ids.map(() => ({ data: undefined, isPending: false, isError: false, refetch: () => Promise.resolve() })),
   useApproveBillMatchException: () => ({ mutateAsync: () => Promise.reject(new Error('not mocked')), isPending: false }),
 }));
+
+// #2688: the purchase-order print action reads the org's print setting, which the procurement page/ledger suites do not
+// provide a query client (or an authenticated session) for. Default: printing off, as for an org that never turned it on.
+// The hook's own suite and the settings-section suite unmock it; the print-action tests register their own value.
+vi.mock('@/src/hooks/usePurchaseOrderSettings', () => import('@/pages/__tests__/helpers/purchaseOrderSettingsMock'));
 
 // The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not
 // provide. Its parts have their own suites; the view suites need only know it is mounted.

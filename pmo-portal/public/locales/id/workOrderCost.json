@@ -44,5 +44,12 @@
     "duplicateCode": "Disiplin aktif lain sudah memakai kode ini.",
     "adminOnly": "Hanya Admin yang dapat mengubah daftar disiplin.",
     "tooLong": "Gunakan {{max}} karakter atau kurang."
+  },
+  "expenseClaim": {
+    "title": "Perintah kerja dan disiplin",
+    "edit": "Ubah",
+    "save": "Simpan",
+    "cancel": "Batal",
+    "saved": "Perintah kerja dan disiplin tersimpan"
   }
 }

@@ -8,7 +8,16 @@
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   Cross-Origin-Opener-Policy: same-origin
+# #2705: the phone clock-in screen (/my) reads the position once, on a tap. The site-wide rule above blocks geolocation everywhere;
+# this route-scoped rule detaches it and re-adds the policy with geolocation allowed for this origin only. Camera and microphone stay
+# blocked. The browser API is called only from the clock-in section (src/lib/position.ts). Proof: test/phoneClockInHeaders.test.ts.
+/my
+  ! Permissions-Policy
+  Permissions-Policy: camera=(), microphone=(), geolocation=(self)
 # Vite emits content-hashed filenames under /assets/, so a changed file always has a new URL: cache for a
 # year and skip revalidation. index.html is not matched here, so it keeps revalidating and picks up new hashes.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+# Service worker must revalidate immediately so updates take effect without delay
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate

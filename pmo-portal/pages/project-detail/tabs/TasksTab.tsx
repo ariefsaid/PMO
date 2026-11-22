@@ -18,12 +18,13 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useMilestones } from '@/src/hooks/useMilestones';
+import { useTaskGroups } from '@/src/hooks/useTaskGroups';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useTaskRouteState } from '@/src/hooks/useOwnershipCacheSync';
 import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
-import type { TaskWithRefs, TaskStatus, TaskPatch } from '@/src/lib/db/tasks';
+import { recordLinkOf, type TaskWithRefs, type TaskStatus, type TaskPatch } from '@/src/lib/db/tasks';
 import ProjectGantt from '../ProjectGantt';
 
 // The ReUI calendar is ~100 KB; only the Calendar view pays for it.
@@ -32,6 +33,7 @@ import TaskBoard from './TaskBoard';
 import TaskFormModal from './TaskFormModal';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import MilestoneGroupedList from './MilestoneGroupedList';
+import TaskGroupsPanel from './TaskGroupsPanel';
 import { useProjectTaskColumns } from './TaskList';
 import TaskRecordDrawer from './TaskRecordDrawer';
 import TasksToolbar from './TasksToolbar';
@@ -93,6 +95,10 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const updateAsync = update.mutateAsync;
   const archiveAsync = archive.mutateAsync;
   const { data: milestones } = useMilestones(projectId);
+  const { data: taskGroupRows } = useTaskGroups(projectId);
+  // #2679: the group manager stays out of the tab until the project has a group or a manager asks for it from the menu.
+  const [groupsRequested, setGroupsRequested] = useState(false);
+  const activeTaskGroups = useMemo(() => (taskGroupRows ?? []).filter((g) => !g.archived_at), [taskGroupRows]);
   const { data: workOrders } = useProjectWorkOrders(projectId);
   // #2531: the work-order link and proof flag are structure edits (migration 0991 refuses any other writer).
   const canStructure = realRole === 'Admin' || realRole === 'Executive' || realRole === 'Project Manager';
@@ -219,6 +225,12 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       record: { created_by: task.created_by, assignee_id: task.assignee_id, externallyOwned },
     }), [currentUserId, externallyOwned, may, routeKnown]);
   const canDelete = routeKnown && may('delete', 'task');
+  // #2587 FR-RLT-004: clearing a record link follows the same per-row scope the database enforces.
+  const canLinkTask = useCallback((task: TaskWithRefs): boolean =>
+    routeKnown && may('link', 'task', {
+      currentUserId,
+      record: { created_by: task.created_by, assignee_id: task.assignee_id, externallyOwned },
+    }), [currentUserId, externallyOwned, may, routeKnown]);
 
   // ADR-0056: the per-task pending-push badge wires in ONLY when task writes route externally
   // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
@@ -335,6 +347,16 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
       return false;
     }
   }, [canEditTask, classifyWriteError, toast, updateAsync]);
+
+  const onUnlink = useCallback(async (task: TaskWithRefs) => {
+    if (!canLinkTask(task)) return;
+    try {
+      await updateAsync({ id: task.id, patch: { procurement_id: null, expense_claim_id: null, material_request_id: null } });
+    } catch (err) {
+      const { headline, detail } = classifyWriteError(err);
+      toast(headline, detail, 'warning');
+    }
+  }, [canLinkTask, classifyWriteError, toast, updateAsync]);
 
   const onArchive = useCallback(async (task: TaskWithRefs) => {
     if (!canArchive || externallyOwned) return;
@@ -470,6 +492,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         setShowArchived={setShowArchived}
         onClearSelection={clearSelection}
         integrationsRef={integrationsRef}
+        onManageTaskGroups={may('edit', 'milestone') ? () => setGroupsRequested(true) : undefined}
         canCreate={canCreate}
         onNewTask={() => setFormTarget({ task: null })}
         scope={scope}
@@ -557,6 +580,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         action={{ label: t('projectDetail.tasks.clearFilters', 'Clear filters'), onClick: () => { setStatusFilter('all'); setAssigneeFilter('all'); setSearchText(''); clearSelection(); } }}
       />}
 
+      {state === undefined && <TaskGroupsPanel projectId={projectId} tasks={all} milestones={milestoneList} requested={groupsRequested} />}
+
       {state === undefined && (filteredTasks.length > 0 || milestoneList.length > 0) && view === 'list' && (
         <MilestoneGroupedList
           milestones={milestoneList}
@@ -638,6 +663,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         onDelete={(task) => setDeleteTarget(task)}
         openTask={openTask}
         onClose={closeTask}
+        onUnlink={selectedTask && recordLinkOf(selectedTask) && canLinkTask(selectedTask) ? onUnlink : undefined}
         nestedOpen={!!(formTarget && (formTarget.task ? canEditTask(formTarget.task) : canCreate)) || (!!deleteTarget && canDelete)}
         proof={selectedTask ? {
           canAttach: !externallyOwned && (canStructure || (!!currentUserId && selectedTask.assignee_id === currentUserId)),
@@ -655,6 +681,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           allTasks={all}
           defaultMilestoneId={formTarget.defaultMilestoneId ?? null}
           milestones={milestoneList}
+          taskGroups={activeTaskGroups}
           workOrders={workOrders ?? []}
           canStructure={canStructure && !externallyOwned}
           pendingPushState={

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useFeature } from '@/src/auth/useFeature';
@@ -26,7 +26,8 @@ import { formatMonthYearShort } from '@/src/lib/format';
 import { groupUnknownOverdueReceivablesByAge } from '@/src/lib/finance/financePosition';
 import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
 
-const FinanceHub: React.FC = () => {
+/** `noAccounting` (#2734) comes from the route wrapper, so this page stays free of the ownership reads; absent means today's behaviour. */
+const FinanceHub: React.FC<{ noAccounting?: boolean }> = ({ noAccounting = false }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ const FinanceHub: React.FC = () => {
   const { canView, canAct } = useFinanceAccess();
   const hasRevenue = useFeature('revenue');
   const hasProcurement = useFeature('procurement');
+  const hasManagementPack = useFeature('management_pack');
   const currencyState = useOrgCurrencyState();
   const orgCurrency = currencyState.isResolved ? currencyState.currency : null;
   const financePosition = useFinancePosition(canView);
@@ -126,13 +128,13 @@ const FinanceHub: React.FC = () => {
         loading={figures.isPending} error={figures.isError}
       />}
       {may('view', 'financialStatements') && <KPITile
-        icon="grid" tone="blue" to="/finance/statements" linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.statements', 'Statements') })}
+        icon="grid" tone="blue" to={noAccounting && statementUnavailable && hasManagementPack ? '/finance/reports' : '/finance/statements'} linkLabel={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: t('financeHub:hub.statements', 'Statements') })}
         label={t('financeHub:hub.netProfit', 'Net profit')} caption={statementPeriod ? formatMonthYearShort(statementPeriod) : undefined}
         value={profit?.value ?? null} exactValue={profit?.exactValue}
         unavailableReason={profit ? undefined : statementUnavailable
-          ? t('financeHub:hub.fix.statements.notConnected', 'accounting disconnected')
+          ? noAccounting ? t('financeHub:hub.fix.statements.seeManagement', 'see management profit and loss') : t('financeHub:hub.fix.statements.notConnected', 'accounting disconnected')
           : t('financeHub:hub.fix.statements.noStatement', 'no statement period yet')}
-        hiddenLink={statementUnavailable && manageIntegration ? { to: '/administration/integrations', label: t('financeHub:hub.fix.statements.setUp', 'Set up') } : undefined}
+        hiddenLink={statementUnavailable && manageIntegration && !noAccounting ? { to: '/administration/integrations', label: t('financeHub:hub.fix.statements.setUp', 'Set up') } : undefined}
         help={t('financeHub:hub.statementsHint', 'Net profit from the latest available company profit and loss statement period.')}
         loading={figures.isPending && !statementUnavailable} error={figures.isError}
       />}
@@ -204,6 +206,7 @@ const FinanceHub: React.FC = () => {
           </div>
           <div className="min-w-0 space-y-[var(--space-panel-gap)]">
             {tiles}
+            {hasRevenue && <Link to="/finance/work-in-hand" className="inline-flex min-h-11 items-center text-control font-medium text-primary-text underline-offset-4 hover:underline">{t('financeHub:hub.workInHand', 'Work in hand')}</Link>}
             <FinanceRevenueTrend today={finance.today} enabled={hasRevenue} />
           </div>
         </div>

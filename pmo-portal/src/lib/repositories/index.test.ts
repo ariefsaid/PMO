@@ -81,6 +81,12 @@ vi.mock('@/src/lib/db/tasks', () => ({
   removeDependency: vi.fn(),
   archiveTask: vi.fn(),
   unarchiveTask: vi.fn(),
+  taskLinkedRecords: vi.fn(),
+  findOpenTaskForRecord: vi.fn(),
+}));
+vi.mock('@/src/lib/db/purchaseOrderSettings', () => ({
+  getPurchaseOrderSettings: vi.fn(),
+  setPurchaseOrderSettings: vi.fn(),
 }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurements: vi.fn() }));
 vi.mock('@/src/lib/db/procurementLifecycle', () => ({
@@ -166,6 +172,8 @@ vi.mock('@/src/lib/db/incidents', () => ({
   uploadIncidentFile: vi.fn(),
   getIncidentFileUrl: vi.fn(),
   createTaskFromIncident: vi.fn(),
+  addTaskToIncident: vi.fn(),
+  setIncidentRootCause: vi.fn(),
 }));
 vi.mock('@/src/lib/db/milestones', () => ({
   listMilestones: vi.fn(),
@@ -199,6 +207,7 @@ import * as adminUsersDal from '@/src/lib/db/adminUsers';
 import * as operatorsDal from '@/src/lib/db/operators';
 import * as usageDal from '@/src/lib/db/usage';
 import * as procurementsDal from '@/src/lib/db/procurements';
+import * as poSettingsDal from '@/src/lib/db/purchaseOrderSettings';
 import * as procLifecycleDal from '@/src/lib/db/procurementLifecycle';
 import * as procCrudDal from '@/src/lib/db/procurementCrud';
 import * as procCeilingDal from '@/src/lib/db/procurementPaymentCeiling';
@@ -238,9 +247,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'equipmentAvailability' from equipment availability, ownership and rental downtime (#2526, migrations 0985-0986).
       // 'stock' from inventory master data (#1512 S1, migration 0412); S2a+ add documents and reports to it.
       // 'subcontracts' from subcontract acceptance, caps and variations (#1513 S6).
+      // 'subcontractCertificates' from the subcontractor progress certificate (#2584).
       // 'projectStage' from stage history (#1638).
       // 'timeAndMaterials' from time-and-materials claims (#1514 T7): rate card, assembly, sign-off and the reads.
-      ['agentAttachment', 'agentRun', 'billingStages', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dailySiteReport', 'dashboard', 'document', 'documentExpiry', 'equipment', 'equipmentAvailability', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'journal', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'people', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'rateCatalogue', 'recordHistory', 'reports', 'revenue', 'stock', 'subcontracts', 'task', 'taskProof', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
+      ['agentAttachment', 'agentRun', 'billingStages', 'budget', 'closeoutChecklist', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dailySiteReport', 'dashboard', 'document', 'documentCategory', 'documentExpiry', 'equipment', 'equipmentAvailability', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'issueClosingReport', 'journal', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'operator', 'orgFeature', 'orgSettings', 'people', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'quantityChange', 'rateCatalogue', 'recordHistory', 'reports', 'revenue', 'safetyDay', 'stock', 'subcontractCertificates', 'subcontracts', 'supplyRisk', 'task', 'taskProof', 'thirdPartyInspection', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workInHand', 'workOrder', 'workOrderAcceptance', 'workOrderCandidate'].sort(),
     );
   });
 
@@ -343,9 +353,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 0206 — the meeting detail lists its minuted tasks). 'listByAssignee' added with 2d97e91d5
       // (My Tasks projection). 'listDueRows' added with #1741 (one batched read for the PM dashboard
       // overdue count). 'listByIds' added with #2106 (the minutes' action items in one read instead of
-      // one per block). This list is an exhaustive API-seam contract (ADR-0017) — extending
+      // one per block). 'findOpenForRecord' and 'linkedRecords' added deliberately with #2587 (record-linked tasks:
+      // create-from-record opens the open task, and one batched read gives a page its linked status). This list is an exhaustive API-seam contract (ADR-0017) — extending
       // the repository surface must be an explicit change here, never an accident.
-      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByIds', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'listOpenByWorkOrder', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+      ['addDependency', 'archive', 'create', 'delete', 'findOpenForRecord', 'get', 'linkedRecords', 'list', 'listByIds', 'listByAssignee', 'listByMeeting', 'listCalendar', 'listDueRows', 'listOpenByWorkOrder', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
@@ -385,8 +396,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'listByProject',
         'listByVendor',
         'listDocuments',
+        'purchaseOrderSettings',
         'selectQuote',
         'setEfaktur',
+        'setPurchaseOrderSettings',
         'transition',
         'unlinkMicrosoftDocument',
         'updateHeader',
@@ -401,7 +414,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'getDistribution', 'importLine', 'listArchiveLiveTargets', 'listArchiveTargets', 'listDocumentLinks', 'listLegacyArchiveLiveTargets', 'listOrgDrafts', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'resubmitVersion', 'returnVersion', 'saveDistribution', 'switchDraftMode', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
-      ['count', 'create', 'createTask', 'delete', 'fileUrl', 'get', 'list', 'listFiles', 'listPage', 'transition', 'update', 'uploadFile'].sort(),
+      ['addTask', 'count', 'create', 'createTask', 'delete', 'fileUrl', 'get', 'list', 'listFiles', 'listPage', 'setRootCause', 'transition', 'update', 'uploadFile'].sort(),
     );
     expect(Object.keys(repositories.comment).sort()).toEqual(['archive', 'create', 'list']);
   });
@@ -744,6 +757,12 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     await repositories.task.removeDependency('t2', 't1');
     expect(tasksDal.removeDependency).toHaveBeenCalledWith('t2', 't1');
+
+    // #2587: the record-link reads delegate to the DAL.
+    await repositories.task.linkedRecords(['t1']);
+    expect(tasksDal.taskLinkedRecords).toHaveBeenCalledWith(['t1']);
+    await repositories.task.findOpenForRecord('expense_claim', 'c1');
+    expect(tasksDal.findOpenTaskForRecord).toHaveBeenCalledWith('expense_claim', 'c1');
   });
 
   it('AC-TASK-005: task.updateStatus normalizes a 42501 RLS denial to AppError preserving the code', async () => {
@@ -918,6 +937,25 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(procRecordsDal.createPayment).toHaveBeenCalledWith(
       'proc-1', 'inv-1', null, 'Paid', '2026-06-21', 50000,
     );
+  });
+
+  it('purchaseOrderSettings and setPurchaseOrderSettings delegate to purchaseOrderSettings DAL', async () => {
+    vi.mocked(poSettingsDal.getPurchaseOrderSettings).mockResolvedValue({
+      enabled: true,
+      signatureBlocks: ['Sign 1'],
+      authorisedCollectors: ['Collector 1'],
+    });
+    vi.mocked(poSettingsDal.setPurchaseOrderSettings).mockResolvedValue(undefined);
+
+    await expect(repositories.procurement.purchaseOrderSettings()).resolves.toEqual({
+      enabled: true,
+      signatureBlocks: ['Sign 1'],
+      authorisedCollectors: ['Collector 1'],
+    });
+    expect(poSettingsDal.getPurchaseOrderSettings).toHaveBeenCalledTimes(1);
+
+    await repositories.procurement.setPurchaseOrderSettings(true, ['Sign 1'], ['Collector 1']);
+    expect(poSettingsDal.setPurchaseOrderSettings).toHaveBeenCalledWith(true, ['Sign 1'], ['Collector 1']);
   });
 
   it('timesheet methods delegate to the timesheet DAL fns', async () => {

@@ -34,7 +34,7 @@ function num(v: unknown): number | null {
 interface CostAmountRow {
   source: string; record_id: string; project_id: string | null; work_order_id: string | null; discipline_id: string | null;
   occurred_on: string | null; reference: string | null; currency: string | null; amount: string | null; reason: string;
-  quantity: number | string | null; quantity_unit: string | null; person_id: string | null;
+  quantity: number | string | null; quantity_unit: string | null; person_id: string | null; labour_class_id?: string | null;
 }
 
 /** Every cost record of one project with what it costs. A malformed row is an error, never a plausible figure. */
@@ -43,7 +43,11 @@ export async function listProjectCostAmounts(projectId: string): Promise<CostAmo
     supabase.rpc('work_order_cost_amounts', { p_project_id: projectId })
       .order('record_id', { ascending: true }).order('source', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: CostAmountRow[] | null; error: { message: string; code?: string } | null }>);
   return rows.map((r) => {
-    if (!SOURCES.includes(r.source as FinanceCostSource) || !REASONS.includes(r.reason as CostReason) || !str(r.record_id)) {
+    // Labour money for a Project Manager is aggregate (migration 1298): one row per work order, discipline and class,
+    // with no record id and no date. Every other row resolves to its record.
+    const aggregatedLabour = r.source === 'timesheet_entry' && r.reason === 'counted' && !!r.labour_class_id && r.record_id === null;
+    if (!SOURCES.includes(r.source as FinanceCostSource) || !REASONS.includes(r.reason as CostReason)
+        || (!aggregatedLabour && !str(r.record_id))) {
       throw new AppError('Work-order cost read: unexpected row', MALFORMED);
     }
     const amount = r.amount === null ? null : String(r.amount);
@@ -62,31 +66,33 @@ export async function listProjectCostAmounts(projectId: string): Promise<CostAmo
       quantity: num(r.quantity),
       quantityUnit: r.quantity_unit,
       personId: r.person_id,
+      ...(r.labour_class_id ? { labourClassId: r.labour_class_id } : {}),
     };
   });
 }
 
-interface PlanRow { id: string; work_order_id: string; discipline_id: string | null; kind: string; value: number | string; note: string | null }
+interface PlanRow { id: string; work_order_id: string; section_id: string | null; discipline_id: string | null; kind: string; value: number | string; note: string | null }
 
 /** The project's plan figures (money as exact scale-two text, hours as a decimal string). */
 export async function listProjectPlanLines(projectId: string): Promise<PlanLine[]> {
   const rows = await fetchAllPages<PlanRow>((from, to) =>
-    supabase.from('work_order_plan_lines').select('id, work_order_id, discipline_id, kind, value::text, note')
+    supabase.from('work_order_plan_lines').select('id, work_order_id, section_id, discipline_id, kind, value::text, note')
       .eq('project_id', projectId).order('id', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: PlanRow[] | null; error: { message: string; code?: string } | null }>);
   return rows.map((r) => {
     const value = String(r.value);
     if (!KINDS.includes(r.kind as PlanKind) || !EXACT.test(value)) throw new AppError('Plan figure: unexpected row', MALFORMED);
-    return { id: r.id, workOrderId: r.work_order_id, disciplineId: r.discipline_id, kind: r.kind as PlanKind, value, note: r.note };
+    return { id: r.id, workOrderId: r.work_order_id, sectionId: r.section_id, disciplineId: r.discipline_id, kind: r.kind as PlanKind, value, note: r.note };
   });
 }
 
-export interface PlanChange { kind: PlanKind; value: string | null; note: string | null }
+/** `sectionId` names a section of the work order (#2576); absent/null addresses the unsectioned figure. */
+export interface PlanChange { kind: PlanKind; value: string | null; note: string | null; sectionId?: string | null }
 
 /** The complete form is saved by one database transaction. */
 export async function setWorkOrderPlan(projectId: string, workOrderId: string, changes: readonly PlanChange[]): Promise<void> {
   const { error } = await supabase.rpc('set_work_order_plan', {
     p_project_id: projectId, p_work_order_id: workOrderId,
-    p_changes: changes.map((item) => ({ kind: item.kind, value: item.value, note: item.note })),
+    p_changes: changes.map((item) => ({ kind: item.kind, value: item.value, note: item.note, ...(item.sectionId ? { section_id: item.sectionId } : {}) })),
   });
   if (error) throw new AppError(error.message, error.code);
 }

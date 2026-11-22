@@ -33,6 +33,7 @@ export const EDGE_FUNCTION_NAMES = [
   'clickup-webhook',
   'clickup-webhook-worker',
   'compose-view',
+  'email-notify',
   'erpnext-onboard',
   'erpnext-sweep',
   'erpnext-webhook',

@@ -1,0 +1,3 @@
+{
+  "definer_functions": ["get_work_order_performance(uuid,date)"]
+}

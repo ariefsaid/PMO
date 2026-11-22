@@ -39,6 +39,68 @@
     "actual": "Actual"
   },
   "projectDetail": {
+    "candidates": {
+      "status": {
+        "open": "Open",
+        "passed": "Passed",
+        "failed": "Failed",
+        "notApplicable": "Not applicable"
+      },
+      "noItems": "This candidate has no checklist items.",
+      "checklist": "Assessment checklist",
+      "addCheck": "Add a check",
+      "add": "Add",
+      "optional": "Optional",
+      "overdue": "Overdue",
+      "statusLabel": "Result",
+      "owner": "Owner",
+      "noOwner": "No owner",
+      "target": "Target date",
+      "note": "Note",
+      "needNote": "Add a note to mark this not applicable.",
+      "proof": "Proof",
+      "removeProof": "Remove {{name}}",
+      "noProof": "No proof attached",
+      "attach": "Attach proof",
+      "title": "Candidate work orders",
+      "new": "New candidate",
+      "loadError": "Couldn't load the candidates",
+      "empty": "No candidates yet. Open one to assess the work before a work order is raised.",
+      "accepted": "Accepted",
+      "rejected": "Rejected",
+      "assessing": "Assessing",
+      "acceptedToast": "Candidate accepted. A draft work order was created.",
+      "rejectedToast": "Candidate rejected.",
+      "offered": "Offered {{date}}",
+      "ready": "{{ready}} of {{required}} required checks ready",
+      "overdueCount": "{{n}} overdue",
+      "hide": "Hide checks",
+      "show": "Show checks",
+      "acceptedBecause": "Accepted because",
+      "rejectedBecause": "Rejected because",
+      "openDraft": "Open the draft work order",
+      "reopen": "Open a new candidate for this offer",
+      "notReady": "Not ready to accept: {{names}}",
+      "reject": "Reject",
+      "accept": "Accept",
+      "rejectTitle": "Reject this candidate",
+      "acceptTitle": "Accept this candidate",
+      "reasonLabel": "Reason",
+      "acceptHelp": "Accepting creates a draft work order. It is not issued and carries no value yet.",
+      "rejectHelp": "The reason stays on the record.",
+      "newFor": "New candidate for this offer",
+      "create": "Open candidate",
+      "created": "Candidate opened",
+      "errCreate": "Only an administrator, an engineer or this project's manager can open a candidate.",
+      "titleLabel": "Title",
+      "referenceLabel": "Client reference",
+      "offeredLabel": "Offered on",
+      "descriptionLabel": "Description",
+      "errNotReady": "These required checks are not ready: {{names}}",
+      "errDecided": "This candidate has already been decided.",
+      "errReason": "Give a reason of 1 to 500 characters.",
+      "errReplaces": "Only a rejected candidate of this project can be replaced."
+    },
     "cascade": {
       "error": "Couldn't load the contract",
       "title": "Contract",
@@ -410,8 +472,92 @@
           "notIssued": "Only an issued or approved document can be attached.",
           "noFile": "The document has no file.",
           "otherProject": "The document must be one of this project's documents.",
-          "generic": "The stage could not be saved. Try again."
+          "generic": "The stage could not be saved. Try again.",
+          "alreadySkipped": "This stage was marked not needed.",
+          "notSkippable": "This stage cannot be marked not needed.",
+          "skipReason": "Give a reason of 3 to 500 characters."
+        },
+        "overdue": "Overdue",
+        "overdueDetail": "{{age}} days, target {{target}}",
+        "skipped": "Not needed {{date}}",
+        "skippedReason": "Reason: {{reason}}",
+        "itemNotNeeded": "Not needed",
+        "skipNamed": "Mark {{stage}} as not needed",
+        "skip": "Not needed",
+        "skipTitle": "Mark {{stage}} as not needed",
+        "skipLabel": "Reason",
+        "skipHelp": "Kept with the claim. The invoice no longer waits for this stage, and it cannot be undone.",
+        "skipConfirm": "Mark not needed"
+      },
+      "steps": {
+        "edit": "Edit steps",
+        "hide": "Hide step editor",
+        "editorLabel": "Edit billing steps",
+        "help": "Changes apply to this claim only. Finished steps stay as they are.",
+        "helpAssign": "Set who is responsible for a step and its target date. Finance or an Admin changes the list itself.",
+        "template": "Template",
+        "pickTemplate": "Choose a template",
+        "load": "Replace steps with template",
+        "loadTemplateTerms": "Replace stages with template",
+        "loadTemplateError": "The template could not be loaded.",
+        "name": "Step name",
+        "newName": "New step",
+        "add": "Add step",
+        "owner": "Owner role",
+        "noOwner": "Nobody in particular",
+        "targetDate": "Target date",
+        "ownerLine": "Owner: {{role}}",
+        "targetLine": "Target date {{date}}",
+        "up": "Up",
+        "down": "Down",
+        "moveUp": "Move {{step}} up",
+        "moveDown": "Move {{step}} down",
+        "remove": "Remove",
+        "removeNamed": "Remove {{step}}",
+        "removeTitle": "Remove {{step}}",
+        "removeLabel": "Reason",
+        "removeHelp": "Kept with the claim. The invoice no longer waits for this step, and it cannot be undone.",
+        "removeConfirm": "Remove step",
+        "overdueMarker_one": "{{step}} overdue by {{count}} day",
+        "overdueMarker_other": "{{step}} overdue by {{count}} days",
+        "pastTargetDate_one": "{{count}} day past the target date",
+        "pastTargetDate_other": "{{count}} days past the target date",
+        "refusal": {
+          "generic": "The step could not be saved. Try again.",
+          "notEditable": "A finished step cannot be changed.",
+          "invoiced": "This claim has an invoice; its list of steps can no longer change.",
+          "started": "This claim already has finished steps, so a template can no longer replace them.",
+          "withdrawn": "This claim was withdrawn.",
+          "templateGone": "That template is no longer available.",
+          "templateEmpty": "That template has no steps.",
+          "reason": "Give a reason of 3 to 500 characters.",
+          "name": "Name the step.",
+          "shape": "A claim has at most 20 steps."
         }
+      },
+      "templates": {
+        "title": "Billing step templates",
+        "help": "A template is a list of steps your team uses. Load one onto a project or a claim; it is copied, so later edits to a template change nothing already made.",
+        "manage": "Manage templates",
+        "new": "New template",
+        "newTitle": "New template",
+        "editTitle": "Edit template",
+        "edit": "Edit",
+        "editNamed": "Edit {{name}}",
+        "archive": "Archive",
+        "archiveNamed": "Archive {{name}}",
+        "archiveError": "The template could not be archived.",
+        "done": "Done",
+        "empty": "No templates yet.",
+        "loadError": "The templates could not be loaded.",
+        "steps_one": "{{count}} step",
+        "steps_other": "{{count}} steps",
+        "name": "Template name",
+        "nameMissing": "Name the template.",
+        "stepName": "Step name",
+        "addStep": "Add step",
+        "stepsMissing": "Add at least one step and name every step.",
+        "save": "Save template"
       },
       "terms": {
         "title": "Billing terms",
@@ -435,7 +581,10 @@
         "warnInvalid": "Enter 0 to 27 days.",
         "retention": "Retention (%)",
         "retentionInvalid": "Enter a percentage from 0 to under 100 with at most 2 decimal places.",
-        "retentionHelp": "Retention is held from each new progress claim; the invoice and its VAT stay at full value."
+        "retentionHelp": "Retention is held from each new progress claim; the invoice and its VAT stay at full value.",
+        "targetDays": "Target (days)",
+        "targetInvalid": "Enter 1 to 365 days, or leave it empty.",
+        "optionalStage": "Optional stage"
       },
       "reconciliation": {
         "title": "Billing reconciliation",
@@ -1051,7 +1200,11 @@
     "tasks": {
       "selectTask": "Select task {{name}}",
       "form": {
-        "noAssignees": "No assignable people are available. Add or activate a user in Administration."
+        "noAssignees": "No assignable people are available. Add or activate a user in Administration.",
+        "taskGroup": "Task group",
+        "noTaskGroup": "No group",
+        "searchTaskGroups": "Search groups…",
+        "taskGroupNoun": "group"
       },
       "addTask": "Add task",
       "bulk": {
@@ -1138,7 +1291,30 @@
       "noMilestone": "No phase",
       "drawerMoreActions": "More task actions",
       "statusMix": "Tasks by status",
-      "statusMixOther": "Other"
+      "statusMixOther": "Other",
+      "taskGroups": {
+        "title": "Task groups",
+        "count_one": "{{count}} group",
+        "count_other": "{{count}} groups",
+        "empty": "No task groups yet. A group linked to a phase moves that phase's progress with its tasks.",
+        "archived": "Archived",
+        "progressAria": "{{name}} progress",
+        "done": "{{done}} of {{total}} done",
+        "phase": "Phase",
+        "noPhase": "Not linked",
+        "restore": "Restore",
+        "archive": "Archive",
+        "delete": "Delete",
+        "name": "New group name",
+        "add": "Add group",
+        "deleteTitle": "Delete task group?",
+        "deleteBody": "The tasks stay in the project; they just leave this group.",
+        "toast": {
+          "created": "Task group created",
+          "deleted": "Task group deleted"
+        },
+        "menu": "Task groups"
+      }
     },
     "workOrders": {
       "acceptanceAge": "Days since acceptance, not invoiced: {{days}}",
@@ -1188,7 +1364,17 @@
       "description": "Description",
       "closingValue": "Closing value",
       "orderValue": "Order value",
-      "orderValueSource": "Source: the customer order value set by an authorized reviewer."
+      "orderValueSource": "Source: the customer order value set by an authorized reviewer.",
+      "groupBy": {
+        "label": "Group by",
+        "none": "None",
+        "area": "Area",
+        "group": "Group",
+        "noArea": "No area",
+        "noGroup": "No group"
+      },
+      "areaLabel": "Area",
+      "groupLabel": "Group"
     },
     "contract": {
       "orders": "Customer orders",
@@ -1255,7 +1441,13 @@
       "stuck": "{{name}} can no longer decide this step. Anyone with the role can until you choose someone else.",
       "retry": "Retry"
     },
-    "projectIncidents": "Project incidents"
+    "projectIncidents": "Project incidents",
+    "workOrderForm": {
+      "area": "Area",
+      "group": "Group",
+      "noArea": "No area",
+      "noGroup": "No group"
+    }
   },
   "common": {
     "retry": "Retry",
@@ -1321,7 +1513,8 @@
     "fieldCategory": "Category",
     "fieldRevision": "Revision",
     "revisionPlaceholder": "e.g. B",
-    "fieldDate": "Document date"
+    "fieldDate": "Document date",
+    "categoryLocked": "A revision stays in the category of the document it revises."
   },
   "fileCell": {
     "progress": "Upload progress for {{title}}",

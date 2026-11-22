@@ -7,6 +7,7 @@ import { useIsOperator } from '@/src/auth/useIsOperator';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
+import { useLeaveEnabled } from '@/src/hooks/useLeave';
 import { Badge } from '@/src/components/ui/StatusPill';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOverdueInvoiceCount } from '@/src/hooks/useOverdueInvoiceCount';
@@ -78,6 +79,8 @@ export const ALL_ITEMS: NavItem[] = [
   { to: '/site-reports', text: 'Site reports', icon: 'reports', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #2528: crews, roster and attendance — every member reads; writes gate by role (and field controller) inside the page.
   { to: '/crews', text: 'Crews', icon: 'user', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // #2708: leave and sick requests — only where the organisation switched them on (`leaveEnabled`).
+  { to: '/leave', text: 'Leave', icon: 'clock', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // Without CRM, PM and Finance keep their supplier doorway in the Delivery group.
   { to: '/companies?type=Vendor', text: 'Suppliers', icon: 'companies', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
@@ -186,6 +189,8 @@ export interface NavVisibility {
   canViewStatements: boolean;
   userViewsEnabled: boolean;
   hasEligibleTimesheets: boolean;
+  /** #2708: the organisation switched leave requests on. Absent means off, so the entry stays out. */
+  leaveEnabled?: boolean;
 }
 
 /**
@@ -193,12 +198,12 @@ export interface NavVisibility {
  * so the two never disagree about what a role may reach.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- pure gate shared with the phone bar
-export function visibleNavItems({ role, realRole, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets }: NavVisibility): NavItem[] {
+export function visibleNavItems({ role, realRole, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled }: NavVisibility): NavItem[] {
   return ALL_ITEMS.filter(
     (i) => (i.realRoleOnly
       ? realRole !== null && i.roles.includes(role) && i.roles.includes(realRole)
       : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
-  ).filter((i) => i.to !== '/views' || userViewsEnabled);
+  ).filter((i) => i.to !== '/views' || userViewsEnabled).filter((i) => i.to !== '/leave' || leaveEnabled === true);
 }
 
 export interface RailProps {
@@ -272,6 +277,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   // The saved-views read only runs for an org that has the module (the rail is on every page).
   const { data: userViews } = useUserViews(userViewsEnabled);
   const agentAssistantEnabled = useFeature('agent_assistant');
+  const leaveEnabled = useLeaveEnabled();
 
   // AC-ADMIA-002: a REAL server-confirmed platform Operator (any base role) can reach
   // /administration by URL, so the rail's Administration footer must be discoverable for them.
@@ -311,7 +317,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
 
   if (!role) return null;
 
-  const items = visibleNavItems({ role, realRole: realRoleValue, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets });
+  const items = visibleNavItems({ role, realRole: realRoleValue, featureEnabled, canViewStatements, userViewsEnabled, hasEligibleTimesheets, leaveEnabled });
   const currentGroup = items.find((item) =>
     item.group && (pathInItem(location.pathname, item.to) || railParentForPath(location.pathname) === item.to),
   )?.group;
@@ -348,6 +354,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     '/equipment': t('equipment:nav.equipment', 'Equipment'),
     '/site-reports': t('siteReport:nav', 'Site reports'),
     '/crews': t('crews:nav.crews', 'Crews'),
+    '/leave': t('crews:leave.title', 'Leave'),
     '/finance': t('financeHub:nav.finance', 'Finance'),
     '/finance/receivables': t('financeHub:hub.receivables', 'Receivables'),
     '/finance/payables': t('financeHub:hub.payables', 'Payables'),

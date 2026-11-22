@@ -1,0 +1,66 @@
+{
+  "tables": [
+    {
+      "table": "subcontract_backcharges",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "subcontract_certificate_backcharges",
+      "has_org": true,
+      "pk": "certificate_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "n/a: composite key without a row uuid; the blind read covers the declared B visibility"
+    },
+    {
+      "table": "subcontract_certificate_claims",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "subcontract_certificate_deselections",
+      "has_org": true,
+      "pk": "certificate_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "n/a: composite key without a row uuid; the blind read covers the declared B visibility"
+    },
+    {
+      "table": "subcontract_certificate_lines",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "subcontract_certificates",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "subcontractor_rate_lines",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ],
+  "definer_functions": [
+    "approve_subcontract_certificate(uuid)",
+    "archive_subcontract_backcharge(uuid)",
+    "bill_subcontract_certificate(uuid,date,text,text,text,numeric,numeric,text)",
+    "cancel_subcontract_certificate(uuid,text)"
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "attendance_rate_by_crew(date,date)"
+  ]
+}

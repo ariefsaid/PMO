@@ -23,6 +23,7 @@ import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { ImportButton, ImportWizard } from '@/src/components/import';
 import { makeContractLineImportDescriptor } from '@/src/lib/import';
 import BoqItemFormModal from '../BoqItemFormModal';
+import BoqDisciplinePicker from '../BoqDisciplinePicker';
 import RateCatalogue from '../RateCatalogue';
 import MaterialAllowanceModal from '../MaterialAllowanceModal';
 import ProgressAssessmentModal from '../ProgressAssessmentModal';
@@ -30,6 +31,7 @@ import ProgressClaimModal from '../ProgressClaimModal';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
 import { ClaimEvidenceList } from './ClaimEvidenceList';
 import { ClaimBillingStages } from './ClaimBillingStages';
+import { ClaimOverdueMarker } from './ClaimOverdueMarker';
 import { BillingReconciliation } from './BillingReconciliation';
 import { BillingTermsModal } from './BillingTermsModal';
 import ProjectBillingStart from '../ProjectBillingStart';
@@ -404,11 +406,14 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
 
   const claimColumns: Column<ProgressClaimWithInvoice>[] = [
     { key: 'claim', header: t('projectDetail.billing.claims.column.claim', 'Claim'), cell: (c) => (
-      <span>{c.kind === 'down_payment'
-        ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
-        : c.kind === 'time_materials'
-          ? t('timeAndMaterials:title', 'Time and materials')
-          : t('projectDetail.billing.claims.kind.progress', 'Progress')}</span>
+      <>
+        <span>{c.kind === 'down_payment'
+          ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
+          : c.kind === 'time_materials'
+            ? t('timeAndMaterials:title', 'Time and materials')
+            : t('projectDetail.billing.claims.kind.progress', 'Progress')}</span>
+        {c.kind === 'progress' && !c.withdrawn_at && !c.invoice && <ClaimOverdueMarker claimId={c.id} projectId={projectId} />}
+      </>
     ) },
     { key: 'gross', header: t('projectDetail.billing.claims.column.claimedLabel', 'Claimed'), align: 'num',
       cell: (c) => <Tooltip content={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.') }><span className="cursor-help tabular">{cents(c.gross_amount)}</span></Tooltip> },
@@ -725,7 +730,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
         {boqFormFor !== undefined && (
           <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
-            onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
+            onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail}
+            extra={boqFormFor ? <BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /> : undefined} />
         )}
         {assessOpen && (
           <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={orgToday.slice(0, 7)}
@@ -838,7 +844,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
       {boqFormFor !== undefined && (
         <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
-          onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
+          onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail}
+            extra={boqFormFor ? <BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /> : undefined} />
       )}
       {boqDetailDrawer}
       {claimDetailDrawer}

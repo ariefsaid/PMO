@@ -7,12 +7,16 @@ import { planVariance } from '@/src/lib/workOrderPlanVsActual';
 import type { Margin } from '@/src/lib/projectFinances';
 import type { ProjectPlanVsActual } from '@/src/lib/repositories/workOrderFinance';
 import type { CostDiscipline } from '@/src/lib/db/workOrderCosts';
+import { LabourByClass } from './LabourByClass';
+import { IdleCostBlock } from './IdleCostBlock';
 
 interface Props {
   workOrderId: string;
   /** The #2519 project read (`useProjectPlanVsActual`); this section only picks its work order out of it (FR-WPVA-010). */
   query: { data?: ProjectPlanVsActual; isPending: boolean; isError: boolean; refetch: () => unknown };
   disciplines: CostDiscipline[];
+  /** Needed only for the idle-time block (#2673); without it the block does not load. */
+  projectId?: string;
 }
 
 /**
@@ -21,7 +25,7 @@ interface Props {
  * this work order, so it equals the project tab's row (AC-WPVA-016). Overspend reads in words (FR-WPVA-041); a role
  * that cannot read the money sees "restricted", never a zero (FR-WPVA-013).
  */
-export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disciplines }) => {
+export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disciplines, projectId }) => {
   const { t } = useTranslation('workOrderPva');
   const title = t('title', 'Plan vs actual');
   if (query.isPending) return <RecordSection title={title} data-testid="wo-page-pva"><ListState variant="loading" rows={3} /></RecordSection>;
@@ -86,6 +90,8 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
         {figure('wo-page-pva-result', t('col.result', 'After shared cost'), marginText(f.result))}
         {f.otherCurrency.map((o) => figure(`wo-page-pva-other-${o.currency}`, t('otherCurrency', 'Cost in {{currency}}, listed apart', { currency: o.currency }), money(o.amount, o.currency)))}
       </dl>
+      {f.labour && f.labour.length > 0 && <LabourByClass labour={f.labour} currency={cur} testId="wo-page-pva-labour" />}
+      <IdleCostBlock projectId={projectId} workOrderId={workOrderId} testId="wo-page-pva-idle" />
       {f.disciplines.length > 0 && (
         <div className="mt-4 overflow-x-auto" data-testid="wo-page-pva-disciplines">
           <table className="w-full text-control">

@@ -139,7 +139,72 @@
   },
   "projectScope": "Project incidents",
   "allIncidents": "All incidents",
+  "viewList": "Register",
+  "viewClosingReport": "Closing-time report",
+  "closingReport": {
+    "title": "Issue closing-time report",
+    "subtitle": "Average and median time to close issues by department, highlighting where site issues stall.",
+    "backToRegister": "Back to register",
+    "dateRange": "Date range",
+    "preset30d": "Last 30 days",
+    "preset90d": "Last 90 days",
+    "presetYtd": "Year to date",
+    "presetAll": "All time",
+    "presetCustom": "Custom",
+    "from": "From",
+    "to": "To",
+    "grouping": "Department grouping",
+    "groupByType": "By issue type",
+    "groupByGroups": "By department groups",
+    "cards": {
+      "totalIssues": "Total issues",
+      "closedIssues": "Closed issues",
+      "avgClosingTime": "Avg time to close",
+      "stalledIssues": "Stalled issues",
+      "stalledSub": "Overdue and open",
+      "closedRate": "{{percent}}% of total"
+    },
+    "col": {
+      "department": "Department",
+      "total": "Total",
+      "closed": "Closed",
+      "open": "Open",
+      "stalled": "Stalled",
+      "avgClosing": "Avg closing time",
+      "medianClosing": "Median closing time"
+    },
+    "empty": {
+      "title": "No issue data in this period",
+      "sub": "Try expanding the date range or selecting another department grouping."
+    },
+    "durationDays": "{{days}} days",
+    "durationHours": "{{count}} hrs",
+    "durationMinutes": "{{count}} mins",
+    "disabledMessage": "The closing-time report is not enabled for this organisation. An administrator can enable it in Administration."
+  },
   "notification": {
     "overdue": "Issue is overdue"
+  },
+  "tasks": {
+    "heading": "Tasks",
+    "none": "No task yet.",
+    "hidden": "A task you cannot view",
+    "add": "Add a task",
+    "addTitle": "Add a task",
+    "name": "Task",
+    "namePlaceholder": "e.g. Order the replacement part",
+    "due": "Due",
+    "dueOn": "Due {{date}}",
+    "nameRequired": "Give the task a name."
+  },
+  "rootCause": {
+    "heading": "Root cause",
+    "none": "No root cause recorded yet.",
+    "add": "Record the root cause",
+    "edit": "Edit root cause",
+    "label": "Root cause",
+    "placeholder": "Why it happened, apart from the visible blocker.",
+    "save": "Save",
+    "cancel": "Cancel"
   }
 }

@@ -1,0 +1,11 @@
+# 1358-1359 (#2700): an Admin turns the monthly plan on and keeps its categories; a planner drafts and submits; an approver approves into rental Drafts.
+set_equipment_plan_settings
+upsert_equipment_plan_category
+set_equipment_plan_category_active
+save_equipment_plan
+submit_equipment_plan
+reopen_equipment_plan
+reject_equipment_plan
+approve_equipment_plan
+equipment_plan_approver_ok
+equipment_plan_engineer_on_project

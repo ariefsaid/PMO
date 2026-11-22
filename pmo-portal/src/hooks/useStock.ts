@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
-import type { StockItemInput, StockUnitInput, StockWarehouseInput } from '@/src/lib/db/stockMaster';
+import type { StockItemFilters, StockItemInput, StockUnitInput, StockWarehouseInput } from '@/src/lib/db/stockMaster';
 import type { StockDocumentFilters, StockDocumentInput } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerFilters } from '@/src/lib/db/stockReports';
 import type { MaterialAllowanceInput } from '@/src/lib/db/stockAllowances';
@@ -11,13 +11,23 @@ export function useStockUnits(includeArchived = false) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['stock-units', orgId, includeArchived], queryFn: () => repositories.stock.master.listUnits(includeArchived), enabled: Boolean(orgId) });
 }
-export function useStockItems(includeArchived = false) {
+export function useStockItems(filters: boolean | StockItemFilters = false, options?: { enabled?: boolean }) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-items', orgId, includeArchived], queryFn: () => repositories.stock.master.listItems(includeArchived), enabled: Boolean(orgId) });
+  const f: StockItemFilters = typeof filters === 'boolean' ? { includeArchived: filters } : filters;
+  return useQuery({
+    queryKey: ['stock-items', orgId, f],
+    queryFn: () => repositories.stock.master.listItems(f),
+    enabled: Boolean(orgId) && (options?.enabled ?? true),
+  });
 }
 export function useStockWarehouses(includeArchived = false) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['stock-warehouses', orgId, includeArchived], queryFn: () => repositories.stock.master.listWarehouses(includeArchived), enabled: Boolean(orgId) });
+}
+/** #2694: stock value held per location against its recorded cover; money keys absent below rank 20. */
+export function useStockAtRisk() {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({ queryKey: ['stock-at-risk', orgId], queryFn: () => repositories.stock.reports.atRisk(), enabled: Boolean(orgId) });
 }
 export function useStockKeepers() {
   const orgId = useAuth().currentUser?.org_id;

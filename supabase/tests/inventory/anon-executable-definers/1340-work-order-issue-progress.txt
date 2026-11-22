@@ -1,0 +1,3 @@
+# 1340/1341 (#2674): Admin sets the issued-versus-progress threshold; any active member reads a work order's comparison. Both refuse anon.
+set_work_order_issue_threshold
+get_work_order_material_vs_progress

@@ -50,7 +50,7 @@ how much of each invoice the client is still holding back as retention.
 - **FR-BST-010** (event-driven) When Finance, an Admin or a Project Manager attaches a document to a stage
   checklist item, the database shall accept only a document of the claim's project that is issued or approved and
   has a file, and shall add it to the claim's billing evidence.
-- **FR-BST-011** (event-driven) When a stage is completed, the database shall require that every earlier stage is
+- **FR-BST-011** (event-driven; a stage marked not needed counts as earlier-stage-complete, see `billing-stage-targets.spec.md` FR-BSX-023) When a stage is completed, the database shall require that every earlier stage is
   completed, every required checklist item has a document, the completion date is not in the future and not before
   the previous stage's completion date, and — for a client-side stage — the client's document number is given.
 - **FR-BST-012** (event-driven) When a stage is completed, the next stage shall become current from that date.
@@ -58,7 +58,7 @@ how much of each invoice the client is still holding back as retention.
   shall not change.
 
 ### Invoice gate (money rule, database-enforced)
-- **FR-BST-020** (state-driven) While a progress claim has any stage not completed, the database shall refuse to
+- **FR-BST-020** (state-driven; "not completed" excludes a stage marked not needed, FR-BSX-022) While a progress claim has any stage not completed, the database shall refuse to
   raise its invoice: the native invoice (no-ERP organisation) and the ERP outbox command alike, with detail
   `billing-stages-incomplete`.
 

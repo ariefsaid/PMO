@@ -128,8 +128,9 @@ export function requireServiceRoleKey(): string | undefined {
  * @param password unused for injection (the captured session already encodes a successful
  *   sign-in) — kept so the call signature is unchanged for the 70+ existing call sites.
  */
-export async function signIn(page: Page, email: string, password = SEED_PASSWORD) {
-  void password;
+export async function signIn(page: Page, email: string, passwordOrOptions: string | { home: '/my' } = SEED_PASSWORD) {
+  // A light account is sent on to its phone home; its journey says so: signIn(page, email, { home: '/my' }). Every other account lands on `/`.
+  const landing = typeof passwordOrOptions === 'object' ? /\/my$/ : /\/$/;
 
   const statePath = path.join(AUTH_DIR, `${email}.json`);
   let state: CapturedStorageState;
@@ -166,7 +167,7 @@ export async function signIn(page: Page, email: string, password = SEED_PASSWORD
   // authenticated (session now in localStorage) and lands deterministically on the dashboard.
   await page.goto('/');
 
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(landing);
 }
 
 /** Open an app path; the dashboard at `/` is the home at every viewport size. */

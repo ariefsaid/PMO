@@ -1,0 +1,22 @@
+{
+  "tables": [
+    {"table": "billing_step_templates", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"},
+    {"table": "billing_step_template_steps", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"},
+    {"table": "billing_step_template_documents", "has_org": true, "pk": "id", "columns": "*", "b_read": "own-org-only", "by_id": "applicable"}
+  ],
+  "definer_functions": [
+    "add_claim_billing_step(uuid,integer,jsonb)",
+    "archive_billing_step_template(uuid)",
+    "billing_claim_invoiced(uuid)",
+    "load_billing_step_template_onto_claim(uuid,uuid)",
+    "load_billing_step_template_onto_project(uuid,uuid)",
+    "lock_claim_for_step_edit(uuid,boolean)",
+    "move_claim_billing_step(uuid,integer)",
+    "my_waiting_billing_steps()",
+    "overdue_billing_steps_by_claim(uuid)",
+    "remove_claim_billing_step(uuid,text)",
+    "renumber_claim_steps(uuid,uuid[],date)",
+    "save_billing_step_template(uuid,text,jsonb)",
+    "update_claim_billing_step(uuid,jsonb)"
+  ]
+}

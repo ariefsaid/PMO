@@ -25,7 +25,8 @@ export type CostSource =
   | 'vendor_bill'
   | 'timesheet_entry'
   | 'stock_document'
-  | 'equipment_usage';
+  | 'equipment_usage'
+  | 'expense_claim';
 
 export const COST_SOURCES: readonly CostSource[] = [
   'purchase_request',
@@ -35,6 +36,7 @@ export const COST_SOURCES: readonly CostSource[] = [
   'timesheet_entry',
   'stock_document',
   'equipment_usage',
+  'expense_claim',
 ];
 
 export interface CostDiscipline {

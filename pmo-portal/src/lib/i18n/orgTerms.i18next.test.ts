@@ -138,4 +138,22 @@ describe('AC-TERM-003 catalogue terminology renames through i18next, in both lan
     expect(inst.t('b')).toBe('Save job card');
     expect(inst.t('a', { lng: 'id' })).toBe('Kartu Kerja terbuka');
   });
+  it('rewrites deliveryNote through i18next in English and Indonesian (#2687)', async () => {
+    const inst = i18next.createInstance();
+    await inst.use(orgTermsPlugin).init({
+      lng: 'en',
+      resources: {
+        en: { translation: { print: 'Print delivery note', list: 'All delivery notes' } },
+        id: { translation: { print: 'Cetak surat jalan', list: 'Semua nota pengiriman' } },
+      },
+    });
+    setOrgTerms({
+      en: { deliveryNote: { singular: 'dispatch docket', plural: 'dispatch dockets' } },
+      id: { deliveryNote: { singular: 'faktur jalan', plural: 'faktur jalan' } },
+    });
+    expect(inst.t('print')).toBe('Print dispatch docket');
+    expect(inst.t('list')).toBe('All dispatch dockets');
+    expect(inst.t('print', { lng: 'id' })).toBe('Cetak faktur jalan');
+    expect(inst.t('list', { lng: 'id' })).toBe('Semua faktur jalan');
+  });
 });

@@ -1,6 +1,6 @@
 # Spec: Billing stages with target days, overdue warning and optional stages (#2592)
 
-**Status:** proposed; owner decisions below need sign-off before build. Map #2516. Target January 2027, the first release after the 15 December go-live. IDs `FR-BSX-###`, `NFR-BSX-###`, `AC-BSX-###`, `OD-BSX-#`. Plan: `docs/plans/2026-11-21-billing-stage-targets.md`. Executor: Orca worker, **Director-dispatched**: this changes the invoice gate (`billing_stages_open`, `complete_billing_stage`), which is the money path (ADR-0019, `docs/money-path-primer.md`). It ships alone. Builds on `docs/specs/billing-stages.spec.md` (#2522, migrations 1021 and 1022); read it first. The terms Billing stage, Stage age and Invoice deadline are used as defined there.
+**Status:** in build for the 15 December 2026 release (owner ruling OD-SCOPE-1/12, 2026-11-21, replaces the earlier January 2027 target). Defaults below taken as the recommended options; none was overturned by OD-SCOPE. Map #2516. IDs `FR-BSX-###`, `NFR-BSX-###`, `AC-BSX-###`, `OD-BSX-#`. Plan: `docs/plans/2026-11-21-billing-stage-targets.md`. Executor: Orca worker, **Director-dispatched**: this changes the invoice gate (`billing_stages_open`, `complete_billing_stage`), which is the money path (ADR-0019, `docs/money-path-primer.md`). It ships alone. Builds on `docs/specs/billing-stages.spec.md` (#2522, migrations 1021 and 1022); read it first. The terms Billing stage, Stage age and Invoice deadline are used as defined there.
 
 ## Review 20 Nov
 
@@ -9,6 +9,21 @@ Read against `origin/dev`: migrations 1021, 1022, 0237 and 1028; `billingStages.
 - The shipped notification RPC takes eight arguments; the plan now records the exact order and puts stage/claim/overdue details in the body.
 - Skip authorization already exists as `can('edit', 'billingStage')` for Finance and Admin, so the plan reuses it. The template editor and RTL test now name their shipped component paths, route and `project` locale files.
 - The acceptance criteria now state a complete Given/When/Then for the skipped-stage invoice case and its refusal case.
+
+## Scope ruling 21 Nov (OD-SCOPE) and forward compatibility with #2680
+
+- OD-SCOPE-1/12: ships for 15 December. OD-SCOPE-2: stage names, target days and which stages are optional are project data entered by the client; no default stage or day count exists in code or seed. Nothing changes for an organisation that has not set targets: target empty, not optional, never overdue (NFR-BSX-001), so no organisation setting is needed.
+- OD-SCOPE-6 / #2680 moves to per-claim steps from a template (owner role, target date, documents, done mark). To avoid tearing out this work: the overdue test and the notification recipient each live in one SQL function (`billing_stage_due_on(stage)` = started day plus target days; `billing_stage_overdue_recipients(stage)`), so #2680 swaps the due date for a step's own target date and the recipient for the step's owner role without touching the job, the skip or the gate. `billing_stages_open` stays the single gate predicate. Skipped is recorded on the claim's own stage row, which is where #2680 keeps steps. This ticket adds no board, no needs-you pointer and no email (email ships with its own ticket).
+- Messages to the next step's owner are out of scope.
+
+- **Shipped by #2680** (`docs/specs/claim-billing-steps.spec.md`): the due-day and recipient seams were swapped for a step's own target date and owner role; the claim list marker and the needs-you pointer are `ClaimOverdueMarker` and the `billing-steps-waiting` item.
+
+## Build notes (#2592)
+
+- Migrations 1360 (columns), 1361 (list, copy, lock, complete, gate), 1362 (`skip_billing_stage`), 1363 (due-day and recipient seams, overdue job, cron). 1364 unused.
+- The overdue notice opens the claim's project (`project` entity), as claims have no page of their own; the body is the literal English form (OD-BSX-5): the 1025 message-key allow-list admits keys only from `service_role`, and the job runs as the function owner.
+- FR-BSX-011's project-wide "claim has an overdue stage" marker is not in this slice: the claim shows it on its own stage list; the claim list marker comes with the per-claim steps and needs-you list of #2680.
+- The stage tables are not in `record_history_config`, so no history entry was added (the plan's assumption was wrong); the skip is audited through `log_audit`.
 
 ## Job story
 

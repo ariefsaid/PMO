@@ -1,0 +1,50 @@
+{
+  "title": "My work",
+  "signOut": "Sign out",
+  "error": "Couldn't load your work",
+  "tasks": {
+    "title": "My tasks",
+    "empty": "No tasks assigned to you",
+    "start": "Start",
+    "done": "Mark done"
+  },
+  "clockIn": {
+    "title": "Clock in",
+    "empty": "You are not rostered on a work order today",
+    "hours": "Hours today",
+    "hoursRange": "Hours run from 0 to 24",
+    "saved": "Clocked in",
+    "action": "Clock in",
+    "clockedIn": "Clocked in",
+    "offRoster": "Not on this list? Ask your supervisor to add you to the work order.",
+    "locating": "Reading your position…",
+    "pendingOutside": "You are outside the work area. Your supervisor has been asked to approve this check-in.",
+    "pendingNotRostered": "You are not on this work order's roster today. Your supervisor has been asked to approve this check-in.",
+    "pendingNoPosition": "Sent to your supervisor to approve.",
+    "positionDenied": "Location is blocked for this site. Allow it in your browser, or ask your supervisor to approve your check-in.",
+    "positionUnavailable": "Your position could not be read. Try again, or ask your supervisor to approve your check-in.",
+    "positionTimeout": "Reading your position took too long. Try again, or ask your supervisor to approve your check-in.",
+    "askSupervisor": "Ask my supervisor",
+    "reloading": "Opening the clock-in page to read your position…",
+    "reloadFailed": "Reload this page, then tap Clock in again."
+  },
+  "roster": {
+    "title": "My crew today",
+    "error": "Couldn't load the crew",
+    "empty": "No crew on this work order today"
+  },
+  "deliveries": {
+    "title": "Deliveries to confirm"
+  },
+  "issues": {
+    "title": "Issues I reported",
+    "empty": "You have not reported an issue"
+  },
+  "seats": {
+    "title": "Seats",
+    "full": "Full accounts",
+    "light": "Light accounts (Foreman, Field user)",
+    "total": "Active seats",
+    "helper": "A light account has one phone home screen. Price and seat counts are agreed with the owner."
+  }
+}

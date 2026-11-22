@@ -1,4 +1,6 @@
 import categories from './documentCategories.json';
+import type { Role } from '@/src/auth/AuthContext';
+import type { DocumentCategory } from '@/src/lib/db/documentCategories';
 
 type Translate = (key: string, fallback: string) => string;
 
@@ -15,6 +17,21 @@ export function documentCategoryLabel(t: Translate, value: string): string {
     case 'Reference': return t('project:documentCategory.reference', 'Reference');
     default: return value;
   }
+}
+
+/** A category's name in the reader's language: a system category is translated, an organisation-created one reads as typed (FR-DCV-021). */
+export function categoryDisplay(t: Translate, category: Pick<DocumentCategory, 'name' | 'is_system'>): string {
+  return category.is_system ? documentCategoryLabel(t, category.name) : category.name;
+}
+
+/**
+ * The categories a form may offer: live, and the caller's role is a viewer role (FR-DCV-017). The database decides what a caller may
+ * file into (the restrictive policy); this only keeps the list honest. `keepId` keeps the category a document already holds, so an edit
+ * of a document in an archived category still shows it.
+ */
+export function viewableCategories(all: DocumentCategory[], role: Role | null, keepId?: string): DocumentCategory[] {
+  if (!role) return [];
+  return all.filter((c) => (c.archived_at === null || c.id === keepId) && (role === 'Admin' || c.roles.includes(role)));
 }
 
 /** Category options shared between the create/edit modal and the revision modal. The list itself is JSON so `pmo documents` reads the same one. */

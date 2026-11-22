@@ -1,0 +1,2 @@
+# #2592: Finance/Admin writer under a member JWT (membership, role, org re-asserted); proven by supabase/tests/1360_billing_stage_targets.test.sql
+skip_billing_stage

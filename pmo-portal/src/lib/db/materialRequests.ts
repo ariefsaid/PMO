@@ -18,6 +18,8 @@ export type StepDecision = 'approve' | 'return' | 'reject';
 
 export interface MaterialRequestHeader {
   workOrderId: string;
+  /** #2576: an optional live section of the work order; editable only while the request is a draft. */
+  sectionId?: string | null;
   neededBy: string;
   toWarehouseId: string | null;
   note: string | null;
@@ -34,6 +36,7 @@ export interface MaterialRequestRow {
   number: string;
   workOrderId: string;
   projectId: string;
+  sectionId: string | null;
   toWarehouseId: string | null;
   neededBy: string;
   note: string | null;
@@ -52,6 +55,8 @@ export interface MaterialRequestLine {
   itemId: string;
   quantity: number;
   planQty: number | null;
+  /** Where the snapshotted plan figure came from (#2577); null on a request submitted before plan sources existed. */
+  planSource: PlanSource | null;
   priorQty: number | null;
   overPlanReason: string | null;
 }
@@ -117,6 +122,11 @@ export interface StandIn {
   revokedAt: string | null;
 }
 
+/** FR-CUS-012: `standard` (consumable plan, unadjusted), `adjusted`, `allowance` (BoQ allowance fallback), `none`. */
+export type PlanSource = 'standard' | 'adjusted' | 'allowance' | 'none';
+const PLAN_SOURCES: readonly string[] = ['standard', 'adjusted', 'allowance', 'none'];
+const asPlanSource = (v: unknown): PlanSource | null => (typeof v === 'string' && PLAN_SOURCES.includes(v) ? (v as PlanSource) : null);
+
 /** A project's named approver for one chain position (#2598). No row = the step is role-level on that project. */
 export interface StepPin {
   position: number;
@@ -124,10 +134,45 @@ export interface StepPin {
   approverId: string;
 }
 
+/** #2686: the organisation's two usage thresholds, percent of plan; null = off. */
+export interface UsageThresholds { pct1: number | null; pct2: number | null }
+
+export interface UsageWarning { slot: 1 | 2; threshold: number; reachedPct: number }
+
+/**
+ * #2686 FR-MUT-002: the highest usage threshold a line has reached, or null. Use is prior plus this request's quantity (the
+ * FR-MRQ-002 measure); plan 0 with any use crosses every set threshold. Advisory only: it never blocks, the server records the crossing.
+ */
+export function lineUsageWarning(l: { planQty: number; priorQty: number; quantity: number }, th: UsageThresholds | undefined | null): UsageWarning | null {
+  if (!th) return null;
+  const use = milli(l.priorQty) + milli(l.quantity);
+  const plan = milli(l.planQty);
+  const reached = plan > 0 ? Math.round((use * 1000) / plan) / 10 : (use > 0 ? Infinity : 0);
+  const hit = (pct: number | null): pct is number => pct !== null && use > 0 && (plan === 0 || use * 100 >= pct * plan);
+  const slot: 1 | 2 | null = hit(th.pct2) ? 2 : hit(th.pct1) ? 1 : null;
+  if (!slot) return null;
+  return { slot, threshold: (slot === 2 ? th.pct2 : th.pct1) as number, reachedPct: reached };
+}
+
+/** AC-MUT-008, client side: empty = off; each from 1 to 1000; the second above the first. The server re-checks. */
+export function parseUsageThresholds(a: string, b: string): { ok: true; value: UsageThresholds } | { ok: false; error: 'range' | 'order' } {
+  const one = (v: string): number | null | undefined => {
+    const t = v.trim();
+    if (t === '') return null;
+    const n = Number(t);
+    return Number.isFinite(n) && n >= 1 && n <= 1000 ? Math.round(n * 100) / 100 : undefined;
+  };
+  const pct1 = one(a); const pct2 = one(b);
+  if (pct1 === undefined || pct2 === undefined) return { ok: false, error: 'range' };
+  if (pct1 !== null && pct2 !== null && pct2 <= pct1) return { ok: false, error: 'order' };
+  return { ok: true, value: { pct1, pct2 } };
+}
+
 export interface LinePlan {
   itemId: string;
   planQty: number;
   priorQty: number;
+  planSource: PlanSource | null;
 }
 
 // ── pure helpers ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -136,16 +181,18 @@ export interface LinePlan {
 const milli = (n: number): number => Math.round(n * 1000);
 
 /** FR-MRQ-002: the line's new total and whether it exceeds plan. Advisory: the server re-checks at submit. */
-export function linePlanStatus(l: { planQty: number; priorQty: number; quantity: number }): { newTotal: number; overPlan: boolean } {
+export function linePlanStatus(l: { planQty: number; priorQty: number; quantity: number; sectionPlanQty?: number | null; sectionPriorQty?: number | null }): { newTotal: number; overPlan: boolean } {
   const total = milli(l.priorQty) + milli(l.quantity);
-  return { newTotal: total / 1000, overPlan: total > milli(l.planQty) };
+  // #2576 FR-WOS-015: a section's own allocation is a second check beside the work order's; the stricter applies.
+  const overSectionPlan = l.sectionPlanQty != null && milli(l.sectionPriorQty ?? 0) + milli(l.quantity) > milli(l.sectionPlanQty);
+  return { newTotal: total / 1000, overPlan: total > milli(l.planQty) || overSectionPlan };
 }
 
 export type DraftLineError = 'quantityRequired' | 'reasonRequired' | 'reasonTooLong';
 
 /** Per-line form errors keyed by line index (AC-MRQ-001): an over-plan line needs a 1–500 character reason. */
 export function draftLineErrors(
-  lines: Array<MaterialRequestLineInput & { planQty: number; priorQty: number }>,
+  lines: Array<MaterialRequestLineInput & { planQty: number; priorQty: number; sectionPlanQty?: number | null; sectionPriorQty?: number | null }>,
 ): Record<number, DraftLineError> {
   const out: Record<number, DraftLineError> = {};
   lines.forEach((l, i) => {
@@ -160,7 +207,7 @@ export function draftLineErrors(
 export type MaterialRequestRefusal =
   | 'sodAuthor' | 'sodTwice' | 'outOfOrder' | 'notApprover' | 'reasonRequired' | 'overPlanReason' | 'cutoff'
   | 'neededBy' | 'noChain' | 'sourceRequired' | 'noDestination' | 'notKeeper' | 'notPending' | 'notDraft'
-  | 'notAuthor' | 'workOrder' | 'standIn' | 'adminOnly' | 'notPinned' | 'pinForbidden' | 'pinInvalid' | 'invalid' | 'notFound' | 'destination' | 'manyDestinations' | 'unknown';
+  | 'notAuthor' | 'workOrder' | 'standIn' | 'adminOnly' | 'notPinned' | 'pinForbidden' | 'pinInvalid' | 'invalid' | 'notFound' | 'destination' | 'manyDestinations' | 'section' | 'sectionLocked' | 'unknown';
 
 const REFUSALS: Array<[string, MaterialRequestRefusal]> = [
   ['MRQ_SOD_AUTHOR', 'sodAuthor'], ['MRQ_SOD_TWICE', 'sodTwice'], ['MRQ_OUT_OF_ORDER', 'outOfOrder'],
@@ -170,6 +217,7 @@ const REFUSALS: Array<[string, MaterialRequestRefusal]> = [
   ['MRQ_NOT_DRAFT', 'notDraft'], ['MRQ_NOT_AUTHOR', 'notAuthor'], ['MRQ_WORK_ORDER', 'workOrder'], ['MRQ_STAND_IN', 'standIn'],
   ['MRQ_ADMIN_ONLY', 'adminOnly'], ['MRQ_NOT_PINNED', 'notPinned'], ['MRQ_PIN_FORBIDDEN', 'pinForbidden'], ['MRQ_PIN_INVALID', 'pinInvalid'],
   ['MRQ_INVALID', 'invalid'], ['MRQ_NOT_FOUND', 'notFound'], ['MRQ_DESTINATION', 'destination'],
+  ['MRQ_SECTION_LOCKED', 'sectionLocked'], ['MRQ_SECTION', 'section'],
 ];
 
 /** Maps a database refusal to a stable key the screen translates. The message prefix is the contract. */
@@ -181,16 +229,16 @@ export function materialRequestRefusal(err: unknown): MaterialRequestRefusal {
 // ── reads ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
 interface RequestDbRow {
-  id: string; number: string; work_order_id: string; project_id: string; to_warehouse_id: string | null; needed_by: string;
+  id: string; number: string; work_order_id: string; project_id: string; section_id: string | null; to_warehouse_id: string | null; needed_by: string;
   note: string | null; status: string; round: number; created_by: string; created_at: string; submitted_at: string | null;
   transfer_document_id: string | null; transfer_cancelled: boolean;
 }
 
 const REQUEST_COLUMNS =
-  'id, number, work_order_id, project_id, to_warehouse_id, needed_by, note, status, round, created_by, created_at, submitted_at, transfer_document_id, transfer_cancelled';
+  'id, number, work_order_id, project_id, section_id, to_warehouse_id, needed_by, note, status, round, created_by, created_at, submitted_at, transfer_document_id, transfer_cancelled';
 
 const toRow = (r: RequestDbRow): MaterialRequestRow => ({
-  id: r.id, number: r.number, workOrderId: r.work_order_id, projectId: r.project_id, toWarehouseId: r.to_warehouse_id,
+  id: r.id, number: r.number, workOrderId: r.work_order_id, projectId: r.project_id, sectionId: r.section_id ?? null, toWarehouseId: r.to_warehouse_id,
   neededBy: r.needed_by, note: r.note, status: r.status as MaterialRequestStatus, round: r.round, createdBy: r.created_by,
   createdAt: r.created_at, submittedAt: r.submitted_at, transferDocumentId: r.transfer_document_id, transferCancelled: r.transfer_cancelled,
 });
@@ -229,7 +277,7 @@ export async function listMaterialRequests(f: MaterialRequestFilter): Promise<{ 
 export async function getMaterialRequest(id: string): Promise<MaterialRequestDetail | null> {
   const [req, lines, steps, events] = await Promise.all([
     supabase.from('material_requests').select(REQUEST_COLUMNS).eq('id', id).limit(1) as unknown as DbResult<RequestDbRow[]>,
-    supabase.from('material_request_lines').select('id, line_no, item_id, quantity, plan_qty, prior_qty, over_plan_reason')
+    supabase.from('material_request_lines').select('id, line_no, item_id, quantity, plan_qty, plan_source, prior_qty, over_plan_reason')
       .eq('request_id', id).order('line_no', { ascending: true }).limit(200) as unknown as DbResult<Array<Record<string, unknown>>>,
     supabase.from('material_request_steps').select('id, round, position, role, label, status, decided_by, acted_for, decided_at, reason')
       .eq('request_id', id).order('round', { ascending: true }).order('position', { ascending: true }).limit(500) as unknown as DbResult<Array<Record<string, unknown>>>,
@@ -243,7 +291,7 @@ export async function getMaterialRequest(id: string): Promise<MaterialRequestDet
     ...toRow(head),
     lines: (lines.data ?? []).map((l) => ({
       id: String(l.id), lineNo: Number(l.line_no), itemId: String(l.item_id), quantity: Number(l.quantity),
-      planQty: l.plan_qty == null ? null : Number(l.plan_qty), priorQty: l.prior_qty == null ? null : Number(l.prior_qty),
+      planQty: l.plan_qty == null ? null : Number(l.plan_qty), planSource: asPlanSource(l.plan_source), priorQty: l.prior_qty == null ? null : Number(l.prior_qty),
       overPlanReason: (l.over_plan_reason as string | null) ?? null,
     })),
     steps: (steps.data ?? []).map((s) => ({
@@ -278,7 +326,7 @@ export async function getLinePlans(workOrderId: string, itemIds: string[], exclu
     p_work_order_id: workOrderId, p_item_ids: itemIds, ...(excludeRequestId ? { p_exclude_request: excludeRequestId } : {}),
   });
   if (error) fail(error);
-  return (data ?? []).map((p) => ({ itemId: p.item_id, planQty: Number(p.plan_qty), priorQty: Number(p.prior_qty) }));
+  return (data ?? []).map((p) => ({ itemId: p.item_id, planQty: Number(p.plan_qty), priorQty: Number(p.prior_qty), planSource: asPlanSource(p.plan_source) }));
 }
 
 export async function listApprovalChain(): Promise<ChainStep[]> {
@@ -292,6 +340,32 @@ export async function getMaterialRequestCutoff(): Promise<string | null> {
   const { data, error } = await (supabase.from('material_request_settings').select('cutoff_time').limit(1) as unknown as DbResult<Array<{ cutoff_time: string | null }>>);
   if (error) fail(error);
   return data?.[0]?.cutoff_time ?? null;
+}
+
+export interface DeliveryNoteSettings {
+  enabled: boolean;
+  signatureBlocks: string[];
+}
+
+export const DEFAULT_DELIVERY_NOTE_SIGNATURE_BLOCKS = ['Dispatched by', 'Delivered by', 'Received by'];
+
+export async function getDeliveryNoteSettings(): Promise<DeliveryNoteSettings> {
+  const { data, error } = await (supabase
+    .from('material_request_settings')
+    .select('delivery_note_enabled, delivery_note_signature_blocks')
+    .limit(1) as unknown as DbResult<Array<{ delivery_note_enabled: boolean | null; delivery_note_signature_blocks: string[] | null }>>);
+  if (error) fail(error);
+  return {
+    enabled: Boolean(data?.[0]?.delivery_note_enabled),
+    signatureBlocks: data?.[0]?.delivery_note_signature_blocks?.length ? data[0].delivery_note_signature_blocks : DEFAULT_DELIVERY_NOTE_SIGNATURE_BLOCKS,
+  };
+}
+
+export async function getUsageThresholds(): Promise<UsageThresholds> {
+  const { data, error } = await (supabase.from('material_request_settings').select('usage_warn_pct_1, usage_warn_pct_2').limit(1) as unknown as DbResult<Array<{ usage_warn_pct_1: number | string | null; usage_warn_pct_2: number | string | null }>>);
+  if (error) fail(error);
+  const n = (v: number | string | null | undefined) => (v === null || v === undefined ? null : Number(v));
+  return { pct1: n(data?.[0]?.usage_warn_pct_1), pct2: n(data?.[0]?.usage_warn_pct_2) };
 }
 
 export async function listStandIns(): Promise<StandIn[]> {
@@ -321,7 +395,7 @@ const toLinesJson = (lines: MaterialRequestLineInput[]): Json =>
 export async function saveMaterialRequestDraft(id: string | null, header: MaterialRequestHeader, lines: MaterialRequestLineInput[], clientRequestId?: string): Promise<string> {
   const { data, error } = await supabase.rpc('mrq_save_draft', {
     p_request_id: id,
-    p_header: { work_order_id: header.workOrderId, needed_by: header.neededBy, to_warehouse_id: header.toWarehouseId, note: header.note },
+    p_header: { work_order_id: header.workOrderId, needed_by: header.neededBy, to_warehouse_id: header.toWarehouseId, note: header.note, ...(header.sectionId ? { section_id: header.sectionId } : {}) },
     p_lines: toLinesJson(lines),
     p_client_request_id: clientRequestId,
   });
@@ -362,8 +436,33 @@ export async function setApprovalChain(steps: ChainStepInput[]): Promise<void> {
   if (error) fail(error);
 }
 
+/** FR-MRI-001: whether open steps notify their approvers and list in the approvals inbox. Absent row = off. */
+export async function getApproverInboxSetting(): Promise<boolean> {
+  const { data, error } = await (supabase.from('material_request_settings').select('approver_inbox').limit(1) as unknown as DbResult<Array<{ approver_inbox: boolean }>>);
+  if (error) fail(error);
+  return data?.[0]?.approver_inbox ?? false;
+}
+
+export async function setApproverInboxSetting(on: boolean): Promise<void> {
+  const { error } = await supabase.rpc('mrq_set_approver_inbox', { p_on: on });
+  if (error) fail(error);
+}
+
 export async function setMaterialRequestCutoff(cutoff: string | null): Promise<void> {
   const { error } = await supabase.rpc('mrq_set_cutoff', { p_cutoff: cutoff });
+  if (error) fail(error);
+}
+
+export async function setDeliveryNoteSettings(enabled: boolean, signatureBlocks: string[]): Promise<void> {
+  const { error } = await supabase.rpc('mrq_set_delivery_note_settings', {
+    p_enabled: enabled,
+    p_signature_blocks: signatureBlocks,
+  });
+  if (error) fail(error);
+}
+
+export async function setUsageThresholds(th: UsageThresholds): Promise<void> {
+  const { error } = await supabase.rpc('mrq_set_usage_thresholds', { p_pct_1: th.pct1, p_pct_2: th.pct2 });
   if (error) fail(error);
 }
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, CardHead, CardPad, ConfirmDialog, ListState, StatusPill, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -99,6 +100,11 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
       <CardHead
         actions={
           <div className="flex gap-2">
+            {issued && (
+              <Link to="/subcontract-certificates" className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm text-primary-text hover:underline">
+                {t('subcontract.certificates.link', 'Progress certificates')}
+              </Link>
+            )}
             {issued && canPrepare && (
               <Button variant="primary" size="sm" onClick={() => setAcceptance({ draft: null })}>
                 {t('subcontract.acceptance.record', 'Record acceptance')}

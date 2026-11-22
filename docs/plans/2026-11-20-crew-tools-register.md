@@ -2,6 +2,20 @@
 
 > Fresh Orca worker per slice. Spec: `docs/specs/crew-tools-register.spec.md`. Blocked by #2528 landing on `dev` (crew master, `1035_crews_roster.sql` on `origin/land/1215-r1` / `0988` on the feature branch: `crews`, `people` + `people_directory`, `crew_members`, `work_order_crews`, `guard_crew_refs()`, `crew_can_manage()`). No money path. Sign OD-CTR and answer OQ-CTR first.
 
+## Built on defaults (owner to confirm)
+Built on the spec's recommended default for every open decision; each is reversible by one migration or setting.
+- OD-CTR-1: hand tools are a new light register per crew (not equipment assets, not stock items).
+- OD-CTR-2: one equipment coordinator per organisation (`org_crew_tool_settings.coordinator_id`); unset means the task is unassigned and Admin and Project Manager users are notified.
+- OD-CTR-3: a photo is required for `damaged`, optional for `lost`.
+- OD-CTR-4: replacement task due 3 days after the report (`task_due_days`, default 3).
+- OD-CTR-5: photos are `crew_tool_report_files` rows in the private `crew-tool-files` bucket; storage write checks organisation, role and path shape only.
+- OQ-CTR-1: a report reduces usable at once (no confirmation step).
+- OQ-CTR-2: the task is linked to the crew's rostered project when exactly one work order roster covers the report date, else no project.
+- OQ-CTR-3: no tool value or replacement cost is recorded.
+- OQ-CTR-4: all active members may see the register (the crew master's read rule).
+- Deviations from the written plan, each smaller than it reads: the client-generated report id is the idempotency key and the photo path's report segment, so there is no separate `client_key` column; the coordinator setting is written by `set_crew_tool_settings` (the table grants select only) so one-row-per-organisation upserts are server-side; the crew's tools screen is a fourth tab (`?view=tools`) of the Crews page rather than a new route; a line cannot be archived, moved or shrunk below its open reports (`CTR_LINE_OPEN_REPORTS`, `CTR_QTY`), and a task's generic assignment notice is skipped for the tool task's INSERT so the coordinator gets one notification (1160).
+- Migration numbers used: 1157 lines, 1158 reports/files/settings/task link, 1159 RPCs and summary view, 1160 task-assignment notification hand-off. The migration table above (A to C) maps onto these.
+
 ## Design summary
 A small register of counted hand tools per crew, with a one-call report that reduces usable quantity, creates a replacement task for the equipment coordinator and notifies them. Reuses: `crews` (#2528), `tasks` (0001, project optional per 0199), `notifications` (0048), a new `crew_tool_report_files` table plus private bucket `crew-tool-files`, copied from `0036_procurement_record_files.sql` and the `0028` storage policies, `org_crew_tool_settings` (one row per organisation, like `material_request_settings`), `record_history_config` (0260), `stamp_org_id`, `can()` and the role matrix. Not reused, with reasons in the spec: `equipment_assets` (usage, costing, availability), `stock_items` and the stock ledger (warehouse issue/receipt).
 

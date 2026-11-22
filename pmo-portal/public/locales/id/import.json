@@ -15,7 +15,9 @@
     "equipment": "peralatan",
     "equipmentOne": "aset peralatan",
     "people": "orang",
-    "person": "orang"
+    "person": "orang",
+    "clientTakeoff": "baris take-off",
+    "clientTakeoffLine": "baris take-off"
   },
   "wizard": {
     "title": "Impor {{entity}}",
@@ -245,9 +247,10 @@
       "codeLong": "Kode lokasi terlalu panjang.",
       "name": "Nama wajib diisi.",
       "nameLong": "Nama terlalu panjang.",
-      "kind": "Jenis harus central, site, yard, atau staging.",
+      "kind": "Jenis harus central, site, yard, staging, atau vendor.",
       "projectNeeded": "Jenis lokasi ini memerlukan proyek.",
-      "projectNotAllowed": "Lokasi central tidak memiliki proyek."
+      "projectNotAllowed": "Lokasi central tidak memiliki proyek.",
+      "projectNotAllowedVendor": "Lokasi vendor tidak memiliki proyek."
     }
   },
   "equipment": {
@@ -292,6 +295,20 @@
       "codeLong": "Kode karyawan terlalu panjang.",
       "name": "Nama tampilan wajib diisi.",
       "nameLong": "Nama tampilan terlalu panjang."
+    }
+  },
+  "clientTakeoff": {
+    "itemCode": "Kode item",
+    "takeoff": "Kuantitas take-off",
+    "requested": "Kuantitas diminta",
+    "itemHint": "Kode item pasokan klien.",
+    "requestedHint": "Opsional. Kosong berarti sebesar kuantitas take-off.",
+    "error": {
+      "quantity": "Masukkan kuantitas di atas 0 dengan paling banyak 3 angka desimal.",
+      "itemRequired": "Kode item wajib diisi.",
+      "itemUnknown": "Kode item tidak ditemukan di antara item pasokan klien.",
+      "whole": "Item ini dihitung dalam satuan utuh.",
+      "repeat": "Item ini sudah muncul di baris {n}."
     }
   }
 }

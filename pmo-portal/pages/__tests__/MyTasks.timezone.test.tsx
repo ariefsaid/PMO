@@ -37,6 +37,8 @@ vi.mock('@/src/lib/locale/activeLocale', async (importOriginal) => {
   };
 });
 
+vi.mock('@/src/hooks/useTaskLinkedRecords', () => ({ useTaskLinkedRecords: () => ({ data: undefined }) }));
+
 import MyTasks from '../MyTasks';
 
 const renderMyTasks = () =>

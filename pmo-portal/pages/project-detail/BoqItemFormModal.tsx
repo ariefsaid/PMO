@@ -36,9 +36,11 @@ export interface BoqItemFormModalProps {
   today?: string;
   currency?: string;
   onError: (err: unknown) => void;
+  /** Extra fields the caller owns (#2669: the line's discipline, saved on its own). */
+  extra?: React.ReactNode;
 }
 
-const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbolPrefix, onClose, onSave, onError, projectId, today, currency }) => {
+const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbolPrefix, onClose, onSave, onError, projectId, today, currency, extra }) => {
   const { t } = useTranslation('project');
   const erpItems = useErpItemOptions('sales');
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
@@ -169,6 +171,7 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
           <TextField id={lineNoField.id} label={t('projectTabs:contractQuantities.billing.boqForm.lineNo', 'Line no. (optional)')}
             value={lineNoField.value} onChange={lineNoField.onChange} onBlur={lineNoField.onBlur} error={lineNoField.error} />
         </FormGrid>
+        {extra}
       </FormSection>
       <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.boqForm.subtitle', 'Rates exclude tax. Work orders take quantities from a line when you allocate it.')}</p>
     </EntityFormModal>

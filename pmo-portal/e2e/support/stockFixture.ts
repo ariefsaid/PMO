@@ -36,7 +36,7 @@ export async function makeItem(admin: SupabaseClient, sfx: string, tag = 'I') {
   const item = must<{ id: string; code: string; name: string }>(await admin.from('stock_items').insert({ code: `E2E-${tag}${sfx}`, name: `E2E item ${sfx}`, unit_id: unit.id }).select('id, code, name').single(), 'item');
   return item;
 }
-export async function makeWarehouse(admin: SupabaseClient, sfx: string, tag: string, kind: 'central' | 'site') {
+export async function makeWarehouse(admin: SupabaseClient, sfx: string, tag: string, kind: 'central' | 'site' | 'vendor') {
   const wh = must<{ id: string; code: string; name: string }>(await admin.from('stock_warehouses').insert({ code: `E2E-${tag}${sfx}`, name: `E2E ${tag} ${sfx}`, kind }).select('id, code, name').single(), 'warehouse');
   return wh;
 }
