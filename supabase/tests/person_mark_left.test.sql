@@ -52,11 +52,11 @@ insert into crews (id, org_id, code, name) values
 
 -- Placements for Worker One:
 -- d1: Past completed placement (Oct 1 - Oct 31, 2026)
--- d2: Running placement across left_on (Nov 1 - Dec 31, 2026)
+-- d2: Running placement across left_on (Nov 1 - Dec 9, 2026; ends before future placement d3 starts Dec 10)
 -- d3: Future scheduled placement (Dec 10 - Dec 20, 2026)
 insert into crew_members (id, org_id, crew_id, worker_id, valid_from, valid_to) values
   ('16100000-0000-0000-0000-0000000000d1', '16100000-0000-0000-0000-00000000000a', '16100000-0000-0000-0000-0000000000c1', '16100000-0000-0000-0000-0000000000f1', '2026-10-01', '2026-10-31'),
-  ('16100000-0000-0000-0000-0000000000d2', '16100000-0000-0000-0000-00000000000a', '16100000-0000-0000-0000-0000000000c1', '16100000-0000-0000-0000-0000000000f1', '2026-11-01', '2026-12-31'),
+  ('16100000-0000-0000-0000-0000000000d2', '16100000-0000-0000-0000-00000000000a', '16100000-0000-0000-0000-0000000000c1', '16100000-0000-0000-0000-0000000000f1', '2026-11-01', '2026-12-09'),
   ('16100000-0000-0000-0000-0000000000d3', '16100000-0000-0000-0000-00000000000a', '16100000-0000-0000-0000-0000000000c2', '16100000-0000-0000-0000-0000000000f1', '2026-12-10', '2026-12-20');
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
