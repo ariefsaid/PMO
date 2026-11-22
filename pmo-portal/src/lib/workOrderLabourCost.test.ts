@@ -64,3 +64,43 @@ describe('rollupProject — labour cost by class (#2670)', () => {
     expect(r.workOrders[0].labour).toBeUndefined();
   });
 });
+
+const attendance = (workOrderId: string | null, classId: string | null, amount: string | null, hours: number, extra: Partial<CostAmountLine> = {}) =>
+  line({ source: 'attendance_day', workOrderId, labourClassId: classId, amount, quantity: hours, quantityUnit: 'hours', personId: 'w1',
+         reason: amount === null ? 'no-rate' : 'counted', currency: amount === null ? null : 'IDR', ...extra });
+
+describe('rollupProject — approved hours of people with no login (no-login-labour-cost)', () => {
+  it('AC-NLL-013 attendance labour joins the labour per class and the direct cost once, beside timesheet labour', () => {
+    const r = run([wo('A')], [
+      labour('A', 'direct', '400000.00', 8), attendance('A', 'direct', '320000.00', 8), attendance('A', 'guard', '160000.00', 8),
+    ]);
+    const f = r.workOrders[0];
+    expect(f.direct).toBe('880000.00');
+    expect(f.labour).toEqual([
+      { classId: 'direct', hours: 16, amount: '720000.00' },
+      { classId: 'guard', hours: 8, amount: '160000.00' },
+    ]);
+    expect(f.directBySource.attendance_day).toBe('480000.00');
+    expect(f.directBySource.timesheet_entry).toBe('400000.00');
+  });
+
+  it('AC-NLL-013 attendance hours are crew hours, and unpriced ones are named apart with no money', () => {
+    const r = run([wo('A')], [
+      labour('A', 'direct', '400000.00', 8, { personId: 'u1' }),
+      attendance('A', 'direct', '320000.00', 8, { personId: 'w1' }),
+      attendance('A', null, null, 5, { personId: 'w2' }),
+    ]);
+    const f = r.workOrders[0];
+    expect(f.crewHours).toBe(21);
+    expect(f.crewSize).toBe(3);
+    expect(f.uncostedHours).toBe(5);
+    expect(f.pendingCrewHours).toBe(0);
+    expect(f.direct).toBe('720000.00');
+  });
+
+  it('AC-NLL-013 a Project Manager aggregate attendance row (no record, no person) still counts its hours and money', () => {
+    const r = run([wo('A')], [attendance('A', 'direct', '440000.00', 10, { recordId: null, occurredOn: null, personId: null })]);
+    expect(r.workOrders[0].crewHours).toBe(10);
+    expect(r.workOrders[0].labour).toEqual([{ classId: 'direct', hours: 10, amount: '440000.00' }]);
+  });
+});

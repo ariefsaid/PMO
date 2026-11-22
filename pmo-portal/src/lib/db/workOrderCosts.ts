@@ -27,7 +27,10 @@ export type CostSource =
   | 'timesheet_entry'
   | 'stock_document'
   | 'equipment_usage'
-  | 'expense_claim';
+  | 'expense_claim'
+  // Approved hours of a person with no login, held on the attendance itself (1037). Read-only here: hours come from
+  // attendance and are never attributed through `setCostAttribution`.
+  | 'attendance_day';
 
 export const COST_SOURCES: readonly CostSource[] = [
   'purchase_request',
@@ -38,6 +41,7 @@ export const COST_SOURCES: readonly CostSource[] = [
   'stock_document',
   'equipment_usage',
   'expense_claim',
+  'attendance_day',
 ];
 
 export interface CostDiscipline {

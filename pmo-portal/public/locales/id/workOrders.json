@@ -32,12 +32,15 @@
       "vendor_bill": "Invoice supplier",
       "timesheet_entry": "Lembar waktu",
       "stock_document": "Pergerakan stok",
-      "equipment_usage": "Pemakaian alat"
+      "equipment_usage": "Pemakaian alat",
+      "attendance_day": "Kehadiran (orang tanpa akun)",
+      "expense_claim": "Klaim biaya"
     },
     "unavailable": "Jumlah tidak tersedia",
     "notCosted": "Biaya belum dihitung",
     "timesheetLabel": "{{person}}, minggu {{week}}",
-    "timesheetFallback": "Lembar waktu"
+    "timesheetFallback": "Lembar waktu",
+    "attendanceLabel": "Kehadiran"
   },
   "billing": {
     "title": "Penagihan dan penerimaan",

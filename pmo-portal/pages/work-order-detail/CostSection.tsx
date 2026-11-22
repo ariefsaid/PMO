@@ -18,6 +18,9 @@ interface Props {
   moneyPending: boolean;
 }
 
+/** Sources whose money this section never reads: their lines carry hours or quantities only. */
+const HOURS_ONLY: readonly string[] = ['timesheet_entry', 'attendance_day', 'stock_document', 'equipment_usage'];
+
 /** Costs (FR-WORP-021/022): lines grouped by source then discipline; a total only where the money is readable. */
 export const CostSection: React.FC<Props> = ({ labels, links, groups, disciplines, isPending, isError, onRetry, moneyPending }) => {
   const { t } = useTranslation('workOrders');
@@ -41,7 +44,7 @@ export const CostSection: React.FC<Props> = ({ labels, links, groups, discipline
               {g.totals.length > 0 && <span className="tabular-nums font-medium" data-testid={`cost-total-${g.source}`}>{g.totals.map(money).join(" · ")}</span>}
               {g.totals.length === 0 && g.restricted && <span className="text-control text-muted-foreground" data-testid={`cost-restricted-${g.source}`}>{t('costs.restricted', 'Amount restricted for your role')}</span>}
               {g.totals.length === 0 && !g.restricted && moneyPending && <span className="text-control text-muted-foreground">{t('costs.loadingTotal', 'Total loading…')}</span>}
-              {g.totals.length === 0 && !g.restricted && !moneyPending && !['timesheet_entry', 'stock_document', 'equipment_usage'].includes(g.source) && <span className="text-control text-muted-foreground">{t('costs.unavailable', 'Amount unavailable')}</span>}
+              {g.totals.length === 0 && !g.restricted && !moneyPending && !HOURS_ONLY.includes(g.source) && <span className="text-control text-muted-foreground">{t('costs.unavailable', 'Amount unavailable')}</span>}
             </div>
             {g.disciplines.map((d) => (
               <div key={d.disciplineId} className="mt-2" data-testid={`cost-discipline-${g.source}-${d.disciplineId}`}>
@@ -55,6 +58,7 @@ export const CostSection: React.FC<Props> = ({ labels, links, groups, discipline
                     const sheet = labels[l.recordId];
                     const label = l.source === 'timesheet_entry'
                       ? sheet ? t('costs.timesheetLabel', '{{person}}, week of {{week}}', { person: sheet.person, week: formatDay(sheet.weekStart) }) : t('costs.timesheetFallback', 'Timesheet')
+                      : l.source === 'attendance_day' ? t('costs.attendanceLabel', 'Attendance')
                       : l.reference ?? l.recordId.slice(0, 8);
                     return (
                       <li key={l.recordId} className="flex flex-wrap items-baseline justify-between gap-x-4 py-1.5" data-testid={`cost-line-${l.recordId}`}>
@@ -62,7 +66,7 @@ export const CostSection: React.FC<Props> = ({ labels, links, groups, discipline
                         <span className="tabular-nums text-control text-muted-foreground">
                           {l.occurredOn ? formatDay(l.occurredOn) : '—'}
                           {l.quantity != null && ` · ${formatNumberExact(l.quantity)} ${l.quantityUnit ?? ''}`}
-                          {(l.source === 'timesheet_entry' || l.source === 'stock_document'
+                          {(l.source === 'timesheet_entry' || l.source === 'attendance_day' || l.source === 'stock_document'
                             || (l.source === 'equipment_usage' && !g.restricted && !g.moneyByRecord?.[l.recordId]))
                             && <> · <span>{t('costs.notCosted', 'Not yet costed')}</span></>}
                         </span>
