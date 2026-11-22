@@ -12,14 +12,16 @@
 --   replace `procurements_masked` with `procurements` and `security definer`       -> AC-CAE-005 reds
 begin;
 create extension if not exists pgtap;
-select plan(16);
+select plan(18);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('18900000-0000-0000-0000-00000000000a', 'CAE Org', 'IDR', 'Asia/Jakarta'), ('18900000-0000-0000-0000-00000000000b', 'CAE Other Org', 'IDR', 'UTC');
+update organizations set built_in_roles_enabled = true where id = '18900000-0000-0000-0000-00000000000a';
 insert into auth.users (id, email) values
   ('18900000-0000-0000-0000-0000000000a1', 'cae-admin@example.com'), ('18900000-0000-0000-0000-0000000000a2', 'cae-fin@example.com'), ('18900000-0000-0000-0000-0000000000a4', 'cae-pm@example.com'),
   ('18900000-0000-0000-0000-0000000000a6', 'cae-eng@example.com'), ('18900000-0000-0000-0000-0000000000a7', 'cae-eng2@example.com'), ('18900000-0000-0000-0000-0000000000a8', 'cae-foreman@example.com'),
-  ('18900000-0000-0000-0000-0000000000a9', 'cae-exec@example.com'), ('18900000-0000-0000-0000-0000000000b1', 'cae-xorg@example.com');
+  ('18900000-0000-0000-0000-0000000000a9', 'cae-exec@example.com'), ('18900000-0000-0000-0000-0000000000aa', 'cae-nopx@example.com'),
+  ('18900000-0000-0000-0000-0000000000b1', 'cae-xorg@example.com');
 insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
   ('18900000-0000-0000-0000-0000000000a1', '18900000-0000-0000-0000-00000000000a', 'CAE Admin', 'cae-admin@example.com', 'Admin', 'active', null),
   ('18900000-0000-0000-0000-0000000000a2', '18900000-0000-0000-0000-00000000000a', 'CAE Fin', 'cae-fin@example.com', 'Finance', 'active', null),
@@ -28,6 +30,7 @@ insert into profiles (id, org_id, full_name, email, role, status, built_in_role)
   ('18900000-0000-0000-0000-0000000000a7', '18900000-0000-0000-0000-00000000000a', 'CAE Eng2', 'cae-eng2@example.com', 'Engineer', 'active', null),
   ('18900000-0000-0000-0000-0000000000a8', '18900000-0000-0000-0000-00000000000a', 'CAE Foreman', 'cae-foreman@example.com', 'Engineer', 'active', 'foreman'),
   ('18900000-0000-0000-0000-0000000000a9', '18900000-0000-0000-0000-00000000000a', 'CAE Exec', 'cae-exec@example.com', 'Executive', 'active', null),
+  ('18900000-0000-0000-0000-0000000000aa', '18900000-0000-0000-0000-00000000000a', 'CAE No Price Right', 'cae-nopx@example.com', 'Finance', 'active', 'storekeeper'),
   ('18900000-0000-0000-0000-0000000000b1', '18900000-0000-0000-0000-00000000000b', 'CAE XOrg', 'cae-xorg@example.com', 'Admin', 'active', null);
 insert into projects (id, org_id, name, status, project_manager_id, currency) values
   ('18900000-0000-0000-0000-0000000000c1', '18900000-0000-0000-0000-00000000000a', 'CAE Site One', 'Ongoing Project', '18900000-0000-0000-0000-0000000000a4', 'IDR'),
@@ -56,11 +59,11 @@ insert into procurements (id, org_id, title, status, requested_by_id, currency, 
   ('18900001-0000-0000-0000-000000000012', '18900000-0000-0000-0000-00000000000b', 'CAE PR 12', 'Requested', '18900000-0000-0000-0000-0000000000b1', 'IDR', 19, '18900000-0000-0000-0000-0000000000c9', 'Materials', 'PR-12'),
   ('18900001-0000-0000-0000-000000000013', '18900000-0000-0000-0000-00000000000a', 'CAE PR 13', 'Vendor Quoted', '18900000-0000-0000-0000-0000000000a4', 'IDR', 20000, '18900000-0000-0000-0000-0000000000c1', 'Equipment', 'PR-13');
 set local session_replication_role = origin;
-insert into procurement_items (id, org_id, procurement_id, name, quantity, rate, amount) values
-  ('18900004-0000-0000-0000-000000000001', '18900000-0000-0000-0000-00000000000a', '18900001-0000-0000-0000-000000000001', 'Cement', 10, 30000, 300000),
-  ('18900004-0000-0000-0000-000000000002', '18900000-0000-0000-0000-00000000000a', '18900001-0000-0000-0000-000000000001', 'Sand', 5, 40000, 200000),
-  ('18900004-0000-0000-0000-000000000003', '18900000-0000-0000-0000-00000000000a', '18900001-0000-0000-0000-000000000002', 'Scaffold hire', 1, 300000, 300000),
-  ('18900004-0000-0000-0000-000000000004', '18900000-0000-0000-0000-00000000000a', '18900001-0000-0000-0000-000000000005', 'Ordered item', 1, 12, 12);
+insert into procurement_items (id, org_id, procurement_id, name, quantity, rate) values
+  ('18900004-0000-0000-0000-000000000001', '18900000-0000-0000-0000-00000000000a', '18900001-0000-0000-0000-000000000001', 'Cement', 10, 30000),
+  ('18900004-0000-0000-0000-000000000002', '18900000-0000-0000-0000-00000000000a', '18900001-0000-0000-0000-000000000001', 'Sand', 5, 40000),
+  ('18900004-0000-0000-0000-000000000003', '18900000-0000-0000-0000-00000000000a', '18900001-0000-0000-0000-000000000002', 'Scaffold hire', 1, 300000),
+  ('18900004-0000-0000-0000-000000000004', '18900000-0000-0000-0000-00000000000a', '18900001-0000-0000-0000-000000000005', 'Ordered item', 1, 12);
 insert into purchase_requests (id, org_id, procurement_id, currency, work_order_id) values
   ('18900005-0000-0000-0000-000000000001', '18900000-0000-0000-0000-00000000000a', '18900001-0000-0000-0000-000000000001', 'IDR', '18900002-0000-0000-0000-000000000001');
 
@@ -106,6 +109,18 @@ select is((select count(*)::int from get_imprest_open_requests('18900003-0000-00
 select pg_temp.act_as('18900000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from get_imprest_open_requests('18900003-0000-0000-0000-000000000001')), 0, 'AC-CAE-005 another organisation reads none');
 select is(has_function_privilege('anon', 'public.get_imprest_open_requests(uuid)', 'EXECUTE'), false, 'AC-CAE-005 the signed-out role cannot run it');
+-- AC-CAE-005 hidden prices: with the organisation's setting on, a person with no price right (built-in role without it) holds the
+-- access level of that role's base, so the float is not theirs to see and they read nothing: no person exists who sees the float
+-- but not the price, and the masked views still null every amount if one ever does (proven by 1215_hide_prices.test.sql).
+reset role;
+update organizations set hide_prices_from_requesters = true where id = '18900000-0000-0000-0000-00000000000a';
+set local role authenticated;
+select pg_temp.act_as('18900000-0000-0000-0000-0000000000aa');
+select is((select count(*)::int from get_imprest_open_requests('18900003-0000-0000-0000-000000000001')), 0,
+  'AC-CAE-005 hidden prices: a person without the price right reads no requests through the site cash screen (the float is not theirs to see)');
+select pg_temp.act_as('18900000-0000-0000-0000-0000000000a4');
+select is((select count(*)::int from get_imprest_open_requests('18900003-0000-0000-0000-000000000001') where request_total is null), 0,
+  'AC-CAE-005 hidden prices: a Project Manager (price right) still reads the amounts');
 -- AC-CAE-006
 reset role;
 update imprest_floats set archived_at = now() where id = '18900003-0000-0000-0000-000000000001';
