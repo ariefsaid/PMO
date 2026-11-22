@@ -32,6 +32,9 @@ vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 vi.mock('@/src/components/shell/ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
 vi.mock('@/src/hooks/useLeave', () => ({
   useLeaveRequests: () => ({ data: [], isPending: false, isError: false, enabled: false, prerequisitePending: false, prerequisiteError: false, refetch: vi.fn() }),
+  useLeaveEnabled: () => false,
+  useLeaveSettings: () => ({ data: { enabled: false, approver_role: null }, isPending: false, isError: false }),
+  useLeaveMutations: () => ({ decide: { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }, cancel: { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }, create: { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false } }),
 }));
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestAwaiting: () => ({ data: { plans: [], replenishments: [] }, isPending: false, isError: false, enabled: false, refetch: vi.fn() }),

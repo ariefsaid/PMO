@@ -394,7 +394,7 @@ const ApprovalsPage: React.FC = () => {
               <ListState
                 variant="error"
                 title={t('approvals.previewError.title', "Couldn't load the selected queue")}
-                sub={t('approvals.previewError.sub', 'Retry from the queue pane to refresh the latest approvals.')}
+                sub={t('approvals.scopedError.sub', 'Check your connection and retry.')}
                 onRetry={() => void waiting.refetch()}
               />
             ) : waiting.pendingKinds.includes('imprest') && waiting.countFor('imprest') === 0 ? (
@@ -404,18 +404,23 @@ const ApprovalsPage: React.FC = () => {
             )
           )}
           {activeScope === 'leave' && (
-            waiting.failedKinds.includes('leave') && waiting.countFor('leave') === 0 ? (
-              <ListState
-                variant="error"
-                title={t('approvals.previewError.title', "Couldn't load the selected queue")}
-                sub={t('approvals.previewError.sub', 'Retry from the queue pane to refresh the latest approvals.')}
-                onRetry={() => void waiting.refetch()}
-              />
-            ) : waiting.pendingKinds.includes('leave') && waiting.countFor('leave') === 0 ? (
-              <ListState variant="loading" rows={4} />
-            ) : (
-              <LeaveApprovalSection />
-            )
+            <>
+              {waiting.failedKinds.includes('leave') && (
+                <div className="mb-4">
+                  <ListState
+                    variant="error"
+                    title={t('approvals.previewError.title', "Couldn't load the selected queue")}
+                    sub={t('approvals.scopedError.sub', 'Check your connection and retry.')}
+                    onRetry={() => void waiting.refetch()}
+                  />
+                </div>
+              )}
+              {waiting.pendingKinds.includes('leave') && waiting.countFor('leave') === 0 ? (
+                <ListState variant="loading" rows={4} />
+              ) : (
+                <LeaveApprovalSection />
+              )}
+            </>
           )}
           {DATABASE_LISTED_KINDS.includes(activeScope as DatabaseListedKind) && <WaitingDecisionSection kind={activeScope as DatabaseListedKind} entries={allPopulation} />}
           {activeScope === 'invoice' && canShowInvoices && <SalesInvoiceApprovalSection />}

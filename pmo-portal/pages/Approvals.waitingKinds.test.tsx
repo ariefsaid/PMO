@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import type { LeaveRequestRow } from '@/src/lib/repositories/leave';
 import { ToastProvider } from '@/src/components/ui';
 import ApprovalsPage from './Approvals';
 
@@ -41,7 +42,16 @@ vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceAp
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => idle }));
-vi.mock('@/src/hooks/useLeave', () => ({ useLeaveRequests: () => h.leave }));
+vi.mock('@/src/hooks/useLeave', () => ({
+  useLeaveRequests: () => h.leave,
+  useLeaveMutations: () => ({
+    decide: { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false },
+    cancel: { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false },
+    create: { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false },
+  }),
+  useLeaveEnabled: () => true,
+  useLeaveSettings: () => ({ data: { enabled: true, approver_role: null }, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => h.imprest }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => idle,
@@ -60,6 +70,27 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-m
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: h.role, realRole: h.role }), useOptionalRealRole: () => h.role }));
 
 const row = (kind: string, recordId: string, title: string, createdAt: string) => ({ kind, recordId, projectId: null, title, createdAt });
+
+const pendingLeaveRow = (overrides: Partial<LeaveRequestRow> = {}): LeaveRequestRow => ({
+  id: 'l-1',
+  person_id: 'p-1',
+  person_name: 'Budi Santoso',
+  leave_type_id: 'lt-1',
+  type_name: 'Annual Leave',
+  start_date: '2026-11-20',
+  end_date: '2026-11-22',
+  days: 3,
+  reason: 'Medical leave',
+  status: 'Pending',
+  decided_at: null,
+  decision_note: null,
+  is_mine: false,
+  can_decide: true,
+  decided_by_name: null,
+  line_manager_name: 'Supervisor',
+  approver_role: 'Project Manager',
+  ...overrides,
+});
 
 const renderPage = (scope = 'all', isLargeScreen = true) => {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation(() => ({ matches: isLargeScreen, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
@@ -240,6 +271,28 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       };
       renderPage('leave');
       expect(screen.getByText("Couldn't load the selected queue")).toBeInTheDocument();
+      expect(screen.getByText("Check your connection and retry.")).toBeInTheDocument();
+      const retryBtn = screen.getByRole('button', { name: /retry/i });
+      await userEvent.click(retryBtn);
+      expect(refetchLeave).toHaveBeenCalled();
+    });
+
+    it('selected leave scope renders error notice with retry AND preserves cached real rows when failed', async () => {
+      h.role = 'Project Manager';
+      const refetchLeave = vi.fn();
+      h.leave = {
+        data: [pendingLeaveRow({ id: 'l-cached', reason: 'Cached medical leave' })],
+        isPending: false,
+        isError: true,
+        enabled: true,
+        prerequisitePending: false,
+        prerequisiteError: false,
+        refetch: refetchLeave,
+      };
+      renderPage('leave');
+      expect(screen.getByText("Couldn't load the selected queue")).toBeInTheDocument();
+      expect(screen.getByText("Check your connection and retry.")).toBeInTheDocument();
+      expect(screen.getByText("Cached medical leave")).toBeInTheDocument();
       const retryBtn = screen.getByRole('button', { name: /retry/i });
       await userEvent.click(retryBtn);
       expect(refetchLeave).toHaveBeenCalled();
@@ -305,6 +358,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       };
       renderPage('imprest');
       expect(screen.getByText("Couldn't load the selected queue")).toBeInTheDocument();
+      expect(screen.getByText("Check your connection and retry.")).toBeInTheDocument();
       const retryBtn = screen.getByRole('button', { name: /retry/i });
       await userEvent.click(retryBtn);
       expect(refetchImprest).toHaveBeenCalled();
@@ -346,7 +400,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
 
       cleanup();
       h.leave = {
-        data: [{ id: 'l-1', can_decide: true, start_date: '2026-11-20T00:00:00Z', notes: 'Medical leave' }],
+        data: [pendingLeaveRow({ id: 'l-1', reason: 'Medical leave' })],
         isPending: false,
         isError: false,
         enabled: true,
@@ -391,7 +445,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
       h.role = 'Engineer';
       h.standing = { data: false, isPending: false, isError: false };
       h.leave = {
-        data: [{ id: 'l-2', can_decide: true, start_date: '2026-11-22T00:00:00Z', notes: 'Site handover leave' }],
+        data: [pendingLeaveRow({ id: 'l-2', reason: 'Site handover leave' })],
         isPending: false,
         isError: false,
         enabled: true,
@@ -417,7 +471,7 @@ describe('the inbox lists the decisions the database says are waiting', () => {
     it('known rows from independent source: leave row settles with known count and prevents all-caught-up', () => {
       h.role = 'Project Manager';
       h.leave = {
-        data: [{ id: 'l-1', can_decide: true, start_date: '2026-11-20T00:00:00Z', notes: 'Medical leave' }],
+        data: [pendingLeaveRow({ id: 'l-1', reason: 'Medical leave' })],
         isPending: false,
         isError: false,
         enabled: true,
