@@ -13,6 +13,8 @@ import { useStockItems, useStockWarehouses } from '@/src/hooks/useStock';
 import { useDeliveryNoteSettings } from '@/src/hooks/useMaterialRequests';
 import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { useProofStatus, useStockTransfer, useTransferConfirmations, useTransferRefresh, useTransferSettings } from '@/src/hooks/useStockTransfers';
+import { useOperationalWaitingRoute, operationalWaitingForText } from '@/src/hooks/useOperationalWaitingRoute';
+import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import { formatDateTime } from '@/src/lib/format';
 import { formatQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -27,7 +29,7 @@ const stringQuantities = (t: StockTransfer): StockTransfer => ({ ...t, lines: t.
 
 /** One transfer: its counts, the receive form (count, accept or reject, quality, handover confirmation), shortfall resolution and the confirmations on record. */
 const StockTransferDetail: React.FC = () => {
-  const { t } = useTranslation('stock');
+  const { t } = useTranslation(['stock', 'waitingList']);
   const { transferId } = useParams<{ transferId: string }>();
   const { toast } = useToast();
   const errorText = useStockErrorText();
@@ -35,6 +37,10 @@ const StockTransferDetail: React.FC = () => {
   const { realRole, effectiveRole } = useEffectiveRole();
   const me = useAuth().currentUser;
   const q = useStockTransfer(transferId);
+  // A Sent transfer is ASSIGNED to its addressed receiver or a full keeper of its destination — never its sender, and
+  // never every senior role that could technically receive it (1560/1308). Only fetched while Sent.
+  const waitingRoute = useOperationalWaitingRoute('transfer_receipt', transferId, q.data?.status === 'Sent');
+  const { label: roleLabel } = useRoleOptions();
   const confirmations = useTransferConfirmations(transferId);
   const proof = useProofStatus();
   const settings = useTransferSettings();
@@ -73,6 +79,16 @@ const StockTransferDetail: React.FC = () => {
   const mine = me?.id === transfer.sentBy;
   // The sender never counts their own shipment (a second person recounts); only an Admin may, and the database audits it (STK_SELF_RECEIVE).
   const canCount = !mine || isAdmin;
+  // The summary already names the addressed receiver; only the extra people (a destination keeper when the transfer is
+  // unassigned or the addressed person is not the keeper) are added, so the same name never appears twice. The role
+  // word is the person's actual role, never a static "keeper" label.
+  const waitingOthers = waitingRoute.data
+    ? { approvers: waitingRoute.data.approvers.filter((p) => p.id !== transfer.toUserId), routeKind: waitingRoute.data.routeKind }
+    : undefined;
+  const waitingText = operationalWaitingForText(waitingOthers, t, { roleLabel, empty: 'none' });
+  // An error is surfaced whenever the read failed: the summary names only the addressed person, so the extra people
+  // are unknown until the read succeeds.
+  const waitingFailed = waitingRoute.isError;
 
   const run = async (fn: () => Promise<void>, done: string) => {
     setBusy(true); setError('');
@@ -101,6 +117,14 @@ const StockTransferDetail: React.FC = () => {
         <div>{wh(transfer.fromWarehouseId)} → {wh(transfer.toWarehouseId)}</div>
         <div className="text-sm text-muted-foreground">{t(`transfers.status.${transfer.status}`)} · {t('transfers.sentBy', { name: person(transfer.sentBy), at: formatDateTime(new Date(transfer.sentAt)) })}</div>
         {transfer.toUserId && <div className="text-sm text-muted-foreground">{t('transfers.addressedTo', { name: person(transfer.toUserId) })}</div>}
+        {transfer.status === 'Sent' && waitingFailed && (
+          <div data-testid="transfer-waiting" className="text-sm text-muted-foreground">
+            <button type="button" onClick={() => void waitingRoute.refetch()} className="font-medium text-primary-text hover:underline">{t('actions.retry')}</button>
+          </div>
+        )}
+        {transfer.status === 'Sent' && waitingText && (
+          <div data-testid="transfer-waiting" className="text-sm text-muted-foreground">{waitingText}</div>
+        )}
         {transfer.receivedAt && <div className="text-sm text-muted-foreground">{t('transfers.receivedBy', { name: person(transfer.receivedBy), at: formatDateTime(new Date(transfer.receivedAt)) })}</div>}
         {transfer.cancelReason && <div className="text-sm">{t('transfers.recalled', { reason: transfer.cancelReason })}</div>}
         {proofRow && <div className="text-sm font-medium">{proofRow.proofStatus === 'complete' ? t('proof.complete') : t('proof.outstandingMissing', { missing: proofRow.missing?.split(',').map((m) => t(`proof.rule.${m}`)).join(', ') })}</div>}
