@@ -40,3 +40,8 @@ Each line: question · recommended answer · what was built meanwhile.
 
 ## expiry-to-manager (after steering)
 - Should a manager be able to record the renewal of a medical document? · No; medical documents stay with the people team. · Built: refused for managers.
+
+## idle-with-rent
+- Does the idle head count mean people marked present that day, even before their attendance is approved? · Yes; the idle figure is a claim view, not actual cost. · Built: present that day.
+- Does standby equipment count in full on a day with idle time, rather than capped to the idle minutes? · Yes; standby is recorded in whole hours or days. · Built: as recommended.
+- Should the new people-and-equipment idle figure be opt-in? · Yes; it changes a money figure organisations already see. · Built: a setting "Idle cost covers", default today's labour-only figure.
