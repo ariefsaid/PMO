@@ -30,10 +30,10 @@ Spec: `docs/specs/people-import-update.spec.md`. No migration (range 1765-1767 u
 
 ## Steering addendum (2026-11-22): manager column and person document import
 
-- Merged origin/feat/role-capabilities-one-gate at ebaf4808 (not its tip: the tip carries temporary mutation commits) into this branch. Its migrations 1530/1535/1536/1539 and their rollbacks and pgTAP come with it; this item adds no migration of its own (1765-1767 unused). The only conflict was `supabase/tests/2711_light_account_boundary_sweep.test.sql`: kept the base file and applied the branch's allowlist change (add the two new helper functions, drop the one the branch removes) in the base's two-column format.
+- The role-capabilities branch is NOT merged into this lane (it lands on its own). The document import gate is the base's `can('create','expiryDocument',{record:{kind:'person',medical:false}})`, which follows that rule when it lands. This item adds no migration (1765-1767 unused).
 - Task 9 (done): people descriptor gains Job title and Manager email (`src/lib/import/employeeDescriptor.ts`); DAL `createPerson`/`updatePersonFields` take `manager_id`; `PersonListRow.manager_id`; People page loads active profiles for the manager lookup.
 - Task 10 (done): `src/lib/import/personDocumentDescriptor.ts`, DAL `listPersonDocuments` plus repository seam, `pages/admin/PersonDocumentImport.tsx` (gated by `can('create','expiryDocument',{record:{kind:'person',medical:false}})`, via a new optional `permissionCtx` on `ImportButton`).
 - Tests: `people.updateFields.test.ts`, `matchExisting.test.ts`, `matchExisting.wizard.test.tsx`, `peopleImportUpdate.test.ts`, `personDocumentDescriptor.test.ts`, `peopleImportUpdate.wizard.test.tsx`, `PersonDocumentImport.test.tsx`.
-- pgTAP: no new database rule. The merged branch's 2718 owns people-document write access. Task 6's people update role proof stays.
+- pgTAP: no new database rule. People-document write access is owned by the database policies and the role-capabilities work's own tests. Task 6's people update role proof stays.
 - No client-callable SECURITY DEFINER function is added, so no anon-definer inventory file.
 - Mutation checks (to run in the wave): blank cell writes null; `changes` always reports; update payload carries `code`; medical type allowed; gate widened to every role. Each must turn a named test red.

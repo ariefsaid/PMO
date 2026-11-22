@@ -920,7 +920,7 @@ stored value (the import never clears a field and never archives anyone). The ma
 be an active user. **Person document import** is its sibling: one sheet of person code, document type, number, issue date
 and expiry date adds a document or updates the person's live document of that type (the one expiring last); medical
 types are never imported. Both write under the caller's own permissions (people: Admin and Project Manager; documents:
-the people-documents rule).
+the person page's Add document rule).
 
 **Former staff** (*mantan personel*) — a person on the register who has left, recorded by archiving them. They stay on
 record with their code and documents, leave the default active list and the expiry warnings, and appear only under the

@@ -10,8 +10,8 @@ import { usePeople } from '@/src/hooks/usePeople';
 
 /**
  * Person document import (one template: person code, document type, number, issue date, expiry date). Shown to whoever
- * `can('create', 'expiryDocument')` for a non-medical person document: the one people-documents rule the person page's
- * Add document uses (Admin, or a holder of the people-documents capability). UX only; RLS refuses anyone else per row.
+ * `can('create', 'expiryDocument')` for a non-medical person document: the one rule the person page's
+ * Add document uses, so it follows that rule wherever it goes. UX only; RLS refuses anyone else per row.
  */
 export const PersonDocumentImport: React.FC<{ onImported: () => void }> = ({ onImported }) => {
   const { t } = useTranslation();
