@@ -9,11 +9,13 @@ export {
   type Mapping,
   type RowValidation,
   type ImportResult,
+  type MatchExisting,
+  type RowChange,
 } from './types';
 export { parseWorkbook } from './parseWorkbook';
 export { parsePastedRows } from './parsePaste';
 export { autoMap } from './autoMap';
-export { validateRows, rowToCells } from './validateRows';
+export { validateRows, rowToCells, applyMatches } from './validateRows';
 export { makeRefLookup, refValidate, refId, type RefLookup, type RefResolution } from './refLookup';
 export { companyImportDescriptor } from './companyDescriptor';
 export { makeContactImportDescriptor } from './contactDescriptor';

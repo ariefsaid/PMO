@@ -6,6 +6,7 @@ import {
   parsePastedRows,
   rowToCells,
   validateRows,
+  applyMatches,
   ImportParseError,
   IMPORT_SKIPPED,
   type ImportDescriptor,
@@ -38,7 +39,9 @@ export interface UseImportWizard {
   counts: { valid: number; invalid: number; total: number };
   /** Rows otherwise valid whose key is already on the target (`existingKeys`); not in `valid`, not in `invalid`. */
   alreadyCount: number;
-  /** The `existingKeys` read: 'none' when the descriptor has none; 'failed' leaves the backstop to decide. */
+  /** With `matchExisting`: rows that add a record and rows that change one (the confirm's two verbs). */
+  matchCounts: { added: number; updated: number };
+  /** The `existingKeys` / `matchExisting` read: 'none' when the descriptor has neither; 'failed' leaves the backstop to decide for `existingKeys`, and refuses the confirm for `matchExisting`. */
   existingStatus: 'none' | 'loading' | 'ready' | 'failed';
   parseError: string | null;
   parsing: boolean;
@@ -49,6 +52,8 @@ export interface UseImportWizard {
   selectPaste: (text: string) => void;
   setFieldMapping: (fieldKey: string, headerIndex: number | null) => void;
   goPreview: () => void;
+  /** Read the existing records again after a failed read. */
+  retryExisting: () => void;
   back: () => void;
   commit: () => Promise<void>;
   reset: () => void;
@@ -75,12 +80,17 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
   const [result, setResult] = useState<ImportResult | null>(null);
 
   const existingKeys = descriptor.existingKeys;
-  const [existing, setExisting] = useState<{ status: 'loading' | 'ready' | 'failed'; keys: ReadonlySet<string> } | null>(null);
-  const existingStatus = existingKeys ? (existing?.status ?? 'loading') : 'none';
+  const matchExisting = descriptor.matchExisting;
+  const [existing, setExisting] = useState<{ status: 'loading' | 'ready' | 'failed'; keys: ReadonlySet<string>; records: ReadonlyMap<string, unknown> } | null>(null);
+  const existingStatus = existingKeys || matchExisting ? (existing?.status ?? 'loading') : 'none';
 
   const validation = useMemo<RowValidation[]>(() => {
     if (!parsed) return [];
     const rows = validateRows(parsed.rows, descriptor.fields, mapping, descriptor.validateRow, descriptor.validateSheet);
+    if (matchExisting) {
+      if (existing?.status !== 'ready') return rows;
+      return applyMatches(rows, rows.map((v) => rowToCells(parsed.rows[v.index], descriptor.fields, mapping)), matchExisting, existing.records);
+    }
     if (!existingKeys || !existing || existing.keys.size === 0) return rows;
     // A row that is otherwise valid but already on the target is not "valid": the import would skip it.
     return rows.map((v) =>
@@ -88,13 +98,17 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
         ? { ...v, valid: false, already: true }
         : v,
     );
-  }, [parsed, descriptor.fields, descriptor.validateRow, descriptor.validateSheet, mapping, existingKeys, existing]);
+  }, [parsed, descriptor.fields, descriptor.validateRow, descriptor.validateSheet, mapping, existingKeys, matchExisting, existing]);
 
   const allRequiredMapped = useMemo(
     () => descriptor.fields.every((f) => !f.required || mapping[f.key] != null),
     [descriptor.fields, mapping],
   );
 
+  const matchCounts = useMemo(() => ({
+    added: validation.filter((v) => v.action === 'new').length,
+    updated: validation.filter((v) => v.action === 'update').length,
+  }), [validation]);
   const alreadyCount = useMemo(() => validation.filter((v) => v.already).length, [validation]);
   const counts = useMemo(() => {
     const valid = validation.filter((v) => v.valid).length;
@@ -170,18 +184,27 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     setMapping((prev) => ({ ...prev, [fieldKey]: headerIndex }));
   }, []);
 
+  const loadExisting = useCallback(() => {
+    if (!existingKeys && !matchExisting) return;
+    // Read once per opening of the preview; a failed `existingKeys` read leaves the insert-time skip to decide, never blocks.
+    // A failed `matchExisting` read refuses the confirm: an update cannot be previewed blind.
+    const generation = ++existingGeneration.current;
+    setExisting(null);
+    const none: ReadonlyMap<string, unknown> = new Map();
+    const read = matchExisting
+      ? matchExisting.load().then((entries) => { const records = new Map(entries); return { keys: new Set(records.keys()), records }; })
+      : existingKeys!.load().then((keys) => ({ keys: new Set(keys), records: none }));
+    void read.then(
+      (r) => { if (generation === existingGeneration.current) setExisting({ status: 'ready', ...r }); },
+      () => { if (generation === existingGeneration.current) setExisting({ status: 'failed', keys: new Set(), records: none }); },
+    );
+  }, [existingKeys, matchExisting]);
+
   const goPreview = useCallback(() => {
     if (!allRequiredMapped) return;
     setStep('preview');
-    if (!existingKeys) return;
-    // Read once per opening of the preview; a failed read leaves the insert-time skip to decide, never blocks.
-    const generation = ++existingGeneration.current;
-    setExisting(null);
-    void existingKeys.load().then(
-      (keys) => { if (generation === existingGeneration.current) setExisting({ status: 'ready', keys: new Set(keys) }); },
-      () => { if (generation === existingGeneration.current) setExisting({ status: 'failed', keys: new Set() }); },
-    );
-  }, [allRequiredMapped, existingKeys]);
+    loadExisting();
+  }, [allRequiredMapped, loadExisting]);
 
   const back = useCallback(() => {
     parseGeneration.current++;
@@ -192,14 +215,17 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
   const commit = useCallback(async () => {
     if (!parsed) return;
     // Only VALID rows are sent — invalid rows were excluded at validate (dry-run oracle).
+    // An update cannot be previewed, so not confirmed, without the records it would change.
+    if (matchExisting && existing?.status !== 'ready') return;
     const validRows = validation
       .filter((v) => v.valid)
-      .map((v) => ({ index: v.index, cells: rowToCells(parsed.rows[v.index], descriptor.fields, mapping) }));
+      .map((v) => ({ index: v.index, action: v.action, cells: rowToCells(parsed.rows[v.index], descriptor.fields, mapping) }));
 
     setStep('committing');
     setProgress({ done: 0, total: validRows.length });
 
     let created = 0;
+    let updated = 0;
     let skipped = 0;
     const skippedIndexes: number[] = [];
     const failed: ImportResult['failed'] = [];
@@ -213,15 +239,20 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     // Sequential, best-effort: a per-row rejection (e.g. 23505 duplicate, 42501 RLS) is
     // captured and the run continues. Nothing rolls back.
     for (let i = 0; i < validRows.length; i += 1) {
-      const { index, cells } = validRows[i];
+      const { index, cells, action } = validRows[i];
       try {
-        // DD-BIMP-8: a descriptor signals "already imported, wrote nothing" with the sentinel.
-        // Counting it as created would make an idempotent re-run report rows it did not write.
-        const outcome = await descriptor.create(descriptor.toInput(cells));
-        if (outcome === IMPORT_SKIPPED) {
-          skipped += 1;
-          skippedIndexes.push(index);
-        } else created += 1;
+        if (matchExisting && action === 'update') {
+          await matchExisting.update(existing!.records.get(matchExisting.keyOf(cells)), cells);
+          updated += 1;
+        } else {
+          // DD-BIMP-8: a descriptor signals "already imported, wrote nothing" with the sentinel.
+          // Counting it as created would make an idempotent re-run report rows it did not write.
+          const outcome = await descriptor.create(descriptor.toInput(cells));
+          if (outcome === IMPORT_SKIPPED) {
+            skipped += 1;
+            skippedIndexes.push(index);
+          } else created += 1;
+        }
       } catch (err) {
         const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
         classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
@@ -234,9 +265,9 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     }
     trackBatchSaveFailed(descriptor.entity.toLowerCase() as AnalyticsModule, classificationCounts);
 
-    setResult({ created, skipped, skippedIndexes, failed });
+    setResult({ created, updated, skipped, skippedIndexes, failed });
     setStep('result');
-  }, [parsed, validation, descriptor, mapping]);
+  }, [parsed, validation, descriptor, mapping, matchExisting, existing]);
 
   return {
     step,
@@ -247,6 +278,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     allRequiredMapped,
     counts,
     alreadyCount,
+    matchCounts,
     existingStatus,
     parseError,
     parsing,
@@ -256,6 +288,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     selectPaste,
     setFieldMapping,
     goPreview,
+    retryExisting: loadExisting,
     back,
     commit,
     reset,

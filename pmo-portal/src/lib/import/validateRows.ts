@@ -1,4 +1,4 @@
-import type { ImportDescriptor, ImportField, Mapping, RowValidation } from './types';
+import type { ImportDescriptor, ImportField, MatchExisting, Mapping, RowValidation } from './types';
 
 /**
  * The dry-run oracle (pure, synchronous, ZERO writes): for each data row, read the mapped
@@ -59,4 +59,25 @@ export function rowToCells<Input>(
     cells[field.key] = col == null ? '' : (row[col] ?? '');
   }
   return cells;
+}
+
+/**
+ * Classify the otherwise-valid rows against the records already on the target (`matchExisting`): no match → `new`;
+ * a match that changes something → `update` with its changes; a match that changes nothing → no change (not valid,
+ * `already`). Rows with errors pass through untouched. Pure, ZERO writes.
+ */
+export function applyMatches(
+  rows: RowValidation[],
+  cellsByRow: Record<string, string>[],
+  match: Pick<MatchExisting, 'keyOf' | 'changes'>,
+  records: ReadonlyMap<string, unknown>,
+): RowValidation[] {
+  return rows.map((v) => {
+    if (!v.valid) return v;
+    const cells = cellsByRow[v.index];
+    const record = records.get(match.keyOf(cells));
+    if (record === undefined) return { ...v, action: 'new' as const };
+    const changes = match.changes(record, cells);
+    return changes.length === 0 ? { ...v, valid: false, already: true } : { ...v, action: 'update' as const, changes };
+  });
 }
