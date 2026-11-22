@@ -4,14 +4,14 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
-  settings: vi.fn(), categories: vi.fn(), plansForMonth: vi.fn(), canApprove: vi.fn(),
+  settings: vi.fn(), categories: vi.fn(), plansForMonth: vi.fn(), canApprove: vi.fn(), route: vi.fn(),
   setSettings: vi.fn(), upsertCategory: vi.fn(), setCategoryActive: vi.fn(),
   save: vi.fn(), submit: vi.fn(), reopen: vi.fn(), reject: vi.fn(), approve: vi.fn(),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 vi.mock('@/src/lib/repositories/equipmentPlans', () => ({ equipmentPlanRepository: h }));
 import {
-  EQUIPMENT_PLAN_QUERY_ROOT, useCanApprovePlan, useEquipmentPlanSettings, usePlanCategories,
+  EQUIPMENT_PLAN_QUERY_ROOT, useCanApprovePlan, useEquipmentPlanApprovalRoute, useEquipmentPlanSettings, usePlanCategories,
   usePlanMutations, usePlanSettingsMutations, usePlansForMonth,
 } from './useEquipmentPlans';
 
@@ -46,6 +46,32 @@ it('the approver ask waits for the plan and is off when disabled', async () => {
   const { result } = renderHook(() => useCanApprovePlan('p1', true), { wrapper: wrapper() });
   await waitFor(() => expect(result.current.data).toBe(true));
   expect(h.canApprove).toHaveBeenCalledWith('p1');
+});
+
+it('AC-EQP-008 the waiting route is read through the repository, per plan, and only while the plan waits', async () => {
+  const off = renderHook(() => useEquipmentPlanApprovalRoute('p1', false), { wrapper: wrapper() });
+  expect(off.result.current.fetchStatus).toBe('idle');
+  expect(h.route).not.toHaveBeenCalled();
+
+  h.route.mockResolvedValueOnce({ kind: 'project', approvers: [{ id: 'u1', name: 'Ani', role: 'Finance' }] });
+  const { result } = renderHook(() => useEquipmentPlanApprovalRoute('p1', true), { wrapper: wrapper() });
+  await waitFor(() => expect(result.current.data).toMatchObject({ kind: 'project' }));
+  expect(h.route).toHaveBeenCalledWith('p1');
+});
+
+it('AC-EQP-008 two plans never share a route: each answer is keyed by its own plan', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const w = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  // answer by the plan asked about, so the proof never depends on which fetch started first
+  h.route.mockImplementation((id: string) => Promise.resolve(id === 'p1'
+    ? { kind: 'project', approvers: [{ id: 'u1', name: 'Ani', role: 'Finance' }] }
+    : { kind: 'admin', approvers: [{ id: 'u9', name: 'Zed', role: 'Admin' }] }));
+  const first = renderHook(() => useEquipmentPlanApprovalRoute('p1', true), { wrapper: w });
+  const second = renderHook(() => useEquipmentPlanApprovalRoute('p2', true), { wrapper: w });
+  await waitFor(() => expect(first.result.current.data).toMatchObject({ kind: 'project' }));
+  await waitFor(() => expect(second.result.current.data).toMatchObject({ kind: 'admin' }));
+  expect(client.getQueryData([EQUIPMENT_PLAN_QUERY_ROOT, 'org-1', 'route', 'p1'])).toMatchObject({ kind: 'project' });
+  expect(client.getQueryData([EQUIPMENT_PLAN_QUERY_ROOT, 'org-1', 'route', 'p2'])).toMatchObject({ kind: 'admin' });
 });
 
 it('settings and category writes forward their payloads', async () => {

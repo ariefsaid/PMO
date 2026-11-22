@@ -32,8 +32,8 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  approvePlan, canApprovePlan, getPlanSettings, listPlanCategories, listPlansForMonth,
-  rejectPlan, reopenPlan, savePlan, setPlanCategoryActive, setPlanSettings, submitPlan, upsertPlanCategory,
+  approvePlan, canApprovePlan, getPlanApprovalRoute, getPlanSettings, listPlanCategories, listPlansForMonth,
+  parsePlanApprovalRoute, rejectPlan, reopenPlan, savePlan, setPlanCategoryActive, setPlanSettings, submitPlan, upsertPlanCategory,
 } from './equipmentPlans';
 
 beforeEach(() => {
@@ -125,5 +125,45 @@ describe('equipment plan IO (#2700)', () => {
     await expect(canApprovePlan('p1')).resolves.toBe(false);
     h.push({ data: null, error: { message: 'EQP_NOT_APPROVER: not on the route', code: 'P0001' } });
     await expect(canApprovePlan('p1')).rejects.toMatchObject({ message: expect.stringContaining('EQP_NOT_APPROVER') });
+  });
+
+  it('AC-EQP-008 the route read maps the people and their own roles, and keeps an honest empty', async () => {
+    h.push({
+      data: { approvers: [{ id: 'u1', name: 'Ani', role: 'Finance' }, { id: 'u2', name: 'Budi', role: 'Project Manager' }], route_kind: 'project' },
+      error: null,
+    });
+    await expect(getPlanApprovalRoute('p1')).resolves.toEqual({
+      kind: 'project',
+      approvers: [{ id: 'u1', name: 'Ani', role: 'Finance' }, { id: 'u2', name: 'Budi', role: 'Project Manager' }],
+    });
+    expect(h.calls.rpc.at(-1)).toEqual(['get_equipment_plan_approval_route', { p_plan_id: 'p1' }]);
+    // configured route with nobody reachable (only the author, everybody inactive) is an empty list, not a fabricated person
+    h.push({ data: { approvers: [], route_kind: 'project' }, error: null });
+    await expect(getPlanApprovalRoute('p1')).resolves.toEqual({ kind: 'project', approvers: [] });
+    h.push({ data: { approvers: [], route_kind: 'unavailable' }, error: null });
+    await expect(getPlanApprovalRoute('p1')).resolves.toEqual({ kind: 'unavailable', approvers: [] });
+    h.push({ data: { approvers: [], route_kind: 'not_waiting' }, error: null });
+    await expect(getPlanApprovalRoute('p1')).resolves.toEqual({ kind: 'not_waiting', approvers: [] });
+  });
+
+  it('AC-EQP-008 a malformed route body is an error, never an empty list that reads as "nobody approves"', async () => {
+    for (const bad of [
+      null,
+      [],
+      { approvers: [] },
+      { approvers: [], route_kind: 'nonsense' },
+      { approvers: 'x', route_kind: 'project' },
+      { approvers: [{ id: 'u1', role: 'Finance' }], route_kind: 'project' },
+      { approvers: [{ id: 'u1', name: '   ', role: 'Finance' }], route_kind: 'project' },
+      { approvers: [{ id: '', name: 'Ani', role: 'Finance' }], route_kind: 'project' },
+      { approvers: [{ id: 'u1', name: 'Ani', role: 'Owner' }], route_kind: 'project' },
+      { approvers: [{ id: 'u1', name: 'Ani', role: 'Finance' }], route_kind: null },
+    ]) {
+      expect(() => parsePlanApprovalRoute(bad)).toThrowError(/malformed/i);
+    }
+    h.push({ data: { approvers: 'x', route_kind: 'project' }, error: null });
+    await expect(getPlanApprovalRoute('p1')).rejects.toMatchObject({ code: 'plan-route-malformed' });
+    h.push({ data: null, error: { message: 'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this', code: '42501' } });
+    await expect(getPlanApprovalRoute('p1')).rejects.toMatchObject({ code: '42501' });
   });
 });
