@@ -17,6 +17,10 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 insert into people (id, org_id, code, name, manager_id, profile_id) values
   ('17600000-0000-0000-0000-0000000000e1', '17600000-0000-0000-0000-00000000000a', 'X-1', 'Worker One', '17600000-0000-0000-0000-0000000000a3', '17600000-0000-0000-0000-0000000000a4'),
   ('17600000-0000-0000-0000-0000000000e2', '17600000-0000-0000-0000-00000000000a', 'X-2', 'Worker Two', '17600000-0000-0000-0000-0000000000a5', null);
+create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
+  select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
+$$;
+
 -- AC-EXM-003: explicit empty stays empty; omitted gets the kind default
 insert into document_types (id, org_id, name, applies_to, is_medical, notify_roles) values
   ('17600000-0000-0000-0000-0000000000f1', '17600000-0000-0000-0000-00000000000a', 'Manager only', 'person', false, '{}');
