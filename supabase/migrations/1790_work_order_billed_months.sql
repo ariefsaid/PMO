@@ -231,7 +231,7 @@ begin
     select m.month, m.billed from public.work_order_billed_months_core(array[p_work_order], (v_cur_mon + interval '1 month')::date) m
   )
   select (select min(c.month) from c),
-         (select jsonb_agg(jsonb_build_object('month', g.m::date, 'billed', coalesce(x.billed, 0::numeric)::text, 'to_date', g.m::date = v_cur_mon) order by g.m)
+         (select jsonb_agg(jsonb_build_object('month', g.m::date, 'billed', round(coalesce(x.billed, 0::numeric), 2)::text, 'to_date', g.m::date = v_cur_mon) order by g.m)
             from generate_series((select min(c.month) from c)::timestamp, v_cur_mon::timestamp, interval '1 month') as g(m)
             left join c x on x.month = g.m::date)
     into v_first, v_months;
