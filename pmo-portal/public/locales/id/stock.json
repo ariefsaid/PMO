@@ -654,7 +654,8 @@
     "errors": {
       "levelInvalid": "Masukkan level 0 atau lebih, maksimal 3 desimal.",
       "quantityInvalid": "Masukkan jumlah di atas 0, maksimal 3 desimal, atau kosongkan."
-    }
+    },
+    "whoSets": "Level ditetapkan oleh orang lain. Untuk menambah barang, pakai “Ajukan pembelian” pada baris barang di daftar di atas."
   },
   "refusal": {
     "missing-module-stock": "Aplikasi Inventory Odoo belum terpasang. Minta Admin memasangnya, lalu posting lagi.",

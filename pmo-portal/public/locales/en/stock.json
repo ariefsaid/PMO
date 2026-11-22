@@ -654,7 +654,8 @@
     "errors": {
       "levelInvalid": "Enter a level of 0 or more, with at most 3 decimals.",
       "quantityInvalid": "Enter a quantity above 0, with at most 3 decimals, or leave it empty."
-    }
+    },
+    "whoSets": "Levels are set by someone else. To get more of an item, use “Request purchase” on its row in the list above."
   },
   "refusal": {
     "missing-module-stock": "Odoo's Inventory app is not installed. Ask an Admin to install it, then post again.",
