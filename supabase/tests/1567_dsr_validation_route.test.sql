@@ -7,7 +7,7 @@
 -- INVOKER, so daily_site_reports_select, projects_select and profiles_select are the visibility boundary
 -- and an invisible / foreign / non-Submitted report is the same non-leaking empty shape.
 begin;
-select plan(39);
+select plan(41);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15670000-0000-0000-0000-00000000000a', 'Dsr Route Org A', 'IDR', 'Asia/Jakarta'),
@@ -15,7 +15,9 @@ insert into organizations (id, name, default_currency, default_timezone) values
   ('15670000-0000-0000-0000-00000000000c', 'Dsr Route Org C', 'IDR', 'Asia/Jakarta'),
   ('15670000-0000-0000-0000-00000000000d', 'Dsr Route Org D', 'IDR', 'Asia/Jakarta'),
   ('15670000-0000-0000-0000-00000000000e', 'Dsr Route Org E', 'IDR', 'Asia/Jakarta'),
-  ('15670000-0000-0000-0000-00000000000f', 'Dsr Route Org F', 'IDR', 'Asia/Jakarta');
+  ('15670000-0000-0000-0000-00000000000f', 'Dsr Route Org F', 'IDR', 'Asia/Jakarta'),
+  ('15670000-0000-0000-0000-000000000010', 'Dsr Route Org G', 'IDR', 'Asia/Jakarta'),
+  ('15670000-0000-0000-0000-000000000011', 'Dsr Route Org H', 'IDR', 'Asia/Jakarta');
 
 insert into auth.users (id, email) values
   ('15670000-0000-0000-0000-0000000000a1', 'dsr-route-author@example.com'),
@@ -35,7 +37,12 @@ insert into auth.users (id, email) values
   ('15670000-0000-0000-0000-0000000000d2', 'dsr-route-light-org-finance@example.com'),
   ('15670000-0000-0000-0000-0000000000e1', 'dsr-route-admin-author@example.com'),
   ('15670000-0000-0000-0000-0000000000f1', 'dsr-route-light-pm-org-author@example.com'),
-  ('15670000-0000-0000-0000-0000000000f2', 'dsr-route-light-pm@example.com');
+  ('15670000-0000-0000-0000-0000000000f2', 'dsr-route-light-pm@example.com'),
+  ('15670000-0000-0000-0000-0000000000d3', 'dsr-route-admin-only-author@example.com'),
+  ('15670000-0000-0000-0000-0000000000d4', 'dsr-route-admin-only-admin@example.com'),
+  ('15670000-0000-0000-0000-0000000000d5', 'dsr-route-disabled-alt-author@example.com'),
+  ('15670000-0000-0000-0000-0000000000d6', 'dsr-route-disabled-admin@example.com'),
+  ('15670000-0000-0000-0000-0000000000d7', 'dsr-route-disabled-finance@example.com');
 
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('15670000-0000-0000-0000-0000000000a1', '15670000-0000-0000-0000-00000000000a', 'Author One', 'dsr-route-author@example.com', 'Engineer', 'active'),
@@ -52,7 +59,12 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('15670000-0000-0000-0000-0000000000c2', '15670000-0000-0000-0000-00000000000c', 'Finance Org Finance', 'dsr-route-fin-org-finance@example.com', 'Finance', 'active'),
   ('15670000-0000-0000-0000-0000000000d1', '15670000-0000-0000-0000-00000000000d', 'Light Org Author', 'dsr-route-light-org-author@example.com', 'Engineer', 'active'),
   ('15670000-0000-0000-0000-0000000000e1', '15670000-0000-0000-0000-00000000000e', 'Admin Author', 'dsr-route-admin-author@example.com', 'Admin', 'active'),
-  ('15670000-0000-0000-0000-0000000000f1', '15670000-0000-0000-0000-00000000000f', 'Light PM Org Author', 'dsr-route-light-pm-org-author@example.com', 'Engineer', 'active');
+  ('15670000-0000-0000-0000-0000000000f1', '15670000-0000-0000-0000-00000000000f', 'Light PM Org Author', 'dsr-route-light-pm-org-author@example.com', 'Engineer', 'active'),
+  ('15670000-0000-0000-0000-0000000000d3', '15670000-0000-0000-0000-000000000010', 'Admin-Only Author', 'dsr-route-admin-only-author@example.com', 'Engineer', 'active'),
+  ('15670000-0000-0000-0000-0000000000d4', '15670000-0000-0000-0000-000000000010', 'Admin-Only Admin', 'dsr-route-admin-only-admin@example.com', 'Admin', 'active'),
+  ('15670000-0000-0000-0000-0000000000d5', '15670000-0000-0000-0000-000000000011', 'Disabled-Alt Author', 'dsr-route-disabled-alt-author@example.com', 'Engineer', 'active'),
+  ('15670000-0000-0000-0000-0000000000d6', '15670000-0000-0000-0000-000000000011', 'Disabled Admin', 'dsr-route-disabled-admin@example.com', 'Admin', 'disabled'),
+  ('15670000-0000-0000-0000-0000000000d7', '15670000-0000-0000-0000-000000000011', 'Disabled Finance', 'dsr-route-disabled-finance@example.com', 'Finance', 'disabled');
 
 -- Light accounts (1205). The 1202 sync trigger forces a keyed profile's access level to the key's base
 -- level, and every light key (foreman, field_user) is Engineer — so a light Finance or light Project
@@ -79,7 +91,9 @@ insert into projects (id, org_id, name, status, currency, project_manager_id) va
   ('15670000-0000-0000-0000-00000000010a', '15670000-0000-0000-0000-00000000000c', 'Finance-only org project', 'Ongoing Project', 'IDR', null),
   ('15670000-0000-0000-0000-00000000010b', '15670000-0000-0000-0000-00000000000d', 'Light-finance org project', 'Ongoing Project', 'IDR', null),
   ('15670000-0000-0000-0000-00000000010c', '15670000-0000-0000-0000-00000000000e', 'Admin-author org project', 'Ongoing Project', 'IDR', null),
-  ('15670000-0000-0000-0000-00000000010d', '15670000-0000-0000-0000-00000000000f', 'Light-PM org project', 'Ongoing Project', 'IDR', '15670000-0000-0000-0000-0000000000f2');
+  ('15670000-0000-0000-0000-00000000010d', '15670000-0000-0000-0000-00000000000f', 'Light-PM org project', 'Ongoing Project', 'IDR', '15670000-0000-0000-0000-0000000000f2'),
+  ('15670000-0000-0000-0000-00000000010e', '15670000-0000-0000-0000-000000000010', 'Admin-only org project', 'Ongoing Project', 'IDR', null),
+  ('15670000-0000-0000-0000-00000000010f', '15670000-0000-0000-0000-000000000011', 'Disabled-alternatives org project', 'Ongoing Project', 'IDR', null);
 
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
   ('15670000-0000-0000-0000-000000000201', '15670000-0000-0000-0000-00000000000a', '15670000-0000-0000-0000-000000000101', 'WO PM assigned', 'Issued', 1000, 'exclusive', 0),
@@ -94,7 +108,9 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
   ('15670000-0000-0000-0000-00000000020a', '15670000-0000-0000-0000-00000000000c', '15670000-0000-0000-0000-00000000010a', 'WO finance-only org', 'Issued', 1000, 'exclusive', 0),
   ('15670000-0000-0000-0000-00000000020b', '15670000-0000-0000-0000-00000000000d', '15670000-0000-0000-0000-00000000010b', 'WO light-finance org', 'Issued', 1000, 'exclusive', 0),
   ('15670000-0000-0000-0000-00000000020c', '15670000-0000-0000-0000-00000000000e', '15670000-0000-0000-0000-00000000010c', 'WO admin author', 'Issued', 1000, 'exclusive', 0),
-  ('15670000-0000-0000-0000-00000000020d', '15670000-0000-0000-0000-00000000000f', '15670000-0000-0000-0000-00000000010d', 'WO light PM org', 'Issued', 1000, 'exclusive', 0);
+  ('15670000-0000-0000-0000-00000000020d', '15670000-0000-0000-0000-00000000000f', '15670000-0000-0000-0000-00000000010d', 'WO light PM org', 'Issued', 1000, 'exclusive', 0),
+  ('15670000-0000-0000-0000-00000000020e', '15670000-0000-0000-0000-000000000010', '15670000-0000-0000-0000-00000000010e', 'WO admin-only org', 'Issued', 1000, 'exclusive', 0),
+  ('15670000-0000-0000-0000-00000000020f', '15670000-0000-0000-0000-000000000011', '15670000-0000-0000-0000-00000000010f', 'WO disabled-alternatives org', 'Issued', 1000, 'exclusive', 0);
 
 insert into daily_site_reports (id, org_id, project_id, work_order_id, work_date, status, author_id, submitted_at) values
   ('15670000-0000-0000-0000-000000000301', '15670000-0000-0000-0000-00000000000a', '15670000-0000-0000-0000-000000000101', '15670000-0000-0000-0000-000000000201', '2026-06-01', 'submitted', '15670000-0000-0000-0000-0000000000a1', now()),
@@ -109,7 +125,9 @@ insert into daily_site_reports (id, org_id, project_id, work_order_id, work_date
   ('15670000-0000-0000-0000-00000000030a', '15670000-0000-0000-0000-00000000000c', '15670000-0000-0000-0000-00000000010a', '15670000-0000-0000-0000-00000000020a', '2026-06-01', 'submitted', '15670000-0000-0000-0000-0000000000c1', now()),
   ('15670000-0000-0000-0000-00000000030b', '15670000-0000-0000-0000-00000000000d', '15670000-0000-0000-0000-00000000010b', '15670000-0000-0000-0000-00000000020b', '2026-06-01', 'submitted', '15670000-0000-0000-0000-0000000000d1', now()),
   ('15670000-0000-0000-0000-00000000030c', '15670000-0000-0000-0000-00000000000e', '15670000-0000-0000-0000-00000000010c', '15670000-0000-0000-0000-00000000020c', '2026-06-01', 'submitted', '15670000-0000-0000-0000-0000000000e1', now()),
-  ('15670000-0000-0000-0000-00000000030d', '15670000-0000-0000-0000-00000000000f', '15670000-0000-0000-0000-00000000010d', '15670000-0000-0000-0000-00000000020d', '2026-06-01', 'submitted', '15670000-0000-0000-0000-0000000000f1', now());
+  ('15670000-0000-0000-0000-00000000030d', '15670000-0000-0000-0000-00000000000f', '15670000-0000-0000-0000-00000000010d', '15670000-0000-0000-0000-00000000020d', '2026-06-01', 'submitted', '15670000-0000-0000-0000-0000000000f1', now()),
+  ('15670000-0000-0000-0000-00000000030e', '15670000-0000-0000-0000-000000000010', '15670000-0000-0000-0000-00000000010e', '15670000-0000-0000-0000-00000000020e', '2026-06-01', 'submitted', '15670000-0000-0000-0000-0000000000d3', now()),
+  ('15670000-0000-0000-0000-00000000030f', '15670000-0000-0000-0000-000000000011', '15670000-0000-0000-0000-00000000010f', '15670000-0000-0000-0000-00000000020f', '2026-06-01', 'submitted', '15670000-0000-0000-0000-0000000000d5', now());
 
 -- The paper-form photo stands in for the upload (OD-DSR-4): the bucket row + the metadata row.
 insert into storage.objects (bucket_id, name, owner) values
@@ -214,6 +232,20 @@ select is((pg_temp._route('15670000-0000-0000-0000-0000000000f1', '15670000-0000
   'nobody', '1567: a light PM with no Admin/Finance leaves nobody able to validate');
 select is(jsonb_array_length(pg_temp._route('15670000-0000-0000-0000-0000000000f1', '15670000-0000-0000-0000-00000000030d')->'approvers'),
   0, '1567: the nobody route names no person');
+
+-- ── Both halves of the alternatives predicate are discriminated ─────────────────────────────────
+-- Org G: a sole non-author ACTIVE Admin and no Finance. Removing 'Admin' from role in
+-- ('Admin','Finance') would turn this into nobody, so the Admin membership is not interchangeable
+-- with Finance.
+select is(pg_temp._route('15670000-0000-0000-0000-0000000000d3', '15670000-0000-0000-0000-00000000030e'),
+  '{"approvers":[],"route_kind":"finance_admin"}'::jsonb,
+  '1567: a sole non-author Admin with no Finance is a true alternative');
+
+-- Org H: a DISABLED Admin and a DISABLED Finance. Dropping `status = 'active'` from the
+-- alternatives would turn this into finance_admin, so the active filter is not masked by the role set.
+select is(pg_temp._route('15670000-0000-0000-0000-0000000000d5', '15670000-0000-0000-0000-00000000030f'),
+  '{"approvers":[],"route_kind":"nobody"}'::jsonb,
+  '1567: a disabled Admin and disabled Finance are not alternatives (status is enforced)');
 
 -- ── Record visibility: invisible / foreign / non-Submitted / absent share ONE empty shape ───────
 select is(pg_temp._route('15670000-0000-0000-0000-0000000000b1', '15670000-0000-0000-0000-000000000301'),

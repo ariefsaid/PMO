@@ -27,8 +27,11 @@
 -- person is still refused by dsr_validate's own active assert; this read can name their existing profile
 -- row. The route never becomes the authority: dsr_validate keeps deciding.
 --
--- This is the reviewer's minimum projection (docs/private/build-1215/deepseek-review-requester-ui-seam.md
--- §5.1), expressed as SECURITY INVOKER over the policies that already bound the same rows.
+-- This is the minimum projection the requester sentence needs: the same predicates as the deciding
+-- write (1041 dsr_may_validate + dsr_validate, plus the 1530 light-account guard), expressed as
+-- SECURITY INVOKER over the policies that already bound the same rows (daily_site_reports_select,
+-- projects_select, profiles_select). See docs/specs/daily-site-report.spec.md (FR-DSR-015) and
+-- docs/specs/waiting-list.spec.md (FR-WAIT-006).
 
 create function public.get_dsr_validation_route(p_report_id uuid)
   returns jsonb
