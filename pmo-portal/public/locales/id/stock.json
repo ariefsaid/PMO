@@ -152,7 +152,8 @@
       "empty": "Tidak ada anggota aktif untuk ditetapkan.",
       "toggleLabel": "Penjaga",
       "close": "Selesai"
-    }
+    },
+    "openingLink": "Stok awal"
   },
   "kinds": {
     "receive": "Penerimaan",
@@ -984,5 +985,69 @@
     "itemsAll": "Semua barang pada baris material",
     "itemsConsumables": "Hanya barang bertanda habis pakai",
     "flagList": "Barang yang dihitung habis pakai"
+  },
+  "opening": {
+    "title": "Stok awal",
+    "backToSetup": "Kembali ke pengaturan",
+    "asOf": "Tanggal mulai pakai",
+    "notAdmin": {
+      "title": "Admin yang memuat stok awal",
+      "sub": "Minta Admin memuatnya di sini."
+    },
+    "template": {
+      "title": "Templat",
+      "column": "Kolom",
+      "required": "Wajib",
+      "holds": "Isinya",
+      "yes": "Ya",
+      "no": "Tidak",
+      "download": "Unduh templat"
+    },
+    "file": {
+      "title": "Berkas",
+      "choose": "Pilih berkas",
+      "change": "Pilih berkas lain",
+      "rows": "{{count}} baris"
+    },
+    "preview": {
+      "title": "Pratinjau",
+      "row": "Baris",
+      "rowN": "Baris {{n}}",
+      "column": "Kolom",
+      "date": "Tanggal",
+      "location": "Lokasi",
+      "item": "Barang",
+      "direction": "Arah",
+      "in": "Masuk",
+      "out": "Keluar",
+      "quantity": "Jumlah",
+      "status": "Status",
+      "accepted": "Diterima",
+      "summary": "{{accepted}} diterima, {{refused}} ditolak. Tidak ada yang dicatat sebelum Anda mengonfirmasi."
+    },
+    "closing": {
+      "title": "Saldo akhir",
+      "value": "Nilai",
+      "clientSupplied": "Dipasok klien"
+    },
+    "confirm": {
+      "button": "Konfirmasi stok awal",
+      "noFile": "Pilih berkas terlebih dahulu.",
+      "noDate": "Pilih tanggal mulai pakai terlebih dahulu.",
+      "fixFile": "Perbaiki baris yang tercantum di berkas Anda, lalu pilih berkas itu lagi.",
+      "checking": "Memeriksa berkas.",
+      "checkFailed": "Pemeriksaan gagal. Pilih berkas lagi.",
+      "refused": "Perbaiki {{count}} baris yang ditolak di berkas Anda, lalu pilih berkas itu lagi."
+    },
+    "done": {
+      "title": "Stok awal dimuat",
+      "sub": "{{count}} lokasi kini dimulai dari riwayat ini.",
+      "openLedger": "Buka buku besar stok"
+    },
+    "errors": {
+      "file": "Berkas ini tidak dapat dibaca. Gunakan templat, disimpan sebagai .xlsx.",
+      "missingColumn": "Berkas tidak memiliki kolom {{column}}. Gunakan templat.",
+      "tooMany": "Satu berkas berisi 1 sampai {{max}} baris. Bagi per lokasi."
+    }
   }
 }

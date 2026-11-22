@@ -310,5 +310,31 @@
       "whole": "This item is counted in whole units.",
       "repeat": "This item already appears in row {n}."
     }
+  },
+  "stockMovement": {
+    "date": "Date",
+    "location": "Location",
+    "item": "Item",
+    "direction": "Direction",
+    "quantity": "Quantity",
+    "unitCost": "Unit cost",
+    "reference": "Reference",
+    "dateHint": "The day the stock moved. Not after the go-live date.",
+    "locationHint": "The code of an existing stock location.",
+    "itemHint": "The code of an existing stock item.",
+    "directionHint": "in: received, returned or found. out: issued, used or returned to the supplier.",
+    "quantityHint": "Whole numbers only for items counted in whole units.",
+    "unitCostHint": "On an in row. Leave blank for client-supplied items (they are always at zero cost). Not used on out rows.",
+    "referenceHint": "A delivery note, site report or other paper number.",
+    "error": {
+      "date": "Use a day written as YYYY-MM-DD, for example 2026-01-15.",
+      "location": "Write the code of the stock location.",
+      "item": "Write the code of the stock item.",
+      "codeLong": "This code is too long.",
+      "direction": "Write in (stock arrived) or out (stock left).",
+      "quantity": "Quantity must be above 0, with at most 3 decimals.",
+      "unitCost": "Unit cost must be 0 or more, with at most 4 decimals.",
+      "reference": "The reference is too long (100 characters at most)."
+    }
   }
 }

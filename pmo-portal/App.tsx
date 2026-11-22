@@ -181,6 +181,7 @@ const StockWorkOrderTransferPage = lazyWithPreload(() => import('./pages/stock/S
 const StockWorkOrderTransferDetailPage = lazyWithPreload(() => import('./pages/stock/StockWorkOrderTransferDetail'));
 const UsageStandardsPage = lazyWithPreload(() => import('./pages/stock/UsageStandards'));
 const StockAtRiskPage = lazyWithPreload(() => import('./pages/stock/StockAtRisk'));
+const StockOpeningHistoryPage = lazyWithPreload(() => import('./pages/stock/StockOpeningHistory'));
 
 // ── Route-entry + nav-link preloads (#1834) ──────────────────────────────────
 /** Anything with the lazyWithPreload preload() handle (structural — the rules
@@ -346,6 +347,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/stock/work-order-transfer', chunks: [StockWorkOrderTransferPage], namespaces: ['stock'] },
   { path: '/stock/usage-standards', chunks: [UsageStandardsPage], namespaces: ['stock', 'usageStandards'] },
   { path: '/stock/at-risk', chunks: [StockAtRiskPage], namespaces: ['stock'] },
+  { path: '/stock/opening', chunks: [StockOpeningHistoryPage], namespaces: ['stock', 'import'] },
   { path: '/stock/new/:kind', chunks: [StockMovementFormPage], namespaces: ['stock'] },
   { path: '/stock', chunks: [StockOnHandPage], namespaces: ['stock'] },
   { path: '*', chunks: [NotFoundPage] },
@@ -622,6 +624,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/stock/work-order-transfer/:transferId', element: gated('stock', <StockWorkOrderTransferDetailPage />) },
   { path: '/stock/usage-standards', element: gated('stock', <UsageStandardsPage />) },
   { path: '/stock/at-risk', element: gated('stock', <StockAtRiskPage />) },
+  { path: '/stock/opening', element: gated('stock', <StockOpeningHistoryPage />) },
   { path: '/stock/new/:kind', element: gated('stock', <StockMovementFormPage />) },
   { path: '*', element: <NotFoundPage /> },
 ];
