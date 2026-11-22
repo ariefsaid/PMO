@@ -187,13 +187,14 @@ const StockOnHand: React.FC = () => {
       }
       primaryAction={canMove && (
         <div className="flex items-center gap-2">
-          <Link to="/stock/new/issue" className={buttonClasses('primary')}>
-            <Icon name="plus" />{t('kinds.issue')}
+          {/* Receiving goods is what a keeper does first in the day, so it leads; the other movements sit in the menu. */}
+          <Link to="/stock/new/receive" className={buttonClasses('primary')}>
+            <Icon name="plus" />{t('onHand.receiveGoods')}
           </Link>
           <RecordMenu
             label={t('onHand.moreMovements')}
             ariaLabel={t('onHand.moreMovements')}
-            items={NEW_KINDS.filter((k) => k !== 'issue').map((k) => ({ key: k, label: t(`kinds.${k}`), onSelect: () => navigate(`/stock/new/${k}`) }))}
+            items={NEW_KINDS.filter((k) => k !== 'receive').map((k) => ({ key: k, label: t(`kinds.${k}`), onSelect: () => navigate(`/stock/new/${k}`) }))}
           />
         </div>
       )}

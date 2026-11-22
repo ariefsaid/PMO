@@ -268,7 +268,8 @@
     "count": "{{shown}} sisa stok",
     "countOne": "1 sisa stok",
     "countOfTotal": "Menampilkan {{shown}} dari {{total}} sisa stok",
-    "valueShown": "Nilai sisa yang ditampilkan"
+    "valueShown": "Nilai sisa yang ditampilkan",
+    "receiveGoods": "Terima barang"
   },
   "documents": {
     "title": "Dokumen",
@@ -540,7 +541,8 @@
       "costNeeded": "Isi biaya satuan: sistem tidak menyimpan barang ini."
     },
     "costOnFile": "Biaya satuan sudah tersimpan. Kosongkan untuk mempertahankannya.",
-    "editingDraft": "Mengedit draf tersimpan: stok tidak berubah sampai Anda mempostingnya."
+    "editingDraft": "Mengedit draf tersimpan: stok tidak berubah sampai Anda mempostingnya.",
+    "whoPosts": "Simpan hitungan Anda di sini. Jika ada selisih dengan catatan, Manajer Proyek atau di atasnya yang mem-posting, bukan Anda. Hitungan tanpa selisih bisa Anda posting sendiri."
   },
   "consumption": {
     "from": "Dari bulan",

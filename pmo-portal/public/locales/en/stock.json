@@ -268,7 +268,8 @@
     "count": "{{shown}} balances",
     "countOne": "1 balance",
     "countOfTotal": "Showing {{shown}} of {{total}} balances",
-    "valueShown": "Value of shown balances"
+    "valueShown": "Value of shown balances",
+    "receiveGoods": "Receive goods"
   },
   "documents": {
     "title": "Documents",
@@ -540,7 +541,8 @@
       "costNeeded": "Enter the unit cost: the system holds none of this item."
     },
     "costOnFile": "A unit cost is on file. Leave empty to keep it.",
-    "editingDraft": "Editing a saved draft: nothing changes in stock until you post it."
+    "editingDraft": "Editing a saved draft: nothing changes in stock until you post it.",
+    "whoPosts": "Save your count here. If anything differs from the book, a Project Manager or above posts it, not you. A count with no difference you can post yourself."
   },
   "consumption": {
     "from": "From month",
