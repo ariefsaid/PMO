@@ -46,6 +46,8 @@
         "percentLine": "{{item}}: % untuk ditagih",
         "overClaimAccepted": "Peringatan: ini melebihi {{headroom}} {{unit}} yang masih bisa ditagih (diterima {{ceiling}}, sudah ditagih {{claimed}}). Turunkan menjadi {{headroom}}, atau konfirmasi BAST berikutnya dahulu. Klaim tetap dapat diajukan.",
         "overClaimOrdered": "Peringatan: ini melebihi {{headroom}} {{unit}} yang masih bisa ditagih (dipesan {{ceiling}}, sudah ditagih {{claimed}}, belum ada yang diterima). Turunkan menjadi {{headroom}}, atau konfirmasi BAST dahulu. Klaim tetap dapat diajukan.",
+        "overClaimAcceptedBlock": "Akan ditolak: ini melebihi {{headroom}} {{unit}} yang masih bisa ditagih (diterima {{ceiling}}, sudah ditagih {{claimed}}). Turunkan menjadi {{headroom}}, atau konfirmasi BAST berikutnya dahulu.",
+        "overClaimOrderedBlock": "Akan ditolak: ini melebihi {{headroom}} {{unit}} yang masih bisa ditagih (dipesan {{ceiling}}, sudah ditagih {{claimed}}, belum ada yang diterima). Turunkan menjadi {{headroom}}, atau konfirmasi BAST dahulu.",
         "errors": {
           "percent": "Masukkan persentase di atas 0 hingga 100 dengan paling banyak 1 angka desimal"
         }
