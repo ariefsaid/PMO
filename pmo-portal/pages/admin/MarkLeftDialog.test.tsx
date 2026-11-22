@@ -60,8 +60,14 @@ describe('MarkLeftDialog', () => {
     const dialog = screen.getByRole('alertdialog');
 
     const input = within(dialog).getByRole('textbox', { name: /^First day off crew roster/i });
+    // The field opens on today; the admin replaces it with the day the person is first off the roster.
     await user.clear(input);
+    expect(input).toHaveValue('');
     await user.type(input, '2026-12-15');
+    // Leaving the field commits the typed day — the DateField's own documented journey — so the form
+    // holds the day the admin picked, not the default it opened on.
+    await user.tab();
+    expect(input).toHaveValue('15 Dec 2026');
 
     const confirmButton = within(dialog).getByRole('button', { name: 'Mark as left' });
     await user.click(confirmButton);

@@ -104,33 +104,38 @@ test('JOB-PU21 the request starts on the project\'s only open work order and the
     }, { timeout: 10_000 }).toEqual({ wo: workOrderId, disc: disciplineId });
   } catch (err) {
     journeyError = err;
-    throw err;
-  } finally {
-    try {
-      if (!procurementId && projectId) {
-        const fallback = await admin.from('procurements').select('id').eq('project_id', projectId).eq('title', tag).maybeSingle();
-        if (fallback.data?.id) procurementId = fallback.data.id;
-      }
-      await cleanupAll(admin, [
-        ['procurement_receipts', 'procurement_id', procurementId ? [procurementId] : []],
-        ['purchase_orders', 'procurement_id', procurementId ? [procurementId] : []],
-        ['purchase_requests', 'procurement_id', procurementId ? [procurementId] : []],
-        ['procurement_status_events', 'procurement_id', procurementId ? [procurementId] : []],
-        ['procurement_items', 'procurement_id', procurementId ? [procurementId] : []],
-        ['procurements', 'id', procurementId ? [procurementId] : []],
-        ['work_orders', 'id', workOrderId ? [workOrderId] : []],
-        ['cost_disciplines', 'id', disciplineId ? [disciplineId] : []],
-        ['projects', 'id', projectId ? [projectId] : []],
-      ]);
-    } catch (cleanupErr) {
-      if (journeyError) {
-        const jMsg = journeyError instanceof Error ? journeyError.message : String(journeyError);
-        const cMsg = cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr);
-        const combined = new Error(`${jMsg} (cleanup also failed: ${cMsg})`);
-        combined.stack = journeyError instanceof Error ? journeyError.stack : undefined;
-        throw combined;
-      }
-      throw cleanupErr;
-    }
   }
+
+  // Teardown runs after the journey, never in `finally`: a throw inside `finally` is unsafe (it can mask
+  // the journey's own failure) and ESLint rightly rejects it. Carry both outcomes out to Playwright instead.
+  let cleanupError: unknown = null;
+  try {
+    if (!procurementId && projectId) {
+      const fallback = await admin.from('procurements').select('id').eq('project_id', projectId).eq('title', tag).maybeSingle();
+      if (fallback.data?.id) procurementId = fallback.data.id;
+    }
+    await cleanupAll(admin, [
+      ['procurement_receipts', 'procurement_id', procurementId ? [procurementId] : []],
+      ['purchase_orders', 'procurement_id', procurementId ? [procurementId] : []],
+      ['purchase_requests', 'procurement_id', procurementId ? [procurementId] : []],
+      ['procurement_status_events', 'procurement_id', procurementId ? [procurementId] : []],
+      ['procurement_items', 'procurement_id', procurementId ? [procurementId] : []],
+      ['procurements', 'id', procurementId ? [procurementId] : []],
+      ['work_orders', 'id', workOrderId ? [workOrderId] : []],
+      ['cost_disciplines', 'id', disciplineId ? [disciplineId] : []],
+      ['projects', 'id', projectId ? [projectId] : []],
+    ]);
+  } catch (err) {
+    cleanupError = err;
+  }
+
+  if (journeyError && cleanupError) {
+    const jMsg = journeyError instanceof Error ? journeyError.message : String(journeyError);
+    const cMsg = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+    const combined = new Error(`${jMsg} (cleanup also failed: ${cMsg})`);
+    combined.stack = journeyError instanceof Error ? journeyError.stack : undefined;
+    throw combined;
+  }
+  if (journeyError) throw journeyError;
+  if (cleanupError) throw cleanupError;
 });

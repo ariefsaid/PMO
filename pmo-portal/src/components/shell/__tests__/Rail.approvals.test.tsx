@@ -41,6 +41,14 @@ vi.mock('@/src/lib/features', async (importOriginal) => ({
   isFeatureEnabled: () => false,
   FEATURE_ENV_DEFAULT: { crm: true, procurement: true, timesheets: true, revenue: true, sales_pipeline: true },
 }));
+// test/setup.ts holds the two database reads behind the shared waiting list idle, but its partial mock
+// omits the real cache-key factories — and every case here seeds the canonical cache with them. Keep the
+// real exports and re-hold only the two reads idle, so the badge still aggregates every live queue source.
+vi.mock('@/src/hooks/useWaitingDecisions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/hooks/useWaitingDecisions')>()),
+  useDatabaseWaiting: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }),
+  useDecisionStanding: () => ({ data: false, isPending: false, isError: false }),
+}));
 
 import { Rail } from '../Rail';
 

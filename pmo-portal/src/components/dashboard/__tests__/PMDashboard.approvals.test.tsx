@@ -71,6 +71,14 @@ vi.mock('@/src/lib/db/waitingDecisions', () => ({
   listWaitingDecisions: () => Promise.resolve([]),
   hasDecisionStanding: () => Promise.resolve(false),
 }));
+// test/setup.ts holds the two database reads behind the shared waiting list idle, but its partial mock
+// omits the real cache-key factories — and this file seeds the canonical cache with them. Keep the real
+// exports and re-hold only the two reads idle, so the aggregator still runs against a still shared list.
+vi.mock('@/src/hooks/useWaitingDecisions', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/hooks/useWaitingDecisions')>()),
+  useDatabaseWaiting: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }),
+  useDecisionStanding: () => ({ data: false, isPending: false, isError: false }),
+}));
 vi.mock('@/src/lib/repositories/leave', () => ({
   leaveRepository: {
     settings: () => Promise.resolve({ enabled: false, approver_role: null }),
