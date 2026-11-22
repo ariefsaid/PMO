@@ -7,4 +7,5 @@ drop function if exists public.usage_check_safe(uuid);
 drop function if exists public.usage_check_work_order(uuid);
 drop function if exists public.usage_warning_recipient(uuid);
 drop function if exists public.usage_installed_qty(uuid, uuid);
+-- dropping the table also drops its policies (select and light_account_deny_select)
 drop table if exists public.material_installed_usage_alerts;

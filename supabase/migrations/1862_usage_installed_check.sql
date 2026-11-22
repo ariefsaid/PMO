@@ -31,6 +31,9 @@ create policy material_installed_usage_alerts_select on public.material_installe
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 revoke all on public.material_installed_usage_alerts from public, anon, authenticated;
 grant select on public.material_installed_usage_alerts to authenticated;
+-- A field (light) account reads none of it (1462/1480 convention: restrictive select, helper wrapped so it runs once per query).
+create policy light_account_deny_select on public.material_installed_usage_alerts as restrictive for select to authenticated
+  using ((select public.actor_is_light()) is not true);
 
 -- ── §2 ───────────────────────────────────────────────────────────────────────────────────────────────
 -- Installed of one item on one work order. site_reports: the material lines of live validated reports (not superseded, not archived).
