@@ -1,7 +1,8 @@
 -- 1904_org_naming_lookup.sql — one database lookup of an organisation's own words (terminology reach, #2799).
 -- org_naming(org) returns the organisation's term overrides and role names, both languages, in one jsonb document:
 --   { terms: { en: { <key>: { singular, plural } }, id: {...} }, roles: { en: { <roleKey>: name }, id: {...} } }
--- Role names fall back to the catalogue default (built_in_roles.name_en / name_id). org_term(org, key, locale, plural)
+-- Role names fall back to the catalogue default (built_in_roles.name_en / name_id); role_defaults carries those defaults beside
+-- them, so a text producer that renames a default role name in stored English needs no copy of the role table. org_term(org, key, locale, plural)
 -- is the single-word form for SQL producers; it returns null when the org has no override (the caller keeps its word).
 -- Server-side text producers (email function, other functions, SQL) use these and keep no copy of the term list.
 -- Service role only: clients already read the two tables under RLS.
@@ -22,7 +23,10 @@ language sql stable security definer set search_path = public, pg_temp as $$
                         left join public.org_role_names n on n.org_id = p_org and n.role_key = r.key and n.locale = 'en'), '{}'::jsonb),
       'id', coalesce((select jsonb_object_agg(r.key, coalesce(n.name, r.name_id))
                         from public.built_in_roles r
-                        left join public.org_role_names n on n.org_id = p_org and n.role_key = r.key and n.locale = 'id'), '{}'::jsonb)));
+                        left join public.org_role_names n on n.org_id = p_org and n.role_key = r.key and n.locale = 'id'), '{}'::jsonb)),
+    'role_defaults', jsonb_build_object(
+      'en', coalesce((select jsonb_object_agg(r.key, r.name_en) from public.built_in_roles r), '{}'::jsonb),
+      'id', coalesce((select jsonb_object_agg(r.key, r.name_id) from public.built_in_roles r), '{}'::jsonb)));
 $$;
 revoke all on function public.org_naming(uuid) from public, anon, authenticated;
 grant execute on function public.org_naming(uuid) to service_role;

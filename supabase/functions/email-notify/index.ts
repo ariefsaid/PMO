@@ -10,7 +10,7 @@ import { logStructuredError } from '../_shared/errorLog.ts';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
-import { renderEmail } from './templates.ts';
+import { renderEmail, type OrgNaming } from './templates.ts';
 
 const BATCH = 20;
 const LEASE = '5 minutes';
@@ -18,7 +18,7 @@ const RESEND_URL = 'https://api.resend.com/emails';
 
 type Claimed = {
   id: string; to_email: string; event_key: string; locale: string;
-  title: string; body: string | null; attempts: number;
+  title: string; body: string | null; attempts: number; org_id?: string | null;
 };
 
 function json(body: unknown, status = 200): Response {
@@ -49,8 +49,17 @@ export async function handleEmailNotifyRequest(req: Request): Promise<Response> 
     if (error) throw new Error('claim failed');
     let sent = 0;
     let failed = 0;
-    for (const row of (data ?? []) as Claimed[]) {
-      const mail = renderEmail(row.event_key, row.locale, row.title, row.body);
+    const rows = (data ?? []) as Claimed[];
+    // One org_naming read per distinct organisation in the batch (the one lookup, migration 1904). A failed read sends the
+    // stored wording rather than holding the email back.
+    const naming = new Map<string, OrgNaming>();
+    for (const orgId of new Set(rows.map((r) => r.org_id).filter((o): o is string => !!o))) {
+      const res = await serviceClient.rpc('org_naming', { p_org: orgId });
+      if (res.error) logStructuredError({ fn: 'email-notify', errorCode: 'ORG_NAMING_FAILED', contextId: orgId });
+      else naming.set(orgId, (res.data ?? {}) as OrgNaming);
+    }
+    for (const row of rows) {
+      const mail = renderEmail(row.event_key, row.locale, row.title, row.body, row.org_id ? naming.get(row.org_id) : undefined);
       let ok = false;
       let permanent = false;
       let err: string | undefined;

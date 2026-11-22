@@ -4,7 +4,7 @@
 -- -> the client-refusal assertions go red; remove `upd.org_id` from the 1905 final select -> the claim org_id assertion goes red.
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(15);
 
 insert into organizations (id, name) values
   ('19040000-0000-0000-0000-00000000000a', 'TR Org A'),
@@ -28,6 +28,9 @@ select is(public.org_naming('19040000-0000-0000-0000-00000000000a')#>>'{roles,en
 select is(public.org_naming('19040000-0000-0000-0000-00000000000a')#>>'{roles,id,storekeeper}', 'Penjaga Gudang', 'AC-TR-008 the Bahasa role rename is returned');
 select is(public.org_naming('19040000-0000-0000-0000-00000000000a')#>>'{roles,en,buyer}',
   (select name_en from built_in_roles where key = 'buyer'), 'AC-TR-008 a role with no rename falls back to the catalogue name');
+
+select is(public.org_naming('19040000-0000-0000-0000-00000000000a')#>>'{role_defaults,en,storekeeper}',
+  (select name_en from built_in_roles where key = 'storekeeper'), 'AC-TR-008 the catalogue default role name is returned beside the rename');
 
 -- another org sees nothing of it
 select is(public.org_naming('19040000-0000-0000-0000-00000000000b')#>'{terms,en}', '{}'::jsonb, 'AC-TR-008 another org has no term overrides');
