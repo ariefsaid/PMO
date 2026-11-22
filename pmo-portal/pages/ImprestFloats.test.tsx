@@ -148,6 +148,23 @@ describe('/imprest list (AC-IMP-082)', () => {
     await waitFor(() => expect(h.establish.mutateAsync).toHaveBeenCalledWith({ projectId: 'p1', custodianId: 'u-fin', amount: 5000000 }));
   });
 
+  it('JOB-PU20 a refusal for the missing site cash limit names where an Admin sets it', async () => {
+    const user = userEvent.setup();
+    h.establish.mutateAsync.mockRejectedValue(Object.assign(new Error("set the org's procurement limit before establishing a site float"), { code: 'P0001' }));
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Set up site cash' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('combobox', { name: /Project/ }));
+    await user.click(await screen.findByRole('option', { name: /Site Alpha/ }));
+    await user.click(within(dialog).getByRole('combobox', { name: /Custodian/ }));
+    await user.click(await screen.findByRole('option', { name: /Finn Finance/ }));
+    await user.type(within(dialog).getByLabelText(/^Limit/), '5000000');
+    await user.click(within(dialog).getByRole('button', { name: 'Set up site cash' }));
+    expect(await within(dialog).findByText(/Administration, Accounting, Purchase rules/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/An Admin sets it/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/procurement limit/)).toBeNull();
+  });
+
   it('explains the project prerequisite and how to make a custodian eligible', async () => {
     const user = userEvent.setup();
     h.projects = { data: [{ id: 'p1', name: 'Site Alpha', short_name: null, project_manager_id: null }], isPending: false, isError: false, refetch: vi.fn() };

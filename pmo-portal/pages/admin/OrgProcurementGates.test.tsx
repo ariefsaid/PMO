@@ -3,8 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const h = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), canManage: true }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: { getProcurementGates: h.get, setProcurementGates: h.set } } }));
+const h = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), getLimit: vi.fn(), setLimit: vi.fn(), canManage: true, imprestOn: true, limitRole: 'Admin' as string }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: { getProcurementGates: h.get, setProcurementGates: h.set }, imprest: { getProcurementLimit: h.getLimit, setProcurementLimit: h.setLimit } } }));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => h.imprestOn }));
+vi.mock('@/src/auth/impersonation', () => ({ useOptionalRealRole: () => h.limitRole }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canManage }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o' } }) }));
 
@@ -16,7 +18,7 @@ const renderIt = () => render(
 );
 
 describe('OrgProcurementGates', () => {
-  beforeEach(() => { vi.clearAllMocks(); h.canManage = true; });
+  beforeEach(() => { vi.clearAllMocks(); h.canManage = true; h.imprestOn = true; h.limitRole = 'Admin'; h.getLimit.mockResolvedValue(null); });
 
   it('AC-PFE-014: an Admin turns on approval before payment', async () => {
     h.get.mockResolvedValue(OFF);
@@ -70,5 +72,32 @@ describe('OrgProcurementGates', () => {
     expect(await screen.findByText('Couldn’t load purchase rules')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(await screen.findAllByRole('switch')).toHaveLength(4);
+  });
+
+  it('JOB-PU20 an Admin sets the site cash limit that site cash needs', async () => {
+    h.get.mockResolvedValue(OFF);
+    h.setLimit.mockResolvedValue(undefined);
+    renderIt();
+    expect(await screen.findByText(/Not set yet/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Limit per spend'), '5000000');
+    await userEvent.click(screen.getByRole('button', { name: 'Save limit' }));
+    await waitFor(() => expect(h.setLimit).toHaveBeenCalledWith(5000000));
+  });
+
+  it('JOB-PU20 a role that may manage accounting but is not an Admin sees the limit and cannot change it', async () => {
+    h.get.mockResolvedValue(OFF);
+    h.getLimit.mockResolvedValue(5000000);
+    h.limitRole = 'Executive';
+    renderIt();
+    expect(await screen.findByLabelText('Limit per spend')).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Save limit' })).toBeNull();
+  });
+
+  it('the limit field is not shown when Site cash is off', async () => {
+    h.get.mockResolvedValue(OFF);
+    h.imprestOn = false;
+    renderIt();
+    await screen.findByRole('switch', { name: 'Approval required before payment' });
+    expect(screen.queryByText('Site cash limit')).toBeNull();
   });
 });

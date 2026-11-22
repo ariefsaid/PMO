@@ -27,9 +27,9 @@ create trigger medical_releases_stamp_org_id before insert on public.medical_rel
 -- capability table only; adds no read of any medical document.
 create function public.medical_release_can_enter() returns boolean
   language sql stable security definer set search_path = public, pg_temp as $$
-  select public.is_active_member() and exists (
-    select 1 from public.profiles p where p.id = auth.uid()
-       and (p.role = 'Admin' or public.role_has_capability(p.built_in_role, 'people_documents_view')))
+  select coalesce((select true from public.profiles p
+                    where public.assert_not_light() and public.is_active_member() and p.id = auth.uid()
+                      and (p.role = 'Admin' or public.role_has_capability(p.built_in_role, 'people_documents_view'))), false)
 $$;
 revoke all on function public.medical_release_can_enter() from public, anon;
 grant execute on function public.medical_release_can_enter() to authenticated;
@@ -37,10 +37,10 @@ grant execute on function public.medical_release_can_enter() to authenticated;
 -- The person's direct manager: people.manager_id, else the manager of the linked profile.
 create function public.medical_release_authority(p_person uuid) returns boolean
   language sql stable security definer set search_path = public, pg_temp as $$
-  select public.is_active_member() and exists (
-    select 1 from public.people w left join public.profiles lp on lp.id = w.profile_id
-     where w.id = p_person and w.org_id = public.auth_org_id()
-       and coalesce(w.manager_id, lp.manager_id) = auth.uid())
+  select coalesce((select true from public.people w left join public.profiles lp on lp.id = w.profile_id
+                    where public.assert_not_light() and public.is_active_member()
+                      and w.id = p_person and w.org_id = public.auth_org_id()
+                      and coalesce(w.manager_id, lp.manager_id) = auth.uid()), false)
 $$;
 revoke all on function public.medical_release_authority(uuid) from public, anon;
 grant execute on function public.medical_release_authority(uuid) to authenticated;
@@ -57,6 +57,9 @@ create policy medical_releases_select on public.medical_releases for select
               or (select public.medical_release_authority(person_id))));
 revoke all on public.medical_releases from public, anon, authenticated;
 grant select on public.medical_releases to authenticated;
+-- A field (light) account reads no release state.
+create policy light_account_scope_select on public.medical_releases as restrictive for select to authenticated
+  using ((select public.actor_is_light()) is not true);
 grant all on public.medical_releases to service_role;
 
 create function public.medical_release_create(p_person_id uuid, p_date date, p_note text) returns uuid
@@ -64,7 +67,7 @@ create function public.medical_release_create(p_person_id uuid, p_date date, p_n
 declare v_org uuid := public.auth_org_id(); v_id uuid;
 begin
   perform public.assert_not_light();
-  if v_org is null or not public.medical_release_can_enter() then
+  if v_org is null or not public.is_active_member() or not public.medical_release_can_enter() then
     raise exception 'MR_FORBIDDEN: only the people team can open a medical release' using errcode = '42501';
   end if;
   if not exists (select 1 from public.people w where w.id = p_person_id and w.org_id = v_org) then
@@ -142,7 +145,8 @@ create function public.medical_release_holds(p_date date) returns table (person_
   language sql stable security definer set search_path = public, pg_temp as $$
   select distinct on (r.person_id) r.person_id, lower(r.status)
     from public.medical_releases r
-   where public.is_active_member() and r.org_id = public.auth_org_id() and r.status <> 'Approved' and p_date >= r.release_date
+   where public.assert_not_light() and public.is_active_member() and r.org_id = public.auth_org_id()
+     and r.status <> 'Approved' and p_date >= r.release_date
      and (public.medical_release_can_enter() or public.crew_can_manage() or public.medical_release_authority(r.person_id)
           or exists (select 1 from (
                        select m.crew_id from public.crew_members m

@@ -73,7 +73,8 @@
   "waiting": {
     "approval": "Waiting for approval",
     "engineerApproval": "Waiting for approval by a project manager or Finance",
-    "payment": "Payment: waiting for Finance"
+    "payment": "Payment: waiting for Finance",
+    "approvalGoesTo": "Waiting for approval. It goes to {{name}}."
   },
   "record": {
     "purchaseRequest": "Purchase request",
@@ -228,5 +229,11 @@
     "pending": "Pending",
     "open": "Open",
     "sent": "Sent"
+  },
+  "order": {
+    "needsSupplierTitle": "Choose the supplier first",
+    "needsSupplier": "An order needs its supplier. Choose it, then record the order.",
+    "confirmTitle": "Record this order?",
+    "confirmBody": "Order {{amount}} from {{supplier}}. This records the order; it does not send it to the supplier."
   }
 }

@@ -37,8 +37,15 @@ describe('AC-PCI-013 geolocation is scoped to the clock-in route', () => {
     expect(block.indexOf('! Permissions-Policy')).toBeGreaterThan(-1);
     expect(block.indexOf('! Permissions-Policy')).toBeLessThan(block.indexOf('Permissions-Policy: camera'));
   });
+  it('AC-WCI-041 the crews route, home of the check-in area form, is scoped the same way and the detach comes first', () => {
+    const crews = all.get('/crews');
+    expect(crews?.detached).toContain('permissions-policy');
+    expect(crews?.set.get('permissions-policy')).toBe('camera=(), microphone=(), geolocation=(self)');
+    const block = HEADERS.slice(HEADERS.indexOf('\n/crews\n'));
+    expect(block.indexOf('! Permissions-Policy')).toBeLessThan(block.indexOf('Permissions-Policy: camera'));
+  });
   it('every other rule that sets a permissions policy still blocks geolocation, camera and microphone', () => {
-    const others = [...all.entries()].filter(([path]) => path !== '/my');
+    const others = [...all.entries()].filter(([path]) => path !== '/my' && path !== '/crews');
     const withPolicy = others.filter(([, r]) => r.set.has('permissions-policy'));
     expect(withPolicy.length).toBeGreaterThan(0);
     for (const [path, r] of withPolicy) {
@@ -48,11 +55,12 @@ describe('AC-PCI-013 geolocation is scoped to the clock-in route', () => {
       expect(v, path).toContain('microphone=()');
     }
   });
-  it('no rule other than /my allows geolocation, and /my never allows camera or microphone', () => {
+  it('no rule other than /my and /crews allows geolocation, and they never allows camera or microphone', () => {
     for (const [path, r] of all) {
       const v = r.set.get('permissions-policy') ?? '';
-      if (path !== '/my') expect(v, path).not.toMatch(/geolocation=\((?!\))/);
+      if (path !== '/my' && path !== '/crews') expect(v, path).not.toMatch(/geolocation=\((?!\))/);
     }
     expect(all.get('/my')?.set.get('permissions-policy')).not.toMatch(/(camera|microphone)=\((?!\))/);
+    expect(all.get('/crews')?.set.get('permissions-policy')).not.toMatch(/(camera|microphone)=\((?!\))/);
   });
 });

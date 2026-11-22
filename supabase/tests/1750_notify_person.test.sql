@@ -10,7 +10,7 @@ insert into auth.users (id, email) values
   ('17500000-0000-0000-0000-0000000001a2', 'np-gone@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('17500000-0000-0000-0000-0000000001a1', '17500000-0000-0000-0000-00000000010a', 'NP Active', 'np-active@example.com', 'Engineer', 'active'),
-  ('17500000-0000-0000-0000-0000000001a2', '17500000-0000-0000-0000-00000000010a', 'NP Gone',   'np-gone@example.com',   'Engineer', 'inactive');
+  ('17500000-0000-0000-0000-0000000001a2', '17500000-0000-0000-0000-00000000010a', 'NP Gone',   'np-gone@example.com',   'Engineer', 'disabled');
 insert into people (id, org_id, kind, name, profile_id) values
   ('17500000-0000-0000-0000-000000001f01', '17500000-0000-0000-0000-00000000010a', 'own',    'NP With Login',  '17500000-0000-0000-0000-0000000001a1'),
   ('17500000-0000-0000-0000-000000001f02', '17500000-0000-0000-0000-00000000010a', 'vendor', 'NP No Login',    null),

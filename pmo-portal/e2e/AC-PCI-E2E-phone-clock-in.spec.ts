@@ -73,34 +73,61 @@ test.afterEach(async () => {
   await admin.from('organizations').update({ built_in_roles_enabled: priorSetting }).eq('id', ORG_ID);
 });
 
-test('AC-PCI-E2E inside the area records attendance; outside goes to the supervisor who approves', async ({ browser }) => {
+test('AC-PCI-E2E inside the area records attendance; outside goes to the supervisor who approves or refuses, and the worker is told each time', async ({ browser }) => {
+  const mine = (p: import('@playwright/test').Page) => p.getByRole('listitem').filter({ hasText: `${run} slab` });
   // Outside first: about 1.1 km north of the area centre.
   const worker = await browser.newContext({ permissions: ['geolocation'], geolocation: { latitude: -6.19, longitude: 106.8, accuracy: 10 } });
   const page = await worker.newPage();
   await signIn(page, 'engineer@acme.test', { home: '/my' });
   await page.goto('/my');
   await expect(page.getByRole('heading', { name: 'Clock in' })).toBeVisible();
-  await page.getByRole('listitem').filter({ hasText: `${run} slab` }).getByRole('button', { name: 'Clock in' }).click();
-  await expect(page.getByText(/outside the work area/i)).toBeVisible();
+  await mine(page).getByRole('button', { name: 'Clock in' }).click();
+  // Waiting state: says it is waiting and who decides; it survives a reload; no second tap is offered.
+  await expect(mine(page).getByText(/outside the work area/i)).toBeVisible();
+  await expect(mine(page).getByText(/Waiting for .+ to approve/)).toBeVisible();
+  await page.reload();
+  await expect(mine(page).getByText(/Waiting for .+ to approve/)).toBeVisible();
+  await expect(mine(page).getByRole('button', { name: /Clock in/ })).toHaveCount(0);
   const before = await admin.from('attendance_days').select('id').eq('work_order_id', workOrderId);
   expect(before.data ?? []).toHaveLength(0);
 
-  // The Admin sees the request in Crews and approves it.
+  // The supervisor is told where they already look: the home list of things needing them; one tap opens the request.
   const supervisor = await browser.newContext();
   const adminPage = await supervisor.newPage();
   await signIn(adminPage, 'admin@acme.test');
+  await adminPage.goto('/');
+  await adminPage.getByText(/check-ins? waiting for your decision/).first().click();
+  await expect(adminPage).toHaveURL(/\/crews/);
+  await expect(adminPage.getByRole('heading', { name: 'Check-ins waiting for you' })).toBeVisible();
+  // The area they judge against is on the request.
+  await expect(adminPage.getByText(/Work area: centre -6\.2, 106\.8, radius 150 m/)).toBeVisible();
+  // First decision: refuse with a reason; the worker sees the reason and can try again.
+  await adminPage.getByRole('button', { name: 'Reject' }).first().click();
+  await adminPage.getByRole('textbox').fill('too far from the gate');
+  await adminPage.getByRole('button', { name: /reject/i }).last().click();
+  await expect(adminPage.getByLabel('Notifications alt+T').getByText('Check-in rejected')).toBeVisible();
+  await page.reload();
+  await expect(mine(page).getByText(/refused this check-in: too far from the gate/)).toBeVisible();
+  await expect(mine(page).getByRole('button', { name: 'Clock in again' })).toBeVisible();
+
+  // Second try, still outside: approve this time; the worker's home says clocked in, with the time.
+  await mine(page).getByRole('button', { name: 'Clock in again' }).click();
+  await expect(mine(page).getByText(/Waiting for .+ to approve/)).toBeVisible();
   await adminPage.goto('/crews');
   await expect(adminPage.getByRole('heading', { name: 'Check-ins waiting for you' })).toBeVisible();
   await adminPage.getByRole('button', { name: 'Approve' }).click();
   await expect(adminPage.getByLabel('Notifications alt+T').getByText('Check-in approved')).toBeVisible();
   await expect.poll(async () => ((await admin.from('attendance_days').select('id').eq('work_order_id', workOrderId)).data ?? []).length).toBe(1);
+  await page.reload();
+  await expect(mine(page).getByText(/Clocked in at \d{1,2}:\d{2}/)).toBeVisible();
 
-  // Inside the area on the next day's tap is covered by pgTAP; here a fresh work order position inside records straight away.
-  await worker.setGeolocation({ latitude: -6.2, longitude: 106.8, accuracy: 10 });
+  // Inside the area on a fresh day records straight away (the records are cleared to stand in for the next day).
   await admin.from('attendance_days').delete().eq('work_order_id', workOrderId);
+  await admin.from('phone_check_ins').delete().eq('work_order_id', workOrderId);
+  await worker.setGeolocation({ latitude: -6.2, longitude: 106.8, accuracy: 10 });
   await page.goto('/my');
-  await page.getByRole('listitem').filter({ hasText: `${run} slab` }).getByRole('button', { name: 'Clock in' }).click();
-  await expect(page.getByRole('button', { name: 'Clocked in' })).toBeVisible();
+  await mine(page).getByRole('button', { name: 'Clock in' }).click();
+  await expect(mine(page).getByText(/Clocked in at \d{1,2}:\d{2}/)).toBeVisible();
   await expect.poll(async () => ((await admin.from('attendance_days').select('source').eq('work_order_id', workOrderId)).data ?? []).map((r) => r.source)).toEqual(['phone_check_in']);
   await worker.close();
   await supervisor.close();

@@ -26,6 +26,11 @@ insert into erp_gl_entry_mirror(org_id,erp_name,company,account,project,voucher_
 insert into procurements(id,org_id,title,requested_by_id,project_id,currency,total_value,status) values
  ('21950630-0000-0000-0000-000000000010','21950630-0000-0000-0000-000000000001','Ordinary','21950630-0000-0000-0000-000000000002','21950630-0000-0000-0000-000000000004','USD',0,'Draft'),
  ('21950630-0000-0000-0000-000000000011','21950630-0000-0000-0000-000000000001','Second','21950630-0000-0000-0000-000000000002','21950630-0000-0000-0000-000000000004','USD',0,'Draft');
+-- 1580: an order needs a supplier, so the fixture purchases are given one before the first signed-in write.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid where p.vendor_id is null;
 set local request.jwt.claims = '{"sub":"21950630-0000-0000-0000-000000000002","role":"authenticated"}';
 
 -- Runs one statement and says whether the revision moved. The page is read as the Admin caller.

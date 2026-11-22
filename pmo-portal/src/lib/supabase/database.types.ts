@@ -13372,6 +13372,18 @@ export type Database = {
           },
         ]
       }
+      org_term_keys: {
+        Row: {
+          term_key: string
+        }
+        Insert: {
+          term_key: string
+        }
+        Update: {
+          term_key?: string
+        }
+        Relationships: []
+      }
       org_terminology: {
         Row: {
           locale: string
@@ -13407,6 +13419,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_terminology_term_key_fkey"
+            columns: ["term_key"]
+            isOneToOne: false
+            referencedRelation: "org_term_keys"
+            referencedColumns: ["term_key"]
           },
           {
             foreignKeyName: "org_terminology_updated_by_fkey"
@@ -15933,6 +15952,7 @@ export type Database = {
           code: string | null
           created_at: string
           currency: string
+          discipline_id: string | null
           extends_procurement_id: string | null
           id: string
           import_batch_id: string | null
@@ -15961,6 +15981,7 @@ export type Database = {
           updated_at: string
           vendor_id: string | null
           vendor_invoiced_at: string | null
+          work_order_id: string | null
         }
         Insert: {
           amount_approved_by_id?: string | null
@@ -15973,6 +15994,7 @@ export type Database = {
           code?: string | null
           created_at?: string
           currency?: string
+          discipline_id?: string | null
           extends_procurement_id?: string | null
           id?: string
           import_batch_id?: string | null
@@ -16001,6 +16023,7 @@ export type Database = {
           updated_at?: string
           vendor_id?: string | null
           vendor_invoiced_at?: string | null
+          work_order_id?: string | null
         }
         Update: {
           amount_approved_by_id?: string | null
@@ -16013,6 +16036,7 @@ export type Database = {
           code?: string | null
           created_at?: string
           currency?: string
+          discipline_id?: string | null
           extends_procurement_id?: string | null
           id?: string
           import_batch_id?: string | null
@@ -16041,6 +16065,7 @@ export type Database = {
           updated_at?: string
           vendor_id?: string | null
           vendor_invoiced_at?: string | null
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -16055,6 +16080,13 @@ export type Database = {
             columns: ["approved_by_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurements_discipline_id_fkey"
+            columns: ["discipline_id"]
+            isOneToOne: false
+            referencedRelation: "cost_disciplines"
             referencedColumns: ["id"]
           },
           {
@@ -16111,6 +16143,27 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurements_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "procurements_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_uninvoiced_acceptance"
+            referencedColumns: ["work_order_id"]
+          },
+          {
+            foreignKeyName: "procurements_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -27407,6 +27460,18 @@ export type Database = {
       }
       accept_equipment_asset_matches: { Args: { p_pairs: Json }; Returns: Json }
       accept_invoice_pairs: { Args: { p_pairs: Json }; Returns: number }
+      acceptances_awaiting_my_confirmation: {
+        Args: never
+        Returns: {
+          acceptance_date: string
+          id: string
+          is_final: boolean
+          prepared_at: string
+          prepared_by: string
+          project_id: string
+          work_order_id: string
+        }[]
+      }
       account_send_groups: {
         Args: { p_tier: string }
         Returns: {
@@ -29082,6 +29147,7 @@ export type Database = {
           code: string | null
           created_at: string
           currency: string
+          discipline_id: string | null
           extends_procurement_id: string | null
           id: string
           import_batch_id: string | null
@@ -29110,6 +29176,7 @@ export type Database = {
           updated_at: string
           vendor_id: string | null
           vendor_invoiced_at: string | null
+          work_order_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -30063,6 +30130,7 @@ export type Database = {
           code: string | null
           created_at: string
           currency: string
+          discipline_id: string | null
           extends_procurement_id: string | null
           id: string
           import_batch_id: string | null
@@ -30091,6 +30159,7 @@ export type Database = {
           updated_at: string
           vendor_id: string | null
           vendor_invoiced_at: string | null
+          work_order_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -32833,6 +32902,9 @@ export type Database = {
         Args: never
         Returns: {
           accuracy_m: number
+          area_lat: number
+          area_lng: number
+          area_radius_m: number
           checked_in_at: string
           crew_id: string
           crew_name: string
@@ -33831,6 +33903,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      record_history_table: { Args: { p_entity_type: string }; Returns: string }
       record_history_visible: {
         Args: { p_entity_id: string; p_entity_type: string }
         Returns: boolean
@@ -35321,6 +35394,15 @@ export type Database = {
       set_work_order_candidate_template: {
         Args: { p_items: Json }
         Returns: number
+      }
+      set_work_order_check_in_area: {
+        Args: {
+          p_lat: number
+          p_lng: number
+          p_radius_m: number
+          p_work_order: string
+        }
+        Returns: undefined
       }
       set_work_order_issue_threshold: {
         Args: { p_threshold_pct: number }

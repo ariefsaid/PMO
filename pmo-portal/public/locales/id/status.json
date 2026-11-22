@@ -130,7 +130,7 @@
     "cancelled": "Dibatalkan"
   },
   "acceptance": {
-    "draft": "Draf",
+    "draft": "Menunggu konfirmasi Keuangan atau Admin",
     "confirmed": "Dikonfirmasi",
     "withdrawn": "Ditarik"
   },
