@@ -252,6 +252,8 @@ export interface PolicyContext {
     author_ids?: string[] | null;
     /** Every user who has ever edited this budget version's lines; activation is forbidden to the full editor set. */
     editor_ids?: string[] | null;
+    /** change-review: the server (qcr_approval_state) says the caller may review through the organisation's reviewer-role list. */
+    reviewer_listed?: boolean;
     /** The sheet's approver (`timesheets.approved_by`) — the P3b `push_timesheet` oracle
      *  (FR-TSP-011): the sheet's OWN approver may always push it, regardless of role. */
     approved_by?: string | null;
@@ -495,7 +497,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       ctx.record?.viewOnly !== true && has(QCR_AUTHOR, role) && !!ctx.currentUserId &&
       (ctx.record?.author_id === ctx.currentUserId || (ctx.record?.editor_ids ?? []).includes(ctx.currentUserId)),
     approve: (role, ctx) =>
-      ctx.record?.viewOnly !== true && has(QCR_APPROVER, role) && !!ctx.currentUserId &&
+      ctx.record?.viewOnly !== true && (has(QCR_APPROVER, role) || ctx.record?.reviewer_listed === true) && !!ctx.currentUserId &&
       ctx.record?.author_id !== ctx.currentUserId && ctx.record?.submitted_by !== ctx.currentUserId &&
       !(ctx.record?.editor_ids ?? []).includes(ctx.currentUserId),
     withdraw: (role, ctx) =>
