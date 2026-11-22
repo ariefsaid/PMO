@@ -279,11 +279,11 @@ type Wiz<Input> = ReturnType<typeof useImportWizard<Input>>;
 
 const NOTHING_NEW_ID = 'import-nothing-new';
 
-/** What the confirm will do, in words: "Add 3 and update 12" (either half left out when it is zero). */
+/** What the confirm will do, in words: "Add 3 and update 12". Only adds or only updates drop the empty half; nothing at all keeps both halves ("Add 0 and update 0"). */
 function matchButtonLabel(t: TFunction, c: { added: number; updated: number }): string {
-  if (c.added > 0 && c.updated > 0) return t('import:match.addAndUpdate', 'Add {{added}} and update {{updated}}', c);
-  if (c.updated > 0) return t('import:match.updateOnly', { count: c.updated, defaultValue_one: 'Update {{count}}', defaultValue_other: 'Update {{count}}' });
-  return t('import:match.addOnly', { count: c.added, defaultValue_one: 'Add {{count}}', defaultValue_other: 'Add {{count}}' });
+  if (c.added > 0 && c.updated === 0) return t('import:match.addOnly', { count: c.added, defaultValue_one: 'Add {{count}}', defaultValue_other: 'Add {{count}}' });
+  if (c.updated > 0 && c.added === 0) return t('import:match.updateOnly', { count: c.updated, defaultValue_one: 'Update {{count}}', defaultValue_other: 'Update {{count}}' });
+  return t('import:match.addAndUpdate', 'Add {{added}} and update {{updated}}', c);
 }
 /** Every row the sheet could import is already on the target: the button is disabled, and this says why. */
 const matchOf = <Input,>(descriptor: ImportDescriptor<Input>) => descriptor.matchExisting;
