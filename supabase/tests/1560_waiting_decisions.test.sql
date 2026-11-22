@@ -2,7 +2,7 @@
 -- Migration under test: 1560_waiting_decisions.sql. Each case asserts what the SAME gate as the deciding function lets the caller decide.
 begin;
 create extension if not exists pgtap;
-select plan(19);
+select plan(20);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15600000-0000-0000-0000-00000000000a', 'Wait Org', 'IDR', 'Asia/Jakarta'), ('15600000-0000-0000-0000-00000000000b', 'Wait Other Org', 'IDR', 'Asia/Jakarta');
@@ -110,6 +110,15 @@ update profiles set manager_id = '15600000-0000-0000-0000-0000000000a4' where id
 set local role authenticated;
 select pg_temp._as('15600000-0000-0000-0000-0000000000a4');
 select is(public.my_decision_standing(), true, 'AC-WAIT-014 a line manager has standing (timesheets)');
+
+-- A light account decides nothing and is refused (the convention of 1209).
+reset role;
+select set_config('request.jwt.claims', '', true);
+update organizations set built_in_roles_enabled = true where id = '15600000-0000-0000-0000-00000000000a';
+update profiles set built_in_role = 'foreman' where id = '15600000-0000-0000-0000-0000000000a4';
+set local role authenticated;
+select pg_temp._as('15600000-0000-0000-0000-0000000000a4');
+select throws_ok($$select * from public.my_waiting_decisions()$$, '42501', 'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this', 'AC-WAIT-019 a light account is refused the waiting list');
 
 -- Access: no anonymous reach, and the enumeration of kinds is closed.
 reset role;

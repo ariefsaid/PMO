@@ -21,6 +21,7 @@ create function public.my_waiting_decisions()
 declare v_org uuid := public.auth_org_id(); v_uid uuid := auth.uid(); v_role user_role := public.auth_role();
 begin
   perform public.assert_is_active_member();
+  perform public.assert_not_light();   -- a light account decides nothing and sees no list (1209)
   if v_role is null or v_uid is null then return; end if;
   return query
   -- daily_report
@@ -90,6 +91,7 @@ create function public.my_decision_standing() returns boolean
 declare v_org uuid := public.auth_org_id(); v_uid uuid := auth.uid(); v_role user_role := public.auth_role();
 begin
   perform public.assert_is_active_member();
+  perform public.assert_not_light();
   if v_role is null or v_uid is null then return false; end if;
   if v_role in ('Admin', 'Executive', 'Project Manager', 'Finance') then return true; end if;
   return exists (select 1 from public.approval_chain_steps s where s.org_id = v_org and s.role = v_role)
