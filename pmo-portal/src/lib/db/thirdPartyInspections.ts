@@ -101,7 +101,7 @@ export async function listWorkOrderInspections(workOrderId: string): Promise<Ins
     .order('created_at', { ascending: true })
     .limit(LIST_LIMIT);
   if (error) throw new AppError(error.message, error.code);
-  return (data ?? []) as unknown as InspectionRow[];
+  return data ?? [];
 }
 
 export async function getInspectionCosts(workOrderId: string): Promise<InspectionCostRow[]> {
@@ -115,6 +115,8 @@ export async function getInspectionPrerequisites(workOrderId: string, gate: Insp
     p_work_order_id: workOrderId, p_section_id: null, p_gate: gate,
   });
   if (error) throw new AppError(error.message, error.code);
+  // `work_order_inspection_prerequisites` is declared `returns jsonb`, so the generated type is `Json` and the
+  // shape below is stated here, not by the compiler (see scripts/check-typed-dals.mjs).
   return data as unknown as InspectionPrerequisites;
 }
 

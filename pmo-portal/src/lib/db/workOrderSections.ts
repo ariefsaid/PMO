@@ -39,13 +39,6 @@ export interface SectionRollupRow {
   crewsToday: number;
 }
 
-interface RollupRaw {
-  section_id: string | null; code: string | null; name: string | null; location_note: string | null; foreman_id: string | null;
-  readiness: string | null; readiness_note: string | null; sort_order: number | null; archived_at: string | null;
-  direct_budget: number | string | null; indirect_budget: number | string | null; equipment_hours: number | string | null; crew_hours: number | string | null;
-  tasks_total: number; tasks_done: number; crews_today: number;
-}
-
 const MALFORMED = 'PMO_MALFORMED';
 const fixed2 = (v: number | string | null): string | null => {
   if (v === null || v === undefined) return null;
@@ -57,7 +50,7 @@ const fixed2 = (v: number | string | null): string | null => {
 export async function listSectionRollup(workOrderId: string): Promise<SectionRollupRow[]> {
   const { data, error } = await supabase.rpc('work_order_section_rollup', { p_work_order_id: workOrderId });
   if (error) throw new AppError(error.message, error.code);
-  return ((data ?? []) as unknown as RollupRaw[]).map((r) => {
+  return (data ?? []).map((r) => {
     if (r.readiness !== null && !READINESS_VALUES.includes(r.readiness as Readiness)) throw new AppError('Section roll-up: unexpected readiness', MALFORMED);
     return {
       sectionId: r.section_id, code: r.code, name: r.name, locationNote: r.location_note, foremanId: r.foreman_id,

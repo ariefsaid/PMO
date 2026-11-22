@@ -10,10 +10,6 @@ export interface IdleCostRow {
   workOrderId: string; reasonId: string; reasonLabel: string; minutes: number; hours: string;
   hourlyCost: string | null; amount: string | null; currency: string; reason: 'counted' | 'no-rate';
 }
-interface RawIdleRow {
-  work_order_id: string; reason_id: string; reason_label: string; minutes: number | string; hours: string;
-  hourly_cost: string | null; amount: string | null; currency: string; reason: string;
-}
 const EXACT = /^-?\d{1,15}(\.\d{1,2})?$/;
 
 export async function getIdleCostEnabled(): Promise<boolean> {
@@ -28,8 +24,7 @@ export async function setIdleCostEnabled(enabled: boolean): Promise<void> {
 }
 
 export async function listProjectIdleCost(projectId: string): Promise<IdleCostRow[]> {
-  const { data, error } = await (supabase.rpc('work_order_idle_cost', { p_project_id: projectId }) as unknown as PromiseLike<{
-    data: RawIdleRow[] | null; error: { message: string; code?: string } | null }>);
+  const { data, error } = await supabase.rpc('work_order_idle_cost', { p_project_id: projectId });
   if (error) throw new AppError(error.message, error.code);
   return (data ?? []).map((r) => {
     if ((r.amount !== null && !EXACT.test(r.amount)) || !EXACT.test(r.hours) || (r.reason !== 'counted' && r.reason !== 'no-rate')) {
