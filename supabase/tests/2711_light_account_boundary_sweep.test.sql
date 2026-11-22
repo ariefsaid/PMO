@@ -33,6 +33,7 @@ insert into la_fn_allow values
   ('leave_request_cancel', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
   ('leave_request_submit', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
   ('leave_requestable_people', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
+  ('medical_release_holds', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
   ('my_home', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
   ('phone_check_in', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
   ('set_my_email_opt_out', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
@@ -339,7 +340,7 @@ select is((select coalesce(string_agg(fn, ', ' order by fn), '') from la_fn_allo
   (select string_agg(x, ', ' order by x) from unnest(array[
   'attendance_can_record', 'attendance_generate_timesheet', 'attendance_record', 'leave_enabled',
   'leave_on_date', 'leave_request_cancel', 'leave_request_submit', 'leave_requestable_people',
-  'my_home', 'phone_check_in', 'set_my_email_opt_out', 'actor_authorization_state',
+  'medical_release_holds', 'my_home', 'phone_check_in', 'set_my_email_opt_out', 'actor_authorization_state',
   'org_seat_report', 'resolved_org_features', 'resolved_org_plan', 'receive_stock_transfer',
   'record_stock_handover']) x),
   'AC-LA-014 the field-path allowlist is exactly the ruled field-account paths');
