@@ -101,6 +101,8 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', async (importOriginal) => ({
 }));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => imprestState }));
+const leaveState = { data: [] as unknown[], isPending: false, isError: false, enabled: false, prerequisitePending: false, prerequisiteError: false, refetch: vi.fn() };
+vi.mock('@/src/hooks/useLeave', () => ({ useLeaveRequests: () => leaveState }));
 const correctionState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => correctionState,

@@ -14,6 +14,22 @@ const h = vi.hoisted(() => ({
   // The client-acceptance (BAST) waiting read: its own caller-filtered source (1570), never `delivery_record`.
   bast: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   standing: { data: false as boolean | undefined, isPending: false, isError: false },
+  leave: {
+    data: [] as unknown[],
+    isPending: false,
+    isError: false,
+    enabled: true,
+    prerequisitePending: false,
+    prerequisiteError: false,
+    refetch: vi.fn(),
+  },
+  imprest: {
+    data: { plans: [] as unknown[], replenishments: [] as unknown[] },
+    isPending: false,
+    isError: false,
+    enabled: true,
+    refetch: vi.fn(),
+  },
 }));
 const idle = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 
@@ -24,7 +40,8 @@ vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceAp
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => idle }));
-vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => ({ ...idle, data: { plans: [], replenishments: [] } }) }));
+vi.mock('@/src/hooks/useLeave', () => ({ useLeaveRequests: () => h.leave }));
+vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => h.imprest }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => idle,
   useTimesheetsAwaitingApproval: () => idle,
@@ -59,6 +76,22 @@ beforeEach(() => {
   h.database = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.bast = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.standing = { data: false, isPending: false, isError: false };
+  h.leave = {
+    data: [],
+    isPending: false,
+    isError: false,
+    enabled: true,
+    prerequisitePending: false,
+    prerequisiteError: false,
+    refetch: vi.fn(),
+  };
+  h.imprest = {
+    data: { plans: [], replenishments: [] },
+    isPending: false,
+    isError: false,
+    enabled: true,
+    refetch: vi.fn(),
+  };
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -134,5 +167,140 @@ describe('the inbox lists the decisions the database says are waiting', () => {
     h.bast = { data: [], isPending: false, isError: false, refetch: vi.fn() };
     renderPage('all');
     expect(screen.queryByTestId('approvals-waiting-work_order_acceptance')).toBeNull();
+  });
+
+  describe('approvals-knownness: unread or failed sources withhold all-caught-up and counts', () => {
+    it('applicable leave pending with zero rows prevents all-caught-up, withholds count, and is present in extraKinds', () => {
+      h.role = 'Project Manager';
+      h.leave = {
+        data: [],
+        isPending: true,
+        isError: false,
+        enabled: true,
+        prerequisitePending: false,
+        prerequisiteError: false,
+        refetch: vi.fn(),
+      };
+      renderPage('all');
+      expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+      const scopeToggle = screen.getByLabelText('Approvals scope');
+      expect(within(scopeToggle).getByText('Leave requests')).toBeInTheDocument();
+      const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
+      expect(within(allTab!).queryByText('0')).toBeNull();
+    });
+
+    it('applicable leave error with zero rows prevents all-caught-up, withholds count, and is present in extraKinds', () => {
+      h.role = 'Project Manager';
+      h.leave = {
+        data: [],
+        isPending: false,
+        isError: true,
+        enabled: true,
+        prerequisitePending: false,
+        prerequisiteError: false,
+        refetch: vi.fn(),
+      };
+      renderPage('all');
+      expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+      const scopeToggle = screen.getByLabelText('Approvals scope');
+      expect(within(scopeToggle).getByText('Leave requests')).toBeInTheDocument();
+      const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
+      expect(within(allTab!).queryByText('0')).toBeNull();
+    });
+
+    it('applicable imprest pending with zero rows prevents all-caught-up, withholds count, and is present in extraKinds', () => {
+      h.role = 'Finance';
+      h.imprest = {
+        data: { plans: [], replenishments: [] },
+        isPending: true,
+        isError: false,
+        enabled: true,
+        refetch: vi.fn(),
+      };
+      renderPage('all');
+      expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+      const scopeToggle = screen.getByLabelText('Approvals scope');
+      expect(within(scopeToggle).getByText('Site cash')).toBeInTheDocument();
+      const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
+      expect(within(allTab!).queryByText('0')).toBeNull();
+    });
+
+    it('applicable imprest error with zero rows prevents all-caught-up, withholds count, and is present in extraKinds', () => {
+      h.role = 'Finance';
+      h.imprest = {
+        data: { plans: [], replenishments: [] },
+        isPending: false,
+        isError: true,
+        enabled: true,
+        refetch: vi.fn(),
+      };
+      renderPage('all');
+      expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+      const scopeToggle = screen.getByLabelText('Approvals scope');
+      expect(within(scopeToggle).getByText('Site cash')).toBeInTheDocument();
+      const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
+      expect(within(allTab!).queryByText('0')).toBeNull();
+    });
+
+    it('settled empty: all sources settled with zero rows renders all-caught-up', () => {
+      h.role = 'Finance';
+      h.leave = { data: [], isPending: false, isError: false, enabled: true, prerequisitePending: false, prerequisiteError: false, refetch: vi.fn() };
+      h.imprest = { data: { plans: [], replenishments: [] }, isPending: false, isError: false, enabled: true, refetch: vi.fn() };
+      h.database = { data: [], isPending: false, isError: false, refetch: vi.fn() };
+      h.bast = { data: [], isPending: false, isError: false, refetch: vi.fn() };
+      renderPage('all');
+      expect(screen.getByTestId('approvals-caught-up')).toBeInTheDocument();
+    });
+
+    it('known rows from independent source: leave row settles with known count and prevents all-caught-up', () => {
+      h.role = 'Project Manager';
+      h.leave = {
+        data: [{ id: 'l-1', can_decide: true, start_date: '2026-11-20T00:00:00Z', notes: 'Medical leave' }],
+        isPending: false,
+        isError: false,
+        enabled: true,
+        prerequisitePending: false,
+        prerequisiteError: false,
+        refetch: vi.fn(),
+      };
+      renderPage('all');
+      expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+      const scopeToggle = screen.getByLabelText('Approvals scope');
+      expect(within(scopeToggle).getByText('Leave requests')).toBeInTheDocument();
+      const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
+      expect(within(allTab!).getByText('1')).toBeInTheDocument();
+    });
+
+    it('known rows from independent source: imprest plan settles with known count and prevents all-caught-up', () => {
+      h.role = 'Finance';
+      h.imprest = {
+        data: {
+          plans: [{
+            id: 'plan-1',
+            month: '2026-11-01',
+            total: '500000',
+            submitted_at: '2026-11-20T00:00:00Z',
+            float_id: 'float-1',
+            status: 'Submitted',
+            float: {
+              custodian_id: 'other-user',
+              currency: 'IDR',
+              project: { name: 'Apollo' },
+            },
+          }],
+          replenishments: [],
+        },
+        isPending: false,
+        isError: false,
+        enabled: true,
+        refetch: vi.fn(),
+      };
+      renderPage('all');
+      expect(screen.queryByTestId('approvals-caught-up')).toBeNull();
+      const scopeToggle = screen.getByLabelText('Approvals scope');
+      expect(within(scopeToggle).getByText('Site cash')).toBeInTheDocument();
+      const allTab = within(scopeToggle).getByText('All pending').closest('[role="tab"], button');
+      expect(within(allTab!).getByText('1')).toBeInTheDocument();
+    });
   });
 });

@@ -107,7 +107,12 @@ const ApprovalsPage: React.FC = () => {
   const bastPending = waiting.pendingKinds.includes('work_order_acceptance');
   const bastError = waiting.failedKinds.includes('work_order_acceptance');
   const canShowBast = bastCount > 0 || bastPending || (bastError && (canApproveProcurement || canApproveTimesheets || canApproveExpenses || canApproveInvoices));
-  const extraKinds = (['leave', 'imprest', ...DATABASE_LISTED_KINDS] as const).filter((kind) => waiting.countFor(kind) > 0);
+  const extraKinds = (['leave', 'imprest', ...DATABASE_LISTED_KINDS] as const).filter((kind) => {
+    if (kind === 'leave' || kind === 'imprest') {
+      return waiting.countFor(kind) > 0 || waiting.pendingKinds.includes(kind) || waiting.failedKinds.includes(kind);
+    }
+    return waiting.countFor(kind) > 0;
+  });
   const databasePending = waiting.pendingKinds.includes('daily_report');
   const databaseError = waiting.failedKinds.includes('daily_report');
 
@@ -158,8 +163,27 @@ const ApprovalsPage: React.FC = () => {
   const pendingExpense = canShowExpenses ? expenseRows.length : 0;
   const invSettledEmpty = !invoices.isPending && !invoices.isError && pendingInv === 0;
   const expenseSettledEmpty = !expenseQuery.isPending && !expenseQuery.isError && pendingExpense === 0;
-  const allCaughtUp = procSettledEmpty && tsSettledEmpty && invSettledEmpty && expenseSettledEmpty && !canShowMaterial && extraKinds.length === 0 && !canShowBast && !databasePending && !databaseError;
-  const allScopePending = (canApproveProcurement && procPending) || (canApproveTimesheets && (tsPending || correctionPending)) || (canShowExpenses && expenseQuery.isPending) || (canShowInvoices && invoices.isPending) || (canShowMaterial && materialPending) || (canShowBast && bastPending) || databasePending;
+  const allCaughtUp =
+    waiting.count === 0 &&
+    procSettledEmpty &&
+    tsSettledEmpty &&
+    invSettledEmpty &&
+    expenseSettledEmpty &&
+    !canShowMaterial &&
+    extraKinds.length === 0 &&
+    !canShowBast &&
+    !databasePending &&
+    !databaseError;
+  const allScopePending =
+    waiting.count === undefined ||
+    (canApproveProcurement && (procPending || procError)) ||
+    (canApproveTimesheets && (tsPending || tsError || correctionPending || correctionError)) ||
+    (canShowExpenses && (expenseQuery.isPending || expenseQuery.isError)) ||
+    (canShowInvoices && (invoices.isPending || invoices.isError)) ||
+    (canShowMaterial && (materialPending || materialError)) ||
+    (canShowBast && (bastPending || bastError)) ||
+    databasePending ||
+    databaseError;
 
   const allPopulation = waiting.entries;
   const countFor = (kind: Scope) => allPopulation.filter((entry: ApprovalPopulationEntry) => entry.kind === kind).length;
@@ -304,7 +328,7 @@ const ApprovalsPage: React.FC = () => {
                   value: scope,
                   label: scopeLabels[scope],
                   icon: (scope === 'all' ? 'grid' : scope === 'procurement' ? 'cart' : scope === 'timesheets' ? 'clock' : 'file'),
-                  count: allScopePending ? undefined : scope === 'all' ? allPopulation.length : countFor(scope),
+                  count: allScopePending ? undefined : scope === 'all' ? (waiting.count ?? allPopulation.length) : countFor(scope),
                 }))}
                 value={activeScope}
                 onChange={selectScope}
@@ -317,7 +341,7 @@ const ApprovalsPage: React.FC = () => {
               label={t('approvals.scopeToggleLabel', 'Approvals scope')}
               hideLabel
               value={activeScope}
-              options={availableScopes.map((scope) => ({ value: scope, label: allScopePending ? scopeLabels[scope] : `${scopeLabels[scope]} · ${scope === 'all' ? allPopulation.length : countFor(scope)}` }))}
+              options={availableScopes.map((scope) => ({ value: scope, label: allScopePending ? scopeLabels[scope] : `${scopeLabels[scope]} · ${scope === 'all' ? (waiting.count ?? allPopulation.length) : countFor(scope)}` }))}
               onChange={(value) => selectScope(value as Scope)}
               fullWidth
               wrapperClassName="w-full"
