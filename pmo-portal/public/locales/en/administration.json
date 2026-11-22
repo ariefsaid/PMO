@@ -709,31 +709,31 @@
       "whoNow": "Who can approve now",
       "helpRule": "With nobody listed, {{roles}} can approve another person's case."
     },
-      "siteCheckpoints": {
-        "title": "Day checkpoints",
-        "helper": "The checkpoints of a working day, with the time each is due. The field controller records each with a photo; a late one reminds the reporter and flags the work order. With no checkpoints, nothing is created or reminded.",
-        "loadError": "Couldn't load the checkpoints",
-        "empty": "No checkpoints yet. Nothing is created or reminded until you add one.",
-        "name": "Name",
-        "time": "Due time",
-        "grace": "Grace (minutes)",
-        "photo": "Photo required",
-        "photoLabel": "Photo required for {{name}}",
-        "start": "Marks the start of work",
-        "startLabel": "Marks the start of work for {{name}}",
-        "up": "Move up",
-        "down": "Move down",
-        "remove": "Remove",
-        "add": "Add checkpoint",
-        "save": "Save checkpoints",
-        "saved": "Checkpoints saved",
-        "invalid": {
-          "name": "Every checkpoint needs a name of up to 120 characters",
-          "time": "Every checkpoint needs a due time",
-          "grace": "Grace is a whole number from 0 to 120 minutes",
-          "start": "Only one checkpoint can mark the start of work"
-        }
-      },
+    "siteCheckpoints": {
+      "title": "Day checkpoints",
+      "helper": "The checkpoints of a working day, with the time each is due. The field controller records each with a photo; a late one reminds the reporter and flags the work order. With no checkpoints, nothing is created or reminded.",
+      "loadError": "Couldn't load the checkpoints",
+      "empty": "No checkpoints yet. Nothing is created or reminded until you add one.",
+      "name": "Name",
+      "time": "Due time",
+      "grace": "Grace (minutes)",
+      "photo": "Photo required",
+      "photoLabel": "Photo required for {{name}}",
+      "start": "Marks the start of work",
+      "startLabel": "Marks the start of work for {{name}}",
+      "up": "Move up",
+      "down": "Move down",
+      "remove": "Remove",
+      "add": "Add checkpoint",
+      "save": "Save checkpoints",
+      "saved": "Checkpoints saved",
+      "invalid": {
+        "name": "Every checkpoint needs a name of up to 120 characters",
+        "time": "Every checkpoint needs a due time",
+        "grace": "Grace is a whole number from 0 to 120 minutes",
+        "start": "Only one checkpoint can mark the start of work"
+      }
+    },
     "siteReportLists": {
       "title": "Site report lists",
       "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",
@@ -798,7 +798,7 @@
       "saved": "Attendance target saved",
       "title": "Attendance target",
       "turnOff": "Turn off"
-      },
+    },
     "crewLoans": {
       "title": "Crew loans",
       "label": "Allow lending workers between crews",
@@ -907,7 +907,11 @@
     "former": "Former staff",
     "all": "All",
     "formerEmpty": "No former staff. People you archive appear here.",
-    "navLabel": "People"
+    "navLabel": "People",
+    "manager": "Direct manager (optional)",
+    "managerPlaceholder": "No manager set",
+    "managerSearch": "Search users",
+    "managerHelp": "The manager is warned first when this person's documents are about to expire, and records the renewal."
   },
   "roleNames": {
     "title": "Role names",
@@ -974,7 +978,11 @@
     "medicalCol": "Medical",
     "yes": "Yes",
     "roles": "Roles notified",
-    "rolesHelp": "The person's manager is always notified. Leave empty to use the default for this kind.",
+    "rolesHelp": "Tick the roles to warn before a document of this type expires. A person's direct manager is always warned too.",
+    "notifyPerson": "Also tell the person",
+    "thePerson": "The person",
+    "manager": "Direct manager",
+    "noOne": "No one is warned",
     "actions": "Actions",
     "edit": "Edit",
     "archive": "Archive",
@@ -1107,7 +1115,7 @@
     "saved": "Settings saved",
     "groupSaved": "Department group saved",
     "groupDeleted": "Department group deleted"
-    },
+  },
   "clearance": {
     "items": {
       "errName": "Enter the item name",

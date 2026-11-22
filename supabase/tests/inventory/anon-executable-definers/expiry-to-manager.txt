@@ -1,0 +1,2 @@
+# 1761: the direct manager (or an Admin) records a document renewal; the function checks who the caller is.
+record_document_renewal

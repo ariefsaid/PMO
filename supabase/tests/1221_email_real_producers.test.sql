@@ -72,8 +72,8 @@ select ok(pg_temp.queued('27120000-0000-0000-0000-000000000405', 'overdue_item')
 -- 6. document expiry run (0971)
 insert into people (id, org_id, code, name, manager_id) values
   ('27120000-0000-0000-0000-0000000000e1', '27120000-0000-0000-0000-00000000000a', 'P-1', 'EMP Person', '27120000-0000-0000-0000-0000000000a2');
-insert into document_types (id, org_id, name, applies_to, is_medical, notify_roles) values
-  ('27120000-0000-0000-0000-0000000000f1', '27120000-0000-0000-0000-00000000000a', 'Work permit', 'person', false, '{}');
+insert into document_types (id, org_id, name, applies_to, is_medical) values
+  ('27120000-0000-0000-0000-0000000000f1', '27120000-0000-0000-0000-00000000000a', 'Work permit', 'person', false);
 insert into expiry_documents (id, org_id, subject_kind, person_id, type_id, number, expires_on) values
   ('27120000-0000-0000-0000-000000000406', '27120000-0000-0000-0000-00000000000a', 'person', '27120000-0000-0000-0000-0000000000e1', '27120000-0000-0000-0000-0000000000f1', 'WP-1', '2026-12-20');
 select ok(public.run_document_expiry_warnings('2026-12-15') > 0, 'the expiry run sends notices');
