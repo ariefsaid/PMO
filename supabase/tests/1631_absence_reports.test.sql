@@ -4,15 +4,17 @@
 -- removing people.org_id = auth_org_id() lets the cross-org-linked actor upsert the foreign person's row.
 -- Leave-enabled recipient proof: controller + active configured line manager + active configured leave role;
 -- non-vacuous candidate-fanout actor self-exclusion; exclusions for disabled leave-role profiles and unconfigured roles;
--- deduplication when controller is also line manager; explicit leave-disabled fixture (controller only).
+-- deduplication when controller is also line manager; explicit leave-disabled fixture (controller only);
+-- the default null leave_approver_role fallback to Admin (one leave-on org with no role configured).
 begin;
 create extension if not exists pgtap;
-select plan(57);
+select plan(65);
 
 insert into organizations (id, name, default_currency, built_in_roles_enabled, leave_requests_enabled, leave_approver_role) values
   ('16310000-0000-0000-0000-00000000000a', 'ABS Org', 'IDR', true, true, 'Finance'),
   ('16310000-0000-0000-0000-00000000000b', 'ABS Other Org', 'IDR', true, true, null),
-  ('16310000-0000-0000-0000-00000000000c', 'ABS Leave-Off Org', 'IDR', true, false, 'Finance');
+  ('16310000-0000-0000-0000-00000000000c', 'ABS Leave-Off Org', 'IDR', true, false, 'Finance'),
+  ('16310000-0000-0000-0000-00000000000d', 'ABS Default Role Org', 'IDR', true, true, null);
 insert into auth.users (id, email) values
   ('16310000-0000-0000-0000-0000000000a1', 'abs-foreman@example.com'),
   ('16310000-0000-0000-0000-0000000000a2', 'abs-field@example.com'),
@@ -31,7 +33,11 @@ insert into auth.users (id, email) values
   ('16310000-0000-0000-0000-0000000000c1', 'abs-off-foreman@example.com'),
   ('16310000-0000-0000-0000-0000000000c2', 'abs-off-worker@example.com'),
   ('16310000-0000-0000-0000-0000000000c3', 'abs-off-manager@example.com'),
-  ('16310000-0000-0000-0000-0000000000c4', 'abs-off-finance@example.com');
+  ('16310000-0000-0000-0000-0000000000c4', 'abs-off-finance@example.com'),
+  ('16310000-0000-0000-0000-0000000000ba', 'abs-default-worker@example.com'),
+  ('16310000-0000-0000-0000-0000000000bb', 'abs-default-admin@example.com'),
+  ('16310000-0000-0000-0000-0000000000bc', 'abs-default-finance@example.com'),
+  ('16310000-0000-0000-0000-0000000000bd', 'abs-default-manager@example.com');
 insert into profiles (id, org_id, full_name, email, role, status, built_in_role, manager_id) values
   ('16310000-0000-0000-0000-0000000000a9', '16310000-0000-0000-0000-00000000000a', 'ABS Manager', 'abs-manager@example.com', 'Project Manager', 'active', null, null),
   ('16310000-0000-0000-0000-0000000000aa', '16310000-0000-0000-0000-00000000000a', 'ABS Admin', 'abs-admin@example.com', 'Admin', 'active', null, null),
@@ -50,7 +56,11 @@ insert into profiles (id, org_id, full_name, email, role, status, built_in_role,
   ('16310000-0000-0000-0000-0000000000c3', '16310000-0000-0000-0000-00000000000c', 'ABS Off Manager', 'abs-off-manager@example.com', 'Project Manager', 'active', null, null),
   ('16310000-0000-0000-0000-0000000000c4', '16310000-0000-0000-0000-00000000000c', 'ABS Off Finance', 'abs-off-finance@example.com', 'Finance', 'active', null, null),
   ('16310000-0000-0000-0000-0000000000c1', '16310000-0000-0000-0000-00000000000c', 'ABS Off Controller', 'abs-off-foreman@example.com', 'Engineer', 'active', 'foreman', null),
-  ('16310000-0000-0000-0000-0000000000c2', '16310000-0000-0000-0000-00000000000c', 'ABS Off Worker', 'abs-off-worker@example.com', 'Engineer', 'active', 'field_user', '16310000-0000-0000-0000-0000000000c3');
+  ('16310000-0000-0000-0000-0000000000c2', '16310000-0000-0000-0000-00000000000c', 'ABS Off Worker', 'abs-off-worker@example.com', 'Engineer', 'active', 'field_user', '16310000-0000-0000-0000-0000000000c3'),
+  ('16310000-0000-0000-0000-0000000000bd', '16310000-0000-0000-0000-00000000000d', 'ABS Default Manager', 'abs-default-manager@example.com', 'Project Manager', 'active', null, null),
+  ('16310000-0000-0000-0000-0000000000ba', '16310000-0000-0000-0000-00000000000d', 'ABS Default Worker', 'abs-default-worker@example.com', 'Engineer', 'active', 'field_user', '16310000-0000-0000-0000-0000000000bd'),
+  ('16310000-0000-0000-0000-0000000000bb', '16310000-0000-0000-0000-00000000000d', 'ABS Default Admin', 'abs-default-admin@example.com', 'Admin', 'active', null, null),
+  ('16310000-0000-0000-0000-0000000000bc', '16310000-0000-0000-0000-00000000000d', 'ABS Default Finance', 'abs-default-finance@example.com', 'Finance', 'active', null, null);
 create temp table abs_today as
   select public.equipment_org_today('16310000-0000-0000-0000-00000000000a') as d;
 grant select on abs_today to authenticated;
@@ -73,7 +83,8 @@ insert into people (id, org_id, kind, name, profile_id, archived_at) values
   ('16310000-0000-0000-0000-000000000f08', '16310000-0000-0000-0000-00000000000a', 'own', 'Dedup Worker', '16310000-0000-0000-0000-0000000000ae', null),
   ('16310000-0000-0000-0000-000000000f10', '16310000-0000-0000-0000-00000000000b', 'own', 'Other Org Admin', '16310000-0000-0000-0000-0000000000b1', null),
   ('16310000-0000-0000-0000-000000000fc1', '16310000-0000-0000-0000-00000000000c', 'own', 'Off Controller', '16310000-0000-0000-0000-0000000000c1', null),
-  ('16310000-0000-0000-0000-000000000fc2', '16310000-0000-0000-0000-00000000000c', 'own', 'Off Worker', '16310000-0000-0000-0000-0000000000c2', null);
+  ('16310000-0000-0000-0000-000000000fc2', '16310000-0000-0000-0000-00000000000c', 'own', 'Off Worker', '16310000-0000-0000-0000-0000000000c2', null),
+  ('16310000-0000-0000-0000-000000000fe1', '16310000-0000-0000-0000-00000000000d', 'own', 'Default Role Worker', '16310000-0000-0000-0000-0000000000ba', null);
 -- The composite profile/org FK correctly prevents this adversarial link in normal writes. Bypass
 -- triggers only for this transaction-local fixture so the test proves report_absence checks org_id
 -- even if a corrupt/legacy link reaches the table; restore trigger behavior before any assertions.
@@ -287,6 +298,44 @@ select is((select array_agg(owner_id order by owner_id) from public.notification
           array['16310000-0000-0000-0000-0000000000a1'::uuid, '16310000-0000-0000-0000-0000000000af'::uuid],
           'dedup recipient set contains controller/manager once and configured leave role once');
 
+-- Default leave approver role: leave on, `leave_approver_role` null, so the shipped
+-- coalesce(o.leave_approver_role, 'Admin') fallback must notify the active Admin and not Finance.
+-- The Admin, Finance and manager here are all distinct from the reporting worker and from each other,
+-- and the worker is in no crew, so every recipient below is exactly and only the fallback path.
+reset role;
+select ok((select leave_approver_role is null and leave_requests_enabled
+             from public.organizations where id = '16310000-0000-0000-0000-00000000000d'),
+  'the default-role organisation leaves leave requests on with no configured approver role');
+select set_config('request.jwt.claims', json_build_object('sub', '16310000-0000-0000-0000-0000000000ba', 'role', 'authenticated')::text, true);
+set local role authenticated;
+select lives_ok($$ select public.report_absence('sick', 'default role report') $$,
+  'a worker in the default leave-approver-role organisation reports absence');
+select set_config('test.default_role_report_id', (select id::text from public.absence_reports where person_id = '16310000-0000-0000-0000-000000000fe1'), true);
+reset role;
+select is((select count(*)::int from public.notifications
+            where owner_id = '16310000-0000-0000-0000-0000000000bb'
+              and metadata->'entity'->>'id' = current_setting('test.default_role_report_id')),
+          1, 'AC-SD-007 the fallback Admin approver is told once for the exact absence report');
+select is((select count(*)::int from public.notifications
+            where owner_id = '16310000-0000-0000-0000-0000000000bc'
+              and metadata->'entity'->>'id' = current_setting('test.default_role_report_id')),
+          0, 'the Finance profile is excluded while the approver role falls back to Admin');
+select is((select count(*)::int from public.notifications
+            where owner_id = '16310000-0000-0000-0000-0000000000bd'
+              and metadata->'entity'->>'id' = current_setting('test.default_role_report_id')),
+          1, 'the line manager is still told under the fallback role');
+select is((select count(*)::int from public.notifications
+            where owner_id = '16310000-0000-0000-0000-0000000000ba'
+              and metadata->'entity'->>'id' = current_setting('test.default_role_report_id')),
+          0, 'the reporting worker is not told about their own absence under the fallback role');
+select is((select count(*)::int from public.notifications
+            where metadata->'entity'->>'id' = current_setting('test.default_role_report_id')),
+          2, 'exactly two notifications exist: line manager and fallback Admin approver');
+select is((select array_agg(owner_id order by owner_id) from public.notifications
+            where metadata->'entity'->>'id' = current_setting('test.default_role_report_id')),
+          array['16310000-0000-0000-0000-0000000000bb'::uuid, '16310000-0000-0000-0000-0000000000bd'::uuid],
+          'fallback recipient set is the Admin approver and the line manager only');
+
 -- Explicit leave-disabled organisation fixture (controller only):
 select set_config('request.jwt.claims', json_build_object('sub', '16310000-0000-0000-0000-0000000000c2', 'role', 'authenticated')::text, true);
 set local role authenticated;
@@ -294,22 +343,22 @@ select lives_ok($$ select public.report_absence('sick', 'leave off report') $$,
   'a worker in an organisation with leave requests disabled reports absence');
 select set_config('test.leave_off_report_id', (select id::text from public.absence_reports where org_id = '16310000-0000-0000-0000-00000000000c'), true);
 reset role;
-select is((select count(*)::int from public.absence_reports where org_id = '16310000-0000-0000-0000-00000000000c'),
+select is((select count(*)::int from public.absence_reports where id = current_setting('test.leave_off_report_id')),
           1, 'absence report row is saved in the leave-disabled organisation');
 select is((select count(*)::int from public.notifications
-            where org_id = '16310000-0000-0000-0000-00000000000c'
+            where metadata->'entity'->>'id' = current_setting('test.leave_off_report_id')
               and owner_id = '16310000-0000-0000-0000-0000000000c1'),
           1, 'crew controller receives notification when leave requests are disabled');
 select is((select count(*)::int from public.notifications
-            where org_id = '16310000-0000-0000-0000-00000000000c'
+            where metadata->'entity'->>'id' = current_setting('test.leave_off_report_id')
               and owner_id = '16310000-0000-0000-0000-0000000000c3'),
           0, 'line manager receives no notification when leave requests are disabled');
 select is((select count(*)::int from public.notifications
-            where org_id = '16310000-0000-0000-0000-00000000000c'
+            where metadata->'entity'->>'id' = current_setting('test.leave_off_report_id')
               and owner_id = '16310000-0000-0000-0000-0000000000c4'),
           0, 'leave approver role receives no notification when leave requests are disabled');
 select is((select count(*)::int from public.notifications
-            where org_id = '16310000-0000-0000-0000-00000000000c'),
+            where metadata->'entity'->>'id' = current_setting('test.leave_off_report_id')),
           1, 'only the field controller receives notification when leave requests are disabled');
 
 select * from finish();
