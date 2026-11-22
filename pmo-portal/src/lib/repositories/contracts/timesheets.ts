@@ -8,6 +8,7 @@ import type {
 } from '@/src/lib/db/timesheetTransition';
 import type { listPushesNeedingAttention, confirmEmployeeLink, getPushState } from '@/src/lib/db/timesheetPush';
 import type { TimesheetRow, TimesheetWithEntries } from '@/src/lib/db/timesheets';
+import type { getTimesheetApprovalRoute } from '@/src/lib/db/timesheetApprovalRoute';
 import type { TimesheetApprovalViewerRole, TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
 
@@ -18,6 +19,8 @@ export interface TimesheetRepository {
   listReopenableApproved: typeof listReopenableApprovedTimesheets;
   /** Existence-only: is there a sheet this user could approve or re-open (rail badge)? */
   hasApprovalWork: typeof hasTimesheetApprovalWork;
+  /** fix-waiting item 3: who ONE visible Submitted sheet waits for (server-computed route facts). */
+  getApprovalRoute: typeof getTimesheetApprovalRoute;
   listPushesNeedingAttention: typeof listPushesNeedingAttention;
   confirmEmployeeLink: typeof confirmEmployeeLink;
   getPushState: typeof getPushState;
