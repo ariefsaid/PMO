@@ -1,0 +1,3 @@
+# 1870/1873 (material-vs-progress): an Admin sets who else is told when material runs ahead of progress; a controller reads their open alerts. Both refuse anon.
+set_work_order_ahead_alert_roles
+my_open_material_alerts

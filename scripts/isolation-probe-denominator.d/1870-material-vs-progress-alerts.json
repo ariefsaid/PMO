@@ -1,0 +1,6 @@
+{
+  "tables": [
+    {"table":"work_order_material_alerts","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}
+  ],
+  "definer_functions": ["set_work_order_ahead_alert_roles(text[])", "wo_material_alert_recipients(uuid)", "wo_material_alert_check(uuid,boolean)", "wo_material_alert_trg()", "wo_material_alert_threshold_trg()", "wo_material_alerts_backfill()", "my_open_material_alerts()"]
+}
