@@ -40,6 +40,7 @@ import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
+import OrgClaimOverCap from './admin/OrgClaimOverCap';
 import WorkOrderCloseoutTemplate from './admin/WorkOrderCloseoutTemplate';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import PurchaseOrderSettingsSection from './admin/PurchaseOrderSettingsSection';
@@ -47,6 +48,7 @@ import OrgThreeWayMatch from './admin/OrgThreeWayMatch';
 import OrgPaymentChannels from './admin/OrgPaymentChannels';
 import OrgPurchaseLines from './admin/OrgPurchaseLines';
 import SiteReportLists from './admin/SiteReportLists';
+import OrgIssueTypes from './admin/OrgIssueTypes';
 import IssueClosingReportSettings from './admin/IssueClosingReportSettings';
 import RevenuePlanSettings from './admin/RevenuePlanSettings';
 import NonWorkingDatesCard from './admin/NonWorkingDatesCard';
@@ -298,6 +300,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgWithholdingAccount />
             <OrgVendorTaxAccounts />
             <OrgDownPaymentItem />
+            <OrgClaimOverCap />
             <OrgProcurementGates />
             <PurchaseOrderSettingsSection />
             <OrgThreeWayMatch />
@@ -324,6 +327,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
             <SiteReportLists />
+            <OrgIssueTypes />
             <RevenuePlanSettings />
             <NonWorkingDatesCard />
             <SiteCheckpointTemplate />

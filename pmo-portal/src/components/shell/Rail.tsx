@@ -11,7 +11,8 @@ import { useLeaveEnabled } from '@/src/hooks/useLeave';
 import { useSafetyNavEnabled } from '@/src/hooks/useSafetyDays';
 import { useTerms } from '@/src/lib/i18n/terms';
 import { Badge } from '@/src/components/ui/StatusPill';
-import { usePermission } from '@/src/auth/usePermission';
+import { useBuiltInRoleKey, usePermission } from '@/src/auth/usePermission';
+import { roleHasCapability } from '@/src/auth/builtInRoles';
 import { useOverdueInvoiceCount } from '@/src/hooks/useOverdueInvoiceCount';
 import { useApprovalsEntryOffered } from '@/src/hooks/useWaitingForYou';
 import { AuthContext } from '@/src/auth/AuthContext';
@@ -306,6 +307,8 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   // Sourced from the settled `useIsOperator()` projection — never the effective/preview role — so
   // a plain Engineer stays hidden while a genuine Operator gains the entry. Fail-closed (false).
   const isOperator = useIsOperator();
+  // The people-documents capability reaches the People register (the person list and their documents) from an officer level too.
+  const holdsPersonDocuments = roleHasCapability(useBuiltInRoleKey(), 'people_documents_view');
   const railId = useId().replaceAll(':', '');
   const [collapsedGroups, setCollapsedGroups] = useState(readCollapsedGroups);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
@@ -678,10 +681,10 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         </div>
       )}
 
-      {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || role === UserRole.ProjectManager || isOperator) && (
+      {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || role === UserRole.ProjectManager || holdsPersonDocuments || isOperator) && (
         <div className="flex-shrink-0 border-t border-border p-2.5">
           <NavLink
-            to={role === UserRole.Finance ? '/administration/exchange-rates' : role === UserRole.ProjectManager ? '/administration/people' : '/administration'}
+            to={role === UserRole.Finance ? '/administration/exchange-rates' : role === UserRole.ProjectManager || (holdsPersonDocuments && role === UserRole.Engineer) ? '/administration/people' : '/administration'}
             onClick={onNavigate}
             className={({ isActive }: { isActive: boolean }) =>
               cn(

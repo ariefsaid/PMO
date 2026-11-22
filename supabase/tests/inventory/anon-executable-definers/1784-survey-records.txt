@@ -1,0 +1,5 @@
+# survey-cap-record (1784-1787): client-callable SECURITY DEFINER writers (authenticated only; anon and PUBLIC revoked in 1786).
+record_survey  # 1786: records a draft survey on an issued work order; field account, active member, may_record_project_progress re-checked; 1784 pgTAP
+attach_survey_document  # 1786: attaches a project document to a draft survey; same guards; 1784 pgTAP
+confirm_survey  # 1786: Admin or Finance confirms a draft, never its recorder; same guards; 1784 pgTAP
+archive_survey_draft  # 1786: discards a draft; recorder, Admin or Finance; same guards; 1784 pgTAP

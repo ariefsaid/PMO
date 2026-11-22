@@ -2,6 +2,7 @@ export type { Role } from './AuthContext';
 import type { Role } from './AuthContext';
 import { ALL_ROLES, MASTER_DATA_ROLES, REVENUE_WRITE_ROLES } from './coarseRoles';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
+import { roleHasCapability } from './builtInRoles';
 
 /**
  * FE authorization primitive (ADR-0016).
@@ -114,6 +115,7 @@ export type Entity =
   | 'closeoutChecklist'
   | 'workOrderLine'
   | 'workOrderAcceptance'
+  | 'surveyRecord'
   | 'expenseClaim'
   | 'imprestFloat'
   | 'imprestPlan'
@@ -144,6 +146,7 @@ export type Entity =
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
   | 'siteReportLists'
+  | 'incidentTypes'
   | 'workOrderRevenuePlan'
   | 'revenuePlanSettings'
   | 'siteCheckpoint'
@@ -218,6 +221,8 @@ export type Entity =
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
   realRole: Role | null;
+  /** The real person's built-in role key (null = none) — the one capability read, as the database gate reads it. */
+  builtInRoleKey?: string | null;
   /** The current user's id — for record-scoped checks (own task, requester, author). */
   currentUserId?: string | null;
   /** The record under consideration — for status/ownership-conditional rules. */
@@ -254,6 +259,8 @@ export interface PolicyContext {
     author_ids?: string[] | null;
     /** Every user who has ever edited this budget version's lines; activation is forbidden to the full editor set. */
     editor_ids?: string[] | null;
+    /** change-review: the server (qcr_approval_state) says the caller may review through the organisation's reviewer-role list. */
+    reviewer_listed?: boolean;
     /** The sheet's approver (`timesheets.approved_by`) — the P3b `push_timesheet` oracle
      *  (FR-TSP-011): the sheet's OWN approver may always push it, regardless of role. */
     approved_by?: string | null;
@@ -344,7 +351,10 @@ const allow = (set: Role[]): Predicate => (role) => has(set, role);
 const expiryDocumentWrite: Predicate = (role, ctx) => {
   const kind = ctx.record?.kind;
   if (ctx.record?.viewOnly === true) return false;
-  return role === 'Admin' ? kind === 'person' || kind === 'equipment' : role === 'Project Manager' && kind === 'equipment';
+  if (role === 'Admin') return kind === 'person' || kind === 'equipment';
+  if (role === 'Project Manager' && kind === 'equipment') return true;
+  // the people-documents capability: non-medical person documents (`record.medical` true = a medical one, Admin only)
+  return kind === 'person' && ctx.record?.medical !== true && roleHasCapability(ctx.builtInRoleKey, 'people_documents_view');
 };
 const allowUnlessViewOnly = (set: Role[]): Predicate => (role, ctx) => has(set, role) && ctx.record?.viewOnly !== true;
 
@@ -499,7 +509,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       ctx.record?.viewOnly !== true && has(QCR_AUTHOR, role) && !!ctx.currentUserId &&
       (ctx.record?.author_id === ctx.currentUserId || (ctx.record?.editor_ids ?? []).includes(ctx.currentUserId)),
     approve: (role, ctx) =>
-      ctx.record?.viewOnly !== true && has(QCR_APPROVER, role) && !!ctx.currentUserId &&
+      ctx.record?.viewOnly !== true && (has(QCR_APPROVER, role) || ctx.record?.reviewer_listed === true) && !!ctx.currentUserId &&
       ctx.record?.author_id !== ctx.currentUserId && ctx.record?.submitted_by !== ctx.currentUserId &&
       !(ctx.record?.editor_ids ?? []).includes(ctx.currentUserId),
     withdraw: (role, ctx) =>
@@ -637,6 +647,24 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     withdraw: (role, ctx) =>
       ctx.record?.viewOnly !== true && ctx.record?.status === 'Draft' &&
       (has(CONFIRM_BAST, role) || (!!ctx.currentUserId && ctx.record?.prepared_by === ctx.currentUserId)),
+  },
+  /**
+   * Survey records (survey-cap-record, 1784-1787). UX only — the survey RPCs are the authority. Same people as a BAST:
+   *   create  ← Finance rank and above, or the project's own manager, on an Issued work order (`record.status`).
+   *   confirm ← Admin/Finance on a draft; the recorder is offered it and the server refuses it (sole operator excepted).
+   *   discard ← the recorder, or Admin/Finance, on a draft.
+   */
+  surveyRecord: {
+    view: allow(MASTER_DATA),
+    create: (role, ctx) =>
+      ctx.record?.viewOnly !== true && ctx.record?.status === 'Issued' &&
+      (has(MONEY_AUTHORITY, role) ||
+        (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId)),
+    confirm: (role, ctx) =>
+      ctx.record?.viewOnly !== true && ctx.record?.status === 'draft' && has(CONFIRM_BAST, role),
+    delete: (role, ctx) =>
+      ctx.record?.viewOnly !== true && ctx.record?.status === 'draft' &&
+      (has(CONFIRM_BAST, role) || (!!ctx.currentUserId && ctx.record?.recorded_by === ctx.currentUserId)),
   },
   /**
    * Billing claims (#766). view = the revenue read set; create (raise included) and transition (evidence,
@@ -818,6 +846,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     },
   },
   incident: {
+    view: allow(ALL), // any member reads the register and the closing-time report (the RPC and RLS are the authority)
     create: allow(ALL), // ANY member files (reporter server-stamped)
     edit: allow(DELIVERY), // managers investigate
     delete: allow(ADMIN),
@@ -1067,6 +1096,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   workOrderCandidateTemplate: { manage: allow(ADMIN) },
   // #2621: the site report idle-reason and weather lists. Mirrors the Admin-only insert/update policies of 1040. UX ONLY.
   siteReportLists: { manage: allow(ADMIN) },
+  // Issue types: the kept list the issue form picks from. Mirrors the Admin-only insert/update policies of 1820. UX ONLY.
+  incidentTypes: { manage: allow(ADMIN) },
   // #2671 dated revenue plan per work order. UX ONLY — wo_revenue_plan_* (1276) and the reads (1277) are the authority
   // (ADR-0016): the project's own Project Manager only, Admin/Executive/Finance on any project.
   workOrderRevenuePlan: { view: allow(['Admin', 'Executive', 'Finance', 'Project Manager']), manage: allow(['Admin', 'Executive', 'Finance', 'Project Manager']) },

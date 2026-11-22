@@ -260,8 +260,33 @@ export function parseProjectBilling(data: unknown): ProjectBillingFacts | null {
   };
 }
 
+/**
+ * Adds the certified (surveyed) and quality-ready quantities to each allocation, read under the caller's own access. Where nobody may read
+ * survey records the view is empty and every allocation keeps its facts, so the claim ceiling falls back to accepted/ordered. Both reads
+ * of the billing facts (this endpoint and the Overview read-model, which seeds the same query) go through it.
+ */
+export async function withSurveyFigures(facts: ProjectBillingFacts | null): Promise<ProjectBillingFacts | null> {
+  if (!facts) return facts;
+  const workOrderIds = [...new Set(facts.contractLines.flatMap((line) => line.allocations.map((a) => a.workOrderId)))];
+  if (workOrderIds.length === 0) return facts;
+  const { data: certified, error: certifiedError } = await supabase.from('survey_certified_lines')
+    .select('work_order_id,boq_item_id,certified_quantity,quality_ready_quantity').in('work_order_id', workOrderIds).limit(5000);
+  if (certifiedError) fail(certifiedError);
+  const byLine = new Map((certified ?? []).map((r) => [`${r.work_order_id}:${r.boq_item_id}`, r]));
+  return {
+    ...facts,
+    contractLines: facts.contractLines.map((line) => ({
+      ...line,
+      allocations: line.allocations.map((a) => {
+        const c = byLine.get(`${a.workOrderId}:${line.boqItemId}`);
+        return c ? { ...a, surveyedQuantity: Number(c.certified_quantity), qualityReadyQuantity: Number(c.quality_ready_quantity) } : a;
+      }),
+    })),
+  };
+}
+
 export async function getProjectBilling(projectId: string): Promise<ProjectBillingFacts | null> {
   const { data, error } = await supabase.rpc('get_project_billing', { p_project_id: projectId });
   if (error) fail(error);
-  return parseProjectBilling(data);
+  return withSurveyFigures(parseProjectBilling(data));
 }

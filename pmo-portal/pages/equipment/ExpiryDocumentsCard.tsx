@@ -53,7 +53,9 @@ export const ExpiryDocumentForm: React.FC<{ kind: SubjectKind; subjectId: string
   });
   const chosen = (types.data ?? []).find((x) => x.id === form.values.type_id);
   const medical = doc ? doc.is_medical : Boolean(chosen?.is_medical);
-  const typeOptions = (types.data ?? []).map((x) => ({ value: x.id, label: x.name }));
+  // a medical type is offered only to a role that may write medical documents (Admin)
+  const mayMedical = usePermission()('create', 'expiryDocument', { record: { kind, medical: true } });
+  const typeOptions = (types.data ?? []).filter((x) => mayMedical || !x.is_medical).map((x) => ({ value: x.id, label: x.name }));
   const typeLabel = doc ? (types.data ?? []).find((x) => x.id === doc.type_id)?.name : undefined;
 
   const submit = (e: React.FormEvent) => {
@@ -125,8 +127,10 @@ export const ExpiryDocumentsCard: React.FC<{ kind: SubjectKind; subjectId: strin
   const [problem, setProblem] = useState<string | null>(null);
   const typeName = (id: string) => (types.data ?? []).find((x) => x.id === id)?.name ?? '—';
   const rows = q.data ?? [];
-  const canEdit = may('edit', 'expiryDocument', ctx);
-  const canArchive = may('archive', 'expiryDocument', ctx);
+  // per document: a medical document is written by Admin only
+  const rowCtx = (d: ExpiryDocumentRow) => ({ record: { ...ctx.record, medical: d.is_medical } });
+  const canEdit = (d: ExpiryDocumentRow) => may('edit', 'expiryDocument', rowCtx(d));
+  const canArchive = (d: ExpiryDocumentRow) => may('archive', 'expiryDocument', rowCtx(d));
 
   const open = async (path: string) => {
     try { window.open(await repositories.documentExpiry.attachmentUrl(path), '_blank', 'noopener'); }
@@ -152,10 +156,10 @@ export const ExpiryDocumentsCard: React.FC<{ kind: SubjectKind; subjectId: strin
       cell: (d) => d.attachment_path
         ? <Button variant="ghost" size="sm" onClick={() => void open(d.attachment_path as string)}>{t('equipment:expiryEdit.openFile', 'Open file')}</Button> : null },
     { key: 'actions', header: <span className="sr-only">{t('equipment:expiryEdit.actions', 'Actions')}</span>,
-      cell: (d) => (canEdit || canArchive) ? (
+      cell: (d) => (canEdit(d) || canArchive(d)) ? (
         <span className="flex gap-1">
-          {canEdit && <Button variant="ghost" size="sm" aria-label={t('equipment:expiryEdit.editLabel', 'Edit {{name}}', { name: label(d) })} onClick={() => setEditing(d)}>{t('equipment:expiryEdit.edit', 'Edit')}</Button>}
-          {canArchive && <Button variant="ghost" size="sm" aria-label={t('equipment:expiryEdit.archiveLabel', 'Archive {{name}}', { name: label(d) })} onClick={() => setArchiving(d)}>{t('equipment:expiryEdit.archive', 'Archive')}</Button>}
+          {canEdit(d) && <Button variant="ghost" size="sm" aria-label={t('equipment:expiryEdit.editLabel', 'Edit {{name}}', { name: label(d) })} onClick={() => setEditing(d)}>{t('equipment:expiryEdit.edit', 'Edit')}</Button>}
+          {canArchive(d) && <Button variant="ghost" size="sm" aria-label={t('equipment:expiryEdit.archiveLabel', 'Archive {{name}}', { name: label(d) })} onClick={() => setArchiving(d)}>{t('equipment:expiryEdit.archive', 'Archive')}</Button>}
         </span>) : null },
   ];
 

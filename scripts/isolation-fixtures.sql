@@ -534,11 +534,29 @@ insert into public.work_order_checklist_items (id, org_id, label)
 insert into public.work_order_closeout_items (id, org_id, work_order_id, project_id, position, name, required)
   select 'a6120000-0000-4000-8000-000000000330', 'a6120000-0000-4000-8000-00000000000a',
          wo, project, 1, 'Isolation closeout', true from _iso_a;
+insert into public.org_billing_step_settings (org_id, default_template_id, updated_by)
+  select 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000301', profile from _iso_a;
+insert into public.work_order_billing_steps (id, org_id, work_order_id, project_id, position, name, started_on)
+  select 'a6120000-0000-4000-8000-000000000340', 'a6120000-0000-4000-8000-00000000000a', wo, project, 1, 'Isolation billing step', current_date from _iso_a;
+insert into public.work_order_billing_step_documents (id, org_id, step_id, work_order_id, position, name)
+  select 'a6120000-0000-4000-8000-000000000341', 'a6120000-0000-4000-8000-00000000000a',
+         'a6120000-0000-4000-8000-000000000340', wo, 1, 'Isolation step document' from _iso_a;
 insert into public.work_order_groups (id, org_id, code, name)
   select 'a6120000-0000-4000-8000-000000000331', 'a6120000-0000-4000-8000-00000000000a', 'ISO-GROUP', 'Isolation group' from _iso_a;
 insert into public.work_order_revenue_plan (id, org_id, project_id, work_order_id, plan_date, amount, created_by)
   select 'a6120000-0000-4000-8000-000000000332', 'a6120000-0000-4000-8000-00000000000a',
          project, wo, current_date, 1, profile from _iso_a;
+insert into public.survey_records (id, org_id, project_id, work_order_id, boq_item_id, survey_date, surveyed_quantity, recorded_by)
+  select 'a6120000-0000-4000-8000-000000000335', 'a6120000-0000-4000-8000-00000000000a', project, wo,
+         (select id from public.boq_items where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1), current_date, 1, profile from _iso_a;
+insert into public.survey_participants (id, org_id, record_id, name)
+  values ('a6120000-0000-4000-8000-000000000336', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-000000000335', 'Isolation participant');
+insert into public.project_documents (id, org_id, project_id, code, category, title, status, author_id, file_path)
+  select 'a6120000-0000-4000-8000-000000000337', 'a6120000-0000-4000-8000-00000000000a', project, 'ISO-SVY-DOC', 'Report', 'Isolation survey document',
+         'Issued', profile, 'iso/none/none/survey.pdf' from _iso_a;
+insert into public.survey_record_documents (record_id, document_id, org_id, attached_by)
+  select 'a6120000-0000-4000-8000-000000000335', 'a6120000-0000-4000-8000-000000000337',
+         'a6120000-0000-4000-8000-00000000000a', profile from _iso_a;
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 

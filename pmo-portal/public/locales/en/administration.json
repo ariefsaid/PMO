@@ -756,6 +756,24 @@
         "start": "Only one checkpoint can mark the start of work"
       }
     },
+    "issueTypes": {
+      "title": "Issue types",
+      "helper": "The types people choose when they raise an issue, and the groups the closing-time report uses. Renaming a type renames it on every issue that has it. Archiving hides a type from new issues; issues that already have it keep it.",
+      "empty": "No issue types yet, so nobody can raise an issue. Add your organisation's types below.",
+      "nearEmpty": "Only one type is listed. Add your organisation's own types below so issues can be grouped and timed by type.",
+      "add": "Add",
+      "addLabel": "New issue type",
+      "rename": "Rename",
+      "renameFor": "Name for {{name}}",
+      "save": "Save",
+      "cancel": "Cancel",
+      "archive": "Archive",
+      "restore": "Restore",
+      "archived": "Archived",
+      "loadError": "Couldn't load the issue types",
+      "saved": "Issue types saved",
+      "duplicate": "That type is already in the list"
+    },
     "siteReportLists": {
       "title": "Site report lists",
       "helper": "The choices offered on a site report. Archiving hides a choice from new reports; reports that already use it keep it.",
@@ -796,6 +814,17 @@
       "adminOnly": "Only an Admin can change this.",
       "turnOn": "Hide prices from requesters",
       "turnOff": "Show prices to requesters again"
+    },
+    "claimOverCap": {
+      "title": "Claims over the claimable quantity",
+      "loadError": "Couldn't load the claim quantity setting",
+      "saved": "Claim quantity setting saved",
+      "helper": "A claim line is measured against the quantity still claimable on its work order line: the surveyed quantity when there is one, otherwise the accepted (BAST) quantity, otherwise the ordered quantity, less what live claims already took. Warn only lets the claim through with a warning on the form. Refuse stops the claim until the quantity is lowered or the next acceptance is confirmed.",
+      "warn": "Warn only",
+      "block": "Refuse",
+      "adminOnly": "Only an Admin can change this.",
+      "turnOn": "Refuse claims over the claimable quantity",
+      "turnOff": "Only warn on claims over the claimable quantity"
     },
     "fiscalYear": {
       "title": "Fiscal year",

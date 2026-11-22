@@ -11,7 +11,7 @@ import { useFeature } from '@/src/auth/useFeature';
 import { useProject } from '@/src/hooks/useProjects';
 import { useBoqItems } from '@/src/hooks/useProgressBilling';
 import { useWorkOrderAcceptanceMutations, useWorkOrderAcceptances } from '@/src/hooks/useWorkOrderAcceptances';
-import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
+import { useWorkOrderBilledMonths, useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import { useCostDisciplines, useWorkOrderCostLines, useWorkOrderCostMoney, useWorkOrderCostLinks, useWorkOrderTimesheetLabels } from '@/src/hooks/useWorkOrderCosts';
 import { useProjectPlanVsActual } from '@/src/hooks/useWorkOrderPlanVsActual';
@@ -29,6 +29,12 @@ import { PerformanceIndices } from './work-order-detail/PerformanceIndices';
 import { DailyTargetGate } from './work-order-detail/DailyTargetGate';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { CloseoutSection } from './work-order-detail/CloseoutSection';
+import { MissingSection } from './work-order-detail/MissingSection';
+import { missingStepsFromSource } from '@/src/lib/workOrderMissing';
+import { useWorkOrderSteps } from '@/src/hooks/useBillingSteps';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
+import { BillingStepsSection } from './work-order-detail/BillingStepsSection';
+import { SurveySection } from './work-order-detail/SurveySection';
 import { QuantityChangesSection } from './work-order-detail/QuantityChangesSection';
 import { SectionsSection } from './work-order-detail/SectionsSection';
 import { ConsumablePlanSection } from './work-order-detail/ConsumablePlanSection';
@@ -52,6 +58,8 @@ const WorkOrderDetail: React.FC = () => {
   const may = usePermission();
   const stockOn = useFeature('stock');
   const wo = useWorkOrder(id);
+  const woSteps = useWorkOrderSteps(wo.data ? id : undefined);
+  const roleName = useBuiltInRoleName();
   const projectId = wo.data?.project_id ?? '';
   const project = useProject(projectId || undefined);
   const issuesOn = useFeature('incidents');
@@ -67,6 +75,7 @@ const WorkOrderDetail: React.FC = () => {
   const [confirmFor, setConfirmFor] = useState<{ acceptance: WorkOrderAcceptanceWithLines; error: string | null } | null>(null);
   const canBilling = may('view', 'salesInvoice');
   const billing = useWorkOrderBilling(projectId, canBilling && Boolean(wo.data));
+  const billedMonths = useWorkOrderBilledMonths(id, canBilling && Boolean(wo.data));
   const docs = useDocuments(projectId);
   const costLines = useWorkOrderCostLines(wo.data ? id ?? null : null);
   const flatLines = useMemo(() => Object.values(costLines.data ?? {}).flat(), [costLines.data]);
@@ -81,6 +90,14 @@ const WorkOrderDetail: React.FC = () => {
     () => (allocations.data ?? []).map((a) => {
       const item = (boq.data ?? []).find((b) => b.id === a.boq_item_id);
       return { value: a.id, label: item ? `${item.item_code} · ${item.description}` : a.boq_item_id };
+    }),
+    [allocations.data, boq.data],
+  );
+
+  const surveyLines = useMemo(
+    () => (allocations.data ?? []).flatMap((a) => {
+      const item = (boq.data ?? []).find((b) => b.id === a.boq_item_id);
+      return item && item.earning_basis !== 'lump_sum' ? [{ id: item.id, label: `${item.item_code} · ${item.description}`, unit: item.unit }] : [];
     }),
     [allocations.data, boq.data],
   );
@@ -142,6 +159,7 @@ const WorkOrderDetail: React.FC = () => {
         {/* #2672: the daily target view; same switch and role gate as the plan above. */}
         <DailyTargetGate workOrderId={row.id} />
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
+          perMonth={canBilling ? { months: billedMonths.data, isPending: billedMonths.isPending, isError: billedMonths.isError, onRetry: () => void billedMonths.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()}
           confirm={{
             canConfirm: (a) => row.status === 'Issued' && may('confirm', 'workOrderAcceptance', { currentUserId: currentUser?.id ?? null, record: { status: a.status, prepared_by: a.prepared_by } }),
@@ -171,7 +189,14 @@ const WorkOrderDetail: React.FC = () => {
             onCancel={() => setConfirmFor(null)}
           />
         )}
+        <BillingStepsSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
+        {may('view', 'surveyRecord') && <SurveySection workOrderId={row.id} projectId={row.project_id} status={row.status}
+          projectManagerId={project.data?.project_manager_id ?? null} lines={surveyLines} />}
         <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
+        <MissingSection workOrderId={row.id} projectId={row.project_id} status={row.status} canBilling={canBilling}
+          steps={woSteps.data ? missingStepsFromSource(woSteps.data, roleName) : undefined} stepsLoading={woSteps.isLoading} stepsError={woSteps.isError} onRetrySteps={() => void woSteps.refetch()}
+          scopeLines={progress ? progress.lines.map((l) => ({ id: l.id, boqItemId: l.boqItemId, itemCode: l.itemCode, description: l.description, unit: l.unit, accepted: l.accepted })) : null}
+          scopeError={allocations.isError || boq.isError || bastList.isError} />
         {may('view', 'quantityChange') && <QuantityChangesSection workOrderId={row.id} projectId={row.project_id} status={row.status} />}
         <InspectionsSection workOrderId={row.id} />
         <DocumentsSection documents={documents} isPending={docs.isPending || bastList.isPending || claimDocs.isPending} isError={docs.isError || bastList.isError || claimDocs.isError} onRetry={() => { void docs.refetch(); void bastList.refetch(); void claimDocs.refetch(); }} />

@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, EntityFormModal, ListState, PageHeader, RecordSection, SelectField, StatusPill, TextArea, TextField, useToast } from '@/src/components/ui';
+import { Button, Checkbox, EntityFormModal, ListState, PageHeader, RecordSection, SelectField, StatusPill, TextArea, TextField, useToast } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useProjects } from '@/src/hooks/useProjects';
-import { useOverContract, useQuantityChangeLimit, useQuantityChangeMutations, useQuantityChangeRequests } from '@/src/hooks/useQuantityChanges';
+import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
+import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
+import { useOverContract, useQuantityChangeApproverRoles, useQuantityChangeLimit, useQuantityChangeMutations, useQuantityChangeRequests } from '@/src/hooks/useQuantityChanges';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -132,6 +134,7 @@ const QuantityChanges: React.FC = () => {
       </RecordSection>
 
       {mayLimit && <LimitSection />}
+      {mayLimit && <ApproverRolesSection />}
       {raiseOpen && <RaiseQuantityChangeDialog presetProjectId={projectId || undefined} onClose={() => setRaiseOpen(false)} onCreated={(id) => navigate(`/quantity-changes/${id}`)} />}
       {forecastFor && <ForecastDialog row={forecastFor} onClose={() => setForecastFor(null)} />}
     </div>
@@ -165,6 +168,43 @@ const LimitSection: React.FC = () => {
           helper={t('limit.help', 'The most quantity change requests one work order may raise. Leave empty for no limit.')}
           error={invalid ? t('limit.invalid', 'A whole number of 1 or more') : undefined} />
         <Button variant="primary" onClick={() => void save()} loading={setLimit.isPending} disabled={invalid || draft === null}>{t('limit.save', 'Save limit')}</Button>
+      </div>
+    </RecordSection>
+  );
+};
+
+/** FR-CHR-001: the Admin chooses which built-in roles may also review (approve or return) a request; none chosen = the usual approvers only. */
+const ApproverRolesSection: React.FC = () => {
+  const { t } = useTranslation('quantityChanges');
+  const { toast } = useToast();
+  const roleName = useBuiltInRoleName();
+  const query = useQuantityChangeApproverRoles();
+  const { setApproverRoles } = useQuantityChangeMutations();
+  const [draft, setDraft] = useState<string[] | null>(null);
+  const selected = draft ?? query.data ?? [];
+  const toggle = (key: string, on: boolean) => setDraft(on ? [...selected, key] : selected.filter((k) => k !== key));
+  const save = async () => {
+    try {
+      await setApproverRoles.mutateAsync(selected);
+      setDraft(null);
+      toast(t('approvers.saved', 'Reviewer roles saved'), '', 'success');
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+  return (
+    <RecordSection title={t('approvers.title', 'Who may review requests')} data-testid="qcr-approver-roles">
+      <p className="mb-3 text-foreground">{t('approvers.help', 'Admin, Executive and Finance can always approve or return a request. Tick other roles that may too. Whoever raised, edited or submitted a request still cannot approve it.')}</p>
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {BUILT_IN_ROLES.filter((r) => r.tier === 'manager').map((r) => (
+          <li key={r.key}>
+            <Checkbox checked={selected.includes(r.key)} onChange={(on) => toggle(r.key, on)} label={roleName(r.key)}>{roleName(r.key)}</Checkbox>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-3">
+        <Button variant="primary" onClick={() => void save()} loading={setApproverRoles.isPending} disabled={draft === null}>{t('approvers.save', 'Save reviewer roles')}</Button>
       </div>
     </RecordSection>
   );

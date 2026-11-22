@@ -17,7 +17,7 @@
     "block": {
       "author": "Anda mengajukan permintaan ini, jadi orang lain harus menyetujuinya.",
       "editor": "Anda mengubah permintaan ini, jadi orang lain harus menyetujuinya.",
-      "role": "Peran Anda tidak dapat menyetujui permintaan perubahan kuantitas.",
+      "role": "Peran Anda tidak dapat menyetujui permintaan perubahan kuantitas. Minta Admin menambahkan peran Anda ke daftar peninjau.",
       "status": "Permintaan ini tidak sedang menunggu persetujuan.",
       "submitter": "Anda mengirim permintaan ini, jadi orang lain harus menyetujuinya."
     },
@@ -25,6 +25,12 @@
     "returnedBy": "Dikembalikan: {{reason}}",
     "title": "Persetujuan internal",
     "waiting": "Menunggu persetujuan"
+  },
+  "approvers": {
+    "help": "Admin, Eksekutif dan Keuangan selalu dapat menyetujui atau mengembalikan permintaan. Centang peran lain yang juga boleh. Orang yang mengajukan, mengubah, atau mengirim permintaan tetap tidak dapat menyetujuinya.",
+    "save": "Simpan peran peninjau",
+    "saved": "Peran peninjau disimpan",
+    "title": "Siapa yang boleh meninjau permintaan"
   },
   "billing": {
     "draftNote": "$t(common:terms.clientWorkOrder) ini masih draf: menerima permintaan ini menaikkan nilainya sebesar perubahan nilai.",

@@ -1,0 +1,7 @@
+# billing-steps (1770-1774): client-callable SECURITY DEFINER writers (authenticated only; anon and PUBLIC revoked in 1772).
+assign_work_order_step  # 1772: names the person on a step; field account, active member, step access re-checked; 1770 pgTAP
+attach_work_order_step_document  # 1772: attaches a project document to a step; same guards; 1770 pgTAP
+complete_work_order_step  # 1772: finishes the current step in order; same guards; 1770 pgTAP
+skip_work_order_step  # 1772: skips an optional current step; same guards; 1770 pgTAP
+set_default_billing_step_template  # 1772: Admin or Finance chooses the default template; 1770 pgTAP
+set_billing_step_template_roles  # 1772: Admin or Finance sets a template step's owner role and hidden-from list; 1770 pgTAP

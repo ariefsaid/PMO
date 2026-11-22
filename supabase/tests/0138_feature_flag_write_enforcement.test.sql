@@ -22,6 +22,8 @@ select plan(15);
 insert into organizations (id, name) values
   ('0138a000-0000-0000-0000-000000000001','AC-FEATENF Org A'),
   ('0138a000-0000-0000-0000-000000000002','AC-FEATENF Org B');
+-- issue-closing-measure: an issue's type is picked from the organisation's kept list (1820/1821); this test's own types are on it.
+insert into incident_types (org_id, label) values ('0138a000-0000-0000-0000-000000000001', 'Safety') on conflict do nothing;
 insert into auth.users (id, email) values
   ('0138a000-0000-0000-0000-0000000000a1','featenf-a-admin@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values

@@ -57,6 +57,7 @@ import {
 import { taskRepository } from './tasks';
 import { billingStagesRepository } from './billingStages';
 import { closeoutChecklistRepository } from './closeoutChecklist';
+import { surveyRecordRepository } from './surveyRecords';
 import { workInHandRepository } from './workInHand';
 import { taskProofRepository } from './taskProofs';
 import { thirdPartyInspectionRepository } from './thirdPartyInspections';
@@ -64,6 +65,7 @@ import { commentRepository } from './comments';
 import { meetingRepository } from './meetings';
 import { incidentRepository } from './incidents';
 import { issueClosingReportRepository } from './issueClosingReport';
+import { incidentTypeRepository } from './incidentTypes';
 import { procurementRepository, procurementFilesRepository } from './procurement';
 import { subcontractRepository } from './subcontracts';
 import { subcontractCertificateRepository } from './subcontractCertificates';
@@ -137,6 +139,7 @@ export const repositories: Repositories = {
   thirdPartyInspection: thirdPartyInspectionRepository,
   incident: incidentRepository,
   issueClosingReport: issueClosingReportRepository,
+  incidentType: incidentTypeRepository,
   comment: commentRepository,
   milestone: milestoneRepository,
   workOrder: workOrderRepository,
@@ -144,6 +147,7 @@ export const repositories: Repositories = {
   rateCatalogue: rateCatalogueRepository,
   billingStages: billingStagesRepository,
   closeoutChecklist: closeoutChecklistRepository,
+  surveyRecord: surveyRecordRepository,
   dailySiteReport: dailySiteReportRepository,
   workOrderCandidate: workOrderCandidateRepository,
   safetyDay: safetyDayRepository,

@@ -397,6 +397,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 ## Progress & billing
 
+**Missing list** (work order) — one advisory list on the work order page of what it still lacks: open steps, a step's required attachment not yet attached, quantity reported but not accepted, and quantity accepted but not claimed. Derived on every view from existing records, never stored; refuses nothing; exportable as CSV.
+
 **Bill of quantities item** — a project work item with a code, description, unit, quantity, rate and earning basis, used for measured work and billing.
 
 **Project progress entry** — a dated monthly record of a project's percent complete and an optional note.
@@ -455,6 +457,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 **Skipped stage** — an optional billing stage marked not needed by Finance or an Admin, with a date and a reason. It counts as complete for ordering and for the invoice gate, and it is not undone (#2592).
 
 **Billing board** — a read-only screen listing every open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with the days on that step and an overdue chip. It is a view over the claims' own steps: nothing is stored for it, and a claim moves on only by completing its step on the claim. Bahasa Indonesia: Papan penagihan (#2681).
+
+**Billed month** — a calendar month in the work-order page's "Billed per month" list: the billed work (submitted invoices, excluding tax, no down payments, in the work order's currency) dated in that organisation-local month, the same figure as the work-in-hand screen. The current month reads "to date". Drafts and claims not yet invoiced are not in it. Bahasa Indonesia: Bulan penagihan.
 
 **Billing plan** — a screen at the Receivables header that lists billing candidates against a monthly target. Candidates only: ticks are view state, nothing is stored for them, and nothing raises a claim or an invoice. Over-claim shows as a warning, never a block. Bahasa Indonesia: Rencana penagihan (#2682).
 
@@ -749,6 +753,8 @@ until a release is recorded (#2625, ADR-0105 §4).
 before it closes (the organisation names the items; PMO ships none). A work order takes a copy when it is issued, and
 it closes only when every required item is done. A material joint count, loss report or completion report is an item of
 the same list, not a separate mechanism.
+
+**Work-order billing steps** (*langkah penagihan surat perintah kerja*) — an advisory list copied onto a work order when it is issued, from the organisation's default billing step template (none chosen: no list). Each step has an owner role (a built-in role), an optional named person, target days, attachments and a status; it never gates an invoice (the claim's own billing stages do). Read through *see billing steps*, acted on through *run billing steps* (or as the step's owner role or named person); a role the template hides a step from does not see it, and the named person is exempt (billing-steps.spec.md).
 
 **Close-out item** (*butir penutupan*) — one line of a work order's checklist: required or optional, with an attached
 issued or approved project document, a done date and who marked it. Items are done in order; an item's age counts from the
@@ -1379,6 +1385,9 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Management profit and loss** — the Reports screen (management pack) read as a profit and loss PMO produces from its own records: recognised, invoiced and earned revenue per project and, while Profit per discipline is on, cost and margin on both revenue bases. It is not a ledger statement; trial balance, profit and loss and balance sheet come from a connected accounting system. An organisation with none connected is led from Statements and the Finance hub Net profit tile to it (#2734).
 
 **Direct manager** — the app user recorded as a person's manager on the people register (`people.manager_id`). They are warned first when that person's documents are about to expire and may record the renewal (a later expiry date) for their own people only; Admin keeps the existing write. Separate from the line-management link on user accounts. A medical release is decided by the direct manager, or, when none is set, by the manager of the person's linked login.
+**Issue type** (*jenis isu*) — one entry of the organisation's own kept list that every issue picks from; an Admin adds, renames and archives entries, and the closing-time report groups by them. Archiving hides a type from new issues; issues that already have it keep it. A new organisation starts with one generic entry, "Other".
+
+**Effective working hours** (*jam kerja efektif*) — for one work order and one day: the site day on its validated daily report (start to end) minus the stopped time recorded on that report, never below zero. A day with no start and end time shows "times not entered", not zero. Shown beside the closing-time report; calendar closing time is not reduced by it.
 
 **Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
 
@@ -1391,6 +1400,13 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Head-count line** — for one work order, one crew rostered on it that day, one date and one labour class, the number of people present who are not named in the roster (guards or helpers with no login). Entered by the crew's Foreman or a crew manager, never from a field account; it counts toward cost once a different Admin, Executive or Project Manager approves it, and is final once approved. A person is either named (costed through attendance or a timesheet) or counted here, never both. Cost is the number times the daily equivalent of the class rate in force on the date; its quantity is person-hours (the number times the rate's day length).
 
 **Daily equivalent** — a labour class rate stated per day: a daily rate is itself; an hourly rate times the rate's day length; a monthly rate divided by month length times day length. The conversions labour cost uses for one hour.
+**Claim ceiling / claimable quantity** (*batas klaim / kuantitas yang dapat ditagih*) — what a claim on one work-order line may still take: the surveyed quantity when there is one, otherwise the accepted (BAST) quantity (a BAST of zero counts), otherwise the ordered quantity, less what live claims and live opening balances already took (withdrawn and cancelled-invoice claims do not count). The claim form shows it as a warning; an organisation that sets **Claims over the claimable quantity** to Refuse (Administration, Accounting; Admin only; default Warn only) has the database refuse the claim instead (refusal code `CLM_OVER_CAP`). Lump-sum lines and claims with no work order are outside it. One rule in two places: `claimableHeadroom` (app) and `claimable_headroom` (database), tested against the same cases.
+
+**Survey record** (*catatan survei*) — what was measured on site for one work-order line: date, who took part (typed names, with or without an account), surveyed quantity, quality-ready quantity and attached documents. A draft becomes confirmed by Finance or an Admin who is not the recorder; a confirmed record is never edited, a correction is a new record that supersedes it.
+
+**Certified quantity** (*kuantitas tersertifikasi*) — the sum of the surveyed quantity of a work-order line's confirmed, not-superseded survey records. It is the claim ceiling's first choice.
+
+**Quality-ready quantity** (*kuantitas siap mutu*) — the part of a surveyed quantity that has quality documents attached. A claim past it only warns.
 
 **Equipment manager** — the person who runs the machines: today a Project Manager (or Admin). They add and edit machines and their rental terms, set the working hours per day, the availability and use targets and the escalation limit, and read the rental invoice check; Finance keeps the costing and the unproven-days decision (equipment manager's day lane, migration 1600).
 

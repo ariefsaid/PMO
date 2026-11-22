@@ -29,9 +29,12 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { supplierUnpaid, withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { selectOverdueTaskCount } from './overdueTasks';
-import { useWaitingSteps } from '@/src/hooks/useBillingSteps';
+import { useWaitingSteps, useWaitingWorkOrderSteps } from '@/src/hooks/useBillingSteps';
 import { useCheckInRequests } from '@/src/hooks/usePhoneCheckIn';
 import { summariseWaitingSteps } from '@/src/lib/waitingSteps';
+import { summariseWaitingWorkOrderSteps } from '@/src/lib/workOrderBillingSteps';
+import type { WaitingWorkOrderStepsFact } from '@/src/lib/workOrderBillingSteps';
+import { localToday } from '@/src/lib/efaktur';
 import type { WaitingStepsFact } from '@/src/lib/waitingSteps';
 import { useManpowerToFill } from '@/src/hooks/useManpowerNeeds';
 import { summariseManpowerToFill } from '@/src/lib/waitingManpower';
@@ -92,6 +95,8 @@ export interface NeedsYouFacts {
   waitingBillingSteps?: WaitingStepsFact;
   /** Manpower needs with places still to fill, for whoever the database lets fill them: derived on read, absent when none, unread or the read failed. */
   waitingManpower?: WaitingManpowerFact;
+  /** Work-order billing steps waiting for the viewer (named person, else their built-in role): derived on read, cleared when the step is done. */
+  waitingWorkOrderSteps?: WaitingWorkOrderStepsFact;
   /** Phone check-ins waiting for this person's decision (#2705): the database lists only the ones they may decide, so most people read zero. */
   checkInsWaiting?: number;
 }
@@ -236,6 +241,15 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       href: w.href, tone: 'warn',
     });
   }
+  if (facts.waitingWorkOrderSteps) {
+    const w = facts.waitingWorkOrderSteps;
+    add({
+      id: 'work-order-steps-waiting', count: w.count,
+      label: counted(t, 'needs.workOrderSteps', 'work-order billing step waiting for you', 'work-order billing steps waiting for you', w.count),
+      detail: w.overdue > 0 ? t('needs.workOrderStepsOverdue', '{{count}} past target', { count: w.overdue }) : undefined,
+      href: w.href, tone: w.overdue > 0 ? 'lost' : 'warn',
+    });
+  }
   if (facts.checkInsWaiting) add({
     id: 'check-ins-waiting', count: facts.checkInsWaiting, href: '/crews', tone: 'warn',
     label: counted(t, 'needs.checkIns', 'check-in waiting for your decision', 'check-ins waiting for your decision', facts.checkInsWaiting),
@@ -376,6 +390,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const waitingStepsQuery = useWaitingSteps(Boolean(orgId && role && role !== 'Engineer'));
   // Manpower needs to fill: additive like the billing steps; the database answers only for those who may fill, so no role test here.
   const manpowerToFillQuery = useManpowerToFill(Boolean(orgId && role));
+  // Work-order billing steps waiting for the viewer (any role: the database returns only what they may see and act on).
+  const waitingWoStepsQuery = useWaitingWorkOrderSteps(Boolean(orgId && role));
   // The check-in decisions this person may make; a failed read adds no item and never blocks the list.
   const checkInsQuery = useCheckInRequests();
 
@@ -434,6 +450,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     waitingManpower: manpowerToFillQuery.isSuccess ? summariseManpowerToFill(manpowerToFillQuery.data ?? []) ?? undefined : undefined,
     checkInsWaiting: checkInsQuery.isSuccess ? checkInsQuery.data.length : undefined,
     waitingBillingSteps: waitingStepsQuery.isSuccess ? summariseWaitingSteps(waitingStepsQuery.data ?? []) ?? undefined : undefined,
+    waitingWorkOrderSteps: waitingWoStepsQuery.isSuccess ? summariseWaitingWorkOrderSteps(waitingWoStepsQuery.data ?? [], organizationDay.day ?? localToday()) ?? undefined : undefined,
     returnedExpenses: role === 'Engineer' && !expenseClaimsQuery.isPending && !expenseClaimsQuery.isError ? currentReturnedExpenses.length : undefined,
   };
 

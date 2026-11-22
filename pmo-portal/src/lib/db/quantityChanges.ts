@@ -247,6 +247,18 @@ export async function setLimit(orgId: string, limit: number | null): Promise<voi
   if (!data || data.length === 0) throw new AppError('Only an Admin can change the quantity change limit', '42501');
 }
 
+/** FR-CHR-001: built-in role keys that may review a request in addition to the base approver levels (empty = today). Admin-only column grant. */
+export async function getApproverRoles(orgId: string): Promise<string[]> {
+  const { data, error } = await supabase.from('organizations').select('quantity_change_approver_roles').eq('id', orgId).maybeSingle();
+  if (error) fail(error);
+  return data?.quantity_change_approver_roles ?? [];
+}
+export async function setApproverRoles(orgId: string, roles: string[]): Promise<void> {
+  const { data, error } = await supabase.from('organizations').update({ quantity_change_approver_roles: roles }).eq('id', orgId).select('id');
+  if (error) fail(error);
+  if (!data || data.length === 0) throw new AppError('Only an Admin can change who may review quantity change requests', '42501');
+}
+
 export function buildQcrFilePath(orgId: string, requestId: string, fileId: string, fileName: string): string {
   return `${orgId}/${requestId}/${fileId}/${sanitizeFilename(fileName)}`;
 }

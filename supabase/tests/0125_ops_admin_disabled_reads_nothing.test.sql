@@ -10,6 +10,8 @@ select plan(14);
 -- ── Fixtures: org A, an active Admin, and a DISABLED member M. ──
 insert into organizations (id, name) values
   ('01120000-0000-0000-0000-000000000001','AC-INV-002 Org');
+-- issue-closing-measure: an issue's type is picked from the organisation's kept list (1820/1821); this test's own types are on it.
+insert into incident_types (org_id, label) values ('01120000-0000-0000-0000-000000000001', 'T') on conflict do nothing;
 insert into auth.users (id, email) values
   ('01120000-0000-0000-0000-0000000000a1','inv002-admin@example.com'),
   ('01120000-0000-0000-0000-0000000000a2','inv002-member@example.com');

@@ -18,7 +18,7 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts, useWorkOrderAcceptanceMutations: () => ({ confirm: { isPending: false, mutateAsync: vi.fn().mockResolvedValue({ closingValue: null, dpHeld: 0 }) } }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-finance' } }) }));
-vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing }));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderBilledMonths: () => ({ data: undefined, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.docs }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({
   useWorkOrderCostLines: () => h.lines, useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: () => h.discs, useWorkOrderTimesheetLabels: () => h.labels,
@@ -27,6 +27,9 @@ vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual:
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
 // #2578: the quantity-changes section has its own test (QuantityChangesSection.test.tsx); this file pins the existing sections.
 vi.mock('./work-order-detail/QuantityChangesSection', () => ({ QuantityChangesSection: () => null }));
+vi.mock('./work-order-detail/MissingSection', () => ({ MissingSection: () => null }));
+vi.mock('@/src/hooks/useBillingSteps', () => ({ useWorkOrderSteps: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useOrgRoleNames', () => ({ useBuiltInRoleName: () => (k: string) => k }));
 // The sections block (#2576) has its own tests (SectionsSection.test.tsx); this page test only places it.
 vi.mock('./work-order-detail/SectionsSection', () => ({ SectionsSection: (p: { workOrder: { id: string } }) => <div data-testid="sections-stub">{p.workOrder.id}</div> }));
 vi.mock('./work-order-detail/ConsumablePlanSection', () => ({

@@ -153,3 +153,17 @@ describe('getIssueClosingTimeReport', () => {
     await expect(getIssueClosingTimeReport()).rejects.toMatchObject({ code: '42883' });
   });
 });
+
+describe('getWorkOrderEffectiveHours (AC-ICM-012)', () => {
+  it('calls the read with the work order and range, and never shows no-times days as 0', async () => {
+    const { getWorkOrderEffectiveHours } = await import('./issueClosingReport');
+    h.push({ data: [
+      { work_date: '2026-11-02', worked_minutes: 510, stopped_minutes: 120, effective_minutes: 390, has_times: true },
+      { work_date: '2026-11-03', worked_minutes: 0, stopped_minutes: 30, effective_minutes: 0, has_times: false },
+    ], error: null });
+    const rows = await getWorkOrderEffectiveHours('w1', '2026-11-01', '2026-11-30');
+    expect(h.calls.rpc[0]).toEqual(['get_work_order_effective_hours', { p_work_order: 'w1', p_from: '2026-11-01', p_to: '2026-11-30' }]);
+    expect(rows[0]).toMatchObject({ worked_minutes: 510, effective_minutes: 390 });
+    expect(rows[1]).toMatchObject({ worked_minutes: null, effective_minutes: null, stopped_minutes: 30 });
+  });
+});

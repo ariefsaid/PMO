@@ -63,6 +63,10 @@ select set_eq(
             -- before adding: nothing reads the table through PostgREST (the reads go through the wrp_* RPCs), so no
             -- embed exists. Any future embed must name its constraint.
             ('work_order_revenue_plan -> profiles'),
+            -- 1770 (billing-steps): work_order_billing_steps carries assignee_id, done_by AND skipped_by, all -> profiles. Checked before adding:
+            -- the only DAL embed of profiles from it is qualified (assignee:profiles!work_order_billing_steps_assignee_id_fkey,
+            -- src/lib/db/workOrderBillingSteps.ts). Any future embed must name its constraint.
+            ('work_order_billing_steps -> profiles'),
             ('credits -> profiles'),
             -- 1158 (#2581): crew_tool_reports carries reported_by AND closed_by, org_crew_tool_settings carries
             -- coordinator_id AND updated_by, all -> profiles. Checked before adding: no DAL, repository, edge fn or
@@ -264,7 +268,10 @@ select set_eq(
             ('equipment_plans -> profiles'),
             ('stock_wo_transfers -> work_orders'),
             ('stock_transfers -> profiles'),
-            ('stock_transfers -> stock_warehouses') $$,
+            ('stock_transfers -> stock_warehouses'),
+            -- 1784 (survey-cap-record): survey_records carries recorded_by AND confirmed_by, both -> profiles. The one DAL embed
+            -- (src/lib/db/surveyRecords.ts) is qualified with !survey_records_recorded_by_fkey / !survey_records_confirmed_by_fkey.
+            ('survey_records -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

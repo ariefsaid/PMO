@@ -44,6 +44,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
 vi.mock('../TimeAndMaterials', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useTimeAndMaterials', () => ({ useInvoiceTmClaimNative: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
+vi.mock('@/src/hooks/useClaimOverCap', () => ({ useClaimOverCap: () => ({ data: 'warn' }) }));
 
 vi.mock('../tabs/BillingReconciliation', () => ({ BillingReconciliation: () => null }));
 import BillingTab from '../tabs/BillingTab';
