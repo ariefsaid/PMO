@@ -34,13 +34,16 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
   ('15500000-0000-0000-0000-000000000052', '15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000040', 'WCI WO no area',   'Issued', 1000, 'exclusive', 0, null, null, null),
   ('15500000-0000-0000-0000-000000000053', '15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000040', 'WCI WO elsewhere', 'Issued', 1000, 'exclusive', 0, 0, 0, 100),
   ('15500000-0000-0000-0000-000000000054', '15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000040', 'WCI WO three',     'Issued', 1000, 'exclusive', 0, 0, 0, 100),
-  ('15500000-0000-0000-0000-000000000055', '15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000040', 'WCI WO five',      'Issued', 1000, 'exclusive', 0, 0, 0, 100);
+  ('15500000-0000-0000-0000-000000000055', '15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000040', 'WCI WO five',      'Issued', 1000, 'exclusive', 0, 0, 0, 100),
+  ('15500000-0000-0000-0000-000000000056', '15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000040', 'WCI WO six',       'Issued', 1000, 'exclusive', 0, 0, 0, 100);
 insert into crews (id, org_id, code, name, field_controller_id) values
   ('15500000-0000-0000-0000-000000000061', '15500000-0000-0000-0000-000000000010', 'WCI-1', 'WCI crew one',   '15500000-0000-0000-0000-000000000027'),
   ('15500000-0000-0000-0000-000000000062', '15500000-0000-0000-0000-000000000010', 'WCI-2', 'WCI crew two',   '15500000-0000-0000-0000-000000000028'),
   ('15500000-0000-0000-0000-000000000063', '15500000-0000-0000-0000-000000000010', 'WCI-3', 'WCI crew three', '15500000-0000-0000-0000-000000000028'),
   ('15500000-0000-0000-0000-000000000064', '15500000-0000-0000-0000-000000000010', 'WCI-4', 'WCI crew four',  null),
-  ('15500000-0000-0000-0000-000000000065', '15500000-0000-0000-0000-000000000010', 'WCI-5', 'WCI crew five',  '15500000-0000-0000-0000-000000000030');
+  ('15500000-0000-0000-0000-000000000065', '15500000-0000-0000-0000-000000000010', 'WCI-5', 'WCI crew five',  '15500000-0000-0000-0000-000000000030'),
+  ('15500000-0000-0000-0000-000000000066', '15500000-0000-0000-0000-000000000010', 'WCI-6', 'WCI crew six',   '15500000-0000-0000-0000-000000000027'),
+  ('15500000-0000-0000-0000-000000000067', '15500000-0000-0000-0000-000000000010', 'WCI-7', 'WCI crew seven', '15500000-0000-0000-0000-000000000028');
 insert into people (id, org_id, kind, code, name, profile_id) values
   ('15500000-0000-0000-0000-000000000071', '15500000-0000-0000-0000-000000000010', 'own', 'WCI-P1', 'WCI Field person', '15500000-0000-0000-0000-000000000029'),
   ('15500000-0000-0000-0000-000000000072', '15500000-0000-0000-0000-000000000010', 'own', 'WCI-P2', 'WCI Foreman Two person', '15500000-0000-0000-0000-000000000028'),
@@ -48,11 +51,11 @@ insert into people (id, org_id, kind, code, name, profile_id) values
 insert into crew_members (org_id, crew_id, worker_id, valid_from) values
   ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000064', '15500000-0000-0000-0000-000000000071', current_date - 30);
 insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values
-  ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000051', '15500000-0000-0000-0000-000000000061', current_date - 5), ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000051', '15500000-0000-0000-0000-000000000062', current_date - 5),
+  ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000051', '15500000-0000-0000-0000-000000000062', current_date - 5),
   ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000051', '15500000-0000-0000-0000-000000000063', current_date - 5), ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000051', '15500000-0000-0000-0000-000000000064', current_date - 5),
   ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000052', '15500000-0000-0000-0000-000000000061', current_date - 5), ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000053', '15500000-0000-0000-0000-000000000064', current_date - 5),
   ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000054', '15500000-0000-0000-0000-000000000065', current_date - 5),
-  ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000055', '15500000-0000-0000-0000-000000000062', current_date - 5), ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000055', '15500000-0000-0000-0000-000000000063', current_date - 5);
+  ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000055', '15500000-0000-0000-0000-000000000067', current_date - 5), ('15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000056', '15500000-0000-0000-0000-000000000066', current_date - 5);
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -126,8 +129,8 @@ select is((select crew_id from attendance_days where work_order_id = '15500000-0
   'AC-WCI-010 his attendance is recorded against the crew he leads');
 set local role authenticated;
 select pg_temp.act_as('15500000-0000-0000-0000-000000000027');
-select is(public.phone_check_in('15500000-0000-0000-0000-000000000051', '15500000-0000-0000-0000-000000000061', 0.0003, 0, 10)->>'outcome', 'inside', 'AC-WCI-011 inside the area, as a Foreman of a rostered crew, records');
-select throws_ok($$ select public.phone_check_in('15500000-0000-0000-0000-000000000051', '15500000-0000-0000-0000-000000000064', 0.0003, 0, 10) $$, '23514', null,
+select is(public.phone_check_in('15500000-0000-0000-0000-000000000056', '15500000-0000-0000-0000-000000000066', 0.0003, 0, 10)->>'outcome', 'inside', 'AC-WCI-011 inside the area, as a Foreman of a rostered crew, records');
+select throws_ok($$ select public.phone_check_in('15500000-0000-0000-0000-000000000056', '15500000-0000-0000-0000-000000000064', 0.0003, 0, 10) $$, '23514', null,
   'AC-WCI-012 a Foreman cannot pick a crew he neither leads nor belongs to');
 select is(public.phone_check_in('15500000-0000-0000-0000-000000000053', null, 0.0003, 0, 10)->>'outcome', 'not_rostered',
   'AC-WCI-012 on a work order none of his crews is rostered on he is a request to the supervisor, not attendance');
@@ -143,7 +146,7 @@ select is((select crew_id from attendance_days where work_order_id = '15500000-0
 -- outside: a request; the decider approves; the crew carries through
 set local role authenticated;
 select pg_temp.act_as('15500000-0000-0000-0000-000000000028');
-select is(public.phone_check_in('15500000-0000-0000-0000-000000000055', '15500000-0000-0000-0000-000000000062', 0.003, 0, 10)->>'status', 'pending', 'AC-WCI-014 a Foreman outside the area is a pending request');
+select is(public.phone_check_in('15500000-0000-0000-0000-000000000055', '15500000-0000-0000-0000-000000000067', 0.003, 0, 10)->>'status', 'pending', 'AC-WCI-014 a Foreman outside the area is a pending request');
 select pg_temp.act_as('15500000-0000-0000-0000-000000000028');
 select throws_ok($$ select public.phone_check_in_decide((select id from phone_check_ins where worker_id = '15500000-0000-0000-0000-000000000072' and status = 'pending'), true, null) $$, '42501', null,
   'AC-WCI-014 a Foreman (light account) cannot decide, not even his own');
@@ -153,7 +156,7 @@ select is((select area_radius_m from public.phone_check_in_requests() where work
 select lives_ok($$ select public.phone_check_in_decide((select id from phone_check_ins where worker_id = '15500000-0000-0000-0000-000000000072' and status = 'pending'), true, null) $$,
   'AC-WCI-014 a crew manager approves the Foreman''s request');
 reset role;
-select is((select crew_id from attendance_days where work_order_id = '15500000-0000-0000-0000-000000000055' and worker_id = '15500000-0000-0000-0000-000000000072' and work_date = current_date), '15500000-0000-0000-0000-000000000062'::uuid,
+select is((select crew_id from attendance_days where work_order_id = '15500000-0000-0000-0000-000000000055' and worker_id = '15500000-0000-0000-0000-000000000072' and work_date = current_date), '15500000-0000-0000-0000-000000000067'::uuid,
   'AC-WCI-014 approval records him against the crew he asked with');
 -- mutation: a Foreman's leadership no longer counts as being rostered
 select pg_temp.mutate('public.phone_check_in(uuid,uuid,double precision,double precision,double precision,numeric,boolean)',
