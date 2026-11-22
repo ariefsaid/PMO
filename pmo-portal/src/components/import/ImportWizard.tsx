@@ -238,10 +238,10 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
                     variant="primary"
                     size="sm"
                     onClick={() => void wiz.commit()}
-                    disabled={wiz.counts.valid === 0 || wiz.existingStatus === 'loading'}
+                    disabled={wiz.counts.valid === 0 || wiz.existingStatus === 'loading' || (matchOf(descriptor) != null && wiz.existingStatus === 'failed')}
                     aria-describedby={nothingNew(wiz) ? NOTHING_NEW_ID : undefined}
                   >
-                    {t('import:wizard.importButton', {
+                    {matchOf(descriptor) && wiz.existingStatus === 'ready' ? matchButtonLabel(t, wiz.matchCounts) : t('import:wizard.importButton', {
                       count: wiz.counts.valid,
                       entity: entityWord(descriptor, i18n.resolvedLanguage ?? i18n.language, wiz.counts.valid === 1),
                       defaultValue_one: 'Import {{count}} {{entity}}',
@@ -278,7 +278,15 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
 type Wiz<Input> = ReturnType<typeof useImportWizard<Input>>;
 
 const NOTHING_NEW_ID = 'import-nothing-new';
+
+/** What the confirm will do, in words: "Add 3 and update 12" (either half left out when it is zero). */
+function matchButtonLabel(t: TFunction, c: { added: number; updated: number }): string {
+  if (c.added > 0 && c.updated > 0) return t('import:match.addAndUpdate', 'Add {{added}} and update {{updated}}', c);
+  if (c.updated > 0) return t('import:match.updateOnly', { count: c.updated, defaultValue_one: 'Update {{count}}', defaultValue_other: 'Update {{count}}' });
+  return t('import:match.addOnly', { count: c.added, defaultValue_one: 'Add {{count}}', defaultValue_other: 'Add {{count}}' });
+}
 /** Every row the sheet could import is already on the target: the button is disabled, and this says why. */
+const matchOf = <Input,>(descriptor: ImportDescriptor<Input>) => descriptor.matchExisting;
 const nothingNew = <Input,>(wiz: Wiz<Input>) => wiz.existingStatus === 'ready' && wiz.counts.valid === 0 && wiz.alreadyCount > 0;
 
 function UploadStep<Input>({ wiz, descriptor, maxRows }: { wiz: Wiz<Input>; descriptor: ImportDescriptor<Input>; maxRows: number }) {
@@ -451,15 +459,29 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
   };
   // Wide preview (#1278 round B): one line per cell, figures right-aligned and never wrapped, and every error of
   // the row in plain words under its Status — the messages name their field, so the cells stay clean.
+  const alreadyText = descriptor.matchExisting?.noChange ?? descriptor.existingKeys?.alreadyThere;
+  // Status is words, never colour alone: New / Will update / No change / Valid / Skipped.
+  const statusPill = (v: (typeof wiz.validation)[number]) => {
+    if (v.valid && v.action === 'update') return <StatusPill variant={CHIP_VARIANT}>{t('import:preview.willUpdate', 'Will update')}</StatusPill>;
+    if (v.valid && v.action === 'new') return <StatusPill variant={CHIP_VARIANT}>{t('import:preview.new', 'New')}</StatusPill>;
+    if (v.valid) return <StatusPill variant={CHIP_VARIANT}>{t('import:preview.valid', 'Valid')}</StatusPill>;
+    if (v.already && descriptor.matchExisting) return <StatusPill variant="neutral">{t('import:preview.noChange', 'No change')}</StatusPill>;
+    return <StatusPill variant={v.already ? 'neutral' : 'lost'}>{t('import:preview.skipped', 'Skipped')}</StatusPill>;
+  };
+  // What an update would change, field by field: "Display name: Ana → Ana Putri".
+  const changeLines = (v: (typeof wiz.validation)[number]) => v.changes?.map((c) => (
+    <span key={c.field} className="break-words text-control text-muted-foreground">
+      {t('import:match.change', '{{field}}: {{from}} → {{to}}', { field: c.field, from: c.from || '—', to: c.to, interpolation: { escapeValue: false } })}
+    </span>
+  ));
   const wideStatus = (v: (typeof wiz.validation)[number]) => {
     const messages = descriptor.fields.flatMap((field) => (v.errors[field.key] ? [v.errors[field.key] as string] : []));
-    const pill = v.valid
-      ? <StatusPill variant={CHIP_VARIANT}>{t('import:preview.valid', 'Valid')}</StatusPill>
-      : <StatusPill variant={v.already ? 'neutral' : 'lost'}>{t('import:preview.skipped', 'Skipped')}</StatusPill>;
+    const pill = statusPill(v);
     return (
       <span className="flex min-w-0 flex-col items-start gap-1">
         {pill}
-        {v.already && <span className="break-words text-control text-muted-foreground">{descriptor.existingKeys?.alreadyThere}</span>}
+        {changeLines(v)}
+        {v.already && <span className="break-words text-control text-muted-foreground">{alreadyText}</span>}
         {messages.map((message) => <span key={message} className="break-words text-control text-destructive">{message}</span>)}
       </span>
     );
@@ -533,14 +555,13 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
     })),
     { key: 'status', header: t('import:preview.status', 'Status'), kind: 'status', cell: (v) => {
       const hiddenErrors = hiddenFields.flatMap((field) => (v.errors[field.key] ? [v.errors[field.key] as string] : []));
-      const pill = v.valid
-        ? <StatusPill variant={CHIP_VARIANT}>{t('import:preview.valid', 'Valid')}</StatusPill>
-        : <StatusPill variant={v.already ? 'neutral' : 'lost'}>{t('import:preview.skipped', 'Skipped')}</StatusPill>;
-      if (hiddenErrors.length === 0 && !v.already) return pill;
+      const pill = statusPill(v);
+      if (hiddenErrors.length === 0 && !v.already && !v.changes?.length) return pill;
       return (
         <span className="flex flex-col items-start gap-0.5">
           {pill}
-          {v.already && <span className="text-control text-muted-foreground">{descriptor.existingKeys?.alreadyThere}</span>}
+          {changeLines(v)}
+          {v.already && <span className="text-control text-muted-foreground">{alreadyText}</span>}
           {hiddenErrors.map((message) => <span key={message} className="text-control text-destructive">{message}</span>)}
         </span>
       );
@@ -549,10 +570,17 @@ function PreviewStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-control text-foreground" data-testid="import-summary">
-        <b className="font-semibold">{t('import:preview.validCount', '{{n}} valid', { n: wiz.counts.valid })}</b>, {t('import:preview.invalidCount', '{{n}} invalid', { n: wiz.counts.invalid })}, {wiz.alreadyCount > 0 && <>{t('import:preview.alreadyCount', '{{n}} already there', { n: wiz.alreadyCount })}, </>}{t('import:preview.totalCount', '{{n}} total', { n: wiz.counts.total })}
+        {descriptor.matchExisting
+          ? <b className="font-semibold">{t('import:match.summary', '{{added}} to add, {{updated}} to update', wiz.matchCounts)}</b>
+          : <b className="font-semibold">{t('import:preview.validCount', '{{n}} valid', { n: wiz.counts.valid })}</b>}, {t('import:preview.invalidCount', '{{n}} invalid', { n: wiz.counts.invalid })}, {wiz.alreadyCount > 0 && <>{descriptor.matchExisting ? t('import:match.noChangeCount', '{{n}} no change', { n: wiz.alreadyCount }) : t('import:preview.alreadyCount', '{{n}} already there', { n: wiz.alreadyCount })}, </>}{t('import:preview.totalCount', '{{n}} total', { n: wiz.counts.total })}
       </p>
-      {wiz.existingStatus === 'failed' && <p role="status" className="text-control text-muted-foreground">{descriptor.existingKeys?.unavailable}</p>}
-      {nothingNew(wiz) && <p role="status" id={NOTHING_NEW_ID} className="text-control text-foreground">{descriptor.existingKeys?.nothingNew}</p>}
+      {wiz.existingStatus === 'failed' && (
+        <p role={descriptor.matchExisting ? 'alert' : 'status'} className="flex flex-wrap items-center gap-2 text-control text-muted-foreground">
+          {descriptor.matchExisting?.unavailable ?? descriptor.existingKeys?.unavailable}
+          {descriptor.matchExisting && <Button variant="outline" size="sm" onClick={wiz.retryExisting}>{t('import:match.retry', 'Try again')}</Button>}
+        </p>
+      )}
+      {nothingNew(wiz) && <p role="status" id={NOTHING_NEW_ID} className="text-control text-foreground">{descriptor.matchExisting?.nothingToDo ?? descriptor.existingKeys?.nothingNew}</p>}
       <DataTable
         rows={wiz.validation}
         columns={columns}
@@ -606,6 +634,7 @@ function ResultStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: I
     <div className="flex flex-col gap-3">
       <p className="text-control text-foreground" data-testid="import-result-summary">
         <b className="font-semibold">{t('import:result.created', '{{n}} created', { n: r.created })}</b>
+        {descriptor.matchExisting && <>, {t('import:result.updated', '{{n}} updated', { n: r.updated ?? 0 })}</>}
         {refused.length > 0 && <>, {t('import:result.invalid', '{{n}} skipped for errors', { n: refused.length })}</>}
         {/* DD-BIMP-8: skipped rows are shown, never folded into `created` — a re-run that writes
             nothing must not claim it wrote something. */}

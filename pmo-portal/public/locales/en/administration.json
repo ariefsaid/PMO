@@ -900,6 +900,8 @@
     "archiveLabel": "Archive {{name}}",
     "archive": "Archive",
     "add": "Add person",
+    "importDocuments": "Import documents",
+    "importPeople": "Import people",
     "error": "Couldn't load people",
     "errorSub": "The request failed. Check your connection and try again.",
     "retry": "Retry",

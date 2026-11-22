@@ -95,13 +95,10 @@ export interface NeedsYouFacts {
   returnedExpenses?: number;
   /** Billing steps waiting on the viewer's role (#2680): a pointer derived on read, absent when none, unread or the read failed. */
   waitingBillingSteps?: WaitingStepsFact;
-<<<<<<< HEAD
   /** Manpower needs with places still to fill, for whoever the database lets fill them: derived on read, absent when none, unread or the read failed. */
   waitingManpower?: WaitingManpowerFact;
-=======
   /** Phone check-ins waiting for this person's decision (#2705): the database lists only the ones they may decide, so most people read zero. */
   checkInsWaiting?: number;
->>>>>>> origin/land/fix-1122
 }
 
 type Translate = (key: string, defaultValue: string, options?: Record<string, unknown>) => string;
@@ -232,7 +229,6 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     });
   }
 
-<<<<<<< HEAD
   // Any role: the database returns rows only to those who may write needs (the crew authority or the HR capability).
   if (facts.waitingManpower) {
     const w = facts.waitingManpower;
@@ -243,12 +239,10 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       href: w.href, tone: 'warn',
     });
   }
-=======
   if (facts.checkInsWaiting) add({
     id: 'check-ins-waiting', count: facts.checkInsWaiting, href: '/crews', tone: 'warn',
     label: counted(t, 'needs.checkIns', 'check-in waiting for your decision', 'check-ins waiting for your decision', facts.checkInsWaiting),
   });
->>>>>>> origin/land/fix-1122
 
   return items;
 }
@@ -401,13 +395,10 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const invoiceApprovals = useInvoicesAwaitingViewer();
   // #2680: steps waiting on the viewer's role. Additive: a failed or unread query adds no item and never blocks the list.
   const waitingStepsQuery = useWaitingSteps(Boolean(orgId && role && role !== 'Engineer'));
-<<<<<<< HEAD
   // Manpower needs to fill: additive like the billing steps; the database answers only for those who may fill, so no role test here.
   const manpowerToFillQuery = useManpowerToFill(Boolean(orgId && role));
-=======
   // The check-in decisions this person may make; a failed read adds no item and never blocks the list.
   const checkInsQuery = useCheckInRequests();
->>>>>>> origin/land/fix-1122
 
   const procApprovals = useMemo(
     () => pendingProcurementApprovals(procurementsQuery.data, userId, realRole === 'Admin'),
@@ -483,11 +474,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     timesheetsToApprove: role === 'Project Manager' && !timesheetsAwaitingQuery.isPending && !timesheetsAwaitingQuery.isError ? timesheetsAwaitingQuery.data?.length ?? 0 : undefined,
     timesheetStatus: currentTimesheet?.status ?? (currentWeek && !timesheetsQuery.isPending && !timesheetsQuery.isError ? 'Draft' : null),
     engineerTasks: role === 'Engineer' && !myTasksQuery.isPending && !myTasksQuery.isError && currentWeek ? engineerTasksCount : undefined,
-<<<<<<< HEAD
     waitingManpower: manpowerToFillQuery.isSuccess ? summariseManpowerToFill(manpowerToFillQuery.data ?? []) ?? undefined : undefined,
-=======
     checkInsWaiting: checkInsQuery.isSuccess ? checkInsQuery.data.length : undefined,
->>>>>>> origin/land/fix-1122
     waitingBillingSteps: waitingStepsQuery.isSuccess ? summariseWaitingSteps(waitingStepsQuery.data ?? []) ?? undefined : undefined,
     returnedExpenses: role === 'Engineer' && !expenseClaimsQuery.isPending && !expenseClaimsQuery.isError ? currentReturnedExpenses.length : undefined,
   };

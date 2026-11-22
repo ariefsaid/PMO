@@ -61,6 +61,20 @@ export async function updatePerson(id: string, input: PersonInput & { code: stri
   assertWriteLanded(data, 'Person not found, or you may not change them.');
 }
 
+/** The people import's update: sends only the fields given and non-blank, so a blank never clears a stored value.
+ *  Never touches `code`, `profile_id` or `archived_at`. */
+export async function updatePersonFields(id: string, input: { name?: string; job_title?: string; manager_id?: string }): Promise<void> {
+  const fields: Record<string, string> = {};
+  if (input.manager_id) fields.manager_id = input.manager_id;
+  const name = input.name?.trim();
+  const jobTitle = input.job_title?.trim();
+  if (name) fields.name = name;
+  if (jobTitle) fields.job_title = jobTitle;
+  const { data, error } = await table().update(fields).eq('id', id).select('id');
+  if (error) fail(error);
+  assertWriteLanded(data, 'Person not found, or you may not change them.');
+}
+
 export async function archivePerson(id: string): Promise<void> {
   const { data, error } = await table().update({ archived_at: new Date().toISOString() }).eq('id', id).select('id');
   if (error) fail(error);

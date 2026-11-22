@@ -21,6 +21,9 @@ vi.mock('@/src/hooks/useOrgProfilesLoader', () => ({
   useOrgProfilesLoader: () => h.loadProfiles,
 }));
 
+// The document import has its own test (PersonDocumentImport.test.tsx); this file is about the register.
+vi.mock('./PersonDocumentImport', () => ({ PersonDocumentImport: () => null }));
+
 import People from './People';
 
 const person = (over: Record<string, unknown> = {}) => ({ id: 'p1', code: 'P-0001', name: 'Budi Santoso', job_title: 'Welder', profile_id: null, manager_id: null, ...over });

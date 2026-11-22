@@ -82,6 +82,12 @@ export async function listSubjectDocuments(kind: SubjectKind, subjectId: string)
   return (data ?? []) as ExpiryDocumentRow[];
 }
 
+/** Every live person document the caller may read (RLS decides): the people document import's match source. */
+export async function listPersonDocuments(): Promise<ExpiryDocumentRow[]> {
+  return fetchAllPages<ExpiryDocumentRow>((from, to) => table('expiry_documents').select(DOC_COLUMNS)
+    .eq('subject_kind', 'person').is('archived_at', null).order('expires_on', { ascending: false }).order('id', { ascending: true }).range(from, to));
+}
+
 export async function listDocumentTypes(kind: SubjectKind): Promise<DocumentTypeRow[]> {
   const { data, error } = await table('document_types').select('id, name, applies_to, is_medical')
     .eq('applies_to', kind).is('archived_at', null).order('name', { ascending: true });

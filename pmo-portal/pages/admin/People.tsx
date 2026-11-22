@@ -12,8 +12,9 @@ import { CanWrite, usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePeople, usePeopleMutations } from '@/src/hooks/usePeople';
 import { useOrgProfilesLoader } from '@/src/hooks/useOrgProfilesLoader';
+import { PersonDocumentImport } from './PersonDocumentImport';
 import { ImportButton } from '@/src/components/import';
-import { makePeopleImportDescriptor } from '@/src/lib/import';
+import { makePeopleImportDescriptor, type ManagerChoice } from '@/src/lib/import';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { PersonListRow, PeopleListStatus } from '@/src/lib/db/people';
@@ -108,14 +109,18 @@ const People: React.FC = () => {
   const loadProfiles = useOrgProfilesLoader();
   const [profileNames, setProfileNames] = useState<Map<string, string>>(new Map());
   const rows = q.data ?? [];
-  const importDescriptor = useMemo(() => makePeopleImportDescriptor(async () => (await repositories.people.list()).map((p) => p.code), t), [t]);
+  const [managerChoices, setManagerChoices] = useState<ManagerChoice[]>([]);
+  const importDescriptor = useMemo(
+    () => makePeopleImportDescriptor({ people: () => repositories.people.list(), managers: managerChoices }, t),
+    [t, managerChoices],
+  );
   const canEdit = may('edit', 'person', ctx);
   const canArchive = may('archive', 'person', ctx);
   const setStaffView = (next: typeof staffView) => setFilter('staff', next === 'active' ? '' : next);
 
   React.useEffect(() => {
     let live = true;
-    void loadProfiles().then((ps) => { if (live) setProfileNames(new Map(ps.map((p) => [p.id, p.full_name]))); }).catch(() => undefined);
+    void loadProfiles().then((ps) => { if (live) { setProfileNames(new Map(ps.map((p) => [p.id, p.full_name]))); setManagerChoices(ps.filter((p) => p.status === 'active').map((p) => ({ id: p.id, email: p.email }))); } }).catch(() => undefined);
     return () => { live = false; };
   }, [loadProfiles]);
 
@@ -159,12 +164,13 @@ const People: React.FC = () => {
               { value: 'all', label: t('administration:people.all', 'All') },
             ]} />
         </div>
-        <CanWrite entity="person" action="create" ctx={ctx}>
-          <div className="flex flex-wrap items-center gap-[var(--space-group)]">
-            <ImportButton entity="person" descriptor={importDescriptor} onImported={() => void q.refetch()} />
+        <div className="flex flex-wrap items-center gap-[var(--space-group)]">
+          <PersonDocumentImport onImported={() => void q.refetch()} />
+          <CanWrite entity="person" action="create" ctx={ctx}>
+            <ImportButton entity="person" label={t('administration:people.importPeople', 'Import people')} descriptor={importDescriptor} onImported={() => void q.refetch()} />
             <Button variant="primary" onClick={() => setEditing('new')}><Icon name="plus" />{t('administration:people.add', 'Add person')}</Button>
-          </div>
-        </CanWrite>
+          </CanWrite>
+        </div>
       </div>
       {q.isPending && <ListState variant="loading" shape="table" rows={4} />}
       {!q.isPending && q.isError && <ListState variant="error" title={t('administration:people.error', "Couldn't load people")}

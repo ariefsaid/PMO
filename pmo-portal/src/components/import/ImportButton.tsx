@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
 import { Button, Icon } from '@/src/components/ui';
-import { usePermission } from '@/src/auth/usePermission';
+import { usePermission, type PermissionCtx } from '@/src/auth/usePermission';
 import type { Entity } from '@/src/auth/policy';
 import type { ImportDescriptor } from '@/src/lib/import';
 import { ImportWizard } from './ImportWizard';
@@ -31,6 +31,8 @@ export interface ImportButtonProps<Input> {
   /** When set, the CALLER hosts the wizard (render `<ImportWizard>` yourself) and this button only asks to open
    *  it — for a button that lives inside a surface which must close first (one overlay at a time). */
   onOpen?: () => void;
+  /** Extra context for the gate when the entity's rule reads a record (the person documents rule reads `{ kind, medical }`). */
+  permissionCtx?: PermissionCtx;
   /** Reaches the trigger so the host can return focus to it. */
   triggerRef?: React.Ref<HTMLButtonElement>;
 }
@@ -43,13 +45,14 @@ export function ImportButton<Input>({
   className,
   onOpen,
   triggerRef,
+  permissionCtx,
 }: ImportButtonProps<Input>) {
   const may = usePermission();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   // FR-IMP-006: hide (not disable) the affordance for a non-create role.
-  if (!may('create', entity)) return null;
+  if (!(permissionCtx ? may('create', entity, permissionCtx) : may('create', entity))) return null;
 
   return (
     <>

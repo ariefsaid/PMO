@@ -32,6 +32,9 @@ vi.mock('@/src/hooks/usePeople', () => ({
 }));
 vi.mock('@/src/hooks/useOrgProfilesLoader', () => ({ useOrgProfilesLoader: () => () => Promise.resolve([]) }));
 
+// The document import has its own test (PersonDocumentImport.test.tsx); this file is about the register.
+vi.mock('./PersonDocumentImport', () => ({ PersonDocumentImport: () => null }));
+
 import People from './People';
 
 const LocationProbe = () => <span data-testid="search">{useLocation().search}</span>;
