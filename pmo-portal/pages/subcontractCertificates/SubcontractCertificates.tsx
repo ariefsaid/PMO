@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -6,34 +6,47 @@ import {
   useUrlFilters, type Column, type SubmitError,
 } from '@/src/components/ui';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useAuth } from '@/src/auth/useAuth';
+import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useCertificateMutations, useCertificates, useRateLines, useSubcontractPos } from '@/src/hooks/useSubcontractCertificates';
 import { repositories } from '@/src/lib/repositories';
 import { useQuery } from '@tanstack/react-query';
 import { formatCurrencyCents, formatMonthYearShort } from '@/src/lib/format';
 import { useCertificateErrorText } from './useCertificateErrorText';
-import type { CertificateRow, CertificateStatus, RateLineRow } from '@/src/lib/db/subcontractCertificates';
+import type { CertificateRow, CertificateStatus, RateLineRow, SubcontractPoOption } from '@/src/lib/db/subcontractCertificates';
 import { STATUSES, STATUS_DEFAULT, STATUS_VARIANT, monthStart } from './certificateUi';
 
 type View = 'certificates' | 'rates';
 
 /** New certificate: a subcontract purchase order and a calendar month. The server derives everything else. */
-const NewCertificateModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const NewCertificateModal: React.FC<{
+  onClose: () => void;
+  eligiblePos: SubcontractPoOption[];
+  canPreparePo: (po: SubcontractPoOption) => boolean;
+  isLoading?: boolean;
+  isError?: boolean;
+}> = ({ onClose, eligiblePos, canPreparePo, isLoading, isError }) => {
   const { t } = useTranslation('subcontractCertificates');
   const { toast } = useToast();
   const navigate = useNavigate();
-  const pos = useSubcontractPos();
   const { prepare } = useCertificateMutations();
   const errorText = useCertificateErrorText();
   const [poId, setPoId] = useState('');
   const [month, setMonth] = useState('');
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
+
+  const chosenPo = eligiblePos.find((p) => p.po_id === poId);
+  const lawfulChoice = Boolean(chosenPo && canPreparePo(chosenPo));
+  const valid = Boolean(poId && monthStart(month) && lawfulChoice && !isLoading && !isError);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
     const start = monthStart(month);
-    if (!poId || !start) return;
+    if (!poId || !start || !lawfulChoice || isLoading || isError) return;
     prepare.mutate({ poId, periodStart: start }, {
       onSuccess: (id) => { toast(t('subcontractCertificates:created', 'Certificate prepared'), undefined, 'success'); onClose(); navigate(`/subcontract-certificates/${id}`); },
       onError: (err) => setSubmitError({ headline: t('subcontractCertificates:notSaved', 'Not saved'), detail: errorText(err) }),
@@ -41,11 +54,11 @@ const NewCertificateModal: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   };
   return (
     <EntityFormModal open title={t('subcontractCertificates:newTitle', 'New certificate')} submitLabel={t('subcontractCertificates:prepare', 'Prepare certificate')}
-      onSubmit={submit} onClose={onClose} loading={prepare.isPending} dirty={Boolean(poId || month)} submitDisabled={!poId || !monthStart(month)} submitError={submitError}>
+      onSubmit={submit} onClose={onClose} loading={prepare.isPending || isLoading} dirty={Boolean(poId || month)} submitDisabled={!valid} submitError={submitError}>
       <FormGrid>
         <SelectField label={t('subcontractCertificates:po', 'Subcontract purchase order')} required value={poId} onChange={setPoId}
           options={[{ value: '', label: t('subcontractCertificates:choosePo', 'Choose a purchase order') },
-            ...(pos.data ?? []).map((p) => ({ value: p.po_id, label: `${p.po_number ?? p.po_id.slice(0, 8)} · ${p.title}` }))]} />
+            ...eligiblePos.map((p) => ({ value: p.po_id, label: `${p.po_number ?? p.po_id.slice(0, 8)} · ${p.title}` }))]} />
         <TextField label={t('subcontractCertificates:month', 'Month')} required type="month" value={month} onChange={setMonth} />
       </FormGrid>
     </EntityFormModal>
@@ -168,8 +181,59 @@ const SubcontractCertificatesPage: React.FC = () => {
   const { t } = useTranslation('subcontractCertificates');
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
+  const { currentUser } = useAuth();
+  const userId = currentUser?.id ?? null;
   const viewOnly = realRole !== effectiveRole;
-  const canPrepare = may('prepare', 'subcontractCertificate', { record: { viewOnly } });
+
+  const posQuery = useSubcontractPos();
+  const projectsQuery = useProjectPickerOptions();
+
+  const allPos = posQuery.data ?? [];
+  const allProjects = projectsQuery.data ?? [];
+
+  const projectManagerByProjectId = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const p of allProjects) {
+      map.set(p.id, p.project_manager_id);
+    }
+    return map;
+  }, [allProjects]);
+
+  const canPrepareRole = can('prepare', 'subcontractCertificate', {
+    realRole,
+    currentUserId: userId,
+    record: { viewOnly },
+  });
+
+  const canPrepareForProject = useCallback((projectManagerId: string | null | undefined): boolean => {
+    return can('prepare', 'subcontractCertificate', {
+      realRole,
+      currentUserId: userId,
+      record: { viewOnly, project_manager_id: projectManagerId ?? null },
+    });
+  }, [realRole, userId, viewOnly]);
+
+  const canPreparePo = useCallback((po: SubcontractPoOption): boolean => {
+    if (canPrepareRole) return true;
+    if (!po.project_id) return false;
+    const pmId = projectManagerByProjectId.get(po.project_id);
+    return canPrepareForProject(pmId);
+  }, [canPrepareRole, projectManagerByProjectId, canPrepareForProject]);
+
+  const isPosPendingOrError = posQuery.isPending || posQuery.isError;
+  const isProjectsPendingOrError = projectsQuery.isPending || projectsQuery.isError;
+  const isPendingOrError = canPrepareRole ? isPosPendingOrError : (isPosPendingOrError || isProjectsPendingOrError);
+
+  const eligiblePos = useMemo(() => {
+    if (isPendingOrError) return [];
+    return allPos.filter(canPreparePo);
+  }, [isPendingOrError, allPos, canPreparePo]);
+
+  // Certificate offer: Admin/Finance retain existing behavior (canPrepareRole, unless viewOnly).
+  // A Project Manager is offered New certificate only when managing an eligible project with lawful PO selection,
+  // and never during pending or error states.
+  const canPrepare = canPrepareRole || (!isPendingOrError && eligiblePos.length > 0);
+
   const canManageRates = may('manage', 'subcontractRate', { record: { viewOnly } });
   const canSeeRates = may('view', 'subcontractRate');
   const { values, setFilter } = useUrlFilters(['view']);
@@ -195,7 +259,15 @@ const SubcontractCertificatesPage: React.FC = () => {
           ? <CertificateList canPrepare={canPrepare} onNew={() => setDialog('certificate')} />
           : <RateCard canManage={canManageRates} onNew={() => setDialog('rate')} />}
       </div>
-      {dialog === 'certificate' && <NewCertificateModal onClose={() => setDialog(null)} />}
+      {dialog === 'certificate' && (
+        <NewCertificateModal
+          onClose={() => setDialog(null)}
+          eligiblePos={eligiblePos}
+          canPreparePo={canPreparePo}
+          isLoading={canPrepareRole ? posQuery.isPending : (posQuery.isPending || projectsQuery.isPending)}
+          isError={canPrepareRole ? posQuery.isError : (posQuery.isError || projectsQuery.isError)}
+        />
+      )}
       {dialog === 'rate' && <RateModal onClose={() => setDialog(null)} />}
     </ListPage>
   );
