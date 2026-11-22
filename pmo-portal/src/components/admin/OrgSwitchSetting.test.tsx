@@ -25,7 +25,7 @@ describe('OrgSwitchSetting (#2746)', () => {
     mutation.error = Object.assign(new Error('STK_OWNED_BY_ERP: the ERP owns stock for this organisation'), { code: 'P0001' });
     card();
     expect(screen.getByRole('switch', { name: 'Transfer stock to work orders' })).toHaveAttribute('aria-checked', 'false');
-    expect(screen.getByText(/the ERP owns stock/)).toBeInTheDocument();
+    expect(screen.getByText(/Stock is managed in your accounting system/)).toBeInTheDocument();
   });
 
   it('AC-OSM-004 an Admin flipping the switch sends the new value once', async () => {

@@ -26,7 +26,7 @@ const repo = () => repositories.safetyDay;
 // The menu sits on shared chrome: outside a query provider or a session the safety switch is simply off (no throw, no request).
 const IDLE_CLIENT = new QueryClient();
 /** True only when the organisation switched safety on (the shared switch's cache entry). Unknown (loading, failed, no session) is false. */
-export function useSafetyNavEnabled(): boolean {
+export function useSafetyMenuOn(): boolean {
   const qc = useContext(QueryClientContext);
   const orgId = useContext(AuthContext)?.currentUser?.org_id;
   return useQuery({ queryKey: orgSwitchKey(orgId, 'safetyRecords'), queryFn: () => orgSwitchRepository.read('safetyRecords'), enabled: Boolean(orgId) && Boolean(qc), ...SERVER_SESSION_QUERY_OPTIONS }, qc ?? IDLE_CLIENT).data === true;

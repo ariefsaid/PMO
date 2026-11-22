@@ -18,7 +18,7 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({
 }) }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({ useHasTimesheetApprovalWork: () => ({ data: false }) }));
-vi.mock('@/src/hooks/useSafetyDays', () => ({ useSafetyNavEnabled: () => state.safety }));
+vi.mock('@/src/hooks/useSafetyDays', () => ({ useSafetyMenuOn: () => state.safety }));
 vi.mock('../ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
 vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: () => ({ isPending: true }) }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
