@@ -23,7 +23,7 @@
 | ID | Given / When / Then | Layer |
 |---|---|---|
 | AC-WAIT-001..019 | `my_waiting_decisions` and `my_decision_standing` per role, SoD, project scope, other organisation, state changes, closed kind list | pgTAP `1560_waiting_decisions.test.sql` |
-| AC-NTF-001..010 | requester notified with reason and label; decider not notified | pgTAP `1561_requester_notified.test.sql` |
+| AC-NTF-001..018 | requester notified with reason and label; decider not notified | pgTAP `1561_requester_notified.test.sql` |
 | AC-WAIT-020..024 | the badge is the shared list's count; never partial; retained across refresh | Unit `ApprovalsNavCount.test.tsx` |
 | AC-WAIT-031..035 | the waiting sentence in English and Bahasa Indonesia | Unit `waitingFor.test.ts` |
 | AC-WAIT-040..042 | the registry is the enumerated list; every kind draws a home row | Unit `waitingKinds.test.ts` |
