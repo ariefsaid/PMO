@@ -1,4 +1,166 @@
 {
+  "allSettings": {
+    "title": "Semua pengaturan",
+    "on": "Aktif",
+    "off": "Nonaktif",
+    "group": {
+      "people": "Orang dan kru",
+      "site": "Lokasi dan keselamatan",
+      "stock": "Stok",
+      "purchasing": "Pembelian",
+      "money": "Penagihan dan keuangan",
+      "equipment": "Peralatan",
+      "integrations": "Koneksi",
+      "notifications": "Notifikasi"
+    },
+    "item": {
+      "crewLoans": {
+        "name": "Pinjaman kru",
+        "summary": "Memungkinkan kru meminjamkan pekerja ke kru lain untuk sementara. Jika mati, halaman Kru tidak menampilkan pinjaman."
+      },
+      "builtInRoles": {
+        "name": "Peran bawaan",
+        "summary": "Menawarkan 28 peran siap pakai saat Anda mengubah peran seseorang. Tidak ada yang berubah sampai seseorang diberi peran."
+      },
+      "clearance": {
+        "name": "Daftar periksa izin ke lokasi",
+        "summary": "Menambahkan bagian Izin ke lokasi untuk mencatat yang dibutuhkan setiap orang sebelum ke lokasi."
+      },
+      "leaveRequests": {
+        "name": "Permintaan cuti",
+        "summary": "Memungkinkan orang mengajukan cuti dan menentukan peran yang menyetujuinya."
+      },
+      "phoneCheckIn": {
+        "name": "Penyelia check-in telepon",
+        "summary": "Menentukan peran yang memutuskan check-in telepon dari luar area kerja."
+      },
+      "attendanceTarget": {
+        "name": "Target kehadiran",
+        "summary": "Menetapkan tingkat kehadiran yang menjadi ukuran kru."
+      },
+      "crewTools": {
+        "name": "Laporan alat kru",
+        "summary": "Menetapkan koordinator dan jumlah hari laporan alat boleh tetap terbuka."
+      },
+      "safetyRecords": {
+        "name": "Catatan keselamatan harian",
+        "summary": "Menambahkan catatan keselamatan harian pada setiap perintah kerja, dengan daftar pemeriksaan, izin, dan daftar periksa Anda sendiri."
+      },
+      "performanceIndices": {
+        "name": "Indeks kinerja",
+        "summary": "Menampilkan panel kinerja pada perintah kerja dan menetapkan batas yang dipakai."
+      },
+      "revenuePlan": {
+        "name": "Rencana pendapatan",
+        "summary": "Membagi rencana setiap bulan ke hari kerja untuk menghasilkan target harian."
+      },
+      "issueClosingReport": {
+        "name": "Laporan penutupan isu",
+        "summary": "Menambahkan laporan waktu penutupan isu dan menetapkan cara pengelompokannya."
+      },
+      "quantityChangeLimit": {
+        "name": "Batas perubahan kuantitas",
+        "summary": "Menetapkan seberapa jauh kuantitas boleh melebihi kontrak sebelum perlu permintaan perubahan."
+      },
+      "stockTransfers": {
+        "name": "Transfer stok dan bukti",
+        "summary": "Memilih transfer satu langkah atau dua langkah dan kapan bukti dilampirkan."
+      },
+      "stockWoTransfers": {
+        "name": "Transfer antar perintah kerja",
+        "summary": "Memungkinkan penjaga stok memindahkan sisa material antar perintah kerja dalam satu proyek."
+      },
+      "stockReservations": {
+        "name": "Reservasi stok",
+        "summary": "Memungkinkan material ditahan untuk perintah kerja, dengan opsi meminjam dari reservasi lain."
+      },
+      "dsrStockIssue": {
+        "name": "Laporan lokasi memosting stok",
+        "summary": "Membuat laporan lokasi yang diajukan mengeluarkan material yang dipakainya dari stok."
+      },
+      "woIssueThreshold": {
+        "name": "Peringatan kemajuan material",
+        "summary": "Memberi peringatan bila material yang dikeluarkan mendahului kemajuan kerja lebih dari persentase tertentu."
+      },
+      "purchaseTypes": {
+        "name": "Jenis pembelian",
+        "summary": "Memungkinkan setiap pembelian memiliki jenis seperti sewa, dengan daftar jenis Anda sendiri."
+      },
+      "purchaseLinePlanning": {
+        "name": "Perencanaan baris pembelian",
+        "summary": "Memungkinkan baris pembelian direncanakan per kategori sebelum dipesan."
+      },
+      "threeWayMatch": {
+        "name": "Pencocokan tiga arah",
+        "summary": "Menahan tagihan vendor sampai sesuai dengan pesanan dan penerimaan, dalam toleransi Anda."
+      },
+      "purchaseOrderPrint": {
+        "name": "Cetak pesanan pembelian",
+        "summary": "Menambahkan pesanan pembelian yang dapat dicetak dengan blok tanda tangan dan pengambil resmi Anda."
+      },
+      "paymentChannels": {
+        "name": "Kanal pembayaran",
+        "summary": "Mencatat cara pembayaran setiap pembelian, dari daftar kanal Anda."
+      },
+      "spendApprovalTiers": {
+        "name": "Tingkat persetujuan pengeluaran",
+        "summary": "Mengarahkan pembelian ke penyetuju berdasarkan jumlah, bukan satu daftar penyetuju."
+      },
+      "hidePrices": {
+        "name": "Sembunyikan harga dari pemohon",
+        "summary": "Menyembunyikan harga dari orang yang hanya meminta material."
+      },
+      "materialRequests": {
+        "name": "Pengaturan permintaan material",
+        "summary": "Menetapkan rantai persetujuan, pengganti, nota pengiriman, dan kotak masuk penyetuju."
+      },
+      "procurementGates": {
+        "name": "Gerbang pengadaan",
+        "summary": "Memilih langkah yang harus dilalui pembelian sebelum dapat dilanjutkan."
+      },
+      "billingPlan": {
+        "name": "Rencana penagihan",
+        "summary": "Menetapkan target penagihan bulanan, mata uangnya, dan pengingat untuk pekerjaan selesai yang belum ditagih."
+      },
+      "labourCost": {
+        "name": "Biaya tenaga kerja",
+        "summary": "Menghitung biaya jam kerja dengan tarif kelas tenaga kerja Anda."
+      },
+      "idleCost": {
+        "name": "Jam menganggur sebagai biaya",
+        "summary": "Menghitung jam menganggur sebagai biaya perintah kerja. Memerlukan biaya tenaga kerja aktif."
+      },
+      "disciplineProfit": {
+        "name": "Pendapatan per disiplin",
+        "summary": "Menampilkan pendapatan di samping biaya untuk setiap disiplin pada proyek."
+      },
+      "equipmentPlan": {
+        "name": "Rencana peralatan bulanan",
+        "summary": "Menambahkan rencana peralatan bulanan dan menetapkan siapa yang menyetujuinya."
+      },
+      "equipmentTargets": {
+        "name": "Target peralatan",
+        "summary": "Menetapkan target ketersediaan dan pemakaian serta kapan mesin yang mati dieskalasi."
+      },
+      "emailNotifications": {
+        "name": "Notifikasi email",
+        "summary": "Memilih peristiwa yang mengirim email, kepada siapa selain orang yang terlibat, dan dalam bahasa apa."
+      },
+      "scheduledReports": {
+        "name": "Laporan terjadwal",
+        "summary": "Mengirim laporan lewat email kepada orang tertentu sesuai jadwal."
+      },
+      "m365DefaultLibrary": {
+        "name": "Pustaka dokumen bawaan",
+        "summary": "Memilih pustaka Microsoft 365 tempat folder proyek baru dibuat."
+      },
+      "feedbackSurveys": {
+        "name": "Survei umpan balik",
+        "summary": "Mengajukan pertanyaan umpan balik singkat kepada orang di dalam aplikasi."
+      }
+    },
+    "paletteGroup": "Pengaturan"
+  },
   "fileInput": {
     "choose": "Pilih berkas",
     "none": "Belum ada berkas dipilih",
@@ -4277,6 +4439,7 @@
       "org_vendor_tax_accounts_change": "Akun pajak supplier diubah",
       "org_tax_default_change": "Pajak bawaan diubah",
       "org_down_payment_item_change": "Item uang muka diubah",
+      "org_setting_change": "Pengaturan organisasi diubah",
       "meeting_grant_create": "Akses rapat diberikan",
       "meeting_grant_revoke": "Akses rapat dicabut",
       "project_stage_entry_redate": "Tanggal tahap diubah",

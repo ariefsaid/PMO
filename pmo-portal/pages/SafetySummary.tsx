@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, ListState, PageHeader, SelectField, TextField } from '@/src/components/ui';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
-import { useSafetyEnabled, useSafetySummary, useSafetySummaryDetail } from '@/src/hooks/useSafetyDays';
+import { useSafetySummary, useSafetySummaryDetail } from '@/src/hooks/useSafetyDays';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { deriveSafetySummaryView, formatSafetyMinutes, toClientExport, type SafetyFigure, type SafetyFigureKey } from '@/src/lib/safetyDay';
 import { formatDay } from '@/src/lib/format';
 import type { SafetyDetailKind } from '@/src/lib/db/safetyDays';
@@ -31,7 +32,7 @@ const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${Str
  */
 const SafetySummary: React.FC = () => {
   const { t } = useTranslation('safety');
-  const enabled = useSafetyEnabled();
+  const enabled = useOrgSwitch('safetyRecords');
   const [params, setParams] = useSearchParams();
   const client = params.get('view') === 'client';
   const [month, setMonth] = useState(thisMonth());

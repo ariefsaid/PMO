@@ -6,7 +6,8 @@ import { formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { useProjectPlanVsActual } from '@/src/hooks/useWorkOrderPlanVsActual';
 import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
-import { useDisciplineProfitEnabled, useDisciplineRevenue } from '@/src/hooks/useDisciplineProfit';
+import { useDisciplineRevenue } from '@/src/hooks/useDisciplineProfit';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { disciplineProfit, type ProfitFigure, type ProfitRow } from '@/src/lib/disciplineProfit';
 import { moneyUnits } from '@/src/lib/projectFinances';
 
@@ -22,7 +23,7 @@ const DisciplineProfit: React.FC<Props> = ({ projectId }) => {
   const { t } = useTranslation('workOrderPva');
   const may = usePermission();
   const canView = may('view', 'workOrderPlan');
-  const setting = useDisciplineProfitEnabled(canView);
+  const setting = useOrgSwitch('disciplineProfit', canView);
   const on = canView && setting.data === true;
   const pva = useProjectPlanVsActual(projectId, on);
   const revenue = useDisciplineRevenue(projectId, on);

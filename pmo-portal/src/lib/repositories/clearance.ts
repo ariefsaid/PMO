@@ -8,8 +8,6 @@ export type {
 } from '@/src/lib/db/clearance';
 
 export const clearanceRepository: ClearanceRepository = {
-  enabled: () => wrap(() => clearance.getClearanceEnabled()),
-  setEnabled: (enabled) => wrap(() => clearance.setClearanceEnabled(enabled)),
   items: () => wrap(() => clearance.listClearanceItems()),
   createItem: (input) => wrap(() => clearance.createClearanceItem(input)),
   updateItem: (id, patch) => wrap(() => clearance.updateClearanceItem(id, patch)),

@@ -6,8 +6,9 @@ import { useDocumentTypes } from '@/src/hooks/useDocumentExpiry';
 import { CanWrite } from '@/src/auth/usePermission';
 import { usePeople } from '@/src/hooks/usePeople';
 import {
-  useClearanceEnabled, useClearanceItemMutations, useClearanceItems, useClearanceSummary,
+  useClearanceItemMutations, useClearanceItems, useClearanceSummary,
 } from '@/src/hooks/useClearance';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useRefusalText } from '@/src/lib/refusals';
 import type { ClearanceItemRow } from '@/src/lib/repositories/clearance';
@@ -157,7 +158,7 @@ const PeopleSection: React.FC = () => {
 /** The Administration "Clearance" section (#2707): items, then who is cleared. A not-enabled state while the setting is off. */
 export default function Clearance() {
   const { t } = useTranslation('administration');
-  const enabled = useClearanceEnabled();
+  const enabled = useOrgSwitch('clearance');
   if (enabled.isError) return <ListState variant="error" title={t('clearance.setting.loadError', 'Couldn’t load this setting')} onRetry={() => void enabled.refetch()} />;
   if (enabled.isPending) return <ListState variant="loading" rows={3} />;
   if (!enabled.data) {

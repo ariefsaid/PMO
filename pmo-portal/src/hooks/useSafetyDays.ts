@@ -4,13 +4,15 @@ import { AuthContext } from '@/src/auth/AuthContext';
 import { useOrgId } from '@/src/hooks/useOrgId';
 import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import { repositories } from '@/src/lib/repositories';
+import { orgSwitchKey } from '@/src/hooks/useOrgSwitch';
+import { orgSwitchRepository } from '@/src/lib/repositories/orgSwitches';
+import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import type { SafetyDay, SafetyDetailKind, SafetyListKind } from '@/src/lib/db/safetyDays';
 
 /** #2596 daily safety records hooks. Keys are org-scoped (FR-QRY-002); every mutation refreshes the safety family. */
 const root = (orgId: string | undefined) => ['safety-days', orgId] as const;
 export const safetyKeys = {
   root,
-  enabled: (orgId: string | undefined) => [...root(orgId), 'enabled'] as const,
   list: (orgId: string | undefined, kind: SafetyListKind, archived: boolean) => [...root(orgId), 'list', kind, archived] as const,
   days: (orgId: string | undefined, woId: string | undefined, from: string, to: string) => [...root(orgId), 'wo-days', woId, from, to] as const,
   detail: (orgId: string | undefined, id: string | undefined) => [...root(orgId), 'detail', id] as const,
@@ -21,17 +23,13 @@ export const safetyKeys = {
 const useOrg = useOrgId;
 const repo = () => repositories.safetyDay;
 
-/** The organisation switch: off means no safety section, flag or route entry (AC-DSF-018). */
-export function useSafetyEnabled() {
-  return useOrgQuery(['safety-days', 'enabled'], () => repo().isEnabled(), { staleness: 'session' });
-}
 // The menu sits on shared chrome: outside a query provider or a session the safety switch is simply off (no throw, no request).
 const IDLE_CLIENT = new QueryClient();
-/** True only when the organisation switched safety on. Unknown (loading, failed, no session) is false. */
+/** True only when the organisation switched safety on (the shared switch's cache entry). Unknown (loading, failed, no session) is false. */
 export function useSafetyNavEnabled(): boolean {
   const qc = useContext(QueryClientContext);
   const orgId = useContext(AuthContext)?.currentUser?.org_id;
-  return useQuery({ queryKey: safetyKeys.enabled(orgId), queryFn: () => repo().isEnabled(), enabled: Boolean(orgId) && Boolean(qc), staleTime: 300_000 }, qc ?? IDLE_CLIENT).data === true;
+  return useQuery({ queryKey: orgSwitchKey(orgId, 'safetyRecords'), queryFn: () => orgSwitchRepository.read('safetyRecords'), enabled: Boolean(orgId) && Boolean(qc), ...SERVER_SESSION_QUERY_OPTIONS }, qc ?? IDLE_CLIENT).data === true;
 }
 export function useSafetyList(kind: SafetyListKind, includeArchived = false) {
   return useOrgQuery(['safety-days', 'list', kind, includeArchived], () => repo().listItems(kind, includeArchived));
@@ -57,7 +55,6 @@ export function useSafetyMutations() {
   const qc = useQueryClient();
   const onSuccess = () => qc.invalidateQueries({ queryKey: safetyKeys.root(orgId) });
   return {
-    setEnabled: useMutation({ mutationFn: (v: boolean) => repo().setEnabled(v), onSuccess }),
     addItem: useMutation({ mutationFn: (v: { kind: SafetyListKind; label: string }) => repo().addItem(v.kind, v.label), onSuccess }),
     renameItem: useMutation({ mutationFn: (v: { id: string; label: string }) => repo().renameItem(v.id, v.label), onSuccess }),
     archiveItem: useMutation({ mutationFn: (v: { id: string; archived: boolean }) => repo().setItemArchived(v.id, v.archived), onSuccess }),

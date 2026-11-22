@@ -88,13 +88,7 @@
     "setting": {
       "title": "Profit per discipline",
       "label": "Show revenue next to cost per discipline",
-      "helper": "Adds a table to the project's plan-vs-actual section and a discipline field on contract lines. Off by default.",
-      "save": "Save",
-      "saved": "Setting saved",
-      "adminOnly": "Only an Admin can change this.",
-      "loadError": "Couldn't load the setting",
-      "on": "On",
-      "off": "Off"
+      "helper": "Adds a table to the project's plan-vs-actual section and a discipline field on contract lines. Off by default."
     }
   },
   "projectHours": "Project and contract hours",

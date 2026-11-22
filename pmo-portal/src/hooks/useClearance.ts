@@ -6,14 +6,6 @@ import type { ClearanceItemInput, ClearanceStateInput } from '@/src/lib/reposito
 /** Cleared-for-site checklist (#2707) over the repository seam; every key carries org_id (tenant scope). */
 const KEY = 'clearance';
 
-/** The organisation switch. Undefined while loading, so callers treat "not known yet" as off. */
-export function useClearanceEnabled() {
-  return useOrgQuery([KEY, 'enabled'], () => clearanceRepository.enabled(), { staleness: 'session' });
-}
-export function useSetClearanceEnabled() {
-  const qc = useQueryClient();
-  return useMutation({ mutationFn: (enabled: boolean) => clearanceRepository.setEnabled(enabled), onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }) });
-}
 export function useClearanceItems() {
   return useOrgQuery([KEY, 'items'], () => clearanceRepository.items());
 }

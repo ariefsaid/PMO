@@ -5,8 +5,8 @@ import { Button, ListState, RecordHeader } from '@/src/components/ui';
 import { usePerson } from '@/src/hooks/useDocumentExpiry';
 import { ExpiryDocumentsCard } from './ExpiryDocumentsCard';
 import { usePermission } from '@/src/auth/usePermission';
-import { useClearanceEnabled } from '@/src/hooks/useClearance';
 import { MarkLeftDialog } from '../admin/MarkLeftDialog';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 
 /** A person's record (#2542): name, code and their expiring documents. The roster increment extends it. */
 const PersonDetail: React.FC = () => {
@@ -17,7 +17,7 @@ const PersonDetail: React.FC = () => {
   const [leaving, setLeaving] = useState(false);
   const mayMarkLeft = usePermission()('archive', 'person');
   // #2707: the checklist link exists only while the organisation setting is on and the role may read it.
-  const clearanceOn = useClearanceEnabled().data === true;
+  const clearanceOn = useOrgSwitch('clearance').data === true;
   const mayViewClearance = usePermission()('view', 'personClearance');
   const showClearance = clearanceOn && mayViewClearance;
   if (q.isPending) return <ListState variant="loading" rows={3} />;

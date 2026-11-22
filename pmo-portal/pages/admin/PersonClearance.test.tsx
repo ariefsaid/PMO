@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/lib/repositories/clearance', () => ({
   clearanceRepository: { enabled: h.enabled, checklist: h.checklist, summary: h.summary, saveState: h.saveState, clearState: vi.fn(), items: h.items, setEnabled: vi.fn(), createItem: vi.fn(), updateItem: vi.fn() },
 }));
+vi.mock('@/src/lib/repositories/orgSwitches', async (orig) => ({ ...(await orig<typeof import('@/src/lib/repositories/orgSwitches')>()), orgSwitchRepository: { read: () => h.enabled(), write: vi.fn() } }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     documentExpiry: { getPerson: vi.fn().mockResolvedValue({ id: 'p1', name: 'Test Person', code: 'P-0001' }) },

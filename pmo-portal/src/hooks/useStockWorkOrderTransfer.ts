@@ -1,15 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { stockWorkOrderTransferRepository as repo } from '@/src/lib/repositories/stockWorkOrderTransfer';
 import { repositories } from '@/src/lib/repositories';
-import { useOrgId } from '@/src/hooks/useOrgId';
 import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
-/** The organisation setting "work-order transfers" (#2691), off by default. While unread or failed it is off: no link, no screen. */
-export function useWoTransfersEnabled(): boolean {
-  const orgId = useOrgId();
-  const q = useQuery({ queryKey: ['stock-wo-transfers-enabled', orgId], queryFn: () => repo.enabled(), enabled: Boolean(orgId), staleTime: 60_000, retry: false });
-  return q.data === true;
-}
 export function useReturnable(workOrderId: string | undefined) {
   return useOrgQuery(['wo-returnable', workOrderId], () => repo.returnable(workOrderId!), { enabled: Boolean(workOrderId) });
 }

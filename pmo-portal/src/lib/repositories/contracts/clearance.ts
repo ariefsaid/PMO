@@ -4,8 +4,6 @@ import type {
 
 /** Cleared-for-site checklist contract (#2707, ADR-0017). */
 export interface ClearanceRepository {
-  enabled(): Promise<boolean>;
-  setEnabled(enabled: boolean): Promise<void>;
   items(): Promise<ClearanceItemRow[]>;
   createItem(input: ClearanceItemInput): Promise<void>;
   updateItem(id: string, patch: Partial<ClearanceItemInput> & { archived_at?: string | null }): Promise<void>;

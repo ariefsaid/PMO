@@ -5,8 +5,8 @@ import React from 'react';
 
 /** #2596 AC-DSF-018 (off = invisible) and FR-DSF-008 (a day worked without a record is flagged on the work-order page). */
 const h = vi.hoisted(() => ({ enabled: false, role: 'Engineer', days: [] as unknown[] }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.enabled, isPending: false }) }));
 vi.mock('@/src/hooks/useSafetyDays', () => ({
-  useSafetyEnabled: () => ({ data: h.enabled, isPending: false }),
   useSafetyWorkOrderDays: () => ({ data: h.days, isPending: false, isError: false, refetch: vi.fn() }),
   useSafetyMutations: () => ({ createDay: { mutateAsync: vi.fn(), isPending: false } }),
 }));

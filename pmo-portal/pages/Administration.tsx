@@ -15,7 +15,7 @@ import AdminUsers from './AdminUsers';
 import People from './admin/People';
 import Clearance from './admin/Clearance';
 import ClearanceSetting from './admin/ClearanceSetting';
-import { useClearanceEnabled } from '@/src/hooks/useClearance';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import DocumentTypes from './admin/DocumentTypes';
 import AdministrationCredits from './AdministrationCredits';
 import { AdministrationUsage } from './AdministrationUsage';
@@ -406,7 +406,7 @@ const Administration: React.FC = () => {
   const costAttributionRoute = section === 'cost-attribution';
   const peopleRoute = section === 'people' && may('view', 'person');
   // #2707: the Clearance section exists only while the organisation setting is on (default off: Administration is unchanged).
-  const clearanceEnabled = useClearanceEnabled().data === true;
+  const clearanceEnabled = useOrgSwitch('clearance').data === true;
   const clearanceRoute = section === 'clearance' && may('view', 'personClearance');
   const showClearance = clearanceEnabled && may('view', 'personClearance');
   const canEnterAdministration = isAdminViewer || isOperator || peopleRoute || clearanceRoute || (fxRoute && isFinance && canFx) || (costAttributionRoute && isFinance && canManageCostAttribution);

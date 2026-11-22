@@ -4,7 +4,7 @@ import { Card, CardHead, CardPad, ListState } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatExactMoney } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import { useDisciplineProfitEnabled } from '@/src/hooks/useDisciplineProfit';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { usePackEarned, usePackRollups } from '@/src/hooks/useEarnedBilled';
 import { useProjects } from '@/src/hooks/useProjects';
 import { projectEarnedBilled, type Figure } from '@/src/lib/earnedBilledProfit';
@@ -21,7 +21,7 @@ const ManagementPackEarned: React.FC = () => {
   const { t } = useTranslation('workOrderPva');
   const may = usePermission();
   const canView = may('view', 'workOrderPlan');
-  const setting = useDisciplineProfitEnabled(canView);
+  const setting = useOrgSwitch('disciplineProfit', canView);
   const on = canView && setting.data === true;
   const earned = usePackEarned(on);
   const projects = useProjects({ enabled: on });

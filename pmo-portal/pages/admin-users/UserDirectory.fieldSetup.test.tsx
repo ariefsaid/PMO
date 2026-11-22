@@ -7,7 +7,8 @@ const h = vi.hoisted(() => ({
   people: [] as Array<{ id: string; profile_id: string | null }>,
   placements: [] as Array<{ worker_id: string; valid_from: string; valid_to: string | null }>,
 }));
-vi.mock('@/src/hooks/useBuiltInRoles', () => ({ useBuiltInRolesEnabled: () => ({ data: true }), useBuiltInRoleMutation: () => ({}) }));
+vi.mock('@/src/hooks/useBuiltInRoles', () => ({ useBuiltInRoleMutation: () => ({}) }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: true }) }));
 vi.mock('@/src/hooks/usePeople', () => ({ usePeople: () => ({ data: h.people }) }));
 vi.mock('@/src/hooks/useCrews', () => ({ useAllCrewMembers: () => ({ data: h.placements }) }));
 vi.mock('@/src/hooks/useOrgRoleNames', () => ({ useBuiltInRoleName: () => (k: string) => k }));

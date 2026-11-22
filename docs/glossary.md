@@ -189,6 +189,15 @@ named product feature. Entitlements are toggled per org by the Operator; a featu
 entitlement row resolves to its environment's default for that feature. A member's access
 follows the org's entitlement on top of their role.
 
+**Organisation setting** — a choice one organisation makes for itself (a value with a default and the roles that
+may change it), owned by its Admin (a few also by Finance or a Project Manager), stored as an `organizations` column
+or a `*_settings` row. Not an entitlement: an entitlement says whether the org may use a feature at all and is the
+Operator's; a setting says how the org uses it. (#2746, ADR-0121.)
+
+**Organisation switch** — an organisation setting that is one on/off value, off by default. The front end reads
+and writes every switch through one module (`useOrgSwitch`, `<OrgSwitchSetting>`); the database keeps each switch's
+own gate and validation. (#2746, ADR-0121.)
+
 **Organization (org)** — the tenant boundary: one paying client **group**, holding all its
 users and data behind one RLS wall. An org is a commercial/contract boundary, not a legal
 entity — a client group with subsidiaries is still **one** org (decided 2026-07-04). Two

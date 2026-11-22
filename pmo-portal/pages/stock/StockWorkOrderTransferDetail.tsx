@@ -2,7 +2,8 @@ import React from 'react';
 import { Link, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, PageHeader } from '@/src/components/ui';
-import { useWoTransfer, useWoTransfersEnabled } from '@/src/hooks/useStockWorkOrderTransfer';
+import { useWoTransfer } from '@/src/hooks/useStockWorkOrderTransfer';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useWorkOrder } from '@/src/hooks/useWorkOrderRecord';
 import { formatDay } from '@/src/lib/format';
 
@@ -12,7 +13,7 @@ const woLabel = (w: { wo_number?: string | null; title?: string | null } | null 
 const StockWorkOrderTransferDetail: React.FC = () => {
   const { t } = useTranslation('stock');
   const { transferId } = useParams();
-  const enabled = useWoTransfersEnabled();
+  const enabled = useOrgSwitch('stockWoTransfers').data === true;
   const q = useWoTransfer(transferId);
   const from = useWorkOrder(q.data?.fromWorkOrderId);
   const to = useWorkOrder(q.data?.toWorkOrderId);

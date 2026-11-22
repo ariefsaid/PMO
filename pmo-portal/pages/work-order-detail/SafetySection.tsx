@@ -8,7 +8,8 @@ import { can } from '@/src/auth/policy';
 import { useAuth } from '@/src/auth/useAuth';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useProject } from '@/src/hooks/useProjects';
-import { useSafetyEnabled, useSafetyMutations, useSafetyWorkOrderDays } from '@/src/hooks/useSafetyDays';
+import { useSafetyMutations, useSafetyWorkOrderDays } from '@/src/hooks/useSafetyDays';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { SAFETY_PART_LABEL } from '@/src/lib/safetyDay';
@@ -30,7 +31,7 @@ export const SafetySection: React.FC<{ workOrderId: string; projectId: string; s
 };
 
 const SafetySectionGate: React.FC<{ workOrderId: string; projectId: string; status: string }> = ({ workOrderId, projectId, status }) => {
-  const enabled = useSafetyEnabled();
+  const enabled = useOrgSwitch('safetyRecords');
   if (!enabled.data) return null;
   return <SafetySectionBody workOrderId={workOrderId} projectId={projectId} status={status} />;
 };

@@ -44,12 +44,12 @@ test('AC-BIR-001: setting off keeps the plain form; on offers 28 roles; a role i
 
     // Turn the setting on.
     await page.goto('/administration/people');
-    const turnOn = page.getByRole('button', { name: 'Turn on built-in roles' });
+    const turnOn = page.getByRole('switch', { name: 'Offer built-in roles' });
     await expect(turnOn).toBeVisible();
     await page.getByRole('heading', { name: 'Built-in roles' }).scrollIntoViewIfNeeded();
     await shoot(page, 'setting-off');
     await turnOn.click();
-    await expect(page.getByRole('button', { name: 'Turn off built-in roles' })).toBeVisible();
+    await expect(turnOn).toHaveAttribute('aria-checked', 'true');
     await page.getByRole('heading', { name: 'Built-in roles' }).scrollIntoViewIfNeeded();
     await shoot(page, 'setting-on');
 
@@ -84,12 +84,11 @@ test('AC-BIR-001: setting off keeps the plain form; on offers 28 roles; a role i
     await expect((await engineerRow(page)).getByText('Engineer', { exact: true })).toBeVisible();
   } finally {
     await page.goto('/administration/people');
-    const toggle = page.getByRole('button', { name: /^Turn (on|off) built-in roles$/ });
+    const toggle = page.getByRole('switch', { name: 'Offer built-in roles' });
     await expect(toggle).toBeVisible();
-    const off = page.getByRole('button', { name: 'Turn off built-in roles' });
-    if (await off.isVisible()) {
-      await off.click();
-      await expect(page.getByRole('button', { name: 'Turn on built-in roles' })).toBeVisible();
+    if ((await toggle.getAttribute('aria-checked')) === 'true') {
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-checked', 'false');
     }
   }
 

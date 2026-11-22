@@ -7,7 +7,8 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useCrewMembers, useCrewWorkers, useCrews } from '@/src/hooks/useCrews';
-import { useCrewLoanMutations, useCrewLoans, useCrewLoansEnabled } from '@/src/hooks/useCrewLoans';
+import { useCrewLoanMutations, useCrewLoans } from '@/src/hooks/useCrewLoans';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import type { CrewLoanRow } from '@/src/lib/repositories/crews';
 import { formatDay } from '@/src/lib/format';
 import { toIso } from '../equipment/equipmentWeek';
@@ -84,7 +85,7 @@ export const CrewLoans: React.FC = () => {
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
   const canManage = may('manage', 'crew', { record: { viewOnly: realRole !== effectiveRole } });
-  const enabled = useCrewLoansEnabled();
+  const enabled = useOrgSwitch('crewLoans');
   const on = enabled.data === true;
   const loans = useCrewLoans(on);
   const crews = useCrews();
