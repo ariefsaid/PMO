@@ -22,6 +22,8 @@
   "ATT_TS_SPLIT_DAY": "A day is split across two work orders of one project. Correct the attendance first.",
   "ATT_WEEK": "A week starts on a Monday.",
   "ATT_WEEK_EMPTY": "This person has no present days that week.",
+  "CLM_OVER_CAP": "This claim line is over what can still be claimed",
+  "CLM_OVER_CAP_detail": "Only {{headroom}} is still claimable on this work-order line. Lower the quantity to {{headroom}}, or confirm the next acceptance (BAST) first.",
   "COST_ADVANCE": "A cash advance is not a cost. Name the work order on the claim that settles it.",
   "COST_DISCIPLINE": "That discipline is no longer on your organisation's list.",
   "COST_WO_CANCELLED": "That work order is cancelled.",

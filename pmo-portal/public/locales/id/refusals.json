@@ -22,6 +22,8 @@
   "ATT_TS_SPLIT_DAY": "Satu hari terbagi di dua $t(common:terms.clientWorkOrder) dalam satu proyek. Koreksi kehadirannya dulu.",
   "ATT_WEEK": "Satu minggu dimulai pada hari Senin.",
   "ATT_WEEK_EMPTY": "Orang ini tidak punya hari hadir di minggu itu.",
+  "CLM_OVER_CAP": "Baris klaim ini melebihi yang masih dapat ditagih",
+  "CLM_OVER_CAP_detail": "Hanya {{headroom}} yang masih dapat ditagih pada baris work order ini. Turunkan kuantitas menjadi {{headroom}}, atau konfirmasi penerimaan (BAST) berikutnya dahulu.",
   "COST_ADVANCE": "Uang muka bukan biaya. Sebutkan work order pada klaim yang menyelesaikannya.",
   "COST_DISCIPLINE": "Disiplin itu sudah tidak ada di daftar organisasi Anda.",
   "COST_WO_CANCELLED": "$t(common:terms.clientWorkOrder) itu sudah dibatalkan.",

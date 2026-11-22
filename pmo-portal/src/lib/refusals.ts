@@ -31,6 +31,7 @@ const FIGURES: Record<string, (text: string) => Record<string, string>> = {
   PTYPE_EXT_ORDER: (s) => ({ date: day(s) }),
   CTR_QTY_EXCEEDS_USABLE: (s) => ({ usable: first(/only (\d+) usable/, s)[0] ?? '0' }),
   CWO_NOT_READY: (s) => ({ names: s.split('not ready:')[1]?.trim() ?? '' }),
+  CLM_OVER_CAP: (s) => ({ headroom: qty(first(/only ([\d.]+) .*still claimable/, s)[0]) }),
   WOS_ALLOCATION_CAP: (s) => { const [total = '', plan = ''] = first(/would be ([\d.]+) against a work-order plan of ([\d.]+)/, s); return { total, plan }; },
   WOS_ARCHIVE_BLOCKED: (s) => ({ reason: s }),
   WPVA_SPLIT_SUM: (s) => ({ sum: first(/add up to ([\d.]+)/, s)[0] ?? '' }),

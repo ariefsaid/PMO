@@ -234,3 +234,41 @@ describe('ProgressClaimModal over-claim warning (survey-cap-warn)', () => {
     expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('more than the 4 unit still claimable (ordered 5, already claimed 1, nothing accepted yet)');
   });
 });
+
+describe('ProgressClaimModal over-claim on a refusing organisation (survey-cap-stop)', () => {
+  const facts = (accepted: number | null) => [lineFacts('b1', []), lineFacts('b2', [allocFacts('wo-1', 'b2', 5, 1, accepted)])];
+  const pickScope = async (user: ReturnType<typeof userEvent.setup>) => user.selectOptions(screen.getByLabelText(/Bills/), 'wo-1');
+
+  it('AC-SCS-010 on block the line says it will be refused, with the headroom and the next step, not the warning', async () => {
+    const { user } = renderModal({ contractLines: facts(3), overCapMode: 'block' });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '3');
+    const note = screen.getByTestId('claim-overclaim-b2');
+    expect(note).toHaveTextContent('Will be refused');
+    expect(note).toHaveTextContent('more than the 2 unit still claimable (accepted 3, already claimed 1)');
+    expect(note).toHaveTextContent('Lower it to 2, or confirm the next BAST first');
+    expect(note).not.toHaveTextContent('Warning');
+    expect(note).not.toHaveTextContent('You can still raise the claim');
+  });
+
+  it('AC-SCS-010 on block with nothing accepted the ordered wording is used', async () => {
+    const { user } = renderModal({ contractLines: facts(null), overCapMode: 'block' });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '5');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('Will be refused: this is more than the 4 unit still claimable (ordered 5, already claimed 1, nothing accepted yet)');
+  });
+
+  it('AC-SCS-010 on block there is nothing at exactly the headroom, and on warn the old warning is unchanged', async () => {
+    const { user } = renderModal({ contractLines: facts(3), overCapMode: 'block' });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '2');
+    expect(screen.queryByTestId('claim-overclaim-b2')).toBeNull();
+  });
+
+  it('AC-SCS-010 on warn the part A warning still shows', async () => {
+    const { user } = renderModal({ contractLines: facts(3), overCapMode: 'warn' });
+    await pickScope(user);
+    await user.type(screen.getByLabelText(/STATION/), '3');
+    expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('Warning: this is more than the 2 unit');
+  });
+});

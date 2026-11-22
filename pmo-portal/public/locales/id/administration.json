@@ -779,6 +779,17 @@
       "turnOn": "Sembunyikan harga dari peminta",
       "turnOff": "Tampilkan lagi harga kepada peminta"
     },
+    "claimOverCap": {
+      "title": "Klaim melebihi kuantitas yang dapat ditagih",
+      "loadError": "Pengaturan kuantitas klaim tidak dapat dimuat",
+      "saved": "Pengaturan kuantitas klaim disimpan",
+      "helper": "Setiap baris klaim diukur terhadap kuantitas yang masih dapat ditagih pada baris work order-nya: kuantitas hasil survei bila ada, jika tidak kuantitas yang diterima (BAST), jika tidak kuantitas yang dipesan, dikurangi yang sudah diambil klaim aktif. Hanya peringatan meloloskan klaim dengan peringatan di formulir. Tolak menghentikan klaim sampai kuantitas diturunkan atau penerimaan berikutnya dikonfirmasi.",
+      "warn": "Hanya peringatan",
+      "block": "Tolak",
+      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
+      "turnOn": "Tolak klaim yang melebihi kuantitas yang dapat ditagih",
+      "turnOff": "Hanya beri peringatan pada klaim yang melebihi kuantitas yang dapat ditagih"
+    },
     "fiscalYear": {
       "title": "Tahun fiskal",
       "label": "Tahun fiskal dimulai pada",

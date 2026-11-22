@@ -41,6 +41,7 @@ import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
+import OrgClaimOverCap from './admin/OrgClaimOverCap';
 import WorkOrderCloseoutTemplate from './admin/WorkOrderCloseoutTemplate';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import PurchaseOrderSettingsSection from './admin/PurchaseOrderSettingsSection';
@@ -318,6 +319,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgWithholdingAccount />
             <OrgVendorTaxAccounts />
             <OrgDownPaymentItem />
+            <OrgClaimOverCap />
             <OrgProcurementGates />
             <PurchaseOrderSettingsSection />
             <OrgThreeWayMatch />
