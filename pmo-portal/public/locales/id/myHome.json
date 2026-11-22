@@ -1,6 +1,7 @@
 {
   "title": "Pekerjaan saya",
   "signOut": "Keluar",
+  "settings": "Pengaturan",
   "error": "Pekerjaan Anda tidak dapat dimuat",
   "tasks": {
     "title": "Tugas saya",
@@ -46,5 +47,8 @@
     "light": "Akun ringan (Mandor, Pengguna lapangan)",
     "total": "Kursi aktif",
     "helper": "Akun ringan memiliki satu layar utama di ponsel. Harga dan jumlah kursi disepakati dengan pemilik."
+  },
+  "workOrders": {
+    "empty": "Anda tidak terdaftar pada $t(common:terms.clientWorkOrder) hari ini"
   }
 }

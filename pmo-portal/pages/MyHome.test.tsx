@@ -40,6 +40,13 @@ beforeEach(() => {
 });
 
 describe('AC-LA-011 phone home screen', () => {
+  it('JOB-NAV-WO: lists the work orders I am on today under the dictionary name, with project and crew', async () => {
+    mount();
+    expect(await screen.findByRole('heading', { name: 'Work order' })).toBeInTheDocument();
+    expect(screen.getByText('Slab works')).toBeInTheDocument();
+    expect(screen.getByText('Site A · Crew 1')).toBeInTheDocument();
+  });
+
   it('shows my tasks, clock in and issues, and hides deliveries while there are none', async () => {
     mount();
     expect(await screen.findByRole('heading', { name: 'My tasks' })).toBeInTheDocument();

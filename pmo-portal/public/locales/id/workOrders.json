@@ -286,10 +286,12 @@
     "importTakeoff": "Impor take-off"
   },
   "all": {
-    "search": "Cari menurut nomor, judul, atau proyek",
+    "empty": "Anda belum punya $t(common:terms.clientWorkOrder)",
     "error": "Gagal memuat daftar $t(common:terms.clientWorkOrder) Anda",
     "noMatch": "Tidak ada $t(common:terms.clientWorkOrder) yang cocok dengan pencarian Anda",
-    "empty": "Anda belum punya $t(common:terms.clientWorkOrder)",
+    "search": "Cari menurut nomor, judul, atau proyek",
+    "seeAll": "Lihat semua",
+    "tileEmpty": "Tidak ada $t(common:terms.clientWorkOrder) yang terbuka",
     "until": "sampai {{date}}"
   }
 }

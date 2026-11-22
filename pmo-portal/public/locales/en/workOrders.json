@@ -286,10 +286,12 @@
     "importTakeoff": "Import take-off"
   },
   "all": {
-    "search": "Search by number, title or project",
+    "empty": "You have no work orders yet",
     "error": "Couldn't load your work orders",
     "noMatch": "No work order matches your search",
-    "empty": "You have no work orders yet",
+    "search": "Search by number, title or project",
+    "seeAll": "See all",
+    "tileEmpty": "No open work orders",
     "until": "until {{date}}"
   }
 }
