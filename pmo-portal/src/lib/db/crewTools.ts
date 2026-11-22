@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import { toStorageAppError } from '@/src/lib/storageError';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
@@ -157,7 +158,7 @@ export async function getToolSettings(): Promise<ToolSettings | null> {
 }
 
 export async function setToolSettings(coordinatorId: string | null, dueDays: number): Promise<void> {
-  const { error } = await supabase.rpc('set_crew_tool_settings', { p_coordinator: coordinatorId, p_due_days: dueDays });
+  const { error } = await supabase.rpc('set_crew_tool_settings', { p_coordinator: nullableArg(coordinatorId), p_due_days: dueDays });
   fail(error);
 }
 
@@ -193,7 +194,7 @@ export async function reportTool(input: ReportToolInput): Promise<string> {
     photos.push({ path, title: file.name.slice(0, 200) });
   }
   const { data, error } = await supabase.rpc('report_crew_tool', {
-    p_id: input.reportId, p_line: input.lineId, p_kind: input.kind, p_qty: input.qty, p_note: input.note, p_photos: photos,
+    p_id: input.reportId, p_line: input.lineId, p_kind: input.kind, p_qty: input.qty, p_note: nullableArg(input.note), p_photos: photos,
   });
   fail(error);
   return data as string;

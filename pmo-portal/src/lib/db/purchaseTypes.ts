@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 
 /**
@@ -55,7 +56,7 @@ export interface PurchaseTypeInput { id: string | null; name: string; nameId: st
 
 export async function upsertPurchaseType(input: PurchaseTypeInput): Promise<void> {
   const { error } = await supabase.rpc('upsert_purchase_type', {
-    p_id: input.id, p_name: input.name, p_name_id: input.nameId, p_is_rental: input.isRental, p_position: input.position,
+    p_id: nullableArg(input.id), p_name: input.name, p_name_id: nullableArg(input.nameId), p_is_rental: input.isRental, p_position: input.position,
   });
   if (error) fail(error);
 }

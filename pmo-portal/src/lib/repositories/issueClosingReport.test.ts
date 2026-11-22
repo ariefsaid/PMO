@@ -18,7 +18,10 @@ describe('issueClosingReportRepository', () => {
   });
 
   it('delegates getSettings to DAL getIssueClosingReportSettings', async () => {
-    const mockSettings = { org_id: 'org-1', enabled: true, grouping_mode: 'type' as const };
+    const mockSettings = {
+      org_id: 'org-1', enabled: true, grouping_mode: 'type' as const,
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', updated_by: null,
+    };
     vi.mocked(dal.getIssueClosingReportSettings).mockResolvedValue(mockSettings);
 
     const result = await repositories.issueClosingReport.getSettings();
@@ -27,7 +30,10 @@ describe('issueClosingReportRepository', () => {
   });
 
   it('delegates updateSettings to DAL updateIssueClosingReportSettings', async () => {
-    const mockSettings = { org_id: 'org-1', enabled: true, grouping_mode: 'department_groups' as const };
+    const mockSettings = {
+      org_id: 'org-1', enabled: true, grouping_mode: 'department_groups' as const,
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', updated_by: null,
+    };
     vi.mocked(dal.updateIssueClosingReportSettings).mockResolvedValue(mockSettings);
 
     const result = await repositories.issueClosingReport.updateSettings({ enabled: true, grouping_mode: 'department_groups' });

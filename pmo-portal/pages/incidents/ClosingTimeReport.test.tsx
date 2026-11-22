@@ -14,7 +14,7 @@ const { reportState, settingsState, queryArgs } = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
   settingsState: {
-    data: { id: 's1', org_id: 'org1', enabled: true, grouping_mode: 'type', updated_at: '2026-01-01T00:00:00Z' } as IssueClosingReportSettings | null,
+    data: { org_id: 'org1', enabled: true, grouping_mode: 'type', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', updated_by: null } as IssueClosingReportSettings | null,
     isPending: false,
     isError: false,
     refetch: vi.fn(),
@@ -60,13 +60,7 @@ describe('ClosingTimeReport (AC-CTR-001 - AC-CTR-009)', () => {
     vi.clearAllMocks();
     mockPermission = true;
     queryArgs.length = 0;
-    settingsState.data = {
-      id: 's1',
-      org_id: 'org1',
-      enabled: true,
-      grouping_mode: 'type',
-      updated_at: '2026-01-01T00:00:00Z',
-    };
+    settingsState.data = { org_id: 'org1', enabled: true, grouping_mode: 'type', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', updated_by: null };
     settingsState.isPending = false;
     settingsState.isError = false;
     reportState.data = [
@@ -100,13 +94,7 @@ describe('ClosingTimeReport (AC-CTR-001 - AC-CTR-009)', () => {
   });
 
   it('renders disabled notice when feature is turned off (AC-CTR-001)', () => {
-    settingsState.data = {
-      id: 's1',
-      org_id: 'org1',
-      enabled: false,
-      grouping_mode: 'type',
-      updated_at: '2026-01-01T00:00:00Z',
-    };
+    settingsState.data = { org_id: 'org1', enabled: false, grouping_mode: 'type', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', updated_by: null };
     renderComponent();
     expect(screen.getByTestId('closing-report-disabled')).toBeInTheDocument();
     expect(

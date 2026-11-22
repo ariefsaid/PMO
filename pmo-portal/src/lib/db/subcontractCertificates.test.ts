@@ -157,7 +157,7 @@ describe('certificate lifecycle calls (#2584)', () => {
     expect(h.calls.rpc.at(-1)).toEqual(['prepare_certificate_acceptance', { p_certificate: 'c1' }]);
   });
 
-  it('backcharges: record sends the optional work order and text only when present; include/exclude goes through its RPC', async () => {
+  it('backcharges: record always sends the work order (null when untied) and the text only when present; include/exclude goes through its RPC', async () => {
     h.result.queue.push({ data: 'bc1', error: null });
     await expect(recordBackcharge({ vendorId: 'v1', projectId: 'p1', amount: 500, currency: 'IDR', reasonCode: 'DAM', workOrderId: 'wo1', reasonText: ' broken ' })).resolves.toBe('bc1');
     expect(h.calls.rpc.at(-1)).toEqual(['record_subcontract_backcharge', {
@@ -166,7 +166,7 @@ describe('certificate lifecycle calls (#2584)', () => {
     h.result.queue.push({ data: 'bc2', error: null });
     await recordBackcharge({ vendorId: 'v1', projectId: 'p1', amount: 1, currency: 'IDR', reasonCode: 'OTH' });
     expect(h.calls.rpc.at(-1)).toEqual(['record_subcontract_backcharge', {
-      p_vendor: 'v1', p_project: 'p1', p_amount: 1, p_currency: 'IDR', p_reason_code: 'OTH',
+      p_vendor: 'v1', p_project: 'p1', p_amount: 1, p_currency: 'IDR', p_reason_code: 'OTH', p_work_order: null,
     }]);
     h.result.queue.push({ data: null, error: null });
     await setCertificateBackcharge('c1', 'bc1', true);

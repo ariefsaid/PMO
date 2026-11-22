@@ -35,6 +35,7 @@ const baseRow: IncidentRow = {
   project_id: null,
   created_at: '2026-03-15T00:00:00Z',
   work_order_id: null, assignee_id: null, action: null, due_at: null, closed_at: null, closed_by: null, close_note: null, escalated_at: null, task_id: null,
+  lost_time: false, root_cause: null,
 };
 
 const renderModal = (incident: IncidentRow | null, onCreate = vi.fn(), onUpdate = vi.fn()) =>

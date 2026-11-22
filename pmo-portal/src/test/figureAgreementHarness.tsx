@@ -24,6 +24,7 @@ function profileForRole(role: Role): Profile {
     ...profile,
     email: `${profile.id}@figure-agreement.test`,
     manager_id: null,
+    built_in_role: null,
     status: 'active',
     company_id: null,
     avatar_url: null,

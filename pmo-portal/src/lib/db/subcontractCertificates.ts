@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import type { Json } from '@/src/lib/supabase/database.types';
 
@@ -208,7 +209,9 @@ export interface RecordBackchargeInput {
 export async function recordBackcharge(input: RecordBackchargeInput): Promise<string> {
   const { data, error } = await supabase.rpc('record_subcontract_backcharge', {
     p_vendor: input.vendorId, p_project: input.projectId, p_amount: input.amount, p_currency: input.currency, p_reason_code: input.reasonCode,
-    ...(input.workOrderId ? { p_work_order: input.workOrderId } : {}), ...(input.reasonText ? { p_reason_text: input.reasonText } : {}),
+    // `p_work_order` has no DEFAULT, so it is always sent; null is the database's own "not tied to a work order"
+    // (the definer tests `p_work_order is null`). `p_reason_text` keeps its DEFAULT null, so it is sent only when given.
+    p_work_order: nullableArg(input.workOrderId ?? null), ...(input.reasonText ? { p_reason_text: input.reasonText } : {}),
   });
   if (error) throwRpc(error);
   return String(data);

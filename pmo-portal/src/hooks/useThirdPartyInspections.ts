@@ -2,14 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import type {
-  InspectionRow, InspectionFileRow, InspectionInput, InspectionResult, InspectionCostRow,
+  InspectionRow, InspectionListRow, InspectionFileRow, InspectionInput, InspectionResult, InspectionCostRow,
 } from '@/src/lib/db/thirdPartyInspections';
 
 /** #2580: the inspections of one work order, their cost read (server-fenced) and the step writes over the repository seam. */
 export function useWorkOrderInspections(workOrderId: string | null | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<InspectionRow[]>({
+  return useQuery<InspectionListRow[]>({
     queryKey: ['third-party-inspections', orgId, workOrderId],
     queryFn: () => repositories.thirdPartyInspection.listForWorkOrder(workOrderId as string),
     enabled: Boolean(orgId) && Boolean(workOrderId),

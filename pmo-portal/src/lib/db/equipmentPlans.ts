@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 
 /**
@@ -96,7 +97,7 @@ export async function listPlanCategories(): Promise<PlanCategory[]> {
 
 export interface PlanCategoryInput { id: string | null; name: string; nameId: string | null; position: number }
 export async function upsertPlanCategory(input: PlanCategoryInput): Promise<void> {
-  const { error } = await supabase.rpc('upsert_equipment_plan_category', { p_id: input.id, p_name: input.name, p_name_id: input.nameId, p_position: input.position });
+  const { error } = await supabase.rpc('upsert_equipment_plan_category', { p_id: nullableArg(input.id), p_name: input.name, p_name_id: nullableArg(input.nameId), p_position: input.position });
   if (error) fail(error);
 }
 export async function setPlanCategoryActive(id: string, active: boolean): Promise<void> {

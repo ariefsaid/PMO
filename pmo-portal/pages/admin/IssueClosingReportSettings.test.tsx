@@ -7,7 +7,7 @@ import type { IssueClosingReportSettings, IssueDepartmentGroup } from '@/src/lib
 
 const { settingsState, updateSettingsMutation, groupsState, saveGroupMutation, removeGroupMutation } = vi.hoisted(() => ({
   settingsState: {
-    data: { id: 's1', org_id: 'org1', enabled: false, grouping_mode: 'type', updated_at: '2026-01-01T00:00:00Z' } as IssueClosingReportSettings | null,
+    data: { org_id: 'org1', enabled: false, grouping_mode: 'type', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', updated_by: null } as IssueClosingReportSettings | null,
     isPending: false,
     isError: false,
     refetch: vi.fn(),
@@ -69,13 +69,7 @@ describe('IssueClosingReportSettings (AC-CTR-006, AC-CTR-007)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCanManage = true;
-    settingsState.data = {
-      id: 's1',
-      org_id: 'org1',
-      enabled: false,
-      grouping_mode: 'type',
-      updated_at: '2026-01-01T00:00:00Z',
-    };
+    settingsState.data = { org_id: 'org1', enabled: false, grouping_mode: 'type', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', updated_by: null };
     groupsState.data = [
       {
         id: 'g1',

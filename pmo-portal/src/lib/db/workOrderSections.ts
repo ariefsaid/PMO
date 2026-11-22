@@ -2,6 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import type { ReadinessCounts } from '@/src/lib/workOrderSections';
+import type { TablesInsert } from '@/src/lib/supabase/database.types';
 
 /**
  * Work-order sections (#2576, migrations 1095..1098). The database decides everything that matters — the
@@ -117,10 +118,13 @@ export interface SectionInput {
 }
 
 export async function createSection(workOrderId: string, input: SectionInput): Promise<string> {
-  const { data, error } = await supabase.from('work_order_sections').insert({
+  // `project_id` is copied from the work order by the guard_work_order_section trigger (migration 1169), which
+  // introspection cannot see, so the generated Insert type asks for a column the client must not send.
+  const row = {
     work_order_id: workOrderId, code: input.code.trim(), name: input.name.trim(),
     location_note: input.locationNote?.trim() || null, foreman_id: input.foremanId, sort_order: input.sortOrder,
-  }).select('id').single();
+  } satisfies Omit<TablesInsert<'work_order_sections'>, 'project_id'>;
+  const { data, error } = await supabase.from('work_order_sections').insert(row as TablesInsert<'work_order_sections'>).select('id').single();
   if (error) throw new AppError(error.message, error.code);
   return data.id;
 }

@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import { candidateKey, type PlanCandidate } from '@/src/lib/billingPlan';
 
@@ -82,18 +83,18 @@ export async function getPlanSettings(): Promise<PlanSettings> {
 
 export async function savePlanSettings(input: { monthlyTarget: number | null; targetCurrency: string | null; reminderOn: boolean }): Promise<void> {
   const { error } = await supabase.rpc('set_billing_plan_settings', {
-    p_target: input.monthlyTarget, p_currency: input.targetCurrency, p_reminder_on: input.reminderOn,
+    p_target: nullableArg(input.monthlyTarget), p_currency: nullableArg(input.targetCurrency), p_reminder_on: input.reminderOn,
   });
   if (error) fail(error);
 }
 
 /** #2675: the reminder switch and its day limit (null = no limit). Admin/Finance only, enforced by the definer. */
 export async function savePlanReminder(input: { reminderOn: boolean; afterDays: number | null }): Promise<void> {
-  const { error } = await supabase.rpc('set_billing_plan_reminder', { p_reminder_on: input.reminderOn, p_after_days: input.afterDays });
+  const { error } = await supabase.rpc('set_billing_plan_reminder', { p_reminder_on: input.reminderOn, p_after_days: nullableArg(input.afterDays) });
   if (error) fail(error);
 }
 
 export async function saveMonthTarget(month: string, target: number | null): Promise<void> {
-  const { error } = await supabase.rpc('set_billing_plan_month_target', { p_month: month, p_target: target });
+  const { error } = await supabase.rpc('set_billing_plan_month_target', { p_month: month, p_target: nullableArg(target) });
   if (error) fail(error);
 }

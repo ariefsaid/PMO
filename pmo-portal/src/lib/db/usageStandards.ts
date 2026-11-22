@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import type { PlanLineInput, UsageStandard } from '@/src/lib/consumablePlan';
 
@@ -150,7 +151,8 @@ export async function generateConsumablePlan(workOrderId: string): Promise<numbe
 /** `adjustedQty` null reverts to the generated figure (and removes a hand-added line). */
 export async function adjustConsumablePlanLine(a: { workOrderId: string; itemId: string; adjustedQty: string | null; reason: string | null }): Promise<void> {
   const { error } = await supabase.rpc('cus_adjust_plan_line', {
-    p_work_order_id: a.workOrderId, p_item_id: a.itemId, p_adjusted_qty: a.adjustedQty === null ? null : asNumeric(a.adjustedQty), p_reason: a.reason,
+    p_work_order_id: a.workOrderId, p_item_id: a.itemId,
+    p_adjusted_qty: a.adjustedQty === null ? nullableArg(null as number | null) : asNumeric(a.adjustedQty), p_reason: nullableArg(a.reason),
   });
   if (error) throw toAppError(error);
 }
