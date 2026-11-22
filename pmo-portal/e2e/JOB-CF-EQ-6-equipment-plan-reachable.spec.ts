@@ -12,8 +12,8 @@ test.setTimeout(120_000);
 test('JOB-CF-EQ-6 the Admin finds the monthly plan, or where to turn it on, from the Equipment screen', async ({ page }) => {
   await signIn(page, 'admin@acme.test');
   await page.goto('/equipment');
-  const plan = page.getByRole('link', { name: 'Monthly equipment plan' });
-  const turnOn = page.getByRole('link', { name: 'Turn on the monthly equipment plan' });
+  const plan = page.getByRole('link', { name: 'Monthly equipment plan', exact: true });
+  const turnOn = page.getByRole('link', { name: 'Turn on the monthly equipment plan', exact: true });
   await expect(plan.or(turnOn)).toBeVisible({ timeout: 20_000 });
   if (await plan.isVisible()) {
     await plan.click();
@@ -22,6 +22,8 @@ test('JOB-CF-EQ-6 the Admin finds the monthly plan, or where to turn it on, from
   } else {
     await turnOn.click();
     await expect(page).toHaveURL(/\/equipment-plans\/settings$/);
+    await expect(page.getByRole('heading', { name: 'Monthly plan settings' })).toBeVisible();
+    await expect(page.getByRole('checkbox', { name: 'The monthly plan is on' })).toBeVisible();
   }
 });
 
@@ -29,5 +31,5 @@ test('JOB-CF-EQ-6 the equipment manager is offered the plan only when it is on',
   await signIn(page, 'pm@acme.test');
   await page.goto('/equipment');
   await expect(page.getByRole('link', { name: 'Hours log' })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByRole('link', { name: 'Turn on the monthly equipment plan' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Turn on the monthly equipment plan', exact: true })).toHaveCount(0);
 });
