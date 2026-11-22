@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Combobox, ConfirmDialog, DataTable, EntityFormModal, FormGrid, Icon, ListState, StatusPill, TextField, ViewToggle, useToast,
+  Button, Combobox, DataTable, EntityFormModal, FormGrid, Icon, ListState, StatusPill, TextField, ViewToggle, useToast,
   type Column, type SubmitError,
 } from '@/src/components/ui';
 
@@ -87,7 +87,6 @@ const PersonForm: React.FC<{ person?: PersonListRow; profileNames: Map<string, s
  *  default and the pre-#2703 read; Former staff and All are opt-in views, held in the URL. */
 const People: React.FC = () => {
   const { t } = useTranslation();
-  const { toast } = useToast();
   const { realRole, effectiveRole } = useEffectiveRole();
   const may = usePermission();
   const ctx = useMemo(() => ({ record: { viewOnly: realRole !== effectiveRole } }), [realRole, effectiveRole]);

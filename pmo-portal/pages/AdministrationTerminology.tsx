@@ -35,6 +35,7 @@ const TermCard: React.FC<{ termKey: TermKey; current?: Partial<Record<TermLocale
   const [drafts, setDrafts] = useState<Record<TermLocale, Draft>>({ en: draftOf(current?.en), id: draftOf(current?.id) });
   useEffect(() => {
     setDrafts({ en: draftOf(current?.en), id: draftOf(current?.id) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset the drafts only when a saved wording changes
   }, [current?.en?.singular, current?.en?.plural, current?.id?.singular, current?.id?.plural]);
   const edit = (locale: TermLocale, field: keyof Draft, value: string) => setDrafts((d) => ({ ...d, [locale]: { ...d[locale], [field]: value } }));
 

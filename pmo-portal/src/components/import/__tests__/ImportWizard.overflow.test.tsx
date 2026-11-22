@@ -59,7 +59,6 @@ describe('ImportWizard preview overflow (W2-11)', () => {
     await user.upload(fileInput as HTMLInputElement, file);
 
     // Mapping step auto-maps → click Next
-    const { waitFor } = await import('@testing-library/react');
     await continueToPreview();
 
     // Wait for the preview table to appear
