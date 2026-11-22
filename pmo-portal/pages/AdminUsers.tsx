@@ -15,7 +15,8 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { USER_DIRECTORY_PAGE_SIZE } from '@/src/lib/db/adminUsers';
 import type { UserDirectoryRow, UserRole } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
-import { useBuiltInRolesEnabled, useBuiltInRoleMutation } from '@/src/hooks/useBuiltInRoles';
+import { useBuiltInRoleMutation } from '@/src/hooks/useBuiltInRoles';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { baseLevelOf } from '@/src/auth/builtInRoles';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { useTranslation } from 'react-i18next';
@@ -57,7 +58,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { updateRole, assignManager, invite, setStatus } = useUserMutations();
   const updateBuiltInRole = useBuiltInRoleMutation();
   // #2709: the built-in role picker is offered only once the organization has turned the set on (default off = screen unchanged).
-  const builtInRolesEnabled = useBuiltInRolesEnabled().data === true;
+  const builtInRolesEnabled = useOrgSwitch('builtInRoles').data === true;
   const { currentUser } = useAuth();
   // AC-JR-W3B-E1 manager jump: { userId, name, fromPage, fromSearch } while we are showing someone
   // else's page for a manager click; `null` when the directory is where the user left it. The

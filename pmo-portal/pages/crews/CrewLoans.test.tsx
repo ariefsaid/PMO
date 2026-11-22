@@ -15,8 +15,8 @@ vi.mock('@/src/hooks/useCrews', () => ({
   useCrewWorkers: () => ({ data: [{ id: 'w1', display_name: 'Lent Worker' }] }),
   useCrewMembers: (crewId: string | null) => ({ data: crewId === 'a' ? [{ id: 'm1', crew_id: 'a', worker_id: 'w1', valid_from: '2000-01-01', valid_to: null }] : [] }),
 }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.enabled }) }));
 vi.mock('@/src/hooks/useCrewLoans', () => ({
-  useCrewLoansEnabled: () => ({ data: h.enabled }),
   useCrewLoans: () => ({ data: h.loans, isPending: false, isError: false }),
   useCrewLoanMutations: () => ({ lend: { mutateAsync: h.lend }, endLoan: { mutateAsync: h.endLoan } }),
 }));

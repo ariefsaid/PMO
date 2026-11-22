@@ -14,7 +14,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { safetyDay: {
   getSummary: h.getSummary, getSummaryDetail: h.getSummaryDetail, setEnabled: h.setEnabled, addItem: h.addItem,
   submitDay: h.submitDay, correctDay: h.correctDay, saveTalk: h.saveTalk, saveFitness: h.saveFitness,
 } } }));
-import { safetyKeys, useSafetyDay, useSafetyEnabled, useSafetyList, useSafetyMutations, useSafetyRoster, useSafetySummaryDetail, useSafetyWorkOrderDays } from './useSafetyDays';
+import { safetyKeys, useSafetyDay, useSafetyList, useSafetyMutations, useSafetyRoster, useSafetySummaryDetail, useSafetyWorkOrderDays } from './useSafetyDays';
 
 const wrapper = () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -22,13 +22,6 @@ const wrapper = () => {
 };
 
 beforeEach(() => { for (const m of Object.values(h)) m.mockReset().mockResolvedValue(null); });
-
-it('the org switch decides whether the safety section exists at all', async () => {
-  h.isEnabled.mockResolvedValue(true);
-  const { result } = renderHook(() => useSafetyEnabled(), { wrapper: wrapper() });
-  await waitFor(() => expect(result.current.data).toBe(true));
-  expect(h.isEnabled).toHaveBeenCalledOnce();
-});
 
 it('the days read waits for the work order and the flag; the roster waits for a date too', async () => {
   const idleDays = renderHook(() => useSafetyWorkOrderDays(undefined, '2026-03-01', '2026-03-07', true), { wrapper: wrapper() });
@@ -77,18 +70,15 @@ it('every mutation forwards its payload and a success invalidates the whole safe
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   const w = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   const spy = vi.spyOn(client, 'invalidateQueries');
-  h.setEnabled.mockResolvedValue(undefined);
   h.addItem.mockResolvedValue(undefined);
   h.submitDay.mockResolvedValue(undefined);
   h.correctDay.mockResolvedValue('d2');
   h.saveTalk.mockResolvedValue('t1');
   h.saveFitness.mockResolvedValue(undefined);
   const { result } = renderHook(() => useSafetyMutations(), { wrapper: w });
-  await act(async () => { await result.current.setEnabled.mutateAsync(true); });
-  expect(h.setEnabled).toHaveBeenCalledWith(true);
-  expect(spy).toHaveBeenCalledWith({ queryKey: safetyKeys.root('org-1') });
   await act(async () => { await result.current.addItem.mutateAsync({ kind: 'check_type', label: 'PPE' }); });
   expect(h.addItem).toHaveBeenCalledWith('check_type', 'PPE');
+  expect(spy).toHaveBeenCalledWith({ queryKey: safetyKeys.root('org-1') });
   await act(async () => { await result.current.submitDay.mutateAsync('d1'); });
   expect(h.submitDay).toHaveBeenCalledWith('d1');
   await act(async () => { await result.current.correctDay.mutateAsync({ id: 'd1', reason: 'roster' }); });

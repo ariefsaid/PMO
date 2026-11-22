@@ -22,21 +22,6 @@ const from = (name: string): any => supabase.from(name as never);
 const rpc = (name: string, args?: Record<string, unknown>): any => (supabase.rpc as any)(name, args);
 function fail(error: { message: string; code?: string }): never { throw new AppError(error.message, error.code); }
 
-/** The organisation switch (default off). Read by every active member; written by an Admin only (RLS + column grant). */
-export async function getClearanceEnabled(): Promise<boolean> {
-  const { data, error } = await from('organizations').select('clearance_checklist_enabled').limit(1);
-  if (error) fail(error);
-  return data?.[0]?.clearance_checklist_enabled === true;
-}
-export async function setClearanceEnabled(enabled: boolean): Promise<void> {
-  const { data: orgs, error: readError } = await from('organizations').select('id');
-  if (readError) fail(readError);
-  const id = orgs?.[0]?.id;
-  if (!id || orgs.length > 1) throw new AppError('No single organisation is readable for the current user', 'no-org');
-  const { data, error } = await from('organizations').update({ clearance_checklist_enabled: enabled }).eq('id', id).select('id');
-  if (error) fail(error);
-  assertWriteLanded(data, 'You do not have permission to change this setting.');
-}
 
 export async function listClearanceItems(): Promise<ClearanceItemRow[]> {
   const { data, error } = await from('clearance_items').select('id, name, is_required, sort_order')

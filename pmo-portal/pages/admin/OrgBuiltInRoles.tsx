@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, FieldError, ListState, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { builtInRolesRepository } from '@/src/lib/repositories/builtInRoles';
-import { BUILT_IN_ROLES_ENABLED_KEY, useBuiltInRolesEnabled } from '@/src/hooks/useBuiltInRoles';
+import { useOrgSwitch, useSetOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { SeatReport } from '@/src/components/my/SeatReport';
 
 /**
@@ -18,22 +16,11 @@ const OrgBuiltInRoles: React.FC = () => {
   const may = usePermission();
   const canManage = may('manage', 'orgAccounting');
   const { toast } = useToast();
-  const qc = useQueryClient();
-  const query = useBuiltInRolesEnabled();
+  const query = useOrgSwitch('builtInRoles');
   const [error, setError] = useState<string>();
   const enabled = query.data === true;
 
-  const mutation = useMutation({
-    mutationFn: (next: boolean) => builtInRolesRepository.setEnabled(next),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: [BUILT_IN_ROLES_ENABLED_KEY] });
-      toast(t('admin.builtInRoles.saved', 'Built-in roles setting saved'), undefined, 'success');
-    },
-    onError: (err) => {
-      const { headline, detail } = classifyMutationError(err);
-      setError(detail || headline);
-    },
-  });
+  const mutation = useSetOrgSwitch('builtInRoles');
 
   return (
     <section id="org-built-in-roles" tabIndex={-1} className="scroll-mt-4 mt-8 border-t border-border pt-6" aria-labelledby="org-built-in-roles-heading">
@@ -59,7 +46,10 @@ const OrgBuiltInRoles: React.FC = () => {
               <Button
                 variant={enabled ? 'outline' : 'primary'}
                 disabled={mutation.isPending}
-                onClick={() => { setError(undefined); mutation.mutate(!enabled); }}
+                onClick={() => { setError(undefined); mutation.mutate(!enabled, {
+                  onSuccess: () => toast(t('admin.builtInRoles.saved', 'Built-in roles setting saved'), undefined, 'success'),
+                  onError: (err) => { const { headline, detail } = classifyMutationError(err); setError(detail || headline); },
+                }); }}
               >
                 {enabled ? t('admin.builtInRoles.turnOff', 'Turn off built-in roles') : t('admin.builtInRoles.turnOn', 'Turn on built-in roles')}
               </Button>

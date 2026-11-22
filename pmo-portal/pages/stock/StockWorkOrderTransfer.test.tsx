@@ -10,8 +10,8 @@ import stockId from '@/public/locales/id/stock.json';
 
 const h = vi.hoisted(() => ({ enabled: true, role: 'Engineer', real: 'Engineer', post: vi.fn(), navigate: vi.fn() }));
 vi.mock('react-router', async (orig) => ({ ...(await orig<typeof import('react-router')>()), useNavigate: () => h.navigate }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.enabled }) }));
 vi.mock('@/src/hooks/useStockWorkOrderTransfer', () => ({
-  useWoTransfersEnabled: () => h.enabled,
   useWoTransferRefresh: () => async () => [],
   useProjectWorkOrdersForStock: (p?: string) => ({ data: p ? [
     { id: 'wa', wo_number: 'WO-1', title: 'Slab', status: 'Issued' }, { id: 'wb', wo_number: 'WO-2', title: 'Wall', status: 'Issued' }, { id: 'wc', wo_number: 'WO-3', title: 'Old', status: 'Cancelled' }] : [] }),

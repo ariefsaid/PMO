@@ -1,22 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clearanceRepository } from '@/src/lib/repositories/clearance';
 import { useAuth } from '@/src/auth/useAuth';
-import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import type { ClearanceItemInput, ClearanceStateInput } from '@/src/lib/repositories/clearance';
 
 /** Cleared-for-site checklist (#2707) over the repository seam; every key carries org_id (tenant scope). */
 const KEY = 'clearance';
 const useOrgId = () => useAuth().currentUser?.org_id;
 
-/** The organisation switch. Undefined while loading, so callers treat "not known yet" as off. */
-export function useClearanceEnabled() {
-  const orgId = useOrgId();
-  return useQuery({ queryKey: [KEY, orgId, 'enabled'], queryFn: () => clearanceRepository.enabled(), enabled: Boolean(orgId), ...SESSION_QUERY_OPTIONS });
-}
-export function useSetClearanceEnabled() {
-  const qc = useQueryClient();
-  return useMutation({ mutationFn: (enabled: boolean) => clearanceRepository.setEnabled(enabled), onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }) });
-}
 export function useClearanceItems() {
   const orgId = useOrgId();
   return useQuery({ queryKey: [KEY, orgId, 'items'], queryFn: () => clearanceRepository.items(), enabled: Boolean(orgId) });

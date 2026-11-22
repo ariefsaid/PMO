@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, FieldError, ListState, SelectField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { useDisciplineProfitEnabled, useSetDisciplineProfitEnabled } from '@/src/hooks/useDisciplineProfit';
+import { useOrgSwitch, useSetOrgSwitch } from '@/src/hooks/useOrgSwitch';
 
 /**
  * Administration > Accounting > Profit per discipline (#2669). One organisation setting, off by default: while off,
@@ -14,8 +14,8 @@ const OrgDisciplineProfit: React.FC = () => {
   const { t } = useTranslation('workOrderPva');
   const canManage = usePermission()('manage', 'orgAccounting');
   const { toast } = useToast();
-  const query = useDisciplineProfitEnabled();
-  const mutation = useSetDisciplineProfitEnabled();
+  const query = useOrgSwitch('disciplineProfit');
+  const mutation = useSetOrgSwitch('disciplineProfit');
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string>();
   const saved = query.data ? 'on' : 'off';

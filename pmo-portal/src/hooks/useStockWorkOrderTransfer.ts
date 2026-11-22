@@ -3,12 +3,6 @@ import { stockWorkOrderTransferRepository as repo } from '@/src/lib/repositories
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 
-/** The organisation setting "work-order transfers" (#2691), off by default. While unread or failed it is off: no link, no screen. */
-export function useWoTransfersEnabled(): boolean {
-  const orgId = useAuth().currentUser?.org_id;
-  const q = useQuery({ queryKey: ['stock-wo-transfers-enabled', orgId], queryFn: () => repo.enabled(), enabled: Boolean(orgId), staleTime: 60_000, retry: false });
-  return q.data === true;
-}
 export function useReturnable(workOrderId: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['wo-returnable', orgId, workOrderId], queryFn: () => repo.returnable(workOrderId!), enabled: Boolean(orgId) && Boolean(workOrderId) });

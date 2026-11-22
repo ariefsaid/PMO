@@ -7,8 +7,8 @@ import { ToastProvider } from '@/src/components/ui';
 
 vi.unmock('@/pages/project-detail/BoqDisciplinePicker'); // test/setup.ts stubs it for the contract-area suites
 const h = vi.hoisted(() => ({ on: true, allowed: true, mutate: vi.fn() }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.on }) }));
 vi.mock('@/src/hooks/useDisciplineProfit', () => ({
-  useDisciplineProfitEnabled: () => ({ data: h.on }),
   useSetItemDiscipline: () => ({ isPending: false, mutate: h.mutate }),
 }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: () => ({ data: [{ id: 'civ', code: 'CIV', name: 'Civil' }] }) }));

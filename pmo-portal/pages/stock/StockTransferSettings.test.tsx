@@ -8,6 +8,7 @@ import stockEn from '@/public/locales/en/stock.json';
 
 const h = vi.hoisted(() => ({ settings: { mode: 'one_step', proofTiming: 'before_posting' }, setMode: vi.fn(), setTiming: vi.fn(), setTagProof: vi.fn(), setItemQuality: vi.fn() }));
 vi.mock('@/src/hooks/useStockTransfers', () => ({ useTransferSettings: () => ({ data: h.settings }), useTransferRefresh: () => async () => [] }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: undefined }), useSetOrgSwitch: () => ({ mutate: vi.fn() }) }));
 vi.mock('@/src/hooks/useStock', () => ({ useStockItems: () => ({ data: [{ id: 'i1', code: 'PIPE', name: 'Pipe', needs_quality_check: false }] }) }));
 vi.mock('@/src/hooks/useStockSiteWork', () => ({ useStockTags: () => ({ data: [{ id: 'g1', name: 'Client supplied', zero_cost: true, paper_required: true }, { id: 'g2', name: 'Plain', zero_cost: false, paper_required: false }] }) }));
 vi.mock('@/src/lib/repositories/stockTransfers', () => ({ stockTransfersRepository: { settings: { setMode: h.setMode, setTiming: h.setTiming, setTagProof: h.setTagProof, setItemQuality: h.setItemQuality } } }));

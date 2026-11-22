@@ -7,7 +7,8 @@ import {
 } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
 import { usePerson } from '@/src/hooks/useDocumentExpiry';
-import { useClearanceEnabled, useClearanceStateMutations, useClearanceSummary, usePersonChecklist } from '@/src/hooks/useClearance';
+import { useClearanceStateMutations, useClearanceSummary, usePersonChecklist } from '@/src/hooks/useClearance';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatIsoDay } from '@/src/lib/format';
 import type { ClearanceState, PersonChecklistRow } from '@/src/lib/repositories/clearance';
@@ -55,7 +56,7 @@ export default function PersonClearance() {
   const { t } = useTranslation('administration');
   const { personId = '' } = useParams();
   const { toast } = useToast();
-  const enabled = useClearanceEnabled();
+  const enabled = useOrgSwitch('clearance');
   const person = usePerson(personId);
   const checklist = usePersonChecklist(personId, enabled.data === true);
   const summary = useClearanceSummary();

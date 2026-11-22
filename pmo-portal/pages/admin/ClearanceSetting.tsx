@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { FieldError, ListState, Switch } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { useClearanceEnabled, useSetClearanceEnabled } from '@/src/hooks/useClearance';
+import { useOrgSwitch, useSetOrgSwitch } from '@/src/hooks/useOrgSwitch';
 
 /**
  * #2707 — the organisation switch for the cleared-for-site checklist, default off. Anyone who can open the People section sees
@@ -13,8 +13,8 @@ export default function ClearanceSetting() {
   const { t } = useTranslation('administration');
   const labelId = useId();
   const canManage = usePermission()('manage', 'clearanceItem');
-  const q = useClearanceEnabled();
-  const m = useSetClearanceEnabled();
+  const q = useOrgSwitch('clearance');
+  const m = useSetOrgSwitch('clearance');
   const err = m.isError ? classifyMutationError(m.error) : null;
   return (
     <section aria-labelledby="clearance-setting-heading" className="mt-6 border-t border-border pt-6">

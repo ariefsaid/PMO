@@ -1,11 +1,8 @@
 import React, { useId } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { crewLoanRepository } from '@/src/lib/repositories/crews';
-import { CREW_LOANS_ENABLED_KEY, useCrewLoansEnabled } from '@/src/hooks/useCrewLoans';
+import { useOrgSwitch, useSetOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { FieldError, ListState, Switch } from '@/src/components/ui';
 
 /**
@@ -15,15 +12,10 @@ import { FieldError, ListState, Switch } from '@/src/components/ui';
  */
 export default function OrgCrewLoans() {
   const { t } = useTranslation('administration');
-  const orgId = useAuth().currentUser?.org_id;
   const canManage = usePermission()('manage', 'orgAccounting');
-  const qc = useQueryClient();
   const labelId = useId();
-  const query = useCrewLoansEnabled();
-  const mutation = useMutation({
-    mutationFn: (next: boolean) => crewLoanRepository.setEnabled(next).then(() => next),
-    onSuccess: (next) => qc.setQueryData([CREW_LOANS_ENABLED_KEY, orgId], next),
-  });
+  const query = useOrgSwitch('crewLoans');
+  const mutation = useSetOrgSwitch('crewLoans');
   const saveError = mutation.isError ? classifyMutationError(mutation.error) : null;
   return (
     <section id="org-crew-loans" tabIndex={-1} className="scroll-mt-4 mt-6" aria-labelledby="org-crew-loans-heading">

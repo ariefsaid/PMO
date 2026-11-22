@@ -7,7 +7,6 @@ import type { SafetyDay, SafetyDetailKind, SafetyListKind } from '@/src/lib/db/s
 const root = (orgId: string | undefined) => ['safety-days', orgId] as const;
 export const safetyKeys = {
   root,
-  enabled: (orgId: string | undefined) => [...root(orgId), 'enabled'] as const,
   list: (orgId: string | undefined, kind: SafetyListKind, archived: boolean) => [...root(orgId), 'list', kind, archived] as const,
   days: (orgId: string | undefined, woId: string | undefined, from: string, to: string) => [...root(orgId), 'wo-days', woId, from, to] as const,
   detail: (orgId: string | undefined, id: string | undefined) => [...root(orgId), 'detail', id] as const,
@@ -18,11 +17,6 @@ export const safetyKeys = {
 const useOrg = () => useAuth().currentUser?.org_id;
 const repo = () => repositories.safetyDay;
 
-/** The organisation switch: off means no safety section, flag or route entry (AC-DSF-018). */
-export function useSafetyEnabled() {
-  const orgId = useOrg();
-  return useQuery({ queryKey: safetyKeys.enabled(orgId), queryFn: () => repo().isEnabled(), enabled: Boolean(orgId), staleTime: 300_000 });
-}
 export function useSafetyList(kind: SafetyListKind, includeArchived = false) {
   const orgId = useOrg();
   return useQuery({ queryKey: safetyKeys.list(orgId, kind, includeArchived), queryFn: () => repo().listItems(kind, includeArchived), enabled: Boolean(orgId) });
@@ -53,7 +47,6 @@ export function useSafetyMutations() {
   const qc = useQueryClient();
   const onSuccess = () => qc.invalidateQueries({ queryKey: safetyKeys.root(orgId) });
   return {
-    setEnabled: useMutation({ mutationFn: (v: boolean) => repo().setEnabled(v), onSuccess }),
     addItem: useMutation({ mutationFn: (v: { kind: SafetyListKind; label: string }) => repo().addItem(v.kind, v.label), onSuccess }),
     renameItem: useMutation({ mutationFn: (v: { id: string; label: string }) => repo().renameItem(v.id, v.label), onSuccess }),
     archiveItem: useMutation({ mutationFn: (v: { id: string; archived: boolean }) => repo().setItemArchived(v.id, v.archived), onSuccess }),

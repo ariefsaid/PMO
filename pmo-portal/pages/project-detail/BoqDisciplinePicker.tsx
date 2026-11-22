@@ -4,7 +4,8 @@ import { SelectField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
-import { useDisciplineProfitEnabled, useSetItemDiscipline } from '@/src/hooks/useDisciplineProfit';
+import { useSetItemDiscipline } from '@/src/hooks/useDisciplineProfit';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 
 /**
  * The discipline of one contract line (#2669, FR-DPR-002), from the organisation's own list. Shown only while the
@@ -17,7 +18,7 @@ const BoqDisciplinePicker: React.FC<Props> = ({ projectId, itemId, disciplineId 
   const { t } = useTranslation('workOrderPva');
   const may = usePermission();
   const allowed = may('manage', 'workOrderPlan');
-  const setting = useDisciplineProfitEnabled(allowed);
+  const setting = useOrgSwitch('disciplineProfit', allowed);
   const disciplines = useCostDisciplines(allowed && setting.data === true);
   const save = useSetItemDiscipline(projectId);
   const { toast } = useToast();
