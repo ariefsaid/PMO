@@ -139,6 +139,8 @@
   "MRQ_SOD_TWICE": "Anda sudah memutuskan langkah lain pada permintaan ini. Orang lain harus memutuskan yang ini.",
   "MRQ_SOURCE_REQUIRED": "Pilih gudang asal material.",
   "MRQ_STAND_IN": "Hanya orang yang sedang berhalangan, atau Admin, yang dapat mengakhiri penggantinya.",
+  "MRQ_USAGE_ADMIN_ONLY": "Hanya Admin yang dapat mengubah peringatan pemakaian. Minta Admin untuk mengubahnya.",
+  "MRQ_USAGE_INVALID": "Pilih laporan lapangan atau pengeluaran stok sebagai yang dihitung terpasang.",
   "MRQ_WORK_ORDER": "Work order ini sudah ditutup atau dibatalkan.",
   "OSC_BINDING": "Inventaris terhubung belum diatur. Hubungi administrator Anda.",
   "OSC_COMPANY": "Satu baris milik perusahaan yang berbeda dari yang terhubung.",
