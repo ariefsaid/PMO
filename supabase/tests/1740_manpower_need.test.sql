@@ -26,6 +26,7 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('17400000-0000-0000-0000-0000000000a7', '17400000-0000-0000-0000-00000000000a', 'MPN Susp',  'mpn-susp@example.com',  'Project Manager', 'disabled'),
   ('17400000-0000-0000-0000-0000000000b1', '17400000-0000-0000-0000-00000000000b', 'MPN XOrg',  'mpn-xorg@example.com',  'Admin', 'active');
 -- An Engineer at the base level whose built-in role is HR (carries the HR capability).
+update organizations set built_in_roles_enabled = true where id = '17400000-0000-0000-0000-00000000000a';
 update profiles set built_in_role = 'hr_officer' where id = '17400000-0000-0000-0000-0000000000a5';
 insert into projects (id, org_id, name, status, project_manager_id) values
   ('17400000-0000-0000-0000-0000000000d1', '17400000-0000-0000-0000-00000000000a', 'MPN Site',  'Ongoing Project', '17400000-0000-0000-0000-0000000000a2'),
