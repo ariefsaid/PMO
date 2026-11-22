@@ -59,7 +59,7 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
           </p>
         )}
         {!q.isPending && !q.isError && requests.length > 0 && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <p className="text-control text-muted-foreground">
               {t('imprest:open.help', 'Requests not yet ordered or paid. This list only suggests; the plan is yours to edit and save.')}
             </p>
@@ -70,14 +70,14 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
               </p>
             )}
             {groups.map(([purpose, byWo]) => (
-              <div key={purpose || 'none'} data-testid={`open-purpose-${purpose || 'none'}`}>
-                <h3 className="pb-1 text-sm font-semibold text-foreground">{purpose ? budgetCategoryLabel(purpose as OpenRequest['category'] & string, t) : t('imprest:open.noPurpose', 'No purpose set')}</h3>
+              <div key={purpose || 'none'} className="space-y-3" data-testid={`open-purpose-${purpose || 'none'}`}>
+                <h3 className="text-sm font-semibold text-foreground">{purpose ? budgetCategoryLabel(purpose as OpenRequest['category'] & string, t) : t('imprest:open.noPurpose', 'No purpose set')}</h3>
                 {[...byWo.entries()].map(([wo, reqs]) => (
-                  <div key={wo || 'none'} className="pb-2">
+                  <div key={wo || 'none'} className="space-y-1">
                     <p className="text-control text-muted-foreground">{wo || t('imprest:open.noWorkOrder', 'No work order')}</p>
                     <ul className="divide-y divide-border text-sm">
                       {reqs.map((r) => (
-                        <li key={r.id} className="py-2">
+                        <li key={r.id} className="py-2 first:pt-1 last:pb-0">
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                             <Link to={`/procurement/${r.id}`} className="font-semibold text-primary-text hover:underline">{r.prNumber ?? r.title}</Link>
                             <span className="min-w-0 basis-full truncate sm:basis-0 sm:flex-1">{r.title}</span>
