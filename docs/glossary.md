@@ -1363,3 +1363,8 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
 
 **Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
+**Responsible person** (*penanggung jawab*) — the one person named on a work order, the site engineer. The usage warning for the work order goes to them; with none named, or when they are no longer an active member, it goes to the project's manager. Whoever may edit the work order names or clears it.
+
+**Installed material** (*material terpasang*) — the quantity of an item on a work order that the organisation counts as installed: the material lines of its validated site reports (a correction replaces the version it supersedes), or, by an Admin's setting, the storekeeper's issues to the work order less returns. Requests and transfers are not installed material.
+
+**Usage warning** (*peringatan pemakaian*) — when installed material of an item on a work order reaches the organisation's first usage threshold (percent of plan), one warning is recorded for that work order and item and the responsible person is told to go and check. It never blocks anything; unset means off. The request-time warning at submit (#2686) is separate and unchanged.

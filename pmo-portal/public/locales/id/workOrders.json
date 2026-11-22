@@ -96,6 +96,13 @@
     "help": "Laporan harian yang divalidasi mengeluarkan materialnya dari sini ke perintah kerja ini.",
     "error": "Lokasi lapangan tidak dapat disimpan"
   },
+  "responsible": {
+    "title": "Penanggung jawab",
+    "label": "Insinyur lapangan untuk perintah kerja ini",
+    "none": "Belum diatur",
+    "noneReadOnly": "Belum diatur. Minta manajer proyek menunjuk insinyur lapangan.",
+    "help": "Peringatan pemakaian material untuk perintah kerja ini dikirim ke orang ini. Selama belum diatur, peringatan dikirim ke manajer proyek."
+  },
   "inspections": {
     "title": "Inspeksi pihak ketiga",
     "error": "Inspeksi tidak dapat dimuat",

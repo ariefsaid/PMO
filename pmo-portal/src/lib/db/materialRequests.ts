@@ -487,3 +487,27 @@ export async function setStepPin(projectId: string, position: number, approverId
   });
   if (error) fail(error);
 }
+
+/** What counts as installed for the usage warning (1861): validated site reports, or storekeeper issues to the work order. */
+export type UsageInstalledSource = 'site_reports' | 'stock_issues';
+export async function getUsageInstalledSource(): Promise<UsageInstalledSource> {
+  const { data, error } = await supabase.from('material_request_settings').select('usage_installed_source').limit(1);
+  if (error) fail(error);
+  return data?.[0]?.usage_installed_source === 'stock_issues' ? 'stock_issues' : 'site_reports';
+}
+export async function setUsageInstalledSource(source: UsageInstalledSource): Promise<void> {
+  const { error } = await supabase.rpc('set_usage_installed_source', { p_source: source });
+  if (error) fail(error);
+}
+
+/** The installed-material warnings recorded on a work order, for its card (spec FR-UW-006). */
+export interface InstalledUsageWarning { itemId: string; itemName: string; unit: string; installedQty: number; planQty: number; threshold: number }
+export async function listInstalledUsageWarnings(workOrderId: string): Promise<InstalledUsageWarning[]> {
+  const { data, error } = await supabase.from('material_installed_usage_alerts')
+    .select('item_id, installed_qty, plan_qty, pct, stock_items(name, stock_units(code))').eq('work_order_id', workOrderId).order('created_at', { ascending: true }).limit(200);
+  if (error) fail(error);
+  return (data ?? []).map((r) => ({
+    itemId: r.item_id, itemName: r.stock_items?.name ?? '', unit: r.stock_items?.stock_units?.code ?? '',
+    installedQty: Number(r.installed_qty), planQty: Number(r.plan_qty), threshold: Number(r.pct),
+  }));
+}

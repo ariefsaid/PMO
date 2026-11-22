@@ -33,6 +33,7 @@ import { WorkOrderOpenTasks } from '@/src/components/tasks/WorkOrderOpenTasks';
 import { WorkOrderCostVariations } from '../WorkOrderCostVariations';
 import { WorkOrderStockBalance } from '../../stock/WorkOrderStockBalance';
 import { WorkOrderAheadBadge } from './WorkOrderAheadBadge';
+import { WorkOrderUsageWarningBanner } from '../../materialRequests/WorkOrderUsageWarningBanner';
 import { MoneyFigure, type InvoiceWithWorkOrder, type OrderLineView } from './workOrdersTabFigures';
 
 /** The billing/invoice figure reads the card's incompleteness states surface. */
@@ -411,6 +412,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
       </div>
 
       <div className="mt-3 border-t border-border pt-3">
+        <WorkOrderUsageWarningBanner workOrderId={row.id} />
         <Button variant="ghost" size="sm" aria-expanded={stockOpen} onClick={() => setStockOpen(!stockOpen)}>
           {t('stock:siteWork.balance.open', 'Stock for this work order')}
         </Button>

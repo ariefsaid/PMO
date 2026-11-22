@@ -11581,6 +11581,7 @@ export type Database = {
           org_id: string
           updated_at: string
           updated_by: string | null
+          usage_installed_source: string
           usage_warn_pct_1: number | null
           usage_warn_pct_2: number | null
         }
@@ -11592,6 +11593,7 @@ export type Database = {
           org_id?: string
           updated_at?: string
           updated_by?: string | null
+          usage_installed_source?: string
           usage_warn_pct_1?: number | null
           usage_warn_pct_2?: number | null
         }
@@ -11603,6 +11605,7 @@ export type Database = {
           org_id?: string
           updated_at?: string
           updated_by?: string | null
+          usage_installed_source?: string
           usage_warn_pct_1?: number | null
           usage_warn_pct_2?: number | null
         }
@@ -11672,6 +11675,60 @@ export type Database = {
             columns: ["request_id"]
             isOneToOne: false
             referencedRelation: "material_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_installed_usage_alerts: {
+        Row: {
+          created_at: string
+          id: string
+          installed_qty: number
+          item_id: string
+          notified_user_id: string | null
+          org_id: string
+          pct: number
+          plan_qty: number
+          source: string
+          work_order_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          installed_qty: number
+          item_id: string
+          notified_user_id?: string | null
+          org_id?: string
+          pct: number
+          plan_qty: number
+          source: string
+          work_order_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          installed_qty?: number
+          item_id?: string
+          notified_user_id?: string | null
+          org_id?: string
+          pct?: number
+          plan_qty?: number
+          source?: string
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_installed_usage_alerts_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_installed_usage_alerts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -25414,6 +25471,7 @@ export type Database = {
           over_commit_ack_at: string | null
           over_commit_ack_by: string | null
           project_id: string
+          responsible_person_id: string | null
           site_warehouse_id: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["work_order_status"]
@@ -25453,6 +25511,7 @@ export type Database = {
           over_commit_ack_at?: string | null
           over_commit_ack_by?: string | null
           project_id: string
+          responsible_person_id?: string | null
           site_warehouse_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["work_order_status"]
@@ -25492,6 +25551,7 @@ export type Database = {
           over_commit_ack_at?: string | null
           over_commit_ack_by?: string | null
           project_id?: string
+          responsible_person_id?: string | null
           site_warehouse_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["work_order_status"]
@@ -35382,6 +35442,11 @@ export type Database = {
       set_work_order_plan: {
         Args: { p_changes: Json; p_project_id: string; p_work_order_id: string }
         Returns: number
+      }
+      set_usage_installed_source: { Args: { p_source: string }; Returns: undefined }
+      set_work_order_responsible_person: {
+        Args: { p_person_id: string; p_work_order_id: string }
+        Returns: undefined
       }
       set_work_order_site_location: {
         Args: { p_warehouse_id: string; p_work_order_id: string }

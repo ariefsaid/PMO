@@ -53,6 +53,15 @@ export function useUsageThresholds() {
   const orgId = useOrgId();
   return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'usage-thresholds'], queryFn: () => repo.usageThresholds(), enabled: Boolean(orgId) });
 }
+/** Installed-material warnings recorded on a work order, for its card. */
+export function useInstalledUsageWarnings(workOrderId: string | undefined) {
+  const orgId = useOrgId();
+  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'installed-usage-warnings', workOrderId], queryFn: () => repo.installedUsageWarnings(workOrderId as string), enabled: Boolean(orgId) && Boolean(workOrderId) });
+}
+export function useUsageInstalledSource() {
+  const orgId = useOrgId();
+  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'usage-installed-source'], queryFn: () => repo.usageInstalledSource(), enabled: Boolean(orgId) });
+}
 export function useStandIns() {
   const orgId = useOrgId();
   return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'stand-ins'], queryFn: () => repo.standIns(), enabled: Boolean(orgId) });
