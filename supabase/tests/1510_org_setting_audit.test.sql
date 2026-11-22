@@ -36,7 +36,7 @@ select is(osa_events('organizations.crew_loans_enabled'), 1, 'AC-OSM-021 an unch
 update organizations set clearance_checklist_enabled = true where id = '27460000-0000-0000-0000-00000000000a';
 select is(osa_events('organizations.clearance_checklist_enabled'), 1, 'AC-OSM-020 a direct column write writes one event');
 update organizations set attendance_target_rate = 92.5 where id = '27460000-0000-0000-0000-00000000000a';
-select is(osa_last('organizations.attendance_target_rate') ->> 'to', '92.5', 'AC-OSM-020 a numeric setting records its new value');
+select is((osa_last('organizations.attendance_target_rate') ->> 'to')::numeric, 92.5, 'AC-OSM-020 a numeric setting records its new value');
 
 -- a grouped setting writes one event per changed column
 select set_leave_settings(true, 'Project Manager');
