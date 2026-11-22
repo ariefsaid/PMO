@@ -72,6 +72,7 @@
     "correction": "Correction: {{reason}}",
     "error": "Couldn't load this report",
     "needsPhoto": "A photo of the paper form is needed to validate",
+    "nobodyCanValidate": "Nobody active can validate this report right now.",
     "notFound": "Report not found",
     "subject": "site report",
     "superseded": "Replaced by a correction",

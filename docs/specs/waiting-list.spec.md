@@ -30,6 +30,7 @@
 | AC-WAIT-050..055 | one list, oldest first, count = length, pending/failed withhold the count, setting-independent | Unit `useWaitingForYou.test.tsx` |
 | AC-WAIT-060 | every database title has English and Bahasa text | Unit `notificationCopy.test.ts` |
 | AC-WAIT-056 | a client acceptance (BAST) waiting on an Admin/Finance viewer joins the one list and its count, links to its work order, and leaves it on confirmation; a role that cannot confirm issues no read | Unit `useWaitingForYou.test.tsx`, `approvalItem.test.ts`, `waitingKinds.test.ts`, `Approvals.waitingKinds.test.tsx`; pgTAP `1570_bast_confirm_owner.test.sql`; e2e `JOB-PM-7` |
+| FR-WAIT-006 (daily report) | a submitted site report's requester is told who it waits for, from the database-computed route: the assigned Project Manager is named only when a real, active, non-light, non-author Project Manager; Finance/Admin stay true role-level alternatives; a proven empty route says nobody | pgTAP `1567_dsr_validation_route.test.sql`; unit `useDsrValidationRoute.test.ts`, `SiteReportDetail.test.tsx`; e2e `AC-DSR-013-field-report-to-validation.spec.ts` (the JOB-WAIT-3 requester who-next, daily-report kind) |
 | JOB-WAIT-1 | the step approver finds the request on home, menu with count, inbox | E2E `serial/JOB-WAIT-1-…` |
 | JOB-WAIT-2 | Finance: home, Finance page and inbox show the same list and number | E2E `serial/JOB-WAIT-2-…` |
 | JOB-WAIT-3/4/5 | the requester sees who it waits for; a return notifies with the reason; editing keeps what was typed | E2E `serial/JOB-WAIT-3-4-5-…` |

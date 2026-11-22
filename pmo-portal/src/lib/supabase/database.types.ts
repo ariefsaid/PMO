@@ -30358,6 +30358,14 @@ export type Database = {
         }[]
       }
       get_built_in_roles_enabled: { Args: never; Returns: boolean }
+      get_dsr_validation_route: {
+        Args: { p_report_id: string }
+        Returns: Json
+      }
+      get_equipment_plan_approval_route: {
+        Args: { p_plan_id: string }
+        Returns: Json
+      }
       get_equipment_targets: {
         Args: never
         Returns: {
@@ -30453,6 +30461,13 @@ export type Database = {
           replenishment_in_flight: number
         }[]
       }
+      get_imprest_requester_route: {
+        Args: {
+          p_kind: string
+          p_record_id: string
+        }
+        Returns: Json
+      }
       get_issue_closing_time_report: {
         Args: {
           p_date_from?: string
@@ -30494,6 +30509,13 @@ export type Database = {
       }
       get_odoo_statement_catalogue: {
         Args: { p_project_id?: string }
+        Returns: Json
+      }
+      get_operational_waiting_route: {
+        Args: {
+          p_kind: string
+          p_record_id: string
+        }
         Returns: Json
       }
       get_org_discipline_profit_enabled: { Args: never; Returns: boolean }
@@ -30671,6 +30693,10 @@ export type Database = {
           p_item_id?: string
           p_warehouse_id?: string
         }
+        Returns: Json
+      }
+      get_timesheet_approval_route: {
+        Args: { p_timesheet_id: string }
         Returns: Json
       }
       get_unbilled_work_orders: { Args: { p_limit?: number }; Returns: Json }

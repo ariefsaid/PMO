@@ -19,6 +19,10 @@ import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatDay } from '@/src/lib/format';
 import { dsrReportRevenue } from '@/src/lib/dsrRevenue';
+import { waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
+import { dsrWaitingForText, useDsrValidationRoute } from '@/src/hooks/useDsrValidationRoute';
+import { useRoleLabels } from '../admin-users/roleLabels';
+import type { UserRole } from '@/src/lib/db/adminUsers';
 import type { DsrReportDetail } from '@/src/lib/db/dailySiteReports';
 import {
   siteReportDraftInput, siteReportFormFromDetail, validateSiteReportForm, workingMinutes, type SiteReportForm,
@@ -51,12 +55,13 @@ const SiteReportDetail: React.FC = () => {
 };
 
 const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => {
-  const { t } = useTranslation(['siteReport', 'status']);
+  const { t } = useTranslation(['siteReport', 'status', 'waitingList']);
   const navigate = useNavigate();
   const { toast } = useToast();
   const narrow = useIsNarrow();
   const userId = useAuth().currentUser?.id ?? null;
   const { realRole } = useEffectiveRole();
+  const roleLabels = useRoleLabels();
   const { report } = detail;
   const project = useProject(report.project_id).data ?? null;
   const ctx = { realRole, currentUserId: userId, record: { author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
@@ -66,6 +71,34 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const mayValidate = report.status === 'submitted' && can('approve', 'dailySiteReport', ctx);
   const mayCorrect = report.status === 'validated' && !report.superseded_at && can('revise', 'dailySiteReport', ctx);
   const seeRevenue = can('view', 'dailySiteReportRevenue', ctx);
+
+  // fix-waiting item 3: who the submitted report waits for, from the server's own route. The route is
+  // SECURITY INVOKER over the existing report/project/profile policies and binds ONE visible Submitted
+  // report; a draft/returned/validated report pays no read. While it loads, no name is claimed; a failed
+  // read says so (with a retry); a proven empty route says nobody active can validate — a project with no
+  // (eligible) PM never invents a project approver. The named person is spoken with the database's own
+  // role word ("Project Manager") through the shared role-label seam.
+  const route = useDsrValidationRoute(report.status === 'submitted' ? report.id : null);
+  const waitingLabels = {
+    role: (role: string) => roleLabels.label(role as UserRole),
+    financeAdmin: waitingRoleLabel('roleFinanceAdmin', t),
+    nobody: t('detail.nobodyCanValidate', 'Nobody active can validate this report right now.'),
+    unavailable: t('common:uxs32.routeUnavailable', "Couldn't verify who can approve right now."),
+  };
+  // A known POSITIVE route (a named PM, or at least one eligible Admin/Finance) is still worth saying
+  // while a background refresh fails. A known 'nobody' is NOT: it is a definitive statement that the
+  // failed refresh may already have falsified, so the screen states the uncertainty instead.
+  const knownRoute = route.data ?? null;
+  const keepKnownRoute = knownRoute !== null
+    && knownRoute.routeKind !== 'nobody'
+    && knownRoute.routeKind !== 'unavailable';
+  const waitingLine = report.status !== 'submitted'
+    ? null
+    : route.isError
+      ? (keepKnownRoute && knownRoute ? dsrWaitingForText(knownRoute, t, waitingLabels) : waitingLabels.unavailable)
+      : knownRoute
+        ? dsrWaitingForText(knownRoute, t, waitingLabels)
+        : null;
 
   const lookups = useDsrLookups(report.work_order_id, report.id);
   const stock = useQuery({ queryKey: ['daily-site-reports', 'stock-items'], queryFn: () => repositories.stock.master.listItems(false), enabled: editable || detail.consumables.length > 0 });
@@ -178,6 +211,10 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           </div>
         )}
       >
+        {waitingLine && <p className="font-medium text-foreground" role="status" data-testid="dsr-waiting-for">{waitingLine}</p>}
+        {report.status === 'submitted' && route.isError && (
+          <Button variant="outline" size="sm" onClick={() => void route.refetch()}>{t('common:ui.listState.retry', 'Retry')}</Button>
+        )}
         {editable && !hasPaperForm && <p className="text-foreground" role="status" data-testid="dsr-author-needs-photo">{t('detail.needsPhotoAuthor', 'Add a photo of the paper form before you send. The validator cannot accept the report without it.')}</p>}
         {mayValidate && !hasPaperForm && <p className="text-foreground">{t('detail.needsPhoto', 'A photo of the paper form is needed to validate')}</p>}
         {report.superseded_at && <p className="text-foreground">{t('detail.superseded', 'Replaced by a correction')}</p>}
