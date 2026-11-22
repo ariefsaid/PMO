@@ -34,6 +34,7 @@
 | AC-CHR-004 | Given the role is listed, when a different non-listed role with no key (e.g. Engineer) or a listed-role user of another organisation approves, then refused. | pgTAP |
 | AC-CHR-005 | Given a non-Admin writes the list, then nothing changes; given the Admin writes a key not in the catalogue, or a light-account key (`foreman`, `field_user`), then refused; given a valid change, an audit row holds before and after. | pgTAP |
 | AC-CHR-011 | Given a listed role and the organisation turns built-in roles off, then its holder is refused approve (`QCR_NOT_APPROVER`) and `qcr_approval_state` says `role`; given an officer key with Engineer base is written to the list, then refused `QCR_APPROVER_ROLE_CANNOT_READ`. | pgTAP |
+| AC-CHR-012 | Given the role is listed, then a listed-role holder sees the pending request in `my_waiting_decisions()` (kind `quantity_change`) and has decision standing; the author, an editor and the submitter do not see it; with the list empty the role does not. (Migration 1811.) | pgTAP |
 | AC-CHR-006 | Given the role is listed, when a request is submitted, then a listed-role user who did not touch it is notified; when it is approved, the person who raised it is notified. | pgTAP |
 | AC-CHR-007 | Given the listed role, `qcr_approval_state` returns `can_approve` true for a non-author and `eligible_approver_exists` true when only listed-role users exist. | pgTAP |
 | AC-CHR-008 | Given the refusal codes raised by the migration, then each has non-empty `en` and `id` sentences (gate `check-refusal-codes`). | vitest + gate |
