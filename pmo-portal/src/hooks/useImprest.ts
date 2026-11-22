@@ -120,7 +120,8 @@ export function useImprestFloatClaims(floatId: string | undefined) {
 }
 export function useImprestAwaiting() {
   const orgId = useOrgId();
-  return useQuery({ queryKey: ['imprest-awaiting', orgId], queryFn: () => repositories.imprest.listAwaitingImprest(), enabled: Boolean(orgId) });
+  const query = useQuery({ queryKey: ['imprest-awaiting', orgId], queryFn: () => repositories.imprest.listAwaitingImprest(), enabled: Boolean(orgId) });
+  return { ...query, enabled: Boolean(orgId) };
 }
 export function useImprestProcurementLimit() {
   const orgId = useOrgId();

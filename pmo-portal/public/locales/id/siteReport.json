@@ -72,6 +72,7 @@
     "correction": "Koreksi: {{reason}}",
     "error": "Laporan ini tidak dapat dimuat",
     "needsPhoto": "Foto formulir kertas diperlukan untuk validasi",
+    "nobodyCanValidate": "Saat ini tidak ada anggota aktif yang dapat memvalidasi laporan ini.",
     "notFound": "Laporan tidak ditemukan",
     "subject": "laporan lapangan",
     "superseded": "Diganti oleh koreksi",

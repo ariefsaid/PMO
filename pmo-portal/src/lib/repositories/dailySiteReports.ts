@@ -1,4 +1,5 @@
 import * as dal from '@/src/lib/db/dailySiteReports';
+import { getDsrValidationRoute } from '@/src/lib/db/dsrValidationRoute';
 import type { DailySiteReportRepository } from './contracts/dailySiteReports';
 
 export const dailySiteReportRepository: DailySiteReportRepository = {
@@ -21,6 +22,7 @@ export const dailySiteReportRepository: DailySiteReportRepository = {
   revenue: dal.reportRevenue,
   workOrderRevenue: dal.workOrderValidatedRevenue,
   queue: dal.validationQueue,
+  validationRoute: getDsrValidationRoute,
   uploadPhoto: dal.uploadPhoto,
   photoUrl: dal.photoUrl,
 };

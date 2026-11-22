@@ -54,13 +54,14 @@ import { FindingLine, PipelineCurrencyReport, UncheckedReport } from './FindingL
 import { ProjectHealthCard } from './ProjectHealthCard';
 import { FinancesCard, LeftToBillSection } from './FinancesCard';
 import { healthOrder, overBudget, overdueTaskCount } from './homeHealth';
+import { WorkOrdersTile } from '@/src/components/dashboard/WorkOrdersTile';
 
 type TileOpts = { label?: string; caption?: string; reason?: string; link?: { to: string; label: string }; hide?: boolean };
 const MARGIN_HINT_KEY = 'pmo.home.marginTile';
 /** The order of "waits on you" rows per role (a row is drawn only when its count is above zero). */
 const WAIT_ORDER: Record<'Executive' | 'Admin' | 'Finance', string[]> = {
-  Executive: ['approvals', 'billing-steps-waiting'],
-  Admin: ['approvals', 'billing-steps-waiting'],
+  Executive: ['approvals', 'billing-steps-waiting', 'check-ins-waiting'],
+  Admin: ['approvals', 'billing-steps-waiting', 'check-ins-waiting'],
   Finance: ['approvals', 'supplier-invoices', 'overdue-invoices', 'ready-to-bill', 'billing-steps-waiting'],
 };
 
@@ -475,6 +476,9 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
             {firstRow}
             {billingBand}
             {lowerRows}
+            <div className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-10')}>
+              <WorkOrdersTile />
+            </div>
           </div>
           {finance && <Analysis title={t('home.analysis', 'Analysis')}><FinanceAnalysis /></Analysis>}
         </div>
@@ -495,6 +499,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
           return finance ? tiles : <div className="grid items-start gap-[var(--space-panel-gap)] min-[900px]:grid-cols-2">{tiles}{salesCard}</div>;
         })()}
         {finance && <BudgetReviewCard rows={budgetRows} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} />}
+        <WorkOrdersTile />
         <Analysis title={t('home.analysis', 'Analysis')}>{analysis}</Analysis>
       </div>
     </FigureScope>

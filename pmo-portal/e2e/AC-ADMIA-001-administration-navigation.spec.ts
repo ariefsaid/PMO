@@ -50,11 +50,17 @@ const ORGANIZATION_SECTIONS = [
 
 const EXPECTED_ORGANIZATION_LINKS = [
   ...ORGANIZATION_SECTIONS.map(({ name }) => name),
+  // #2746: Modules front door for an Admin.
+  'Modules',
   'Your plan',
   // #2529 deliberately adds the org terminology settings.
   'Terminology',
   'Document categories', // #2579: an Admin-only destination, shown to this Admin
+  // #2707: Clearance front door (enabled by default per migration 1670).
+  'Clearance',
   'Cost attribution',
+  // #2746: All settings overview route front door for an Admin viewer.
+  'All settings',
 ];
 
 const sectionNav = (page: Page) => page.getByRole('navigation', { name: 'Administration sections' });

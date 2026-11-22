@@ -770,6 +770,12 @@
     "shortOpen_one": "{{count}} shortfall open",
     "shortOpen_other": "{{count}} shortfalls open",
     "sentToast": "Stock transfer sent",
+    "sendConfirm": {
+      "title": "Send this transfer?",
+      "where": "From {{from}} to {{to}}",
+      "undo": "The stock leaves the source now; the receiver counts it on arrival.",
+      "confirm": "Send transfer"
+    },
     "receiver": "Receiver (optional)",
     "receiverNone": "Anyone who keeps the destination",
     "receiverHelp": "Name the person who will count it on arrival: a keeper of the destination, or a field account. You cannot name yourself.",

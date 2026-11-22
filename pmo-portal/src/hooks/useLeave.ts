@@ -20,10 +20,22 @@ export function useLeaveSettings() {
   return useLeaveQuery(['leave-settings', orgId], () => leaveRepository.settings(), Boolean(orgId));
 }
 
+function useLeaveAvailability() {
+  const qc = useContext(QueryClientContext);
+  const orgId = useOptionalOrgId();
+  const settings = useLeaveSettings();
+  const moduleOn = useModuleOn('modulePeopleCrews');
+  return {
+    enabled: Boolean(qc && orgId && settings.data?.enabled === true && moduleOn),
+    prerequisitePending: Boolean(qc && orgId && moduleOn && settings.data === undefined && settings.isPending),
+    prerequisiteError: Boolean(qc && orgId && moduleOn && settings.data === undefined && settings.isError),
+    refetchPrerequisite: settings.refetch,
+  };
+}
+
 /** True only when the organisation switched leave requests on. Unknown (loading, failed) is false. */
 export function useLeaveEnabled(): boolean {
-  const moduleOn = useModuleOn('modulePeopleCrews');
-  return useLeaveSettings().data?.enabled === true && moduleOn;
+  return useLeaveAvailability().enabled;
 }
 
 export function useLeaveTypes() {
@@ -33,8 +45,15 @@ export function useLeaveTypes() {
 
 export function useLeaveRequests() {
   const orgId = useOptionalOrgId();
-  const enabled = useLeaveEnabled();
-  return useLeaveQuery(['leave-requests', orgId], () => leaveRepository.visible(), Boolean(orgId) && enabled);
+  const { refetchPrerequisite, ...availability } = useLeaveAvailability();
+  const query = useLeaveQuery(['leave-requests', orgId], () => leaveRepository.visible(), availability.enabled);
+  return {
+    ...query,
+    ...availability,
+    refetch: () => availability.prerequisitePending || availability.prerequisiteError
+      ? refetchPrerequisite()
+      : query.refetch(),
+  };
 }
 
 export function useLeaveOnDate(date: string | null) {

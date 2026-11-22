@@ -37,6 +37,8 @@ const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const uncovered = form.values.host && hostSchedule.data
     ? uncoveredLoanDays(form.values.from, form.values.to, hostSchedule.data) : [];
   const hostName = crews.data?.find((c) => c.id === form.values.host)?.name ?? '';
+  // The database keeps a lent person on the home crew on a day the host is not scheduled (1630): name that roster.
+  const homeName = crews.data?.find((c) => c.id === form.values.home)?.name ?? '';
   const spanDays = form.values.from && form.values.to && form.values.to >= form.values.from
     ? Math.round((Date.parse(form.values.to) - Date.parse(form.values.from)) / 86_400_000) + 1 : 0;
   const hostNeverScheduled = uncovered.length > 0 && uncovered.length === spanDays;
@@ -79,7 +81,7 @@ const LendWorkerModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             className={`sm:col-span-2 text-sm ${hostNeverScheduled ? 'text-destructive-text' : 'text-warning-foreground'}`}>
             {hostNeverScheduled
               ? t('crews:loans.hostNotScheduled', '{{crew}} is not on any work order on these days, so this person would show on no roster and no hours would count. Schedule {{crew}} on a work order first, or choose another crew.', { crew: hostName })
-              : t('crews:loans.hostPartlyScheduled', '{{crew}} is not on any work order on {{days}}. This person will show on no roster on those days.', { crew: hostName, days: uncovered.map((d) => formatDay(d)).join(', ') })}
+              : t('crews:loans.hostPartlyScheduled', '{{crew}} is not on any work order on {{days}}. On those days this person stays on the {{home}} roster.', { crew: hostName, days: uncovered.map((d) => formatDay(d)).join(', '), home: homeName })}
           </p>
         )}
         <DateField label={t('crews:from', 'From')} required value={form.values.from} onChange={(v) => form.setValue('from', v)} />

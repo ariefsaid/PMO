@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { DataTable, ListPage, ListState, SelectField, StatusPill, type Column } from '@/src/components/ui';
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
+import { StockItemTag } from '@/src/components/stock/StockItemTag';
 import { useStockItems, useStockLedger, useStockWarehouses } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
@@ -78,6 +79,7 @@ export function buildLedgerColumns({ t, loc, currency, showCost }: {
         <div className="min-w-0">
           <CodeText code={r.itemCode} testId="stock-ledger-item-code" className="block break-all record-id font-semibold text-foreground md:whitespace-nowrap" />
           <span className="block break-normal whitespace-normal text-sm text-muted-foreground">{r.itemName}</span>
+          <StockItemTag name={r.tagName} />
         </div>
       ),
       exportValue: (r) => r.itemCode,

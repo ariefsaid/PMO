@@ -17,6 +17,11 @@
     "Rejected": "Rejected"
   },
   "rejectedWhy": "Rejected: {{reason}}",
+  "route": {
+    "loading": "Finding who this plan waits for…",
+    "loadError": "Couldn't read who approves this plan",
+    "nobody": "No one can approve this plan yet."
+  },
   "lines": "Lines",
   "noLines": "No lines yet. Add what the project needs this month.",
   "line": {

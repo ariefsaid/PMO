@@ -36,8 +36,11 @@ test('JOB-F7 a crew with two people rostered to a work order shows on the work o
   await page.getByRole('button', { name: `Show the people in ${run} crew` }).click();
   for (const person of [`${run} Ana`, `${run} Budi`]) {
     await page.getByRole('button', { name: 'Add person' }).first().click();
-    await page.getByRole('dialog').getByLabel('Or a new person').fill(person);
-    await page.getByRole('dialog').getByRole('button', { name: 'Add person' }).click();
+    const place = page.getByRole('dialog');
+    await place.getByRole('combobox', { name: /^Person/ }).click();
+    await page.getByRole('combobox', { name: /^(search|cari) /i }).fill(person);
+    await page.getByRole('listbox').getByRole('option', { name: new RegExp(person) }).click();
+    await place.getByRole('button', { name: 'Add person' }).click();
     await expect(visibleToast(page, 'Person placed').last()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('row', { name: new RegExp(person) })).toBeVisible();
   }

@@ -1,6 +1,7 @@
 // @e2e-isolation: serial — replaces the organisation's material-request approval chain for the run (an org-global singleton) and puts it back in finally.
 // JOB-WAIT-3 / JOB-WAIT-4 / JOB-WAIT-5 (the person who made a request): it says who it waits for; when it is returned they are told with the reason;
 // and when they open it again the over-plan reason they typed is there beside the reason it came back.
+// JOB-WAIT-3 also reads the seeded prior-week Submitted timesheet as its requester (read-only) to prove the same sentence names the actual eligible actor/role.
 import { test, expect } from '@playwright/test';
 import { signIn } from '../helpers';
 import { userClient } from '../support/stockFixture';
@@ -36,6 +37,23 @@ test('JOB-WAIT-3/4/5 a request names who it waits for, a return tells the reques
     await page.goto(`/material-requests/${fx.requestId}/edit`);
     await expect(page.getByTestId('mrq-returned-reason')).toContainText('Split the pour over two days');
     await expect(page.getByLabel(/why do you need more than the plan/i)).toHaveValue('Extra pour on the east slab');
+
+    // JOB-WAIT-3 (timesheet requester): the same seeded requester opens their own prior-week Submitted
+    // week and sees the actual eligible line manager and role from the server-computed route. Read-only:
+    // the seed row (70000000-…0004) is never mutated here; its week is read through the requester's own RLS.
+    const PRIOR_WEEK_SHEET_ID = '70000000-0000-0000-0000-000000000004';
+    const engineer = await userClient('engineer@acme.test');
+    const { data: submitted, error: submittedError } = await engineer
+      .from('timesheets')
+      .select('week_start_date, status')
+      .eq('id', PRIOR_WEEK_SHEET_ID)
+      .maybeSingle();
+    if (submittedError || !submitted || submitted.status !== 'Submitted') {
+      throw new Error(`JOB-WAIT-3 timesheet seed missing or not Submitted: ${submittedError?.message ?? submitted?.status ?? 'no row'}`);
+    }
+    await page.goto(`/timesheets?week=${submitted.week_start_date}`);
+    await expect(page.getByTestId('timesheet-waiting-for'))
+      .toHaveText('Waiting for Diego Salvatierra, line manager or Admin', { timeout: 20_000 });
   } finally {
     if (fx) await fx.restore();
   }

@@ -4,6 +4,9 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { awaitingApprovalKey } from '@/src/hooks/approvalsQueryKeys';
+import { acceptancesAwaitingConfirmationKey } from '@/src/hooks/useWorkOrderAcceptances';
+import { waitingDecisionsKey, decisionStandingKey } from '@/src/hooks/useWaitingDecisions';
+import { orgSwitchKey } from '@/src/hooks/useOrgSwitch';
 import { MemoryRouter } from 'react-router';
 
 const { approvalsData, userId, roleState } = vi.hoisted(() => ({
@@ -76,6 +79,12 @@ function renderRail(onNavigate = vi.fn(), role = 'Admin', queues: QueueSeeds = {
   queryClient.setQueryData(['salesInvoices', 'synthetic-org', 'native-drafts'], [
     { ...approvalsData.invoices[0], author_user_id: 'someone-else', author_user_ids: ['someone-else'] },
   ]);
+  queryClient.setQueryData(['leave-settings', 'synthetic-org'], { enabled: false, approver_role: null });
+  queryClient.setQueryData(orgSwitchKey('synthetic-org', 'modulePeopleCrews'), true);
+  queryClient.setQueryData(orgSwitchKey('synthetic-org', 'safetyRecords'), false);
+  queryClient.setQueryData(acceptancesAwaitingConfirmationKey('synthetic-org', userId), []);
+  queryClient.setQueryData(waitingDecisionsKey('synthetic-org', userId), []);
+  queryClient.setQueryData(decisionStandingKey('synthetic-org', userId), false);
   render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={{

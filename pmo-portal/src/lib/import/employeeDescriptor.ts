@@ -40,7 +40,7 @@ export function makePeopleImportDescriptor(deps: PeopleImportDeps, t?: TFunction
     entityDisplay: L('import:entity.people', 'people'),
     entityDisplayOne: L('import:entity.person', 'person'),
     rowTitle: (c) => [c.code, c.name].map((v) => (v ?? '').trim()).filter(Boolean).join(' · '),
-    template: { version: 2, example: { code: 'E-0001', name: 'Sample Person', job_title: 'Foreman', manager_id: '' } },
+    template: { version: 2, example: { code: 'E-0001', name: L('import:people.exampleName', 'Sample Person'), job_title: 'Foreman', manager_id: '' } },
     fields: [
       F('code', 'Employee code', 'Kode karyawan', true, requiredText(L('import:people.error.code', 'Employee code is required.'), 40, L('import:people.error.codeLong', 'Employee code is too long.')), L('import:people.codeHint', 'Your own code for the person. A code already in the register updates that person; a new code adds one.'), true),
       F('name', 'Display name', 'Nama tampilan', true, requiredText(L('import:people.error.name', 'Display name is required.'), 120, L('import:people.error.nameLong', 'Display name is too long.')), undefined, true),

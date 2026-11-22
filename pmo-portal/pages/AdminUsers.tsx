@@ -352,9 +352,43 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
         );
         return;
       }
-      // Anything the server did not name (the email service refused, a timeout, a blocked call) reaches the screen as one plain
-      // sentence, never the transport text. What was typed stays in the dialog (#2252 keeps it open).
-      if (!code || !KNOWN_INVITE_CODES.has(code)) {
+      // The email went out BEFORE the member record failed — admin-invite-user issues the auth
+      // invite first, then inserts the profile, so PROFILE_CREATE_FAILED means the invitation
+      // email is out but the account setup did not finish (the edge fn keeps the pending
+      // account). "Not sent" would be false. An unconfirmed invitee is re-invited rather than
+      // refused, so inviting the same address again is the repair; escalation is named for a
+      // repeat failure. The dialog closes like the role-not-set case.
+      if (code === 'PROFILE_CREATE_FAILED') {
+        setInviteOpen(false);
+        toast(
+          t('administration:admin.users.inviteError.profileCreateFailed', 'Invitation email sent, account setup incomplete'),
+          t(
+            'administration:admin.users.inviteError.profileCreateFailedDetail',
+            '{{email}} received the invitation email, but their member record was not created, so they are not in the member list yet. Invite the same address again: the pending invitation link is re-sent and the member record is attempted once more. If it fails the same way, tell your Operator.',
+            { email },
+          ),
+          'warning',
+        );
+        return;
+      }
+      // The server named no code (a timeout, a lost response, a blocked call): the outcome cannot
+      // be confirmed — the email may already be out, so the screen may not claim "not sent".
+      // What was typed stays in the dialog (#2252 keeps it open); the safe move is to invite the
+      // same address again — a repeat whose invite already landed answers already_invited
+      // instead of sending a second email.
+      if (!code) {
+        const headline = t('administration:admin.users.inviteError.unconfirmed', 'Could not confirm the invitation');
+        const detail = t(
+          'administration:admin.users.inviteError.unconfirmedDetail',
+          'We could not confirm whether the invitation email went out — no answer came back from the server. What you typed is still here: check the address, then invite the same person again. If the first invite landed, you will be told it is already invited instead of getting a second email. If it keeps failing, tell your Operator.',
+        );
+        setInviteError({ headline, detail });
+        toast(headline, detail, 'warning');
+        return;
+      }
+      // A typed refusal the screen does not know is still a server answer: the request reached
+      // the backend and was refused before issuance, so "not sent" stays accurate for it.
+      if (!KNOWN_INVITE_CODES.has(code)) {
         const headline = t('administration:admin.users.inviteError.notSent', 'The invitation was not sent');
         const detail = code === 'RATE_LIMITED'
           ? t('administration:admin.users.inviteError.rateLimited', 'Too many invitations in a short time. Nothing was saved. Wait a minute, then invite again.')

@@ -16,6 +16,7 @@ import { parseRefusal } from '@/src/lib/refusals';
 import type { StockOnHandRow } from '@/src/lib/db/stockReports';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { ReservedCell } from '@/src/components/stock/ReservedCell';
+import { StockItemTag } from '@/src/components/stock/StockItemTag';
 import { ReservationForm } from '@/src/components/stock/ReservationForm';
 import { mayReserve, useFreeReserved, useReservationsEnabled } from '@/src/hooks/useStockReservations';
 
@@ -84,7 +85,8 @@ const StockOnHand: React.FC = () => {
         const w = (warehouses.data ?? []).find((x) => x.id === b.warehouseId);
         if (have.has(`${b.itemId}:${b.warehouseId}`) || !w || (warehouseId && warehouseId !== b.warehouseId)) continue;
         all.push({ itemId: b.itemId, itemCode: b.itemCode, itemName: b.itemName, unitCode: b.unitCode, wholeOnly: false,
-          warehouseId: b.warehouseId, warehouseCode: b.warehouseCode, warehouseName: w.name, warehouseKind: w.kind as 'central' | 'site' | 'vendor', qtyOnHand: b.qtyOnHand });
+          warehouseId: b.warehouseId, warehouseCode: b.warehouseCode, warehouseName: w.name, warehouseKind: w.kind as 'central' | 'site' | 'vendor', qtyOnHand: b.qtyOnHand,
+          ...(b.tagName ? { tagName: b.tagName } : {}) });
       }
     }
     return all;
@@ -113,6 +115,7 @@ const StockOnHand: React.FC = () => {
           <div className="min-w-0">
             <Link to={`/stock/ledger?item=${r.itemId}`} className="block truncate record-id font-semibold text-foreground hover:underline">{r.itemCode}</Link>
             <span className="block truncate text-sm text-muted-foreground">{r.itemName}</span>
+            <StockItemTag name={r.tagName} />
           </div>
         ),
         exportValue: (r) => r.itemCode,
@@ -287,6 +290,7 @@ const StockOnHand: React.FC = () => {
             <div className="min-w-0">
               <Link to={`/stock/ledger?item=${r.itemId}`} className="block min-h-11 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap record-id font-semibold text-foreground hover:underline">{r.itemCode}</Link>
               <span className="block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-muted-foreground">{r.itemName}</span>
+              <StockItemTag name={r.tagName} />
             </div>
           )}
           mobileCardDetails={(r) => (

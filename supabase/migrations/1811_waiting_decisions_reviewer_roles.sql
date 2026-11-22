@@ -4,6 +4,8 @@
 -- The separation-of-duties exclusions (author, any editor, submitter) are unchanged. my_decision_standing() needs no change: every
 -- role the setting accepts has a base level of Admin, Executive, Project Manager or Finance, which it already answers true for.
 -- Reversal: rollback/1811_waiting_decisions_reviewer_roles_down.sql.
+-- The 1560 body this takes at head (2026-11-22 revision) wraps the unions in a subquery and orders them deterministically
+-- (created_at, kind, record_id) with NO row cap, so the client's paged read is stable; that shape is carried here unchanged.
 -- drops: the quantity_change line's hard-coded role list (v_role in ('Admin', 'Executive', 'Finance')) is replaced by qcr_may_approve_role(v_org).
 
 create or replace function public.my_waiting_decisions()
@@ -15,6 +17,8 @@ begin
   perform public.assert_not_light();   -- a light account decides nothing and sees no list (1209)
   if v_role is null or v_uid is null then return; end if;
   return query
+  select waiting.kind, waiting.record_id, waiting.project_id, waiting.title, waiting.created_at
+    from (
   -- daily_report
   select 'daily_report'::text, d.id, d.project_id,
          (coalesce(w.wo_number || ' · ', '') || w.title || ' · ' || to_char(d.work_date, 'YYYY-MM-DD'))::text,
@@ -72,7 +76,8 @@ begin
     from public.equipment_plans e
     join public.projects pj on pj.id = e.project_id
    where e.org_id = v_org and e.status = 'Submitted' and public.equipment_plan_approver_ok(e.id)
-  limit 500;
+    ) as waiting(kind, record_id, project_id, title, created_at)
+   order by waiting.created_at asc nulls last, waiting.kind asc, waiting.record_id asc;
 end; $$;
 revoke all on function public.my_waiting_decisions() from public, anon;
 grant execute on function public.my_waiting_decisions() to authenticated;

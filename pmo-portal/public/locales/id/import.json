@@ -230,6 +230,8 @@
     "description": "Deskripsi",
     "unit": "Satuan",
     "leadTimeDays": "Waktu tunggu (hari)",
+    "exampleName": "Semen sak 50 kg",
+    "exampleDescription": "",
     "codeHint": "Kode Anda sendiri untuk item. Setiap kode dipakai sekali.",
     "unitHint": "Kode satuan ukuran yang sudah ada.",
     "alreadyThere": "Kode item ini sudah ada.",
@@ -246,6 +248,7 @@
     "name": "Nama",
     "kind": "Jenis",
     "project": "Proyek",
+    "exampleName": "Yard utara",
     "projectHint": "Wajib untuk site, yard, dan staging; kosongkan untuk central.",
     "alreadyThere": "Kode lokasi ini sudah ada.",
     "error": {
@@ -294,6 +297,7 @@
   "people": {
     "code": "Kode karyawan",
     "name": "Nama tampilan",
+    "exampleName": "Contoh Karyawan",
     "codeHint": "Kode Anda sendiri untuk orang tersebut. Kode yang sudah ada di daftar memperbarui orang itu; kode baru menambahkan.",
     "alreadyThere": "Kode karyawan ini sudah ada.",
     "error": {

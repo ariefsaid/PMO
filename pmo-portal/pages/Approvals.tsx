@@ -26,6 +26,7 @@ import { useWaitingForYou } from '@/src/hooks/useWaitingForYou';
 import { useDecisionStanding } from '@/src/hooks/useWaitingDecisions';
 import { DATABASE_LISTED_KINDS, WAITING_KINDS, scopeLabelText, type DatabaseListedKind } from '@/src/lib/approvals/waitingKinds';
 import { WaitingDecisionSection } from './approvals/WaitingDecisionSection';
+import { WorkOrderAcceptanceSection } from './approvals/WorkOrderAcceptanceSection';
 import { MaterialRequestApprovalSection } from './approvals/MaterialRequestApprovalSection';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals, type ApprovalPopulationEntry, type ApprovalScope } from '@/src/lib/selectors/approvals';
@@ -101,7 +102,29 @@ const ApprovalsPage: React.FC = () => {
   // A failed read on its own never opens the page to someone with nothing to decide; once the page shows, the error is shown with a retry.
   const hasMaterialWork = materialCount > 0 || materialPending;
   const canShowMaterial = hasMaterialWork || (materialError && (canApproveProcurement || canApproveTimesheets || canApproveExpenses || canApproveInvoices));
-  const extraKinds = (['leave', 'imprest', ...DATABASE_LISTED_KINDS] as const).filter((kind) => waiting.countFor(kind) > 0);
+  // Client acceptances (BAST) are their own kind and their own read (1570), so they get their own scope. Offered when one
+  // waits, or while its read is unresolved/failed for someone who could decide it — never invented for a role that cannot.
+  const bastCount = waiting.countFor('work_order_acceptance');
+  const bastPending = waiting.pendingKinds.includes('work_order_acceptance');
+  const bastError = waiting.failedKinds.includes('work_order_acceptance');
+  const canShowBast = bastCount > 0 || bastPending || (bastError && (canApproveProcurement || canApproveTimesheets || canApproveExpenses || canApproveInvoices));
+  const hasExistingApprovalEligibility = Boolean(
+    standing.data ||
+    standing.isPending ||
+    canApproveProcurement ||
+    canApproveTimesheets ||
+    canApproveExpenses ||
+    canApproveInvoices,
+  );
+  const extraKinds = (['leave', 'imprest', ...DATABASE_LISTED_KINDS] as const).filter((kind) => {
+    if (kind === 'leave') {
+      return waiting.countFor('leave') > 0 || (hasExistingApprovalEligibility && (waiting.pendingKinds.includes('leave') || waiting.failedKinds.includes('leave')));
+    }
+    if (kind === 'imprest') {
+      return waiting.countFor('imprest') > 0 || (hasExistingApprovalEligibility && (waiting.pendingKinds.includes('imprest') || waiting.failedKinds.includes('imprest')));
+    }
+    return waiting.countFor(kind) > 0;
+  });
   const databasePending = waiting.pendingKinds.includes('daily_report');
   const databaseError = waiting.failedKinds.includes('daily_report');
 
@@ -124,6 +147,7 @@ const ApprovalsPage: React.FC = () => {
     ...(canApproveInvoices && invoices.enabled !== false ? ['invoice' as const] : []),
     ...(canShowMaterial ? ['material' as const] : []),
     ...extraKinds,
+    ...(canShowBast ? ['work_order_acceptance' as const] : []),
   ];
   const availableScopes: Scope[] = [
     ...(availableKinds.length > 1 ? (['all'] as const) : []),
@@ -151,8 +175,27 @@ const ApprovalsPage: React.FC = () => {
   const pendingExpense = canShowExpenses ? expenseRows.length : 0;
   const invSettledEmpty = !invoices.isPending && !invoices.isError && pendingInv === 0;
   const expenseSettledEmpty = !expenseQuery.isPending && !expenseQuery.isError && pendingExpense === 0;
-  const allCaughtUp = procSettledEmpty && tsSettledEmpty && invSettledEmpty && expenseSettledEmpty && !canShowMaterial && extraKinds.length === 0 && !databasePending && !databaseError;
-  const allScopePending = (canApproveProcurement && procPending) || (canApproveTimesheets && (tsPending || correctionPending)) || (canShowExpenses && expenseQuery.isPending) || (canShowInvoices && invoices.isPending) || (canShowMaterial && materialPending) || databasePending;
+  const allCaughtUp =
+    waiting.count === 0 &&
+    procSettledEmpty &&
+    tsSettledEmpty &&
+    invSettledEmpty &&
+    expenseSettledEmpty &&
+    !canShowMaterial &&
+    extraKinds.length === 0 &&
+    !canShowBast &&
+    !databasePending &&
+    !databaseError;
+  const allScopePending =
+    waiting.count === undefined ||
+    (canApproveProcurement && (procPending || procError)) ||
+    (canApproveTimesheets && (tsPending || tsError || correctionPending || correctionError)) ||
+    (canShowExpenses && (expenseQuery.isPending || expenseQuery.isError)) ||
+    (canShowInvoices && (invoices.isPending || invoices.isError)) ||
+    (canShowMaterial && (materialPending || materialError)) ||
+    (canShowBast && (bastPending || bastError)) ||
+    databasePending ||
+    databaseError;
 
   const allPopulation = waiting.entries;
   const countFor = (kind: Scope) => allPopulation.filter((entry: ApprovalPopulationEntry) => entry.kind === kind).length;
@@ -204,7 +247,7 @@ const ApprovalsPage: React.FC = () => {
   };
   const selectedItem = queueItems.find((item) => item.key === selectedKey) ?? null;
 
-  if (!canApproveProcurement && !canApproveTimesheets && !canShowInvoices && !canShowMaterial && extraKinds.length === 0 && !standing.data && !standing.isPending) {
+  if (!canApproveProcurement && !canApproveTimesheets && !canShowInvoices && !canShowMaterial && extraKinds.length === 0 && !canShowBast && !standing.data && !standing.isPending) {
     return (
       <AccessDenied
         title={t('approvals.accessDenied.title', "You don't have access to approvals")}
@@ -222,18 +265,31 @@ const ApprovalsPage: React.FC = () => {
     const includesExpenses = (activeScope === 'all' || activeScope === 'expense') && canShowExpenses;
     const includesInvoices = (activeScope === 'all' || activeScope === 'invoice') && canShowInvoices;
     const includesMaterial = (activeScope === 'all' || activeScope === 'material') && canShowMaterial;
+    const includesBast = (activeScope === 'all' || activeScope === 'work_order_acceptance') && canShowBast;
+    const includesLeave = (activeScope === 'all' || activeScope === 'leave') && extraKinds.includes('leave');
+    const includesImprest = (activeScope === 'all' || activeScope === 'imprest') && extraKinds.includes('imprest');
+    const leavePending = waiting.pendingKinds.includes('leave');
+    const leaveError = waiting.failedKinds.includes('leave');
+    const imprestPending = waiting.pendingKinds.includes('imprest');
+    const imprestError = waiting.failedKinds.includes('imprest');
     const currentPending = activeScope === 'procurement' ? procPending
       : activeScope === 'timesheets' ? tsPending || correctionPending
         : activeScope === 'expense' ? expenseQuery.isPending
           : activeScope === 'invoice' ? invoices.isPending
             : activeScope === 'material' ? materialPending
-            : (canApproveProcurement && procPending) || (canApproveTimesheets && (tsPending || correctionPending)) || (includesExpenses && expenseQuery.isPending) || (includesInvoices && invoices.isPending) || (includesMaterial && materialPending);
+            : activeScope === 'work_order_acceptance' ? bastPending
+            : activeScope === 'leave' ? leavePending
+            : activeScope === 'imprest' ? imprestPending
+            : (canApproveProcurement && procPending) || (canApproveTimesheets && (tsPending || correctionPending)) || (includesExpenses && expenseQuery.isPending) || (includesInvoices && invoices.isPending) || (includesMaterial && materialPending) || (includesBast && bastPending) || (includesLeave && leavePending) || (includesImprest && imprestPending);
     const currentError = activeScope === 'procurement' ? procError
       : activeScope === 'timesheets' ? tsError || correctionError
         : activeScope === 'expense' ? expenseQuery.isError
           : activeScope === 'invoice' ? invoices.isError
             : activeScope === 'material' ? materialError
-            : (canApproveProcurement && procError) || (canApproveTimesheets && (tsError || correctionError)) || (includesExpenses && expenseQuery.isError) || (includesInvoices && invoices.isError) || (includesMaterial && materialError);
+            : activeScope === 'work_order_acceptance' ? bastError
+            : activeScope === 'leave' ? leaveError
+            : activeScope === 'imprest' ? imprestError
+            : (canApproveProcurement && procError) || (canApproveTimesheets && (tsError || correctionError)) || (includesExpenses && expenseQuery.isError) || (includesInvoices && invoices.isError) || (includesMaterial && materialError) || (includesBast && bastError) || (includesLeave && leaveError) || (includesImprest && imprestError);
 
     const retryCurrentError = () => {
       if (activeScope === 'procurement') void refetchProc();
@@ -242,7 +298,7 @@ const ApprovalsPage: React.FC = () => {
         if (correctionError) void refetchCorrections();
       } else if (activeScope === 'expense') void expenseQuery.refetch();
       else if (activeScope === 'invoice') void invoices.refetch();
-      else if (activeScope === 'material') void waiting.refetch();
+      else if (activeScope === 'material' || activeScope === 'work_order_acceptance' || activeScope === 'leave' || activeScope === 'imprest') void waiting.refetch();
       else {
         if (canApproveProcurement && procError) void refetchProc();
         if (canApproveTimesheets && tsError) void refetchTimesheets();
@@ -250,6 +306,9 @@ const ApprovalsPage: React.FC = () => {
         if (includesExpenses && expenseQuery.isError) void expenseQuery.refetch();
         if (includesInvoices && invoices.isError) void invoices.refetch();
         if (includesMaterial && materialError) void waiting.refetch();
+        if (includesBast && bastError) void waiting.refetch();
+        if (includesLeave && leaveError) void waiting.refetch();
+        if (includesImprest && imprestError) void waiting.refetch();
       }
     };
 
@@ -293,7 +352,7 @@ const ApprovalsPage: React.FC = () => {
                   value: scope,
                   label: scopeLabels[scope],
                   icon: (scope === 'all' ? 'grid' : scope === 'procurement' ? 'cart' : scope === 'timesheets' ? 'clock' : 'file'),
-                  count: allScopePending ? undefined : scope === 'all' ? allPopulation.length : countFor(scope),
+                  count: allScopePending ? undefined : scope === 'all' ? waiting.count : countFor(scope),
                 }))}
                 value={activeScope}
                 onChange={selectScope}
@@ -306,7 +365,7 @@ const ApprovalsPage: React.FC = () => {
               label={t('approvals.scopeToggleLabel', 'Approvals scope')}
               hideLabel
               value={activeScope}
-              options={availableScopes.map((scope) => ({ value: scope, label: allScopePending ? scopeLabels[scope] : `${scopeLabels[scope]} · ${scope === 'all' ? allPopulation.length : countFor(scope)}` }))}
+              options={availableScopes.map((scope) => ({ value: scope, label: allScopePending ? scopeLabels[scope] : `${scopeLabels[scope]} · ${scope === 'all' ? waiting.count : countFor(scope)}` }))}
               onChange={(value) => selectScope(value as Scope)}
               fullWidth
               wrapperClassName="w-full"
@@ -331,11 +390,43 @@ const ApprovalsPage: React.FC = () => {
       ) : activeScope !== 'all' && activeScope !== 'procurement' && activeScope !== 'timesheets' ? (
         <div className="space-y-5">
           {activeScope === 'expense' && canShowExpenses && <ExpenseClaimApprovalSection />}
-          {activeScope === 'imprest' && <ImprestApprovalSection />}
-          {activeScope === 'leave' && <LeaveApprovalSection />}
+          {activeScope === 'imprest' && (
+            waiting.failedKinds.includes('imprest') && waiting.countFor('imprest') === 0 ? (
+              <ListState
+                variant="error"
+                title={t('approvals.previewError.title', "Couldn't load the selected queue")}
+                sub={t('approvals.queue.loadErrorSub', 'Try again to refresh this queue.')}
+                onRetry={() => void waiting.refetch()}
+              />
+            ) : waiting.pendingKinds.includes('imprest') && waiting.countFor('imprest') === 0 ? (
+              <ListState variant="loading" rows={4} />
+            ) : (
+              <ImprestApprovalSection />
+            )
+          )}
+          {activeScope === 'leave' && (
+            <>
+              {waiting.failedKinds.includes('leave') && (
+                <div className="mb-4">
+                  <ListState
+                    variant="error"
+                    title={t('approvals.previewError.title', "Couldn't load the selected queue")}
+                    sub={t('approvals.queue.loadErrorSub', 'Try again to refresh this queue.')}
+                    onRetry={() => void waiting.refetch()}
+                  />
+                </div>
+              )}
+              {waiting.pendingKinds.includes('leave') && waiting.countFor('leave') === 0 ? (
+                <ListState variant="loading" rows={4} />
+              ) : (
+                <LeaveApprovalSection />
+              )}
+            </>
+          )}
           {DATABASE_LISTED_KINDS.includes(activeScope as DatabaseListedKind) && <WaitingDecisionSection kind={activeScope as DatabaseListedKind} entries={allPopulation} />}
           {activeScope === 'invoice' && canShowInvoices && <SalesInvoiceApprovalSection />}
           {activeScope === 'material' && canShowMaterial && <MaterialRequestApprovalSection />}
+          {activeScope === 'work_order_acceptance' && <WorkOrderAcceptanceSection entries={allPopulation} />}
         </div>
       ) : (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-start">
@@ -352,7 +443,11 @@ const ApprovalsPage: React.FC = () => {
               className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-waiting-surface px-4 py-3"
             >
               <h2 className="flex min-w-0 items-baseline gap-2 text-base font-semibold text-foreground">
-                <span data-testid="approvals-waiting-count" className="text-metric font-semibold tabular-nums">{queueItems.length}</span>
+                <span data-testid="approvals-waiting-count" className="text-metric font-semibold tabular-nums">
+                  {activeScope === 'all'
+                    ? (allScopePending || waiting.count === undefined ? '—' : waiting.count)
+                    : queueItems.length}
+                </span>
                 <span>{t('procurement:approvalQueue.waitingOnYou', 'waiting on your decision')}</span>
               </h2>
               <div className="flex flex-wrap items-center gap-2">
@@ -443,6 +538,7 @@ const ApprovalsPage: React.FC = () => {
       {activeScope === 'all' && canShowMaterial && <MaterialRequestApprovalSection />}
       {/* #2708: renders nothing while leave requests are off or none waits for this viewer. */}
       {activeScope === 'all' && <LeaveApprovalSection />}
+      {activeScope === 'all' && <WorkOrderAcceptanceSection entries={allPopulation} />}
       {activeScope === 'all' && DATABASE_LISTED_KINDS.map((kind) => <WaitingDecisionSection key={kind} kind={kind} entries={allPopulation} />)}
       {/* Renders nothing while no release is open and the viewer cannot open one. */}
       {activeScope === 'all' && <MedicalReleaseSection />}

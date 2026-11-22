@@ -3,7 +3,7 @@
 -- AC-LVR-003 the requester gets one notification of the result, from a template key · AC-LVR-004 nobody else does.
 begin;
 create extension if not exists pgtap;
-select plan(8);
+select plan(12);
 insert into organizations (id, name, default_currency, leave_requests_enabled) values ('27090000-0000-0000-0000-00000000010a', 'LVR Org', 'IDR', true);
 insert into auth.users (id, email) values
   ('27090000-0000-0000-0000-0000000001a1', 'lvr-admin@example.com'),
@@ -36,6 +36,22 @@ select pg_temp.act_as('27090000-0000-0000-0000-0000000001a3');
 select is((select decided_by_name from leave_requests_visible() limit 1), 'LVR Manager', 'AC-LVR-002 the requester sees who decided');
 select is((select count(*)::int from notifications where owner_id = '27090000-0000-0000-0000-0000000001a3' and message_key = 'leaveApproved'), 1,
   'AC-LVR-003 the requester is told, with the template key kept');
+
+select pg_temp.act_as('27090000-0000-0000-0000-0000000001a3');
+insert into lvr_ids select 'r2', leave_request_submit('27090000-0000-0000-0000-000000001f01', '27090000-0000-0000-0000-0000000001e1', current_date + 20, current_date + 21, null);
+select pg_temp.act_as('27090000-0000-0000-0000-0000000001a2');
+select lives_ok($$ select leave_request_decide((select id from lvr_ids where k = 'r2'), 'Rejected', 'Peak staffing required') $$, 'AC-LVR-002 the line manager rejects');
+select pg_temp.act_as('27090000-0000-0000-0000-0000000001a3');
+select is((select count(*)::int from notifications where owner_id = '27090000-0000-0000-0000-0000000001a3' and message_key = 'leaveRejected'
+            and metadata->>'leave_request_id' = (select id from lvr_ids where k = 'r2')::text), 1,
+  'AC-LVR-003 the requester is told when rejected, with the template key kept');
+select is((select body from notifications where owner_id = '27090000-0000-0000-0000-0000000001a3' and message_key = 'leaveRejected'
+            and metadata->>'leave_request_id' = (select id from lvr_ids where k = 'r2')::text),
+  'Type A · ' || (current_date + 20) || ' – ' || (current_date + 21) || ' · Peak staffing required',
+  'AC-LVR-003 the rejection notification carries the leave details and reason');
+
+select pg_temp.act_as('27090000-0000-0000-0000-0000000001a2');
+select is((select count(*)::int from notifications where message_key = 'leaveRejected'), 0, 'AC-LVR-004 the approver gets no rejected copy');
 select pg_temp.act_as('27090000-0000-0000-0000-0000000001a2');
 select is((select count(*)::int from notifications where message_key = 'leaveApproved'), 0, 'AC-LVR-004 the approver gets no copy');
 select is((select message_params ->> 'type' from (select message_params from notifications limit 1) x), null, 'AC-LVR-004 and cannot read the requester''s notification');

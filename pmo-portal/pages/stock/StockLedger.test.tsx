@@ -416,6 +416,13 @@ describe('FR-STK-041 floor: every control on the trace still works', () => {
     expect(reports.ledgerPage.mock.calls[2][0]).toMatchObject({ beforeSeq: 9 });
   });
 
+  it('JOB-1122-2 marks a tagged item with the organisation’s own tag and leaves an ordinary row unmarked', async () => {
+    reports.ledgerPage.mockResolvedValue({ rows: [entry(2, { tagName: 'Client supplied' }), { ...entry(1), itemId: 'i-plain' }], nextBeforeSeq: null });
+    renderPage();
+    expect(await screen.findByText('Client supplied')).toBeInTheDocument();
+    expect(screen.getAllByTestId('stock-item-tag')).toHaveLength(1);
+  });
+
   it('AC-STOCK-LAYOUT-002 the cost-bearing columns that show at 1440 fit the 1166px panel without a sideways scroll', () => {
     // The fixed-layout table cannot shrink below the sum of its column sizes; the panel at 1440 is 1166px
     // (1440 - 224 sidebar - 2 x 25 gutter). Columns that never show on screen are left out of the sum.

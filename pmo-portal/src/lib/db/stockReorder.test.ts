@@ -4,14 +4,19 @@ import { AppError } from '@/src/lib/appError';
 
 const h = vi.hoisted(() => {
   const queue: Array<{ data: unknown; error: unknown }> = [];
+  const tagQueue: Array<{ data: unknown; error: unknown }> = [];
+  const builder: Record<string, unknown> = {};
+  for (const n of ['select', 'not', 'order', 'range']) builder[n] = () => builder;
+  builder.then = (resolve: (v: unknown) => unknown) => resolve(tagQueue.shift() ?? { data: [], error: null });
+  const from = vi.fn(() => builder);
   const rpc = vi.fn(async () => queue.shift() ?? { data: null, error: null });
-  return { rpc, queue };
+  return { rpc, queue, from, tagQueue };
 });
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 
 import { getBelowReorder, getReorderSuggestion, setReorderLevel } from './stockReorder';
 
-beforeEach(() => { h.queue.length = 0; h.rpc.mockClear(); });
+beforeEach(() => { h.queue.length = 0; h.tagQueue.length = 0; h.rpc.mockClear(); h.from.mockClear(); });
 
 describe('stockReorder DAL', () => {
   it('AC-STK-025 the suggestion maps level, quantity and the inputs, all as strings', async () => {
@@ -45,6 +50,26 @@ describe('stockReorder DAL', () => {
     expect(h.rpc).toHaveBeenCalledWith('get_stock_below_reorder');
     h.queue.push({ data: null, error: null });
     expect(await getBelowReorder()).toEqual([]);
+  });
+
+  it('FR-SSW-010 a tagged never-stocked worklist row carries its configured tag; an ordinary row stays unmarked', async () => {
+    h.queue.push({ data: [
+      { item_id: 'i-tagged', item_code: 'CEM', item_name: 'Cement', unit_code: 'bag', warehouse_id: 'w', warehouse_code: 'CEN', qty_on_hand: '0', reorder_level: '10', reorder_quantity: null },
+      { item_id: 'i-plain', item_code: 'CAB', item_name: 'Cable', unit_code: 'm', warehouse_id: 'w', warehouse_code: 'CEN', qty_on_hand: '0', reorder_level: '5', reorder_quantity: null },
+    ], error: null });
+    h.tagQueue.push({ data: [{ id: 'i-tagged', tag: { name: 'Client supplied' } }], error: null });
+    const rows = await getBelowReorder();
+    expect(rows[0]).toMatchObject({ itemId: 'i-tagged', qtyOnHand: '0', tagName: 'Client supplied' });
+    expect('tagName' in rows[1]).toBe(false);
+    // One paged tag read for the whole worklist — never the catalogue, never one read per row.
+    expect(h.from).toHaveBeenCalledTimes(1);
+    expect(h.from).toHaveBeenCalledWith('stock_items');
+  });
+
+  it('FR-SSW-010 an empty worklist asks for no tags at all', async () => {
+    h.queue.push({ data: [], error: null });
+    expect(await getBelowReorder()).toEqual([]);
+    expect(h.from).not.toHaveBeenCalled();
   });
 
   it('AC-STK-027 setting sends the exact arguments; clearing sends a null level', async () => {

@@ -4,7 +4,13 @@ import type { Json } from '@/src/lib/supabase/database.types';
 import { formatIsoDay } from '@/src/lib/format';
 import { withEnglishOrgTerms } from './orgTerms';
 
-type NotificationCopy = { body: string | null; message_key: string | null; message_params: Json | null; title?: string };
+type NotificationCopy = {
+  body: string | null;
+  message_key: string | null;
+  message_params: Json | null;
+  title?: string | null;
+  metadata?: Json | null;
+};
 
 /** Titles whose body carries a person's words (a comment, a return or refusal reason, a task note): never rewritten. */
 const PERSON_TEXT_TITLE = /^(mentioned|taskAssigned)$|(Returned|Rejected|Refused)$/;
@@ -17,6 +23,65 @@ function isSystemBody(row: NotificationCopy): boolean {
   const key = NOTIFICATION_TITLE_KEYS[title];
   if (key) return !PERSON_TEXT_TITLE.test(key);
   return matchNotificationTitle(title) !== null;
+}
+
+function getMetadataEntityType(metadata: Json | null | undefined): string | null {
+  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+    const entity = (metadata as Record<string, unknown>).entity;
+    if (entity && typeof entity === 'object' && !Array.isArray(entity)) {
+      const type = (entity as Record<string, unknown>).type;
+      if (typeof type === 'string') return type;
+    }
+  }
+  return null;
+}
+
+function localizeApprovalNotificationBody(row: NotificationCopy, body: string, t: TFunction): string | null {
+  // Timesheet APPROVAL / AWAITING week label only. A REJECTED row is deliberately never localized here:
+  // 0856 requires a non-blank rejection_reason, so a rejected body is the person's own text — and that text can
+  // be byte-identical to the generated label (`Timesheet week of YYYY-MM-DD`), which read-side is indistinguishable
+  // from 1562's defensive blank-reason fallback. Root ruling (fix-waiting 4, R-4): keep the stored literal for EVERY
+  // rejected body instead of guessing; the rejected title still localizes through `notificationTitle`. Metadata
+  // `entity.type = 'timesheet'` alone is not an identity here, because it cannot tell an approval from a rejection.
+  const timesheetMatch = /^Timesheet week of (\d{4}-\d{2}-\d{2})$/.exec(body);
+  const isTimesheetApprovalProducer =
+    row.title === 'Your timesheet was approved' || row.title === 'Timesheet awaiting your approval';
+  if (timesheetMatch && isTimesheetApprovalProducer) {
+    const iso = timesheetMatch[1];
+    const formattedDate = formatIsoDay(iso) !== '—' ? formatIsoDay(iso) : iso;
+    return t('notifications:timesheetWeek', 'Timesheet week of {{date}}', { date: formattedDate });
+  }
+
+  // Quantity change request (QCR, 1176/1177) awaiting, approved, returned prefix and the client decision.
+  // The titles are the ones 1176/1177 write; the metadata type is the identity `notify_workflow_user` stamps.
+  const isQcrProducer =
+    row.title === 'Quantity change request awaiting approval' ||
+    row.title === 'Quantity change request approved' ||
+    row.title === 'Quantity change request returned' ||
+    row.title === 'Quantity change accepted by the client' ||
+    row.title === 'Quantity change declined by the client' ||
+    getMetadataEntityType(row.metadata) === 'quantity_change_request';
+  if (isQcrProducer) {
+    if (body === 'A quantity change request has been submitted for your approval.') {
+      return t('notifications:qcrAwaitingBody', 'A quantity change request has been submitted for your approval.');
+    }
+    if (body === 'Your quantity change request was approved internally. Record when it is sent to the client.') {
+      return t('notifications:qcrApprovedBody', 'Your quantity change request was approved internally. Record when it is sent to the client.');
+    }
+    // 1177:189-191 qcr_record_decision — the client accepted (a quantity DID change) or declined (none did).
+    if (body === 'The contract quantities were updated.') {
+      return t('notifications:qcrClientAcceptedBody', 'The contract quantities were updated.');
+    }
+    if (body === 'No quantity was changed.') {
+      return t('notifications:qcrClientDeclinedBody', 'No quantity was changed.');
+    }
+    const qcrReturnedMatch = /^Your quantity change request was returned: ([\s\S]+)$/.exec(body);
+    if (qcrReturnedMatch) {
+      return t('notifications:qcrReturnedBody', 'Your quantity change request was returned: {{reason}}', { reason: qcrReturnedMatch[1] });
+    }
+  }
+
+  return null;
 }
 
 /** Old and unrecognised records keep their original body. Parameters are always user text. */
@@ -48,9 +113,17 @@ function notificationBodyText(row: NotificationCopy, t: TFunction): string | nul
         : t('notifications:leaveRejected', 'Your leave request was rejected: {{type}}, {{from}} to {{to}}.', what);
       return what.note ? t('notifications:leaveNote', '{{base}} Note: {{note}}', { base, note: what.note }) : base;
     }
-    case 'literal':
-      return row.body === null ? null : t('notifications:literal', '{{body}}', { body: text('body', row.body) });
-    default: return row.body;
+    case 'literal': {
+      if (row.body === null) return null;
+      const rawBody = text('body', row.body);
+      return localizeApprovalNotificationBody(row, rawBody, t) ?? t('notifications:literal', '{{body}}', { body: rawBody });
+    }
+    default: {
+      if (row.body !== null) {
+        return localizeApprovalNotificationBody(row, row.body, t) ?? row.body;
+      }
+      return null;
+    }
   }
 }
 

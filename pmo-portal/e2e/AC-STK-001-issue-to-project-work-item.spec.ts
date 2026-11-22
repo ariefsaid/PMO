@@ -28,6 +28,7 @@ test('AC-STK-001: a storekeeper issues 30 of 100 bags to a project work item and
   await page.getByRole('option', { name: new RegExp(item.code) }).click();
   await page.getByLabel(/^Quantity/).fill('30');
   await page.getByRole('button', { name: 'Post issue' }).click();
+  await page.getByRole('dialog', { name: 'Post this issue?' }).getByRole('button', { name: 'Post', exact: true }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 
   // Then 1: the warehouse shows 70

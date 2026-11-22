@@ -9,6 +9,7 @@ import {
   upsertTimesheetEntries,
   deleteTimesheetEntry,
 } from '@/src/lib/db/timesheets';
+import { getTimesheetApprovalRoute } from '@/src/lib/db/timesheetApprovalRoute';
 import {
   submitTimesheet,
   approveTimesheet,
@@ -35,6 +36,7 @@ export const timesheetRepository: TimesheetRepository = {
   attestNoErpDocument: attestTimesheetNoErpDocument,
   listReopenableApproved: listReopenableApprovedTimesheets,
   hasApprovalWork: (selfId, viewerRole) => wrap(() => hasTimesheetApprovalWork(selfId, viewerRole)),
+  getApprovalRoute: (id) => wrap(() => getTimesheetApprovalRoute(id)),
   listPushesNeedingAttention,
   confirmEmployeeLink,
   getPushState,

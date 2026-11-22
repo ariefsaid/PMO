@@ -23,7 +23,7 @@ test('AC-PCP-001: an Admin marks a person as left; they leave Active and appear 
 
   await page.getByRole('button', { name: `Mark ${name} as left` }).click();
   const confirm = page.getByRole('alertdialog');
-  await expect(confirm).toContainText('Last day of work');
+  await expect(confirm).toContainText('First day off crew roster');
   await confirm.getByRole('button', { name: 'Mark as left' }).click();
 
   await expect(page.getByRole('link', { name })).toHaveCount(0, { timeout: 15_000 });

@@ -55,7 +55,9 @@ test('AC-EAV-014 Finance checks the test month and opens evidence for the exact 
   const result = page.getByRole('region', { name: 'Check result' });
   await expect(result.getByText('IDR 3,000', { exact: true })).toBeVisible({ timeout: 20_000 });
   await expect(result.getByText('IDR 27,000', { exact: true })).toBeVisible();
-  await expect(result.getByText('IDR 500', { exact: true })).toBeVisible();
+  // AC-EQM-008 / signed RentalInvoiceCheck difference is rendered in status wording as "Over-billed by {{amount}}"
+  await expect(result.getByRole('status')).toHaveText('Over-billed by IDR 500');
+  await expect(result.getByText('Over-billed by IDR 500', { exact: true })).toBeVisible();
   await expect(result.getByText('21 Sep 2026', { exact: false })).toBeVisible();
   await result.getByRole('button', { name: 'Open ticket.png' }).first().click();
   const evidenceLink = result.getByRole('link', { name: 'ticket.png' }).first();

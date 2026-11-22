@@ -167,7 +167,7 @@
     "homeCrew": "Kru asal",
     "hostCrew": "Kru tujuan",
     "hostNotScheduled": "{{crew}} tidak terjadwal di work order mana pun pada hari-hari ini, jadi orang ini tidak akan muncul di daftar hadir mana pun dan jam kerjanya tidak terhitung. Jadwalkan {{crew}} pada sebuah work order dulu, atau pilih regu lain.",
-    "hostPartlyScheduled": "{{crew}} tidak terjadwal di work order mana pun pada {{days}}. Orang ini tidak akan muncul di daftar hadir pada hari tersebut.",
+    "hostPartlyScheduled": "{{crew}} tidak terjadwal di work order mana pun pada {{days}}. Pada hari-hari itu, orang ini tetap tercatat di daftar hadir {{home}}.",
     "lend": "Pinjamkan pekerja",
     "lendTitle": "Pinjamkan pekerja ke kru lain",
     "lent": "Pekerja dipinjamkan",

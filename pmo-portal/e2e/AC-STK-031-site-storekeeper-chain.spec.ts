@@ -38,6 +38,7 @@ test('AC-STK-031: an Engineer keeping only the site is refused at central; the c
   await page.getByLabel(/^Quantity/).fill('50');
   await page.getByLabel(/^Unit cost/).fill('25');
   await page.getByRole('button', { name: 'Post receipt' }).click();
+  await page.getByRole('dialog', { name: 'Post this receipt?' }).getByRole('button', { name: 'Post', exact: true }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 
   await page.goto('/stock/new/transfer');
@@ -48,6 +49,7 @@ test('AC-STK-031: an Engineer keeping only the site is refused at central; the c
   await page.getByRole('option', { name: new RegExp(item.code) }).click();
   await page.getByLabel(/^Quantity/).fill('20');
   await page.getByRole('button', { name: 'Post stock transfer' }).click();
+  await page.getByRole('dialog', { name: 'Post this stock transfer?' }).getByRole('button', { name: 'Post', exact: true }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 
   // The Engineer issues 8 from the site to the work item.
@@ -61,6 +63,7 @@ test('AC-STK-031: an Engineer keeping only the site is refused at central; the c
   await page.getByRole('option', { name: new RegExp(item.code) }).click();
   await page.getByLabel(/^Quantity/).fill('8');
   await page.getByRole('button', { name: 'Post issue' }).click();
+  await page.getByRole('dialog', { name: 'Post this issue?' }).getByRole('button', { name: 'Post', exact: true }).click();
   await expect(page).toHaveURL(/\/stock\/documents\/[0-9a-f-]{36}$/, { timeout: 20_000 });
 
   // The PM sees the whole chain on the item's trace, and the issue on the project's Materials tab.

@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(95);
+select plan(100);
 insert into organizations(id,name) values ('33520000-0000-0000-0000-000000000001','CQ Org');
 insert into auth.users(id,email) values ('33520000-0000-0000-0000-000000000011','cq-pm@example.invalid'),('33520000-0000-0000-0000-000000000012','cq-finance@example.invalid'),('33520000-0000-0000-0000-000000000013','cq-engineer@example.invalid');
 insert into profiles(id,org_id,full_name,email,role,status) values
@@ -244,6 +244,38 @@ select is((select (line->>'accepted_quantity')::numeric
  'AC-CQ-012 billing uses the most recently confirmed cumulative stage');
 select is((select quantity from work_order_acceptance_lines where acceptance_id=current_setting('cq.conf')::uuid),3::numeric,
  'AC-CQ-004 a later stage preserves the previously signed quantity');
+
+-- The FINAL record in a one-person organisation: the same sole-operator rule must let the only active member confirm
+-- their own final acceptance, and the money goal must hold (the order closes at the accepted value). The existing
+-- sole-member assertions above all run on a non-final record, so a final-only bypass would not be caught there.
+reset role;
+insert into organizations(id,name) values ('33520000-0000-0000-0000-000000000003','CQ Solo Final Org');
+insert into auth.users(id,email) values ('33520000-0000-0000-0000-000000000019','cq-solo-final@example.invalid');
+insert into profiles(id,org_id,full_name,email,role,status) values
+ ('33520000-0000-0000-0000-000000000019','33520000-0000-0000-0000-000000000003','CQ Solo Final','cq-solo-final@example.invalid','Finance','active');
+insert into projects(id,org_id,name,status,contract_value,tax_treatment,tax_amount) values
+ ('33520000-0000-0000-0000-000000000025','33520000-0000-0000-0000-000000000003','CQ Solo Final Project','Ongoing Project',100000,'exclusive',0);
+insert into boq_items(id,org_id,project_id,item_code,description,unit,quantity,rate) values
+ ('33520000-0000-0000-0000-000000000047','33520000-0000-0000-0000-000000000003','33520000-0000-0000-0000-000000000025','SF1','Solo final line','km',10,1000);
+insert into work_orders(id,org_id,project_id,title,status,order_value,tax_treatment,tax_amount) values
+ ('33520000-0000-0000-0000-000000000037','33520000-0000-0000-0000-000000000003','33520000-0000-0000-0000-000000000025','CQ Solo Final WO','Issued',10000,'exclusive',0);
+insert into work_order_lines(org_id,work_order_id,boq_item_id,quantity) values
+ ('33520000-0000-0000-0000-000000000003','33520000-0000-0000-0000-000000000037','33520000-0000-0000-0000-000000000047',10);
+insert into project_documents(id,org_id,project_id,category,title,status,file_path) values
+ ('33520000-0000-0000-0000-000000000057','33520000-0000-0000-0000-000000000003','33520000-0000-0000-0000-000000000025','Acceptance','Solo final evidence','Issued','33520000-0000-0000-0000-000000000003/33520000-0000-0000-0000-000000000025/33520000-0000-0000-0000-000000000057/solo-final.pdf');
+set local role authenticated;
+set local request.jwt.claims='{"sub":"33520000-0000-0000-0000-000000000019","role":"authenticated"}';
+select lives_ok($$select set_config('cq.solofinal',public.prepare_work_order_acceptance('33520000-0000-0000-0000-000000000037',current_date,true,
+ '[{"boq_item_id":"33520000-0000-0000-0000-000000000047","quantity":4}]'::jsonb,'33520000-0000-0000-0000-000000000057')::text,true)$$,
+ 'AC-CQ-005 the sole member prepares a FINAL BAST');
+select lives_ok($$select public.confirm_work_order_acceptance(current_setting('cq.solofinal')::uuid)$$,
+ 'AC-CQ-005 the sole active member may confirm their own FINAL BAST');
+select is((select confirm_basis from work_order_acceptances where id=current_setting('cq.solofinal')::uuid),'sole_operator',
+ 'AC-CQ-005 sole-operator confirmation of a final BAST is recorded as such');
+select is((select status::text from work_orders where id='33520000-0000-0000-0000-000000000037'),'Closed',
+ 'AC-CQ-006 the confirmed final BAST closes its work order');
+select is((select closing_value from work_orders where id='33520000-0000-0000-0000-000000000037'),4000::numeric,
+ 'AC-CQ-006 a sole-operator final confirm stores the exact accepted value');
 reset role;
 select * from finish();
 rollback;

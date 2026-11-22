@@ -37,7 +37,13 @@ export const MarkLeftDialog: React.FC<{ person: { id: string; name: string } | n
       description={(
         <div className="space-y-3">
           <p>{t('administration:people.leftBody', 'They move to Former staff and leave every crew roster from this day. Their documents, hours and history stay on record.')}</p>
-          <DateField label={t('administration:people.leftOn', 'Last day of work')} value={leftOn} onChange={setDay} required />
+          <DateField
+            label={t('administration:people.leftOn', 'First day off crew roster')}
+            helper={t('administration:people.leftOnHelp', 'First day off crew roster')}
+            value={leftOn}
+            onChange={setDay}
+            required
+          />
         </div>
       )}
       confirmLabel={t('administration:people.markLeft', 'Mark as left')} loading={markLeft.isPending} error={problem}
