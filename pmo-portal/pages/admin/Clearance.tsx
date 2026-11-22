@@ -6,7 +6,7 @@ import { useDocumentTypes } from '@/src/hooks/useDocumentExpiry';
 import { CanWrite } from '@/src/auth/usePermission';
 import { usePeople } from '@/src/hooks/usePeople';
 import {
-  useClearanceDue, useClearanceEnabled, useClearanceItemMutations, useClearanceItems, useClearanceSummary,
+  useClearanceDue, useClearanceItemMutations, useClearanceItems, useClearanceSummary,
 } from '@/src/hooks/useClearance';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';

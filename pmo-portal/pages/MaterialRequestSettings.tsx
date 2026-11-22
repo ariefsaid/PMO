@@ -12,7 +12,7 @@ import type { ChainStepInput } from '@/src/lib/repositories/materialRequests';
 import type { Role } from '@/src/auth/AuthContext';
 import { formatDay } from '@/src/lib/format';
 import { baseLevelOf } from '@/src/auth/builtInRoles';
-import { useBuiltInRolesEnabled } from '@/src/hooks/useBuiltInRoles';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
 import { useLabels, useRefusalText, useUserNames } from './materialRequests/useMaterialRequestText';
 import { UsageThresholdsEditor } from './materialRequests/UsageThresholdsEditor';
@@ -34,7 +34,7 @@ const ChainEditor: React.FC = () => {
   const [draft, setDraft] = useState<ChainStepInput[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // roles-that-decide FR-RTD-004/008: a step names a built-in role only while the organisation has built-in roles on.
-  const builtInOn = useBuiltInRolesEnabled().data === true;
+  const builtInOn = useOrgSwitch('builtInRoles').data === true;
   const jobRoleOptions = useJobRoleOptions(t('settings.jobRoleNone', 'None: anyone with the access level'), APPROVER_TIERS);
   const steps: ChainStepInput[] = draft ?? (chain.data ?? []).map((s) => ({ role: s.role, jobRole: s.jobRole, label: s.label, onlyOverPlan: s.onlyOverPlan }));
   const edit = (i: number, p: Partial<ChainStepInput>) => setDraft(steps.map((s, j) => (j === i ? { ...s, ...p } : s)));

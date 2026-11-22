@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { Button, FieldError, ListState, SelectField, useToast } from '@/src/components/ui';
-import { useBuiltInRolesEnabled } from '@/src/hooks/useBuiltInRoles';
+import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
 import { useOrderJobRoles, useOrderJobRolesMutation } from '@/src/hooks/useOrderJobRoles';
@@ -21,7 +21,7 @@ export default function OrderJobRolesSection() {
   const { toast } = useToast();
   const refusal = useRefusalLine();
   const canManage = usePermission()('manage', 'orgAccounting');
-  const builtInOn = useBuiltInRolesEnabled().data === true;
+  const builtInOn = useOrgSwitch('builtInRoles').data === true;
   const query = useOrderJobRoles();
   const save = useOrderJobRolesMutation();
   const roleName = useBuiltInRoleName();

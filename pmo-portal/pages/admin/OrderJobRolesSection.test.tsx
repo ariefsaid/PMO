@@ -17,7 +17,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'usr
 vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (action: string, entity: string) => h.canManage && action === 'manage' && entity === 'orgAccounting',
 }));
-vi.mock('@/src/hooks/useBuiltInRoles', () => ({ useBuiltInRolesEnabled: () => ({ data: h.builtInOn }) }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.builtInOn }) }));
 vi.unmock('@/src/hooks/useOrderJobRoles'); // test/setup.ts stubs it for the procurement and shell suites
 
 import OrderJobRolesSection from './OrderJobRolesSection';
