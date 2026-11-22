@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap;
 create extension if not exists dblink with schema extensions;
-select plan(38);
+select plan(37);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('25240000-0000-0000-0000-00000000010a', 'MRQ Submit Org', 'IDR', 'Asia/Jakarta');
@@ -142,10 +142,8 @@ select is((select count(*)::int from material_request_steps where request_id = (
 select pg_temp._as('25240000-0000-0000-0000-0000000001a3');
 select lives_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'idem'), 1, 'approve') $$, 'step 1 (PM)');
 
--- ── AC-MRQ-008: the transfer cannot be made (no source, then a warehouse Finance does not keep) ────────────────────
+-- ── AC-MRQ-008: the transfer cannot be made (a warehouse Finance does not keep; naming none is 1640's own proof) ────────────────────
 select pg_temp._as('25240000-0000-0000-0000-0000000001a5');
-select throws_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'idem'), 2, 'approve') $$, 'P0001',
-  'MRQ_SOURCE_REQUIRED: choose the warehouse the material leaves from', 'FR-MRQ-011 the final step names the source warehouse');
 select throws_ok($$ select public.mrq_decide_step((select v from t_ids where k = 'idem'), 2, 'approve', null,
                                                  '25240000-0000-0000-0000-000000001803') $$, 'P0001',
   'STK_NOT_KEEPER: you do not keep this warehouse', 'AC-MRQ-008 the transfer creation fails in the stock path');

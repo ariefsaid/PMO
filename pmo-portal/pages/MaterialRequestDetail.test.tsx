@@ -127,17 +127,57 @@ describe('material request detail', () => {
     expect(h.decide.mutateAsync).toHaveBeenCalledWith({ id: 'r1', position: 2, decision: 'approve', reason: undefined, sourceWarehouseId: null });
   });
 
-  it('the final step needs the source warehouse before it can approve (FR-MRQ-011)', async () => {
+  const finalStep = () => {
     h.req = { data: request({ steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'open')] }), isPending: false, isError: false, refetch: vi.fn() };
     h.waiting = { data: [{ requestId: 'r1', stepPosition: 3, role: 'Project Manager', label: 'Check 3', actingFor: null, submittedAt: '2026-11-19T08:05:00Z' }] };
+  };
+
+  it('AC-MRQ-033 the final approver who keeps a warehouse may name it, or leave it to the keeper (FR-MRQ-011)', async () => {
+    finalStep();
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
     const confirm = screen.getAllByRole('button', { name: 'Approve' }).at(-1)!;
-    expect(confirm).toBeDisabled();
-    await userEvent.selectOptions(screen.getByLabelText(/Warehouse the material leaves from/), 'w1');
     expect(confirm).toBeEnabled();
+    await userEvent.selectOptions(screen.getByLabelText(/Warehouse the material leaves from/), 'w1');
     await userEvent.click(confirm);
     expect(h.decide.mutateAsync).toHaveBeenCalledWith({ id: 'r1', position: 3, decision: 'approve', reason: undefined, sourceWarehouseId: 'w1' });
+  });
+
+  it('AC-MRQ-030 the final approver who keeps a warehouse can approve without choosing one', async () => {
+    finalStep();
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Approve' }).at(-1)!);
+    expect(h.decide.mutateAsync).toHaveBeenCalledWith({ id: 'r1', position: 3, decision: 'approve', reason: undefined, sourceWarehouseId: null });
+  });
+
+  it('AC-MRQ-030 a final approver who keeps no warehouse is asked for none and told the keeper sends the stock', async () => {
+    h.keepers = [];
+    finalStep();
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(screen.queryByLabelText(/Warehouse the material leaves from/)).not.toBeInTheDocument();
+    expect(screen.getByText('Approving records your decision. The stock keeper chooses the warehouse and sends the stock.')).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Approve' }).at(-1)!);
+    expect(h.decide.mutateAsync).toHaveBeenCalledWith({ id: 'r1', position: 3, decision: 'approve', reason: undefined, sourceWarehouseId: null });
+  });
+
+  it('AC-MRQ-031 an approved request with no transfer yet shows the keeper "choose warehouse and send"', () => {
+    h.userId = 'u-keeper';
+    h.keepers = [{ warehouse_id: 'w1', user_id: 'u-keeper' }];
+    h.req = { data: request({ status: 'approved', steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] }), isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByText('Approved. Choose the warehouse and send the stock.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose warehouse and send' })).toBeInTheDocument();
+  });
+
+  it.each([['u-author', 'the requester'], ['u-approver', 'an approver who keeps nothing']])('AC-MRQ-031 %s sees who acts next, and no send control (%s)', (uid) => {
+    h.userId = uid;
+    h.keepers = [];
+    h.req = { data: request({ status: 'approved', steps: [step(1, 'approved'), step(2, 'approved'), step(3, 'approved')] }), isPending: false, isError: false, refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByText('Approved. The stock keeper chooses the warehouse and sends the stock next.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Choose warehouse and send' })).not.toBeInTheDocument();
   });
 
   it('a database refusal is shown as one plain sentence in the dialog', async () => {
