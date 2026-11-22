@@ -1,7 +1,7 @@
 /** AC-LA-011 (#2710) — the light account's phone home screen: four sections, Foreman roster, clock-in through the existing path. */
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -42,11 +42,10 @@ beforeEach(() => {
 describe('AC-LA-011 phone home screen', () => {
   it('JOB-NAV-WO: lists the work orders I am on today under the dictionary name, with project and crew', async () => {
     mount();
-    expect(await screen.findByRole('heading', { name: 'Work order' })).toBeInTheDocument();
-    expect(screen.getAllByText('Slab works').length).toBeGreaterThan(0);
-    expect(screen.getByText('Site A · Crew 1')).toBeInTheDocument();
+    const section = within(await screen.findByRole('region', { name: 'Work order' }));
+    expect(section.getByText('Slab works')).toBeInTheDocument();
+    expect(section.getByText('Site A · Crew 1')).toBeInTheDocument();
   });
-
   it('shows my tasks, clock in and issues, and hides deliveries while there are none', async () => {
     mount();
     expect(await screen.findByRole('heading', { name: 'My tasks' })).toBeInTheDocument();
