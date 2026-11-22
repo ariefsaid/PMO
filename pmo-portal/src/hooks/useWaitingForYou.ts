@@ -106,13 +106,13 @@ function useLiveWaitingForYou(): WaitingForYou {
       expense: expenseRows.map((entry) => ({ key: `expense:${entry.claim.id}`, kind: 'expense', createdAt: entry.claim.created_at, row: entry })),
       invoice: (invoiceRole && invoices.enabled !== false ? invoices.rows : []).map((row) => ({ key: `invoice:${row.id}`, kind: 'invoice', createdAt: row.created_at, row })),
       material: (material.data ?? []).map((row) => ({ key: `material:${row.requestId}`, kind: 'material', createdAt: row.submittedAt, row })),
-      leave: (leave.data ?? []).filter((r) => r.can_decide).map((row) => ({ key: `leave:${row.id}`, kind: 'leave', createdAt: row.start_date, row })),
+      leave: (leave.enabled ? leave.data ?? [] : []).filter((r) => r.can_decide).map((row) => ({ key: `leave:${row.id}`, kind: 'leave', createdAt: row.start_date, row })),
       imprest: imprestEntries,
       daily_report: [], work_order_issue: [], delivery_record: [], transfer_receipt: [], quantity_change: [], certificate: [], equipment_plan: [],
     };
     for (const row of database.data ?? []) byKind[row.kind].push({ key: `${row.kind}:${row.recordId}`, kind: row.kind, createdAt: row.createdAt, row });
     return WAITING_KINDS.flatMap((kind) => byKind[kind]);
-  }, [database.data, expenseRole, expenses.data, imprest.data, invoiceRole, invoices.enabled, invoices.rows, leave.data, material.data, procurementAdmin, procurementRole, procurements.data, realRole, timesheets.data, userId]);
+  }, [database.data, expenseRole, expenses.data, imprest.data, invoiceRole, invoices.enabled, invoices.rows, leave.data, leave.enabled, material.data, procurementAdmin, procurementRole, procurements.data, realRole, timesheets.data, userId]);
 
   const population = useMemo(() => approvalPopulation(entries, 'all'), [entries]);
 
