@@ -183,7 +183,7 @@ select is(attendance_record('17510000-0000-0000-0000-000000001401', pg_temp.d('m
 
 -- AC-MR-004 / 005 audit and the worker's notice (read as the owner)
 reset role;
-select is((select count(*)::int from audit_events where action in ('medical_release.create', 'medical_release.deferred', 'medical_release.approved')), 5,
+select is((select count(*)::int from audit_events where entity_id in (select id from mr_ids where k in ('r1', 'r2')) and action in ('medical_release.create', 'medical_release.deferred', 'medical_release.approved')), 5,
   'AC-MR-004 every create and decision is audited');
 select is((select count(*)::int from notifications where owner_id = '17510000-0000-0000-0000-0000000001a3' and metadata->'entity'->>'type' = 'medical_release'), 2,
   'AC-MR-005 the worker with a login is told after each decision; the person with no login is not');
