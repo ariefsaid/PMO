@@ -1,13 +1,13 @@
 {
   "title": "Survei",
-  "subline": "Apa yang diukur di lapangan, per baris. Survei yang dikonfirmasi dijumlahkan menjadi kuantitas tersertifikasi yang membatasi tagihan.",
+  "subline": "Apa yang diukur di lapangan, per baris. Setiap survei yang dikonfirmasi MENAMBAH kuantitas tersertifikasi baris itu, yang membatasi tagihan. Isi apa yang diukur survei ini, bukan total berjalan; untuk mengubah survei yang keliru gunakan Koreksi.",
   "loadError": "Survei tidak dapat dimuat",
   "record": "Catat survei",
   "correct": "Koreksi",
   "confirm": "Konfirmasi",
   "discard": "Buang draf",
   "empty": "Belum ada survei yang dicatat.",
-  "emptyWho": "Manajer proyek, Keuangan, atau Admin mencatat survei di sini; Keuangan atau Admin selain pencatat mengonfirmasinya.",
+  "emptyWho": "Manajer proyek, Keuangan, atau Admin mencatat survei di sini; Keuangan atau Admin selain pencatat mengonfirmasinya. Survei yang dikonfirmasi menambah kuantitas tersertifikasi, jadi isi setiap pengukuran sekali saja.",
   "hintNotPermitted": "Hanya manajer proyek, Keuangan, atau Admin yang dapat mencatat survei.",
   "hintNotIssued": "Survei dicatat selama perintah kerja berstatus diterbitkan.",
   "certifiedHeading": "Tersertifikasi per baris",
@@ -53,9 +53,9 @@
     "role": "Peran (opsional)",
     "addPerson": "Tambah orang",
     "removePerson": "Hapus orang {{n}}",
-    "documents": "Dokumen mutu",
-    "documentsHelp": "Dari register proyek ini: diterbitkan atau disetujui, dengan berkas.",
-    "noDocuments": "Belum ada dokumen diterbitkan dengan berkas di register proyek.",
+    "documents": "Lembar survei dan dokumen mutu",
+    "documentsHelp": "Lampirkan minimal lembar survei agar dapat dikonfirmasi; tambahkan dokumen mutu untuk kuantitas siap mutu. Dari register proyek ini: diterbitkan atau disetujui, dengan berkas.",
+    "noDocuments": "Belum ada dokumen diterbitkan dengan berkas di register proyek. Unggah dan terbitkan lembar survei di sana terlebih dahulu; survei tidak dapat dikonfirmasi tanpanya.",
     "errors": {
       "line": "Pilih baris kontrak",
       "date": "Isi tanggal survei",
@@ -63,7 +63,8 @@
       "quality": "Isi jumlah 0 atau lebih dengan paling banyak 3 desimal",
       "qualityOver": "Jumlah siap mutu tidak boleh lebih besar dari jumlah yang disurvei",
       "person": "Tambahkan minimal satu orang, masing-masing dengan nama"
-    }
+    },
+    "surveyedHelp": "Hanya apa yang diukur survei ini. Setiap survei yang dikonfirmasi menambah kuantitas tersertifikasi; yang keliru diubah dengan Koreksi."
   },
   "refusal": {
     "generic": "Survei tidak dapat disimpan. Coba lagi."

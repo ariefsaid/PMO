@@ -110,9 +110,10 @@ begin
   if not (v_r.recorded_by = auth.uid() or public.auth_role() in ('Admin','Finance')) then
     raise exception 'SVY_NOT_PERMITTED: only the person who recorded the survey, Finance or an Admin can change a draft' using errcode = '42501';
   end if;
-  select d.org_id, d.project_id, d.status, d.file_path into v_d from public.project_documents d where d.id = p_document;
+  select d.org_id, d.project_id, d.status, d.file_path, d.category_id into v_d from public.project_documents d where d.id = p_document;
   if not found or v_d.org_id is distinct from v_r.org_id or v_d.project_id is distinct from v_r.project_id
-     or v_d.status not in ('Issued','Approved') or nullif(btrim(coalesce(v_d.file_path, '')), '') is null then
+     or v_d.status not in ('Issued','Approved') or nullif(btrim(coalesce(v_d.file_path, '')), '') is null
+     or not public.document_category_visible(v_d.category_id, v_d.org_id) then   -- one refusal for missing, foreign, wrong state and not-visible: no oracle
     raise exception 'SVY_DOCUMENT_INVALID: attach an issued or approved document with a file from this work order''s project' using errcode = '23514';
   end if;
   insert into public.survey_record_documents (record_id, document_id, org_id, attached_by)
@@ -156,8 +157,8 @@ begin
     end if;
     v_basis := 'sole_operator';
   end if;
-  if v_r.quality_ready_quantity > 0 and not exists (select 1 from public.survey_record_documents d where d.record_id = p_id) then
-    raise exception 'SVY_QUALITY_NEEDS_DOCUMENT: attach the quality documents before confirming a survey with a quality-ready quantity' using errcode = '23514';
+  if not exists (select 1 from public.survey_record_documents d where d.record_id = p_id) then
+    raise exception 'SVY_NEEDS_SHEET: attach the survey sheet before confirming a survey' using errcode = '23514';
   end if;
   update public.survey_records set status = 'confirmed', confirmed_by = auth.uid(), confirmed_at = clock_timestamp(), confirm_basis = v_basis
    where id = p_id;

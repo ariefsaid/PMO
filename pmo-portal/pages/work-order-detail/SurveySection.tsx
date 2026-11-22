@@ -65,7 +65,7 @@ const SurveyBody: React.FC<SurveySectionProps> = ({ workOrderId, projectId, stat
     try { await action(); done(); } catch (err) { const r = refusal(err); setMessage(r.detail ? `${r.headline} ${r.detail}` : r.headline); done(); }
   };
 
-  return <RecordSection title={title} subline={t('subline', 'What was measured on site, by line. Confirmed surveys add up to the certified quantity that caps a claim.')}
+  return <RecordSection title={title} subline={t('subline', "What was measured on site, by line. Each confirmed survey ADDS to the line's certified quantity, which caps a claim. Enter what this survey measured, not a running total; to change a mistaken survey use Correct.")}
     actions={canRecord ? <Button variant="primary" size="sm" onClick={() => setForm({ correcting: null })}>{t('record', 'Record a survey')}</Button> : undefined}>
     {!canRecord && (
       <p className="text-control text-muted-foreground" data-testid="survey-hint">
@@ -76,7 +76,7 @@ const SurveyBody: React.FC<SurveySectionProps> = ({ workOrderId, projectId, stat
     {records.length === 0 ? (
       <div data-testid="survey-empty" className="mt-2">
         <p className="font-medium">{t('empty', 'No surveys recorded yet.')}</p>
-        <p className="text-control text-muted-foreground">{t('emptyWho', 'The project manager, Finance or an Admin records a survey here; Finance or an Admin other than the recorder confirms it.')}</p>
+        <p className="text-control text-muted-foreground">{t('emptyWho', 'The project manager, Finance or an Admin records a survey here; Finance or an Admin other than the recorder confirms it. A confirmed survey adds to the certified quantity, so enter each measurement once.')}</p>
       </div>
     ) : (
       <>

@@ -80,7 +80,7 @@ test('AC-SCR-014 record a survey, confirm it as another person, raise a claim ov
     // The recorder cannot confirm their own survey: the refusal says so and what to do.
     await page.getByRole('button', { name: /Confirm SVY/ }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Confirm survey' }).click();
-    await expect(page.getByRole('alert')).toContainText('other than the recorder');
+    await expect(page.getByRole('alert').filter({ hasText: 'other than the recorder' })).toHaveCount(1);
 
     // An Admin confirms it; the certified quantity shows.
     const adminContext = await browser.newContext();
