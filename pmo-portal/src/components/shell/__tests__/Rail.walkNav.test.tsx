@@ -24,7 +24,10 @@ vi.mock('@/src/hooks/useSafetyDays', () => ({ useSafetyMenuOn: () => state.safet
 vi.mock('../ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
 vi.mock('@/src/hooks/useOverdueInvoiceCount', () => ({ useOverdueInvoiceCount: () => ({ isPending: true }) }));
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/auth/usePermission', () => ({
+  usePermission: () => () => true,
+  useBuiltInRoleKey: () => state.key,
+}));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => false }));
 
 const renderRail = () => {
