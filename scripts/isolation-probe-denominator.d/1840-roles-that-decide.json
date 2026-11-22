@@ -1,0 +1,11 @@
+{
+  "definer_functions": [
+    "actor_may_order_purchases()",
+    "expiry_document_object_is_medical(text)",
+    "holds_job_role(uuid,text)",
+    "mrq_fills_step(uuid,user_role,text)",
+    "mrq_pinned_to(uuid,integer,user_role,text)",
+    "mrq_step_authority(uuid,uuid,user_role,text,uuid,uuid)",
+    "po_set_order_job_roles(text[])"
+  ]
+}
