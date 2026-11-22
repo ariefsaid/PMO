@@ -39,7 +39,7 @@ test('JOB-PC10 a catalogue line added at the remote location takes the remote ra
   await pickComboboxOption(dialog, page, /catalogue item/i, new RegExp(`${run}-WELD`));
   await dialog.getByLabel(/^location/i).selectOption({ label: 'Remote' });
   await expect(dialog.getByText(/Rate:.*120\.00/)).toBeVisible();
-  await dialog.getByLabel('ERP item').fill(`${run}-WELD`);
+  await dialog.getByLabel(/^(item code|erp item)/i).fill(`${run}-WELD`);
   await dialog.getByLabel('Description').fill('Butt weld');
   await dialog.getByLabel('Unit').fill('inch');
   await dialog.getByLabel(/quantity/i).fill('10');
