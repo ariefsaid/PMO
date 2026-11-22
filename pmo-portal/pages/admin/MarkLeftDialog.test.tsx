@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
+import { formatIsoDay } from '@/src/lib/format';
 import { BahasaProvider } from '@/test/bahasa';
 import { MarkLeftDialog } from './MarkLeftDialog';
 
@@ -34,6 +36,21 @@ const renderDialogBahasa = (p: { id: string; name: string } | null = person, onC
     </BahasaProvider>,
   );
 
+/** The suite pins the formatter locale to `en`/UTC (test/setup.ts, AC-L10N-061), so the organisation's
+ *  calendar day is the UTC day. Derived here independently of the dialog's own helper. */
+const orgToday = () => new Date().toISOString().slice(0, 10);
+
+/** Opens, closes and re-opens the same dialog instance, the way the People register does. */
+const ReopenHarness = ({ onClose }: { onClose: () => void }) => {
+  const [open, setOpen] = useState(true);
+  return (
+    <ToastProvider>
+      <button type="button" data-testid="reopen-mark-left" onClick={() => setOpen(true)}>Reopen Mark as left</button>
+      <MarkLeftDialog person={open ? person : null} onClose={() => { setOpen(false); onClose(); }} />
+    </ToastProvider>
+  );
+};
+
 describe('MarkLeftDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,7 +77,8 @@ describe('MarkLeftDialog', () => {
     const dialog = screen.getByRole('alertdialog');
 
     const input = within(dialog).getByRole('textbox', { name: /^First day off crew roster/i });
-    // The field opens on today; the admin replaces it with the day the person is first off the roster.
+    // The field opens on today; the admin clears it — it must stay blank, not snap back to today — and types
+    // the day the person is first off the roster.
     await user.clear(input);
     expect(input).toHaveValue('');
     await user.type(input, '2026-12-15');
@@ -70,6 +88,7 @@ describe('MarkLeftDialog', () => {
     expect(input).toHaveValue('15 Dec 2026');
 
     const confirmButton = within(dialog).getByRole('button', { name: 'Mark as left' });
+    expect(confirmButton).toBeEnabled();
     await user.click(confirmButton);
 
     expect(h.markLeft).toHaveBeenCalledTimes(1);
@@ -79,18 +98,71 @@ describe('MarkLeftDialog', () => {
     });
   });
 
+  it('leaves a cleared day blank and cannot mark left until a real day is entered', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    const dialog = screen.getByRole('alertdialog');
+    const input = within(dialog).getByRole('textbox', { name: /^First day off crew roster/i });
+    const confirmButton = within(dialog).getByRole('button', { name: 'Mark as left' });
+
+    await user.clear(input);
+    expect(input).toHaveValue('');
+    expect(confirmButton).toBeDisabled();
+    // The confirm is natively disabled, and React drops an onClick dispatched at a disabled button
+    // (react-dom getListener), so nothing is written. The dialog's own `!leftOn` guard is
+    // defence-in-depth for that state and is NOT exercised by this click.
+    fireEvent.click(confirmButton);
+    expect(h.markLeft).not.toHaveBeenCalled();
+    expect(dialog).toBeInTheDocument();
+
+    // A real day makes the dialog actionable again.
+    await user.type(input, '2026-12-15');
+    await user.tab();
+    expect(confirmButton).toBeEnabled();
+  });
+
+  it('reopens on the organisation\'s today instead of carrying an abandoned selected day', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<ReopenHarness onClose={onClose} />);
+    const dialog = screen.getByRole('alertdialog');
+    const input = within(dialog).getByRole('textbox', { name: /^First day off crew roster/i });
+
+    await user.clear(input);
+    // A day that is provably NOT the organisation's today, so "not carried" cannot pass by coincidence
+    // and the two assertions cannot contradict on the one calendar day they would otherwise collide.
+    const abandonedDay = orgToday() === '2026-12-15' ? '2026-12-16' : '2026-12-15';
+    await user.type(input, abandonedDay);
+    await user.tab();
+    expect(input).toHaveValue(formatIsoDay(abandonedDay));
+
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+
+    await user.click(screen.getByTestId('reopen-mark-left'));
+    const reopened = screen.getByRole('alertdialog');
+    const reopenedInput = within(reopened).getByRole('textbox', { name: /^First day off crew roster/i });
+    expect(reopenedInput).toHaveValue(formatIsoDay(orgToday()));
+    expect(reopenedInput).not.toHaveValue(formatIsoDay(abandonedDay));
+  });
+
   it('preserves supplied calendar date default when date is not manually changed', async () => {
     const user = userEvent.setup();
     renderDialog();
     const dialog = screen.getByRole('alertdialog');
+    const input = within(dialog).getByRole('textbox', { name: /^First day off crew roster/i });
+    // Untouched, the field shows — and sends — the organisation's today, not a blank or a stale day.
+    expect(input).toHaveValue(formatIsoDay(orgToday()));
 
     const confirmButton = within(dialog).getByRole('button', { name: 'Mark as left' });
+    expect(confirmButton).toBeEnabled();
     await user.click(confirmButton);
 
     expect(h.markLeft).toHaveBeenCalledTimes(1);
     expect(h.markLeft).toHaveBeenCalledWith({
       id: 'p-100',
-      leftOn: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      leftOn: orgToday(),
     });
   });
 
