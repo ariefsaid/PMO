@@ -128,7 +128,7 @@ describe('AC-IMP-083 imprest hooks', () => {
 
 describe('#1568 requester who-next', () => {
   it('AC-IMP-083 reads one record route under the org key and stays idle without a record', async () => {
-    imprest.getRequesterRoute.mockResolvedValue({ route_kind: 'named', approvers: [], action: 'approve' });
+    imprest.getRequesterRoute.mockResolvedValue({ route_kind: 'named', approvers: [], action: 'approve', admin_breakglass: false });
     const client = fresh();
     const { result, rerender } = renderHook(
       ({ id }: { id: string | null }) => useImprestRequesterRoute('plan', id),
@@ -140,5 +140,30 @@ describe('#1568 requester who-next', () => {
     rerender({ id: null });
     await waitFor(() => expect(result.current.fetchStatus).toBe('idle'));
     expect(imprest.getRequesterRoute).toHaveBeenCalledTimes(1);
+  });
+
+  it('binds the expected action into the key so the approval answer cannot serve the pay slot', async () => {
+    imprest.getRequesterRoute
+      .mockResolvedValueOnce({ route_kind: 'finance_admin', approvers: [], action: 'approve', admin_breakglass: false })
+      .mockResolvedValueOnce({
+        route_kind: 'finance_admin',
+        approvers: [{ id: 'u-admin', name: 'Sari Admin', role: 'Admin' }],
+        action: 'pay',
+        admin_breakglass: false,
+      });
+    const client = fresh();
+    const { result, rerender } = renderHook(
+      ({ action }: { action: 'approve' | 'pay' }) => useImprestRequesterRoute('replenishment', 'r1', action),
+      { wrapper: wrap(client), initialProps: { action: 'approve' as const } },
+    );
+    await waitFor(() => expect(result.current.data?.action).toBe('approve'));
+    // The record transitions Requested -> Approved: the same record id must not serve the cached approval answer.
+    rerender({ action: 'pay' as const });
+    await waitFor(() => expect(result.current.data?.action).toBe('pay'));
+    expect(imprest.getRequesterRoute).toHaveBeenCalledTimes(2);
+    expect(imprest.getRequesterRoute).toHaveBeenLastCalledWith('replenishment', 'r1');
+    const keys = client.getQueryCache().getAll().map((q) => JSON.stringify(q.queryKey));
+    expect(keys.some((k) => k.includes('"pay"'))).toBe(true);
+    expect(keys.some((k) => k.includes('"approve"'))).toBe(true);
   });
 });

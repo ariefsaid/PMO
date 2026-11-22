@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useOrgId } from '@/src/hooks/useOrgId';
-import type { BudgetCategory, ImprestRequesterRouteKind } from '@/src/lib/db/imprest';
+import type { BudgetCategory, ImprestRequesterAction, ImprestRequesterRouteKind } from '@/src/lib/db/imprest';
 import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 
@@ -94,14 +94,17 @@ export function useImprestFloatChanges(floatId: string | undefined) {
   });
 }
 /**
- * #1568 — who the database computes as the next decider for one site-cash record (a plan, a float limit change or a
- * replenishment). One record per call, so a list row mounts this for its own id; the key carries the org like every
- * imprest read, and a write refreshes it through IMPREST_QUERY_ROOTS.
+ * #1568 — who the database computes as the next decision actor for one site-cash record (a plan, a float limit change
+ * or a replenishment). One record per call, so a list row mounts this for its own id; the key carries the org and the
+ * expected action (an approval answer must never be served into a payment slot after a transition), and a write
+ * refreshes every variant through IMPREST_QUERY_ROOTS' root prefix.
  */
-export function useImprestRequesterRoute(kind: ImprestRequesterRouteKind | null | undefined, recordId: string | null | undefined) {
+export function useImprestRequesterRoute(kind: ImprestRequesterRouteKind | null | undefined,
+                                          recordId: string | null | undefined,
+                                          expectAction: ImprestRequesterAction | null = null) {
   const orgId = useOrgId();
   return useQuery({
-    queryKey: ['imprest-requester-route', orgId, kind, recordId],
+    queryKey: ['imprest-requester-route', orgId, kind, recordId, expectAction],
     queryFn: () => repositories.imprest.getRequesterRoute(kind as ImprestRequesterRouteKind, recordId as string),
     enabled: Boolean(orgId) && Boolean(kind) && Boolean(recordId),
   });

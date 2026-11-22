@@ -1,18 +1,23 @@
--- 1568_imprest_requester_route.sql — the requester's "who next" for ONE site-cash record (#1568 cash review closure).
+-- 1568_imprest_requester_route.sql — the requester's next-decision actor for ONE site-cash record (#1568 cash closure).
 -- Spec: docs/specs/waiting-list.spec.md FR-WAIT-006 ("from the route the database computed"); the authority each
 -- kind mirrors is named below and is NOT re-implemented here:
---   plan         transition_imprest_plan (0534:1115, route block :1197-1214) per line via
+--   plan         transition_imprest_plan (0534:1115, route block :1197-1217) per line via
 --                spend_approval_route (1016/1292) + spend_approvers_for_amount amount tiers (1291/1290)
 --   limit_change decide_imprest_float_change (0534:1067) via imprest_senior_route (0422:44-53)
 --   replenishment transition_imprest_replenishment (0855:407-450) — Finance/Admin; approve and pay are different
 --                actors (pay excludes the requester, the custodian and the prior approver)
 --
 -- Shape (jsonb/JSON): { route_kind: 'named'|'flat'|'admin'|'finance_admin'|'unavailable',
---                       approvers: [{ id, name, role }], action: 'approve'|'pay'|null }
+--                       approvers: [{ id, name, role }], action: 'approve'|'pay'|null,
+--                       admin_breakglass: boolean }
 --   named         the exact people the database route names for this record, after the author/custodian/proposer
---                 exclusions; the INTERSECTION across every plan line, never the notification union
+--                 exclusions; the INTERSECTION across every plan line, never the notification union.
+--                 admin_breakglass is true only when a distinct, eligible, active full Admin exists — the write lets
+--                 an Admin break-glass every line but never past its SoD refusals, so no Admin is ever fabricated.
 --   flat          every line is the flat matrix (any approval-rank holder); no person is named
---   admin         only an Admin can decide (break-glass line, or the configured set has nobody else eligible)
+--   admin         the next decision is an Admin's (an admin-only line, or the configured set has nobody else
+--                 eligible) AND an eligible active full Admin other than the record's excluded parties exists;
+--                 otherwise `unavailable`
 --   finance_admin Finance or Admin (replenishment); for the pay step `approvers` names the eligible payers
 --   unavailable   the caller may not be told (not approval rank / record not visible), or nobody is eligible.
 --                 Never the low-rank `spending_not_visible` union, and never a fabricated fallback person.
@@ -24,9 +29,14 @@
 --     'unavailable', not the union).
 --   * Caller gate FIRST: active member, non-light (1209 convention), approval rank (the imprest read policies' own
 --     predicate), then the record in the caller's org and a live float. Nothing is resolved before that.
+--   * The read's own candidate filters use the resolved-actor rule the decision gate uses (`is_active_member(id)`:
+--     status AND auth.users.banned_until) plus `profile_seat_type(id) <> 'light'`, on already record+org-scoped
+--     candidates. This makes the read narrower than the route helpers; it changes no helper, tier or write rule.
 --   * No figures, no amount, no budget category and no per-line routing detail leave this function: names only.
 --   * budget_changed (DD-APR-3) is mirrored with the notification's p_decider_id = null facts; a named approver who
---     activated the active budget can still be refused at decision time. The read never claims the write will succeed.
+--     activated the active budget can still be refused at decision time. "Who next" is the next legal DECISION
+--     (approve or reject), never a promise that approval will pass: a month-ended or over-ceiling plan can still be
+--     rejected by its routed decider (0534:1138, :1193-1199), so those legal paths are preserved, not hidden.
 -- Reads only: no table, policy or write change. REVERSE: rollback/1568_imprest_requester_route_down.sql
 
 create function public.get_imprest_requester_route(p_kind text, p_record_id text)
@@ -41,7 +51,8 @@ declare
   v_role       user_role := public.auth_role();
   v_kind       text := lower(btrim(coalesce(p_kind, '')));
   v_id         uuid;
-  v_empty      json := json_build_object('route_kind', 'unavailable', 'approvers', '[]'::json, 'action', null);
+  v_empty      json := json_build_object('route_kind', 'unavailable', 'approvers', '[]'::json, 'action', null,
+                                         'admin_breakglass', false);
   v_plan       public.imprest_plans%rowtype;
   v_float      public.imprest_floats%rowtype;
   v_change     public.imprest_float_changes%rowtype;
@@ -51,6 +62,7 @@ declare
   v_named      uuid[];
   v_any_named  boolean := false;
   v_admin_only boolean := false;
+  v_admin_ok   boolean := false;
   v_approvers  json;
   v_count      int;
   v_exclude    uuid[];
@@ -88,6 +100,16 @@ begin
       return v_empty;
     end if;
 
+    -- Does a distinct, active, full Admin exist that the write would NOT refuse for SoD?
+    select exists (
+      select 1 from public.profiles pf
+       where pf.org_id = v_org and pf.role = 'Admin'
+         and public.is_active_member(pf.id)
+         and public.profile_seat_type(pf.id) <> 'light'
+         and pf.id is distinct from v_plan.author_id
+         and pf.id is distinct from v_float.custodian_id)
+      into v_admin_ok;
+
     for v_line in
       select l.budget_category, l.planned_amount
         from public.imprest_plan_lines l
@@ -119,38 +141,56 @@ begin
     end loop;
 
     if v_admin_only then
-      return json_build_object('route_kind', 'admin', 'approvers', '[]'::json, 'action', 'approve');
+      if not v_admin_ok then
+        return v_empty;
+      end if;
+      return json_build_object('route_kind', 'admin', 'approvers', '[]'::json, 'action', 'approve',
+                               'admin_breakglass', false);
     end if;
 
     if not v_any_named then
-      -- Every line is flat: any approval-rank holder may decide, except the author and the custodian.
+      -- Every line is flat: any active full approval-rank holder may decide, except the author and the custodian.
       select count(*) into v_count
         from public.profiles pf
-       where pf.org_id = v_org and pf.status = 'active'
+       where pf.org_id = v_org
+         and public.is_active_member(pf.id)
+         and public.profile_seat_type(pf.id) <> 'light'
          and public.holds_spend_approval_authority(pf.role)
-         and pf.id <> v_plan.author_id and pf.id <> v_float.custodian_id;
+         and pf.id is distinct from v_plan.author_id and pf.id is distinct from v_float.custodian_id;
       if v_count = 0 then
         return v_empty;
       end if;
-      return json_build_object('route_kind', 'flat', 'approvers', '[]'::json, 'action', 'approve');
+      return json_build_object('route_kind', 'flat', 'approvers', '[]'::json, 'action', 'approve',
+                               'admin_breakglass', false);
     end if;
 
     -- The intersection, minus the two people the decision gate always refuses (author, custodian).
     select coalesce(array_agg(distinct x), '{}') into v_named
       from unnest(coalesce(v_named, '{}')) x
-     where x <> v_plan.author_id and x <> v_float.custodian_id;
+     where x is distinct from v_plan.author_id and x is distinct from v_float.custodian_id;
     if cardinality(v_named) = 0 then
-      return json_build_object('route_kind', 'admin', 'approvers', '[]'::json, 'action', 'approve');
+      if not v_admin_ok then
+        return v_empty;
+      end if;
+      return json_build_object('route_kind', 'admin', 'approvers', '[]'::json, 'action', 'approve',
+                               'admin_breakglass', false);
     end if;
     select coalesce(json_agg(json_build_object('id', pf.id, 'name', pf.full_name, 'role', pf.role::text)
                              order by pf.full_name), '[]'::json)
       into v_approvers
       from public.profiles pf
-     where pf.id = any(v_named) and pf.org_id = v_org and pf.status = 'active';
+     where pf.id = any(v_named) and pf.org_id = v_org
+       and public.is_active_member(pf.id)
+       and public.profile_seat_type(pf.id) <> 'light';
     if json_array_length(v_approvers) = 0 then
-      return json_build_object('route_kind', 'admin', 'approvers', '[]'::json, 'action', 'approve');
+      if not v_admin_ok then
+        return v_empty;
+      end if;
+      return json_build_object('route_kind', 'admin', 'approvers', '[]'::json, 'action', 'approve',
+                               'admin_breakglass', false);
     end if;
-    return json_build_object('route_kind', 'named', 'approvers', v_approvers, 'action', 'approve');
+    return json_build_object('route_kind', 'named', 'approvers', v_approvers, 'action', 'approve',
+                             'admin_breakglass', v_admin_ok);
   end if;
 
   -- ── limit_change: Proposed only; the named senior set, or the Admin fallback ───────────────────────────────────
@@ -168,6 +208,15 @@ begin
       return v_empty;
     end if;
 
+    select exists (
+      select 1 from public.profiles pf
+       where pf.org_id = v_org and pf.role = 'Admin'
+         and public.is_active_member(pf.id)
+         and public.profile_seat_type(pf.id) <> 'light'
+         and pf.id is distinct from v_change.proposed_by
+         and pf.id is distinct from v_float.custodian_id)
+      into v_admin_ok;
+
     select * into v_route
       from public.imprest_senior_route(v_org, v_change.proposed_by);
     if v_route.route is null then
@@ -176,19 +225,30 @@ begin
     -- The proposer is already excluded by imprest_senior_route; the custodian is refused by the decision gate.
     select coalesce(array_agg(distinct x), '{}') into v_named
       from unnest(coalesce(v_route.approver_ids, '{}')) x
-     where x <> v_change.proposed_by and x <> v_float.custodian_id;
+     where x is distinct from v_change.proposed_by and x is distinct from v_float.custodian_id;
     if v_route.route = 'admin' or cardinality(v_named) = 0 then
-      return json_build_object('route_kind', 'admin', 'approvers', '[]'::json, 'action', 'approve');
+      if not v_admin_ok then
+        return v_empty;
+      end if;
+      return json_build_object('route_kind', 'admin', 'approvers', '[]'::json, 'action', 'approve',
+                               'admin_breakglass', false);
     end if;
     select coalesce(json_agg(json_build_object('id', pf.id, 'name', pf.full_name, 'role', pf.role::text)
                              order by pf.full_name), '[]'::json)
       into v_approvers
       from public.profiles pf
-     where pf.id = any(v_named) and pf.org_id = v_org and pf.status = 'active';
+     where pf.id = any(v_named) and pf.org_id = v_org
+       and public.is_active_member(pf.id)
+       and public.profile_seat_type(pf.id) <> 'light';
     if json_array_length(v_approvers) = 0 then
-      return json_build_object('route_kind', 'admin', 'approvers', '[]'::json, 'action', 'approve');
+      if not v_admin_ok then
+        return v_empty;
+      end if;
+      return json_build_object('route_kind', 'admin', 'approvers', '[]'::json, 'action', 'approve',
+                               'admin_breakglass', false);
     end if;
-    return json_build_object('route_kind', 'named', 'approvers', v_approvers, 'action', 'approve');
+    return json_build_object('route_kind', 'named', 'approvers', v_approvers, 'action', 'approve',
+                             'admin_breakglass', v_admin_ok);
   end if;
 
   -- ── replenishment: Requested waits for approval; Approved (unpaid) waits for a payer ───────────────────────────
@@ -211,12 +271,15 @@ begin
       v_exclude := array_remove(array[v_rep.requested_by, v_float.custodian_id], null);
       select count(*) into v_count
         from public.profiles pf
-       where pf.org_id = v_org and pf.status = 'active' and pf.role in ('Finance', 'Admin')
+       where pf.org_id = v_org and pf.role in ('Finance', 'Admin')
+         and public.is_active_member(pf.id)
+         and public.profile_seat_type(pf.id) <> 'light'
          and pf.id <> all(v_exclude);
       if v_count = 0 then
         return v_empty;
       end if;
-      return json_build_object('route_kind', 'finance_admin', 'approvers', '[]'::json, 'action', 'approve');
+      return json_build_object('route_kind', 'finance_admin', 'approvers', '[]'::json, 'action', 'approve',
+                               'admin_breakglass', false);
     elsif v_rep.status = 'Approved' then
       -- Payment is a different actor: Finance/Admin, never the requester, the custodian or the prior approver.
       v_exclude := array_remove(array[v_rep.requested_by, v_float.custodian_id, v_rep.approved_by], null);
@@ -224,12 +287,15 @@ begin
                                order by pf.full_name), '[]'::json)
         into v_approvers
         from public.profiles pf
-       where pf.org_id = v_org and pf.status = 'active' and pf.role in ('Finance', 'Admin')
+       where pf.org_id = v_org and pf.role in ('Finance', 'Admin')
+         and public.is_active_member(pf.id)
+         and public.profile_seat_type(pf.id) <> 'light'
          and pf.id <> all(v_exclude);
       if json_array_length(v_approvers) = 0 then
         return v_empty;
       end if;
-      return json_build_object('route_kind', 'finance_admin', 'approvers', v_approvers, 'action', 'pay');
+      return json_build_object('route_kind', 'finance_admin', 'approvers', v_approvers, 'action', 'pay',
+                               'admin_breakglass', false);
     end if;
     return v_empty;
   end if;
@@ -239,7 +305,9 @@ end; $$;
 revoke all on function public.get_imprest_requester_route(text, text) from public, anon;
 grant execute on function public.get_imprest_requester_route(text, text) to authenticated;
 comment on function public.get_imprest_requester_route(text, text) is
-  'FR-WAIT-006 requester who-next for one site-cash record. Mirrors transition_imprest_plan (per-line intersection), '
+  'FR-WAIT-006 next-decision actor for one site-cash record. Mirrors transition_imprest_plan (per-line intersection), '
   'decide_imprest_float_change (imprest_senior_route) and transition_imprest_replenishment (Finance/Admin; pay excludes '
   'requester, custodian and prior approver). Names only, never amounts, categories or routing detail; a below-rank or '
-  'invisible caller is answered unavailable, never the spending_not_visible union.';
+  'invisible caller is answered unavailable, never the spending_not_visible union. The Admin fallback is returned only '
+  'when an eligible active full Admin exists after the author/custodian/proposer exclusions; a named route reports the '
+  'true Admin break-glass alternative in admin_breakglass.';

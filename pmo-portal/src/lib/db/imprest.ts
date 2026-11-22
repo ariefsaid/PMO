@@ -108,10 +108,16 @@ export interface ImprestRequesterRoute {
   route_kind: ImprestRequesterRouteShape;
   approvers: ImprestRequesterApprover[];
   action: ImprestRequesterAction | null;
+  /** True only when a distinct, SoD-eligible Admin can break-glass a `named` route (never a fabricated Admin). */
+  admin_breakglass: boolean;
 }
 const ROUTE_SHAPES: readonly string[] = ['named', 'flat', 'admin', 'finance_admin', 'unavailable'];
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
-/** The RPC returns json; narrow it at the seam instead of trusting a cast. An unrecognised shape reads as no answer. */
+/**
+ * The RPC returns json; narrow it at the seam instead of trusting a cast. An unrecognised or internally
+ * inconsistent shape (a `named` route or a `pay` step with nobody named) reads as no answer, so the screen can
+ * never invent a decider or render an approval answer in a payment slot.
+ */
 export function parseImprestRequesterRoute(data: unknown): ImprestRequesterRoute | null {
   if (!isObject(data)) return null;
   const kind = data.route_kind;
@@ -125,13 +131,19 @@ export function parseImprestRequesterRoute(data: unknown): ImprestRequesterRoute
           ? [{ id, name, role }] : [];
       })
     : [];
-  return { route_kind: kind as ImprestRequesterRouteShape, approvers, action };
+  if ((kind === 'named' || action === 'pay') && approvers.length === 0) return null;
+  return {
+    route_kind: kind as ImprestRequesterRouteShape,
+    approvers,
+    action,
+    admin_breakglass: data.admin_breakglass === true,
+  };
 }
 /**
- * #1568 — who the database computes as the next decider for one site-cash record. Names only: the RPC never returns
- * an amount, a category or per-line routing detail. Integration dependency: the generated `database.types.ts` entry
- * (Args `{ p_kind, p_record_id }`, Returns `Json`) is supplied by the field-types worker; the call is typed against it
- * and is never papered over with `as any`.
+ * #1568 — who the database computes as the next decision actor for one site-cash record. Names only: the RPC never
+ * returns an amount, a category or per-line routing detail. Integration dependency: the generated `database.types.ts`
+ * entry (Args `{ p_kind, p_record_id }`, Returns `Json`) is supplied by the field-types worker; the call is typed
+ * against it and is never papered over with `as any`.
  */
 export async function getImprestRequesterRoute(kind: ImprestRequesterRouteKind, recordId: string): Promise<ImprestRequesterRoute | null> {
   const { data, error } = await supabase.rpc('get_imprest_requester_route', { p_kind: kind, p_record_id: recordId });

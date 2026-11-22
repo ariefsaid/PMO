@@ -8,11 +8,14 @@ import enWaitingList from '../../public/locales/en/waitingList.json';
 import idWaitingList from '../../public/locales/id/waitingList.json';
 import enImprest from '../../public/locales/en/imprest.json';
 import idImprest from '../../public/locales/id/imprest.json';
+import idCommon from '../../public/locales/id/common.json';
 
 i18next.addResourceBundle('en', 'waitingList', enWaitingList, true, true);
 i18next.addResourceBundle('id', 'waitingList', idWaitingList, true, true);
 i18next.addResourceBundle('en', 'imprest', enImprest, true, true);
 i18next.addResourceBundle('id', 'imprest', idImprest, true, true);
+// The role half of "name (role)" comes from the existing role-label seam (common:admin.roles).
+i18next.addResourceBundle('id', 'common', { admin: { roles: idCommon.admin.roles } }, true, true);
 
 vi.mock('@/src/components/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/ui')>();
@@ -150,10 +153,11 @@ describe('FR-IMP-071 plans section', () => {
       await i18next.changeLanguage('en');
     });
 
-    const named = (names: string[]) => ok({
+    const named = (people: Array<[string, string]>, adminBreakglass = false) => ok({
       route_kind: 'named',
-      approvers: names.map((name, i) => ({ id: `u${i}`, name, role: 'Executive' })),
+      approvers: people.map(([name, role], i) => ({ id: `u${i}`, name, role })),
       action: 'approve',
+      admin_breakglass: adminBreakglass,
     });
 
     it('a flat route names all four ApprovalRank roles including Executive in English', async () => {
@@ -179,21 +183,35 @@ describe('FR-IMP-071 plans section', () => {
       expect(waiting.textContent).toContain('Eksekutif');
     });
 
-    it('a named route names the exact approvers, never the static role list', async () => {
-      h.route = named(['Sari Senior', 'Budi Finance']);
+    it('a named route names the exact approvers and their returned roles, never the static role list', async () => {
+      h.route = named([['Sari Senior', 'Executive'], ['Budi Finance', 'Finance']]);
       h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
       renderIt();
       const waiting = screen.getByTestId('plan-waiting-for');
-      expect(waiting).toHaveTextContent('Waiting for Sari Senior or Budi Finance');
+      expect(waiting).toHaveTextContent('Waiting for Sari Senior (Executive) or Budi Finance (Finance)');
       expect(waiting.textContent).not.toContain('Project Manager');
+    });
+
+    it('a named route reports the true Admin break-glass alternative', async () => {
+      h.route = named([['Sari Senior', 'Executive']], true);
+      h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
+      renderIt();
+      expect(screen.getByTestId('plan-waiting-for')).toHaveTextContent('Waiting for Sari Senior (Executive) or Admin');
+    });
+
+    it('two people with one name but different roles stay distinguishable', async () => {
+      h.route = named([['Alex', 'Finance'], ['Alex', 'Executive']]);
+      h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
+      renderIt();
+      expect(screen.getByTestId('plan-waiting-for')).toHaveTextContent('Waiting for Alex (Finance) or Alex (Executive)');
     });
 
     it('a named route is localised in Bahasa Indonesia', async () => {
       await i18next.changeLanguage('id');
-      h.route = named(['Sari Senior']);
+      h.route = named([['Sari Senior', 'Executive']]);
       h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
       renderIt();
-      expect(screen.getByTestId('plan-waiting-for')).toHaveTextContent('Menunggu Sari Senior');
+      expect(screen.getByTestId('plan-waiting-for')).toHaveTextContent('Menunggu Sari Senior (Eksekutif)');
     });
 
     it('an admin fallback says Admin, never a fabricated person', async () => {

@@ -9,11 +9,14 @@ import enWaitingList from '../public/locales/en/waitingList.json';
 import idWaitingList from '../public/locales/id/waitingList.json';
 import enImprest from '../public/locales/en/imprest.json';
 import idImprest from '../public/locales/id/imprest.json';
+import idCommon from '../public/locales/id/common.json';
 
 i18next.addResourceBundle('en', 'waitingList', enWaitingList, true, true);
 i18next.addResourceBundle('id', 'waitingList', idWaitingList, true, true);
 i18next.addResourceBundle('en', 'imprest', enImprest, true, true);
 i18next.addResourceBundle('id', 'imprest', idImprest, true, true);
+// The role half of "name (role)" comes from the existing role-label seam (common:admin.roles).
+i18next.addResourceBundle('id', 'common', { admin: { roles: idCommon.admin.roles } }, true, true);
 
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
 const mut = () => ({ mutateAsync: vi.fn().mockResolvedValue('x'), isPending: false });
@@ -481,6 +484,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
   });
 
   describe('fix-waiting item 3: replenishment and limit change who-next notes', () => {
+    beforeEach(() => { h.changes = null; });
     afterEach(async () => {
       cleanup();
       await i18next.changeLanguage('en');
@@ -503,16 +507,23 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
 
     it('an Approved-unpaid replenishment waits for a named payer, not for approval', async () => {
       await i18next.changeLanguage('en');
-      h.route = ok({ route_kind: 'finance_admin', approvers: [{ id: 'u-admin', name: 'Sari Admin', role: 'Admin' }], action: 'pay' });
+      h.route = ok({ route_kind: 'finance_admin', approvers: [{ id: 'u-admin', name: 'Sari Admin', role: 'Admin' }], action: 'pay', admin_breakglass: false });
       h.reps = ok({ rows: [{ ...REP, status: 'Approved', approved_by: 'u-fin' }], truncated: false });
       renderPage();
       expect(screen.queryByTestId('rep-waiting-for')).toBeNull();
-      expect(screen.getByTestId('rep-payer-waiting-for')).toHaveTextContent('Waiting for Sari Admin to pay');
+      expect(screen.getByTestId('rep-payer-waiting-for')).toHaveTextContent('Waiting for Sari Admin (Admin) to pay');
 
       cleanup();
       await i18next.changeLanguage('id');
       renderPage();
-      expect(screen.getByTestId('rep-payer-waiting-for')).toHaveTextContent('Menunggu Sari Admin membayar');
+      expect(screen.getByTestId('rep-payer-waiting-for')).toHaveTextContent('Menunggu Sari Admin (Admin) membayar');
+    });
+
+    it('an old approval answer cannot render in the Approved pay slot', async () => {
+      h.route = ok({ route_kind: 'finance_admin', approvers: [], action: 'approve', admin_breakglass: false });
+      h.reps = ok({ rows: [{ ...REP, status: 'Approved', approved_by: 'u-fin' }], truncated: false });
+      renderPage();
+      expect(screen.queryByTestId('rep-payer-waiting-for')).toBeNull();
     });
 
     it('Paid and Rejected show neither an approval nor a payer line', async () => {
@@ -536,20 +547,20 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
       expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
     });
 
-    it('names the exact senior approver for a proposed limit change, in English and Bahasa Indonesia', async () => {
+    it('names the exact senior approver and role for a proposed limit change, in English and Bahasa Indonesia', async () => {
       await i18next.changeLanguage('en');
-      h.route = ok({ route_kind: 'named', approvers: [{ id: 'u-snr', name: 'Sari Senior', role: 'Executive' }], action: 'approve' });
+      h.route = ok({ route_kind: 'named', approvers: [{ id: 'u-snr', name: 'Sari Senior', role: 'Executive' }], action: 'approve', admin_breakglass: false });
       h.changes = ok({ rows: [{ id: 'ch1', status: 'Proposed', proposed_amount: 8000000 }], truncated: false });
       renderPage();
       const limitWaiting = screen.getByTestId('limit-waiting-for');
       expect(limitWaiting).toHaveTextContent('8,000,000');
-      expect(limitWaiting).toHaveTextContent('Waiting for Sari Senior');
+      expect(limitWaiting).toHaveTextContent('Waiting for Sari Senior (Executive)');
       expect(limitWaiting.textContent).not.toContain('senior approver');
 
       cleanup();
       await i18next.changeLanguage('id');
       renderPage();
-      expect(screen.getByTestId('limit-waiting-for')).toHaveTextContent('Menunggu Sari Senior');
+      expect(screen.getByTestId('limit-waiting-for')).toHaveTextContent('Menunggu Sari Senior (Eksekutif)');
     });
 
     it('an admin-only limit change says Admin, never "senior approver"', async () => {

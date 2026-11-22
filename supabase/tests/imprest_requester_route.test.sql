@@ -1,9 +1,9 @@
--- 1568_imprest_requester_route.test.sql — #1568 cash review closure: the requester who-next read mirrors the
+-- 1568_imprest_requester_route.test.sql — #1568 cash review closure: the requester next-decision read mirrors the
 -- decision each site-cash record uses. FR-WAIT-006 (names from the route the database computed).
 -- Shipped code under test: supabase/migrations/1568_imprest_requester_route.sql.
 begin;
 create extension if not exists pgtap;
-select plan(33);
+select plan(47);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15680000-0000-0000-0000-00000000000a', 'RT Org',       'IDR', 'Asia/Jakarta'),
@@ -18,6 +18,9 @@ insert into auth.users (id, email) values
   ('15680000-0000-0000-0000-0000000000a7', 'rt-fin-off@example.com'),
   ('15680000-0000-0000-0000-0000000000a8', 'rt-pmproj@example.com'),
   ('15680000-0000-0000-0000-0000000000b1', 'rt-xorg@example.com');
+-- a9 is an active profile whose auth user is raw-banned: is_active_member(a9) must be false (S7).
+insert into auth.users (id, email, banned_until) values
+  ('15680000-0000-0000-0000-0000000000a9', 'rt-banned@example.com', now() + interval '1 day');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('15680000-0000-0000-0000-0000000000a1', '15680000-0000-0000-0000-00000000000a', 'RT Admin',      'rt-admin@example.com',    'Admin',           'active'),
   ('15680000-0000-0000-0000-0000000000a2', '15680000-0000-0000-0000-00000000000a', 'RT Cust',       'rt-cust@example.com',     'Finance',         'active'),
@@ -27,6 +30,7 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('15680000-0000-0000-0000-0000000000a6', '15680000-0000-0000-0000-00000000000a', 'RT Eng',        'rt-eng@example.com',      'Engineer',        'active'),
   ('15680000-0000-0000-0000-0000000000a7', '15680000-0000-0000-0000-00000000000a', 'RT Fin Off',    'rt-fin-off@example.com',  'Finance',         'disabled'),
   ('15680000-0000-0000-0000-0000000000a8', '15680000-0000-0000-0000-00000000000a', 'RT PM Project', 'rt-pmproj@example.com',   'Project Manager', 'active'),
+  ('15680000-0000-0000-0000-0000000000a9', '15680000-0000-0000-0000-00000000000a', 'RT Banned',     'rt-banned@example.com',   'Executive',       'active'),
   ('15680000-0000-0000-0000-0000000000b1', '15680000-0000-0000-0000-00000000000b', 'RT XOrg',       'rt-xorg@example.com',     'Admin',           'active');
 insert into projects (id, org_id, name, status, project_manager_id) values
   ('15680000-0000-0000-0000-0000000000c1', '15680000-0000-0000-0000-00000000000a', 'RT Site One',  'Ongoing Project', '15680000-0000-0000-0000-0000000000a4'),
@@ -68,7 +72,9 @@ insert into imprest_floats (id, org_id, project_id, custodian_id, float_amount, 
   ('15680000-0000-0000-0000-0000000000d1', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c1', '15680000-0000-0000-0000-0000000000a2', 500000000, 'IDR', '15680000-0000-0000-0000-0000000000a1'),
   ('15680000-0000-0000-0000-0000000000d2', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c2', '15680000-0000-0000-0000-0000000000a2', 100000000, 'IDR', '15680000-0000-0000-0000-0000000000a1'),
   ('15680000-0000-0000-0000-0000000000d4', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c4', '15680000-0000-0000-0000-0000000000a2', 500000000, 'IDR', '15680000-0000-0000-0000-0000000000a1'),
-  ('15680000-0000-0000-0000-0000000000d5', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c5', '15680000-0000-0000-0000-0000000000a2', 500000000, 'IDR', '15680000-0000-0000-0000-0000000000a1');
+  ('15680000-0000-0000-0000-0000000000d5', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c5', '15680000-0000-0000-0000-0000000000a2', 500000000, 'IDR', '15680000-0000-0000-0000-0000000000a1'),
+  -- F6: custodian is the organisation's only Admin (S2 custodian-only-Admin regression).
+  ('15680000-0000-0000-0000-0000000000d6', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000c5', '15680000-0000-0000-0000-0000000000a1', 500000000, 'IDR', '15680000-0000-0000-0000-0000000000a1');
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -87,7 +93,11 @@ insert into imprest_plans (id, org_id, float_id, month, status, author_id, submi
   ('15680000-0000-0000-0000-000000000155', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d4', '2027-01-01', 'Submitted', '15680000-0000-0000-0000-0000000000a4', now()),
   ('15680000-0000-0000-0000-000000000156', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d4', '2027-02-01', 'Submitted', '15680000-0000-0000-0000-0000000000a4', now()),
   ('15680000-0000-0000-0000-000000000157', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d4', '2027-03-01', 'Submitted', '15680000-0000-0000-0000-0000000000a4', now()),
-  ('15680000-0000-0000-0000-000000000158', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d1', '2027-04-01', 'Draft',     '15680000-0000-0000-0000-0000000000a4', null);
+  ('15680000-0000-0000-0000-000000000158', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d1', '2027-04-01', 'Draft',     '15680000-0000-0000-0000-0000000000a4', null),
+  -- p9: custodian-only Admin; p10: author-only Admin; p11: named route whose only Admin is the author.
+  ('15680000-0000-0000-0000-000000000191', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d6', '2027-01-01', 'Submitted', '15680000-0000-0000-0000-0000000000a8', now()),
+  ('15680000-0000-0000-0000-000000000192', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d5', '2027-05-01', 'Submitted', '15680000-0000-0000-0000-0000000000a1', now()),
+  ('15680000-0000-0000-0000-000000000193', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d5', '2027-06-01', 'Submitted', '15680000-0000-0000-0000-0000000000a1', now());
 insert into imprest_plan_lines (plan_id, budget_category, planned_amount) values
   ('15680000-0000-0000-0000-000000000151', 'Vehicle', 1000000),
   ('15680000-0000-0000-0000-000000000152', 'Vehicle', 150000000),
@@ -97,12 +107,17 @@ insert into imprest_plan_lines (plan_id, budget_category, planned_amount) values
   ('15680000-0000-0000-0000-000000000156', 'Vehicle', 1000000),
   ('15680000-0000-0000-0000-000000000157', 'Vehicle', 6000000),
   ('15680000-0000-0000-0000-000000000157', 'Materials', 1000000),
-  ('15680000-0000-0000-0000-000000000158', 'Vehicle', 1000000);
+  ('15680000-0000-0000-0000-000000000158', 'Vehicle', 1000000),
+  ('15680000-0000-0000-0000-000000000191', 'Vehicle', 1000000),
+  ('15680000-0000-0000-0000-000000000192', 'Vehicle', 1000000),
+  ('15680000-0000-0000-0000-000000000193', 'Vehicle', 1000000);
 
 -- Float limit changes (one open per float).
 insert into imprest_float_changes (id, org_id, float_id, proposed_amount, status, proposed_by) values
   ('15680000-0000-0000-0000-000000000161', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d1', 200000000, 'Proposed', '15680000-0000-0000-0000-0000000000a3'),
-  ('15680000-0000-0000-0000-000000000162', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d2', 200000000, 'Proposed', '15680000-0000-0000-0000-0000000000a3');
+  ('15680000-0000-0000-0000-000000000162', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d2', 200000000, 'Proposed', '15680000-0000-0000-0000-0000000000a3'),
+  -- ch3: proposer is the organisation's only Admin (S2 proposer-only-Admin regression).
+  ('15680000-0000-0000-0000-000000000163', '15680000-0000-0000-0000-00000000000a', '15680000-0000-0000-0000-0000000000d5', 200000000, 'Proposed', '15680000-0000-0000-0000-0000000000a1');
 
 -- Replenishments: Requested (approval) and Approved (payment).
 insert into imprest_replenishments (id, org_id, float_id, kind, number, status, amount, requested_by, approved_by) values
@@ -118,30 +133,44 @@ select is(pg_temp.names(public.get_imprest_requester_route('plan', '15680000-000
   array['RT PM Project'], 'FR-WAIT-006 the plan author and the custodian are excluded even when they are on the route');
 select is(json_array_length(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000151')->'approvers'), 1,
   'FR-WAIT-006 exactly the one eligible approver is named');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000151')->>'admin_breakglass', 'true',
+  'FR-WAIT-006 a named route reports the true Admin break-glass alternative when a distinct eligible Admin exists');
 
 select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000152')->>'route_kind', 'named',
-  'FR-WAIT-006 an over-budget plan still names the route');
+  'FR-WAIT-006 an over-budget plan still names the decision route');
 select is(pg_temp.names(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000152')),
-  array['RT Exec', 'RT PM Project'], 'FR-WAIT-006 an over-budget line joins the project and senior sets (never the roles only)');
+  array['RT Exec'], 'FR-WAIT-006 an over-budget line with a configured senior set is the senior set only (1292:163-181), never the notification union');
 
 select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000153')->>'route_kind', 'flat',
   'FR-WAIT-006 a project with no named approver is the flat matrix');
 select is(json_array_length(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000153')->'approvers'), 0,
   'FR-WAIT-006 a flat route names nobody rather than inventing a person');
 
--- Admin fallback: the senior set has a row but nobody eligible (the only senior is inactive).
+-- Admin fallback positive: the senior set has a row but nobody eligible (the only senior is inactive), and a1 is a
+-- distinct eligible Admin.
 reset role;
 update profiles set status = 'disabled' where id = '15680000-0000-0000-0000-0000000000a5';
 set local role authenticated;
 select pg_temp.act_as('15680000-0000-0000-0000-0000000000a1');
 select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000154')->>'route_kind', 'admin',
-  'FR-WAIT-006 a configured set with nobody eligible leaves the Admin break-glass, never a fabricated approver');
+  'FR-WAIT-006 a configured set with nobody eligible leaves the Admin break-glass when a distinct Admin exists');
 select is(json_array_length(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000154')->'approvers'), 0,
   'FR-WAIT-006 the Admin fallback names nobody');
 reset role;
 update profiles set status = 'active' where id = '15680000-0000-0000-0000-0000000000a5';
 
+-- Named route whose only Admin is the plan author: no fabricated Admin alternative.
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000a3');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000193')->>'route_kind', 'named',
+  'FR-WAIT-006 a named route names its project approver');
+select is(pg_temp.names(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000193')),
+  array['RT PM Project'], 'FR-WAIT-006 the named route stays the named set');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000193')->>'admin_breakglass', 'false',
+  'FR-WAIT-006 no Admin alternative is invented when the only Admin is the plan author');
+
 -- Amount tiers (1291): a 6,000,000 line takes the 5,000,000 tier; a 1,000,000 line the base tier.
+reset role;
 insert into spend_approval_settings (org_id, tiers_enabled) values ('15680000-0000-0000-0000-00000000000a', true);
 set local role authenticated;
 select pg_temp.act_as('15680000-0000-0000-0000-0000000000a1');
@@ -164,7 +193,9 @@ select is(public.get_imprest_requester_route('limit_change', '15680000-0000-0000
   'FR-WAIT-006 a proposed limit change routes to the named senior set');
 select is(pg_temp.names(public.get_imprest_requester_route('limit_change', '15680000-0000-0000-0000-000000000161')),
   array['RT Exec'], 'FR-WAIT-006 the limit route excludes the proposer and the custodian');
--- The only senior is the proposer: Admin fallback.
+select is(public.get_imprest_requester_route('limit_change', '15680000-0000-0000-0000-000000000161')->>'admin_breakglass', 'true',
+  'FR-WAIT-006 the limit named route reports the eligible Admin alternative');
+-- The only senior is the proposer: Admin fallback (a distinct eligible Admin exists).
 reset role;
 delete from spend_approvers where org_id = '15680000-0000-0000-0000-00000000000a' and project_id is null;
 insert into spend_approvers (org_id, project_id, profile_id) values
@@ -172,7 +203,9 @@ insert into spend_approvers (org_id, project_id, profile_id) values
 set local role authenticated;
 select pg_temp.act_as('15680000-0000-0000-0000-0000000000a3');
 select is(public.get_imprest_requester_route('limit_change', '15680000-0000-0000-0000-000000000162')->>'route_kind', 'admin',
-  'FR-WAIT-006 a senior set with nobody but the proposer is the Admin fallback, never "senior approver"');
+  'FR-WAIT-006 a senior set with nobody but the proposer falls to an existing eligible Admin');
+select is(json_array_length(public.get_imprest_requester_route('limit_change', '15680000-0000-0000-0000-000000000162')->'approvers'), 0,
+  'FR-WAIT-006 the limit Admin fallback names nobody');
 
 -- ── replenishment: approval vs payment are different actors ────────────────────────────────────────────────────
 select is(public.get_imprest_requester_route('replenishment', '15680000-0000-0000-0000-000000000171')->>'route_kind', 'finance_admin',
@@ -193,19 +226,23 @@ select is(public.get_imprest_requester_route('replenishment', '15680000-0000-000
 reset role;
 update profiles set status = 'active' where id = '15680000-0000-0000-0000-0000000000a1';
 
--- ── caller scope and visibility ────────────────────────────────────────────────────────────────────────────────
+-- ── caller scope and visibility (Q1: the rank gate must bind on every kind, not only plan) ─────────────────────
 set local role authenticated;
 select pg_temp.act_as('15680000-0000-0000-0000-0000000000a4');   -- the plan author: may read, never named
 select is(pg_temp.names(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000151')),
   array['RT PM Project'], 'FR-WAIT-006 the author reading their own plan is not named as its approver');
 select is(array(select k from json_object_keys(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000151')) k order by k),
-  array['action', 'approvers', 'route_kind'], 'FR-WAIT-006 no amount, category or per-line routing detail leaves the read');
+  array['action', 'admin_breakglass', 'approvers', 'route_kind'], 'FR-WAIT-006 no amount, category or per-line routing detail leaves the read');
 select pg_temp.act_as('15680000-0000-0000-0000-0000000000a2');   -- the custodian
 select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000151')->>'route_kind', 'named',
   'FR-WAIT-006 the custodian may read the plan route');
 select pg_temp.act_as('15680000-0000-0000-0000-0000000000a6');   -- same-org Engineer, below approval rank
 select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000151')->>'route_kind', 'unavailable',
-  'FR-WAIT-006 a same-org non-reader learns nothing (no existence or routing oracle)');
+  'FR-WAIT-006 a same-org non-reader learns nothing from the plan route (no existence or routing oracle)');
+select is(public.get_imprest_requester_route('limit_change', '15680000-0000-0000-0000-000000000161')->>'route_kind', 'unavailable',
+  'FR-WAIT-006 the same rank gate answers limit_change before its (unguarded) branch');
+select is(public.get_imprest_requester_route('replenishment', '15680000-0000-0000-0000-000000000171')->>'route_kind', 'unavailable',
+  'FR-WAIT-006 the same rank gate answers replenishment before its (unguarded) branch');
 select pg_temp.act_as('15680000-0000-0000-0000-0000000000b1');   -- other-org Admin
 select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000151')->>'route_kind', 'unavailable',
   'FR-WAIT-006 a foreign-org caller gets the same empty answer as a missing record');
@@ -219,6 +256,59 @@ select throws_ok($$ select public.get_imprest_requester_route('plan', '15680000-
 select pg_temp.act_as('15680000-0000-0000-0000-0000000000a1');
 select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000158')->>'route_kind', 'unavailable',
   'FR-WAIT-006 a Draft plan is not waiting for anyone');
+
+-- ── S2: the Admin fallback must prove a distinct eligible Admin (SoD-aware) ──────────────────────────────────
+-- No senior set here: the route must be the admin fallback for the check to be exercised.
+reset role;
+delete from spend_approvers where org_id = '15680000-0000-0000-0000-00000000000a' and project_id is null;
+-- (a) only Admin is the custodian (p9: F6's custodian).
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000a3');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000191')->>'route_kind', 'unavailable',
+  'FR-WAIT-006 no Admin is promised when the only Admin is the plan custodian');
+-- (b) only Admin is the author (p10): its sole project approver inactive so the route is admin.
+reset role;
+update profiles set status = 'disabled' where id = '15680000-0000-0000-0000-0000000000a8';
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000a3');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000192')->>'route_kind', 'unavailable',
+  'FR-WAIT-006 no Admin is promised when the only Admin is the plan author');
+-- (c) only Admin is the proposer (ch3).
+reset role;
+update profiles set status = 'active' where id = '15680000-0000-0000-0000-0000000000a8';
+insert into spend_approvers (org_id, project_id, profile_id) values
+  ('15680000-0000-0000-0000-00000000000a', null, '15680000-0000-0000-0000-0000000000a1');
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000a3');
+select is(public.get_imprest_requester_route('limit_change', '15680000-0000-0000-0000-000000000163')->>'route_kind', 'unavailable',
+  'FR-WAIT-006 no Admin is promised when the only Admin is the limit proposer');
+
+-- ── S7: an active profile whose auth user is raw-banned is not named and cannot back the Admin fallback ────────
+reset role;
+delete from spend_approvers where org_id = '15680000-0000-0000-0000-00000000000a' and project_id is null;
+insert into spend_approvers (org_id, project_id, profile_id) values
+  ('15680000-0000-0000-0000-00000000000a', null, '15680000-0000-0000-0000-0000000000a5'),
+  ('15680000-0000-0000-0000-00000000000a', null, '15680000-0000-0000-0000-0000000000a9'),
+  ('15680000-0000-0000-0000-00000000000a', null, '15680000-0000-0000-0000-0000000000a2');
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000a3');
+select is(pg_temp.names(public.get_imprest_requester_route('limit_change', '15680000-0000-0000-0000-000000000161')),
+  array['RT Exec'], 'FR-WAIT-006 a raw-banned senior is not named while an unbanned one still is');
+-- The only Admin is raw-banned: the fallback must not promise them.
+reset role;
+delete from spend_approvers where org_id = '15680000-0000-0000-0000-00000000000a' and project_id is null;
+update profiles set status = 'disabled' where id = '15680000-0000-0000-0000-0000000000a9';
+update auth.users set banned_until = now() + interval '1 day' where id = '15680000-0000-0000-0000-0000000000a1';
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000a3');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000154')->>'route_kind', 'unavailable',
+  'FR-WAIT-006 no Admin is promised when the only Admin is raw-banned');
+reset role;
+update auth.users set banned_until = null where id = '15680000-0000-0000-0000-0000000000a1';
+set local role authenticated;
+select pg_temp.act_as('15680000-0000-0000-0000-0000000000a3');
+select is(public.get_imprest_requester_route('plan', '15680000-0000-0000-0000-000000000154')->>'route_kind', 'admin',
+  'FR-WAIT-006 the same Admin backs the fallback once unbanned');
 
 -- Light account: refused with the 1209 convention.
 reset role;
