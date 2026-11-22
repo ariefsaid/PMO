@@ -60,14 +60,14 @@ Plus, on the screen (not in the file): the go-live date (as of), and an optional
 - FR-OSH-007 Confirm shall keep the existing opening rules: one live opening per location, only before the location's first real movement, one go-live date per organisation, the `stock` feature on.
 - FR-OSH-008 After confirm, for every item and location the `stock_balances` row shall equal the sum of its ledger rows (quantity and value), and the last row's running balance shall equal that sum.
 - FR-OSH-009 An opening history shall be reversible with the existing reverse, under its existing conditions (nothing real has moved since); the reversal nets every item to zero. Load and reverse are audited (`opening_balance.load`, `opening_balance.reverse`).
-- FR-OSH-010 The file shall have 1 to 5000 rows. A larger load is split by location.
+- FR-OSH-010 The file shall have 1 to 5000 rows. 5000 is a technical limit of one posting transaction, not a business rule; a larger load is split by location.
 - FR-OSH-011 Every refusal shall be a coded sentence in English and Bahasa Indonesia that says what to do next, in `refusals.ts` locale files.
 - FR-OSH-012 The balance-only `load_stock_opening` shall post through the same shared routine as the history load (one posting path), with unchanged behaviour.
 - FR-OSH-013 Imported lines shall expose no unit cost to non-cost roles (line cost columns stay ungranted, 0413 rule).
 
 ## Screen (restructure; tokens only; shared primitives)
 
-Stock set-up > "Opening stock" section, visible to Admin only (others see nothing; a link in the empty state says "An Admin loads the opening stock").
+Route `/stock/opening`, linked from Stock set-up ("Opening stock", Admin only). Also reachable from the Admin command line (`pmo rpc`, migration 1902). Visible to Admin only (others see nothing; a link in the empty state says "An Admin loads the opening stock").
 Steps on one page: (1) go-live date, (2) template card showing the seven columns with example row and a "Download template" button, (3) upload, (4) preview table
 (row verdicts with plain-sentence refusals, then closing balance per item and location, with "cost" hidden for client-supplied items showing "client-supplied"), (5) Confirm, disabled with the reason beside it
 ("Fix the N refused rows first") until the preview is clean. Empty state: "No opening stock loaded yet. An Admin loads it here." EN and ID. Checked at 390 px and 1440 px.
@@ -94,9 +94,15 @@ Steps on one page: (1) go-live date, (2) template card showing the seven columns
 
 ## Refusal codes (family OPN)
 
-`OPN_NOT_ADMIN`, `OPN_ROW_INVALID`, `OPN_UNKNOWN_ITEM`, `OPN_UNKNOWN_LOCATION`, `OPN_COST_NEEDED`, `OPN_OVER_ISSUE`, `OPN_DATE_AFTER_GO_LIVE`, `OPN_LOCATION_MOVED`, `OPN_ALREADY_LOADED`, `OPN_TOO_MANY_ROWS`.
-Zero-cost breach reuses `STK_ZERO_COST`. Sentences (EN / ID) are authored in the build, each ending with the next step.
+`OPN_NOT_ADMIN` (both entry points), `OPN_ROW_INVALID`, `OPN_UNKNOWN_ITEM`, `OPN_UNKNOWN_LOCATION`, `OPN_COST_NEEDED`, `OPN_OVER_ISSUE`, `OPN_DATE_AFTER_GO_LIVE`, `OPN_LOCATION_MOVED`, `OPN_ALREADY_LOADED`, `OPN_TOO_MANY_ROWS`.
+Zero-cost breach reuses `STK_ZERO_COST`. Each row refusal reads `CODE: row n` (n counts data rows, header excluded) and has a plain sentence and a `_figures` sentence naming the row. Sentences (EN / ID) are authored in the build, each ending with the next step.
 
 ## Open questions for the customer
 
-See the build report; they are recorded with recommended answers in `docs/plans/2026-11-22-opening-stock-history.md` section 6.
+Answered (Director, 2026-11-22): no destination on history outs; 5000-row cap as a technical limit; any date up to go-live; unit cost required on cost-item ins; no count check in the file; reverse-then-reload, refused with the next step. The Admin command-line tier carries both new RPCs (migration 1902).
+
+## Built (files)
+
+Migrations 1900 (columns), 1901 (validator, shared posting routine, preview and confirm RPCs, restated load and reverse), 1902 (command-line tier), each with a rollback.
+Proof: `supabase/tests/1900_opening_stock_history.test.sql` (mutation cases in its header; `scripts/opening-stock-history-mutation-proof.mjs`).
+App: `src/lib/import/stockMovementHistoryDescriptor.ts`, `src/lib/db/stockOpening.ts`, `src/lib/repositories/stockOpening.ts`, `pages/stock/StockOpeningHistory.tsx`, e2e `e2e/serial/AC-OSH-014-opening-stock-history.spec.ts`.

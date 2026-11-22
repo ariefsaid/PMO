@@ -1360,3 +1360,7 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
 
 **Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
+
+**Opening stock history** (*riwayat stok awal*) — the dated in-and-out movements of an item at a location up to the go-live date, loaded once from one template and posted through the stock ledger's own writer, so the balance at go-live equals the sum of the movements. A client-supplied item stays at zero cost throughout. An Admin previews the file, then confirms; nothing posts before the confirm.
+
+**Go-live date** (*tanggal mulai pakai*) — the one date every live opening of an organisation carries; no opening movement is dated after it.

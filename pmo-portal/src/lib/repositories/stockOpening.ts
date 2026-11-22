@@ -5,7 +5,12 @@ import { wrap } from './repositoryErrors';
 
 export type { OpeningPreviewRow } from '@/src/lib/db/stockOpening';
 
-export const stockOpeningRepository = {
+export interface StockOpeningRepository {
+  preview(asOf: string, rows: readonly StockMovementRow[]): Promise<db.OpeningPreviewRow[]>;
+  load(asOf: string, rows: readonly StockMovementRow[], requestId: string, note?: string): Promise<string[]>;
+}
+
+export const stockOpeningRepository: StockOpeningRepository = {
   preview: (asOf: string, rows: readonly StockMovementRow[]) => wrap(() => db.previewOpeningHistory(asOf, rows)),
   load: (asOf: string, rows: readonly StockMovementRow[], requestId: string, note?: string) => wrap(() => db.loadOpeningHistory(asOf, rows, requestId, note)),
 };

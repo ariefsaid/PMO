@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, DataTable, DateField, ListPage, ListState, useToast, type Column } from '@/src/components/ui';
+import { FileInput } from '@/src/components/ui/FormFields';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -101,7 +102,7 @@ const StockOpeningHistory: React.FC = () => {
       setFile({ id, name: f.name, rows, clientErrors, problem: null });
     } catch (err) {
       const tooMany = err instanceof ImportParseError && err.code === 'too_many_rows';
-      setFile({ id, name: f.name, rows: [], clientErrors: [], problem: tooMany ? t('stock:opening.errors.tooMany', { max: STOCK_MOVEMENT_MAX_ROWS.toLocaleString(loc) }) : t('stock:opening.errors.file') });
+      setFile({ id, name: f.name, rows: [], clientErrors: [], problem: tooMany ? t('stock:opening.errors.tooMany', { max: formatQuantity(String(STOCK_MOVEMENT_MAX_ROWS), loc) }) : t('stock:opening.errors.file') });
     }
   };
 
@@ -114,7 +115,7 @@ const StockOpeningHistory: React.FC = () => {
     }).then((buf) => triggerBlobDownload(new Blob([buf], { type: XLSX_MIME }), exportFilename('opening-stock-template')));
   };
 
-  const rows = preview.data ?? [];
+  const rows = useMemo(() => preview.data ?? [], [preview.data]);
   const refused = rows.filter((r) => r.verdict === 'refused').length;
   const closing = useMemo(() => closingBalances(rows), [rows]);
   const previewing = ready && preview.isPending;
@@ -198,8 +199,8 @@ const StockOpeningHistory: React.FC = () => {
                 <span className="touch-target inline-flex min-h-9 cursor-pointer items-center rounded-md border border-border px-3 text-sm font-medium text-foreground focus-within:outline focus-within:outline-2 focus-within:outline-ring">
                   {file ? t('stock:opening.file.change') : t('stock:opening.file.choose')}
                 </span>
-                <input
-                  type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" data-testid="opening-file"
+                <FileInput
+                  accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" data-testid="opening-file"
                   aria-label={t('stock:opening.file.choose')}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) void selectFile(f); e.target.value = ''; }}
                 />

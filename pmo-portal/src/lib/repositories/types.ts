@@ -1,3 +1,4 @@
+import type { StockOpeningRepository } from './stockOpening';
 import type { TaskProofRepository } from './taskProofs';
 import type { ThirdPartyInspectionRepository } from './contracts/thirdPartyInspections';
 /**
@@ -166,6 +167,7 @@ export interface Repositories {
   closeoutChecklist: CloseoutChecklistRepository;
   workInHand: WorkInHandRepository;
   stock: StockRepository;
+  stockOpening: StockOpeningRepository;
   workOrderAcceptance: WorkOrderAcceptanceRepository;
   procurementFiles: ProcurementFileRepository;
   expenseClaim: ExpenseClaimRepository;
@@ -225,6 +227,7 @@ export type { RevenueRepository } from './contracts/revenue';
 export type { TimesheetRepository } from './contracts/timesheets';
 export type { BudgetRepository } from './contracts/budget';
 export type { StockMasterRepository, StockRepository } from './contracts/stock';
+export type { StockOpeningRepository } from './stockOpening';
 export type { IncidentRepository } from './contracts/incidents';
 export type { ThirdPartyInspectionRepository } from './contracts/thirdPartyInspections';
 export type { IssueClosingReportRepository } from './contracts/issueClosingReport';
