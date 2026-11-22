@@ -13,13 +13,13 @@ import type { Json } from '@/src/lib/supabase/database.types';
 export type SecondRecordStatus = 'present' | 'absent';
 export type Standing = 'day' | 'second';
 
-export interface SecondRecordInput {
+export type SecondRecordInput = {
   worker_id: string;
   status: SecondRecordStatus;
   hours?: number | null;
   overtime_hours?: number | null;
   note?: string | null;
-}
+};
 
 export interface DayFigure { status: string; hours: number | null; overtimeHours: number | null }
 export interface DayFigureWithSource extends DayFigure { source: string }
@@ -48,6 +48,8 @@ const isObject = (v: Json | undefined): v is { [key: string]: Json | undefined }
 const num = (v: Json | undefined): number | null => (typeof v === 'number' ? v : typeof v === 'string' && v !== '' ? Number(v) : null);
 const str = (v: Json | undefined): string | null => (typeof v === 'string' ? v : null);
 
+const standingOf = (v: Json | undefined): Standing | null => (v === 'day' ? 'day' : v === 'second' ? 'second' : null);
+
 function figure(v: Json | undefined): DayFigure {
   const o = isObject(v) ? v : {};
   return { status: str(o.status) ?? 'absent', hours: num(o.hours), overtimeHours: num(o.overtime_hours) };
@@ -60,7 +62,7 @@ function parseWorker(v: Json | undefined): ReportDayWorker | null {
     ? {
         ...figure(v.second),
         note: str(v.second.note),
-        standing: v.second.standing === 'day' || v.second.standing === 'second' ? v.second.standing : null,
+        standing: standingOf(v.second.standing),
         decidedAt: str(v.second.decided_at),
         decisionReason: str(v.second.decision_reason),
       }

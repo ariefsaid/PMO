@@ -45,7 +45,8 @@ other stays on file as evidence. Clock-in stays attendance evidence beside it.
 - `attendance_decider_roles text[]` default `{}`: built-in role keys that decide a disagreement. Empty means today's approvers (Admin,
   Executive, Project Manager). Never overrides the separation rule.
 - Tolerance reuses `attendance_conflict_tolerance_hours` (default 1).
-- No "default winning source" setting: a disagreement is always decided by a person (see question 2).
+- Default standing figure (owner, approved): until a disagreement is decided, the attendance day keeps the site-report (foreman tick) figure as the standing hours. That is the default "site report" source, with no extra setting and no automatic winner beyond it; a decision by a person is the only way the second record's figure takes its place.
+- Verified at head: the role key `quantity_surveyor` exists in the built-in role set (`built_in_roles`, 1200), so it stays the default for `attendance_second_record_roles`.
 
 ## Requirements (EARS)
 - FR-PAY-001 When a permitted person records a second record (present with hours and optional overtime, or absent) for a rostered worker, work
@@ -64,6 +65,8 @@ other stays on file as evidence. Clock-in stays attendance evidence beside it.
 - FR-PAY-007 The site report screen shall list each worker's hours for the report's work order and day with the source of the standing
   figure, show the other record beside it, and flag a day awaiting a decision, to people who may record or decide; everyone else keeps the total.
 - FR-PAY-008 Each refusal shall have an English and a Bahasa Indonesia sentence in the refusals catalogue saying what to do next.
+- FR-PAY-010 Administration, People shows a Time records card where an Admin chooses the two role lists from the built-in roles (shown by the organisation's own role names); the write is an Admin-only database function, and everyone else sees the card read-only with the reason.
+- FR-PAY-011 A decided day whose figure someone later changes becomes undecided again (the decision is withdrawn), so a later correction cannot silently replace a decision.
 - FR-PAY-009 The day's decision and each second record shall be audited (`log_audit`).
 
 ## Acceptance criteria (Given / When / Then; owner layer)
@@ -84,6 +87,7 @@ other stays on file as evidence. Clock-in stays attendance evidence beside it.
 - AC-PAY-008 Given 8 h versus 7.5 h, then no decision is needed and the day's 8 h stands with the 7.5 h kept. (pgTAP)
 - AC-PAY-009 Site report screen: a manager sees per-worker rows, the disagreement flag and Decide; a role with no right sees only the total; a
   disabled Decide says why; empty state says who adds records. English and Bahasa Indonesia, 390 and 1440 px. (Vitest component)
+- AC-PAY-011 Administration card: an Admin ticks roles and saves (the two lists reach the Admin write); a non-Admin sees it read-only with the reason; the organisation's role names are shown. (Vitest component; the Admin-only write is pgTAP AC-PAY-007)
 - AC-PAY-010 Journey: foreman tick 8 h, surveyor second record 5 h, manager decides "second", week approved, cost shows 5 h. (one Playwright)
 
 ## Mutation plan (break the rule, the named test must go red)
@@ -96,4 +100,4 @@ read `needs_review` only: AC-PAY-003 red. 4. Make the decision write the second 
 2. The job story asked for a default winning source (site report). The steering says nobody is paid without a person choosing. Recommend no
    automatic winner; a person decides each disagreement. (If wanted later: a setting, default "none".)
 3. Which role decides? Recommend empty (today's approvers) until the customer names one.
-4. Is there an admin screen for these settings? None exists for the sibling role settings; recommend a small Administration card in Phase B only if the owner wants it, else database-set like its siblings.
+4. (Answered by the owner: build the Administration card.)

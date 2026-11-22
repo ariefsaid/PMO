@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, ListState, NumberField, RecordSection, SelectField, TextArea, useToast } from '@/src/components/ui';
+import { formatNumberMax2 } from '@/src/lib/format';
 import { useRefusalLine } from '@/src/lib/refusals';
 import { standingTotal, type ReportDayWorker } from '@/src/lib/db/attendanceSecondRecords';
 import type { Standing } from '@/src/lib/repositories/attendanceSecondRecords';
@@ -12,12 +13,11 @@ import { useReportDayHours, useSecondRecordMutations } from '@/src/hooks/useAtte
  * the database decides who may enter and who may decide (ADR-0016), and refuses a person who recorded one of the figures.
  * Only people who record or decide time get rows; everyone else keeps the total above.
  */
-const hoursText = (n: number | null, locale: string): string => (n ?? 0).toLocaleString(locale, { maximumFractionDigits: 2 });
 
 type Dialog = { kind: 'enter'; worker: ReportDayWorker } | { kind: 'decide'; worker: ReportDayWorker } | null;
 
 export const SiteReportPeopleHours: React.FC<{ reportId: string; workOrderId: string; workDate: string }> = ({ reportId, workOrderId, workDate }) => {
-  const { t, i18n } = useTranslation('siteReport');
+  const { t } = useTranslation('siteReport');
   const { toast } = useToast();
   const refusal = useRefusalLine();
   const q = useReportDayHours(reportId);
@@ -59,7 +59,7 @@ export const SiteReportPeopleHours: React.FC<{ reportId: string; workOrderId: st
   };
 
   const figureText = (f: { status: string; hours: number | null; overtimeHours: number | null } | null) =>
-    f && f.status === 'present' ? t('people.hours', '{{hours}} h', { hours: hoursText(standingTotal(f), i18n.language) }) : t('people.absent', 'Absent');
+    f && f.status === 'present' ? t('people.hours', '{{hours}} h', { hours: formatNumberMax2(standingTotal(f)) }) : t('people.absent', 'Absent');
   const sourceText = (source: string): string =>
     source === 'roster_tick' ? t('people.source.roster_tick', 'Site report')
       : source === 'phone_check_in' ? t('people.source.phone_check_in', 'Clock-in')
