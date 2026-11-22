@@ -13,7 +13,7 @@ import { useTerms } from '@/src/lib/i18n/terms';
 import { Badge } from '@/src/components/ui/StatusPill';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOverdueInvoiceCount } from '@/src/hooks/useOverdueInvoiceCount';
-import { useHasTimesheetApprovalWork } from '@/src/hooks/useTimesheetApproval';
+import { useApprovalsEntryOffered } from '@/src/hooks/useWaitingForYou';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useFeature } from '@/src/auth/useFeature';
 import { AppVersion } from '@/src/components/AppVersion';
@@ -66,11 +66,12 @@ export interface NavItem {
 // This is the one ordered navigation registry. Role, feature and real-role gates only remove
 // entries from this sequence; the order never changes for the current role. The `ALL_ITEMS` name
 // is load-bearing: scripts/check-module-completeness.mjs parses this block by it.
+/** Roles that always have the Approvals entry; any other role has it when it can decide something (`useApprovalsEntryOffered`). */
+const APPROVALS_ROLES: UserRole[] = [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin];
+
 // eslint-disable-next-line react-refresh/only-export-components -- registry constant co-located with its rail; HMR-only lint concern
 export const ALL_ITEMS: NavItem[] = [
-  // Every full account sees the inbox (light accounts have their own shell). Until the decide-anything read
-  // from lane fix/walk-waiting lands, nobody is filtered out; the page itself says when nothing is waiting.
-  { to: '/approvals', text: 'Approvals', icon: 'approvals', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/approvals', text: 'Approvals', icon: 'approvals', roles: APPROVALS_ROLES },
   { to: '/', text: 'Dashboard', icon: 'dashboard', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/sales', text: 'Sales Pipeline', icon: 'funnel', group: 'Sales', feature: 'sales_pipeline', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/companies', text: 'Companies', icon: 'companies', group: 'Sales', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
@@ -257,12 +258,13 @@ export interface RailProps {
 export const Rail: React.FC<RailProps> = React.memo(function Rail(props) {
   const auth = useContext(AuthContext);
   const { effectiveRole } = useEffectiveRole();
-  return auth && effectiveRole === 'Engineer' ? <RailWithTimesheetEligibility {...props} /> : <RailContent {...props} />;
+  // Any login whose role is not on the Approvals list may still decide something (a chain step, a delegation, a team); ask once.
+  return auth && !APPROVALS_ROLES.includes(effectiveRole as UserRole) ? <RailWithDecisionStanding {...props} /> : <RailContent {...props} />;
 });
 
-const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
-  const work = useHasTimesheetApprovalWork();
-  return <RailContent {...props} hasEligibleTimesheets={Boolean(work.data || work.isPending || work.isError)} />;
+const RailWithDecisionStanding: React.FC<RailProps> = (props) => {
+  const offered = useApprovalsEntryOffered();
+  return <RailContent {...props} hasEligibleTimesheets={offered} />;
 };
 
 const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false, hasEligibleTimesheets = false, onPreloadHref }) => {

@@ -24,6 +24,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useMaterialRequest: () => h.req,
+  useStepPins: () => ({ data: [] }),
   useWaitingForMe: () => h.waiting,
   useDeliveryNoteSettings: () => ({ data: null }),
   useMaterialRequestMutations: () => ({

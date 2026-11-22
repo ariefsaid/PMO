@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
   needs: { items: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  waiting: { entries: [] as unknown[], count: 0 as number | undefined, isPending: false, isError: false, refetch: vi.fn() },
   orgDay: { day: '2026-06-03' as string | null, isPending: false, isError: false, retry: vi.fn() },
   userId: 'eng-1',
   timesheetArgs: [] as unknown[][],
@@ -30,6 +31,7 @@ vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => state.tasks }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => state.orgDay.day ?? '2026-06-03' }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaims: (filters: unknown) => { state.claimFilters.push(filters); return state.expenses; } }));
 vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({ useNeedsYou: () => state.needs }));
+vi.mock('@/src/hooks/useWaitingForYou', () => ({ useWaitingForYou: () => state.waiting }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => state.orgDay }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: state.userId, org_id: 'org-1' } }) }));
 
@@ -601,5 +603,27 @@ describe('Engineer home — floor: every control acts', () => {
     renderDashboard();
     fireEvent.click(within(screen.getByTestId('engineer-recent')).getByRole('button', { name: /Retry|Try again/ }));
     expect(state.timesheets.refetch).toHaveBeenCalled();
+  });
+});
+
+describe('fix-waiting item 1: an Engineer who can decide something sees it on the home', () => {
+  beforeEach(() => { state.timesheets = { data: [], isPending: false, isError: false, refetch: vi.fn() }; state.tasks = { data: [], isPending: false, isError: false, refetch: vi.fn() }; state.expenses = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() }; });
+  afterEach(() => { state.waiting = { entries: [], count: 0, isPending: false, isError: false, refetch: vi.fn() }; });
+
+  it('JOB-WAIT-1 shows the material-request step and the delivery waiting for the Engineer, counted from the shared list', () => {
+    state.waiting = { ...state.waiting, count: 2, entries: [
+      { key: 'material:m1', kind: 'material', createdAt: '2026-06-01T00:00:00Z', row: { requestId: 'm1', stepPosition: 1, label: 'Site lead' } },
+      { key: 'delivery_record:x1', kind: 'delivery_record', createdAt: '2026-06-02T00:00:00Z', row: { kind: 'delivery_record', recordId: 'x1', projectId: null, title: 'Cement order', createdAt: '2026-06-02T00:00:00Z' } },
+    ] };
+    render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
+    const card = screen.getByTestId('eng-waiting-for-you');
+    expect(within(card).getByText(/Waiting for your decision \(2\)/)).toBeInTheDocument();
+    expect(within(card).getByRole('link', { name: /Material request, step 1: Site lead/ })).toHaveAttribute('href', '/material-requests/m1');
+    expect(within(card).getByRole('link', { name: /Cement order/ })).toHaveAttribute('href', '/procurement/x1');
+  });
+
+  it('shows no card when nothing is waiting', () => {
+    render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
+    expect(screen.queryByTestId('eng-waiting-for-you')).toBeNull();
   });
 });

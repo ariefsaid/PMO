@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
   userId: 'eng-1',
 }));
 
+vi.mock('@/src/hooks/useWaitingForYou', () => ({ useWaitingForYou: () => ({ entries: [], count: 0, countFor: () => 0, pendingKinds: [], failedKinds: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/hooks/useTimesheets', () => ({ useTimesheets: () => state.timesheets }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useAllWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => state.tasks }));

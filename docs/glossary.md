@@ -1378,3 +1378,6 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Mark as left** — an Admin records the last day a person worked. They become former staff and leave every crew roster from that day; the history stays.
 
+**Waiting list** (*daftar yang menunggu*) — everything one login can be asked to decide right now, in one list: purchase approvals, timesheets, expense claims, customer invoices, material-request steps, leave, site cash, daily reports to validate, work orders to issue, deliveries to confirm, transfers to receive, quantity changes, subcontract certificates and equipment plans. The home "waits for you" list, the Approvals badge, the Finance page and the Approvals inbox are all this one list, so they agree; its headline count is its length. Each kind is a registered entry (`src/lib/approvals/waitingKinds.ts`), so a new kind of decision cannot be added without an inbox entry. The database decides what a login may decide; the list only shows it.
+
+**Decision standing** — whether a login can decide anything at all: a decision role, a role named in the approval chain, a pinned step, an in-window stand-in, or a line manager. A login with standing has the Approvals entry in its menu even when nothing waits.

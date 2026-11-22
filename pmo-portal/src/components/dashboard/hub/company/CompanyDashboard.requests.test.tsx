@@ -114,8 +114,10 @@ describe('company dashboard procurement reads (PERF-FIN-1)', () => {
     expect(label.parentElement?.parentElement?.parentElement).toHaveTextContent('$0');
     await waitFor(() => expect(h.procurementList).toHaveBeenCalled());
     await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
-        expect(h.procurementList).toHaveBeenCalledTimes(1);
-    expect(h.procurementList).toHaveBeenCalledWith({ lean: true });
+        // fix-waiting: the shared waiting list reads the small Requested-only list; the organisation's lean list is still read exactly once.
+    const leanReads = h.procurementList.mock.calls.filter(([filter]) => (filter as { lean?: boolean } | undefined)?.lean === true);
+    expect(leanReads).toHaveLength(1);
+    expect(leanReads[0][0]).toEqual({ lean: true });
   });
 
   it('shows and retries a failed supplier purchases read on the Executive company home', async () => {

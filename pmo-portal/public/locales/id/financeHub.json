@@ -177,6 +177,11 @@
     "helpAges": "Umur piutang klien dihitung dari hari lewat jatuh tempo, termasuk pajak. Umur invoice supplier dihitung dari hari kalender sejak tanggal invoice; invoice tanpa tanggal tidak memiliki umur.",
     "payablesHelp": "Umur invoice dihitung dari tanggal invoice supplier.",
     "workInHand": "Pekerjaan dalam tangan",
+    "waitingForYou": "Menunggu keputusan Anda",
+    "waitingError": "Tidak dapat memuat yang menunggu Anda",
+    "waitingNone": "Tidak ada yang menunggu keputusan Anda.",
+    "waitingAll_one": "Semua {{count}} persetujuan",
+    "waitingAll_other": "Semua {{count}} persetujuan",
     "claimsBoard": "Papan klaim: per langkah dan umur",
     "newVendorBill": {
       "title": "Invoice supplier baru",

@@ -4,7 +4,7 @@ import { orgTermsPlugin } from './index';
 import { setOrgTerms } from './orgTerms';
 import en from '../../../public/locales/en/notifications.json';
 import id from '../../../public/locales/id/notifications.json';
-import { notificationBody, notificationTitle } from './notificationCopy';
+import { NOTIFICATION_TITLE_KEYS, notificationBody, notificationTitle } from './notificationCopy';
 
 describe('notification wording', () => {
   afterEach(() => setOrgTerms({}));
@@ -48,5 +48,22 @@ describe('notification wording', () => {
     expect(body).toContain('Sakit');
     expect(body).toContain('Dokumen kurang');
     expect(notificationBody({ body: 'stored', message_key: 'leaveApproved', message_params: { ...params, note: null } }, t)).toContain('disetujui');
+  });
+
+  describe('fix-waiting item 4: titles the database writes reach the reader in their language', () => {
+    it('JOB-WAIT-4 shows every known database title in Bahasa Indonesia on a Bahasa organisation, and keeps an unknown one as stored', async () => {
+      const inst = i18next.createInstance();
+      await inst.init({ lng: 'id', fallbackLng: 'en', ns: ['notifications'], defaultNS: 'notifications', resources: { en: { notifications: en }, id: { notifications: id } } });
+      const t = inst.t.bind(inst);
+      expect(notificationTitle({ title: 'Your material request was sent back', message_key: 'literal' }, t)).toBe('Permintaan material Anda dikembalikan');
+      expect(notificationTitle({ title: 'Your procurement was approved', message_key: 'literal' }, t)).toBe('Pengadaan Anda disetujui');
+      expect(notificationTitle({ title: 'Something written by a person', message_key: 'literal' }, t)).toBe('Something written by a person');
+    });
+    it('AC-WAIT-060 every title in the table has English and Bahasa text, so none can reach a Bahasa screen in English', () => {
+      for (const key of Object.values(NOTIFICATION_TITLE_KEYS)) {
+        expect((en as { title: Record<string, string> }).title[key], `en ${key}`).toBeTruthy();
+        expect((id as { title: Record<string, string> }).title[key], `id ${key}`).toBeTruthy();
+      }
+    });
   });
 });

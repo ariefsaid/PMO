@@ -7,7 +7,7 @@ import { Icon } from '@/src/components/ui/icons';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { ApprovalsNavCount } from './ApprovalsNavCount';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useHasTimesheetApprovalWork } from '@/src/hooks/useTimesheetApproval';
+import { useApprovalsEntryOffered } from '@/src/hooks/useWaitingForYou';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { FEATURE_ENV_DEFAULT, type OrgFeatureKey } from '@/src/lib/features';
 import { UserRole } from '@/types';
@@ -154,16 +154,15 @@ const PhoneNavBarContent: React.FC<PhoneNavBarProps & { hasEligibleDecisions: bo
   );
 };
 
-const EngineerPhoneNavBar: React.FC<PhoneNavBarProps> = (props) => {
-  const work = useHasTimesheetApprovalWork();
-  const hasEligibleDecisions = Boolean(work.data || work.isPending || work.isError);
-  return <PhoneNavBarContent {...props} hasEligibleDecisions={hasEligibleDecisions} />;
+const DecisionStandingPhoneNavBar: React.FC<PhoneNavBarProps> = (props) => {
+  const offered = useApprovalsEntryOffered();
+  return <PhoneNavBarContent {...props} hasEligibleDecisions={offered} />;
 };
 
 /** Home, then the role's own most-used places (fixed per role), then Search and More. */
 export const PhoneNavBar: React.FC<PhoneNavBarProps> = (props) => {
   const { effectiveRole } = useEffectiveRole();
-  if (effectiveRole === 'Engineer') return <EngineerPhoneNavBar {...props} />;
+  if (effectiveRole && !['Admin', 'Executive', 'Project Manager', 'Finance'].includes(effectiveRole)) return <DecisionStandingPhoneNavBar {...props} />;
   return <PhoneNavBarContent {...props} hasEligibleDecisions={false} />;
 };
 

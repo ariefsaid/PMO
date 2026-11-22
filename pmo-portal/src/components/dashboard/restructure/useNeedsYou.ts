@@ -9,19 +9,14 @@ import { can } from '@/src/auth/policy';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useOverdueInvoiceFacts } from '@/src/hooks/useRevenue';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
-import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
+import { useWaitingForYou } from '@/src/hooks/useWaitingForYou';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
-import { awaitingApprovalKey, expenseClaimsAwaitingKey } from '@/src/hooks/approvalsQueryKeys';
 import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
-import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import type { ApprovalPopulationEntry } from '@/src/lib/selectors/approvals';
-import { useApprovalPopulation } from '@/src/hooks/useApprovalPopulation';
-import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { clientInvoiceDueNowCents, clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects } from '@/src/lib/db/dashboard';
-import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { formatTileMoney } from '@/src/lib/format';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { tileMoneyLines } from './currencyOrder';
@@ -193,6 +188,8 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
   }
 
   if (role === 'Engineer') {
+    // A material-request approver, a delegate or a requester with a delivery to confirm is an Engineer too (fix-waiting item 1).
+    add(approvalItem(facts.approvals));
     if (facts.timesheetStatus === 'Draft') add({
       id: 'timesheet-not-submitted', count: 1,
       label: t('needs.engineerTimesheetMissing', "This week's timesheet is not submitted"), href: '/timesheets', tone: 'warn',
@@ -314,10 +311,6 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const userId = currentUser?.id;
   const companyRole = isCompanyRole(role);
   const procurementApprovalRole = can('transition', 'procurement', { realRole });
-  // The inbox exposes caller-filtered assigned timesheets to any authenticated real role.
-  const readAwaitingTimesheets = Boolean(orgId && userId && realRole);
-  const expenseApprovalRole = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
-  const needsProcurements = procurementApprovalRole && role !== 'Engineer';
   const organizationDay = useFxOrgDay(true);
 
   const dashboardQuery = useQuery({
@@ -361,53 +354,17 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     queryFn: () => repositories.expenseClaim.list({ status: 'Rejected' }),
     enabled: Boolean(orgId && userId && role === 'Engineer'),
   });
-  const timesheetsAwaitingQuery = useQuery({
-    queryKey: awaitingApprovalKey(orgId, userId, realRole),
-    queryFn: () => listTimesheetsAwaitingApproval(userId!, realRole!),
-    enabled: readAwaitingTimesheets,
-  });
-  const expenseApprovalsQuery = useQuery({
-    queryKey: expenseClaimsAwaitingKey(orgId),
-    queryFn: async () => {
-      const { rows } = await repositories.expenseClaim.list({ status: 'Submitted' });
-      const routes = await repositories.expenseClaim.routes(rows.map((row) => row.id)).catch(() => []);
-      const byId = new Map(routes.map((route) => [route.claimId, route]));
-      return rows.map((claim) => ({ claim, route: byId.get(claim.id) ?? null }));
-    },
-    enabled: Boolean(orgId && expenseApprovalRole),
-  });
-  const invoiceApprovals = useInvoicesAwaitingViewer();
+  // fix-waiting item 1: the approvals the viewer can decide come from the ONE shared list the badge and the inbox read.
+  const waiting = useWaitingForYou();
   // #2680: steps waiting on the viewer's role. Additive: a failed or unread query adds no item and never blocks the list.
   const waitingStepsQuery = useWaitingSteps(Boolean(orgId && role && role !== 'Engineer'));
   // The check-in decisions this person may make; a failed read adds no item and never blocks the list.
   const checkInsQuery = useCheckInRequests();
 
-  const procApprovals = useMemo(
-    () => pendingProcurementApprovals(procurementsQuery.data, userId, realRole === 'Admin'),
-    [procurementsQuery.data, realRole, userId],
-  );
-  const expenseApprovals = useMemo(
-    () => claimsAwaitingViewer(expenseApprovalsQuery.data ?? [], userId, realRole),
-    [expenseApprovalsQuery.data, realRole, userId],
-  );
-  const approvalEntries = useMemo<ApprovalPopulationEntry[]>(() => [
-    ...(procurementApprovalRole ? procApprovals.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, createdAt: row.created_at, row })) : []),
-    ...(readAwaitingTimesheets ? (timesheetsAwaitingQuery.data ?? []).map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, createdAt: row.week_start_date, row })) : []),
-    ...(expenseApprovalRole ? expenseApprovals.map((entry) => ({ key: `expense:${entry.claim.id}`, kind: 'expense' as const, createdAt: entry.claim.created_at, row: entry })) : []),
-    ...((role === 'Admin' || role === 'Finance') ? invoiceApprovals.rows.map((row) => ({ key: `invoice:${row.id}`, kind: 'invoice' as const, createdAt: row.created_at, row })) : []),
-  ], [expenseApprovalRole, expenseApprovals, invoiceApprovals.rows, procurementApprovalRole, procApprovals, readAwaitingTimesheets, role, timesheetsAwaitingQuery.data]);
-  const approvalPopulation = useApprovalPopulation(approvalEntries);
-  const approvalSourcesPending =
-    (needsProcurements && procurementsQuery.isPending) ||
-    (expenseApprovalRole && expenseApprovalsQuery.isPending) ||
-    (readAwaitingTimesheets && timesheetsAwaitingQuery.isPending) ||
-    (invoiceApprovals.isPending && (role === 'Admin' || role === 'Finance'));
-  const approvalSourcesError =
-    (needsProcurements && procurementsQuery.isError) ||
-    (expenseApprovalRole && expenseApprovalsQuery.isError) ||
-    (readAwaitingTimesheets && timesheetsAwaitingQuery.isError) ||
-    (invoiceApprovals.isError && (role === 'Admin' || role === 'Finance'));
-  const approvalsCount = approvalSourcesPending || approvalSourcesError ? undefined : approvalPopulation.length;
+  const approvalSourcesPending = waiting.isPending;
+  const approvalSourcesError = waiting.isError;
+  const approvalsCount = waiting.count;
+  const approvalPopulation = waiting.entries;
 
   const invoiceNeeds = useMemo(
     () => selectOverdueInvoices(salesInvoiceQuery.data, organizationDay.day),
@@ -444,7 +401,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     approvals: approvalsCount,
     atRiskProjects: companyRole ? dashboardQuery.data?.projects_at_risk : undefined,
     riskUncheckedProjects: companyRole ? dashboardQuery.data?.risk_unchecked_projects : undefined,
-    procurementsAwaitingApproval: procurementApprovalRole ? procApprovals.length : undefined,
+    procurementsAwaitingApproval: procurementApprovalRole && !waiting.pendingKinds.includes('procurement') && !waiting.failedKinds.includes('procurement') ? waiting.countFor('procurement') : undefined,
     overdueInvoices: companyRole ? invoiceNeeds : undefined,
     supplierInvoices: companyRole ? supplierNeeds : undefined,
     readyToBill: companyRole ? workOrdersQuery.data && workOrdersQuery.data.totals.reduce((sum, row) => sum + row.count, 0) + workOrdersQuery.data.incompleteCount : undefined,
@@ -453,7 +410,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     projectsOverBudgetPartial: role === 'Project Manager' ? pmAtRisk?.partial : undefined,
     projectsOverBudgetUnknown: role === 'Project Manager' && pmProjectsQuery.data ? pmUnknownRiskCount : undefined,
     overdueProjectTasks: role === 'Project Manager' && organizationDay.day !== null && !projectTasks.isPending && !projectTasks.isError ? pmOverdueTaskCount ?? undefined : undefined,
-    timesheetsToApprove: role === 'Project Manager' && !timesheetsAwaitingQuery.isPending && !timesheetsAwaitingQuery.isError ? timesheetsAwaitingQuery.data?.length ?? 0 : undefined,
+    timesheetsToApprove: role === 'Project Manager' && !waiting.pendingKinds.includes('timesheets') && !waiting.failedKinds.includes('timesheets') ? waiting.countFor('timesheets') : undefined,
     timesheetStatus: currentTimesheet?.status ?? (currentWeek && !timesheetsQuery.isPending && !timesheetsQuery.isError ? 'Draft' : null),
     engineerTasks: role === 'Engineer' && !myTasksQuery.isPending && !myTasksQuery.isError && currentWeek ? engineerTasksCount : undefined,
     checkInsWaiting: checkInsQuery.isSuccess ? checkInsQuery.data.length : undefined,
@@ -466,14 +423,14 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     : role === 'Project Manager'
       ? pmProjectsQuery.isPending || pmBudgetPositionsPending || projectTasksPending || organizationDay.isPending || approvalSourcesPending
       : role === 'Engineer'
-        ? timesheetsQuery.isPending || myTasksQuery.isPending || expenseClaimsQuery.isPending || organizationDay.isPending
+        ? timesheetsQuery.isPending || myTasksQuery.isPending || expenseClaimsQuery.isPending || organizationDay.isPending || approvalSourcesPending
         : false;
   const needsError = companyRole
     ? dashboardQuery.isError || salesInvoiceQuery.isError || (procurementApprovalRole && procurementsQuery.isError) || workOrdersQuery.isError || organizationDay.isError || budgetReviewQuery.isError || approvalSourcesError
     : role === 'Project Manager'
       ? pmProjectsQuery.isError || pmBudgetPositionsQuery.isError || projectTasks.isError || organizationDay.isError || approvalSourcesError
       : role === 'Engineer'
-        ? timesheetsQuery.isError || myTasksQuery.isError || expenseClaimsQuery.isError || organizationDay.isError
+        ? timesheetsQuery.isError || myTasksQuery.isError || expenseClaimsQuery.isError || organizationDay.isError || approvalSourcesError
         : false;
   const engineerSourcesPending = timesheetsQuery.isPending;
   const engineerSourcesError = timesheetsQuery.isError;
@@ -500,9 +457,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     void timesheetsQuery.refetch();
     void myTasksQuery.refetch();
     void expenseClaimsQuery.refetch();
-    void timesheetsAwaitingQuery.refetch();
-    void expenseApprovalsQuery.refetch();
-    void invoiceApprovals.refetch();
+    waiting.refetch();
     void checkInsQuery.refetch();
     organizationDay.retry();
   };
