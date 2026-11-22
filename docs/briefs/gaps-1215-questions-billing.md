@@ -36,3 +36,7 @@ Each line: question · recommended answer · what was built meanwhile.
 - Is each survey an increment (summed into the certified figure) or a cumulative reading (latest wins)? · Increment, with a correction replacing a mistaken survey · Built as increments; the screen says so; every confirmation needs the survey sheet attached.
 - Should the database stop on over-claim be selectable per project as well as per organisation? · No, per organisation only · Built per organisation, default warn.
 - Should a survey line read "reported" as progress to date or as the measured figure in the missing list? · Progress to date · Built as progress to date.
+
+## checklist-target-dates
+- From when does a site-clearance item's target count, given there is no per-person checklist creation? · From the person record's creation; people created before the target was set get no due date · Built that way (in progress).
+- Who is told when an item has no owner? · The checklist's creator (close-out: the person who issued the work order; clearance: whoever created the person record), else the Admins · Built that way (in progress).
