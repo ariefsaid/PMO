@@ -32,6 +32,7 @@ insert into la_fn_allow values
   ('leave_requestable_people', 'the field home, clock-in, attendance and own-leave paths'),
   ('my_home', 'the field home, clock-in, attendance and own-leave paths'),
   ('phone_check_in', 'the field home, clock-in, attendance and own-leave paths'),
+  ('report_absence', 'the field home, clock-in, attendance and own-leave paths'),
   ('set_my_email_opt_out', 'the field home, clock-in, attendance and own-leave paths'),
   ('actor_authorization_state', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
   ('actor_built_in_role', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
@@ -359,6 +360,7 @@ insert into la_fn_allow values
 
 create temp table la_table_allow (t text primary key, why text not null);
 insert into la_table_allow values
+  ('absence_reports', 'the existing policy admits only the caller''s own rows or the light seat''s own audience'),
   ('agent_attachments', 'the existing policy admits only the caller''s own rows or the light seat''s own audience'),
   ('agent_automations', 'the existing policy admits only the caller''s own rows or the light seat''s own audience'),
   ('agent_dispatch_watermarks', 'written and read by definers only: the signed-in role holds no SELECT grant'),
