@@ -58,8 +58,8 @@ const TypeForm: React.FC<{ type?: AdminDocumentTypeRow; onClose: () => void }> =
         )}
         {!type && v.applies_to === 'person' && (
           <Checkbox checked={v.is_medical} onChange={(is_medical) => setV((c) => ({ ...c, is_medical }))}
-            label={t('documentTypes.medical', 'Medical document (status and date only, visible to Admin and HR)')}>
-            {t('documentTypes.medical', 'Medical document (status and date only, visible to Admin and HR)')}
+            label={t('documentTypes.medical', 'Medical document (status and date only, visible to Admin only)')}>
+            {t('documentTypes.medical', 'Medical document (status and date only, visible to Admin only)')}
           </Checkbox>
         )}
         <fieldset className="space-y-1">

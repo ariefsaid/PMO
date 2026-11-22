@@ -1,9 +1,8 @@
 {
   "definer_functions": [
     "actor_built_in_role()",
-    "actor_has_person_documents_access()",
     "actor_has_role_capability(text)",
-    "actor_may_see_medical_documents()",
+    "actor_holds_built_in_role(text)",
     "actor_sees_prices()",
     "get_built_in_roles_enabled()",
     "org_built_in_roles_enabled(uuid)",

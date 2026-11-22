@@ -972,7 +972,7 @@
     "appliesTo": "Applies to",
     "person": "Person",
     "equipment": "Equipment",
-    "medical": "Medical document (status and date only, visible to Admin and HR)",
+    "medical": "Medical document (status and date only, visible to Admin only)",
     "medicalCol": "Medical",
     "yes": "Yes",
     "roles": "Roles notified",

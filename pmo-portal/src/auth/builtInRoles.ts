@@ -8,11 +8,15 @@ import type { Role } from './AuthContext';
  */
 export type BuiltInRoleTier = 'manager' | 'officer' | 'field';
 
-/** Each capability is read by one database gate; `daily_report_*` are held for a ruling (supabase/tests/2716). */
 export type RoleCapability =
   | 'sees_prices'
+  | 'stock_post'
+  | 'stock_approve'
   | 'daily_report_enter'
   | 'daily_report_validate'
+  | 'crew_time_approve'
+  | 'billing_stage_run'
+  | 'invoice_raise'
   | 'people_documents_view'
   | 'medical_documents_view';
 
@@ -74,9 +78,15 @@ export const ROLE_CAPABILITIES: readonly (readonly [string, RoleCapability])[] =
   ['buyer', 'sees_prices'],
   ['finance_officer', 'sees_prices'],
   ['billing_officer', 'sees_prices'],
+  ['storekeeper', 'stock_post'],
+  ['material_coordinator', 'stock_approve'],
   ['quantity_surveyor', 'daily_report_enter'],
   ['site_supervisor', 'daily_report_validate'],
   ['project_control_manager', 'daily_report_validate'],
+  ['construction_manager', 'crew_time_approve'],
+  ['billing_officer', 'billing_stage_run'],
+  ['finance_manager', 'invoice_raise'],
+  ['finance_officer', 'invoice_raise'],
   ['administrator', 'people_documents_view'],
   ['hr_manager', 'people_documents_view'],
   ['hr_officer', 'people_documents_view'],
@@ -98,6 +108,10 @@ export function baseLevelOf(key: string | null | undefined): Role | null {
   return (key != null ? BY_KEY.get(key)?.base : undefined) ?? null;
 }
 
+export function builtInRoleTier(key: string | null | undefined): BuiltInRoleTier | null {
+  return (key != null ? BY_KEY.get(key)?.tier : undefined) ?? null;
+}
+
 export function roleHasCapability(key: string | null | undefined, capability: RoleCapability): boolean {
   return key != null && ROLE_CAPABILITIES.some(([roleKey, cap]) => roleKey === key && cap === capability);
 }
@@ -105,6 +119,19 @@ export function roleHasCapability(key: string | null | undefined, capability: Ro
 /** Price visibility: a person with no built-in role sees prices as today; an unknown key fails closed. */
 export function roleSeesPrices(key: string | null | undefined): boolean {
   return key == null ? true : roleHasCapability(key, 'sees_prices');
+}
+
+export const roleMayApprove = (key: string | null | undefined): boolean => builtInRoleTier(key) === 'manager';
+export const roleMayPrepare = (key: string | null | undefined): boolean => builtInRoleTier(key) === 'officer';
+
+const LEVEL_RANK: Record<Role, number> = { Engineer: 10, 'Project Manager': 20, Finance: 30, Executive: 40, Admin: 50 };
+
+/** A manager stands in for a manager, never upward (mirror of `built_in_role_may_stand_in`). */
+export function roleMayStandIn(actorKey: string | null | undefined, absentKey: string | null | undefined): boolean {
+  const actor = baseLevelOf(actorKey);
+  const absent = baseLevelOf(absentKey);
+  if (!actor || !absent || builtInRoleTier(actorKey) !== 'manager' || builtInRoleTier(absentKey) !== 'manager') return false;
+  return LEVEL_RANK[actor] >= LEVEL_RANK[absent];
 }
 
 /** A client's own role names: locale -> role key -> name (#2712). Absent = the catalogue default. */

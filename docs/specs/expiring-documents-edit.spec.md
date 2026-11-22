@@ -9,7 +9,7 @@ Builds on `document-expiry.spec.md` (#2527). That increment stores, warns on and
 - **Fields.** Type (from the org's types for that kind), number, issue date, expiry date, location note, attachment. A medical type shows a status (fit / unfit) and the dates only; number, note and attachment are hidden (and refused by the 0970 constraint).
 - **Archive, not delete** (ADR-0018). Renewing = edit the expiry date; the warning sequence restarts (FR-DEX-004).
 - **Authority.** Writes already ride RLS and column grants (0970): Admin any document; Project Manager equipment documents only. `can('create'|'edit'|'archive', 'expiryDocument', {record:{kind}})` mirrors that for the UI only.
-- **Attachment.** Private bucket `expiry-documents`, 5 MB, pdf/png/jpeg/webp, path `{org}/{kind}/{subject}/{file}/{filename}`. Storage RLS: Admin any kind; PM equipment; a holder of the people-documents capability writes and reads person files; a person's manager reads non-medical person files. Medical documents never hold a file.
+- **Attachment.** Private bucket `expiry-documents`, 5 MB, pdf/png/jpeg/webp, path `{org}/{kind}/{subject}/{file}/{filename}`. Storage RLS: Admin any kind; PM equipment; a person's manager reads non-medical person files. Medical documents never hold a file.
 - **Out of scope.** Creating people and document types (no screen yet); warning-days setting screen.
 
 ## Requirements (EARS)

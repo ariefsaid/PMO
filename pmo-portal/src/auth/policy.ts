@@ -2,7 +2,6 @@ export type { Role } from './AuthContext';
 import type { Role } from './AuthContext';
 import { ALL_ROLES, MASTER_DATA_ROLES, REVENUE_WRITE_ROLES } from './coarseRoles';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
-import { roleHasCapability } from './builtInRoles';
 
 /**
  * FE authorization primitive (ADR-0016).
@@ -217,8 +216,6 @@ export type Entity =
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
   realRole: Role | null;
-  /** The real person's built-in role key (null = none) — the one capability read, as the database gate reads it. */
-  builtInRoleKey?: string | null;
   /** The current user's id — for record-scoped checks (own task, requester, author). */
   currentUserId?: string | null;
   /** The record under consideration — for status/ownership-conditional rules. */
@@ -343,10 +340,7 @@ const allow = (set: Role[]): Predicate => (role) => has(set, role);
 const expiryDocumentWrite: Predicate = (role, ctx) => {
   const kind = ctx.record?.kind;
   if (ctx.record?.viewOnly === true) return false;
-  if (role === 'Admin') return kind === 'person' || kind === 'equipment';
-  if (role === 'Project Manager' && kind === 'equipment') return true;
-  // the people-documents capability: non-medical person documents (`record.medical` true = a medical one, Admin only)
-  return kind === 'person' && ctx.record?.medical !== true && roleHasCapability(ctx.builtInRoleKey, 'people_documents_view');
+  return role === 'Admin' ? kind === 'person' || kind === 'equipment' : role === 'Project Manager' && kind === 'equipment';
 };
 const allowUnlessViewOnly = (set: Role[]): Predicate => (role, ctx) => has(set, role) && ctx.record?.viewOnly !== true;
 
@@ -1250,7 +1244,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   },
   /**
    * Expiring documents on people and equipment (#2542, migration 0970 RLS). UX ONLY — RLS and the column grants are the
-   * authority (ADR-0016): Admin writes any document, a Project Manager equipment documents, a holder of the people-documents capability non-medical person documents. `record.kind` is the subject.
+   * authority (ADR-0016): Admin writes any document, a Project Manager equipment documents only. `record.kind` is the subject.
    */
   expiryDocument: {
     view: allow(ALL),
