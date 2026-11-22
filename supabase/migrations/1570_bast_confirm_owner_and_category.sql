@@ -1,6 +1,6 @@
 -- 1570_bast_confirm_owner_and_category.sql — fix-billing item 1.
 -- (a) A default document category for the signed client-acceptance record (BAST), for every organisation.
---     Definition copied from 1164 (the newest); only the name list gains 'Delivery record'.
+--     Definition copied from 1164 (the newest): the name list gains 'Delivery record', and role rows are written only for a category this call creates, so an existing live category (system or custom) keeps its name, sort order and roles.
 -- (b) The data the waiting-list lane needs: the acceptances waiting for the caller to confirm.
 --     Mirrors confirm_work_order_acceptance (0339): Admin and Finance confirm; the preparer may not, unless
 --     they are the only active member. Read under the caller's own RLS; nothing is written.
@@ -20,10 +20,9 @@ begin
     if v_id is null then
       insert into public.document_categories (org_id, name, sort_order, is_system)
         values (p_org, v_names[v_i], v_i * 10, true) returning id into v_id;
+      insert into public.document_category_roles (category_id, org_id, role)
+        select v_id, p_org, r from unnest(enum_range(null::public.user_role)) r;
     end if;
-    insert into public.document_category_roles (category_id, org_id, role)
-      select v_id, p_org, r from unnest(enum_range(null::public.user_role)) r
-      on conflict do nothing;
   end loop;
 end $$;
 revoke all on function public.seed_document_categories(uuid) from public, anon, authenticated;

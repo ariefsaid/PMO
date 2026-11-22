@@ -2,7 +2,7 @@ begin;
 create extension if not exists pgtap;
 -- fix-billing items 1 and 2: who confirms a delivery record (BAST), the final record's separation of duties,
 -- and the waiting-list data. Roles: PM prepares, a different Finance confirms; Executive and the author never confirm.
-select plan(14);
+select plan(18);
 insert into organizations(id,name) values ('33570000-0000-0000-0000-000000000001','FB Org');
 insert into auth.users(id,email) values ('33570000-0000-0000-0000-000000000011','fb-pm@example.invalid'),('33570000-0000-0000-0000-000000000012','fb-fin@example.invalid'),('33570000-0000-0000-0000-000000000013','fb-fin2@example.invalid'),('33570000-0000-0000-0000-000000000014','fb-exec@example.invalid');
 insert into profiles(id,org_id,full_name,email,role,status) values
@@ -17,6 +17,20 @@ insert into work_orders(id,org_id,project_id,title,status,order_value,tax_treatm
 insert into boq_items(id,org_id,project_id,item_code,description,unit,quantity,rate) values
  ('33570000-0000-0000-0000-000000000041','33570000-0000-0000-0000-000000000001','33570000-0000-0000-0000-000000000021','LINE','Contract line','km',10,1000);
 insert into work_order_lines(org_id,work_order_id,boq_item_id,quantity) values ('33570000-0000-0000-0000-000000000001','33570000-0000-0000-0000-000000000031','33570000-0000-0000-0000-000000000041',10);
+-- Re-seeding keeps a narrowed system category narrowed and leaves a same-named custom category untouched.
+delete from document_category_roles where role not in ('Admin','Finance') and category_id = (select id from document_categories where org_id = '33570000-0000-0000-0000-000000000001' and name = 'Report');
+select public.seed_document_categories('33570000-0000-0000-0000-000000000001');
+select is((select count(*)::int from document_category_roles r join document_categories c on c.id = r.category_id where c.org_id = '33570000-0000-0000-0000-000000000001' and c.name = 'Report'), 2,
+  'a system category narrowed to two roles stays narrowed after the seed runs again');
+select is((select count(*)::int from document_categories where org_id = '33570000-0000-0000-0000-000000000001' and name = 'Delivery record' and is_system), 1,
+  'the seed run again adds no second copy of a system category');
+update document_categories set is_system = false, archived_at = null where org_id = '33570000-0000-0000-0000-000000000001' and name = 'Specification';
+delete from document_category_roles where category_id = (select id from document_categories where org_id = '33570000-0000-0000-0000-000000000001' and name = 'Specification') and role <> 'Admin';
+select public.seed_document_categories('33570000-0000-0000-0000-000000000001');
+select is((select is_system from document_categories where org_id = '33570000-0000-0000-0000-000000000001' and name = 'Specification' and archived_at is null), false,
+  'a custom category sharing a system name stays custom after the seed runs again');
+select is((select count(*)::int from document_category_roles r join document_categories c on c.id = r.category_id where c.org_id = '33570000-0000-0000-0000-000000000001' and c.name = 'Specification'), 1,
+  'a custom category sharing a system name keeps its own roles after the seed runs again');
 set local role authenticated;
 set local request.jwt.claims='{"sub":"33570000-0000-0000-0000-000000000011","role":"authenticated"}';
 select lives_ok($$insert into project_documents(id,org_id,project_id,category,title,file_path) values
