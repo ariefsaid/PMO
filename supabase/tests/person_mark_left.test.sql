@@ -51,13 +51,13 @@ insert into crews (id, org_id, code, name) values
   ('16100000-0000-0000-0000-0000000000c2', '16100000-0000-0000-0000-00000000000a', 'CR-1611', 'Future Crew');
 
 -- Placements for Worker One:
--- m1: Past completed placement (Oct 1 - Oct 31, 2026)
--- m2: Running placement across left_on (Nov 1 - Dec 31, 2026)
--- m3: Future scheduled placement (Dec 10 - Dec 20, 2026)
+-- d1: Past completed placement (Oct 1 - Oct 31, 2026)
+-- d2: Running placement across left_on (Nov 1 - Dec 31, 2026)
+-- d3: Future scheduled placement (Dec 10 - Dec 20, 2026)
 insert into crew_members (id, org_id, crew_id, worker_id, valid_from, valid_to) values
-  ('16100000-0000-0000-0000-0000000000m1', '16100000-0000-0000-0000-00000000000a', '16100000-0000-0000-0000-0000000000c1', '16100000-0000-0000-0000-0000000000f1', '2026-10-01', '2026-10-31'),
-  ('16100000-0000-0000-0000-0000000000m2', '16100000-0000-0000-0000-00000000000a', '16100000-0000-0000-0000-0000000000c1', '16100000-0000-0000-0000-0000000000f1', '2026-11-01', '2026-12-31'),
-  ('16100000-0000-0000-0000-0000000000m3', '16100000-0000-0000-0000-00000000000a', '16100000-0000-0000-0000-0000000000c2', '16100000-0000-0000-0000-0000000000f1', '2026-12-10', '2026-12-20');
+  ('16100000-0000-0000-0000-0000000000d1', '16100000-0000-0000-0000-00000000000a', '16100000-0000-0000-0000-0000000000c1', '16100000-0000-0000-0000-0000000000f1', '2026-10-01', '2026-10-31'),
+  ('16100000-0000-0000-0000-0000000000d2', '16100000-0000-0000-0000-00000000000a', '16100000-0000-0000-0000-0000000000c1', '16100000-0000-0000-0000-0000000000f1', '2026-11-01', '2026-12-31'),
+  ('16100000-0000-0000-0000-0000000000d3', '16100000-0000-0000-0000-00000000000a', '16100000-0000-0000-0000-0000000000c2', '16100000-0000-0000-0000-0000000000f1', '2026-12-10', '2026-12-20');
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -108,7 +108,7 @@ select is(
 
 -- Verify running placement ending day: valid_to updated to 2026-11-30 (left_on - 1)
 select is(
-  (select valid_to from public.crew_members where id = '16100000-0000-0000-0000-0000000000m2'),
+  (select valid_to from public.crew_members where id = '16100000-0000-0000-0000-0000000000d2'),
   '2026-11-30'::date,
   'AC-PPL-LEFT-003 running placement is closed on the day before departure (p_left_on - 1)'
 );
@@ -134,14 +134,14 @@ select is(
 
 -- Verify future placement was deleted (valid_from >= p_left_on)
 select is(
-  (select count(*)::int from public.crew_members where id = '16100000-0000-0000-0000-0000000000m3'),
+  (select count(*)::int from public.crew_members where id = '16100000-0000-0000-0000-0000000000d3'),
   0,
   'AC-PPL-LEFT-003 future placement starting on or after departure date is deleted'
 );
 
 -- Verify past placement was preserved unchanged
 select is(
-  (select valid_to from public.crew_members where id = '16100000-0000-0000-0000-0000000000m1'),
+  (select valid_to from public.crew_members where id = '16100000-0000-0000-0000-0000000000d1'),
   '2026-10-31'::date,
   'AC-PPL-LEFT-003 past completed placement is preserved unchanged'
 );
