@@ -75,7 +75,8 @@
     "subject": "laporan lapangan",
     "superseded": "Diganti oleh koreksi",
     "title": "Laporan lapangan",
-    "version": "Versi {{n}}"
+    "version": "Versi {{n}}",
+    "needsPhotoAuthor": "Tambahkan foto formulir kertas sebelum mengirim. Validator tidak bisa menerima laporan tanpa foto itu."
   },
   "equipment": {
     "add": "Tambah pemakaian",
@@ -212,6 +213,7 @@
     "returned": "Laporan dikembalikan",
     "saved": "Draf disimpan",
     "submitted": "Dikirim untuk validasi",
-    "validated": "Laporan divalidasi"
+    "validated": "Laporan divalidasi",
+    "submittedNeedsPhoto": "Terkirim untuk validasi. Validator memerlukan foto formulir kertas: tambahkan."
   }
 }

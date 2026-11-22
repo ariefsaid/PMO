@@ -85,6 +85,16 @@ describe('site report record', () => {
     expect(screen.queryAllByTestId('dsr-line-amount')).toHaveLength(0);
   });
 
+  it('AC-SD-009 the author is told at send that the validator needs a photo of the paper form, and not once it is there', () => {
+    h.detail = { ...make('draft'), photos: [] };
+    const { unmount } = renderPage();
+    expect(screen.getByTestId('dsr-author-needs-photo')).toHaveTextContent('Add a photo of the paper form before you send');
+    unmount();
+    h.detail = make('draft');
+    renderPage();
+    expect(screen.queryByTestId('dsr-author-needs-photo')).toBeNull();
+  });
+
   it('AC-DSR-005 the author is never offered Validate, even as Admin', () => {
     h.detail = make('submitted'); h.realRole = 'Admin';
     renderPage();
