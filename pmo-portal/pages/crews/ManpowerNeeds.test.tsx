@@ -32,6 +32,7 @@ const view = () => render(<ToastProvider><ManpowerNeeds /></ToastProvider>);
 describe('AC-MPN-008 manpower needs', () => {
   beforeEach(() => {
     h.canManage = true;
+    h.progress = [{ need_id: 'n1', asked: 3, linked: 2, filled: 1, in_progress: 1, open_count: 1 }];
     h.needs = { data: [need()], isPending: false, isError: false, refetch: vi.fn() };
     h.link.mockClear(); h.unlink.mockClear(); h.update.mockClear();
   });
@@ -65,6 +66,16 @@ describe('AC-MPN-008 manpower needs', () => {
     const read = (label: string) => Array.from(card.querySelectorAll('dt')).find((d) => d.textContent === label)?.nextElementSibling?.textContent;
     expect([read('Asked'), read('Filled'), read('In progress'), read('Open')]).toEqual(['3', '1', '1', '1']);
     expect(screen.getByText('Worker One')).toBeInTheDocument();
+  });
+
+  it('shows a dash and the reason where the database hides filled and in progress, and offers no Mark as met', () => {
+    h.progress = [{ need_id: 'n1', asked: 3, linked: 3, filled: null, in_progress: null, open_count: 0 }];
+    view();
+    const card = screen.getByTestId('manpower-need-n1');
+    const read = (label: string) => Array.from(card.querySelectorAll('dt')).find((d) => d.textContent === label)?.nextElementSibling?.textContent;
+    expect([read('Asked'), read('Filled'), read('In progress'), read('Open')]).toEqual(['3', '—', '—', '0']);
+    expect(screen.getByText(/shown to the people team and to the roles that read the clearance checklist/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark as met' })).toBeDisabled();
   });
 
   it('a writer unlinks a person and cancels through a confirm; Mark as met is disabled with its reason while places are open', async () => {

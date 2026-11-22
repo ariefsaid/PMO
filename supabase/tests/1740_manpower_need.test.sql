@@ -2,7 +2,7 @@
 -- AC-MPN-001..007. Mutation markers (`mut:`) in 1740/1741 name the rules the spec's mutation check breaks.
 begin;
 create extension if not exists pgtap;
-select plan(44);
+select plan(45);
 
 insert into organizations (id, name, default_currency) values
   ('17400000-0000-0000-0000-00000000000a', 'MPN Org',       'IDR'),
@@ -64,11 +64,16 @@ set local role authenticated;
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a2');   -- Project Manager
 
 -- AC-MPN-001
-insert into manpower_needs (id, project_id, discipline_id, headcount, needed_by, work_order_id, crew_id, note) values
-  ('17400000-0000-0000-0000-000000000a01', '17400000-0000-0000-0000-0000000000d1', '17400000-0000-0000-0000-000000000e01', 3,
-   current_date + 14, '17400000-0000-0000-0000-000000000401', '17400000-0000-0000-0000-000000000c01', 'shutdown');
-insert into manpower_needs (id, project_id, discipline_id, headcount, needed_by) values
-  ('17400000-0000-0000-0000-000000000a02', '17400000-0000-0000-0000-0000000000d1', '17400000-0000-0000-0000-000000000e01', 2, current_date + 30);
+-- The app never sends an id, so neither does the fixture: the needs are created as the app creates them and given fixed ids by the owner.
+insert into manpower_needs (project_id, discipline_id, headcount, needed_by, work_order_id, crew_id, note) values
+  ('17400000-0000-0000-0000-0000000000d1', '17400000-0000-0000-0000-000000000e01', 3,
+   current_date + 14, '17400000-0000-0000-0000-000000000401', '17400000-0000-0000-0000-000000000c01', 'fixture-a01'),
+  ('17400000-0000-0000-0000-0000000000d1', '17400000-0000-0000-0000-000000000e01', 2, current_date + 30, null, null, 'fixture-a02');
+reset role;
+update manpower_needs set id = '17400000-0000-0000-0000-000000000a01' where note = 'fixture-a01';
+update manpower_needs set id = '17400000-0000-0000-0000-000000000a02' where note = 'fixture-a02';
+set local role authenticated;
+select pg_temp.act_as('17400000-0000-0000-0000-0000000000a2');
 select is((select status from manpower_needs where id = '17400000-0000-0000-0000-000000000a01'), 'open', 'AC-MPN-001 a new need is open');
 select is((select org_id from manpower_needs where id = '17400000-0000-0000-0000-000000000a01'), '17400000-0000-0000-0000-00000000000a'::uuid, 'AC-MPN-001 org is stamped, never sent');
 select is((select created_by from manpower_needs where id = '17400000-0000-0000-0000-000000000a01'), '17400000-0000-0000-0000-0000000000a2'::uuid, 'AC-MPN-001 the creator is recorded');
@@ -105,6 +110,8 @@ select is((select (asked, filled, in_progress, open_count) from manpower_need_pr
 -- AC-MPN-004 the people team sees the counts although it cannot read the clearances (counts only)
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a5');
 select is((select (filled, in_progress) from manpower_need_progress() where need_id = '17400000-0000-0000-0000-000000000a01')::text, '(1,2)', 'AC-MPN-004 an HR officer sees filled 1, in progress 2 for the need they fill');
+select pg_temp.act_as('17400000-0000-0000-0000-0000000000a4');
+select is((select (asked, linked, open_count, filled is null, in_progress is null) from manpower_need_progress() where need_id = '17400000-0000-0000-0000-000000000a01')::text, '(3,3,0,t,t)', 'AC-MPN-004 an Engineer without an HR role gets asked, linked and open, and null filled and in progress');
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a7');
 select is((select count(*)::int from manpower_need_progress()), 0, 'AC-MPN-004 a disabled member of the organisation gets no progress row');
 reset role;

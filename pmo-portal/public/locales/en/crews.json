@@ -310,6 +310,7 @@
       "open": "Open",
       "met": "Met",
       "cancelled": "Cancelled"
-    }
+    },
+    "countsHidden": "Filled and in progress are shown to the people team and to the roles that read the clearance checklist."
   }
 }

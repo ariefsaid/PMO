@@ -310,6 +310,7 @@
       "open": "Terbuka",
       "met": "Terpenuhi",
       "cancelled": "Dibatalkan"
-    }
+    },
+    "countsHidden": "Terisi dan dalam proses ditampilkan kepada tim SDM dan peran yang dapat membaca daftar periksa kelayakan."
   }
 }
