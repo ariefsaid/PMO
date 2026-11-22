@@ -2,11 +2,25 @@
 -- Spec docs/specs/material-vs-progress.spec.md (REVISION: FR-MVP-001..005, 007, 011). Proven by supabase/tests/1870_ahead_of_progress_alert.test.sql.
 -- The MEASURE is get_work_order_material_vs_progress (1341, with 1451's light guard) unchanged: no second formula. The ROW is 1862's
 -- material_installed_usage_alerts (kind 'issued_ahead', 1870); the RECIPIENT is usage_warning_recipient (1862): the work order's responsible
--- person, else the project's manager, else nobody (the alert is still recorded). The same failure-swallowing wrapper as 1862: a failure is
+-- person, else the project's manager, else nobody (the alert is still recorded); a light account is skipped for the manager (usage_ahead_recipient). The same failure-swallowing wrapper as 1862: a failure is
 -- logged as a warning, never raised, so posting a stock document, validating a report or confirming an acceptance can never fail on it.
 -- Evaluation is skipped (not an error) when the actor has no organisation context (a system actor), is not an active member, belongs to
 -- another organisation or is a light account (the guarded read would refuse them). Notification text is a literal English body like 1862's.
 -- REVERSE: rollback/1871_usage_ahead_check_down.sql.
+
+-- Who is told about an ahead-of-progress alert: usage_warning_recipient (1862), except that a light account cannot open the work order, so it is
+-- skipped and the project's manager (active, not a light account) is used instead; null when neither can be told.
+create function public.usage_ahead_recipient(p_work_order_id uuid) returns uuid
+  language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare v uuid := public.usage_warning_recipient(p_work_order_id);
+begin
+  if v is not null and public.profile_seat_type(v) = 'light' then                                       -- mut:light_recipient
+    select pr.project_manager_id into v from public.work_orders w join public.projects pr on pr.id = w.project_id and pr.org_id = w.org_id
+     where w.id = p_work_order_id and public.is_active_member(pr.project_manager_id) and public.profile_seat_type(pr.project_manager_id) <> 'light';
+  end if;
+  return v;
+end $$;
+revoke all on function public.usage_ahead_recipient(uuid) from public, anon, authenticated, service_role;
 
 create function public.usage_ahead_check_work_order(p_work_order_id uuid, p_quiet boolean default false) returns void
   language plpgsql volatile security definer set search_path = public, pg_temp as $$
@@ -27,7 +41,7 @@ begin
     return;
   end if;
   v_progress := (v_cmp->>'progress_pct')::numeric;
-  v_to := public.usage_warning_recipient(p_work_order_id);
+  v_to := public.usage_ahead_recipient(p_work_order_id);
 
   for e in select x from jsonb_array_elements(v_cmp->'items') x where (x->>'warn')::boolean loop
     begin   -- one item's failure does not stop the others

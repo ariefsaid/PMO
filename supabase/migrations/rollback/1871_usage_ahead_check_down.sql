@@ -9,3 +9,4 @@ drop function if exists public.usage_ahead_threshold_trigger();
 drop function if exists public.usage_ahead_trigger();
 drop function if exists public.usage_ahead_check_safe(uuid);
 drop function if exists public.usage_ahead_check_work_order(uuid, boolean);
+drop function if exists public.usage_ahead_recipient(uuid);
