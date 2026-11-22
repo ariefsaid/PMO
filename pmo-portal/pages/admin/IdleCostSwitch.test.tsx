@@ -20,7 +20,7 @@ vi.mock('@/src/auth/usePermission', async () => {
 import IdleCostSwitch from './IdleCostSwitch';
 
 const setup = () => { render(<ToastProvider><IdleCostSwitch /></ToastProvider>); return userEvent.setup(); };
-beforeEach(() => { document.body.innerHTML = ''; h.role = 'Admin'; h.on = false; h.labour = true; h.mutate.mockReset(); h.setScope.mockReset(); h.scope = 'labour_average'; });
+beforeEach(() => { h.role = 'Admin'; h.on = false; h.labour = true; h.mutate.mockReset(); h.setScope.mockReset(); h.scope = 'labour_average'; });
 
 describe('idle cost switch', () => {
   it('AC-IHC-011 Admin switches it on', async () => {
@@ -61,7 +61,8 @@ describe('idle cost switch', () => {
     h.setScope.mockImplementation((_v: string, o: { onError: (e: unknown) => void }) => o.onError({ code: '42501', message: 'not authorized' }));
     const user = setup();
     await user.selectOptions(screen.getByRole('combobox', { name: 'Idle cost covers' }), 'people_and_equipment');
-    expect(await screen.findByText('Only an Admin or Finance can change this setting.')).toBeVisible();
+    // the toast also mirrors its text into a screen-reader live region, so more than one node carries it
+    expect((await screen.findAllByText('Only an Admin or Finance can change this setting.')).length).toBeGreaterThan(0);
   });
   it('AC-IWR-012 Executive sees the scope but cannot change it', () => {
     h.role = 'Executive'; h.on = true;

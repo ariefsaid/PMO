@@ -2,8 +2,7 @@
 
 Slice `idle-with-rent` of the People, crews and time lane. Extends `docs/specs/idle-hours-cost.spec.md` (IHC, migrations
 1255-1256, restated by 1721). IDs: `FR-IWR-###`, `AC-IWR-###`. Size M. **Money path, read-only costing**: it posts nothing,
-changes no approval, no ledger and no actual. Migrations **1730-1731**. Status: Phase A (spec), awaiting go. Building waits
-for the head-count slice (1710-1719) to merge.
+changes no approval, no ledger and no actual. Migrations **1730-1731**. Status: approved; built (Phase B) on top of the merged head-count slice (1710, 1722-1724).
 
 **Job story.** When work stops, I want the idle cost of a work order to add up the people and the rented equipment for the
 stopped hours, by reason, so the claimable idle cost is one figure.
@@ -29,9 +28,11 @@ stopped hours, by reason, so the claimable idle cost is one figure.
 - Idle cost never enters `work_order_cost_amounts`, plan versus actual totals or margin (FR-IHC-004). That stays.
 
 ## 2. Definitions (glossary entry with the build)
-- **Head count on a day**: distinct workers with a `present` attendance day on that work order and date, plus (when the
-  head-count slice lands) its daily head-count lines for that work order and date. One SQL helper `idle_headcount(org, work
-  order, date)` is the single join point; the sibling's term is added there, nowhere else.
+- **Head count on a day**: distinct workers with a `present` attendance day on that work order and date, plus the approved
+  unnamed head-count lines (1710) for that work order and date. Unnamed lines carry no worker, so the two never name the
+  same person and add up. One set-based SQL helper `idle_headcount_days(org, project)` (1730, internal, no client grant)
+  is the single join point; a later people source is added there, nowhere else. Unapproved head-count lines do not count
+  (they are not yet money anywhere); a present day counts whether or not it is approved.
 - **People idle cost** (per reason): sum over days of idle minutes / 60 x head count that day x work-order hourly cost.
 - **Equipment standby cost** (per reason): per day, approved standby entries on that work order x standby rate in force,
   shared across that day's reasons in proportion to their idle minutes. Only days that have recorded idle time on that work
@@ -69,8 +70,9 @@ stopped hours, by reason, so the claimable idle cost is one figure.
   head count. [pgTAP]
 - AC-IWR-004 Given an approved standby entry of 2 h at standby rate 100000 on that work order and a day with idle time, then
   equipment amount 200000.00 and `amount` = people + equipment. [pgTAP]
-- AC-IWR-005 Given that day has two reasons (30 and 90 minutes), then the equipment amount is shared 1:3 and the rows sum to
-  the day's standby cost with no cent lost. [pgTAP]
+- AC-IWR-005 Given that day has two reasons (30 and 90 minutes), then the equipment amount is shared 1:3 by idle minutes;
+  each reason row is rounded once, so a split that does not divide to the cent can differ from the day's standby by under one
+  cent per reason, and the total is the sum of the rows. [pgTAP]
 - AC-IWR-006 Given standby entries that are draft, rejected, archived, without a work order, for another work order, on a day
   with no idle time, or with no standby rate, then they add nothing. [pgTAP]
 - AC-IWR-007 Given zero present workers that day, then people 0.00, hours shown, equipment still added. [pgTAP]
@@ -83,8 +85,8 @@ stopped hours, by reason, so the claimable idle cost is one figure.
   direct cost; with null columns it renders as today. [vitest component]
 - AC-IWR-012 Given the Administration control, then Admin/Finance change the scope and a refusal shows its reason; EN and ID.
   [vitest + one e2e journey]
-- AC-IWR-013 Given the head-count slice has merged, then its daily head-count lines for that work order and day are included in
-  the head count, and a worker both present and in a head-count line that day counts once. [pgTAP, written after that merge]
+- AC-IWR-013 Given approved unnamed head-count lines (1710), then they add to the head count of that work order and day, and
+  an unapproved line or an absent attendance row adds nothing. [pgTAP]
 
 ## 5. Settings added and defaults
 | Setting | Where | Default | Enforced by |
@@ -110,6 +112,9 @@ arithmetic. UX-only: visibility of the Administration control.
 3. Is the changed figure acceptable as an opt-in setting rather than the new default? Recommended: opt-in (spec rule for a
    changed money figure); revisit once no organisation relies on the old figure.
 
-## 8. Known limits
-The hourly cost stays the work order's whole-history weighted average (IHC limit 3). A head-count slice line priced per
-person-day must carry hours in `quantity` for the average to stay per person-hour; confirm at the merge (see plan task 0).
+## 8. Behaviour worth knowing
+Under `people_and_equipment`, a reason on a work order with no priced labour has no people amount (`no-rate`, shown as "No
+rate"), but its equipment amount is still shown and `amount` equals the equipment amount, so the standby money is not hidden.
+
+## 9. Known limits
+The hourly cost stays the work order's whole-history weighted average (IHC limit 3). Head-count lines carry person-hours in `quantity` (count x the rate's day length), verified at the merge, so the average stays per person-hour.
