@@ -1,4 +1,5 @@
 -- 1612_clearance_item_document_type.sql — fix/walk-people item 8: a checklist item can point at a document type.
+-- drops: person_clearance_items and person_clearance_summary rewrite their select and count lines so an item tied to a document type reads its dates from the person's document; a checklist item without one reads exactly as before.
 -- A linked item takes its date and expiry from the person's live document of that type (the document the expiring list already
 -- watches), so a licence expiry is typed once, on the document. An unlinked item keeps its own recorded date exactly as before.
 -- person_clearance_items and person_clearance_summary are restated from 1237 (newest definition) with the linked branch added.

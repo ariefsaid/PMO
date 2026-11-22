@@ -11,7 +11,6 @@
       "reason": "owner ruling 2026-11-15: the weekly time record is Timesheet in Bahasa"
     },
     { "value": "Status", "reason": "an Indonesian word with the same spelling (KBBI: status)" },
-    { "value": "Role", "reason": "this app's Indonesian RBAC noun: the #693 Bahasa pass pins the directory column, the role select label and Simpan role / Ubah role, and the role-confirm copy says role (KBBI has no entry, but the product vocabulary does)" },
     { "value": "Email", "reason": "a term Indonesian uses as written (brief 11-13 allowlist)" },
     { "value": "Total", "reason": "an Indonesian word with the same spelling (KBBI: total)" },
     { "value": "Internal", "reason": "an Indonesian word with the same spelling (KBBI: internal)" },
@@ -76,7 +75,6 @@
     { "value": "supplier", "reason": "owner ruling 2026-11-16: Bahasa keeps Supplier, lower-case inside a sentence" },
     { "value": "Transmittal", "reason": "a document-register type Indonesian engineering teams use as written" },
     { "value": "Submittal", "reason": "a document-register type Indonesian engineering teams use as written" },
-    { "value": "Work order", "reason": "the one Bahasa default for work order is the terminology dictionary's word \"work order\" everywhere it is shown (fix/walk-people item 4); an organisation renames it in Terminology" },
-    { "value": "Work order {{number}}", "reason": "the one Bahasa default for work order is the terminology dictionary's word \"work order\" everywhere it is shown (fix/walk-people item 4); an organisation renames it in Terminology" }
+    { "value": "Work order", "reason": "the one Bahasa default for work order is the terminology dictionary's word \"work order\" everywhere it is shown (fix/walk-people item 4); an organisation renames it in Terminology" }
   ]
 }

@@ -3,7 +3,7 @@
 -- remove the author check from dsr_withdraw -> 'only the author can withdraw' goes red.
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(13);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('16200000-0000-0000-0000-0000000000a1', 'DSW Org', 'USD', 'UTC');

@@ -18,19 +18,22 @@ insert into expiry_documents (org_id, subject_kind, person_id, type_id, issued_o
   ('27120000-0000-0000-0000-00000000000a', 'person', '27120000-0000-0000-0000-0000000000c1', '27120000-0000-0000-0000-0000000000b1', current_date - 100, current_date + 400);
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true) $$;
+-- the fixture item is written with its id by the owner (the client grant names no id column); everything after runs as the signed-in Admin.
+insert into clearance_items (id, org_id, name, sort_order, document_type_id) values ('27120000-0000-0000-0000-0000000000d1', '27120000-0000-0000-0000-00000000000a', 'Licence valid', 1, '27120000-0000-0000-0000-0000000000b1');
 set local role authenticated;
 select pg_temp.act_as('27120000-0000-0000-0000-0000000000a1');
-
-insert into clearance_items (id, name, sort_order, document_type_id) values ('27120000-0000-0000-0000-0000000000d1', 'Licence valid', 1, '27120000-0000-0000-0000-0000000000b1');
 select is((select expires_on from person_clearance_items('27120000-0000-0000-0000-0000000000c1')), current_date + 400, 'AC-CLD-001 the checklist shows the document''s expiry, not a second typed one');
 select is((select state from person_clearance_items('27120000-0000-0000-0000-0000000000c1')), 'done', 'AC-CLD-001 and the state follows it');
 select is((select state from person_clearance_items('27120000-0000-0000-0000-0000000000c2')), 'missing', 'AC-CLD-002 a person with no such document is not done');
 select is((select cleared from person_clearance_summary() where person_id = '27120000-0000-0000-0000-0000000000c1'), true, 'AC-CLD-003 the summary counts the document');
 select is((select cleared from person_clearance_summary() where person_id = '27120000-0000-0000-0000-0000000000c2'), false, 'AC-CLD-003 and not its absence');
 select throws_ok($$ insert into clearance_items (name, document_type_id) values ('Crane', '27120000-0000-0000-0000-0000000000b2') $$, '23514', null, 'AC-CLD-004 a type for equipment cannot be linked');
-select throws_ok($$ insert into clearance_items (name, document_type_id) values ('Ghost', gen_random_uuid()) $$, '23503', null, 'AC-CLD-004 an unknown type is refused');
-insert into clearance_items (id, name, sort_order) values ('27120000-0000-0000-0000-0000000000d2', 'Induction', 2);
-insert into person_clearances (person_id, item_id, done_on) values ('27120000-0000-0000-0000-0000000000c1', '27120000-0000-0000-0000-0000000000d2', current_date);
+select throws_ok($$ insert into clearance_items (name, document_type_id) values ('Ghost', gen_random_uuid()) $$, '23514', null, 'AC-CLD-004 an unknown type is refused (the guard answers CLR_DOC_TYPE before the foreign key is checked)');
+reset role;
+insert into clearance_items (id, org_id, name, sort_order) values ('27120000-0000-0000-0000-0000000000d2', '27120000-0000-0000-0000-00000000000a', 'Induction', 2);
+insert into person_clearances (org_id, person_id, item_id, done_on) values ('27120000-0000-0000-0000-00000000000a', '27120000-0000-0000-0000-0000000000c1', '27120000-0000-0000-0000-0000000000d2', current_date);
+set local role authenticated;
+select pg_temp.act_as('27120000-0000-0000-0000-0000000000a1');
 select is((select done_on from person_clearance_items('27120000-0000-0000-0000-0000000000c1') where name = 'Induction'), current_date, 'AC-CLD-005 an unlinked item still uses its recorded date');
 select is((select document_type_name from person_clearance_items('27120000-0000-0000-0000-0000000000c1') where name = 'Licence valid'), 'Licence', 'AC-CLD-001 the row names its document type');
 select * from finish();

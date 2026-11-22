@@ -2579,6 +2579,7 @@ export type Database = {
           archived_at: string | null
           created_at: string
           created_by: string | null
+          document_type_id: string | null
           id: string
           is_required: boolean
           name: string
@@ -2589,6 +2590,7 @@ export type Database = {
           archived_at?: string | null
           created_at?: string
           created_by?: string | null
+          document_type_id?: string | null
           id?: string
           is_required?: boolean
           name: string
@@ -2599,6 +2601,7 @@ export type Database = {
           archived_at?: string | null
           created_at?: string
           created_by?: string | null
+          document_type_id?: string | null
           id?: string
           is_required?: boolean
           name?: string
@@ -2611,6 +2614,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clearance_items_document_type_id_fkey"
+            columns: ["document_type_id"]
+            isOneToOne: false
+            referencedRelation: "document_types"
             referencedColumns: ["id"]
           },
           {
@@ -29686,6 +29696,7 @@ export type Database = {
           work_order_label: string
         }[]
       }
+      dsr_withdraw: { Args: { p_report: string }; Returns: undefined }
       email_notify_tick: { Args: never; Returns: undefined }
       end_contract_rate_assignee: {
         Args: { p_assignee: string; p_effective_to: string; p_project: string }
@@ -31009,14 +31020,17 @@ export type Database = {
       leave_requests_visible: {
         Args: never
         Returns: {
+          approver_role: string
           can_decide: boolean
           days: number
           decided_at: string
+          decided_by_name: string
           decision_note: string
           end_date: string
           id: string
           is_mine: boolean
           leave_type_id: string
+          line_manager_name: string
           person_id: string
           person_name: string
           reason: string
@@ -32750,6 +32764,8 @@ export type Database = {
       person_clearance_items: {
         Args: { p_person: string }
         Returns: {
+          document_type_id: string
+          document_type_name: string
           done_on: string
           expires_on: string
           is_required: boolean
@@ -32768,6 +32784,10 @@ export type Database = {
           required_count: number
           satisfied_count: number
         }[]
+      }
+      person_mark_left: {
+        Args: { p_left_on: string; p_person_id: string }
+        Returns: undefined
       }
       phone_check_in: {
         Args: {

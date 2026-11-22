@@ -9,11 +9,13 @@ import {
   useClearanceEnabled, useClearanceItemMutations, useClearanceItems, useClearanceSummary,
 } from '@/src/hooks/useClearance';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { useRefusalText } from '@/src/lib/refusals';
 import type { ClearanceItemRow } from '@/src/lib/repositories/clearance';
 
 /** Add or edit one checklist item. The organisation names its own items; PMO ships none. */
 const ItemForm: React.FC<{ item?: ClearanceItemRow; nextOrder: number; onClose: () => void }> = ({ item, nextOrder, onClose }) => {
   const { t } = useTranslation('administration');
+  const refusal = useRefusalText();
   const { toast } = useToast();
   const { create, update } = useClearanceItemMutations();
   const [name, setName] = useState(item?.name ?? '');
@@ -36,7 +38,7 @@ const ItemForm: React.FC<{ item?: ClearanceItemRow; nextOrder: number; onClose: 
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : '';
         if (message.includes('clearance_items_name_live')) setNameError(t('clearance.items.dupName', 'An item with that name already exists'));
-        else { const c = classifyMutationError(err); setSubmitError({ headline: c.headline, detail: c.detail }); }
+        else { const c = refusal(err); setSubmitError({ headline: c.headline, detail: c.detail }); }
       })
       .finally(() => setSaving(false));
   };

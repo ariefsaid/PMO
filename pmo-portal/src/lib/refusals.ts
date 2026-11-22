@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { classifyMutationError, type ClassifyContext } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, joinSentences, type ClassifyContext } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { formatQuantity } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';

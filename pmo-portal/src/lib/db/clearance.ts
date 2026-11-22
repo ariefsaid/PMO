@@ -63,12 +63,13 @@ export async function listClearanceSummary(): Promise<ClearanceSummaryRow[]> {
 export async function listPersonChecklist(personId: string): Promise<PersonChecklistRow[]> {
   const { data, error } = await supabase.rpc('person_clearance_items', { p_person: personId });
   if (error) fail(error);
-  // `returns table` states no nullability, so the generated row marks every column NOT NULL; the dates, the note and the
+  // `returns table` states no nullability, so the generated row marks every column NOT NULL; the dates, the note, the document type and the
   // state are absent/absent-until-set, and the database's own case expression bounds `state` to the four below.
   return (data ?? []).map((row) => ({
     item_id: row.item_id, name: row.name, is_required: row.is_required, sort_order: row.sort_order,
     done_on: row.done_on ?? null, expires_on: row.expires_on ?? null, note: row.note ?? null,
     state: row.state as ClearanceState,
+    document_type_id: row.document_type_id ?? null, document_type_name: row.document_type_name ?? null,
   }));
 }
 

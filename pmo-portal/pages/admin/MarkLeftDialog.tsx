@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog, DateField, useToast } from '@/src/components/ui';
 import { usePeopleMutations } from '@/src/hooks/usePeople';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { refusalLine, useRefusalText } from '@/src/lib/refusals';
 import { formatCalendarDayInTimeZone } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 
@@ -10,6 +10,7 @@ import { getActiveLocale } from '@/src/lib/locale/activeLocale';
  *  stays. The day starts as today on the organisation calendar. Used by the People register and the person record. */
 export const MarkLeftDialog: React.FC<{ person: { id: string; name: string } | null; onClose: () => void }> = ({ person, onClose }) => {
   const { t } = useTranslation();
+  const refusal = useRefusalText();
   const { toast } = useToast();
   const { markLeft } = usePeopleMutations();
   const [day, setDay] = useState('');
@@ -26,8 +27,7 @@ export const MarkLeftDialog: React.FC<{ person: { id: string; name: string } | n
       toast(t('administration:people.markedLeft', '{{name}} is now former staff', { name: person.name }), undefined, 'success');
       close();
     } catch (err) {
-      const c = classifyMutationError(err);
-      setProblem(`${c.headline}. ${c.detail}`);
+      setProblem(refusalLine(refusal(err)));
     }
   };
 

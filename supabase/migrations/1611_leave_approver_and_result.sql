@@ -1,4 +1,5 @@
 -- 1611_leave_approver_and_result.sql — fix/walk-people item 9: a leave request names who approves it, and the requester is told the result.
+-- drops: leave_requests_visible rewrites its last select line to carry three more columns (decider, line manager, approver role); no row is dropped.
 --   1. leave_requests_visible also returns who decided (decided_by_name), the person's line manager (line_manager_name) and the
 --      organisation's approver role key (approver_role), so the screen can say who a pending request waits for.
 --   2. leave_request_decide (restated from 1241, newest definition, plus the light-account guard 1461 added) tells the requester:

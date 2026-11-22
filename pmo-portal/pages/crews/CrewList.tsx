@@ -180,6 +180,7 @@ const PlacePersonModal: React.FC<{ crew: CrewRow; onClose: () => void }> = ({ cr
 /** Set or change the crew role of someone already in the crew. Their dates stay; the roster figures count them from now on. */
 const SetCrewRoleModal: React.FC<{ crew: CrewRow; member: CrewMemberRow; personName: string; onClose: () => void }> = ({ crew, member, personName, onClose }) => {
   const { t } = useTranslation('crews');
+  const writeError = useCrewErrorText();
   const { toast } = useToast();
   const roles = useCrewRoles(crew.id);
   const { setPlacementRole } = useCrewMutations();
@@ -193,7 +194,7 @@ const SetCrewRoleModal: React.FC<{ crew: CrewRow; member: CrewMemberRow; personN
       toast(t('crews:roleSet', 'Crew role saved'), undefined, 'success');
       onClose();
     } catch (err) {
-      setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: crewErrorMessage(t, err) });
+      setSubmitError({ headline: t('crews:saveFailed', 'Not saved'), detail: writeError(err) });
     }
   };
   return (
