@@ -945,7 +945,8 @@
     "markLeftLabel": "Mark {{name}} as left",
     "leftTitle": "Mark {{name}} as left",
     "leftBody": "They move to Former staff and leave every crew roster from this day. Their documents, hours and history stay on record.",
-    "leftOn": "Last day of work",
+    "leftOn": "First day off crew roster",
+    "leftOnHelp": "First day off crew roster",
     "markedLeft": "{{name}} is now former staff"
   },
   "roleNames": {
