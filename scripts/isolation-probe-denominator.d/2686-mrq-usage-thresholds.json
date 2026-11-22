@@ -25,9 +25,6 @@
     "usage_warning_recipient(uuid)",
     "usage_check_work_order(uuid)",
     "usage_check_safe(uuid)",
-    "usage_check_report_trigger()",
-    "usage_check_stock_trigger()",
-    "guard_work_order_responsible_person()",
     "set_work_order_responsible_person(uuid,uuid)"
   ]
 }
