@@ -1,3 +1,4 @@
+export type { Role } from './AuthContext';
 import type { Role } from './AuthContext';
 import { ALL_ROLES, MASTER_DATA_ROLES, REVENUE_WRITE_ROLES } from './coarseRoles';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
@@ -72,7 +73,11 @@ export type Action =
   | 'send'
   | 'recordReservation'
   | 'recordRelease'
-  | 'recordPickup';
+  | 'recordPickup'
+  | 'return'
+  | 'attribute'
+  | 'toggleRole'
+  | 'setPaymentChannel';
 
 export type Entity =
   | 'project'
@@ -202,7 +207,11 @@ export type Entity =
   | 'crewTool'
   | 'attendanceRate'
   | 'attendanceTarget'
-  | 'leaveRequest';
+  | 'leaveRequest'
+  | 'checkInSettings'
+  | 'equipmentTarget'
+  | 'workOrderIssueThreshold'
+  | 'stockReservation';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -668,6 +677,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       !!ctx.currentUserId &&
       ctx.record?.claimant_id === ctx.currentUserId &&
       (ctx.record?.status === 'Draft' || ctx.record?.status === 'Rejected'),
+    attribute: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (has(['Admin', 'Executive', 'Finance', 'Project Manager'], role) ||
+        (has(ALL, role) &&
+          !!ctx.currentUserId &&
+          ctx.record?.claimant_id === ctx.currentUserId &&
+          (ctx.record?.status === 'Draft' || ctx.record?.status === 'Rejected'))),
   },
   /**
    * Site imprest (#1515, 0422-0424). Floats, plans and replenishments are visible to approval rank (RLS). Status moves
@@ -725,6 +741,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(ALL), // ANY member incl. Engineer (requester server-stamped)
     edit: allow(ALL), // record-scoped (requester while Draft/Rejected) at the call-site
     transition: allow([...MASTER_DATA]), // FE shows; SoD identity + RPC are the authority
+    setPaymentChannel: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (((ctx.record?.status === 'Draft' || ctx.record?.status === 'Rejected') &&
+        (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.requested_by_id === ctx.currentUserId))) ||
+       (has(['Finance', 'Admin'], role) && ctx.record?.status !== 'Paid' && ctx.record?.status !== 'Cancelled')),
     // no archive / no hard delete — Cancel only (handled as a transition)
   },
   procItem: {
@@ -1068,7 +1089,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     manage: allow(ADMIN),
   },
   // #2579: document categories and their viewer roles. Mirrors the management functions of migration 1093 (active Admin). UX ONLY — they are the authority (ADR-0016).
-  documentCategory: { manage: allow(ADMIN) },
+  documentCategory: {
+    manage: allow(ADMIN),
+    view: (role, ctx) =>
+      role === 'Admin' ||
+      (!!role && Array.isArray(ctx.record?.roles) && (ctx.record.roles as unknown[]).includes(role)),
+    toggleRole: (_role, ctx) => ctx.record?.role !== 'Admin',
+  },
   // #1532 S9: the org's feedback-and-surveys switch. Mirrors admin_set_feedback_surveys (0419: active Admin). UX ONLY.
   orgFeedback: { manage: allow(ADMIN) },
   // #2711: which events send email, the extra roles copied, the email language. Mirrors set_email_* (1223: active Admin). UX ONLY.
@@ -1359,7 +1386,20 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     approve: (role, ctx) =>
       ctx.record?.viewOnly !== true && has(['Admin', 'Finance', 'Executive'], role) &&
       !(ctx.currentUserId && (ctx.record?.prepared_by === ctx.currentUserId || ctx.record?.submitted_by === ctx.currentUserId)),
+    return: allowUnlessViewOnly(['Admin', 'Finance', 'Executive']),
     bill: allowUnlessViewOnly(['Admin', 'Finance']),
+  },
+  // #2705: phone check-in settings — who decides outside-area check-ins (1210: active Admin). UX ONLY.
+  checkInSettings: { manage: allowUnlessViewOnly(ADMIN) },
+  // #2701: equipment targets and working hours (1470: active Admin). UX ONLY.
+  equipmentTarget: { manage: allowUnlessViewOnly(ADMIN) },
+  // #2584: work order issue threshold (1340: active Admin). UX ONLY.
+  workOrderIssueThreshold: { manage: allowUnlessViewOnly(ADMIN) },
+  // #2584 / #2689: stock reservations (1440: location keeper or master-data roles). UX ONLY.
+  stockReservation: {
+    manage: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (ctx.record?.isKeeper === true || has(MASTER_DATA, role)),
   },
   // The subcontractor rate card is cost data (FR-SPC-003): Admin and Finance write, Executive reads.
   subcontractRate: {
