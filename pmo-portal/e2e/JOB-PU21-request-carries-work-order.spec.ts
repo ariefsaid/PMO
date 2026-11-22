@@ -7,6 +7,7 @@
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 import { serviceClient, SEED_SUPPLIER_ID } from './procurement-fixture';
+import { need, ok, cleanupAll } from './support/jobFixtures';
 
 test.setTimeout(180_000);
 
@@ -16,41 +17,66 @@ const PM_ID = '00000000-0000-0000-0000-0000000000a2';
 test('JOB-PU21 the request starts on the project\'s only open work order and the cost follows it to the order and receipt', async ({ page }) => {
   const admin = serviceClient();
   const tag = `JOB-PU21 ${Date.now()}`;
-  const project = (await admin.from('projects').insert({ org_id: ORG_ID, name: tag, status: 'Ongoing Project', project_manager_id: PM_ID }).select('id').single()).data;
-  if (!project) throw new Error('JOB-PU21 could not create its project');
-  const workOrder = (await admin.from('work_orders').insert({ org_id: ORG_ID, project_id: project.id, title: `${tag} pump house`, status: 'Issued', order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0 }).select('id').single()).data;
-  if (!workOrder) throw new Error('JOB-PU21 could not create its work order');
-  const discipline = (await admin.from('cost_disciplines').insert({ org_id: ORG_ID, code: `D${Date.now() % 100000}`, name: `${tag} Piping` }).select('id').single()).data;
-  if (!discipline) throw new Error('JOB-PU21 could not create its discipline');
+  let projectId: string | null = null;
+  let workOrderId: string | null = null;
+  let disciplineId: string | null = null;
   let procurementId: string | null = null;
+  let journeyError: unknown = null;
+
   try {
+    const project = need('JOB-PU21 project', await admin.from('projects').insert({
+      org_id: ORG_ID, name: tag, status: 'Ongoing Project', project_manager_id: PM_ID,
+    }).select('id').single());
+    projectId = project.id as string;
+
+    const workOrder = need('JOB-PU21 work order', await admin.from('work_orders').insert({
+      org_id: ORG_ID, project_id: projectId, title: `${tag} pump house`, status: 'Issued',
+      order_value: 1000, tax_treatment: 'exclusive', tax_amount: 0,
+    }).select('id').single());
+    workOrderId = workOrder.id as string;
+
+    const discipline = need('JOB-PU21 discipline', await admin.from('cost_disciplines').insert({
+      org_id: ORG_ID, code: `D${Date.now()}`, name: `${tag} Piping`,
+    }).select('id').single());
+    disciplineId = discipline.id as string;
+
     await signIn(page, 'pm@acme.test');
-    await page.goto(`/procurement/new?have=need&project=${project.id}&title=${encodeURIComponent(tag)}&lineName=Pipe&lineQty=3&lineRate=15000000`);
+    await page.goto(`/procurement/new?have=need&project=${projectId}&title=${encodeURIComponent(tag)}&lineName=Pipe&lineQty=3&lineRate=15000000`);
+
     // The work order is already chosen: no "project level" default. Combobox role avoids ambiguity with the adjacent clear button.
     const picker = page.getByRole('combobox', { name: 'Work order' });
     await expect(picker).toContainText(`${tag} pump house`, { timeout: 20_000 });
+
     // Pick the discipline on the request form so cost attribution carries through.
     await page.getByRole('combobox', { name: 'Discipline' }).click();
     await page.locator('div[role="option"]', { hasText: `${tag} Piping` }).click();
     await page.getByRole('button', { name: 'Save draft' }).click();
     await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]{36}/, { timeout: 20_000 });
+
     procurementId = page.url().match(/\/procurement\/([0-9a-f-]{36})/)?.[1] ?? null;
     expect(procurementId).not.toBeNull();
-    const row = (await admin.from('procurements').select('work_order_id, discipline_id').eq('id', procurementId as string).single()).data;
-    expect(row?.work_order_id).toBe(workOrder.id);
-    expect(row?.discipline_id).toBe(discipline.id);
+
+    const row = need('JOB-PU21 read procurement', await admin.from('procurements').select('work_order_id, discipline_id').eq('id', procurementId as string).single());
+    expect(row.work_order_id).toBe(workOrderId);
+    expect(row.discipline_id).toBe(disciplineId);
 
     // Request → approve → supplier → order, as the database does for the later records (the journey asserts where the cost lands).
-    await admin.from('procurements').update({ vendor_id: SEED_SUPPLIER_ID, status: 'Approved', approved_by_id: '00000000-0000-0000-0000-0000000000a1' }).eq('id', procurementId as string);
+    ok('JOB-PU21 approve', await admin.from('procurements').update({
+      vendor_id: SEED_SUPPLIER_ID,
+      status: 'Approved',
+      approved_by_id: '00000000-0000-0000-0000-0000000000a1',
+    }).eq('id', procurementId as string));
+
     await page.goto(`/procurement/${procurementId}`);
     await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Approved', { timeout: 15_000 });
     await page.getByRole('button', { name: 'Record order' }).first().click();
     const confirm = page.getByRole('dialog').filter({ hasText: 'Record this order?' });
     await confirm.getByRole('button', { name: 'Record order' }).click();
     await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 15_000 });
-    const order = (await admin.from('purchase_orders').select('work_order_id, discipline_id').eq('procurement_id', procurementId as string).single()).data;
-    expect(order?.work_order_id).toBe(workOrder.id);
-    expect(order?.discipline_id).toBe(discipline.id);
+
+    const order = need('JOB-PU21 read order', await admin.from('purchase_orders').select('work_order_id, discipline_id').eq('procurement_id', procurementId as string).single());
+    expect(order.work_order_id).toBe(workOrderId);
+    expect(order.discipline_id).toBe(disciplineId);
 
     // The receipt form starts on the same work order and carries the discipline.
     await page.getByRole('button', { name: 'Record receipt' }).first().click();
@@ -66,18 +92,45 @@ test('JOB-PU21 the request starts on the project\'s only open work order and the
     await confirmGR.getByRole('button', { name: 'Save GR' }).click();
     await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Received', { timeout: 15_000 });
 
-    const receipt = (await admin.from('procurement_receipts').select('work_order_id, discipline_id').eq('procurement_id', procurementId as string).single()).data;
-    expect(receipt?.work_order_id).toBe(workOrder.id);
-    expect(receipt?.discipline_id).toBe(discipline.id);
+    // Poll the stored procurement_receipts row for work_order_id and discipline_id:
+    // Received status is advanced inside the createReceipt transaction, while the second attribution RPC runs immediately afterwards.
+    await expect.poll(async () => {
+      const { data, error } = await admin.from('procurement_receipts')
+        .select('work_order_id, discipline_id')
+        .eq('procurement_id', procurementId as string)
+        .maybeSingle();
+      if (error) throw new Error(`query receipt: ${error.message}`);
+      return { wo: data?.work_order_id ?? null, disc: data?.discipline_id ?? null };
+    }, { timeout: 10_000 }).toEqual({ wo: workOrderId, disc: disciplineId });
+  } catch (err) {
+    journeyError = err;
+    throw err;
   } finally {
-    if (procurementId) {
-      for (const table of ['procurement_receipts', 'purchase_orders', 'purchase_requests', 'procurement_status_events', 'procurement_items']) {
-        await admin.from(table).delete().eq('procurement_id', procurementId);
+    try {
+      if (!procurementId && projectId) {
+        const fallback = await admin.from('procurements').select('id').eq('project_id', projectId).eq('title', tag).maybeSingle();
+        if (fallback.data?.id) procurementId = fallback.data.id;
       }
-      await admin.from('procurements').delete().eq('id', procurementId);
+      await cleanupAll(admin, [
+        ['procurement_receipts', 'procurement_id', procurementId ? [procurementId] : []],
+        ['purchase_orders', 'procurement_id', procurementId ? [procurementId] : []],
+        ['purchase_requests', 'procurement_id', procurementId ? [procurementId] : []],
+        ['procurement_status_events', 'procurement_id', procurementId ? [procurementId] : []],
+        ['procurement_items', 'procurement_id', procurementId ? [procurementId] : []],
+        ['procurements', 'id', procurementId ? [procurementId] : []],
+        ['work_orders', 'id', workOrderId ? [workOrderId] : []],
+        ['cost_disciplines', 'id', disciplineId ? [disciplineId] : []],
+        ['projects', 'id', projectId ? [projectId] : []],
+      ]);
+    } catch (cleanupErr) {
+      if (journeyError) {
+        const jMsg = journeyError instanceof Error ? journeyError.message : String(journeyError);
+        const cMsg = cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr);
+        const combined = new Error(`${jMsg} (cleanup also failed: ${cMsg})`);
+        combined.stack = journeyError instanceof Error ? journeyError.stack : undefined;
+        throw combined;
+      }
+      throw cleanupErr;
     }
-    await admin.from('work_orders').delete().eq('id', workOrder.id);
-    await admin.from('cost_disciplines').delete().eq('id', discipline.id);
-    await admin.from('projects').delete().eq('id', project.id);
   }
 });
