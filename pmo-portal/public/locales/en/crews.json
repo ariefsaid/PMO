@@ -80,7 +80,7 @@
   "noMembers": "No people in this crew yet",
   "noMembersDay": "Nobody is placed in this crew that day",
   "noPlacements": "No crew has been rostered here",
-  "noRole": "No role",
+  "noRole": "Not set yet",
   "noWorkOrders": "No open work orders.",
   "open": "Open",
   "person": "Person",
@@ -121,7 +121,7 @@
   "retry": "Retry",
   "return": "Return",
   "returned": "Week returned",
-  "roleName": "Role",
+  "roleName": "Crew role",
   "rosterCrew": "Roster a crew",
   "rosterEnded": "Roster placement ended",
   "rosterError": "Couldn't load the roster",
@@ -279,5 +279,19 @@
     "supervisorRole": "Who decides outside-area check-ins",
     "supervisorRoleDefault": "The crew's field controller or a crew manager",
     "supervisorRoleHelper": "Anyone holding this role decides. The person who checked in never decides their own."
-  }
+  },
+  "roleNotSet": "Crew role not set",
+  "changeRole": "Change crew role",
+  "setRole": "Set crew role",
+  "roleSet": "Crew role saved",
+  "setRoleTitle": "Crew role for {{name}}",
+  "saveRole": "Save crew role",
+  "pickRole": "Choose a crew role",
+  "noRoleNote": "Not counted above: {{count}} with no crew role set.",
+  "noRoleFix": "Set their crew role under Crews",
+  "addNewPerson": "Add \"{{name}}\" as a new person",
+  "newPersonChip": "{{name}} (new person)",
+  "personPickOrType": "Choose a person, or type a new name",
+  "personPick": "Choose a person",
+  "personSearch": "Search or type a name"
 }

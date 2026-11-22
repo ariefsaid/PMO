@@ -80,7 +80,7 @@
   "noMembers": "Belum ada orang di kru ini",
   "noMembersDay": "Tidak ada yang ditempatkan di kru ini hari itu",
   "noPlacements": "Belum ada kru yang dijadwalkan di sini",
-  "noRole": "Tanpa peran",
+  "noRole": "Belum ditentukan",
   "noWorkOrders": "Tidak ada $t(common:terms.clientWorkOrder) yang terbuka.",
   "open": "Terbuka",
   "person": "Orang",
@@ -121,7 +121,7 @@
   "retry": "Coba lagi",
   "return": "Kembalikan",
   "returned": "Minggu dikembalikan",
-  "roleName": "Peran",
+  "roleName": "Posisi kru",
   "rosterCrew": "Jadwalkan kru",
   "rosterEnded": "Penempatan jadwal kru diakhiri",
   "rosterError": "Tidak dapat memuat jadwal kru",
@@ -279,5 +279,19 @@
     "supervisorRole": "Siapa yang memutuskan absen di luar area",
     "supervisorRoleDefault": "Pengendali lapangan kru atau pengelola kru",
     "supervisorRoleHelper": "Pemegang peran ini yang memutuskan. Orang yang absen tidak pernah memutuskan absennya sendiri."
-  }
+  },
+  "roleNotSet": "Posisi kru belum diisi",
+  "changeRole": "Ubah posisi kru",
+  "setRole": "Isi posisi kru",
+  "roleSet": "Posisi kru tersimpan",
+  "setRoleTitle": "Posisi kru untuk {{name}}",
+  "saveRole": "Simpan posisi kru",
+  "pickRole": "Pilih posisi kru",
+  "noRoleNote": "Tidak dihitung di atas: {{count}} orang belum punya posisi kru.",
+  "noRoleFix": "Isi posisi kru mereka di menu Kru",
+  "addNewPerson": "Tambahkan \"{{name}}\" sebagai orang baru",
+  "newPersonChip": "{{name}} (orang baru)",
+  "personPickOrType": "Pilih orang, atau ketik nama baru",
+  "personPick": "Pilih orang",
+  "personSearch": "Cari atau ketik nama"
 }
