@@ -88,13 +88,7 @@
     "setting": {
       "title": "Laba per disiplin",
       "label": "Tampilkan pendapatan di samping biaya per disiplin",
-      "helper": "Menambah tabel pada bagian rencana vs aktual proyek dan kolom disiplin pada baris kontrak. Nonaktif secara default.",
-      "save": "Simpan",
-      "saved": "Pengaturan disimpan",
-      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
-      "loadError": "Pengaturan tidak dapat dimuat",
-      "on": "Aktif",
-      "off": "Nonaktif"
+      "helper": "Menambah tabel pada bagian rencana vs aktual proyek dan kolom disiplin pada baris kontrak. Nonaktif secara default."
     }
   },
   "projectHours": "Jam proyek dan kontrak",

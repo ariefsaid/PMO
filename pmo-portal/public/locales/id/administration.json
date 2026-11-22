@@ -1,4 +1,8 @@
 {
+  "orgSwitch": {
+    "loadError": "Pengaturan ini tidak dapat dimuat",
+    "adminOnly": "Hanya Admin yang dapat mengubah ini."
+  },
   "onlyActiveAdmin": "Admin aktif satu-satunya tidak dapat dinonaktifkan",
   "odoo": {
     "banner": {
@@ -754,15 +758,9 @@
       "duplicate": "Nama itu sudah ada dalam daftar"
     },
     "builtInRoles": {
+      "label": "Tawarkan peran bawaan",
       "title": "Peran bawaan",
-      "loadError": "Pengaturan peran bawaan tidak dapat dimuat",
-      "saved": "Pengaturan peran bawaan disimpan",
-      "helper": "Tawarkan 28 peran untuk fungsi-fungsi kontraktor, dalam tiga tingkat. Masing-masing berawal dari satu dari lima tingkat akses, sehingga mengaktifkannya tidak mengubah apa pun sampai seseorang diberi peran. Orang yang sudah diberi peran tetap memilikinya jika Anda menonaktifkannya.",
-      "on": "Aktif",
-      "off": "Nonaktif",
-      "adminOnly": "Hanya Admin yang dapat mengubah ini.",
-      "turnOn": "Aktifkan peran bawaan",
-      "turnOff": "Nonaktifkan peran bawaan"
+      "helper": "Tawarkan 28 peran untuk fungsi-fungsi kontraktor, dalam tiga tingkat. Masing-masing berawal dari satu dari lima tingkat akses, sehingga mengaktifkannya tidak mengubah apa pun sampai seseorang diberi peran. Orang yang sudah diberi peran tetap memilikinya jika Anda menonaktifkannya."
     },
     "hidePrices": {
       "title": "Sembunyikan harga dari peminta",
@@ -802,9 +800,7 @@
     "crewLoans": {
       "title": "Pinjaman kru",
       "label": "Izinkan meminjamkan pekerja antar kru",
-      "helper": "Pekerja yang dipinjamkan mengikuti jadwal dan kehadiran kru tujuan selama masa pinjaman. Jika mati, halaman Kru tidak menampilkan pinjaman.",
-      "loadError": "Tidak dapat memuat pengaturan pinjaman kru",
-      "adminOnly": "Hanya Admin yang dapat mengubah ini."
+      "helper": "Pekerja yang dipinjamkan mengikuti jadwal dan kehadiran kru tujuan selama masa pinjaman. Jika mati, halaman Kru tidak menampilkan pinjaman."
     }
   },
   "exchangeRates": {
@@ -1117,8 +1113,7 @@
       "heading": "Daftar periksa izin ke lokasi",
       "loadError": "Pengaturan ini tidak dapat dimuat",
       "label": "Lacak siapa yang diizinkan ke lokasi",
-      "help": "Menambahkan bagian Izin ke lokasi tempat Anda mendaftar kebutuhan setiap orang dan mencatat kapan selesai. Tidak ada hal lain yang berubah.",
-      "onlyAdmin": "Hanya Admin yang dapat mengubah ini."
+      "help": "Menambahkan bagian Izin ke lokasi tempat Anda mendaftar kebutuhan setiap orang dan mencatat kapan selesai. Tidak ada hal lain yang berubah."
     },
     "off": {
       "title": "Daftar periksa izin ke lokasi belum diaktifkan",

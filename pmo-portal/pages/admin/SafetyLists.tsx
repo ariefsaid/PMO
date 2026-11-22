@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, FieldError, ListState, Switch, TextField, useToast } from '@/src/components/ui';
+import { Button, FieldError, ListState, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useSafetyList, useSafetyMutations } from '@/src/hooks/useSafetyDays';
-import { useOrgSwitch, useSetOrgSwitch } from '@/src/hooks/useOrgSwitch';
+import { OrgSwitchSetting } from '@/src/components/admin/OrgSwitchSetting';
 import type { SafetyListKind } from '@/src/lib/db/safetyDays';
 
 function ListEditor({ kind, title }: { kind: SafetyListKind; title: string }) {
@@ -73,18 +73,13 @@ function ListEditor({ kind, title }: { kind: SafetyListKind; title: string }) {
 const SafetyLists: React.FC = () => {
   const { t } = useTranslation('safety');
   const may = usePermission();
-  const enabled = useOrgSwitch('safetyRecords');
-  const setOn = useSetOrgSwitch('safetyRecords');
-  const { toast } = useToast();
   if (!may('manage', 'safetyLists')) return null;
   return (
     <section id="safety-records" tabIndex={-1} className="scroll-mt-4" aria-labelledby="safety-records-heading">
       <h2 id="safety-records-heading" className="text-group font-semibold tracking-[-0.01em]">{t('admin.title', 'Safety records')}</h2>
-      <p className="mt-1 max-w-prose text-control text-muted-foreground">{t('admin.helper', 'Daily safety records per work order. The check types, permit types and checklist items are yours: add what your sites use. Archiving hides an entry from new days; days that already use it keep it.')}</p>
-      <div className="mt-4 flex items-center gap-3">
-        <Switch checked={enabled.data === true} disabled={enabled.isPending || setOn.isPending} label={t('admin.enable', 'Record daily safety on work orders')}
-          onChange={(v) => void setOn.mutateAsync(v).catch((err) => { const { headline, detail } = classifyMutationError(err); toast(headline, detail, 'warning'); })} />
-        <span className="text-control">{t('admin.enable', 'Record daily safety on work orders')}</span>
+      <div className="mt-3">
+        <OrgSwitchSetting setting="safetyRecords" label={t('admin.enable', 'Record daily safety on work orders')}
+          helper={t('admin.helper', 'Daily safety records per work order. The check types, permit types and checklist items are yours: add what your sites use. Archiving hides an entry from new days; days that already use it keep it.')} />
       </div>
       <div className="mt-6 grid gap-6 md:grid-cols-3">
         <ListEditor kind="check_type" title={t('admin.checkTypes', 'Fitness check types')} />

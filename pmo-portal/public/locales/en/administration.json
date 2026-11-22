@@ -1,4 +1,8 @@
 {
+  "orgSwitch": {
+    "loadError": "Couldn't load this setting",
+    "adminOnly": "Only an Admin can change this."
+  },
   "onlyActiveAdmin": "The only active Admin cannot be disabled",
   "odoo": {
     "banner": {
@@ -754,15 +758,9 @@
       "duplicate": "That name is already in the list"
     },
     "builtInRoles": {
+      "label": "Offer built-in roles",
       "title": "Built-in roles",
-      "loadError": "Couldn't load the built-in roles setting",
-      "saved": "Built-in roles setting saved",
-      "helper": "Offer 28 roles across the functions of a contractor, in three levels. Each starts from one of the five access levels, so turning this on changes nothing until someone is given a role. People already given a role keep it if you turn this off.",
-      "on": "On",
-      "off": "Off",
-      "adminOnly": "Only an Admin can change this.",
-      "turnOn": "Turn on built-in roles",
-      "turnOff": "Turn off built-in roles"
+      "helper": "Offer 28 roles across the functions of a contractor, in three levels. Each starts from one of the five access levels, so turning this on changes nothing until someone is given a role. People already given a role keep it if you turn this off."
     },
     "hidePrices": {
       "title": "Hide prices from requesters",
@@ -802,9 +800,7 @@
     "crewLoans": {
       "title": "Crew loans",
       "label": "Allow lending workers between crews",
-      "helper": "A lent worker follows the host crew on its roster and attendance for the loan period. Off, the Crews page shows no loans.",
-      "loadError": "Couldn't load the crew loans setting",
-      "adminOnly": "Only an Admin can change this."
+      "helper": "A lent worker follows the host crew on its roster and attendance for the loan period. Off, the Crews page shows no loans."
     }
   },
   "exchangeRates": {
@@ -1147,8 +1143,7 @@
       "loadError": "Couldn’t load this setting",
       "heading": "Cleared-for-site checklist",
       "label": "Track who is cleared to go to site",
-      "help": "Adds a Clearance section where you list what each person needs and record when it is done. Nothing else changes.",
-      "onlyAdmin": "Only an Admin can change this."
+      "help": "Adds a Clearance section where you list what each person needs and record when it is done. Nothing else changes."
     },
     "off": {
       "title": "The clearance checklist is not turned on",
