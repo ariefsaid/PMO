@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { useAuth } from '@/src/auth/useAuth';
+import { isLightAccount } from '@/src/auth/lightAccount';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useProcurements } from '@/src/hooks/useProcurements';
@@ -392,8 +393,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const invoiceApprovals = useInvoicesAwaitingViewer();
   // #2680: steps waiting on the viewer's role. Additive: a failed or unread query adds no item and never blocks the list.
   const waitingStepsQuery = useWaitingSteps(Boolean(orgId && role && role !== 'Engineer'));
-  // material-vs-progress: open alerts on work orders the viewer controls. Any role can be listed as a recipient; the database returns none to everyone else.
-  const waitingAlertsQuery = useWaitingMaterialAlerts(Boolean(orgId && role));
+  // material-vs-progress: open alerts on work orders the viewer controls. The responsible person can hold any role; the database returns none to everyone else and refuses a light account, so none is asked.
+  const waitingAlertsQuery = useWaitingMaterialAlerts(Boolean(orgId && role) && !isLightAccount(currentUser));
   // The check-in decisions this person may make; a failed read adds no item and never blocks the list.
   const checkInsQuery = useCheckInRequests();
 

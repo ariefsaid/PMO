@@ -2,6 +2,7 @@
 -- AC-MVP-001 opens + tells the responsible person · 002 once per episode, replay-safe · 003 resolves; a new episode tells again · 004 strict,
 -- a submitted report adds nothing · 005 threshold cleared · 006 recipient rule (responsible person, else project manager, else nobody recorded) ·
 -- 007 a system actor's posting still posts and writes no alert · 008 who reads · 010 first run after release is quiet ·
+-- 017 a light-account responsible person is skipped, the manager is told, a light account's needs-you read is refused ·
 -- 015 a failing check never blocks a posting or a validation · 016 an installed-usage row (1862) and an ahead row coexist for one item.
 -- MUTATION CHECKS (the orchestrator breaks the rule, the named assertions MUST go red, then restores):
 --   (1) 1871 `-- mut:once` : delete the `continue when exists (...)` -> AC-MVP-002 red.
@@ -10,22 +11,24 @@
 --   (4) 1871 `-- mut:unset` : drop the null-threshold early return -> AC-MVP-005 red.
 --   (5) 1871 `-- mut:ahead_never_blocks` : delete the exception block of usage_ahead_check_safe -> AC-MVP-015 red.
 --   (6) 1870 `-- mut:usage_once` : drop the unique index -> AC-MVP-002 red (and usage_warning.test.sql AC-UW-003).
+--   (8) 1871 `-- mut:light_recipient` : change `= 'light'` to `= 'none'` -> AC-MVP-017 red.
 --   (7) 1862 usage_warning_recipient: return the project manager first -> AC-MVP-001, 006 red.
 -- Fixture: WO one (project d1, manager a2, responsible person a3) has line L1 (rate 10, qty 100), rod allowance 100, so each rod issued is that many
 -- percent; progress is 0 until a validated daily report says otherwise. WO two (project d2, no manager, no responsible person) is the nobody case.
 begin;
 create extension if not exists pgtap;
-select plan(43);
+select plan(49);
 
 insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
   ('26870000-0000-0000-0000-00000000010a', 'AHD Org', 'IDR', 'UTC', true), ('26870000-0000-0000-0000-00000000010b', 'AHD Other', 'IDR', 'UTC', true);
 insert into auth.users (id, email) values
   ('26870000-0000-0000-0000-0000000001a1', 'ahd-admin@example.com'), ('26870000-0000-0000-0000-0000000001a2', 'ahd-pm@example.com'), ('26870000-0000-0000-0000-0000000001a3', 'ahd-eng@example.com'),
-  ('26870000-0000-0000-0000-0000000001a5', 'ahd-gone@example.com'), ('26870000-0000-0000-0000-0000000001b1', 'ahd-xadmin@example.com');
+  ('26870000-0000-0000-0000-0000000001a4', 'ahd-foreman@example.com'), ('26870000-0000-0000-0000-0000000001a5', 'ahd-gone@example.com'), ('26870000-0000-0000-0000-0000000001b1', 'ahd-xadmin@example.com');
 insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
   ('26870000-0000-0000-0000-0000000001a1', '26870000-0000-0000-0000-00000000010a', 'AHD Admin', 'ahd-admin@example.com', 'Admin', 'active', null),
   ('26870000-0000-0000-0000-0000000001a2', '26870000-0000-0000-0000-00000000010a', 'AHD PM',    'ahd-pm@example.com',    'Project Manager', 'active', null),
   ('26870000-0000-0000-0000-0000000001a3', '26870000-0000-0000-0000-00000000010a', 'AHD Eng',   'ahd-eng@example.com',   'Engineer', 'active', null),
+  ('26870000-0000-0000-0000-0000000001a4', '26870000-0000-0000-0000-00000000010a', 'AHD Foreman', 'ahd-foreman@example.com', 'Engineer', 'active', 'foreman'),
   ('26870000-0000-0000-0000-0000000001a5', '26870000-0000-0000-0000-00000000010a', 'AHD Gone',  'ahd-gone@example.com',  'Engineer', 'active', null),
   ('26870000-0000-0000-0000-0000000001b1', '26870000-0000-0000-0000-00000000010b', 'AHD XAdmin','ahd-xadmin@example.com','Admin', 'active', null);
 insert into projects (id, org_id, name, status, project_manager_id) values
@@ -173,6 +176,23 @@ select ok(public.usage_ahead_backfill() >= 1, 'AC-MVP-010 the release backfill e
 select is(pg_temp._open('26870000-0000-0000-0000-000000001401'), 1, 'AC-MVP-010 it opens the alert for an item already ahead');
 select is(pg_temp._told('26870000-0000-0000-0000-000000001401'), 'nobody', 'AC-MVP-010 recording that nobody was told');
 select is((pg_temp._notes('26870000-0000-0000-0000-0000000001a2', '%AHD WO one%') + pg_temp._notes('26870000-0000-0000-0000-0000000001a3', '%AHD WO one%'))::text, current_setting('ahd.n'), 'AC-MVP-010 and writing no notification');
+
+-- ── AC-MVP-017 a responsible person who is a light account is skipped: the manager is told; a light account's needs-you is refused ─────
+update material_installed_usage_alerts set resolved_at = now() where work_order_id = '26870000-0000-0000-0000-000000001401' and kind = 'issued_ahead' and resolved_at is null;
+update work_orders set responsible_person_id = '26870000-0000-0000-0000-0000000001a4' where id = '26870000-0000-0000-0000-000000001401';
+set local role authenticated;
+select pg_temp._as('26870000-0000-0000-0000-0000000001a1');
+select public.set_cost_attribution('stock_document', array[public.create_stock_document('{"kind":"issue","warehouse_id":"26870000-0000-0000-0000-000000001801","project_id":"26870000-0000-0000-0000-0000000001d1"}'::jsonb,
+  '[{"item_id":"26870000-0000-0000-0000-000000001311","quantity":2,"boq_item_id":"26870000-0000-0000-0000-000000001201"}]'::jsonb, true)], '26870000-0000-0000-0000-000000001401', null);
+select is(pg_temp._open('26870000-0000-0000-0000-000000001401'), 1, 'AC-MVP-017 a new episode opens with a light account as the responsible person');
+select is(pg_temp._told('26870000-0000-0000-0000-000000001401'), '26870000-0000-0000-0000-0000000001a2', 'AC-MVP-017 the project manager is the one told');
+select is(pg_temp._notes('26870000-0000-0000-0000-0000000001a4', '%AHD WO one%'), 0, 'AC-MVP-017 the light account is not notified about something it cannot open');
+select is(pg_temp._notes('26870000-0000-0000-0000-0000000001a2', '%AHD WO one%'), 3, 'AC-MVP-017 the manager has the notification');
+select pg_temp._as('26870000-0000-0000-0000-0000000001a4');
+select throws_ok($$ select count(*) from public.my_open_ahead_alerts() $$, '42501', null, 'AC-MVP-017 a light account is refused the needs-you read');
+select pg_temp._as('26870000-0000-0000-0000-0000000001a2');
+select is((select count(*)::int from public.my_open_ahead_alerts()), 1, 'AC-MVP-017 and the manager sees the work order in needs-you');
+reset role;
 
 -- ── AC-MVP-015 a failing check never blocks a posting or a validation ──────────────────────────────────────────────
 create or replace function public.usage_ahead_check_work_order(p_work_order_id uuid, p_quiet boolean default false) returns void language plpgsql as $$
