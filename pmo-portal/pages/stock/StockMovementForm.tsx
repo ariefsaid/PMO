@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, PageHeader, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
+  Button, ConfirmDialog, FormActions, FormGrid, FormSection, ListState, MobileActionBar, PageHeader, SelectField, TextArea, TextField, UnsavedChangesDialog, useToast, Icon,
 } from '@/src/components/ui';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { StockLinesLoading } from '@/src/components/stock/LinesLoading';
@@ -87,6 +87,7 @@ const StockMovementForm: React.FC = () => {
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [pendingLeave, setPendingLeave] = useState<{ leave: () => void; stay: () => void } | null>(null);
   const initialSnapshot = useRef(JSON.stringify({ warehouseId, toWarehouseId, projectId: params.get('project') ?? '', occurredOn, note, lines: [] }));
 
@@ -170,6 +171,18 @@ const StockMovementForm: React.FC = () => {
     return item ? (units.data ?? []).find((u) => u.id === item.unit_id)?.code ?? '' : '';
   }
 
+  /** One guard before any posting: it names the item, the quantity and the place, so a wrong entry is caught before it reaches the ledger. */
+  function askToPost() {
+    const { input, errors } = validate();
+    setFieldErrors(errors);
+    if (input) setConfirming(true);
+  }
+  const placeName = (id: string) => { const w = (warehouses.data ?? []).find((x) => x.id === id); return w ? `${w.code} - ${w.name}` : ''; };
+  const summary = lines.map((l) => {
+    const item = l.itemId ? itemById.get(l.itemId) : undefined;
+    return `${item ? `${item.code} - ${item.name}` : ''}: ${normalizeDecimal(l.quantity)} ${unitCodeOfLine(l)}`.trim();
+  });
+
   async function submit(post = true) {
     const { input, errors } = validate();
     setFieldErrors(errors);
@@ -220,7 +233,7 @@ const StockMovementForm: React.FC = () => {
         <ListState variant="empty" icon="folder" title={t('form.noWarehouse.title')} sub={t('form.noWarehouse.sub')} />
       )}
       {!headerPending && !headerError && usable.length > 0 && (
-        <form data-testid="stock-movement-form" onSubmit={(e) => { e.preventDefault(); if (linesSettled) void submit(); }} noValidate className="space-y-4">
+        <form data-testid="stock-movement-form" onSubmit={(e) => { e.preventDefault(); if (linesSettled) askToPost(); }} noValidate className="space-y-4">
           {viewOnly && <p className="text-sm text-muted-foreground">{t('form.viewOnly')}</p>}
           <div data-testid="stock-movement-header">
           <FormSection legend={t('form.sections.where')}>
@@ -349,6 +362,15 @@ const StockMovementForm: React.FC = () => {
           )}
         </form>
       )}
+      <ConfirmDialog
+        open={confirming}
+        title={t(`form.confirmPost.title.${kind}`)}
+        description={<><span className="block">{t(`form.confirmPost.where.${kind}`, { from: placeName(warehouseId), to: placeName(toWarehouseId) })}</span><ul className="mt-2 list-disc pl-5">{summary.map((x, i) => <li key={i}>{x}</li>)}</ul><span className="mt-2 block">{t('form.confirmPost.undo')}</span></>}
+        confirmLabel={t('form.confirmPost.confirm')}
+        loading={create.isPending}
+        onConfirm={() => { setConfirming(false); void submit(); }}
+        onCancel={() => setConfirming(false)}
+      />
       <UnsavedChangesDialog
         open={pendingLeave !== null}
         onDiscard={() => { const pending = pendingLeave; setPendingLeave(null); pending?.leave(); }}

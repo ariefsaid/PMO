@@ -477,7 +477,23 @@
       "quantity": "Masukkan jumlah di atas nol (maksimal 3 desimal).",
       "unitCost": "Masukkan biaya satuan (nol atau lebih)."
     },
-    "qtyUnitHelp": "Masukkan jumlah dalam {{unit}}."
+    "qtyUnitHelp": "Masukkan jumlah dalam {{unit}}.",
+    "confirmPost": {
+      "title": {
+        "receive": "Posting penerimaan ini?",
+        "transfer": "Posting transfer ini?",
+        "issue": "Posting pengeluaran ini?",
+        "return": "Posting pengembalian ini?"
+      },
+      "where": {
+        "receive": "Masuk ke {{from}}",
+        "transfer": "Dari {{from}} ke {{to}}",
+        "issue": "Keluar dari {{from}}",
+        "return": "Kembali ke {{from}}"
+      },
+      "undo": "Setelah diposting, kesalahan dikoreksi dengan entri koreksi, bukan diubah.",
+      "confirm": "Posting"
+    }
   },
   "count": {
     "sections": {

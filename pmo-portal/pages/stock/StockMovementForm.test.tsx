@@ -115,6 +115,7 @@ describe('StockMovementForm', () => {
     renderForm('issue');
     await fillIssue('6');
     await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Post', exact: true }));   // the posting confirmation names item, quantity and place
     const alert = (await screen.findAllByRole('alert')).find((a) => /5/.test(a.textContent ?? ''));
     expect(alert).toHaveTextContent(/5.*6/);
     expect(screen.getByLabelText(/^Quantity/)).toHaveAccessibleDescription(/5/);
@@ -154,7 +155,9 @@ describe('StockMovementForm', () => {
     await user.tab(); // work item -> quantity
     expect(screen.getByLabelText(/^Quantity/)).toHaveFocus();
     await user.keyboard('4');
-    await user.keyboard('{Enter}'); // Enter-to-submit
+    await user.keyboard('{Enter}'); // Enter-to-submit: the confirmation opens with focus on Cancel; Tab reaches Post
+    expect(await screen.findByText(/4/, { selector: 'li' })).toBeInTheDocument();   // it names the quantity
+    await user.click(await screen.findByRole('button', { name: 'Post', exact: true }));
     await waitFor(() => expect(documents.create).toHaveBeenCalledTimes(1));
     expect(documents.create.mock.calls[0][1]).toMatchObject({ post: true, clientRequestId: expect.any(String) });
     expect(documents.create.mock.calls[0][0].lines[0]).toMatchObject({ itemId: 'i1', quantity: '4' });
@@ -165,8 +168,10 @@ describe('StockMovementForm', () => {
     renderForm('issue');
     await fillIssue();
     await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Post', exact: true }));   // the posting confirmation names item, quantity and place
     await waitFor(() => expect(documents.create).toHaveBeenCalledTimes(1));
     await userEvent.click(await screen.findByRole('button', { name: 'Post issue' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Post', exact: true }));   // the posting confirmation names item, quantity and place
     await waitFor(() => expect(documents.create).toHaveBeenCalledTimes(2));
     expect(documents.create.mock.calls[1][1].clientRequestId).toBe(documents.create.mock.calls[0][1].clientRequestId);
     expect(await screen.findByText('document page')).toBeInTheDocument();
@@ -179,6 +184,7 @@ describe('StockMovementForm', () => {
       const view = renderForm('issue');
       await fillIssue('5');
       await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+      await userEvent.click(await screen.findByRole('button', { name: 'Post', exact: true }));   // the posting confirmation names item, quantity and place
       expect(await screen.findByText('document page')).toBeInTheDocument();
       expect(screen.getAllByText(notice).length).toBeGreaterThan(0);
       expect(documents.create).toHaveBeenCalledTimes(1);   // the Draft exists: the form never creates it again
@@ -190,6 +196,7 @@ describe('StockMovementForm', () => {
     renderForm('issue');
     await fillIssue('2,5', 'cab', /CAB - Cable 4mm/);
     await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Post', exact: true }));   // the posting confirmation names item, quantity and place
     await waitFor(() => expect(documents.create).toHaveBeenCalled());
     const input = documents.create.mock.calls[0][0];
     expect(input).toMatchObject({ kind: 'issue', warehouseId: 'w1', projectId: 'p1' });
@@ -207,6 +214,7 @@ describe('StockMovementForm', () => {
     renderForm('issue');
     await fillIssue('5');
     await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Post', exact: true }));   // the posting confirmation names item, quantity and place
     expect(await screen.findByText(/Only an Admin can date a movement more than 31 days back/)).toBeInTheDocument();
   });
 
@@ -220,6 +228,7 @@ describe('StockMovementForm', () => {
       renderForm('issue');
       await fillIssue('5');
       await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+      await userEvent.click(await screen.findByRole('button', { name: 'Post', exact: true }));   // the posting confirmation names item, quantity and place
       const alert = (await screen.findAllByRole('alert')).find((a) => /Only an Admin can date a movement more than 31 days back/.test(a.textContent ?? ''));
       expect(alert, 'the strip is announced as an alert').toBeDefined();
       expect(scrollIntoView.mock.contexts, 'the strip itself is scrolled into view').toContain(alert);
@@ -331,4 +340,17 @@ it('saves a transfer as a draft so paper can be attached before posting', async 
   await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
   await waitFor(() => expect(documents.create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'transfer' }), expect.objectContaining({ post: false })));
   expect(await screen.findByText('document page')).toBeInTheDocument();
+});
+
+describe('StockMovementForm posting guard (#1122 item 4)', () => {
+  it('JOB-1122-4 cancelling the confirmation posts nothing and keeps the form; it names item, quantity and place first', async () => {
+    renderForm('issue');
+    await fillIssue('4');
+    await userEvent.click(screen.getByRole('button', { name: 'Post issue' }));
+    expect(await screen.findByText('Post this issue?')).toBeInTheDocument();
+    expect(screen.getByText(/CEM - Cement 50kg: 4 bag/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(documents.create).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Post issue' })).toBeInTheDocument();
+  });
 });

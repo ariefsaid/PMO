@@ -477,7 +477,23 @@
       "quantity": "Enter a quantity above zero (up to 3 decimals).",
       "unitCost": "Enter the unit cost (zero or more)."
     },
-    "qtyUnitHelp": "Enter the quantity in {{unit}}."
+    "qtyUnitHelp": "Enter the quantity in {{unit}}.",
+    "confirmPost": {
+      "title": {
+        "receive": "Post this receipt?",
+        "transfer": "Post this transfer?",
+        "issue": "Post this issue?",
+        "return": "Post this return?"
+      },
+      "where": {
+        "receive": "Into {{from}}",
+        "transfer": "From {{from}} to {{to}}",
+        "issue": "Out of {{from}}",
+        "return": "Back into {{from}}"
+      },
+      "undo": "Once posted, a mistake is corrected with a correcting entry, not by editing.",
+      "confirm": "Post"
+    }
   },
   "count": {
     "sections": {
