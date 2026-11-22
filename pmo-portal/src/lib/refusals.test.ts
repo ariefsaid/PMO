@@ -21,6 +21,14 @@ const t = ((key: string, opts?: Record<string, unknown>) => {
   return raw.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => String(opts?.[k] ?? ''));
 }) as unknown as TFunction;
 
+describe('AC-CHR-008 the change-request refusals', () => {
+  it('has an English sentence for every new code', () => {
+    for (const code of ['QCR_NOT_APPROVER', 'QCR_SOD_AUTHOR', 'QCR_APPROVER_ROLE_UNKNOWN', 'QCR_APPROVER_ROLE_LIGHT']) {
+      expect(refusalText({ code: '42501', message: `${code}: x` }, tReal).known).toBe(true);
+    }
+  });
+});
+
 describe('parseRefusal', () => {
   it('reads family, code and sentence from FAMILY_CODE: text', () => {
     expect(parseRefusal({ code: '23514', message: 'PCI_CREW: you are not in that crew today' }))

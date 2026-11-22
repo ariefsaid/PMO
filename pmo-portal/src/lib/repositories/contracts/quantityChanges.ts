@@ -22,6 +22,8 @@ export interface QuantityChangeRepository {
   recordForecast(boqItemId: string, quantity: string, note?: string | null): Promise<string>;
   getLimit(orgId: string): Promise<number | null>;
   setLimit(orgId: string, limit: number | null): Promise<void>;
+  getApproverRoles(orgId: string): Promise<string[]>;
+  setApproverRoles(orgId: string, roles: string[]): Promise<void>;
   uploadFile(request: Pick<QcrRequest, 'id' | 'org_id'>, kind: QcrFileKind, file: File, title?: string | null): Promise<void>;
   archiveFile(fileId: string): Promise<void>;
   fileUrl(path: string): Promise<string>;

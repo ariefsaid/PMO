@@ -92,6 +92,19 @@ describe('writes', () => {
   });
 });
 
+describe('reviewer roles (change-review)', () => {
+  it('AC-CHR-005 reads the list (empty when unset) and reports a write that changed no row as not allowed', async () => {
+    h.result.queue = [{ data: { quantity_change_approver_roles: ['project_control_manager'] }, error: null }];
+    await expect(dal.getApproverRoles('o1')).resolves.toEqual(['project_control_manager']);
+    h.result.queue = [{ data: null, error: null }];
+    await expect(dal.getApproverRoles('o1')).resolves.toEqual([]);
+    h.result.value = { data: [], error: null };
+    await expect(dal.setApproverRoles('o1', ['executive'])).rejects.toMatchObject({ code: '42501' });
+    h.result.value = { data: [{ id: 'o1' }], error: null };
+    await expect(dal.setApproverRoles('o1', ['executive'])).resolves.toBeUndefined();
+  });
+});
+
 describe('files', () => {
   it('stores the object under {org}/{request}/{file}/{name}, then the typed row with that id', async () => {
     h.result.value = { data: null, error: null };

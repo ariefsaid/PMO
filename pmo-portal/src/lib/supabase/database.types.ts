@@ -13426,6 +13426,7 @@ export type Database = {
           procurement_gates: Json
           project_number_pattern: string | null
           purchase_line_planning: boolean
+          quantity_change_approver_roles: string[]
           quantity_change_limit: number | null
           reservation_borrow_label: string | null
           reservation_borrow_mode: string
@@ -13482,6 +13483,7 @@ export type Database = {
           procurement_gates?: Json
           project_number_pattern?: string | null
           purchase_line_planning?: boolean
+          quantity_change_approver_roles?: string[]
           quantity_change_limit?: number | null
           reservation_borrow_label?: string | null
           reservation_borrow_mode?: string
@@ -13538,6 +13540,7 @@ export type Database = {
           procurement_gates?: Json
           project_number_pattern?: string | null
           purchase_line_planning?: boolean
+          quantity_change_approver_roles?: string[]
           quantity_change_limit?: number | null
           reservation_borrow_label?: string | null
           reservation_borrow_mode?: string
@@ -33402,6 +33405,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      qcr_may_approve_role: { Args: { p_org: string }; Returns: boolean }
       qcr_org_today: { Args: { p_org: string }; Returns: string }
       qcr_over_contract: {
         Args: { p_only_over?: boolean; p_project_id: string }
@@ -33437,6 +33441,14 @@ export type Database = {
           line_reason: string
           req_qty: number
         }[]
+      }
+      qcr_profile_may_approve: {
+        Args: {
+          p_built_in_role: string
+          p_org: string
+          p_role: Database["public"]["Enums"]["user_role"]
+        }
+        Returns: boolean
       }
       qcr_raise: {
         Args: {
