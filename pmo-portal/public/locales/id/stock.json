@@ -87,7 +87,9 @@
           "body": "Periksa dulu sebelum menambah duplikat. Barang ini tetap bisa dibuat.",
           "checkUnavailable": "Tidak bisa memeriksa nama barang yang sudah ada. Barang ini tetap bisa dibuat.",
           "listLabel": "Barang serupa"
-        }
+        },
+        "consumable": "Barang habis pakai (terpakai di lapangan, mis. kawat las atau paku)",
+        "consumableHelp": "Barang habis pakai dikeluarkan dari gudang lokasi sesuai pemakaian di laporan harian lokasi."
       },
       "warehouse": {
         "newTitle": "Gudang baru",
@@ -222,7 +224,8 @@
     "count": "{{shown}} sisa stok",
     "countOne": "1 sisa stok",
     "countOfTotal": "Menampilkan {{shown}} dari {{total}} sisa stok",
-    "valueShown": "Nilai sisa yang ditampilkan"
+    "valueShown": "Nilai sisa yang ditampilkan",
+    "receiveGoods": "Terima barang"
   },
   "documents": {
     "title": "Dokumen",
@@ -431,7 +434,24 @@
       "quantity": "Masukkan jumlah di atas nol (maksimal 3 desimal).",
       "unitCost": "Masukkan biaya satuan (nol atau lebih)."
     },
-    "qtyUnitHelp": "Masukkan jumlah dalam {{unit}}."
+    "qtyUnitHelp": "Masukkan jumlah dalam {{unit}}.",
+    "confirmPost": {
+      "title": {
+        "receive": "Posting penerimaan ini?",
+        "transfer": "Posting transfer ini?",
+        "issue": "Posting pengeluaran ini?",
+        "return": "Posting pengembalian ini?"
+      },
+      "where": {
+        "receive": "Masuk ke {{from}}",
+        "transfer": "Dari {{from}} ke {{to}}",
+        "issue": "Keluar dari {{from}}",
+        "return": "Kembali ke {{from}}"
+      },
+      "undo": "Setelah diposting, kesalahan dikoreksi dengan entri koreksi, bukan diubah.",
+      "confirm": "Posting"
+    },
+    "clientMaterialCost": "Dipasok klien: biaya ditetapkan nol."
   },
   "count": {
     "sections": {
@@ -478,7 +498,8 @@
       "costNeeded": "Isi biaya satuan: sistem tidak menyimpan barang ini."
     },
     "costOnFile": "Biaya satuan sudah tersimpan. Kosongkan untuk mempertahankannya.",
-    "editingDraft": "Mengedit draf tersimpan: stok tidak berubah sampai Anda mempostingnya."
+    "editingDraft": "Mengedit draf tersimpan: stok tidak berubah sampai Anda mempostingnya.",
+    "whoPosts": "Simpan hitungan Anda di sini. Jika ada selisih dengan catatan, Manajer Proyek atau di atasnya yang mem-posting, bukan Anda. Hitungan tanpa selisih bisa Anda posting sendiri."
   },
   "consumption": {
     "from": "Dari bulan",
@@ -588,7 +609,8 @@
     "errors": {
       "levelInvalid": "Masukkan level 0 atau lebih, maksimal 3 desimal.",
       "quantityInvalid": "Masukkan jumlah di atas 0, maksimal 3 desimal, atau kosongkan."
-    }
+    },
+    "whoSets": "Level ditetapkan oleh orang lain. Untuk menambah barang, pakai “Ajukan pembelian” pada baris barang di daftar di atas."
   },
   "refusal": {
     "missing-module-stock": "Aplikasi Inventory Odoo belum terpasang. Minta Admin memasangnya, lalu posting lagi.",
@@ -743,7 +765,7 @@
     "sentToast": "Transfer terkirim",
     "receiver": "Penerima (opsional)",
     "receiverNone": "Siapa pun penjaga tujuan",
-    "receiverHelp": "Sebutkan orang yang dituju pengiriman ini.",
+    "receiverHelp": "Pilih orang yang akan menghitung barang saat tiba: penjaga gudang tujuan atau akun lapangan. Anda tidak bisa memilih diri sendiri.",
     "viewOnly": "Anda melihat sebagai peran lain, jadi tidak ada yang bisa dikirim.",
     "notFound": "Transfer tidak ditemukan",
     "detailTitle": "Transfer",
@@ -787,7 +809,24 @@
     "recallAction": "Tarik kembali",
     "recalledToast": "Transfer ditarik kembali",
     "receivedToast": "Penerimaan dicatat",
-    "proofAddedToast": "Bukti dicatat"
+    "proofAddedToast": "Bukti dicatat",
+    "senderWaits": "Anda yang mengirim transfer ini, jadi orang lain yang menghitungnya saat tiba. Transfer menunggu penerima.",
+    "print": {
+      "action": "Cetak surat jalan",
+      "title": "Surat jalan",
+      "off": "Surat jalan dimatikan untuk organisasi ini. Admin dapat menyalakannya di pengaturan permintaan material.",
+      "back": "Kembali ke transfer",
+      "print": "Cetak",
+      "code": "Kode barang",
+      "description": "Uraian",
+      "quantity": "Jumlah",
+      "unit": "Satuan",
+      "date": "Tanggal",
+      "from": "Dari",
+      "to": "Ke",
+      "name": "Nama",
+      "signatureDate": "Tanggal"
+    }
   },
   "handover": {
     "title": "Konfirmasi serah terima",
@@ -838,17 +877,19 @@
     }
   },
   "transferSettings": {
-    "manage": "Transfer dan bukti",
+    "manage": "Transfer, reservasi, dan pemindahan antar work order",
     "mode": "Cara transfer dilakukan",
     "oneStep": "Satu langkah: langsung diposting",
     "twoStep": "Dua langkah: kirim, lalu terima dengan penghitungan",
-    "modeHelp": "Dua langkah menjaga barang dalam perjalanan sampai penerima menghitungnya.",
+    "modeHelp": "Dua langkah menjaga barang tetap dalam perjalanan sampai penerima menghitungnya. Pengirim menunjuk penerima; pengirim tidak menghitung kirimannya sendiri.",
     "timing": "Kapan bukti diwajibkan",
     "beforePosting": "Sebelum pergerakan diposting atau diterima",
     "mayFollow": "Boleh menyusul (pergerakan tetap berstatus bukti belum lengkap)",
     "timingHelp": "Berlaku untuk tag yang mewajibkan bukti.",
     "proofPerTag": "Bukti yang berlaku, per tag",
-    "qualityItems": "Barang yang perlu pemeriksaan mutu saat diterima"
+    "qualityItems": "Barang yang perlu pemeriksaan mutu saat diterima",
+    "inTransit_one": "{{count}} transfer sedang dalam perjalanan. Kembali ke satu langkah setelah diterima atau ditarik.",
+    "inTransit_other": "{{count}} transfer sedang dalam perjalanan. Kembali ke satu langkah setelah diterima atau ditarik."
   },
   "workOrderTransfer": {
     "title": "Pindahkan sisa material antar perintah kerja",

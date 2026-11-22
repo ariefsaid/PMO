@@ -417,7 +417,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Work order line** — an allocation of a positive quantity of one project contract line (bill-of-quantities item) to a work order, so one contract line can be ordered across several work orders.
 
-**Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value.
+**Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value. **Who confirms:** Finance or an Admin, never the person who prepared it (unless they are the organisation's only active member); the Draft chip reads "Waiting for Finance or an Admin to confirm" (Bahasa: "Menunggu konfirmasi Keuangan atau Admin"). **Delivery record** is the plain-words name for a BAST, and the default document category "Delivery record (BAST)" holds its signed file.
 
 **Work order acceptance line** — the quantity accepted for one contract line on a work order acceptance; the latest confirmed quantity, not a sum, is what has been accepted to date.
 
@@ -1360,3 +1360,7 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Issue type** (*jenis isu*) — one entry of the organisation's own kept list that every issue picks from; an Admin adds, renames and archives entries, and the closing-time report groups by them. Archiving hides a type from new issues; issues that already have it keep it. A new organisation starts with one generic entry, "Other".
 
 **Effective working hours** (*jam kerja efektif*) — for one work order and one day: the site day on its validated daily report (start to end) minus the stopped time recorded on that report, never below zero. A day with no start and end time shows "times not entered", not zero. Shown beside the closing-time report; calendar closing time is not reduced by it.
+
+**Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
+
+**Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.

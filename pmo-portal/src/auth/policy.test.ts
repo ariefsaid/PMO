@@ -1304,6 +1304,15 @@ describe('#2751 candidate C10: page-level role comparisons into policy.ts', () =
     expect(can('manage', 'checkInSettings', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
   });
 
+  it('imprestLimit.manage allows Admin only (the site-cash limit)', () => {
+    expect(allowedRoles('manage', 'imprestLimit')).toEqual(['Admin']);
+  });
+
+  it('procurementInvoice.create allows Admin and Finance, never in view-as (supplier bill from the payables list)', () => {
+    expect(allowedRoles('create', 'procurementInvoice')).toEqual(['Admin', 'Finance']);
+    expect(can('create', 'procurementInvoice', { realRole: 'Finance', record: { viewOnly: true } })).toBe(false);
+  });
+
   it('equipmentTarget.manage allows Admin only, never in view-as', () => {
     expect(allowedRoles('manage', 'equipmentTarget')).toEqual(['Admin']);
     expect(can('manage', 'equipmentTarget', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);

@@ -102,7 +102,7 @@
           "quantities": "Diterima s.d. saat ini",
           "quantityLine": "{{item}}: diterima s.d. saat ini ({{unit}})",
           "save": "Simpan BAST",
-          "subtitle": "Penerimaan pekerjaan oleh klien, sebagai kuantitas kumulatif s.d. saat ini. Pihak lain yang mengonfirmasinya; ini tidak membuat invoice.",
+          "subtitle": "Penerimaan pekerjaan oleh klien, sebagai kuantitas kumulatif s.d. saat ini. Keuangan atau Admin yang mengonfirmasinya; ini tidak membuat invoice.",
           "titleEdit": "Ubah BAST: {{wo}}",
           "titleNew": "Siapkan BAST: {{wo}}"
         },
@@ -110,13 +110,16 @@
         "noDocument": "Belum ada dokumen BAST bertanda tangan yang ditautkan",
         "prepare": "Siapkan BAST",
         "selfConfirmHint": "Anda yang menyiapkan ini. Pengguna Admin atau Finance lain harus mengonfirmasinya, kecuali Anda satu-satunya anggota aktif.",
+        "waitingOn": "Menunggu konfirmasi Keuangan atau Admin",
+        "startClaim": "Mulai klaim dari BAST ini",
+        "startClaimHint": "Sudah dikonfirmasi. Buka penagihan untuk memulai klaim.",
         "soleOperator": "Dikonfirmasi oleh satu-satunya anggota aktif",
         "stage": "Tahap",
         "toast": {
           "closed": "BAST final terkonfirmasi: ditutup pada {{amount}}",
           "confirmed": "BAST terkonfirmasi",
           "prepared": "BAST disiapkan",
-          "preparedSub": "Pihak lain mengonfirmasinya sebelum berlaku.",
+          "preparedSub": "Keuangan atau Admin mengonfirmasinya sebelum berlaku.",
           "updated": "Draft BAST diperbarui",
           "withdrawn": "BAST ditarik"
         },
