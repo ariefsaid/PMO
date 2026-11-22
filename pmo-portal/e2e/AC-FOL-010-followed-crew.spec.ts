@@ -33,7 +33,8 @@ test.afterEach(async () => { await endCrewRows(db, [crewHome, crewRecv]); });
 test('AC-FOL-010 a person who followed another crew today is recorded there, with no loan', async ({ page }) => {
   await signIn(page, 'admin@acme.test');
   await page.goto(`/crews?view=attendance&wo=${woRecv.workOrderId}`);
-  await page.getByRole('combobox', { name: 'Add someone from another crew' }).selectOption({ label: workerName });
+  await page.getByRole('combobox', { name: /Add someone from another crew/ }).click();
+  await page.getByRole('listbox').getByRole('option', { name: new RegExp(workerName) }).click();
   const row = page.getByRole('row', { name: new RegExp(workerName) });
   await expect(row.getByText('Followed this crew today')).toBeVisible();
   await page.getByRole('button', { name: 'Save attendance' }).click();

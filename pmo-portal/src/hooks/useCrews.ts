@@ -31,6 +31,10 @@ export function useCrewWorkers() {
   return useOrgQuery(['crew-workers'], () => crewRepository.workers());
 }
 
+export function useAllCrewMembers() {
+  return useOrgQuery(['crew-members-all'], () => crewRepository.allMembers());
+}
+
 export function useCrewMembers(crewId: string | null) {
   return useOrgQuery(['crew-members', crewId], () => crewRepository.members(crewId as string), { enabled: Boolean(crewId) });
 }

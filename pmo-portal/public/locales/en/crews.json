@@ -253,7 +253,7 @@
   },
   "addFollower": "Add someone from another crew",
   "addFollowerPlaceholder": "Choose a person",
-  "addFollowerNone": "Everyone in the register is already listed.",
+  "addFollowerNone": "Nobody else is placed in a crew today.",
   "addFollowerHint": "For someone who joined this crew today without a loan. Their hours are recorded here.",
   "followedFrom": "Followed from {{crew}}",
   "followedToday": "Followed this crew today"
