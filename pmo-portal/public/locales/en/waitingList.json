@@ -34,7 +34,6 @@
     "or": " or ",
     "plain": "Waiting for approval",
     "roleAdmin": "Admin",
-    "roleAdminExec": "Admin or Executive",
     "roleApprovalRank": "Project Manager, Finance, Executive, or Admin",
     "roleFinanceAdmin": "Finance or Admin",
     "roleFinanceExecAdmin": "Finance, Executive, or Admin",

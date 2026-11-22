@@ -68,13 +68,6 @@ describe('fix-waiting item 3: a waiting record names who it waits for', () => {
       expect(waitingForText({ names: [], role: waitingRoleLabel('roleApprovalRank', t.t) }, t.t)).toBe('Menunggu Manajer Proyek, Keuangan, Eksekutif, atau Admin');
     });
 
-    it('formats roleAdminExec in English and Indonesian', async () => {
-      await t.changeLanguage('en');
-      expect(waitingForText({ names: [], role: waitingRoleLabel('roleAdminExec', t.t) }, t.t)).toBe('Waiting for Admin or Executive');
-      await t.changeLanguage('id');
-      expect(waitingForText({ names: [], role: waitingRoleLabel('roleAdminExec', t.t) }, t.t)).toBe('Menunggu Admin atau Eksekutif');
-    });
-
     it('formats roleManager in English and Indonesian', async () => {
       await t.changeLanguage('en');
       expect(waitingForText({ names: [], role: waitingRoleLabel('roleManager', t.t) }, t.t)).toBe('Waiting for line manager');
@@ -137,15 +130,15 @@ describe('fix-waiting item 3: a waiting record names who it waits for', () => {
       expect(waitingForText({
         names: [],
         role: waitingRoleLabel('roleManager', t.t),
-        alternativeRoles: [waitingRoleLabel('roleAdminExec', t.t)],
-      }, t.t)).toBe('Waiting for line manager or Admin or Executive');
+        alternativeRoles: [waitingRoleLabel('roleAdmin', t.t)],
+      }, t.t)).toBe('Waiting for line manager or Admin');
 
       await t.changeLanguage('id');
       expect(waitingForText({
         names: [],
         role: waitingRoleLabel('roleManager', t.t),
-        alternativeRoles: [waitingRoleLabel('roleAdminExec', t.t)],
-      }, t.t)).toBe('Menunggu atasan langsung atau Admin atau Eksekutif');
+        alternativeRoles: [waitingRoleLabel('roleAdmin', t.t)],
+      }, t.t)).toBe('Menunggu atasan langsung atau Admin');
     });
   });
 
