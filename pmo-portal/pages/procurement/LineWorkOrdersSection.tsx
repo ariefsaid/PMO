@@ -33,15 +33,12 @@ export const LineWorkOrdersSection: React.FC<LineWorkOrdersSectionProps> = ({ li
   const workOrderLabel = (id: string) => workOrders?.find((w) => w.id === id)?.label ?? unknown;
   const disciplineLabel = (id: string) => disciplines.find((d) => d.id === id)?.label ?? t('lineWorkOrders.unknownDiscipline', 'A retired discipline');
   const valueOf = (id: string) => values[id] ?? NO_LINE_ATTRIBUTION;
-  let body: React.ReactNode;
+  let body: React.ReactNode = null;
+  let emptyMessage: string | null = null;
   if (workOrders === null) {
-    body = <p role="status" className="text-control text-muted-foreground" data-testid="line-work-orders-empty">
-      {t('lineWorkOrders.noProject', 'Choose a project first: work orders belong to a project, and each line can then be given one.')}
-    </p>;
+    emptyMessage = t('lineWorkOrders.noProject', 'Choose a project first: work orders belong to a project, and each line can then be given one.');
   } else if (workOrders.length === 0 && !lines.some((l) => valueOf(l.id).workOrderId)) {
-    body = <p role="status" className="text-control text-muted-foreground" data-testid="line-work-orders-empty">
-      {t('lineWorkOrders.noWorkOrders', 'This project has no work orders yet, so lines cannot be given one. A project manager adds work orders on the project’s Work orders tab.')}
-    </p>;
+    emptyMessage = t('lineWorkOrders.noWorkOrders', 'This project has no work orders yet, so lines cannot be given one. A project manager adds work orders on the project’s Work orders tab.');
   } else {
     body = <ul className="space-y-4">
       {lines.map((line) => {
@@ -87,13 +84,15 @@ export const LineWorkOrdersSection: React.FC<LineWorkOrdersSectionProps> = ({ li
       })}
     </ul>;
   }
+  // The explanation sits in the heading row (its subline), so the heading is followed straight by the list, 16px below (DESIGN.md heading gap).
   return (
     <Card data-testid="line-work-orders-section">
-      <CardHead>{t('lineWorkOrders.section', 'Work order per line')}</CardHead>
-      <CardPad>
-        <p className="mb-3 text-control text-muted-foreground">{t('lineWorkOrders.intro', 'Say which work order, and discipline, each line is for. When every line names the same work order, the request takes it.')}</p>
-        {body}
-      </CardPad>
+      <CardHead subline={emptyMessage
+        ? <span role="status" data-testid="line-work-orders-empty">{emptyMessage}</span>
+        : t('lineWorkOrders.intro', 'Say which work order, and discipline, each line is for. When every line names the same work order, the request takes it.')}>
+        {t('lineWorkOrders.section', 'Work order per line')}
+      </CardHead>
+      {body && <CardPad>{body}</CardPad>}
     </Card>
   );
 };
