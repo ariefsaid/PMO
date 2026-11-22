@@ -1,11 +1,11 @@
 /** AC-LA-006/012 (#2710) — the repository seam over my_home and the seat report. */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const h = vi.hoisted(() => ({ rpc: vi.fn(), update: vi.fn() }));
+const h = vi.hoisted(() => ({ rpc: vi.fn(), update: vi.fn(), select: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({
   supabase: {
     rpc: h.rpc,
-    from: () => ({ update: (v: unknown) => ({ eq: (c: string, id: string) => ({ select: () => h.update(v, c, id) }) }) }),
+    from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ order: () => ({ limit: () => h.select() }) }) }) }), update: (v: unknown) => ({ eq: (c: string, id: string) => ({ select: () => h.update(v, c, id) }) }) }),
   },
 }));
 import { myHomeRepository } from './myHome';
@@ -34,8 +34,12 @@ describe('myHomeRepository', () => {
     h.update.mockResolvedValue({ data: [], error: null });
     await expect(myHomeRepository.setTaskStatus('t1', 'Done')).rejects.toBeTruthy();
   });
-  it('the deliveries seam is empty until the handover ticket supplies a source', async () => {
-    await expect(myHomeRepository.deliveries()).resolves.toEqual([]);
+  it('#1122 deliveries are the Sent transfers named to the person, never one they sent themselves', async () => {
+    h.select.mockResolvedValue({ data: [
+      { id: 't1', number: 'TST-1', note: 'cement', sent_by: 'other', stock_transfer_lines: [{ id: 'l1' }, { id: 'l2' }] },
+      { id: 't2', number: 'TST-2', note: null, sent_by: 'me', stock_transfer_lines: [{ id: 'l3' }] },
+    ], error: null });
+    await expect(myHomeRepository.deliveries('me')).resolves.toEqual([{ id: 't1', number: 'TST-1', description: 'cement', lineCount: 2 }]);
   });
   it('AC-LA-012 reads the seat split', async () => {
     h.rpc.mockResolvedValue({ data: { full: 4, light: 2, total: 6 }, error: null });

@@ -284,6 +284,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
       {!headerPending && !headerError && usable.length > 0 && (
         <form data-testid="stock-count-form" onSubmit={(e) => { e.preventDefault(); if (linesSettled) void submit(selfPostable); }} noValidate className="space-y-4">
           {viewOnly && <p className="text-sm text-muted-foreground">{t('form.viewOnly')}</p>}
+          {kind === 'count' && <p role="note" className="rounded-lg border border-border bg-card p-3 text-control" data-testid="stock-count-who-posts">{t('count.whoPosts')}</p>}
           <div data-testid="stock-count-header">
           <FormSection legend={t('form.sections.where')}>
             <FormGrid>

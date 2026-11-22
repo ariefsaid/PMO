@@ -114,16 +114,22 @@ alter table public.manpower_need_people force row level security;
 create policy manpower_needs_select on public.manpower_needs for select
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 create policy manpower_needs_insert on public.manpower_needs for insert
-  with check (org_id = (select public.auth_org_id()) and (select public.manpower_can_manage()));                    -- mut:writers
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.manpower_can_manage()));  -- mut:writers
 create policy manpower_needs_update on public.manpower_needs for update
-  using (org_id = (select public.auth_org_id()) and (select public.manpower_can_manage()))
-  with check (org_id = (select public.auth_org_id()));
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.manpower_can_manage()))
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 create policy manpower_need_people_select on public.manpower_need_people for select
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member()));
 create policy manpower_need_people_insert on public.manpower_need_people for insert
-  with check (org_id = (select public.auth_org_id()) and (select public.manpower_can_manage()));
+  with check (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.manpower_can_manage()));
 create policy manpower_need_people_delete on public.manpower_need_people for delete
-  using (org_id = (select public.auth_org_id()) and (select public.manpower_can_manage()));
+  using (org_id = (select public.auth_org_id()) and (select public.is_active_member()) and (select public.manpower_can_manage()));
+
+-- A field account (Foreman, Field user) reads neither table (the 1229 shape); the functions below refuse it by body (2711, 1530).
+create policy light_account_deny_select on public.manpower_needs as restrictive for select to authenticated
+  using ((select public.actor_is_light()) is not true);
+create policy light_account_deny_select on public.manpower_need_people as restrictive for select to authenticated
+  using ((select public.actor_is_light()) is not true);
 
 revoke all on public.manpower_needs, public.manpower_need_people from public, anon, authenticated;
 grant select on public.manpower_needs, public.manpower_need_people to authenticated;

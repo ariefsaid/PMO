@@ -23,7 +23,7 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('17400000-0000-0000-0000-0000000000a4', '17400000-0000-0000-0000-00000000000a', 'MPN Eng',   'mpn-eng@example.com',   'Engineer', 'active'),
   ('17400000-0000-0000-0000-0000000000a5', '17400000-0000-0000-0000-00000000000a', 'MPN HR',    'mpn-hr@example.com',    'Engineer', 'active'),
   ('17400000-0000-0000-0000-0000000000a6', '17400000-0000-0000-0000-00000000000a', 'MPN Fin',   'mpn-fin@example.com',   'Finance', 'active'),
-  ('17400000-0000-0000-0000-0000000000a7', '17400000-0000-0000-0000-00000000000a', 'MPN Susp',  'mpn-susp@example.com',  'Project Manager', 'suspended'),
+  ('17400000-0000-0000-0000-0000000000a7', '17400000-0000-0000-0000-00000000000a', 'MPN Susp',  'mpn-susp@example.com',  'Project Manager', 'disabled'),
   ('17400000-0000-0000-0000-0000000000b1', '17400000-0000-0000-0000-00000000000b', 'MPN XOrg',  'mpn-xorg@example.com',  'Admin', 'active');
 -- An Engineer at the base level whose built-in role is HR (carries the HR capability).
 update profiles set built_in_role = 'hr_officer' where id = '17400000-0000-0000-0000-0000000000a5';
@@ -105,7 +105,7 @@ select is((select (asked, filled, in_progress, open_count) from manpower_need_pr
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a5');
 select is((select (filled, in_progress) from manpower_need_progress() where need_id = '17400000-0000-0000-0000-000000000a01')::text, '(1,2)', 'AC-MPN-004 an HR officer sees filled 1, in progress 2 for the need they fill');
 select pg_temp.act_as('17400000-0000-0000-0000-0000000000a7');
-select is((select count(*)::int from manpower_need_progress()), 0, 'AC-MPN-004 a suspended member of the organisation gets no progress row');
+select is((select count(*)::int from manpower_need_progress()), 0, 'AC-MPN-004 a disabled member of the organisation gets no progress row');
 reset role;
 update person_clearances set expires_on = current_date - 1, done_on = current_date - 5 where person_id = '17400000-0000-0000-0000-000000000f01';
 set local role authenticated;

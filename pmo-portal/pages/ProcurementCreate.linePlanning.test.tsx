@@ -12,6 +12,8 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
 import { financeTestI18n } from '@/test/financeI18nTestInstance';
 
+const workOrders = vi.hoisted(() => ({ data: [] as unknown[] }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: workOrders.data, isLoading: false, isError: false, refetch: vi.fn() }) }));
 const mocks = vi.hoisted(() => ({
   createAtomic: vi.fn(), navigate: vi.fn(), toast: vi.fn(), setLine: vi.fn(), planningOn: false,
 }));

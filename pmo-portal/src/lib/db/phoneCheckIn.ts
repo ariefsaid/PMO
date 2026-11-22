@@ -33,18 +33,21 @@ export async function phoneCheckIn(a: CheckInArgs): Promise<CheckInResult> {
 export interface CheckInRequest {
   id: string; work_order_id: string; work_order_title: string; worker_name: string; crew_id: string | null; crew_name: string | null;
   work_date: string; hours: number; outcome: CheckInOutcome; distance_m: number | null; accuracy_m: number | null; checked_in_at: string;
+  /** The area this request is judged against (1553); null when the work order has none. */
+  area_lat: number | null; area_lng: number | null; area_radius_m: number | null;
 }
 
 export async function listCheckInRequests(): Promise<CheckInRequest[]> {
   const { data, error } = await supabase.rpc('phone_check_in_requests');
   if (error) throw new AppError(error.message, error.code);
   // `returns table` states no nullability, so the generated row marks every column NOT NULL; the crew, its name, the
-  // distance and the accuracy are genuinely absent without a position, and the outcome is bounded by the database's own case.
+  // distance, the accuracy and the area are genuinely absent without a position, and the outcome is bounded by the database's own case.
   return (data ?? []).map((row) => ({
     id: row.id, work_order_id: row.work_order_id, work_order_title: row.work_order_title, worker_name: row.worker_name,
     crew_id: row.crew_id ?? null, crew_name: row.crew_name ?? null, work_date: row.work_date, hours: row.hours,
     outcome: row.outcome as CheckInOutcome, distance_m: row.distance_m ?? null, accuracy_m: row.accuracy_m ?? null,
     checked_in_at: row.checked_in_at,
+    area_lat: row.area_lat ?? null, area_lng: row.area_lng ?? null, area_radius_m: row.area_radius_m ?? null,
   }));
 }
 
@@ -62,12 +65,14 @@ export async function getWorkOrderArea(workOrderId: string): Promise<WorkOrderAr
   return { lat: data.area_lat, lng: data.area_lng, radius_m: data.area_radius_m };
 }
 
-/** Whoever may update a work order today may set its area (RLS decides); `null` clears it. */
+/**
+ * Admin, Executive, Project Manager and Finance set the area through the definer RPC (the work-order column grant names no area
+ * column, so a direct write is refused); `null` clears it. The database decides who may.
+ */
 export async function setWorkOrderArea(workOrderId: string, area: WorkOrderArea | null): Promise<void> {
-  const patch = area
-    ? { area_lat: area.lat, area_lng: area.lng, area_radius_m: area.radius_m }
-    : { area_lat: null, area_lng: null, area_radius_m: null };
-  const { error } = await supabase.from('work_orders').update(patch).eq('id', workOrderId);
+  const { error } = await supabase.rpc('set_work_order_check_in_area', {
+    p_work_order: workOrderId, p_lat: nullableArg(area?.lat ?? null), p_lng: nullableArg(area?.lng ?? null), p_radius_m: nullableArg(area?.radius_m ?? null),
+  });
   if (error) throw new AppError(error.message, error.code);
 }
 

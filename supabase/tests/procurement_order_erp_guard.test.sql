@@ -28,6 +28,12 @@ insert into procurements (id, org_id, code, title, status, currency) values
 insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, amount, tax_treatment, tax_amount, currency, created_at, erp_docstatus) values
   ('07490000-0000-0000-0000-0000000000e2', '07490000-0000-0000-0000-000000000001', '07490000-0000-0000-0000-0000000000c2', 'VI-OG-PRE', '2026-05-20', 'Received', 1000, 'exclusive', 0, 'IDR', '2026-05-20T00:00:00Z', null);
 
+-- 1580: an order needs a supplier, so every fixture purchase that is not yet ordered is given one.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid
+ where p.vendor_id is null and p.status in ('Draft','Requested','Approved','Vendor Quoted','Quote Selected');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"07490000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($$select transition_procurement('07490000-0000-0000-0000-0000000000c1', 'Ordered')$$, '42501',

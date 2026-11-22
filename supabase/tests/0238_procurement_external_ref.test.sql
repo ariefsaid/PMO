@@ -16,6 +16,11 @@ insert into profiles (id, org_id, full_name, email, role) values
 insert into procurements (id, org_id, title, status, requested_by_id) values
   ('02320000-0000-0000-0000-000000000010','02320000-0000-0000-0000-000000000001','Case','Draft','02320000-0000-0000-0000-0000000000a1');
 
+-- 1580: an order needs a supplier, so the fixture purchases are given one before the first signed-in write.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid where p.vendor_id is null;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"02320000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
