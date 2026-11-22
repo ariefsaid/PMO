@@ -8,7 +8,7 @@
 -- actor_may_order_purchases(): the ONE gate for the right — the real signed-in person fills one of their organisation's ordering job
 -- roles (holds_job_role, 1840). Every channel calls it, ORed with the existing level rule, never replacing it:
 --   create_purchase_order (0712 + 1530 guard) · transition_procurement to Ordered (1580, which carries the 1461 guard) · purchase_orders_insert /
---   purchase_orders_update (0646 text at head) · the read scopes in 1843.
+--   purchase_orders_update (the 0820 text at head) · the read scopes in 1843.
 -- A job-role orderer orders only an approved purchase (Approved or Quote Selected for the transition; also Vendor Quoted and Ordered
 -- for recording the order document). Approvals, receipts, bills and payments are untouched.
 -- drops: create_purchase_order's combined org-or-level refusal and transition_procurement's single role refusal — each split so the
@@ -36,7 +36,7 @@ begin
   return new;
 end $$;
 revoke all on function public.guard_purchase_order_job_roles() from public, anon, authenticated;
-create trigger purchase_order_settings_job_roles_guard
+create trigger purchase_order_settings_zz_job_roles_guard
   before insert or update of order_job_roles on public.purchase_order_settings
   for each row execute function public.guard_purchase_order_job_roles();
 
@@ -49,8 +49,10 @@ create function public.actor_may_order_purchases() returns boolean
 $$;
 comment on function public.actor_may_order_purchases() is
   'roles-that-decide FR-RTD-009: the one gate for ordering by job role. Real signed-in person, never the view-as role.';
-revoke all on function public.actor_may_order_purchases() from public, anon;
-grant execute on function public.actor_may_order_purchases() to authenticated, service_role;
+revoke all on function public.actor_may_order_purchases() from public;
+-- anon too: the procurement-files storage read policy (1843) is evaluated for every role, and a policy calling a function the
+-- role cannot execute fails the whole read. For anon (and anyone outside an organisation) it answers false; it writes nothing.
+grant execute on function public.actor_may_order_purchases() to anon, authenticated, service_role;
 
 create function public.po_set_order_job_roles(p_keys text[]) returns text[]
   language plpgsql volatile security definer set search_path = public, pg_temp as $$
@@ -339,14 +341,15 @@ begin
   values (p_id, v_org, v_from, p_to, auth.uid(), p_notes);
 end; $$;
 
--- ── purchase_orders write policies: the 0646 text at head, the level list ORed with the gate on an approved purchase ──
+-- ── purchase_orders write policies: the text at head (0646, with 0820's once-per-statement helper form), the level list
+--    ORed with the gate on an approved purchase ──
 alter policy purchase_orders_insert on public.purchase_orders
   with check (
     ((org_id = (select public.auth_org_id())) AND (select public.is_active_member()) AND (((select public.auth_role()) = ANY (ARRAY['Admin'::user_role, 'Executive'::user_role, 'Project Manager'::user_role, 'Finance'::user_role])) OR ((select public.actor_may_order_purchases()) AND (EXISTS ( SELECT 1
    FROM procurements p
   WHERE ((p.id = purchase_orders.procurement_id) AND (p.status = ANY (ARRAY['Approved'::procurement_status, 'Vendor Quoted'::procurement_status, 'Quote Selected'::procurement_status, 'Ordered'::procurement_status]))))))) AND (EXISTS ( SELECT 1
    FROM procurements p
-  WHERE ((p.id = purchase_orders.procurement_id) AND (p.org_id = (select public.auth_org_id()))))) AND (NOT domain_externally_owned((select public.auth_org_id()), 'procurement'::text)) AND org_feature_enabled((select public.auth_org_id()), 'procurement'::text))
+  WHERE ((p.id = purchase_orders.procurement_id) AND (p.org_id = (select public.auth_org_id()))))) AND (NOT ( SELECT domain_externally_owned(( SELECT auth_org_id() AS auth_org_id), 'procurement'::text) AS domain_externally_owned)) AND ( SELECT org_feature_enabled(( SELECT auth_org_id() AS auth_org_id), 'procurement'::text) AS org_feature_enabled))
   );
 alter policy purchase_orders_update on public.purchase_orders
   using (
@@ -354,12 +357,12 @@ alter policy purchase_orders_update on public.purchase_orders
    FROM procurements p
   WHERE ((p.id = purchase_orders.procurement_id) AND (p.status = ANY (ARRAY['Approved'::procurement_status, 'Vendor Quoted'::procurement_status, 'Quote Selected'::procurement_status, 'Ordered'::procurement_status]))))))) AND (EXISTS ( SELECT 1
    FROM procurements p
-  WHERE ((p.id = purchase_orders.procurement_id) AND (p.org_id = (select public.auth_org_id()))))) AND org_feature_enabled((select public.auth_org_id()), 'procurement'::text))
+  WHERE ((p.id = purchase_orders.procurement_id) AND (p.org_id = (select public.auth_org_id()))))) AND ( SELECT org_feature_enabled(( SELECT auth_org_id() AS auth_org_id), 'procurement'::text) AS org_feature_enabled))
   )
   with check (
     ((org_id = (select public.auth_org_id())) AND (select public.is_active_member()) AND (((select public.auth_role()) = ANY (ARRAY['Admin'::user_role, 'Executive'::user_role, 'Project Manager'::user_role, 'Finance'::user_role])) OR ((select public.actor_may_order_purchases()) AND (EXISTS ( SELECT 1
    FROM procurements p
   WHERE ((p.id = purchase_orders.procurement_id) AND (p.status = ANY (ARRAY['Approved'::procurement_status, 'Vendor Quoted'::procurement_status, 'Quote Selected'::procurement_status, 'Ordered'::procurement_status]))))))) AND (EXISTS ( SELECT 1
    FROM procurements p
-  WHERE ((p.id = purchase_orders.procurement_id) AND (p.org_id = (select public.auth_org_id()))))) AND org_feature_enabled((select public.auth_org_id()), 'procurement'::text))
+  WHERE ((p.id = purchase_orders.procurement_id) AND (p.org_id = (select public.auth_org_id()))))) AND ( SELECT org_feature_enabled(( SELECT auth_org_id() AS auth_org_id), 'procurement'::text) AS org_feature_enabled))
   );

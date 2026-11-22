@@ -44,11 +44,13 @@ insert into procurements (id, org_id, title, status, currency, requested_by_id, 
   ('18420000-0000-0000-0000-0000000000c1', '18420000-0000-0000-0000-00000000000a', 'Approved purchase',  'Approved',  'IDR', '18420000-0000-0000-0000-0000000000a5', '18420000-0000-0000-0000-0000000000d1'),
   ('18420000-0000-0000-0000-0000000000c2', '18420000-0000-0000-0000-00000000000a', 'Draft purchase',     'Draft',     'IDR', '18420000-0000-0000-0000-0000000000a5', '18420000-0000-0000-0000-0000000000d1'),
   ('18420000-0000-0000-0000-0000000000c3', '18420000-0000-0000-0000-00000000000a', 'Requested purchase', 'Requested', 'IDR', '18420000-0000-0000-0000-0000000000a5', '18420000-0000-0000-0000-0000000000d1'),
-  ('18420000-0000-0000-0000-0000000000c4', '18420000-0000-0000-0000-00000000000a', 'Second approved',    'Approved',  'IDR', '18420000-0000-0000-0000-0000000000a5', '18420000-0000-0000-0000-0000000000d1');
+  ('18420000-0000-0000-0000-0000000000c4', '18420000-0000-0000-0000-00000000000a', 'Second approved',    'Approved',  'IDR', '18420000-0000-0000-0000-0000000000a5', '18420000-0000-0000-0000-0000000000d1'),
+  ('18420000-0000-0000-0000-0000000000c5', '18420000-0000-0000-0000-00000000000a', 'Billed purchase',    'Received',  'IDR', '18420000-0000-0000-0000-0000000000a5', '18420000-0000-0000-0000-0000000000d1');
+-- the bill and the payment sit on their own purchase (c5): a bill on a purchase moves its step forward, so none is on the ones ordered here
 insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, amount, tax_treatment, tax_amount, currency) values
-  ('18420000-0000-0000-0000-0000000000e1', '18420000-0000-0000-0000-00000000000a', '18420000-0000-0000-0000-0000000000c1', 'VI-RTD-1', '2026-11-20', 'Received', 1000, 'exclusive', 0, 'IDR');
+  ('18420000-0000-0000-0000-0000000000e1', '18420000-0000-0000-0000-00000000000a', '18420000-0000-0000-0000-0000000000c5', 'VI-RTD-1', '2026-11-20', 'Received', 1000, 'exclusive', 0, 'IDR');
 insert into payments (id, org_id, procurement_id, pay_number, status, date, amount, currency) values
-  ('18420000-0000-0000-0000-0000000000f1', '18420000-0000-0000-0000-00000000000a', '18420000-0000-0000-0000-0000000000c1', 'PAY-RTD-1', 'Scheduled', '2026-11-21', 1000, 'IDR');
+  ('18420000-0000-0000-0000-0000000000f1', '18420000-0000-0000-0000-00000000000a', '18420000-0000-0000-0000-0000000000c5', 'PAY-RTD-1', 'Scheduled', '2026-11-21', 1000, 'IDR');
 
 create or replace function pg_temp._as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -88,7 +90,7 @@ select throws_ok($$ update purchase_order_settings set order_job_roles = array['
 
 -- AC-RTD-011: the Buyer reads, orders an approved purchase and records the order.
 select pg_temp._as('18420000-0000-0000-0000-0000000000a2');
-select is((select count(*)::int from procurements), 4, 'AC-RTD-011 a Buyer named in the setting reads every purchase');
+select is((select count(*)::int from procurements), 5, 'AC-RTD-011 a Buyer named in the setting reads every purchase');
 select lives_ok($$ select transition_procurement('18420000-0000-0000-0000-0000000000c1', 'Ordered') $$,
   'AC-RTD-011 a Buyer moves an approved purchase to Ordered');
 select is((select status::text from procurements where id = '18420000-0000-0000-0000-0000000000c1'), 'Ordered',
@@ -122,7 +124,7 @@ select throws_ok($$ select transition_procurement('18420000-0000-0000-0000-00000
   'PO_ORDER_FORBIDDEN: you cannot order purchases; ask an Admin to name your built-in role as one that orders',
   'AC-RTD-012 a Storekeeper, not named in the setting, cannot order');
 select pg_temp._as('18420000-0000-0000-0000-0000000000a4');
-select is((select count(*)::int from procurements), 4,
+select is((select count(*)::int from procurements), 5,
   'AC-RTD-012 an Engineer with no built-in role fills Buyer and reads purchases while the setting names Buyer (spec Q2)');
 
 select * from finish();

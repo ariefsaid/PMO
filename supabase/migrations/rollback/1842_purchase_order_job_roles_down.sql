@@ -1,6 +1,6 @@
 -- Reverses 1842_purchase_order_job_roles.sql. Run after rollback/1843 (its policies call actor_may_order_purchases) and before
 -- rollback/1840. Restores create_purchase_order (0712 + the 1530 guard line), transition_procurement (1580, which carries the 1461 guard line)
--- and the purchase_orders_insert / purchase_orders_update text of 0646.
+-- and the purchase_orders_insert / purchase_orders_update text at head (0646 with 0820's helper wrapping).
 create or replace function public.create_purchase_order(
   p_procurement_id uuid, p_reference_number text, p_status text, p_date date, p_amount numeric,
   p_import_key text default null, p_import_batch_id uuid default null, p_imported_at timestamptz default null,
@@ -249,22 +249,22 @@ alter policy purchase_orders_insert on public.purchase_orders
   with check (
     ((org_id = (select public.auth_org_id())) AND (select public.is_active_member()) AND ((select public.auth_role()) = ANY (ARRAY['Admin'::user_role, 'Executive'::user_role, 'Project Manager'::user_role, 'Finance'::user_role])) AND (EXISTS ( SELECT 1
    FROM procurements p
-  WHERE ((p.id = purchase_orders.procurement_id) AND (p.org_id = (select public.auth_org_id()))))) AND (NOT domain_externally_owned((select public.auth_org_id()), 'procurement'::text)) AND org_feature_enabled((select public.auth_org_id()), 'procurement'::text))
+  WHERE ((p.id = purchase_orders.procurement_id) AND (p.org_id = (select public.auth_org_id()))))) AND (NOT ( SELECT domain_externally_owned(( SELECT auth_org_id() AS auth_org_id), 'procurement'::text) AS domain_externally_owned)) AND ( SELECT org_feature_enabled(( SELECT auth_org_id() AS auth_org_id), 'procurement'::text) AS org_feature_enabled))
   );
 alter policy purchase_orders_update on public.purchase_orders
   using (
     ((org_id = (select public.auth_org_id())) AND (select public.is_active_member()) AND ((select public.auth_role()) = ANY (ARRAY['Admin'::user_role, 'Executive'::user_role, 'Project Manager'::user_role, 'Finance'::user_role])) AND (EXISTS ( SELECT 1
    FROM procurements p
-  WHERE ((p.id = purchase_orders.procurement_id) AND (p.org_id = (select public.auth_org_id()))))) AND org_feature_enabled((select public.auth_org_id()), 'procurement'::text))
+  WHERE ((p.id = purchase_orders.procurement_id) AND (p.org_id = (select public.auth_org_id()))))) AND ( SELECT org_feature_enabled(( SELECT auth_org_id() AS auth_org_id), 'procurement'::text) AS org_feature_enabled))
   )
   with check (
     ((org_id = (select public.auth_org_id())) AND (select public.is_active_member()) AND ((select public.auth_role()) = ANY (ARRAY['Admin'::user_role, 'Executive'::user_role, 'Project Manager'::user_role, 'Finance'::user_role])) AND (EXISTS ( SELECT 1
    FROM procurements p
-  WHERE ((p.id = purchase_orders.procurement_id) AND (p.org_id = (select public.auth_org_id()))))) AND org_feature_enabled((select public.auth_org_id()), 'procurement'::text))
+  WHERE ((p.id = purchase_orders.procurement_id) AND (p.org_id = (select public.auth_org_id()))))) AND ( SELECT org_feature_enabled(( SELECT auth_org_id() AS auth_org_id), 'procurement'::text) AS org_feature_enabled))
   );
 
 drop function public.po_set_order_job_roles(text[]);
 drop function public.actor_may_order_purchases();
-drop trigger purchase_order_settings_job_roles_guard on public.purchase_order_settings;
+drop trigger purchase_order_settings_zz_job_roles_guard on public.purchase_order_settings;
 drop function public.guard_purchase_order_job_roles();
 alter table public.purchase_order_settings drop column order_job_roles;
