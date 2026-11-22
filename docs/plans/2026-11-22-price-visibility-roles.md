@@ -12,7 +12,7 @@ ONE deciding function stays: `actor_may_see_prices_now()`. The list of who holds
 
 ## Tests (written first, red before the migrations)
 - pgTAP `supabase/tests/1850_price_visibility_roles.test.sql`: AC-PVR-001..006 (role table as a literal list inside the test, independent of the catalogue; one person per role created with the built-in roles setting on; a loop with `set local role authenticated` per role as `1215_hide_prices.test.sql` does) plus the mutation notes in its header.
-- Edit the existing tests listed in spec section 6 in the same commit (1200 AC-008, 1202:133, 1215 truth table, 2720 actors).
+- Edit the existing tests listed in spec section 6 in the same commit (1200 AC-008, 1202:133, 1215 truth table, 2720 is not in this tree).
 - vitest: `pmo-portal/src/auth/priceVisibility.test.ts` (rows from the spec table), `pmo-portal/src/auth/builtInRoles.test.ts` (parity reads 1200 plus 1850 capability tuples; `roleSeesPrices` rows).
 - No e2e: the hide setting's journey (AC-HP-001) keeps its owner; its Engineer actor becomes a Field user only if it uses the legacy Engineer as the hidden person (check `grep -rn "hide" pmo-portal/e2e`).
 

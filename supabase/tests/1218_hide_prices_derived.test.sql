@@ -25,10 +25,14 @@ insert into purchase_orders (id, org_id, procurement_id, po_number, status, amou
   ('26991800-0000-0000-0000-000000000020','26991800-0000-0000-0000-000000000001','26991800-0000-0000-0000-000000000010','HPD-PO-1','Issued',700);
 insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date, amount, tax_treatment, tax_amount)
   values ('26991800-0000-0000-0000-000000000030','26991800-0000-0000-0000-000000000001','26991800-0000-0000-0000-000000000010','Received','2026-10-07',500,'exclusive',0);
-update organizations set hide_prices_from_requesters = true where id = '26991800-0000-0000-0000-000000000001';
+update organizations set hide_prices_from_requesters = true, built_in_roles_enabled = true where id = '26991800-0000-0000-0000-000000000001';
+-- The hidden person must be one who can read the order, which a Field user cannot, so the list is changed as data here:
+-- the Engineer role loses its price right in this transaction and the Engineer holds that role.
+delete from built_in_role_capabilities where role_key = 'engineer' and capability = 'sees_prices';
+update profiles set built_in_role = 'engineer' where id = '26991800-0000-0000-0000-0000000000e1';
 
 set local role authenticated;
--- Hidden: the legacy Engineer.
+-- Hidden: an Engineer-role holder whose role has no price right.
 set local request.jwt.claims = '{"sub":"26991800-0000-0000-0000-0000000000e1","role":"authenticated"}';
 select is((select amount from purchase_orders_masked where id = '26991800-0000-0000-0000-000000000020'), null, 'AC-003 hidden purchase order amount is NULL');
 select is((select po_number from purchase_orders_masked where id = '26991800-0000-0000-0000-000000000020'), 'HPD-PO-1', 'AC-003 the purchase order row stays visible');

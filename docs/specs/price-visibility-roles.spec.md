@@ -13,7 +13,7 @@ Status: Draft for Director sign-off (phase 1). Rulings it rests on: OD-SCOPE-3 (
 - So with the setting on, these lose prices today: 11 officer roles (Project Administrator, Engineer, Planner, Quantity Surveyor, Material Coordinator, Storekeeper, Site Supervisor, Quality Inspector, Safety Officer, Equipment Officer, HR Officer), Foreman, Field user, and any active person with no job role at the Engineer base level. The claim in the item is correct.
 - The base does not already answer the ask: the list and the legacy-Engineer clause both have to change.
 - The setting is off everywhere: default false; the only writer is `set_hide_prices_enabled` (Admin); the Administration card is held back by `HIDE_PRICES_SETTING_AVAILABLE = false` (`pmo-portal/src/lib/db/hidePrices.ts:5`, used at `pmo-portal/pages/Administration.tsx:297`; DD-R1215-1). No organisation is using the older behaviour, so this change moves no one's current view.
-- The database gate on the priced base tables is NOT yet on the merged branch: `origin/feat/hide-prices-db-gate` carries the test `2720_hide_prices_base_tables.test.sql` and migration 1530, but the base-table gate migrations that test names (1540-1544) are absent from it. This spec changes only the deciding function and its data, which that gate calls, so it does not depend on them; the orchestrator should know the gate itself is not in the tree.
+- The database gate on the priced base tables (`feat/hide-prices-db-gate`) has not landed and is not carried here. If it later restates `actor_may_see_prices_now()`, migration 1851 must be re-based on its body.
 
 ## 2. Requirements (EARS)
 
@@ -60,7 +60,7 @@ Status: Draft for Director sign-off (phase 1). Rulings it rests on: OD-SCOPE-3 (
 - `supabase/tests/1200_builtin_role_catalogue.test.sql` AC-008 (who sees prices list, and the "storekeeper ... do not" assertion): the list is now 26 roles; the check is rewritten to the new ruling.
 - `supabase/tests/1202_profiles_built_in_role.test.sql:133` (Site Supervisor does not see prices): now sees.
 - `supabase/tests/1215_hide_prices.test.sql` truth table (`e1` legacy Engineer hidden, `a2` Storekeeper hidden, plan counts): both now see; the hidden actor becomes a Foreman or Field user.
-- `supabase/tests/2720_hide_prices_base_tables.test.sql` (on the merged branch): `e1` (legacy Engineer) and `a2` (Storekeeper) were hidden actors; the hidden actors become Field user and Foreman, and the visible ones gain Engineer and Storekeeper.
+- When the gate lands, its test `2720_hide_prices_base_tables.test.sql` names the legacy Engineer and the Storekeeper as hidden actors; it must then use a Field user and a Foreman as the hidden actors.
 - `pmo-portal/src/auth/priceVisibility.test.ts` (legacy Engineer, Storekeeper, Site Supervisor rows) and `pmo-portal/src/auth/builtInRoles.test.ts` (parity source, `roleSeesPrices('storekeeper')`).
 - `docs/specs/hide-prices.spec.md` AC-002/AC-008 and the requester definition, `builtin-role-set.spec.md` FR-008/AC-008: reworded to point here.
 - The goal of each test is kept; only the ruling the expectation encodes changed.

@@ -130,7 +130,7 @@ set local request.jwt.claims = '{"sub":"12020000-0000-0000-0000-0000000000d1","r
 select ok(actor_has_role_capability('daily_report_validate') and not actor_has_role_capability('stock_post'),
   'AC-009 a Site Supervisor holds daily_report_validate, not stock_post');
 select ok(actor_holds_built_in_role('site_supervisor') and not actor_holds_built_in_role('planner'), 'AC-009 actor_holds_built_in_role');
-select ok(not actor_sees_prices(), 'AC-009 a Site Supervisor does not see prices');
+select ok(actor_sees_prices(), 'AC-009 a Site Supervisor sees prices');
 set local request.jwt.claims = '{"sub":"12020000-0000-0000-0000-0000000000c1","role":"authenticated"}';
 select ok(actor_sees_prices() and not actor_has_role_capability('stock_post') and not actor_holds_built_in_role('project_manager'),
   'AC-009 a person with no key sees prices and holds no capability');

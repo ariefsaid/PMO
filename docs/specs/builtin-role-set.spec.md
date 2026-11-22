@@ -73,7 +73,7 @@ approval rights) is Engineer base. Deputy Project Manager is a manager (stands i
   `daily_report_validate` Site Supervisor and Project Control Manager; `crew_time_approve` Construction Manager;
   `billing_stage_run` Billing Officer; `invoice_raise` Finance Manager and Finance Officer; `people_documents_view` HR Manager,
   HR Officer, Administrator; `medical_documents_view` HR Manager, HR Officer, Administrator. Held by no other role.
-- **FR-008** The system shall expose `built_in_role_sees_prices(key)` and `actor_sees_prices()`: true for every manager, Buyer,
+- **FR-008** (changed by [price-visibility-roles](price-visibility-roles.spec.md): every role except Foreman and Field user holds the right) The system shall expose `built_in_role_sees_prices(key)` and `actor_sees_prices()`: true for every manager, Buyer,
   Finance Officer and Billing Officer; false for every other officer and field role; true for a NULL key (legacy people).
   Hiding prices is ticket #2699's setting and is NOT built here.
 - **FR-009** Tier rules: `built_in_role_tier(key)`; managers approve, officers prepare (helpers `built_in_role_may_approve`,
