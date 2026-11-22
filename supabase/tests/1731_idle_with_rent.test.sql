@@ -4,6 +4,19 @@
 -- 03 Nov reason A 60 min; 05 Nov reason A 60 min. Head count: 02 Nov 3 present + an approved line of 2 = 5; 03 Nov 2 present
 -- (an absent row and an unapproved line of 7 do not count); 05 Nov nobody. Standby: 2 h at 100000 on 02 Nov (shared 30:90),
 -- 1 h on 05 Nov; excluded entries sit around them.
+-- The cost read of this fixture is asserted absolutely (AC-IWR-008), BOTH scopes, from these fixture facts alone:
+--   labour        8 h x 50000 (Engineer role rate, timesheet 711) = 400000.00
+--                 8 h x 75000 (person rate, timesheet 721)        = 600000.00
+--   hire          EQ1 02 Nov 2 h x 100000 standby               = 200000.00
+--                 EQ1 05 Nov 1 h x 100000 standby               = 100000.00
+--                 EQ2 02 Nov 5 h x 100000 standby (no WO)       = 500000.00
+--                 EQ5 02 Nov 5 h x 100000 standby (WO-B)        = 500000.00
+--                 EQ2 04 Nov 5 h x 100000 standby (no idle day) = 500000.00
+--                 EQ2 05 Nov 5 h x 1000 work                    =   5000.00
+--                 EQ4 02 Nov 5 h x 0 (no standby rate)          =      0.00
+--   no amount     EQ2 02 Nov Draft, EQ3 02 Nov other unit, the approved head-count line (its class has no rate), and
+--                 the project-actuals remainder row.
+-- Total = 1000000 labour + 1805000 hire = 2805000.00 over 13 rows; idle money never enters it (FR-IWR-005).
 -- MUTATION NOTES (break the rule; the named assertion must go red; restore):
 --   head-count factor replaced by 1 ................................. AC-IWR-002/003 amounts
 --   average head count instead of per day ........................... AC-IWR-003 amount
@@ -12,10 +25,13 @@
 --   drop the approved_at filter in idle_headcount_days .............. AC-IWR-013
 --   scope default people_and_equipment (1730) ....................... AC-IWR-001
 --   remove idle_cost_enabled return ................................. AC-IWR-009
---   add idle amount to work_order_cost_amounts ...................... AC-IWR-008
+--   M8: add a nonzero idle-derived amount (e.g. 431250.00 on WO-A) to work_order_cost_amounts — a new union branch,
+--       a new row, or a changed existing amount ..................... AC-IWR-008 absolute row set AND money total
+--       (extra row: 14 vs 13 rows; added to a row/total: sum moves). Absolute, not differential: the scope switch
+--       cannot change both sides, so the pre-existing md5 differential stays green under M8 by design.
 begin;
 create extension if not exists pgtap;
-select plan(19);
+select plan(25);
 
 insert into organizations (id, name, default_currency) values
   ('17310000-0000-0000-0000-00000000000a', 'Idle Rent Org', 'IDR'),
@@ -140,6 +156,40 @@ create temp table cost_before as
          count(*) as n from public.work_order_cost_amounts('17310000-0000-0000-0000-0000000000d1');
 grant select on cost_before to authenticated;
 
+-- AC-IWR-008 absolute oracle (scope labour_average). The expected cost read is hand-written from the fixture facts in the
+-- header, never copied from the function and never re-derived from its pricing: 400000 + 600000 labour, the seven counted
+-- hire rows, three no-amount rows and the project-actuals remainder. Idle cost is a separate read; adding it anywhere to
+-- these actual costs changes this row set or the total (M8).
+create temp table expected_cost as
+  select * from (values
+    ('headcount_day'::text, '17310000-0000-0000-0000-000000000401'::uuid, null::numeric, null::numeric, 'hours'::text, 'no-rate'::text),
+    ('equipment_usage', '17310000-0000-0000-0000-000000000401', 200000.00, 2, 'hours', 'counted'),
+    ('equipment_usage', '17310000-0000-0000-0000-000000000401', 100000.00, 1, 'hours', 'counted'),
+    ('equipment_usage', '17310000-0000-0000-0000-000000000401', null, 5, 'hours', 'not-posted'),
+    ('equipment_usage', null, 500000.00, 5, 'hours', 'counted'),
+    ('equipment_usage', '17310000-0000-0000-0000-000000000402', 500000.00, 5, 'hours', 'counted'),
+    ('equipment_usage', '17310000-0000-0000-0000-000000000401', 500000.00, 5, 'hours', 'counted'),
+    ('equipment_usage', '17310000-0000-0000-0000-000000000401', 5000.00, 5, 'hours', 'counted'),
+    ('equipment_usage', '17310000-0000-0000-0000-000000000401', null, 1, 'days', 'no-rate'),
+    ('equipment_usage', '17310000-0000-0000-0000-000000000401', 0.00, 5, 'hours', 'counted'),
+    ('project_actuals', null, null, null, null, 'unassigned'),
+    ('timesheet_entry', '17310000-0000-0000-0000-000000000401', 400000.00, 8, 'hours', 'counted'),
+    ('timesheet_entry', '17310000-0000-0000-0000-000000000401', 600000.00, 8, 'hours', 'counted')
+  ) v(source, work_order_id, amount, quantity, quantity_unit, reason);
+grant select on expected_cost to authenticated;
+
+create temp table cost_rows as
+  select source, work_order_id, amount::numeric as amount, quantity, quantity_unit, reason
+    from public.work_order_cost_amounts('17310000-0000-0000-0000-0000000000d1');
+grant select on cost_rows to authenticated;
+
+select is((select count(*) from (select * from cost_rows except all select * from expected_cost) x), 0::bigint,
+  'AC-IWR-008 labour_average scope: the cost read carries no row beyond the hand-calculated fixture rows (idle money would be one)');
+select is((select count(*) from (select * from expected_cost except all select * from cost_rows) x), 0::bigint,
+  'AC-IWR-008 labour_average scope: every hand-calculated fixture cost row is present with its exact amount');
+select is((select sum(amount) from cost_rows), 2805000.00,
+  'AC-IWR-008 labour_average scope: cost total 2805000.00 = labour 1000000 + hire 1805000, hand-calculated');
+
 select lives_ok($$select public.save_idle_cost_scope('people_and_equipment')$$, 'Finance sets idle cost to cover people and equipment');
 create temp table full_rows as select * from public.work_order_idle_cost('17310000-0000-0000-0000-0000000000d1');
 grant select on full_rows to authenticated;
@@ -164,6 +214,20 @@ select is((select md5(coalesce(string_agg(source || coalesce(record_id::text, ''
              from public.work_order_cost_amounts('17310000-0000-0000-0000-0000000000d1')),
   (select h || ':' || n from cost_before),
   'AC-IWR-008 the work order cost reads are identical before and after the scope changed');
+
+-- AC-IWR-008 absolute oracle again, under people_and_equipment: the same hand-calculated rows and total. The scope only
+-- changes the idle read, so an idle-derived amount added to the cost read fails here as well as above.
+create temp table cost_rows_full as
+  select source, work_order_id, amount::numeric as amount, quantity, quantity_unit, reason
+    from public.work_order_cost_amounts('17310000-0000-0000-0000-0000000000d1');
+grant select on cost_rows_full to authenticated;
+
+select is((select count(*) from (select * from cost_rows_full except all select * from expected_cost) x), 0::bigint,
+  'AC-IWR-008 people_and_equipment scope: the cost read carries no row beyond the hand-calculated fixture rows (idle money would be one)');
+select is((select count(*) from (select * from expected_cost except all select * from cost_rows_full) x), 0::bigint,
+  'AC-IWR-008 people_and_equipment scope: every hand-calculated fixture cost row is present with its exact amount');
+select is((select sum(amount) from cost_rows_full), 2805000.00,
+  'AC-IWR-008 people_and_equipment scope: cost total 2805000.00 = labour 1000000 + hire 1805000, hand-calculated');
 
 select public.save_labour_cost_settings(false);
 select is((select count(*)::int from public.work_order_idle_cost('17310000-0000-0000-0000-0000000000d1')), 0,

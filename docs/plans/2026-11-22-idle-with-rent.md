@@ -38,7 +38,9 @@ a second term (dedupe against attendance by worker where it names one). Confirm 
 ## Task 4 - UI (restructure skill, DESIGN.md tokens)
 - `pages/work-order-detail/IdleCostBlock.tsx`: People and Equipment columns only when rows carry them; one total; reason with
   no rate says so; note text keeps "shown apart, not added to the direct cost". 390 px: columns collapse under the reason row.
-  Test AC-IWR-011 in `IdleCostBlock.test.tsx`; AC-IWR-008 in the plan-versus-actual vitest.
+  Test AC-IWR-011 in `IdleCostBlock.test.tsx`. AC-IWR-008 is owned by pgTAP in `supabase/tests/1731_idle_with_rent.test.sql`
+  (absolute hand-calculated `work_order_cost_amounts` row set and total, both scopes); the plan-versus-actual vitest named in
+  an earlier draft was never built and is not the owning layer.
 - `pages/admin/IdleCostSwitch.tsx`: "Idle cost covers" select (shared `SelectField`), disabled with a reason for non-managers.
   Test AC-IWR-012. EN+ID in `public/locales/{en,id}/administration.json` and `workOrderPva.json`.
 - e2e `pmo-portal/e2e/AC-IWR-012-idle-cost-scope.spec.ts` (follow docs/e2e-parallel-conventions.md); written, not run.
@@ -50,4 +52,10 @@ a second term (dedupe against attendance by worker where it names one). Confirm 
   `npm run check:restated-functions`. pgTAP/e2e left for the wave run.
 
 ## Traceability
-AC-IWR-001,002,003,004,005,006,007,009,010 pgTAP (1730/1731 tests); 008 pgTAP + vitest; 011 vitest; 012 vitest + e2e; 013 pgTAP after the merge.
+AC-IWR-001,002,003,004,005,006,007,009,010 pgTAP (1730/1731 tests); 008 pgTAP only — `1731_idle_with_rent.test.sql` asserts
+the fixture's absolute `work_order_cost_amounts` row set and 2805000.00 total under both scopes (the earlier vitest half was
+never built and is not owed); 011 vitest; 012 vitest + e2e; 013 pgTAP after the merge.
+
+Deferred (source review MINOR-1): AC-IWR-005's round-once edge — a standby split that does not divide to the cent — has no
+oracle. Adding it re-baselines the existing 300000 equipment total and the 150000 per-reason assertions, so it is recorded
+here instead of churned into this slice.

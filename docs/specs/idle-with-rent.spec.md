@@ -77,7 +77,12 @@ stopped hours, by reason, so the claimable idle cost is one figure.
   with no idle time, or with no standby rate, then they add nothing. [pgTAP]
 - AC-IWR-007 Given zero present workers that day, then people 0.00, hours shown, equipment still added. [pgTAP]
 - AC-IWR-008 Given any setting, then `work_order_cost_amounts`, the work order's direct cost and the plan-versus-actual totals
-  are identical before and after switching the setting. [pgTAP + vitest `workOrderPlanVsActual`]
+  are identical before and after switching the setting. **Owning layer: pgTAP**
+  (`supabase/tests/1731_idle_with_rent.test.sql`): the fixture's whole cost read is asserted against a hand-calculated row set
+  and money total under **both** scopes, and the before/after md5 differential is kept, so any idle money added to actual
+  costs fails on an extra/changed row or on the total. The plan-versus-actual screen reads that same function, so the vitest
+  half named in an earlier draft (never built) is not an owning layer and is not owed — a unit test restating the reducer
+  would prove nothing the database oracle does not.
 - AC-IWR-009 Given labour cost off or the idle switch off, then no row, whatever the scope. [pgTAP]
 - AC-IWR-010 Given a non-Admin/Finance caller, then writing the scope is refused (42501); another organisation's project reads
   as absent; a Project Manager's rows carry no hourly cost. [pgTAP]
@@ -102,7 +107,8 @@ arithmetic. UX-only: visibility of the Administration control.
 4. Replace the proportional share with the full day's standby on every reason -> AC-IWR-005 red.
 5. Remove the `idle_cost_enabled` early return, or the scope check on the write (`labour_cost_gate`) -> AC-IWR-009/010 red.
 6. Make the scope default `people_and_equipment` -> AC-IWR-001 red.
-7. Include idle amount in `work_order_cost_amounts` -> AC-IWR-008 red.
+7. Include idle amount in `work_order_cost_amounts` (M8: a new nonzero idle-derived row or amount) -> AC-IWR-008's absolute
+   row set (13 rows) and money total (2805000.00) red under both scopes.
 
 ## 7. Questions for the customer (recommended answers)
 1. Head count = people marked present that day on the work order, whether or not their attendance is approved yet?
