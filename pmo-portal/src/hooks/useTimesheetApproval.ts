@@ -3,6 +3,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import type { TimesheetAwaitingApproval, ReopenableApprovedTimesheet } from '@/src/lib/db/timesheetTransition';
 import { repositories } from '@/src/lib/repositories';
 import { awaitingApprovalKey } from './approvalsQueryKeys';
+import { timesheetApprovalRouteScope } from './useTimesheetApprovalRoute';
 
 export { awaitingApprovalKey } from './approvalsQueryKeys';
 import type { PushNeedingAttention, TimesheetPushState } from '@/src/lib/db/timesheetPush';
@@ -128,6 +129,9 @@ export function useTimesheetMutations() {
     queryClient.invalidateQueries({ queryKey: ownTimesheetsKey(orgId, userId) });
     queryClient.invalidateQueries({ queryKey: ['timesheets-awaiting', orgId, userId] });
     queryClient.invalidateQueries({ queryKey: ['timesheet-approval-work', orgId, userId] });
+    // fix-waiting item 3: every transition changes who a Submitted week waits for (submit enters the
+    // route, approve/reject/reopen leaves it), so the open route read is refreshed with the same moves.
+    queryClient.invalidateQueries({ queryKey: timesheetApprovalRouteScope(orgId, userId) });
   };
 
   const submit = useMutation<void, Error, { id: string }>({

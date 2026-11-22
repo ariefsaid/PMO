@@ -26,6 +26,10 @@ import {
   useTimesheetsAwaitingApproval,
   useOwnTimesheetPushState,
 } from '@/src/hooks/useTimesheetApproval';
+import { useTimesheetApprovalRoute, timesheetWaitingForText } from '@/src/hooks/useTimesheetApprovalRoute';
+import { waitingForText, waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
+import { useRoleLabels } from './admin-users/roleLabels';
+import type { UserRole } from '@/src/lib/db/adminUsers';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { useTimesheetEntryMutations } from '@/src/hooks/useTimesheetEntries';
 import { useProjectPickerOptions } from '@/src/hooks/useProjects';
@@ -43,7 +47,8 @@ import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 const PICKER_NAME_MAX = 36;
 
 const TimesheetsPage: React.FC = () => {
-  const { t } = useTranslation(['common', 'timesheets']);
+  const { t } = useTranslation(['common', 'timesheets', 'waitingList']);
+  const roleLabels = useRoleLabels();
   const isDesktop = useIsDesktop();
   const { submit, reopen } = useTimesheetMutations();
   const { currentUser } = useAuth();
@@ -112,6 +117,13 @@ const TimesheetsPage: React.FC = () => {
   // ⚑ I-16/I-17 — the owner's own ERP push state (rendered by `PushStateBadge` beside the status pill
   // below). Declared here, with the other top-level reads, so it stays above every early return.
   const { data: ownPushState } = useOwnTimesheetPushState(currentTimesheet?.id);
+
+  // fix-waiting item 3 (FR-WAIT-006): who THIS Submitted week waits for. One visible sheet only; a draft
+  // or absent week passes null and pays no read. The route is server-computed through existing RLS.
+  const submittedTimesheetId = currentTimesheet?.status === TimesheetStatus.Submitted
+    ? currentTimesheet.id
+    : null;
+  const approvalRoute = useTimesheetApprovalRoute(submittedTimesheetId);
 
   const gridRows = useMemo(() => entriesToGridRows(currentWeekEntries, weekDates, t('timesheets.unknownProject', 'Unknown Project')), [currentWeekEntries, weekDates, t]);
   const gridDays = useMemo(() => gridDaysForWeek(weekDates), [weekDates]);
@@ -247,6 +259,19 @@ const TimesheetsPage: React.FC = () => {
   const status = (currentTimesheet?.status as TimesheetStatus | undefined) ?? null;
   const returned = status === TimesheetStatus.Rejected;
 
+  // fix-waiting item 3: the requester is told who a Submitted week waits for. While the route loads,
+  // and if it fails, the honest generic sentence is shown (never a fabricated name); a failed read
+  // also offers a retry. A known empty configured route says nobody active can decide, without claiming
+  // the week is done. `unavailable` (read raced a status change) shows no route sentence at all.
+  const waitingFor = submittedTimesheetId == null
+    ? null
+    : approvalRoute.isError || (approvalRoute.isPending && !approvalRoute.data)
+      ? waitingForText({ names: [] }, t)
+      : timesheetWaitingForText(approvalRoute.data, t, {
+          lineManager: waitingRoleLabel('roleManager', t),
+          role: (role) => roleLabels.label(role as UserRole),
+        });
+
   // AC-W3-B1: "Revise this week" — single-click routine reversible step (OD-UX-1: no confirm).
   // Available only to the OWNER of a Rejected sheet; the RPC is the real authority.
   const canRevise = returned && isOwner && !!currentTimesheet?.id;
@@ -302,6 +327,16 @@ const TimesheetsPage: React.FC = () => {
                 Retry here: re-driving is the approver's act (`can('push_timesheet', …)`), and this
                 badge is supplementary — a null state renders nothing and never gates the page. */}
             <PushStateBadge state={ownPushState ?? null} canRetry={false} />
+            {waitingFor && (
+              <span data-testid="timesheet-waiting-for" className="min-w-0 text-control text-muted-foreground">
+                {waitingFor}
+              </span>
+            )}
+            {approvalRoute.isError && submittedTimesheetId && (
+              <Button variant="outline" size="sm" onClick={() => void approvalRoute.refetch()}>
+                {t('common:ui.listState.retry', 'Retry')}
+              </Button>
+            )}
             {editable && (
               <div
                 data-testid="timesheets-save-status"
