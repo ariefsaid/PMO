@@ -58,7 +58,10 @@ function makeWrapper() {
   return { qc, Wrapper };
 }
 
-beforeEach(() => h.validationRoute.mockReset());
+// Block-bodied on purpose: `mockReset()` RETURNS the mock, and Vitest registers any function returned
+// from `beforeEach` as an after-test cleanup — a phantom call that would reject with the body's own
+// armed mock value and fail an otherwise passing test.
+beforeEach(() => { h.validationRoute.mockReset(); });
 
 describe('FR-WAIT-006 useDsrValidationRoute', () => {
   it('reads ONE visible Submitted report through the typed repository, keyed by real org + user + report', async () => {
@@ -83,7 +86,7 @@ describe('FR-WAIT-006 useDsrValidationRoute', () => {
   });
 
   it('surfaces a read failure as an error state so the screen can offer a retry', async () => {
-    h.validationRoute.mockRejectedValueOnce(new Error('boom'));
+    h.validationRoute.mockRejectedValue(new Error('boom'));
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => useDsrValidationRoute('r1'), { wrapper: Wrapper });
 
