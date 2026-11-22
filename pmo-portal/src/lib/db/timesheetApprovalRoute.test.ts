@@ -42,6 +42,16 @@ describe('FR-WAIT-006 timesheet approval-route DAL', () => {
     });
   });
 
+  it('accepts a valid blank server full_name (falls back in wording), never a permanent malformed error', () => {
+    expect(parseTimesheetApprovalRoute({
+      approvers: [{ id: 'u-admin', name: '   ', role: 'Admin' }],
+      route_kind: 'admin_executive',
+    })).toEqual({
+      approvers: [{ id: 'u-admin', name: '', role: 'Admin' }],
+      routeKind: 'admin_executive',
+    });
+  });
+
   it('surfaces an RPC error as a code-bearing AppError (the screen can retry)', async () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: 'not authorized', code: '42501' } });
 
@@ -60,7 +70,8 @@ describe('FR-WAIT-006 timesheet approval-route DAL', () => {
     ['missing route kind', { approvers: [] }],
     ['unknown route kind', { approvers: [], route_kind: 'approved' }],
     ['approver without id', { approvers: [{ name: 'Ani', role: 'Admin' }], route_kind: 'admin_executive' }],
-    ['approver with blank name', { approvers: [{ id: 'u1', name: ' ', role: 'Admin' }], route_kind: 'admin_executive' }],
+    ['approver with non-string name', { approvers: [{ id: 'u1', name: 42, role: 'Admin' }], route_kind: 'admin_executive' }],
+    ['approver with blank role', { approvers: [{ id: 'u1', name: 'Ani', role: ' ' }], route_kind: 'admin_executive' }],
   ])('rejects a malformed response (%s) instead of fabricating a route', (_label, body) => {
     expect(() => parseTimesheetApprovalRoute(body)).toThrow(AppError);
     expect(() => parseTimesheetApprovalRoute(body)).toThrow(/malformed/);

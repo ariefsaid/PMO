@@ -36,7 +36,7 @@ export const timesheetRepository: TimesheetRepository = {
   attestNoErpDocument: attestTimesheetNoErpDocument,
   listReopenableApproved: listReopenableApprovedTimesheets,
   hasApprovalWork: (selfId, viewerRole) => wrap(() => hasTimesheetApprovalWork(selfId, viewerRole)),
-  getApprovalRoute: getTimesheetApprovalRoute,
+  getApprovalRoute: (id) => wrap(() => getTimesheetApprovalRoute(id)),
   listPushesNeedingAttention,
   confirmEmployeeLink,
   getPushState,

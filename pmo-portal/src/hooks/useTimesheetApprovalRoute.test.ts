@@ -87,12 +87,26 @@ describe('FR-WAIT-006 timesheetWaitingForText — route facts, not a flat label'
     }, t.t, labels)).toBe('Waiting for Ani, line manager or Admin');
   });
 
-  it('uses the real role words when no manager is assigned (Admin and Executive fallback)', () => {
+  it('names the actual Admin and Executive people with their current roles when no manager is assigned', () => {
     expect(timesheetWaitingForText({
       routeKind: 'admin_executive',
       approvers: [
         { id: 'a', name: 'Budi', role: 'Admin' },
         { id: 'e', name: 'Cici', role: 'Executive' },
+      ],
+    }, t.t, labels)).toBe('Waiting for Budi, Admin or Cici, Executive');
+  });
+
+  it('falls back to the role word when the server supplies a blank full_name (never a fabricated name)', () => {
+    expect(timesheetWaitingForText({
+      routeKind: 'line_manager',
+      approvers: [{ id: 'm', name: '   ', role: 'line_manager' }],
+    }, t.t, labels)).toBe('Waiting for line manager');
+    expect(timesheetWaitingForText({
+      routeKind: 'admin_executive',
+      approvers: [
+        { id: 'a', name: '', role: 'Admin' },
+        { id: 'e', name: '  ', role: 'Executive' },
       ],
     }, t.t, labels)).toBe('Waiting for Admin or Executive');
   });

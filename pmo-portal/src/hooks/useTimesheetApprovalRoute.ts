@@ -54,11 +54,14 @@ export interface TimesheetWaitingRoleLabels {
 /**
  * Words the route for the requester. A named manager is spoken with their actual name and the line-
  * manager role; Admin/Executive alternatives are spoken with their real role names, never a flat
- * mislabel. Loading/pending is the caller's concern; this only turns COMPLETE server facts into the
- * shared sentence. `unavailable` is not a route to show (the page is not on a Submitted sheet).
+ * mislabel. When NO manager is assigned, the signed root ruling requires the actual people the DB
+ * returned to be named — so each Admin/Executive is spoken as "<name>, <role>" (a blank server name
+ * falls back to the role word alone; no name is invented and no profile read is added here).
  *
- * A known configured route with no active candidate is NOT reported as done and no name is invented:
- * it says, in the reader's language, that nobody active holds the deciding role right now.
+ * Loading/pending is the caller's concern; this only turns COMPLETE server facts into the shared
+ * sentence. `unavailable` is not a route to show (the page is not on a Submitted sheet). A known
+ * configured route with no active candidate is NOT reported as done: it says, in the reader's
+ * language, that nobody active holds the deciding role right now.
  */
 export function timesheetWaitingForText(
   route: TimesheetApprovalRoute | null | undefined,
@@ -71,16 +74,36 @@ export function timesheetWaitingForText(
   }
 
   const manager = route.approvers.find((approver) => approver.role === 'line_manager') ?? null;
-  const alternativeRoles: string[] = [];
-  for (const approver of route.approvers) {
-    if (approver.role === 'line_manager') continue;
-    const label = labels.role(approver.role);
-    if (label && !alternativeRoles.includes(label)) alternativeRoles.push(label);
+  const others = route.approvers.filter((approver) => approver.role !== 'line_manager');
+
+  if (manager) {
+    // Named manager + the real role words of the OTHER eligible people. The manager is never repeated
+    // as an Admin alternative; the server already deduped the same id.
+    const alternativeRoles: string[] = [];
+    for (const approver of others) {
+      const label = labels.role(approver.role);
+      if (label && !alternativeRoles.includes(label)) alternativeRoles.push(label);
+    }
+    const name = manager.name.trim();
+    return waitingForText({
+      names: name ? [name] : [],
+      role: labels.lineManager,
+      alternativeRoles,
+    }, t);
   }
 
-  return waitingForText({
-    names: manager ? [manager.name] : [],
-    role: manager ? labels.lineManager : null,
-    alternativeRoles,
-  }, t);
+  // Null manager: name the actual returned Admin/Executive people with their current coarse role.
+  // The existing formatter joins these with its localized "or"; a blank server `full_name` is a valid
+  // value, so it falls back to the role word instead of fabricating a name or erroring the route.
+  const people: string[] = [];
+  for (const approver of others) {
+    const role = labels.role(approver.role);
+    const name = approver.name.trim();
+    const who = name ? (role ? `${name}, ${role}` : name) : role;
+    if (who && !people.includes(who)) people.push(who);
+  }
+  if (people.length === 0) {
+    return t('common:uxs32.holdersNone', 'Nobody active holds these roles right now.');
+  }
+  return waitingForText({ names: people }, t);
 }

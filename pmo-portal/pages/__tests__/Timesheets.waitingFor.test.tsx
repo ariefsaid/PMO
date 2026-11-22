@@ -130,7 +130,7 @@ describe('FR-WAIT-006 a Submitted week names who it waits for', () => {
     expect(within(screen.getByTestId('timesheets-entry-header')).getByText('Submitted')).toBeInTheDocument();
   });
 
-  it('uses the actual role words when no manager is assigned', async () => {
+  it('names the actual Admin and Executive people when no manager is assigned', async () => {
     routeState.data = {
       routeKind: 'admin_executive',
       approvers: [
@@ -140,7 +140,17 @@ describe('FR-WAIT-006 a Submitted week names who it waits for', () => {
     };
     renderPage();
     expect(await screen.findByTestId('timesheet-waiting-for'))
-      .toHaveTextContent('Waiting for Admin or Executive');
+      .toHaveTextContent('Waiting for Budi, Admin or Cici, Executive');
+  });
+
+  it('a blank server manager name falls back to the role word, not a fabricated name or error', async () => {
+    routeState.data = {
+      routeKind: 'line_manager',
+      approvers: [{ id: 'u-manager', name: '   ', role: 'line_manager' }],
+    };
+    renderPage();
+    expect(await screen.findByTestId('timesheet-waiting-for'))
+      .toHaveTextContent('Waiting for line manager');
   });
 
   it('reports a known empty configured route honestly — never done, never a fabricated name', async () => {

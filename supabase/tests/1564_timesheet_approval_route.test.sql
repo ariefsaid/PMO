@@ -6,7 +6,7 @@
 -- profiles_select are the visibility boundary and an invisible/foreign/non-Submitted sheet is the same
 -- empty shape.
 begin;
-select plan(35);
+select plan(42);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15640000-0000-0000-0000-00000000000a', 'Route Org A', 'IDR', 'Asia/Jakarta'),
@@ -26,6 +26,11 @@ insert into auth.users (id, email) values
   ('15640000-0000-0000-0000-0000000000ac', 'route-owner-foreign@example.com'),
   ('15640000-0000-0000-0000-0000000000ad', 'route-light-manager@example.com'),
   ('15640000-0000-0000-0000-0000000000ae', 'route-owner-light@example.com'),
+  ('15640000-0000-0000-0000-0000000000af', 'route-admin-disabled@example.com'),
+  ('15640000-0000-0000-0000-0000000000b0', 'route-exec-disabled@example.com'),
+  ('15640000-0000-0000-0000-0000000000ba', 'route-admin-light@example.com'),
+  ('15640000-0000-0000-0000-0000000000bb', 'route-exec-light@example.com'),
+  ('15640000-0000-0000-0000-0000000000bc', 'route-admin-owner-mgr@example.com'),
   ('15640000-0000-0000-0000-0000000000b1', 'route-other-org@example.com');
 
 insert into profiles (id, org_id, full_name, email, role, status) values
@@ -41,6 +46,11 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('15640000-0000-0000-0000-0000000000aa', '15640000-0000-0000-0000-00000000000a', 'Admin Ten', 'route-admin-3@example.com', 'Admin', 'active'),
   ('15640000-0000-0000-0000-0000000000ac', '15640000-0000-0000-0000-00000000000a', 'Owner Foreign', 'route-owner-foreign@example.com', 'Engineer', 'active'),
   ('15640000-0000-0000-0000-0000000000ae', '15640000-0000-0000-0000-00000000000a', 'Owner Light Manager', 'route-owner-light@example.com', 'Engineer', 'active'),
+  ('15640000-0000-0000-0000-0000000000af', '15640000-0000-0000-0000-00000000000a', 'Admin Disabled', 'route-admin-disabled@example.com', 'Admin', 'disabled'),
+  ('15640000-0000-0000-0000-0000000000b0', '15640000-0000-0000-0000-00000000000a', 'Exec Disabled', 'route-exec-disabled@example.com', 'Executive', 'disabled'),
+  ('15640000-0000-0000-0000-0000000000ba', '15640000-0000-0000-0000-00000000000a', 'Admin Light', 'route-admin-light@example.com', 'Admin', 'active'),
+  ('15640000-0000-0000-0000-0000000000bb', '15640000-0000-0000-0000-00000000000a', 'Exec Light', 'route-exec-light@example.com', 'Executive', 'active'),
+  ('15640000-0000-0000-0000-0000000000bc', '15640000-0000-0000-0000-00000000000a', 'Owner Admin Manager', 'route-admin-owner-mgr@example.com', 'Admin', 'active'),
   ('15640000-0000-0000-0000-0000000000b1', '15640000-0000-0000-0000-00000000000b', 'Other Org B', 'route-other-org@example.com', 'Engineer', 'active');
 
 -- A light account (built-in role foreman, 1205) cannot decide — the 1461 guard on transition_timesheet.
@@ -49,12 +59,22 @@ update organizations set built_in_roles_enabled = true where id = '15640000-0000
 insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
   ('15640000-0000-0000-0000-0000000000ad', '15640000-0000-0000-0000-00000000000a', 'Light Manager', 'route-light-manager@example.com', 'Engineer', 'active', 'foreman');
 
+-- Synthetic light Admin/Executive rows. The 1202 trigger forces the coarse role to the key's base
+-- level, so a normal write cannot make a profile both Admin/Executive and light. The route arms must
+-- still exclude that shape if it exists; disabling the sync trigger for these two fixture rows (inside
+-- this rolled-back transaction) is the only legal way to create it for the predicate proof.
+alter table public.profiles disable trigger profiles_built_in_role_sync;
+update public.profiles set built_in_role = 'foreman' where id = '15640000-0000-0000-0000-0000000000ba';
+update public.profiles set built_in_role = 'field_user' where id = '15640000-0000-0000-0000-0000000000bb';
+alter table public.profiles enable trigger profiles_built_in_role_sync;
+
 -- The RAW manager assignments the authority compares against. Manager Two is active; Manager Disabled
 -- keeps a non-null manager_id; Other Org B is a cross-organisation manager row.
 update profiles set manager_id = '15640000-0000-0000-0000-0000000000a2' where id = '15640000-0000-0000-0000-0000000000a1';
 update profiles set manager_id = '15640000-0000-0000-0000-0000000000a7' where id = '15640000-0000-0000-0000-0000000000a6';
 update profiles set manager_id = '15640000-0000-0000-0000-0000000000b1' where id = '15640000-0000-0000-0000-0000000000ac';
 update profiles set manager_id = '15640000-0000-0000-0000-0000000000ad' where id = '15640000-0000-0000-0000-0000000000ae';
+update profiles set manager_id = '15640000-0000-0000-0000-0000000000a8' where id = '15640000-0000-0000-0000-0000000000bc';
 
 insert into timesheets (id, org_id, user_id, week_start_date, status) values
   ('15640000-0000-0000-0000-000000000101', '15640000-0000-0000-0000-00000000000a', '15640000-0000-0000-0000-0000000000a1', '2026-06-01', 'Submitted'),
@@ -64,7 +84,8 @@ insert into timesheets (id, org_id, user_id, week_start_date, status) values
   ('15640000-0000-0000-0000-000000000105', '15640000-0000-0000-0000-00000000000a', '15640000-0000-0000-0000-0000000000a9', '2026-06-01', 'Submitted'),
   ('15640000-0000-0000-0000-000000000106', '15640000-0000-0000-0000-00000000000b', '15640000-0000-0000-0000-0000000000b1', '2026-06-01', 'Submitted'),
   ('15640000-0000-0000-0000-000000000107', '15640000-0000-0000-0000-00000000000a', '15640000-0000-0000-0000-0000000000a1', '2026-06-08', 'Draft'),
-  ('15640000-0000-0000-0000-000000000108', '15640000-0000-0000-0000-00000000000a', '15640000-0000-0000-0000-0000000000ae', '2026-06-01', 'Submitted');
+  ('15640000-0000-0000-0000-000000000108', '15640000-0000-0000-0000-00000000000a', '15640000-0000-0000-0000-0000000000ae', '2026-06-01', 'Submitted'),
+  ('15640000-0000-0000-0000-000000000109', '15640000-0000-0000-0000-00000000000a', '15640000-0000-0000-0000-0000000000bc', '2026-06-01', 'Submitted');
 
 -- Route read as a chosen caller. The caller role is authenticated; the id is the only function argument.
 create or replace function pg_temp._as(p_uid uuid) returns void language sql as $$
@@ -95,7 +116,10 @@ set local role authenticated;
 select is((pg_temp._route('15640000-0000-0000-0000-0000000000a1', '15640000-0000-0000-0000-000000000101'))->>'route_kind',
   'line_manager', '1564: a raw manager_id reads as the line-manager route');
 select is(jsonb_array_length(pg_temp._route('15640000-0000-0000-0000-0000000000a1', '15640000-0000-0000-0000-000000000101')->'approvers'),
-  5, '1564: manager + every active Admin (four) are the exact candidates');
+  6, '1564: manager + every active Admin (five) are the exact candidates');
+select is(pg_temp._route('15640000-0000-0000-0000-0000000000a1', '15640000-0000-0000-0000-000000000101')->'approvers'->0->>'id',
+  '15640000-0000-0000-0000-0000000000a9',
+  '1564: approvers are ordered by lower(name) then id, not by arm order');
 select ok(pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a1', '15640000-0000-0000-0000-000000000101'), '15640000-0000-0000-0000-0000000000a2', 'line_manager'),
   '1564: the assigned manager is named with the line_manager role token');
 select ok(pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a1', '15640000-0000-0000-0000-000000000101'), '15640000-0000-0000-0000-0000000000a3', 'Admin'),
@@ -104,6 +128,10 @@ select ok(not pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a1'
   '1564: Executive is not added when the raw manager_id is non-null');
 select ok(not pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a1', '15640000-0000-0000-0000-000000000101'), '15640000-0000-0000-0000-0000000000a1', null),
   '1564: the owner is excluded from every role (SoD)');
+select ok(not pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a1', '15640000-0000-0000-0000-000000000101'), '15640000-0000-0000-0000-0000000000af', null),
+  '1564: a disabled Admin is not named (Admin arm active filter)');
+select ok(not pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a1', '15640000-0000-0000-0000-000000000101'), '15640000-0000-0000-0000-0000000000ba', null),
+  '1564: a light Admin is not named (Admin arm 1461 filter)');
 
 -- ── No manager: Admin + Executive fallback ───────────────────────────────────────────────────
 select is((pg_temp._route('15640000-0000-0000-0000-0000000000a5', '15640000-0000-0000-0000-000000000102'))->>'route_kind',
@@ -112,6 +140,10 @@ select ok(pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a5', '1
   '1564: Executive fallback applies when the raw manager_id is null');
 select ok(pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a5', '15640000-0000-0000-0000-000000000102'), '15640000-0000-0000-0000-0000000000a3', 'Admin'),
   '1564: Admin is also eligible on the null-manager fallback');
+select ok(not pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a5', '15640000-0000-0000-0000-000000000102'), '15640000-0000-0000-0000-0000000000b0', null),
+  '1564: a disabled Executive is not named (Executive arm active filter)');
+select ok(not pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a5', '15640000-0000-0000-0000-000000000102'), '15640000-0000-0000-0000-0000000000bb', null),
+  '1564: a light Executive is not named (Executive arm 1461 filter)');
 
 -- ── A non-null but DISABLED manager must not open the Executive fallback ─────────────────────
 select is((pg_temp._route('15640000-0000-0000-0000-0000000000a6', '15640000-0000-0000-0000-000000000103'))->>'route_kind',
@@ -136,6 +168,8 @@ select ok(not pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000ac'
   '1564: a cross-organisation manager row is not named');
 select is((pg_temp._route('15640000-0000-0000-0000-0000000000ac', '15640000-0000-0000-0000-000000000104'))->>'route_kind',
   'line_manager', '1564: the raw cross-org assignment still reads as configured (no Exec fallback)');
+select ok(not pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000ac', '15640000-0000-0000-0000-000000000104'), '15640000-0000-0000-0000-0000000000a4', 'Executive'),
+  '1564: a cross-org non-null manager does NOT open the Executive fallback');
 
 -- ── An Admin author is excluded by SoD, but other Admins/Exec still read ─────────────────────
 select ok(not pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a9', '15640000-0000-0000-0000-000000000105'), '15640000-0000-0000-0000-0000000000a9', null),
@@ -144,6 +178,14 @@ select ok(pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a9', '1
   '1564: the Admin author''s null-manager week still offers Executive');
 select ok(pg_temp._has(pg_temp._route('15640000-0000-0000-0000-0000000000a9', '15640000-0000-0000-0000-000000000105'), '15640000-0000-0000-0000-0000000000a3', 'Admin'),
   '1564: other Admins remain eligible for the Admin author''s week');
+
+-- ── An Admin manager is spoken once as line_manager, never also as Admin ─────────────────────
+select is(
+  (select array_agg(a->>'role' order by a->>'role')
+     from jsonb_array_elements(pg_temp._route('15640000-0000-0000-0000-0000000000bc', '15640000-0000-0000-0000-000000000109')->'approvers') a
+    where a->>'id' = '15640000-0000-0000-0000-0000000000a8'),
+  array['line_manager'],
+  '1564: an Admin manager appears exactly once as line_manager (dedup, not repeated as Admin)');
 
 -- ── Record visibility: invisible / foreign / other-org / non-waiting share ONE empty shape ───
 select is(pg_temp._route('15640000-0000-0000-0000-0000000000a5', '15640000-0000-0000-0000-000000000101'),
@@ -164,13 +206,15 @@ reset role;
 set local role anon;
 select throws_ok(
   $$ select public.get_timesheet_approval_route('15640000-0000-0000-0000-000000000101') $$,
-  '42501', null, '1564: anon has no execute privilege');
+  '42501', 'permission denied for function get_timesheet_approval_route',
+  '1564: anon is refused at the grant boundary');
 reset role;
 set local role authenticated;
 select pg_temp._as('15640000-0000-0000-0000-0000000000a7');
 select throws_ok(
   $$ select public.get_timesheet_approval_route('15640000-0000-0000-0000-000000000101') $$,
-  '42501', null, '1564: a disabled caller is refused by the active-caller assert');
+  '42501', 'your account is not an active member of this organisation, so it cannot read an approval route',
+  '1564: a disabled caller is refused by the active-caller assert (exact message)');
 
 -- ── Equivalence with the real write authority on valid fixtures ─────────────────────────────
 -- Manager Two is in the route and can approve Owner One's Submitted week.
@@ -197,19 +241,20 @@ set local role authenticated;
 select pg_temp._as('15640000-0000-0000-0000-0000000000a4');
 select throws_ok(
   $$ select public.transition_timesheet('15640000-0000-0000-0000-000000000101', 'Approved') $$,
-  '42501', null, '1564: an Executive absent from the route is refused by the write authority');
+  '42501', 'not authorized', '1564: an Executive absent from the route is refused by the write authority');
 
 -- A bystander Engineer is absent and refused.
 select pg_temp._as('15640000-0000-0000-0000-0000000000a5');
 select throws_ok(
   $$ select public.transition_timesheet('15640000-0000-0000-0000-000000000101', 'Approved') $$,
-  '42501', null, '1564: a bystander absent from the route is refused');
+  '42501', 'not authorized', '1564: a bystander absent from the route is refused');
 
 -- The owner is absent (SoD) and refused even though they can read the sheet.
 select pg_temp._as('15640000-0000-0000-0000-0000000000a1');
 select throws_ok(
   $$ select public.transition_timesheet('15640000-0000-0000-0000-000000000101', 'Approved') $$,
-  '42501', null, '1564: the owner is refused (SoD), matching their absence from the route');
+  '42501', 'separation of duties: cannot approve own timesheet',
+  '1564: the owner is refused by the SoD message, matching their absence from the route');
 
 -- On the null-manager fixture the route names the Executive, and the authority lets them approve.
 select pg_temp._as('15640000-0000-0000-0000-0000000000a4');

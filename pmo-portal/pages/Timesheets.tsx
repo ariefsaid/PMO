@@ -47,7 +47,7 @@ import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 const PICKER_NAME_MAX = 36;
 
 const TimesheetsPage: React.FC = () => {
-  const { t } = useTranslation(['common', 'timesheets']);
+  const { t } = useTranslation(['common', 'timesheets', 'waitingList']);
   const roleLabels = useRoleLabels();
   const isDesktop = useIsDesktop();
   const { submit, reopen } = useTimesheetMutations();

@@ -26,4 +26,13 @@ describe('FR-WAIT-006 timesheetRepository.getApprovalRoute', () => {
     expect(h.rpc).toHaveBeenCalledWith('get_timesheet_approval_route', { p_timesheet_id: 'ts-1' });
     expect(JSON.stringify(h.rpc.mock.calls)).not.toContain('org_id');
   });
+
+  it('normalizes a thrown transport failure through the repository wrap contract', async () => {
+    h.rpc.mockRejectedValue(new Error('network down'));
+
+    await expect(timesheetRepository.getApprovalRoute('ts-1')).rejects.toMatchObject({
+      name: 'AppError',
+      message: 'network down',
+    });
+  });
 });

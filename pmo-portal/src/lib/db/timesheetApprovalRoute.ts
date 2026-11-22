@@ -47,10 +47,13 @@ export function parseTimesheetApprovalRoute(data: unknown): TimesheetApprovalRou
     throw new AppError('The timesheet approval route response was malformed', 'timesheet-route-malformed');
   }
   const approvers: TimesheetApprovalRouteApprover[] = data.approvers.map((entry) => {
-    if (!isRecord(entry) || !nonEmptyString(entry.id) || !nonEmptyString(entry.name) || !nonEmptyString(entry.role)) {
+    // `profiles.full_name` is NOT NULL but has no non-blank invariant: a blank name is a valid server
+    // value, so it is accepted and the sentence falls back to the role word. Every other field shape is
+    // still strict; a malformed body remains an error, never a fabricated route.
+    if (!isRecord(entry) || !nonEmptyString(entry.id) || typeof entry.name !== 'string' || !nonEmptyString(entry.role)) {
       throw new AppError('The timesheet approval route response was malformed', 'timesheet-route-malformed');
     }
-    return { id: entry.id, name: entry.name, role: entry.role };
+    return { id: entry.id, name: entry.name.trim(), role: entry.role };
   });
   return { approvers, routeKind: data.route_kind as TimesheetApprovalRouteKind };
 }
