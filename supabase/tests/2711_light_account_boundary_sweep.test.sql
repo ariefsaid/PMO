@@ -33,7 +33,7 @@ insert into la_fn_allow values
   ('leave_request_cancel', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
   ('leave_request_submit', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
   ('leave_requestable_people', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
-  ('my_home', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
+  ('my_home', 'helper', 'the field home, clock-in, attendance and own-leave paths'),
   ('phone_check_in', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
   ('set_my_email_opt_out', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
   ('actor_authorization_state', 'field_path', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),
