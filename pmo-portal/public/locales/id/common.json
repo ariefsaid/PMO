@@ -1902,9 +1902,7 @@
     "capture": {
       "action": "Catat {{record}}",
       "next": "+ Catat {{record}}: dokumen berikutnya untuk tahap ini."
-    },
-    "valueFromLines": "Dari baris pesanan",
-    "valueNotRecorded": "Nilai penerimaan ini belum dicatat"
+    }
   },
   "procurementDetail": {
     "accessDenied": {

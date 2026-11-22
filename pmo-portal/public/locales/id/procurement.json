@@ -105,7 +105,9 @@
     "paymentNeedsBillOdoo": "Catat invoice supplier di sini terlebih dahulu; setelah itu Anda dapat membayarnya dari sini.",
     "preCutover": "Dicatat sebelum terhubung ke ERP, tidak dikirim",
     "notSent": "Tidak dikirim",
-    "notSentReason": "Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP"
+    "notSentReason": "Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP",
+    "valueFromLines": "Dari baris pesanan",
+    "valueNotRecorded": "Nilai penerimaan ini belum dicatat"
   },
   "gates": {
     "heading": "Aturan pembelian",

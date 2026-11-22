@@ -105,7 +105,9 @@
     "paymentNeedsBillOdoo": "Record the supplier invoice here first; you can then pay it from here.",
     "preCutover": "Recorded before the ERP connection, not sent",
     "notSent": "Not sent",
-    "notSentReason": "Not sent: this purchase started before the ERP connection"
+    "notSentReason": "Not sent: this purchase started before the ERP connection",
+    "valueFromLines": "From the order lines",
+    "valueNotRecorded": "Value not recorded for this receipt"
   },
   "gates": {
     "heading": "Purchase rules",
