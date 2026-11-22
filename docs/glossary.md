@@ -512,6 +512,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 the UI; never "float". Its figures: **Limit** (*batas kas*, the approved amount it is topped up to), **Cash in hand**,
 **Advances given**, **Receipts waiting** (paid claims not yet refilled), **Top-up on its way**, **Still needed**.
 
+**Open requests (site cash)** (*permintaan terbuka*) — a read-only list beside the monthly plan: the purchase requests of the site's project that are submitted and not yet ordered or paid, by purpose and work order. It only suggests: "Start the plan from these" fills the plan editor (one line per purpose), and the person edits and saves through the usual plan path. It shows only what the viewer already sees on the purchase list.
+
 **Top-up** (*tambahan dana*) — a request to refill site cash with the receipts waiting (code: replenishment). **Funding**
 (*pendanaan*) is the first cash put in, up to the limit.
 

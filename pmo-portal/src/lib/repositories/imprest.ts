@@ -12,6 +12,7 @@ export const imprestRepository: ImprestRepository = {
   floatChoices: (projectId, category) => wrap(() => dal.floatChoices(projectId, category)),
   listPlans: (floatId) => wrap(() => dal.listPlans(floatId)),
   listPlanLines: (planId) => wrap(() => dal.listPlanLines(planId)),
+  getOpenRequests: (floatId) => wrap(() => dal.getOpenRequests(floatId)),
   listReplenishments: (floatId) => wrap(() => dal.listReplenishments(floatId)),
   listFloatChanges: (floatId) => wrap(() => dal.listFloatChanges(floatId)),
   listCounts: (floatId) => wrap(() => dal.listCounts(floatId)),

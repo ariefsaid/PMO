@@ -10,6 +10,7 @@ export interface ImprestRepository {
   floatChoices: typeof dal.floatChoices;
   listPlans: typeof dal.listPlans;
   listPlanLines: typeof dal.listPlanLines;
+  getOpenRequests: typeof dal.getOpenRequests;
   listReplenishments: typeof dal.listReplenishments;
   listCounts: typeof dal.listCounts;
   listPostingStates: typeof dal.listPostingStates;

@@ -30273,6 +30273,25 @@ export type Database = {
         Returns: Json
       }
       get_hide_prices_enabled: { Args: never; Returns: boolean }
+      get_imprest_open_requests: {
+        Args: { p_float: string }
+        Returns: {
+          budget_category: Database["public"]["Enums"]["budget_category"]
+          currency: string
+          line_amount: number
+          line_id: string
+          line_name: string
+          line_quantity: number
+          pr_number: string
+          procurement_id: string
+          request_total: number
+          status: Database["public"]["Enums"]["procurement_status"]
+          title: string
+          wo_number: string
+          wo_title: string
+          work_order_id: string
+        }[]
+      }
       get_imprest_plan_usage: {
         Args: { p_float: string; p_month: string }
         Returns: {
