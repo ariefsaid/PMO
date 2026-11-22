@@ -108,7 +108,8 @@
     "submit": "Set up site cash",
     "subtitle": "Site cash is money held on site by one custodian for one project.",
     "title": "Set up site cash",
-    "toast": "Site cash set up"
+    "toast": "Site cash set up",
+    "needsLimit": "Site cash cannot be set up yet: the organisation has no site cash limit. An Admin sets it in Administration, Accounting, Purchase rules."
   },
   "exception": {
     "admin": "This is outside the approved site cash plan. No senior approver can act on it, so an Admin decides it.",

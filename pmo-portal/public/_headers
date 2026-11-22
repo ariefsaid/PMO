@@ -14,6 +14,10 @@
 /my
   ! Permissions-Policy
   Permissions-Policy: camera=(), microphone=(), geolocation=(self)
+# The check-in area form (/crews) has a "use my current location" button that reads the position once, on a tap. Same scoping as /my.
+/crews
+  ! Permissions-Policy
+  Permissions-Policy: camera=(), microphone=(), geolocation=(self)
 # Vite emits content-hashed filenames under /assets/, so a changed file always has a new URL: cache for a
 # year and skip revalidation. index.html is not matched here, so it keeps revalidating and picks up new hashes.
 /assets/*

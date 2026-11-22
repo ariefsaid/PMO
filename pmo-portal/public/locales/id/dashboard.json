@@ -136,6 +136,8 @@
     "billingSteps_other": "langkah penagihan menunggu peran Anda",
     "billingStepsOverdue_one": "terlama terlambat {{count}} hari",
     "billingStepsOverdue_other": "terlama terlambat {{count}} hari",
+    "materialAhead_one": "$t(common:terms.clientWorkOrder) dengan material melebihi progres",
+    "materialAhead_other": "$t(common:terms.clientWorkOrder) dengan material melebihi progres",
     "pmTasks_one": "tugas proyek Anda terlambat",
     "pmTasks_other": "tugas proyek Anda terlambat",
     "pmTimesheets_one": "$t(common:terms.timesheet) tim menunggu persetujuan",
@@ -152,7 +154,9 @@
     "balancesNotSynced_one": "{{count}} saldo tidak tersinkron",
     "balancesNotSynced_other": "{{count}} saldo tidak tersinkron",
     "amountsMissing_one": "{{count}} jumlah belum ada",
-    "amountsMissing_other": "{{count}} jumlah belum ada"
+    "amountsMissing_other": "{{count}} jumlah belum ada",
+    "checkIns_one": "absen menunggu keputusan Anda",
+    "checkIns_other": "absen menunggu keputusan Anda"
   },
   "figures": {
     "contractOnHand": "Kontrak berjalan · di luar pajak",
@@ -376,6 +380,7 @@
       "openProjects": "Buka proyek",
       "openSales": "Buka penjualan",
       "openInvoices": "Buka invoice",
+      "claimsBoard": "Papan klaim",
       "openProcurements": "Buka pengadaan",
       "openFigure": "Buka catatan terkait untuk {{metric}}.",
       "export": "Ekspor",

@@ -417,7 +417,7 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Work order line** — an allocation of a positive quantity of one project contract line (bill-of-quantities item) to a work order, so one contract line can be ordered across several work orders.
 
-**Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value.
+**Work order acceptance** — a BAST (acceptance record) for a work order, in Draft, Confirmed or Withdrawn status; a stage acceptance is cumulative evidence, and a confirmed final acceptance closes the work order at its accepted value. **Who confirms:** Finance or an Admin, never the person who prepared it (unless they are the organisation's only active member); the Draft chip reads "Waiting for Finance or an Admin to confirm" (Bahasa: "Menunggu konfirmasi Keuangan atau Admin"). **Delivery record** is the plain-words name for a BAST, and the default document category "Delivery record (BAST)" holds its signed file.
 
 **Work order acceptance line** — the quantity accepted for one contract line on a work order acceptance; the latest confirmed quantity, not a sum, is what has been accepted to date.
 
@@ -1359,6 +1359,12 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Management profit and loss** — the Reports screen (management pack) read as a profit and loss PMO produces from its own records: recognised, invoiced and earned revenue per project and, while Profit per discipline is on, cost and margin on both revenue bases. It is not a ledger statement; trial balance, profit and loss and balance sheet come from a connected accounting system. An organisation with none connected is led from Statements and the Finance hub Net profit tile to it (#2734).
 
+**Issued share / progress share / gap** — for one item on a work order, the net quantity issued as a percent of its planned quantity (*issued share*); the work order's own percent complete (*progress share*); and issued share minus progress share in percentage points (*gap*). An item warns when the gap is strictly above the organisation's threshold (`work_order_stock_settings`). Information only: it blocks nothing. (`docs/specs/material-issued-vs-progress.spec.md`.)
+
+**Material alert** — a row of the usage-warning alert table (`material_installed_usage_alerts`) of kind `issued_ahead`, kept per work order and item while material issued is ahead of progress: opened by the posting or progress report that moved the comparison, resolved when the item no longer warns. One row is one *episode*; a later warning on the same item opens a new row and tells again. The person told is the work order's responsible person, else the project manager. It shows as a count on the work-order card and page header and as a needs-you entry that clears when the alert resolves. (`docs/specs/material-vs-progress.spec.md`.)
+**Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
+
+**Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
 **Responsible person** (*penanggung jawab*) — the one person named on a work order, the site engineer. The usage warning for the work order goes to them; with none named, or when they are no longer an active member, it goes to the project's manager. Whoever may edit the work order names or clears it.
 
 **Installed material** (*material terpasang*) — the quantity of an item on a work order that the organisation counts as installed: the material lines of its validated site reports (a correction replaces the version it supersedes), or, by an Admin's setting, the storekeeper's issues to the work order less returns. Requests and transfers are not installed material.

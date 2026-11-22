@@ -108,7 +108,8 @@
     "submit": "Tetapkan kas lapangan",
     "subtitle": "Kas lapangan adalah uang tunai yang dipegang di lokasi oleh satu pemegang kas untuk satu proyek.",
     "title": "Tetapkan kas lapangan",
-    "toast": "Kas lapangan ditetapkan"
+    "toast": "Kas lapangan ditetapkan",
+    "needsLimit": "Kas lapangan belum bisa ditetapkan: organisasi belum punya batas kas lapangan. Admin mengaturnya di Administrasi, Akuntansi, Aturan pembelian."
   },
   "exception": {
     "admin": "Ini di luar rencana kas lapangan yang disetujui. Tidak ada penyetuju senior yang dapat bertindak, jadi Admin yang memutuskan.",

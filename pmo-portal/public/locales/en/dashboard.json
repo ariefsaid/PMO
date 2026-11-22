@@ -136,6 +136,8 @@
     "billingSteps_other": "billing steps waiting on your role",
     "billingStepsOverdue_one": "oldest {{count}} day overdue",
     "billingStepsOverdue_other": "oldest {{count}} days overdue",
+    "materialAhead_one": "$t(common:terms.clientWorkOrder) with material ahead of progress",
+    "materialAhead_other": "$t(common:terms.clientWorkOrder)s with material ahead of progress",
     "pmTasks_one": "overdue task on your projects",
     "pmTasks_other": "overdue tasks on your projects",
     "pmTimesheets_one": "team timesheet to approve",
@@ -152,7 +154,9 @@
     "balancesNotSynced_one": "{{count}} unsynced balance",
     "balancesNotSynced_other": "{{count}} unsynced balances",
     "amountsMissing_one": "{{count}} amount missing",
-    "amountsMissing_other": "{{count}} amounts missing"
+    "amountsMissing_other": "{{count}} amounts missing",
+    "checkIns_one": "check-in waiting for your decision",
+    "checkIns_other": "check-ins waiting for your decision"
   },
   "figures": {
     "contractOnHand": "Contract on hand · excl. tax",
@@ -376,6 +380,7 @@
       "openProjects": "Open projects",
       "openSales": "Open sales",
       "openInvoices": "Open invoices",
+      "claimsBoard": "Claims board",
       "openProcurements": "Open procurements",
       "openFigure": "Open related records for {{metric}}.",
       "export": "Export",
