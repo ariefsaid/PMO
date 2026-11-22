@@ -1,0 +1,25 @@
+{
+  "definer_functions": [
+    "manpower_can_manage()",
+    "manpower_need_progress()",
+    "my_manpower_to_fill()"
+  ],
+  "tables": [
+    {
+      "table": "manpower_need_people",
+      "has_org": true,
+      "pk": "id",
+      "columns": "id,org_id",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "manpower_needs",
+      "has_org": true,
+      "pk": "id",
+      "columns": "id,org_id",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ]
+}

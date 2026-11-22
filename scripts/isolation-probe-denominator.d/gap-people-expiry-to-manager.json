@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "record_document_renewal(uuid,date)"
+  ]
+}

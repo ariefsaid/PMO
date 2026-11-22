@@ -1,0 +1,21 @@
+{
+  "definer_functions": [
+    "medical_release_authority(uuid)",
+    "medical_release_blocks(uuid,date)",
+    "medical_release_can_enter()",
+    "medical_release_create(uuid,date,text)",
+    "medical_release_decide(uuid,text,text)",
+    "medical_release_holds(date)",
+    "notify_person(uuid,text,text,text,text)"
+  ],
+  "tables": [
+    {
+      "table": "medical_releases",
+      "has_org": true,
+      "pk": "id",
+      "columns": "id,org_id",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ]
+}

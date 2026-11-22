@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "worker_followed_crew(uuid,date)"
+  ]
+}
