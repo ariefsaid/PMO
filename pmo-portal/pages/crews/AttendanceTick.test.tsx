@@ -270,6 +270,8 @@ describe('attendance tick screen (#2528)', () => {
     h.roster = followedRoster();
     renderAt();
     expect(screen.queryByRole('button', { name: /Undo follow/ })).toBeNull();
+  });
+
   it('AC-PAY-006 Approve is disabled on a week the viewer recorded, and says why', () => {
     h.role = 'Project Manager';
     h.uid = 'pm1';
