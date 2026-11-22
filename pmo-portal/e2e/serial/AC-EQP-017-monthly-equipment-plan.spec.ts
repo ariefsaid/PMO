@@ -41,8 +41,16 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => {
   const admin = await userClient(ADMIN_EMAIL);
-  await admin.from('spend_approvers').delete().eq('project_id', projectId);
-  await admin.rpc('set_equipment_plan_settings', { p_enabled: false, p_approval_step: 'spend_approvers', p_allow_self_approval: false });
+  // Teardown reports its own failures instead of hiding them, without replacing a journey failure: every step runs, then
+  // the problems are reported once. When beforeAll failed before the project existed there is no row to remove.
+  const problems: string[] = [];
+  if (projectId) {
+    const removed = await admin.from('spend_approvers').delete().eq('project_id', projectId);
+    if (removed.error) problems.push(`plan approver cleanup: ${removed.error.message}`);
+  }
+  const off = await admin.rpc('set_equipment_plan_settings', { p_enabled: false, p_approval_step: 'spend_approvers', p_allow_self_approval: false });
+  if (off.error) problems.push(`plan settings reset: ${off.error.message}`);
+  if (problems.length > 0) throw new Error(problems.join('; '));
   // Purchase types stay on: they are on for every organisation (#2746).
 });
 

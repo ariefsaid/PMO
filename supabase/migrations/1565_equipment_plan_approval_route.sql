@@ -6,17 +6,17 @@
 --   'project' | 'org' | 'admin' | 'senior_role' (a configured route that has somebody),
 --   'disabled' | 'not_waiting' | 'unavailable' (an honest empty).
 --
--- It mirrors equipment_plan_approver_ok (1358, the only definition; no later migration restates it) EXACTLY for every state
--- the app can produce, because that is the function that decides, and this one must never answer with a different route or a
--- stricter one (the one out-of-band state it cannot see is named below):
+-- It answers with equipment_plan_approver_ok's own route (1358, the only definition; no later migration restates it): the
+-- same branches, the same level election and the same raw-list behaviour. It must never answer with a different route, and
+-- never stricter than the WRITE gate that finally decides — a candidate is someone the whole gate would let decide:
 --   * the organisation switch must be on, and the author is out while allow_self_approval is off — every role, Admin included;
 --   * approval_step 'senior_role' → anyone whose role holds spend-approval authority;
 --   * otherwise the project's spend_approvers list when that level has an eligible (active, rank-holding) member,
 --     else the organisation's senior set when that level has one, else an Admin (DD-APR-4).
 -- ⚑ The level that answers is chosen by an ELIGIBLE member (the helper's `v_has`), but the level then decides by its RAW
 -- list: a listed person whose role changed away from spend authority still decides. So a candidate here is the raw list
--- row whose person can reach the decision at all (same organisation, profile active), never a re-application of the rank
--- test — re-applying it would invent a stricter route than the decision function has.
+-- row whose person the write gate could still let decide (same organisation, profile active, not a field account), never a
+-- re-application of the rank test — re-applying it would invent a stricter route than the decision function has.
 -- The route names nobody when the elected level has no reachable person (only the author, everybody inactive): an honest
 -- empty, NOT a fallback to the senior set or an Admin, which would change who decides.
 --
@@ -27,16 +27,21 @@
 -- authenticated; calling them here would be a privilege error, not a guard).
 --
 -- What it reads that an invoker can read: equipment_plans, org_equipment_plan_settings, spend_approvers and profiles are
--- all readable to an active member of the organisation; holds_spend_approval_authority is granted to authenticated.
--- A candidate's "active" is profiles.status — the same rule admin_set_user_status keeps in step with auth.users.banned_until
--- (an app-disabled account reads 'disabled'). auth.users is not readable to an invoker function, so a ban written straight
--- into GoTrue without the app's own status change is the one state this read cannot see; the decision function still
--- refuses that person (its own gate), so in that one out-of-band case the route could name someone who cannot approve.
+-- all readable to an active member of the organisation; holds_spend_approval_authority and is_light_role_key are executable
+-- by authenticated.
+-- A candidate is someone the WHOLE write gate would let decide, not only what equipment_plan_approver_ok answers: the
+-- approve and reject functions also refuse a light (field) account, and a person named on a list while they held spend
+-- authority keeps that row if the organisation later gives them a Foreman or Field user role (their access level follows
+-- the key to Engineer, and nothing removes the list row). So a light account is never a candidate, in any branch. That is
+-- the write's own refusal rather than a new rule, and it cannot change which branch answers: a light account's access level
+-- is Engineer, below the spend rank the branch election tests, so the election below stays the decision function's own.
 --
--- ⚑ Mutation plan (NOT executed here — the owner batch runs the gates): delete the `status is distinct from 'Submitted'`
--- return and the 'not_waiting' tests go red; delete `and (v_set.allow_self_approval or pf.id is distinct from v_plan.created_by)`
--- from a candidate branch and its self-approval test goes red; change the plan lookup to `security definer` and the foreign
--- organisation / unknown-id tests go red (a plan the caller may not see becomes visible). Proven by
+-- ⚑ Mutation plan (NOT executed here — the source-only lane runs no mutation, and a live run is not authorized): delete the
+-- `status is distinct from 'Submitted'` return and the 'not_waiting' tests go red; delete
+-- `and (v_set.allow_self_approval or pf.id is distinct from v_plan.created_by)` from a candidate branch and its
+-- self-approval test goes red; change the plan lookup to `security definer` and the foreign organisation / unknown-id tests
+-- go red (a plan the caller may not see becomes visible); delete `and not public.is_light_role_key(pf.built_in_role)` and the
+-- retained-light-candidate tests go red (the route would name a person the write refuses). Proven by
 -- supabase/tests/1565_equipment_plan_approval_route.test.sql.
 --
 -- REVERSE: supabase/migrations/rollback/1565_equipment_plan_approval_route_down.sql
@@ -80,6 +85,9 @@ begin
     return jsonb_build_object('approvers', '[]'::jsonb, 'route_kind', 'not_waiting');
   end if;
 
+  -- Candidate arms below all apply the write gate's own field-account refusal (header): a light account can never approve
+  -- or reject a plan, whichever list names it, so it is never named as an approver either.
+
   if v_set.approval_step = 'senior_role' then
     select coalesce(jsonb_agg(jsonb_build_object('id', pf.id, 'name', pf.full_name, 'role', pf.role::text)
                               order by pf.full_name, pf.id), '[]'::jsonb)
@@ -88,6 +96,7 @@ begin
      where pf.org_id = v_org
        and pf.status = 'active'
        and public.holds_spend_approval_authority(pf.role)
+       and not public.is_light_role_key(pf.built_in_role)
        and (v_set.allow_self_approval or pf.id is distinct from v_plan.created_by);
     return jsonb_build_object('approvers', v_approvers, 'route_kind', 'senior_role');
   end if;
@@ -105,6 +114,7 @@ begin
       join public.profiles pf on pf.id = sa.profile_id
      where sa.org_id = v_org and sa.project_id = v_plan.project_id
        and pf.org_id = v_org and pf.status = 'active'
+       and not public.is_light_role_key(pf.built_in_role)
        and (v_set.allow_self_approval or pf.id is distinct from v_plan.created_by);
   elsif exists (select 1 from public.spend_approvers sa join public.profiles pf on pf.id = sa.profile_id
                  where sa.org_id = v_org and sa.project_id is null and pf.status = 'active'
@@ -117,6 +127,7 @@ begin
       join public.profiles pf on pf.id = sa.profile_id
      where sa.org_id = v_org and sa.project_id is null
        and pf.org_id = v_org and pf.status = 'active'
+       and not public.is_light_role_key(pf.built_in_role)
        and (v_set.allow_self_approval or pf.id is distinct from v_plan.created_by);
   else
     v_kind := 'admin';
@@ -127,6 +138,7 @@ begin
      where pf.org_id = v_org
        and pf.role = 'Admin'
        and pf.status = 'active'
+       and not public.is_light_role_key(pf.built_in_role)
        and (v_set.allow_self_approval or pf.id is distinct from v_plan.created_by);
   end if;
 
@@ -136,8 +148,10 @@ end $$;
 comment on function public.get_equipment_plan_approval_route(uuid) is
   'DISPLAY ONLY — the people a Submitted equipment plan waits for, from equipment_plan_approver_ok''s own route '
   '(1358: the organisation switch, the author out while self-approval is off, the senior-role step, else the project senior '
-  'set, else the organisation''s, else an Admin). SECURITY INVOKER: the plan''s own row-level policy decides whether there '
-  'is a plan to answer about. It decides nothing and writes nothing; the approve and reject functions remain the authority.';
+  'set, else the organisation''s, else an Admin), limited to the people the approve and reject functions would not refuse '
+  'themselves (a light, field account is never named). SECURITY INVOKER: the plan''s own row-level policy decides whether '
+  'there is a plan to answer about. It decides nothing and writes nothing; the approve and reject functions remain the '
+  'authority.';
 
 revoke all on function public.get_equipment_plan_approval_route(uuid) from public, anon, authenticated;
 grant execute on function public.get_equipment_plan_approval_route(uuid) to authenticated;

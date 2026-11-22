@@ -1,18 +1,21 @@
 -- 1565_equipment_plan_approval_route.test.sql — the plan screen's read of WHO a Submitted equipment plan waits for.
 -- AC-EQP-008 owns the approver route (equipment_plan_approval.test.sql is that AC's owning file); these are a second
--- pgTAP proof at the same layer, for the read that must name EXACTLY the people the decision function would let decide.
--- Migrations under test: 1358 (equipment_plan_approver_ok, the authority), 1565 (the read).
+-- pgTAP proof at the same layer, for the read that must name EXACTLY the people the write gate would let decide.
+-- Migrations under test: 1358 (equipment_plan_approver_ok, the route), 1359/1472 (the write), 1480 (the field-account guard
+-- the write carries), 1565 (the read).
 --
--- The equivalence is asserted the only way that means anything, and it is scoped to what the app can produce: for a caller
--- who can READ the plan, every name the route returns is set as a real caller and the decision function is asked (must be
--- true), and the legal actors the route leaves out are asked too (must be false). Two states sit outside that claim and are
--- named rather than papered over: (1) an out-of-band ban written straight into auth.users with profiles.status left
--- 'active' is invisible to an invoker read (no auth.users access), so it is NOT exercised here — the decision function still
--- refuses that person; (2) a same-org account that may not read this plan gets 'unavailable' (proved below) even if the raw
--- approver list names them, because the read is row-level-security first. That is the read's premise, not a decision.
+-- The equivalence is asserted the only way that means anything, and it is scoped to the account states the write gate
+-- supports (an active, non-field profile): for a caller who can READ the plan, every name the route returns is set as a
+-- real caller and the decision function is asked (must be true), and the non-field legal actors the route leaves out are
+-- asked too (must be false). The one deliberate asymmetry is the field account: a retained light candidate answers true to
+-- the decision helper's raw-list arm while the approve and reject functions refuse them outright, so the route leaves them
+-- out — that pair is proved by itself at both approval levels, with the helper and the actual write each asked as that
+-- person. The route mirrors the WHOLE write eligibility, not only the decision helper. One state sits outside the claim as
+-- the read's own premise rather than a decision: a same-organisation account that may not read this plan gets 'unavailable'
+-- (proved below), because the read is row-level-security first.
 begin;
 create extension if not exists pgtap;
-select plan(64);
+select plan(73);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('27650000-0000-0000-0000-0000000000a0', 'EQP Route Org',       'IDR', 'Asia/Jakarta'),
@@ -331,6 +334,58 @@ select pg_temp._as('27650000-0000-0000-0000-0000000000a8');
 select throws_ok($$ select public.get_equipment_plan_approval_route('27650000-0000-0000-0000-0000000000d1') $$, '42501',
   'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this',
   'AC-EQP-008 a light account is refused the route, like every read-side function (1209)');
+
+-- ── a retained LIGHT listed approver: never named, and the actual write refuses them ─────────────────────────────────
+-- Reachable through the app with no database trick: an Admin lists a person who holds spend authority on a project's (or the
+-- organisation's) approver list, then gives them a Foreman/Field user role. Their access level follows that key to Engineer
+-- (1202) and nothing removes their list row, so the decision helper's raw-list arm still answers true for them while
+-- approve/reject refuse them outright on the field-account guard the write carries. The read must not name someone the
+-- write refuses; the level election below is deliberately left as it is (the light member is below spend rank once the key
+-- is set, so it never elects a level).
+reset role;
+select set_config('request.jwt.claims', '', true);
+update organizations set built_in_roles_enabled = true where id = '27650000-0000-0000-0000-0000000000a0';
+-- a9 joins here, holding spend authority, so the senior-role and Admin blocks above are unaffected by them
+insert into auth.users (id, email) values
+  ('27650000-0000-0000-0000-0000000000a9', 'eqp-route-light-list@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('27650000-0000-0000-0000-0000000000a9', '27650000-0000-0000-0000-0000000000a0', 'EQP Route Light Listed', 'eqp-route-light-list@example.com', 'Finance', 'active');
+insert into spend_approvers (org_id, project_id, profile_id) values
+  ('27650000-0000-0000-0000-0000000000a0', '27650000-0000-0000-0000-0000000000c1', '27650000-0000-0000-0000-0000000000a9'),
+  ('27650000-0000-0000-0000-0000000000a0', null, '27650000-0000-0000-0000-0000000000a9'),
+  ('27650000-0000-0000-0000-0000000000a0', null, '27650000-0000-0000-0000-0000000000a4');
+update profiles set built_in_role = 'foreman' where id = '27650000-0000-0000-0000-0000000000a9';
+set local role authenticated;
+-- project level: a6 keeps the level elected, and the light listed member is not named
+select pg_temp._as('27650000-0000-0000-0000-0000000000a2');
+select is(public.get_equipment_plan_approval_route('27650000-0000-0000-0000-0000000000d1')->>'route_kind', 'project',
+  'AC-EQP-008 the project level still answers through its eligible senior');
+select is(pg_temp._ids(public.get_equipment_plan_approval_route('27650000-0000-0000-0000-0000000000d1')),
+  array['27650000-0000-0000-0000-0000000000a6']::text[], 'AC-EQP-008 the retained light listed member is not named');
+select pg_temp._as('27650000-0000-0000-0000-0000000000a9');
+select is(public.equipment_plan_approver_ok('27650000-0000-0000-0000-0000000000d1'), true,
+  'AC-EQP-008 the decision helper''s raw list still answers true for them: the difference the read resolves');
+select throws_ok($$ select public.approve_equipment_plan('27650000-0000-0000-0000-0000000000d1') $$, '42501',
+  'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this',
+  'AC-EQP-008 and the actual approve refuses a light account (the write''s own guard)');
+select throws_ok($$ select public.reject_equipment_plan('27650000-0000-0000-0000-0000000000d1', 'not needed') $$, '42501',
+  'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this',
+  'AC-EQP-008 nor does reject accept them');
+-- organisation level: with the project''s list gone the senior set answers (a4), and the light member is not named either
+reset role;
+delete from spend_approvers where project_id is not null;
+set local role authenticated;
+select pg_temp._as('27650000-0000-0000-0000-0000000000a2');
+select is(public.get_equipment_plan_approval_route('27650000-0000-0000-0000-0000000000d1')->>'route_kind', 'org',
+  'AC-EQP-008 with no project list the organisation''s senior set answers');
+select is(pg_temp._ids(public.get_equipment_plan_approval_route('27650000-0000-0000-0000-0000000000d1')),
+  array['27650000-0000-0000-0000-0000000000a4']::text[], 'AC-EQP-008 and the retained light member on that list is not named');
+select pg_temp._as('27650000-0000-0000-0000-0000000000a9');
+select is(public.equipment_plan_approver_ok('27650000-0000-0000-0000-0000000000d1'), true,
+  'AC-EQP-008 the helper still answers true for them on the organisation''s list');
+select throws_ok($$ select public.approve_equipment_plan('27650000-0000-0000-0000-0000000000d1') $$, '42501',
+  'LIGHT_ACCOUNT: this account has one phone home screen and cannot read this',
+  'AC-EQP-008 while the actual approve refuses them');
 
 select * from finish();
 rollback;
