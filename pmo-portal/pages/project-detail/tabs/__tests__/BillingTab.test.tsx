@@ -908,7 +908,7 @@ describe('BillingTab', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Record progress' }));
 
-      expect(await screen.findByLabelText(/^Month \(YYYY-MM\)/)).toHaveValue('2026-07');
+      expect(await screen.findByLabelText(/^Month/)).toHaveValue('2026-07');
     } finally {
       vi.useRealTimers();
       resetActiveLocale();
