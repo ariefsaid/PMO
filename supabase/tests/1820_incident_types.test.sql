@@ -112,7 +112,8 @@ select throws_ok($$ insert into incident_reports (incident_date, type, severity)
 
 -- ── AC-ICM-005 as the Engineer ────────────────────────────────────────────────────────────────────────
 select throws_ok($$ insert into incident_types (label) values ('Hack') $$, '42501', null, 'AC-ICM-005 an Engineer cannot add a type');
-select is((with u as (update incident_types set label = 'hack' where org_id = '18200000-0000-0000-0000-00000000000a' returning 1) select count(*)::int from u), 0,
+update incident_types set label = 'hack' where org_id = '18200000-0000-0000-0000-00000000000a';
+select is((select count(*)::int from incident_types where label = 'hack'), 0,
   'AC-ICM-005 an Engineer cannot rename a type');
 
 -- ── AC-ICM-003 / 004 as the Admin ─────────────────────────────────────────────────────────────────────
@@ -134,9 +135,10 @@ select lives_ok($$ insert into incident_types (label) values ('Welding') $$, 'AC
 select pg_temp.act_as('18200000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from incident_types where org_id = '18200000-0000-0000-0000-00000000000a'), 0,
   'AC-ICM-005 another organisation reads none of this list');
-select is((with u as (update incident_types set label = 'hack' where org_id = '18200000-0000-0000-0000-00000000000a' returning 1) select count(*)::int from u), 0,
+update incident_types set label = 'hack' where org_id = '18200000-0000-0000-0000-00000000000a';
+reset role;
+select is((select count(*)::int from incident_types where label = 'hack'), 0,
   'AC-ICM-005 another organisation''s Admin cannot rename it');
 
-reset role;
 select * from finish();
 rollback;
