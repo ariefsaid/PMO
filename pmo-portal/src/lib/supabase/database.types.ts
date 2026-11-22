@@ -36741,6 +36741,10 @@ export type Database = {
         }
         Returns: Json
       }
+      wo_step_owner_matches: {
+        Args: { p_owner_key: string; p_project: string }
+        Returns: boolean
+      }
       wo_step_readable: {
         Args: { p_assignee: string; p_hidden: string[]; p_owner_key: string }
         Returns: boolean

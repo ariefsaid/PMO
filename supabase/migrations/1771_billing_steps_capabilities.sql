@@ -43,33 +43,56 @@ insert into public.built_in_role_capabilities (role_key, capability) values
 ('quantity_surveyor','billing_steps_run'),
 ('project_administrator','billing_steps_run');
 
+-- may_see_billing_steps(profile) is the ONE reader of the see right (supabase/tests/2716); the signed-in adapter and the email function call it.
+-- Not executable by signed-in callers (an is-this-person-X oracle, as may_see_medical_documents).
+create function public.may_see_billing_steps(p_profile uuid) returns boolean
+  language sql stable security definer set search_path = pg_catalog, public as $$
+  select coalesce((select public.is_active_member(p_profile)
+                          and (public.role_has_capability(p.built_in_role, 'billing_steps_view')
+                               or (p.built_in_role is null and p.role in ('Admin','Executive','Project Manager','Finance')))
+                     from public.profiles p where p.id = p_profile), false)
+$$;
+revoke all on function public.may_see_billing_steps(uuid) from public, anon, authenticated;
+grant execute on function public.may_see_billing_steps(uuid) to service_role;
+
 create function public.actor_may_see_billing_steps() returns boolean
   language sql stable security definer set search_path = pg_catalog, public as $$
-  select public.actor_has_role_capability('billing_steps_view')
-      or (public.actor_built_in_role() is null and public.is_active_member() and public.auth_role() in ('Admin','Executive','Project Manager','Finance'))
+  select coalesce(public.may_see_billing_steps(auth.uid()), false)
 $$;
 revoke all on function public.actor_may_see_billing_steps() from public, anon;
 grant execute on function public.actor_may_see_billing_steps() to authenticated, service_role;
 
 create function public.actor_may_run_billing_steps() returns boolean
   language sql stable security definer set search_path = pg_catalog, public as $$
-  select public.actor_has_role_capability('billing_steps_run')
-      or (public.actor_built_in_role() is null and public.is_active_member() and public.auth_role() in ('Admin','Finance','Project Manager'))
+  select coalesce(public.actor_has_role_capability('billing_steps_run')
+                  or (public.actor_built_in_role() is null and public.is_active_member() and public.auth_role() in ('Admin','Finance','Project Manager')), false)
 $$;
 revoke all on function public.actor_may_run_billing_steps() from public, anon;
 grant execute on function public.actor_may_run_billing_steps() to authenticated, service_role;
 
--- The ONE read rule for a step row and its documents (policies and the 1772 lock call it; no other copy exists).
+-- The ONE read rule for a step row and its documents (policies and the 1772 lock call it; no other copy exists). STRICT boolean: every
+-- NULL (no named person, no role key) is folded to false, so a NULL can never make a refusal or a hidden-from test fail open.
 -- The caller's own organisation and an active membership are the policy's own terms; a light account is refused by its restrictive policy.
 create function public.wo_step_readable(p_assignee uuid, p_owner_key text, p_hidden text[]) returns boolean
   language sql stable security definer set search_path = pg_catalog, public as $$
-  select p_assignee = auth.uid()
+  select coalesce(coalesce(p_assignee = auth.uid(), false)
       or (not coalesce(public.actor_built_in_role() = any (coalesce(p_hidden, '{}')), false)
-          and (public.actor_may_see_billing_steps()
-               or (p_owner_key is not null and p_owner_key = public.actor_built_in_role())))
+          and (coalesce(public.actor_may_see_billing_steps(), false)
+               or coalesce(p_owner_key is not null and p_owner_key = public.actor_built_in_role(), false))), false)
 $$;
 revoke all on function public.wo_step_readable(uuid, text, text[]) from public, anon;
 grant execute on function public.wo_step_readable(uuid, text, text[]) to authenticated, service_role;
+
+-- Does the caller hold the step's owner role FOR THIS PROJECT? A role whose base level is Project Manager owns a step only on the
+-- projects its holder manages (as claim steps: acting, notices and the waiting list); other roles own it organisation-wide.
+create function public.wo_step_owner_matches(p_owner_key text, p_project uuid) returns boolean
+  language sql stable security definer set search_path = pg_catalog, public as $$
+  select coalesce(p_owner_key is not null and p_owner_key = public.actor_built_in_role()
+                  and (public.built_in_role_base(p_owner_key) is distinct from 'Project Manager'
+                       or exists (select 1 from public.projects pr where pr.id = p_project and pr.project_manager_id = auth.uid())), false)
+$$;
+revoke all on function public.wo_step_owner_matches(text, uuid) from public, anon;
+grant execute on function public.wo_step_owner_matches(text, uuid) to authenticated, service_role;
 
 create policy work_order_billing_steps_select on public.work_order_billing_steps for select to authenticated
   using (org_id = (select public.auth_org_id()) and (select public.is_active_member())
