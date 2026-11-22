@@ -29,7 +29,7 @@ describe('every descriptor: template round trip (AC-IMT-001/002)', () => {
     makeStockItemImportDescriptor([{ id: 'u1', code: 'EA' }], none) as never,
     makeStockLocationImportDescriptor([{ id: 'p1', name: 'Alpha' }], none) as never,
     makeEquipmentImportDescriptor([{ id: 'v1', name: 'Rent Co' }], none) as never,
-    makePeopleImportDescriptor(none) as never,
+    makePeopleImportDescriptor({ people: async () => [], managers: [] }) as never,
   ];
   it.each(all.map((d) => [d.entity, d] as const))('%s: headers are the labels in order and the example row validates', async (_n, d) => {
     const sheet = await parseWorkbook(await buildTemplateWorkbook(d));
@@ -100,12 +100,12 @@ describe('equipment', () => {
 });
 
 describe('people', () => {
-  const d = makePeopleImportDescriptor(none);
-  it('AC-IMT-011: the template holds only code and name, no sensitive column', () => {
-    expect(d.fields.map((f) => f.key)).toEqual(['code', 'name']);
+  const d = makePeopleImportDescriptor({ people: async () => [], managers: [] });
+  it('AC-IMT-011: the template holds code, name, job title and manager email, no sensitive column', () => {
+    expect(d.fields.map((f) => f.key)).toEqual(['code', 'name', 'job_title', 'manager_id']);
     expect(d.fields.map((f) => f.label.toLowerCase()).join(' ')).not.toMatch(/salary|email|phone|tax|bank|location|address/);
   });
-  it('requires both cells and creates code and name only', async () => {
+  it('requires code and name, and creates the code and name given (blank optional cells are not sent)', async () => {
     const v = run(d, ['Employee code', 'Display name'], [['E-1', ''], ['E-2', 'Sam']]);
     expect(v[0].errors.name).toBeTruthy();
     await d.create(d.toInput({ code: ' E-2 ', name: ' Sam ' }));

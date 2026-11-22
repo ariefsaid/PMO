@@ -873,6 +873,8 @@
   },
   "people": {
     "add": "Tambah personel",
+    "importDocuments": "Impor dokumen",
+    "importPeople": "Impor personel",
     "addTitle": "Tambah personel",
     "editTitle": "Ubah personel",
     "save": "Simpan personel",

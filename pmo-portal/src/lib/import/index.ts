@@ -32,7 +32,8 @@ export { makeContractLineImportDescriptor, type ContractLineImportInput } from '
 export { makeClientTakeoffImportDescriptor, type ClientTakeoffLine } from './clientTakeoffDescriptor';
 export { makeStockItemImportDescriptor, makeStockLocationImportDescriptor } from './stockItemDescriptor';
 export { makeEquipmentImportDescriptor, type EquipmentImportInput } from './equipmentDescriptor';
-export { makePeopleImportDescriptor } from './employeeDescriptor';
+export { makePersonDocumentImportDescriptor, type PersonDocumentImportDeps } from './personDocumentDescriptor';
+export { makePeopleImportDescriptor, type ManagerChoice, type PeopleImportDeps } from './employeeDescriptor';
 export { makeCrewImportDescriptor, makeCrewMemberImportDescriptor, type CrewImportInput } from './crewDescriptor';
 export { buildTemplateWorkbook } from './templateFile';
 export { buildFailedRowsWorkbook } from './failedRowsFile';

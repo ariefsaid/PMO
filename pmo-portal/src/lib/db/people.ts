@@ -14,6 +14,8 @@ export interface PersonListRow {
   name: string;
   job_title: string | null;
   profile_id: string | null;
+  /** The app user who manages this person (an active member), when set. */
+  manager_id: string | null;
   /** Set when the person has left; the row is then former staff (#2703). Never written by the register. */
   archived_at: string | null;
 }
@@ -27,7 +29,7 @@ export interface PersonInput {
   profile_id: string | null;
 }
 
-const COLUMNS = 'id, code, name, job_title, profile_id, archived_at';
+const COLUMNS = 'id, code, name, job_title, profile_id, manager_id, archived_at';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const table = (): any => supabase.from('people' as never);
 function fail(error: { message: string; code?: string }): never { throw new AppError(error.message, error.code); }
@@ -42,10 +44,10 @@ export async function listPeople(status: PeopleListStatus = 'active'): Promise<P
   });
 }
 
-/** `job_title` and `profile_id` are optional on create (the people import sends only code and name). */
-export async function createPerson(input: Omit<PersonInput, 'job_title' | 'profile_id'> & Partial<Pick<PersonInput, 'job_title' | 'profile_id'>>): Promise<PersonListRow> {
+/** `job_title`, `profile_id` and `manager_id` are optional on create (the people import sends code, name, job title and manager). */
+export async function createPerson(input: Omit<PersonInput, 'job_title' | 'profile_id'> & Partial<Pick<PersonInput, 'job_title' | 'profile_id'>> & { manager_id?: string | null }): Promise<PersonListRow> {
   const code = input.code?.trim();
-  const row = { name: input.name.trim(), job_title: input.job_title ?? null, profile_id: input.profile_id ?? null, ...(code ? { code } : {}) };
+  const row = { name: input.name.trim(), job_title: input.job_title ?? null, profile_id: input.profile_id ?? null, ...(input.manager_id ? { manager_id: input.manager_id } : {}), ...(code ? { code } : {}) };
   const { data, error } = await table().insert(row).select(COLUMNS).single();
   if (error) fail(error);
   return data as PersonListRow;
@@ -58,10 +60,11 @@ export async function updatePerson(id: string, input: PersonInput & { code: stri
   assertWriteLanded(data, 'Person not found, or you may not change them.');
 }
 
-/** The people import's update (#people-import-update): sends only the fields given and non-blank, so a blank never clears a
- *  stored value. Never touches `code`, `profile_id` or `manager_id`. */
-export async function updatePersonFields(id: string, input: { name?: string; job_title?: string }): Promise<void> {
+/** The people import's update: sends only the fields given and non-blank, so a blank never clears a stored value.
+ *  Never touches `code`, `profile_id` or `archived_at`. */
+export async function updatePersonFields(id: string, input: { name?: string; job_title?: string; manager_id?: string }): Promise<void> {
   const fields: Record<string, string> = {};
+  if (input.manager_id) fields.manager_id = input.manager_id;
   const name = input.name?.trim();
   const jobTitle = input.job_title?.trim();
   if (name) fields.name = name;

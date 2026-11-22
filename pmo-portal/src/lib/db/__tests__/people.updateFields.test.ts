@@ -34,3 +34,12 @@ describe('updatePersonFields (people import)', () => {
     await expect(updatePersonFields('p1', { name: 'Ana' })).rejects.toMatchObject({ code: '42501' });
   });
 });
+
+describe('updatePersonFields manager', () => {
+  it('AC-PIU-013 sends manager_id when given and omits it when blank; never code or profile_id', async () => {
+    await updatePersonFields('p1', { manager_id: 'u-9' });
+    expect(h.payload).toEqual({ manager_id: 'u-9' });
+    await updatePersonFields('p1', { name: 'Ana', manager_id: '' });
+    expect(h.payload).toEqual({ name: 'Ana' });
+  });
+});
