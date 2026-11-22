@@ -5,6 +5,7 @@ import { Button, Card, CardHead, CardPad, GateNotice, ListPage, SelectField, Tex
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useLeaveSettings, useLeaveSettingsMutations, useLeaveTypes } from '@/src/hooks/useLeave';
+import { useRoleLabels } from '../admin-users/roleLabels';
 import { useLeaveErrorText } from '../crews/crewErrors';
 
 /** Base roles an organisation can name as the leave approver today; a built-in role key can be added to this list later. */
@@ -13,6 +14,7 @@ const APPROVER_ROLES = ['Admin', 'Executive', 'Finance', 'Project Manager'] as c
 /** /leave?view=settings (#2708, Admin): switch the feature on, pick the approver role, and keep the leave type list. */
 const LeaveSettingsPage: React.FC = () => {
   const { t } = useTranslation('crews');
+  const roleLabels = useRoleLabels();
   const writeError = useLeaveErrorText();
   const { toast } = useToast();
   const may = usePermission();
@@ -42,7 +44,7 @@ const LeaveSettingsPage: React.FC = () => {
           <CardPad>
             <SelectField label={t('crews:leave.approverRole', 'Who approves')} value={role} onChange={setRole}
               helper={t('crews:leave.approverHelp', "The person's line manager can always decide. Empty means Admin.")}
-              options={[{ value: '', label: t('crews:leave.approverDefault', 'Line manager, or Admin') }, ...APPROVER_ROLES.map((r) => ({ value: r, label: r }))]} />
+              options={[{ value: '', label: t('crews:leave.approverDefault', 'Line manager, or Admin') }, ...APPROVER_ROLES.map((r) => ({ value: r, label: roleLabels.label(r) }))]} />
             <div className="mt-4">
               <Button variant="primary" loading={save.isPending}
                 onClick={() => void guard(() => save.mutateAsync({ enabled: true, approver_role: role || null }), t('crews:leave.saved', 'Settings saved'))}>

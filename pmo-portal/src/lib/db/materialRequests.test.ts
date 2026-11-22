@@ -182,7 +182,7 @@ describe('material request detail read', () => {
     const queue: unknown[] = [
       [head],
       [{ id: 'l1', line_no: '1', item_id: 'i1', quantity: '12.5', plan_qty: null, plan_source: null, prior_qty: '3', over_plan_reason: null }],
-      [{ id: 's1', round: 2, position: 1, role: 'Engineer', label: 'Plan check', status: 'open', decided_by: null, acted_for: null, decided_at: null, reason: null }],
+      [{ id: 's1', round: 2, position: 1, role: 'Engineer', job_role: 'storekeeper', label: 'Plan check', status: 'open', decided_by: null, acted_for: null, decided_at: null, reason: null }],
       [{ id: 'e1', action: 'returned', from_status: 'pending', to_status: 'draft', step_position: 1, actor_id: 'u2', acted_for: 'u3', reason: 'split it', created_at: '2026-11-19T00:00:00Z' }],
     ];
     let i = 0;
@@ -192,7 +192,8 @@ describe('material request detail read', () => {
     Object.defineProperty(h.result, 'value', { configurable: true, writable: true, value: { data: null, error: null } });
     expect(d?.round).toBe(2);
     expect(d?.lines).toEqual([{ id: 'l1', lineNo: 1, itemId: 'i1', quantity: 12.5, planQty: null, planSource: null, priorQty: 3, overPlanReason: null }]);
-    expect(d?.steps[0]).toMatchObject({ position: 1, role: 'Engineer', status: 'open', decidedBy: null });
+    expect(d?.steps[0]).toMatchObject({ position: 1, role: 'Engineer', jobRole: 'storekeeper', status: 'open', decidedBy: null });
+    expect(h.calls.select[2]).toContain('job_role');
     expect(d?.events[0]).toMatchObject({ action: 'returned', actorId: 'u2', actedFor: 'u3', reason: 'split it', stepPosition: 1 });
   });
   it('FR-MRQ-008 an unknown request is null, a failed read throws with its code', async () => {

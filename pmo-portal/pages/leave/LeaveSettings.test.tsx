@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
+import { BahasaProvider } from '@/test/bahasa';
 import { MemoryRouter } from 'react-router';
 import { toast as sonnerToast } from 'sonner';
 import { act } from '@testing-library/react';
@@ -50,6 +51,16 @@ describe('LeaveSettings', () => {
     view();
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Who approves')).toHaveValue('Finance');
+  });
+
+  it('FR-TR-010 the approver choices show the localised access role names in Bahasa', () => {
+    render(<MemoryRouter><ToastProvider><BahasaProvider><LeaveSettingsPage /></BahasaProvider></ToastProvider></MemoryRouter>);
+    const select = screen.getByLabelText('Who approves');
+    expect(screen.getByRole('option', { name: 'Keuangan' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Manajer proyek' })).toBeInTheDocument();
+    // The stored access level stays the enum value, never the translated label.
+    expect(select).toHaveValue('Finance');
+    expect(screen.queryByRole('option', { name: 'Finance' })).not.toBeInTheDocument();
   });
 
   it('saving sends the whole settings record, with leave on', async () => {

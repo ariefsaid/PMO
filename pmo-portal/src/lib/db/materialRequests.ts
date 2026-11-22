@@ -67,6 +67,8 @@ export interface MaterialRequestStep {
   round: number;
   position: number;
   role: Role;
+  /** roles-that-decide FR-RTD-006: the step's built-in job role, snapshotted at submit; null = the step decides by `role`. */
+  jobRole: string | null;
   label: string;
   status: StepStatus;
   decidedBy: string | null;
@@ -285,7 +287,7 @@ export async function getMaterialRequest(id: string): Promise<MaterialRequestDet
     supabase.from('material_requests').select(REQUEST_COLUMNS).eq('id', id).limit(1) as unknown as DbResult<RequestDbRow[]>,
     supabase.from('material_request_lines').select('id, line_no, item_id, quantity, plan_qty, plan_source, prior_qty, over_plan_reason')
       .eq('request_id', id).order('line_no', { ascending: true }).limit(200) as unknown as DbResult<Array<Record<string, unknown>>>,
-    supabase.from('material_request_steps').select('id, round, position, role, label, status, decided_by, acted_for, decided_at, reason')
+    supabase.from('material_request_steps').select('id, round, position, role, job_role, label, status, decided_by, acted_for, decided_at, reason')
       .eq('request_id', id).order('round', { ascending: true }).order('position', { ascending: true }).limit(500) as unknown as DbResult<Array<Record<string, unknown>>>,
     supabase.from('material_request_events').select('id, action, from_status, to_status, step_position, actor_id, acted_for, reason, created_at')
       .eq('request_id', id).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(1000) as unknown as DbResult<Array<Record<string, unknown>>>,
@@ -301,7 +303,7 @@ export async function getMaterialRequest(id: string): Promise<MaterialRequestDet
       overPlanReason: (l.over_plan_reason as string | null) ?? null,
     })),
     steps: (steps.data ?? []).map((s) => ({
-      id: String(s.id), round: Number(s.round), position: Number(s.position), role: s.role as Role, label: String(s.label),
+      id: String(s.id), round: Number(s.round), position: Number(s.position), role: s.role as Role, jobRole: (s.job_role as string | null) ?? null, label: String(s.label),
       status: s.status as StepStatus, decidedBy: (s.decided_by as string | null) ?? null, actedFor: (s.acted_for as string | null) ?? null,
       decidedAt: (s.decided_at as string | null) ?? null, reason: (s.reason as string | null) ?? null,
     })),
