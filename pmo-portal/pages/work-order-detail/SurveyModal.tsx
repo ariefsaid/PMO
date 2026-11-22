@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { EntityFormModal, FormGrid, FormSection, NumberField, SelectField, TextArea, TextField, type SubmitError } from '@/src/components/ui';
 import { Button } from '@/src/components/ui/Button';
 import { DateField } from '@/src/components/ui/DateField';
+import { Checkbox } from '@/src/components/ui/Checkbox';
 import { useRefusalText } from '@/src/lib/refusals';
 import { formatNumberExact, parseMoneyInputAtScale } from '@/src/lib/format';
 import { milli } from '@/src/lib/progressBilling';
@@ -114,11 +115,10 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ workOrderId, lines, documents
               <p className="text-sm text-muted-foreground">{t('form.documentsHelp', "From this project's register: issued or approved, with a file.")}</p>
               <ul className="mt-2 space-y-1">
                 {documents.map((d) => (
-                  <li key={d.id}><label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={docIds.includes(d.id)}
-                      onChange={(e) => setDocIds((cur) => (e.target.checked ? [...cur, d.id] : cur.filter((x) => x !== d.id)))} />
-                    {d.title}
-                  </label></li>
+                  <li key={d.id}>
+                    <Checkbox label={d.title} checked={docIds.includes(d.id)}
+                      onChange={(next) => setDocIds((cur) => (next ? [...cur, d.id] : cur.filter((x) => x !== d.id)))}>{d.title}</Checkbox>
+                  </li>
                 ))}
               </ul>
             </>}

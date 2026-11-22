@@ -280,6 +280,8 @@ describe('ProgressClaimModal survey ceiling and quality-ready warning (survey-ca
     expect(screen.queryByTestId('claim-survey-b2')).toBeNull();
     await user.type(screen.getByLabelText(/STATION/), '5');
     expect(screen.getByTestId('claim-overclaim-b2')).toHaveTextContent('ordered 5, already claimed 1');
+  });
+});
 
 describe('ProgressClaimModal over-claim on a refusing organisation (survey-cap-stop)', () => {
   const facts = (accepted: number | null) => [lineFacts('b1', []), lineFacts('b2', [allocFacts('wo-1', 'b2', 5, 1, accepted)])];

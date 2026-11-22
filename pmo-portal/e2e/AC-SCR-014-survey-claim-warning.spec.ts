@@ -20,7 +20,6 @@ test('AC-SCR-014 record a survey, confirm it as another person, raise a claim ov
   let projectId = '';
   let workOrderId = '';
   let boqId = '';
-  let documentId = '';
   let failure: unknown;
   const cleanupFailures: string[] = [];
   const cleanup = async (label: string, op: () => PromiseLike<{ error: { message: string } | null }>) => {
@@ -55,7 +54,7 @@ test('AC-SCR-014 record a survey, confirm it as another person, raise a claim ov
     if (boq.error) throw new Error('AC-SCR-014 fixture contract line: ' + boq.error.message);
     const alloc = await admin.from('work_order_lines').insert({ org_id: orgId, work_order_id: workOrderId, boq_item_id: boqId, quantity: 20 });
     if (alloc.error) throw new Error('AC-SCR-014 fixture allocation: ' + alloc.error.message);
-    documentId = crypto.randomUUID();
+    const documentId = crypto.randomUUID();
     const doc = await admin.from('project_documents').insert({
       id: documentId, org_id: orgId, project_id: projectId, category: 'Report', title: 'Quality certificate ' + suffix, status: 'Issued',
       author_id: profile.data.id, file_path: orgId + '/' + projectId + '/' + documentId + '/quality.pdf',
@@ -110,8 +109,7 @@ test('AC-SCR-014 record a survey, confirm it as another person, raise a claim ov
   } catch (e) {
     failure = e;
   } finally {
-    if (projectId) {
-      if (!/^[0-9a-f-]{36}$/.test(projectId)) throw new Error('Invalid fixture project id');
+    if (projectId && /^[0-9a-f-]{36}$/.test(projectId)) {
       // Confirmed survey records refuse deletion by design: remove this run's survey rows with triggers off, by its own project id only.
       try {
         execFileSync('docker', ['exec', '-i', 'supabase_db_pmo-portal', 'psql', '-U', 'postgres', '-d', 'postgres', '-X', '-v', 'ON_ERROR_STOP=1'], {
@@ -127,7 +125,7 @@ test('AC-SCR-014 record a survey, confirm it as another person, raise a claim ov
       await cleanup('project', () => admin.from('projects').delete().eq('id', projectId));
     }
     if (companyId) await cleanup('client', () => admin.from('companies').delete().eq('id', companyId));
-    if (failure) throw failure;
-    if (cleanupFailures.length) throw new Error('AC-SCR-014 cleanup: ' + cleanupFailures.join('; '));
   }
+  if (failure) throw failure;
+  if (cleanupFailures.length) throw new Error('AC-SCR-014 cleanup: ' + cleanupFailures.join('; '));
 });
