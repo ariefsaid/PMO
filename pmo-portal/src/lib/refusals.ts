@@ -27,6 +27,7 @@ const FIGURES: Record<string, (text: string) => Record<string, string>> = {
   ATT_DAY_CEILING: (s) => { const [hours = '', workOrder = ''] = first(/already has ([\d.]+) hours on (.+) that day/, s); return { hours, workOrder }; },
   ATT_DATE_WINDOW: (s) => ({ date: day(s) }),
   ATT_TS_MANUAL_ENTRY: (s) => ({ date: day(s) }),
+  ATT_UNDECIDED: (s) => ({ date: day(s) }),
   LOAN_HOURS_LOCKED: (s) => ({ date: day(s) }),
   PTYPE_EXT_ORDER: (s) => ({ date: day(s) }),
   CTR_QTY_EXCEEDS_USABLE: (s) => ({ usable: first(/only (\d+) usable/, s)[0] ?? '0' }),

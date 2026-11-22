@@ -33,6 +33,10 @@ vi.mock('@/src/hooks/useDailySiteReports', () => ({
   }),
   useDailySiteReportMutations: () => h.m,
 }));
+vi.mock('@/src/hooks/useAttendanceSecondRecords', () => ({
+  useReportDayHours: () => ({ data: { detail: false, mayEnter: false, mayDecide: false, workers: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  useSecondRecordMutations: () => ({ enter: { mutate: vi.fn(), isPending: false }, decide: { mutate: vi.fn(), isPending: false } }),
+}));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { id: 'p1', name: 'Pipeline', project_manager_id: h.pm } }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master: { listItems: async () => [] } }, dailySiteReport: { photoUrl: vi.fn() } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1' } }) }));

@@ -25,6 +25,7 @@ import {
 } from './siteReportForm';
 import { SiteReportPhotos } from './SiteReportPhotos';
 import { SiteCheckpoints } from './SiteCheckpoints';
+import SiteReportPeopleHours from './SiteReportPeopleHours';
 import { SiteReportStock } from './SiteReportStock';
 import { useDsrStockSettings } from '@/src/hooks/useDsrStockIssue';
 
@@ -284,6 +285,8 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           )}
           <p className="mt-3 text-foreground"><span className="text-muted-foreground">{t('people.title', 'People hours')}</span> <span className="tabular-nums">{peopleHours}</span></p>
         </RecordSection>
+
+        <SiteReportPeopleHours reportId={report.id} workOrderId={report.work_order_id} workDate={report.work_date} />
 
         <SiteCheckpoints workOrderId={report.work_order_id} workDate={report.work_date} projectManagerId={project?.project_manager_id ?? null} canRecordDay />
 
