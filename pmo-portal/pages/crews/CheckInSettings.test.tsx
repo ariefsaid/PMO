@@ -37,6 +37,11 @@ vi.mock('./CrewPickers', () => ({
   ),
 }));
 
+const pos = vi.hoisted(() => ({ read: vi.fn(), allowed: true, nav: vi.fn() }));
+vi.mock('@/src/lib/position', async (orig) => ({
+  ...(await orig<typeof import('@/src/lib/position')>()),
+  readPositionOnce: pos.read, documentAllowsGeolocation: () => pos.allowed, hardNavigateForGeolocation: pos.nav, clearResumeGuard: vi.fn(),
+}));
 import { CheckInSettings } from './CheckInSettings';
 
 const view = () => render(<ToastProvider><CheckInSettings /></ToastProvider>);
@@ -52,20 +57,74 @@ beforeEach(() => {
 });
 
 describe('CheckInSettings', () => {
-  it('a person who may not edit work orders and is not an Admin sees nothing', () => {
+  it('AC-WCI-042 a person who may not edit work orders sees the area read-only: no number fields, no save, one sentence with the numbers', async () => {
     h.canArea = false;
-    h.role = 'Finance';
+    h.role = 'Engineer';
+    h.area = { lat: -6.2, lng: 106.8, radius_m: 150 };
+    const user = userEvent.setup();
     view();
-    expect(screen.queryByText('Check-in area')).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Work order'), 'w1');
+    expect(await screen.findByText('Centre -6.2, 106.8, radius 150 m')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Latitude')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Save area' })).not.toBeInTheDocument();
   });
 
-  it('an Admin who may not edit work orders sees only the outside-area role decision', () => {
+  it('AC-WCI-042 read-only with no area set says who to ask', async () => {
+    h.canArea = false;
+    h.role = 'Engineer';
+    const user = userEvent.setup();
+    view();
+    await user.selectOptions(screen.getByLabelText('Work order'), 'w1');
+    expect(await screen.findByText('No check-in area is set on this work order. Ask a project manager to set it.')).toBeInTheDocument();
+  });
+
+  it('AC-WCI-043 Use my current location fills latitude and longitude from one read and leaves the radius to the person', async () => {
+    h.role = 'Project Manager';
+    pos.allowed = true;
+    pos.read.mockResolvedValue({ lat: -6.2000004, lng: 106.8, accuracy: 12 });
+    const user = userEvent.setup();
+    view();
+    await user.selectOptions(screen.getByLabelText('Work order'), 'w1');
+    await user.click(screen.getByRole('button', { name: 'Use my current location' }));
+    await waitFor(() => expect(screen.getByLabelText('Latitude')).toHaveValue(-6.2));
+    expect(screen.getByLabelText('Longitude')).toHaveValue(106.8);
+    expect(screen.getByLabelText('Radius (metres)')).toHaveValue(null);
+    expect(pos.read).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/accurate to about 12 m/)).toBeInTheDocument();
+  });
+
+  it('AC-WCI-043 when the page was loaded without permission to read the position it loads the page afresh once, with the work order kept in the address', async () => {
+    h.role = 'Project Manager';
+    pos.allowed = false;
+    pos.nav.mockReturnValue(true);
+    const user = userEvent.setup();
+    view();
+    await user.selectOptions(screen.getByLabelText('Work order'), 'w1');
+    await user.click(screen.getByRole('button', { name: 'Use my current location' }));
+    expect(pos.nav).toHaveBeenCalledWith('w1', window.location, '/crews?view=roster&locate=w1');
+    expect(pos.read).not.toHaveBeenCalled();
+  });
+
+  it('AC-WCI-043 a refused position says so and still lets the person type the numbers', async () => {
+    h.role = 'Project Manager';
+    pos.allowed = true;
+    const { PositionError } = await import('@/src/lib/position');
+    pos.read.mockRejectedValue(new PositionError('denied'));
+    const user = userEvent.setup();
+    view();
+    await user.selectOptions(screen.getByLabelText('Work order'), 'w1');
+    await user.click(screen.getByRole('button', { name: 'Use my current location' }));
+    expect(await screen.findByText(/Location is blocked for this site/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Latitude')).toBeEnabled();
+  });
+
+  it('an Admin who may not edit work orders sees the outside-area role decision and no area fields', () => {
     h.canArea = false;
     h.role = 'Admin';
     view();
     expect(screen.getByText('Check-in area')).toBeInTheDocument();
     expect(screen.getByLabelText('Who decides outside-area check-ins')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Work order')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Latitude')).not.toBeInTheDocument();
   });
 
   it('a work-order writer with no work order chosen offers no area fields yet', () => {

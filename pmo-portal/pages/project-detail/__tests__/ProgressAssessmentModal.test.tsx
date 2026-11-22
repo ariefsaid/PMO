@@ -10,9 +10,9 @@ const line = (id: string, code: string, description: string, unit: string) =>
   ({ id, org_id: 'o', project_id: 'p', earning_basis: 'unit_rate', line_no: null, import_key: null, item_code: code, description, unit, quantity: 10, rate: 50000, created_at: '' }) as BoqItemRow;
 const BOQ = [line('b1', 'SURVEY', 'Route survey', 'km'), line('b2', 'STATION', 'Station build', 'unit')];
 
-function renderModal() {
+function renderModal(defaultMonth = '2026-09') {
   const onSave = vi.fn().mockResolvedValue(undefined);
-  render(<ToastProvider><ProgressAssessmentModal boqItems={BOQ} assessedByBoqItem={{ b1: 6 }} defaultMonth="2026-09"
+  render(<ToastProvider><ProgressAssessmentModal boqItems={BOQ} assessedByBoqItem={{ b1: 6 }} defaultMonth={defaultMonth}
     onClose={vi.fn()} onSave={onSave} onError={vi.fn()} /></ToastProvider>);
   return { onSave, user: userEvent.setup() };
 }
@@ -43,12 +43,20 @@ describe('ProgressAssessmentModal', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it('fix-billing item 3: the first-of-month default the work-order tab passes is a valid month and saves, as a month picker', async () => {
+    const { onSave, user } = renderModal('2026-11-01');
+    expect(screen.getByLabelText(/Month/)).toHaveAttribute('type', 'month');
+    expect(screen.getByLabelText(/Month/)).toHaveValue('2026-11');
+    await user.click(screen.getByRole('button', { name: 'Save progress' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ month: '2026-11-01' }));
+  });
+
   it('AC-PB-019 a malformed month is refused', async () => {
     const { onSave, user } = renderModal();
     await user.clear(screen.getByLabelText(/Month/));
     await user.type(screen.getByLabelText(/Month/), '2026-13');
     await user.click(screen.getByRole('button', { name: 'Save progress' }));
-    expect((await screen.findAllByText('Enter the month as YYYY-MM')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Choose a month')).length).toBeGreaterThan(0);
     expect(onSave).not.toHaveBeenCalled();
   });
 });

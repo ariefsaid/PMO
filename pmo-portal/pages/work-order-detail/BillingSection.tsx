@@ -1,8 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListState, RecordSection, StatusPill } from '@/src/components/ui';
+import { Button, ListState, RecordSection, StatusPill } from '@/src/components/ui';
 import { formatCurrency, formatDay, formatMonthYearShort, formatNumberExact } from '@/src/lib/format';
-
 import type { WorkOrderBilledMonths, WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
 import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 
@@ -15,10 +14,12 @@ interface Props {
   acceptancesPending: boolean;
   acceptancesError: boolean;
   onRetryAcceptances: () => void;
+  /** The confirm control on a waiting acceptance (the viewer's role decides `canConfirm`; the database is the authority). */
+  confirm?: { canConfirm: (a: WorkOrderAcceptanceWithLines) => boolean; onConfirm: (a: WorkOrderAcceptanceWithLines) => void };
 }
 
 /** Billing and acceptances (FR-WORP-023): the shipped `work_order_billing` figures and the BAST list — no second formula. */
-export const BillingSection: React.FC<Props> = ({ billing, perMonth = null, acceptances, acceptancesPending, acceptancesError, onRetryAcceptances }) => {
+export const BillingSection: React.FC<Props> = ({ billing, perMonth = null, acceptances, acceptancesPending, acceptancesError, onRetryAcceptances, confirm }) => {
   const { t } = useTranslation('workOrders');
   const title = t('billing.title', 'Billing and acceptances');
   const row = billing?.row ?? null;
@@ -88,7 +89,10 @@ export const BillingSection: React.FC<Props> = ({ billing, perMonth = null, acce
                   <span className="tabular-nums">{formatDay(a.acceptance_date)}</span>
                   <span className="flex items-center gap-2">
                     <span className="text-control text-muted-foreground">{a.is_final ? t('billing.final', 'Final') : t('billing.stage', 'Stage')} · {formatNumberExact(a.lines.length)} {t('billing.lines', 'lines')}</span>
-                    <StatusPill variant="neutral">{a.status === 'Confirmed' ? t('billing.confirmed', 'Confirmed') : a.status === 'Draft' ? t('billing.draft', 'Draft') : a.status}</StatusPill>
+                    <StatusPill variant="neutral">{a.status === 'Confirmed' ? t('billing.confirmed', 'Confirmed') : a.status === 'Draft' ? t('billing.draft', 'Waiting for Finance or an Admin to confirm') : a.status}</StatusPill>
+                    {confirm?.canConfirm(a) && (
+                      <Button variant="primary" size="sm" onClick={() => confirm.onConfirm(a)}>{t('billing.confirmAction', 'Confirm BAST')}</Button>
+                    )}
                   </span>
                 </li>
               ))}

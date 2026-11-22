@@ -2,7 +2,7 @@
 /** JOB-PU4 — a buyer sources by quotation: from an approved request they ask for quotes, add two, pick one, and the order is recorded at the chosen vendor and price.
  *  Partly landed: the quoted route exists; the direct-purchase shortcut (no quotes, buy from a shop) is not offered and is not tested. */
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
+import { login, recordOrderWithConfirm } from './helpers';
 import { createProcurementFixture, type ProcurementFixture } from './procurement-fixture';
 
 test.setTimeout(150_000);
@@ -42,6 +42,6 @@ test('JOB-PU4 two quotes are added, one is chosen, and the order follows the cho
   await expect(chosen).toContainText(/8[.,]500/);
 
   // The order is raised on the chosen quote.
-  await page.getByRole('button', { name: 'Record order' }).click();
+  await recordOrderWithConfirm(page);
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 15_000 });
 });

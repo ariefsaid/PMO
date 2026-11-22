@@ -577,6 +577,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
   const renderCards = (list: WorkOrderRow[]) => list.length > 0 && <div data-testid="customer-order-card" className="flex flex-col gap-4 p-[var(--panel-inset)] pt-4">{list.map((row) => <WorkOrderCustomerOrderCard
               key={row.id}
               row={row}
+              onStartClaim={canBill ? () => setNewClaimOpen(true) : undefined}
               currency={currency}
               canViewBilling={canViewBilling}
               orgDay={orgDay}

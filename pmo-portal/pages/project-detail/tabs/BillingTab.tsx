@@ -729,7 +729,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         {claimDetailDrawer}
         {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
         {boqFormFor !== undefined && (
-          <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
+          <BoqItemFormModal key={boqFormFor?.id ?? 'new'} item={boqFormFor} existingLines={boqRows} onEditExisting={(row) => setBoqFormFor(row)} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
             onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail}
             extra={boqFormFor ? <BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /> : undefined} />
         )}
@@ -843,7 +843,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       {importOpen && <ImportWizard descriptor={boqImportDescriptor} onClose={closeImport} />}
       {allowanceFor && <MaterialAllowanceModal projectId={projectId} workItem={allowanceFor} onClose={() => setAllowanceFor(null)} />}
       {boqFormFor !== undefined && (
-        <BoqItemFormModal item={boqFormFor} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
+        <BoqItemFormModal key={boqFormFor?.id ?? 'new'} item={boqFormFor} existingLines={boqRows} onEditExisting={(row) => setBoqFormFor(row)} projectId={realRole === effectiveRole ? projectId : undefined} today={orgToday} currency={currency} currencySymbolPrefix={currencySymbol(currency)}
           onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail}
             extra={boqFormFor ? <BoqDisciplinePicker projectId={projectId} itemId={boqFormFor.id} disciplineId={boqFormFor.discipline_id ?? null} /> : undefined} />
       )}

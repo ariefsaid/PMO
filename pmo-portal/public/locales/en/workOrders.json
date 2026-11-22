@@ -37,7 +37,12 @@
     "unavailable": "Amount unavailable",
     "notCosted": "Not yet costed",
     "timesheetLabel": "{{person}}, week of {{week}}",
-    "timesheetFallback": "Timesheet"
+    "timesheetFallback": "Timesheet",
+    "commitment": {
+      "purchase_request": "Not counted as direct cost yet: a request counts once its supplier bill is recorded.",
+      "purchase_order": "Not counted as direct cost yet: an order counts once its supplier bill is recorded.",
+      "goods_receipt": "Received, but not counted as direct cost yet: a receipt counts once its supplier bill is recorded."
+    }
   },
   "billing": {
     "title": "Billing and acceptances",
@@ -55,7 +60,13 @@
     "stage": "Stage",
     "lines": "lines",
     "confirmed": "Confirmed",
-    "draft": "Draft",
+    "draft": "Waiting for Finance or an Admin to confirm",
+    "confirmAction": "Confirm BAST",
+    "confirmTitle": "Confirm this BAST?",
+    "confirmFinalTitle": "Confirm the final BAST?",
+    "confirmBody": "The accepted quantities are recorded as of this BAST. The work order stays open and nothing is invoiced.",
+    "confirmFinalBody": "Confirming a final BAST closes the work order at the accepted quantities. This cannot be undone.",
+    "confirmedToast": "BAST confirmed",
     "perMonth": {
       "title": "Billed per month",
       "error": "Couldn't load the billed months",

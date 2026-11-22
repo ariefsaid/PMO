@@ -42,6 +42,11 @@ reset request.jwt.claims;
 select results_eq($$ select status::text, total_value from procurements where id = '03710000-0000-0000-0000-0000000000e1' $$,
   $$ values ('Vendor Invoiced', 1500::numeric) $$, '0371 a purchase started at a vendor invoice takes the invoice''s pre-tax amount');
 
+-- 1580: an order needs a supplier, so the fixture purchases are given one before the first signed-in write.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid where p.vendor_id is null;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"03710000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok($$ select transition_procurement('03710000-0000-0000-0000-0000000000e1','Paid') $$, '0371 fixture: Finance pays it');
@@ -132,6 +137,11 @@ insert into procurement_status_events (procurement_id, org_id, from_status, to_s
   ('03710000-0000-0000-0000-000000000f11','03710000-0000-0000-0000-00000000000a','Requested','Rejected','03710000-0000-0000-0000-0000000000a3','fixture'),
   ('03710000-0000-0000-0000-000000000f11','03710000-0000-0000-0000-00000000000a','Rejected','Draft','03710000-0000-0000-0000-0000000000a1','fixture');
 set local request.jwt.claims = '{"sub":"03710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+-- 1580: an order needs a supplier, so the fixture purchases are given one before the first signed-in write.
+insert into companies (id, org_id, name, type)
+  select md5('1580-supplier-' || o.org_id::text)::uuid, o.org_id, 'Fixture supplier', 'Vendor' from (select distinct org_id from procurements) o
+  on conflict (id) do nothing;
+update procurements p set vendor_id = md5('1580-supplier-' || p.org_id::text)::uuid where p.vendor_id is null;
 insert into purchase_orders (procurement_id, org_id, status, amount, currency) values ('03710000-0000-0000-0000-000000000f01','03710000-0000-0000-0000-00000000000a','Issued',10000,'IDR');
 insert into procurement_invoices (procurement_id, org_id, status, amount, currency, tax_treatment, tax_amount) values ('03710000-0000-0000-0000-000000000f01','03710000-0000-0000-0000-00000000000a','Received',2000,'IDR','exclusive',0);
 insert into payments (procurement_id, org_id, status, amount, currency) values ('03710000-0000-0000-0000-000000000f02','03710000-0000-0000-0000-00000000000a','Scheduled',1500,'IDR');

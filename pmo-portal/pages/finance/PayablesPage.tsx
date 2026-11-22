@@ -17,6 +17,8 @@ import { initials } from '@/src/lib/initials';
 import { usePaymentChannelNames, usePaymentChannelsOn } from '@/src/hooks/usePaymentChannels';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { usePayablesPagePosition } from '@/src/hooks/usePayablesPagePosition';
+import { NewVendorBillDialog } from './NewVendorBillDialog';
+import { usePermission } from '@/src/auth/usePermission';
 
 /** The age bars sit in a panel on the same inset as the figure strip and the table beside it: one left edge below the page gutter. */
 const AGEING_PANEL = 'panel-card mb-5 min-w-0 p-[var(--space-content-inset)]';
@@ -67,6 +69,9 @@ const PayablesPage: React.FC = () => {
   const setSearch = (value: string) => setFilter('q', value);
   const overdueFilter = values.overdue === 'true';
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [newBillOpen, setNewBillOpen] = useState(false);
+  // UX only: the database decides who may record a supplier bill.
+  const canRecordBill = usePermission()('create', 'procurementInvoice');
 
   const projectManagers = useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, project.pm?.full_name ?? ''])), [projects.data]);
   const query = search.trim().toLocaleLowerCase();
@@ -223,6 +228,7 @@ const PayablesPage: React.FC = () => {
       <Toolbar data-testid="finance-payables-table-toolbar" className="gap-2 sm:gap-3">
         <SearchMini aria-label={t('financeHub:hub.searchPayables', 'Search payables')} placeholder={t('financeHub:hub.searchPayables', 'Search payables')} value={search} onChange={(event) => setSearch(event.target.value)} searchSurface="finance-payables" module="finance" resultCount={visibleRows.length} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {canRecordBill && <Button variant="primary" size="sm" data-testid="new-vendor-bill" onClick={() => setNewBillOpen(true)}>{t('financeHub:hub.newVendorBill.button', 'New vendor bill')}</Button>}
           {/* The overdue filter is the outlined toggle Receivables uses for the same job, with its count
               in the label: a red pill reads as a status label, never as the control that filters the list. */}
           {(overdueFilter || (overdueCountAvailable && lateRows.length > 0)) && <Button
@@ -260,6 +266,7 @@ const PayablesPage: React.FC = () => {
       />
       {!isPending && !isError && payablesPosition.payablesUnknownCount > 0 && <p className="mt-2 text-control text-muted-foreground">{t('financeHub:hub.fix.payables.unknownNote', { defaultValue: payablesPosition.payablesUnknownCount === 1 ? '{{count}} invoice has no amount and is left out of the total' : '{{count}} invoices have no amount and are left out of the total', count: payablesPosition.payablesUnknownCount })}</p>}
       </div>
+      {newBillOpen && <NewVendorBillDialog onClose={() => setNewBillOpen(false)} />}
     </ListPage>
     </FigureScope>
   );

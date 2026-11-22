@@ -14,11 +14,11 @@ vi.mock('@/src/hooks/useStock', () => ({
   useStockWarehouses: () => ({ data: [
     { id: 'w1', code: 'CEN', name: 'Central', kind: 'central' }, { id: 'w2', code: 'SITE1', name: 'Site one', kind: 'site' },
     { id: 'w9', code: 'TRN-1', name: 'In transit TST-1', kind: 'transit' }] }),
-  useStockKeepers: () => ({ data: [{ user_id: 'me', warehouse_id: 'w1' }] }),
+  useStockKeepers: () => ({ data: [{ user_id: 'me', warehouse_id: 'w1' }, { user_id: 'p2', warehouse_id: 'w2' }, { user_id: 'p3', warehouse_id: 'w1' }] }),
   useStockItems: () => ({ data: [{ id: 'i1', code: 'PIPE', name: 'Pipe', unit_id: 'u1', archived_at: null }] }),
   useStockUnits: () => ({ data: [{ id: 'u1', whole_only: false }] }),
 }));
-vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [{ id: 'p2', full_name: 'Site Foreman' }] }) }));
+vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [{ id: 'p2', full_name: 'Site Foreman', is_active: true }, { id: 'p3', full_name: 'Central Clerk', is_active: true }, { id: 'me', full_name: 'Me', is_active: true }] }) }));
 vi.mock('@/src/lib/repositories/stockTransfers', () => ({ stockTransfersRepository: { send: h.send } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer', effectiveRole: 'Engineer' }) }));
@@ -62,5 +62,14 @@ describe('StockTransferSend (AC-TST-023)', () => {
     expect(h.send.mock.calls[0][0]).toEqual({ fromWarehouseId: 'w1', toWarehouseId: 'w2', toUserId: 'p2', note: '', lines: [{ itemId: 'i1', quantity: '4' }] });
     expect(h.send.mock.calls[0][1]).toMatch(/[0-9a-f-]{36}/);
     await waitFor(() => expect(h.navigate).toHaveBeenCalledWith('/stock/transfers/tr-1'));
+  });
+
+  it('JOB-1122-1 the receiver picker offers only people who can receive at the destination, never the sender', async () => {
+    renderPage();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /To warehouse/ }), 'SITE1 - Site one');
+    const receiver = screen.getByRole('combobox', { name: /Receiver/ });
+    expect(within(receiver).getByRole('option', { name: 'Site Foreman' })).toBeInTheDocument();
+    expect(within(receiver).queryByRole('option', { name: 'Central Clerk' })).not.toBeInTheDocument();   // keeps the source, not the destination
+    expect(within(receiver).queryByRole('option', { name: 'Me' })).not.toBeInTheDocument();
   });
 });
