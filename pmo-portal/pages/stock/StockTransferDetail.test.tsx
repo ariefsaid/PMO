@@ -11,7 +11,18 @@ import stockId from '@/public/locales/id/stock.json';
 const h = vi.hoisted(() => ({
   dn: true, transfer: null as unknown, tags: [] as unknown[], items: [] as unknown[], timing: 'before_posting',
   receive: vi.fn(), upload: vi.fn(), resolve: vi.fn(), recall: vi.fn(), record: vi.fn(),
+  waiting: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn(), calls: [] as unknown[][] },
 }));
+vi.mock('@/src/hooks/useOperationalWaitingRoute', async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return {
+    ...actual,
+    useOperationalWaitingRoute: (kind: string, recordId: string | undefined, enabled: boolean) => {
+      h.waiting.calls.push([kind, recordId, enabled]);
+      return h.waiting;
+    },
+  };
+});
 vi.mock('@/src/hooks/useStockTransfers', () => ({
   useStockTransfer: () => ({ isPending: false, isError: false, data: h.transfer, refetch: vi.fn() }),
   useTransferConfirmations: () => ({ data: [] }),
@@ -37,6 +48,7 @@ const transfer = (extra: Record<string, unknown> = {}) => ({ id: 't1', number: '
 beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true); });
 beforeEach(() => {
   vi.clearAllMocks();
+  h.waiting.data = undefined; h.waiting.isPending = false; h.waiting.isError = false; h.waiting.refetch.mockReset(); h.waiting.calls.length = 0;
   h.transfer = transfer(); h.tags = []; h.timing = 'before_posting'; h.dn = true;
   h.items = [{ id: 'i1', code: 'PIPE', name: 'Pipe', tag_id: null, needs_quality_check: false }];
   h.receive.mockResolvedValue(undefined);
@@ -161,5 +173,56 @@ describe('StockTransferDetail sender (#1122 item 1)', () => {
     h.transfer = transfer({ toUserId: 'me', sentBy: 'someone' });
     renderPage();
     expect(await screen.findByLabelText(/^Counted/)).toBeInTheDocument();
+  });
+});
+
+describe('StockTransferDetail who it waits on (#1122 Waiting 3)', () => {
+  it('reads the receipt route only while the transfer is Sent', () => {
+    renderPage();
+    expect(h.waiting.calls.at(-1)).toEqual(['transfer_receipt', 't1', true]);
+    h.transfer = transfer({ status: 'Received', receivedBy: 'me', receivedAt: '2026-11-20T10:00:00Z' });
+    renderPage();
+    expect(h.waiting.calls.at(-1)).toEqual(['transfer_receipt', 't1', false]);
+  });
+
+  it('an unassigned transfer names the destination keeper, never every senior role', async () => {
+    h.transfer = transfer({ sentBy: 'someone', toUserId: null });
+    h.waiting.data = { approvers: [{ id: 'keeper', name: 'Keeper Kasim', role: 'Engineer' }], routeKind: 'transfer_receipt' };
+    renderPage();
+    const line = await screen.findByTestId('transfer-waiting');
+    expect(line.textContent).toBe('Waiting for Keeper Kasim');
+    expect(line.textContent).not.toMatch(/Admin|Finance|Executive/);
+  });
+
+  it('never repeats the addressed receiver: the summary already names them', async () => {
+    h.transfer = transfer({ sentBy: 'someone', toUserId: 'me' });
+    h.waiting.data = { approvers: [{ id: 'me', name: 'Dest Keeper', role: 'Engineer' }], routeKind: 'transfer_receipt' };
+    renderPage();
+    expect(await screen.findByText(/Addressed to Dest Keeper/)).toBeInTheDocument();
+    expect(screen.queryByTestId('transfer-waiting')).toBeNull();
+  });
+
+  it('excludes the sender from the people it waits on', async () => {
+    h.transfer = transfer({ sentBy: 'me', toUserId: null });
+    h.waiting.data = { approvers: [{ id: 'keeper', name: 'Keeper Kasim', role: 'Engineer' }], routeKind: 'transfer_receipt' };
+    renderPage();
+    const line = await screen.findByTestId('transfer-waiting');
+    expect(line.textContent).toBe('Waiting for Keeper Kasim');
+    expect(line.textContent).not.toContain('Dest Keeper');
+  });
+
+  it('says nothing when nobody is assigned and no keeper is known', () => {
+    h.transfer = transfer({ sentBy: 'me', toUserId: null });
+    h.waiting.data = { approvers: [], routeKind: 'transfer_receipt' };
+    renderPage();
+    expect(screen.queryByTestId('transfer-waiting')).toBeNull();
+  });
+
+  it('offers a retry when the route could not be read', async () => {
+    h.transfer = transfer({ sentBy: 'me', toUserId: null });
+    h.waiting.isError = true;
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(h.waiting.refetch).toHaveBeenCalled();
   });
 });

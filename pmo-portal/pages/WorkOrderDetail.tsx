@@ -16,6 +16,8 @@ import { useDocuments } from '@/src/hooks/useDocuments';
 import { useCostDisciplines, useWorkOrderCostLines, useWorkOrderCostMoney, useWorkOrderCostLinks, useWorkOrderTimesheetLabels } from '@/src/hooks/useWorkOrderCosts';
 import { useProjectPlanVsActual } from '@/src/hooks/useWorkOrderPlanVsActual';
 import { useWorkOrder, useWorkOrderAllocations, useWorkOrderClaimDocuments, useWorkOrderIssues, useWorkOrderOpenTasks } from '@/src/hooks/useWorkOrderRecord';
+import { useOperationalWaitingRoute, operationalWaitingForText } from '@/src/hooks/useOperationalWaitingRoute';
+import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import { deriveScopeProgress } from '@/src/lib/workOrderProgress';
 import { buildCostView } from '@/src/lib/workOrderCostView';
 import { formatCurrency } from '@/src/lib/format';
@@ -53,6 +55,13 @@ const WorkOrderDetail: React.FC = () => {
   const may = usePermission();
   const stockOn = useFeature('stock');
   const wo = useWorkOrder(id);
+  // A Draft waits on whoever the database's own issue gate would let issue it now (1560/0337). 1560 only puts a Draft on
+  // the waiting list while it carries priced money with a recorded author, so the read is gated on those projected facts.
+  const issueWaitingApplies = wo.data?.status === 'Draft'
+    && Number(wo.data?.order_value ?? 0) > 0
+    && Boolean(wo.data?.order_value_set_by);
+  const issueWaiting = useOperationalWaitingRoute('work_order_issue', id, issueWaitingApplies);
+  const { label: roleLabel } = useRoleOptions();
   const projectId = wo.data?.project_id ?? '';
   const project = useProject(projectId || undefined);
   const issuesOn = useFeature('incidents');
@@ -112,6 +121,7 @@ const WorkOrderDetail: React.FC = () => {
         sub={t('notFoundSub', "It doesn't exist, or you don't have access to it.")} /></>;
   }
   const billingRow = (billing.data ?? []).find((b) => b.workOrderId === row.id) ?? null;
+  const issueWaitingText = operationalWaitingForText(issueWaiting.data, t, { roleLabel, empty: 'none' });
   return (
     <>
       <BackBar label={backLabel} phoneOnly onBack={goBack} />
@@ -126,6 +136,21 @@ const WorkOrderDetail: React.FC = () => {
           { label: t('client', 'Client'), value: project.data?.client?.name ?? '—' },
           { label: t('orderValue', 'Order value'), value: <span className="tabular-nums" data-testid="wo-order-value">{formatCurrency(Number(row.order_value), row.currency)}</span> },
         ]} />
+      {issueWaitingApplies && issueWaiting.isPending && (
+        <span role="status" className="sr-only">{t('common:ui.listState.loading', 'Loading…')}</span>
+      )}
+      {issueWaitingApplies && issueWaiting.isError && (
+        <p data-testid="wo-issue-waiting" className="text-sm text-muted-foreground">
+          <button type="button" onClick={() => void issueWaiting.refetch()} className="font-medium text-primary-text hover:underline">
+            {t('common:ui.listState.retry', 'Retry')}
+          </button>
+        </p>
+      )}
+      {issueWaitingApplies && issueWaiting.data && issueWaitingText && (
+        <p data-testid="wo-issue-waiting" className="text-sm text-muted-foreground">
+          {issueWaitingText}
+        </p>
+      )}
       <SafetyTodayLink workOrderId={row.id} projectId={row.project_id} status={row.status} />
       <WorkOrderSupplyWarning workOrderId={row.id} projectId={row.project_id} />
       <RecordStack>
