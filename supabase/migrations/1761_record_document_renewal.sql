@@ -6,7 +6,8 @@ create function public.record_document_renewal(p_document uuid, p_expires_on dat
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare d record; v_uid uuid := auth.uid(); v_type text;
 begin
-  if v_uid is null or not public.is_active_member(v_uid) then
+  perform public.assert_not_light();   -- a field account refuses here (1530 pattern)
+  if v_uid is null or not public.is_active_member() then
     raise exception 'DXR_NOT_FOUND: This document was not found.' using errcode = '42501';
   end if;
   select x.id, x.org_id, x.subject_kind, x.is_medical, x.expires_on, x.type_id, pe.id as person_id, pe.manager_id

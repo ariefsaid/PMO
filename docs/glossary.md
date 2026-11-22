@@ -794,7 +794,6 @@ is 0 at every step.
 
 **Material request** (*permintaan material*) — a request for stock items and quantities for one work order, with a
 needed-by date: Draft, Pending, Approved, Rejected, Cancelled or Fulfilled. An approved request becomes a stock
-**Transfer** draft to one of the work order's project's stock locations (its site, a yard or a staging location,
 named when the project has several); a keeper posts it, which marks the request Fulfilled. Not a purchase request:
 it moves stock the organisation already holds.
 
@@ -1319,7 +1318,6 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Proof chase list** (*daftar bukti tertunda*) — the card on the stock home listing movements whose required proof has not arrived, oldest first, with the days waiting and the missing proof. It is read live (never a stored snapshot), shown only while the organisation lets proof follow, and only to an Admin or a keeper of one of the movement's locations. See *Proof rule*.
 
-
 **Work-order transfer (WOT)** — one document that moves leftover material from one work order to another of the same project: a return from the first work order and an issue to the second, both at one project location, posted together or not at all. The stock does not leave the location; the first work order is relieved of its cost and the second is charged at the location's moving average. It is off until an Admin turns on the organisation setting "work-order transfers"; a posted one is corrected by a transfer the other way. Not a *Transfer* between locations. (#2691)
 
 **Free stock** — on hand at a location minus the active reservations there, never shown below zero; when on hand falls below what is reserved the screen says "reserved, short by n". It is computed on read, so it cannot drift from the ledger. A reservation is active until released, expired or consumed, or until its work order closes.
@@ -1374,14 +1372,12 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 
 **Management profit and loss** — the Reports screen (management pack) read as a profit and loss PMO produces from its own records: recognised, invoiced and earned revenue per project and, while Profit per discipline is on, cost and margin on both revenue bases. It is not a ledger statement; trial balance, profit and loss and balance sheet come from a connected accounting system. An organisation with none connected is led from Statements and the Finance hub Net profit tile to it (#2734).
 
-<<<<<<< HEAD
 **Direct manager** — the app user recorded as a person's manager on the people register (`people.manager_id`). They are warned first when that person's documents are about to expire and may record the renewal (a later expiry date) for their own people only; Admin keeps the existing write. Separate from the line-management link on user accounts.
 
 **Site cash limit** (*batas kas lapangan*) — the largest single spend site cash covers (code: the organisation's imprest procurement limit). An Admin sets it on the Purchase rules card in Administration, Accounting; site cash cannot be set up until it exists.
 
 **Receipt value** (*nilai penerimaan*) — the money a receipt stands for. A receipt stores none of its own; when there is one receipt, received in full, the screen reads it from the order lines and says so. A work order's direct cost counts the purchase once its supplier bill is recorded.
-=======
 **Second record** (*catatan kedua*) — a surveyor's or timekeeper's record of one worker's hours for one work order and day, kept beside the crew tick on the site report and never paid or costed on its own. Who may enter one is an organisation setting (a list of built-in roles; managers always may).
 
 **Standing hours** (*jam yang berlaku*) — the one figure the attendance day carries for a worker and day, which is the figure that is paid and costed. It is the site-report (crew tick) figure until a person the organisation names decides the second record stands instead; the figure not chosen stays on file as evidence. Nobody decides hours they recorded, and a day waiting for a decision cannot be sent on for approval (pay-time, `docs/specs/pay-time.spec.md`).
->>>>>>> origin/feat/gap-people-pay-time
+
