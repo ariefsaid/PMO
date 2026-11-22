@@ -25291,6 +25291,7 @@ export type Database = {
           over_commit_ack_at: string | null
           over_commit_ack_by: string | null
           project_id: string
+          responsible_person_id: string | null
           site_warehouse_id: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["work_order_status"]
@@ -25330,6 +25331,7 @@ export type Database = {
           over_commit_ack_at?: string | null
           over_commit_ack_by?: string | null
           project_id: string
+          responsible_person_id?: string | null
           site_warehouse_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["work_order_status"]
@@ -25369,6 +25371,7 @@ export type Database = {
           over_commit_ack_at?: string | null
           over_commit_ack_by?: string | null
           project_id?: string
+          responsible_person_id?: string | null
           site_warehouse_id?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["work_order_status"]
@@ -35221,6 +35224,10 @@ export type Database = {
       set_work_order_plan: {
         Args: { p_changes: Json; p_project_id: string; p_work_order_id: string }
         Returns: number
+      }
+      set_work_order_responsible_person: {
+        Args: { p_person_id: string; p_work_order_id: string }
+        Returns: undefined
       }
       set_work_order_site_location: {
         Args: { p_warehouse_id: string; p_work_order_id: string }

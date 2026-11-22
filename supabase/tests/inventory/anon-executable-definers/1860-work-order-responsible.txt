@@ -1,0 +1,2 @@
+# 1860: whoever may edit a work order sets its responsible person (the site engineer). Refuses anon.
+set_work_order_responsible_person

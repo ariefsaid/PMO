@@ -170,6 +170,8 @@
   "PTYPE_PERIOD_NOT_ALLOWED": "Hanya pembelian sewa yang memiliki masa sewa.",
   "PTYPE_PERIOD_REQUIRED": "Pembelian sewa memerlukan masa sewa.",
   "PTYPE_UNAVAILABLE": "Jenis itu tidak tersedia.",
+  "RSP_FORBIDDEN": "Peran Anda tidak dapat menetapkan penanggung jawab. Minta manajer proyek atau Admin.",
+  "RSP_PERSON": "Pilih anggota aktif organisasi ini sebagai penanggung jawab.",
   "RSV_BORROW_CHANGED": "Stok cadangan yang dipinjam kini lebih banyak dari yang disetujui. Kembalikan permintaan dan ajukan lagi.",
   "RSV_EXCEEDS_FREE": "Hanya {{n}} yang bebas di lokasi ini.",
   "RSV_EXCEEDS_REMAINING": "Hanya {{n}} yang tersisa pada cadangan ini.",
