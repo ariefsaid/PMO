@@ -4,6 +4,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { AppError } from '@/src/lib/appError';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 import type { ClaimBillingTrace } from '@/src/lib/db/billingStages';
 
 const h = vi.hoisted(() => ({ role: 'Project Manager' as string, trace: null as unknown, skip: vi.fn() }));
@@ -20,6 +21,16 @@ vi.mock('@/src/hooks/useBillingStages', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useBillingSteps', () => ({
+  useClaimStepMutations: () => ({
+    update: { mutateAsync: vi.fn(), isPending: false },
+    add: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: vi.fn(), isPending: false },
+    move: { mutateAsync: vi.fn(), isPending: false },
+    loadTemplate: { mutateAsync: vi.fn(), isPending: false },
+  }),
+  useStepTemplates: () => ({ data: [] }),
+}));
 vi.mock('../RetentionReleases', () => ({ RetentionReleases: () => null }));
 import { ClaimBillingStages } from '../ClaimBillingStages';
 
@@ -41,7 +52,7 @@ function trace(skipped = false): ClaimBillingTrace {
 }
 
 function renderIt() {
-  render(<MemoryRouter><ClaimBillingStages claimId="c1" projectId="p1" currency="IDR" invoiced={false} withdrawn={false} today="2026-03-13" /></MemoryRouter>);
+  render(<MemoryRouter><QueryClientTestProvider><ClaimBillingStages claimId="c1" projectId="p1" currency="IDR" invoiced={false} withdrawn={false} today="2026-03-13" /></QueryClientTestProvider></MemoryRouter>);
   return userEvent.setup();
 }
 

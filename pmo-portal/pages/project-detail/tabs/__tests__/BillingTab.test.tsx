@@ -10,6 +10,7 @@ import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { DocumentViewerContext, type DocumentViewerApi } from '@/src/components/documents';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 import { formatNumberMax2 } from '@/src/lib/format';
 import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
@@ -41,6 +42,7 @@ const h = vi.hoisted(() => ({
   ordersState: { isPending: false, isError: false, refetch: vi.fn() },
   tmClaims: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   tmMutation: vi.fn().mockResolvedValue(undefined),
+  overdue: [] as unknown[],
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 // #1457: the invoice-overdue figure is bounded by the org's business day (fixed here per test file).
@@ -98,7 +100,10 @@ vi.mock('@/src/hooks/useTimeAndMaterials', () => ({
 vi.mock('@/src/lib/import', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/lib/import')>()), parseWorkbook: vi.fn() }));
 vi.mock('@/src/lib/repositories', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/lib/repositories')>();
-  return { repositories: { ...actual.repositories, progressBilling: { ...actual.repositories.progressBilling, createBoq: h.createBoq, listBoq: async () => [] } } };
+  return { repositories: { ...actual.repositories,
+    progressBilling: { ...actual.repositories.progressBilling, createBoq: h.createBoq, listBoq: async () => [] },
+    billingStages: { ...actual.repositories.billingStages, overdueStepsByClaim: async () => h.overdue },
+  } };
 });
 import { parseWorkbook } from '@/src/lib/import';
 import BillingTab from '../BillingTab';
@@ -137,13 +142,14 @@ beforeEach(() => {
   h.tmClaims = { data: { rows: [], truncated: false }, isPending: false, isError: false, refetch: vi.fn() };
   h.tmMutation.mockReset().mockResolvedValue(undefined);
   h.revenueMode = null; h.tmInvoice.mockReset().mockResolvedValue('tm-1');
+  h.overdue = [];
   h.m = Object.fromEntries(['createBoq', 'updateBoq', 'deleteBoq', 'recordAssessment', 'createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice', 'raiseNativeInvoice']
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
 
 function renderTab(clientId: string | null = 'c1', initialEntry = '/', mode: 'full' | 'contract-tools' | 'contract-time-materials' = 'full', open?: DocumentViewerApi['open']) {
   const content = <><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" mode={mode} /><RouteSearch /></>;
-  render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider>{open ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>{content}</DocumentViewerContext.Provider> : content}</ToastProvider></MemoryRouter>);
+  render(<QueryClientTestProvider><MemoryRouter initialEntries={[initialEntry]}><ToastProvider>{open ? <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>{content}</DocumentViewerContext.Provider> : content}</ToastProvider></MemoryRouter></QueryClientTestProvider>);
   return userEvent.setup();
 }
 
@@ -176,14 +182,20 @@ async function renderTabLocalized(lng: 'en' | 'id') {
     returnEmptyString: false,
   });
   render(
-    <I18nextProvider i18n={i18n}>
+    <QueryClientTestProvider><I18nextProvider i18n={i18n}>
       <MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>
-    </I18nextProvider>,
+    </I18nextProvider></QueryClientTestProvider>,
   );
   return { user: userEvent.setup(), i18n };
 }
 
 describe('BillingTab', () => {
+  it('AC-BSX-011 the overdue-step marker names the step and the days over on the claim row (#2680)', async () => {
+    h.overdue = [{ claimId: 'k1', stepName: 'Client review', daysOver: 3 }];
+    renderTab();
+    expect(await screen.findByText('Client review overdue by 3 days')).toBeInTheDocument();
+  });
+
   it('document-preview AC-016 shows a billing evidence title that opens the shared viewer', async () => {
     const open = vi.fn<DocumentViewerApi['open']>();
     const user = renderTab('c1', '/', 'full', open);
@@ -308,26 +320,26 @@ describe('BillingTab', () => {
     i18next.addResourceBundle('en', 'stock', { allowance: { action: 'Material allowance' } }, true, true);
     const offered = () => screen.queryAllByRole('button', { name: 'Material allowance' }).length > 0;
     h.role = 'Finance'; h.userId = 'u-fin';
-    const a = render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    const a = render(<QueryClientTestProvider><MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter></QueryClientTestProvider>);
     expect(offered()).toBe(true);
     a.unmount();
     h.role = 'Project Manager'; h.userId = 'pm-1';
-    const b = render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    const b = render(<QueryClientTestProvider><MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter></QueryClientTestProvider>);
     expect(offered()).toBe(true);
     b.unmount();
     h.role = 'Project Manager'; h.userId = 'pm-2';
-    const c = render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    const c = render(<QueryClientTestProvider><MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter></QueryClientTestProvider>);
     expect(offered()).toBe(false);
     c.unmount();
     h.role = 'Engineer'; h.userId = 'u-eng';
-    render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    render(<QueryClientTestProvider><MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter></QueryClientTestProvider>);
     expect(offered()).toBe(false);
   });
 
   it('FR-STK-050 the material allowance editor is not offered while an Admin views as another role (view-only)', () => {
     i18next.addResourceBundle('en', 'stock', { allowance: { action: 'Material allowance' } }, true, true);
     h.role = 'Admin'; h.userId = 'u-admin'; h.effectiveRole = 'Engineer';
-    render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    render(<QueryClientTestProvider><MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter></QueryClientTestProvider>);
     expect(screen.queryAllByRole('button', { name: 'Material allowance' })).toHaveLength(0);
   });
 
@@ -619,7 +631,7 @@ describe('BillingTab', () => {
   it('retains a claim draft while a required source fails and recovers', async () => {
     h.routeReady = false;
     const user = userEvent.setup();
-    const tree = () => <MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>;
+    const tree = () => <QueryClientTestProvider><MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter></QueryClientTestProvider>;
     const view = render(tree());
     await user.click(screen.getByRole('button', { name: 'New claim' }));
     const dialog = screen.getByRole('dialog', { name: 'New billing claim' });
