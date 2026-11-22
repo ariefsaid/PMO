@@ -56,3 +56,6 @@ A day record may carry `followed_crew_id`: "this worker followed this crew on th
 - Hours already submitted or approved never move: the follow is a new row or an unsubmitted row only (existing `ATT_SUBMITTED`/`ATT_LOCKED`).
 - Customer question: may the receiving foreman do this on their own authority with no home-crew foreman notice? Recommended answer: yes, and the home crew's roster simply shows the person as away for the day (the loan rule's inverse), with the follow visible on the day record and in the audit entry. If the customer wants notice, that is a later item.
 - Not in scope: crew-multi-wo (splitting a crew's day across work orders) and pay-time (hours to timesheet); this change only records the follow and keeps roster and hours consistent.
+
+## Tests whose steps changed
+- `pmo-portal/pages/crews/crewErrors.test.tsx` "a phone clock-in for a crew the person is not in says so, not 'refresh'": the expected `PCI_CREW` sentence is now "That crew is not on this work order today" (FR-FOL-010 rewords it because a person may now pick a crew they are not in). Goal unchanged: the crew refusal is named specifically, not the generic refresh message.
