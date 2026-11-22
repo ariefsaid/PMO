@@ -16,7 +16,7 @@ begin
     raise exception 'only an Admin, Executive, Project Manager or Finance member can set a work order''s check-in area' using errcode = '42501';
   end if;
   if not ((p_lat is null and p_lng is null and p_radius_m is null)
-          or (p_lat between -90 and 90 and p_lng between -180 and 180 and p_radius_m > 0 and p_radius_m <= 50000)) then
+          or coalesce(p_lat between -90 and 90 and p_lng between -180 and 180 and p_radius_m > 0 and p_radius_m <= 50000, false)) then
     raise exception 'WO_AREA: give latitude -90 to 90, longitude -180 to 180 and a radius above 0 up to 50000 metres, or all three empty'
       using errcode = '22023';
   end if;

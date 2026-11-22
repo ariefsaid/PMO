@@ -35,7 +35,8 @@ insert into work_orders (id, org_id, project_id, title, status, order_value, tax
   ('15500000-0000-0000-0000-000000000053', '15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000040', 'WCI WO elsewhere', 'Issued', 1000, 'exclusive', 0, 0, 0, 100),
   ('15500000-0000-0000-0000-000000000054', '15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000040', 'WCI WO three',     'Issued', 1000, 'exclusive', 0, 0, 0, 100),
   ('15500000-0000-0000-0000-000000000055', '15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000040', 'WCI WO five',      'Issued', 1000, 'exclusive', 0, 0, 0, 100),
-  ('15500000-0000-0000-0000-000000000056', '15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000040', 'WCI WO six',       'Issued', 1000, 'exclusive', 0, 0, 0, 100);
+  ('15500000-0000-0000-0000-000000000056', '15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000040', 'WCI WO six',       'Issued', 1000, 'exclusive', 0, 0, 0, 100),
+  ('15500000-0000-0000-0000-000000000057', '15500000-0000-0000-0000-000000000010', '15500000-0000-0000-0000-000000000040', 'WCI WO setter',    'Issued', 1000, 'exclusive', 0, null, null, null);
 insert into crews (id, org_id, code, name, field_controller_id) values
   ('15500000-0000-0000-0000-000000000061', '15500000-0000-0000-0000-000000000010', 'WCI-1', 'WCI crew one',   '15500000-0000-0000-0000-000000000027'),
   ('15500000-0000-0000-0000-000000000062', '15500000-0000-0000-0000-000000000010', 'WCI-2', 'WCI crew two',   '15500000-0000-0000-0000-000000000028'),
@@ -74,36 +75,36 @@ set local role authenticated;
 
 -- ── 1550 who may set the check-in area ───────────────────────────────────────────────────────────────────────────────
 select pg_temp.act_as('15500000-0000-0000-0000-000000000021');
-select lives_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 1.5, 2.5, 80) $$, 'AC-WCI-001 an Admin sets the check-in area');
-select is((select area_radius_m from work_orders where id = '15500000-0000-0000-0000-000000000052'), 80::double precision, 'AC-WCI-001 the area is stored');
+select lives_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 1.5, 2.5, 80) $$, 'AC-WCI-001 an Admin sets the check-in area');
+select is((select area_radius_m from work_orders where id = '15500000-0000-0000-0000-000000000057'), 80::double precision, 'AC-WCI-001 the area is stored');
 select pg_temp.act_as('15500000-0000-0000-0000-000000000022');
-select lives_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 1.5, 2.5, 90) $$, 'AC-WCI-001 a Project Manager sets it');
+select lives_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 1.5, 2.5, 90) $$, 'AC-WCI-001 a Project Manager sets it');
 select pg_temp.act_as('15500000-0000-0000-0000-000000000023');
-select lives_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 1.5, 2.5, 95) $$, 'AC-WCI-001 Finance sets it');
+select lives_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 1.5, 2.5, 95) $$, 'AC-WCI-001 Finance sets it');
 select pg_temp.act_as('15500000-0000-0000-0000-000000000024');
-select lives_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 1.5, 2.5, 99) $$, 'AC-WCI-001 an Executive sets it');
+select lives_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 1.5, 2.5, 99) $$, 'AC-WCI-001 an Executive sets it');
 select pg_temp.act_as('15500000-0000-0000-0000-000000000025');
-select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 9, 9, 10) $$, '42501', null, 'AC-WCI-002 an Engineer cannot set it');
+select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 9, 9, 10) $$, '42501', null, 'AC-WCI-002 an Engineer cannot set it');
 select pg_temp.act_as('15500000-0000-0000-0000-000000000026');
-select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 9, 9, 10) $$, '42501', null, 'AC-WCI-002 a site supervisor cannot set it');
+select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 9, 9, 10) $$, '42501', null, 'AC-WCI-002 a site supervisor cannot set it');
 select pg_temp.act_as('15500000-0000-0000-0000-000000000027');
-select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 9, 9, 10) $$, '42501', null, 'AC-WCI-002 a Foreman (light account) cannot set it');
+select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 9, 9, 10) $$, '42501', null, 'AC-WCI-002 a Foreman (light account) cannot set it');
 select pg_temp.act_as('15500000-0000-0000-0000-000000000029');
-select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 9, 9, 10) $$, '42501', null, 'AC-WCI-002 a Field user (light account) cannot set it');
+select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 9, 9, 10) $$, '42501', null, 'AC-WCI-002 a Field user (light account) cannot set it');
 select pg_temp.act_as('15500000-0000-0000-0000-000000000031');
-select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 9, 9, 10) $$, 'P0002', null, 'AC-WCI-002 another organisation''s Admin finds no such work order');
+select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 9, 9, 10) $$, 'P0002', null, 'AC-WCI-002 another organisation''s Admin finds no such work order');
 select pg_temp.act_as('15500000-0000-0000-0000-000000000021');
-select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 91, 0, 10) $$, '22023', null, 'AC-WCI-003 a latitude out of range is refused');
-select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 0, 0, 0) $$, '22023', null, 'AC-WCI-003 a zero radius is refused');
-select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 0, null, 10) $$, '22023', null, 'AC-WCI-003 half an area is refused');
-select throws_ok($$ update work_orders set area_lat = 5, area_lng = 5, area_radius_m = 5 where id = '15500000-0000-0000-0000-000000000052' $$, '42501', null,
+select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 91, 0, 10) $$, '22023', null, 'AC-WCI-003 a latitude out of range is refused');
+select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 0, 0, 0) $$, '22023', null, 'AC-WCI-003 a zero radius is refused');
+select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 0, null, 10) $$, '22023', null, 'AC-WCI-003 half an area is refused');
+select throws_ok($$ update work_orders set area_lat = 5, area_lng = 5, area_radius_m = 5 where id = '15500000-0000-0000-0000-000000000057' $$, '42501', null,
   'AC-WCI-004 a direct table write of the area stays refused for every role');
-select is((select area_lat from work_orders where id = '15500000-0000-0000-0000-000000000052'), 1.5::double precision, 'AC-WCI-002 every refusal left the area as it was');
-select lives_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', null, null, null) $$, 'AC-WCI-001 an Admin clears the area');
-select is((select area_lat from work_orders where id = '15500000-0000-0000-0000-000000000052'), null::double precision, 'AC-WCI-001 cleared means no location is asked');
-select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 3, 4, 60);
+select is((select area_lat from work_orders where id = '15500000-0000-0000-0000-000000000057'), 1.5::double precision, 'AC-WCI-002 every refusal left the area as it was');
+select lives_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', null, null, null) $$, 'AC-WCI-001 an Admin clears the area');
+select is((select area_lat from work_orders where id = '15500000-0000-0000-0000-000000000057'), null::double precision, 'AC-WCI-001 cleared means no location is asked');
+select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 3, 4, 60);
 reset role;
-select is((select count(*)::int from audit_events where action = 'work_order.check_in_area_set' and entity_id = '15500000-0000-0000-0000-000000000052'), 6,
+select is((select count(*)::int from audit_events where action = 'work_order.check_in_area_set' and entity_id = '15500000-0000-0000-0000-000000000057'), 6,
   'AC-WCI-005 each successful change left an audit entry');
 select ok(not has_function_privilege('anon', 'public.set_work_order_check_in_area(uuid,double precision,double precision,double precision)', 'execute'),
   'AC-WCI-002 anon cannot call the setter');
@@ -112,13 +113,13 @@ select pg_temp.mutate('public.set_work_order_check_in_area(uuid,double precision
   'public.auth_role() not in (''Admin'', ''Executive'', ''Project Manager'', ''Finance'')', 'false');
 set local role authenticated;
 select pg_temp.act_as('15500000-0000-0000-0000-000000000025');
-select lives_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 7, 7, 7) $$, 'AC-WCI-006 MUTATION: with the role gate open an Engineer gets through (so the refusal above is the gate)');
+select lives_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 7, 7, 7) $$, 'AC-WCI-006 MUTATION: with the role gate open an Engineer gets through (so the refusal above is the gate)');
 reset role;
 select pg_temp.mutate('public.set_work_order_check_in_area(uuid,double precision,double precision,double precision)',
   'false', 'public.auth_role() not in (''Admin'', ''Executive'', ''Project Manager'', ''Finance'')');
 set local role authenticated;
 select pg_temp.act_as('15500000-0000-0000-0000-000000000025');
-select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000052', 8, 8, 8) $$, '42501', null, 'AC-WCI-006 restored: the Engineer is refused again');
+select throws_ok($$ select public.set_work_order_check_in_area('15500000-0000-0000-0000-000000000057', 8, 8, 8) $$, '42501', null, 'AC-WCI-006 restored: the Engineer is refused again');
 
 -- ── 1551 a Foreman clocks in himself ─────────────────────────────────────────────────────────────────────────────────
 select pg_temp.act_as('15500000-0000-0000-0000-000000000027');
