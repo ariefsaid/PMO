@@ -18,7 +18,7 @@ import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useRefusalText } from './materialRequests/useMaterialRequestText';
 import { UsageWarning } from './materialRequests/UsageWarning';
-import { useUsageThreshold } from '@/src/hooks/useUsageThreshold';
+import { useUsageThresholds } from '@/src/hooks/useUsageThresholds';
 
 interface FormLine { key: string; itemId: string; quantity: string; reason: string }
 /** A typed quantity (dot or decimal comma, 3 decimals at most) as the number to send; 0 when it is not a positive quantity. */
@@ -76,7 +76,7 @@ const MaterialRequestNewPage: React.FC = () => {
   const destination = locations.length > 1 ? (locations.some((o) => o.value === toWarehouseId) ? toWarehouseId : '') : '';
   const itemIds = lines.map((l) => l.itemId).filter(Boolean);
   const plans = useLinePlans(workOrderId || undefined, itemIds, requestId);
-  const usage = useUsageThreshold();
+  const usage = useUsageThresholds();
   const planOf = (itemId: string) => plans.data?.find((p) => p.itemId === itemId);
   // #2576: an optional live section of the work order, with its own allocation checked beside the work order's plan.
   const sections = useLiveSections(workOrderId || undefined);
@@ -194,7 +194,7 @@ const MaterialRequestNewPage: React.FC = () => {
                     {st?.overPlan && <strong className="ml-2 text-warning-foreground">{t('form.overPlan', 'Over plan')}</strong>}
                   </p>
                 )}
-                {l.itemId && p && !plans.isPending && <UsageWarning line={{ planQty: p.planQty, installedQty: p.installedQty }} threshold={usage.threshold} />}
+                {l.itemId && p && !plans.isPending && <UsageWarning line={{ planQty: p.planQty, priorQty: p.priorQty, quantity: quantityOf(l.quantity) }} thresholds={usage.thresholds} />}
                 {l.itemId && sp && sp.sectionPlanQty !== null && (
                   <p className="text-control text-muted-foreground" data-testid="mrq-section-plan">
                     {t('form.sectionPlanLine', '{{section}} plan {{plan}} · already requested {{prior}}', { section: terms.section, plan: sp.sectionPlanQty, prior: sp.sectionPriorQty ?? 0 })}

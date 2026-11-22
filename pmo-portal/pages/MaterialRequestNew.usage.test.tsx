@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
-  th: 60 as number | null,
+  th: { pct1: 60, pct2: 100 } as { pct1: number | null; pct2: number | null },
   tz: 'Asia/Jakarta',
   warehouses: [{ id: 'wh1', code: 'S1', name: 'Site one', kind: 'site', archived_at: null, project_id: 'p1' }] as unknown[],
   warehouseQuery: { isPending: false, isError: false, refetch: vi.fn() },
@@ -18,7 +18,7 @@ vi.mock('@/src/hooks/useMaterialRequests', () => ({
     isPending: false, isError: false,
   }),
   useMaterialRequestMutations: () => ({ saveDraft: h.saveDraft, submit: h.submit }),
-  useLinePlans: () => ({ data: [{ itemId: 'i1', planQty: 10, priorQty: 4, installedQty: 7 }], isPending: false, isError: false }),
+  useLinePlans: () => ({ data: [{ itemId: 'i1', planQty: 10, priorQty: 4 }], isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useWorkOrderSectionMaterials', () => ({
   useLiveSections: () => ({ data: [], isPending: false, isError: false }),
@@ -34,7 +34,7 @@ vi.mock('@/src/hooks/useStock', () => ({
 vi.mock('@/src/hooks/useOrgFxContext', () => ({ useOrgFxContext: () => ({ data: { currency: 'IDR', timezone: h.tz }, isPending: false }) }));
 vi.mock('@/src/components/shell', () => ({ BackBar: () => null }));
 
-vi.mock('@/src/hooks/useUsageThreshold', () => ({ useUsageThreshold: () => ({ threshold: h.th, reload: vi.fn() }) }));
+vi.mock('@/src/hooks/useUsageThresholds', () => ({ useUsageThresholds: () => ({ thresholds: h.th, reload: vi.fn() }) }));
 
 import MaterialRequestNewPage from './MaterialRequestNew';
 
@@ -43,20 +43,20 @@ const pick = async (label: RegExp, option: string) => {
   await userEvent.click(await screen.findByRole('option', { name: option }));
 };
 
-describe('AC-UW-010 usage warning on the request form', () => {
+describe('AC-MUT-009 usage warning on the request form', () => {
   it('warns on a line past the first threshold and still lets the request be saved and sent', async () => {
-    h.th = 60;
+    h.th = { pct1: 60, pct2: 100 };
     render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
     await pick(/^project/i, 'Site Alpha');
     await pick(/^work order/i, 'WO-1 · Slab');
     await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
     await userEvent.type(screen.getByLabelText(/^quantity/i), '3');
-    expect(await screen.findByTestId('mrq-usage-warning')).toHaveTextContent('Installed 7 of 10 planned (70%), past the 60% warning. Check the site before more is requested.');
+    expect(await screen.findByTestId('mrq-usage-warning')).toHaveTextContent('Use reaches 70% of plan, past the 60% warning.');
     expect(screen.getByRole('button', { name: 'Send for approval' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Save draft' })).toBeEnabled();
   });
   it('shows nothing extra while the thresholds are unset', async () => {
-    h.th = null;
+    h.th = { pct1: null, pct2: null };
     render(<MemoryRouter><ToastProvider><MaterialRequestNewPage /></ToastProvider></MemoryRouter>);
     await userEvent.selectOptions(screen.getByLabelText(/^item/i), 'i1');
     await userEvent.type(screen.getByLabelText(/^quantity/i), '3');

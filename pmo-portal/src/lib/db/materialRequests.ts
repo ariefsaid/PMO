@@ -135,37 +135,44 @@ export interface StepPin {
   approverId: string;
 }
 
-/** The organisation's usage warning: percent of plan, null = off (usage-warning spec FR-UW-001). */
-export type UsageThreshold = number | null;
+/** #2686: the organisation's two usage thresholds, percent of plan; null = off. */
+export interface UsageThresholds { pct1: number | null; pct2: number | null }
 
-export interface UsageWarning { threshold: number; reachedPct: number }
+export interface UsageWarning { slot: 1 | 2; threshold: number; reachedPct: number }
 
 /**
- * FR-UW-006: the warning a line has earned, or null. The measure is INSTALLED quantity (validated site reports), never what is
- * requested; plan 0 with any installed quantity is past the share. Advisory only: the server records the crossing when a report is validated.
+ * #2686 FR-MUT-002: the highest usage threshold a line has reached, or null. Use is prior plus this request's quantity (the
+ * FR-MRQ-002 measure); plan 0 with any use crosses every set threshold. Advisory only: it never blocks, the server records the crossing.
  */
-export function lineUsageWarning(l: { planQty: number; installedQty: number }, threshold: UsageThreshold | undefined): UsageWarning | null {
-  if (threshold === null || threshold === undefined) return null;
-  const installed = milli(l.installedQty);
+export function lineUsageWarning(l: { planQty: number; priorQty: number; quantity: number }, th: UsageThresholds | undefined | null): UsageWarning | null {
+  if (!th) return null;
+  const use = milli(l.priorQty) + milli(l.quantity);
   const plan = milli(l.planQty);
-  if (installed <= 0 || !(plan === 0 || installed * 100 >= threshold * plan)) return null;
-  return { threshold, reachedPct: plan > 0 ? Math.round((installed * 1000) / plan) / 10 : Infinity };
+  const reached = plan > 0 ? Math.round((use * 1000) / plan) / 10 : (use > 0 ? Infinity : 0);
+  const hit = (pct: number | null): pct is number => pct !== null && use > 0 && (plan === 0 || use * 100 >= pct * plan);
+  const slot: 1 | 2 | null = hit(th.pct2) ? 2 : hit(th.pct1) ? 1 : null;
+  if (!slot) return null;
+  return { slot, threshold: (slot === 2 ? th.pct2 : th.pct1) as number, reachedPct: reached };
 }
 
-/** AC-UW-011, client side: empty = off, otherwise 1 to 1000. The server re-checks. */
-export function parseUsageThreshold(a: string): { ok: true; value: UsageThreshold } | { ok: false; error: 'range' } {
-  const t = a.trim();
-  if (t === '') return { ok: true, value: null };
-  const n = Number(t);
-  return Number.isFinite(n) && n >= 1 && n <= 1000 ? { ok: true, value: Math.round(n * 100) / 100 } : { ok: false, error: 'range' };
+/** AC-MUT-008, client side: empty = off; each from 1 to 1000; the second above the first. The server re-checks. */
+export function parseUsageThresholds(a: string, b: string): { ok: true; value: UsageThresholds } | { ok: false; error: 'range' | 'order' } {
+  const one = (v: string): number | null | undefined => {
+    const t = v.trim();
+    if (t === '') return null;
+    const n = Number(t);
+    return Number.isFinite(n) && n >= 1 && n <= 1000 ? Math.round(n * 100) / 100 : undefined;
+  };
+  const pct1 = one(a); const pct2 = one(b);
+  if (pct1 === undefined || pct2 === undefined) return { ok: false, error: 'range' };
+  if (pct1 !== null && pct2 !== null && pct2 <= pct1) return { ok: false, error: 'order' };
+  return { ok: true, value: { pct1, pct2 } };
 }
 
 export interface LinePlan {
   itemId: string;
   planQty: number;
   priorQty: number;
-  /** Installed on the work order so far: material lines of validated site reports (FR-UW-002). */
-  installedQty: number;
   planSource: PlanSource | null;
 }
 
@@ -316,14 +323,11 @@ export async function listWaitingForMe(): Promise<WaitingStep[]> {
 /** FR-MRQ-002: plan and already-requested per item on a work order (the figures submit snapshots). */
 export async function getLinePlans(workOrderId: string, itemIds: string[], excludeRequestId?: string | null): Promise<LinePlan[]> {
   if (itemIds.length === 0) return [];
-  const [plans, installed] = await Promise.all([
-    supabase.rpc('mrq_plan_for', { p_work_order_id: workOrderId, p_item_ids: itemIds, ...(excludeRequestId ? { p_exclude_request: excludeRequestId } : {}) }),
-    supabase.rpc('mrq_installed_for', { p_work_order_id: workOrderId, p_item_ids: itemIds }),
-  ]);
-  if (plans.error) fail(plans.error);
-  if (installed.error) fail(installed.error);
-  const inst = new Map((installed.data ?? []).map((r) => [r.item_id, Number(r.installed_qty)]));
-  return (plans.data ?? []).map((p) => ({ itemId: p.item_id, planQty: Number(p.plan_qty), priorQty: Number(p.prior_qty), installedQty: inst.get(p.item_id) ?? 0, planSource: asPlanSource(p.plan_source) }));
+  const { data, error } = await supabase.rpc('mrq_plan_for', {
+    p_work_order_id: workOrderId, p_item_ids: itemIds, ...(excludeRequestId ? { p_exclude_request: excludeRequestId } : {}),
+  });
+  if (error) fail(error);
+  return (data ?? []).map((p) => ({ itemId: p.item_id, planQty: Number(p.plan_qty), priorQty: Number(p.prior_qty), planSource: asPlanSource(p.plan_source) }));
 }
 
 export async function listApprovalChain(): Promise<ChainStep[]> {
@@ -358,11 +362,11 @@ export async function getDeliveryNoteSettings(): Promise<DeliveryNoteSettings> {
   };
 }
 
-export async function getUsageThreshold(): Promise<UsageThreshold> {
-  const { data, error } = await supabase.from('material_request_settings').select('usage_warn_pct').limit(1);
+export async function getUsageThresholds(): Promise<UsageThresholds> {
+  const { data, error } = await (supabase.from('material_request_settings').select('usage_warn_pct_1, usage_warn_pct_2').limit(1) as unknown as DbResult<Array<{ usage_warn_pct_1: number | string | null; usage_warn_pct_2: number | string | null }>>);
   if (error) fail(error);
-  const v = data?.[0]?.usage_warn_pct;
-  return v === null || v === undefined ? null : Number(v);
+  const n = (v: number | string | null | undefined) => (v === null || v === undefined ? null : Number(v));
+  return { pct1: n(data?.[0]?.usage_warn_pct_1), pct2: n(data?.[0]?.usage_warn_pct_2) };
 }
 
 export async function listStandIns(): Promise<StandIn[]> {
@@ -458,21 +462,9 @@ export async function setDeliveryNoteSettings(enabled: boolean, signatureBlocks:
   if (error) fail(error);
 }
 
-export async function setUsageThreshold(pct: UsageThreshold): Promise<void> {
-  const { error } = await supabase.rpc('set_material_usage_threshold', { p_pct: nullableArg(pct) });
+export async function setUsageThresholds(th: UsageThresholds): Promise<void> {
+  const { error } = await supabase.rpc('mrq_set_usage_thresholds', { p_pct_1: nullableArg(th.pct1), p_pct_2: nullableArg(th.pct2) });
   if (error) fail(error);
-}
-
-/** FR-UW-006: the warnings recorded on a work order (installed material that reached the share), for its material card. */
-export interface RecordedUsageWarning { itemId: string; itemName: string; unit: string; installedQty: number; planQty: number; threshold: number }
-export async function listUsageWarnings(workOrderId: string): Promise<RecordedUsageWarning[]> {
-  const { data, error } = await supabase.from('material_request_usage_alerts')
-    .select('item_id, use_qty, plan_qty, pct, stock_items(name, stock_units(code))').eq('work_order_id', workOrderId).order('created_at', { ascending: true }).limit(200);
-  if (error) fail(error);
-  return (data ?? []).map((r) => ({
-    itemId: r.item_id, itemName: r.stock_items?.name ?? '', unit: r.stock_items?.stock_units?.code ?? '',
-    installedQty: Number(r.use_qty), planQty: Number(r.plan_qty), threshold: Number(r.pct),
-  }));
 }
 
 export async function setStandIn(s: { delegatorId: string; standInId: string; startsOn: string; endsOn: string }): Promise<string> {

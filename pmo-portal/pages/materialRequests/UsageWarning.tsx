@@ -1,20 +1,17 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { lineUsageWarning } from '@/src/lib/repositories/materialRequests';
+import { lineUsageWarning, type UsageThresholds } from '@/src/lib/repositories/materialRequests';
 
-/**
- * Advisory line warning when INSTALLED material (validated site reports) reaches the organisation's usage warning share of plan.
- * Renders nothing while the threshold is unset. Never blocks.
- */
-export const UsageWarning: React.FC<{ line: { planQty: number; installedQty: number }; threshold: number | null }> = ({ line, threshold }) => {
+/** #2686: advisory line warning when use of an item reaches a usage threshold. Renders nothing while thresholds are unset. Never blocks. */
+export const UsageWarning: React.FC<{ line: { planQty: number; priorQty: number; quantity: number }; thresholds: UsageThresholds | null }> = ({ line, thresholds }) => {
   const { t } = useTranslation('materialRequests');
-  const w = lineUsageWarning(line, threshold);
+  const w = lineUsageWarning(line, thresholds);
   if (!w) return null;
   return (
     <p role="status" className="text-control text-warning-foreground" data-testid="mrq-usage-warning">
       {Number.isFinite(w.reachedPct)
-        ? t('usage.reached', 'Installed {{installed}} of {{plan}} planned ({{reached}}%), past the {{threshold}}% warning. Check the site before more is requested.', { installed: line.installedQty, plan: line.planQty, reached: w.reachedPct, threshold: w.threshold })
-        : t('usage.planZero', 'Installed {{installed}} with no plan set, past the {{threshold}}% warning. Check the site before more is requested.', { installed: line.installedQty, threshold: w.threshold })}
+        ? t('usage.reached', 'Use reaches {{reached}}% of plan, past the {{threshold}}% warning.', { reached: w.reachedPct, threshold: w.threshold })
+        : t('usage.planZero', 'No plan is set, so any use is past the {{threshold}}% warning.', { threshold: w.threshold })}
     </p>
   );
 };

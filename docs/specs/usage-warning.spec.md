@@ -1,6 +1,6 @@
 # Spec: Warn the site engineer when installed material passes a share of plan
 
-**Status:** approved (coordinator), built in Phase 2. Rulings: OQ-UW-1 report author, OQ-UW-2 engineer only, OQ-UW-3 one threshold. Lane gap-material. Replaces the measure and the recipient of `docs/specs/material-request-usage-thresholds.spec.md` (#2686); that spec's FR-MUT-003..005 and 009 are superseded here. IDs `FR-UW-###`, `AC-UW-###`, `OQ-UW-#`. Plan: `docs/plans/2026-11-22-usage-warning.md`. Rulings in force: OD-SCOPE-2 (every number is a setting), OD-SCOPE-8 (material lines on a validated site report are the record of material used), warn and never block.
+**Status:** proposed, Phase 1. Lane gap-material. Replaces the measure and the recipient of `docs/specs/material-request-usage-thresholds.spec.md` (#2686); that spec's FR-MUT-003..005 and 009 are superseded here. IDs `FR-UW-###`, `AC-UW-###`, `OQ-UW-#`. Plan: `docs/plans/2026-11-22-usage-warning.md`. Rulings in force: OD-SCOPE-2 (every number is a setting), OD-SCOPE-8 (material lines on a validated site report are the record of material used), warn and never block.
 
 ## Job story
 
@@ -67,10 +67,10 @@ The measure becomes installed material from validated site reports, the check ru
 
 | Condition | Code | Sentence (English) |
 |---|---|---|
-| Non-Admin sets the threshold | `MRQ_USAGE_ADMIN_ONLY` | Only an Admin can change the usage warning. Ask an Admin to change it. |
-| Value outside 1 to 1000 | `MRQ_USAGE_INVALID` | Enter a percent of plan from 1 to 1000, or leave it empty to turn the warning off. |
+| Non-Admin sets the threshold | `MRQ_ADMIN_ONLY` | Only an Admin can change the usage warning. Ask an Admin to change it. |
+| Value outside 1 to 1000 | `MRQ_INVALID` | Enter a percent of plan from 1 to 1000, or leave it empty to turn the warning off. |
 
-(`MRQ_ADMIN_ONLY` and `MRQ_INVALID` already carry delivery-note sentences, so this feature has its own two codes, added to both locale files.)
+(Both codes exist in migrations; the plan checks `scripts/check-refusal-codes.mjs` and adds the Bahasa Indonesia sentences if either is absent.)
 
 ## Existing tests that change, and why
 

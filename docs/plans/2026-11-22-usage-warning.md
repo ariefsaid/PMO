@@ -10,9 +10,9 @@ Migrations 1860-1862 only. Rollbacks in `supabase/migrations/rollback/`. Builder
 
 ## Code (paths)
 
-- `pmo-portal/src/lib/db/materialRequests.ts`, `src/lib/repositories/materialRequests.ts`: `getUsageThreshold` (one value), `setUsageThreshold`, installed quantity folded into `getLinePlans`, `listUsageWarnings`; `lineUsageWarning` takes installed and plan. Generated types updated by the orchestrator after reset (no casts).
+- `pmo-portal/src/lib/db/materialRequests.ts`, `src/lib/repositories/materialRequests.ts`: `getUsageThreshold` (one value), `setUsageThreshold`, `installedFor`; `lineUsageWarning` takes installed and plan. Generated types updated by the orchestrator after reset (no casts).
 - `pmo-portal/src/hooks/useUsageThresholds.ts` becomes `useUsageThreshold.ts`.
-- `pmo-portal/pages/materialRequests/UsageWarning.tsx` (installed vs plan), `UsageThresholdsEditor.tsx` (one field), used from `MaterialRequestNew.tsx`, `MaterialRequestDetail.tsx`, `MaterialRequestSettings.tsx`; the work-order card shows the recorded warning as `pages/materialRequests/WorkOrderUsageWarningBanner.tsx`, rendered in `pages/project-detail/tabs/WorkOrderCustomerOrderCard.tsx` outside the stock expander so it is visible without opening anything.
+- `pmo-portal/pages/materialRequests/UsageWarning.tsx` (installed vs plan), `UsageThresholdsEditor.tsx` (one field), used from `MaterialRequestNew.tsx`, `MaterialRequestDetail.tsx`, `MaterialRequestSettings.tsx`; the work-order material card shows the recorded warning (`pages/stock/WorkOrderStockBalance.tsx` is the existing home).
 - Locale files (`materialRequests` namespace) English + Bahasa Indonesia; `refusals` namespace sentences for `MRQ_ADMIN_ONLY`, `MRQ_INVALID` if absent. New screens: `restructure` skill, tokens, phone 390px and desktop 1440px; disabled control says why.
 - Glossary: add **Installed material** and **Usage warning** to `docs/glossary.md`.
 
@@ -23,8 +23,6 @@ Migrations 1860-1862 only. Rollbacks in `supabase/migrations/rollback/`. Builder
 | UW-001..009 | `supabase/tests/usage_warning.test.sql` (replaces `mrq_usage_thresholds.test.sql`); mutation checks: count requests (UW-002), drop unset test (UW-005), drop admin test (UW-008) each go red | pgTAP |
 | UW-010 | `pages/materialRequests/UsageWarning.test.tsx`, `MaterialRequestNew.usage.test.tsx`, `MaterialRequestDetail.usage.test.tsx` | Unit |
 | UW-011 | `pages/MaterialRequestSettings.usage.test.tsx` | Unit |
-| UW-012 | `pmo-portal/e2e/serial/AC-UW-012-installed-usage-warning.spec.ts` (serial lane: sets an org-wide setting) | e2e |
-
-Refusals: `MRQ_USAGE_ADMIN_ONLY` and `MRQ_USAGE_INVALID` (the shared `MRQ_ADMIN_ONLY`/`MRQ_INVALID` carry delivery-note sentences). Also touched: `scripts/isolation-fixtures.sql`, `scripts/isolation-probe-denominator.d/2686-mrq-usage-thresholds.json`, `supabase/tests/inventory/anon-executable-definers/1330-mrq-usage-thresholds.txt`, hand-edited `database.types.ts` (the orchestrator regenerates after reset).
+| UW-012 | `pmo-portal/e2e/AC-UW-012-installed-usage-warning.spec.ts` (isolation tag per `docs/e2e-parallel-conventions.md`) | e2e |
 
 Gates in `pmo-portal/`: `npm run check:guards`, `npm run typecheck`, `npx eslint --max-warnings=0 <changed>`, `npx vitest related --run <changed>`; `npm run check:restated-functions`.

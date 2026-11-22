@@ -9,10 +9,10 @@ import { wrap } from './repositoryErrors';
 export type {
   MaterialRequestStatus, StepStatus, StepDecision, MaterialRequestHeader, MaterialRequestLineInput, MaterialRequestRow,
   MaterialRequestLine, MaterialRequestStep, MaterialRequestEvent, MaterialRequestDetail, WaitingStep, ChainStep,
-  ChainStepInput, StandIn, StepPin, LinePlan, PlanSource, UsageThreshold, UsageWarning, MaterialRequestFilter, MaterialRequestRefusal, DraftLineError,
+  ChainStepInput, StandIn, StepPin, LinePlan, PlanSource, UsageThresholds, UsageWarning, MaterialRequestFilter, MaterialRequestRefusal, DraftLineError,
   DeliveryNoteSettings,
 } from '@/src/lib/db/materialRequests';
-export { linePlanStatus, lineUsageWarning, parseUsageThreshold, draftLineErrors, materialRequestRefusal, MATERIAL_REQUEST_PAGE_SIZE, DEFAULT_DELIVERY_NOTE_SIGNATURE_BLOCKS } from '@/src/lib/db/materialRequests';
+export { linePlanStatus, lineUsageWarning, parseUsageThresholds, draftLineErrors, materialRequestRefusal, MATERIAL_REQUEST_PAGE_SIZE, DEFAULT_DELIVERY_NOTE_SIGNATURE_BLOCKS } from '@/src/lib/db/materialRequests';
 
 export const materialRequestRepository = {
   list: (f: dal.MaterialRequestFilter) => wrap(() => dal.listMaterialRequests(f)),
@@ -33,9 +33,8 @@ export const materialRequestRepository = {
   setCutoff: (cutoff: string | null) => wrap(() => dal.setMaterialRequestCutoff(cutoff)),
   deliveryNoteSettings: () => wrap(() => dal.getDeliveryNoteSettings()),
   setDeliveryNoteSettings: (enabled: boolean, signatureBlocks: string[]) => wrap(() => dal.setDeliveryNoteSettings(enabled, signatureBlocks)),
-  usageThreshold: () => wrap(() => dal.getUsageThreshold()),
-  setUsageThreshold: (pct: dal.UsageThreshold) => wrap(() => dal.setUsageThreshold(pct)),
-  usageWarnings: (workOrderId: string) => wrap(() => dal.listUsageWarnings(workOrderId)),
+  usageThresholds: () => wrap(() => dal.getUsageThresholds()),
+  setUsageThresholds: (th: dal.UsageThresholds) => wrap(() => dal.setUsageThresholds(th)),
   approverInbox: () => wrap(() => dal.getApproverInboxSetting()),
   setApproverInbox: (on: boolean) => wrap(() => dal.setApproverInboxSetting(on)),
   standIns: () => wrap(() => dal.listStandIns()),
