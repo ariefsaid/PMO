@@ -75,6 +75,8 @@ Named, as built (steps only: pick or seed a listed type; goals and oracles uncha
 Original note:
 Specs or tests that create an issue with an arbitrary type string (`IncidentFormModal.test.tsx`, `Incidents*.test.tsx`, pgTAP `0979_site_issue_log.test.sql` and any other file inserting `incident_reports`, and e2e that types free text into the Type field) must pick or seed a listed type; found by grep at build and named in the report. The register, analytics and print tests stay untouched (they read `type` text).
 
+Found by the e2e run: the shipped closing-time report gated its read on `can('view', 'incident')`, an action the policy table did not define, so the report never loaded in the app (it showed "Loading" forever). `incident.view: allow(ALL)` is added to `pmo-portal/src/auth/policy.ts` (UX gate only; the report RPC and row security stay the authority).
+
 ## 6. Decisions (answered by the coordinator, 2026-11-22; no open owner questions)
 1. Hours worked = the site day on the daily report (start to end), net of its recorded stopped time (recommended; both already captured). Alternative: person-hours from approved timesheets. Built meanwhile: site day.
 2. A type not on the list is refused for everyone (recommended, as the job story says "not free text"). Alternative: any member may add a type on the spot. Built meanwhile: Admin-only list, refusal tells them whom to ask.

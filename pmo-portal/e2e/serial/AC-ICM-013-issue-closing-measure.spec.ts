@@ -1,6 +1,6 @@
 // @e2e-isolation: serial — turns the closing-time report on for the org (org-global setting) and restores it afterwards.
 import { test, expect } from '@playwright/test';
-import { signIn } from '../helpers';
+import { pickComboboxOption, signIn } from '../helpers';
 import { cleanSiteIssue } from '../siteIssueFixture';
 import { ENGINEER_ID, ORG_ID, PM_ID, need, serviceClient } from '../support/jobJourney';
 import { seedWorkOrder } from '../support/crewJourney';
@@ -45,9 +45,10 @@ test('AC-ICM-013: a listed type, closed issues grouped by it, and effective hour
   // The Admin adds the type on the Administration card.
   await signIn(page, 'admin@acme.test');
   await page.goto('/administration/projects');
-  await page.getByLabel('New issue type').fill(type);
-  await page.getByRole('button', { name: 'Add' }).first().click();
-  await expect(page.getByText(type, { exact: true })).toBeVisible();
+  const card = page.getByRole('region', { name: 'Issue types' });
+  await card.getByLabel('New issue type').fill(type);
+  await card.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(card.getByText(type, { exact: true })).toBeVisible();
 
   // A manager raises an issue: the type is a pick from the list, not free text.
   await signIn(page, 'pm@acme.test');
@@ -59,21 +60,21 @@ test('AC-ICM-013: a listed type, closed issues grouped by it, and effective hour
   await dialog.getByLabel(/severity/i).selectOption('Low');
   await dialog.getByRole('button', { name: /^file incident$/i }).click();
   await page.getByRole('link', { name: new RegExp(`open ${type}`, 'i') }).click();
-  await page.getByRole('button', { name: /start investigating|investigate/i }).first().click();
-  await page.getByRole('button', { name: /^close/i }).first().click();
-  const confirm = page.getByRole('dialog');
-  if (await confirm.isVisible()) await confirm.getByRole('button', { name: /close/i }).last().click();
+  await page.getByTestId('incident-advance').click();
+  await page.getByRole('dialog').getByRole('button', { name: /start investigating/i }).click();
+  await expect(page.getByTestId('incident-pills')).toHaveAttribute('data-status', 'Investigating', { timeout: 20_000 });
+  await page.getByTestId('incident-advance').click();
+  await page.getByRole('dialog').getByRole('button', { name: /close incident/i }).click();
+  await expect(page.getByTestId('incident-pills')).toHaveAttribute('data-status', 'Closed', { timeout: 20_000 });
 
   // The closing-time report groups by the type's label, with the effective hours of the work order beside it.
   await page.goto('/incidents/closing-time');
   await page.getByTestId('preset-all').click();
-  await expect(page.getByTestId('closing-time-report')).toContainText(type);
+  await expect(page.getByTestId('closing-time-report')).toContainText(type, { timeout: 20_000 });
   await page.getByTestId('preset-90d').click();
   const panel = page.getByTestId('effective-hours-panel');
-  await panel.getByLabel('Project').click();
-  await page.getByRole('option', { name: new RegExp(run) }).first().click();
-  await panel.getByLabel('Work order').click();
-  await page.getByRole('option').first().click();
+  await pickComboboxOption(panel, page, /^Project/, new RegExp(run));
+  await pickComboboxOption(panel, page, /^Work order/);
   const table = panel.getByTestId('effective-hours-table');
   await expect(table).toContainText('8.5');
   await expect(table).toContainText('2.0');
