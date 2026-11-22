@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
 import { useFeature } from '@/src/auth/useFeature';
-import { usePermission } from '@/src/auth/usePermission';
+import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { Button, FieldError, TextField } from '@/src/components/ui';
@@ -18,7 +18,8 @@ export default function OrgImprestLimit() {
   const { t } = useTranslation();
   const on = useFeature('imprest');
   const orgId = useAuth().currentUser?.org_id;
-  const canManage = usePermission()('manage', 'orgAccounting');
+  // Admin only, as `set_imprest_procurement_limit` is: the real role, not the role being viewed as.
+  const canManage = useOptionalRealRole() === 'Admin';
   const orgCurrency = useOrgCurrencyState();
   const qc = useQueryClient();
   const queryKey = ['imprest-limit', orgId];

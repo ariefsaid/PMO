@@ -12,6 +12,7 @@ import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import type { SubcontractBillLineInput } from '@/src/lib/db/subcontracts';
 import type { ProcurementStatus, ProcurementDetail, TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { toastStateLabel } from '../../components/procurement';
+import { isOrderNeedsSupplier } from './orderSupplierError';
 import { classifySubcontractBillError } from './subcontractBillError';
 import type { ActionVariant } from '@/src/lib/procurement/mainAction';
 import type { VendorInvoiceCapture } from './ProcurementDecisionZone';
@@ -286,7 +287,7 @@ export function useProcurementDecision(
         'success',
       );
     } catch (err) {
-      if (to === 'Ordered' && /^ORDER_NEEDS_SUPPLIER/.test(err instanceof Error ? err.message : '')) {
+      if (to === 'Ordered' && isOrderNeedsSupplier(err)) {
         setPendingConfirm(null);
         ui.openSupplierPicker?.();
         toast(t('procurementRecord:order.needsSupplierTitle', 'Choose the supplier first'), t('procurementRecord:order.needsSupplier', 'An order needs its supplier. Choose it, then record the order.'), 'warning');

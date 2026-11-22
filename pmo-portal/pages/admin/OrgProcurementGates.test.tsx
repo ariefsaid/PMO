@@ -3,9 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const h = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), getLimit: vi.fn(), setLimit: vi.fn(), canManage: true, imprestOn: true }));
+const h = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), getLimit: vi.fn(), setLimit: vi.fn(), canManage: true, imprestOn: true, limitRole: 'Admin' as string }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: { getProcurementGates: h.get, setProcurementGates: h.set }, imprest: { getProcurementLimit: h.getLimit, setProcurementLimit: h.setLimit } } }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => h.imprestOn }));
+vi.mock('@/src/auth/impersonation', () => ({ useOptionalRealRole: () => h.limitRole }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canManage }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o' } }) }));
 
@@ -17,7 +18,7 @@ const renderIt = () => render(
 );
 
 describe('OrgProcurementGates', () => {
-  beforeEach(() => { vi.clearAllMocks(); h.canManage = true; h.imprestOn = true; h.getLimit.mockResolvedValue(null); });
+  beforeEach(() => { vi.clearAllMocks(); h.canManage = true; h.imprestOn = true; h.limitRole = 'Admin'; h.getLimit.mockResolvedValue(null); });
 
   it('AC-PFE-014: an Admin turns on approval before payment', async () => {
     h.get.mockResolvedValue(OFF);
@@ -83,10 +84,10 @@ describe('OrgProcurementGates', () => {
     await waitFor(() => expect(h.setLimit).toHaveBeenCalledWith(5000000));
   });
 
-  it('JOB-PU20 a non-Admin sees the limit but cannot change it, and the field is hidden when site cash is off', async () => {
+  it('JOB-PU20 a role that may manage accounting but is not an Admin sees the limit and cannot change it', async () => {
     h.get.mockResolvedValue(OFF);
     h.getLimit.mockResolvedValue(5000000);
-    h.canManage = false;
+    h.limitRole = 'Executive';
     renderIt();
     expect(await screen.findByLabelText('Limit per spend')).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Save limit' })).toBeNull();
