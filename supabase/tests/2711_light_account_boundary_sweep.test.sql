@@ -442,7 +442,6 @@ insert into la_table_allow values
   ('imprest_cash_counts', 'the existing policy joins a parent whose own rows a field account cannot read'),
   ('imprest_float_changes', 'the existing policy joins a parent whose own rows a field account cannot read'),
   ('imprest_plan_lines', 'the existing policy joins a parent whose own rows a field account cannot read'),
-  ('imprest_plan_line_splits', 'the existing policy joins a parent whose own rows a field account cannot read'),
   ('imprest_plans', 'the existing policy joins a parent whose own rows a field account cannot read'),
   ('imprest_posting_erp_mirror', 'the existing policy joins a parent whose own rows a field account cannot read'),
   ('imprest_replenishments', 'the existing policy joins a parent whose own rows a field account cannot read'),
