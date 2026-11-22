@@ -746,6 +746,8 @@ before it closes (the organisation names the items; PMO ships none). A work orde
 it closes only when every required item is done. A material joint count, loss report or completion report is an item of
 the same list, not a separate mechanism.
 
+**Work-order billing steps** (*langkah penagihan surat perintah kerja*) — an advisory list copied onto a work order when it is issued, from the organisation's default billing step template (none chosen: no list). Each step has an owner role (a built-in role), an optional named person, target days, attachments and a status; it never gates an invoice (the claim's own billing stages do). Read through *see billing steps*, acted on through *run billing steps* (or as the step's owner role or named person); a role the template hides a step from does not see it, and the named person is exempt (billing-steps.spec.md).
+
 **Close-out item** (*butir penutupan*) — one line of a work order's checklist: required or optional, with an attached
 issued or approved project document, a done date and who marked it. Items are done in order; an item's age counts from the
 previous item's done date (the issue date for the first).

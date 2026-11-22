@@ -26,6 +26,7 @@ import { PerformanceIndices } from './work-order-detail/PerformanceIndices';
 import { DailyTargetGate } from './work-order-detail/DailyTargetGate';
 import { DocumentsSection } from './work-order-detail/DocumentsSection';
 import { CloseoutSection } from './work-order-detail/CloseoutSection';
+import { BillingStepsSection } from './work-order-detail/BillingStepsSection';
 import { QuantityChangesSection } from './work-order-detail/QuantityChangesSection';
 import { SectionsSection } from './work-order-detail/SectionsSection';
 import { ConsumablePlanSection } from './work-order-detail/ConsumablePlanSection';
@@ -136,6 +137,7 @@ const WorkOrderDetail: React.FC = () => {
         <DailyTargetGate workOrderId={row.id} />
         <BillingSection billing={canBilling ? { row: billingRow, isPending: billing.isPending, isError: billing.isError, onRetry: () => void billing.refetch() } : null}
           acceptances={acceptances} acceptancesPending={bastList.isPending} acceptancesError={bastList.isError} onRetryAcceptances={() => void bastList.refetch()} />
+        <BillingStepsSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         <CloseoutSection workOrderId={row.id} projectId={row.project_id} status={row.status} />
         {may('view', 'quantityChange') && <QuantityChangesSection workOrderId={row.id} projectId={row.project_id} status={row.status} />}
         <InspectionsSection workOrderId={row.id} />

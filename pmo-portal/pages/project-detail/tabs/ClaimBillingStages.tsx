@@ -14,6 +14,7 @@ import { formatIsoDay, formatNumberExact, formatTableMoney } from '@/src/lib/for
 import { localToday } from '@/src/lib/efaktur';
 import { RetentionReleases } from './RetentionReleases';
 import { ClaimStepsPanel } from './ClaimStepsPanel';
+import { ClaimWorkOrderSteps } from './ClaimWorkOrderSteps';
 import { useRoleOptions } from '@/src/hooks/useRoleOptions';
 import type { ClaimBillingStage } from '@/src/lib/db/billingStages';
 
@@ -29,6 +30,8 @@ export interface ClaimBillingStagesProps {
   currency: string;
   invoiced: boolean;
   withdrawn: boolean;
+  /** The claim's work order: its billing step list is linked from here, never copied (billing-steps.spec.md). */
+  workOrderId?: string | null;
   /** The organisation's calendar day; the server re-checks dates on its own calendar. */
   today?: string;
 }
@@ -72,7 +75,7 @@ const SkipStageDialog: React.FC<{ claimId: string; projectId: string; stage: Cla
     onConfirm={(reason) => void confirm(reason)} onCancel={onClose} />;
 };
 
-export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId, projectId, currency, invoiced, withdrawn, today = localToday() }) => {
+export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId, projectId, currency, invoiced, withdrawn, workOrderId, today = localToday() }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
   const roles = useRoleOptions();
@@ -243,6 +246,7 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
       })}
     </ol>}
     {trace.stages.length > 0 && <ClaimStepsPanel claimId={claimId} projectId={projectId} stages={trace.stages} open={open} />}
+    <ClaimWorkOrderSteps workOrderId={workOrderId} />
     {skipping && <SkipStageDialog claimId={claimId} projectId={projectId} stage={skipping} onClose={() => setSkipping(null)} />}
   </section>;
 };

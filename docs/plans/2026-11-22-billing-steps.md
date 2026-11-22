@@ -3,7 +3,7 @@
 Migrations (1770-1779, each with `supabase/migrations/rollback/<n>_<name>_down.sql`; restated bodies taken from the latest migration defining them):
 - 1770_wo_billing_steps_tables: the two step tables, `org_billing_step_settings`, template-step columns, RLS (org + active member), restrictive light deny, grants select only.
 - 1771_billing_steps_capabilities: widen the `built_in_role_capabilities` CHECK, insert default grants (spec 3), gates `actor_may_see_billing_steps()` / `actor_may_run_billing_steps()` (the only readers of the literals), per-step visibility helper, step select policies.
-- 1772_wo_billing_step_functions: `set_default_billing_step_template`, `assign_work_order_step`, `attach_work_order_step_document`, `complete_work_order_step`, `skip_work_order_step` (pattern 1401/1418, all with `assert_not_light()`); restate `save_billing_step_template` (latest body 1480) to carry `owner_role_key` and `hidden_from_role_keys`.
+- 1772_wo_billing_step_functions: `set_default_billing_step_template`, `set_billing_step_template_roles` (a new function: no restatement of `save_billing_step_template`), `assign_work_order_step`, `attach_work_order_step_document`, `complete_work_order_step`, `skip_work_order_step` (pattern 1401/1418, all with `assert_not_light()`).
 - 1773_wo_billing_step_issue_trigger: Draft->Issued copy (pattern 1402) and the step-opened notice through `notify_workflow_user(..., 'billing_step')`.
 - 1774_wo_billing_step_reads: `my_waiting_work_order_steps`, board and claim-side reads (visibility enforced in the definer body).
 

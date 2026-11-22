@@ -1188,33 +1188,39 @@ export type Database = {
       billing_step_template_steps: {
         Row: {
           client_side: boolean
+          hidden_from_role_keys: string[]
           id: string
           name: string
           optional: boolean
           org_id: string
           owner_role: Database["public"]["Enums"]["user_role"] | null
+          owner_role_key: string | null
           position: number
           target_days: number | null
           template_id: string
         }
         Insert: {
           client_side?: boolean
+          hidden_from_role_keys?: string[]
           id?: string
           name: string
           optional?: boolean
           org_id: string
           owner_role?: Database["public"]["Enums"]["user_role"] | null
+          owner_role_key?: string | null
           position: number
           target_days?: number | null
           template_id: string
         }
         Update: {
           client_side?: boolean
+          hidden_from_role_keys?: string[]
           id?: string
           name?: string
           optional?: boolean
           org_id?: string
           owner_role?: Database["public"]["Enums"]["user_role"] | null
+          owner_role_key?: string | null
           position?: number
           target_days?: number | null
           template_id?: string
@@ -1226,6 +1232,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_step_template_steps_owner_role_key_fkey"
+            columns: ["owner_role_key"]
+            isOneToOne: false
+            referencedRelation: "built_in_roles"
+            referencedColumns: ["key"]
           },
           {
             foreignKeyName: "billing_step_template_steps_template_id_fkey"
@@ -12787,6 +12800,49 @@ export type Database = {
           },
         ]
       }
+      org_billing_step_settings: {
+        Row: {
+          default_template_id: string | null
+          org_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          default_template_id?: string | null
+          org_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          default_template_id?: string | null
+          org_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_billing_step_settings_default_template_id_fkey"
+            columns: ["default_template_id"]
+            isOneToOne: false
+            referencedRelation: "billing_step_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_billing_step_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_billing_step_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_crew_tool_settings: {
         Row: {
           coordinator_id: string | null
@@ -24097,6 +24153,194 @@ export type Database = {
           },
         ]
       }
+      work_order_billing_step_documents: {
+        Row: {
+          attached_at: string | null
+          attached_by: string | null
+          document_id: string | null
+          id: string
+          name: string
+          org_id: string
+          position: number
+          required: boolean
+          step_id: string
+          work_order_id: string
+        }
+        Insert: {
+          attached_at?: string | null
+          attached_by?: string | null
+          document_id?: string | null
+          id?: string
+          name: string
+          org_id: string
+          position: number
+          required?: boolean
+          step_id: string
+          work_order_id: string
+        }
+        Update: {
+          attached_at?: string | null
+          attached_by?: string | null
+          document_id?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          position?: number
+          required?: boolean
+          step_id?: string
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_order_billing_step_documents_attached_by_fkey"
+            columns: ["attached_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_step_documents_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_step_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_step_documents_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "work_order_billing_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_step_documents_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_order_billing_steps: {
+        Row: {
+          assignee_id: string | null
+          created_at: string
+          done_at: string | null
+          done_by: string | null
+          done_on: string | null
+          hidden_from_role_keys: string[]
+          id: string
+          name: string
+          optional: boolean
+          org_id: string
+          owner_role_key: string | null
+          position: number
+          project_id: string
+          skipped_by: string | null
+          skipped_on: string | null
+          started_on: string | null
+          target_days: number | null
+          work_order_id: string
+        }
+        Insert: {
+          assignee_id?: string | null
+          created_at?: string
+          done_at?: string | null
+          done_by?: string | null
+          done_on?: string | null
+          hidden_from_role_keys?: string[]
+          id?: string
+          name: string
+          optional?: boolean
+          org_id: string
+          owner_role_key?: string | null
+          position: number
+          project_id: string
+          skipped_by?: string | null
+          skipped_on?: string | null
+          started_on?: string | null
+          target_days?: number | null
+          work_order_id: string
+        }
+        Update: {
+          assignee_id?: string | null
+          created_at?: string
+          done_at?: string | null
+          done_by?: string | null
+          done_on?: string | null
+          hidden_from_role_keys?: string[]
+          id?: string
+          name?: string
+          optional?: boolean
+          org_id?: string
+          owner_role_key?: string | null
+          position?: number
+          project_id?: string
+          skipped_by?: string | null
+          skipped_on?: string | null
+          started_on?: string | null
+          target_days?: number | null
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_order_billing_steps_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_steps_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_steps_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_steps_owner_role_key_fkey"
+            columns: ["owner_role_key"]
+            isOneToOne: false
+            referencedRelation: "built_in_roles"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "work_order_billing_steps_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_steps_skipped_by_fkey"
+            columns: ["skipped_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_order_billing_steps_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_order_candidate_items: {
         Row: {
           candidate_id: string
@@ -27389,6 +27633,8 @@ export type Database = {
       }
       actor_holds_built_in_role: { Args: { p_key: string }; Returns: boolean }
       actor_is_light: { Args: never; Returns: boolean }
+      actor_may_run_billing_steps: { Args: never; Returns: boolean }
+      actor_may_see_billing_steps: { Args: never; Returns: boolean }
       actor_may_see_prices: { Args: never; Returns: boolean }
       actor_may_see_prices_now: { Args: never; Returns: boolean }
       actor_sees_prices: { Args: never; Returns: boolean }
@@ -27713,6 +27959,10 @@ export type Database = {
         Args: { p_billing_kind?: string; p_project_id: string; p_si_id: string }
         Returns: undefined
       }
+      assign_work_order_step: {
+        Args: { p_person: string; p_step: string }
+        Returns: undefined
+      }
       attach_billing_stage_document: {
         Args: { p_document: string; p_item: string }
         Returns: undefined
@@ -27723,6 +27973,10 @@ export type Database = {
       }
       attach_closeout_item_document: {
         Args: { p_document: string; p_item: string }
+        Returns: undefined
+      }
+      attach_work_order_step_document: {
+        Args: { p_document: string; p_slot: string; p_step: string }
         Returns: undefined
       }
       attach_erp_journal_lines: {
@@ -28468,6 +28722,10 @@ export type Database = {
           p_expected_paired_at: string
           p_pmo_id: string
         }
+        Returns: undefined
+      }
+      complete_work_order_step: {
+        Args: { p_done_on: string; p_step: string }
         Returns: undefined
       }
       complete_billing_stage: {
@@ -32103,6 +32361,19 @@ export type Database = {
           step_name: string
         }[]
       }
+      my_waiting_work_order_steps: {
+        Args: never
+        Returns: {
+          project_id: string
+          project_name: string
+          started_on: string
+          step_id: string
+          step_name: string
+          target_days: number
+          work_order_id: string
+          work_order_label: string
+        }[]
+      }
       native_down_payment_item: { Args: never; Returns: string }
       native_invoice_gross: {
         Args: {
@@ -34634,6 +34905,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_billing_step_template_roles: {
+        Args: { p_roles: Json; p_template: string }
+        Returns: number
+      }
+      set_default_billing_step_template: {
+        Args: { p_template: string }
+        Returns: undefined
+      }
       set_closeout_checklist: { Args: { p_items: Json }; Returns: number }
       set_contract_rate_assignee: {
         Args: {
@@ -35305,6 +35584,7 @@ export type Database = {
         }
         Returns: Json
       }
+      skip_work_order_step: { Args: { p_step: string }; Returns: undefined }
       skip_billing_stage: {
         Args: { p_reason: string; p_stage: string }
         Returns: undefined
@@ -36378,6 +36658,10 @@ export type Database = {
           p_work_order: string
         }
         Returns: Json
+      }
+      wo_step_readable: {
+        Args: { p_assignee: string; p_hidden: string[]; p_owner_key: string }
+        Returns: boolean
       }
       work_order_certified_cost: {
         Args: { p_work_order: string }

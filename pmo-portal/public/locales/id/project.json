@@ -529,7 +529,13 @@
           "reason": "Berikan alasan sepanjang 3 sampai 500 karakter.",
           "name": "Beri nama langkah.",
           "shape": "Satu klaim paling banyak memiliki 20 langkah."
-        }
+        },
+        "workOrderOwner": "Pemilik pada surat perintah kerja",
+        "hideFrom": "Sembunyikan langkah ini dari suatu peran",
+        "hidePick": "Pilih peran",
+        "hiddenList": "Disembunyikan dari",
+        "hiddenFrom": "Disembunyikan dari {{role}}",
+        "unhide": "Tampilkan lagi kepada {{role}}"
       },
       "templates": {
         "title": "Templat langkah penagihan",
@@ -553,7 +559,12 @@
         "stepName": "Nama langkah",
         "addStep": "Tambah langkah",
         "stepsMissing": "Tambahkan minimal satu langkah dan beri nama setiap langkah.",
-        "save": "Simpan templat"
+        "save": "Simpan templat",
+        "isDefault": "Dipakai untuk surat perintah kerja baru",
+        "clearDefault": "Berhenti memakai",
+        "clearDefaultNamed": "Berhenti memakai {{name}} untuk surat perintah kerja baru",
+        "useDefault": "Pakai untuk surat perintah kerja baru",
+        "useDefaultNamed": "Pakai {{name}} untuk surat perintah kerja baru"
       },
       "terms": {
         "title": "Ketentuan penagihan",

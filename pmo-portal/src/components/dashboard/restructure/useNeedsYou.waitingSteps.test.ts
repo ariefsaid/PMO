@@ -25,3 +25,18 @@ describe('needs-you billing step pointer (AC-CBS-012)', () => {
     expect(buildNeedsItems('Engineer', { waitingBillingSteps: fact }, translate, 'IDR')).toEqual([]);
   });
 });
+
+describe('needs-you work-order billing step pointer (AC-WBS-009)', () => {
+  const fact = { count: 2, overdue: 1, href: '/work-orders' };
+
+  it('shows one pointer for every role, with the overdue count, linking to the work order or list', () => {
+    for (const role of ['Engineer', 'Finance', 'Project Manager'] as const) {
+      const item = buildNeedsItems(role, { waitingWorkOrderSteps: fact }, translate, 'IDR').find((i) => i.id === 'work-order-steps-waiting');
+      expect(item).toMatchObject({ count: 2, label: 'work-order billing steps waiting for you', detail: '1 past target', href: '/work-orders', tone: 'lost' });
+    }
+  });
+
+  it('adds no item when nothing waits', () => {
+    expect(buildNeedsItems('Finance', {}, translate, 'IDR').some((i) => i.id === 'work-order-steps-waiting')).toBe(false);
+  });
+});

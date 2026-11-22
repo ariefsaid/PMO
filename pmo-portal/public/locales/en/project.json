@@ -529,7 +529,13 @@
           "reason": "Give a reason of 3 to 500 characters.",
           "name": "Name the step.",
           "shape": "A claim has at most 20 steps."
-        }
+        },
+        "workOrderOwner": "Owner on a work order",
+        "hideFrom": "Hide this step from a role",
+        "hidePick": "Choose a role",
+        "hiddenList": "Hidden from",
+        "hiddenFrom": "Hidden from {{role}}",
+        "unhide": "Show to {{role}} again"
       },
       "templates": {
         "title": "Billing step templates",
@@ -553,7 +559,12 @@
         "stepName": "Step name",
         "addStep": "Add step",
         "stepsMissing": "Add at least one step and name every step.",
-        "save": "Save template"
+        "save": "Save template",
+        "isDefault": "Used for new work orders",
+        "clearDefault": "Stop using",
+        "clearDefaultNamed": "Stop using {{name}} for new work orders",
+        "useDefault": "Use for new work orders",
+        "useDefaultNamed": "Use {{name}} for new work orders"
       },
       "terms": {
         "title": "Billing terms",

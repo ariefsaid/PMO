@@ -199,6 +199,6 @@ export const WorkOrderClaimDrawer: React.FC<{
         : <ClaimEvidenceList evidence={claim.evidence ?? []} documents={documents} />}
     </section>
     {claim.kind === 'progress' && <ClaimBillingStages claimId={claim.id} projectId={projectId} currency={currency}
-      invoiced={Boolean(claim.invoice)} withdrawn={Boolean(claim.withdrawn_at)} today={today} />}
+      invoiced={Boolean(claim.invoice)} withdrawn={Boolean(claim.withdrawn_at)} workOrderId={claim.work_order_id} today={today} />}
   </Drawer>;
 };

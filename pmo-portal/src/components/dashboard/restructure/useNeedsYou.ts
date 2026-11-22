@@ -34,8 +34,11 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { supplierUnpaid, withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { selectOverdueTaskCount } from './overdueTasks';
-import { useWaitingSteps } from '@/src/hooks/useBillingSteps';
+import { useWaitingSteps, useWaitingWorkOrderSteps } from '@/src/hooks/useBillingSteps';
 import { summariseWaitingSteps } from '@/src/lib/waitingSteps';
+import { summariseWaitingWorkOrderSteps } from '@/src/lib/workOrderBillingSteps';
+import type { WaitingWorkOrderStepsFact } from '@/src/lib/workOrderBillingSteps';
+import { localToday } from '@/src/lib/efaktur';
 import type { WaitingStepsFact } from '@/src/lib/waitingSteps';
 
 export type NeedsTone = 'warn' | 'neutral' | 'lost';
@@ -90,6 +93,8 @@ export interface NeedsYouFacts {
   returnedExpenses?: number;
   /** Billing steps waiting on the viewer's role (#2680): a pointer derived on read, absent when none, unread or the read failed. */
   waitingBillingSteps?: WaitingStepsFact;
+  /** Work-order billing steps waiting for the viewer (named person, else their built-in role): derived on read, cleared when the step is done. */
+  waitingWorkOrderSteps?: WaitingWorkOrderStepsFact;
 }
 
 type Translate = (key: string, defaultValue: string, options?: Record<string, unknown>) => string;
@@ -216,6 +221,16 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       id: 'billing-steps-waiting', count: w.count,
       label: counted(t, 'needs.billingSteps', 'billing step waiting on your role', 'billing steps waiting on your role', w.count),
       detail: w.oldestOverdueDays !== null ? t('needs.billingStepsOverdue', 'oldest {{count}} days overdue', { count: w.oldestOverdueDays }) : undefined,
+      href: w.href, tone: w.overdue > 0 ? 'lost' : 'warn',
+    });
+  }
+
+  if (facts.waitingWorkOrderSteps) {
+    const w = facts.waitingWorkOrderSteps;
+    add({
+      id: 'work-order-steps-waiting', count: w.count,
+      label: counted(t, 'needs.workOrderSteps', 'work-order billing step waiting for you', 'work-order billing steps waiting for you', w.count),
+      detail: w.overdue > 0 ? t('needs.workOrderStepsOverdue', '{{count}} past target', { count: w.overdue }) : undefined,
       href: w.href, tone: w.overdue > 0 ? 'lost' : 'warn',
     });
   }
@@ -371,6 +386,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const invoiceApprovals = useInvoicesAwaitingViewer();
   // #2680: steps waiting on the viewer's role. Additive: a failed or unread query adds no item and never blocks the list.
   const waitingStepsQuery = useWaitingSteps(Boolean(orgId && role && role !== 'Engineer'));
+  // Work-order billing steps waiting for the viewer (any role: the database returns only what they may see and act on).
+  const waitingWoStepsQuery = useWaitingWorkOrderSteps(Boolean(orgId && role));
 
   const procApprovals = useMemo(
     () => pendingProcurementApprovals(procurementsQuery.data, userId, realRole === 'Admin'),
@@ -447,6 +464,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     timesheetStatus: currentTimesheet?.status ?? (currentWeek && !timesheetsQuery.isPending && !timesheetsQuery.isError ? 'Draft' : null),
     engineerTasks: role === 'Engineer' && !myTasksQuery.isPending && !myTasksQuery.isError && currentWeek ? engineerTasksCount : undefined,
     waitingBillingSteps: waitingStepsQuery.isSuccess ? summariseWaitingSteps(waitingStepsQuery.data ?? []) ?? undefined : undefined,
+    waitingWorkOrderSteps: waitingWoStepsQuery.isSuccess ? summariseWaitingWorkOrderSteps(waitingWoStepsQuery.data ?? [], organizationDay.day ?? localToday()) ?? undefined : undefined,
     returnedExpenses: role === 'Engineer' && !expenseClaimsQuery.isPending && !expenseClaimsQuery.isError ? currentReturnedExpenses.length : undefined,
   };
 

@@ -1,6 +1,6 @@
 # Spec: A work order's billing step list from the day it is issued
 
-**Status:** draft for approval (phase 2). Lane gap-billing, slug `billing-steps` (branch `feat/gap-billing-wo-steps`). Migrations 1770-1779.
+**Status:** approved by the coordinator (OD-WBS-1..6 as answered); built, awaiting the wave run. Lane gap-billing, slug `billing-steps` (branch `feat/gap-billing-wo-steps`). Migrations 1770-1779.
 IDs `FR-WBS-###`, `AC-WBS-###`, `OD-WBS-#`. Plan: `docs/plans/2026-11-22-billing-steps.md`. Advisory and not a money path: it never gates
 invoicing. Builds on `claim-billing-steps.spec.md` (#2680), `billing-board.spec.md`, `builtin-role-set.spec.md` (one capability gate).
 Supersedes the reversal design drafted on `feat/gap-billing-billing-steps`; only its verify findings are reused.
@@ -65,6 +65,17 @@ names can act on their own steps. A role the organisation names does not see a s
   with English and Bahasa Indonesia refusals; a disabled control says why.
 - **FR-WBS-011** Nothing of one customer's process is in code: step names, days, roles and hidden-from lists are template data.
 
+## 2a. How the two layers combine (approved)
+A step is READ by a person when, in order: (1) they are the step's named person (always); else (2) their built-in role is not in the step's
+hidden-from list; and (3) they hold `billing_steps_view`, or their role is the step's owner role. Hidden-from therefore beats every right and
+the owner role; only the named person is exempt. A step is ACTED ON (attach, finish, skip, name a person) by a reader who is the named person,
+holds the step's owner role, or holds `billing_steps_run`; a Project Manager level person acting through the run right only on a project they
+manage. Documents follow their step. The one read rule is `wo_step_readable` (policies, locks and the waiting read all use it); the waiting
+read and the board are SECURITY INVOKER over those policies, so no read has a second copy of the rule. A person with no built-in role key falls
+back to today's claim-step levels: see = Admin, Executive, Project Manager, Finance; run = Admin, Finance, Project Manager. Light accounts hold
+neither right, are refused by every function (`assert_not_light`) and by a restrictive policy on every table, and cannot be a template owner,
+a hidden-from role or the named person.
+
 ## 3. Rights and default grants (catalogue data, migration 1770; the SQL and `builtInRoles.ts` change together)
 - `billing_steps_view`: the 14 roles whose base level reads claim steps today (executive, administrator, project_manager, deputy_project_manager,
   project_control_manager, construction_manager, procurement_manager, finance_manager, quality_manager, safety_manager, equipment_manager,
@@ -98,3 +109,13 @@ writes, isolation probe); `org_billing_step_settings(org_id pk, default_template
 OD-WBS-1 default template: org pointer, none -> no list (as briefed). OD-WBS-2 owner role key vs the template's access-level owner: new
 nullable key column (recommended). OD-WBS-3 "quality role does not see" as a per-step hidden-from list, not a global grant (recommended,
 the catalogue cannot differ per organisation). OD-WBS-4 default grants above. OD-WBS-5 unmigrated people (no role key) fall back to claim-step readers.
+
+## 6. Built (files)
+Migrations 1770 (tables, template role columns), 1771 (capabilities, gates, read rule, policies), 1772 (writers, settings), 1773 (issue-time copy,
+notices), 1774 (waiting read), each with a rollback. No existing function is restated (the template role fields use their own function
+`set_billing_step_template_roles`, so `save_billing_step_template` and `billing_stages_open` are byte-identical). Refusals are `WBS_*` codes in
+the refusals catalogue (English and Bahasa Indonesia). Settings: the organisation's default template (none by default) and, per template step, the
+owner role key and hidden-from list (empty by default); no feature switch. Tests: pgTAP `supabase/tests/1770_wo_billing_steps.test.sql`, updated
+1200, 2711, 2716; vitest per AC; e2e `AC-WBS-012-wo-billing-steps.spec.ts`. Tests whose steps changed: `2711` (merge resolution of the rewritten
+allowlist plus three helper entries), `2716` (catalogue string), `1200` (two assertions, plan 56), `builtInRoles.test.ts` (reads 1771's rows),
+`BillingStepTemplatesModal.test.tsx` (mock gains the default hook; saved payload carries the two new fields).
