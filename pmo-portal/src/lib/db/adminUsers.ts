@@ -328,3 +328,22 @@ export async function setUserStatus(input: SetUserStatusInput): Promise<void> {
   });
   if (error) throwWrite(error);
 }
+
+/**
+ * Whether a login can clock in from the phone: it needs a person in the workforce list (`people.profile_id`), placed in a crew
+ * (a member today) or leading one (a Foreman). Reads only (Admin reads people, crews and members); the database decides at clock-in.
+ */
+export async function fieldLoginLink(userId: string): Promise<'ok' | 'no_person' | 'no_crew'> {
+  const { data: person, error } = await supabase.from('people').select('id').eq('profile_id', userId).limit(1).maybeSingle();
+  if (error) throw toAppError(error);
+  if (!person) return 'no_person';
+  const today = new Date().toISOString().slice(0, 10);
+  const [lead, member] = await Promise.all([
+    supabase.from('crews').select('id', { count: 'exact', head: true }).eq('field_controller_id', userId).is('archived_at', null),
+    supabase.from('crew_members').select('id', { count: 'exact', head: true }).eq('worker_id', person.id).lte('valid_from', today)
+      .or(`valid_to.is.null,valid_to.gte.${today}`),
+  ]);
+  if (lead.error) throw toAppError(lead.error);
+  if (member.error) throw toAppError(member.error);
+  return (lead.count ?? 0) > 0 || (member.count ?? 0) > 0 ? 'ok' : 'no_crew';
+}

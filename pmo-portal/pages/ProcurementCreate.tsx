@@ -1,10 +1,13 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { BackBar } from '@/src/components/shell';
 import { Button, Card, CardHead, CardPad, Combobox, FormFooter, FormGrid, Icon, ListState, SelectField, TextField, UnsavedChangesDialog, useToast } from '@/src/components/ui';
 import type { IconName } from '@/src/components/ui/icons';
+import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
+import { useSoleWorkOrder } from '@/src/hooks/useSoleWorkOrder';
+import { NO_ATTRIBUTION, type CostAttribution } from '@/src/lib/repositories/workOrderCosts';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
@@ -136,6 +139,14 @@ export default function ProcurementCreate() {
   const initialLineCount = restockPriced ? 1 : 0;
   const [title, setTitle] = useState(initialTitle);
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId);
+  // Where the cost goes, asked here at the request. Starts on the project's only open work order when it has just one.
+  const [attribution, setAttribution] = useState<CostAttribution>(NO_ATTRIBUTION);
+  const attributionTouched = useRef(false);
+  const soleWorkOrder = useSoleWorkOrder(selectedProject);
+  useEffect(() => {
+    if (attributionTouched.current) return;
+    setAttribution((current) => (current.workOrderId === soleWorkOrder ? current : { ...current, workOrderId: soleWorkOrder }));
+  }, [soleWorkOrder]);
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
   // #2697: the purchase type and rental period; the fields appear only where the organisation turned purchase types on.
@@ -303,6 +314,8 @@ export default function ProcurementCreate() {
       header: {
         title: title.trim(), projectId: selectedProject, vendorId: supplierId,
         ...(have === 'need' && budgetCategory ? { budgetCategory: budgetCategory as BudgetCategory } : {}),
+        ...(have === 'need' && attribution.workOrderId ? { workOrderId: attribution.workOrderId } : {}),
+        ...(have === 'need' && attribution.disciplineId ? { disciplineId: attribution.disciplineId } : {}),
         ...(have === 'need' && purchaseType.id ? { purchaseTypeId: purchaseType.id, ...(purchaseType.isRental ? { rentalFrom: purchaseType.from, rentalTo: purchaseType.to } : {}) } : {}),
       },
       lines: have === 'need' ? (pendingLine ? [...lines, pendingLine] : lines).map(({ id, name, quantity, rate, description }) => ({ id, name, quantity, rate, description })) : [],
@@ -446,6 +459,10 @@ export default function ProcurementCreate() {
               />
               {(projectQuery.isPending || projectQuery.isError || projectQuery.data === undefined) && <div role="status">{projectQuery.isPending ? t('references.loadingProjects', 'Loading projects…') : <>{t('references.projectsError', "Couldn't load projects.")} <Button type="button" variant="outline" onClick={() => void projectQuery.refetch()}>{t('references.retryProjects', 'Retry projects')}</Button></>}</div>}
               {(supplierQuery.isPending || supplierQuery.isError || supplierQuery.data === undefined) && <div role="status">{supplierQuery.isPending ? t('references.loadingSuppliers', 'Loading suppliers…') : <>{t('references.suppliersError', "Couldn't load suppliers.")} <Button type="button" variant="outline" onClick={() => void supplierQuery.refetch()}>{t('references.retrySuppliers', 'Retry suppliers')}</Button></>}</div>}
+              {needForm && (
+                <CostAttributionFields idPrefix="procurement-create" projectId={selectedProject} value={attribution}
+                  onChange={(next) => { attributionTouched.current = true; setAttribution(next); }} disabled={saving || Boolean(attempt)} />
+              )}
               {needForm && (
                 <SelectField
                   id="procurement-create-budget-category"

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
+vi.mock('@/src/components/my/MyDeliveries', () => ({ MyDeliveries: () => null }));
 import ExecutiveDashboard from './ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 import { openHiddenReasons, pinHomeLayout } from '@/test/homeLayout';

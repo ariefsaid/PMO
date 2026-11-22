@@ -86,6 +86,8 @@ interface WorkOrderCustomerOrderCardProps {
   setLinesFor: (row: WorkOrderRow | null) => void;
   acceptancesRead: FigureReadState;
   linesRead: FigureReadState;
+  /** Starts a billing claim; absent when the viewer may not bill. */
+  onStartClaim?: () => void;
 }
 
 const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
@@ -122,6 +124,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
   setPending,
   setBastFor,
   setConfirmFor,
+  onStartClaim,
   setWithdrawFor,
   setLinesFor,
   acceptancesRead,
@@ -235,7 +238,7 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
       </div>;
     }, exportValue: (line) => line.allocation.acceptedQuantity ?? '' },
     { key: 'invoiced', header: t('projectDetail.cascade.colInvoiced', 'Invoiced'), align: 'num', kind: 'number', cell: (line) => <Tooltip content={t('projectDetail.cascade.source.lineInvoiced', 'Source: quantity already claimed against this work order allocation.') }><span className="cursor-help tabular-nums">{formatNumberExact(line.allocation.claimedQuantity)}</span></Tooltip>, exportValue: (line) => line.allocation.claimedQuantity },
-    { key: 'canInvoice', header: t('projectDetail.cascade.colCanInvoice', 'Can invoice'), align: 'num', kind: 'number', cell: (line) => <Tooltip content={t('projectDetail.cascade.source.lineCanInvoice', 'Accepted quantity less already claimed quantity. No figure appears until a BAST is confirmed.') }><span className="cursor-help tabular-nums font-semibold">{line.allocation.acceptedQuantity === null ? '—' : formatNumberExact(Math.max(0, line.allocation.acceptedQuantity - line.allocation.claimedQuantity))}</span></Tooltip>, exportValue: (line) => line.allocation.acceptedQuantity === null ? '' : Math.max(0, line.allocation.acceptedQuantity - line.allocation.claimedQuantity) },
+    { key: 'canInvoice', header: t('projectDetail.cascade.colCanInvoice', 'Can invoice'), align: 'num', kind: 'number', cell: (line) => <Tooltip content={t('projectDetail.cascade.source.lineCanInvoice', 'Accepted quantity less already claimed quantity. No figure appears until a BAST is confirmed.') }><span className="cursor-help tabular-nums font-semibold">{row.status === 'Draft' ? formatNumberExact(0) : line.allocation.acceptedQuantity === null ? '—' : formatNumberExact(Math.max(0, line.allocation.acceptedQuantity - line.allocation.claimedQuantity))}</span></Tooltip>, exportValue: (line) => row.status === 'Draft' ? 0 : line.allocation.acceptedQuantity === null ? '' : Math.max(0, line.allocation.acceptedQuantity - line.allocation.claimedQuantity) },
   ];
 
   return (
@@ -417,8 +420,25 @@ const WorkOrderCustomerOrderCard: React.FC<WorkOrderCustomerOrderCardProps> = ({
       <div className="mt-4 flex flex-col gap-3">
         {linesRead.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void linesRead.refetch()} />}
         {acceptancesRead.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.acceptances.error', 'Couldn’t load the BASTs')} onRetry={() => void acceptancesRead.refetch()} />}
+        {pendingBast && row.status === 'Issued' && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2.5" data-testid={`bast-pending-${row.id}`}>
+            <span className="text-sm font-medium">{t('projectTabs:contractQuantities.workOrders.acceptances.waitingOn', 'Waiting for Finance or an Admin to confirm')}</span>
+            {canConfirm && (
+              <Button variant="primary" size="sm" onClick={() => setConfirmFor({ acceptance: pendingBast, error: null })}>
+                {t('projectTabs:contractQuantities.workOrders.acceptances.confirmDelivery', 'Confirm draft BAST')}
+              </Button>
+            )}
+          </div>
+        )}
+        {latestConfirmedBast && onStartClaim && (
+          <div className="flex flex-wrap items-center gap-2" data-testid={`bast-confirmed-${row.id}`}>
+            <Button variant="primary" size="sm" onClick={onStartClaim}>
+              {t('projectTabs:contractQuantities.workOrders.acceptances.startClaim', 'Start a claim from this BAST')}
+            </Button>
+          </div>
+        )}
         {(hasOrderLines || bastList.length > 0 || canPrepare || row.status === 'Issued') && (
-          <details className="group">
+          <details className="group" open={Boolean(pendingBast) || undefined}>
             <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
               {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST: {{wo}}', { wo: row.wo_number ?? row.title })}
               <span className="ml-2">{t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: rawLines.length, basts: bastList.length })}</span>

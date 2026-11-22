@@ -38,6 +38,7 @@ import { useWaitingSteps } from '@/src/hooks/useBillingSteps';
 import { useWaitingMaterialAlerts } from '@/src/hooks/useWorkOrderMaterialAlerts';
 import { summariseWaitingMaterialAlerts } from '@/src/lib/materialAlertSteps';
 import type { WaitingMaterialAlertsFact } from '@/src/lib/materialAlertSteps';
+import { useCheckInRequests } from '@/src/hooks/usePhoneCheckIn';
 import { summariseWaitingSteps } from '@/src/lib/waitingSteps';
 import type { WaitingStepsFact } from '@/src/lib/waitingSteps';
 
@@ -95,6 +96,8 @@ export interface NeedsYouFacts {
   waitingBillingSteps?: WaitingStepsFact;
   /** Work orders whose material issued is ahead of progress, for the people who control them (material-vs-progress): absent when none, unread or the read failed. */
   waitingMaterialAlerts?: WaitingMaterialAlertsFact;
+  /** Phone check-ins waiting for this person's decision (#2705): the database lists only the ones they may decide, so most people read zero. */
+  checkInsWaiting?: number;
 }
 
 type Translate = (key: string, defaultValue: string, options?: Record<string, unknown>) => string;
@@ -233,6 +236,10 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       href: m.href, tone: 'warn',
     });
   }
+  if (facts.checkInsWaiting) add({
+    id: 'check-ins-waiting', count: facts.checkInsWaiting, href: '/crews', tone: 'warn',
+    label: counted(t, 'needs.checkIns', 'check-in waiting for your decision', 'check-ins waiting for your decision', facts.checkInsWaiting),
+  });
 
   return items;
 }
@@ -387,6 +394,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const waitingStepsQuery = useWaitingSteps(Boolean(orgId && role && role !== 'Engineer'));
   // material-vs-progress: open alerts on work orders the viewer controls. Any role can be listed as a recipient; the database returns none to everyone else.
   const waitingAlertsQuery = useWaitingMaterialAlerts(Boolean(orgId && role));
+  // The check-in decisions this person may make; a failed read adds no item and never blocks the list.
+  const checkInsQuery = useCheckInRequests();
 
   const procApprovals = useMemo(
     () => pendingProcurementApprovals(procurementsQuery.data, userId, realRole === 'Admin'),
@@ -462,6 +471,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     timesheetsToApprove: role === 'Project Manager' && !timesheetsAwaitingQuery.isPending && !timesheetsAwaitingQuery.isError ? timesheetsAwaitingQuery.data?.length ?? 0 : undefined,
     timesheetStatus: currentTimesheet?.status ?? (currentWeek && !timesheetsQuery.isPending && !timesheetsQuery.isError ? 'Draft' : null),
     engineerTasks: role === 'Engineer' && !myTasksQuery.isPending && !myTasksQuery.isError && currentWeek ? engineerTasksCount : undefined,
+    checkInsWaiting: checkInsQuery.isSuccess ? checkInsQuery.data.length : undefined,
     waitingBillingSteps: waitingStepsQuery.isSuccess ? summariseWaitingSteps(waitingStepsQuery.data ?? []) ?? undefined : undefined,
     waitingMaterialAlerts: waitingAlertsQuery.isSuccess ? summariseWaitingMaterialAlerts(waitingAlertsQuery.data ?? []) ?? undefined : undefined,
     returnedExpenses: role === 'Engineer' && !expenseClaimsQuery.isPending && !expenseClaimsQuery.isError ? currentReturnedExpenses.length : undefined,
@@ -509,6 +519,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     void timesheetsAwaitingQuery.refetch();
     void expenseApprovalsQuery.refetch();
     void invoiceApprovals.refetch();
+    void checkInsQuery.refetch();
     organizationDay.retry();
   };
 

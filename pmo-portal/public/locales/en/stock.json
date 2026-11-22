@@ -87,7 +87,9 @@
           "body": "Check it before adding a duplicate. You can still create this one.",
           "checkUnavailable": "Could not check existing item names. You can still create this one.",
           "listLabel": "Similar items"
-        }
+        },
+        "consumable": "Consumable (used up on site, such as welding rod or nails)",
+        "consumableHelp": "Consumables are issued from the site store as the daily site report says they were used."
       },
       "warehouse": {
         "newTitle": "New warehouse",
@@ -222,7 +224,8 @@
     "count": "{{shown}} balances",
     "countOne": "1 balance",
     "countOfTotal": "Showing {{shown}} of {{total}} balances",
-    "valueShown": "Value of shown balances"
+    "valueShown": "Value of shown balances",
+    "receiveGoods": "Receive goods"
   },
   "documents": {
     "title": "Documents",
@@ -431,7 +434,24 @@
       "quantity": "Enter a quantity above zero (up to 3 decimals).",
       "unitCost": "Enter the unit cost (zero or more)."
     },
-    "qtyUnitHelp": "Enter the quantity in {{unit}}."
+    "qtyUnitHelp": "Enter the quantity in {{unit}}.",
+    "confirmPost": {
+      "title": {
+        "receive": "Post this receipt?",
+        "transfer": "Post this transfer?",
+        "issue": "Post this issue?",
+        "return": "Post this return?"
+      },
+      "where": {
+        "receive": "Into {{from}}",
+        "transfer": "From {{from}} to {{to}}",
+        "issue": "Out of {{from}}",
+        "return": "Back into {{from}}"
+      },
+      "undo": "Once posted, a mistake is corrected with a correcting entry, not by editing.",
+      "confirm": "Post"
+    },
+    "clientMaterialCost": "Client-supplied: the cost is fixed at zero."
   },
   "count": {
     "sections": {
@@ -478,7 +498,8 @@
       "costNeeded": "Enter the unit cost: the system holds none of this item."
     },
     "costOnFile": "A unit cost is on file. Leave empty to keep it.",
-    "editingDraft": "Editing a saved draft: nothing changes in stock until you post it."
+    "editingDraft": "Editing a saved draft: nothing changes in stock until you post it.",
+    "whoPosts": "Save your count here. If anything differs from the book, a Project Manager or above posts it, not you. A count with no difference you can post yourself."
   },
   "consumption": {
     "from": "From month",
@@ -588,7 +609,8 @@
     "errors": {
       "levelInvalid": "Enter a level of 0 or more, with at most 3 decimals.",
       "quantityInvalid": "Enter a quantity above 0, with at most 3 decimals, or leave it empty."
-    }
+    },
+    "whoSets": "Levels are set by someone else. To get more of an item, use “Request purchase” on its row in the list above."
   },
   "refusal": {
     "missing-module-stock": "Odoo's Inventory app is not installed. Ask an Admin to install it, then post again.",
@@ -759,7 +781,7 @@
     "sentToast": "Transfer sent",
     "receiver": "Receiver (optional)",
     "receiverNone": "Anyone who keeps the destination",
-    "receiverHelp": "Name the person the delivery is addressed to.",
+    "receiverHelp": "Name the person who will count it on arrival: a keeper of the destination, or a field account. You cannot name yourself.",
     "viewOnly": "You are viewing as another role, so nothing can be sent.",
     "notFound": "Transfer not found",
     "detailTitle": "Transfer",
@@ -803,7 +825,24 @@
     "recallAction": "Recall",
     "recalledToast": "Transfer recalled",
     "receivedToast": "Receipt recorded",
-    "proofAddedToast": "Proof recorded"
+    "proofAddedToast": "Proof recorded",
+    "senderWaits": "You sent this transfer, so someone else counts it on arrival. It is waiting for the receiver.",
+    "print": {
+      "action": "Print delivery note",
+      "title": "Delivery note",
+      "off": "Delivery notes are switched off for this organisation. An Admin turns them on under material request settings.",
+      "back": "Back to transfer",
+      "print": "Print",
+      "code": "Item code",
+      "description": "Description",
+      "quantity": "Quantity",
+      "unit": "Unit",
+      "date": "Date",
+      "from": "From",
+      "to": "To",
+      "name": "Name",
+      "signatureDate": "Date"
+    }
   },
   "handover": {
     "title": "Handover confirmation",
@@ -854,17 +893,19 @@
     }
   },
   "transferSettings": {
-    "manage": "Transfers and proof",
+    "manage": "Transfers, reservations and moves between work orders",
     "mode": "How transfers are made",
     "oneStep": "One step: post at once",
     "twoStep": "Two steps: send, then receive with a count",
-    "modeHelp": "Two steps keep the goods in transit until the receiver counts them.",
+    "modeHelp": "Two steps keep the goods in transit until the receiver counts them. Senders name a receiver; the sender never counts their own shipment.",
     "timing": "When proof is demanded",
     "beforePosting": "Before the movement is posted or received",
     "mayFollow": "It may follow later (the movement stays proof outstanding)",
     "timingHelp": "Applies to tags that require proof.",
     "proofPerTag": "Proof that counts, per tag",
-    "qualityItems": "Items that need a quality check on receipt"
+    "qualityItems": "Items that need a quality check on receipt",
+    "inTransit_one": "{{count}} transfer is in transit. Switch back to one step after it is received or recalled.",
+    "inTransit_other": "{{count}} transfers are in transit. Switch back to one step after they are received or recalled."
   },
   "workOrderTransfer": {
     "title": "Move leftover between work orders",
