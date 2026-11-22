@@ -1,4 +1,5 @@
 -- Rollback of 1769: restore the 1551 attendance_record, phone_check_in and phone_check_in_decide. Run before the 1768 rollback.
+drop function if exists public.attendance_clear_follow(uuid, date);
 create or replace function public.attendance_record(p_work_order_id uuid, p_work_date date, p_source text, p_rows jsonb)
   returns integer
   language plpgsql security definer set search_path = public, pg_temp as $$

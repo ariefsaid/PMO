@@ -345,5 +345,10 @@
     },
     "countsHidden": "Filled and in progress are shown to the people team and to the roles that read the clearance checklist."
   },
-  "tickReadOnly": "Only this crew's Foreman or a crew manager ticks this roster."
+  "tickReadOnly": "Only this crew's Foreman or a crew manager ticks this roster.",
+  "undoFollow": "Undo follow",
+  "undoFollowFor": "Undo follow for {{name}}",
+  "undoFollowTitle": "Undo this follow?",
+  "undoFollowBody": "The hours recorded for {{name}} on this crew that day are withdrawn, so their own crew can record the day. Approved or submitted hours cannot be withdrawn.",
+  "followUndone": "Follow undone"
 }

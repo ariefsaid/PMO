@@ -352,5 +352,8 @@
   "ORDER_NEEDS_SUPPLIER_detail": "Pesanan perlu supplier. Pilih supplier, lalu catat pesanannya.",
   "WO_AREA": "Area absen itu tidak valid",
   "WO_AREA_detail": "Isi lintang -90 sampai 90, bujur -180 sampai 180 dan radius di atas 0 sampai 50.000 meter, atau kosongkan ketiganya.",
-  "MR_NO_MANAGER": "Orang ini belum punya atasan langsung, jadi tidak ada yang dapat memutuskan pelepasan. Tetapkan atasan langsungnya dahulu, lalu buka pelepasan."
+  "MR_NO_MANAGER": "Orang ini belum punya atasan langsung, jadi tidak ada yang dapat memutuskan pelepasan. Tetapkan atasan langsungnya dahulu, lalu buka pelepasan.",
+  "ATT_FOLLOW_LOCKED": "Jam kerja ini sudah diajukan atau disetujui. Perbaiki lewat jalur koreksi lembar waktu.",
+  "ATT_FOLLOW_NONE": "Tidak ada ikut kru yang tercatat untuk orang ini pada hari itu. Muat ulang untuk melihat daftar terbaru.",
+  "ATT_FOLLOW_RECORDED": "Orang ini sudah tercatat hadir di $t(common:terms.clientWorkOrder) lain pada hari itu. Minta pencatat kru asalnya, atau pengelola kru, memperbaikinya dulu."
 }

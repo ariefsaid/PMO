@@ -345,5 +345,10 @@
     },
     "countsHidden": "Terisi dan dalam proses ditampilkan kepada tim SDM dan peran yang dapat membaca daftar periksa kelayakan."
   },
-  "tickReadOnly": "Hanya mandor regu ini atau pengelola regu yang bisa mengisi absensi ini."
+  "tickReadOnly": "Hanya mandor regu ini atau pengelola regu yang bisa mengisi absensi ini.",
+  "undoFollow": "Batalkan ikut kru",
+  "undoFollowFor": "Batalkan ikut kru untuk {{name}}",
+  "undoFollowTitle": "Batalkan ikut kru ini?",
+  "undoFollowBody": "Jam kerja {{name}} yang dicatat di kru ini pada hari itu ditarik kembali, sehingga kru asalnya bisa mencatat harinya. Jam yang sudah disetujui atau diajukan tidak bisa ditarik.",
+  "followUndone": "Ikut kru dibatalkan"
 }

@@ -12,7 +12,7 @@ const h = vi.hoisted(() => ({
   roster: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   day: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   awaiting: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
-  record: vi.fn(), upload: vi.fn(), generate: vi.fn(), decide: vi.fn(),
+  record: vi.fn(), upload: vi.fn(), generate: vi.fn(), decide: vi.fn(), clear: vi.fn(),
 }));
 vi.mock('@/src/hooks/useCrews', () => ({
   useWorkOrderRoster: () => h.roster,
@@ -29,7 +29,7 @@ vi.mock('@/src/hooks/useCrews', () => ({
   useCrewWorkOrders: () => ({ data: [{ id: 'wo1', wo_number: 'WO-1', title: 'Pipe rack' }], isLoading: false, isError: false, refetch: vi.fn() }),
   useAttendanceMutations: () => ({
     record: { mutateAsync: h.record }, uploadPhoto: { mutateAsync: h.upload },
-    generateWeek: { mutateAsync: h.generate }, decideWeek: { mutateAsync: h.decide },
+    generateWeek: { mutateAsync: h.generate }, decideWeek: { mutateAsync: h.decide }, clearFollow: { mutateAsync: h.clear },
   }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
@@ -58,6 +58,7 @@ describe('attendance tick screen (#2528)', () => {
     h.upload = vi.fn().mockResolvedValue(undefined);
     h.generate = vi.fn().mockResolvedValue({ mode: 'timesheet', timesheet_id: 't', changed: true });
     h.decide = vi.fn().mockResolvedValue(5);
+    h.clear = vi.fn().mockResolvedValue(1);
   });
 
   it('AC-CRW-005 the field controller marks a 6-person crew present for 8 hours, overrides one to 6 and attaches the group photo', async () => {
@@ -245,5 +246,29 @@ describe('attendance tick screen (#2528)', () => {
     await user.click(screen.getByRole('combobox', { name: /Add someone from another crew/ }));
     await screen.findByRole('listbox');
     expect(screen.queryByRole('option', { name: /Vendor One/ })).toBeNull();
+  });
+
+  const followedRoster = () => ({
+    data: [{
+      crew_id: 'c1', crew_code: 'CR-1', crew_name: 'Crew one', field_controller_id: 'fc1', roles: [], shortfall: 0,
+      members: [{ worker_id: 'w1', display_name: 'Ana', standard_role_id: null, off_rotation: false, followed: true, from_crew_name: 'Home crew' }],
+    }],
+    isPending: false, isError: false, refetch: vi.fn(),
+  });
+
+  it('AC-FOL-014 a crew manager undoes a recorded follow after confirming, and a foreman who is not a manager has no such control', async () => {
+    const user = userEvent.setup();
+    h.role = 'Project Manager'; h.uid = 'pm1';
+    h.roster = followedRoster();
+    renderAt();
+    await user.click(within(screen.getByRole('row', { name: /Ana/ })).getByRole('button', { name: /Undo follow/ }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Undo follow' }));
+    await waitFor(() => expect(h.clear).toHaveBeenCalledWith({ workerId: 'w1', date: '2026-11-18' }));
+  });
+
+  it('AC-FOL-014 a foreman who is not a crew manager is not offered Undo follow', () => {
+    h.roster = followedRoster();
+    renderAt();
+    expect(screen.queryByRole('button', { name: /Undo follow/ })).toBeNull();
   });
 });

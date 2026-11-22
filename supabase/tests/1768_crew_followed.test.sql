@@ -3,7 +3,7 @@
 -- AC-FOL-005 loan wins · AC-FOL-006 phone, submitted week · AC-FOL-007 no follow, no change (existing files untouched).
 begin;
 create extension if not exists pgtap;
-select plan(41);
+select plan(52);
 
 insert into organizations (id, name, default_currency) values
   ('28680000-0000-0000-0000-00000000000a', 'FOL Org',       'IDR'),
@@ -63,8 +63,8 @@ insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values
 insert into work_order_crews (org_id, work_order_id, crew_id, valid_from, valid_to) values
   ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000402', '28680000-0000-0000-0000-000000000c04', pg_temp.today() - 40, pg_temp.today() - 20);
 update crews set archived_at = now() where id = '28680000-0000-0000-0000-000000000c04';
-insert into crew_loans (worker_id, home_crew_id, host_crew_id, valid_from, valid_to) values
-  ('28680000-0000-0000-0000-000000000f07', '28680000-0000-0000-0000-000000000c01', '28680000-0000-0000-0000-000000000c03', pg_temp.d(-7), pg_temp.d(-7));
+insert into crew_loans (org_id, worker_id, home_crew_id, host_crew_id, valid_from, valid_to) values
+  ('28680000-0000-0000-0000-00000000000a', '28680000-0000-0000-0000-000000000f07', '28680000-0000-0000-0000-000000000c01', '28680000-0000-0000-0000-000000000c03', pg_temp.d(-7), pg_temp.d(-7));
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -171,6 +171,38 @@ select is(phone_check_in_decide((select id from phone_check_ins where worker_id 
   'AC-FOL-012 the picked crew''s foreman approves the request');
 select is((select crew_id || ':' || followed_crew_id from attendance_days where worker_id = '28680000-0000-0000-0000-000000000f09' and work_date = pg_temp.today())::text,
   '28680000-0000-0000-0000-000000000c02:28680000-0000-0000-0000-000000000c02', 'AC-FOL-012 on approval the day record carries the picked crew as followed');
+-- AC-FOL-013: a follow does not stand beside a day already recorded elsewhere, unless a crew manager records it.
+select pg_temp.act_as('28680000-0000-0000-0000-0000000000a4');
+select is(pg_temp.rec('401', -1, 'roster_tick', 'f05', null, 8), 1, 'AC-FOL-013 the home crew''s foreman records the day present');
+select pg_temp.act_as('28680000-0000-0000-0000-0000000000a5');
+select throws_ok($$ select pg_temp.rec('402', -1, 'roster_tick', 'f05', 'c02', 8) $$, '23514',
+  'ATT_FOLLOW_RECORDED: this person is already recorded present on another work order that day',
+  'AC-FOL-013 the receiving foreman''s follow beside a day already recorded present elsewhere is refused');
+select pg_temp.act_as('28680000-0000-0000-0000-0000000000a3');
+select is(pg_temp.rec('402', -1, 'manual_correction', 'f05', 'c02', 8), 1, 'AC-FOL-013 a crew manager records the follow');
+-- AC-FOL-014: a crew manager undoes a follow, after which the home crew can record again.
+select pg_temp.act_as('28680000-0000-0000-0000-0000000000a5');
+select is(attendance_record('28680000-0000-0000-0000-000000000402', pg_temp.d(-6), 'roster_tick',
+  '[{"worker_id": "28680000-0000-0000-0000-000000000f08", "status": "absent", "followed_crew_id": "28680000-0000-0000-0000-000000000c02"}]'), 1,
+  'AC-FOL-014 a follow recorded absent');
+select pg_temp.act_as('28680000-0000-0000-0000-0000000000a4');
+select throws_ok($$ select pg_temp.rec('401', -6, 'roster_tick', 'f08', null, 8) $$, '23514',
+  'ATT_NOT_ROSTERED: this person is not in a crew rostered on this work order that day', 'AC-FOL-014 the home crew cannot record that day while the follow stands');
+select pg_temp.act_as('28680000-0000-0000-0000-0000000000a5');
+select throws_ok($$ select attendance_clear_follow('28680000-0000-0000-0000-000000000f08', pg_temp.d(-6)) $$, '42501', 'not authorized',
+  'AC-FOL-014 a foreman who is not a crew manager cannot undo a follow');
+select pg_temp.act_as('28680000-0000-0000-0000-0000000000a3');
+select is(attendance_clear_follow('28680000-0000-0000-0000-000000000f08', pg_temp.d(-6)), 1, 'AC-FOL-014 a crew manager undoes the follow');
+select throws_ok($$ select attendance_clear_follow('28680000-0000-0000-0000-000000000f08', pg_temp.d(-6)) $$, '23514',
+  'ATT_FOLLOW_NONE: no follow is recorded for this person that day', 'AC-FOL-014 undoing a day with no follow is refused');
+select pg_temp.act_as('28680000-0000-0000-0000-0000000000a4');
+select is(pg_temp.rec('401', -6, 'roster_tick', 'f08', null, 8), 1, 'AC-FOL-014 after the undo the home crew records the day');
+select pg_temp.act_as('28680000-0000-0000-0000-0000000000a3');
+select throws_ok($$ select attendance_clear_follow('28680000-0000-0000-0000-000000000f04', pg_temp.d(-3)) $$, '55000', null,
+  'AC-FOL-014 a follow whose week is submitted cannot be undone');
+-- AC-FOL-015: the helper that reads followed rows is not callable by a client.
+select ok(not has_function_privilege('authenticated', 'public.worker_followed_crew(uuid, date)', 'execute'),
+  'AC-FOL-015 an authenticated caller cannot execute worker_followed_crew');
 -- AC-FOL-007: no follow recorded for another worker, so the placement still decides.
 select is(worker_effective_crew('28680000-0000-0000-0000-000000000f08', pg_temp.d(-3)), '28680000-0000-0000-0000-000000000c01'::uuid, 'AC-FOL-007 a worker with no follow keeps the placement');
 

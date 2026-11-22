@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, Combobox, DateField, FieldError, ListState, ReasonDialog, SelectField, StatusPill, TextField, useToast, useUrlFilters,
+  Button, Card, CardHead, CardPad, Combobox, ConfirmDialog, DateField, FieldError, ListState, ReasonDialog, SelectField, StatusPill, TextField, useToast, useUrlFilters,
 } from '@/src/components/ui';
 import { FileInput } from '@/src/components/ui/FormFields';
 import { usePermission } from '@/src/auth/usePermission';
@@ -24,13 +24,14 @@ const STATUSES: AttendanceStatus[] = ['present', 'absent', 'leave', 'off_rotatio
 const NO_HOLDS: ReadonlyMap<string, ReleaseState> = new Map();
 
 /** The tick form for one crew on one day (FR-CRW-009/010). Keyed by crew, date and held records, so it starts fresh. */
-export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; held: AttendanceDayRow[]; canRecord: boolean; releaseHolds?: ReadonlyMap<string, ReleaseState> }> = ({
-  crew, workOrderId, date, held, canRecord, releaseHolds = NO_HOLDS,
+export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: string; held: AttendanceDayRow[]; canRecord: boolean; canManage?: boolean; releaseHolds?: ReadonlyMap<string, ReleaseState> }> = ({
+  crew, workOrderId, date, held, canRecord, canManage = false, releaseHolds = NO_HOLDS,
 }) => {
   const { t } = useTranslation('crews');
   const writeError = useCrewErrorText();
   const { toast } = useToast();
-  const { record, uploadPhoto, generateWeek } = useAttendanceMutations();
+  const { record, uploadPhoto, generateWeek, clearFollow } = useAttendanceMutations();
+  const [undoing, setUndoing] = useState<RosterMember | null>(null);
   const workers = useCrewWorkers();
   const placements = useAllCrewMembers();
   const [state, setState] = useState<TickState>(() => initialTickState(
@@ -97,6 +98,17 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
     } finally { setBusy(false); }
   };
 
+  const undoFollow = async () => {
+    const m = undoing;
+    setUndoing(null);
+    if (!m) return;
+    setProblem(null);
+    try {
+      await clearFollow.mutateAsync({ workerId: m.worker_id, date });
+      toast(t('crews:followUndone', 'Follow undone'), undefined, 'success');
+    } catch (err) { setProblem(writeError(err)); }
+  };
+
   const sendWeek = async () => {
     setProblem(null);
     setBusy(true);
@@ -157,6 +169,10 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
                       </div>
                     )}
                     {m.followed && <span className="block text-xs text-muted-foreground">{t('crews:followedFrom', 'Followed from {{crew}}', { crew: m.from_crew_name ?? '—' })}</span>}
+                    {m.followed && canManage && (
+                      <Button variant="outline" size="sm" onClick={() => setUndoing(m)} disabled={busy}
+                        aria-label={t('crews:undoFollowFor', 'Undo follow for {{name}}', { name: m.display_name })}>{t('crews:undoFollow', 'Undo follow')}</Button>
+                    )}
                     {state.followers.includes(m.worker_id) && <span className="block text-xs text-muted-foreground">{t('crews:followedToday', 'Followed this crew today')}</span>}
                     {err && <FieldError id={`tick-err-${m.worker_id}`}>{errorText(err)}</FieldError>}
                   </th>
@@ -204,6 +220,9 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
           </div>
         )}
       </CardPad>
+      <ConfirmDialog open={undoing !== null} title={t('crews:undoFollowTitle', 'Undo this follow?')}
+        description={t('crews:undoFollowBody', 'The hours recorded for {{name}} on this crew that day are withdrawn, so their own crew can record the day. Approved or submitted hours cannot be withdrawn.', { name: undoing?.display_name ?? '' })}
+        confirmLabel={t('crews:undoFollow', 'Undo follow')} onCancel={() => setUndoing(null)} onConfirm={() => void undoFollow()} />
     </Card>
   );
 };
@@ -291,6 +310,7 @@ export const AttendanceTick: React.FC = () => {
   const crews = roster.data ?? [];
   const crew = crews.find((c) => c.crew_id === values.crew) ?? crews[0] ?? null;
   const canRecord = crew ? may('create', 'attendance', { currentUserId: userId, record: { field_controller_id: crew.field_controller_id, viewOnly } }) : false;
+  const canManage = may('manage', 'crew', { record: { viewOnly } });
   const canApprove = may('approve', 'attendance', { currentUserId: userId, record: { viewOnly } });
   const holds = useReleaseHolds(workOrderId ? date : null);
   const heldKey = (day.data ?? []).map((d) => `${d.id}:${d.status}:${d.hours}`).join('|');
@@ -316,7 +336,7 @@ export const AttendanceTick: React.FC = () => {
       )}
       {workOrderId && crew && !day.isPending && !day.isError && (
         <TickForm key={`${crew.crew_id}:${date}:${heldKey}`} crew={crew} workOrderId={workOrderId} date={date} held={day.data ?? []} canRecord={canRecord}
-          releaseHolds={holds.data} />
+          canManage={canManage} releaseHolds={holds.data} />
       )}
     </div>
   );

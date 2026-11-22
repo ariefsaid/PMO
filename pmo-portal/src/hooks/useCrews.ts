@@ -93,6 +93,7 @@ export function useAttendanceMutations() {
       ...after,
     }),
     uploadPhoto: useMutation({ mutationFn: attendanceRepository.uploadPhoto, ...after }),
+    clearFollow: useMutation({ mutationFn: (v: { workerId: string; date: string }) => attendanceRepository.clearFollow(v.workerId, v.date), ...after }),
     generateWeek: useMutation({ mutationFn: (v: { workerId: string; weekStart: string }) => attendanceRepository.generateWeek(v.workerId, v.weekStart), ...after }),
     decideWeek: useMutation({
       mutationFn: (v: { workerId: string; weekStart: string; decision: 'approve' | 'reject'; reason: string | null }) =>
