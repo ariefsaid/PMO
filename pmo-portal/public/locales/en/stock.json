@@ -789,7 +789,7 @@
     "sentToast": "Transfer sent",
     "receiver": "Receiver (optional)",
     "receiverNone": "Anyone who keeps the destination",
-    "receiverHelp": "Name the person the delivery is addressed to.",
+    "receiverHelp": "Name the person who will count it on arrival: a keeper of the destination, or a field account. You cannot name yourself.",
     "viewOnly": "You are viewing as another role, so nothing can be sent.",
     "notFound": "Transfer not found",
     "detailTitle": "Transfer",
@@ -833,7 +833,8 @@
     "recallAction": "Recall",
     "recalledToast": "Transfer recalled",
     "receivedToast": "Receipt recorded",
-    "proofAddedToast": "Proof recorded"
+    "proofAddedToast": "Proof recorded",
+    "senderWaits": "You sent this transfer, so someone else counts it on arrival. It is waiting for the receiver."
   },
   "handover": {
     "title": "Handover confirmation",

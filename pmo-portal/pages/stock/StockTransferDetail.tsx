@@ -69,6 +69,8 @@ const StockTransferDetail: React.FC = () => {
   const proofRow = (proof.data ?? []).find((p) => p.movementId === transfer.id);
   const openShort = transfer.lines.filter((l) => l.qtyCounted !== null && l.qtyCounted !== l.qtySent && l.shortResolution === null);
   const mine = me?.id === transfer.sentBy;
+  // The sender never counts their own shipment (a second person recounts); only an Admin may, and the database audits it (STK_SELF_RECEIVE).
+  const canCount = !mine || isAdmin;
 
   const run = async (fn: () => Promise<void>, done: string) => {
     setBusy(true); setError('');
@@ -100,7 +102,7 @@ const StockTransferDetail: React.FC = () => {
       </section>
       <FormErrorStrip>{error || undefined}</FormErrorStrip>
 
-      {transfer.status === 'Sent' && !viewOnly ? (
+      {transfer.status === 'Sent' && !viewOnly && canCount ? (
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (canSubmit) void receive(); }} noValidate>
           <h2 className="text-base font-semibold">{t('transfers.receiveTitle')}</h2>
           <ul className="space-y-3">{transfer.lines.map((l) => { const c = countOf(l); const rejected = Number(normalizeDecimal(c.counted) || 0) - Number(normalizeDecimal(c.accepted) || 0); const f = flagged(itemById.get(l.itemId)); return (
@@ -124,6 +126,7 @@ const StockTransferDetail: React.FC = () => {
         </form>
       ) : (
         <section aria-label={t('transfers.lines')} className="space-y-2">
+          {transfer.status === 'Sent' && !viewOnly && !canCount && <p className="rounded-lg border border-border p-3 text-sm" role="status">{t('transfers.senderWaits')}</p>}
           <h2 className="text-base font-semibold">{t('transfers.lines')}</h2>
           <ul className="space-y-2">{transfer.lines.map((l) => (
             <li key={l.id} className="rounded-lg border border-border p-3 text-sm">

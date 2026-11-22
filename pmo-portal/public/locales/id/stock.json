@@ -789,7 +789,7 @@
     "sentToast": "Transfer terkirim",
     "receiver": "Penerima (opsional)",
     "receiverNone": "Siapa pun penjaga tujuan",
-    "receiverHelp": "Sebutkan orang yang dituju pengiriman ini.",
+    "receiverHelp": "Pilih orang yang akan menghitung barang saat tiba: penjaga gudang tujuan atau akun lapangan. Anda tidak bisa memilih diri sendiri.",
     "viewOnly": "Anda melihat sebagai peran lain, jadi tidak ada yang bisa dikirim.",
     "notFound": "Transfer tidak ditemukan",
     "detailTitle": "Transfer",
@@ -833,7 +833,8 @@
     "recallAction": "Tarik kembali",
     "recalledToast": "Transfer ditarik kembali",
     "receivedToast": "Penerimaan dicatat",
-    "proofAddedToast": "Bukti dicatat"
+    "proofAddedToast": "Bukti dicatat",
+    "senderWaits": "Anda yang mengirim transfer ini, jadi orang lain yang menghitungnya saat tiba. Transfer menunggu penerima."
   },
   "handover": {
     "title": "Konfirmasi serah terima",

@@ -134,3 +134,19 @@ describe('StockTransferDetail receive (AC-TST-024)', () => {
     expect(stockId.proof.outstanding).toBe('Bukti belum lengkap');
   });
 });
+
+describe('StockTransferDetail sender (#1122 item 1)', () => {
+  it('JOB-1122-1 the sender is not shown the receive form for their own shipment; they are told someone else counts it', async () => {
+    h.transfer = transfer({ sentBy: 'me' });
+    renderPage();
+    expect(await screen.findByText(/someone else counts it on arrival/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Counted/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Confirm receipt' })).not.toBeInTheDocument();
+  });
+
+  it('JOB-1122-1 the named receiver (not a keeper, not the sender) is shown the receive form', async () => {
+    h.transfer = transfer({ toUserId: 'me', sentBy: 'someone' });
+    renderPage();
+    expect(await screen.findByLabelText(/^Counted/)).toBeInTheDocument();
+  });
+});

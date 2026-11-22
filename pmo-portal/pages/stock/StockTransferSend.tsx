@@ -11,6 +11,7 @@ import { useStockKeepers, useStockUnits, useStockItems, useStockWarehouses } fro
 import { useTransferRefresh, useIsTwoStep } from '@/src/hooks/useStockTransfers';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
+import { receiverCandidates } from '@/src/lib/stockReceivers';
 import { stockTransfersRepository } from '@/src/lib/repositories/stockTransfers';
 
 interface LineState { key: number; itemId: string | null; quantity: string }
@@ -46,6 +47,8 @@ const StockTransferSend: React.FC = () => {
   const destinations = useMemo(() => (warehouses.data ?? []).filter((w) => w.kind !== 'transit' && w.id !== from), [warehouses.data, from]);
   const whole = useMemo(() => new Map((units.data ?? []).map((u) => [u.id, u.whole_only])), [units.data]);
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);
+  // Who may be named: a keeper of the destination or a field account (the delivery addressed to me); never the sender.
+  const candidates = useMemo(() => receiverCandidates(profiles.data ?? [], keepers.data ?? [], to, me ?? ''), [profiles.data, keepers.data, to, me]);
   const setLine = (key: number, patch: Partial<LineState>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
 
   if (!twoStep) return <div className="p-4"><ListState variant="empty" icon="folder" title={t('transfers.off.title')} sub={t('transfers.off.sub')} /></div>;
@@ -79,8 +82,8 @@ const StockTransferSend: React.FC = () => {
         <FormErrorStrip>{error || undefined}</FormErrorStrip>
         <FormGrid>
           <SelectField label={t('form.fromWarehouse')} required value={from} onChange={setFrom} options={sources.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.from} />
-          <SelectField label={t('form.toWarehouse')} required value={to} onChange={setTo} options={destinations.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.to} />
-          <SelectField label={t('transfers.receiver')} value={receiver} onChange={setReceiver} options={(profiles.data ?? []).map((p) => ({ value: p.id, label: p.full_name ?? '' }))} placeholder={t('transfers.receiverNone')} helper={t('transfers.receiverHelp')} />
+          <SelectField label={t('form.toWarehouse')} required value={to} onChange={(v) => { setTo(v); setReceiver(''); }} options={destinations.map((w) => ({ value: w.id, label: `${w.code} - ${w.name}` }))} placeholder={t('form.warehousePlaceholder')} error={errors.to} />
+          <SelectField label={t('transfers.receiver')} value={receiver} onChange={setReceiver} options={candidates.map((p) => ({ value: p.id, label: p.full_name ?? '' }))} placeholder={t('transfers.receiverNone')} helper={t('transfers.receiverHelp')} />
         </FormGrid>
         <ul className="space-y-3">{lines.map((l, i) => (
           <li key={l.key} className="grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_8rem_auto] sm:items-end">

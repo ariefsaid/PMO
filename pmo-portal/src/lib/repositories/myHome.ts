@@ -10,6 +10,6 @@ export type { MyHome, MyHomeTask, MyHomeWorkOrder, MyHomeIssue, MyDelivery, Seat
 export const myHomeRepository = {
   get: () => wrap(() => db.getMyHome()),
   setTaskStatus: (taskId: string, status: Parameters<typeof db.setMyTaskStatus>[1]) => wrap(() => db.setMyTaskStatus(taskId, status)),
-  deliveries: () => wrap(() => db.getMyDeliveries()),
+  deliveries: (userId: string) => wrap(() => db.getMyDeliveries(userId)),
   seatReport: () => wrap(() => db.getSeatReport()),
 };
