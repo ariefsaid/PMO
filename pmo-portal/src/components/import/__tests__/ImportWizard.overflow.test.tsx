@@ -3,7 +3,7 @@
  * so wide columns scroll horizontally at 390px instead of being clipped.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -36,6 +36,13 @@ beforeEach(() => {
   });
 });
 
+/** A file that is exactly the template opens the preview at once (nothing to match); any other file shows the matching first. */
+async function continueToPreview() {
+  await waitFor(() => expect(screen.queryByRole('button', { name: /^next$/i }) ?? screen.queryByTestId('import-summary')).toBeTruthy());
+  const next = screen.queryByRole('button', { name: /^next$/i });
+  if (next) { await waitFor(() => expect(next).toBeEnabled()); await userEvent.click(next); }
+}
+
 describe('ImportWizard preview overflow (W2-11)', () => {
   it('AC-W2-11-01: preview table wrapper has overflow-x-auto (not overflow-hidden)', async () => {
     const user = userEvent.setup();
@@ -52,9 +59,7 @@ describe('ImportWizard preview overflow (W2-11)', () => {
     await user.upload(fileInput as HTMLInputElement, file);
 
     // Mapping step auto-maps → click Next
-    const { waitFor } = await import('@testing-library/react');
-    await waitFor(() => expect(screen.getByRole('button', { name: /^next$/i })).toBeEnabled());
-    await user.click(screen.getByRole('button', { name: /^next$/i }));
+    await continueToPreview();
 
     // Wait for the preview table to appear
     const previewSummary = await screen.findByTestId('import-summary');

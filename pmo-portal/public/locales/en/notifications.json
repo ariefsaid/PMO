@@ -6,6 +6,11 @@
   "unassignedInvoiceTitle": "Invoice needs a project",
   "unassignedInvoice": "Sales Invoice {{invoice}}{{amount}} arrived from ERPNext without a project and is in the Unassigned bucket. Assign it to a project.",
   "literal": "{{body}}",
+  "leaveApproved": "Your leave request was approved: {{type}}, {{from}} to {{to}}.",
+  "leaveRejected": "Your leave request was rejected: {{type}}, {{from}} to {{to}}.",
+  "leaveNote": "{{base}} Note: {{note}}",
+  "leaveApprovedTitle": "Leave approved",
+  "leaveRejectedTitle": "Leave rejected",
   "titles": {
     "taskAssigned": "A task was assigned to you",
     "taskOverdueReminder": "Reminder: a task is overdue",

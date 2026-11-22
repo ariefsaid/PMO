@@ -449,6 +449,8 @@
     "errType": "Pilih jenis dokumen",
     "errExpiry": "Isi tanggal kedaluwarsa",
     "errOrder": "Tanggal kedaluwarsa harus sama dengan atau setelah tanggal terbit",
+    "errStatus": "Pilih status medis: layak atau tidak layak",
+    "statusPlaceholder": "Pilih layak atau tidak layak",
     "renew": "Perpanjang",
     "renewTitle": "Perpanjang dokumen",
     "renewed": "Dokumen diperpanjang",

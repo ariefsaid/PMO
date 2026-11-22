@@ -23,7 +23,7 @@
     "title": "Gagal memuat pekerjaan dalam tangan"
   },
   "help": {
-    "backlog": "Bulan backlog adalah Sisa tagihan dibagi laju penagihan. Kontrak dan $t(common:terms.clientWorkOrder)nya ditampilkan bersama dan tidak dijumlahkan.",
+    "backlog": "Bulan backlog adalah Sisa tagihan dibagi laju penagihan. Kontrak dan work ordernya ditampilkan bersama dan tidak dijumlahkan.",
     "leftToBill": "Sisa tagihan adalah nilai yang belum ditagih: nilai kontrak atau $t(common:terms.clientWorkOrder) dikurangi pekerjaan yang sudah ditagih, sebelum pajak. Invoice draf dan invoice batal tidak dihitung.",
     "rate": "Laju penagihan per bulan adalah pekerjaan yang ditagih dalam 6 bulan penuh terakhir, dibagi jumlah bulan sejak penagihan dimulai (paling banyak 6)."
   },

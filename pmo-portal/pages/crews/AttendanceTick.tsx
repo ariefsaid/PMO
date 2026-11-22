@@ -259,7 +259,7 @@ export const AttendanceTick: React.FC = () => {
     <div className="space-y-6">
       {canApprove && <AwaitingApproval />}
       <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <WorkOrderPicker id="attendance-work-order" value={workOrderId} onChange={(v) => setFilters({ wo: v ?? '', crew: '' })} />
+        <WorkOrderPicker id="attendance-work-order" remember value={workOrderId} onChange={(v) => setFilters({ wo: v ?? '', crew: '' })} />
         <DateField label={t('crews:date', 'Date')} value={date} max={today} onChange={(v) => setFilter('date', v === today ? '' : v)} />
       </div>
       {crews.length > 1 && (

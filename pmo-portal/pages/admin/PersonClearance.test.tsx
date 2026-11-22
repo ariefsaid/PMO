@@ -65,6 +65,33 @@ describe('AC-CLR-009 the person checklist', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(h.saveState).toHaveBeenCalledWith('p1', 'i1', expect.objectContaining({ expires_on: null })));
   });
+  it('fix/walk-people item 8: a linked item points at the person\'s document instead of asking for the date again', async () => {
+    h.checklist.mockResolvedValue([
+      row({ item_id: 'i1', name: 'Licence valid', document_type_id: 't1', document_type_name: 'Licence', expires_on: '2027-03-01', state: 'done' }),
+      row({ item_id: 'i2', name: 'Forklift licence', document_type_id: 't2', document_type_name: 'Forklift', state: 'missing' }),
+    ]);
+    renderAt(<PersonClearance />);
+    expect(await screen.findByText('From the Licence document')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open the document Licence' })).toHaveAttribute('href', '/equipment/people/p1');
+    expect(screen.getByText(/No Forklift document yet/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Add the document Forklift' })).toHaveAttribute('href', '/equipment/people/p1');
+    expect(screen.queryByRole('button', { name: /^Record|^Edit/ })).toBeNull();
+  });
+  it('fix/walk-people item 8: the date done starts as today, and Remove lives inside the edit dialog, not beside Edit', async () => {
+    h.checklist.mockResolvedValue([row({ done_on: '2026-11-01', state: 'done' })]);
+    renderAt(<PersonClearance />);
+    expect(screen.queryByRole('button', { name: /^Remove/ })).toBeNull();
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit Item A' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Remove' })).toBeInTheDocument();
+  });
+  it('fix/walk-people item 8: recording an item with no date yet starts the date done on today', async () => {
+    h.checklist.mockResolvedValue([row({})]);
+    renderAt(<PersonClearance />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Record Item A' }));
+    const dialog = await screen.findByRole('dialog');
+    expect((within(dialog).getByLabelText(/Date done/) as HTMLInputElement).value).not.toBe('');
+  });
   it('hides the edit controls from a read-only role', async () => {
     h.canEdit = false;
     h.checklist.mockResolvedValue([row({})]);

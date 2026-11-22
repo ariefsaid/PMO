@@ -1367,3 +1367,14 @@ phase. A phase with no linked group is measured exactly as before. Only Admin an
 **Sign-in language** (*bahasa halaman masuk*) — the language of the pages seen before a session exists (sign-in, password reset). No organisation is known there, so the page follows the browser language (Bahasa Indonesia or English), shows a visible switch, and remembers the choice on the device. Once the person's profile loads, the normal order applies again: profile, then organisation, then English.
 
 **Work orders list** — the menu entry and page that lists every work order the reader may see, across projects, with its status. Its name everywhere is the terminology dictionary's term for work order, so one thing has one name on every screen. The project's contract card remains the other way in.
+
+## People, crews and their papers (fix/walk-people)
+
+**Access level** — one of the five levels (Engineer, Project Manager, Finance, Executive, Admin) that drives what a login can see and do. Shown in Bahasa Indonesia as "Tingkat akses". Never called "role" on its own.
+
+**Job role** — a built-in role (storekeeper, foreman, HR manager and the rest of the set) that starts from one access level. Shown as "Job role" / "Jabatan". When built-in roles are on, inviting a user asks the job role and the access level follows from it.
+
+**Crew role** — the position a person fills in a crew (welder, foreman of that crew…), counted against the crew's headcount. Shown as "Crew role" / "Posisi kru". A person placed with no crew role is not counted in the roster's figures and is shown as "Crew role not set".
+
+**Mark as left** — an Admin records the last day a person worked. They become former staff and leave every crew roster from that day; the history stays.
+

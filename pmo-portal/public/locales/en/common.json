@@ -1,4 +1,9 @@
 {
+  "fileInput": {
+    "choose": "Choose file",
+    "none": "No file chosen",
+    "many": "{{count}} files"
+  },
   "terms": {
     "clientWorkOrder": "Work order",
     "dashboard": "Dashboard",
@@ -557,7 +562,7 @@
       "invite": "Invite user",
       "columns": {
         "user": "User",
-        "role": "Role",
+        "role": "Access level",
         "status": "Status",
         "manager": "Manager"
       },
@@ -567,7 +572,7 @@
       },
       "noManager": "No manager",
       "menu": {
-        "editRole": "Edit role",
+        "editRole": "Edit access level",
         "changeManager": "Change manager",
         "reEnable": "Re-enable",
         "disable": "Disable"
@@ -623,8 +628,8 @@
         "emailInvalid": "Enter a valid email address."
       },
       "roleForm": {
-        "title": "Edit role: {{name}}",
-        "submit": "Save role",
+        "title": "Edit access level: {{name}}",
+        "submit": "Save access level",
         "helper": "Determines what this user can see and do. Changes take effect immediately and are confirmed first."
       },
       "managerForm": {
