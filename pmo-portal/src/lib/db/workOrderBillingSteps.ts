@@ -82,7 +82,7 @@ function toStep(r: StepRow): WorkOrderStep {
 /** One work order's list, in order. Empty when the work order has none or the viewer may see none of it. */
 export async function listWorkOrderSteps(workOrderId: string): Promise<WorkOrderStep[]> {
   const { data, error } = await supabase.from('work_order_billing_steps')
-    .select('id,work_order_id,project_id,position,name,owner_role_key,assignee_id,target_days,optional,started_on,done_on,skipped_on,assignee:profiles!assignee_id(full_name),documents:work_order_billing_step_documents(id,position,name,required,document_id)')
+    .select('id,work_order_id,project_id,position,name,owner_role_key,assignee_id,target_days,optional,started_on,done_on,skipped_on,assignee:profiles!work_order_billing_steps_assignee_id_fkey(full_name),documents:work_order_billing_step_documents(id,position,name,required,document_id)')
     .eq('work_order_id', workOrderId).order('position').limit(STEP_LIMIT);
   if (error) fail(error);
   return (data ?? []).map(toStep);
@@ -91,7 +91,7 @@ export async function listWorkOrderSteps(workOrderId: string): Promise<WorkOrder
 /** The steps of every issued work order the viewer may see (the billing board rows). Optionally one project. */
 export async function listBoardWorkOrderSteps(projectId?: string): Promise<BoardWorkOrderStep[]> {
   let q = supabase.from('work_orders')
-    .select('id,wo_number,title,project_id,project:projects!project_id(name),steps:work_order_billing_steps(id,work_order_id,project_id,position,name,owner_role_key,assignee_id,target_days,optional,started_on,done_on,skipped_on,assignee:profiles!assignee_id(full_name),documents:work_order_billing_step_documents(id,position,name,required,document_id))')
+    .select('id,wo_number,title,project_id,project:projects!project_id(name),steps:work_order_billing_steps(id,work_order_id,project_id,position,name,owner_role_key,assignee_id,target_days,optional,started_on,done_on,skipped_on,assignee:profiles!work_order_billing_steps_assignee_id_fkey(full_name),documents:work_order_billing_step_documents(id,position,name,required,document_id))')
     .eq('status', 'Issued');
   if (projectId) q = q.eq('project_id', projectId);
   const { data, error } = await q.order('created_at', { ascending: false }).limit(BOARD_LIMIT);

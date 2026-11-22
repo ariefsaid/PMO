@@ -63,6 +63,10 @@ select set_eq(
             -- before adding: nothing reads the table through PostgREST (the reads go through the wrp_* RPCs), so no
             -- embed exists. Any future embed must name its constraint.
             ('work_order_revenue_plan -> profiles'),
+            -- 1770 (billing-steps): work_order_billing_steps carries assignee_id, done_by AND skipped_by, all -> profiles. Checked before adding:
+            -- the only DAL embed of profiles from it is qualified (assignee:profiles!work_order_billing_steps_assignee_id_fkey,
+            -- src/lib/db/workOrderBillingSteps.ts). Any future embed must name its constraint.
+            ('work_order_billing_steps -> profiles'),
             ('credits -> profiles'),
             -- 1158 (#2581): crew_tool_reports carries reported_by AND closed_by, org_crew_tool_settings carries
             -- coordinator_id AND updated_by, all -> profiles. Checked before adding: no DAL, repository, edge fn or
