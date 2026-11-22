@@ -6,9 +6,13 @@ import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import enWaitingList from '../../public/locales/en/waitingList.json';
 import idWaitingList from '../../public/locales/id/waitingList.json';
+import enImprest from '../../public/locales/en/imprest.json';
+import idImprest from '../../public/locales/id/imprest.json';
 
 i18next.addResourceBundle('en', 'waitingList', enWaitingList, true, true);
 i18next.addResourceBundle('id', 'waitingList', idWaitingList, true, true);
+i18next.addResourceBundle('en', 'imprest', enImprest, true, true);
+i18next.addResourceBundle('id', 'imprest', idImprest, true, true);
 
 vi.mock('@/src/components/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/ui')>();
@@ -23,10 +27,12 @@ const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch
 const mut = () => ({ mutateAsync: vi.fn().mockResolvedValue('x'), isPending: false });
 const h = vi.hoisted(() => ({
   userId: 'u-auth', realRole: 'Project Manager' as string, plans: null as unknown, lines: null as unknown, narrow: false,
+  route: null as unknown,
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestPlans: () => h.plans, useImprestPlanLines: () => h.lines,
+  useImprestRequesterRoute: () => h.route,
   useCreatePlan: () => h.m.createPlan, useSavePlanLine: () => h.m.savePlanLine,
   useDeletePlanLine: () => h.m.deletePlanLine, useTransitionPlan: () => h.m.transitionPlan,
 }));
@@ -44,6 +50,7 @@ describe('FR-IMP-071 plans section', () => {
     h.userId = 'u-auth'; h.realRole = 'Project Manager'; h.narrow = false;
     h.plans = ok({ rows: [plan()], truncated: false });
     h.lines = ok([{ id: 'l1', plan_id: 'pl1', budget_category: 'Vehicle', planned_amount: 800000 }]);
+    h.route = ok({ route_kind: 'flat', approvers: [], action: 'approve' });
     h.m = { createPlan: mut(), savePlanLine: mut(), deletePlanLine: mut(), transitionPlan: mut() };
   });
   it('FR-IMP-071 the author of a Draft sees Submit plan and can create a plan', async () => {
@@ -137,14 +144,21 @@ describe('FR-IMP-071 plans section', () => {
     expect(screen.getByText("Couldn't load plans")).toBeInTheDocument();
   });
 
-  describe('fix-waiting item 3: submitted plan names who it waits for', () => {
+  describe('fix-waiting item 3: a Submitted plan names who the database routes it to', () => {
     afterEach(async () => {
       cleanup();
       await i18next.changeLanguage('en');
     });
 
-    it('names all four ApprovalRank roles including Executive in English when Submitted', async () => {
+    const named = (names: string[]) => ok({
+      route_kind: 'named',
+      approvers: names.map((name, i) => ({ id: `u${i}`, name, role: 'Executive' })),
+      action: 'approve',
+    });
+
+    it('a flat route names all four ApprovalRank roles including Executive in English', async () => {
       await i18next.changeLanguage('en');
+      h.route = ok({ route_kind: 'flat', approvers: [], action: 'approve' });
       h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
       renderIt();
       const waiting = screen.getByTestId('plan-waiting-for');
@@ -155,13 +169,62 @@ describe('FR-IMP-071 plans section', () => {
       expect(waiting.textContent).toContain('Admin');
     });
 
-    it('names all four ApprovalRank roles in Bahasa Indonesia when Submitted', async () => {
+    it('a flat route names all four ApprovalRank roles in Bahasa Indonesia', async () => {
       await i18next.changeLanguage('id');
+      h.route = ok({ route_kind: 'flat', approvers: [], action: 'approve' });
       h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
       renderIt();
       const waiting = screen.getByTestId('plan-waiting-for');
       expect(waiting).toHaveTextContent('Menunggu Manajer Proyek, Keuangan, Eksekutif, atau Admin');
       expect(waiting.textContent).toContain('Eksekutif');
+    });
+
+    it('a named route names the exact approvers, never the static role list', async () => {
+      h.route = named(['Sari Senior', 'Budi Finance']);
+      h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
+      renderIt();
+      const waiting = screen.getByTestId('plan-waiting-for');
+      expect(waiting).toHaveTextContent('Waiting for Sari Senior or Budi Finance');
+      expect(waiting.textContent).not.toContain('Project Manager');
+    });
+
+    it('a named route is localised in Bahasa Indonesia', async () => {
+      await i18next.changeLanguage('id');
+      h.route = named(['Sari Senior']);
+      h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
+      renderIt();
+      expect(screen.getByTestId('plan-waiting-for')).toHaveTextContent('Menunggu Sari Senior');
+    });
+
+    it('an admin fallback says Admin, never a fabricated person', async () => {
+      h.route = ok({ route_kind: 'admin', approvers: [], action: 'approve' });
+      h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
+      renderIt();
+      expect(screen.getByTestId('plan-waiting-for')).toHaveTextContent('Waiting for Admin');
+    });
+
+    it('an unavailable route says nothing rather than inventing a decider', async () => {
+      h.route = ok({ route_kind: 'unavailable', approvers: [], action: null });
+      h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
+      renderIt();
+      expect(screen.queryByTestId('plan-waiting-for')).toBeNull();
+    });
+
+    it('a pending route is stated honestly', async () => {
+      h.route = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+      h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
+      renderIt();
+      expect(screen.getByTestId('plan-waiting-for')).toHaveTextContent('Checking who decides…');
+    });
+
+    it('an errored route is stated honestly and can be retried', async () => {
+      const refetch = vi.fn();
+      h.route = { data: undefined, isPending: false, isError: true, refetch };
+      h.plans = ok({ rows: [plan({ status: 'Submitted' })], truncated: false });
+      renderIt();
+      expect(screen.getByTestId('plan-waiting-for')).toHaveTextContent("Couldn't check who decides");
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
+      expect(refetch).toHaveBeenCalled();
     });
 
     it('non-waiting states (Draft, Approved, Rejected, Cancelled) show no waiting line', async () => {
@@ -176,6 +239,7 @@ describe('FR-IMP-071 plans section', () => {
     it('never claims the author is self-approver', async () => {
       h.userId = 'u-auth';
       h.realRole = 'Project Manager';
+      h.route = ok({ route_kind: 'flat', approvers: [], action: 'approve' });
       h.plans = ok({ rows: [plan({ status: 'Submitted', author_id: 'u-auth' })], truncated: false });
       renderIt();
       const waiting = screen.getByTestId('plan-waiting-for');

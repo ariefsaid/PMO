@@ -14,7 +14,7 @@ import {
   useRecordCount, useRequestReplenishment, useTransitionReplenishment,
 } from '@/src/hooks/useImprest';
 import { availableFloatActions, availableReplenishmentActions, booksState, toCents, type ImprestAction } from '@/src/lib/imprest/imprestRules';
-import { waitingForText, waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
+import { RequesterRouteNote } from './imprest/RequesterRouteNote';
 import { LIST_LIMIT, type ImprestReplenishmentWithRejecter as ImprestReplenishmentRow } from '@/src/lib/db/imprest';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
@@ -150,9 +150,10 @@ const ImprestFloatDetail: React.FC = () => {
     { key: 'status', header: t('imprest:rep.status', 'Status'), cell: (r) => <div className="flex flex-wrap items-center gap-x-2">
       <StatusPill record="imprest" state={r.status} />
       {r.status === 'Requested' && (
-        <span data-testid="rep-waiting-for" className="text-control text-muted-foreground">
-          {waitingForText({ names: [], role: waitingRoleLabel('roleFinanceAdmin', t) }, t)}
-        </span>
+        <RequesterRouteNote kind="replenishment" recordId={r.id} testId="rep-waiting-for" />
+      )}
+      {r.status === 'Approved' && (
+        <RequesterRouteNote kind="replenishment" recordId={r.id} testId="rep-payer-waiting-for" />
       )}
       {posting(r.id)}
       {r.status === 'Rejected' && <ReturnedBanner record="imprest" reason={r.decided_notes} person={r.rejecter?.full_name} at={r.rejected_at} className="mb-0" />}
@@ -223,7 +224,8 @@ const ImprestFloatDetail: React.FC = () => {
             <Figure id="float" label={t('imprest:position.float', 'Limit')} value={money(pos.float_amount)}
               note={pendingLimit ? (
                 <span data-testid="limit-waiting-for">
-                  {money(pendingLimit.proposed_amount)} · {waitingForText({ names: [], role: waitingRoleLabel('roleOrg', t) }, t)}
+                  {money(pendingLimit.proposed_amount)}
+                  <RequesterRouteNote kind="limit_change" recordId={pendingLimit.id} testId="limit-waiting-route" prefix=" · " />
                 </span>
               ) : undefined} />
             <Figure id="advances" label={t('imprest:position.advancesOut', 'Advances given')} value={money(pos.advances_out)} />

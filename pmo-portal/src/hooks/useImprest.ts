@@ -1,13 +1,13 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useOrgId } from '@/src/hooks/useOrgId';
-import type { BudgetCategory } from '@/src/lib/db/imprest';
+import type { BudgetCategory, ImprestRequesterRouteKind } from '@/src/lib/db/imprest';
 import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 
 /** Site imprest (#1515) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
 export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-float', 'imprest-position', 'imprest-plan-usage', 'imprest-plans',
-  'imprest-replenishments', 'imprest-counts', 'imprest-float-choices', 'imprest-float-claims', 'imprest-limit', 'imprest-awaiting', 'imprest-float-changes', 'imprest-posting-states'] as const;
+  'imprest-replenishments', 'imprest-counts', 'imprest-float-choices', 'imprest-float-claims', 'imprest-limit', 'imprest-awaiting', 'imprest-float-changes', 'imprest-posting-states', 'imprest-requester-route'] as const;
 
 
 export function useImprestFloats() {
@@ -91,6 +91,19 @@ export function useImprestFloatChanges(floatId: string | undefined) {
     queryKey: ['imprest-float-changes', orgId, floatId],
     queryFn: () => repositories.imprest.listFloatChanges(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
+  });
+}
+/**
+ * #1568 — who the database computes as the next decider for one site-cash record (a plan, a float limit change or a
+ * replenishment). One record per call, so a list row mounts this for its own id; the key carries the org like every
+ * imprest read, and a write refreshes it through IMPREST_QUERY_ROOTS.
+ */
+export function useImprestRequesterRoute(kind: ImprestRequesterRouteKind | null | undefined, recordId: string | null | undefined) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['imprest-requester-route', orgId, kind, recordId],
+    queryFn: () => repositories.imprest.getRequesterRoute(kind as ImprestRequesterRouteKind, recordId as string),
+    enabled: Boolean(orgId) && Boolean(kind) && Boolean(recordId),
   });
 }
 export function useImprestCounts(floatId: string | undefined) {

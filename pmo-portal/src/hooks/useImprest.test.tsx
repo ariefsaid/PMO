@@ -11,6 +11,7 @@ const { imprest, orgSettings } = vi.hoisted(() => ({
     deletePlanLine: vi.fn(), setProcurementLimit: vi.fn(), establishFloat: vi.fn(), proposeFloatAmount: vi.fn(),
     decideFloatChange: vi.fn(), transitionPlan: vi.fn(), requestReplenishment: vi.fn(), transitionReplenishment: vi.fn(),
     recordCount: vi.fn(), listPostingStates: vi.fn(), setCashAccount: vi.fn(), countFloats: vi.fn(),
+    getRequesterRoute: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { imprest, orgSettings } }));
@@ -21,7 +22,7 @@ import {
   IMPREST_QUERY_ROOTS, useImprestFloats, useImprestFloatPages, useImprestPosition, useImprestPlans, useImprestReplenishments,
   useImprestCounts, useImprestFloatChoices, useImprestFloat, useRequestReplenishment, useTransitionPlan, useRecordCount, useEstablishFloat,
   useImprestPostingStates, useSetCashAccount,
-  useImprestAwaiting,
+  useImprestAwaiting, useImprestRequesterRoute,
 } from './useImprest';
 import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
@@ -122,5 +123,22 @@ describe('AC-IMP-083 imprest hooks', () => {
       const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
       for (const root of roots) expect(keys).toContain(JSON.stringify([root]));
     }
+  });
+});
+
+describe('#1568 requester who-next', () => {
+  it('AC-IMP-083 reads one record route under the org key and stays idle without a record', async () => {
+    imprest.getRequesterRoute.mockResolvedValue({ route_kind: 'named', approvers: [], action: 'approve' });
+    const client = fresh();
+    const { result, rerender } = renderHook(
+      ({ id }: { id: string | null }) => useImprestRequesterRoute('plan', id),
+      { wrapper: wrap(client), initialProps: { id: 'pl1' } },
+    );
+    await waitFor(() => expect(result.current.data?.route_kind).toBe('named'));
+    expect(imprest.getRequesterRoute).toHaveBeenCalledWith('plan', 'pl1');
+    expect(client.getQueryCache().getAll().every((q) => q.queryKey[0] === 'imprest-requester-route' && q.queryKey[1] === 'org-1')).toBe(true);
+    rerender({ id: null });
+    await waitFor(() => expect(result.current.fetchStatus).toBe('idle'));
+    expect(imprest.getRequesterRoute).toHaveBeenCalledTimes(1);
   });
 });

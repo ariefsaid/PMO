@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   userId: 'u-fin', realRole: 'Finance' as string,
   floats: null as unknown, floatChanges: null as unknown, position: null as unknown, plans: null as unknown, planLines: null as unknown,
   reps: null as unknown, counts: null as unknown, claims: null as unknown, postings: null as unknown,
+  route: null as unknown,
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 vi.mock('./imprest/FloatAmountSection', () => ({ FloatAmountSection: () => null }));
@@ -18,6 +19,7 @@ vi.mock('./imprest/CashAccountSection', () => ({ CashAccountSection: () => null 
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloat: () => h.floats,
   useImprestFloatChanges: () => h.floatChanges,
+  useImprestRequesterRoute: () => h.route,
   useImprestPosition: () => h.position,
   useImprestPlans: () => h.plans,
   useImprestPlanLines: () => h.planLines,
@@ -73,6 +75,7 @@ describe('ImprestFloatDetail — floor (floor-tests/imprest-float-record.md)', (
     h.counts = ok({ rows: [], truncated: false });
     h.claims = ok({ rows: [], truncated: false });
     h.postings = ok({ rows: [], truncated: false });
+    h.route = ok({ route_kind: 'finance_admin', approvers: [], action: 'approve' });
     h.m = { createPlan: mut(), savePlanLine: mut(), deletePlanLine: mut(), transitionPlan: mut(), requestReplenishment: mut(), transitionReplenishment: mut(), recordCount: mut() };
   });
 

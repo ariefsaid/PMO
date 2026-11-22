@@ -99,6 +99,45 @@ export async function listFloatChanges(floatId: string): Promise<Bounded<Imprest
   fail(error);
   return bounded(data);
 }
+/** #1568 — the record kinds the requester who-next read answers for. */
+export type ImprestRequesterRouteKind = 'plan' | 'limit_change' | 'replenishment';
+export type ImprestRequesterRouteShape = 'named' | 'flat' | 'admin' | 'finance_admin' | 'unavailable';
+export type ImprestRequesterAction = 'approve' | 'pay';
+export interface ImprestRequesterApprover { id: string; name: string; role: string }
+export interface ImprestRequesterRoute {
+  route_kind: ImprestRequesterRouteShape;
+  approvers: ImprestRequesterApprover[];
+  action: ImprestRequesterAction | null;
+}
+const ROUTE_SHAPES: readonly string[] = ['named', 'flat', 'admin', 'finance_admin', 'unavailable'];
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
+/** The RPC returns json; narrow it at the seam instead of trusting a cast. An unrecognised shape reads as no answer. */
+export function parseImprestRequesterRoute(data: unknown): ImprestRequesterRoute | null {
+  if (!isObject(data)) return null;
+  const kind = data.route_kind;
+  if (typeof kind !== 'string' || !ROUTE_SHAPES.includes(kind)) return null;
+  const rawAction = data.action;
+  const action: ImprestRequesterAction | null = rawAction === 'approve' || rawAction === 'pay' ? rawAction : null;
+  const approvers = Array.isArray(data.approvers)
+    ? (data.approvers as unknown[]).filter(isObject).flatMap((a) => {
+        const { id, name, role } = a;
+        return typeof id === 'string' && typeof name === 'string' && typeof role === 'string'
+          ? [{ id, name, role }] : [];
+      })
+    : [];
+  return { route_kind: kind as ImprestRequesterRouteShape, approvers, action };
+}
+/**
+ * #1568 — who the database computes as the next decider for one site-cash record. Names only: the RPC never returns
+ * an amount, a category or per-line routing detail. Integration dependency: the generated `database.types.ts` entry
+ * (Args `{ p_kind, p_record_id }`, Returns `Json`) is supplied by the field-types worker; the call is typed against it
+ * and is never papered over with `as any`.
+ */
+export async function getImprestRequesterRoute(kind: ImprestRequesterRouteKind, recordId: string): Promise<ImprestRequesterRoute | null> {
+  const { data, error } = await supabase.rpc('get_imprest_requester_route', { p_kind: kind, p_record_id: recordId });
+  fail(error);
+  return parseImprestRequesterRoute(data);
+}
 export async function listCounts(floatId: string): Promise<Bounded<ImprestCountRow>> {
   const { data, error } = await supabase.from('imprest_cash_counts').select('*').eq('float_id', floatId)
     .order('counted_at', { ascending: false }).limit(LIST_LIMIT + 1);

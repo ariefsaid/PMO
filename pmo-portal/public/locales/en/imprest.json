@@ -202,8 +202,7 @@
     "notFunded": "Not funded yet",
     "receiptsWaiting": "Receipts waiting",
     "topUp": "Top-up due {{amount}}",
-    "varianceFlag": "Count differs",
-    "limitPending": "{{amount}} waiting for approval"
+    "varianceFlag": "Count differs"
   },
   "posting": {
     "pending": "Posting to ERP",
@@ -232,7 +231,8 @@
     "number": "Number",
     "replenishment": "Top-up",
     "status": "Status",
-    "title": "Top-ups"
+    "title": "Top-ups",
+    "waitingToPay": "Waiting for {{who}} to pay"
   },
   "status": {
     "approved": "Approved",
@@ -242,6 +242,11 @@
     "rejected": "Rejected",
     "requested": "Requested",
     "submitted": "Submitted"
+  },
+  "waiting": {
+    "checking": "Checking who decides…",
+    "error": "Couldn't check who decides",
+    "retry": "Retry"
   },
   "toast": {
     "counted": "Count recorded",

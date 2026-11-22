@@ -9,7 +9,7 @@ import {
   useCreatePlan, useDeletePlanLine, useImprestPlanLines, useImprestPlans, useSavePlanLine, useTransitionPlan,
 } from '@/src/hooks/useImprest';
 import { availablePlanActions, type ImprestAction } from '@/src/lib/imprest/imprestRules';
-import { waitingForText, waitingRoleLabel } from '@/src/lib/approvals/waitingFor';
+import { RequesterRouteNote } from './RequesterRouteNote';
 import type { BudgetCategory, ImprestPlanRow } from '@/src/lib/db/imprest';
 import { cn } from '@/src/components/ui/cn';
 import { Constants } from '@/src/lib/supabase/database.types';
@@ -140,9 +140,7 @@ export const PlansSection: React.FC<{ floatId: string; custodianId: string; curr
                     {plan.number && <span className="text-muted-foreground">{plan.number}</span>}
                     <StatusPill record="imprest" state={plan.status} />
                     {plan.status === 'Submitted' && (
-                      <span data-testid="plan-waiting-for" className="text-muted-foreground">
-                        {waitingForText({ names: [], role: waitingRoleLabel('roleApprovalRank', t) }, t)}
-                      </span>
+                      <RequesterRouteNote kind="plan" recordId={plan.id} testId="plan-waiting-for" className="text-muted-foreground" />
                     )}
                     {plan.is_late && <span className="text-muted-foreground">{t('imprest:plan.late', 'Approved after the month began')}</span>}
                     {/* The figure carries its noun, so the row reads without a table header. */}
