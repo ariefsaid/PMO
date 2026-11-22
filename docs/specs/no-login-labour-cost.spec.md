@@ -108,7 +108,7 @@ hours now show in crew hours and in the "carry no rate" note; that is hours, not
 - AC-NLL-012 Given cost rows with source `attendance_day` (per row and PM aggregate), then the repository parses them; an
   unknown source still fails. [vitest `workOrderFinance.test.ts`]
 - AC-NLL-013 Given attendance rows in the rollup, then crew hours include them, labour per class includes them, direct cost
-  counts them once, unpriced ones are in uncosted hours. [vitest `workOrderPlanVsActual.test.ts`]
+  counts them once, unpriced ones are in uncosted hours. [vitest `workOrderLabourCost.test.ts`]
 - AC-NLL-014 Given the Labour cost section, then Finance adds a class rate and assigns a class to a person with no login,
   ends and archives it; a locked change shows the catalogue sentence; EN and ID. [vitest + e2e
   `e2e/serial/AC-NLL-014-crew-member-class.spec.ts`]
