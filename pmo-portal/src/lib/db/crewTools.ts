@@ -71,7 +71,13 @@ export interface ReportToolInput {
   photos: File[];
 }
 
-type Page<T> = PromiseLike<{ data: T[] | null; error: { message: string; code?: string } | null }>;
+/** The view computes every one of these for a live line; Postgres cannot prove its joins, so the generated columns are
+ * nullable and this is the one place they are narrowed. */
+const toLineRow = (r: Tables<'crew_tool_line_summary'>): ToolLineRow => ({
+  id: r.id ?? '', crew_id: r.crew_id ?? '', name: r.name ?? '', code: r.code, serial: r.serial,
+  held_qty: r.held_qty ?? 0, note: r.note, archived_at: r.archived_at,
+  damaged_qty: r.damaged_qty ?? 0, lost_qty: r.lost_qty ?? 0, usable_qty: r.usable_qty ?? 0,
+});
 
 function fail(error: { message: string; code?: string; details?: string } | null): void {
   if (error) throw new AppError(error.message, error.code);
@@ -87,39 +93,40 @@ export async function listToolLines(crewId: string): Promise<ToolLineRow[]> {
       .is('archived_at', null)
       .order('id', { ascending: true });
     if (afterId !== null) q = q.gt('id', afterId);
-    return q.limit(limit) as unknown as Page<ToolLineRow>;
+    const { data, error } = await q.limit(limit);
+    return { data: data ? data.map(toLineRow) : null, error };
   });
   return rows.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
-interface ReportQueryRow {
-  id: string; line_id: string; kind: ToolReportKind; qty: number; note: string | null; status: 'open' | 'closed';
-  resolution: ToolResolution | null; task_id: string | null; reported_by: string | null; reported_on: string; due_on: string;
-  line: { name: string; crew_id: string };
-  task: { assignee_id: string | null } | null;
-}
+/** ⚑ ONE string literal, not `'…' + '…'`: the typed client reads a `string`-typed select as unknown columns, and the
+ * embeds below would then be untyped (which is how three result casts used to hide this module from the typechecker). */
+const REPORT_COLUMNS = 'id, line_id, kind, qty, note, status, resolution, task_id, reported_by, reported_on, due_on, line:crew_tool_lines!crew_tool_reports_line_id_fkey!inner(name, crew_id), task:tasks!crew_tool_reports_task_id_fkey(assignee_id)';
 
 /** The crew's open reports, oldest due first. */
 export async function listOpenToolReports(crewId: string): Promise<ToolReportRow[]> {
-  const rows = await fetchAllRowsByKeyset<ReportQueryRow>(async (afterId, limit) => {
+  const rows = await fetchAllRowsByKeyset<ToolReportRow>(async (afterId, limit) => {
     let q = supabase
       .from('crew_tool_reports')
-      .select('id, line_id, kind, qty, note, status, resolution, task_id, reported_by, reported_on, due_on, '
-        + 'line:crew_tool_lines!crew_tool_reports_line_id_fkey!inner(name, crew_id), '
-        + 'task:tasks!crew_tool_reports_task_id_fkey(assignee_id)')
+      .select(REPORT_COLUMNS)
       .eq('status', 'open')
       .eq('line.crew_id', crewId)
       .order('id', { ascending: true });
     if (afterId !== null) q = q.gt('id', afterId);
-    return q.limit(limit) as unknown as Page<ReportQueryRow>;
+    const { data, error } = await q.limit(limit);
+    return {
+      data: data
+        ? data.map((r): ToolReportRow => ({
+          id: r.id, line_id: r.line_id, line_name: r.line.name, crew_id: r.line.crew_id, kind: r.kind as ToolReportKind,
+          qty: r.qty, note: r.note, status: r.status as ToolReportRow['status'], resolution: r.resolution as ToolResolution | null,
+          task_id: r.task_id, assignee_id: r.task?.assignee_id ?? null,
+          reported_by: r.reported_by, reported_on: r.reported_on, due_on: r.due_on,
+        }))
+        : null,
+      error,
+    };
   });
-  return rows
-    .map((r): ToolReportRow => ({
-      id: r.id, line_id: r.line_id, line_name: r.line.name, crew_id: r.line.crew_id, kind: r.kind, qty: r.qty, note: r.note,
-      status: r.status, resolution: r.resolution, task_id: r.task_id, assignee_id: r.task?.assignee_id ?? null,
-      reported_by: r.reported_by, reported_on: r.reported_on, due_on: r.due_on,
-    }))
-    .sort((a, b) => a.due_on.localeCompare(b.due_on) || a.id.localeCompare(b.id));
+  return rows.sort((a, b) => a.due_on.localeCompare(b.due_on) || a.id.localeCompare(b.id));
 }
 
 export async function listReportPhotos(reportId: string): Promise<ToolPhotoRow[]> {
@@ -131,7 +138,7 @@ export async function listReportPhotos(reportId: string): Promise<ToolPhotoRow[]
       .is('archived_at', null)
       .order('id', { ascending: true });
     if (afterId !== null) q = q.gt('id', afterId);
-    return q.limit(limit) as unknown as Page<ToolPhotoRow>;
+    return q.limit(limit);
   });
   return rows;
 }

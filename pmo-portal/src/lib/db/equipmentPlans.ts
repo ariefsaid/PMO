@@ -46,7 +46,6 @@ export interface PlanLineInput {
   dateTo: string;
 }
 
-type DbResult<T> = PromiseLike<{ data: T | null; error: { message: string; code?: string } | null }>;
 const fail = (error: { message: string; code?: string }): never => { throw new AppError(error.message, error.code); };
 
 /** Stable key for a refusal, from the database message prefix (`EQP_…:`). */
@@ -75,11 +74,12 @@ export function planTotal(lines: Array<{ quantity: number; rate: number }>): num
 }
 
 export async function getPlanSettings(): Promise<PlanSettings> {
-  const { data, error } = await (supabase.from('org_equipment_plan_settings').select('enabled, approval_step, allow_self_approval').limit(1) as unknown as
-    DbResult<Array<{ enabled: boolean; approval_step: ApprovalStep; allow_self_approval: boolean }>>);
+  const { data, error } = await supabase.from('org_equipment_plan_settings').select('enabled, approval_step, allow_self_approval').limit(1);
   if (error) fail(error);
   const r = data?.[0];
-  return { enabled: r?.enabled ?? false, approvalStep: r?.approval_step ?? 'spend_approvers', allowSelfApproval: r?.allow_self_approval ?? false };
+  // `approval_step` is a text column with a CHECK ('spend_approvers' | 'senior_role'), which the generated type states
+  // as `string`; the database holds the domain, so narrow here rather than leave the screen's type unchecked.
+  return { enabled: r?.enabled ?? false, approvalStep: (r?.approval_step ?? 'spend_approvers') as ApprovalStep, allowSelfApproval: r?.allow_self_approval ?? false };
 }
 
 export async function setPlanSettings(s: PlanSettings): Promise<void> {
@@ -87,10 +87,9 @@ export async function setPlanSettings(s: PlanSettings): Promise<void> {
   if (error) fail(error);
 }
 
-interface CategoryDbRow { id: string; name: string; name_id: string | null; position: number; active: boolean }
 export async function listPlanCategories(): Promise<PlanCategory[]> {
-  const { data, error } = await (supabase.from('equipment_plan_categories').select('id, name, name_id, position, active')
-    .order('position', { ascending: true }).order('name', { ascending: true }).limit(200) as unknown as DbResult<CategoryDbRow[]>);
+  const { data, error } = await supabase.from('equipment_plan_categories').select('id, name, name_id, position, active')
+    .order('position', { ascending: true }).order('name', { ascending: true }).limit(200);
   if (error) fail(error);
   return (data ?? []).map((r) => ({ id: r.id, name: r.name, nameId: r.name_id, position: r.position, active: r.active }));
 }
@@ -105,13 +104,15 @@ export async function setPlanCategoryActive(id: string, active: boolean): Promis
   if (error) fail(error);
 }
 
+/** What the select above returns: the plan row with its lines embedded. `status` is a text column whose domain the
+ * database CHECK owns, so it is narrowed in `toPlan` rather than here. */
 interface PlanDbRow {
-  id: string; project_id: string; plan_month: string; status: PlanStatus; created_by: string; reject_reason: string | null;
-  equipment_plan_lines: Array<{ id: string; work_order_id: string | null; category_id: string | null; description: string | null; quantity: number | string;
-    rate: number | string; vendor_id: string; date_from: string; date_to: string; procurement_id: string | null }>;
+  id: string; project_id: string; plan_month: string; status: string; created_by: string; reject_reason: string | null;
+  equipment_plan_lines: Array<{ id: string; work_order_id: string | null; category_id: string | null; description: string | null; quantity: number;
+    rate: number; vendor_id: string; date_from: string; date_to: string; procurement_id: string | null }>;
 }
 const toPlan = (r: PlanDbRow): EquipmentPlan => ({
-  id: r.id, projectId: r.project_id, planMonth: r.plan_month, status: r.status, createdBy: r.created_by, rejectReason: r.reject_reason,
+  id: r.id, projectId: r.project_id, planMonth: r.plan_month, status: r.status as PlanStatus, createdBy: r.created_by, rejectReason: r.reject_reason,
   lines: [...r.equipment_plan_lines].sort((a, b) => a.date_from.localeCompare(b.date_from) || a.id.localeCompare(b.id)).map((l) => ({
     id: l.id, workOrderId: l.work_order_id, categoryId: l.category_id, description: l.description, quantity: Number(l.quantity), rate: Number(l.rate),
     vendorId: l.vendor_id, dateFrom: l.date_from, dateTo: l.date_to, procurementId: l.procurement_id,
@@ -120,9 +121,9 @@ const toPlan = (r: PlanDbRow): EquipmentPlan => ({
 
 /** The plans of one month (every project the caller may read), with their lines. */
 export async function listPlansForMonth(month: string): Promise<EquipmentPlan[]> {
-  const { data, error } = await (supabase.from('equipment_plans')
+  const { data, error } = await supabase.from('equipment_plans')
     .select('id, project_id, plan_month, status, created_by, reject_reason, equipment_plan_lines(id, work_order_id, category_id, description, quantity, rate, vendor_id, date_from, date_to, procurement_id)')
-    .eq('plan_month', month).order('created_at', { ascending: true }).limit(200) as unknown as DbResult<PlanDbRow[]>);
+    .eq('plan_month', month).order('created_at', { ascending: true }).limit(200);
   if (error) fail(error);
   return (data ?? []).map(toPlan);
 }

@@ -16,7 +16,6 @@ export interface PurchaseType {
   active: boolean;
 }
 
-type DbResult<T> = PromiseLike<{ data: T | null; error: { message: string; code?: string } | null }>;
 const fail = (error: { message: string; code?: string }): never => { throw new AppError(error.message, error.code); };
 
 /** Stable key for a refusal, from the database message prefix (`PTYPE_…:`). */
@@ -35,14 +34,14 @@ const toType = (r: TypeDbRow): PurchaseType => ({ id: r.id, name: r.name, nameId
 
 /** Whether purchase types are on for the caller's organisation. No settings row means off. */
 export async function getPurchaseTypesEnabled(): Promise<boolean> {
-  const { data, error } = await (supabase.from('org_purchase_type_settings').select('enabled').limit(1) as unknown as DbResult<Array<{ enabled: boolean }>>);
+  const { data, error } = await supabase.from('org_purchase_type_settings').select('enabled').limit(1);
   if (error) fail(error);
   return data?.[0]?.enabled ?? false;
 }
 
 export async function listPurchaseTypes(): Promise<PurchaseType[]> {
-  const { data, error } = await (supabase.from('purchase_types').select('id, name, name_id, is_rental, position, active')
-    .order('position', { ascending: true }).order('name', { ascending: true }).limit(200) as unknown as DbResult<TypeDbRow[]>);
+  const { data, error } = await supabase.from('purchase_types').select('id, name, name_id, is_rental, position, active')
+    .order('position', { ascending: true }).order('name', { ascending: true }).limit(200);
   if (error) fail(error);
   return (data ?? []).map(toType);
 }
@@ -93,8 +92,8 @@ export async function getRentalLinks(procurementId: string, extendsId: string | 
   type Row = { id: string; title: string; rental_from: string | null; rental_to: string | null; status: string };
   const map = (r: Row): RentalLink => ({ id: r.id, title: r.title, rentalFrom: r.rental_from, rentalTo: r.rental_to, status: r.status });
   const [exts, parent] = await Promise.all([
-    supabase.from('procurements').select(cols).eq('extends_procurement_id' as never, procurementId as never).order('rental_from' as never, { ascending: true }).limit(50) as unknown as DbResult<Row[]>,
-    extendsId ? (supabase.from('procurements').select(cols).eq('id', extendsId).limit(1) as unknown as DbResult<Row[]>) : Promise.resolve({ data: [] as Row[], error: null }),
+    supabase.from('procurements').select(cols).eq('extends_procurement_id', procurementId).order('rental_from', { ascending: true }).limit(50),
+    extendsId ? supabase.from('procurements').select(cols).eq('id', extendsId).limit(1) : Promise.resolve({ data: [] as Row[], error: null }),
   ]);
   if (exts.error) fail(exts.error);
   if (parent.error) fail(parent.error);

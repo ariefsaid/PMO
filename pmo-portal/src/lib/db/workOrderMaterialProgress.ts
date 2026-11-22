@@ -43,7 +43,8 @@ export async function getWorkOrderMaterialProgress(workOrderId: string): Promise
 
 /** Admin only (the database refuses anyone else). null clears the threshold, which turns the warning off. */
 export async function setWorkOrderIssueThreshold(thresholdPct: number | null): Promise<number | null> {
-  const { data, error } = await supabase.rpc('set_work_order_issue_threshold', { p_threshold_pct: thresholdPct as never });
+  // Null clears the threshold and the SQL parameter accepts it, but the generated argument type is `number`.
+  const { data, error } = await supabase.rpc('set_work_order_issue_threshold', { p_threshold_pct: thresholdPct as number });
   if (error) throw toAppError(error);
   return num(data);
 }
