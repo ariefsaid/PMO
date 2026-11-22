@@ -7,7 +7,7 @@
  * Second journey (expiry-to-manager): the manager records the renewal from the warning's list and the worker is told.
  */
 import { test, expect } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn, visibleToast } from './helpers';
 import { ENGINEER_ID, inDays, need, ORG_ID, PM_ID, serviceClient, sql } from './support/jobJourney';
 
 test.setTimeout(120_000);
@@ -52,7 +52,7 @@ test('JOB-F14 the manager records the renewal and the worker is told the new dat
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('textbox', { name: /New expiry date/ }).fill(newDate);
   await dialog.getByRole('button', { name: 'Record renewal' }).click();
-  await expect(page.getByText(new RegExp(`${run} Worker has been told`))).toBeVisible({ timeout: 20_000 });
+  await expect(visibleToast(page, new RegExp(`${run} Worker has been told`))).toBeVisible({ timeout: 20_000 });
 
   await signIn(page, 'engineer@acme.test');
   await page.goto('/');
