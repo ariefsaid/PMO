@@ -14,7 +14,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
-  th: { pct1: 80, pct2: 100 } as { pct1: number | null; pct2: number | null },
+  th: 80 as number | null,
   req: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   waiting: { data: [] as unknown[] },
   userId: 'u-approver',
@@ -25,6 +25,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
   useMaterialRequest: () => h.req,
   useWaitingForMe: () => h.waiting,
+  useLinePlans: () => ({ data: [{ itemId: 'i1', planQty: 10, priorQty: 0, installedQty: 8.5, planSource: null }], isPending: false, isError: false }),
   useDeliveryNoteSettings: () => ({ data: null }),
   useMaterialRequestMutations: () => ({
     decide: h.decide, cancel: { mutateAsync: vi.fn(), isPending: false }, retryTransfer: { mutateAsync: vi.fn(), isPending: false },
@@ -44,7 +45,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.us
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Project Manager', effectiveRole: 'Project Manager' }) }));
 vi.mock('@/src/components/shell', () => ({ BackBar: () => null }));
 
-vi.mock('@/src/hooks/useUsageThresholds', () => ({ useUsageThresholds: () => ({ thresholds: h.th, reload: vi.fn() }) }));
+vi.mock('@/src/hooks/useUsageThreshold', () => ({ useUsageThreshold: () => ({ threshold: h.th, reload: vi.fn() }) }));
 
 import MaterialRequestDetailPage from './MaterialRequestDetail';
 
@@ -64,20 +65,20 @@ const renderPage = () => render(
     <Routes><Route path="/material-requests/:requestId" element={<MaterialRequestDetailPage />} /></Routes>
   </ToastProvider></MemoryRouter>);
 
-describe('AC-MUT-009 usage warning on the request detail', () => {
+describe('AC-UW-010 usage warning on the request detail', () => {
   beforeEach(() => {
     h.userId = 'u-approver';
     h.keepers = [];
     h.waiting = { data: [] };
     h.req = { data: request(), isPending: false, isError: false, refetch: vi.fn() };
   });
-  it('shows the warning for a line past a threshold, from the stored plan snapshot', () => {
-    h.th = { pct1: 80, pct2: 100 };
+  it('warns from INSTALLED material against the plan, not from what the request asks for', () => {
+    h.th = 80;
     renderPage();
-    expect(screen.getByTestId('mrq-usage-warning')).toHaveTextContent('Use reaches 120% of plan, past the 100% warning.');
+    expect(screen.getByTestId('mrq-usage-warning')).toHaveTextContent('Installed 8.5 of 10 planned (85%), past the 80% warning. Check the site before more is requested.');
   });
-  it('shows nothing while the thresholds are unset', () => {
-    h.th = { pct1: null, pct2: null };
+  it('shows nothing while the threshold is unset', () => {
+    h.th = null;
     renderPage();
     expect(screen.queryByTestId('mrq-usage-warning')).not.toBeInTheDocument();
   });

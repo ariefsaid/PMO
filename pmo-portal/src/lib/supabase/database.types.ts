@@ -11581,8 +11581,7 @@ export type Database = {
           org_id: string
           updated_at: string
           updated_by: string | null
-          usage_warn_pct_1: number | null
-          usage_warn_pct_2: number | null
+          usage_warn_pct: number | null
         }
         Insert: {
           approver_inbox?: boolean
@@ -11592,8 +11591,7 @@ export type Database = {
           org_id?: string
           updated_at?: string
           updated_by?: string | null
-          usage_warn_pct_1?: number | null
-          usage_warn_pct_2?: number | null
+          usage_warn_pct?: number | null
         }
         Update: {
           approver_inbox?: boolean
@@ -11603,8 +11601,7 @@ export type Database = {
           org_id?: string
           updated_at?: string
           updated_by?: string | null
-          usage_warn_pct_1?: number | null
-          usage_warn_pct_2?: number | null
+          usage_warn_pct?: number | null
         }
         Relationships: [
           {
@@ -11685,8 +11682,7 @@ export type Database = {
           org_id: string
           pct: number
           plan_qty: number
-          request_id: string | null
-          slot: number
+          report_id: string | null
           use_qty: number
           work_order_id: string
         }
@@ -11698,8 +11694,7 @@ export type Database = {
           org_id?: string
           pct: number
           plan_qty: number
-          request_id?: string | null
-          slot: number
+          report_id?: string | null
           use_qty: number
           work_order_id: string
         }
@@ -11711,8 +11706,7 @@ export type Database = {
           org_id?: string
           pct?: number
           plan_qty?: number
-          request_id?: string | null
-          slot?: number
+          report_id?: string | null
           use_qty?: number
           work_order_id?: string
         }
@@ -11732,10 +11726,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "material_request_usage_alerts_request_id_fkey"
-            columns: ["request_id"]
+            foreignKeyName: "material_request_usage_alerts_report_id_fkey"
+            columns: ["report_id"]
             isOneToOne: false
-            referencedRelation: "material_requests"
+            referencedRelation: "daily_site_reports"
             referencedColumns: ["id"]
           },
           {
@@ -31935,6 +31929,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      mrq_installed_for: {
+        Args: { p_item_ids: string[]; p_work_order_id: string }
+        Returns: {
+          installed_qty: number
+          item_id: string
+        }[]
+      }
       mrq_log: {
         Args: {
           p_acted_for: string
@@ -32034,6 +32035,7 @@ export type Database = {
         Args: { p_enabled: boolean; p_signature_blocks: string[] }
         Returns: undefined
       }
+      set_material_usage_threshold: { Args: { p_pct: number }; Returns: undefined }
       mrq_set_stand_in: {
         Args: {
           p_delegator_id: string
@@ -32049,10 +32051,6 @@ export type Database = {
           p_position: number
           p_project_id: string
         }
-        Returns: undefined
-      }
-      mrq_set_usage_thresholds: {
-        Args: { p_pct_1: number; p_pct_2: number }
         Returns: undefined
       }
       mrq_step_authority: {
@@ -32074,7 +32072,6 @@ export type Database = {
         Args: { p_step_id: string }
         Returns: undefined
       }
-      mrq_usage_check: { Args: { p_request_id: string }; Returns: undefined }
       mrq_validate_lines: {
         Args: { p_lines: Json; p_org: string }
         Returns: undefined

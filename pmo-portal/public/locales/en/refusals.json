@@ -139,6 +139,8 @@
   "MRQ_SOD_TWICE": "You already decided another step of this request. Someone else must decide this one.",
   "MRQ_SOURCE_REQUIRED": "Choose the warehouse the material leaves from.",
   "MRQ_STAND_IN": "Only the person who is away, or an Admin, can end their stand-in.",
+  "MRQ_USAGE_ADMIN_ONLY": "Only an Admin can change the usage warning. Ask an Admin to change it.",
+  "MRQ_USAGE_INVALID": "Enter a percentage of plan from 1 to 1000, or leave it empty to turn the warning off.",
   "MRQ_WORK_ORDER": "This work order is closed or cancelled.",
   "OSC_BINDING": "No connected inventory is set up. Ask your administrator.",
   "OSC_COMPANY": "A line belongs to a different company than the one connected.",

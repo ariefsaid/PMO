@@ -265,16 +265,16 @@
     "waiting": "Not yet"
   },
   "usage": {
-    "title": "Usage warnings",
-    "sub": "Warn when a work order's material use reaches these percentages of plan. Leave a field empty to switch that warning off. Warnings never block a request.",
-    "first": "First warning (% of plan)",
-    "second": "Second warning (% of plan)",
-    "save": "Save warnings",
-    "saved": "Usage warnings saved",
-    "loadError": "Couldn't load the usage warnings",
-    "invalidRange": "Enter a percentage from 1 to 1000.",
-    "invalidOrder": "The second warning must be higher than the first.",
-    "reached": "Use reaches {{reached}}% of plan, past the {{threshold}}% warning.",
-    "planZero": "No plan is set, so any use is past the {{threshold}}% warning."
+    "title": "Usage warning",
+    "sub": "Tell the site engineer when the material installed on a work order, from validated site reports, reaches this percentage of plan. Leave it empty to switch the warning off. The warning never blocks a request.",
+    "field": "Warn at (% of plan)",
+    "save": "Save warning",
+    "saved": "Usage warning saved",
+    "loadError": "Couldn't load the usage warning",
+    "invalidRange": "Enter a percentage from 1 to 1000, or leave it empty to turn the warning off.",
+    "reached": "Installed {{installed}} of {{plan}} planned ({{reached}}%), past the {{threshold}}% warning. Check the site before more is requested.",
+    "planZero": "Installed {{installed}} with no plan set, past the {{threshold}}% warning. Check the site before more is requested.",
+    "cardTitle": "Material past the usage warning",
+    "cardLine": "{{item}}: {{installed}} of {{plan}} {{unit}} planned installed, past the {{threshold}}% warning."
   }
 }

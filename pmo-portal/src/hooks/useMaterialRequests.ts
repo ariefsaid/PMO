@@ -49,9 +49,10 @@ export function useDeliveryNoteSettings() {
   return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'delivery-note-settings'], queryFn: () => repo.deliveryNoteSettings(), enabled: Boolean(orgId) });
 }
 
-export function useUsageThresholds() {
+/** FR-UW-006: the warnings recorded on a work order, for its material card. */
+export function useUsageWarnings(workOrderId: string | undefined) {
   const orgId = useOrgId();
-  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'usage-thresholds'], queryFn: () => repo.usageThresholds(), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'usage-warnings', workOrderId], queryFn: () => repo.usageWarnings(workOrderId as string), enabled: Boolean(orgId) && Boolean(workOrderId) });
 }
 export function useStandIns() {
   const orgId = useOrgId();
@@ -87,7 +88,7 @@ export function useMaterialRequestMutations() {
       mutationFn: (a: { enabled: boolean; signatureBlocks: string[] }) => repo.setDeliveryNoteSettings(a.enabled, a.signatureBlocks),
       ...opts,
     }),
-    setUsageThresholds: useMutation({ mutationFn: (th: { pct1: number | null; pct2: number | null }) => repo.setUsageThresholds(th), ...opts }),
+    setUsageThreshold: useMutation({ mutationFn: (pct: number | null) => repo.setUsageThreshold(pct), ...opts }),
     setStandIn: useMutation({ mutationFn: (s: { delegatorId: string; standInId: string; startsOn: string; endsOn: string }) => repo.setStandIn(s), ...opts }),
     setStepPin: useMutation({ mutationFn: (a: { projectId: string; position: number; approverId: string | null }) => repo.setStepPin(a.projectId, a.position, a.approverId), ...opts }),
     revokeStandIn: useMutation({ mutationFn: (id: string) => repo.revokeStandIn(id), ...opts }),
