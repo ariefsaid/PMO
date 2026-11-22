@@ -1,5 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/src/auth/useAuth';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import { repositories } from '@/src/lib/repositories';
 
 export const PO_SETTINGS_QUERY_KEY = 'purchase-order-settings';
@@ -8,12 +9,7 @@ export const PO_SETTINGS_QUERY_KEY = 'purchase-order-settings';
  * Hook to read organisation-wide purchase order print settings (#2688).
  */
 export function usePurchaseOrderSettings() {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: [PO_SETTINGS_QUERY_KEY, orgId],
-    queryFn: () => repositories.procurement.purchaseOrderSettings(),
-    enabled: Boolean(orgId),
-  });
+  return useOrgQuery([PO_SETTINGS_QUERY_KEY], () => repositories.procurement.purchaseOrderSettings());
 }
 
 /**
@@ -21,7 +17,7 @@ export function usePurchaseOrderSettings() {
  */
 export function usePurchaseOrderSettingsMutations() {
   const qc = useQueryClient();
-  const orgId = useAuth().currentUser?.org_id;
+  const orgId = useOrgId();
   const refresh = () => qc.invalidateQueries({ queryKey: [PO_SETTINGS_QUERY_KEY, orgId] });
 
   return {

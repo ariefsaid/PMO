@@ -1,25 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import { useAuth } from '@/src/auth/useAuth';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** #2682 — the billing plan's candidates. Key carries org_id; `projectId` null = every project the viewer can see. */
 export function useBillingPlanCandidates(projectId: string | null, enabled = true) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['billing-plan-candidates', orgId, projectId],
-    queryFn: () => repositories.billingStages.readPlanCandidates(projectId),
-    enabled: enabled && Boolean(orgId),
-  });
+  return useOrgQuery(['billing-plan-candidates', projectId], () => repositories.billingStages.readPlanCandidates(projectId), { enabled });
 }
 
 /** The plan's settings (target, currency, month overrides, reminder switch). #2675 reuses this hook for the reminder. */
 export function useBillingPlanSettings(enabled = true) {
-  const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
-    queryKey: ['billing-plan-settings', orgId],
-    queryFn: () => repositories.billingStages.getPlanSettings(),
-    enabled: enabled && Boolean(orgId),
-  });
+  return useOrgQuery(['billing-plan-settings'], () => repositories.billingStages.getPlanSettings(), { enabled });
 }
 
 export function useSaveBillingPlanSettings() {

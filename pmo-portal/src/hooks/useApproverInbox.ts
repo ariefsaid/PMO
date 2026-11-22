@@ -1,7 +1,8 @@
 import { useContext } from 'react';
-import { QueryClientContext, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { QueryClientContext, useMutation, useQueryClient } from '@tanstack/react-query';
 import { materialRequestRepository as repo } from '@/src/lib/repositories/materialRequests';
 import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import { MATERIAL_REQUEST_QUERY_ROOT, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
 import type { WaitingStep } from '@/src/lib/repositories/materialRequests';
 
@@ -10,12 +11,7 @@ import type { WaitingStep } from '@/src/lib/repositories/materialRequests';
  * `enabled` gates the read so a screen that cannot use the feature never asks (default-off: no extra request).
  */
 export function useApproverInboxSetting(enabled = true) {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'approver-inbox'],
-    queryFn: () => repo.approverInbox(),
-    enabled: enabled && Boolean(orgId),
-  });
+  return useOrgQuery([MATERIAL_REQUEST_QUERY_ROOT, 'approver-inbox'], () => repo.approverInbox(), { enabled });
 }
 
 export function useSetApproverInbox() {

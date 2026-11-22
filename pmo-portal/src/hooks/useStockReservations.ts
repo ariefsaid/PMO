@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { stockReservationsRepository as repo } from '@/src/lib/repositories/stockReservations';
-import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOptionalOrgId as useOrgId } from '@/src/hooks/useOrgId';
 
 /** The organisation's reservation settings (#2693), off by default. While unread or failed they read as off: nothing new shows. */
 export function useReservationSettings() {

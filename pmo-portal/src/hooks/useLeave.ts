@@ -1,7 +1,7 @@
 import { useContext } from 'react';
 import { QueryClient, QueryClientContext, useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { leaveRepository, type LeaveRequestInput, type LeaveSettings } from '@/src/lib/repositories/leave';
-import { useOrgId } from '@/src/hooks/useOrgId';
+import { useOptionalOrgId } from '@/src/hooks/useOrgId';
 
 /** Leave requests (#2708) over the repository seam (ADR-0017). Keys carry org_id. Off means off: every read below the
  *  settings read waits for `enabled`, so an organisation that never switched it on makes no leave call but one. */
@@ -15,7 +15,7 @@ function useLeaveQuery<T>(key: QueryKey, fn: () => Promise<T>, enabled: boolean)
 }
 
 export function useLeaveSettings() {
-  const orgId = useOrgId();
+  const orgId = useOptionalOrgId();
   return useLeaveQuery(['leave-settings', orgId], () => leaveRepository.settings(), Boolean(orgId));
 }
 
@@ -25,18 +25,18 @@ export function useLeaveEnabled(): boolean {
 }
 
 export function useLeaveTypes() {
-  const orgId = useOrgId();
+  const orgId = useOptionalOrgId();
   return useLeaveQuery(['leave-types', orgId], () => leaveRepository.types(), Boolean(orgId));
 }
 
 export function useLeaveRequests() {
-  const orgId = useOrgId();
+  const orgId = useOptionalOrgId();
   const enabled = useLeaveEnabled();
   return useLeaveQuery(['leave-requests', orgId], () => leaveRepository.visible(), Boolean(orgId) && enabled);
 }
 
 export function useLeaveOnDate(date: string | null) {
-  const orgId = useOrgId();
+  const orgId = useOptionalOrgId();
   const enabled = useLeaveEnabled();
   return useLeaveQuery(['leave-on-date', orgId, date], () => leaveRepository.onDate(date as string), Boolean(orgId && date) && enabled);
 }
