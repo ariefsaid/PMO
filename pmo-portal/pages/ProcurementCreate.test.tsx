@@ -13,6 +13,8 @@ import ProcurementCreate from './ProcurementCreate';
 import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
 import { financeTestI18n, financeTestI18nReady } from '@/test/financeI18nTestInstance';
 
+const workOrders = vi.hoisted(() => ({ data: [] as unknown[] }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: workOrders.data, isLoading: false, isError: false, refetch: vi.fn() }) }));
 const mocks = vi.hoisted(() => ({
   createRequest: vi.fn(),
   createAtomic: vi.fn(),
@@ -520,6 +522,33 @@ describe('AC-PROC1 one-page request creation', () => {
     unmount();
     expect(mocks.createRequest).not.toHaveBeenCalled();
     expect(mocks.createItem).not.toHaveBeenCalled();
+  });
+
+  it('JOB-PU21 a project with one open work order starts the request on it and saves it with the request', async () => {
+    workOrders.data = [
+      { id: 'wo-open', status: 'Issued', title: 'Pump house', wo_number: 'WO-1' },
+      { id: 'wo-done', status: 'Closed', title: 'Old job', wo_number: 'WO-0' },
+      { id: 'wo-void', status: 'Cancelled', title: 'Dropped', wo_number: 'WO-X' },
+    ];
+    try {
+      renderCreate('/procurement/new?project=p1&have=need&title=Pipes&lineName=Pipe&lineQty=3&lineRate=10');
+      fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
+      expect(mocks.createAtomic.mock.calls[0][0].header).toMatchObject({ projectId: 'p1', workOrderId: 'wo-open' });
+    } finally { workOrders.data = []; }
+  });
+
+  it('JOB-PU21 a project with several open work orders asks for one and never picks for the person', async () => {
+    workOrders.data = [
+      { id: 'wo-a', status: 'Issued', title: 'A', wo_number: 'WO-A' },
+      { id: 'wo-b', status: 'Draft', title: 'B', wo_number: 'WO-B' },
+    ];
+    try {
+      renderCreate('/procurement/new?project=p1&have=need&title=Pipes&lineName=Pipe&lineQty=3&lineRate=10');
+      fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+      await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
+      expect(mocks.createAtomic.mock.calls[0][0].header).not.toHaveProperty('workOrderId');
+    } finally { workOrders.data = []; }
   });
 
   it('AC-STK-RESTOCK-1 opens pre-filled from a Stock link: title, project, one line at the shortfall', async () => {

@@ -13,6 +13,7 @@ import { LateText } from '@/src/components/ui/LateText';
 import { isMostUrgentLateRow } from '@/src/components/ui/lateTextRows';
 import { ListState } from '@/src/components/ui/ListState';
 import { PageHeader } from '@/src/components/ui/PageHeader';
+import { ClaimsBoardLink } from '@/src/components/finance/ClaimsBoardLink';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useHomeLayout } from '@/src/hooks/useHomeLayout';
 import { can } from '@/src/auth/policy';
@@ -278,9 +279,16 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       </CardPad>
     </Card>
   );
+  // One tap from home to the board of claims by step and age; only where the board's own route is open to this person.
+  const billingActions = (
+    <>
+      <ClaimsBoardLink className={linkClass} chevron={<Icon name="chev" className="size-4" />} />
+      {cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}
+    </>
+  );
   const billingCard = (
     <Card>
-      <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
+      <CardHead level={2} actions={billingActions}>{t('home.billing', 'Billing')}</CardHead>
       <CardPad className="grid gap-3">
         <InvoicedTrendCard bare trend={figures.invoicedTrend} pending={figures.trendPending} error={figures.trendError} onRetry={figures.trendRetry} />
       </CardPad>
@@ -416,7 +424,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     // Money in: invoiced and collected by month beside what is left to bill on signed work (one band, one card).
     const billingBand = (
       <Card data-testid="billing" className={cn('min-w-0 min-[900px]:col-span-12', 'max-[899px]:order-6')}>
-        <CardHead level={2} actions={cardLink('/finance/receivables', t('dashboard:hub.company.openInvoices', 'Open invoices'))}>{t('home.billing', 'Billing')}</CardHead>
+        <CardHead level={2} actions={billingActions}>{t('home.billing', 'Billing')}</CardHead>
         {/* With the monthly chart withheld (too few months), what is left to bill takes the whole card. */}
         <CardPad className="grid gap-x-[var(--space-panel-gap)] gap-y-5 min-[900px]:grid-cols-12 min-[900px]:[&>:only-child]:col-span-12">
           <InvoicedCollectedCard className="min-w-0 min-[900px]:col-span-7" embedded chartHeight={188} fill={finance && wide} months={figures.trendInvoicedByMonth} periodMonths={trendMonths} collectedByMonth={figures.collectedByMonth} collectedUnsynced={collectedUnsynced} pending={figures.trendPending || figures.collectedPending} error={figures.trendError} retry={figures.trendRetry} currency={orgCurrency} />

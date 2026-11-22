@@ -17,7 +17,7 @@ export interface ProgressAssessmentModalProps {
   boqItems: BoqItemRow[];
   /** The latest assessment's quantities, used as the starting values. */
   assessedByBoqItem: Record<string, number>;
-  /** `YYYY-MM`. */
+  /** `YYYY-MM`, or a first-of-month date (`YYYY-MM-01`); only the month part is used. */
   defaultMonth: string;
   onClose: () => void;
   onSave: (input: Omit<ProgressAssessmentInput, 'projectId'>) => Promise<void>;
@@ -31,7 +31,7 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
   boqItems, assessedByBoqItem, defaultMonth, onClose, onSave, onError,
 }) => {
   const { t } = useTranslation('project');
-  const [month, setMonth] = useState(defaultMonth);
+  const [month, setMonth] = useState(defaultMonth.slice(0, 7));
   const [quantities, setQuantities] = useState<Record<string, string>>(() => Object.fromEntries(
     boqItems.map((line) => [line.id, assessedByBoqItem[line.id] === undefined ? ''
       : line.earning_basis === 'lump_sum' ? fractionToPercentInput(assessedByBoqItem[line.id]) : formatMoneyInputValue(assessedByBoqItem[line.id])]),
@@ -44,7 +44,7 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const errs: Record<string, string> = {};
-    if (!MONTH_PATTERN.test(month.trim())) errs.month = t('projectDetail.billing.assessment.errors.month', 'Enter the month as YYYY-MM');
+    if (!MONTH_PATTERN.test(month.trim())) errs.month = t('projectDetail.billing.assessment.errors.month', 'Choose a month');
     const lines: ProgressAssessmentInput['quantities'] = [];
     for (const line of boqItems) {
       const raw = (quantities[line.id] ?? '').trim();
@@ -92,7 +92,7 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
     >
       <FormSection legend={t('projectDetail.billing.assessment.title', 'Record progress')}>
         <FormGrid>
-          <TextField id="assessment-month" label={t('projectDetail.billing.assessment.month', 'Month (YYYY-MM)')} required
+          <TextField id="assessment-month" type="month" label={t('projectDetail.billing.assessment.month', 'Month')} required
             value={month} onChange={setMonth} error={errors.month} />
           {boqItems.map((line) => (
             <NumberField key={line.id} id={`assessment-qty-${line.id}`}
