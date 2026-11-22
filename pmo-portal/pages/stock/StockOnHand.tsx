@@ -85,7 +85,8 @@ const StockOnHand: React.FC = () => {
         const w = (warehouses.data ?? []).find((x) => x.id === b.warehouseId);
         if (have.has(`${b.itemId}:${b.warehouseId}`) || !w || (warehouseId && warehouseId !== b.warehouseId)) continue;
         all.push({ itemId: b.itemId, itemCode: b.itemCode, itemName: b.itemName, unitCode: b.unitCode, wholeOnly: false,
-          warehouseId: b.warehouseId, warehouseCode: b.warehouseCode, warehouseName: w.name, warehouseKind: w.kind as 'central' | 'site' | 'vendor', qtyOnHand: b.qtyOnHand });
+          warehouseId: b.warehouseId, warehouseCode: b.warehouseCode, warehouseName: w.name, warehouseKind: w.kind as 'central' | 'site' | 'vendor', qtyOnHand: b.qtyOnHand,
+          ...(b.tagName ? { tagName: b.tagName } : {}) });
       }
     }
     return all;
