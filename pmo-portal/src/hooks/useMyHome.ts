@@ -9,10 +9,10 @@ export function useMyHome() {
   return useQuery({ queryKey: [MY_HOME_KEY, currentUser?.id], queryFn: () => myHomeRepository.get(), enabled: Boolean(currentUser?.id) });
 }
 
-/** Deliveries addressed to the person. The seam for the handover ticket: an empty list until it supplies a source. */
+/** Transfers sent to the person, waiting for their count (the same list on the full home and on the phone home). */
 export function useMyDeliveries() {
   const { currentUser } = useAuth();
-  return useQuery({ queryKey: ['my-deliveries', currentUser?.id], queryFn: () => myHomeRepository.deliveries(), enabled: Boolean(currentUser?.id) });
+  return useQuery({ queryKey: ['my-deliveries', currentUser?.id], queryFn: () => myHomeRepository.deliveries(currentUser!.id), enabled: Boolean(currentUser?.id) });
 }
 
 export function useMyTaskStatus() {

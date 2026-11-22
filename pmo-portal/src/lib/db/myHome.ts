@@ -25,7 +25,7 @@ export interface MyHome {
 }
 
 /** A delivery addressed to the person, to confirm with count and photo. Supplied by the handover ticket; none exists yet. */
-export interface MyDelivery { id: string; description: string }
+export interface MyDelivery { id: string; number: string; description: string; lineCount: number }
 
 export async function getMyHome(): Promise<MyHome> {
   const { data, error } = await supabase.rpc('my_home');
@@ -43,8 +43,19 @@ export async function setMyTaskStatus(taskId: string, status: 'To Do' | 'In Prog
   if (!data || data.length === 0) throw new AppError('Task not found', 'PGRST116');
 }
 
-export async function getMyDeliveries(): Promise<MyDelivery[]> {
-  return []; // seam: the handover ticket supplies deliveries addressed to a person; no table, no stock write here.
+/**
+ * Transfers sent to the person that wait for their count. The database decides who sees what (a light account reads only its own
+ * transfer, 1480), so the filter on `to_user_id` is for the full accounts that can read every transfer. Read-only: the count,
+ * photo and confirmation go through the transfer page and `receive_stock_transfer`.
+ */
+export async function getMyDeliveries(userId: string): Promise<MyDelivery[]> {
+  const { data, error } = await (supabase as unknown as { from: (t: string) => any }) // eslint-disable-line @typescript-eslint/no-explicit-any
+    .from('stock_transfers').select('id, number, note, sent_by, stock_transfer_lines(id)')
+    .eq('status', 'Sent').eq('to_user_id', userId).order('sent_at', { ascending: false }).limit(20);
+  if (error) throw new AppError(error.message, error.code);
+  return ((data ?? []) as { id: string; number: string; note: string | null; sent_by: string; stock_transfer_lines: unknown[] | null }[])
+    .filter((r) => r.sent_by !== userId) // the sender never counts their own shipment
+    .map((r) => ({ id: r.id, number: r.number, description: r.note ?? '', lineCount: r.stock_transfer_lines?.length ?? 0 }));
 }
 
 export interface SeatReport { full: number; light: number; total: number }

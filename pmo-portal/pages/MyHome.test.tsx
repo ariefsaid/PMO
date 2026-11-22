@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
@@ -29,7 +30,7 @@ const home = {
 
 function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}><ToastProvider><MyHome /></ToastProvider></QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><MemoryRouter><ToastProvider><MyHome /></ToastProvider></MemoryRouter></QueryClientProvider>);
 }
 
 beforeEach(() => {
@@ -49,12 +50,12 @@ describe('AC-LA-011 phone home screen', () => {
     expect(screen.getByText('Pour slab')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Clock in' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Issues I reported' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Deliveries to confirm' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'A delivery for you' })).not.toBeInTheDocument();
   });
   it('shows deliveries once the handover source supplies one', async () => {
-    h.deliveries.mockResolvedValue([{ id: 'd1', description: 'Cement, 10 bags' }]);
+    h.deliveries.mockResolvedValue([{ id: 'd1', number: 'TST-7', description: 'Cement, 10 bags', lineCount: 1 }]);
     mount();
-    expect(await screen.findByText('Cement, 10 bags')).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /TST-7/ })).toHaveAttribute('href', '/stock/transfers/d1');
   });
   it('a Foreman sees the crew roster, a Field user does not', async () => {
     mount();

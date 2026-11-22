@@ -43,7 +43,10 @@
     "empty": "Tidak ada regu pada perintah kerja ini hari ini"
   },
   "deliveries": {
-    "title": "Pengiriman untuk dikonfirmasi"
+    "title": "Ada kiriman untuk Anda",
+    "lines_one": "{{count}} baris barang untuk dihitung",
+    "lines_other": "{{count}} baris barang untuk dihitung",
+    "open": "Hitung dan konfirmasi"
   },
   "issues": {
     "title": "Masalah yang saya laporkan",

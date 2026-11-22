@@ -43,7 +43,10 @@
     "empty": "No crew on this work order today"
   },
   "deliveries": {
-    "title": "Deliveries to confirm"
+    "title": "A delivery for you",
+    "lines_one": "{{count}} item line to count",
+    "lines_other": "{{count}} item lines to count",
+    "open": "Count and confirm"
   },
   "issues": {
     "title": "Issues I reported",
