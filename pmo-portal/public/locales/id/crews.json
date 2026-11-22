@@ -163,13 +163,16 @@
     "endTitle": "Akhiri pinjaman ini?",
     "ended": "Pinjaman diakhiri",
     "error": "Tidak dapat memuat pinjaman kru",
-    "hostCrew": "Kru tujuan",
     "homeCrew": "Kru asal",
+    "hostCrew": "Kru tujuan",
+    "hostNotScheduled": "{{crew}} tidak terjadwal di work order mana pun pada hari-hari ini, jadi orang ini tidak akan muncul di daftar hadir mana pun dan jam kerjanya tidak terhitung. Jadwalkan {{crew}} pada sebuah work order dulu, atau pilih regu lain.",
+    "hostPartlyScheduled": "{{crew}} tidak terjadwal di work order mana pun pada {{days}}. Orang ini tidak akan muncul di daftar hadir pada hari tersebut.",
     "lend": "Pinjamkan pekerja",
     "lendTitle": "Pinjamkan pekerja ke kru lain",
     "lent": "Pekerja dipinjamkan",
     "title": "Pinjaman kru",
-    "toBeforeFrom": "Tanggal akhir tidak boleh sebelum tanggal mulai"
+    "toBeforeFrom": "Tanggal akhir tidak boleh sebelum tanggal mulai",
+    "whoLends": "Hanya pengelola regu (administrator, eksekutif, manajer proyek) yang bisa meminjamkan pekerja. Hubungi salah satunya."
   },
   "leave": {
     "addType": "Tambah jenis",
@@ -267,6 +270,7 @@
     "areaLocateTimeout": "Membaca posisi Anda terlalu lama. Coba lagi, atau ketik angkanya.",
     "requestArea": "Area kerja: titik tengah {{latitude}}, {{longitude}}, radius {{radius}} m"
   },
+  "savedExcept": "Tersimpan untuk semua orang kecuali: {{people}}",
   "roleNotSet": "Posisi kru belum diisi",
   "changeRole": "Ubah posisi kru",
   "setRole": "Isi posisi kru",
@@ -281,5 +285,8 @@
   "personPickOrType": "Pilih orang, atau ketik nama baru",
   "personPick": "Pilih orang",
   "personSearch": "Cari atau ketik nama",
-  "tickReadOnly": "Hanya mandor regu ini atau pengelola regu yang bisa mengisi absensi ini."
+  "tickReadOnly": "Hanya mandor regu ini atau pengelola regu yang bisa mengisi absensi ini.",
+  "reportedAbsent": "Melaporkan tidak masuk: {{reason}}",
+  "absentSick": "sakit",
+  "absentOther": "alasan lain"
 }

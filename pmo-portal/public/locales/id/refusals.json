@@ -315,5 +315,8 @@
   "WRP_OFF": "Rencana pendapatan belum diaktifkan untuk organisasi ini.",
   "WRP_RANGE": "Pilih rentang paling lama dua tahun.",
   "WRP_ROLE": "Anda tidak dapat melihat pendapatan proyek ini.",
-  "WRP_SETTINGS": "Pilih satu sampai tujuh hari kerja yang berbeda, 1 untuk Senin sampai 7 untuk Minggu."
+  "WRP_SETTINGS": "Pilih satu sampai tujuh hari kerja yang berbeda, 1 untuk Senin sampai 7 untuk Minggu.",
+  "ABS_NOTE": "Catatan terlalu panjang. Persingkat lalu kirim lagi.",
+  "ABS_PERSON": "Akun ini belum ditautkan ke seseorang di sebuah kru, jadi ketidakhadiran tidak dapat dilaporkan. Tanyakan kepada supervisor Anda.",
+  "ABS_REASON": "Pilih sakit atau lainnya."
 }

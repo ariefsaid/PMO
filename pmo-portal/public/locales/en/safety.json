@@ -170,5 +170,18 @@
     "topic": "Topic",
     "viewPhoto": "Attendance photo {{n}}",
     "visitor": "Named visitor (optional)"
+  },
+  "today": {
+    "title": "Today's safety record",
+    "none": "Not started"
+  },
+  "lock": {
+    "title": "Lock this safety day?",
+    "body": "After locking, this record cannot be edited. Only a correction with a reason changes it.",
+    "unchecked": "Not yet checked: {{names}}",
+    "needNote": "Write a note for the No answers first: {{items}}",
+    "errNote": "A checklist item answered No needs a note. Write the note, then lock again.",
+    "errLocked": "This day is already locked. Reload the page.",
+    "errAuthor": "Only the person who started this safety day can lock it."
   }
 }

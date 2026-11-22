@@ -5,11 +5,13 @@
 import * as db from '@/src/lib/db/myHome';
 import { wrap } from './repositoryErrors';
 
-export type { MyHome, MyHomeCheckIn, MyHomeTask, MyHomeWorkOrder, MyHomeIssue, MyDelivery, SeatReport } from '@/src/lib/db/myHome';
+export type { MyHome, MyHomeCheckIn, MyHomeTask, MyHomeWorkOrder, MyHomeIssue, MyDelivery, SeatReport, AbsenceReason, MyAbsence } from '@/src/lib/db/myHome';
 
 export const myHomeRepository = {
   get: () => wrap(() => db.getMyHome()),
   setTaskStatus: (taskId: string, status: Parameters<typeof db.setMyTaskStatus>[1]) => wrap(() => db.setMyTaskStatus(taskId, status)),
   deliveries: (userId: string) => wrap(() => db.getMyDeliveries(userId)),
+  reportAbsence: (reason: db.AbsenceReason, note: string) => wrap(() => db.reportAbsence(reason, note)),
+  myAbsence: (workDate: string) => wrap(() => db.getMyAbsence(workDate)),
   seatReport: () => wrap(() => db.getSeatReport()),
 };

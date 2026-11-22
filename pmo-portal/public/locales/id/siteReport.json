@@ -76,7 +76,8 @@
     "subject": "laporan lapangan",
     "superseded": "Diganti oleh koreksi",
     "title": "Laporan lapangan",
-    "version": "Versi {{n}}"
+    "version": "Versi {{n}}",
+    "needsPhotoAuthor": "Tambahkan foto formulir kertas sebelum mengirim. Validator tidak bisa menerima laporan tanpa foto itu."
   },
   "equipment": {
     "add": "Tambah pemakaian",
@@ -208,7 +209,8 @@
       "not_stocked": "Tidak dilacak",
       "failed": "Ditolak",
       "pending": "Menunggu"
-    }
+    },
+    "setLocation": "Atur lokasi lapangan di perintah kerja"
   },
   "title": "Laporan lapangan",
   "toast": {
@@ -216,6 +218,7 @@
     "saved": "Draf disimpan",
     "submitted": "Dikirim untuk validasi",
     "validated": "Laporan divalidasi",
+    "submittedNeedsPhoto": "Terkirim untuk validasi. Validator memerlukan foto formulir kertas: tambahkan.",
     "withdrawn": "Laporan ditarik kembali. Anda bisa mengubahnya lagi."
   },
   "empty": {

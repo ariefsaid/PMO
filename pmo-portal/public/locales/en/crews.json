@@ -163,13 +163,16 @@
     "endTitle": "End this loan?",
     "ended": "Loan ended",
     "error": "Couldn't load crew loans",
-    "hostCrew": "Host crew",
     "homeCrew": "Home crew",
+    "hostCrew": "Host crew",
+    "hostNotScheduled": "{{crew}} is not on any work order on these days, so this person would show on no roster and no hours would count. Schedule {{crew}} on a work order first, or choose another crew.",
+    "hostPartlyScheduled": "{{crew}} is not on any work order on {{days}}. This person will show on no roster on those days.",
     "lend": "Lend worker",
     "lendTitle": "Lend a worker to another crew",
     "lent": "Worker lent",
     "title": "Crew loans",
-    "toBeforeFrom": "The end cannot be before the start"
+    "toBeforeFrom": "The end cannot be before the start",
+    "whoLends": "Only people who manage crews (administrator, executive, project manager) can lend a worker. Ask one of them."
   },
   "leave": {
     "addType": "Add type",
@@ -267,6 +270,7 @@
     "areaLocateTimeout": "Reading your position took too long. Try again, or type the numbers.",
     "requestArea": "Work area: centre {{latitude}}, {{longitude}}, radius {{radius}} m"
   },
+  "savedExcept": "Saved for everyone except: {{people}}",
   "roleNotSet": "Crew role not set",
   "changeRole": "Change crew role",
   "setRole": "Set crew role",
@@ -281,5 +285,8 @@
   "personPickOrType": "Choose a person, or type a new name",
   "personPick": "Choose a person",
   "personSearch": "Search or type a name",
-  "tickReadOnly": "Only this crew's Foreman or a crew manager ticks this roster."
+  "tickReadOnly": "Only this crew's Foreman or a crew manager ticks this roster.",
+  "reportedAbsent": "Reported absent: {{reason}}",
+  "absentSick": "sick",
+  "absentOther": "other reason"
 }

@@ -152,10 +152,12 @@ insert into la_fn_allow values
   ('stock_transfer_mode_of', 'helper', 'stock_lock_transfer, send_stock_transfer and the stock document guards read the mode through it'),
   ('stock_wo_transfers_on', 'helper', 'post_stock_wo_transfer checks the switch through it'),
   ('receive_stock_transfer', 'field_path', 'the delivery confirmation path: a field account confirms the count and the photo'),
-  ('record_stock_handover', 'field_path', 'the handover confirmation path: a field account signs for the delivery addressed to it');
+  ('record_stock_handover', 'field_path', 'the handover confirmation path: a field account signs for the delivery addressed to it'),
+  ('report_absence', 'field_path', 'the field home, clock-in, attendance and own-leave paths');
 
 create temp table la_table_allow (t text primary key, why text not null);
 insert into la_table_allow values
+  ('absence_reports', 'the existing policy admits only the caller''s own rows or the light seat''s own audience'),
   ('agent_attachments', 'the existing policy admits only the caller''s own rows or the light seat''s own audience'),
   ('agent_automations', 'the existing policy admits only the caller''s own rows or the light seat''s own audience'),
   ('agent_dispatch_watermarks', 'written and read by definers only: the signed-in role holds no SELECT grant'),

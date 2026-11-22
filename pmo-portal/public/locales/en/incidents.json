@@ -180,7 +180,11 @@
     "durationDays": "{{days}} days",
     "durationHours": "{{count}} hrs",
     "durationMinutes": "{{count}} mins",
-    "disabledMessage": "The closing-time report is not enabled for this organisation. An administrator can enable it in Administration."
+    "disabledMessage": "The closing-time report is not enabled for this organisation. An administrator can enable it in Administration.",
+    "notLoaded": {
+      "title": "The report cannot be shown",
+      "sub": "Your role cannot view this report. Ask an administrator for access."
+    }
   },
   "notification": {
     "overdue": "Issue is overdue"

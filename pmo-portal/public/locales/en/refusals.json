@@ -315,5 +315,8 @@
   "WRP_OFF": "The revenue plan is not switched on for this organisation.",
   "WRP_RANGE": "Choose a range of at most two years.",
   "WRP_ROLE": "You cannot see revenue on this project.",
-  "WRP_SETTINGS": "Choose one to seven different weekdays, 1 for Monday to 7 for Sunday."
+  "WRP_SETTINGS": "Choose one to seven different weekdays, 1 for Monday to 7 for Sunday.",
+  "ABS_NOTE": "The note is too long. Shorten it and send again.",
+  "ABS_PERSON": "This account is not linked to a person on a crew, so absence cannot be reported. Ask your supervisor.",
+  "ABS_REASON": "Choose sick or other."
 }

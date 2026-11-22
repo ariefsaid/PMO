@@ -816,6 +816,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     },
   },
   incident: {
+    view: allow(ALL), // the closing-time report read: the database function admits any active member
     create: allow(ALL), // ANY member files (reporter server-stamped)
     edit: allow(DELIVERY), // managers investigate
     delete: allow(ADMIN),

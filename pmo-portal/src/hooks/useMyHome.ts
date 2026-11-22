@@ -26,3 +26,19 @@ export function useMyTaskStatus() {
 export function useSeatReport(enabled: boolean) {
   return useQuery({ queryKey: ['org-seat-report'], queryFn: () => myHomeRepository.seatReport(), enabled, retry: false });
 }
+
+export const MY_ABSENCE_KEY = 'my-absence';
+
+/** Today's absence report of the signed-in person. */
+export function useMyAbsence(today: string) {
+  const { currentUser } = useAuth();
+  return useQuery({ queryKey: [MY_ABSENCE_KEY, currentUser?.id, today], queryFn: () => myHomeRepository.myAbsence(today), enabled: Boolean(currentUser?.id && today) });
+}
+
+export function useReportAbsence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ reason, note }: { reason: 'sick' | 'other'; note: string }) => myHomeRepository.reportAbsence(reason, note),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [MY_ABSENCE_KEY] }),
+  });
+}

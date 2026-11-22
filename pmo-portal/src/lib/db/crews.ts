@@ -64,6 +64,8 @@ export interface RosterMember {
   standard_role_id: string | null;
   /** Off rotation that day (FR-CRW-010): the tick screen defaults them to off rotation. */
   off_rotation?: boolean;
+  /** The person told the crew leader they are not coming in that day (1631); the roster shows it, it is not attendance. */
+  reported_absent?: { reason: 'sick' | 'other'; note: string | null };
 }
 
 export interface RosterRole {
@@ -271,6 +273,20 @@ export async function correctCrewMember(
   const { data, error } = await supabase.from('crew_members').update(patch).eq('id', id).eq('version', version).select('id');
   fail(error);
   if (!data || data.length === 0) throw new AppError('This placement changed since you opened it.', STALE_VERSION_CODE);
+}
+
+/** Every work-order placement of one crew, newest first (the lend form checks the host crew is scheduled). */
+export async function listCrewSchedule(crewId: string): Promise<WorkOrderCrewRow[]> {
+  const rows = await fetchAllRowsByKeyset<WorkOrderCrewRow>(async (afterId, limit) => {
+    let q = supabase
+      .from('work_order_crews')
+      .select('id, work_order_id, crew_id, valid_from, valid_to, version')
+      .eq('crew_id', crewId)
+      .order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit);
+  });
+  return rows.sort((a, b) => b.valid_from.localeCompare(a.valid_from) || a.id.localeCompare(b.id));
 }
 
 /** A work order's roster placements, newest first. */

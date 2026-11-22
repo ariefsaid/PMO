@@ -121,7 +121,14 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
     if (ok) setDirty(false);
     return ok;
   };
-  const submit = async () => { if (await save()) await run(() => m.submit.mutateAsync(report.id), t('toast.submitted', 'Sent for validation')); };
+  const submit = async () => {
+    if (!(await save())) return;
+    // The author is told at send what the validator will still need (the rule is the validator's, shown to both).
+    const missingPhoto = !detail.photos.some((p) => p.kind === 'paper_form');
+    await run(() => m.submit.mutateAsync(report.id), missingPhoto
+      ? t('toast.submittedNeedsPhoto', 'Sent for validation. The validator needs a photo of the paper form: add it.')
+      : t('toast.submitted', 'Sent for validation'));
+  };
   const withdraw = () => run(() => m.withdraw.mutateAsync(report.id), t('toast.withdrawn', 'Report taken back. You can edit it again.'));
   const validate = () => run(() => m.validate.mutateAsync(report.id), t('toast.validated', 'Report validated'));
   const hasPaperForm = detail.photos.some((p) => p.kind === 'paper_form');
@@ -171,6 +178,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           </div>
         )}
       >
+        {editable && !hasPaperForm && <p className="text-foreground" role="status" data-testid="dsr-author-needs-photo">{t('detail.needsPhotoAuthor', 'Add a photo of the paper form before you send. The validator cannot accept the report without it.')}</p>}
         {mayValidate && !hasPaperForm && <p className="text-foreground">{t('detail.needsPhoto', 'A photo of the paper form is needed to validate')}</p>}
         {report.superseded_at && <p className="text-foreground">{t('detail.superseded', 'Replaced by a correction')}</p>}
         {report.correction_reason && <p className="text-foreground">{t('detail.correction', { defaultValue: 'Correction: {{reason}}', reason: report.correction_reason })}</p>}
@@ -287,7 +295,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           )}
         </RecordSection>}
 
-        {report.status === 'validated' && <SiteReportStock reportId={report.id} enabled={stockOn} />}
+        {report.status === 'validated' && <SiteReportStock reportId={report.id} workOrderId={report.work_order_id} enabled={stockOn} />}
 
         <RecordSection title={t('equipment.title', 'Equipment hours')} data-testid="dsr-equipment"
           actions={editable ? <Link to="/equipment" className="text-primary-text hover:underline">{t('equipment.add', 'Add usage')}</Link> : undefined}>

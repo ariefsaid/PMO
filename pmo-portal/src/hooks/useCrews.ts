@@ -44,6 +44,11 @@ export function useWorkOrderCrews(workOrderId: string | null) {
   return useOrgQuery(['work-order-crews', workOrderId], () => crewRepository.workOrderCrews(workOrderId as string), { enabled: Boolean(workOrderId) });
 }
 
+/** Which days a crew is on a work order (all work orders); for the lend form's host-crew check. */
+export function useCrewSchedule(crewId: string | null) {
+  return useOrgQuery(['work-order-crews', 'crew', crewId], () => crewRepository.schedule(crewId as string), { enabled: Boolean(crewId) });
+}
+
 export function useWorkOrderRoster(workOrderId: string | null, date: string | null) {
   return useOrgQuery(['work-order-roster', workOrderId, date], () => crewRepository.rosterFor(workOrderId as string, date as string), { enabled: Boolean(workOrderId && date) });
 }

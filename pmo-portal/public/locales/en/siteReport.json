@@ -76,7 +76,8 @@
     "subject": "site report",
     "superseded": "Replaced by a correction",
     "title": "Site report",
-    "version": "Version {{n}}"
+    "version": "Version {{n}}",
+    "needsPhotoAuthor": "Add a photo of the paper form before you send. The validator cannot accept the report without it."
   },
   "equipment": {
     "add": "Add usage",
@@ -208,7 +209,8 @@
       "not_stocked": "Not tracked",
       "failed": "Refused",
       "pending": "Pending"
-    }
+    },
+    "setLocation": "Set the site location on the work order"
   },
   "title": "Site reports",
   "toast": {
@@ -216,6 +218,7 @@
     "saved": "Draft saved",
     "submitted": "Sent for validation",
     "validated": "Report validated",
+    "submittedNeedsPhoto": "Sent for validation. The validator needs a photo of the paper form: add it.",
     "withdrawn": "Report taken back. You can edit it again."
   },
   "empty": {
