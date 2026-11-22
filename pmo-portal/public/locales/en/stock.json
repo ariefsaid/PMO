@@ -496,7 +496,8 @@
       },
       "undo": "Once posted, a mistake is corrected with a correcting entry, not by editing.",
       "confirm": "Post"
-    }
+    },
+    "clientMaterialCost": "Client-supplied: the cost is fixed at zero."
   },
   "count": {
     "sections": {

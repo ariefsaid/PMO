@@ -496,7 +496,8 @@
       },
       "undo": "Setelah diposting, kesalahan dikoreksi dengan entri koreksi, bukan diubah.",
       "confirm": "Posting"
-    }
+    },
+    "clientMaterialCost": "Dipasok klien: biaya ditetapkan nol."
   },
   "count": {
     "sections": {

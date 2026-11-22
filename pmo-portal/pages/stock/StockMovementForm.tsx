@@ -15,6 +15,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useIsTwoStep } from '@/src/hooks/useStockTransfers';
+import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import {
   useIssuableProjects, useIssuableWorkItems, useProjectIssueLines, useStockDocumentMutations, useStockItems, useStockKeepers, useStockUnits, useStockWarehouses,
@@ -73,6 +74,7 @@ const StockMovementForm: React.FC = () => {
   const keepers = useStockKeepers();
   const items = useStockItems(false);
   const units = useStockUnits(true);
+  const tags = useStockTags(true);
   const projects = useIssuableProjects();
 
   const requestId = useRef<string>(crypto.randomUUID()); // stable across retries of one submit (FR-STK-015)
@@ -103,6 +105,8 @@ const StockMovementForm: React.FC = () => {
   const keptIds = useMemo(() => new Set((keepers.data ?? []).filter((k) => k.user_id === me).map((k) => k.warehouse_id)), [keepers.data, me]);
   const usable = useMemo(() => (warehouses.data ?? []).filter((w) => isAdmin || keptIds.has(w.id)), [warehouses.data, isAdmin, keptIds]);
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);
+  // Client-supplied material carries a zero-cost tag: it is marked on the line and its cost is fixed at zero, never asked.
+  const clientTag = (l: LineState) => { const tagId = l.itemId ? itemById.get(l.itemId)?.tag_id : null; return tagId ? (tags.data ?? []).find((g) => g.id === tagId && g.zero_cost) : undefined; };
   const wholeByUnit = useMemo(() => new Map((units.data ?? []).map((u) => [u.id, u.whole_only])), [units.data]);
 
   if (kind === 'transfer' && twoStep) return <Navigate to="/stock/transfers/new" replace />;
@@ -139,7 +143,7 @@ const StockMovementForm: React.FC = () => {
       if (!isPositiveDecimal(q)) e[`qty${l.key}`] = t('form.errors.quantity');
       else if (wholeOnlyItem(l) && !isWholeQuantity(q)) e[`qty${l.key}`] = t('errors.STK_FRACTION');
       if (kind === 'issue' && !l.boqItemId) e[`boq${l.key}`] = t('form.errors.workItem');
-      const cost = normalizeDecimal(l.unitCost);
+      const cost = clientTag(l) ? '0' : normalizeDecimal(l.unitCost);
       if (kind === 'receive' && !/^\d+(\.\d{1,4})?$/.test(cost)) e[`cost${l.key}`] = t('form.errors.unitCost');
       return {
         itemId: l.itemId ?? '', quantity: q,
@@ -314,7 +318,13 @@ const StockMovementForm: React.FC = () => {
                         helper={kind === 'return' && src ? t('form.issuedHelper', { qty: src.quantity, unit: src.item?.unit.code ?? '' }) : unitCodeOfLine(l) ? t('form.qtyUnitHelp', 'Enter the quantity in {{unit}}.', { unit: unitCodeOfLine(l) }) : undefined}
                         error={fieldErrors[`qty${l.key}`]}
                       />
-                      {kind === 'receive' && (
+                      {kind === 'receive' && clientTag(l) && (
+                        <p className="self-end text-control" data-testid={`client-material-${l.key}`}>
+                          <span className="mr-2 rounded border border-border px-1.5 py-0.5 text-sm font-medium">{clientTag(l)!.name}</span>
+                          {t('form.clientMaterialCost')}
+                        </p>
+                      )}
+                      {kind === 'receive' && !clientTag(l) && (
                         <TextField
                           label={`${canSeeCost ? t('form.unitCost') : t('form.unitCostBlind')}${n}`}
                           required

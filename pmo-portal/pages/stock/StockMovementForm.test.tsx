@@ -25,6 +25,8 @@ let effectiveRole: Role = 'Engineer';
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole }) }));
 
 vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({ CostAttributionFields: ({ projectId, value }: { projectId: string | null; value?: { workOrderId: string | null } }) => <div data-testid="cost-attribution-stub" data-project={projectId ?? ''} data-wo={value?.workOrderId ?? ''} /> }));
+const tagState = vi.hoisted(() => ({ tags: [] as unknown[] }));
+vi.mock('@/src/hooks/useStockSiteWork', () => ({ useStockTags: () => ({ data: tagState.tags }) }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-01' }) }));
 
 import StockMovementForm from './StockMovementForm';
@@ -255,6 +257,25 @@ describe('StockMovementForm', () => {
     renderForm('receive', 'Project Manager');
     expect(await screen.findByLabelText(/^Unit cost/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/you will not see it again/)).not.toBeInTheDocument();
+  });
+
+  it('JOB-1122-2 a client-supplied item is tagged on the receive form, its cost is not asked, and it posts at zero', async () => {
+    tagState.tags = [{ id: 'g1', name: 'Client material', zero_cost: true, paper_required: false }];
+    master.listItems.mockResolvedValue([{ ...item, tag_id: 'g1' }]);
+    master.listKeepers.mockResolvedValue([{ warehouse_id: 'w1', user_id: 'me', org_id: 'org-1' }]);
+    renderForm('receive', 'Engineer');
+    await userEvent.selectOptions(await screen.findByLabelText(/^Warehouse/), 'w1');
+    await userEvent.click(screen.getByRole('combobox', { name: /^Item/ }));
+    await userEvent.type(await screen.findByRole('combobox', { name: /^(search|cari) /i }), 'cem');
+    await userEvent.click(await screen.findByRole('option', { name: /CEM - Cement 50kg/ }));
+    expect(await screen.findByTestId('client-material-1')).toHaveTextContent('Client material');
+    expect(screen.queryByLabelText(/Unit cost/)).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/^Quantity/), '3');
+    await userEvent.click(screen.getByRole('button', { name: 'Post receipt' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Post', exact: true }));
+    await waitFor(() => expect(documents.create).toHaveBeenCalledTimes(1));
+    expect(documents.create.mock.calls[0][0].lines[0]).toMatchObject({ itemId: 'i1', quantity: '3', unitCost: '0' });
+    tagState.tags = [];
   });
 
   it('AC-STK-032 loading, then populated', async () => {
