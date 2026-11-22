@@ -76,4 +76,14 @@ describe('people import: preview and confirm', () => {
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByText('Will update')).toBeInTheDocument();
   });
+
+  it('AC-PIU-005 a file where every row is already in the register: confirm reads "Add 0 and update 0" and is disabled', async () => {
+    vi.mocked(parseWorkbook).mockResolvedValue({ headers: [...HEADERS.en], rows: [['P-0001', 'Ana']] });
+    const user = userEvent.setup();
+    renderWizard('en', async () => [{ ...stored[0], name: 'Ana' }]);
+    await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), new File(['x'], 'people.xlsx'));
+    await user.click(await screen.findByRole('button', { name: 'Next' }));
+    expect(await screen.findByRole('button', { name: 'Add 0 and update 0' })).toBeDisabled();
+    expect(screen.getByText('No change')).toBeInTheDocument();
+  });
 });

@@ -57,5 +57,5 @@ test('AC-PIU-002 an upload updates the matched person, adds the new one, leaves 
 
   dialog = await upload(page, rows);
   await expect(dialog.getByText('No change').first()).toBeVisible();
-  await expect(dialog.getByRole('button', { name: /^Import 0/ })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Add 0 and update 0' })).toBeDisabled();
 });
