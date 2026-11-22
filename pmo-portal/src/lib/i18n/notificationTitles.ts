@@ -11,6 +11,7 @@ export interface NotificationTitleMatch { key: string; params: Record<string, st
 
 /** Exact titles. The key is `notifications:titles.<key>`. */
 export const NOTIFICATION_TITLES: Record<string, string> = {
+  'A crew member reports absent today': 'crewAbsence',
   'A task was assigned to you': 'taskAssigned',
   'Reminder: a task is overdue': 'taskOverdueReminder',
   'Issue is overdue': 'issueOverdue',
@@ -35,6 +36,10 @@ export const NOTIFICATION_TITLES: Record<string, string> = {
   'Your procurement was rejected': 'procurementRejected',
   'Your timesheet was approved': 'timesheetApproved',
   'Your timesheet was rejected': 'timesheetRejected',
+  // These mirror notificationCopy's earlier exact lookup so its existing output remains authoritative.
+  'Your daily report was sent back': 'dsrReturned',
+  'Your material request was approved': 'mrqApproved',
+  'Your subcontract certificate was sent back': 'certReturned',
   'Supplier marked at risk': 'supplierAtRisk',
   'Supplier marked inactive': 'supplierInactive',
   'Billing step is overdue': 'billingStepOverdue',
