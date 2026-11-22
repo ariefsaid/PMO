@@ -48,7 +48,10 @@ insert into timesheets (id, org_id, user_id, week_start_date, status) values
 insert into timesheet_entries (id, org_id, timesheet_id, project_id, work_order_id, entry_date, hours) values
   ('17210000-0000-0000-0000-000000000711', '17210000-0000-0000-0000-00000000000a', '17210000-0000-0000-0000-000000000701', '17210000-0000-0000-0000-0000000000d1', '17210000-0000-0000-0000-000000000401', '2026-11-02', 8),
   ('17210000-0000-0000-0000-000000000712', '17210000-0000-0000-0000-00000000000a', '17210000-0000-0000-0000-000000000702', '17210000-0000-0000-0000-0000000000d1', '17210000-0000-0000-0000-000000000401', '2026-11-02', 8);
-insert into idle_cost_settings (org_id, enabled) values ('17210000-0000-0000-0000-00000000000a', true);
+-- 1670's organizations_switch_defaults trigger already seeds this row on org insert (enabled true). State the value the
+-- fixture needs on the seeded row rather than inserting a second one, so a changed seed default cannot mask these goals.
+insert into idle_cost_settings (org_id, enabled) values ('17210000-0000-0000-0000-00000000000a', true)
+  on conflict (org_id) do update set enabled = excluded.enabled;
 insert into dsr_idle_reasons (id, org_id, label) values
   ('17210000-0000-0000-0000-000000000b01', '17210000-0000-0000-0000-00000000000a', 'Waiting');
 insert into daily_site_reports (id, org_id, project_id, work_order_id, work_date, status, author_id, validated_by, validated_at, superseded_at, archived_at, submitted_at) values

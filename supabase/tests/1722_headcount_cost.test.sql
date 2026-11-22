@@ -31,20 +31,20 @@ insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values
 insert into people (id, org_id, kind, code, name, profile_id) values
   ('17220000-0000-0000-0000-000000000f01', '17220000-0000-0000-0000-00000000000a', 'own', 'HCC-N', 'Named Worker', null);
 insert into labour_cost_classes (id, org_id, code, name) values
-  ('17220000-0000-0000-0000-0000000000e11', '17220000-0000-0000-0000-00000000000a', 'hcc_hourly', 'Hourly'), ('17220000-0000-0000-0000-0000000000e12', '17220000-0000-0000-0000-00000000000a', 'hcc_daily', 'Daily'), ('17220000-0000-0000-0000-0000000000e13', '17220000-0000-0000-0000-00000000000a', 'hcc_monthly', 'Monthly'),
-  ('17220000-0000-0000-0000-0000000000e14', '17220000-0000-0000-0000-00000000000a', 'hcc_norate', 'No rate'), ('17220000-0000-0000-0000-0000000000e15', '17220000-0000-0000-0000-00000000000a', 'hcc_early', 'Early');
+  ('17220000-0000-0000-0000-000000000e11', '17220000-0000-0000-0000-00000000000a', 'hcc_hourly', 'Hourly'), ('17220000-0000-0000-0000-000000000e12', '17220000-0000-0000-0000-00000000000a', 'hcc_daily', 'Daily'), ('17220000-0000-0000-0000-000000000e13', '17220000-0000-0000-0000-00000000000a', 'hcc_monthly', 'Monthly'),
+  ('17220000-0000-0000-0000-000000000e14', '17220000-0000-0000-0000-00000000000a', 'hcc_norate', 'No rate'), ('17220000-0000-0000-0000-000000000e15', '17220000-0000-0000-0000-00000000000a', 'hcc_early', 'Early');
 create temp table d as select public.equipment_org_today('17220000-0000-0000-0000-00000000000a') as t;
 create temp table hl (k text primary key, id uuid);
 grant select on d to authenticated;
 grant all on hl to authenticated;
 insert into labour_cost_rates (id, org_id, subject_kind, class_id, basis, amount, overtime_multiplier, day_hours, month_hours, effective_from, effective_to) values
-  ('17220000-0000-0000-0000-0000000000f1', '17220000-0000-0000-0000-00000000000a', 'class', '17220000-0000-0000-0000-0000000000e11', 'hourly', 40000, 1.5, 8, 173, '2020-01-01', null),
-  ('17220000-0000-0000-0000-0000000000f2', '17220000-0000-0000-0000-00000000000a', 'class', '17220000-0000-0000-0000-0000000000e12', 'daily', 800000, 1, 8, 173, '2020-01-01', null),
-  ('17220000-0000-0000-0000-0000000000f3', '17220000-0000-0000-0000-00000000000a', 'class', '17220000-0000-0000-0000-0000000000e13', 'monthly', 3460000, 1, 8, 173, '2020-01-01', null),
-  ('17220000-0000-0000-0000-0000000000f4', '17220000-0000-0000-0000-00000000000a', 'class', '17220000-0000-0000-0000-0000000000e15', 'hourly', 10000, 1, 8, 173, '2020-01-01', (select t from d) - 20),
-  ('17220000-0000-0000-0000-0000000000f5', '17220000-0000-0000-0000-00000000000a', 'class', '17220000-0000-0000-0000-0000000000e15', 'hourly', 20000, 1, 8, 173, (select t from d) - 15, null);
+  ('17220000-0000-0000-0000-0000000000f1', '17220000-0000-0000-0000-00000000000a', 'class', '17220000-0000-0000-0000-000000000e11', 'hourly', 40000, 1.5, 8, 173, '2020-01-01', null),
+  ('17220000-0000-0000-0000-0000000000f2', '17220000-0000-0000-0000-00000000000a', 'class', '17220000-0000-0000-0000-000000000e12', 'daily', 800000, 1, 8, 173, '2020-01-01', null),
+  ('17220000-0000-0000-0000-0000000000f3', '17220000-0000-0000-0000-00000000000a', 'class', '17220000-0000-0000-0000-000000000e13', 'monthly', 3460000, 1, 8, 173, '2020-01-01', null),
+  ('17220000-0000-0000-0000-0000000000f4', '17220000-0000-0000-0000-00000000000a', 'class', '17220000-0000-0000-0000-000000000e15', 'hourly', 10000, 1, 8, 173, '2020-01-01', (select t from d) - 20),
+  ('17220000-0000-0000-0000-0000000000f5', '17220000-0000-0000-0000-00000000000a', 'class', '17220000-0000-0000-0000-000000000e15', 'hourly', 20000, 1, 8, 173, (select t from d) - 15, null);
 insert into labour_class_assignments (org_id, worker_id, class_id, effective_from) values
-  ('17220000-0000-0000-0000-00000000000a', '17220000-0000-0000-0000-000000000f01', '17220000-0000-0000-0000-0000000000e11', '2020-01-01');
+  ('17220000-0000-0000-0000-00000000000a', '17220000-0000-0000-0000-000000000f01', '17220000-0000-0000-0000-000000000e11', '2020-01-01');
 set local session_replication_role = replica;
 -- The named worker's approved attendance on the same work order and date as head-count line L1 (8 h at 40000).
 insert into attendance_days (id, org_id, worker_id, work_order_id, project_id, crew_id, work_date, status, hours, source, submitted_at, approved_at, locked_at) values
@@ -64,12 +64,12 @@ create temp table before_cost as select * from public.work_order_cost_amounts('1
 create temp table before_idle as select * from public.work_order_idle_cost('17220000-0000-0000-0000-0000000000d1');
 grant select on before_cost, before_idle to authenticated;
 select pg_temp.act_as('17220000-0000-0000-0000-0000000000a5');
-insert into hl values ('L1', public.record_headcount_day('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-000000000c01', (select t from d) - 1, '17220000-0000-0000-0000-0000000000e11', 3));
-insert into hl values ('L2', public.record_headcount_day('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-000000000c01', (select t from d) - 2, '17220000-0000-0000-0000-0000000000e12', 2));
-insert into hl values ('L3', public.record_headcount_day('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-000000000c01', (select t from d) - 3, '17220000-0000-0000-0000-0000000000e13', 5));
-insert into hl values ('L4', public.record_headcount_day('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-000000000c01', (select t from d) - 4, '17220000-0000-0000-0000-0000000000e14', 1));
-insert into hl values ('L5', public.record_headcount_day('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-000000000c01', (select t from d) - 5, '17220000-0000-0000-0000-0000000000e11', 9));
-insert into hl values ('L7', public.record_headcount_day('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-000000000c01', (select t from d) - 6, '17220000-0000-0000-0000-0000000000e15', 1));
+insert into hl values ('L1', public.record_headcount_day('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-000000000c01', (select t from d) - 1, '17220000-0000-0000-0000-000000000e11', 3));
+insert into hl values ('L2', public.record_headcount_day('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-000000000c01', (select t from d) - 2, '17220000-0000-0000-0000-000000000e12', 2));
+insert into hl values ('L3', public.record_headcount_day('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-000000000c01', (select t from d) - 3, '17220000-0000-0000-0000-000000000e13', 5));
+insert into hl values ('L4', public.record_headcount_day('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-000000000c01', (select t from d) - 4, '17220000-0000-0000-0000-000000000e14', 1));
+insert into hl values ('L5', public.record_headcount_day('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-000000000c01', (select t from d) - 5, '17220000-0000-0000-0000-000000000e11', 9));
+insert into hl values ('L7', public.record_headcount_day('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-000000000c01', (select t from d) - 6, '17220000-0000-0000-0000-000000000e15', 1));
 select pg_temp.act_as('17220000-0000-0000-0000-0000000000a2');
 select public.approve_headcount_day((select id from hl where k = 'L1'));
 select public.approve_headcount_day((select id from hl where k = 'L2'));
@@ -92,7 +92,7 @@ grant select on fin_rows to authenticated;
 select ok((select count(*)::int from fin_rows where source = 'headcount_day') > 0, 'AC-HC-001 the same data with the switch on is read (the off proof is not vacuous)');
 select is((select amount from fin_rows where record_id = (select id from hl where k = 'L1')), '960000.00', 'AC-HC-002 3 heads at a 40000 hourly class rate over an 8 h day cost 960000.00');
 select is((select reason || ':' || currency || ':' || quantity::text || ':' || quantity_unit from fin_rows where record_id = (select id from hl where k = 'L1')), 'counted:IDR:24.00:hours', 'AC-HC-002 the quantity is person-hours: 3 heads x the 8 h day length');
-select is((select labour_class_id from fin_rows where record_id = (select id from hl where k = 'L1')), '17220000-0000-0000-0000-0000000000e11'::uuid, 'AC-HC-002 the line carries its class');
+select is((select labour_class_id from fin_rows where record_id = (select id from hl where k = 'L1')), '17220000-0000-0000-0000-000000000e11'::uuid, 'AC-HC-002 the line carries its class');
 select is((select coalesce(person_id::text, 'none') || ':' || work_order_id::text from fin_rows where record_id = (select id from hl where k = 'L1')), 'none:' || '17220000-0000-0000-0000-000000000401', 'AC-HC-002 the line names no person and belongs to its work order');
 select is((select amount from fin_rows where record_id = (select id from hl where k = 'L2')), '1600000.00', 'AC-HC-002 2 heads at an 800000 daily class rate cost 1600000.00');
 select is((select amount || ':' || quantity::text from fin_rows where record_id = (select id from hl where k = 'L3')), '800000.00:40.00', 'AC-HC-002 5 heads at a 3460000 monthly class rate over 173 h cost 800000.00 (40 person-hours)');
@@ -114,12 +114,12 @@ select pg_temp.act_as('17220000-0000-0000-0000-0000000000a4');
 select throws_ok($$select * from public.work_order_cost_amounts('17220000-0000-0000-0000-0000000000d1')$$, '42501', 'not authorized', 'AC-HC-004 a role outside the four is refused the read');
 select pg_temp.act_as('17220000-0000-0000-0000-0000000000a1');
 select public.save_labour_cost_settings(false);
-select throws_like(format($$select public.save_labour_cost_rate(%L::jsonb)$$, jsonb_build_object('subject_kind', 'class', 'class_id', '17220000-0000-0000-0000-0000000000e11'::uuid, 'basis', 'hourly', 'amount', 1000, 'overtime_multiplier', 1, 'effective_from', (select t from d) - 1)), '%LCM_RATE_LOCKED%', 'AC-HC-008 a class rate starting on or before an approved head-count day of that class is refused, even with the switch off');
+select throws_like(format($$select public.save_labour_cost_rate(%L::jsonb)$$, jsonb_build_object('subject_kind', 'class', 'class_id', '17220000-0000-0000-0000-000000000e11'::uuid, 'basis', 'hourly', 'amount', 1000, 'overtime_multiplier', 1, 'effective_from', (select t from d) - 1)), '%LCM_RATE_LOCKED%', 'AC-HC-008 a class rate starting on or before an approved head-count day of that class is refused, even with the switch off');
 select throws_like($$select public.end_labour_cost_rate('17220000-0000-0000-0000-0000000000f1', (select t from d) - 3)$$, '%LCM_RATE_LOCKED%', 'AC-HC-008 ending the class rate that prices an approved head-count day before it is refused');
 select throws_like($$select public.archive_labour_cost_rate('17220000-0000-0000-0000-0000000000f1')$$, '%LCM_RATE_LOCKED%', 'AC-HC-008 archiving the class rate that prices an approved head-count day is refused');
-select lives_ok(format($$select public.save_labour_cost_rate(%L::jsonb)$$, jsonb_build_object('subject_kind', 'class', 'class_id', '17220000-0000-0000-0000-0000000000e11'::uuid, 'basis', 'hourly', 'amount', 1000, 'overtime_multiplier', 1, 'effective_from', (select t from d) + 1)), 'AC-HC-008 a class rate starting after the last approved day is allowed');
+select lives_ok(format($$select public.save_labour_cost_rate(%L::jsonb)$$, jsonb_build_object('subject_kind', 'class', 'class_id', '17220000-0000-0000-0000-000000000e11'::uuid, 'basis', 'hourly', 'amount', 1000, 'overtime_multiplier', 1, 'effective_from', (select t from d) + 1)), 'AC-HC-008 a class rate starting after the last approved day is allowed');
 select throws_like($$select public.end_labour_cost_rate('17220000-0000-0000-0000-0000000000f4', (select t from d) - 3)$$, '%LCM_RATE_LOCKED%', 'AC-HC-008 moving the end of a class rate later over a day another rate prices is refused');
-select lives_ok(format($$select public.save_labour_cost_rate(%L::jsonb)$$, jsonb_build_object('subject_kind', 'class', 'class_id', '17220000-0000-0000-0000-0000000000e14'::uuid, 'basis', 'hourly', 'amount', 1000, 'overtime_multiplier', 1, 'effective_from', (select t from d) - 10)), 'AC-HC-008 a first rate for a class whose approved head count had no rate prices nothing already priced, so it is allowed');
+select lives_ok(format($$select public.save_labour_cost_rate(%L::jsonb)$$, jsonb_build_object('subject_kind', 'class', 'class_id', '17220000-0000-0000-0000-000000000e14'::uuid, 'basis', 'hourly', 'amount', 1000, 'overtime_multiplier', 1, 'effective_from', (select t from d) - 10)), 'AC-HC-008 a first rate for a class whose approved head count had no rate prices nothing already priced, so it is allowed');
 select public.save_labour_cost_settings(true);
 select pg_temp.act_as('17220000-0000-0000-0000-0000000000a2');
 select lives_ok($$select public.approve_headcount_day((select id from hl where k = 'L5'))$$, 'AC-HC-003 the approver approves the remaining line');

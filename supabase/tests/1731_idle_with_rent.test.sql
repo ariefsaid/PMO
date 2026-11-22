@@ -91,7 +91,13 @@ insert into attendance_days (id, org_id, worker_id, work_order_id, project_id, c
   (gen_random_uuid(), '17310000-0000-0000-0000-00000000000a', '17310000-0000-0000-0000-000000000f01', '17310000-0000-0000-0000-000000000401', '17310000-0000-0000-0000-0000000000d1', '17310000-0000-0000-0000-000000000c01', '2026-11-03', 'present', 8, 'roster_tick'),
   (gen_random_uuid(), '17310000-0000-0000-0000-00000000000a', '17310000-0000-0000-0000-000000000f02', '17310000-0000-0000-0000-000000000401', '17310000-0000-0000-0000-0000000000d1', '17310000-0000-0000-0000-000000000c01', '2026-11-03', 'present', 8, 'roster_tick'),
   (gen_random_uuid(), '17310000-0000-0000-0000-00000000000a', '17310000-0000-0000-0000-000000000f03', '17310000-0000-0000-0000-000000000401', '17310000-0000-0000-0000-0000000000d1', '17310000-0000-0000-0000-000000000c01', '2026-11-03', 'absent', null, 'roster_tick');
-insert into labour_cost_classes (id, org_id, code, name) values ('17310000-0000-0000-0000-000000000d11', '17310000-0000-0000-0000-00000000000a', 'ir-unnamed', 'Unnamed');
+-- The default classes the first switch-on would seed (1250: the seed runs only while the org has no class at all), inserted
+-- here so this fixture's own class does not suppress them: the role and person rates below need a class.
+insert into labour_cost_classes (id, org_id, code, name) values
+  ('17310000-0000-0000-0000-000000000d12', '17310000-0000-0000-0000-00000000000a', 'direct', 'Direct'),
+  ('17310000-0000-0000-0000-000000000d13', '17310000-0000-0000-0000-00000000000a', 'indirect', 'Indirect'),
+  ('17310000-0000-0000-0000-000000000d14', '17310000-0000-0000-0000-00000000000a', 'guard', 'Guard'),
+  ('17310000-0000-0000-0000-000000000d11', '17310000-0000-0000-0000-00000000000a', 'ir_unnamed', 'Unnamed');
 -- head-count lines: 02 Nov approved 2 (counts); 03 Nov unapproved 7 (does not)
 insert into headcount_days (org_id, work_order_id, crew_id, class_id, work_date, head_count, approved_by, approved_at) values
   ('17310000-0000-0000-0000-00000000000a', '17310000-0000-0000-0000-000000000401', '17310000-0000-0000-0000-000000000c01', '17310000-0000-0000-0000-000000000d11', '2026-11-02', 2, '17310000-0000-0000-0000-0000000000a2', now());
