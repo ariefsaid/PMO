@@ -266,7 +266,7 @@
   },
   "usage": {
     "title": "Peringatan pemakaian",
-    "sub": "Beri peringatan saat pemakaian material perintah kerja mencapai persentase rencana ini. Kosongkan kolom untuk mematikan peringatan itu. Peringatan tidak pernah menghalangi permintaan.",
+    "sub": "Beri peringatan saat pemakaian material perintah kerja mencapai persentase rencana ini. Kosongkan kolom untuk mematikan peringatan itu. Peringatan tidak pernah menghalangi permintaan. Peringatan pertama juga memberi tahu insinyur lapangan perintah kerja saat material terpasang mencapainya.",
     "first": "Peringatan pertama (% dari rencana)",
     "second": "Peringatan kedua (% dari rencana)",
     "save": "Simpan peringatan",
@@ -275,6 +275,15 @@
     "invalidRange": "Masukkan persentase dari 1 sampai 1000.",
     "invalidOrder": "Peringatan kedua harus lebih tinggi dari yang pertama.",
     "reached": "Pemakaian mencapai {{reached}}% dari rencana, melewati peringatan {{threshold}}%.",
-    "planZero": "Rencana belum ditetapkan, jadi pemakaian apa pun melewati peringatan {{threshold}}%."
+    "planZero": "Rencana belum ditetapkan, jadi pemakaian apa pun melewati peringatan {{threshold}}%.",
+    "installedTitle": "Yang dihitung terpasang",
+    "installedSub": "Peringatan pemakaian membandingkan material terpasang dengan rencana. Pilih dari mana jumlah terpasang diambil.",
+    "installedLabel": "Material terpasang berasal dari",
+    "installedSiteReports": "Laporan lapangan yang divalidasi",
+    "installedStockIssues": "Pengeluaran penjaga gudang ke perintah kerja (dikurangi retur)",
+    "installedSave": "Simpan sumber",
+    "installedSaved": "Sumber disimpan",
+    "cardTitle": "Material terpasang melewati peringatan pemakaian",
+    "cardLine": "{{item}}: {{installed}} dari {{plan}} {{unit}} rencana terpasang, melewati peringatan {{threshold}}%."
   }
 }

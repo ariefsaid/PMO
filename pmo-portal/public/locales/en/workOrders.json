@@ -85,6 +85,13 @@
     "help": "A validated daily report issues its material from here to this work order.",
     "error": "Couldn't save the site location"
   },
+  "responsible": {
+    "title": "Responsible person",
+    "label": "Site engineer for this work order",
+    "none": "Not set",
+    "noneReadOnly": "Not set. Ask a project manager to name the site engineer.",
+    "help": "Material usage warnings for this work order go to this person. While it is not set they go to the project manager."
+  },
   "inspections": {
     "title": "Third-party inspections",
     "error": "Couldn't load the inspections",

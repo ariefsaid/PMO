@@ -1,0 +1,2 @@
+# 1861: an Admin sets what counts as installed for the usage warning. Refuses anon.
+set_usage_installed_source
